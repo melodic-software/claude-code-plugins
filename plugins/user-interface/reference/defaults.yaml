@@ -135,3 +135,8 @@ components:
 # writes it in rem, the value divided by the root size in px. Project tokens beat every layer.
 typography:
   long_form_body_px: 18
+# How a touch element that needs both axes (a map, a canvas) takes gestures: tap-to-activate starts
+# it inactive so the page scrolls across it, and one tap activates it; always-active takes gestures
+# from the first touch. The project's own pattern beats every layer.
+touch:
+  both_axes_activation: tap-to-activate

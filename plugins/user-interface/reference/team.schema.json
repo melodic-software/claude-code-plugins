@@ -160,6 +160,14 @@
         "long_form_body_px": {"type": "integer", "minimum": 16, "description": "The size in px of long-form reading text (articles, documentation), never below the 16px body floor; a skill writes it in rem, the value divided by the root size in px."}
       }
     },
+    "touch": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Touch taste defaults read by the touch concern in reference/types/touch-web.md. The project's own pattern beats every layer.",
+      "properties": {
+        "both_axes_activation": {"type": "string", "enum": ["tap-to-activate", "always-active"], "description": "How a touch element that needs both axes (a map, a canvas) takes gestures: tap-to-activate starts it inactive so the page scrolls across it and one tap activates it, with a tap outside, a visible control and Esc as shown ways out; always-active takes gestures from the first touch."}
+      }
+    },
     "routing": {
       "type": "object",
       "additionalProperties": false,
