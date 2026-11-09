@@ -39,6 +39,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections import Counter
 from pathlib import Path
 
 # `from __future__ import annotations` needs 3.7+ at parse time; the test
@@ -72,11 +73,8 @@ class _DuplicateKeyCollector:
         self.duplicates: list[str] = []
 
     def __call__(self, pairs: list[tuple[str, object]]) -> dict[str, object]:
-        # dict insertion order (guaranteed at MIN_PYTHON) is first-seen order.
-        counts: dict[str, int] = {}
-        for key, _value in pairs:
-            counts[key] = counts.get(key, 0) + 1
-        for key, count in counts.items():
+        # Counter keeps dict insertion order (guaranteed at MIN_PYTHON): first-seen order.
+        for key, count in Counter(key for key, _value in pairs).items():
             if count > 1 and key not in self.duplicates:
                 self.duplicates.append(key)
         return dict(pairs)
