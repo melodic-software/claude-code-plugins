@@ -475,26 +475,16 @@ add_unread_manifest() {
   add_finding "unread-manifest" "$1" "$1: $2"
 }
 
-json_node() {
-  local id="$1" name="$2" path="$3" kind="$4" eco="$5" namespace="${6:-}" test="${7:-}"
-  local e_id e_name e_path e_kind e_eco extra=""
-  json_escape "$id"
-  e_id="$JSON_ESC"
-  json_escape "$name"
-  e_name="$JSON_ESC"
-  json_escape "$path"
-  e_path="$JSON_ESC"
-  json_escape "$kind"
-  e_kind="$JSON_ESC"
-  json_escape "$eco"
-  e_eco="$JSON_ESC"
-  if [[ -n "$namespace" ]]; then
-    json_escape "$namespace"
-    extra+=",\"namespace\":\"$JSON_ESC\""
-  fi
-  [[ -n "$test" ]] && extra+=',"test":"yes"'
-  printf '{"id":"%s","name":"%s","path":"%s","ecosystem":"%s","kind":"%s"%s}' \
-    "$e_id" "$e_name" "$e_path" "$e_eco" "$e_kind" "$extra"
+# Set JSON_OBJ to a one-line object of the string fields given as key/value pairs.
+JSON_OBJ=""
+json_object() {
+  local out=""
+  while [[ $# -ge 2 ]]; do
+    json_escape "$2"
+    out+="${out:+,}\"$1\":\"$JSON_ESC\""
+    shift 2
+  done
+  JSON_OBJ="{$out}"
 }
 
 # Optional node fields, read from the project file itself: namespace is
@@ -506,83 +496,29 @@ node_namespace() {
   printf '%s\n' "$ns"
 }
 
-json_edge() {
-  local from="$1" to="$2" kind="$3" status="$4" evidence="$5"
-  local e_from e_to e_kind e_status e_evidence
-  json_escape "$from"
-  e_from="$JSON_ESC"
-  json_escape "$to"
-  e_to="$JSON_ESC"
-  json_escape "$kind"
-  e_kind="$JSON_ESC"
-  json_escape "$status"
-  e_status="$JSON_ESC"
-  json_escape "$evidence"
-  e_evidence="$JSON_ESC"
-  printf '{"from":"%s","to":"%s","kind":"%s","status":"%s","evidence":"%s"}' \
-    "$e_from" "$e_to" "$e_kind" "$e_status" "$e_evidence"
-}
-
-json_cycle() {
-  local id="$1" e_id
-  json_escape "$id"
-  e_id="$JSON_ESC"
-  printf '{"id":"%s"}' "$e_id"
-}
-
-json_finding() {
-  local kind="$1" path="$2" evidence="$3"
-  local e_kind e_path e_evidence
-  json_escape "$kind"
-  e_kind="$JSON_ESC"
-  json_escape "$path"
-  e_path="$JSON_ESC"
-  json_escape "$evidence"
-  e_evidence="$JSON_ESC"
-  printf '{"kind":"%s","path":"%s","evidence":"%s"}' "$e_kind" "$e_path" "$e_evidence"
-}
-
+# Print "key": [...] with items $3... sorted, one per line, and $2 after the
+# closing bracket.
 emit_array() {
-  local key="$1" trailing="$2"
+  local key="$1" after="$2" i sep=","
   shift 2
-  local -a items=("$@")
-  local comma="" i item_comma
-  [[ "$trailing" == "comma" ]] && comma=","
-  if [[ ${#items[@]} -eq 0 ]]; then
-    printf '  "%s": []%s\n' "$key" "$comma"
+  if [[ $# -eq 0 ]]; then
+    printf '  "%s": []%s\n' "$key" "$after"
     return 0
   fi
+  local -a items
+  mapfile -t items < <(printf '%s\n' "$@" | LC_ALL=C sort)
   printf '  "%s": [\n' "$key"
   for i in "${!items[@]}"; do
-    item_comma=","
-    [[ "$i" -eq $((${#items[@]} - 1)) ]] && item_comma=""
-    printf '    %s%s\n' "${items[$i]}" "$item_comma"
+    [[ "$i" -eq $((${#items[@]} - 1)) ]] && sep=""
+    printf '    %s%s\n' "${items[$i]}" "$sep"
   done
-  printf '  ]%s\n' "$comma"
-}
-
-sort_lines() {
-  local -a incoming=("$@")
-  local -a sorted=()
-  local line
-  if [[ ${#incoming[@]} -eq 0 ]]; then
-    return 0
-  fi
-  while IFS= read -r line; do
-    [[ -n "$line" ]] || continue
-    sorted+=("$line")
-  done < <(printf '%s\n' "${incoming[@]}" | LC_ALL=C sort)
-  printf '%s\n' "${sorted[@]}"
+  printf '  ]%s\n' "$after"
 }
 
 root="$(cd "$raw_path" 2>/dev/null && pwd)" || die "not a readable directory: $raw_path" 1
 [[ -d "$root" ]] || die "not a readable directory: $raw_path" 1
 
-files=()
-while IFS= read -r line; do
-  [[ -n "$line" ]] || continue
-  files+=("$line")
-done < <(
+mapfile -t files < <(
   find "$root" -mindepth 1 \
     \( \( -name '.?*' \
     ! -name '.github' ! -name '.gitlab' ! -name '.circleci' \
@@ -672,6 +608,68 @@ if [[ ${#OTHER[@]} -gt 0 ]]; then
     other_msg="$other_msg$eco (${OTHER[$eco]})"
   done < <(printf '%s\n' "${!OTHER[@]}" | LC_ALL=C sort)
 fi
+
+# The value of the first "$1<TAB>value" record on stdin.
+record_value() {
+  awk -F '\t' -v key="$1" '$1 == key { print $2; exit }'
+}
+
+# Project node for manifest $1, named $2, else after its folder (the root's
+# own folder for a manifest at the top).
+add_project_node() {
+  local label
+  label="$(proj_dir_of "$1")"
+  label="${label:-$root}"
+  add_node "$1" "${2:-${label##*/}}" "$1" "project"
+}
+
+# Edges from workspace manifest $1 to each manifest in $4... whose folder a
+# members glob in records $2 matches under $1's folder, less the folders an
+# exclude glob matches. A glob node_glob_regex refuses is unread. A literal
+# member that matches no folder is an unresolved edge. $3 is "skip-dot" when a
+# "." member (the workspace root itself) draws nothing.
+add_member_edges() {
+  local rel="$1" records="$2" dot="$3" wdir kind glob decl re cand cdir under ex hit m
+  local -a excl=() mems=()
+  shift 3
+  wdir="$(proj_dir_of "$rel")"
+  while IFS=$'\t' read -r kind glob decl; do
+    case "$kind" in
+    exclude)
+      if re="$(node_glob_regex "$glob")"; then excl+=("$re"); else add_unread_manifest "$rel" "$decl"; fi
+      ;;
+    member) mems+=("$glob"$'\x1f'"$decl") ;;
+    *) ;;
+    esac
+  done <<<"$records"
+  for m in "${mems[@]+"${mems[@]}"}"; do
+    glob="${m%%$'\x1f'*}"
+    decl="${m#*$'\x1f'}"
+    [[ "$dot" == skip-dot && ("$glob" == . || "$glob" == ./) ]] && continue
+    if ! re="$(node_glob_regex "$glob")"; then
+      add_unread_manifest "$rel" "$decl"
+      continue
+    fi
+    hit=0
+    for cand in "$@"; do
+      cdir="$(proj_dir_of "$cand")"
+      [[ -n "$cdir" && "$cand" != "$rel" ]] || continue
+      if [[ -z "$wdir" ]]; then
+        under="$cdir"
+      else
+        [[ "$cdir" == "$wdir"/* ]] || continue
+        under="${cdir#"$wdir"/}"
+      fi
+      [[ "$under" =~ $re ]] || continue
+      hit=1
+      for ex in "${excl[@]+"${excl[@]}"}"; do [[ "$under" =~ $ex ]] && continue 2; done
+      add_edge "$rel" "$cand" "project" "resolved" "$rel: $decl"
+    done
+    if [[ $hit -eq 0 && "$glob" != *[*?]* ]]; then
+      add_edge "$rel" "$glob" "project" "unresolved" "$rel: $decl"
+    fi
+  done
+}
 
 declare -A FILE_RECORDS=()
 declare -A FILE_CONSUMED=()
@@ -790,17 +788,14 @@ has_node() { [[ ${#node_files[@]} -gt 0 ]]; }
 
 read_node() {
   local -A pkg_recs=() pkg_name=() ws_decls=() member_at=() roots_of=()
-  local rel dir name label rec decl
+  local rel name rec decl
   local us=$'\x1f'
 
   # Every package.json outside node_modules is a project node.
   for rel in "${node_files[@]}"; do
     pkg_recs[$rel]="$(node_manifest_records "$root/$rel")"
-    name="$(printf '%s\n' "${pkg_recs[$rel]}" | awk -F '\t' '$1 == "name" { print $2; exit }')"
-    pkg_name[$rel]="$name"
-    dir="$(proj_dir_of "$rel")"
-    label="${dir:-$root}"
-    add_node "$rel" "${name:-${label##*/}}" "$rel" "project"
+    pkg_name[$rel]="$(printf '%s\n' "${pkg_recs[$rel]}" | record_value name)"
+    add_project_node "$rel" "${pkg_name[$rel]}"
   done
 
   # Workspace declarations by the folder they sit in ("." is the root). Each
@@ -935,17 +930,14 @@ has_go() { [[ ${#go_files[@]} -gt 0 || ${#gowork_files[@]} -gt 0 ]]; }
 
 read_go() {
   local -A mod_recs=() mod_name=() replaced=() ws_members=()
-  local rel dir name label rec decl target old is_local normalized cand
+  local rel rec decl target old is_local normalized cand
   local us=$'\x1f'
 
   # Every go.mod is a project node; its id is its repo-relative path.
   for rel in "${go_files[@]+"${go_files[@]}"}"; do
     mod_recs[$rel]="$(go_mod_records "$root/$rel")"
-    name="$(printf '%s\n' "${mod_recs[$rel]}" | awk -F '\t' '$1 == "module" { print $2; exit }')"
-    mod_name[$rel]="$name"
-    dir="$(proj_dir_of "$rel")"
-    label="${dir:-$root}"
-    add_node "$rel" "${name:-${label##*/}}" "$rel" "project"
+    mod_name[$rel]="$(printf '%s\n' "${mod_recs[$rel]}" | record_value module)"
+    add_project_node "$rel" "${mod_name[$rel]}"
     while IFS= read -r rec; do
       [[ "$rec" == unread$'\t'* ]] && add_unread_manifest "$rel" "${rec#*$'\t'}"
     done <<<"${mod_recs[$rel]}"
@@ -1032,7 +1024,7 @@ has_python() { [[ ${#py_files[@]} -gt 0 || ${#req_files[@]} -gt 0 || ${#setup_fi
 
 read_python() {
   local -A is_pyproject=() is_setup=() seen=() named_path=() recs=()
-  local rel dir base name label owner rec kind a b c
+  local rel rec kind a b c
   local us=$'\x1f'
 
   for rel in "${py_files[@]+"${py_files[@]}"}"; do is_pyproject[$rel]=1; done
@@ -1084,17 +1076,12 @@ read_python() {
 
   # Every manifest folder is one project node; setup.py is reported, not read.
   for rel in "${py_files[@]+"${py_files[@]}"}"; do
-    dir="$(proj_dir_of "$rel")"
-    label="${dir:-$root}"
     recs[$rel]="$(py_project_records "$root/$rel")"
-    name="$(printf '%s\n' "${recs[$rel]}" | awk -F '\t' '$1 == "name" { print $2; exit }')"
-    add_node "$rel" "${name:-${label##*/}}" "$rel" "project"
+    add_project_node "$rel" "$(printf '%s\n' "${recs[$rel]}" | record_value name)"
   done
   for rel in "${setup_files[@]+"${setup_files[@]}"}"; do
     add_unread_manifest "$rel" "setup.py is not executed or parsed"
-    dir="$(proj_dir_of "$rel")"
-    label="${dir:-$root}"
-    add_node "$rel" "${label##*/}" "$rel" "project"
+    add_project_node "$rel" ""
   done
   for rel in "${req_files[@]+"${req_files[@]}"}"; do
     [[ "$(py_owner "$rel")" == "$rel" ]] && add_node "$rel" "${rel##*/}" "$rel" "project"
@@ -1120,52 +1107,11 @@ read_python() {
     done <<<"${recs[$rel]}"
   done
 
-  # A [tool.uv.workspace] members glob names the pyproject.toml files this run
-  # found in the folders it matches, under the workspace root's folder. An
-  # exclude removes the folders it matches. A glob node_glob_regex refuses is
-  # unread. A literal member holding no pyproject.toml is an unresolved edge.
-  py_read_workspace() {
-    local rel="$1" wdir kind glob decl re cand cdir under ex
-    local -a excl=() mems=()
-    wdir="$(proj_dir_of "$rel")"
-    while IFS=$'\t' read -r kind glob decl; do
-      case "$kind" in
-      exclude)
-        if re="$(node_glob_regex "$glob")"; then excl+=("$re"); else add_unread_manifest "$rel" "$decl"; fi
-        ;;
-      member) mems+=("$glob$us$decl") ;;
-      *) ;;
-      esac
-    done <<<"${recs[$rel]}"
-    local m
-    for m in "${mems[@]+"${mems[@]}"}"; do
-      glob="${m%%"$us"*}"
-      decl="${m#*"$us"}"
-      if ! re="$(node_glob_regex "$glob")"; then
-        add_unread_manifest "$rel" "$decl"
-        continue
-      fi
-      local hit=0
-      for cand in "${py_files[@]+"${py_files[@]}"}"; do
-        cdir="$(proj_dir_of "$cand")"
-        [[ -n "$cdir" && "$cand" != "$rel" ]] || continue
-        if [[ -z "$wdir" ]]; then
-          under="$cdir"
-        else
-          [[ "$cdir" == "$wdir"/* ]] || continue
-          under="${cdir#"$wdir"/}"
-        fi
-        [[ "$under" =~ $re ]] || continue
-        hit=1
-        for ex in "${excl[@]+"${excl[@]}"}"; do [[ "$under" =~ $ex ]] && continue 2; done
-        add_edge "$rel" "$cand" "project" "resolved" "$rel: $decl"
-      done
-      if [[ $hit -eq 0 && "$glob" != *[*?]* ]]; then
-        add_edge "$rel" "$glob" "project" "unresolved" "$rel: $decl"
-      fi
-    done
-  }
-  for rel in "${py_files[@]+"${py_files[@]}"}"; do py_read_workspace "$rel"; done
+  # [tool.uv.workspace] members name the pyproject.toml files under the
+  # workspace root's folder.
+  for rel in "${py_files[@]+"${py_files[@]}"}"; do
+    add_member_edges "$rel" "${recs[$rel]}" keep-dot "${py_files[@]}"
+  done
 
   # A requirements file, and the files it includes with -r that sit inside the
   # root, belong to its folder's project. An include that is missing or leaves
@@ -1200,7 +1146,7 @@ has_rust() { [[ ${#cargo_files[@]} -gt 0 ]]; }
 
 read_rust() {
   local -A is_cargo=() recs=() has_ws=() wdep=()
-  local rel dir name label rec kind a b c d us=$'\x1f'
+  local rel rec kind a b c d us=$'\x1f'
 
   for rel in "${cargo_files[@]}"; do is_cargo[$rel]=1; done
 
@@ -1224,10 +1170,7 @@ read_rust() {
   # Every Cargo.toml is one project node; its id is its repo-relative path.
   for rel in "${cargo_files[@]}"; do
     recs[$rel]="$(rust_manifest_records "$root/$rel")"
-    name="$(printf '%s\n' "${recs[$rel]}" | awk -F '\t' '$1 == "name" { print $2; exit }')"
-    dir="$(proj_dir_of "$rel")"
-    label="${dir:-$root}"
-    add_node "$rel" "${name:-${label##*/}}" "$rel" "project"
+    add_project_node "$rel" "$(printf '%s\n' "${recs[$rel]}" | record_value name)"
   done
 
   # Direct dependencies. [workspace.dependencies] entries are kept for the
@@ -1279,53 +1222,11 @@ read_rust() {
     done <<<"${recs[$rel]}"
   done
 
-  # A [workspace] members glob names the Cargo.toml files this run found in the
-  # folders it matches, under the workspace root's folder. An exclude removes
-  # the folders it matches. A glob node_glob_regex refuses is unread. A literal
-  # member holding no Cargo.toml is an unresolved edge.
-  local wdir glob decl re cand cdir under ex hit m
-  local -a excl mems
+  # [workspace] members name the Cargo.toml files under the workspace root's
+  # folder; a "." member is the root itself.
   for rel in "${cargo_files[@]}"; do
     [[ -n "${has_ws[$rel]+x}" ]] || continue
-    wdir="$(proj_dir_of "$rel")"
-    excl=()
-    mems=()
-    while IFS=$'\t' read -r kind glob decl; do
-      case "$kind" in
-      exclude)
-        if re="$(node_glob_regex "$glob")"; then excl+=("$re"); else add_unread_manifest "$rel" "$decl"; fi
-        ;;
-      member) mems+=("$glob$us$decl") ;;
-      *) ;;
-      esac
-    done <<<"${recs[$rel]}"
-    for m in "${mems[@]+"${mems[@]}"}"; do
-      glob="${m%%"$us"*}"
-      decl="${m#*"$us"}"
-      [[ "$glob" == . || "$glob" == ./ ]] && continue
-      if ! re="$(node_glob_regex "$glob")"; then
-        add_unread_manifest "$rel" "$decl"
-        continue
-      fi
-      hit=0
-      for cand in "${cargo_files[@]}"; do
-        cdir="$(proj_dir_of "$cand")"
-        [[ -n "$cdir" && "$cand" != "$rel" ]] || continue
-        if [[ -z "$wdir" ]]; then
-          under="$cdir"
-        else
-          [[ "$cdir" == "$wdir"/* ]] || continue
-          under="${cdir#"$wdir"/}"
-        fi
-        [[ "$under" =~ $re ]] || continue
-        hit=1
-        for ex in "${excl[@]+"${excl[@]}"}"; do [[ "$under" =~ $ex ]] && continue 2; done
-        add_edge "$rel" "$cand" "project" "resolved" "$rel: $decl"
-      done
-      if [[ $hit -eq 0 && "$glob" != *[*?]* ]]; then
-        add_edge "$rel" "$glob" "project" "unresolved" "$rel: $decl"
-      fi
-    done
+    add_member_edges "$rel" "${recs[$rel]}" skip-dot "${cargo_files[@]}"
   done
 }
 
@@ -1334,7 +1235,7 @@ has_jvm() { [[ ${#pom_files[@]} -gt 0 || ${#gradle_files[@]} -gt 0 || ${#setting
 read_jvm() {
   # gnode is keyed "/<folder>": bash refuses an empty subscript for the root.
   local -A is_pom=() gnode=() is_settings=()
-  local rel dir label name rec kind a b n cur sdir
+  local rel dir rec kind a b n cur sdir
 
   # An edge from project $1 to the Gradle project path $3, resolved from folder
   # $2, with the citation $4. A path with no leading colon is relative to $2.
@@ -1352,16 +1253,14 @@ read_jvm() {
   # its settings file when the folder has one.
   for rel in "${gradle_files[@]+"${gradle_files[@]}"}"; do
     dir="$(proj_dir_of "$rel")"
-    label="${dir:-$root}"
-    add_node "$rel" "${label##*/}" "$rel" "project"
+    add_project_node "$rel" ""
     [[ -n "${gnode[/$dir]+x}" ]] || gnode[/$dir]="$rel"
   done
   for rel in "${settings_files[@]+"${settings_files[@]}"}"; do
     dir="$(proj_dir_of "$rel")"
-    label="${dir:-$root}"
     is_settings[/$dir]=1
     if [[ -z "${gnode[/$dir]+x}" ]]; then
-      add_node "$rel" "${label##*/}" "$rel" "project"
+      add_project_node "$rel" ""
       gnode[/$dir]="$rel"
     fi
   done
@@ -1414,10 +1313,7 @@ read_jvm() {
     is_pom[$rel]=1
   done
   for rel in "${pom_files[@]+"${pom_files[@]}"}"; do
-    dir="$(proj_dir_of "$rel")"
-    label="${dir:-$root}"
-    name="$(jvm_pom_records "$root/$rel" | awk -F '\t' '$1 == "name" { print $2; exit }')"
-    add_node "$rel" "${name:-${label##*/}}" "$rel" "project"
+    add_project_node "$rel" "$(jvm_pom_records "$root/$rel" | record_value name)"
   done
   for rel in "${pom_files[@]+"${pom_files[@]}"}"; do
     dir="$(proj_dir_of "$rel")"
@@ -1472,8 +1368,7 @@ elif [[ -n "$other_msg" ]]; then
   message="Not read: $other_msg. No adapter for it is shipped; an unread ecosystem is left unread rather than drawn as an empty graph."
 fi
 
-cycle_lines=()
-cycles_truncated_json="false" # kept for schema_version 1 readers; the search cannot truncate
+cycle_json=()
 if [[ ${#edge_from[@]} -gt 0 ]]; then
   cycle_feed=""
   for i in "${!edge_from[@]}"; do
@@ -1486,7 +1381,11 @@ if [[ ${#edge_from[@]} -gt 0 ]]; then
     # through the smallest id of each component with more than one project or a
     # self-reference. O(projects + edges). The recursion depth is the longest
     # dependency chain.
-    cycle_raw="$(printf '%s' "$cycle_feed" | LC_ALL=C awk '
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      json_object id "$line"
+      cycle_json+=("$JSON_OBJ")
+    done < <(printf '%s' "$cycle_feed" | LC_ALL=C awk '
       function strong(v,    k, w, c) {
         idx[v] = ++counter
         low[v] = idx[v]
@@ -1550,58 +1449,31 @@ if [[ ${#edge_from[@]} -gt 0 ]]; then
           if (size[c] > 1 || (cmin[c] in selfloop)) print witness(c)
         }
       }
-    ')"
-    if [[ -n "$cycle_raw" ]]; then
-      while IFS= read -r line; do
-        [[ -n "$line" ]] || continue
-        cycle_lines+=("$line")
-      done <<<"$cycle_raw"
-    fi
+    ')
   fi
 fi
 
 node_json=()
 for i in "${!node_ids[@]}"; do
-  node_ns="" node_test=""
+  fields=(id "${node_ids[$i]}" name "${node_names[$i]}" path "${node_paths[$i]}" ecosystem "${node_ecos[$i]}" kind "${node_kinds[$i]}")
   if [[ "${node_kinds[$i]}" == "project" ]] && is_proj_suffix "${node_paths[$i]}"; then
     node_ns="$(node_namespace "${node_paths[$i]}")"
-    dotnet_is_test_project "$root/${node_paths[$i]}" && node_test=yes
+    [[ -z "$node_ns" ]] || fields+=(namespace "$node_ns")
+    dotnet_is_test_project "$root/${node_paths[$i]}" && fields+=(test yes)
   fi
-  node_json+=("$(json_node "${node_ids[$i]}" "${node_names[$i]}" "${node_paths[$i]}" "${node_kinds[$i]}" "${node_ecos[$i]}" "$node_ns" "$node_test")")
+  json_object "${fields[@]}"
+  node_json+=("$JSON_OBJ")
 done
 edge_json=()
 for i in "${!edge_from[@]}"; do
-  edge_json+=("$(json_edge "${edge_from[$i]}" "${edge_to[$i]}" "${edge_kind[$i]}" "${edge_status[$i]}" "${edge_evidence[$i]}")")
-done
-cycle_json=()
-for cyc in "${cycle_lines[@]+"${cycle_lines[@]}"}"; do
-  cycle_json+=("$(json_cycle "$cyc")")
+  json_object from "${edge_from[$i]}" to "${edge_to[$i]}" kind "${edge_kind[$i]}" status "${edge_status[$i]}" evidence "${edge_evidence[$i]}"
+  edge_json+=("$JSON_OBJ")
 done
 finding_json=()
 for i in "${!finding_kind[@]}"; do
-  finding_json+=("$(json_finding "${finding_kind[$i]}" "${finding_path[$i]}" "${finding_evidence[$i]}")")
+  json_object kind "${finding_kind[$i]}" path "${finding_path[$i]}" evidence "${finding_evidence[$i]}"
+  finding_json+=("$JSON_OBJ")
 done
-
-sorted_nodes=()
-sorted_edges=()
-sorted_cycles=()
-sorted_findings=()
-while IFS= read -r line; do
-  [[ -n "$line" ]] || continue
-  sorted_nodes+=("$line")
-done < <(sort_lines "${node_json[@]+"${node_json[@]}"}")
-while IFS= read -r line; do
-  [[ -n "$line" ]] || continue
-  sorted_edges+=("$line")
-done < <(sort_lines "${edge_json[@]+"${edge_json[@]}"}")
-while IFS= read -r line; do
-  [[ -n "$line" ]] || continue
-  sorted_cycles+=("$line")
-done < <(sort_lines "${cycle_json[@]+"${cycle_json[@]}"}")
-while IFS= read -r line; do
-  [[ -n "$line" ]] || continue
-  sorted_findings+=("$line")
-done < <(sort_lines "${finding_json[@]+"${finding_json[@]}"}")
 
 [[ -n "$generated_on" ]] || generated_on="$(git -C "$root" log -1 --format=%cs 2>/dev/null || true)"
 [[ -n "$generated_on" ]] || generated_on="unknown"
@@ -1612,6 +1484,7 @@ e_message="$JSON_ESC"
 json_escape "$ecosystem"
 e_ecosystem="$JSON_ESC"
 
+# cycles_truncated stays for schema_version 1 readers; the search cannot truncate.
 emit_document() {
   printf '{\n'
   printf '  "schema_version": 1,\n'
@@ -1620,11 +1493,11 @@ emit_document() {
   printf '  "message": "%s",\n' "$e_message"
   printf '  "ecosystem": "%s",\n' "$e_ecosystem"
   printf '  "node_threshold": %s,\n' "$NODE_THRESHOLD"
-  printf '  "cycles_truncated": %s,\n' "$cycles_truncated_json"
-  emit_array "nodes" comma "${sorted_nodes[@]+"${sorted_nodes[@]}"}"
-  emit_array "edges" comma "${sorted_edges[@]+"${sorted_edges[@]}"}"
-  emit_array "cycles" comma "${sorted_cycles[@]+"${sorted_cycles[@]}"}"
-  emit_array "findings" none "${sorted_findings[@]+"${sorted_findings[@]}"}"
+  printf '  "cycles_truncated": false,\n'
+  emit_array "nodes" , "${node_json[@]+"${node_json[@]}"}"
+  emit_array "edges" , "${edge_json[@]+"${edge_json[@]}"}"
+  emit_array "cycles" , "${cycle_json[@]+"${cycle_json[@]}"}"
+  emit_array "findings" "" "${finding_json[@]+"${finding_json[@]}"}"
   printf '}\n'
 }
 
