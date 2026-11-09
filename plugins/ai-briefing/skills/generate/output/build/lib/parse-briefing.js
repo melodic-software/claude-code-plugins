@@ -74,12 +74,10 @@ function parseBulletParagraph(paragraph) {
     bodyStart = 1;
   }
 
-  let rest = "";
-  for (let i = bodyStart; i < segs.length; i++) {
-    const s = segs[i];
-    if (s.type === "link") rest += s.url;
-    else rest += s.value;
-  }
+  const rest = segs
+    .slice(bodyStart)
+    .map((s) => (s.type === "link" ? s.url : s.value))
+    .join("");
 
   // URLs collected from raw link nodes — dedup (GFM autolink can create duplicates)
   const linkSet = new Set();
@@ -200,16 +198,21 @@ function extractDate(body, headline) {
   // Priority 4: ISO YYYY-MM-DD — but NOT inside a hyphenated compound token.
   // `fast-mode-2026-02-01` should fail; ` 2026-05-15 ` or `(2026-05-15)` should match.
   // Lookbehind/ahead require non-`-` non-word character (or start/end of string).
-  const iso = text.match(/(?<![\w-])(\d{4})-(\d{2})-(\d{2})(?![\w-])/);
+  const iso = text.match(ISO_DATE);
   if (iso) {
-    const year = parseInt(iso[1], 10);
-    const month = parseInt(iso[2], 10) - 1;
-    const day = parseInt(iso[3], 10);
-    const ms = Date.UTC(year, month, day);
+    const ms = ymdMatchToMs(iso);
     if (isReasonablePubDate(ms)) return ms;
   }
 
   return null;
+}
+
+/** An ISO YYYY-MM-DD date that is not part of a hyphenated compound token. */
+const ISO_DATE = /(?<![\w-])(\d{4})-(\d{2})-(\d{2})(?![\w-])/;
+
+/** Turn a [, year, month, day] digit match into a UTC timestamp. */
+function ymdMatchToMs(match) {
+  return Date.UTC(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10));
 }
 
 /** Infer a date from a URL when extractDate returned null.
@@ -221,9 +224,7 @@ function dateFromUrl(url) {
   if (!url) return null;
   // /YYYY/MM/DD/ path
   const pathDate = url.match(/\/(\d{4})\/(\d{2})\/(\d{2})(?:\/|$)/);
-  if (pathDate) {
-    return Date.UTC(parseInt(pathDate[1], 10), parseInt(pathDate[2], 10) - 1, parseInt(pathDate[3], 10));
-  }
+  if (pathDate) return ymdMatchToMs(pathDate);
   // ISO date in path (not in domain). Guard against malformed URLs — `item.urls`
   // is validated only as non-empty strings upstream, so a bad LLM artifact (no
   // scheme, bare host) would otherwise throw and abort the entire deck build.
@@ -233,9 +234,15 @@ function dateFromUrl(url) {
   } catch {
     return null;
   }
-  const isoInPath = u.pathname.match(/(?<![\w-])(\d{4})-(\d{2})-(\d{2})(?![\w-])/);
-  if (isoInPath) {
-    return Date.UTC(parseInt(isoInPath[1], 10), parseInt(isoInPath[2], 10) - 1, parseInt(isoInPath[3], 10));
+  const isoInPath = u.pathname.match(ISO_DATE);
+  return isoInPath ? ymdMatchToMs(isoInPath) : null;
+}
+
+/** The first non-null date `dateOf` gives across `urls`, in order, else null. */
+function firstUrlDate(urls, dateOf) {
+  for (const u of urls) {
+    const date = dateOf(u);
+    if (date != null) return date;
   }
   return null;
 }
@@ -252,7 +259,7 @@ function parseBucketSection(nodes) {
       tiers[currentTier] = [];
     } else if (n.type === "list") {
       const tierKey = currentTier || "_items";
-      tiers[tierKey] = tiers[tierKey] || [];
+      tiers[tierKey] ??= [];
       for (const item of n.children) {
         const para = item.children.find((c) => c.type === "paragraph");
         if (!para) continue;
@@ -307,45 +314,33 @@ export async function parseBriefing(briefingPath, opts = {}) {
   const buckets = {};
   let currentBucket = null;
   let bucketChildren = [];
+  const flushBucket = () => {
+    if (currentBucket) buckets[currentBucket] = parseBucketSection(bucketChildren);
+    currentBucket = null;
+    bucketChildren = [];
+  };
   for (let i = bucketStart; i < tree.children.length; i++) {
     const n = tree.children[i];
     if (n.type === "heading" && n.depth === 2) {
-      if (currentBucket) buckets[currentBucket] = parseBucketSection(bucketChildren);
+      flushBucket();
       currentBucket = flattenInline(n.children).trim();
-      bucketChildren = [];
     } else if (n.type === "thematicBreak") {
-      // section separator — flush current
-      if (currentBucket) {
-        buckets[currentBucket] = parseBucketSection(bucketChildren);
-        currentBucket = null;
-        bucketChildren = [];
-      }
+      flushBucket(); // section separator
     } else if (currentBucket) {
       bucketChildren.push(n);
     }
   }
-  if (currentBucket) buckets[currentBucket] = parseBucketSection(bucketChildren);
+  flushBucket();
 
+  const { seenUrlDateMap } = opts;
   for (const bucket of Object.values(buckets)) {
     for (const tier of Object.values(bucket)) {
       for (const item of tier) {
         // Pass 1: URL-based inference for items still undated.
-        if (item.date == null) {
-          for (const u of item.urls || []) {
-            const inferred = dateFromUrl(u);
-            if (inferred != null) { item.date = inferred; break; }
-          }
-        }
+        item.date ??= firstUrlDate(item.urls, dateFromUrl);
         // Pass 2: seen-items.json first_seen fallback (caller-provided map).
         // Final resort when markdown encodes no date and URL has no embedded date.
-        if (item.date == null && opts.seenUrlDateMap) {
-          for (const u of item.urls || []) {
-            if (opts.seenUrlDateMap.has(u)) {
-              item.date = opts.seenUrlDateMap.get(u);
-              break;
-            }
-          }
-        }
+        if (seenUrlDateMap) item.date ??= firstUrlDate(item.urls, (u) => seenUrlDateMap.get(u));
       }
     }
   }
