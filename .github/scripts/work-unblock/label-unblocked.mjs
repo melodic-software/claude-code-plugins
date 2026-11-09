@@ -2560,7 +2560,7 @@ async function listedNames(byStatus) {
   return (item) => names.get(Number(item.number)) ?? labelNames(item);
 }
 
-export { budgetLatch, failedFor, markReads };
+export { budgetLatch, failedFor, fieldListing, markReads };
 
 export async function main({ env = process.env, github, actions, jobLog, now = Date.now(), rate = searchRateLimit(), admission = baseAdmission(env), writer, statusOf, byStatus, statusField } = {}) {
   try {
