@@ -128,13 +128,8 @@ trap cleanup EXIT
 # The convention-home path grammar: repo-relative segments of [A-Za-z0-9._-]+
 # joined by "/", none equal to "." or "..".
 valid_path() {
-  local seg
   [[ "$1" =~ ^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$ ]] || return 1
-  local IFS=/
-  for seg in $1; do
-    [[ "$seg" == . || "$seg" == .. ]] && return 1
-  done
-  return 0
+  [[ "/$1/" != */./* && "/$1/" != */../* ]]
 }
 
 SOURCE=flag
@@ -349,12 +344,10 @@ if [[ "$STATE" == current ]]; then
   exit 0
 fi
 
-FINAL_NL=1
-if [[ -e "$AGENTS" ]]; then
-  [[ -z "$(tail -c 1 "$AGENTS")" ]] || FINAL_NL=0
-fi
 STAGED="$(mktemp)" || exit 6
 if [[ -e "$AGENTS" ]]; then
+  FINAL_NL=1
+  [[ -z "$(tail -c 1 "$AGENTS")" ]] || FINAL_NL=0
   render "$AGENTS" "$STATE" "$DX_NO" "$END_NO" "$CRLF" "$FINAL_NL" >"$STAGED" || exit 6
   diff -u -L a/AGENTS.md -L b/AGENTS.md "$AGENTS" "$STAGED"
 else
