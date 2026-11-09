@@ -71,7 +71,7 @@ const blank = (text) => text.replace(/[^\n]/g, " ");
 function cssOf(path, text) {
   const css = /\.css$/i.test(path)
     ? text
-    : text.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)|[^\n]/gi, (match, open, body, close) =>
+    : text.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)|[^\n]/gi, (_, open, body, close) =>
         body === undefined ? " " : blank(open) + body + blank(close),
       );
   return css.replace(/\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'/g, blank);
