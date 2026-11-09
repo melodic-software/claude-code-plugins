@@ -45,7 +45,7 @@ const heldBody = (reasons, code) => `${ADMIT_MARKER}\n${refusalText(reasons)}\n\
 const DECIDE_SECURITY = "security";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { parseReason } from "../lib/stop-reason.mjs";
-import { fieldNode, mirroredStatusOf, OPTION, STATUS_CONFIG, statusBatchAnswer, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
+import { mirroredStatusOf, OPTION, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { DISAGREEMENT_WAIT_MS, statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { FIELD_API, statusWriter } from "../../actions/resolve-config/write-status.mjs";
 
@@ -6022,16 +6022,21 @@ test("fieldListing carries a mid-write issue's hold to readmitReady, which leave
   t.mock.method(console, "log", () => {});
   // The per-issue re-read waits DISAGREEMENT_WAIT_MS; ticked below.
   t.mock.timers.enable({ apis: ["setTimeout"] });
-  // #26's value and newest event disagree, in the status read and on its own re-read.
+  const field = { fullDatabaseId: String(STATUS_CONFIG["field-id"]) };
+  // #26's value and newest event disagree, in the listing and on its own re-read.
   const fields = { 26: { state: "needs-triage", named: "ready", setter: OWNER.id }, 27: { state: "ready", setter: OWNER.id } };
   const listed = async (method, path, body) => {
-    assert.ok(method === "POST" && path === "/graphql", `unexpected ${method} ${path}`);
-    const batch = statusBatchAnswer(body, (number) => fieldNode(fields[number]));
-    if (batch) {
-      return batch;
-    }
-    assert.match(body.query, /issues\(states: OPEN/);
-    const nodes = [26, 27].map((number) => ({ number, createdAt: "2026-10-10T00:00:00Z", labels: { nodes: READY_LABELS.map((name) => ({ name })) } }));
+    assert.ok(method === "POST" && path === "/graphql" && /issues\(states: OPEN/.test(body.query), `unexpected ${method} ${path}`);
+    const nodes = [26, 27].map((number) => {
+      const entry = fields[number];
+      return {
+        number,
+        createdAt: "2026-10-10T00:00:00Z",
+        labels: { nodes: READY_LABELS.map((name) => ({ name })) },
+        issueFieldValues: { nodes: [{ name: entry.state, field }] },
+        timelineItems: { nodes: [{ __typename: "IssueFieldChangedEvent", newValue: entry.named ?? entry.state, actor: { databaseId: entry.setter }, issueField: field }] },
+      };
+    });
     return { data: { repository: { issues: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } } } };
   };
   const byStatus = fieldListing({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), TRUSTED_ACTORS_PATH: TRUSTED }, withFields(listed, fields), REPO);
