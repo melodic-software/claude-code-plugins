@@ -87,19 +87,20 @@ Edges align. Optical alignment beats mathematical when they disagree.
 
 Mathematical centering often reads as off-center; nudge elements until they look right:
 
-- Button with trailing icon: icon-side padding = text-side padding − 2px (`pl-4 pr-3.5`). Those
-  are Tailwind classes; in plain CSS, `padding-inline: 16px 14px`.
-- Play triangles: shift `2px` toward the pointed side (`margin-left: 2px`).
-- Asymmetric icons (stars, arrows, carets): fix the SVG viewBox/path itself; a `1px` margin is the
-  fallback.
+- Button with trailing icon: icon-side padding = text-side padding − `spacing.optical_icon_px`
+  (`pl-4 pr-3.5`). Those are Tailwind classes; in plain CSS, `padding-inline: 16px 14px`.
+- Play triangles: shift `spacing.optical_icon_px` toward the pointed side (a `margin-left`).
+- Asymmetric icons (stars, arrows, carets): fix the SVG viewBox/path itself; a
+  `spacing.optical_icon_px` margin is the fallback.
 
-**Audit: Suggestion.** Edges that almost line up, or an icon visually off-center in a button: −2px
-padding on the icon side; fix the SVG for asymmetric icons.
+**Audit: Suggestion.** Edges that almost line up, or an icon visually off-center in a button: trim
+the icon-side padding by `spacing.optical_icon_px`; fix the SVG for asymmetric icons.
 
 ## 5. Grids and containers
 
-Cap content containers (~1200px, centered) on wide monitors. Uncapped layouts produce unreadable
-line lengths and sparse, drifting compositions. Recipe: `content-grid-with-breakouts`.
+Cap content containers (`layout.content_width`, centered) on wide monitors. Uncapped layouts
+produce unreadable line lengths and sparse, drifting compositions. Recipe:
+`content-grid-with-breakouts`.
 
 **Audit: Important.** A page whose content stretches to the full width of a wide monitor.
 
@@ -109,8 +110,8 @@ and `container-queries-with-container-units` remove many breakpoints altogether.
 
 **Audit: Suggestion.** Breakpoints at device widths that do not match where the layout breaks.
 
-A simple marketing page doesn't need a 12-column grid: 8 columns (or fewer) does the job without
-configuration overhead.
+A simple marketing page doesn't need a 12-column grid: `layout.simple_page_columns` columns (or
+fewer) does the job without configuration overhead.
 
 Baseline grids are an editorial tool: they shine in long-form layouts and are usually overkill in
 dense product UI. (Trick question: know which context you're in.)
@@ -170,9 +171,9 @@ to an audit sweep; when writing or revising the CSS, define the scale above. Put
 list: "open a modal, trigger a toast, open a dropdown inside the modal, hover a tooltip inside the
 dropdown". The stacking check passes only on a real device, not from reading the code.
 
-Hunt for: `z-index` values over 100 that aren't tokens; `z-[9999]`, `z-50` sprinkled without a
-system; portaled and non-portaled overlays mixed. The bracketed and numbered forms are Tailwind
-class names to search for.
+Hunt for: `z-index` values over `layout.z_index_stray_above` that aren't tokens; `z-[9999]`,
+`z-50` sprinkled without a system; portaled and non-portaled overlays mixed. The bracketed and
+numbered forms are Tailwind class names to search for.
 
 **Audit: Blocking.** `z-index: 9999` or any random large z-index instead of a scale. Blocking
 applies where the project has a scale or the value causes a collision you can show (a toast under a

@@ -134,9 +134,10 @@ already broken.
 
 **Size floors.** Body text belongs at `16px`: a good reading size, not an arbitrary tradition, and
 where it stands against the browser's default size is in the pointer below. Secondary UI text may
-step down: `14px` for controls and menus, `13px` for captions and metadata, and below `12px` lies
-territory that needs an unusually good excuse. Input text on phones keeps its own floor: the `touch`
-concern.
+step down: `typography.small_text_px.control` for controls and menus,
+`typography.small_text_px.caption` for captions and metadata, and below
+`typography.small_text_px.min` lies territory that needs an unusually good excuse. Input text on
+phones keeps its own floor: the `touch` concern.
 
 - **Pointer**: MDN, `font-size`, the default browser font size under ems,
   <https://developer.mozilla.org/en-US/docs/Web/CSS/font-size#ems>

@@ -106,13 +106,15 @@ way a size name cannot. Recipe: `one-fluid-scale-for-type-and-space`.
 
 **Audit: Important.** A `font-size` that is an arbitrary pixel value off the project's scale.
 
-**Leading follows role.** Display sizes want tight leading, in the neighborhood of `1.1`; body copy
-reads best between `1.5` and `1.6`. Always write line-height unitless so it tracks the font size: a
-hard-coded `24px` line-height breaks the moment the size changes.
+**Leading follows role.** Display sizes want tight leading, near `typography.line_height.display`;
+body copy reads best within the `typography.line_height.body` range. Always write line-height
+unitless so it tracks the font size: a hard-coded `24px` line-height breaks the moment the size
+changes.
 
 **Audit: Important.** A line-height with a unit on text whose size can change.
 
-**Audit: Suggestion.** Body leading outside `1.5`-`1.6`, or headings left at body leading.
+**Audit: Suggestion.** Body leading outside the `typography.line_height.body` range, or headings
+left at body leading.
 
 **Tracking follows size.** Big display type usually tightens: a touch of negative letter-spacing.
 Tiny uppercase labels open up: a touch of positive spacing keeps the capitals from clumping. Body
@@ -123,13 +125,13 @@ tracking, or tracking set on body text.
 
 ## 3. Lines and breaking
 
-**Cap the measure.** The eye loses its return path on long lines. Hold reading columns to roughly
-45-75 characters, with about 65 as the sweet spot: `max-width: 65ch` states that directly. A
-rem-based cap works too; what matters is that the cap exists and the rendered line count lands in
-range.
+**Cap the measure.** The eye loses its return path on long lines. Hold reading columns near
+`typography.measure_ch` characters: `max-width: {{typography.measure_ch}}ch` states that directly.
+A rem-based cap works too; what matters is that the cap exists and the rendered line count lands
+near it. Fill each `{{key}}` placeholder as [`values.md`](../../values.md) says.
 
-**Audit: Suggestion.** Body text lines wider than about 75 characters, or a paragraph running the
-full width of a wide screen.
+**Audit: Suggestion.** Body text lines well wider than `typography.measure_ch` characters, or a
+paragraph running the full width of a wide screen.
 
 **Pick a wrap mode per role.** Headings get `text-wrap: balance`, which evens out the lines.
 Standfirsts and card descriptions get `text-wrap: pretty`, which stops a lone word from stranding
@@ -222,13 +224,14 @@ content. Recipe: `logical-properties`.
 **Respect the minimums.** Body copy sits at `16px`, the web's default for a reason. Where `16px`
 stands against the browser's default size is in the pointer under "Size floors" in
 `typography/details-and-floors.md`. Dense UI text
-may drop to `14px` (controls, menus), `13px` for captions, and almost never below `12px`. Also
-assume readers will zoom, bump the root font size, or override line spacing: nothing should shatter
-when they do. Input text on phones is the `touch` concern; the contrast text needs is the `color`
-concern.
+may drop to `typography.small_text_px.control` (controls, menus),
+`typography.small_text_px.caption` for captions, and almost never below
+`typography.small_text_px.min`. Also assume readers will zoom, bump the root font size, or override
+line spacing: nothing should shatter when they do. Input text on phones is the `touch` concern; the
+contrast text needs is the `color` concern.
 
-**Audit: Important.** Body text under `16px`, text under `12px`, or a layout that breaks when the
-text is zoomed or the root font size is raised.
+**Audit: Important.** Body text under `16px`, text under `typography.small_text_px.min`, or a
+layout that breaks when the text is zoomed or the root font size is raised.
 
 **Set long-form reading larger.** Articles, documentation and other text read for minutes at a time
 sit at `typography.long_form_body_px` (default `18`, `1.125rem` over a `16px` root), a size above
@@ -266,7 +269,7 @@ second one under "Units for text" in `typography/scale-and-rhythm.md`.
 | Long URL blows out a card | No break opportunity | `overflow-wrap: break-word` |
 | Weight change does nothing on some machines | Weight set via `"wght"` raw tag | `font-weight` |
 | Text feels cramped in one component, airy in another | One-off sizes and line-heights | Route everything through the scale |
-| Reading a paragraph feels like work | Measure far beyond 75 characters | Cap the column near `65ch` |
+| Reading a paragraph feels like work | Measure far beyond `typography.measure_ch` characters | Cap the column near `{{typography.measure_ch}}ch` |
 | ALL-CAPS strings scattered through JSX | Casing baked into copy | Sentence case + `text-transform: uppercase` |
 | Ellipsis with no way to see the rest | Truncation without an escape hatch | Tooltip, title attribute, or expand control |
 | Layout mirrored wrong in Arabic/Hebrew | Physical margin/padding/text-align | Logical properties, `text-align: start` |
