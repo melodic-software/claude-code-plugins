@@ -78,6 +78,18 @@ Each upstream link is at the pin.
 | [`skills/prototype/SKILL.md`](https://github.com/emilkowalski/skills/blob/5206a950b715e0cabe7043ea0b2304332b91494e/skills/prototype/SKILL.md) | [`/prototype:explore-directions`](../../plugins/prototype/skills/explore-directions/SKILL.md) and `prototype` `context/discipline.md` | Absorbed (skill omitted) | **Taken:** variants differ on a named axis, the tradeoff table, never pre-pick a winner, cut a converged variant. |
 | [`skills/prototype/PICKER.md`](https://github.com/emilkowalski/skills/blob/5206a950b715e0cabe7043ea0b2304332b91494e/skills/prototype/PICKER.md) | `prototype` `skills/explore-directions/assets/variant-switcher.html` | Derived | **Taken:** the floating switcher's controls and behavior. **Rejected:** URL persistence, which a `file://` page cannot rely on. |
 
+## Config keys
+
+Defaults in `user-interface` `reference/defaults.yaml` whose number this upstream decides, where
+the course record decides none for that use. Each link is at the pin, so a re-pin re-checks these
+keys with their rows; the values live only in `defaults.yaml`.
+
+| Key | Upstream path |
+|---|---|
+| `animation.scale.press`, `animation.scale.press_min` (the limit `/user-interface:audit` reports a project press scale below; owner decision, 2026-11-09), `animation.gesture.velocity_threshold` | [`skills/emil-design-eng/SKILL.md`](https://github.com/emilkowalski/skills/blob/5206a950b715e0cabe7043ea0b2304332b91494e/skills/emil-design-eng/SKILL.md) |
+| `animation.gesture.deceleration_rate`, `animation.gesture.rubberband_constant`, `animation.gesture.slop_px`, `animation.spring.response_s` | [`skills/apple-design/SKILL.md`](https://github.com/emilkowalski/skills/blob/5206a950b715e0cabe7043ea0b2304332b91494e/skills/apple-design/SKILL.md) |
+| `animation.inspect_playback_rate` | [`skills/improve-animations/PLAN-TEMPLATE.md`](https://github.com/emilkowalski/skills/blob/5206a950b715e0cabe7043ea0b2304332b91494e/skills/improve-animations/PLAN-TEMPLATE.md) |
+
 ## Post sources
 
 Defaults and rules taken from his posts rather than the repository. A post has no pin, so the drift
