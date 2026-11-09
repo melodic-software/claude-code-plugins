@@ -145,12 +145,7 @@ fi
 # paths (/d/...), so a Windows bash with cygpath passes the drive-letter form.
 to_pwsh_path() {
   case "${OSTYPE:-}" in
-    msys* | cygwin* | win32)
-      if command -v cygpath >/dev/null 2>&1; then
-        cygpath -m "$1" 2>/dev/null || printf '%s' "$1"
-        return
-      fi
-      ;;
+    msys* | cygwin* | win32) command -v cygpath >/dev/null 2>&1 && cygpath -m "$1" 2>/dev/null && return ;;
     *) ;;
   esac
   printf '%s' "$1"
@@ -205,6 +200,9 @@ findings="$CHECKS_TMP/findings"
 : >"$findings"
 broken=0
 staged_arg="$(to_pwsh_path "$CHECKS_TMP/staged")"
+list="$CHECKS_TMP/list"
+list_arg="$(to_pwsh_path "$list")"
+out="$CHECKS_TMP/pwsh-out"
 done_sets=$'\n'
 noticed=$'\n'
 for i in "${!sets[@]}"; do
@@ -212,7 +210,6 @@ for i in "${!sets[@]}"; do
   kind="${kinds[i]}"
   [[ "$done_sets" != *$'\n'"$kind $set_file"$'\n'* ]] || continue
   done_sets+="$kind $set_file"$'\n'
-  list="$CHECKS_TMP/list"
   : >"$list"
   for j in "${!sets[@]}"; do
     [[ "${sets[j]}" == "$set_file" && "${kinds[j]}" == "$kind" ]] && printf '%s\n' "${files[j]}" >>"$list"
@@ -220,9 +217,8 @@ for i in "${!sets[@]}"; do
   # Staged content is analyzed where it was written, never rewritten.
   run_root="$root_arg" run_mode="$mode"
   [[ "$kind" == staged ]] && run_root="$staged_arg" run_mode=analyze
-  out="$CHECKS_TMP/pwsh-out"
   PSSA_SETTINGS="$(to_pwsh_path "$PWD/$set_file")" PSSA_ROOT="$run_root" PSSA_REPO_ROOT="$root_arg" \
-  PSSA_LIST="$(to_pwsh_path "$list")" PSSA_MODE="$run_mode" PSSA_STATE_BASE="$state_arg" \
+  PSSA_LIST="$list_arg" PSSA_MODE="$run_mode" PSSA_STATE_BASE="$state_arg" \
     pwsh -NoProfile -NonInteractive -File "$ps1_arg" >"$out" 2>&1
   rc=$?
   case $rc in
