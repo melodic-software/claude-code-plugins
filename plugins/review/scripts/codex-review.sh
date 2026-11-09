@@ -67,8 +67,8 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --model)
-    if [[ $# -lt 2 || ! "$2" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]*$ ]]; then
-      printf 'codex-review.sh: --model needs a model name (letters, digits, ".", "_", ":", "-")\n' >&2
+    if [[ $# -lt 2 || ! "$2" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]*$ ]]; then
+      printf 'codex-review.sh: --model needs a model name (letters, digits, ".", "_", ":", "/", "-")\n' >&2
       exit 2
     fi
     model="$2"

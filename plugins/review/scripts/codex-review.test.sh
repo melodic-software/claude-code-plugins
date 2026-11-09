@@ -168,6 +168,8 @@ assert_eq "--adversarial runs adversarial-review" "adversarial-review --wait --b
 # --- Model and brief: native review commands only, never task, never --write ---
 run_case "$LIST_INSTALLED" 1 1 --base origin/main --model gpt-x
 assert_eq "--model reaches review" "review --wait --base origin/main --model gpt-x" "$(cat "$REVIEW_LOG")"
+run_case "$LIST_INSTALLED" 1 1 --base origin/main --model openai/gpt-x
+assert_eq "a model name with / reaches review, as the schema allows" "review --wait --base origin/main --model openai/gpt-x" "$(cat "$REVIEW_LOG")"
 
 BRIEF="$TEST_TMPDIR/brief.md"
 printf -- '--look for races in reserve()' >"$BRIEF"

@@ -302,12 +302,18 @@ describe("select", () => {
     assert.equal(selectPanel({ ...base, config: configWith(four) }).pilot, false);
   });
 
-  test("an effort other than the default is skipped on a Claude Code before the effort parameter", () => {
-    const cfg = configWith({ a: { provider: "claude", model: "opus", effort: "low" }, b: { provider: "claude", model: "opus", effort: "high" } });
-    const old = selectPanel({ ...base, claudeVersion: "2.1.291", config: cfg });
-    assert.match(statusOf(old, "a"), /^skipped \(effort cannot be set on this Claude Code version/);
-    assert.equal(statusOf(old, "b"), "planned");
-    assert.equal(statusOf(selectPanel({ ...base, claudeVersion: "2.1.292", config: cfg }), "a"), "planned");
+  test("before the effort parameter, a named effort is skipped and an unset one runs on the provider setting", () => {
+    const cfg = configWith({ a: { provider: "claude", model: "opus", effort: "low" }, b: { provider: "claude", model: "opus", effort: "high" }, c: { provider: "claude", model: "opus" } });
+    for (const claudeVersion of ["2.1.291", undefined]) {
+      const old = selectPanel({ ...base, claudeVersion, config: cfg });
+      assert.match(statusOf(old, "a"), /^skipped \(effort cannot be set on this Claude Code version/);
+      assert.match(statusOf(old, "b"), /^skipped \(effort cannot be set on this Claude Code version/);
+      assert.equal(old.members.find((x) => x.id === "c").effort, "provider setting");
+    }
+    const now = selectPanel({ ...base, claudeVersion: "2.1.292", config: cfg });
+    assert.equal(statusOf(now, "a"), "planned");
+    assert.equal(statusOf(now, "b"), "planned");
+    assert.equal(now.members.find((x) => x.id === "c").effort, "high");
   });
 
   test("claude effort defaults to high", () => {

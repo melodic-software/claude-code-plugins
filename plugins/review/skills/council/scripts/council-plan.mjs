@@ -263,13 +263,14 @@ export function selectPanel({ config, changed, tier, tierReason, risk, riskReaso
       if (Array.isArray(a.briefs) && !a.briefs.includes(m.brief)) return skip(`${m.provider} cannot carry the ${m.brief} brief`);
     }
     // Effort
+    const effortSettable = !a.effort_min_version || Boolean(claudeVersion && versionAtLeast(claudeVersion, a.effort_min_version));
     if (m.effort !== undefined) {
       if (!sets.has("effort")) return skip(`effort cannot be set on ${m.provider}`);
-      if (m.effort !== a.effort_default && a.effort_min_version && (!claudeVersion || !versionAtLeast(claudeVersion, a.effort_min_version))) {
+      if (!effortSettable) {
         return skip(`effort cannot be set on this Claude Code version (needs ${a.effort_min_version})`);
       }
       row.effort = m.effort;
-    } else row.effort = a.effort_default === "provider" ? "provider setting" : a.effort_default;
+    } else row.effort = a.effort_default === "provider" || !effortSettable ? "provider setting" : a.effort_default;
     if (a.sees === "committed" && dirty) return skip("reviews committed changes only; the tree has uncommitted changes");
     if (round > 1 && !sets.has("limit-to-fix")) return skip("cannot be limited to the fix's changes");
     return row;

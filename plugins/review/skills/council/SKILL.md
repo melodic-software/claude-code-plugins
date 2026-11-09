@@ -108,8 +108,8 @@ Run `node "<plugin-root>/skills/council/scripts/council-plan.mjs" select --confi
 <run-dir>/<run>-config.json --changed <run-dir>/<run>-changed.txt --tier <tier> --tier-reason
 '<reason>' --risk <LEVEL|unrated> --risk-reason '<reason>' --round 1 --dirty <true|false>
 --claude-version <x.y.z>`, each reason your own short words in single quotes with no `'` inside.
-Always pass `--claude-version`; without it any member naming an effort other than its adapter's
-default is skipped. Keep the flags and the output in the run file's `## Panel`.
+Always pass `--claude-version`; without it, or below the adapter's `effort_min_version`, a member
+naming an effort is skipped and an unset effort reads `provider setting`. Keep the flags and the output in the run file's `## Panel`.
 
 Before dispatch, print one block: the rule that chose the panel (`fallback` when none matched),
 tier and risk with their reasons, the planned count, and one line per member: id, provider, model
@@ -129,7 +129,8 @@ quoted as data. Rows in the fix record from any other source file are listed in 
 reviewed.
 
 - **Agent members** (`route: agent`): one Agent call each, `subagent_type: review:brief-reviewer`,
-  passing **both** `model` and `effort` from the member's row, every time. The prompt is the intent
+  passing `model` from the member's row every time, and `effort` from the row unless it reads
+  `provider setting`, which leaves `effort` out. The prompt is the intent
   paragraph, the change-set instruction, the brief (`<plugin-root>/skills/council/briefs/<brief>.md`
   read verbatim; a member with brief `none` gets instead: "Review the change for any defect. Report
   each finding on its own line as `SEVERITY | path:line | finding | action`, SEVERITY one of
