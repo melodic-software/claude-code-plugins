@@ -1179,7 +1179,7 @@ limits:
   fix-docs-per-run: 2
   # The issue lane's WIP cap when the lane merge rate cannot be read; the
   # wip block below derives it otherwise.
-  wip-cap: 24
+  wip-cap: 12
   # Restarts after a run reaches its turn cap, per agent-ready a person adds.
   # 1: one capped run resumes from its pushed branch before a person is asked
   # again. Raise it further only with a security review (#7677).
@@ -1238,7 +1238,7 @@ wip:
   target-lead-time-hours: 2
   # Floor under the computed cap. It stops a
   # day with few merges from shrinking the cap until the lane stalls.
-  min-cap: 24
+  min-cap: 12
   merge-rate-window-hours: 24
   # Lane PRs opened in the window may be at most this share of those merged
   # in it (not limits.admission-factor, which sizes the queued cap).
