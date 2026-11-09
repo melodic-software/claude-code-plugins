@@ -784,6 +784,7 @@ cat >"$proc_brief_full" <<'EOT'
 
 ### Goal
 x
+- Finish line: merged — checked by ci-status via the pull request's checks
 
 ### Work size
 - x
@@ -827,6 +828,20 @@ if [[ "$(stderr_of --ledger "$proc_retired" --brief "$proc_brief_nosize" --proce
 proc_brief_plan="$TMP/proc-brief-plan.md"
 { cat "$proc_brief_short"; printf '\n### Out-of-scope\n- x\n'; } >"$proc_brief_plan"
 expect_exit "--procedure --brief section only under ## Plan -> 1" 1 --ledger "$proc_retired" --brief "$proc_brief_plan" --procedure
+
+# 53b. The Goal's Finish line: missing, empty and `not settled yet` fail; present passes;
+#      without --procedure the verdict is unchanged.
+proc_brief_nofinish="$TMP/proc-brief-nofinish.md"
+grep -v -e '^- Finish line:' "$proc_brief_full" >"$proc_brief_nofinish"
+expect_exit "--procedure --brief with no Finish line -> 1" 1 --ledger "$proc_retired" --brief "$proc_brief_nofinish" --procedure
+if [[ "$(stderr_of --ledger "$proc_retired" --brief "$proc_brief_nofinish" --procedure)" == *"Finish line"* ]]; then pass "--procedure names the missing Finish line"; else fail "--procedure names the missing Finish line"; fi
+proc_brief_emptyfinish="$TMP/proc-brief-emptyfinish.md"
+sed 's/^- Finish line:.*/- Finish line:/' "$proc_brief_full" >"$proc_brief_emptyfinish"
+expect_exit "--procedure --brief with an empty Finish line -> 1" 1 --ledger "$proc_retired" --brief "$proc_brief_emptyfinish" --procedure
+proc_brief_unsettled="$TMP/proc-brief-unsettled.md"
+sed 's/^- Finish line:.*/- Finish line: not settled yet/' "$proc_brief_full" >"$proc_brief_unsettled"
+expect_exit "--procedure --brief with Finish line 'not settled yet' -> 1" 1 --ledger "$proc_retired" --brief "$proc_brief_unsettled" --procedure
+expect_exit "Brief with no Finish line without --procedure -> 0" 0 --ledger "$proc_retired" --brief "$proc_brief_nofinish"
 
 # 54. Ungradeable stays exit 2 and reports procedure=unchecked.
 expect_stdout "ungradeable with --procedure reports procedure=unchecked" "status=ungradeable procedure=unchecked" --ledger "$noreg" --procedure
@@ -988,7 +1003,7 @@ mkdir -p "$surface_dir"
 cat >"$surface_dir/questions.json" <<'EOF'
 {"meta": {"title": "Export test"}, "rev": 1, "groups": [], "questions": [], "visuals": [],
  "restatements": [{"rev": 1, "at": "2026-09-24T10:00:00Z", "sections": {
-   "intent": "Cut CI time so merges stop queuing.", "goal": "Cut CI build time.",
+   "intent": "Cut CI time so merges stop queuing.", "goal": "Cut CI build time.\n- Finish line: merged — checked by ci-status via the pull request's checks",
    "tldr": "- Remote cache for CI builds",
    "acceptance": "- p75 build is 4 min or less\n- a cache miss runs the full build",
    "problem": "- Gap: merges queue behind slow builds", "constraints": "- no paid runners",

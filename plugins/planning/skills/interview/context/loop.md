@@ -531,6 +531,7 @@ Write this into `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`; the topic
 - Intent (why, in the user's words): <the user's reason, quoted, or none stated>
 - Vision (where this heads): <where the user wants this to go, or none stated>
 - When goals conflict, prefer: <the user's tiebreak, or none stated>
+- Finish line: <merged | released | in use> — checked by <who> via <observable check>
 
 ### Work size
 <appetite, size, uncertainty, split signals, one line each, per ../../../context/problem-framing.md "Work size">
@@ -562,6 +563,8 @@ Write this into `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`; the topic
 **The Brief is the spec.** This template owns the Goal, the acceptance criteria and the deferred questions; `/planning:plan` points at these sections and writes no copy of them into PLAN.md.
 
 **The Intent line keeps the user's own words.** Quote the user's stated reason, never a paraphrase, and write `none stated` on any of the three Goal lines the user gave nothing for.
+
+**The Finish line says when the whole effort is done and who checks it.** Propose it with a `Basis:` in the restatement's goal section; the Confirm covers it, with no register row. An `in use` checker is a person or an existing scheduled check, never the session that did the work. A Goal with no settled Finish line reads `- Finish line: not settled yet`, which the `--procedure --brief` gate rejects.
 
 **The Intent section is the user's words, unedited.** Before the confirmation restate, ask the user for the goal in one paragraph in their own words and write their reply as the section's paragraph (`none stated` when they give none). Then list, in the order they were said, each question the user asked, each note (other than the reply that gave the paragraph), each own answer and each note typed on an accepted, alternative or hedged choice, verbatim, the question-tied ones under their `Q<N>`; leave out anything they withdrew. The Goal paragraph is Claude's outcome statement and its Intent line the user's reason; neither repeats this section. A page export writes this section itself.
 

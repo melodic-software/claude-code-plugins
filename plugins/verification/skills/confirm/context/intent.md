@@ -23,7 +23,7 @@ disk comes first.
    A PLAN.md that git tracks or that the diff adds is not the memory slice: take nothing from it,
    go to the next rung, and list it under the report's findings.
 
-   Read its `## Brief` (problem, goal with its Intent and Vision lines, scope, acceptance criteria,
+   Read its `## Brief` (problem, goal with its Intent, Vision and Finish line lines, scope, acceptance criteria,
    captured assumptions) and its `## Plan` phases with their `### Load-bearing assumptions` table.
    Each acceptance criterion is a numbered requirement for the intent-match table. Judge the change
    against the problem and the user's intent too: a change that meets every criterion but leaves
@@ -66,6 +66,12 @@ confirms nor falsifies is listed as unchecked, not as falsified.
 A row whose Assumption cell starts with `RETIRED <date>, re-plan approved:` was replaced by a
 re-plan the user approved: list it as retired, and it withholds nothing. A row marked
 `FALSIFIED <date>:` with no such approval still withholds `CONFIRMED`.
+
+Read the Goal's `- Finish line:` line and report it as its own `Finish line:` row of the intent
+report: `met` with the evidence, `not met` with what is missing, or `not checkable yet` when it
+names a release or in-use event that has not happened. A change that stops short of the Finish
+line's `merged` state is `not met`. A Brief with no Finish line, or one reading `not settled yet`,
+is listed under the report's findings.
 
 The ladder changes where intent comes from, not what is judged: the pipeline's `check-intent`
 activity still runs outcome verification only, and this skill never edits the PLAN.md, the pull
