@@ -607,4 +607,65 @@ assert_absent "npm removed from DEFAULT_BINS" "$DEFAULT_BINS_LINE" "npm"
 assert_contains "DEFAULT_BINS still carries the retained bins" \
   "$DEFAULT_BINS_LINE" 'claude gh dotnet docker kubectl terraform az aws'
 
+# ============ az GLOBAL ARGUMENTS (leaf-help fallback) ======================
+# `az --help` lists no `--` option at all; az prints its Global Arguments
+# (--only-show-errors, --output, --debug, ...) only under a leaf command's help,
+# such as `az version --help`. A dynamic chain (`az "$@" ...`) resolves to the
+# bare help, so a global argument must still be found, cold and warm, while an
+# undocumented flag on the same chain is still reported.
+AZ_BIN_DIR="$TEST_TMPDIR/azbin"
+mkdir -p "$AZ_BIN_DIR"
+cat >"$AZ_BIN_DIR/az" <<'FAKE'
+#!/usr/bin/env bash
+last=""
+for a in "$@"; do last="$a"; done
+[[ "$last" == "--help" ]] || exit 0
+if [[ "${1:-}" == "version" ]]; then
+  echo "Command"
+  echo "    az version : Show the versions of Azure CLI modules and extensions."
+  echo ""
+  echo "Global Arguments"
+  echo "    --debug                : Increase logging verbosity to show all debug logs."
+  echo "    --only-show-errors     : Only show errors, suppressing warnings."
+  echo "    --output -o            : Output format."
+  exit 0
+fi
+echo "Group"
+echo "    az"
+echo ""
+echo "Subgroups:"
+echo "    account : Manage Azure subscription information."
+echo ""
+echo "Commands:"
+echo "    version : Show the versions of Azure CLI modules and extensions."
+FAKE
+chmod +x "$AZ_BIN_DIR/az"
+az_dir="$TEST_TMPDIR/az-global-args"
+mkdir -p "$az_dir/cache"
+az_target="$az_dir/target.sh"
+AZ_CONTENT=$'az "$@" "${AZ_SUB_ARGS[@]}" --only-show-errors -o json\naz "$@" --not-a-global-arg'
+printf '%s\n' "$AZ_CONTENT" >"$az_target"
+run_az() {
+  OUT=$(PATH="$AZ_BIN_DIR:$PATH" CLAUDE_PROJECT_DIR="$az_dir" \
+    CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=az \
+    LOCALAPPDATA="$az_dir/cache" XDG_CACHE_HOME="$az_dir/cache" \
+    bash "$HOOK" <<<"$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$az_target" --arg c "$AZ_CONTENT" '{tool_name:"Write",tool_input:{file_path:$fp,content:$c}}')" 2>&1)
+}
+run_az
+assert_absent "az global argument (miss): --only-show-errors is known" "$OUT" "az --only-show-errors"
+ctx_contains "az undocumented flag (miss): still reported" "$OUT" "  az --not-a-global-arg"
+run_az
+assert_absent "az global argument (hit): --only-show-errors is still known" "$OUT" "az --only-show-errors"
+ctx_contains "az undocumented flag (hit): still reported" "$OUT" "  az --not-a-global-arg"
+az_opt_dir="$TEST_TMPDIR/az-verifier"
+mkdir -p "$az_opt_dir/cache"
+run_az_verifier() {
+  PATH="$AZ_BIN_DIR:$PATH" LOCALAPPDATA="$az_opt_dir/cache" \
+    XDG_CACHE_HOME="$az_opt_dir/cache" bash "$VERIFIER" "$@" >/dev/null 2>&1
+}
+run_az_verifier --quiet az --only-show-errors
+assert_exit "verifier: az global argument found through the leaf help -> 0" 0 $?
+run_az_verifier --quiet az --not-a-global-arg
+assert_exit "verifier: flag in neither the bare nor the leaf help -> 1" 1 $?
+
 report
