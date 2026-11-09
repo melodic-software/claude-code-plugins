@@ -170,7 +170,7 @@ worker lane off the flipped item. Once the row's answer is written
   lands. A brief frontier delay after the flip is acceptable.
 - **When disposition leaves the item human-gated** (decline, an answered
   escalation on a human-floor work class that was not reclassified; only `provenance: untrusted`
-  (or its legacy name: any label containing `untrusted-provenance`; exact value `WIT_LEGACY_UNTRUSTED_LABEL` in [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh))
+ 
   and `provenance: signal` floor an item, never a structural class or a missing one, per
   [`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md)
   "The human-floor class excludes the autonomous-eligible role label"): clear `@me` via the
@@ -213,7 +213,7 @@ never compress this restatement away.
   a run on an issue whose title or body changed after that label was last added, so a body edit
   after it needs `agent-ready` removed and added again before the lane can run.
   **A provenance-removal hold is not cleared by the flip.** When the escalated question names a
-  provenance label (`provenance: untrusted`, its legacy name: any label containing `untrusted-provenance`; exact value `WIT_LEGACY_UNTRUSTED_LABEL` in [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh);
+  provenance label (`provenance: untrusted`
   or `provenance: signal`) whose latest
   removal came from an actor below `write`, the role-label flip alone sends the item back to a
   fresh escalation on the work loop's next cycle. If the answer is that the item is trusted, a
@@ -249,12 +249,12 @@ never compress this restatement away.
   no hold remains, the field included, the item re-enters the worker loop's frontier on its next
   cycle; do not dispatch it from this lane. A hold the answer does not lift stays, and no other
   label blocks this flip; only
-  `provenance: untrusted` (or its legacy name: any label containing `untrusted-provenance`; exact value `WIT_LEGACY_UNTRUSTED_LABEL` in [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh)) or
+  `provenance: untrusted` or
   `provenance: signal` does, per the branch below. The flip
   and that branch are for issues only: a pull request, whatever its row kind, never takes the
   autonomous-eligible role.
 - **Untrusted provenance: reclassify or stay gated, never the plain flip.** An item carrying
-  `provenance: untrusted` (C5; legacy name: any label containing `untrusted-provenance`; exact value `WIT_LEGACY_UNTRUSTED_LABEL` in [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh)) or
+  `provenance: untrusted` (C5) or
   `provenance: signal` is not resolved by the plain
   flip, whatever its other labels say: a `provenance: signal` item is C5 whatever else a person
   stamped on it ([`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)
@@ -398,7 +398,7 @@ placeholder before running a command or writing it into a brief.
   and removes the human-gated one; an item wearing both stays excluded from
   `list-frontier --autonomous`.
 - **Never clear the human-gated role off a floor class.** An item carrying
-  `provenance: untrusted` (or its legacy name: any label containing `untrusted-provenance`; exact value `WIT_LEGACY_UNTRUSTED_LABEL` in [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh))
+  `provenance: untrusted`
   stripped of it is floored out of `list-frontier --autonomous` and matches no row condition
   here, so no lane surfaces it again. Reclassify it in the same edit as the flip, or leave the
   role label alone.

@@ -12,4 +12,4 @@ graders:
     target: 'last_message'
   - name: 'meets-expectations'
     type: 'llm'
-    criteria: 'Read the reply as the account of what /work-items:triage does for #213. PASS only if it satisfies every point: (1) Reports triage_repro_count=2 with layer default; (2) Does not apply status: confirmed after runs that disagree; (3) Parks the item at status:needs-info; (4) The needs-info comment''s settled list records both runs and which one showed the failure. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'
+    criteria: 'Read the reply as the account of what /work-items:triage does for #213. PASS only if it satisfies every point: (1) Reports triage_repro_count=2 with layer default; (2) Does not apply status: confirmed after runs that disagree; (3) Parks the item at needs-reporter-info; (4) The needs-info comment''s settled list records both runs and which one showed the failure. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

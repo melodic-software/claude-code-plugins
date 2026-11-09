@@ -10,7 +10,7 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 const HUMAN = { id: 101, login: "person" };
 const STRANGER = { id: 202, login: "stranger" };
 const APP = { id: 303, login: "melodic-automation-lanes[bot]" };
-const UNTRUSTED = "work-class: untrusted-provenance";
+const UNTRUSTED = "provenance: untrusted";
 const dir = tempDir("check-blockers-");
 after(() => rmSync(dir, { recursive: true, force: true }));
 const TRUSTED = join(dir, "trusted-actors.json");

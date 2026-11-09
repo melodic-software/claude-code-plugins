@@ -120,32 +120,25 @@ IDS="$(frontier_ids false "needs-human" "decision-map" <<<"$REMAP_CONTAINER")"
 assert_eq "explicit container label excludes the remap, not the stale default" \
   "github:o/r#1,github:o/r#10" "$IDS"
 
-# The autonomous frontier drops the legacy untrusted-provenance work class, EVEN WHEN
-# the item also carries the autonomous-eligible role label. A structural item and
-# an item with no class stay listed: work class is not an admission gate.
+# A structural item and an item with no class stay on the autonomous frontier: work
+# class is not an admission gate.
 WORK_CLASS='{
   "schema_version": "1.0",
   "items": [
     {"id":"github:o/r#1","state":"open","assignees":[],"labels":["agent-ready","work-class: scoped"],"blocked_by_count":0},
     {"id":"github:o/r#2","state":"open","assignees":[],"labels":["agent-ready","work-class: structural"],"blocked_by_count":0},
-    {"id":"github:o/r#3","state":"open","assignees":[],"labels":["agent-ready","work-class: untrusted-provenance"],"blocked_by_count":0},
     {"id":"github:o/r#4","state":"open","assignees":[],"labels":["work-class: read-only"],"blocked_by_count":0},
     {"id":"github:o/r#5","state":"open","assignees":[],"labels":["work-class: mechanical"],"blocked_by_count":0},
     {"id":"github:o/r#12","state":"open","assignees":[],"labels":["agent-ready"],"blocked_by_count":0}
   ]
 }'
 IDS="$(frontier_ids true <<<"$WORK_CLASS")"
-assert_eq "autonomous frontier lists structural and unclassified agent-ready items, drops untrusted-provenance" \
+assert_eq "autonomous frontier lists structural and unclassified agent-ready items" \
   "github:o/r#1,github:o/r#2,github:o/r#4,github:o/r#5,github:o/r#12" "$IDS"
 
-# The floor is an AUTONOMOUS-only exclusion: the attended lane must still see
-# these items, otherwise a human-gated item becomes unreachable by every view.
-IDS="$(frontier_ids false <<<"$WORK_CLASS")"
-assert_eq "default frontier still surfaces untrusted-provenance for the attended lane" \
-  "github:o/r#1,github:o/r#2,github:o/r#3,github:o/r#4,github:o/r#5,github:o/r#12" "$IDS"
-
-# provenance: untrusted floors an item the same way, EVEN WHEN it carries the
-# autonomous-eligible role label, and the attended lane still sees it.
+# provenance: untrusted floors an item EVEN WHEN it carries the autonomous-eligible
+# role label. The floor is autonomous-only: the attended lane still sees the item, so
+# a human-gated item stays reachable.
 UNTRUSTED='{"schema_version":"1.0","items":[
   {"id":"github:o/r#1","state":"open","assignees":[],"labels":["agent-ready","work-class: scoped"],"blocked_by_count":0},
   {"id":"github:o/r#13","state":"open","assignees":[],"labels":["agent-ready","provenance: untrusted"],"blocked_by_count":0}]}'
@@ -168,30 +161,18 @@ IDS="$(frontier_ids false <<<"$SIGNAL")"
 assert_eq "default frontier still surfaces a provenance: signal item" \
   "github:o/r#1,github:o/r#6" "$IDS"
 
-# provenance: untrusted floors an item the same way, and the attended lane still
-# sees it. The WORK_CLASS fixture above keeps proving the legacy name is floored.
-UNTRUSTED='{"schema_version":"1.0","items":[
-  {"id":"github:o/r#1","state":"open","assignees":[],"labels":["agent-ready","work-class: scoped"],"blocked_by_count":0},
-  {"id":"github:o/r#13","state":"open","assignees":[],"labels":["agent-ready","provenance: untrusted"],"blocked_by_count":0}]}'
-IDS="$(frontier_ids true <<<"$UNTRUSTED")"
-assert_eq "autonomous frontier drops provenance: untrusted even when agent-ready" \
-  "github:o/r#1" "$IDS"
-IDS="$(frontier_ids false <<<"$UNTRUSTED")"
-assert_eq "default frontier still surfaces a provenance: untrusted item" \
-  "github:o/r#1,github:o/r#13" "$IDS"
-
 # A status label that waits on a person floors the item too, and the attended lane
 # still sees it.
 STATUS='{"schema_version":"1.0","items":[
   {"id":"github:o/r#1","state":"open","assignees":[],"labels":["agent-ready","work-class: scoped"],"blocked_by_count":0},
-  {"id":"github:o/r#9","state":"open","assignees":[],"labels":["agent-ready","status: needs-decision"],"blocked_by_count":0},
-  {"id":"github:o/r#10","state":"open","assignees":[],"labels":["agent-ready","status: needs-info"],"blocked_by_count":0},
+  {"id":"github:o/r#9","state":"open","assignees":[],"labels":["agent-ready","needs-owner-decision"],"blocked_by_count":0},
+  {"id":"github:o/r#10","state":"open","assignees":[],"labels":["agent-ready","needs-reporter-info"],"blocked_by_count":0},
   {"id":"github:o/r#11","state":"open","assignees":[],"labels":["needs-spec"],"blocked_by_count":0}]}'
 IDS="$(frontier_ids true <<<"$STATUS")"
-assert_eq "autonomous frontier drops status: needs-decision and needs-info even when agent-ready, and a parked needs-spec item" \
+assert_eq "autonomous frontier drops needs-owner-decision and needs-info even when agent-ready, and a parked needs-spec item" \
   "github:o/r#1" "$IDS"
 IDS="$(frontier_ids false <<<"$STATUS")"
-assert_eq "default frontier still surfaces status: needs-decision, needs-info and needs-spec items" \
+assert_eq "default frontier still surfaces needs-owner-decision, needs-info and needs-spec items" \
   "github:o/r#1,github:o/r#9,github:o/r#10,github:o/r#11" "$IDS"
 
 # C3 scoped is not in the floor, so it must survive this filter.
@@ -211,10 +192,10 @@ assert_eq "floor matching is exact, not substring" "1" "$COUNT"
 STATUSED='{"schema_version":"1.0","items":[
   {"id":"github:o/r#1","state":"open","assignees":[],"labels":["needs-human"],"blocked_by_count":0,"status":"agent-ready"},
   {"id":"github:o/r#2","state":"open","assignees":[],"labels":[],"blocked_by_count":0,"status":"needs-owner-decision"},
-  {"id":"github:o/r#3","state":"open","assignees":[],"labels":["status: needs-info"],"blocked_by_count":0,"status":null},
+  {"id":"github:o/r#3","state":"open","assignees":[],"labels":["needs-reporter-info"],"blocked_by_count":0,"status":null},
   {"id":"github:o/r#4","state":"open","assignees":[],"labels":["agent-ready"],"blocked_by_count":0,"status":"needs-spec"},
   {"id":"github:o/r#5","state":"open","assignees":[],"labels":[],"blocked_by_count":0,"status":"ready"},
-  {"id":"github:o/r#6","state":"open","assignees":[],"labels":["status: needs-info"],"blocked_by_count":0,"status":"agent-ready"}]}'
+  {"id":"github:o/r#6","state":"open","assignees":[],"labels":["needs-reporter-info"],"blocked_by_count":0,"status":"agent-ready"}]}'
 assert_eq "a field hold holds; a field ready state never frees a label-held item" \
   "github:o/r#5" "$(frontier_ids true <<<"$STATUSED")"
 assert_eq "the default frontier ignores status" "6" "$(frontier_count false <<<"$STATUSED")"
@@ -224,7 +205,6 @@ MIRRORED='{"schema_version":"1.0","items":[
   {"id":"github:o/r#1","state":"open","assignees":[],"labels":[],"blocked_by_count":0,"status":"needs-triage"},
   {"id":"github:o/r#2","state":"open","assignees":[],"labels":["agent-ready","needs-spec"],"blocked_by_count":0,"status":"needs-spec"},
   {"id":"github:o/r#3","state":"open","assignees":[],"labels":["needs-owner-decision"],"blocked_by_count":0,"status":"needs-owner-decision"},
-  {"id":"github:o/r#4","state":"open","assignees":[],"labels":["status: needs-decision"],"blocked_by_count":0,"status":"needs-owner-decision"},
   {"id":"github:o/r#5","state":"open","assignees":[],"labels":["status: ready","agent-ready"],"blocked_by_count":0,"status":"agent-ready"},
   {"id":"github:o/r#6","state":"open","assignees":[],"labels":["needs-human","agent-ready"],"blocked_by_count":0,"status":"needs-human"}]}'
 assert_eq "a mirroring field changes no frontier answer" \
@@ -232,7 +212,7 @@ assert_eq "a mirroring field changes no frontier answer" \
 
 # --- the binding's hold lists and wayfind prefix replace the defaults ---
 CONFIGURED='{"schema_version":"1.0","items":[
-  {"id":"github:o/r#1","state":"open","assignees":[],"labels":["status: needs-decision"],"blocked_by_count":0},
+  {"id":"github:o/r#1","state":"open","assignees":[],"labels":["needs-owner-decision"],"blocked_by_count":0},
   {"id":"github:o/r#2","state":"open","assignees":[],"labels":["on hold"],"blocked_by_count":0},
   {"id":"github:o/r#3","state":"open","assignees":[],"labels":[],"blocked_by_count":0,"status":"needs-human"},
   {"id":"github:o/r#4","state":"open","assignees":[],"labels":[],"blocked_by_count":0,"status":"parked"},

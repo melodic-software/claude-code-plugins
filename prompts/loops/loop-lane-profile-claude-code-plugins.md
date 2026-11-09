@@ -46,8 +46,7 @@ Filled instance for the repository in use as of 2026-07-25.
   Effective rung today: human-only, until the promotion-evidence seam
   (#4588) returns a qualified read and the copy-blocks drop
   `--merge human-only`.
-- Work-class labels: `work-class: untrusted-provenance` is the one kept, read the same as
-  `provenance: untrusted`.
+- Work-class labels: none is read; untrusted provenance is `provenance: untrusted`.
 - Stamped `agent-ready` items: **every open one carries a class label**, and
   the population is overwhelmingly `scoped`, with `mechanical` and
   `structural` in low single digits. No rung reads the label: once a rung's
@@ -233,7 +232,7 @@ machines; neither on the attended box.
 > the class used for admission." Never apply or change a `work-class:`
 > label, **and never write a `Work-class: C<n>` trailer into an item body.**
 > Your standing authorization to triage and classify does not reach these:
-> the `untrusted-provenance` label holds a PR from merging, so writing or
+> the `provenance: untrusted` label holds a PR from merging, so writing or
 > removing one is you deciding your own merge hold, and the trailer is
 > the operator's own record of the class they label from, so writing that
 > fabricates their evidence one step back. That is the single thing this lane
@@ -477,7 +476,7 @@ terminals mutating the same row.
 >
 > `gh issue edit <numbers> --add-label "<label>"`
 >
-> `work-class: untrusted-provenance` is the only `work-class:` label kept in this repository.
+> Untrusted provenance is marked with `provenance: untrusted`, not a `work-class:` label.
 >
 > For an item with no trailer, propose a class with a one-line rationale and
 > wait. Two traps. `mechanical` is narrow: deterministic, trivially
@@ -746,7 +745,7 @@ to the template re-renders here too.
 > **Work classes: you propose, I apply. Labels and body trailers alike.**
 > Never write a `work-class:` label or a `Work-class: C<n>` body trailer
 > yourself, not even to transcribe a class I already ratified. Both are
-> agent-writable: the `untrusted-provenance` label is the merge lane's one
+> agent-writable: the `provenance: untrusted` label is the merge lane's one
 > class hold, and the
 > trailer is the record I label from, so writing either is an agent authoring
 > its own admission input. Resolve the live

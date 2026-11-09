@@ -17,11 +17,11 @@ These axes work in any repo and don't change per team. Do not snapshot their mem
 |------|-----------|-----------------|
 | Type | native Issue Type (org) · `type:` label (personal/non-org) | The kind of issue: `Bug` (broken vs. intent), `Feature` (new capability), `Task` (any other tracked work: maintenance, refactor, tests, docs, audits, chores). Commit-type granularity (`fix`/`feat`/`chore`/`docs`/`refactor`/`test`/`build`/`perf`) stays at the commit layer, not the issue axis. |
 | Priority | `priority:` | Urgency. Members from the live set. |
-| Status | `status:` | Exception and gate flags only (e.g. `needs-info`, `needs-decision`, `ready`). Members from the live set. **Claim is not a status label.** It is assignee + lease (see the seam claim protocol). **Blocked is not a status label.** It is a native `blocked-by` dependency edge. The triage floor is not a status value. Where the tracker also keeps a `Work status` field, read an item's status per [`tracker-seam.md`](tracker-seam.md) "Reading an item's status". |
-| Meta | (none) | Tool-owned flat markers the automation sets: `automated`, `good-first-issue`, `migrated`, `stale`, the triage floor `needs-triage` (bare; not a `priority:` or `status:` value), the idea-issue park `needs-spec` (bare; set by triage), plus the three canonical-role labels (defaults `agent-ready`, `needs-human`, and `recurring`, listed under "Canonical roles" below). |
+| Status | `status:` | Exception and gate flags only (e.g. `confirmed`, `ready`). Members from the live set. **Claim is not a status label.** It is assignee + lease (see the seam claim protocol). **Blocked is not a status label.** It is a native `blocked-by` dependency edge. The triage floor is not a status value. Where the tracker also keeps a `Work status` field, read an item's status per [`tracker-seam.md`](tracker-seam.md) "Reading an item's status". |
+| Meta | (none) | Tool-owned flat markers the automation sets: `automated`, `good-first-issue`, `migrated`, `stale`, the triage floor `needs-triage` (bare; not a `priority:` or `status:` value), the idea-issue park `needs-spec` (bare; set by triage), the hold labels `needs-owner-decision` and `needs-reporter-info` (bare), plus the three canonical-role labels (defaults `agent-ready`, `needs-human`, and `recurring`, listed under "Canonical roles" below). |
 | Cadence | `cadence:` | Recurrence period for maintenance items. Members from the live set. |
-| Work class | `work-class:` | Semantic risk class (C1–C4), kept on older items as a record; nothing applies or reads it, except that a CI intake proposal of the legacy C5 name still holds the item as untrusted. C5 is marked on the provenance axis; of this axis only the legacy C5 name is still read, by the frontier floor and the CI holds. Members and the legacy name: [`work-class-labels.md`](work-class-labels.md). Classification criteria: the `autonomy` plugin's [`work-classes.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/reference/guardrails/work-classes.md). |
-| Provenance | `provenance:` | Where an item came from. `provenance: untrusted` (C5) floors the item for a person and holds its merge; `provenance: signal` marks an item filed from a signal and floors it too. Members from the live set; the legacy name: [`work-class-labels.md`](work-class-labels.md). |
+| Work class | `work-class:` | Semantic risk class (C1–C4), kept on older items as a record; nothing applies or reads it. C5 is marked on the provenance axis. Members: [`work-class-labels.md`](work-class-labels.md). Classification criteria: the `autonomy` plugin's [`work-classes.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/reference/guardrails/work-classes.md). |
+| Provenance | `provenance:` | Where an item came from. `provenance: untrusted` (C5) floors the item for a person and holds its merge; `provenance: signal` marks an item filed from a signal and floors it too. Members from the live set. |
 | Capability tier | `capability-tier:` | Execution capability tier for the work-loop frontier quota guard. Canonical members and migration: [`capability-tier-labels.md`](capability-tier-labels.md). Absent label = general tier (fail-closed); body prose is never authority. |
 
 ## Canonical roles
@@ -89,9 +89,9 @@ configuration error.
 
 | Key | Default | What it holds |
 |-----|---------|---------------|
-| `hold_labels` | `status: needs-decision`, the `owner-decision` role label, `status: needs-info`, `needs-spec` | Labels that wait on a person |
+| `hold_labels` | the `owner-decision` role label, `needs-reporter-info`, `needs-spec` | Labels that wait on a person |
 | `hold_states` | `needs-human`, `needs-owner-decision`, `needs-reporter-info`, `needs-spec` | Work status states that wait on a person |
-| `hold_state_labels` | `needs-human`, `status: needs-decision`, the `owner-decision` role label, `status: needs-info`, `needs-spec` | The hold states' labels: an item carrying one has its hold decided by its labels |
+| `hold_state_labels` | `needs-human`, the `owner-decision` role label, `needs-reporter-info`, `needs-spec` | The hold states' labels: an item carrying one has its hold decided by its labels |
 | `wayfind_label_prefix` | `wayfind:` | The prefix of `/planning:wayfind`'s routing labels |
 
 A remap of the `owner-decision` role reaches the two defaults that name it. A key set
