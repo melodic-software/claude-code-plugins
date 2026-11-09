@@ -16,7 +16,7 @@ One paragraph of plain prose, three parts in this order:
 
 1. **Goal**, with its "because": what changes, and why the user wants it.
 2. **Problem**: what is wrong or missing today, in the user's words where they gave them.
-3. **Done**: how everyone will know it worked, the acceptance criteria condensed to a clause.
+3. **Done**: the Goal's Finish line (when the whole effort is done and who checks it), then how everyone will know it worked, the acceptance criteria condensed to a clause.
 
 No list, no table, and no bare codes: name each item (SKILL.md "Name every code"). Example:
 

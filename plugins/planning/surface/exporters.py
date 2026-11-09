@@ -1011,15 +1011,29 @@ def bullets(text):
 
 
 LIST_ITEM = re.compile(r"^\s*[-*+]\s")
+FINISH_LINE_ITEM = re.compile(r"^[-*+]\s+Finish line:", re.IGNORECASE)
 
 
 def goal_lines(text):
     """The restated goal: its other lines as one paragraph, then its list items as bullets, so
-    the Goal's Intent, Vision and tiebreak lines stay separate bullets under the outcome."""
+    the Goal's Intent, Vision, tiebreak and Finish line lines stay separate bullets under the
+    outcome."""
     lines = str(text or "").splitlines()
     prose = para(" ".join(x for x in lines if not LIST_ITEM.match(x)))
     items = bullets("\n".join(x for x in lines if LIST_ITEM.match(x)))
     return ([prose] if prose else []) + items
+
+
+def goal_block(lines):
+    """The Goal lines with `- Finish line: not settled yet` added when none is a Finish line item,
+    and a blank line between the outcome paragraph and its list."""
+    lines = list(lines)
+    if not any(FINISH_LINE_ITEM.match(x) for x in lines):
+        lines.append("- Finish line: not settled yet")
+    first = next(i for i, x in enumerate(lines) if LIST_ITEM.match(x))
+    if first:
+        lines.insert(first, "")
+    return lines
 
 
 LEAD_QN = re.compile(r"^[\\\[(*_]*[Qq]([1-9][0-9]*)\b")
@@ -1362,7 +1376,7 @@ def export_brief(d, text=None):
     out += ["", "### Intent", "", para(sections.get("intent")) or "none stated"]
     words = user_words(rows, resp.get("events") or [], sections.get("intent"))
     out += ["", *words] if words else []
-    out += ["", "### Goal", "", *(goal_lines(sections.get("goal")) or [para(title)]), ""]
+    out += ["", "### Goal", "", *goal_block(goal_lines(sections.get("goal")) or [para(title)]), ""]
     out += [
         "### Work size",
         "",

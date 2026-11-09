@@ -1199,10 +1199,10 @@ the rule governs a *mechanism* a plugin owns, and a self-contained paste block o
 
 The `autonomy` plugin's `reference/autonomous-pipeline-reminder.md` states the same clause set once,
 with its provenance, as the artifact an adopting org drops into **its own** pipeline. The Worker and
-Merge lane prompts in `prompts/loops/loop-lane-prompts.md` carry only the first failure's clause
-(never end a turn on a status summary or an offer to continue) and "speak to me only when fully
-blocked"; the reminder's recovery clause, its deliberate-block sentence included, has no
-counterpart in them yet. No lane
+Merge lane prompts in `prompts/loops/loop-lane-prompts.md` carry the first failure's clause
+(never end a turn on a status summary or an offer to continue), "speak to me only when fully
+blocked", and the reminder's recovery clause, its deliberate-block sentence included, each in the
+lane's own voice. No lane
 consumes that file, and a lane author changing these clauses should read it as the reference wording
 rather than as a source the prompts import.
 

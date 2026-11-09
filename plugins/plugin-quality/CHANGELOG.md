@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.7] - 2026-11-09
+
+### Changed
+
+- The `auditor` model and effort pin record is rechecked against the Claude Fable 5.2 release; no pin changes.
+
 ## [0.19.6] - 2026-11-09
 
 ### Changed

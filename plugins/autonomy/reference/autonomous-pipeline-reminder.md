@@ -86,7 +86,7 @@ human-in-the-loop review into an agent that acts on its own recommendations.
 
 The loop lanes this repository ships are the worked example of that split. Their two autonomous
 lanes state some of these clauses in their own words, hand-authored inline in each launch prompt
-(the end-of-turn clause, not yet the recovery clause); the
+(the end-of-turn clause and the recovery clause); the
 attended lane deliberately states none, because it opens by telling the session a human is present.
 **No lane references this file.** Launch prompts are pasted into a terminal that may have no plugin
 installed, so they stay self-contained by design.

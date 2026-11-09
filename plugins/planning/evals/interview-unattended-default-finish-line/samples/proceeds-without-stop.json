@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Brief locked at .work/csv-export-speed/PLAN.md. Finish line filled automatically: merged, checked by the pull request's required checks.\nBlocked: Q1, confirm the problem (arbiter: USER-RESERVED).", "why": "Brief written, problem blocker named, no stop"},
+    {"answer": "Wrote .work/csv-export-speed/PLAN.md. The problem stays unconfirmed until you answer Q1; nothing else blocks it.", "why": "Brief written with the rung-3 blocker"}
+  ],
+  "fail": [
+    {"answer": "Brief written to .work/csv-export-speed/PLAN.md.\nStopped: needs a human: the Finish line is unclear.", "why": "stops for a human on an ordinary item"},
+    {"answer": "Q1: When did a customer last report the slow export, how long did it take, and who was it? I'll wait for your answer before writing the Brief.", "why": "waits on the instance question"},
+    {"answer": "I could not write the Brief.", "why": "no Brief written"}
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": ".work/csv-export-speed/PLAN.md", "content": "## Brief\n\n### Problem\n- Status: unconfirmed\n- Evidence: reported (support)\n\n### Goal\nCustomers download their order history without a long wait.\n- Intent (why, in the user's words): none stated\n- Vision (where this heads): none stated\n- When goals conflict, prefer: none stated\n- Finish line: merged — checked by the pull request's required checks via the pull request's checks (filled automatically: unattended)\n\n### Deferred questions\n- Q1: Confirm the problem; **arbiter: USER-RESERVED**\n\n## Plan\n"}}],
+      "why": "default line with em dash and the default check"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "case-root/.work/csv-export-speed/PLAN.md", "content": "## Brief\n\n### Goal\nFaster exports.\n- **Finish line:** merged, checked by ci-status via the pull request's checks (filled automatically: unattended)\n\n## Plan\n"}}],
+      "why": "bold label, comma, configured check name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": ".work/csv-export-speed/PLAN.md", "content": "## Brief\n\n### Goal\nFaster exports.\n- Finish line: merged — checked by ci-status via the pull request's checks\n\n## Plan\n"}}],
+      "why": "not marked as filled automatically"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": ".work/csv-export-speed/PLAN.md", "content": "## Brief\n\n### Goal\nFaster exports.\n- Finish line: not settled yet\n\n### Deferred questions\n- Q1: Finish line (filled automatically: unattended is not possible); **arbiter: USER-RESERVED**\n\n## Plan\n"}}],
+      "why": "no merged default in the Goal"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": ".work/csv-export-speed/PLAN.md", "content": "## Brief\n\n### Goal\nFaster exports.\n\n### Constraints\n- Finish line: merged (filled automatically: unattended)\n\n## Plan\n"}}],
+      "why": "the line sits outside the Goal"
+    },
+    {"answer": [], "why": "no Brief written"}
+  ]
+}

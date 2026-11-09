@@ -244,6 +244,7 @@ Goal: <the Brief's Goal paragraph, copied>
 - Intent (why, in the user's words): <copied>
 - Vision (where this heads): <copied>
 - When goals conflict, prefer: <copied>
+- Finish line: <copied>
 Constraints:
 - <each of the Brief's Constraints, copied>
 <!-- Prototype output: when /prototype:pressure-test settled a data shape or a transition table,
@@ -286,7 +287,7 @@ Fill the sections this way:
   picker knows what to run or show after merge. Redact it as Outcome is: no file paths.
 - **Problem**, **Goal** and **Constraints** carry the why to a session that works one item alone. Fill them
   only when no spec container was approved and the source PLAN.md has a `## Brief`: copy its
-  Problem, its Goal paragraph with the Intent, Vision and When-goals-conflict lines, and its
+  Problem, its Goal paragraph with the Intent, Vision, When-goals-conflict and Finish line lines, and its
   Constraints bullets as written, dropping any memory-slice path, since
   that slice is never committed. Replace any other file path with the module or type it names, as
   Key interfaces does, and drop or generalize a machine-specific path, hostname or

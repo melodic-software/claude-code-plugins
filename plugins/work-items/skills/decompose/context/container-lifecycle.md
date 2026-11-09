@@ -27,8 +27,8 @@ coordination provider instead of publishing a spec that cannot travel.
 **Publish. Container first.** On approval, create the container before any item so item
 `create-item` calls can carry `--parent`:
 
-- **Body**: the Brief **verbatim** (TLDR / Problem / Goal with its Intent, Vision and
-  When-goals-conflict lines / Constraints / Acceptance criteria / Captured assumptions /
+- **Body**: the Brief **verbatim** (TLDR / Problem / Goal with its Intent, Vision,
+  When-goals-conflict and Finish line lines / Constraints / Acceptance criteria / Captured assumptions /
   Out-of-scope / Deferred questions), plus the plan's `### Load-bearing assumptions` table
   verbatim when the plan has one (a link in the Problem or a Source cell naming a memory-slice
   file becomes the file's name alone, since that slice is never committed), plus an optional `## Testing decisions`
