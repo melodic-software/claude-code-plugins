@@ -5,6 +5,12 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.3] - 2026-11-09
+
+### Changed
+
+- The reader contract's band-provenance record cites the Claude Fable 5.2 system card, which, like the earlier cards, gives no per-length long-context scores; the shipped token bands are unchanged.
+
 ## [3.1.2] - 2026-11-09
 
 ### Changed

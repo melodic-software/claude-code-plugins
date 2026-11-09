@@ -3,6 +3,12 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.12] - 2026-11-09
+
+### Changed
+
+- `/performance:go-faster`'s model-effort-mismatch catalog row is rechecked against the Claude Fable 5.2 release; its remedy is unchanged.
+
 ## [0.14.11] - 2026-11-09
 
 ### Changed
