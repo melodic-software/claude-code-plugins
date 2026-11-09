@@ -73,30 +73,28 @@ flags=(-oneline -shellcheck= -pyflakes=)
 out="$CHECKS_TMP/findings"
 : >"$out"
 
+# exit_if_lint_failed <status> [<what>]: actionlint exits 1 on findings and
+# above 1 when it could not lint; then its output goes to stderr and the
+# script exits 1.
+exit_if_lint_failed() {
+  (($1 > 1)) || return 0
+  printf 'actionlint: actionlint failed%s:\n' "${2:-}" >&2
+  cat "$CHECKS_TMP/raw" >&2
+  exit 1
+}
+
 if ((${#whole[@]})); then
   actionlint "${flags[@]}" -- "${whole[@]}" >"$CHECKS_TMP/raw" 2>&1
-  rc=$?
-  if ((rc > 1)); then
-    printf 'actionlint: actionlint failed:\n' >&2
-    cat "$CHECKS_TMP/raw" >&2
-    exit 1
-  fi
+  exit_if_lint_failed $?
   to_contract <"$CHECKS_TMP/raw" >>"$out"
 fi
 
-if ((${#partial[@]})); then
-  for f in "${partial[@]}"; do
-    git show ":$f" 2>/dev/null | actionlint "${flags[@]}" - >"$CHECKS_TMP/raw" 2>&1
-    rc=${PIPESTATUS[1]}
-    if ((rc > 1)); then
-      printf 'actionlint: actionlint failed on %s:\n' "$f" >&2
-      cat "$CHECKS_TMP/raw" >&2
-      exit 1
-    fi
-    escaped="$(printf '%s' "$f" | sed 's/[#&\\]/\\&/g')"
-    to_contract <"$CHECKS_TMP/raw" | sed "s#^<stdin>:#$escaped:#" >>"$out"
-  done
-fi
+for f in ${partial[@]+"${partial[@]}"}; do
+  git show ":$f" 2>/dev/null | actionlint "${flags[@]}" - >"$CHECKS_TMP/raw" 2>&1
+  exit_if_lint_failed "${PIPESTATUS[1]}" " on $f"
+  escaped="$(printf '%s' "$f" | sed 's/[#&\\]/\\&/g')"
+  to_contract <"$CHECKS_TMP/raw" | sed "s#^<stdin>:#$escaped:#" >>"$out"
+done
 
 checks_filter_findings <"$out" >"$CHECKS_TMP/blocking"
 [[ -s "$CHECKS_TMP/blocking" ]] || exit 0
