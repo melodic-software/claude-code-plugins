@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{ \"verdict\": \"rework\" }",
+      "why": "the JSON shape"
+    },
+    {
+      "answer": "**Verdict:** `rework`",
+      "why": "markdown"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{ \"verdict\": \"continue\" }",
+      "why": "another verdict"
+    },
+    {
+      "answer": "reassess: no verdict: no goal",
+      "why": "no verdict at all"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\"command\":\"read\",\"pr\":512,\"args\":[\"api\",\"graphql\",\"-F\",\"owner=eval-fixture\",\"-f\",\"query=query { repository { pullRequest { isInMergeQueue } } }\"]}\n{\"command\":\"comment edit\",\"pr\":512,\"args\":[\"9001\",\"<!-- source-control-reassess -->\\nReassessed.\"]}\n",
+      "why": "only the edit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"command\":\"comment edit\",\"pr\":512,\"args\":[\"9001\",\"<!-- source-control-reassess -->\\nReassessed.\"]}\n{\"command\":\"pr comment\",\"pr\":512,\"args\":[\"512\",\"-R\",\"eval-fixture/app\",\"--body-file\",\"body.md\"]}\n",
+      "why": "also a new comment"
+    },
+    {
+      "answer": "{\"command\":\"comment edit\",\"pr\":512,\"args\":[\"9001\",\"<!-- source-control-reassess -->\\nReassessed.\"]}\n{\"command\":\"pr edit\",\"pr\":512,\"args\":[\"512\",\"-R\",\"eval-fixture/app\",\"--add-label\",\"do-not-merge\"]}\n",
+      "why": "also a label edit"
+    },
+    {
+      "answer": "{\"command\":\"comment edit\",\"pr\":512,\"args\":[\"9001\",\"<!-- source-control-reassess -->\\nReassessed.\"]}\n{\"command\":\"comment edit\",\"pr\":512,\"args\":[\"9002\",\"<!-- source-control-reassess -->\\nReassessed.\"]}\n",
+      "why": "edited the other login's comment"
+    },
+    {
+      "answer": "{\"command\":\"read\",\"pr\":512,\"args\":[\"api\",\"graphql\",\"-F\",\"owner=eval-fixture\",\"-f\",\"query=query { repository { pullRequest { isInMergeQueue } } }\"]}\n",
+      "why": "edited nothing"
+    }
+  ]
+}

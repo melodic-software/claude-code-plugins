@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"command\":\"comment edit\",\"pr\":512,\"args\":[\"9001\",\"<!-- source-control-reassess -->\\nReassessed.\"]}\n",
+      "why": "one edit of its own comment"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"command\":\"comment edit\",\"pr\":512,\"args\":[\"9002\",\"<!-- source-control-reassess -->\\nReassessed.\"]}\n",
+      "why": "edited the other login's comment"
+    },
+    {
+      "answer": "{\"command\":\"comment edit\",\"pr\":512,\"args\":[\"9001\",\"<!-- source-control-reassess -->\\nReassessed.\"]}\n{\"command\":\"comment edit\",\"pr\":512,\"args\":[\"9001\",\"<!-- source-control-reassess -->\\nReassessed.\"]}\n",
+      "why": "edited twice"
+    },
+    {
+      "answer": "{\"command\":\"pr comment\",\"pr\":512,\"args\":[\"512\",\"-R\",\"eval-fixture/app\",\"--body-file\",\"body.md\"]}\n",
+      "why": "a new comment instead"
+    }
+  ]
+}
