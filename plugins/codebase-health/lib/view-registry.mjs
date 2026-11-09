@@ -82,13 +82,12 @@ export const readAs = (medium, laneEntry) => (medium === "hosted" && !laneEntry.
  */
 export function fallBack(preferred, laneEntry, context = {}) {
   const want = readAs(preferred, laneEntry);
-  const start = FALLBACK_CHAIN.indexOf(want === "hosted" ? "artifact" : want);
-  const candidates = want === "hosted" ? ["hosted", ...FALLBACK_CHAIN.slice(start)] : FALLBACK_CHAIN.slice(start);
   const wanted = mediumOf(want);
   if (!wanted) throw new Error(`view-registry: unknown medium ${JSON.stringify(preferred)}`);
   const first = wanted.reachable(context);
   if (first.ok) return { medium: want, fell: null };
-  const medium = candidates.find((id) => mediumOf(id).reachable(context).ok) ?? "terminal";
+  const start = FALLBACK_CHAIN.indexOf(want === "hosted" ? "artifact" : want);
+  const medium = FALLBACK_CHAIN.slice(start).find((id) => MEDIUMS[id].reachable(context).ok) ?? "terminal";
   return { medium, fell: `${want} unreachable: ${first.reason}` };
 }
 
