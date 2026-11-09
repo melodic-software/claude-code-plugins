@@ -1633,9 +1633,9 @@ test("the driver's file tools are fenced to the head and the run directory, and 
   // Every pin of the two actions is one commit with loopback-base-url (first at 4aba9be).
   const pins = [...CAPTURE_TEXT.matchAll(/uses: melodic-software\/ci-workflows\/\.github\/actions\/(run-claude-cli|apply-claude-managed-settings)@(\S+) # (.*)$/gm)].map((m) => `${m[1]} ${m[2]} ${m[3]}`);
   assert.deepEqual(pins, [
-    "apply-claude-managed-settings a5af46547856939969bee3c44d32d8ea6bc5dca4 a5af465 2026-11-08",
-    "run-claude-cli a5af46547856939969bee3c44d32d8ea6bc5dca4 a5af465 2026-11-08",
-    "run-claude-cli a5af46547856939969bee3c44d32d8ea6bc5dca4 a5af465 2026-11-08",
+    "apply-claude-managed-settings fc442ad3e808adafe3b195e9d12fff901220db50 fc442ad 2026-11-09",
+    "run-claude-cli fc442ad3e808adafe3b195e9d12fff901220db50 fc442ad 2026-11-09",
+    "run-claude-cli fc442ad3e808adafe3b195e9d12fff901220db50 fc442ad 2026-11-09",
   ]);
   assert.deepEqual(allowed.filter((rule) => /^(?:Read|Edit|Write)\(/.test(rule)), ["Read(/${{ github.workspace }}/head/**)", "Read(/${{ github.workspace }}/capture-run/**)", "Read(/${{ github.workspace }}/.base/plugins/**)", "Read(/${{ github.workspace }}/.base/.claude/skills/**)", "Edit(/${{ github.workspace }}/head/**)", "Edit(/${{ github.workspace }}/capture-run/**)"]);
   assert.equal(input(driver, "permission-mode"), "dontAsk");

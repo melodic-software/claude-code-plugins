@@ -338,7 +338,7 @@ jobs:
         if: steps.prepare.outcome == 'success' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 75
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@a5af46547856939969bee3c44d32d8ea6bc5dca4 # a5af465 2026-11-08
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@fc442ad3e808adafe3b195e9d12fff901220db50 # fc442ad 2026-11-09
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -673,7 +673,7 @@ jobs:
         if: steps.prepare.outcome == 'success' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 75
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@a5af46547856939969bee3c44d32d8ea6bc5dca4 # a5af465 2026-11-08
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@fc442ad3e808adafe3b195e9d12fff901220db50 # fc442ad 2026-11-09
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -961,7 +961,7 @@ jobs:
         if: steps.prepare.outcome == 'success' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 75
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@a5af46547856939969bee3c44d32d8ea6bc5dca4 # a5af465 2026-11-08
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@fc442ad3e808adafe3b195e9d12fff901220db50 # fc442ad 2026-11-09
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
