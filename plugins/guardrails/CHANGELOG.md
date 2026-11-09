@@ -3,6 +3,44 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.7] - 2026-11-09
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [3.0.6] - 2026-11-09
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [3.0.5] - 2026-11-09
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [3.0.4] - 2026-11-09
+
+### Changed
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
+- Simplified the vendored git-hook check library and installer. They behave the same, but a git-hook copy you already installed shows as stale until setup refreshes it, because the copy's stamp covers the library's text.
+
+- Simplified the internals of the hook launcher; its behavior is unchanged.
+
+## [3.0.3] - 2026-11-09
+
+### Changed
+
+- Simplified the shared resolve-convention-home.sh, resolve-convention-pattern.sh and rewrite-guard.sh copies; behavior is unchanged.
+
+- **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** The builtin JSON field readers share one key-depth check, and three helpers drop redundant steps.
+
 ## [3.0.2] - 2026-11-09
 
 ### Changed

@@ -60,7 +60,8 @@ const LEGS = ["", "-subscription", "-fallback"];
 const legs = (job, suffixes = [""]) => LEGS.flatMap((leg) => suffixes.map((suffix) => `${job}${leg}${suffix}`));
 const AUDIT_UNITS = ["a", "c", "d"].flatMap((group) => [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `-${group}${n}`));
 const VERIFY_LEGS = ["", ...Array.from({ length: 11 }, (_, i) => `-${i + 2}`), "-spec"];
-const REVIEW_CHUNKS = ["claude-review", "claude-security-review"].flatMap((lane) => ["", "-2", "-3", "-4"].map((chunk) => `-${lane}${chunk}`));
+const CHUNKS = ["", "-2", "-3", "-4"];
+const REVIEW_CHUNKS = ["claude-review", "claude-security-review"].flatMap((lane) => CHUNKS.map((chunk) => `-${lane}${chunk}`));
 export const TRANSCRIPT_JOB_IDS = {
   "intake-triage.yml": legs("refine-issue"),
   "maintenance-audit-lane-runs.yml": legs("judge", AUDIT_UNITS),
@@ -71,13 +72,13 @@ export const TRANSCRIPT_JOB_IDS = {
   // Its job-id holds the issue number, which no fixed list can name, so the
   // pull does not reach these transcripts.
   "pr-run-activity-read.yml": [],
-  "pr-unblock.yml": ["0", "1", "2"].flatMap((n) => [`adjudicate-feedback-${n}`, `adjudicate-feedback-${n}-subscription`, `adjudicate-feedback-${n}-fallback`]),
+  "pr-unblock.yml": ["0", "1", "2"].flatMap((n) => legs(`adjudicate-feedback-${n}`)),
   "pr-verify.yml": legs("check-intent", VERIFY_LEGS),
   "pr-verify-capture.yml": legs("capture", ["-probe", ""]),
   "pr-rate-merge-risk.yml": legs("rate-merge-risk"),
   "upstream-apply-changelog.yml": [...legs("model"), ...legs("scrub-probe")],
   // job-id `${{ inputs.lane }}-${{ github.job }}` and chunks -2 to -4.
-  "ci-workflows/pr-review-cli.yml": ["code", "security"].flatMap((lane) => ["review-key", "review-subscription", "review-fallback"].flatMap((job) => ["", "-2", "-3", "-4"].map((chunk) => `${lane}-${job}${chunk}`))),
+  "ci-workflows/pr-review-cli.yml": ["code", "security"].flatMap((lane) => ["review-key", "review-subscription", "review-fallback"].flatMap((job) => CHUNKS.map((chunk) => `${lane}-${job}${chunk}`))),
   // job-id `intake-${{ github.job }}`.
   "ci-workflows/intake-triage.yml": ["intake-claude", "intake-subscription", "intake-fallback"],
 };
@@ -200,9 +201,7 @@ export function pull({ sink, repo, recipient, deps, log }) {
 
 function pullWithin({ sink, repo, recipient, deps, log }) {
   const now = deps.now();
-  ensureDir(sink);
-  ensureDir(paths(sink).transcripts);
-  ensureDir(paths(sink).tmp);
+  for (const dir of [sink, paths(sink).transcripts, paths(sink).tmp]) ensureDir(dir);
   const state = readState(sink);
   const last = Date.parse(state.last_success_at ?? "");
   // A pull stopped at its budget leaves its own cutoff, so the next pull still
@@ -275,19 +274,20 @@ function store({ sink, repo, recipient, deps, artifact, named, runs, now }) {
   try {
     messages = JSON.parse(gunzipSync(gz, { maxOutputLength: MAX_PLAIN }).toString("utf8"));
   } catch {
-    messages = null;
+    // An unreadable payload stays null: its row's outcome is `unreadable`.
   }
   if (!runs.has(runId)) runs.set(runId, fetched("run-read", () => json(ghRetried(deps, ["api", `repos/${repo}/actions/runs/${runId}`]))));
   const run = runs.get(runId);
+  const asString = (value) => (typeof value === "string" ? value : null);
   const row = {
     artifact_id: artifact.id,
     run_id: Number(runId),
     run_attempt: named.attempt,
     job_id: named.jobId,
     lane: laneOf(run.path),
-    workflow: typeof run.name === "string" ? run.name : null,
-    event: typeof run.event === "string" ? run.event : null,
-    head_branch: typeof run.head_branch === "string" ? run.head_branch : null,
+    workflow: asString(run.name),
+    event: asString(run.event),
+    head_branch: asString(run.head_branch),
     run_conclusion: run.conclusion ?? run.status ?? null,
     created_at: artifact.created_at,
     date: artifact.created_at.slice(0, 10),
@@ -311,7 +311,7 @@ export function status(sink, now = Date.now()) {
 
 const alert = (s) =>
   s.backlog_stale
-    ?`ALERT: budget-stopped pulls have not drained the lane transcript backlog in 5 days (cutoff: ${s.resume_cutoff_at})`
+    ? `ALERT: budget-stopped pulls have not drained the lane transcript backlog in 5 days (cutoff: ${s.resume_cutoff_at})`
     : `ALERT: no lane transcript pull has succeeded in the last 5 days (last: ${s.last_success_at ?? "never"})`;
 
 // Exit codes: 0 done, 1 failed or stale, 2 usage.
@@ -330,11 +330,15 @@ export function main(argv = process.argv.slice(2), env = process.env, deps = und
   const keyText = env.LANE_TRANSCRIPT_PRIVATE_KEY;
   delete env.LANE_TRANSCRIPT_PRIVATE_KEY;
   const d = deps ?? defaultDeps(env);
+  // Alerts on a stale sink; the exit code is 1 when it is stale.
+  const alertIfStale = (s) => {
+    if (s.stale) io.err(`${alert(s)}\n`);
+    return s.stale ? 1 : 0;
+  };
   if (command === "status") {
     const s = status(sink, d.now());
     io.out(`${JSON.stringify(s)}\n`);
-    if (s.stale) io.err(`${alert(s)}\n`);
-    return s.stale ? 1 : 0;
+    return alertIfStale(s);
   }
   if (command === "query") {
     try {
@@ -360,9 +364,7 @@ export function main(argv = process.argv.slice(2), env = process.env, deps = und
     // A complete pull is fresh; one that missed an artifact or stopped at its
     // budget is stale once its kept window is.
     pull({ sink, repo: flags.repo ?? REPO, recipient, deps: d, log: (s) => io.out(`${s}\n`) });
-    const s = status(sink, d.now());
-    if (s.stale) io.err(`${alert(s)}\n`);
-    return s.stale ? 1 : 0;
+    return alertIfStale(status(sink, d.now()));
   } catch (error) {
     // A kind, never a value: a failed listing call names its exit status only.
     const kind = error instanceof PullError ? error.message : error?.status !== undefined ? `artifact-list: gh exited ${error.status}` : error?.name ?? "error";
@@ -372,8 +374,7 @@ export function main(argv = process.argv.slice(2), env = process.env, deps = und
       // The sink itself may be the failure.
     }
     io.err(`pull failed: ${kind}\n`);
-    const s = status(sink, d.now());
-    if (s.stale) io.err(`${alert(s)}\n`);
+    alertIfStale(status(sink, d.now()));
     return 1;
   }
 }

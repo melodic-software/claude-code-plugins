@@ -247,7 +247,7 @@ cmd_trace() {
   : >"$out/verdicts.tsv"
   k=0
   while IFS= read -r f; do
-    key="$(printf '%06d' "$k")"
+    printf -v key '%06d' "$k"
     k=$((k + 1))
     awk -v f="$f" '{ print f "\t" $0 }' "$out/sel/$key.out" >>"$out/selected.tsv"
     if grep -q '^not checked' "$out/sel/$key.err"; then
@@ -274,9 +274,10 @@ cmd_trace() {
   ' "$out/fallback" "$out/selected.tsv" "$out/verdicts.tsv" "$out/edges.tsv" | sort >"$out/gaps.tsv"
 
   local traced not_traced failed gaps gap_suites unchecked
-  traced=$(awk -F'\t' '$2 != "not-traced"' "$out/suites.tsv" | wc -l)
-  not_traced=$(awk -F'\t' '$2 == "not-traced"' "$out/suites.tsv" | wc -l)
-  failed=$(awk -F'\t' '$2 != "not-traced" && $2 != 0' "$out/suites.tsv" | wc -l)
+  read -r traced not_traced failed < <(awk -F'\t' '
+    $2 == "not-traced" { n++; next }
+    { t++; if ($2 != 0) f++ }
+    END { print t + 0, n + 0, f + 0 }' "$out/suites.tsv")
   gaps=$(wc -l <"$out/gaps.tsv")
   gap_suites=$(cut -f1 "$out/gaps.tsv" | sort -u | wc -l)
   unchecked=$(grep -c $'\tnot checked' "$out/verdicts.tsv" || true)

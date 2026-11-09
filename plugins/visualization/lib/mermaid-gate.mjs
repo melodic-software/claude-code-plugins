@@ -99,12 +99,11 @@ function atLeast(version, min) {
 
 export function resolveMmdc(explicit) {
   const candidates = explicit ? [explicit] : ["mmdc", join(process.cwd(), "node_modules", ".bin", "mmdc")];
-  let cmd = candidates[0];
-  let v = run(cmd, ["--version"]);
-  for (const next of candidates.slice(1)) {
-    if (!v.error) break;
-    cmd = next;
+  let cmd;
+  let v;
+  for (cmd of candidates) {
     v = run(cmd, ["--version"]);
+    if (!v.error) break;
   }
   if (v.error) return { reason: `mmdc is not installed (${PINNED_MMDC} or newer is needed), so the Mermaid source is kept` };
   const version = /(\d+\.\d+\.\d+)/.exec(v.out)?.[1];
@@ -122,7 +121,8 @@ function render(mmdc, source, work, name) {
   writeFileSync(input, source);
   const r = run(mmdc, ["-q", "-i", input, "-o", output]);
   if (r.status === 0) return { svg: readFileSync(output, "utf8") };
-  const message = r.out.split("\n").find((l) => PARSE_ERROR.test(l)) ?? r.out.split("\n")[0];
+  const lines = r.out.split("\n");
+  const message = lines.find((l) => PARSE_ERROR.test(l)) ?? lines[0];
   if (PARSE_ERROR.test(r.out)) return { error: message };
   return { reason: `mmdc could not render (${message || "no output"}), so the Mermaid source is kept` };
 }
@@ -135,8 +135,7 @@ export function gate(files, { svgDir, mmdc: explicitMmdc } = {}) {
   let count = 0;
   try {
     for (const file of files) {
-      const found = extractBlocks(readFileSync(file, "utf8"), /\.(mmd|mermaid)$/.test(file));
-      found.forEach(({ source, line }) => {
+      for (const { source, line } of extractBlocks(readFileSync(file, "utf8"), /\.(mmd|mermaid)$/.test(file))) {
         const name = `${basename(file).replace(/\.[^.]*$/, "")}-${++count}`;
         const block = { file, line, status: "ok", render: "source", reason: mmdc.reason };
         const structural = structuralCheck(source);
@@ -153,7 +152,7 @@ export function gate(files, { svgDir, mmdc: explicitMmdc } = {}) {
           else block.reason = r.reason;
         }
         blocks.push(block);
-      });
+      }
     }
   } finally {
     rmSync(work, { recursive: true, force: true });

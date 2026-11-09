@@ -280,12 +280,8 @@ fi
 
 TEAM_LAYER="${TEAM_FILE#"$ROOT"/}"
 PERSONAL_PATH="${PERSONAL_FILE#"$ROOT"/}"
-team_read=0
-[[ "$TEAM_STATE" == present ]] && team_read=1
-personal_read=0
-[[ "$PERSONAL_STATE" == present ]] && personal_read=1
 
-if [[ "$HAVE_GIT" -eq 1 && "$team_read" -eq 1 ]]; then
+if [[ "$HAVE_GIT" -eq 1 && "$TEAM_STATE" == present ]]; then
   if git -C "$ROOT" check-ignore -q "$TEAM_LAYER" 2>/dev/null; then
     row FAIL "team layer tracked" "$TEAM_LAYER is gitignored; an ignored team layer never reaches the team"
   elif git -C "$ROOT" ls-files --error-unmatch "$TEAM_LAYER" >/dev/null 2>&1; then
@@ -293,11 +289,11 @@ if [[ "$HAVE_GIT" -eq 1 && "$team_read" -eq 1 ]]; then
   else
     row WARN "team layer tracked" "$TEAM_LAYER is written but untracked; commit it to share it"
   fi
-elif [[ "$team_read" -eq 0 ]]; then
+elif [[ "$TEAM_STATE" != present ]]; then
   row INFO "team layer tracked" "no team layer yet; run setup apply --defaults to write one"
 fi
 
-if [[ "$HAVE_GIT" -eq 1 && "$personal_read" -eq 1 ]]; then
+if [[ "$HAVE_GIT" -eq 1 && "$PERSONAL_STATE" == present ]]; then
   if git -C "$ROOT" check-ignore -q "$PERSONAL_PATH" 2>/dev/null; then
     row PASS "personal override ignored" "$PERSONAL_PATH is gitignored"
   else
@@ -319,9 +315,6 @@ else
   row PASS "policy floor" "no personal layer declares a key only the team layer supplies"
 fi
 
-if [[ "$FAILS" -eq 0 ]]; then
-  printf '\nsetup-check: 0 FAIL\n'
-  exit 0
-fi
 printf '\nsetup-check: %d FAIL\n' "$FAILS"
-exit 1
+[[ "$FAILS" -eq 0 ]] || exit 1
+exit 0

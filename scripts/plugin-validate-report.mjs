@@ -37,11 +37,15 @@ if (
   process.exit(2);
 }
 
+function malformed(what) {
+  process.stderr.write(`plugin-validate-report: ${what}\n`);
+  process.exitCode = 2;
+}
+
 function emit(label, bucket) {
   if (bucket === null || bucket === undefined) return;
   if (typeof bucket !== "object") {
-    process.stderr.write(`plugin-validate-report: ${label} is not an object\n`);
-    process.exitCode = 2;
+    malformed(`${label} is not an object`);
     return;
   }
   const file = typeof bucket.file === "string" ? bucket.file : "(no file)";
@@ -49,10 +53,7 @@ function emit(label, bucket) {
     const items = bucket[kind];
     if (items === undefined) continue;
     if (!Array.isArray(items)) {
-      process.stderr.write(
-        `plugin-validate-report: ${file} ${kind} is not an array\n`,
-      );
-      process.exitCode = 2;
+      malformed(`${file} ${kind} is not an array`);
       continue;
     }
     for (const item of items) {
@@ -70,10 +71,7 @@ function emit(label, bucket) {
   const gating = bucket.gatingHooks;
   if (gating === undefined) return;
   if (!Array.isArray(gating)) {
-    process.stderr.write(
-      `plugin-validate-report: ${file} gatingHooks is not an array\n`,
-    );
-    process.exitCode = 2;
+    malformed(`${file} gatingHooks is not an array`);
     return;
   }
   for (const item of gating) {
@@ -94,6 +92,5 @@ emit("manifest", report.manifest);
 if (Array.isArray(report.contents)) {
   for (const entry of report.contents) emit("contents", entry);
 } else if (report.contents != null) {
-  process.stderr.write("plugin-validate-report: contents is not an array\n");
-  process.exitCode = 2;
+  malformed("contents is not an array");
 }

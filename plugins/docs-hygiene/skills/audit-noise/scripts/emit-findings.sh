@@ -232,7 +232,7 @@ LC_ALL=C awk \
   # by a LIVE delimiter — the cell splits and the fix action misreads the row.
   # This repo writes literal `\|` in its own tables, so the case is real rather
   # than theoretical. Already-escaped pipes are parked on a sentinel first, then
-  # restored single-escaped. (Defect identified in #3180.)
+  # restored single-escaped.
   function esc(s) {
     gsub(/\\\|/, "\001", s)
     gsub(/\|/, "\\|", s)
@@ -306,8 +306,7 @@ LC_ALL=C awk \
       sub(/\r$/, "", line)
       if (n == 1 && !is_fence(line)) break
       if (n > 1 && is_fence(line)) break
-      if (line ~ /^description:/) d = d " " line
-      if (line ~ /^when_to_use:/) d = d " " line
+      if (line ~ /^(description|when_to_use):/) d = d " " line
     }
     close(file)
     dcache[file] = d
@@ -391,6 +390,11 @@ LC_ALL=C awk \
 
   function reset() { cur_file = ""; cur_shape = ""; cur_line = ""; cur_excerpt = ""; cur_marker = "" }
 
+  function print_declined(counts, reason,   k) {
+    for (k in counts)
+      printf "Declined candidates: %s count=%d reason=%s\n", k, counts[k], reason
+  }
+
   # Which prohibition fired, in the run own values (never the rule restated).
   # PREFER the marker the scanner supplied: it comes from the sentence that
   # actually triggered, so a line whose FIRST sentence is carved out
@@ -421,16 +425,11 @@ LC_ALL=C awk \
     if (nemit == 0) ran = ran " Returned no result: [docs-hygiene/audit-noise/rule-negation-without-positive]."
     print ran
     printf "Detect blocks read: %d. Emitted: %d.\n", nblocks, nemit
-    for (k in declined_nocrosswalk)
-      printf "Declined candidates: %s count=%d reason=no-severity-crosswalk-row (human report only)\n", k, declined_nocrosswalk[k]
-    for (k in declined_frontmatter)
-      printf "Declined candidates: %s count=%d reason=frontmatter (body-scope fence)\n", k, declined_frontmatter[k]
-    for (k in declined_trigger)
-      printf "Declined candidates: %s count=%d reason=quoted-trigger-phrase (body-scope fence)\n", k, declined_trigger[k]
-    for (k in declined_outofrepo)
-      printf "Declined candidates: %s count=%d reason=outside-repo-root (Location must be repo-relative; human report only)\n", k, declined_outofrepo[k]
-    for (k in declined_unreadable)
-      printf "Declined candidates: %s count=%d reason=source-line-unreadable\n", k, declined_unreadable[k]
+    print_declined(declined_nocrosswalk, "no-severity-crosswalk-row (human report only)")
+    print_declined(declined_frontmatter, "frontmatter (body-scope fence)")
+    print_declined(declined_trigger, "quoted-trigger-phrase (body-scope fence)")
+    print_declined(declined_outofrepo, "outside-repo-root (Location must be repo-relative; human report only)")
+    print_declined(declined_unreadable, "source-line-unreadable")
     # The judgment lane drops candidates on a sanctioned dismissal ground (a
     # document ABOUT the pattern, a shape-definition example matching its own
     # pattern) before this script sees them, so it reports their count here

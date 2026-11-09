@@ -228,8 +228,10 @@ test("a queued issue whose Work status field read fails counts as queued", async
 
 // The Work status listing (resolve-config.mjs issuesByStatus) as listedStatusOf
 // reads it: `issues` as {number, createdAt, labels, field?: {state, setter?}},
-// the setter defaulting to the listed human. The label listing must not be read.
-const fieldListing = (issues, { fail = false } = {}) => {
+// the setter defaulting to the listed human, `field.named` the state its event
+// names when that differs from the value. `fields` answers each issue's own
+// read (withFields). The label listing must not be read.
+const fieldListing = (issues, { fail = false, fields = {} } = {}) => {
   const { github, paths } = searchApi({ merged: 24, queued: new Error("the label listing was read") });
   const field = { fullDatabaseId: String(STATUS_CONFIG["field-id"]) };
   const listed = async (method, path, body) => {
@@ -240,15 +242,37 @@ const fieldListing = (issues, { fail = false } = {}) => {
         createdAt: i.createdAt,
         labels: { nodes: (i.labels ?? []).map((name) => ({ name })) },
         issueFieldValues: { nodes: i.field ? [{ name: i.field.state, field }] : [] },
-        timelineItems: { nodes: i.field ? [{ __typename: "IssueFieldChangedEvent", newValue: i.field.state, actor: { databaseId: i.field.setter ?? HUMAN_ID }, issueField: field }] : [] },
+        timelineItems: { nodes: i.field ? [{ __typename: "IssueFieldChangedEvent", newValue: i.field.named ?? i.field.state, actor: { databaseId: i.field.setter ?? HUMAN_ID }, issueField: field }] : [] },
       }));
       return { data: { repository: { issues: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } } } };
     }
     return github(method, path, body);
   };
-  const statusOf = listedStatusOf({ github: listed, repository: REPO, config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS });
-  return { paths, reads: () => readLaneWip(listed, { repo: REPO, now: NOW, windowHours: 24, statusOf }) };
+  const answer = withFields(listed, fields);
+  const statusOf = listedStatusOf({ github: answer, repository: REPO, config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, sleep: async () => {} });
+  return { paths, statusOf, reads: () => readLaneWip(answer, { repo: REPO, now: NOW, windowHours: 24, statusOf }) };
 };
+
+test("an issue the Work status listing leaves out mid-write counts as queued, and its own status reads as unreadable", async () => {
+  const { reads, statusOf } = fieldListing(
+    [
+      { number: 1, createdAt: "2026-10-01T00:00:00Z", field: { state: "agent-ready" } },
+      { number: 8, createdAt: "2026-10-02T00:00:00Z", field: { state: "confirmed", named: "needs-triage" } },
+      { number: 9, createdAt: "2026-10-03T00:00:00Z", field: { state: "confirmed" } },
+    ],
+    { fields: { 8: { state: "confirmed", named: "needs-triage" } } },
+  );
+  const original = console.log;
+  console.log = () => {};
+  try {
+    const result = await reads();
+    assert.deepEqual(result.queued, [1, 8], "the held issue counts as queued, so the cap never admits past what a full read allows");
+    assert.equal(result.queuedUnlisted, 0, "a held issue is no truncation");
+    await assert.rejects(() => statusOf(8, ["agent-ready"]), (error) => error.name === "StatusReadError" && error.number === 8);
+  } finally {
+    console.log = original;
+  }
+});
 
 test("with a Work status listing, the field decides which issues are queued, oldest first, holds left out", async () => {
   const { reads, paths } = fieldListing([

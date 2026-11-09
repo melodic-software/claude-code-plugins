@@ -54,29 +54,11 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --from)
-    require_opt_value "emit-findings.sh" "$@"
-    FROM_FILES+=("$2")
-    shift 2
-    ;;
-  --out)
-    require_opt_value "emit-findings.sh" "$@"
-    OUT="$2"
-    shift 2
-    ;;
-  --branch)
-    require_opt_value "emit-findings.sh" "$@"
-    BRANCH="$2"
-    shift 2
-    ;;
-  --help | -h)
-    usage
-    exit 0
-    ;;
-  *)
-    echo "emit-findings.sh: unknown argument: $1" >&2
-    exit 2
-    ;;
+  --from) require_opt_value "emit-findings.sh" "$@"; FROM_FILES+=("$2"); shift 2 ;;
+  --out) require_opt_value "emit-findings.sh" "$@"; OUT="$2"; shift 2 ;;
+  --branch) require_opt_value "emit-findings.sh" "$@"; BRANCH="$2"; shift 2 ;;
+  --help | -h) usage; exit 0 ;;
+  *) echo "emit-findings.sh: unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 

@@ -99,18 +99,8 @@ changed_files::into() {
   local -a _cf_renames=()
   while (($# > 0)); do
     case "$1" in
-    --include-deleted)
-      _cf_filter=()
-      shift
-      ;;
-    --no-renames)
-      _cf_renames=(--no-renames)
-      shift
-      ;;
-    --find-renames)
-      _cf_renames=(--find-renames)
-      shift
-      ;;
+    --include-deleted) _cf_filter=() ;;
+    --no-renames | --find-renames) _cf_renames=("$1") ;;
     --)
       shift
       break
@@ -120,6 +110,7 @@ changed_files::into() {
       return 2
       ;;
     esac
+    shift
   done
 
   _cf_paths_out=()

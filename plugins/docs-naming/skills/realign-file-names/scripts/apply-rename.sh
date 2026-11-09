@@ -150,6 +150,11 @@ cfg() {
   printf '%s' "$CONFIG" | jq -r "$1" 2>/dev/null | tr -d '\r'
 }
 
+# One `<path>\t<regenerate>` row per declared generated file.
+generated_rows() {
+  printf '%s' "$CONFIG" | jq -r '.file_names.generated[] | [.path, (.regenerate // "")] | @tsv'
+}
+
 GENERATED_PATHS=" $(cfg '.file_names.generated[].path' | tr '\n' ' ')"
 
 # `--regenerate-only` is the closing pass of a realign run. A generated record is
@@ -166,7 +171,7 @@ if [[ "$REGEN_ONLY" -eq 1 ]]; then
     (cd "$ROOT" && eval "$gcmd") >/dev/null 2>&1 || die "the regenerator for '$gpath' failed" 1
     ran="$ran $gpath"
   done <<EOF
-$(printf '%s' "$CONFIG" | jq -r '.file_names.generated[] | [.path, (.regenerate // "")] | @tsv')
+$(generated_rows)
 EOF
   printf 'REGENERATED\t%s\n' "${ran# }"
   exit 0
@@ -231,27 +236,29 @@ check_regenerators() {
     command -v "$target" >/dev/null 2>&1 || [[ -e "$ROOT/$target" ]] ||
       blocked "the regenerator for '$gpath' resolves to nothing: $target"
   done <<EOF
-$(printf '%s' "$CONFIG" | jq -r '.file_names.generated[] | [.path, (.regenerate // "")] | @tsv')
+$(generated_rows)
 EOF
 }
 
-set_status() {
-  tmp="$ARTIFACT.tmp.$$"
+# Runs awk over the plan with the given arguments and writes the result back
+# through the same inode. A failure dies with "cannot <$1>"; the EXIT trap
+# removes the temp file.
+rewrite_plan() {
+  local what="$1" tmp="$ARTIFACT.tmp.$$"
+  shift
   TEMPS+=("$tmp")
-  awk -v id="$ID" -v st="$1" '
+  awk "$@" "$ARTIFACT" >"$tmp" || die "cannot $what"
+  cat "$tmp" >"$ARTIFACT" || die "cannot write the plan"
+  rm -f "$tmp"
+}
+
+set_status() {
+  rewrite_plan "update the plan" -v id="$ID" -v st="$1" '
     $0 ~ "^### " id " " { inrec = 1 }
     inrec && /^- \*\*Status:\*\* / && !done { print "- **Status:** " st; done = 1; next }
     /^### FN-/ && $2 != id { inrec = 0 }
     { print }
-  ' "$ARTIFACT" >"$tmp" || {
-    rm -f "$tmp"
-    die "cannot update the plan"
-  }
-  cat "$tmp" >"$ARTIFACT" || {
-    rm -f "$tmp"
-    die "cannot write the plan"
-  }
-  rm -f "$tmp"
+  '
 }
 
 # --- the sites ---------------------------------------------------------------
@@ -388,23 +395,13 @@ set_status applying
 # tree whose renamed files cite each other be applied one finding at a time: the
 # next apply finds its sites where the plan says they are.
 remap_sites() {
-  tmp="$ARTIFACT.tmp.$$"
-  TEMPS+=("$tmp")
   # `new` is spliced in by length, never handed to `sub` as a replacement
   # string: there an `&` in a path component would expand to the whole match
   # and corrupt the row.
-  awk -v old="| \`$OLD\` |" -v new="| \`$NEW\` |" '
+  rewrite_plan "remap the sibling site rows" -v old="| \`$OLD\` |" -v new="| \`$NEW\` |" '
     index($0, old) == 1 { print new substr($0, length(old) + 1); next }
     { print }
-  ' "$ARTIFACT" >"$tmp" || {
-    rm -f "$tmp"
-    die "cannot remap the sibling site rows"
-  }
-  cat "$tmp" >"$ARTIFACT" || {
-    rm -f "$tmp"
-    die "cannot write the plan"
-  }
-  rm -f "$tmp"
+  '
 }
 
 if [[ "$RESUMING" -eq 0 ]]; then
@@ -424,14 +421,6 @@ fi
 # targets survive; a sweep across a real repository edits executable scripts.
 while IFS="$(printf '\t')" read -r file lineno form; do
   [[ -n "$file" ]] || continue
-  if [[ "$form" == "bare-stem" ]]; then
-    from="$OLD_STEM"
-    to="$NEW_STEM"
-  else
-    from="$OLD_BASE"
-    to="$NEW_BASE"
-  fi
-  tmp="$ROOT/$file.tmp.$$"
   # The substitution is LITERAL, never a regex. A basename carries dots
   # (`v1.2.schema.json`), and `gsub` would read each one as "any character" and
   # rewrite a line the audit never pointed at.
@@ -441,8 +430,16 @@ while IFS="$(printf '\t')" read -r file lineno form; do
   # unanchored would undo that care: a line naming both `Alpha-One` and
   # `Alpha-One-notes.md` would have the second rewritten into a reference to a
   # file nobody renamed.
-  anchored=0
-  [[ "$form" == "bare-stem" ]] && anchored=1
+  if [[ "$form" == "bare-stem" ]]; then
+    from="$OLD_STEM"
+    to="$NEW_STEM"
+    anchored=1
+  else
+    from="$OLD_BASE"
+    to="$NEW_BASE"
+    anchored=0
+  fi
+  tmp="$ROOT/$file.tmp.$$"
 
   # AND A BASENAME IS REPLACED ONLY WHERE THE RECORDED FORM PUTS IT. One line
   # can carry the same basename twice in two shapes, and the tier may allow one
@@ -480,7 +477,7 @@ while IFS="$(printf '\t')" read -r file lineno form; do
   # that also carries a link would rewrite the link target too, which is the
   # frozen half on a tier that allows prose and not paths.
   plain) exclude_prefix_re='(\]\([^)]*|`[^`]*|https?://[^ )"'"'"']*)$' ;;
-  *) prefix_re='' ;;
+  *) ;;
   esac
   awkerr="$ROOT/$file.err.$$"
   TEMPS+=("$tmp" "$awkerr")
@@ -537,9 +534,7 @@ while IFS="$(printf '\t')" read -r file lineno form; do
     }
     { print }
   ' "$ROOT/$file" >"$tmp" 2>"$awkerr"; then
-    rm -f "$tmp"
     msg="$(tr '\n' ' ' <"$awkerr")"
-    rm -f "$awkerr"
     blocked "cannot rewrite $file:$lineno${msg:+: $msg}"
   fi
   # A recorded site that matched the pre-flight but substitutes zero times is
@@ -551,10 +546,7 @@ while IFS="$(printf '\t')" read -r file lineno form; do
     continue
   fi
   rm -f "$awkerr"
-  cat "$tmp" >"$ROOT/$file" || {
-    rm -f "$tmp"
-    blocked "cannot write $file"
-  }
+  cat "$tmp" >"$ROOT/$file" || blocked "cannot write $file"
   rm -f "$tmp"
   edits=$((edits + 1))
 done <<EOF
@@ -574,7 +566,7 @@ while IFS="$(printf '\t')" read -r gpath gcmd; do
     blocked "the regenerator for '$gpath' failed; the rename is applied and this record stays 'applying'"
   regenerated="$regenerated $gpath"
 done <<EOF
-$(printf '%s' "$CONFIG" | jq -r '.file_names.generated[] | [.path, (.regenerate // "")] | @tsv')
+$(generated_rows)
 EOF
 
 set_status applied

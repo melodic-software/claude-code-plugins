@@ -49,11 +49,10 @@ python_probe::require_to() {
     exit 1
   fi
 
-  local _pp_candidate _pp_resolved _pp_lower
+  local _pp_candidate _pp_resolved
   for _pp_candidate in python3 python; do
     _pp_resolved="$(command -v "$_pp_candidate" 2>/dev/null)" || continue
-    _pp_lower="$(printf '%s' "$_pp_resolved" | tr '[:upper:]' '[:lower:]')"
-    if [[ "$_pp_lower" == *windowsapps* && ! -s "$_pp_resolved" ]]; then
+    if [[ "${_pp_resolved,,}" == *windowsapps* && ! -s "$_pp_resolved" ]]; then
       continue
     fi
     if "$_pp_candidate" -c "import sys; floor = tuple(int(part) for part in '$_pp_floor'.split('.')); raise SystemExit(0 if sys.version_info >= floor else 1)"; then

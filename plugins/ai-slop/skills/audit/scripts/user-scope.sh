@@ -114,7 +114,7 @@ consider() {
       warn "skipped symlink to a path holding a newline or tab: $p"
       return
     fi
-    if [[ -n "$t" && "$t" == *.md && "$t" == "$realroot"/* && -f "$t" && -r "$t" ]]; then
+    if [[ "$t" == *.md && "$t" == "$realroot"/* && -f "$t" && -r "$t" ]]; then
       printf '%s\t1\t%s\n' "$t" "$p"
     else
       warn "skipped symlink: $p -> ${t:-(unresolvable)}"

@@ -84,15 +84,11 @@ for (const plugin of listDirs(join(root, "plugins"))) {
 function readCheatsheetMeta(path) {
   const lines = readFileSync(path, "utf8").split(/\r?\n/);
   if (lines[0]?.trim() !== "---") return {};
-  const fm = [];
-  for (let i = 1; i < lines.length; i++) {
-    if (lines[i].trim() === "---") break;
-    fm.push(lines[i]);
-  }
   const values = {};
   const raw = {};
   let inMetadata = false;
-  for (const line of fm) {
+  for (let i = 1; i < lines.length && lines[i].trim() !== "---"; i++) {
+    const line = lines[i];
     if (/^metadata:\s*$/.test(line)) {
       inMetadata = true;
       continue;
@@ -149,9 +145,7 @@ for (const s of skills) {
     EXCLUDED_PLUGINS.get(s.plugin) ??
     EXCLUDED_SKILLS.get(key) ??
     (s.skill === EXCLUDED_SKILL_NAME.name ? EXCLUDED_SKILL_NAME.reason : undefined);
-  const stage = s.meta.values["workflow-stage"];
-  const summary = s.meta.values["summary"];
-  const cadence = s.meta.values["cadence"];
+  const { "workflow-stage": stage, summary, cadence } = s.meta.values;
 
   // Reject a trailing comment on any swept key from the RAW value — after the
   // strip the guard's own " #" branch is unreachable, and the stripped value

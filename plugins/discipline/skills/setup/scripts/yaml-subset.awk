@@ -125,7 +125,7 @@ function unsupported(c) {
 }
 
 # One value inside a flow sequence, at FP.
-function flow(path,   c, start, end) {
+function flow(path,   c, start) {
   skipws()
   c = ch()
   if (c == "") fail("unclosed flow collection")
@@ -143,8 +143,7 @@ function flow(path,   c, start, end) {
     if (ch() == "#" && substr(FS_S, FP - 1, 1) ~ /[ \t]/) fail("unclosed flow collection")
     FP++
   }
-  c = substr(FS_S, start, FP - start)
-  c = rtrim(c)
+  c = rtrim(substr(FS_S, start, FP - start))
   if (c == "") fail("an empty flow item")
   emit(path, c)
 }
@@ -166,7 +165,7 @@ function fseq(path,   i, c) {
 
 # The value after `key:` or `- `, leading blanks removed. An empty value opens
 # a container the next deeper line fills; `seq` says a `- ` item opened it.
-function value(path, s, ind, opener,   c, end, rest) {
+function value(path, s, ind, opener,   c, rest) {
   if (s == "" || s ~ /^#/) {
     pending = 1; ppath = path; pind = ind; ptype = opener
     return
@@ -203,7 +202,7 @@ function mapkey(rest, ind,   key, val, path, p) {
   value(path, val, ind, "map")
 }
 
-BEGIN { n = 0; based = 0; pending = 0; inblock = (BLOCK == 1) ? 0 : 1; seen = 0 }
+BEGIN { inblock = (BLOCK != 1) }
 
 {
   sub(/\r$/, "")
@@ -262,8 +261,7 @@ BEGIN { n = 0; based = 0; pending = 0; inblock = (BLOCK == 1) ? 0 : 1; seen = 0 
   path = paths[n] "." cnt[n]
   cnt[n]++
   item = substr(rest, 2)
-  match(item, /^ */)
-  item = substr(item, RLENGTH + 1)
+  sub(/^ +/, "", item)
   if (item ~ /^-( |$)/) fail("a sequence nested on one line is not part of the subset")
   p = keyat(item)
   if (p && substr(item, p + 1, 1) ~ /^([ \t])?$/) {

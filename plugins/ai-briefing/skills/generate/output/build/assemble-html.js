@@ -14,11 +14,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { meta, theme, slides, providerLogos } = await loadSlidesData();
 
 function loadEmbeddedAssets(buildDir) {
-  let logoWhiteData = "";
-  if (meta.logoWhite) {
-    const logoWhiteB64 = fsSync.readFileSync(path.resolve(buildDir, meta.logoWhite)).toString("base64");
-    logoWhiteData = `data:image/png;base64,${logoWhiteB64}`;
-  }
+  const logoWhiteData = meta.logoWhite
+    ? `data:image/png;base64,${fsSync.readFileSync(path.resolve(buildDir, meta.logoWhite)).toString("base64")}`
+    : "";
 
   const providerLogoSvg = {};
   for (const [slug, logoPath] of Object.entries(providerLogos)) {

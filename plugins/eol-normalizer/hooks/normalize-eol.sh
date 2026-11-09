@@ -41,6 +41,23 @@ normalize_eol_read_supports_nchars() {
   ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 1)))
 }
 
+# Run <command> with LC_ALL=C, put the caller's LC_ALL back (set or unset), and
+# return <command>'s status. The builtin probes need it because `read` counts
+# CHARACTERS, and only in the C locale is one character one byte. An explicit
+# save and restore, so sourcing this library never changes the caller's locale.
+normalize_eol_c_locale() {
+  local had_lc=${LC_ALL+x} old_lc=${LC_ALL-} rc=0
+  LC_ALL=C
+  "$@" || rc=$?
+  if [[ -n "$had_lc" ]]; then LC_ALL=$old_lc; else unset LC_ALL; fi
+  return "$rc"
+}
+
+# Read up to 8000 bytes of <file> into the caller's `chunk`, stopping at a NUL.
+normalize_eol_read_window() {
+  IFS= read -r -d '' -n 8000 chunk <"$1"
+}
+
 # Returns 0 when <file> looks binary: any NUL byte in the first 8000 bytes,
 # the same window git's buffer_is_binary() uses for text=auto detection.
 #
@@ -52,21 +69,10 @@ normalize_eol_read_supports_nchars() {
 # The count flag must be `-n`, never `-N`: `-N` is documented to ignore the
 # delimiter, which would collapse the first two states into one and report every
 # binary file as text.
-# LC_ALL=C is required because the count is in CHARACTERS, and only in the C
-# locale is one character one byte; the surrounding value is saved and restored
-# so sourcing this library never changes the caller's locale.
 normalize_eol_is_binary() {
-  local file="$1" nul_count
+  local file="$1" nul_count chunk=""
   if normalize_eol_read_supports_nchars; then
-    local chunk="" rc=0 had_lc=0 old_lc=""
-    if [[ -n "${LC_ALL+x}" ]]; then
-      had_lc=1
-      old_lc="$LC_ALL"
-    fi
-    LC_ALL=C
-    IFS= read -r -d '' -n 8000 chunk <"$file" || rc=$?
-    if ((had_lc)); then LC_ALL="$old_lc"; else unset LC_ALL; fi
-    ((rc == 0)) && ((${#chunk} < 8000))
+    normalize_eol_c_locale normalize_eol_read_window "$file" && ((${#chunk} < 8000))
     return
   fi
   nul_count=$(head -c 8000 <"$file" | LC_ALL=C tr -dc '\0' | wc -c) || return 1
@@ -93,24 +99,17 @@ normalize_eol_is_binary() {
 # takes the unconditional rewrite.
 normalize_eol_has_cr() {
   normalize_eol_read_supports_nchars || return 0
-  local chunk="" had_lc=0 old_lc="" found=1
-  if [[ -n "${LC_ALL+x}" ]]; then
-    had_lc=1
-    old_lc="$LC_ALL"
-  fi
-  LC_ALL=C
+  normalize_eol_c_locale normalize_eol_scan_cr "$1"
+}
+
+# The chunk walk normalize_eol_has_cr runs under the C locale.
+normalize_eol_scan_cr() {
+  local chunk=""
   while IFS= read -r -N 65536 chunk || [[ -n "$chunk" ]]; do
-    case "$chunk" in
-    *$'\r'*)
-      found=0
-      break
-      ;;
-    *) ;;
-    esac
+    [[ "$chunk" == *$'\r'* ]] && return 0
     [[ -n "$chunk" ]] || break
   done <"$1"
-  if ((had_lc)); then LC_ALL="$old_lc"; else unset LC_ALL; fi
-  return "$found"
+  return 1
 }
 
 # Resolve <file>'s `eol` and `text` attributes under <root> in ONE check-attr
@@ -126,20 +125,16 @@ normalize_eol_has_cr() {
 normalize_eol_resolve_attrs() {
   NORMALIZE_EOL_ATTR_EOL=""
   NORMALIZE_EOL_ATTR_TEXT=""
-  local raw line rest attr value
+  local raw line attr
   raw=$(git -C "$1" check-attr eol text -- "$2" 2>/dev/null) || return 0
-  raw="${raw//$'\r'/}"
   while IFS= read -r line; do
-    [[ -n "$line" ]] || continue
-    value="${line##* }"
-    rest="${line% *}"
-    attr="${rest##* }"
-    case "$attr" in
-    eol:) NORMALIZE_EOL_ATTR_EOL="$value" ;;
-    text:) NORMALIZE_EOL_ATTR_TEXT="$value" ;;
+    attr="${line% *}"
+    case "${attr##* }" in
+    eol:) NORMALIZE_EOL_ATTR_EOL="${line##* }" ;;
+    text:) NORMALIZE_EOL_ATTR_TEXT="${line##* }" ;;
     *) ;;
     esac
-  done <<<"$raw"
+  done <<<"${raw//$'\r'/}"
   return 0
 }
 
@@ -155,48 +150,28 @@ normalize_eol_resolve_attrs() {
 # newline NOT preceded by a CR, which a chunked builtin probe cannot answer
 # without straddling logic, so that arm keeps its unconditional rewrite.
 normalize_eol_plan() {
-  local root="$1" file="$2"
-  [[ -f "$file" ]] || {
-    printf 'skip 0'
-    return 0
-  }
-
-  normalize_eol_resolve_attrs "$root" "$file"
-  local eol="$NORMALIZE_EOL_ATTR_EOL"
-
-  case "$eol" in
-  lf | crlf) ;;
-  *)
-    printf 'skip 0'
-    return 0
-    ;;
-  esac
-
-  # Binary guard (see header). `unspecified` falls to the `set` arm: eol on a
-  # path with no text attr implicitly sets text, so git itself would convert.
-  case "$NORMALIZE_EOL_ATTR_TEXT" in
-  unset)
-    printf 'skip 0'
-    return 0
-    ;;
-  auto)
-    if normalize_eol_is_binary "$file"; then
-      printf 'skip 0'
-      return 0
-    fi
-    ;;
+  local file="$2" action=skip needed=1
+  if [[ -f "$file" ]]; then
+    normalize_eol_resolve_attrs "$1" "$file"
+    case "$NORMALIZE_EOL_ATTR_EOL" in
+    lf | crlf)
+      # Binary guard (see header). An unspecified `text` falls to the last arm:
+      # eol on a path with no text attr implicitly sets text, so git converts.
+      case "$NORMALIZE_EOL_ATTR_TEXT" in
+      unset) ;;
+      auto) normalize_eol_is_binary "$file" || action="$NORMALIZE_EOL_ATTR_EOL" ;;
+      *) action="$NORMALIZE_EOL_ATTR_EOL" ;;
+      esac
+      ;;
+    *) ;;
+    esac
+  fi
+  case "$action" in
+  lf) normalize_eol_has_cr "$file" || needed=0 ;;
+  skip) needed=0 ;;
   *) ;;
   esac
-
-  if [[ "$eol" == lf ]]; then
-    if normalize_eol_has_cr "$file"; then
-      printf 'lf 1'
-    else
-      printf 'lf 0'
-    fi
-    return 0
-  fi
-  printf 'crlf 1'
+  printf '%s %s' "$action" "$needed"
   return 0
 }
 
@@ -221,52 +196,44 @@ normalize_eol_apply() {
 # rewrite was needed before it happens. The hook uses the two halves directly so
 # it can skip its gitignore check on a file with nothing to rewrite.
 normalize_eol_file() {
-  local plan action needed
+  local plan
   plan=$(normalize_eol_plan "$1" "$2")
-  action="${plan%% *}"
-  needed="${plan##* }"
-  [[ "$needed" == 1 ]] && normalize_eol_apply "$action" "$2"
-  printf '%s' "$action"
+  [[ "${plan##* }" == 1 ]] && normalize_eol_apply "${plan%% *}" "$2"
+  printf '%s' "${plan%% *}"
   return 0
+}
+
+# Replace <file> with the output of <command> run on it, staged in a same-dir
+# mktemp file (unpredictable name, CWE-377) and then moved over it. `cp -p`
+# first so the staged file carries the original's mode (chmod --reference is
+# GNU-only); the redirect then replaces its content.
+normalize_eol_rewrite_with() {
+  local file="$1" tmp
+  shift
+  tmp=$(mktemp "${file}.XXXXXX") || return 0
+  cp -p -- "$file" "$tmp" 2>/dev/null || true
+  if "$@" <"$file" >"$tmp"; then
+    mv -- "$tmp" "$file"
+  else
+    rm -f -- "$tmp"
+  fi
 }
 
 # CRLF -> LF (unconditional, idempotent on already-LF input).
 normalize_eol_to_lf() {
-  local file="$1"
   if command -v perl >/dev/null 2>&1; then
-    perl -pi -e 's/\r\n/\n/g' -- "$file"
+    perl -pi -e 's/\r\n/\n/g' -- "$1"
   else
-    # Portable fallback: strip all CR (text files carry no lone CR). Stage into a
-    # same-dir mktemp file (unpredictable name, CWE-377) then atomically mv.
-    # `cp -p` first so the staged file carries the original's mode (chmod
-    # --reference is GNU-only); the redirect then replaces its content.
-    local tmp
-    tmp=$(mktemp "${file}.XXXXXX") || return 0
-    cp -p -- "$file" "$tmp" 2>/dev/null || true
-    if tr -d '\r' <"$file" >"$tmp"; then
-      mv -- "$tmp" "$file"
-    else
-      rm -f -- "$tmp"
-    fi
+    # Portable fallback: strip all CR (text files carry no lone CR).
+    normalize_eol_rewrite_with "$1" tr -d '\r'
   fi
 }
 
 # LF -> CRLF (idempotent; bare LF only, never turns CRLF into CRCRLF).
 normalize_eol_to_crlf() {
-  local file="$1"
   if command -v perl >/dev/null 2>&1; then
-    perl -pi -e 's/(?<!\r)\n/\r\n/g' -- "$file"
+    perl -pi -e 's/(?<!\r)\n/\r\n/g' -- "$1"
   else
-    # Stage into a same-dir mktemp file (unpredictable name, CWE-377) then mv.
-    # `cp -p` first so the staged file carries the original's mode (chmod
-    # --reference is GNU-only); the redirect then replaces its content.
-    local tmp
-    tmp=$(mktemp "${file}.XXXXXX") || return 0
-    cp -p -- "$file" "$tmp" 2>/dev/null || true
-    if awk 'BEGIN{RS="\r?\n"; ORS="\r\n"} {print}' "$file" >"$tmp"; then
-      mv -- "$tmp" "$file"
-    else
-      rm -f -- "$tmp"
-    fi
+    normalize_eol_rewrite_with "$1" awk 'BEGIN{RS="\r?\n"; ORS="\r\n"} {print}'
   fi
 }

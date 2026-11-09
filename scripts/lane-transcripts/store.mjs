@@ -29,6 +29,7 @@ export function laneOf(workflowPath) {
 }
 
 const count = (value) => (Number.isInteger(value) && value >= 0 ? value : null);
+const asString = (value) => (typeof value === "string" ? value : null);
 
 // The metrics a transcript carries, from the CLI's messages: the init message's
 // model, and the last result message's subtype, models and usage. A result with
@@ -39,9 +40,9 @@ export function transcriptMetrics(messages) {
   const result = messages.findLast((m) => m?.type === "result") ?? null;
   const usage = result?.usage ?? {};
   const modelUsage = result?.modelUsage && typeof result.modelUsage === "object" ? result.modelUsage : {};
-  const subtype = typeof result?.subtype === "string" ? result.subtype : null;
+  const subtype = asString(result?.subtype);
   return {
-    model: typeof init?.model === "string" ? init.model : null,
+    model: asString(init?.model),
     models: Object.keys(modelUsage).sort(),
     outcome: result?.is_error === true ? "error" : (subtype ?? "no-result"),
     subtype,
@@ -96,7 +97,7 @@ export function appendRow(sink, row) {
     const text = readFileSync(file, "utf8");
     if (!text.endsWith("\n") && text !== "") truncateSync(file, Buffer.byteLength(completeText(text)));
   }
-  writeFileSync(paths(sink).metrics, `${JSON.stringify(row)}\n`, { flag: "a", mode: 0o600 });
+  writeFileSync(file, `${JSON.stringify(row)}\n`, { flag: "a", mode: 0o600 });
 }
 
 export function readState(sink) {
@@ -140,7 +141,10 @@ function removeEmptyDirs(dir) {
 export function prune(sink, now = Date.now(), { capBytes = CAP_BYTES } = {}) {
   const rows = readRows(sink);
   const byPath = new Map(rows.filter((r) => r.transcript).map((r) => [path.join(sink, r.transcript), r]));
-  const stored = files(paths(sink).transcripts).map((f) => ({ ...f, row: byPath.get(f.file), at: byPath.has(f.file) ? Date.parse(byPath.get(f.file).created_at) : f.mtimeMs }));
+  const stored = files(paths(sink).transcripts).map((f) => {
+    const row = byPath.get(f.file);
+    return { ...f, row, at: row ? Date.parse(row.created_at) : f.mtimeMs };
+  });
   const removed = { age: 0, cap: 0, rows: 0 };
   const drop = (entry, reason) => {
     rmSync(entry.file, { force: true });

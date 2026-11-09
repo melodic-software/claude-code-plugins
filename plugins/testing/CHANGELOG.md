@@ -3,6 +3,22 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.6.6] - 2026-11-09
+
+### Changed
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
+- Simplified the internals of the hook launcher; its behavior is unchanged.
+
+## [3.6.5] - 2026-11-09
+
+### Changed
+
+- Simplified the shared resolve-convention-home.sh, resolve-convention-pattern.sh and rewrite-guard.sh copies; behavior is unchanged.
+
+- **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** The builtin JSON field readers share one key-depth check, and three helpers drop redundant steps.
+
 ## [3.6.4] - 2026-11-09
 
 ### Changed

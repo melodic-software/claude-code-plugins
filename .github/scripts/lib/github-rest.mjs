@@ -18,16 +18,16 @@ export function budgetedClient(env, { budget = Number.POSITIVE_INFINITY, pace = 
     if (used >= budget) throw new BudgetSpent(`call budget of ${budget} spent`);
     used += 1;
     await pace();
-    const headers = {
-      accept: "application/vnd.github+json",
-      authorization: `Bearer ${env.GITHUB_TOKEN}`,
-      "x-github-api-version": "2022-11-28",
-    };
-    if (body !== undefined) headers["content-type"] = "application/json";
+    const hasBody = body !== undefined;
     const response = await guardedFetch(`${env.GITHUB_API_URL ?? "https://api.github.com"}${path}`, {
       method,
-      headers,
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      headers: {
+        accept: "application/vnd.github+json",
+        authorization: `Bearer ${env.GITHUB_TOKEN}`,
+        "x-github-api-version": "2022-11-28",
+        ...(hasBody && { "content-type": "application/json" }),
+      },
+      ...(hasBody && { body: JSON.stringify(body) }),
     });
     if (response.status === 404 && method === "GET") return null;
     if (!response.ok) {

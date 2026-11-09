@@ -419,13 +419,10 @@ declares_removal() {
   msg="$(git log -1 --no-show-signature --format=%B "$sha")" || return 1
   subject="${msg%%$'\n'*}"
 
-  case "$subject" in
-  'Revert "'*)
+  if [[ "$subject" == 'Revert "'* ]]; then
     printf 'the subject begins with a Revert quote, as git revert writes it\n'
     return 0
-    ;;
-  *) ;;
-  esac
+  fi
   # The Conventional-Commits revert type, and the ONLY revert spelling that can
   # reach main here (#2837). This repo is squash-only with
   # squash_merge_commit_title: PR_TITLE, so the squash subject is the PR title,
@@ -480,10 +477,6 @@ ack_reason() {
   # the same one-line defect as verify_known_incidents and is fixed here so
   # the two file readers cannot drift (#2874).
   while read -r recorded reason || [[ -n "$recorded" ]]; do
-    case "$recorded" in
-    '' | '#'*) continue ;;
-    *) ;;
-    esac
     if [[ "$recorded" = "$sha" ]]; then
       printf '%s\n' "${reason:-<no reason recorded>}"
       return 0
@@ -519,22 +512,12 @@ ack_reason() {
 # still pairs is a mostly-similar file, which bounds how much content can vanish
 # inside one; the incident class this canary targets modifies existing paths.
 
-# Old-side hunk ranges (parent line numbers) with at least one deleted line.
-# Shared by the path-limited content diff and the blob-to-blob recovery.
-old_side_deleted_ranges() {
-  awk '/^@@ /{
-         split($2, a, ",")
-         start = substr(a[1], 2) + 0
-         count = (length(a) > 1) ? a[2] + 0 : 1
-         if (start > 0) print start, count
-       }' "$1"
-}
-
 # append_deleted_ranges <out-array> <diff-file>
 #
-# Append one `-L <first>,<last>` blame argument per old-side hunk in
-# <diff-file> to the named array. Shared by the path-limited content diff and
-# the blob-to-blob recovery, which derive their ranges identically.
+# Append one `-L <first>,<last>` blame argument per old-side hunk (parent line
+# numbers) with at least one deleted line in <diff-file> to the named array.
+# Shared by the path-limited content diff and the blob-to-blob recovery, which
+# derive their ranges identically.
 #
 # Every internal name carries the `_adr_` prefix for the reason
 # scripts/lib/changed-files.sh records: a nameref resolves in the scope where
@@ -542,12 +525,15 @@ old_side_deleted_ranges() {
 # shadow it and the ranges would be written where nobody reads them.
 append_deleted_ranges() {
   local -n _adr_ranges_out="$1"
-  local _adr_start _adr_count
-  while read -r _adr_start _adr_count; do
-    [[ -n "$_adr_start" ]] || continue
-    [[ "$_adr_count" -gt 0 ]] || continue
-    _adr_ranges_out+=(-L "$_adr_start,$((_adr_start + _adr_count - 1))")
-  done < <(old_side_deleted_ranges "$2")
+  local _adr_range
+  while read -r _adr_range; do
+    _adr_ranges_out+=(-L "$_adr_range")
+  done < <(awk '/^@@ /{
+         split($2, a, ",")
+         start = substr(a[1], 2) + 0
+         count = (length(a) > 1) ? a[2] + 0 : 1
+         if (start > 0 && count > 0) print start "," (start + count - 1)
+       }' "$2")
 }
 
 attribute_file() {
@@ -790,18 +776,13 @@ attribute_file() {
 # Call it as a statement, never through a pipe: `die` inside a pipeline
 # lands in a subshell and would be swallowed back into a quiet zero.
 run_attributing_git() {
-  local out_file="$1" what="$2"
+  local out_file="$1" what="$2" err_file err rc=0
   shift 2
-  local err_file rc=0
   err_file="$(mktemp)" || die "mktemp failed"
   git "$@" >"$out_file" 2>"$err_file" || rc=$?
-  if [[ "$rc" -ne 0 ]]; then
-    local err
-    err="$(cat "$err_file")"
-    rm -f "$err_file"
-    die "$what (exit $rc): ${err:-no stderr}"
-  fi
+  ((rc == 0)) || err="$(<"$err_file")"
   rm -f "$err_file"
+  ((rc == 0)) || die "$what (exit $rc): ${err:-no stderr}"
 }
 
 # ---------------------------------------------------------------------------
@@ -881,8 +862,10 @@ scan_commit() {
   local p
   run_attributing_git "$enum_list" \
     "git diff --name-only failed enumerating CHANGELOG changes in $sha" \
-    diff --name-only --no-renames "$parent" "$sha" -- ':(glob)plugins/*/CHANGELOG.md'
+    diff --name-only --no-renames "$parent" "$sha" -- ':(glob)plugins/*/CHANGELOG.md' \
+    ':(glob)docs/contracts/*/CHANGELOG.md' ':(glob)docs/conventions/*/CHANGELOG.md'
   while IFS= read -r p; do
+    [[ "$p" == plugins/* ]] || continue
     p="${p#plugins/}"
     scope+=(":(exclude,literal).changes/${p%/CHANGELOG.md}/")
   done <"$enum_list"
@@ -895,10 +878,6 @@ scan_commit() {
   # .changes/<p>/<name>.md whose front matter at the parent reads exactly
   # `bump: none` is skipped. Every other deletion still counts.
   local file
-  run_attributing_git "$enum_list" \
-    "git diff --name-only failed enumerating fragment-root CHANGELOG changes in $sha" \
-    diff --name-only --no-renames "$parent" "$sha" -- ':(glob)plugins/*/CHANGELOG.md' \
-    ':(glob)docs/contracts/*/CHANGELOG.md' ':(glob)docs/conventions/*/CHANGELOG.md'
   if [[ -s "$enum_list" ]]; then
     local frag_body
     frag_body="$(mktemp)" || die "mktemp failed"
@@ -1090,10 +1069,9 @@ parse_attribution_field() {
   field="${field%\]}"
   [[ -n "$field" ]] || die "empty attribution field in $INCIDENTS_FILE"
   # Word splitting under IFS=',' drops a trailing empty field, so
-  # `[sha=1,]` would otherwise parse as `[sha=1]` and pass. A leading or
-  # doubled comma survives splitting and already died below; reject all
-  # three empty-entry shapes here so the grammar is the same in every
-  # position (#2875).
+  # `[sha=1,]` would otherwise parse as `[sha=1]` and pass. Reject all
+  # three empty-entry shapes (leading, trailing, doubled comma) here so the
+  # grammar is the same in every position and no entry below is empty (#2875).
   case "$field" in
   *, | ,* | *,,*)
     die "malformed attribution field in $INCIDENTS_FILE (empty entry from a leading, trailing, or doubled comma)"
@@ -1102,11 +1080,8 @@ parse_attribution_field() {
   esac
   local IFS=','
   for entry in $field; do
-    case "$entry" in
-    '') die "empty attribution entry in $INCIDENTS_FILE (trailing or doubled comma?)" ;;
-    *=*) ;;
-    *) die "malformed attribution entry '$entry' in $INCIDENTS_FILE (want <40-char-sha>=<lines>)" ;;
-    esac
+    [[ "$entry" == *=* ]] ||
+      die "malformed attribution entry '$entry' in $INCIDENTS_FILE (want <40-char-sha>=<lines>)"
     local culprit="${entry%%=*}" lines="${entry#*=}"
     [[ "$culprit" =~ ^[0-9a-f]{40}$ ]] ||
       die "attribution culprit '$culprit' in $INCIDENTS_FILE is not a full 40-character sha"
@@ -1143,6 +1118,18 @@ largest_attributions() {
   ' "$src"
 }
 
+# report_mismatch <headline> <recorded-label> <expected-file> <observed-file> <row-kind>
+# Prints the FAIL block for a row whose recorded attribution did not reproduce.
+report_mismatch() {
+  printf 'FAIL %s\n' "$1"
+  printf '     recorded %s:\n' "$2"
+  sed 's/^/       /' "$3"
+  printf '     what the detector reported:\n'
+  sed 's/^/       /' "$4"
+  printf '     %s is not a reproduction.\n' "$5"
+  printf '     Do NOT edit the row to match; find out why the attribution moved.\n'
+}
+
 verify_known_incidents() {
   [[ -f "$INCIDENTS_FILE" ]] || die "incident file not found: $INCIDENTS_FILE"
 
@@ -1158,15 +1145,11 @@ verify_known_incidents() {
   # with a zero-row success below, dropping the only row of a one-row file
   # is a green run that verified nothing (#2874).
   while read -r expect sha rest || [[ -n "$expect" ]]; do
-    case "$expect" in
-    '' | '#'*) continue ;;
     # Restoration markers (#2855) are a different assertion about the same
     # incident and belong to --verify-restoration. Skipped HERE, above the
     # reachability check, because a marker row's second field is a path
     # rather than a sha -- reading it as one would die on every marker row.
-    marker) continue ;;
-    *) ;;
-    esac
+    [[ -z "$expect" || "$expect" == '#'* || "$expect" == marker ]] && continue
     verified=$((verified + 1))
     if ! changed_files::verify_base "$sha"; then
       die "incident commit $sha is unreachable -- the canary self-check needs full history (fetch-depth: 0)"
@@ -1227,13 +1210,8 @@ verify_known_incidents() {
         printf '%s\n' "$out"
         rc=1
       elif [[ -n "$attribution" ]] && ! cmp -s "$expected_file" "$observed_file"; then
-        printf 'FAIL %s fires, but NOT as recorded  (%s)\n' "${sha:0:9}" "$note"
-        printf '     recorded attribution:\n'
-        sed 's/^/       /' "$expected_file"
-        printf '     what the detector reported:\n'
-        sed 's/^/       /' "$observed_file"
-        printf '     A row that fires for the wrong reason is not a reproduction.\n'
-        printf '     Do NOT edit the row to match; find out why the attribution moved.\n'
+        report_mismatch "${sha:0:9} fires, but NOT as recorded  ($note)" "attribution" \
+          "$expected_file" "$observed_file" "A row that fires for the wrong reason"
         rc=1
       elif [[ -n "$attribution" ]]; then
         printf 'ok   %s fires as recorded, %s attribution(s) reproduced exactly  (%s)\n' \
@@ -1251,13 +1229,9 @@ verify_known_incidents() {
         largest_attributions "$all_attr_file" >"$observed_file"
         sort -o "$observed_file" "$observed_file"
         if ! cmp -s "$expected_file" "$observed_file"; then
-          printf 'FAIL %s stays clean, but NOT as recorded  (%s)\n' "${sha:0:9}" "$note"
-          printf '     recorded largest sub-threshold attribution:\n'
-          sed 's/^/       /' "$expected_file"
-          printf '     what the detector reported:\n'
-          sed 's/^/       /' "$observed_file"
-          printf '     A clean row whose figure has moved is not a reproduction.\n'
-          printf '     Do NOT edit the row to match; find out why the attribution moved.\n'
+          report_mismatch "${sha:0:9} stays clean, but NOT as recorded  ($note)" \
+            "largest sub-threshold attribution" "$expected_file" "$observed_file" \
+            "A clean row whose figure has moved"
           rc=1
         else
           printf 'ok   %s stays clean as recorded, largest sub-threshold attribution reproduced exactly  (%s)\n' \
@@ -1721,7 +1695,6 @@ main() {
     scan_commit "$2"
     exit $?
     ;;
-  -h | --help) usage ;;
   -*) usage ;;
   # Anything else is a range, handled below.
   *) ;;

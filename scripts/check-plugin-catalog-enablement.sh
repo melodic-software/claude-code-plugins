@@ -112,11 +112,7 @@ declared_keys="$(jq -r '.enabledPlugins // {} | keys_unsorted[]' "$SETTINGS" | t
 # file, so a regex metacharacter in it would change what the pattern matches
 # rather than what it says: a name like 'melodic.software' would make the '.'
 # match any character, silently accepting 'alpha@melodicXsoftware' as this
-# marketplace's key and reporting it as an orphan. A gate whose
-# whole purpose is to catch silent drift must not have a silent-wrongness path
-# of its own. Flagged as informational (not a finding) by the security review
-# on #3235, on the grounds that the value is repo-controlled and crosses no
-# trust boundary -- true, and beside the point for correctness.
+# marketplace's key and reporting it as an orphan.
 enabled="$(
   while IFS= read -r key; do
     [[ -n "$key" ]] || continue
@@ -137,15 +133,14 @@ while IFS= read -r name; do
 done < <(comm -13 <(printf '%s\n' "$catalog") <(printf '%s\n' "$enabled"))
 
 # 2. LAYOUT -- keys must stay in byte order, one per line.
-if [[ -n "$declared_keys" ]]; then
-  if ! diff <(printf '%s\n' "$declared_keys") <(printf '%s\n' "$declared_keys" | LC_ALL=C sort) >/dev/null; then
-    printf 'UNSORTED enabledPlugins: keys in %s are not in byte order.\n' "$SETTINGS" >&2
-    printf '  docs/cloud-sessions.md documents the alphabetical one-per-line layout as what lets a single\n' >&2
-    printf '  plugin be flipped to false without disturbing the rest. First keys out of order:\n' >&2
-    diff <(printf '%s\n' "$declared_keys") <(printf '%s\n' "$declared_keys" | LC_ALL=C sort) |
-      sed -n '1,10p' | sed 's/^/    /' >&2
-    errors=$((errors + 1))
-  fi
+sorted_keys="$(printf '%s\n' "$declared_keys" | LC_ALL=C sort)"
+if [[ "$declared_keys" != "$sorted_keys" ]]; then
+  printf 'UNSORTED enabledPlugins: keys in %s are not in byte order.\n' "$SETTINGS" >&2
+  printf '  docs/cloud-sessions.md documents the alphabetical one-per-line layout as what lets a single\n' >&2
+  printf '  plugin be flipped to false without disturbing the rest. First keys out of order:\n' >&2
+  diff <(printf '%s\n' "$declared_keys") <(printf '%s\n' "$sorted_keys") |
+    sed -n '1,10p' | sed 's/^/    /' >&2
+  errors=$((errors + 1))
 fi
 
 # 3. IDENTITY -- the bootstrap must agree on which marketplace this is.

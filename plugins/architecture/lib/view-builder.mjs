@@ -468,7 +468,7 @@ function parseSlots(template, failures) {
   const stack = [root];
   const parts = template.split(/(\{\{[^}]*\}\})/);
   parts.forEach((part, index) => {
-    const top = stack[stack.length - 1];
+    const top = stack.at(-1);
     if (index % 2 === 0) {
       if (part.includes("{{") || part.includes("}}")) {
         failures.push("slot-syntax");
@@ -500,16 +500,9 @@ function parseSlots(template, failures) {
   return root;
 }
 
-function own(scope, key) {
-  if (scope === null || typeof scope !== "object") {
-    return undefined;
-  }
-  return Object.hasOwn(scope, key) ? scope[key] : undefined;
-}
+const own = (scope, key) => (scope !== null && typeof scope === "object" && Object.hasOwn(scope, key) ? scope[key] : undefined);
 
-function textOf(value) {
-  return ["string", "number", "boolean"].includes(typeof value) ? String(value) : "";
-}
+const textOf = (value) => (["string", "number", "boolean"].includes(typeof value) ? String(value) : "");
 
 function renderSlots(node, scope) {
   return node.children
@@ -527,14 +520,9 @@ function renderSlots(node, scope) {
 }
 
 function buildReport(template, data, title) {
-  const failures = [];
-  for (const tag of template.match(/<[^>]*>/g) ?? []) {
-    if (tag.includes("{{")) {
-      failures.push("slot-in-tag");
-    }
-  }
-  for (const style of template.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style/gi)) {
-    if (style[1].includes("{{")) {
+  const failures = (template.match(/<[^>]*>/g) ?? []).filter((tag) => tag.includes("{{")).map(() => "slot-in-tag");
+  for (const [, css] of template.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style/gi)) {
+    if (css.includes("{{")) {
       failures.push("slot-in-style");
     }
   }
@@ -779,7 +767,7 @@ export function validateInteractivePage(html, runtime) {
       continue;
     }
     for (const attr of parseAttributes(m[2])) {
-      httpEquiv += attr.name === "http-equiv" ? 1 : 0;
+      if (attr.name === "http-equiv") httpEquiv += 1;
       checkAttribute(tag, attr, failures);
     }
   }
@@ -787,9 +775,10 @@ export function validateInteractivePage(html, runtime) {
     failures.push("http-equiv-count");
   }
 
-  let text = rest.replace(/<!--[\s\S]*?-->/g, "");
-  text = text.replace(/<!doctype html>/gi, "");
-  text = text.replace(/<\/?[A-Za-z][A-Za-z0-9]*\b[^>]*>/g, "");
+  const text = rest
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<!doctype html>/gi, "")
+    .replace(/<\/?[A-Za-z][A-Za-z0-9]*\b[^>]*>/g, "");
   if (text.includes("<")) {
     failures.push("raw-lt");
   }

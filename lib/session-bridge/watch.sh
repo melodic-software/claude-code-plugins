@@ -37,20 +37,22 @@ command -v "$curl_bin" >/dev/null 2>&1 || { echo "missing prerequisite: curl (wa
 # Python takes as is (Git Bash does not convert a POSIX path holding a quote or a backtick).
 # Elsewhere `pwd -W` fails and plain `pwd` applies.
 abs_dir() { (cd "$1" 2>/dev/null && { pwd -W 2>/dev/null || pwd; }); }
+# The value of a KEY=value line in a file, carriage returns removed.
+value() { sed -n "s/^$1=//p" "$2" | tr -d '\r'; }
 here=$(abs_dir "$(dirname "${BASH_SOURCE[0]}")")
 conf="$here/session-bridge.conf"
-NAME=$(sed -n 's/^NAME=//p' "$conf" 2>/dev/null | tr -d '\r')
-CONTROL=$(sed -n 's/^CONTROL=//p' "$conf" 2>/dev/null | tr -d '\r')
+NAME=$(value NAME "$conf" 2>/dev/null)
+CONTROL=$(value CONTROL "$conf" 2>/dev/null)
 [[ "$NAME" =~ ^[a-z][a-z0-9-]*$ && "$CONTROL" =~ ^[A-Za-z0-9._-]+$ ]] ||
   { echo "no valid NAME and CONTROL in $conf" >&2; exit 2; }
 header="X-$(printf '%s' "${NAME:0:1}" | tr '[:lower:]' '[:upper:]')${NAME:1}-Token"
 dir=$(abs_dir "$1") || { echo "no such data dir: $1" >&2; exit 2; }
 env_file="$dir/.$NAME-session.env"
 [[ -f "$env_file" ]] || { echo "no $env_file: run $CONTROL ensure-running first" >&2; exit 2; }
-PORT=$(sed -n 's/^PORT=//p' "$env_file" | tr -d '\r')
-TOKEN=$(sed -n 's/^WATCH_TOKEN=//p' "$env_file" | tr -d '\r')
-[[ -n "$TOKEN" ]] || TOKEN=$(sed -n 's/^TOKEN=//p' "$env_file" | tr -d '\r')
-WAIT_TIMEOUT=$(sed -n 's/^WAIT_TIMEOUT=//p' "$env_file" | tr -dc '0-9')
+PORT=$(value PORT "$env_file")
+TOKEN=$(value WATCH_TOKEN "$env_file")
+[[ -n "$TOKEN" ]] || TOKEN=$(value TOKEN "$env_file")
+WAIT_TIMEOUT=$(value WAIT_TIMEOUT "$env_file" | tr -dc '0-9')
 WAIT_TIMEOUT=${WAIT_TIMEOUT:-90}
 [[ -n "$PORT" && -n "$TOKEN" ]] || { echo "server not running (empty $env_file)" >&2; exit 2; }
 [[ "$PORT" =~ ^[0-9]+$ ]] || { echo "PORT in $env_file is not a number: re-run ensure-running" >&2; exit 2; }
@@ -59,7 +61,7 @@ WAIT_TIMEOUT=${WAIT_TIMEOUT:-90}
 manifest="$here/../.claude-plugin/plugin.json"
 if [[ -f "$manifest" ]]; then
   installed=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | head -n 1)
-  recorded=$(sed -n 's/^PLUGIN_VERSION=//p' "$env_file" | tr -d '\r')
+  recorded=$(value PLUGIN_VERSION "$env_file")
   if [[ -n "$installed" && "$recorded" != "$installed" ]]; then
     echo "note: the $NAME server runs ${recorded:-a version that records none}, not this plugin's $installed: run $CONTROL ensure-running to restart it, then re-arm" >&2
   fi
@@ -165,12 +167,9 @@ while :; do
           echo "could not write $dir/.watch-wake.json: take the JSON line from this task's output" >&2; }
       printf '%s\n' "$payload"
       printf '%s' "$out" | sed -n 's/^{"seq": \([0-9]*\).*/\1/p' >"$dir/.watch-seq"
-      case "$out" in
-        '{"seq": '*', "timedOut": false, "replayed": '*)
-          printf '%s' "$out" | sed -n 's/^{"seq": [0-9]*, "timedOut": false, "replayed": \([0-9]*\).*/\1/p' >"$dir/.watch-replay"
-          ;;
-        *) ;;
-      esac
+      if [[ "$out" == '{"seq": '*', "timedOut": false, "replayed": '* ]]; then
+        printf '%s' "$out" | sed -n 's/^{"seq": [0-9]*, "timedOut": false, "replayed": \([0-9]*\).*/\1/p' >"$dir/.watch-replay"
+      fi
       exit 0
       ;;
     *)

@@ -307,7 +307,7 @@ test("an older shellcheck on PATH gets the pinned release in the venv's bin", ()
   assert.ok(
     r.calls.some((c) =>
       c.startsWith(
-        "curl -fsSL --retry 3 https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.gz -o ",
+        "curl -fsSL --retry 7 --retry-all-errors https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.gz -o ",
       ),
     ),
     r.calls.join("\n"),

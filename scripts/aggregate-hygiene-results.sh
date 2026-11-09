@@ -46,13 +46,18 @@ escape_property() {
   printf '%s' "$s"
 }
 
+# tail_lines: HYGIENE_TAIL_LINES when it is a positive integer, else 10.
+tail_lines() {
+  local n=${HYGIENE_TAIL_LINES:-10}
+  [[ "$n" =~ ^[1-9][0-9]*$ ]] || n=10
+  printf '%s\n' "$n"
+}
+
 # tail_of <file>: the last N non-empty lines, color codes stripped and each
 # line cut at 500 characters so one minified line cannot swamp the annotation.
 tail_of() {
-  local n=${HYGIENE_TAIL_LINES:-10}
-  [[ "$n" =~ ^[1-9][0-9]*$ ]] || n=10
   sed -e $'s/\x1b\\[[0-9;]*[A-Za-z]//g' -e 's/\r$//' "$1" |
-    grep -v '^[[:space:]]*$' | tail -n "$n" | cut -c1-500
+    grep -v '^[[:space:]]*$' | tail -n "$(tail_lines)" | cut -c1-500
 }
 
 is_step_log_check() {
@@ -69,13 +74,11 @@ is_step_log_check() {
 # when there is no check run to read or the read fails.
 gate_annotations() {
   [[ -n "${CHECK_RUN_ID:-}" && -n "${GITHUB_REPOSITORY:-}" ]] || return 1
-  local json dir n path line message
+  local json dir path line message
   # shellcheck source=/dev/null
   [[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
   json=$(gh api --paginate "repos/$GITHUB_REPOSITORY/check-runs/$CHECK_RUN_ID/annotations?per_page=50") || return 1
   dir=$(output_dir)
-  n=${HYGIENE_TAIL_LINES:-10}
-  [[ "$n" =~ ^[1-9][0-9]*$ ]] || n=10
   jq -r '.[] | select(.annotation_level == "failure")
     | [.path // "", (.start_line // 0 | tostring), (.message // "" | split("\n")[0])] | @tsv' <<<"$json" |
     while IFS=$'\t' read -r path line message; do
@@ -88,7 +91,7 @@ gate_annotations() {
       else
         printf '%s:%s: %s\n' "$path" "$line" "$message"
       fi
-    done | head -n "$n" | cut -c1-500
+    done | head -n "$(tail_lines)" | cut -c1-500
   [[ "${PIPESTATUS[0]}" -eq 0 ]]
 }
 
@@ -142,15 +145,8 @@ write_summary() {
 }
 
 aggregate_results() {
-  local input=$1
-  local annotate=${2:-true}
-  local failed=0
-  local check
-  local result
-  local description
-  local summary=${GITHUB_STEP_SUMMARY:-}
-  local summary_started=false
-  local composites=''
+  local input=$1 annotate=${2:-true} failed=0 check result description
+  local summary=${GITHUB_STEP_SUMMARY:-} summary_started=false composites=''
   local GATE_ANNOTATIONS
   unset GATE_ANNOTATIONS
 
@@ -162,9 +158,7 @@ aggregate_results() {
   while IFS='=' read -r check result; do
     # YAML block scalars and Bash here-strings can each contribute a trailing
     # newline. Ignore only a fully blank record; a named empty outcome fails.
-    if [[ -z "$check" && -z "$result" ]]; then
-      continue
-    fi
+    [[ -n "$check" || -n "$result" ]] || continue
 
     if [[ "$result" != success ]]; then
       if [[ "$annotate" == true ]]; then

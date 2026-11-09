@@ -118,10 +118,15 @@ trim() {
 unfenced() { awk '/^[[:space:]]*(```|~~~)/ { fence = !fence; next } !fence' "$1"; }
 # H2 headings of a file, in order.
 h2s() { unfenced "$1" | sed -n 's/^## \(.*[^[:space:]]\)[[:space:]]*$/\1/p'; }
-# Non-blank lines under `## Entry points`.
-entry_lines() {
-  unfenced "$1" | awk '/^## / { inside = ($0 ~ /^## Entry points[[:space:]]*$/); next } inside && NF'
+# Lines under a file's `## <heading>`, fence markers left out; fenced lines only with `fenced`.
+section_lines() { # <file> <heading> [fenced]
+  awk -v h="## $2" -v keep="${3:-}" '
+    /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
+    !fence && /^## / { sub(/[[:space:]]+$/, ""); inside = ($0 == h); next }
+    inside && (!fence || keep == "fenced")' "$1"
 }
+# Non-blank lines under `## Entry points`.
+entry_lines() { section_lines "$1" "Entry points" | awk NF; }
 
 declare -A features=() indexed=()
 while IFS= read -r f; do features["$f"]=readme; done < <(cd "$dir" && find features -mindepth 2 -type f -name README.md 2>/dev/null | LC_ALL=C sort)
@@ -156,8 +161,7 @@ while IFS= read -r line; do
     finding index-dead SKILL.md "$path does not exist"
   elif [[ "${features[$path]:-}" == readme ]]; then
     count="$(trim "${fields[2]:-}")"
-    count="${count#entry points:}"
-    count="$(trim "$count")"
+    count="$(trim "${count#entry points:}")"
     actual="$(entry_lines "$dir/$path" | wc -l | tr -d ' ')"
     [[ "$count" == "$actual" ]] || finding index-entry-count SKILL.md "$path: index says $count, the file has $actual"
   fi
@@ -215,7 +219,6 @@ for f in "${feature_list[@]}"; do
     IFS=,
     printf '%s' "${present[*]}"
   )"
-  unset seen
 
   while IFS= read -r entry; do
     e="$(trim "$entry")"
@@ -343,13 +346,6 @@ while IFS= read -r cmd; do
   finding ready-listing SKILL.md "$(trim "$cmd"): ends in a listing, which exits 0 with no rows; end it in grep -q on the expected row"
 done < <(ready_commands "$dir/SKILL.md")
 
-# Lines under the hub's `## <heading>`, fence markers left out; fenced lines only with `fenced`.
-section_lines() { # <file> <heading> [fenced]
-  awk -v h="## $2" -v keep="${3:-}" '
-    /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
-    !fence && /^## / { sub(/[[:space:]]+$/, ""); inside = ($0 == h); next }
-    inside && (!fence || keep == "fenced")' "$1"
-}
 # A row whose tool is `none` (`- trace, video: none`, `| video | none |`) records nothing.
 image_kinds="$(section_lines "$dir/SKILL.md" Capture fenced |
   { grep -viE '(:|\|)[[:space:]]*none[[:space:]]*\|?[[:space:]]*$' || true; } |

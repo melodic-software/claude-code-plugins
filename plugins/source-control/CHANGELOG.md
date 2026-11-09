@@ -3,6 +3,29 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.10.1] - 2026-11-09
+
+### Changed
+
+- Internal simplification of the shared view helpers this plugin carries, no behavior change.
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
+- Simplified the internals of the hook launcher; its behavior is unchanged.
+
+## [8.10.0] - 2026-11-09
+
+### Added
+
+- `/source-control:pull-request reassess` judges whether one open pull request should still land, even when it is green and mergeable, and returns `continue`, `rework` or `close` with its goal, base range and the pull requests it searched. It reports only unless `--act` carries out the verdict.
+- Ten plugin-eval cases grade `reassess` against the gh-forge stand-in, which now serves pull request bodies, labels, comments and merged pull requests, and records pushes and refused writes in its call record.
+
+### Changed
+
+- **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** The builtin JSON field readers share one key-depth check, and three helpers drop redundant steps.
+
+- Simplified the shared setup-apply.mjs, spawn_noise.py and state-key.sh library copies; behavior is unchanged.
+
 ## [8.9.1] - 2026-11-09
 
 ### Fixed

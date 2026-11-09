@@ -163,6 +163,12 @@ def npoints(paths):
     return sum(len(p['d']) + sum(len(h) for h in p['holes']) for p in paths) // 2
 
 
+def source_images(work, k):
+    """Drawing k's source image as (RGB, gray)."""
+    rgb = cv2.cvtColor(cv2.imread(str(workdir.source(work, k))), cv2.COLOR_BGR2RGB)
+    return rgb, cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+
+
 def one(job):
     """Trace (or, with apply, reuse) drawing k and apply its overrides. Returns a summary line."""
     work, k, t, t1, ov, apply = job
@@ -172,18 +178,15 @@ def one(job):
     d = json.load(open(f, encoding='utf-8')) if apply and f.exists() else None
     rgb = g = None
     if d is None or (tuple(d['sharp']) if d['sharp'] else None) != sharp or d.get('levels') != levels:
-        rgb = cv2.cvtColor(cv2.imread(str(workdir.source(work, k))), cv2.COLOR_BGR2RGB)
-        g = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+        rgb, g = source_images(work, k)
         st = stats(rgb, g)
-        kw = dict(s=S, eps=EPS, interp=INTERP, sharp=sharp)
-        tl, t_color = tones(rgb, g, st['T'], levels, **kw)
+        tl, t_color = tones(rgb, g, st['T'], levels, sharp=sharp)
         d = dict(k=k, pts=t, t1=t1, w=g.shape[1], h=g.shape[0], S=S, eps=EPS, interp=INTERP, sharp=sharp, levels=levels,
-                 **st, t_color=t_color, paths=trace(g, st['T'], **kw), tones=tl)
+                 **st, t_color=t_color, paths=trace(g, st['T'], sharp=sharp), tones=tl)
     d['tones'] = [x for x in d['tones'] if 'tint' not in x]
     if ov.get('tint'):
         if rgb is None:
-            rgb = cv2.cvtColor(cv2.imread(str(workdir.source(work, k))), cv2.COLOR_BGR2RGB)
-            g = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+            rgb, g = source_images(work, k)
         d['tones'] += tint(rgb, g, d['T'])
     d.pop('brush', None)
     if ov.get('brush'):

@@ -145,6 +145,35 @@ hooks_dir_of() {
   printf 'plugins/%s/hooks' "${rest%%/*}"
 }
 
+# scripts_in <hooks_dir> <command>: sets `found` to the guard script each
+# `.sh` token of the command names, resolved under <hooks_dir>.
+scripts_in() {
+  local hooks_dir="$1" command="$2" token base skip_next=0
+  found=()
+  # Split into words but never glob: a `*` token is text, not a path under
+  # the repository root.
+  set -f
+  # shellcheck disable=SC2086  # deliberate word split: the command is a shell command line
+  for token in $command; do
+    token="${token%\"}"
+    token="${token#\"}"
+    if ((skip_next)); then
+      skip_next=0
+      continue
+    fi
+    if [[ "$token" == "--lib" || "$token" == "--bps-seed" ]]; then
+      skip_next=1
+      continue
+    fi
+    [[ "$token" == *.sh ]] || continue
+    base="${token##*/}"
+    # shellcheck disable=SC2310  # is_launcher is a pure lookup with no set -e-sensitive body; a false return is the intended "not a launcher"
+    is_launcher "$base" && continue
+    found+=("$hooks_dir/$base")
+  done
+  set +f
+}
+
 guards=()
 unscanned=()
 for source in ${HOOK_CONFIG_SOURCES[@]+"${HOOK_CONFIG_SOURCES[@]}"}; do
@@ -153,35 +182,15 @@ for source in ${HOOK_CONFIG_SOURCES[@]+"${HOOK_CONFIG_SOURCES[@]}"}; do
   hooks_dir="$(hooks_dir_of "$hooks_json")"
   while IFS= read -r command; do
     [[ -n "$command" ]] || continue
-    saw_guard=0
-    skip_next=0
-    # Split into words but never glob: a `*` token is text, not a path under
-    # the repository root.
-    set -f
-    # shellcheck disable=SC2086  # deliberate word split: the command is a shell command line
-    for token in $command; do
-      token="${token%\"}"
-      token="${token#\"}"
-      if ((skip_next)); then
-        skip_next=0
-        continue
-      fi
-      if [[ "$token" == "--lib" || "$token" == "--bps-seed" ]]; then
-        skip_next=1
-        continue
-      fi
-      [[ "$token" == *.sh ]] || continue
-      base="${token##*/}"
-      # shellcheck disable=SC2310  # is_launcher is a pure lookup with no set -e-sensitive body; a false return is the intended "not a launcher"
-      is_launcher "$base" && continue
-      saw_guard=1
-      guards+=("$hooks_dir/$base")
-    done
-    set +f
+    scripts_in "$hooks_dir" "$command"
     # A scanned row that named no shell script is a hook this gate's rule does
     # not reach — a Python or node handler behind a launcher, or a bare
     # interpreter. Reported, never silently passed.
-    ((saw_guard)) || unscanned+=("$hooks_json")
+    if ((${#found[@]} == 0)); then
+      unscanned+=("$hooks_json")
+      continue
+    fi
+    guards+=("${found[@]}")
     # Exec form keeps the script path in `args`, not in `command` (`command` is
     # `node`). Join both so a converted row is still scanned.
   done < <(jq -r --argjson m "$map" '
@@ -226,30 +235,12 @@ for source in ${HOOK_CONFIG_SOURCES[@]+"${HOOK_CONFIG_SOURCES[@]}"}; do
     command="${command%$'\r'}"
     [[ -n "$command" ]] || continue
     [[ "$async" == true && "$SYNC_ONLY_EVENTS" != *" $event "* ]] && continue
-    saw_guard=0
-    skip_next=0
-    set -f # word split without globbing, as in the PreToolUse walk above
-    # shellcheck disable=SC2086  # deliberate word split: the command is a shell command line
-    for token in $command; do
-      token="${token%\"}"
-      token="${token#\"}"
-      if ((skip_next)); then
-        skip_next=0
-        continue
-      fi
-      if [[ "$token" == "--lib" || "$token" == "--bps-seed" ]]; then
-        skip_next=1
-        continue
-      fi
-      [[ "$token" == *.sh ]] || continue
-      base="${token##*/}"
-      # shellcheck disable=SC2310  # see the PreToolUse walk above
-      is_launcher "$base" && continue
-      saw_guard=1
-      blocking+=("$hooks_dir/$base")
-    done
-    set +f
-    ((saw_guard)) || unscanned+=("$hooks_json")
+    scripts_in "$hooks_dir" "$command"
+    if ((${#found[@]} == 0)); then
+      unscanned+=("$hooks_json")
+      continue
+    fi
+    blocking+=("${found[@]}")
   done <<<"$rows"
 done
 
