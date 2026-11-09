@@ -9,7 +9,6 @@
  */
 
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { spawnAsync } from "@melodic/video-digestion/shared/process";
 
@@ -30,10 +29,7 @@ const DETECT_ARGS = Object.freeze([
   "import faster_whisper; print(faster_whisper.__version__)",
 ]);
 
-const ASR_SCRIPT_PATH = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "asr_transcribe.py",
-);
+const ASR_SCRIPT_PATH = path.join(import.meta.dirname, "asr_transcribe.py");
 
 /**
  * @typedef {Object} AsrDetection
