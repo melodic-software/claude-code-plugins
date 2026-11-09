@@ -778,15 +778,22 @@ def _immediate_enqueue(
     return lane_prs_at(parent if isinstance(parent, str) else "") == "native"
 
 
+# Each repository's default branch this process read; a failed read is not kept.
+_default_branches: dict[tuple[str, str], str] = {}
+
+
 def _default_branch(owner: str, name: str) -> str:
-    """The repository's default branch; an unreadable one fails the read, so
-    the check never judges a branch the repository does not merge into."""
-    branch = json_object(_read(["api", f"repos/{owner}/{name}"], "repository")).get(
-        "default_branch"
-    )
-    if not isinstance(branch, str) or not branch.strip():
-        raise PostMergeReadError("repository: no default branch")
-    return branch
+    """The repository's default branch, read once per process; an unreadable
+    one fails the read, so the check never judges a branch the repository
+    does not merge into."""
+    if (owner, name) not in _default_branches:
+        branch = json_object(
+            _read(["api", f"repos/{owner}/{name}"], "repository")
+        ).get("default_branch")
+        if not isinstance(branch, str) or not branch.strip():
+            raise PostMergeReadError("repository: no default branch")
+        _default_branches[owner, name] = branch
+    return _default_branches[owner, name]
 
 
 def _merged_since(
@@ -1351,6 +1358,10 @@ class _Context:
     # The verdict's first run listing's completed runs, by id, at the
     # `updated_at` read (`_listed_runs` with `record`); None until listed.
     judged_runs: dict[int, str] | None = None
+    # That listing's dispatch runs as `_runs` returned them, with the time
+    # they were listed from, which `_lane_reruns` reads when it covers its
+    # lookback; None until listed.
+    dispatch_listing: tuple[datetime, list[Run]] | None = None
     settle_compares_left: int = SETTLE_COMPARE_BUDGET
     compare_reads: int = 0
     # `red-main.confirm-wait-minutes` plus FULL_RUN_ALLOWANCE (None: read at
@@ -2756,14 +2767,20 @@ def _lane_reruns(
                 )
                 if ctx.on_branch(r) and not ctx.replaced(r)
             )
-        runs = _runs(
-            ctx.owner,
-            ctx.name,
-            FULL_RUN_WORKFLOW,
-            "workflow_dispatch",
-            ctx.branch,
-            now - ctx.lane_rerun_lookback(),
-            now,
+        start = now - ctx.lane_rerun_lookback()
+        listing = ctx.dispatch_listing
+        runs = (
+            [r for r in listing[1] if r.created_at >= start]
+            if listing is not None and listing[0] <= start
+            else _runs(
+                ctx.owner,
+                ctx.name,
+                FULL_RUN_WORKFLOW,
+                "workflow_dispatch",
+                ctx.branch,
+                start,
+                now,
+            )
         )
         ctx.held_full_runs.update((r.id, (SIGNAL_DISPATCH, r)) for r in runs)
         for run in sorted(runs, key=lambda r: r.created_at, reverse=True):
@@ -2797,14 +2814,14 @@ def _listed_runs(
     `record`, each listed run that had completed is kept in
     `_Context.judged_runs` at the `updated_at` read."""
     owner, name, branch = ctx.owner, ctx.name, ctx.branch
-    listed = [
-        (SIGNAL_SCHEDULE, r)
-        for r in _runs(owner, name, FULL_RUN_WORKFLOW, "schedule", branch, floor, now)
-    ] + [
-        (SIGNAL_DISPATCH, r)
-        for r in _runs(
-            owner, name, FULL_RUN_WORKFLOW, "workflow_dispatch", branch, floor, now
-        )
+    schedule = _runs(owner, name, FULL_RUN_WORKFLOW, "schedule", branch, floor, now)
+    dispatched = _runs(
+        owner, name, FULL_RUN_WORKFLOW, "workflow_dispatch", branch, floor, now
+    )
+    if record:
+        ctx.dispatch_listing = (floor, dispatched)
+    listed = [(SIGNAL_SCHEDULE, r) for r in schedule] + [
+        (SIGNAL_DISPATCH, r) for r in dispatched
     ]
     # A listing filtered by branch name also returns runs on a tag named
     # like the branch, whose red would be charged to the merge. A run the
@@ -4221,12 +4238,22 @@ def _default_is_human(
     """The merge policy's human test. A null actor, the identity, a self login,
     an automation login, or a login with no write permission is non-human. A
     permission read that fails raises `PostMergeReadError`, so the verdict is
-    unreadable rather than a human enqueue misjudged as an auto-merge."""
+    unreadable rather than a human enqueue misjudged as an auto-merge. A
+    permission another process of the run read within `run_cache.MAX_AGE`
+    (`policy.permission_reader`'s section) is reused, and each one read here
+    is saved for them; a 404 or a failure never is."""
     cache: dict[str, str | None] = {}
 
     def permission(login: str) -> str | None:
         if login not in cache:
             owner, name = _split_repo(repo)
+            key = f"{owner}/{name}|{login.casefold()}"
+            shared = run_cache.get_dated("permission", key, run_cache.MAX_AGE)
+            if shared is not None and isinstance(shared[0], str):
+                run_cache.note(shared[1])
+                cache[login] = shared[0]
+                return cache[login]
+            at = run_cache.now()
             endpoint = (
                 f"repos/{owner}/{name}/collaborators/{quote(login, safe='')}/permission"
             )
@@ -4249,6 +4276,7 @@ def _default_is_human(
                 if not isinstance(value, str):
                     raise PostMergeReadError(f"{label}: no permission in the response")
                 cache[login] = value
+                run_cache.put("permission", key, value, at)
         return cache[login]
 
     return lambda actor: policy.is_human(

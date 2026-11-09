@@ -530,6 +530,8 @@ class CheckCase(unittest.TestCase):
     def setUp(self) -> None:
         pm._anchor_cache.clear()
         self.addCleanup(pm._anchor_cache.clear)
+        pm._default_branches.clear()
+        self.addCleanup(pm._default_branches.clear)
         self.gh = FakeGh()
         for module in (pm, pm.policy):
             patcher = mock.patch.object(module, "gh_capture", self.gh)
@@ -3346,6 +3348,8 @@ class StopUncovered(CheckCase):
         verdict = self.lane_check()
         full = len(self.gh.calls)
         self.gh.calls.clear()
+        # Each check as its own process would run it.
+        pm._default_branches.clear()
         try:
             stopped = self.lane_check(stop_uncovered=True)
         except pm.UncoveredMergeStop as stop:
@@ -4148,6 +4152,20 @@ class Cli(CheckCase):
         self.assertFalse(report["readable"])
         self.assertEqual(self.gh.writes(), [])
 
+    def test_the_default_branch_is_read_once_per_process(self) -> None:
+        repo_reads = lambda: [c for c in self.gh.calls if c[-1] == f"repos/{REPO}"]  # noqa: E731
+        self.assertEqual(pm._default_branch(*REPO.split("/")), "main")
+        self.gh.default_branch = "trunk"
+        self.assertEqual(pm._default_branch(*REPO.split("/")), "main")
+        self.assertEqual(len(repo_reads()), 1)
+
+    def test_a_failed_default_branch_read_is_not_kept(self) -> None:
+        self.gh.default_branch = None
+        with self.assertRaises(pm.PostMergeReadError):
+            pm._default_branch(*REPO.split("/"))
+        self.gh.default_branch = "trunk"
+        self.assertEqual(pm._default_branch(*REPO.split("/")), "trunk")
+
     def test_an_explicit_branch_skips_the_lookup(self) -> None:
         self.gh.default_branch = None
         code, report = self.main("--branch", "release")
@@ -4283,6 +4301,48 @@ class DefaultIsHuman(CheckCase):
         is_human(HUMAN)
         reads = [c for c in self.gh.calls if "/collaborators/maintainer/" in c[1]]
         self.assertEqual(len(reads), 1)
+
+    def shared_cache(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        patcher = mock.patch.dict(
+            os.environ, {pm.run_cache.ENV: str(pathlib.Path(tmp.name) / "cache.json")}
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def permission_reads(self) -> list[list[str]]:
+        return [c for c in self.gh.calls if "/collaborators/" in c[1]]
+
+    def test_a_permission_read_is_shared_with_the_run_and_answers_the_same(self) -> None:
+        self.shared_cache()
+        first = pm._default_is_human(REPO, IDENTITY, [])
+        answers = [first(HUMAN), first({"__typename": "User", "login": "reader"})]
+        self.assertEqual(answers, [True, False])
+        self.assertEqual(len(self.permission_reads()), 2)
+        # Another process of the run: the gate's reader and a second check.
+        self.gh.calls.clear()
+        policy_read = pm.policy.permission_reader(REPO)
+        self.assertEqual(policy_read("maintainer"), "write")
+        second = pm._default_is_human(REPO, IDENTITY, [])
+        self.assertEqual(
+            [second(HUMAN), second({"__typename": "User", "login": "reader"})], answers
+        )
+        self.assertEqual(self.permission_reads(), [])
+
+    def test_a_404_or_failed_permission_is_never_shared(self) -> None:
+        self.shared_cache()
+        self.gh.permissions["maintainer"] = 403
+        first = pm._default_is_human(REPO, IDENTITY, [])
+        with self.assertRaises(pm.PostMergeReadError):
+            first(HUMAN)
+        self.assertFalse(first({"__typename": "User", "login": "stranger"}))
+        self.gh.calls.clear()
+        second = pm._default_is_human(REPO, IDENTITY, [])
+        with self.assertRaises(pm.PostMergeReadError):
+            second(HUMAN)
+        self.assertFalse(second({"__typename": "User", "login": "stranger"}))
+        self.assertEqual(len(self.permission_reads()), 2)
 
     def test_a_failed_permission_read_makes_the_verdict_unreadable(self) -> None:
         # A human enqueue past the dispatch deadline would otherwise fail as an
