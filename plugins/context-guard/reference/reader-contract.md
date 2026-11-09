@@ -257,9 +257,9 @@ every other snapshot value). The bundled resolver implements both gates.
 
 **Band provenance:** the shipped token bands are **declared judgment**, not benchmark-derived
 constants. Anthropic's system cards for the current Claude models give no per-length
-long-context scores (the pointer below names the sections); as observed 2026-10-09, each card
-reports one aggregate ProgramBench score, an agentic task whose episodes run up to the full 1M
-window. The published per-length data is retrieval and graph traversal, not agentic work, and no
+long-context scores (the pointer below names the sections); as observed 2026-10-09, and again
+for the Fable 5.2 card on 2026-11-09, each card reports one aggregate ProgramBench score, an
+agentic task whose episodes run up to the full 1M window. The published per-length data is retrieval and graph traversal, not agentic work, and no
 study we found links those scores to agentic task quality. We read two such sources, both at the
 pointer below. As observed 2026-10-09: on GraphWalks BFS, run by Google at max reasoning and
 published with Gemini 4 Argon, Opus 5.5 scored 90.6% up to 128K and 66.8% from 256K to 1M, and
@@ -280,11 +280,12 @@ defaults is coincidence, not validation.
   Opus 5 and Claude Sonnet 5 rows; [Gemini models](https://deepmind.google/models/gemini), the
   Gemini 4 Argon table's Opus 5.5 and Fable 5.1 GraphWalks BFS rows; the absence of per-length data, the
   [Opus 5.5 system card](https://www-cdn.anthropic.com/fc1b44717c85dc068bc6ba5024219938094694bd/Claude%20Opus%205.5%20System%20Card.pdf)
-  section 8.10 and the [Fable 5.1 system card](https://www-cdn.anthropic.com/0339e6a7c5c7b87f5c07798616dc32c215d14235/Claude%20Fable%205.1%20&%20Claude%20Mythos%205.1%20System%20Card.pdf)
-  section 8.11. For the 200k row, correlate with [AI Hero, "Smart Zone"](https://www.aihero.dev/ai-coding-dictionary/smart-zone)
+  section 8.10, the [Fable 5.1 system card](https://www-cdn.anthropic.com/0339e6a7c5c7b87f5c07798616dc32c215d14235/Claude%20Fable%205.1%20&%20Claude%20Mythos%205.1%20System%20Card.pdf)
+  section 8.11 and the [Fable 5.2 system card](https://www.anthropic.com/document/claude-fable-5-2-mythos-5-2-system-card)
+  section 8.10. For the 200k row, correlate with [AI Hero, "Smart Zone"](https://www.aihero.dev/ai-coding-dictionary/smart-zone)
   and [Geoffrey Huntley, "Ralph"](https://ghuntley.com/ralph/); no docs page covers where quality
   degrades on a 200K window as of 2026-10-04.
-- **As of**: 2026-10-09
+- **As of**: 2026-10-09; 2026-11-09 for the Fable 5.2 card (read as extracted text, charts excluded)
 - **Recheck trigger**: Opus 5.5, Fable 5.1 or Sonnet 5.5 appear on Context Arena; Google's table
   splits the 256K-1M GraphWalks bin; a new or revised
   Anthropic system card publishes per-length scores; or a docs page starts covering where quality degrades on a 200K window, at which point the
