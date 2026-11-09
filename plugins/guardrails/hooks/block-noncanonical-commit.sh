@@ -194,11 +194,7 @@ allowed() {
 msg_count_to() {
   local -n __mc_out="$1"
   local __mc_rest="$RAW_COMMAND" __mc_n=0
-  [[ -n "$2" ]] || {
-    __mc_out=0
-    return 0
-  }
-  while [[ "$__mc_rest" == *"$2"* ]]; do
+  while [[ -n "$2" && "$__mc_rest" == *"$2"* ]]; do
     __mc_n=$((__mc_n + 1))
     __mc_rest="${__mc_rest#*"$2"}"
   done
@@ -407,7 +403,7 @@ explicit_git_dir_to() {
 # a PLAIN call, never `$(…)`: a command substitution would run it in a subshell and
 # discard the cache.
 # One `git rev-parse <path-flag>` field, captured byte-exact into
-# HOOK_REV_PARSE_FIELD — empty when git cannot answer.
+# HOOK_REPO_GIT_PROBE_OUT — empty when git cannot answer.
 #
 # `$(…)` strips EVERY trailing newline, but a repository top-level path may itself
 # end in one (POSIX allows any byte but NUL and `/` in a path), and dropping it
@@ -435,20 +431,30 @@ HOOK_EFFECTIVE_LOCATING=()
 HOOK_PROBE_LOCATING=()
 HOOK_FRAME_PREFIX_HAS_C=0
 declare -A _repo_git_probe_cache=()
-HOOK_REV_PARSE_FIELD=""
 HOOK_REPO_GIT_PROBE_OUT=""
+
+# Call as: probe_key_to <var> <dir> [<word>…] — a cache key for asking about
+# <dir> under HOOK_PROBE_LOCATING: <dir>, the locating globals, then each <word>,
+# %q-encoded one per line.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+probe_key_to() {
+  local -n __pk_out="$1"
+  local __pk_q __pk_a
+  printf -v __pk_q '%q' "$2"
+  __pk_out="$__pk_q"
+  shift 2
+  for __pk_a in ${HOOK_PROBE_LOCATING[@]+"${HOOK_PROBE_LOCATING[@]}"} "$@"; do
+    printf -v __pk_q '%q' "$__pk_a"
+    __pk_out+=$'\n'"$__pk_q"
+  done
+}
 
 # Call as: repo_git_probe <dir> <git-arg>… — sets HOOK_REPO_GIT_PROBE_OUT.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 repo_git_probe() {
-  local dir="$1" key q a out
+  local dir="$1" key out
+  probe_key_to key "$@"
   shift
-  printf -v q '%q' "$dir"
-  key="$q"
-  for a in ${HOOK_PROBE_LOCATING[@]+"${HOOK_PROBE_LOCATING[@]}"} "$@"; do
-    printf -v q '%q' "$a"
-    key+=$'\n'"$q"
-  done
   if [[ -n "${_repo_git_probe_cache[$key]+x}" ]]; then
     HOOK_REPO_GIT_PROBE_OUT="${_repo_git_probe_cache[$key]}"
     return 0
@@ -463,35 +469,21 @@ repo_git_probe() {
   HOOK_REPO_GIT_PROBE_OUT="$out"
 }
 
-# Call as: git_rev_parse_field <dir> <path-flag>
-# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-git_rev_parse_field() {
-  local dir="$1" flag="$2"
-  repo_git_probe "$dir" rev-parse "$flag"
-  HOOK_REV_PARSE_FIELD="$HOOK_REPO_GIT_PROBE_OUT"
-}
-
 # Call as: alias_launch_dir <dir> <frame-locating-nglob>
 declare -A _alias_launch_dir=()
 HOOK_ALIAS_LAUNCH_DIR=""
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 alias_launch_dir() {
-  local dir="$1" key q toplevel prefix frame_nglob="$2" a
-  printf -v q '%q' "$dir"
-  key="$q"
-  for a in ${HOOK_PROBE_LOCATING[@]+"${HOOK_PROBE_LOCATING[@]}"}; do
-    printf -v q '%q' "$a"
-    key+=$'\n'"$q"
-  done
+  local dir="$1" key toplevel frame_nglob="$2"
+  probe_key_to key "$dir"
   if [[ -z "${_alias_launch_dir[$key]+x}" ]]; then
-    git_rev_parse_field "$dir" --show-toplevel
-    toplevel="$HOOK_REV_PARSE_FIELD"
+    repo_git_probe "$dir" rev-parse --show-toplevel
+    toplevel="$HOOK_REPO_GIT_PROBE_OUT"
     if [[ -z "$toplevel" ]]; then
       _alias_launch_dir["$key"]=""
     else
-      git_rev_parse_field "$dir" --show-prefix
-      prefix="$HOOK_REV_PARSE_FIELD"
-      if [[ -n "$prefix" || frame_nglob -eq 0 ]]; then
+      repo_git_probe "$dir" rev-parse --show-prefix
+      if [[ -n "$HOOK_REPO_GIT_PROBE_OUT" || frame_nglob -eq 0 ]]; then
         _alias_launch_dir["$key"]="$toplevel"
       else
         _alias_launch_dir["$key"]="$dir"
@@ -544,17 +536,11 @@ collect_locating_globals() {
 # nested bash function calls through the alias-expansion walk.
 # shellcheck disable=SC2329
 set_probe_locating() {
-  local -a inherited=()
-  if ((${#HOOK_EFFECTIVE_LOCATING[@]})) && ((HOOK_FRAME_PREFIX_HAS_C == 0)); then
-    inherited=("${HOOK_EFFECTIVE_LOCATING[@]}")
-  fi
   HOOK_PROBE_LOCATING=()
-  if ((${#inherited[@]})); then
-    HOOK_PROBE_LOCATING=("${inherited[@]}")
+  if ((${#HOOK_EFFECTIVE_LOCATING[@]} && HOOK_FRAME_PREFIX_HAS_C == 0)); then
+    HOOK_PROBE_LOCATING=("${HOOK_EFFECTIVE_LOCATING[@]}")
   fi
-  if ((${#locating_globals[@]})); then
-    HOOK_PROBE_LOCATING+=("${locating_globals[@]}")
-  fi
+  HOOK_PROBE_LOCATING+=(${locating_globals[@]+"${locating_globals[@]}"})
 }
 
 # shellcheck disable=SC2329
@@ -564,6 +550,23 @@ shell_alias_inherited_locating() {
   else
     HOOK_EFFECTIVE_LOCATING=()
   fi
+}
+
+# Call as: shell_alias_reparse <reparse> — analyze a `!` alias body the way the
+# fresh git process that runs it starts: an emptied git-alias seen-set, the
+# inherited locating globals, and HOOK_ALIAS_LAUNCH_DIR as its base. Restores the
+# caller's state after, reading check_segment's saved_base, saved_seen and sub.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+shell_alias_reparse() {
+  local -a saved_locating=(${HOOK_EFFECTIVE_LOCATING[@]+"${HOOK_EFFECTIVE_LOCATING[@]}"})
+  HOOK_ALIAS_SEEN=()
+  shell_alias_inherited_locating
+  HOOK_EFFECTIVE_BASE="$HOOK_ALIAS_LAUNCH_DIR"
+  alias_reexpand_admit shell "$1" &&
+    hook::bash_parse_segments "$1" check_segment
+  HOOK_EFFECTIVE_BASE="$saved_base"
+  HOOK_EFFECTIVE_LOCATING=(${saved_locating[@]+"${saved_locating[@]}"})
+  HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"} "$sub")
 }
 
 # The base is HOOK_EFFECTIVE_BASE, not the payload cwd directly, because a `!`
@@ -609,7 +612,6 @@ sequencer_in_progress() {
     # sequencer file.
     repo_git_probe "$repo" rev-parse --absolute-git-dir
     dir="$HOOK_REPO_GIT_PROBE_OUT"
-    [[ -n "$dir" ]] || return 1
   fi
   [[ -n "$dir" ]] || return 1
   for f in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-merge rebase-apply; do
@@ -767,7 +769,7 @@ check_segment() {
   # finite distinct alias keys guarantee termination. Terminating is not the same as
   # tractable — the walk branches per hop, and alias_reexpand_admit is what keeps
   # its cost proportional to the chain's length.
-  local exp reparse s seen_hit=0 saved_base="" saved_locating=()
+  local exp reparse s seen_hit=0 saved_base=""
   local -a expw=() saved_seen=() saved_shell_seen=() nextw=()
   HOOK_FRAME_PREFIX_HAS_C=0
   local pf
@@ -834,15 +836,7 @@ check_segment() {
           [[ -n "$seg_dir" ]] || hook::git_effective_dir_to seg_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}"
           alias_launch_dir "$seg_dir" ${#locating_globals[@]} ||
             HOOK_ALIAS_LAUNCH_DIR="$seg_dir"
-          HOOK_ALIAS_SEEN=()
-          saved_locating=(${HOOK_EFFECTIVE_LOCATING[@]+"${HOOK_EFFECTIVE_LOCATING[@]}"})
-          shell_alias_inherited_locating
-          HOOK_EFFECTIVE_BASE="$HOOK_ALIAS_LAUNCH_DIR"
-          alias_reexpand_admit shell "$reparse" &&
-            hook::bash_parse_segments "$reparse" check_segment
-          HOOK_EFFECTIVE_BASE="$saved_base"
-          HOOK_EFFECTIVE_LOCATING=(${saved_locating[@]+"${saved_locating[@]}"})
-          HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"} "$sub")
+          shell_alias_reparse "$reparse"
         else
           hook::env_s_split "$exp"
           expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
@@ -901,15 +895,7 @@ check_segment() {
             HOOK_SHELL_ALIAS_SEEN+=("$pkey")
             local preparse
             hook::git_alias_reparse_to preparse "$pexp" "${w[@]:sub_idx+1}"
-            HOOK_ALIAS_SEEN=()
-            saved_locating=(${HOOK_EFFECTIVE_LOCATING[@]+"${HOOK_EFFECTIVE_LOCATING[@]}"})
-            shell_alias_inherited_locating
-            HOOK_EFFECTIVE_BASE="$HOOK_ALIAS_LAUNCH_DIR"
-            alias_reexpand_admit shell "$preparse" &&
-              hook::bash_parse_segments "$preparse" check_segment
-            HOOK_EFFECTIVE_BASE="$saved_base"
-            HOOK_EFFECTIVE_LOCATING=(${saved_locating[@]+"${saved_locating[@]}"})
-            HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"} "$sub")
+            shell_alias_reparse "$preparse"
           fi
         else
           local -a pexpw=()
@@ -1006,20 +992,20 @@ block_message_flag() {
     echo 'BLOCKED: this `git commit -m` message holds a `$` or a backtick the shell expands'
     echo 'before git sees it: `$x` and `$(...)` are replaced, and in PowerShell a backtick'
     echo 'starts an escape (`f becomes a form feed), so the message lands changed in history.'
+    echo "Put it in single quotes, or pipe it via stdin: use /source-control:commit, or its"
+    echo "canonical form directly:"
+    if [[ "$TOOL_NAME" == "PowerShell" ]]; then
+      echo "  @'"
+      echo "  <subject>"
+      echo "  '@ | git commit -F -"
+    else
+      echo "  git commit -F - --cleanup=verbatim <<'EOF'"
+      echo "  <subject>"
+      echo "  EOF"
+    fi
+    echo "Messages without \`\$\` or a backtick are allowed, multi-line included. --amend,"
+    echo "-C/-c, --fixup/--squash, -F <path>, and an in-progress merge/rebase are exempt."
   } >&2
-  echo "Put it in single quotes, or pipe it via stdin: use /source-control:commit, or its" >&2
-  echo "canonical form directly:" >&2
-  if [[ "$TOOL_NAME" == "PowerShell" ]]; then
-    echo "  @'" >&2
-    echo "  <subject>" >&2
-    echo "  '@ | git commit -F -" >&2
-  else
-    echo "  git commit -F - --cleanup=verbatim <<'EOF'" >&2
-    echo "  <subject>" >&2
-    echo "  EOF" >&2
-  fi
-  echo "Messages without \`\$\` or a backtick are allowed, multi-line included. --amend," >&2
-  echo "-C/-c, --fixup/--squash, -F <path>, and an in-progress merge/rebase are exempt." >&2
   emit_tel "blocked" "message-flag"
   exit 2
 }
@@ -1095,9 +1081,6 @@ HOOK_ALIAS_DEPTH=0
 # level, then each `!` reparse's own repository as the walk descends.
 # Save/restored alongside the seen-sets, so sibling segments start from the cwd.
 HOOK_EFFECTIVE_BASE="${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}"
-HOOK_EFFECTIVE_LOCATING=()
-HOOK_PROBE_LOCATING=()
-HOOK_FRAME_PREFIX_HAS_C=0
 
 hook::bash_parse_segments "$COMMAND" check_segment
 
