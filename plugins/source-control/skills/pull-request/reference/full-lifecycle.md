@@ -6,7 +6,7 @@ carried `full`; every other action routes through the phase table in [`../SKILL.
 
 Run Phase 1 → Phase 2 → Phase 2.5 → Phase 3 → Phase 4 as one continuous flow, pausing only at **decision gates** where the outcome could vary and at one interactive-only checkpoint at the create boundary.
 
-**Phase 2.5 sits between create and monitor.** Inside `full`, Phase 2 opens a draft and leaves the flip to this step; when the invocation asked for a draft, `full` ends after create instead. Phase 2.5 reviews and verifies the merged head and flips it out of draft ([ready-for-review.md](ready-for-review.md)); Phase 3 monitors the CI and review activity the flip starts. Without the flip, monitor watches a draft no reviewer has been asked to read.
+**Phase 2.5 sits between create and monitor.** Inside `full`, Phase 2 opens a draft and leaves the flip to this step; when the invocation asked for a draft, `full` ends after create instead. Phase 2.5 reviews and verifies the updated head and flips it out of draft ([ready-for-review.md](ready-for-review.md)); Phase 3 monitors the CI and review activity the flip starts. Without the flip, monitor watches a draft no reviewer has been asked to read.
 
 **Create→ready checkpoint (`full` only):**
 

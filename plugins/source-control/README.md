@@ -53,10 +53,13 @@ research-gated:
 - **prep**. Review the branch diff (via your review agents/skills when
   installed, inline otherwise), verify findings, simplify, then run the
   project's build+test+lint gate as a hard block.
-- **create**. Branch-name check, default-branch rebase, unrelated-changes
+- **create**. Branch-name check, default-branch update, unrelated-changes
   triage, `Closes #N` derivation from the branch name (validated against the
   live issue), safely-assembled PR body, `gh pr create`.
-- **ready**. Merges the base into the branch, never a rebase, and resolves a
+- **ready**. Updates the branch from its base by the method the shared
+  [branch update criteria](reference/branch-update-criteria.md) choose (a team
+  can force `merge` or `rebase` on some rows with `pr_update_method` in
+  `docs/conventions/source-control.yaml`), and resolves a
   conflicted merge intent-first: it reads the commits behind both sides
   before editing, composes both changes, never picks a side with
   `--ours`/`--theirs`, then sweeps for semantic conflicts the markers don't

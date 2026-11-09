@@ -259,10 +259,10 @@
       "id": 21,
       "name": "ready-flip-merges-base-and-reverifies",
       "prompt": "/pull-request ready. PR 512 is an open draft on this branch, main has moved ahead of it, and the last verification:confirm ran two commits ago. Flip it to ready for review.",
-      "expected_output": "The skill routes to Phase 2.5. It refreshes the base by MERGING it (gh pr update-branch or git merge origin/main) and never by rewriting the branch's history, because a rebase of an open pull request needs a force-push and rewrites commits reviewers have read. It then runs the security review over the PR diff, commits what that review changed, and runs the verify gate (verification:confirm) last on the merged head, and only then flips with gh pr ready (the GitHub MCP update_pull_request call with draft: false in a cloud session).",
+      "expected_output": "The skill routes to Phase 2.5. It reads the shared branch update decision (branch-update-signals.sh piped to branch-update-method.sh), and where a merge is chosen, as on a squash-landing repository, it updates the branch by MERGING the base (the forge's pinned update or git merge origin/main). It then runs the security review over the PR diff, commits what that review changed, and runs the verify gate (verification:confirm) last on the merged head, and only then flips with gh pr ready (the GitHub MCP update_pull_request call with draft: false in a cloud session).",
       "files": [],
       "expectations": [
-        "The base is refreshed with a merge and never with a rebase or any other history rewrite, with the force-push and the rewritten reviewed commits given as the reason",
+        "The method comes from the branch update decision, and on a squash landing the base is merged and the branch is not rebased, with the decision's rule named as the reason",
         "The security review runs over the pull request's diff before the flip",
         "The verify gate (verification:confirm) runs last, on the post-merge head, after any edits have been committed",
         "The flip happens only after the verify gate is clean, via gh pr ready locally or the MCP update_pull_request call with draft: false in a cloud session"
@@ -563,7 +563,7 @@
       "expected_output": "The ready step checks for a hold before it touches the branch, finds the do-not-merge label, and stops: the pull request stays a draft, the label is reported as the reason, and the base is not merged, no review runs and nothing is flipped. It does not remove the label.",
       "files": [],
       "expectations": [
-        "The hold check runs before the base merge, the reviews and the flip",
+        "The hold check runs before the branch update, the reviews and the flip",
         "The pull request is left in draft and never flipped",
         "The report names the do-not-merge label as the reason",
         "The label is not removed"
@@ -573,11 +573,11 @@
       "id": 44,
       "name": "ready-flips-past-a-merge-hold-line",
       "prompt": "/pull-request ready. PR 641 is an open draft on this branch. Its body ends with the line `Hold: a human merges this`. No one is around to answer questions. Flip it to ready.",
-      "expected_output": "A body line starting `Hold:` holds the merge, not the ready flip, so the hold check passes and the ready step goes on to merge the base, run the reviews and the verify gate, and flip the pull request. It does not merge the pull request or edit the body.",
+      "expected_output": "A body line starting `Hold:` holds the merge, not the ready flip, so the hold check passes and the ready step goes on to update the branch from its base, run the reviews and the verify gate, and flip the pull request. It does not merge the pull request or edit the body.",
       "files": [],
       "expectations": [
         "The `Hold:` line is not treated as a reason to stay in draft",
-        "The ready step goes on to the base merge, the reviews and the flip",
+        "The ready step goes on to the branch update, the reviews and the flip",
         "The pull request is not merged",
         "The body is not edited"
       ]
@@ -586,7 +586,7 @@
       "id": 45,
       "name": "ready-refuses-a-wip-title",
       "prompt": "/pull-request ready. PR 642 is an open draft on this branch titled `test(harness-config): WIP: pin permission suites`. No one is around to answer questions. Flip it to ready.",
-      "expected_output": "The WIP marker in the title is a hold, so the ready step leaves the pull request in draft, reports the title as the reason, and does not merge the base, run the reviews or flip it. It does not retitle the pull request.",
+      "expected_output": "The WIP marker in the title is a hold, so the ready step leaves the pull request in draft, reports the title as the reason, and does not update the branch from its base, run the reviews or flip it. It does not retitle the pull request.",
       "files": [],
       "expectations": [
         "The WIP marker in the title is treated as a hold",
@@ -599,7 +599,7 @@
       "id": 46,
       "name": "ready-refuses-a-superseded-draft",
       "prompt": "/pull-request ready. PR 643 is an open draft on this branch whose body says `Closes #600`. Issue #600 was closed yesterday when another pull request merged. No one is around to answer questions. Flip it to ready.",
-      "expected_output": "An issue the pull request closes is already closed, so it is superseded: the ready step leaves it in draft, reports that #600 is closed as the reason, and does not merge the base, run the reviews or flip it. It neither closes the pull request nor reopens the issue.",
+      "expected_output": "An issue the pull request closes is already closed, so it is superseded: the ready step leaves it in draft, reports that #600 is closed as the reason, and does not update the branch from its base, run the reviews or flip it. It neither closes the pull request nor reopens the issue.",
       "files": [],
       "expectations": [
         "The closed linked issue is treated as a reason to refuse the flip",
@@ -639,7 +639,7 @@
       "id": 49,
       "name": "ready-skips-a-step-pre-ready-disables-at-base",
       "prompt": "/pull-request ready. PR 702 is an open draft on branch fix/702-retry-backoff, a code change (not docs-only), with no hold. The repository's docs/conventions/source-control.yaml on the base branch, main, is captured in evals/fixtures/source-control-pre-ready-security-off.yaml relative to the skill directory. The PR's own head branch edits that file to also set code-review to enabled: false. Flip it to ready for review and report.",
-      "expected_output": "The skill reads pre_ready at the base branch, main, never from the head branch, so only security-review is disabled: the head's edit turning off code-review is not used. It merges the base, runs the code review and the verify gate, skips the security review, then runs the hold check again and flips. The report gives one line per step in order, with security-review reported as disabled by pre_ready at main, never as passed, and code-review and verify reported as ran with their results.",
+      "expected_output": "The skill reads pre_ready at the base branch, main, never from the head branch, so only security-review is disabled: the head's edit turning off code-review is not used. It updates the branch from its base, runs the code review and the verify gate, skips the security review, then runs the hold check again and flips. The report gives one line per step in order, with security-review reported as disabled by pre_ready at main, never as passed, and code-review and verify reported as ran with their results.",
       "files": [
         "evals/fixtures/source-control-pre-ready-security-off.yaml"
       ],
@@ -669,10 +669,10 @@
       "id": 51,
       "name": "ready-skips-code-review-for-one-run-with-a-reason",
       "prompt": "/pull-request ready --skip code-review --reason \"review model is rate-limited until tomorrow\". I am here at the keyboard. PR 731 is an open draft on branch feat/731-export-retry, a code change (not docs-only), with no hold, and the base branch main has no pre_ready list. Flip it to ready for review and report.",
-      "expected_output": "A person is present, code-review is a known step and the reason is not empty, so the code review does not run. The hold check, the base merge, the security review and the verify gate run, then the hold check again and the flip. The code-review report line says skipped by the acting gh login for this run, with the reason, and the same line is posted in one PR conversation comment, after the hold re-check and right before the flip. The PR body is not edited. The code review is never reported as passed.",
+      "expected_output": "A person is present, code-review is a known step and the reason is not empty, so the code review does not run. The hold check, the branch update, the security review and the verify gate run, then the hold check again and the flip. The code-review report line says skipped by the acting gh login for this run, with the reason, and the same line is posted in one PR conversation comment, after the hold re-check and right before the flip. The PR body is not edited. The code review is never reported as passed.",
       "files": [],
       "expectations": [
-        "The code review does not run, and the base merge, the security review and the verify gate do run",
+        "The code review does not run, and the branch update, the security review and the verify gate do run",
         "The hold checks, the push when one is needed, and the flip still run",
         "The code-review report line says skipped by <login> for this run with the reason review model is rate-limited until tomorrow",
         "The same skipped line is posted in one PR conversation comment, after the hold re-check and before the flip, and the PR body is not edited",

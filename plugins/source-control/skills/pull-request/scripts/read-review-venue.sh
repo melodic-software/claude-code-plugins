@@ -38,7 +38,8 @@
 # it needs no executable bit.
 set -uo pipefail
 
-PARSER="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)/yaml-subset.awk"
+# shellcheck source=../../../lib/base-file.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)/base-file.sh"
 VALUES=" auto local ci both "
 
 usage() {
@@ -92,53 +93,12 @@ read_repo() {
   [[ -n "$default" ]] || { notice "the base repository's default branch could not be read; the repository level is unread"; return; }
   [[ "$base" == "$default" ]] || { notice "base $base is not the default branch $default; the repository level is unread"; return; }
 
-  # A command substitution drops NUL bytes, so stdin goes to a file first.
-  local input_file doc response status records
-  input_file="$(mktemp)" || { notice "no temporary file for the input; the repository level is unread"; return; }
-  cat >"$input_file"
-  if (($(tr -d '\000' <"$input_file" | wc -c) != $(wc -c <"$input_file"))); then
-    rm -f "$input_file"
-    notice "the input holds a NUL byte; the repository level is unread"
+  base_file_read_key "$mode" review_venue
+  if [[ "$BASE_FILE_STATE" == failed ]]; then
+    notice "$BASE_FILE_REASON; the repository level is unread"
     return
   fi
-  if [[ "$mode" == - ]]; then
-    doc="$(cat "$input_file")"
-  else
-    response="$(cat "$input_file")"
-    status="${response%%$'\n'*}"
-    status="${status%$'\r'}"
-    if [[ ! "$status" =~ ^HTTP/[0-9.]+\ ([0-9]{3}) ]]; then
-      rm -f "$input_file"
-      notice "the base read returned no status line; the repository level is unread"
-      return
-    fi
-    case "${BASH_REMATCH[1]}" in
-    200) doc="$(awk 'body { print; next } { sub(/\r$/, "") } $0 == "" { body = 1 }' <<<"$response")" ;;
-    404) rm -f "$input_file" && return ;;
-    *)
-      rm -f "$input_file"
-      notice "the base read returned $status; the repository level is unread"
-      return
-      ;;
-    esac
-  fi
-  rm -f "$input_file"
-
-  if ! records="$(LC_ALL=C awk -f "$PARSER" <<<"$doc")"; then
-    notice "docs/conventions/source-control.yaml does not parse: $(awk -F '\t' '$1 == "error" { print "line " $2 ": " $3 }' <<<"$records"); the repository level is unread"
-    return
-  fi
-  local key val
-  while IFS=$'\t' read -r key val; do
-    case "$key" in
-    review_venue) repo_value="$val" repo_set=1 ;;
-    review_venue.*)
-      repo_value="(not a single value)" repo_set=1
-      return
-      ;;
-    *) ;;
-    esac
-  done <<<"$records"
+  if ((BASE_FILE_HAS)); then repo_value="$BASE_FILE_VALUE" repo_set=1; fi
 }
 
 [[ -z "$mode" ]] || read_repo

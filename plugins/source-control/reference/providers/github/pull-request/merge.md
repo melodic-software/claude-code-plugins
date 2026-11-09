@@ -31,7 +31,8 @@ gh api "repos/{owner}/{repo}/compare/$BASE...$HEAD_SHA"
 When GraphQL is refused, read `.base.ref` and `.head.sha` from one
 `gh api "repos/{owner}/{repo}/pulls/<pr_number>"` call instead.
 
-Update a behind branch with a merge-forward or `gh pr update-branch`.
+The forge's merge of the base into a behind branch is the
+[pinned update](ready-for-review.md#refresh-the-base-with-a-merge).
 
 ## Behind-branch exceptions
 

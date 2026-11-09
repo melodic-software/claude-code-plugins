@@ -134,7 +134,7 @@ tracks which repo is next.
 
 /source-control:pull-request ready
 
-After the last step, to merge the base, verify, and mark the sweep PR ready.
+After the last step, to update the branch from its base, verify, and mark the sweep PR ready.
 
 ## Gotchas
 

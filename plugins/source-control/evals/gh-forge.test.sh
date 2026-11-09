@@ -191,6 +191,56 @@ assert_exit "api contents: a missing file is a 404, exit 1" 1 "$?"
 run_gh "$CREATE" api --method POST repos/eval-fixture/app/pulls -f title=x >/dev/null 2>&1
 assert_exit "api: a write method is refused" 1 "$?"
 
+# The reads branch-update-signals.sh makes. FORGED is PR 7, feat/x one commit ahead of main and up to date with it.
+FORGED="$TEST_TMPDIR/forged"
+make_forge forged --open
+FORGED_HEAD=$(git -C "$FORGED" rev-parse feat/x)
+FORGED_MAIN=$(git -C "$FORGED" rev-parse main)
+
+assert_eq "api pulls: head, base and head repository" \
+  "feat/x $FORGED_HEAD main eval-fixture/app" \
+  "$(run_gh "$FORGED" api repos/eval-fixture/app/pulls/7 --jq '"\(.head.ref) \(.head.sha) \(.base.ref) \(.head.repo.full_name)"')"
+assert_eq "api pulls: mergeability, author, commit count and no stack" "true clean eval-fixture 1 null" \
+  "$(run_gh "$FORGED" api repos/eval-fixture/app/pulls/7 --jq '"\(.mergeable) \(.mergeable_state) \(.user.login) \(.commits) \(.stack)"')"
+run_gh "$FORGED" api repos/eval-fixture/app/pulls/99 >/dev/null 2>&1
+assert_exit "api pulls: a pull request the forge does not hold exits 1" 1 "$?"
+
+assert_eq "api pulls commits: one commit with its parent and the PR's author" \
+  "$FORGED_HEAD $FORGED_MAIN eval-fixture" \
+  "$(run_gh "$FORGED" api repos/eval-fixture/app/pulls/7/commits --jq '.[0] | "\(.sha) \(.parents[0].sha) \(.author.login)"')"
+assert_eq "--slurp: commits arrive as one page holding one commit" "1 1" \
+  "$(run_gh "$FORGED" api --paginate --slurp repos/eval-fixture/app/pulls/7/commits --jq '"\(length) \(.[0] | length)"')"
+assert_eq "api pulls reviews: none, as a bare list" "0" \
+  "$(run_gh "$FORGED" api repos/eval-fixture/app/pulls/7/reviews --jq length)"
+assert_eq "--slurp: reviews arrive as one empty page" "[[]]" \
+  "$(run_gh "$FORGED" api --paginate --slurp repos/eval-fixture/app/pulls/7/reviews --jq tojson)"
+
+assert_eq "api compare: a head one commit ahead and not behind" "0 1" \
+  "$(run_gh "$FORGED" api "repos/eval-fixture/app/compare/main...$FORGED_HEAD" --jq '"\(.behind_by) \(.ahead_by)"')"
+assert_eq "api compare: an encoded branch name, main one commit behind it" "1 0" \
+  "$(run_gh "$FORGED" api "repos/eval-fixture/app/compare/feat%2Fx...$FORGED_MAIN" --jq '"\(.behind_by) \(.ahead_by)"')"
+
+assert_eq "api rules: no rules on the base, as one empty page" "[[]]" \
+  "$(run_gh "$FORGED" api --paginate --slurp repos/eval-fixture/app/rules/branches/main --jq tojson)"
+assert_eq "api rules: an encoded head branch is served too" "0" \
+  "$(run_gh "$FORGED" api repos/eval-fixture/app/rules/branches/feat%2Fx --jq length)"
+
+out=$(run_gh "$FORGED" api -i -X GET repos/eval-fixture/app/contents/f -H "Accept: application/vnd.github.raw")
+assert_exit "-i contents: exit 0 for a file" 0 "$?"
+assert_contains "-i contents: a status line" "${out//$'\r'/}" "HTTP/2.0 200 OK"
+assert_eq "-i contents: the file's text ends the response" "a" "$(tail -n 1 <<<"$out")"
+out=$(run_gh "$FORGED" api -i -X GET repos/eval-fixture/app/contents/absent 2>/dev/null)
+assert_exit "-i contents: exit 1 for a missing file" 1 "$?"
+assert_contains "-i contents: a missing file answers 404 on stdout" "${out//$'\r'/}" "HTTP/2.0 404 Not Found"
+out=$(run_gh "$FORGED" api -i repos/eval-fixture/app/branches/main/protection/required_status_checks 2>/dev/null)
+assert_exit "-i protection: exit 1 with no classic protection" 1 "$?"
+assert_contains "-i protection: a 404 status line" "${out//$'\r'/}" "HTTP/2.0 404 Not Found"
+
+assert_eq "pr list --base=: a PR into that base is listed" "1" \
+  "$(run_gh "$FORGED" pr list --base=main --state open --limit 1 --json number --jq length)"
+assert_eq "pr list --base: a head branch has no PR based on it" "0" \
+  "$(run_gh "$FORGED" pr list --base feat/x --state open --limit 1 --json number --jq length)"
+
 # --dir and --extra-pr: a forge installed into a checkout below the launch directory, serving two PRs.
 MULTI="$TEST_TMPDIR/multi"
 mkdir -p "$MULTI/app"

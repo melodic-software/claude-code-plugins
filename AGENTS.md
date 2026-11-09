@@ -7,7 +7,7 @@ and ready mean and when a pull request stays a draft; this repository sets `pr_o
 (`docs/conventions/source-control.yaml`), over any per-user value. A draft skips the test lanes and
 both AI review lanes, and once it is ready they run on every push. None of their checks is
 required; `ci-status` is the only one. A pull request reaches ready only through
-`/source-control:pull-request ready`, which merges the base, reviews and verifies the merged head,
+`/source-control:pull-request ready`, which updates the branch from its base, reviews and verifies the updated head,
 and then marks it ready (the stop list below says when that needs the user).
 
 Title every pull request in Conventional Commits form, `<type>[(<scope>)]: <subject>`;
