@@ -5,6 +5,16 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.5.0] - 2026-11-09
+
+### Changed
+
+- `/harness-config:audit-instructions` checks Claude Fable 5.2 and Claude Mythos 5.2 requests: I17's outright-disable arm, I17-c's fixed-budget set and I25's sampling-parameter set now name both models, each on the thinking pages' per-model lists. I20 keeps its release-floor range, which already reaches Fable 5.2, and records the re-read.
+
+### Fixed
+
+- I8-c's `Model scope` header no longer lists `sonnet-5-5`, matching the row's declined Sonnet 5.5 widening, so the row stays inert on a Sonnet 5.5 target.
+
 ## [3.4.0] - 2026-11-09
 
 ### Changed
