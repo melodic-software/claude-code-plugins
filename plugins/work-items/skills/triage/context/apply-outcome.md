@@ -84,6 +84,12 @@ The fields stay set, so the item is not re-assessed. An interactive session may 
 the operator agrees; a lane does not, since publishing items is outside triage's mandate. No
 `models.issue-dimensions` block: skip this rule.
 
+**Priority.** Every briefed outcome sets the priority step 2 assessed, by the rule in
+[`reference/tracker-seam.md`](../../../reference/tracker-seam.md) "Setting an item's priority". On
+the field, that is its own `set-fields` call right before the outcome's label edit; on labels, it
+rides in that edit. A failed field write stops the outcome with no label change, reported, and the
+item keeps its raw marker for the next pass.
+
 **Signal-marked items are C5 by rule.** An item whose body carries the autonomy signal marker, or that already carries `provenance: signal`, gets `provenance: untrusted` in the same edit that applies `provenance: signal`. It is never paired with `agent-ready`, and its briefed exit is human-gated: the outcome edit applies the human-gated role label (default `needs-human`). No judgment about the item's content, however small or well-scoped the fix looks, lowers the class. The preflight in "Status and provenance labels" below covers `provenance: untrusted` as well: when the repository lacks it, stop without mutating and report the provisioning gap. A lane that may not write `provenance: untrusted` applies `provenance: signal` and `needs-human` to a signal item and leaves `provenance: untrusted` to a person. `list-frontier --autonomous` drops a `provenance: signal` item whatever its other labels, because the human floor in `labels.sh` holds that label as well as `provenance: untrusted`.
 
 **Whose credential the label writes carry.** An unattended lane writes under the repository's `merge.agent-identity` when one is named, and its identity gate, run at the start of every cycle, refuses every write when the session does not act as it. With no identity named, its writes carry the session's credential, a named residual (the loop-lane convention's "Lane write identity", §1). Interactive triage keeps the operator's credential, so its label writes count as human provenance to every check that asks who applied a label. That holds only while the user directs the session: a named residual.
@@ -110,7 +116,7 @@ These labels this skill writes come from the live label set and are never invent
 - `needs-spec`, applied to an idea issue (step 1).
 
 **Preflight.** Before the edit that would apply any of them, check that it exists in the repository
-(adapter: the label listing step 2 uses for `priority:`). When it is absent, stop without mutating
+(adapter: "List labels"). When it is absent, stop without mutating
 anything, not even the other labels of that edit, and report it as a provisioning gap for the
 repository's label-as-code owner, or for a person to create in the tracker. Never fall back to a
 different label.

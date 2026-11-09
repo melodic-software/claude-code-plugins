@@ -4,7 +4,7 @@ Create a new work item with labels from the taxonomy.
 
 **Defaults applied by this action:**
 
-- **Priority.** When the `--priority` flag is absent, set no `priority:` label. Urgency is assigned at triage, not at filing. Apply the bare floor label `needs-triage` when that exact name exists in the live set ([`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)). Do not pass it as `--priority`, and do not substitute `priority: low` or a prefixed `needs-triage` spelling. Omit the floor when the live set has no `needs-triage` label.
+- **Priority.** When the `--priority` flag is absent, set no priority, on the `Priority` field or as a `priority:` label. Urgency is assigned at triage, not at filing. Apply the bare floor label `needs-triage` when that exact name exists in the live set ([`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)). Do not pass it as `--priority`, and do not substitute a low priority or a prefixed `needs-triage` spelling. Omit the floor when the live set has no `needs-triage` label.
 - **Body template.** When `--body` is not provided, fall back to the default skeleton: a `## Context` paragraph (what observation surfaced this item, what's the cost of leaving it), a `## Proposed work` bullet list (concrete next actions), `## Acceptance criteria` (one verifiable assertion per bullet), and `## References` (cross-references to rules, files, prior PRs, or external docs). The concrete body the workflow builds is detailed in step "Build body" below.
 - **Label taxonomy.** Labels are validated against the structure documented in [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md).
 - **Title shape.** The item title follows the convention in [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md).
@@ -21,7 +21,7 @@ Create a new work item with labels from the taxonomy.
 - `--type <type>` -- The issue's type (default: `task`). Accepts the commit-style inputs `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `build`, `perf` and maps them to the coarse issue type: `fix` → **Bug**, `feat` → **Feature**, everything else → **Task**. On **org repos** the type is a **native GitHub Issue Type** set through the seam (not a `type:` label); on **personal / non-org repos** (no native Issue Types) it becomes a coarse `type: bug`/`type: feature`/`type: task` label instead
 - `--area <area>` -- Area label from the consuming repo's `area:` labels (see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md))
 - `--ecosystem <eco>` -- Ecosystem label from the consuming repo's `ecosystem:` labels (see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md))
-- `--priority <p>` -- Priority label; value must be one of the repo's live `priority:` members (see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) "Universal axes", resolved live, never snapshotted here), e.g. `critical`, `high`, `medium`, `low` where the repo follows that convention
+- `--priority <p>` -- Priority; value must be one of the live priorities, the `Priority` field's options, or the repo's `priority:` labels where no such field applies (see [`reference/tracker-seam.md`](../../../reference/tracker-seam.md) "Setting an item's priority", resolved live, never snapshotted here), e.g. `critical`, `high`, `medium`, `low` where the repo follows that convention
 - `--recurring` -- Mark as recurring. Requires `--cadence`
 - `--cadence <c>` -- One of: `weekly`, `biweekly`, `monthly`, `quarterly`, `semi-annual`, `annual`
 - `--context "summary"` -- Add research context to the item body
@@ -47,6 +47,8 @@ Create a new work item with labels from the taxonomy.
 1. **Read the house style** ([`reference/issue-house-style.md`](../../../reference/issue-house-style.md)) and apply it to the title, type, parent and blocked-by edges set below.
 
 1. **Resolve the issue type** `{type}` from `--type` (default `task`), mapping the input to the coarse type: `fix` → `Bug`, `feat` → `Feature`, everything else → `Task`. **Org repos** (native Issue Types available): the type is applied through the seam as a native Issue Type, **not** a label, so it is not part of `{labels}`. The type is the only classification stamped here, and no status field is written. **Personal / non-org repos** (native-type mechanism unavailable): the type rides as a coarse long-form label instead. Append `type: bug` / `type: feature` / `type: task` (colon-space, matching the reconciled naming) to `{labels}`. Determine which path applies from the bound adapter's capabilities (for the GitHub adapter, native Issue Types are an org-only feature).
+
+1. **Resolve `--priority`** when given, by [`reference/tracker-seam.md`](../../../reference/tracker-seam.md) "Setting an item's priority": find where priority lives and match the value against the live set. A value with no match stops the action before anything is created, naming the valid values. On labels, the matched label goes into `{labels}`; on the field, it does not, and the write follows creation.
 
 1. **Build labels list** `{labels}` (comma-separated for the seam) from the remaining flags. With no `--priority` and no `--agent-ready`, include no `priority:` label and include the bare `needs-triage` floor when the live set has it. A supplied `--priority`, or `--agent-ready`, does not leave the floor on: a known tier or a complete brief is already past intake. Also start from `category:general` and replace it with a supplied `--category`. Append `--area`/`--ecosystem` labels when provided. When `--agent-ready` is set, also append the autonomous-eligible role label (default `agent-ready`) so the item is eligible for autonomous pickup. A default that the consuming repo doesn't define is omitted rather than passed. With `--parent`, or a `--label` that is the binding's container label (`config.container_label`, default `work-map`), skip the `category:general` default and the `needs-triage` floor: a container or its child is not intake. Append each `--label` verbatim, after checking them as the flag says.
 
@@ -107,6 +109,12 @@ Run each call as its own plain Bash command: no `$(...)`, no `git`, and no `&&` 
 
 For non-recurring items, omit the recurring marker. Pass `--parent '<id>'` and `--blocked-by '<id>[,<id>]'` through to `create-item` when given; a `--parent` the provider cannot honor exits `6`, which is reported, never dropped. The emitted item object carries the new `id` (fully-qualified) and `number`.
 
+1. **If `--priority` resolved to the field**, set it on the new item, as its own plain Bash call with every value spelled out. A failed write can't undo the filing: report it with the item's id and the value, and never file the item again.
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh" set-fields '<id>' --field <field_id>=<option_id>
+```
+
 1. **If `--recurring`:** Also add the item to the consuming repo's `.github/recurring-schedule.json`. When the file does not exist yet, create it with an `{"items": []}` skeleton before appending (ask first if the repo has no recurring setup at all, since without the schedule `due`/`recheck` will never see the item):
 
 ```json
@@ -126,7 +134,7 @@ For non-recurring items, omit the recurring marker. Pass `--parent '<id>'` and `
 
 Re-read the current file from disk immediately before the write, because the schedule is shared and another session may have appended since it was last in context. Then append the new item to the `items` array and write it back, preserving every existing row. Compute `next_due` from today + cadence duration. Also add the recurring-maintenance role label (default `recurring`) and the `cadence:{cadence}` label to the item.
 
-1. Confirm: "Created **#{number}**: {title} (type: {type}, labels: {labels})"
+1. Confirm: "Created **#{number}**: {title} (type: {type}, priority: {priority or none}, labels: {labels})"
 
 ## Cadence Duration Table
 

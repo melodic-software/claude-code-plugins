@@ -144,7 +144,7 @@ Because the frontier is already unassigned + unblocked, present the top candidat
 
 ```
 **Auto-selected (<tier-name>):** #42 Fix <thing>
-Type: Bug · Labels: area: <your-area>, priority:<your-priority>
+Type: Bug · Priority: <your-priority> · Labels: area: <your-area>
 
 I read this item as: <goal; done when>
 
