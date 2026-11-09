@@ -59,10 +59,8 @@ while [[ $# -gt 0 ]]; do
     ;;
   --)
     shift
-    while [[ $# -gt 0 ]]; do
-      TARGETS+=("$1")
-      shift
-    done
+    TARGETS+=("$@")
+    break
     ;;
   -*)
     echo "detect.sh: unknown arg '$1'" >&2
@@ -309,8 +307,7 @@ audit_file() {
     line_num=$((line_num + 1))
     is_heading=0
 
-    # YAML frontmatter: opening --- on line 1 (or immediately after a BOM-less
-    # blank? — SKILL exempts frontmatter; require the conventional start).
+    # YAML frontmatter, exempt per SKILL.md, opens with --- on line 1.
     if [[ $line_num -eq 1 && "$line" == '---' ]]; then
       flush_negation
       in_frontmatter=1

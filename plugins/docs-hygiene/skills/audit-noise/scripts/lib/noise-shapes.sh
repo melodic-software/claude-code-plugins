@@ -24,6 +24,7 @@ audit_noise_trim_excerpt() {
 # exempt only in bare form; a concrete child under them flags.
 audit_noise_line_has_ghost_ref() {
   local rest="$1" path seg after
+  local reserved=' handoffs reviews running-retros overengineering enforceability exports lanes docs-hygiene '
   # Retired locations: stale even in placeholder form.
   [[ "$rest" == *'.claude/notes/'* ||
     "$rest" == *'.claude/handoffs/'* ||
@@ -36,7 +37,7 @@ audit_noise_line_has_ghost_ref() {
     # sentence-ending period (`.work/running-retros/.`) starts with `.` but is
     # punctuation, not a hidden child — only `.` followed by a path segment
     # character counts as concrete (`.gitignore`-style names still flag).
-    if [[ "$seg" == 'handoffs' || "$seg" == 'reviews' || "$seg" == 'running-retros' || "$seg" == 'overengineering' || "$seg" == 'enforceability' || "$seg" == 'exports' || "$seg" == 'lanes' || "$seg" == 'docs-hygiene' ]] &&
+    if [[ "$reserved" == *" $seg "* ]] &&
       { [[ ! "$after" =~ ^[A-Za-z0-9._-] ]] || [[ "$after" =~ ^\.([^A-Za-z0-9_-]|$) ]]; }; then
       rest="$after"
       continue
@@ -319,12 +320,9 @@ audit_noise_detect_shapes_into() {
 }
 
 audit_noise_shape_tier() {
-  local shape="$1"
-  case "$shape" in
-  ghost-ref | preamble | ticket-pr-residue | negation) printf '2' ;;
-  citation | enum-list | scope-meta | plan-reference | conversational-antecedent) printf '1' ;;
-  *) printf '3' ;;
-  esac
+  local tier
+  audit_noise_shape_tier_into "$1" tier
+  printf '%s' "$tier"
 }
 
 # Set nameref to the tier digit without a subshell.
@@ -349,7 +347,6 @@ audit_noise_section_exempt() {
   if [[ "$heading" =~ ^(.*[^#[:space:]])[[:space:]]*#+[[:space:]]*$ ]]; then
     heading="${BASH_REMATCH[1]}"
   fi
-  heading="${heading%"${heading##*[![:space:]]}"}"
   case "$heading" in
   "Recheck triggers" | "Cross-references" | "Sources" | "History" | "External authority") return 0 ;;
   # The spoke-index headings this repo's own progressive-disclosure doctrine
