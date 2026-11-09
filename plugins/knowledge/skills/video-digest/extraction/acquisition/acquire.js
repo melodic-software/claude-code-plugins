@@ -146,35 +146,20 @@ export function resolveMediaArtifacts(files, videoId) {
     files.find((filePath) => filePath.endsWith(".info.json")) ??
     files.find((filePath) => filePath.includes(videoId) && filePath.endsWith(".json")) ??
     "";
-  const videoPath =
-    files.find(
-      (filePath) =>
-        filePath.endsWith(".mp4") || filePath.endsWith(".mkv") || filePath.endsWith(".webm"),
-    ) ?? "";
+  const videoPath = files.find((filePath) => /\.(?:mp4|mkv|webm)$/.test(filePath)) ?? "";
 
   return { videoPath, captionPaths, metadataPath };
 }
 
 /**
- * @param {{
- *   spawn: AcquireDeps['spawn'],
- *   url: string,
- *   workDir: string,
- *   mode: AcquisitionMode,
- *   source: SourceAcquisitionDeclarations,
- *   sleepSubtitlesSec?: number,
- *   env?: NodeJS.ProcessEnv,
- * }} params
+ * @param {AcquireDeps} deps
+ * @param {string} url
+ * @param {string} workDir
+ * @param {{ mode: AcquisitionMode, source: SourceAcquisitionDeclarations, sleepSubtitlesSec?: number }} pass
  */
-async function runYtDlpAcquire({
-  spawn,
-  url,
-  workDir,
-  mode,
-  source,
-  sleepSubtitlesSec,
-  env = process.env,
-}) {
+async function runAcquirePass(deps, url, workDir, { mode, source, sleepSubtitlesSec }) {
+  const { spawn, listFiles } = deps;
+  const env = process.env;
   const outputTemplate = path.join(workDir, "%(id)s.%(ext)s");
   const buildArgs = (authOverride = {}) =>
     buildYtDlpArgs(url, {
@@ -186,18 +171,11 @@ async function runYtDlpAcquire({
       authOverride,
       source,
     });
-  return spawnYtDlpWithAuthFallback(spawn, buildArgs, { cwd: workDir, env, source });
-}
-
-/**
- * @param {AcquireDeps} deps
- * @param {string} url
- * @param {string} workDir
- * @param {{ mode: AcquisitionMode, source: SourceAcquisitionDeclarations, sleepSubtitlesSec?: number }} pass
- */
-async function runAcquirePass(deps, url, workDir, { mode, source, sleepSubtitlesSec }) {
-  const { spawn, listFiles } = deps;
-  const spawnResult = await runYtDlpAcquire({ spawn, url, workDir, mode, source, sleepSubtitlesSec });
+  const spawnResult = await spawnYtDlpWithAuthFallback(spawn, buildArgs, {
+    cwd: workDir,
+    env,
+    source,
+  });
   // Listed on failure too: yt-dlp stops at the first failed caption track,
   // so tracks written before it are still usable.
   const files = await listFiles(workDir);

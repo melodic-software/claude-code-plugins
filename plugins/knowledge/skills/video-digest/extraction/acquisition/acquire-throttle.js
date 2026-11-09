@@ -86,18 +86,27 @@ async function releaseSlot(slotPath) {
 }
 
 /**
+ * @param {string} slotPath
+ * @returns {Promise<number|null>} ms since the last mtime, or null when missing
+ */
+async function slotAgeMs(slotPath) {
+  try {
+    const { mtimeMs } = await fs.stat(slotPath);
+    return Date.now() - mtimeMs;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Missing paths count as stale so a vanished slot is treated as free.
  *
  * @param {string} slotPath
  * @returns {Promise<boolean>}
  */
 async function isStaleSlot(slotPath) {
-  try {
-    const stat = await fs.stat(slotPath);
-    return Date.now() - stat.mtimeMs > LOCK_STALE_MS;
-  } catch {
-    return true;
-  }
+  const age = await slotAgeMs(slotPath);
+  return age === null || age > LOCK_STALE_MS;
 }
 
 /**
@@ -150,12 +159,8 @@ export async function reclaimStaleSlot(slotPath) {
   }
 
   try {
-    try {
-      const stat = await fs.stat(slotPath);
-      if (Date.now() - stat.mtimeMs <= LOCK_STALE_MS) {
-        return false;
-      }
-    } catch {
+    const age = await slotAgeMs(slotPath);
+    if (age === null || age <= LOCK_STALE_MS) {
       return false;
     }
     await fs.rm(slotPath, { recursive: true, force: true });
@@ -195,14 +200,8 @@ function startSlotHeartbeat(slotPath, intervalMs) {
   const timer = setInterval(() => {
     void refreshSlot(slotPath);
   }, intervalMs);
-  if (typeof timer.unref === "function") {
-    timer.unref();
-  }
-  return {
-    stop() {
-      clearInterval(timer);
-    },
-  };
+  timer.unref?.();
+  return { stop: () => clearInterval(timer) };
 }
 
 /**
