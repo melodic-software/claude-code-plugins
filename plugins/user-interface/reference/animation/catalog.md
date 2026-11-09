@@ -466,6 +466,8 @@ fades; a multi-step form that slides crossfades instead. Never zero out feedback
   motion, instead of stripping it afterwards. If the project's animations run through shared
   keyframes or duration tokens, make the swap there. The CSS is the `reduced-motion-swap` recipe in
   `/user-interface:write-css`.
+- **Pointer tracking stays**, because the user is producing that movement. On release, drop momentum
+  and bounce and add no position settle; a short opacity or color change carries the outcome.
 - The blanket `* { animation: none !important; transition: none !important; }` is a finding, not a
   fix. It removes the fades that tell the user something happened.
 - **Autoplaying video**: don't autoplay under `reduce`; show controls. For video, a reduced-motion

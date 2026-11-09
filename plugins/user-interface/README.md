@@ -90,6 +90,7 @@ order. Keys and allowed values are in [`reference/team.schema.json`](reference/t
 | `animation.stagger_ms.interval`, `.max_total` | `40`, `400` | milliseconds between items, and for the group |
 | `animation.blur_max_px` | `20` | px, a heuristic ceiling for an animated blur |
 | `animation.gesture.velocity_threshold` | `0.11` | px/ms for a small element's swipe to dismiss |
+| `animation.gesture.distance_threshold` | `0.4` | Fraction of its own travel, 0 to 1, past which a dragged element dismisses on release |
 | `components.primitives_default` | `base-ui` | `base-ui`, `radix`, `react-aria`: the primitives library a React project with none installed builds on |
 | `routing` | none | route rows, `disable` and `deny`, team layer only |
 

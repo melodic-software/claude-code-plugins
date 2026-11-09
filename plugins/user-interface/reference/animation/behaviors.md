@@ -342,13 +342,14 @@ the `web-performance` concern.
 ## Drag to dismiss: `drag-to-dismiss`
 
 - The element follows the pointer 1:1 from where it was grabbed.
-- It dismisses when dragged past a distance threshold or released fast enough, so a flick is
-  enough: faster than `animation.gesture.velocity_threshold` (px/ms) for a small element such as a
+- It dismisses when dragged past `animation.gesture.distance_threshold` (a fraction of its travel,
+  0 to 1) or released fast enough, so a flick is enough: faster than `animation.gesture.velocity_threshold` (px/ms) for a small element such as a
   toast; a drawer or sheet needs a higher threshold (`gestures.md`, "Drag details"). For
   drag-to-dismiss, trigger dismissal when velocity (`swipeAmount / timeTaken`) exceeds ~0.11, not
   only on distance thresholds. The threshold to compare against is the resolved
   `animation.gesture.velocity_threshold`, not the literal.
-- Otherwise it springs back with the release velocity.
+- Otherwise it springs back fast with the release velocity; a slow return reads as the interface
+  disagreeing with the user.
 - Pointer capture, multi-touch protection, resistance past the edge: `gestures.md`.
 
 ## Crossfade mask: `crossfade-mask`

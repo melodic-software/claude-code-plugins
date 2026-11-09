@@ -12,9 +12,9 @@ sample code, <https://developer.apple.com/videos/play/wwdc2018/803/>. As of 2026
 when the session page or its sample code changes, or a project adopts a platform spring API with
 its own documented defaults.
 
-Contents: `respond-at-once`, `direct-manipulation`, `interruptible`, `spring-parameters`,
-`velocity-handoff`, `momentum-projection`, `rubber-banding`, `drag-details`, `gesture-intent`,
-`multimodal-feedback`.
+Contents: `respond-at-once`, `direct-manipulation`, `linked-progress`, `interruptible`,
+`spring-parameters`, `velocity-handoff`, `momentum-projection`, `rubber-banding`, `drag-details`,
+`gesture-intent`, `multimodal-feedback`.
 
 ## Respond at once: `respond-at-once`
 
@@ -30,8 +30,17 @@ Contents: `respond-at-once`, `direct-manipulation`, `interruptible`, `spring-par
 
 - A dragged element stays glued to the pointer and keeps the offset from where it was grabbed;
   snapping its center to the pointer breaks the illusion.
+- While tracking, position maps straight from the pointer: no spring and no transition. Either one
+  makes the element trail the hand; physics starts at release.
 - Keep a short history of recent positions and times, not just the current point: release needs a
   velocity.
+
+## Linked progress: `linked-progress`
+
+Drive every visual tied to a gesture (an overlay's opacity, the page scaling behind a sheet) from
+the gesture's one progress value, never as its own animation. The linked visual then matches the
+gesture on every frame, mid-drag and through a reversal; separate animations drift apart the moment
+the gesture is interrupted.
 
 ## Interruptible: `interruptible`
 

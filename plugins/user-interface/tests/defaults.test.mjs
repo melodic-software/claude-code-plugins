@@ -37,7 +37,7 @@ const CONTRACT = {
     duration_ms: { press: 160, small: 200, medium: 250, large: 300, page: 400, exit_factor: 0.8 },
     stagger_ms: { interval: 40, max_total: 400 },
     blur_max_px: 20,
-    gesture: { velocity_threshold: 0.11 },
+    gesture: { velocity_threshold: 0.11, distance_threshold: 0.4 },
   },
   components: { primitives_default: "base-ui" },
 };
