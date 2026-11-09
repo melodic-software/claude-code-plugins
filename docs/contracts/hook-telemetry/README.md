@@ -245,8 +245,9 @@ Without spawning git, follow the worktree's `.git` file (`gitdir: <path>`) to it
 a relative `commondir` path resolves against that gitdir. The anchor is the parent of the common
 directory when that directory is named `.git`, so a bare repository cloned into `proj/.git` anchors
 at `proj/`. A directory outside any git checkout keeps its own directory, and so does a submodule (its
-gitdir has no `commondir`) and a worktree of a bare repository whose directory has another name, such
-as `proj.git`. A reader resolves the same anchor, so one store serves every worktree of a
+gitdir has no `commondir`), a worktree of a bare repository whose directory has another name, such
+as `proj.git`, and a `.git` file git did not register: the gitdir must be `<common>/worktrees/<name>`
+and its `gitdir` file must name this tree, compared as physical paths. A reader resolves the same anchor, so one store serves every worktree of a
 repository, and retention that counts sessions counts those of every worktree together. The containment checks a sink applies hold against the
 anchor. The harness-ops reference sink, its retention hook and its reader share one resolver:
 `slog_anchor_to` in `plugins/harness-ops/hooks/session-log-lib.sh`.

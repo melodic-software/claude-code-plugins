@@ -219,6 +219,34 @@ if command -v git >/dev/null 2>&1; then
       "$(cd "$MAIN" && bash "$PROBE" --hook-events 2>/dev/null)"
     assert_eq "the probe run from the worktree reads the same root" "1 events" \
       "$(cd "$WT" && bash "$PROBE" --hook-events 2>/dev/null)"
+    # A .git file git did not write cannot move the anchor into another checkout,
+    # where retention would delete: neither a gitdir outside <common>/worktrees...
+    P=$(project forged-commondir --no-git)
+    mkdir -p "$P/g"
+    printf 'gitdir: g\n' >"$P/.git"
+    printf '%s\n' "$MAIN/.git" >"$P/g/commondir"
+    printf '%s\n' "$P/.git" >"$P/g/gitdir"
+    run "$P" "$(payload sfc PostToolUse)" "$ON" >/dev/null
+    assert_eq "a forged commondir → the project's own root" 1 \
+      "$(wc -l <"$P/.observability/claude/sessions/sfc.jsonl" 2>/dev/null | tr -d ' ')"
+    assert_file_absent "a forged commondir → nothing under the other checkout" \
+      "$MAIN/.observability/claude/sessions/sfc.jsonl"
+    # ...nor a real worktree's gitdir, whose back-pointer names that worktree.
+    P=$(project borrowed-gitdir --no-git)
+    printf 'gitdir: %s\n' "$MAIN/.git/worktrees/${WT##*/}" >"$P/.git"
+    run "$P" "$(payload sbg PostToolUse)" "$ON" >/dev/null
+    assert_eq "another worktree's gitdir → the project's own root" 1 \
+      "$(wc -l <"$P/.observability/claude/sessions/sbg.jsonl" 2>/dev/null | tr -d ' ')"
+    assert_file_absent "another worktree's gitdir → nothing under the other checkout" \
+      "$MAIN/.observability/claude/sessions/sbg.jsonl"
+    # git writes a relative back-pointer under --relative-paths (git 2.48 and later).
+    WT_REL="$TEST_TMPDIR/wt-relative"
+    if "${FIXTURE_GIT[@]}" -C "$MAIN" worktree add -q --relative-paths "$WT_REL" 2>/dev/null; then
+      run "$WT_REL" "$(payload srl PostToolUse)" "$ON" >/dev/null
+      assert_eq "a relative-path worktree → row under the main checkout's root" 1 \
+        "$(wc -l <"$MAIN/.observability/claude/sessions/srl.jsonl" 2>/dev/null | tr -d ' ')"
+      "${FIXTURE_GIT[@]}" -C "$MAIN" worktree remove --force "$WT_REL" 2>/dev/null
+    fi
     "${FIXTURE_GIT[@]}" -C "$MAIN" worktree remove --force "$WT" 2>/dev/null
     assert_file_absent "the worktree is gone" "$WT"
     assert_eq "removing the worktree leaves its rows in place" 1 \
