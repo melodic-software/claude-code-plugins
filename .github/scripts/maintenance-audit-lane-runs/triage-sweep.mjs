@@ -90,7 +90,7 @@ const FLOOR = "needs-triage";
 // Labels a verdict or a person leaves: an issue with one is triaged.
 const TRIAGED = /^(needs-human|needs-spec|needs-owner-decision|needs-reporter-info|agent-ready|admission-deferred)$|^status: /;
 // What keeps a born-triaged `status: ready` issue out of admission on purpose.
-const ADMISSION_HOLDS = new Set(["agent-ready", "admission-deferred", "needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-reporter-info", ...UNTRUSTED_LABELS]);
+const ADMISSION_HOLDS = new Set(["agent-ready", "admission-deferred", "needs-human", "needs-owner-decision", "needs-reporter-info", ...UNTRUSTED_LABELS]);
 
 // An issue's lowercased label names; `labels`, when given, stands in for its
 // own (as its Work status field decides them, statusListing).

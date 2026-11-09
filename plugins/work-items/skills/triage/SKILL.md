@@ -66,11 +66,11 @@ State names follow the plugin's vocabulary and the canonical roles ([`${CLAUDE_P
 | **briefed** | brief posted + `status:ready` | Fully specified as a behavioral contract (per [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)) |
 | **autonomous-eligible** | role label (default `agent-ready`) | Briefed AND delegable. Eligible for autonomous pickup from the frontier |
 
-Side exits from any state: `status:needs-info` (returns to raw when the reporter replies), `status:needs-decision` (awaiting a human or maintainer judgment call), `needs-spec` (from raw only: an idea issue awaiting its `/planning:interview`, step 1; returns to raw once the interview records its intent), the human-gated role label (default `needs-human`), or close (wontfix / duplicate / already implemented).
+Side exits from any state: `needs-reporter-info` (returns to raw when the reporter replies), `needs-owner-decision` (awaiting a human or maintainer judgment call), `needs-spec` (from raw only: an idea issue awaiting its `/planning:interview`, step 1; returns to raw once the interview records its intent), the human-gated role label (default `needs-human`), or close (wontfix / duplicate / already implemented).
 
 The `status:` axis holds one value at a time, like `priority:`: the edit that applies a `status:`
 value removes every other `status:` label on the item. So `status: ready`, applied in the edit that
-posts the brief, replaces `status: confirmed`, and `status:needs-info` replaces it too.
+posts the brief, replaces `status: confirmed`, and the edit that applies `needs-reporter-info` removes it too.
 
 **A briefed item takes one of three exits**, distinguished by the decision its brief carries:
 
@@ -100,9 +100,9 @@ raw → verified → briefed
  |        |          ├→ delegable → autonomous-eligible (role label, default agent-ready)
  |        |          ├→ decision-defaulted → autonomous-eligible + status:ready + "Decision defaulted: … — veto before merge"
  |        |          └→ human-gated (role label, default needs-human) — briefed for a human
- |        └→ status:needs-info → raw (on reporter reply)
+ |        └→ needs-reporter-info → raw (on reporter reply)
  ├→ needs-spec: idea issue, awaiting /planning:interview (no exploration first) → raw (once the interview records its intent)
- ├→ status:needs-decision: awaiting a human or maintainer judgment call
+ ├→ needs-owner-decision: awaiting a human or maintainer judgment call
  └→ close: wontfix | duplicate | already implemented
 ```
 
@@ -170,7 +170,7 @@ a bucket (the bucket names are the `state` values the board page reads):
 |---|---|---|
 | `unlabeled` | no labels at all | a first look: no person or lane has classified it |
 | `raw marker` | the bare raw marker (`needs-triage`) | the evaluation someone asked for when they applied the marker |
-| `needs-info reply` | `status:needs-info` plus a reporter comment newer than the last triage note | a second evaluation, now that the missing information may have arrived |
+| `needs-info reply` | `needs-reporter-info` plus a reporter comment newer than the last triage note | a second evaluation, now that the missing information may have arrived |
 | `blocked by won't-do` | `blocked_by_wont_do_count` above zero | an operator decision: a blocker was closed as won't-do, so the item waits on work that will not happen and never reaches the frontier on its own |
 
 Report a `blocked by won't-do` item for the operator to decide (drop the edge, re-scope, or close); an already-triaged item is not re-run through the state machine. The field and which close reasons count per adapter: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "JSON output contract". An adapter that cannot read close reasons reports `0`, so this bucket stays empty there.
@@ -246,7 +246,7 @@ test. It runs no state machine and changes nothing but that label and that statu
    storage, open issues whose status is `needs-human` (tracker seam "Reading an item's status"),
    after the lane-infrastructure exclusion. Skip pull requests and every item whose label a rule set, a
    queue reads, or a person put back:
-   - `provenance: untrusted` (or its legacy name: any label containing `untrusted-provenance`; exact value `WIT_LEGACY_UNTRUSTED_LABEL` in [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh)) or
+   - `provenance: untrusted` or
      `provenance: signal`;
    - an escalation marker from a
      [trusted escalation author](${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md#trusted-escalation-authors);
@@ -445,13 +445,13 @@ Never interview anyone about the fix for a claim nobody has confirmed. Verificat
   is the failure described. The bug is confirmed only after `triage_repro_count` separate runs (see
   "Triage settings") each show it, every run starting clean (a fresh process, no state left by the
   run before). Record each run: the steps or command, the commit it ran on, and what it printed.
-  When runs disagree, the bug is not confirmed: park it at `status:needs-info` with every run in
+  When runs disagree, the bug is not confirmed: park it at `needs-reporter-info` with every run in
   the settled list.
 - **Enhancement**: check that the request is coherent and not already met (step 1's redundancy
   check). The bar is a bug's; a request is confirmed once it is judged valid.
 - **PR**: fetch the branch locally and run the tests or commands that cover the change, to show it behaves as the description says
 
-Report the result: confirmed (with the observed behavior / code path, the item is now **verified**, so the brief can rest on observed behavior), failed, or insufficient detail → `status:needs-info` with a structured comment (see "Needs-info comment" in [context/apply-outcome.md](context/apply-outcome.md)).
+Report the result: confirmed (with the observed behavior / code path, the item is now **verified**, so the brief can rest on observed behavior), failed, or insufficient detail → `needs-reporter-info` with a structured comment (see "Needs-info comment" in [context/apply-outcome.md](context/apply-outcome.md)).
 
 **On a pass**, once the direction gate is met and the item is claimed ("Claim before the first
 write"), post one verification comment and then apply
@@ -461,11 +461,11 @@ as `Reproduced <n> of <n> (triage_repro_count=<n>, <layer>)` followed by the rec
 raw marker stays on the item until step 5 replaces it, so a pass that stops here leaves the item in
 the attention view with its evidence already posted.
 
-**A verified bug is not a diagnosed one.** Reproducing it confirms the failure, not its cause. When the root cause is still unknown, the item's Agent Brief sets its Root cause field to `unknown` (triage writes that field on every bug it briefs, as `known: <cause>` when the cause is named; the field is in the agent-brief template), and `/work-items:work` routes the item through diagnosis before any fix: `/debugging:debug`, or `/testing:diagnose` when the symptom is already a failing test. A report whose facts are in hand but too unstructured to reproduce from is shaped first with `/bugs:write`; one missing facts only the reporter holds still takes `status:needs-info`. A bug whose root cause the report or the reproduction already names goes straight to the fix.
+**A verified bug is not a diagnosed one.** Reproducing it confirms the failure, not its cause. When the root cause is still unknown, the item's Agent Brief sets its Root cause field to `unknown` (triage writes that field on every bug it briefs, as `known: <cause>` when the cause is named; the field is in the agent-brief template), and `/work-items:work` routes the item through diagnosis before any fix: `/debugging:debug`, or `/testing:diagnose` when the symptom is already a failing test. A report whose facts are in hand but too unstructured to reproduce from is shaped first with `/bugs:write`; one missing facts only the reporter holds still takes `needs-reporter-info`. A bug whose root cause the report or the reproduction already names goes straight to the fix.
 
 ### 4. Interview (if needed)
 
-Only after verification (or for enhancements, where the open question is scope, not fact): when the description is vague or missing acceptance criteria, ask focused questions one at a time, the most load-bearing ambiguity first. Each question carries the direction gate's brief-before-ask restatement: which item, the decision being asked, and the consequence of each option **you present**. For an open-ended question, state instead what the answer will determine; never narrow a genuinely open question into a closed list to satisfy the restatement. Post questions as item comments. Mark `status:needs-info` until the reporter responds.
+Only after verification (or for enhancements, where the open question is scope, not fact): when the description is vague or missing acceptance criteria, ask focused questions one at a time, the most load-bearing ambiguity first. Each question carries the direction gate's brief-before-ask restatement: which item, the decision being asked, and the consequence of each option **you present**. For an open-ended question, state instead what the answer will determine; never narrow a genuinely open question into a closed list to satisfy the restatement. Post questions as item comments. Mark `needs-reporter-info` until the reporter responds.
 
 ### 5. Apply outcome
 

@@ -2602,13 +2602,11 @@ class Eligibility(unittest.TestCase):
 
     def test_an_untrusted_provenance_issue_is_held(self) -> None:
         # The trust hold stays (owner decision, option a), in any case or
-        # whitespace, beside any other label, under its name or the legacy
-        # work-class name.
+        # whitespace, beside any other label.
         for label in (
             "provenance: untrusted",
-            "work-class: untrusted-provenance",
             "Work-Class: Untrusted-Provenance",
-            " work-class: untrusted-provenance ",
+            " provenance: untrusted ",
             "work-class:untrusted-provenance",
             "work-class: untrusted_provenance",
             "work-class: untrusted–provenance",
@@ -5002,8 +5000,7 @@ LANE_DENIED = (
 ISSUE_HOLDS = (
     "needs-human",
     "needs-owner-decision",
-    "status: needs-decision",
-    "status: needs-info",
+    "needs-reporter-info",
 )
 
 
@@ -5465,8 +5462,7 @@ class IssueHoldLabels(unittest.TestCase):
         text = (
             LANE_PIPELINE
             + "activities:\n  resolve-issue:\n    applies-when:\n"
-            + '      labels-absent: [needs-human, needs-owner-decision, "status: '
-            + 'needs-decision", "status: needs-info"]\n'
+            + "      labels-absent: [needs-human, needs-owner-decision, needs-reporter-info]\n"
         )
         config_fake(self, text)
         config = policy.read_config_at(REPO, SHA)

@@ -269,7 +269,7 @@ trust() {
     fail "$1: expected $3 trust-hold call(s) got $TRUST_CALLS: '$TRUST_OUT'"
   fi
 }
-UNTRUSTED='work-class: untrusted-provenance'
+UNTRUSTED='provenance: untrusted'
 
 # Exported once and emptied, never unset, so each assignment reaches the step.
 export STUB_LINK='' STUB_LINK_FAIL='' STUB_TIMELINE='' STUB_TIMELINE_FAIL='' STUB_ISSUE_LABELS='' STUB_ACTORS=''

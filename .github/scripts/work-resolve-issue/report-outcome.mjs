@@ -917,7 +917,7 @@ const STALE_CAUSE =
 // reads too: a person decides each but `attended`, which waits on a step the
 // owner takes present, and `host-run`, which a host session builds while Work
 // status stays agent-ready; only a person removes OUTSIDE_ACTOR_LABEL.
-export const LANE_HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-reporter-info", "needs-human", ...UNTRUSTED_LABELS, ATTENDED_LABEL, HOST_RUN_LABEL, OUTSIDE_ACTOR_LABEL]);
+export const LANE_HOLDS = new Set(["needs-owner-decision", "needs-reporter-info", "needs-human", ...UNTRUSTED_LABELS, ATTENDED_LABEL, HOST_RUN_LABEL, OUTSIDE_ACTOR_LABEL]);
 const BLOB = /^[0-9a-f]{40}$/;
 
 // The admission record's lib, loaded on use: ci-status loads this file from a

@@ -854,7 +854,7 @@ export async function applyRefinement({ github, repository, number, appId, human
     // App's write (read-status.mjs statusLabels) and would otherwise leave a
     // stale queue label to win once the person lifts it.
     const hold = PERSON_HOLDABLE.find((name) => labels.includes(name));
-    const personHold = hold && newestLabeler(await (events ? events() : paginate(github, `${base}/events`)), INFO_LABELS.includes(hold) ? INFO_LABELS : [hold]) !== appId;
+    const personHold = hold && newestLabeler(await (events ? events() : paginate(github, `${base}/events`)), [hold]) !== appId;
     const fieldHeld = personHold && statusOf && (await statusOf.state(number)) !== null;
     if (!carried(labels, DECISION_LABELS) && !fieldHeld) {
       await setStatus(number, "needs-owner-decision");

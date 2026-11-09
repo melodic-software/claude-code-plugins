@@ -22,8 +22,8 @@
 // - 2: the Issue Type is in `types`, or in `types-under-parent` under an open
 //   parent issue a listed human filed that awaits no decision; a type in
 //   `types-parent-if-present` needs that parent only when it has one (Q83).
-//   A parent awaits a decision while it carries needs-human or
-//   needs-owner-decision, or `status: needs-decision` with a decision open
+//   A parent awaits a decision while it carries needs-human, or
+//   needs-owner-decision with a decision open
 //   (parentDecisionOpen): the lanes App may not lift that label (a person
 //   set it, or its verdict holds for a flag other than intent), or the
 //   parent's newest refinement asks questions no later `**Decision
@@ -1844,7 +1844,7 @@ export function earlierFlags(comments, appId) {
 // no hold and so carries no earlier flag. No such comment lifts: refine's own
 // question hold writes none. `events()` reads the issue's status history
 // (read-status.mjs statusEvents, where the field's needs-owner-decision reads
-// as a `status: needs-decision` add); by default its REST events.
+// as a `needs-owner-decision` add); by default its REST events.
 export async function decisionStays(github, base, comments, appId, events = () => paginate(github, `${base}/events`)) {
   const setter = (await events()).filter((event) => event?.event === "labeled" && DECISION_LABELS.includes(event.label?.name)).at(-1)?.actor?.id;
   if (setter !== appId) {
@@ -1868,7 +1868,7 @@ export const refinementExact = (body) => {
   return last === REFINE_FOOTERS.retriage || last === REFINE_FOOTERS.confirm;
 };
 
-// Whether `parent` (an issue at `status: needs-decision`, as just read) still
+// Whether `parent` (an issue at `needs-owner-decision`, as just read) still
 // awaits a decision: the lanes App (`appId`) may not lift the label
 // (decisionStays), or the App's newest refinement on it is not exact
 // (refinementExact), or it has no refinement but an App verdict flagging
@@ -2687,7 +2687,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
   // A state that is no hold is written only over no hold a person set since
   // the read (write-status.mjs keepHold); `held` ends admission there.
   const move = (state) => setStatus(number, state, { keepHold: true });
-  const write = (state, label) => (carried(lower, label === NEEDS_DECISION ? DECISION_LABELS : [label]) ? undefined : state === "needs-owner-decision" ? setStatus(number, state) : move(state));
+  const write = (state, label) => (lower.includes(label) ? undefined : state === "needs-owner-decision" ? setStatus(number, state) : move(state));
   const held = (result) => {
     if (result?.outcome !== "held") {
       return null;

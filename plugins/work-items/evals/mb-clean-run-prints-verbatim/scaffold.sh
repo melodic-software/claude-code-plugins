@@ -2,8 +2,8 @@
 # Offline brief inputs with every section readable, the Cost section included, so the run exits 0.
 set -euo pipefail
 mkdir -p brief
-printf '%s\n' '{"needs-triage": 3, "status: ready": 7, "status: needs-decision": 1, "needs-human": 0}' >brief/counts.json
-printf '%s\n' '["needs-triage", "status: ready", "status: needs-decision", "needs-human"]' >brief/labels.json
+printf '%s\n' '{"needs-triage": 3, "status: ready": 7, "needs-owner-decision": 1, "needs-human": 0}' >brief/counts.json
+printf '%s\n' '["needs-triage", "status: ready", "needs-owner-decision", "needs-human"]' >brief/labels.json
 printf '%s\n' '[]' >brief/prs.json
 printf '%s\n' '[{"number": 517, "title": "Choose the retention window", "url": "https://github.com/acme/widgets/issues/517", "body": "RECOMMENDED: keep run logs for fourteen days.", "comments": []}]' >brief/decisions.json
 printf '%s\n' '[{"body": "<!-- harness-ops:lane-telemetry marker=lane:work-loop -->\n- lane: work-loop\n- last-cycle: 2026-07-20T07:15Z\n- flags: none"}]' >brief/telemetry.json
