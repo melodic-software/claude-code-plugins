@@ -36,11 +36,38 @@ export function withFields(github, fields = {}) {
     }
     if (method === "POST" && path === "/graphql" && body?.variables?.number !== undefined && /IssueFieldAddedEvent/.test(body?.query ?? "")) {
       const entry = fields[String(body.variables.number)];
-      const nodes = !entry || entry instanceof Error ? [] : (entry.nodes ?? [{ __typename: "IssueFieldChangedEvent", newValue: entry.named ?? entry.state, actor: { databaseId: entry.setter ?? HUMAN_ID }, issueField: { fullDatabaseId: String(FIELD) } }]);
-      return { data: { repository: { issue: { timelineItems: { nodes } } } } };
+      return { data: { repository: { issue: { timelineItems: fieldNode(entry).timelineItems } } } };
     }
     return github(method, path, body, ...rest);
   };
+}
+
+// The GraphQL issue node {issueFieldValues, timelineItems} a `withFields`
+// entry describes.
+export function fieldNode(entry) {
+  const set = entry && !(entry instanceof Error);
+  const field = { fullDatabaseId: String(FIELD) };
+  return {
+    issueFieldValues: { nodes: set ? [{ name: entry.state, field }] : [] },
+    timelineItems: { nodes: set ? (entry.nodes ?? [{ __typename: "IssueFieldChangedEvent", newValue: entry.named ?? entry.state, actor: { databaseId: entry.setter ?? HUMAN_ID }, issueField: field }]) : [] },
+  };
+}
+
+// The answer to issuesByStatus' batched issue(number:) read, each aliased
+// issue's node from `nodeOf(number)` (null when it returns none), or undefined
+// when `body` is another query.
+export function statusBatchAnswer(body, nodeOf) {
+  if (!/issue\(number: \$n0\)/.test(body?.query ?? "")) {
+    return undefined;
+  }
+  const repository = {};
+  for (const [key, number] of Object.entries(body.variables)) {
+    const slot = /^n([0-9]+)$/.exec(key);
+    if (slot) {
+      repository[`i${slot[1]}`] = nodeOf(number) ?? null;
+    }
+  }
+  return { data: { repository } };
 }
 
 // A reader whose field holds exactly what the labels collapse to, as the

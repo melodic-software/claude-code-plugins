@@ -174,15 +174,20 @@ function settersOf(events) {
 
 // Pages of 100 open issues issuesByStatus reads before it throws.
 export const MAX_ISSUE_PAGES = 20;
-// Field events per issue in the listing, as many as fieldEvents reads: the
-// Work status setter is the newest Work status event among them, and a field
-// value with none among a full window throws rather than read as unset.
+// Field events per issue read, as many as fieldEvents reads: the Work status
+// setter is the newest Work status event among them, and a field value with
+// none among a full window throws rather than read as unset.
 const LISTED_FIELD_EVENTS = 100;
-// Issues per listing whose Work status disagrees in the listing and is read
-// again alone (read-status.mjs fieldStatusSetter): 10. Each re-read costs two
-// calls, or four and a 3 s wait when it disagrees once more; an eleventh
-// disagreeing issue is left out unread.
+// Issues whose field values and events one call reads.
+export const STATUS_BATCH = 25;
+// Issues per listing whose Work status disagrees and is read again alone
+// (read-status.mjs fieldStatusSetter): 10. Each re-read costs two calls, or
+// four and a 3 s wait when it disagrees once more; an eleventh disagreeing
+// issue is left out unread.
 export const MAX_STATUS_REREADS = 10;
+// The nested timelineItems of an issues() listing can miss an issue's newest
+// field events for hours while issue(number:) has them, so the listing names
+// the issues and a batch of issue(number:) reads decides their status.
 const OPEN_ISSUES = `query($owner: String!, $name: String!, $cursor: String, $since: DateTime) {
   repository(owner: $owner, name: $name) {
     issues(states: OPEN, first: 100, after: $cursor, filterBy: { since: $since }) {
@@ -191,15 +196,45 @@ const OPEN_ISSUES = `query($owner: String!, $name: String!, $cursor: String, $si
         number
         createdAt
         labels(first: 30) { nodes { name } }
-        issueFieldValues(first: 10) { nodes { ... on IssueFieldSingleSelectValue { name field { ...field } } } }
-        timelineItems(last: ${LISTED_FIELD_EVENTS}, itemTypes: ${FIELD_EVENT_TYPES}) {
-          ${FIELD_EVENT_NODES}
-        }
       }
     }
   }
+}`;
+const statusBatch = (count) => `query($owner: String!, $name: String!, ${Array.from({ length: count }, (_, i) => `$n${i}: Int!`).join(", ")}) {
+  repository(owner: $owner, name: $name) {
+    ${Array.from({ length: count }, (_, i) => `i${i}: issue(number: $n${i}) { ...status }`).join("\n    ")}
+  }
+}
+fragment status on Issue {
+  issueFieldValues(first: 10) { nodes { ... on IssueFieldSingleSelectValue { name field { ...field } } } }
+  timelineItems(last: ${LISTED_FIELD_EVENTS}, itemTypes: ${FIELD_EVENT_TYPES}) {
+    ${FIELD_EVENT_NODES}
+  }
 }
 ${FIELD_FRAGMENTS}`;
+
+// Issue number -> its {issueFieldValues, timelineItems} node, STATUS_BATCH
+// issues per call.
+async function issueStatusNodes(github, owner, name, numbers) {
+  const nodes = new Map();
+  for (let start = 0; start < numbers.length; start += STATUS_BATCH) {
+    const batch = numbers.slice(start, start + STATUS_BATCH);
+    const variables = { owner, name, ...Object.fromEntries(batch.map((number, i) => [`n${i}`, number])) };
+    const answer = await github("POST", "/graphql", { query: statusBatch(batch.length), variables });
+    const failure = graphqlFailure(answer, "the open issues' Work status");
+    if (failure) {
+      throw failure;
+    }
+    batch.forEach((number, i) => {
+      const node = answer?.data?.repository?.[`i${i}`];
+      if (node === null || typeof node !== "object" || !Array.isArray(node.timelineItems?.nodes)) {
+        throw new Error(`the open issues' Work status answer holds no event list for #${number}`);
+      }
+      nodes.set(number, node);
+    });
+  }
+  return nodes;
+}
 
 // The open issues whose Work status is one of `states`, oldest page first,
 // each {number, created_at, labels, state}: `labels` the label names, `state`
@@ -210,9 +245,11 @@ ${FIELD_FRAGMENTS}`;
 // it. A field value is read by its option name, a state name; a counted name
 // `config` does not map throws `unmapped-status`. More than MAX_ISSUE_PAGES
 // pages, a GraphQL error, a malformed answer or a Work status value whose
-// setter falls outside LISTED_FIELD_EVENTS throws. An issue whose listed value
-// and events disagree (StatusDisagreement), since the listing's events can
-// lag, is read again alone (fieldStatusSetter, which waits with `sleep`) and
+// setter falls outside LISTED_FIELD_EVENTS throws. Every listed issue's value
+// and events are read together by issue(number:), since an older counted event
+// can decide an issue whose value or labels name no wanted state. An issue
+// whose value and events disagree (StatusDisagreement), a write landing between
+// them, is read again alone (fieldStatusSetter, which waits with `sleep`) and
 // that read decides; a re-read that fails otherwise throws. One that still
 // disagrees, a write still landing, or any past MAX_STATUS_REREADS (not read
 // again) is left out of the result, logged as a ::notice::, and named in the
@@ -239,16 +276,18 @@ export async function issuesByStatus(github, repository, states, { since, config
     if (!Array.isArray(issues?.nodes) || typeof issues.pageInfo?.hasNextPage !== "boolean") {
       throw new Error("the open issues answer holds no issue list");
     }
+    if (issues.nodes.some((node) => !Number.isInteger(node?.number))) {
+      throw new Error("the open issues answer holds an issue with no number");
+    }
+    const statusNodes = await issueStatusNodes(github, owner, name, issues.nodes.map((node) => node.number));
     for (const node of issues.nodes) {
       const labels = (node?.labels?.nodes ?? []).map((label) => label?.name).filter((label) => typeof label === "string");
       const labeled = labels.some((label) => wanted.has(label.toLowerCase()));
-      const fieldValues = (node?.issueFieldValues?.nodes ?? [])
+      const status = statusNodes.get(node.number);
+      const fieldValues = (status.issueFieldValues?.nodes ?? [])
         .filter((value) => typeof value?.name === "string" && typeof value.field?.fullDatabaseId === "string")
         .map((value) => ({ field: Number(value.field.fullDatabaseId), option: option[value.name] ?? value.name }));
-      const nodes = node?.timelineItems?.nodes;
-      if (!Number.isInteger(node?.number) || !Array.isArray(nodes)) {
-        throw new Error("the open issues answer holds an issue with no number or event list");
-      }
+      const nodes = status.timelineItems.nodes;
       // The value and its events come from one read, so no fieldNames check.
       const events = eventsFrom(nodes);
       // An issue whose status cannot be read fails the listing only when it
@@ -257,7 +296,7 @@ export async function issuesByStatus(github, repository, states, { since, config
       // unreadable field cannot stop a listing it has no part in.
       const couldMatch = () =>
         labeled ||
-        (node?.issueFieldValues?.nodes ?? []).some((value) => value?.field?.fullDatabaseId === statusField && states.includes(value?.name)) ||
+        (status.issueFieldValues?.nodes ?? []).some((value) => value?.field?.fullDatabaseId === statusField && states.includes(value?.name)) ||
         events.some((event) => event.field === statusField && states.includes(event.to));
       let state;
       try {
