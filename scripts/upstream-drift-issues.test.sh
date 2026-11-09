@@ -370,6 +370,15 @@ expect_code "clean beside untracked: exit 0" 0
 expect_lacks "clean beside untracked: closes nothing" "$(calls)" 'issue close'
 expect_has "clean beside untracked: reports action none" "$OUT" 'action=none repo=acme/plans'
 
+CLEAN_UNREACHABLE="$TMP/clean-unreachable.txt"
+printf '%s\n' \
+  "page repo=acme/plans pin=$PIN head=$HEAD status=clean path=docs/upstream/plans.md" \
+  "page repo=acme/plans pin=${PIN:0:12} head=unknown status=unreachable path=docs/upstream/plans-2.md" >"$CLEAN_UNREACHABLE"
+run_sut "$CLEAN_UNREACHABLE"
+expect_code "clean beside unreachable: exit 0" 0
+expect_lacks "clean beside unreachable: closes nothing" "$(calls)" 'issue close'
+expect_has "clean beside unreachable: reports action none" "$OUT" 'action=none repo=acme/plans'
+
 # --- a source with no git pin: pin=unknown head=unknown ---------------------
 VENDORED="$TMP/vendored.txt"
 printf '%s\n' \

@@ -21,7 +21,7 @@ import { test } from "node:test";
 import { WIP_DEFAULTS } from "../../scripts/work-resolve-issue/limits.mjs";
 import { BLOCKER_READS, isHeld, listedStatusOf, main, readLaneWip, wipStatus } from "./check-wip-cap.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
-import { fieldNode, mirroredStatusOf, STATUS_CONFIG, statusBatchAnswer, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../resolve-config/read-status.fixtures.mjs";
+import { HUMAN_ID, mirroredStatusOf, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../resolve-config/read-status.fixtures.mjs";
 import { statusReader } from "../resolve-config/read-status.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -233,13 +233,20 @@ test("a queued issue whose Work status field read fails counts as queued", async
 // read (withFields). The label listing must not be read.
 const fieldListing = (issues, { fail = false, fields = {} } = {}) => {
   const { github, paths } = searchApi({ merged: 24, queued: new Error("the label listing was read") });
+  const field = { fullDatabaseId: String(STATUS_CONFIG["field-id"]) };
   const listed = async (method, path, body) => {
     if (method === "POST" && path === "/graphql" && /issues\(states: OPEN/.test(body?.query ?? "")) {
       if (fail) throw new Error("GraphQL answered 502");
-      const nodes = issues.map((i) => ({ number: i.number, createdAt: i.createdAt, labels: { nodes: (i.labels ?? []).map((name) => ({ name })) } }));
+      const nodes = issues.map((i) => ({
+        number: i.number,
+        createdAt: i.createdAt,
+        labels: { nodes: (i.labels ?? []).map((name) => ({ name })) },
+        issueFieldValues: { nodes: i.field ? [{ name: i.field.state, field }] : [] },
+        timelineItems: { nodes: i.field ? [{ __typename: "IssueFieldChangedEvent", newValue: i.field.named ?? i.field.state, actor: { databaseId: i.field.setter ?? HUMAN_ID }, issueField: field }] : [] },
+      }));
       return { data: { repository: { issues: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } } } };
     }
-    return statusBatchAnswer(body, (number) => fieldNode(issues.find((i) => i.number === number)?.field)) ?? github(method, path, body);
+    return github(method, path, body);
   };
   const answer = withFields(listed, fields);
   const statusOf = listedStatusOf({ github: answer, repository: REPO, config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, sleep: async () => {} });
@@ -713,14 +720,12 @@ async function runMain(answers, extraEnv = {}, config) {
     (Array.isArray(answers.queued) ? answers.queued : [])
       .filter((item) => !item.pull_request)
       .map((item) => ({ number: item.number, createdAt: "2026-10-01T00:00:00Z", labels: { nodes: [...(item.labels ?? []), { name: "agent-ready" }] }, issueFieldValues: { nodes: [] }, timelineItems: { nodes: [] } }));
-  let nodes;
   const listed = async (method, path, body, ...rest) => {
     if (method === "POST" && path === "/graphql" && String(body?.query).includes("issues(states: OPEN")) {
       if (answers.queued instanceof Error) throw answers.queued;
-      nodes = answers.listed ?? fromQueued();
-      return { data: { repository: { issues: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } } } };
+      return { data: { repository: { issues: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: answers.listed ?? fromQueued() } } } };
     }
-    return statusBatchAnswer(body, (number) => nodes.find((node) => node.number === number)) ?? github(method, path, body, ...rest);
+    return github(method, path, body, ...rest);
   };
   await main({ env: { GITHUB_REPOSITORY: REPO, BASE_PATH: base, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary, ...extraEnv }, github: listed, now: NOW, log: (line) => logs.push(line) });
   const text = readFileSync(output, "utf8");
