@@ -4,8 +4,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { HUMAN_ID, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS } from "./read-status.fixtures.mjs";
-import { issuesByStatus, MAX_ISSUE_PAGES } from "./resolve-config.mjs";
+import { HUMAN_ID, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "./read-status.fixtures.mjs";
+import { issuesByStatus, MAX_ISSUE_PAGES, MAX_STATUS_REREADS } from "./resolve-config.mjs";
 
 const FIELD = String(STATUS_CONFIG["field-id"]);
 
@@ -126,4 +126,50 @@ test("an unreadable issue that could not be one of the states is skipped, so the
   const nodes = [issue(12, { value: "parked" }), lost, issue(14, { value: "deferred" })];
   assert.deepEqual(numbers(await list(pages(nodes).github, ["deferred"])), ["14 deferred"]);
   await assert.rejects(() => list(pages(nodes).github, ["needs-human"]), /#13's Work status setter is older than its newest 100 field events/);
+});
+
+// An issue the listing shows at `ready` whose newest listed event is an older
+// `needs-triage`: the listing's events lag the value.
+const stale = (number) => {
+  const node = issue(number, { value: "ready" });
+  node.timelineItems.nodes[0].value = "needs-triage";
+  return node;
+};
+// `github` answering the listing from `nodes` and each issue's own read from
+// `fields` (withFields), counting the per-issue value reads and the waits.
+function rereading(nodes, fields) {
+  const counts = { values: 0, sleeps: [] };
+  const answer = withFields(pages(nodes).github, fields);
+  const github = async (method, path, ...rest) => {
+    if (path.endsWith("/issue-field-values")) {
+      counts.values += 1;
+    }
+    return answer(method, path, ...rest);
+  };
+  const sleep = async (ms) => {
+    counts.sleeps.push(ms);
+  };
+  return { github, sleep, counts };
+}
+
+test("an issue whose listed event lags its value is read again alone, and that read lists it", async () => {
+  const { github, sleep, counts } = rereading([stale(20), issue(21, { value: "ready" })], { 20: { state: "ready" } });
+  assert.deepEqual(numbers(await list(github, ["ready"], { sleep })), ["20 ready", "21 ready"]);
+  assert.equal(counts.values, 1);
+  assert.deepEqual(counts.sleeps, []);
+});
+
+test("an issue whose own read still disagrees throws as before", async () => {
+  const { github, sleep, counts } = rereading([stale(22)], { 22: { state: "ready", named: "needs-triage" } });
+  await assert.rejects(() => list(github, ["ready"], { sleep }), (error) => error.name === "StatusDisagreement");
+  assert.equal(counts.values, 2, "the own read waits once and reads again before it throws");
+  assert.equal(counts.sleeps.length, 1);
+});
+
+test("a listing with more disagreeing issues than the re-read cap throws", async () => {
+  const disagreeing = Array.from({ length: MAX_STATUS_REREADS + 1 }, (_, i) => 30 + i);
+  const fields = Object.fromEntries(disagreeing.map((number) => [number, { state: "ready" }]));
+  const { github, sleep, counts } = rereading(disagreeing.map(stale), fields);
+  await assert.rejects(() => list(github, ["ready"], { sleep }), (error) => error.name === "StatusDisagreement");
+  assert.equal(counts.values, MAX_STATUS_REREADS);
 });
