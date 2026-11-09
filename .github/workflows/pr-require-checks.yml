@@ -2800,16 +2800,25 @@ jobs:
       # and its version is printed the same way.
       # The guardrails counters run the Bash guards, which read every command
       # through shfmt and refuse the call without it. Same v3.14.1 pin and
-      # SHA-256 as the `test-bash` install.
+      # SHA-256 as the `test-bash` install, read from the download cache
+      # `test-bash` saves on main, so a release outage misses only a cold cache.
+      - name: Restore the pinned tool downloads
+        if: needs.select-tests.outputs.run_tests == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ci-tools
+          key: ci-tools-${{ runner.os }}-shfmt-v3.14.1
       - name: Install pinned shfmt
         if: needs.select-tests.outputs.run_tests == 'true'
         env:
           SHFMT_VERSION: v3.14.1
           SHFMT_SHA256: 76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf
         run: |
-          mkdir -p "$HOME/.local/bin"
-          curl -fSL --no-progress-meter --retry 7 --retry-all-errors -o "$HOME/.local/bin/shfmt" \
+          mkdir -p "$HOME/.local/bin" "$HOME/.cache/ci-tools"
+          cached="$HOME/.cache/ci-tools/shfmt-$SHFMT_VERSION"
+          [ -f "$cached" ] || curl -fSL --no-progress-meter --retry 7 --retry-all-errors -o "$cached" \
             "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_linux_amd64"
+          cp "$cached" "$HOME/.local/bin/shfmt"
           echo "$SHFMT_SHA256  $HOME/.local/bin/shfmt" | sha256sum -c -
           chmod +x "$HOME/.local/bin/shfmt"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
