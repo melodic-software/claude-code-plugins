@@ -920,8 +920,11 @@ models:
     standard:
       model: opus
       max-turns: 75
+    # verify-pr, review-dependency and adjudicate-feedback check work, so high:
+    # https://code.claude.com/docs/en/model-config#choose-an-effort-level
     review:
       model: opus
+      effort: high
       max-turns: 60
     # Both review lanes judge work the code-fix and standard profiles write
     # (opus), with no objective signal on the head when the model is chosen:

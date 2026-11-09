@@ -90,9 +90,9 @@ goes through the `mechanical` workload, which runs the worker on `sonnet` by
 default. The hardest stage that one agent runs (a final synthesis, a judge, a
 design decision) takes the role's `single` variant, which keeps the role's own
 model. Everything else takes the role's default for its workload. The bundled
-`mechanical` model is this repository's judgment; for the context it weighs, see
-[costs: choose the right model](https://code.claude.com/docs/en/costs#choose-the-right-model),
-as of 2026-10-31; recheck when that section changes its model split.
+`mechanical` model follows the well-scoped coding row of
+[which Claude model should you build with: pick a model by task](https://claude.dev/blog/which-claude-model-should-you-build-with#pick-a-model-by-task),
+as of 2026-11-09; recheck when that row changes its starting model.
 
 ## Where effort applies
 

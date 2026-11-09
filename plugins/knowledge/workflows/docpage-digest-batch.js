@@ -189,7 +189,9 @@ const B_REASON = 'the batch path has no cross-vendor arm: codex:codex-rescue ret
 
 // Role variants as /multi-agent:route emits them. Every stage here runs once
 // per page or per unit, so all of them read the fan-out variant; the fallback
-// names opus so a frontier session never fans out on its own model.
+// names opus so a frontier session never fans out on its own model. FRONTIER keeps `best`
+// for Claude Code before v2.1.321, where it names Fable
+// (https://code.claude.com/docs/en/model-config#version-history).
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
 const MODELS = ['inherit', 'opus', 'sonnet', 'haiku', 'fable', 'best']
 const FRONTIER = ['fable', 'best']

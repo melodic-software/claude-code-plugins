@@ -1309,8 +1309,8 @@ actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
 
 Four rules decide a lane's model, applied in this order:
 
-1. **Tune effort on the current model before adding a second model.** A lane that falls short moves
-   its effort level first; a second model enters only when effort cannot close the gap.
+1. **Self-check, then effort, then a second model.** A lane that falls short first gets a check of
+   its own output (a test, build or script), then a higher effort; a second model enters last.
 2. **Use one model at lower effort unless the work is bulk and independent.** A dependent chain, or
    work that fits one context, stays on the coordinating model. Only a fan-out of independent items
    delegates to a cheaper worker model.
@@ -1321,7 +1321,10 @@ Four rules decide a lane's model, applied in this order:
 
 - **Pointer:** for rule 1, see
   [optimizing for cost and intelligence: compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task)
-  and [tune effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort);
+  and [tune effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort),
+  with the self-check step first from
+  [which Claude model should you build with: latency against accuracy](https://claude.dev/blog/which-claude-model-should-you-build-with#latency-against-accuracy)
+  (as of 2026-11-09);
   for rule 2,
   [orchestrator strategy: delegate bulk work](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work);
   for rule 3, the advisor capability rule in

@@ -82,7 +82,8 @@ if (!input.roles) log('no roles in args: built-in fallbacks apply')
 // Model tiers: the distinct fan-out models in the role map, first seen first, deduped by the
 // model each resolves to. `inherit` is the session model, args.session's alias; with no known
 // alias it counts as frontier, as /multi-agent:route counts an unknown session. The frontier
-// aliases stay out, as every fan-out stage does.
+// aliases stay out, as every fan-out stage does: `fable`, and `best`, which names Fable on
+// Claude Code before v2.1.321 (https://code.claude.com/docs/en/model-config#version-history).
 const SESSION = typeof input.session === 'string' && MODELS.includes(input.session.trim()) &&
   input.session.trim() !== 'inherit' ? input.session.trim() : ''
 const TIERS = []

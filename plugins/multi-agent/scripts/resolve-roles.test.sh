@@ -283,7 +283,7 @@ out="$(run plain all --session-model opus)"
 assert_lacks "no haiku anywhere: no haiku note" "$out" 'resolves to haiku'
 
 out="$("$SUT" pointers)"
-assert_contains "pointers lists each role's as_of" "$out" $'worker\tas_of\t2026-10-13'
+assert_contains "pointers lists each role's as_of" "$out" $'worker\tas_of\t2026-11-09'
 assert_contains "pointers lists the fan-out guard basis" "$out" $'fanout\tpointer\thttps://code.claude.com/docs/en/workflows#cost'
 assert_contains "pointers lists a role's per-value basis" "$out" $'verifier\tbasis_effort\tupstream'
 
@@ -330,8 +330,8 @@ assert_contains "guarded consumer model: single config, fan-out the bundled guar
 
 # A bundled workload value carries its own basis, not the role's.
 out="$(run plain worker --session-model opus --workload mechanical)"
-assert_contains "mechanical workload: sonnet model has its own judgment basis" "$out" '"source":{"model":"bundled","effort":"bundled"},"basis":{"model":"judgment","fanout_model":"judgment","effort":"upstream"}'
-assert_contains "pointers lists the workload value's basis" "$pointers" $'worker\tbasis_mechanical_model\tjudgment'
+assert_contains "mechanical workload: sonnet model has its own upstream basis" "$out" '"source":{"model":"bundled","effort":"bundled"},"basis":{"model":"upstream","fanout_model":"upstream","effort":"upstream"}'
+assert_contains "pointers lists the workload value's basis" "$pointers" $'worker\tbasis_mechanical_model\tupstream'
 
 # A consumer value has basis config; a consumer layer cannot set a basis.
 fixture basisconfig

@@ -3657,11 +3657,12 @@ parks it `verify-unmet` (`.github/scripts/work-resolve-issue/stop-routes.json`),
 sends one already parked on `SIZE_SPLIT_DONE` back to intake once its sub-issues finish
 (`label-unblocked.mjs` `reenterFinished`).
 
-Lanes choose the model by difficulty along one ladder: Sonnet for mechanical work (the review,
-triage and summary profiles), Opus at effort high for code (`code-fix`), Opus at effort xhigh
+Lanes choose the model by difficulty along one ladder: Sonnet for mechanical work (the triage and
+summary profiles), Opus at effort high for code (`code-fix`), Opus at effort xhigh
 (`code-xhigh`) for a high-Complexity issue and fix-ci's one retry, and Fable above it. The Fable
-rung is off: the schema admits neither `fable` nor `best` for `model` or `subagent-model`, so the
-config reader rejects a profile naming either and no route, rung or Complexity reaches it. It
+rung is off: the schema admits neither `fable` nor `best` (Fable on Claude Code before v2.1.321;
+CI pins 2.1.319) for `model` or `subagent-model`, so the config reader rejects a profile naming
+either and no route, rung or Complexity reaches it. It
 waits on an owner decision and a per-week Fable allowance for the lanes; the schema admits the two
 values again when that allowance is set.
 

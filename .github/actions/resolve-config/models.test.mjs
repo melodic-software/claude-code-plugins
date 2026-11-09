@@ -515,22 +515,22 @@ test("live config: a script activity resolves no models", () => {
 
 // run-claude-cli needs a model alias (the read runner refuses `default`), so
 // review-dependency routes to verify-pr's profile (plan Q3).
-test("live config: pr-unblock / review-dependency runs opus at 60 turns, the review profile", () => {
+test("live config: pr-unblock / review-dependency runs opus high at 60 turns, the review profile", () => {
   const slot = liveSlot("pr-unblock", "review-dependency");
-  assert.deepEqual(slot.models, { profile: "review", model: "opus", effort: null, "subagent-model": "inherit", "max-turns": 60 });
-  assert.equal(modelArgs(slot.models), "--model opus --max-turns 60");
+  assert.deepEqual(slot.models, { profile: "review", model: "opus", effort: "high", "subagent-model": "inherit", "max-turns": 60 });
+  assert.equal(modelArgs(slot.models), "--model opus --max-turns 60 --effort high");
 });
 
-test("live config: verify-pr keeps --model opus and 60 turns", () => {
+test("live config: verify-pr keeps --model opus and 60 turns at effort high", () => {
   const models = resolveRoute(LIVE, { route: "verify-pr", configPath: CONFIG_PATH });
   assert.deepEqual(models, {
     profile: "review",
     model: "opus",
-    effort: null,
+    effort: "high",
     "subagent-model": "inherit",
     "max-turns": 60,
   });
-  assert.equal(modelArgs(models), "--model opus --max-turns 60");
+  assert.equal(modelArgs(models), "--model opus --max-turns 60 --effort high");
   assert.equal(modelSettings(models), "");
 });
 
@@ -544,7 +544,7 @@ for (const [route, profile, args] of [
   ["summarize-reuse", "summary", "--model sonnet --max-turns 10 --effort medium"],
   // Owner decision 2026-10-24: the adjudicator of a disputed finding is at
   // least as strong as the review lanes: Opus.
-  ["adjudicate-feedback", "review", "--model opus --max-turns 60"],
+  ["adjudicate-feedback", "review", "--model opus --max-turns 60 --effort high"],
 ]) {
   test(`live config: ${route} resolves ${args}`, () => {
     const models = resolveRoute(LIVE, { route, configPath: CONFIG_PATH });
@@ -913,11 +913,11 @@ test("main with model-route verify-pr writes the verifier's outputs and file", a
   assert.equal(await main({ env }), 0);
   assert.deepEqual(readOutputs(env.GITHUB_OUTPUT), {
     profile: "review",
-    "claude-args": "--model opus --max-turns 60",
+    "claude-args": "--model opus --max-turns 60 --effort high",
     "settings-json": "",
     "max-turns": "60",
     model: "opus",
-    effort: "",
+    effort: "high",
   });
   assert.equal(JSON.parse(readFileSync(env.OUTPUT_PATH, "utf8")).models.profile, "review");
 });
