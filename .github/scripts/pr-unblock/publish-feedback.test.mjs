@@ -1958,7 +1958,7 @@ test("a follow-up reply on a may_follow_up thread records the advisory, posts th
   const api = fakeApi({ compare: { status: "identical", commits: [], files: [] }, prBody: "Closes #7\n\n## Summary\n\nScoped fix.\n" });
   const result = await run(api, lines(followUp), FOLLOW_UP_RUN);
   assert.equal(result.escalationReason, "");
-  assert.equal(api.prBody(), `Closes #7\n\n## Summary\n\nScoped fix.\n\n## Follow-ups\n\n- \`finding 100\` ([thread](${THREAD_100}))\n`);
+  assert.equal(api.prBody(), `Closes #7\n\n## Summary\n\nScoped fix.\n\n## Follow-ups\n\n- Pre-existing (advisory): \`finding 100\` ([thread](${THREAD_100}))\n`);
   const order = api.calls.map((call) => call[0]).filter((kind) => ["body", "reply", "resolve"].includes(kind));
   assert.deepEqual(order, ["body", "reply", "resolve"], "the body records the advisory before the reply and the resolve");
   const [[, , onComment, body]] = api.posted();
@@ -1979,11 +1979,11 @@ test("a follow-up appends one bullet to an existing Follow-ups section, before t
   });
   const result = await run(api, lines(followUpReply()), FOLLOW_UP_RUN);
   assert.equal(result.escalationReason, "");
-  assert.equal(api.prBody(), `## Summary\n\nFix.\n\n## Follow-ups\n\n- earlier item\n- \`finding 100\` ([thread](${THREAD_100}))\n\n## Related\n\n- #5\n`);
+  assert.equal(api.prBody(), `## Summary\n\nFix.\n\n## Follow-ups\n\n- earlier item\n- Pre-existing (advisory): \`finding 100\` ([thread](${THREAD_100}))\n\n## Related\n\n- #5\n`);
 });
 
 test("a second run over an already recorded follow-up leaves the body as it is", async () => {
-  const recorded = `## Follow-ups\n\n- \`finding 100\` ([thread](${THREAD_100}))\n`;
+  const recorded = `## Follow-ups\n\n- Pre-existing (advisory): \`finding 100\` ([thread](${THREAD_100}))\n`;
   const api = fakeApi({ compare: { status: "identical", commits: [], files: [] }, prBody: recorded });
   const result = await run(api, lines(followUpReply()), FOLLOW_UP_RUN);
   assert.equal(result.escalationReason, "");
@@ -2000,7 +2000,7 @@ test("a follow-up whose body write fails posts no reply, resolves nothing and es
 });
 
 test("withFollowUp creates the section in an empty body and keeps CRLF line endings", () => {
-  const bullet = "- `x` ([thread](https://github.com/o/r/pull/1#discussion_r9))";
+  const bullet = "- Pre-existing (advisory): `x` ([thread](https://github.com/o/r/pull/1#discussion_r9))";
   const link = "https://github.com/o/r/pull/1#discussion_r9";
   assert.equal(withFollowUp(null, bullet, link), `## Follow-ups\n\n${bullet}\n`);
   assert.equal(withFollowUp("## Summary\r\n\r\nFix.\r\n", bullet, link), `## Summary\r\n\r\nFix.\r\n\r\n## Follow-ups\r\n\r\n${bullet}\r\n`);
@@ -2010,7 +2010,7 @@ test("withFollowUp creates the section in an empty body and keeps CRLF line endi
 test("followUpBullet quotes the advisory's first line in a code span so a closing keyword or mention does nothing", () => {
   assert.equal(
     followUpBullet("\n  **Advisory:** Fixes #12 for `@someone` <!--m-->\nsecond line", "https://github.com/o/r/pull/1#discussion_r9"),
-    "- `**Advisory:** Fixes #12 for '@someone' m` ([thread](https://github.com/o/r/pull/1#discussion_r9))",
+    "- Pre-existing (advisory): `**Advisory:** Fixes #12 for '@someone' m` ([thread](https://github.com/o/r/pull/1#discussion_r9))",
   );
-  assert.equal(followUpBullet("", "L"), "- `advisory` ([thread](L))");
+  assert.equal(followUpBullet("", "L"), "- Pre-existing (advisory): `advisory` ([thread](L))");
 });

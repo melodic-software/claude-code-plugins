@@ -1180,7 +1180,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
      backticked evidence, `Fix: <sha>` naming the push job's commit for `VALID`, the note in a
      `text` fence longer than any backtick run in it, and for `follow-up` a fixed line saying the
      advisory is recorded under `## Follow-ups` in the pull request body, which it first appends
-     there as one bullet, the advisory's first line and a link to its root comment, adding the
+     there as one bullet, the `Pre-existing (advisory):` marker the paused-filing sweep files
+     from, then the advisory's first line and a link to its root comment, adding the
      section when missing and nothing when that link is already in the body) and resolves the thread only
      for `VALID` or `follow-up`,
      and only when a re-read after the reply shows exactly the model's comments plus that reply

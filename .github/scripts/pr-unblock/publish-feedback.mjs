@@ -155,16 +155,20 @@ const LABELS = {
 const FOLLOW_UP_LINE = "This advisory asks for a change outside the closing issue's scope, so this pull request leaves it out and records it under `## Follow-ups` in the pull request body.";
 const FOLLOW_UPS_HEADING = /^## Follow-ups[ \t]*$/;
 const FOLLOW_UP_TEXT_CAP = 200;
+// The paused-filing sweep files each Follow-ups entry carrying this marker as
+// an issue (AGENTS.md, review-discipline.md D4.6).
+const FOLLOW_UP_MARKER = "Pre-existing (advisory):";
 
-// A `## Follow-ups` bullet: the advisory's first non-blank line in a code
-// span, so a closing keyword or an @-mention in it does nothing, then `link`.
+// A `## Follow-ups` bullet: the sweep's marker, the advisory's first non-blank
+// line in a code span, so a closing keyword or an @-mention in it does
+// nothing, then `link`.
 export function followUpBullet(advisory, link) {
   const first = String(advisory ?? "")
     .split(/\r?\n/)
     .map((row) => row.trim())
     .find((row) => row !== "");
   const text = [...(first ?? "").replace(/`/g, "'").replace(/<!--|-->/g, "")].slice(0, FOLLOW_UP_TEXT_CAP).join("") || "advisory";
-  return `- \`${text}\` ([thread](${link}))`;
+  return `- ${FOLLOW_UP_MARKER} \`${text}\` ([thread](${link}))`;
 }
 
 // `body` with `bullet` last in its `## Follow-ups` section, the section
