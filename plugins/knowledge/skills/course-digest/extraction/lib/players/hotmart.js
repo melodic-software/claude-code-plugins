@@ -569,14 +569,8 @@ export async function extractFrames(page, duration, outputDir, options = {}) {
   const timestamps = [];
   for (let t = intervalSec; t < duration; t += intervalSec) timestamps.push(t);
 
-  const success = await captureCanvasFrames({
-    hotmartFrame,
-    timestamps,
-    outputDir,
-    maxWidth,
-  });
-
-  return { method: "canvas-seek", count: success };
+  const count = await captureCanvasFrames({ hotmartFrame, timestamps, outputDir, maxWidth });
+  return { method: "canvas-seek", count };
 }
 
 /**
