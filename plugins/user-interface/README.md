@@ -63,17 +63,16 @@ launch. The order, the overlaps that get confused and the complaint-to-skill tab
 
 ## Configuration
 
-Settings resolve through five layers. A later layer wins per key:
+Settings resolve through four layers. A later layer wins per key:
 
 | Order | Layer | Where | Committed |
 |---|---|---|---|
 | 1 | plugin defaults | [`reference/defaults.yaml`](reference/defaults.yaml) | shipped |
 | 2 | userConfig | the `css_*` options below, scalars only | no |
-| 3 | user-global | `~/docs/conventions/user-interface.{yaml,md}` | no |
-| 4 | team | `<home>/user-interface.{yaml,md}`, where `<home>` is the repository's convention home (default `docs/conventions`) | yes |
-| 5 | personal | `<home>/user-interface.local.{yaml,md}` | no, gitignored |
+| 3 | team | `<home>/user-interface.{yaml,md}`, where `<home>` is the repository's convention home (default `docs/conventions`) | yes |
+| 4 | personal | `<home>/user-interface.local.{yaml,md}` | no, gitignored |
 
-YAML files hold settings and Markdown files hold prose; prose from layers 3 to 5 is read in that
+YAML files hold settings and Markdown files hold prose; prose from the team and personal layers is read in that
 order. Keys and allowed values are in [`reference/team.schema.json`](reference/team.schema.json):
 
 | Key | Default | Values |
@@ -183,8 +182,7 @@ reads from a lower layer (probe record:
 Test D).
 
 **Changing a value.** `/user-interface:setup apply <key>=<value>` writes the team file;
-`--user` writes the user-global file and `--local` the personal file, adding `<home>/*.local.*` to
-`.gitignore`. Set a `css_*` option through `/config` or the routes under Options below.
+`--local` writes the personal file, adding `<home>/*.local.*` to `.gitignore`. Set a `css_*` option through `/config` or the routes under Options below.
 
 **What does not vary, and why:**
 

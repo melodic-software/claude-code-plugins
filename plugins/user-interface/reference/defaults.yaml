@@ -1,6 +1,6 @@
 # Layer 1 of the user-interface config cascade: the plugin's own defaults.
-# Later layers override a key (userConfig, ~/docs/conventions/user-interface.yaml,
-# <home>/user-interface.yaml, <home>/user-interface.local.yaml); `*.disable` lists add up.
+# Later layers override a key (userConfig, <home>/user-interface.yaml,
+# <home>/user-interface.local.yaml); `*.disable` lists add up.
 # Keys and allowed values: team.schema.json. Block style only. Project tokens beat every layer.
 # A key marked heuristic has no upstream source; every other key's source is recorded under
 # docs/upstream/.
