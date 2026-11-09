@@ -2463,20 +2463,10 @@ jobs:
           rate-limit-hold-ok: true
 
       # The verdict reader of a scheduled or hand-started run ties untied
-      # FAILs as the gate job does: the head-ref map and the carried run
-      # cache. Any error leaves none, and the reader reads GitHub instead.
-      # Event runs read no verdict and need neither.
-      - name: Read the head refs the last gate run kept
-        if: steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-        continue-on-error: true
-        env:
-          API_BUDGET_TOKEN: github-token
-          API_BUDGET_SCRIPT: head-ref-map
-          ACTIONS_TOKEN: ${{ github.token }}
-          HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
-          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
-        run: node .base/.github/scripts/pr-merge/head-ref-map.mjs read
-
+      # FAILs as the gate job does: the carried run cache here, and the
+      # head-ref map after the post-merge report is settled. Any error leaves
+      # none, and the reader reads GitHub instead. Event runs read no verdict
+      # and need neither.
       - name: Read the verdict reads the last run kept
         if: steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         continue-on-error: true
@@ -2496,27 +2486,6 @@ jobs:
           CARRY_FROM: ${{ runner.temp }}/pr-merge-carried.json
           CARRY_TO: ${{ runner.temp }}/babysit-run-cache.json
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs
-
-      # The verifier answers the last run kept (pr-merge-verify-answers),
-      # found the way the head-ref map is, never through actions/cache: the
-      # reader keeps only refusals and checks the file's version, repository
-      # and code itself. Under merge.verify-cache shadow it still reads in
-      # full and logs how each kept answer compares. Any error leaves no file,
-      # and every pull request is read in full. Rules:
-      # .github/scripts/pr-merge/verify-answers.mjs.
-      - name: Read the verifier answers the last run kept
-        if: steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-        continue-on-error: true
-        timeout-minutes: 2
-        env:
-          API_BUDGET_TOKEN: github-token
-          API_BUDGET_SCRIPT: verify-answers
-          ACTIONS_TOKEN: ${{ github.token }}
-          VERIFY_ANSWERS_PATH: ${{ runner.temp }}/verify-answers-in.json
-          # The arm step's skip records, from the same artifact.
-          EAM_SKIP_PATH: ${{ runner.temp }}/eam-skip-in.json
-          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
-        run: node .base/.github/scripts/pr-merge/verify-answers.mjs
 
       # This run's post-merge report, which post-merge-dispatch kept: the
       # gate's run-level answer that enable-auto-merge.mjs reads the lane's
@@ -2681,6 +2650,45 @@ jobs:
             echo "fresh=$fresh"
             echo "fresh-reason=${reason//[$'\r\n']/ }"
           } >>"$GITHUB_OUTPUT"
+
+      # The arm step's own reads, which no step before it uses: the head-ref
+      # map and the verifier answers. A PR-scoped run reads them only when its
+      # report stands, as only then does the arm step run.
+      - name: Read the head refs the last gate run kept
+        if: >-
+          steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          && (!inputs.pr || steps.keep-report.outputs.stands == 'true')
+        continue-on-error: true
+        env:
+          API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: head-ref-map
+          ACTIONS_TOKEN: ${{ github.token }}
+          HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
+        run: node .base/.github/scripts/pr-merge/head-ref-map.mjs read
+
+      # The verifier answers the last run kept (pr-merge-verify-answers),
+      # found the way the head-ref map is, never through actions/cache: the
+      # reader keeps only refusals and checks the file's version, repository
+      # and code itself. Under merge.verify-cache shadow it still reads in
+      # full and logs how each kept answer compares. Any error leaves no file,
+      # and every pull request is read in full. Rules:
+      # .github/scripts/pr-merge/verify-answers.mjs.
+      - name: Read the verifier answers the last run kept
+        if: >-
+          steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          && (!inputs.pr || steps.keep-report.outputs.stands == 'true')
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: verify-answers
+          ACTIONS_TOKEN: ${{ github.token }}
+          VERIFY_ANSWERS_PATH: ${{ runner.temp }}/verify-answers-in.json
+          # The arm step's skip records, from the same artifact.
+          EAM_SKIP_PATH: ${{ runner.temp }}/eam-skip-in.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
+        run: node .base/.github/scripts/pr-merge/verify-answers.mjs
 
       # While merge.report-only is anything but false it reports each
       # decision and writes nothing.

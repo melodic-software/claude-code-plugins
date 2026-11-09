@@ -576,6 +576,10 @@ test("pr-merge takes a pr input, runs every 30 minutes and names a PR-scoped run
 // verifying runs the check just read). Anything else removes it, so the arm
 // step is skipped and nothing arms.
 const KEEP_STEP = "Keep the last sweep's report only while nothing it read has moved";
+// The `if:` of the arm step's own reads: a sweep's, or a PR-scoped run's
+// whose report stands (the arm step's own condition for a PR-scoped run).
+const ARM_READ_IF =
+  " {8}if: >-\\n {10}steps\\.lane-token\\.outputs\\.token != '' && \\(github\\.event_name == 'schedule' \\|\\| github\\.event_name == 'workflow_dispatch'\\)\\n {10}&& \\(!inputs\\.pr \\|\\| steps\\.keep-report\\.outputs\\.stands == 'true'\\)\\n";
 const FRESH_SHA = "f".repeat(40);
 const keepReport = ({ code = "0", settles = [0], fresh = 0, files = true, attempts = false, refusal = "idle tick needs-dispatch" } = {}) => {
   const arm = job("enable-auto-merge");
@@ -1252,11 +1256,12 @@ test("enable-auto-merge asks the broker for its own activity's merge token", () 
     assert.ok(arm.includes(`\n          ${line}\n`), line);
   }
   assert.match(arm, /node \.base\/\.github\/scripts\/pr-merge\/head-ref-map\.mjs read\n/);
-  // Only the runs that read the verdict (READER_EVENTS) read the map.
-  assert.match(
-    arm,
-    /- name: Read the head refs the last gate run kept\n {8}if: steps\.lane-token\.outputs\.token != '' && \(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\)\n/,
-  );
+  // Only the runs that read the verdict (READER_EVENTS) read the map, and a
+  // PR-scoped one only when its report stands, so the arm step runs.
+  assert.match(arm, new RegExp(`- name: Read the head refs the last gate run kept\\n${ARM_READ_IF}`));
+  const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
+  assert.ok(names.indexOf(KEEP_STEP) < names.indexOf("Read the head refs the last gate run kept"));
+  assert.ok(names.indexOf("Read the head refs the last gate run kept") < names.indexOf("Arm and disarm auto-merge"));
   // The reader resolves the FAIL cap itself, from the base and main (--base-sha).
   assert.doesNotMatch(arm, /MAX_VERIFY_FAILS/);
 });
@@ -1859,7 +1864,7 @@ test("enable-auto-merge reads the verifier answers only from a trusted run and u
   const step = (name) => new RegExp(`- name: ${name}\\n([\\s\\S]*?)(?=\\n {6}- name: |\\n*$)`).exec(arm)?.[1];
   const read = step("Read the verifier answers the last run kept");
   assert.ok(read, "an answers read");
-  assert.match(read, /^ {8}if: steps\.lane-token\.outputs\.token != '' && \(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\)\n/);
+  assert.match(read, new RegExp(`^${ARM_READ_IF}`));
   assert.match(read, /\n {8}continue-on-error: true\n/);
   assert.match(read, /\n {10}ACTIONS_TOKEN: \$\{\{ github\.token \}\}\n {10}VERIFY_ANSWERS_PATH: \$\{\{ runner\.temp \}\}\/verify-answers-in\.json\n/);
   const script = readFileSync(new URL("./verify-answers.mjs", import.meta.url), "utf8");
@@ -1891,6 +1896,7 @@ test("enable-auto-merge reads the verifier answers only from a trusted run and u
   assert.match(upload, /\n {8}timeout-minutes: [0-9]+\n/);
   assert.match(upload, /\n {10}name: pr-merge-verify-answers\n {10}path: \|\n {12}\$\{\{ runner\.temp \}\}\/verify-answers\/verify-answers\.json\n {12}\$\{\{ runner\.temp \}\}\/verify-answers\/eam-skip\.json\n {10}retention-days: 1\n {10}if-no-files-found: ignore\n/);
   const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
+  assert.ok(names.indexOf(KEEP_STEP) < names.indexOf("Read the verifier answers the last run kept"));
   assert.ok(names.indexOf("Read the verifier answers the last run kept") < names.indexOf("Arm and disarm auto-merge"));
   assert.ok(names.indexOf("Arm and disarm auto-merge") < names.indexOf("Upload the verifier answers for the next run"));
   // Its own name in the workflow, never downloaded by name, never cached.
