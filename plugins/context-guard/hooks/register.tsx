@@ -486,7 +486,8 @@ const PLAIN_ID = /^[A-Za-z0-9._-]+$/
 const RANK_WORD = ['smart', 'acceptable', 'dumb'] as const
 
 // The launcher harness-ops keeps in its plugin data directory, <config dir>/plugins/data/<id>,
-// for the reserved sink value: the first harness-ops-* directory in name order that holds one.
+// for the reserved sink value: of the harness-ops-* directories that hold one, the launcher
+// refreshed most recently, since harness-ops touches it at each SessionStart.
 // CLAUDE_CONFIG_DIR, default ~/.claude, holds the plugins (https://code.claude.com/docs/en/env-vars).
 async function harnessOpsSink($: EngineInterface) {
   const home = await homeDir($)
@@ -495,11 +496,13 @@ async function harnessOpsSink($: EngineInterface) {
   const base = `${config.replace(/[\\/]+$/, '')}/plugins/data`
   const entries = await $.fs.list(base).catch(() => [])
   const names = entries.filter(e => e.kind === 'dir' && e.name.startsWith('harness-ops-')).map(e => e.name)
+  let best: { path: string; mtimeMs: number } | undefined
   for (const name of names.sort()) {
-    const launcher = `${base}/${name}/hook-telemetry-sink.sh`
-    if (await $.fs.exists(launcher).catch(() => false)) return launcher
+    const path = `${base}/${name}/hook-telemetry-sink.sh`
+    const stat = await $.fs.stat(path).catch(() => undefined)
+    if (stat?.kind === 'file' && (best === undefined || stat.mtimeMs > best.mtimeMs)) best = { path, mtimeMs: stat.mtimeMs }
   }
-  return undefined
+  return best?.path
 }
 
 // Sends one envelope to HOOK_TELEMETRY_SINK, fire-and-forget; no sink set, nothing is sent.

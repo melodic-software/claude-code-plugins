@@ -36,10 +36,12 @@ or relative to the consuming repo root. The producer resolves it before dispatch
 
 - **`@harness-ops`**: the harness-ops reference sink, through the launcher harness-ops rewrites at each
   SessionStart in its plugin data directory, `<data root>/harness-ops-<marketplace>/hook-telemetry-sink.sh`.
-  The data root is the parent of the producer's own `CLAUDE_PLUGIN_DATA` when it has one (a plugin
-  hook), else `${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/data` (a repository hook). The producer's own
-  data directory is tried first, then each `harness-ops-*` directory in name order; the first
-  launcher found wins. None found: the event is skipped, fail-open. The launcher carries harness-ops'
+  The producer searches the parent of its own `CLAUDE_PLUGIN_DATA` when it has one (a plugin hook;
+  either path separator), then `${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/data`. Precedence: of every
+  `harness-ops-*` launcher found, the one modified most recently wins, whatever its name and
+  whichever producer asks. harness-ops touches its launcher at each SessionStart, so the install
+  that last started a session wins, and every producer sends to the same root. None found: the
+  event is skipped, fail-open. The launcher carries harness-ops'
   `session_event_log_dir` and `hook_events_max_bytes`, so every producer's rows land in harness-ops'
   root, and deletes itself when its install is gone.
 - **Any other value starting with `@`**: reserved for later sinks; the producer skips the event.
@@ -211,7 +213,8 @@ standards-repo "adopt by copy" pattern.
 
 A mod emits from its own hooks module instead, in TypeScript: context-guard's
 `hooks/register.tsx` builds the same envelope, resolves `HOOK_TELEMETRY_SINK` by the rules above
-(`@harness-ops` through `$.fs.list` of the config dir's plugin data root, since a mod has no
+(`@harness-ops` through `$.fs.list` and `$.fs.stat` modification times of the config dir's plugin
+data root, since a mod has no
 `CLAUDE_PLUGIN_DATA`; a relative path joins onto the session's project root, else
 `CLAUDE_PROJECT_DIR`), and starts the
 sink fire-and-forget through `$.process.run`. Its envelope is checked by the plugin's own

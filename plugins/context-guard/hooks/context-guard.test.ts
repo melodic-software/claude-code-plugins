@@ -1570,13 +1570,24 @@ const dataDir = (on: any, base: string, names: string[]) =>
     return { value: names.map(name => ({ name, kind: 'dir', size: 0, isLink: false })) }
   })
 
-test('telemetry: @harness-ops resolves to the first harness-ops launcher under the config dir', async ($, on) => {
+test('telemetry: @harness-ops resolves to the harness-ops launcher under the config dir, past a directory with none', async ($, on) => {
   const { w } = world(on, {}, { HOME, HOOK_TELEMETRY_SINK: '@harness-ops' })
   const base = `${HOME}/.claude/plugins/data`
   dataDir(on, base, ['guardrails-mkt', 'harness-ops-b', 'harness-ops-a'])
   w.files[`${base}/harness-ops-b/hook-telemetry-sink.sh`] = { text: '#!/usr/bin/env bash\n', mtimeMs: 0 }
   await walk($, w, [30, 60])
   expect(envelopes(w, `${base}/harness-ops-b/hook-telemetry-sink.sh`)).toHaveLength(1)
+})
+
+test('telemetry: @harness-ops picks the most recently refreshed launcher, not the first by name', async ($, on) => {
+  const { w } = world(on, {}, { HOME, HOOK_TELEMETRY_SINK: '@harness-ops' })
+  const base = `${HOME}/.claude/plugins/data`
+  dataDir(on, base, ['harness-ops-inline', 'harness-ops-mkt'])
+  w.files[`${base}/harness-ops-inline/hook-telemetry-sink.sh`] = { text: '#!/usr/bin/env bash\n', mtimeMs: 1_000 }
+  w.files[`${base}/harness-ops-mkt/hook-telemetry-sink.sh`] = { text: '#!/usr/bin/env bash\n', mtimeMs: 2_000 }
+  await walk($, w, [30, 60])
+  expect(envelopes(w, `${base}/harness-ops-mkt/hook-telemetry-sink.sh`)).toHaveLength(1)
+  expect(envelopes(w, `${base}/harness-ops-inline/hook-telemetry-sink.sh`)).toHaveLength(0)
 })
 
 test('telemetry: @harness-ops reads CLAUDE_CONFIG_DIR when it is set', async ($, on) => {

@@ -11,7 +11,9 @@
 # otherwise send its rows to a different root than harness-ops' own.
 #
 # Rewritten only when that content changes, through a temp file renamed into
-# place, so a symlink at the launcher path is replaced, never followed. A
+# place, so a symlink at the launcher path is replaced, never followed;
+# otherwise only touched, because producers pick the newest launcher when
+# several harness-ops installs keep one. A
 # launcher whose sink is gone (its install was removed) deletes itself and
 # exits 0, so a producer moves on to the next harness-ops install.
 #
@@ -44,7 +46,10 @@ current=""
 if [[ -f "$launcher" && ! -L "$launcher" ]]; then
   IFS= read -r -d '' current <"$launcher" 2>/dev/null
 fi
-[[ "$current" == "$content" ]] && exit 0
+if [[ "$current" == "$content" ]]; then
+  touch -- "$launcher" 2>/dev/null
+  exit 0
+fi
 
 mkdir -p -- "$data" 2>/dev/null || exit 0
 tmp=$(mktemp "$data/.hook-telemetry-sink.XXXXXX" 2>/dev/null) || exit 0

@@ -10,8 +10,8 @@ marked deprecated here for one minor cycle before removal.
 Not an envelope field, so no `schema_version` change (README "Versioning"), as with the 1.0 rule.
 
 - `HOOK_TELEMETRY_SINK` gains one reserved value, `@harness-ops`: the producer resolves it to the
-  launcher harness-ops keeps in its plugin data directory and skips the event when none is
-  installed (#14227). Any other value starting with `@` is reserved and skipped, never joined onto
+  launcher harness-ops keeps in its plugin data directory, the most recently refreshed one when
+  several installs keep one, and skips the event when none is installed (#14227). Any other value starting with `@` is reserved and skipped, never joined onto
   the repo root as a relative path.
 - Producers: `hook::emit_telemetry` in `lib/hook-utils.sh` and context-guard's mod.
 

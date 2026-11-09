@@ -50,6 +50,14 @@ ln "$LAUNCHER" "$TEST_TMPDIR/keep"
 refresh >/dev/null
 if [[ "$LAUNCHER" -ef "$TEST_TMPDIR/keep" ]]; then ok "an unchanged launcher is left in place"; else bad "an unchanged launcher was rewritten"; fi
 
+# --- an unchanged launcher is still touched, so producers pick the newest ------
+touch -t 200001010000 "$LAUNCHER"
+: >"$TEST_TMPDIR/before-refresh"
+touch -t 200101010000 "$TEST_TMPDIR/before-refresh"
+refresh >/dev/null
+if [[ "$LAUNCHER" -nt "$TEST_TMPDIR/before-refresh" ]]; then ok "an unchanged launcher's mtime is refreshed"; else bad "an unchanged launcher kept its old mtime"; fi
+if [[ "$LAUNCHER" -ef "$TEST_TMPDIR/keep" ]]; then ok "the touch does not rewrite the launcher"; else bad "the touch rewrote the launcher"; fi
+
 # --- a moved root rewrites it ---------------------------------------------------
 ROOT2="$TEST_TMPDIR/plugin-v2"
 cp -r "$ROOT" "$ROOT2"

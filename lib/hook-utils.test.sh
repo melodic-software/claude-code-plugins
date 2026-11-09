@@ -391,24 +391,48 @@ OUT10b3="$WORK/out10b3"
 mkdir -p "$DATA10b/harness-ops-a" "$DATA10b/guardrails-mkt"
 put_launcher "$DATA10b/harness-ops-b" "$OUT10b3"
 if emit_reserved "$OUT10b3" "CLAUDE_PLUGIN_DATA=$DATA10b/guardrails-mkt/" "CLAUDE_CONFIG_DIR=$WORK/elsewhere"; then
-  ok "@harness-ops: a plugin hook finds the first launcher beside its own data dir, past a sibling with none"
+  ok "@harness-ops: a plugin hook finds the launcher beside its own data dir, past a sibling with none"
 else
   fail "@harness-ops: no envelope through the sibling launcher"
 fi
 
+# The most recently refreshed launcher wins, even over the caller's own data
+# dir, so every producer picks the same install and its log root.
 OUT10b4="$WORK/out10b4"
-OUT10b4_other="$WORK/out10b4-other"
-put_launcher "$DATA10b/harness-ops-a" "$OUT10b4_other"
-put_launcher "$DATA10b/harness-ops-z" "$OUT10b4"
+OUT10b4_stale="$WORK/out10b4-stale"
+put_launcher "$DATA10b/harness-ops-a" "$OUT10b4"
+put_launcher "$DATA10b/harness-ops-z" "$OUT10b4_stale"
+touch -t 203001010000 "$DATA10b/harness-ops-a/hook-telemetry-sink.sh"
+touch -t 202001010000 "$DATA10b/harness-ops-z/hook-telemetry-sink.sh"
 if emit_reserved "$OUT10b4" "CLAUDE_PLUGIN_DATA=$DATA10b/harness-ops-z"; then
-  ok "@harness-ops: harness-ops' own hooks use their own launcher"
+  ok "@harness-ops: the newest launcher wins, even over the caller's own"
 else
-  fail "@harness-ops: own launcher not preferred"
+  fail "@harness-ops: the newest launcher was not chosen"
 fi
-if [[ -e "$OUT10b4_other" ]]; then
-  fail "@harness-ops: the sibling launcher ran"
+if [[ -e "$OUT10b4_stale" ]]; then
+  fail "@harness-ops: the older launcher ran"
 else
-  ok "@harness-ops: the sibling launcher was not run"
+  ok "@harness-ops: the older launcher was not run"
+fi
+
+DATAW10b="$WORK/dataw10b/plugins/data"
+OUT10b7="$WORK/out10b7"
+mkdir -p "$DATAW10b/guardrails-mkt"
+put_launcher "$DATAW10b/harness-ops-mkt" "$OUT10b7"
+if emit_reserved "$OUT10b7" "CLAUDE_PLUGIN_DATA=${DATAW10b}\\guardrails-mkt\\" "CLAUDE_CONFIG_DIR=$WORK/elsewhere"; then
+  ok "@harness-ops: a backslash CLAUDE_PLUGIN_DATA (Windows native) still finds the sibling launcher"
+else
+  fail "@harness-ops: a backslash CLAUDE_PLUGIN_DATA found no launcher"
+fi
+
+CFGF10b="$WORK/cfgf10b"
+OUT10b8="$WORK/out10b8"
+mkdir -p "$WORK/lonely10b/plugins/data/guardrails-mkt"
+put_launcher "$CFGF10b/plugins/data/harness-ops-mkt" "$OUT10b8"
+if emit_reserved "$OUT10b8" "CLAUDE_PLUGIN_DATA=$WORK/lonely10b/plugins/data/guardrails-mkt" "CLAUDE_CONFIG_DIR=$CFGF10b"; then
+  ok "@harness-ops: with no sibling launcher a plugin hook falls through to the config dir"
+else
+  fail "@harness-ops: no fall-through to the config dir"
 fi
 
 OUT10b5="$WORK/out10b5"
