@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.3] - 2026-11-09
+
+### Changed
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
+- Internal simplification, no behavior change.
+
 ## [0.18.2] - 2026-11-09
 
 ### Changed

@@ -1,5 +1,13 @@
 # Changelog: session-flow plugin
 
+## [7.5.3] - 2026-11-09
+
+### Changed
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
+- Simplified the internals of the docs fetcher script and the hook launcher; their behavior is unchanged.
+
 ## [7.5.2] - 2026-11-09
 
 ### Changed
