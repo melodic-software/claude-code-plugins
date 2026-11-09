@@ -43,6 +43,9 @@ The preamble names the tool's path. It is the only shell command this mode runs,
   while the gated head holds it as a regular file: a finding on one of the PR's files may be fixed
   in another, and a canonical's fix may regenerate its copies. A file the fix would create is never
   in that part of the scope.
+- `issues` prints the closing issues' spec text a trusted person wrote: each issue's `url`, `body`
+  and `comments`, data like every finding body. It prints `[]` unless a thread `list` returns
+  carries `"may_follow_up": true`, a code-review advisory nobody has answered yet.
 - `notes` prints the pr-verify notes of an earlier FAIL, when the round is for one: `id`
   (`VNOTE_<n>`), `head` (the FAILed head), `path` and `body`, the verifier's summary and notes
   quoted as data. It prints `[]` in any other round. See [Earlier-FAIL notes](#earlier-fail-notes).
@@ -72,6 +75,14 @@ The preamble names the tool's path. It is the only shell command this mode runs,
    `/<entry>:`, outside a `## Next` section, with no gate, condition, fallback or negation in the
    lines around it. When any entry is optional (presence-gated, with a fallback), record
    `UNCERTAIN`.
+   A thread with `"may_follow_up": true` is an advisory, never a blocking finding. Read `issues`
+   first. When the change it asks for (a new test is the usual case) falls outside the closing
+   issue's acceptance criteria, or under an item of its Out of scope list, make no edit and record
+   `follow-up`: the note quotes the criterion or Out of scope line it falls outside and names the
+   issue's URL. The reply job records the advisory under `## Follow-ups` in the pull request
+   body, as an entry starting `Pre-existing (advisory):`, posts the reply with a fixed line
+   saying so, and resolves the thread. An advisory the issue's
+   scope allows is classified as any other finding.
 3. VALID: run `check-paths` on every file the fix changes before you edit it, and edit only when
    it prints `allowed`. Leave the fix uncommitted in the working tree before you record it: there
    is no commit tool, and the one commit the push job makes may fix several threads.
@@ -79,7 +90,7 @@ The preamble names the tool's path. It is the only shell command this mode runs,
 
    ```json
    {
-     "disposition": "VALID | INCORRECT | UNCERTAIN | VALID-defer",
+     "disposition": "VALID | INCORRECT | UNCERTAIN | VALID-defer | follow-up",
      "evidence": ["path:line"],
      "fix_sha": "",
      "note": "<what you checked and why, in plain prose>"
@@ -97,7 +108,8 @@ The preamble names the tool's path. It is the only shell command this mode runs,
    the refusal.
 
 The reply job resolves a `VALID` thread once the push job's commit of its fix is on the pull
-request's branch; a fix that does not land posts no reply at all. `INCORRECT`, `UNCERTAIN` and
+request's branch; a fix that does not land posts no reply at all. It resolves a `follow-up`
+thread once its reply posts; `record` refuses `follow-up` on a thread without `may_follow_up`. `INCORRECT`, `UNCERTAIN` and
 `VALID-defer` stay open, and the pull request then goes to a person.
 Record exactly one disposition for every thread `list` returns: a missing one, or any reply off
 the template, means no reply is posted at all.

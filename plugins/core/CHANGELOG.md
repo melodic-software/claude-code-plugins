@@ -3,6 +3,12 @@
 All notable changes to the `core` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0] - 2026-11-09
+
+### Changed
+
+- `core` now also installs `guardrails`, so a standalone `core` install gets the guard hooks that block secret leaks and destructive commands such as `git reset --hard`, force pushes and unguarded recursive deletes.
+
 ## [0.2.0] - 2026-11-09
 
 ### Changed

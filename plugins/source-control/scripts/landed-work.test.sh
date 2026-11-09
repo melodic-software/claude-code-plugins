@@ -18,6 +18,7 @@ CASE_NUM=0
 source "$SCRIPT_DIR/test-helpers.sh"
 
 command -v git >/dev/null 2>&1 || skip_suite "git not available"
+command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
@@ -627,17 +628,39 @@ assert_eq "in-progress outranks landed" "in-progress" "$(col "$R" $C_RISK)"
 # Merged-PR proof (--merged-pr-proof), with a stubbed gh
 # --------------------------------------------------------------------------
 
-# The stub prints the file named by GH_STUB_OUT in the format the engine's --jq
-# produces (`pr <head-ref> <base-ref>` / `head <oid>` / `commit <oid>` lines), or
-# fails when GH_STUB_FAIL is set. With GH_STUB_LOG set it appends one line of
-# arguments per invocation, so a test counts the calls.
+# The stub answers `gh api graphql` like GitHub: it builds the GraphQL response
+# for one page and runs the engine's own --jq over it with jq. A page is written
+# as `pr <head-ref> <base-ref>` / `head <oid>` / `commit <oid>` lines, with an
+# optional first line `next <cursor>` when more pages follow. The first page is
+# the file GH_STUB_OUT names; the page after cursor C is "$GH_STUB_OUT.C". It
+# fails when GH_STUB_FAIL is set, or only on the page after cursor C when
+# GH_STUB_FAIL_AFTER=C. With GH_STUB_LOG set it appends one line of arguments per
+# invocation (newlines in the query folded), so a test counts the calls.
 PR_BIN="$TEST_TMPDIR/pr-bin"
 mkdir -p "$PR_BIN"
 cat >"$PR_BIN/gh" <<'STUB'
 #!/usr/bin/env bash
-[[ -n "${GH_STUB_LOG:-}" ]] && printf '%s\n' "$*" >>"$GH_STUB_LOG"
+[[ -n "${GH_STUB_LOG:-}" ]] && printf '%s\n' "$*" | tr '\n' ' ' >>"$GH_STUB_LOG" && echo >>"$GH_STUB_LOG"
 [[ -n "${GH_STUB_FAIL:-}" ]] && { printf 'gh stub:\tforced; failure\nsecond line\n' >&2; exit 1; }
-cat "${GH_STUB_OUT:-/dev/null}"
+after='' expr='.'
+while (($#)); do
+  case "$1" in
+  -f) [[ "$2" == after=* ]] && after="${2#after=}"; shift ;;
+  --jq) expr="$2"; shift ;;
+  esac
+  shift
+done
+[[ -n "$after" && "$after" == "${GH_STUB_FAIL_AFTER:-}" ]] && { echo 'gh stub: page failed' >&2; exit 1; }
+f="${GH_STUB_OUT:-/dev/null}${after:+.$after}"
+[[ -f "$f" ]] || f=/dev/null
+jq -Rn '[inputs | split(" ")] as $l
+  | {data: {repository: {pullRequests: {
+      pageInfo: {hasNextPage: ($l | any(.[0] == "next")),
+        endCursor: ([$l[] | select(.[0] == "next") | .[1]] | first)},
+      nodes: (reduce ($l[] | select(.[0] != "next")) as $x ([];
+        if $x[0] == "pr" then . + [{headRefName: $x[1], baseRefName: $x[2], commits: {nodes: []}}]
+        elif $x[0] == "head" then .[-1].headRefOid = $x[1]
+        else .[-1].commits.nodes += [{commit: {oid: $x[1]}}] end))}}}}' "$f" | jq -r "$expr"
 STUB
 chmod +x "$PR_BIN/gh"
 
@@ -737,8 +760,15 @@ MANY_ERR="$TEST_TMPDIR/many.err"
 OUT="$(PATH="$PR_BIN:$PATH" GH_STUB_OUT="$TEST_TMPDIR/pr-many" GH_STUB_LOG="$GH_LOG" \
   bash "$ENGINE" --repo-dir "$W" --no-peers --merged-pr-proof 2>"$MANY_ERR")"
 assert_eq "pr listing: three unlanded worktrees make one gh call" "1" "$(grep -c . "$GH_LOG")"
-assert_contains "pr listing: the call lists merged PRs into the base" "$(cat "$GH_LOG")" "pr list --state merged --base main"
-assert_not_contains "pr listing: the call is not scoped to one branch" "$(cat "$GH_LOG")" "--head"
+assert_contains "pr listing: the call is one GraphQL query" "$(cat "$GH_LOG")" "api graphql"
+assert_contains "pr listing: the query lists merged PRs" "$(cat "$GH_LOG")" "states: MERGED, baseRefName: \$base"
+assert_contains "pr listing: the query names the base" "$(cat "$GH_LOG")" "-f base=main"
+assert_contains "pr listing: the query reads only commit oids" "$(cat "$GH_LOG")" "commits(first: 100) { nodes { commit { oid } } }"
+# `gh pr list --json commits` adds each commit's authors, which pushed the
+# listing past GitHub's 500,000-node limit at 50 PRs; the query never regains them.
+assert_not_contains "pr listing: the call is not gh pr list --json" "$(cat "$GH_LOG")" "--json"
+assert_not_contains "pr listing: the query asks for no commit authors" "$(cat "$GH_LOG")" "authors"
+assert_not_contains "pr listing: the call is not scoped to one branch" "$(cat "$GH_LOG")" "headRefName:"
 assert_contains "pr listing: the run reports its gh call count" "$(cat "$MANY_ERR")" "merged-pr-proof made 1 gh call(s)"
 assert_eq "pr listing: the first branch is proven from the shared listing" \
   "yes" "$(col "$(row "$OUT" "wt-many-1")" $C_LANDED)"
@@ -767,6 +797,51 @@ OUT="$(PATH="$PR_BIN:$PATH" GH_STUB_OUT="$TEST_TMPDIR/pr-many" GH_STUB_LOG="$GH_
   --worktree "$TEST_TMPDIR/wt-other-repo" 2>"$MANY_ERR")"
 assert_eq "pr listing: two repositories make two gh calls" "2" "$(grep -c . "$GH_LOG")"
 assert_contains "pr listing: the count covers both repositories" "$(cat "$MANY_ERR")" "merged-pr-proof made 2 gh call(s)"
+
+# Paging: the listing follows the cursor, each page is one gh call, and it stops
+# at --merged-pr-limit.
+printf 'next c1\npr feat-many-1 main\nhead %s\ncommit %s\npr feat-gone main\nhead %s\ncommit %s\n' \
+  "$MANY1" "$MANY1" "$MANY1" "$MANY1" >"$TEST_TMPDIR/pr-paged"
+printf 'pr feat-many-2 main\nhead %s\ncommit %s\n' "$MANY2" "$MANY2" >"$TEST_TMPDIR/pr-paged.c1"
+run_paged() {
+  : >"$GH_LOG"
+  PATH="$PR_BIN:$PATH" GH_STUB_OUT="$TEST_TMPDIR/pr-paged" GH_STUB_LOG="$GH_LOG" \
+    bash "$ENGINE" --repo-dir "$W" --no-peers --merged-pr-proof "$@" 2>"$MANY_ERR"
+}
+OUT="$(run_paged)"
+assert_eq "pr paging: two pages make two gh calls" "2" "$(grep -c . "$GH_LOG")"
+assert_contains "pr paging: the count names each page" "$(cat "$MANY_ERR")" "merged-pr-proof made 2 gh call(s)"
+assert_contains "pr paging: a page holds at most 100 PRs" "$(head -n 1 "$GH_LOG")" "-F first=100"
+assert_not_contains "pr paging: the first page has no cursor" "$(head -n 1 "$GH_LOG")" "after="
+assert_contains "pr paging: the second page follows the cursor" "$(sed -n 2p "$GH_LOG")" "-f after=c1"
+assert_eq "pr paging: a PR on the second page proves its branch" \
+  "yes" "$(col "$(row "$OUT" "wt-many-2")" $C_LANDED)"
+assert_eq "pr paging: a PR on the first page still proves its branch" \
+  "yes" "$(col "$(row "$OUT" "wt-many-1")" $C_LANDED)"
+
+OUT="$(run_paged --merged-pr-limit 1)"
+assert_eq "pr paging: a limit the first page fills makes one call" "1" "$(grep -c . "$GH_LOG")"
+assert_contains "pr paging: the page asks for no more than the limit" "$(cat "$GH_LOG")" "-F first=1 "
+assert_eq "pr paging: a PR past the limit proves nothing" \
+  "no" "$(col "$(row "$OUT" "wt-many-2")" $C_LANDED)"
+
+OUT="$(run_paged --merged-pr-limit 3)"
+assert_contains "pr paging: the last page asks only for what the limit leaves" "$(sed -n 2p "$GH_LOG")" "-F first=1 "
+
+# An empty page that still claims more ends the listing.
+printf 'next c1\n' >"$TEST_TMPDIR/pr-empty"
+printf 'pr feat-many-2 main\nhead %s\ncommit %s\n' "$MANY2" "$MANY2" >"$TEST_TMPDIR/pr-empty.c1"
+: >"$GH_LOG"
+OUT="$(PATH="$PR_BIN:$PATH" GH_STUB_OUT="$TEST_TMPDIR/pr-empty" GH_STUB_LOG="$GH_LOG" \
+  bash "$ENGINE" --repo-dir "$W" --no-peers --merged-pr-proof 2>"$MANY_ERR")"
+assert_eq "pr paging: an empty page stops the listing" "1" "$(grep -c . "$GH_LOG")"
+assert_eq "pr paging: nothing past an empty page is read" "no" "$(col "$(row "$OUT" "wt-many-2")" $C_LANDED)"
+
+# A failed later page fails the whole listing: the first page proves nothing.
+OUT="$(GH_STUB_FAIL_AFTER=c1 run_paged)"
+assert_eq "pr paging: a failed page proves nothing" "no" "$(col "$(row "$OUT" "wt-many-1")" $C_LANDED)"
+assert_contains "pr paging: the failed page is named" \
+  "$(col "$(row "$OUT" "wt-many-1")" $C_REASON)" "merged-pr-read-failed:gh-pr-list (gh stub: page failed)"
 
 for BAD_LIMIT in 0 x; do
   bash "$ENGINE" --repo-dir "$W" --merged-pr-limit "$BAD_LIMIT" >/dev/null 2>&1

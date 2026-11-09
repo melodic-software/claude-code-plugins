@@ -30,6 +30,11 @@ error() {
   exit 1
 }
 
+default_label() {
+  printf '%s\n' "$DEFAULT_LABEL"
+  exit 0
+}
+
 root=""
 while (($#)); do
   case "$1" in
@@ -54,28 +59,18 @@ done
 if [[ -z "$root" ]]; then
   root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}"
 fi
-if [[ -z "$root" || ! -d "$root" ]]; then
-  printf '%s\n' "$DEFAULT_LABEL"
-  exit 0
-fi
+[[ -n "$root" && -d "$root" ]] || default_label
 
 home="$(bash "$RESOLVER" --root "$root" 2>/dev/null)"
 case "$?" in
 0) ;;
 1) home="$DEFAULT_HOME" ;;
 3) error "the convention-home pointer in $root is broken; run: bash \"$RESOLVER\" --root \"$root\" --explain" ;;
-*)
-  # A declined home, or a root no home applies to: no work-items.yaml binds it.
-  printf '%s\n' "$DEFAULT_LABEL"
-  exit 0
-  ;;
+*) default_label ;; # a declined home, or a root no home applies to: no work-items.yaml binds it
 esac
 
 yaml="$root/$home/work-items.yaml"
-if [[ ! -f "$yaml" ]]; then
-  printf '%s\n' "$DEFAULT_LABEL"
-  exit 0
-fi
+[[ -f "$yaml" ]] || default_label
 
 # The parser prints nothing for an empty flow sequence, so mark one in a value position
 # as a scalar no YAML file can hold, as the seam's reader does, and reject it below.

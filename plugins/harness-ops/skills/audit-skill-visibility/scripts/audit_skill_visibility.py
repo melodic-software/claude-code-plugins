@@ -499,6 +499,11 @@ def _read_text(path: str) -> str | None:
         return None
 
 
+def _read_frontmatter(path: str, parse=parse_frontmatter) -> dict:
+    text = _read_text(path)
+    return {"_malformed": True} if text is None else parse(text)
+
+
 def _plugin_listing_files(plugin_root: str) -> list[tuple[str, str, str, dict]]:
     """Every file a plugin contributes to the skill listing, as (kind, leaf,
     path, frontmatter).
@@ -512,22 +517,13 @@ def _plugin_listing_files(plugin_root: str) -> list[tuple[str, str, str, dict]]:
         for leaf in sorted(os.listdir(skills_dir)):
             path = os.path.join(skills_dir, leaf, "SKILL.md")
             if os.path.isfile(path):
-                text = _read_text(path)
-                frontmatter = (
-                    {"_malformed": True} if text is None else parse_frontmatter(text)
-                )
-                found.append(("skill", leaf, path, frontmatter))
+                found.append(("skill", leaf, path, _read_frontmatter(path)))
     commands_dir = os.path.join(plugin_root, "commands")
     if os.path.isdir(commands_dir):
         for name in sorted(os.listdir(commands_dir)):
             path = os.path.join(commands_dir, name)
             if name.endswith(".md") and os.path.isfile(path):
-                text = _read_text(path)
-                frontmatter = (
-                    {"_malformed": True}
-                    if text is None
-                    else parse_command_frontmatter(text)
-                )
+                frontmatter = _read_frontmatter(path, parse_command_frontmatter)
                 found.append(("command", name[: -len(".md")], path, frontmatter))
     workflows_dir = os.path.join(plugin_root, "workflows")
     if os.path.isdir(workflows_dir):
@@ -563,8 +559,7 @@ def collect_local_skills(
         path = os.path.join(skills_dir, leaf, "SKILL.md")
         if not os.path.isfile(path):
             continue
-        text = _read_text(path)
-        frontmatter = {"_malformed": True} if text is None else parse_frontmatter(text)
+        frontmatter = _read_frontmatter(path)
         configured = frontmatter.get("name")
         name = (
             configured
@@ -761,6 +756,13 @@ def _scope_rank(scope: str) -> int:
         return len(SCOPE_PRECEDENCE)
 
 
+def _scope_version(install: dict) -> dict:
+    return {
+        "scope": install.get("scope", "unknown"),
+        "version": install.get("version", ""),
+    }
+
+
 def _install_applies(entry: dict, current_project: str | None) -> bool:
     """Can this install record load for the project being audited?
 
@@ -880,17 +882,8 @@ def resolve_installed(
                 {
                     "plugin": name,
                     "marketplace": market,
-                    "winner": {
-                        "scope": winner.get("scope", "unknown"),
-                        "version": winner.get("version", ""),
-                    },
-                    "superseded": [
-                        {
-                            "scope": e.get("scope", "unknown"),
-                            "version": e.get("version", ""),
-                        }
-                        for e in losers
-                    ],
+                    "winner": _scope_version(winner),
+                    "superseded": [_scope_version(e) for e in losers],
                 }
             )
 
@@ -1526,17 +1519,6 @@ def _read_settings_file(path: str) -> tuple[str, dict | None, str | None]:
     return "read", blob, None
 
 
-def _settings_layer(scope: str, path: str) -> dict:
-    status, settings, note = _read_settings_file(path)
-    return {
-        "scope": scope,
-        "path": path,
-        "status": status,
-        "settings": settings,
-        "note": note,
-    }
-
-
 def _stub_layer(scope: str, path: str | None, status: str, note: str | None) -> dict:
     """A scope that carries no settings, only the reason it carries none."""
     return {
@@ -1546,6 +1528,11 @@ def _stub_layer(scope: str, path: str | None, status: str, note: str | None) -> 
         "settings": None,
         "note": note,
     }
+
+
+def _settings_layer(scope: str, path: str) -> dict:
+    status, settings, note = _read_settings_file(path)
+    return _stub_layer(scope, path, status, note) | {"settings": settings}
 
 
 # The bash shim the managed-scope enumeration runs. `$1` is the vendored
@@ -1734,25 +1721,22 @@ def resolve_windows(pin: int | None, env: Mapping[str, str]) -> dict:
     disable_1m = env.get("CLAUDE_CODE_DISABLE_1M_CONTEXT")
 
     max_tokens_value: int | None = None
-    if max_tokens is not None:
-        if not _env_truthy(disable_compact):
-            effect = "ignored: honored only when DISABLE_COMPACT is also set"
-        elif not max_tokens.strip().isdigit() or int(max_tokens) <= 0:
-            effect = "ignored: not a positive integer"
-        else:
-            max_tokens_value = int(max_tokens)
-            effect = f"window {max_tokens_value:,}"
-        consulted.append(
-            {
-                "name": "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
-                "value": max_tokens,
-                "effect": effect,
-            }
-        )
+    if max_tokens is None:
+        effect = "unset"
+    elif not _env_truthy(disable_compact):
+        effect = "ignored: honored only when DISABLE_COMPACT is also set"
+    elif not max_tokens.strip().isdigit() or int(max_tokens) <= 0:
+        effect = "ignored: not a positive integer"
     else:
-        consulted.append(
-            {"name": "CLAUDE_CODE_MAX_CONTEXT_TOKENS", "value": None, "effect": "unset"}
-        )
+        max_tokens_value = int(max_tokens)
+        effect = f"window {max_tokens_value:,}"
+    consulted.append(
+        {
+            "name": "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
+            "value": max_tokens,
+            "effect": effect,
+        }
+    )
     if disable_compact is not None:
         consulted.append(
             {
@@ -1761,53 +1745,38 @@ def resolve_windows(pin: int | None, env: Mapping[str, str]) -> dict:
                 "effect": "set" if _env_truthy(disable_compact) else "not truthy",
             }
         )
-    if disable_1m is not None:
-        consulted.append(
-            {
-                "name": "CLAUDE_CODE_DISABLE_1M_CONTEXT",
-                "value": disable_1m,
-                "effect": (
-                    "window 200,000"
-                    if _env_truthy(disable_1m)
-                    else "not truthy: no effect"
-                ),
-            }
-        )
+    if disable_1m is None:
+        effect = "unset"
+    elif _env_truthy(disable_1m):
+        effect = "window 200,000"
     else:
-        consulted.append(
-            {"name": "CLAUDE_CODE_DISABLE_1M_CONTEXT", "value": None, "effect": "unset"}
-        )
+        effect = "not truthy: no effect"
+    consulted.append(
+        {
+            "name": "CLAUDE_CODE_DISABLE_1M_CONTEXT",
+            "value": disable_1m,
+            "effect": effect,
+        }
+    )
 
+    windows: tuple[int, ...]
     if pin is not None:
         for row in consulted:
             if row["effect"].startswith("window"):
                 row["effect"] += " (not applied: --context-window pinned)"
-        return {"windows": (pin,), "basis": "pin:--context-window", "env": consulted}
-    if max_tokens_value is not None:
-        return {
-            "windows": (max_tokens_value,),
-            "basis": "env:CLAUDE_CODE_MAX_CONTEXT_TOKENS",
-            "env": consulted,
-        }
-    if _env_truthy(disable_1m):
-        return {
-            "windows": (200_000,),
-            "basis": "env:CLAUDE_CODE_DISABLE_1M_CONTEXT",
-            "env": consulted,
-        }
-    return {
-        "windows": WINDOW_BAND,
-        "basis": "band: the window is per model and the model is not resolved from disk",
-        "env": consulted,
-    }
+        windows, basis = (pin,), "pin:--context-window"
+    elif max_tokens_value is not None:
+        windows, basis = (max_tokens_value,), "env:CLAUDE_CODE_MAX_CONTEXT_TOKENS"
+    elif _env_truthy(disable_1m):
+        windows, basis = (200_000,), "env:CLAUDE_CODE_DISABLE_1M_CONTEXT"
+    else:
+        windows = WINDOW_BAND
+        basis = "band: the window is per model and the model is not resolved from disk"
+    return {"windows": windows, "basis": basis, "env": consulted}
 
 
 def _window_label(window: int) -> str:
-    if window == 200_000:
-        return "200k"
-    if window == 1_000_000:
-        return "1M"
-    return f"{window:,}"
+    return {200_000: "200k", 1_000_000: "1M"}.get(window, f"{window:,}")
 
 
 def band_label(window: int, bytes_per_token: int) -> str:

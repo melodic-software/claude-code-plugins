@@ -189,6 +189,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/mcp-tools:audit-posture`](../plugins/mcp-tools/skills/audit-posture/SKILL.md) | `mcp-tools` | Inventory configured MCP servers and flag floating versions and other supply-chain risks |
 | [`/plugin-quality:audit`](../plugins/plugin-quality/skills/audit/SKILL.md) | `plugin-quality` | Behavioral audit of a plugin component ending in a maintainer work item |
 | [`/review:code-review`](../plugins/review/skills/code-review/SKILL.md) | `review` | Org CI code-review lane command for a GitHub pull request |
+| [`/review:council`](../plugins/review/skills/council/SKILL.md) | `review` | Configurable reviewer panel chosen per change, with optional fix rounds |
 | [`/review:explain-change`](../plugins/review/skills/explain-change/SKILL.md) | `review` | Change digest for a pull request, markdown record plus an interactive view |
 | [`/review:fanout`](../plugins/review/skills/fanout/SKILL.md) | `review` | Fan review out across every reviewer surface into one ranked report |
 | [`/review:merge-risk`](../plugins/review/skills/merge-risk/SKILL.md) | `review` | Checked merge-risk rating of one pull request with a demote-only flag |

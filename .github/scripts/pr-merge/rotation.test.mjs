@@ -382,6 +382,23 @@ test("ghDownloadArtifact fetches an artifact by id with one counted API request 
   }
 });
 
+test("ghDownloadArtifact reads an archive member larger than execFileSync's 1 MiB default maxBuffer", () => {
+  const run = tempDir("rotation-large-archive-");
+  try {
+    const text = `{"blob":"${"abcdefgh".repeat(256 * 1024)}"}`;
+    assert.ok(text.length > 2 * 1024 * 1024, "the member is over 2 MiB, twice Node's 1 MiB default");
+    const archive = join(run, "fixture.zip");
+    writeFileSync(archive, storedZip("cache.json", text));
+    const bin = fakeGhArchive(run, archive);
+    const env = { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: run, TMPDIR: run, API_BUDGET_TOKEN: "github-token" };
+    const download = ghDownloadArtifact({ repo: "o/r", token: "t", dir: run, name: "pr-merge-run-cache", file: "cache.json", env });
+    assert.equal(download(11) === text, true, "the large member round-trips byte for byte");
+    assert.equal(download(11) === text, true, "a second read of the same artifact extracts again without error");
+  } finally {
+    rmSync(run, { recursive: true, force: true });
+  }
+});
+
 // A reader's artifact listing saved in the shared reads (artifactsNamed) names
 // the artifact, so ghDownload fetches it by id, one request where gh run
 // download sends two (the listing and the archive), with the same text.

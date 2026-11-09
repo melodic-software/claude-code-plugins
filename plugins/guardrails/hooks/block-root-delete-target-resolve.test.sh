@@ -146,11 +146,16 @@ else
 fi
 unset RDT_T_VAR
 
-# Many calls leak no descriptor.
-fds_before=$(compgen -G "/proc/$$/fd/*" | wc -l)
-for ((i = 0; i < 20; i++)); do rdt_bounded_to got 10 "$SHIMS/showenv"; done
-fds_after=$(compgen -G "/proc/$$/fd/*" | wc -l)
-if ((fds_after <= fds_before)); then ok 'no descriptor leaks'; else no 'no descriptor leaks' "$fds_before -> $fds_after"; fi
+# Many calls leak no descriptor into their caller. A subshell compares its own
+# descriptor table, which only its calls change, so a process substitution of an
+# earlier case closing late in this shell cannot show up.
+leak=$(
+  before=(/proc/$BASHPID/fd/*)
+  for ((i = 0; i < 20; i++)); do rdt_bounded_to got 10 "$SHIMS/showenv"; done
+  after=(/proc/$BASHPID/fd/*)
+  if [[ "${before[*]}" == "${after[*]}" ]]; then echo same; else echo "${#before[@]} -> ${#after[@]} descriptors"; fi
+)
+if [[ "$leak" == same ]]; then ok 'no descriptor leaks'; else no 'no descriptor leaks' "$leak"; fi
 
 # --- The guard refuses when a resolver outlives the time left --------------
 unset CLAUDE_CODE_SESSION_ATTENDED GUARDRAILS_SESSION_UNWATCHED GIT_DIR GIT_WORK_TREE GIT_CONFIG

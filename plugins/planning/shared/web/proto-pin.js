@@ -61,7 +61,7 @@
   /** Where a note sits: its element's top-left when the path still finds it, else its stored box. */
   function placeOf(p) {
     let el = null;
-    try { el = document.querySelector(p.selector); } catch { el = null; }
+    try { el = document.querySelector(p.selector); } catch { /* not a selector: the stored box */ }
     if (el) { const b = el.getBoundingClientRect(); return { el, x: b.left + scrollX, y: b.top + scrollY }; }
     const page = box();
     return { el: null, x: (p.rect.x / 100) * page.w, y: (p.rect.y / 100) * page.h };
@@ -79,15 +79,15 @@
   }
 
   const over = e => { if (!mode || skip(e.target)) return; hover = pathOf(e.target).el; draw(); };
+  const stop = e => { if (mode) { e.preventDefault(); e.stopImmediatePropagation(); } };
   function pick(e) {
     if (!mode) return;
-    e.preventDefault(); e.stopImmediatePropagation();
+    stop(e);
     if (skip(e.target)) return;
     const { path, el } = pathOf(e.target);
     if (!path) return;
     post({ type: "pinned", selector: path, rect: rectOf(el), label: label(el) });
   }
-  const stop = e => { if (mode) { e.preventDefault(); e.stopImmediatePropagation(); } };
   addEventListener("pointermove", over, true);
   addEventListener("click", pick, true);
   for (const t of ["pointerdown", "mousedown", "mouseup", "submit", "auxclick", "dblclick"]) addEventListener(t, stop, true);
@@ -103,9 +103,9 @@
     else if (m.type === "focus") {
       const p = pins.find(x => x.n === m.n);
       if (!p) return;
-      const at = placeOf(p), reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-      if (at.el) at.el.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
-      else scrollTo({ top: Math.max(0, at.y - innerHeight / 3), behavior: reduce ? "auto" : "smooth" });
+      const at = placeOf(p), behavior = matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+      if (at.el) at.el.scrollIntoView({ block: "center", behavior });
+      else scrollTo({ top: Math.max(0, at.y - innerHeight / 3), behavior });
     }
   });
   post({ type: "ready" });

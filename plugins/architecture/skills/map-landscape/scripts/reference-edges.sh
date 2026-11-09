@@ -136,43 +136,30 @@ fi
 # Owner
 # ---------------------------------------------------------------------------
 
-origin_path() {
-  local url
-  url="$(git -C "$repo" remote get-url origin 2>/dev/null)" || return 1
-  github_remote_path "$url"
-}
+origin="$(git -C "$repo" remote get-url origin 2>/dev/null)" || origin=""
+origin="$(github_remote_path "$origin")" || origin=""
 
 # The owner segment of a github.com remote. Only github.com is read here: this
 # owner decides which BARE `owner/repo` tokens are trusted, and trusting a bare
 # token on a host whose path shape we have not verified is how fixture names
 # become systems.
-remote_owner_segment() {
-  local path
-  path="$(origin_path)" || return 1
-  case "$path" in
-  */*) printf '%s' "${path%%/*}" ;;
-  *) return 1 ;;
-  esac
-}
-
 owner="$owner_override"
-[[ -n "$owner" ]] || owner="$(remote_owner_segment)" || owner=""
+if [[ -z "$owner" && "$origin" == */* ]]; then
+  owner="${origin%%/*}"
+fi
 
 # The `owner/repo` slug of a github.com origin remote. A worktree or a renamed
 # clone sits in a directory whose name is not the repository's, so the
 # directory basename alone would read the repository's own citations as an
 # edge to a second system. The slug is the remote's own, independent of
 # --owner, which moves the subject organization but not what this clone is.
-remote_slug() {
-  local path o r
-  path="$(origin_path)" || return 1
-  o="${path%%/*}"
-  r="${path#*/}"
-  r="${r%%/*}"
-  [[ -n "$o" && -n "$r" && "$o" != "$path" ]] || return 1
-  printf '%s/%s' "$o" "$r"
-}
-self_slug="$(remote_slug)" || self_slug=""
+self_slug=""
+origin_owner="${origin%%/*}"
+origin_repo="${origin#*/}"
+origin_repo="${origin_repo%%/*}"
+if [[ -n "$origin_owner" && -n "$origin_repo" && "$origin_owner" != "$origin" ]]; then
+  self_slug="$origin_owner/$origin_repo"
+fi
 
 # Prefer the github.com repository name as the subject identity when origin
 # resolves (#4554). Edge `from` and portfolio `name` must agree across checkouts.

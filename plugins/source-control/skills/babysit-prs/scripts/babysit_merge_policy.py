@@ -2072,7 +2072,11 @@ class _GreenMain:
         self.local: Any = None
 
     def _read(self, endpoint: str) -> Any:
+        """One retry for no answer (a timeout included) or a 5xx; 403 and 429
+        belong to babysit_gh's rate guard and are never retried."""
         status, answer = _get(endpoint)
+        if status is None or status >= 500:
+            status, answer = _get(endpoint)
         if status != 200:
             raise PolicyReadError(f"{endpoint}: {status}")
         return answer
@@ -2601,7 +2605,12 @@ def read_demotion(
                     recovered = _recovered_at(issue, human, green, clock)
                     if recovered is None:
                         recovered = _lifted_at(issue, human, green, agent_identity)
-                except PolicyReadError:
+                except PolicyReadError as exc:
+                    # Still fail-closed: the record holds.
+                    print(
+                        f"::warning::demotion #{number}: recovery read failed: {exc}",
+                        file=sys.stderr,
+                    )
                     recovered = None
             if hold and recovered is None:
                 if held is None:

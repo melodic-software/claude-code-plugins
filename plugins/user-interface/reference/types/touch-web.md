@@ -149,9 +149,9 @@ feedback driven by `click` instead of `:active` or `pointerdown`.
 
 A finger pad covers about 44px. A 24px icon button with a 24px hit area gets mistapped, and the
 user blames themselves, then the app. The visual can stay small; the hit area can't. Interactive
-elements need `44×44px` hit areas for touch/mobile, at least `40×40px` on desktop. Extend small
-controls with a pseudo-element, or give the control a minimum width and height. Recipe:
-`hit-area-larger-than-the-visual`.
+elements need `44×44px` hit areas for touch/mobile, at least `touch.target_desktop_px` square on
+desktop. Extend small controls with a pseudo-element, or give the control a minimum width and
+height. Recipe: `hit-area-larger-than-the-visual`.
 
 Two hit areas must never overlap. If an extended area collides with a neighbor, shrink both to the
 largest non-colliding size, or add spacing.
@@ -258,10 +258,10 @@ meta tag has no `interactive-widget=resizes-content`.
 field and over the home indicator. Pad the scroll container by the CTA's height plus the safe area,
 so the final input can scroll clear of it, and pad the CTA itself with
 `env(safe-area-inset-bottom)` (section 5). The same goes for cookie banners and chat widgets: check
-what they sit on top of at 375px wide. Recipe: `content-clear-of-the-notch`.
+what they sit on top of at `touch.check_width_px` wide. Recipe: `content-clear-of-the-notch`.
 
 **Audit: Important.** A fixed bottom CTA, cookie banner or chat widget that covers the last form
-field or the home indicator at 375px wide.
+field or the home indicator at `touch.check_width_px` wide.
 
 ## 5. Viewport, safe areas and anchors
 
@@ -427,11 +427,11 @@ scrollbar. Fix the element that overflows. `overflow-x: hidden` on `body` hides 
 breaks `position: sticky`. Recipe: `nothing-wider-than-the-viewport`; long text in a card is the
 `layout-stability` concern's recipe `long-text-that-wraps-truncates-or-clamps`.
 
-Hunt for: `width: 100vw` / `w-screen`; fixed pixel widths over ~340px; `<table>` and `<pre>` with no
-scrolling wrapper; user-generated strings with no `overflow-wrap`.
+Hunt for: `width: 100vw` / `w-screen`; fixed pixel widths over `touch.fixed_width_hunt_px`;
+`<table>` and `<pre>` with no scrolling wrapper; user-generated strings with no `overflow-wrap`.
 
-**Audit: Important.** A page that scrolls sideways at 375px wide, or `overflow-x: hidden` on `body`
-covering an element that overflows.
+**Audit: Important.** A page that scrolls sideways at `touch.check_width_px` wide, or
+`overflow-x: hidden` on `body` covering an element that overflows.
 
 **Fades on scrollers.** A fade on content that scrolls is allowed only on the four terms of recipe
 `styles-that-apply-only-when-a-scroller-overflows`, which holds the rule and its code.

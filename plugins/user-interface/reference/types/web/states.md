@@ -132,17 +132,17 @@ left in production.
 **Audit: Important.** An error state that renders a raw exception message, response body or stack
 trace.
 
-## 4. Every wait over 400ms has an indicator
+## 4. Every wait over `states.wait_indicator_ms` has an indicator
 
-Silence past 400ms reads as broken. The user clicks again or leaves. Keeping that second click from
-firing the request twice is the `forms` concern.
+Silence past `states.wait_indicator_ms` reads as broken. The user clicks again or leaves. Keeping
+that second click from firing the request twice is the `forms` concern.
 
 **Hunt for:** data hooks whose `isLoading` / `isPending` is never read; route segments with no
 `loading.tsx` or `<Suspense fallback>`; buttons that start async work with no pending state;
 `fallback={null}`.
 
 The opposite is also a finding: a spinner that flashes for 80ms on a fast response. Delay the
-indicator ~150ms so fast responses never show it.
+indicator by `animation.delay_ms.indicator` so fast responses never show it.
 
 - **Pointer**: Next.js, `loading.js` file convention, "Instant Loading States",
   <https://nextjs.org/docs/app/api-reference/file-conventions/loading#instant-loading-states>;
@@ -151,8 +151,8 @@ indicator ~150ms so fast responses never show it.
 - **Recheck trigger**: Next.js renames the `loading` file convention, or React renames the
   `fallback` prop of `<Suspense>`.
 
-**Audit: Important.** A wait over 400ms with no indicator, or an indicator that flashes on a fast
-response because nothing delays it.
+**Audit: Important.** A wait over `states.wait_indicator_ms` with no indicator, or an indicator
+that flashes on a fast response because nothing delays it.
 
 ## 5. Loading states hold the page's shape
 
@@ -213,8 +213,8 @@ without telling the user.
 
 ## 7. Copy actions confirm
 
-Copy-to-clipboard buttons must confirm: swap to a checkmark for ~1.5s. Without feedback, users
-click three more times to check it worked.
+Copy-to-clipboard buttons must confirm: swap to a checkmark for `states.copy_confirm_ms`. Without
+feedback, users click three more times to check it worked.
 
 **Audit: Suggestion.** A copy-to-clipboard button with no confirmation.
 
@@ -248,8 +248,8 @@ interactive; a code input that moves focus on its own; a slider that updates onl
 
 ## 9. Toast duration scales with content
 
-Toast duration scales with content: compute it from word count (~200–250 wpm reading speed) instead
-of a flat 2s for every message.
+Toast duration scales with content: compute it from word count at a reading speed in the
+`states.toast_reading_wpm` range instead of a flat 2s for every message.
 
 **Audit: Suggestion.** One flat duration for every toast, whatever its length.
 

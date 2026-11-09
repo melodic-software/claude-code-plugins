@@ -2,8 +2,8 @@
 # replicas, ports, network and Ingress nodes, parameter presence, plain
 # parameter values, and secret parameters. A reader fills the global arrays
 # image[env,container], replica_of[env,container] ("undeclared" is never
-# compared), node_seen[env,kind,name] (kind
-# network or ingress, value the node detail), placed[env,container], portjoin[env,container],
+# compared), node_seen[env,kind,name] (kind network or ingress, value the node
+# detail), placed[env,container], portjoin[env,container],
 # param_seen[env,container,name], plain_val[...] and secret_val[...] (same key
 # as param_seen), and defines jesc() and the diffs output file. A secret value
 # is compared here and never printed.
@@ -29,15 +29,17 @@ function emit_diff(change, a, b, tool, c, detail) {
   printf "{\"change\":\"%s\",\"left\":\"%s\",\"right\":\"%s\",\"tool\":\"%s\",\"container\":\"%s\",\"detail\":\"%s\"}\n", \
     change, jesc(a), jesc(b), tool, jesc(c), jesc(detail) >> diffs
 }
-function container_diffs(a, b, tool,    sk, sp, c, ra, rb) {
+function container_diffs(a, b, tool,    sk, sp, c, ia, ib, ra, rb) {
   for (sk in image) {
     split(sk, sp, SUBSEP)
     c = sp[2]
-    if ((a SUBSEP c) in image && !((b SUBSEP c) in image))
+    ia = (a SUBSEP c) in image
+    ib = (b SUBSEP c) in image
+    if (ia && !ib)
       emit_diff("removed", a, b, tool, c, "present only in " a)
-    else if ((b SUBSEP c) in image && !((a SUBSEP c) in image))
+    else if (ib && !ia)
       emit_diff("added", a, b, tool, c, "present only in " b)
-    else if ((a SUBSEP c) in image && (b SUBSEP c) in image && image[a SUBSEP c] != image[b SUBSEP c])
+    else if (ia && ib && image[a SUBSEP c] != image[b SUBSEP c])
       emit_diff("image", a, b, tool, c, image[a SUBSEP c] " -> " image[b SUBSEP c])
   }
   for (sk in replica_of) {

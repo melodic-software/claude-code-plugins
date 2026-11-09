@@ -26,6 +26,7 @@ library only.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import shutil
@@ -107,10 +108,10 @@ def states(trace: list[dict]) -> tuple[str, list[str], dict[str, str]]:
             found[name] = "no-result"
         else:
             is_error, text = results[use_id]
-            if is_error and DENIAL_TEXT in text.lower():
-                found[name] = "denied"
+            if not is_error:
+                found[name] = "ran"
             else:
-                found[name] = "refused" if is_error else "ran"
+                found[name] = "denied" if DENIAL_TEXT in text.lower() else "refused"
     return version, offered, found
 
 
@@ -140,10 +141,8 @@ def remove_tree(path: Path) -> None:
             child = os.path.join(top, name)
             if os.path.islink(child):
                 continue  # never change a link's target outside the tree
-            try:
+            with contextlib.suppress(OSError):
                 os.chmod(child, 0o700)
-            except OSError:
-                pass
     shutil.rmtree(path, ignore_errors=True)
 
 

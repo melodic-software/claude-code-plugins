@@ -30,6 +30,10 @@ function allLessons(course) {
   return course.modules?.flatMap((m) => m.lessons) ?? [];
 }
 
+function lessonDirOf(modulesDir, mod, lesson) {
+  return join(modulesDir, mod.slug, lessonDirName(lesson.position, lesson.title));
+}
+
 /**
  * Validate course-level metadata completeness.
  * @param {import('./types.js').Course} course — parsed course.json
@@ -95,8 +99,7 @@ export function checkTranscripts(course, modulesDir) {
     for (const lesson of mod.lessons) {
       if (lesson.status !== "extracted") continue;
 
-      const lessonDir = join(modulesDir, mod.slug, lessonDirName(lesson.position, lesson.title));
-      const transcriptPath = join(lessonDir, "transcript.md");
+      const transcriptPath = join(lessonDirOf(modulesDir, mod, lesson), "transcript.md");
       const label = formatLessonLabel(mod, lesson);
 
       if (!existsSync(transcriptPath)) {
@@ -188,22 +191,18 @@ export function checkSchema(course) {
       }
     }
 
-    const inconsistent = [];
-    for (const [key, present] of presentCounts) {
-      if (present < lessons.length) {
-        inconsistent.push({ field: key, present, total: lessons.length });
-      }
-    }
-
-    if (inconsistent.length > 0) {
-      results.push(
-        check(false, WARN, "schema.consistency", {
-          inconsistentFields: inconsistent,
-        }),
-      );
-    } else {
-      results.push(check(true, PASS, "schema.consistency", {}));
-    }
+    const inconsistent = [...presentCounts]
+      .filter(([, present]) => present < lessons.length)
+      .map(([field, present]) => ({ field, present, total: lessons.length }));
+    const consistent = inconsistent.length === 0;
+    results.push(
+      check(
+        consistent,
+        consistent ? PASS : WARN,
+        "schema.consistency",
+        consistent ? {} : { inconsistentFields: inconsistent },
+      ),
+    );
   }
 
   for (const field of DEPRECATED_LESSON_FIELDS) {
@@ -233,7 +232,7 @@ export function checkResourceFlags(course, modulesDir) {
 
   for (const mod of course.modules ?? []) {
     for (const lesson of mod.lessons) {
-      const lessonDir = join(modulesDir, mod.slug, lessonDirName(lesson.position, lesson.title));
+      const lessonDir = lessonDirOf(modulesDir, mod, lesson);
       const label = formatLessonLabel(mod, lesson);
 
       if (lesson.hasTranscript && !existsSync(join(lessonDir, "transcript.md"))) {

@@ -47,23 +47,22 @@ try {
 # An entry that does not resolve, or a state base that is unusable, makes
 # the state unverifiable: exit 6 with no approval route (fail closed).
 # Structured PSSA_TRUST lines on stdout hand the verdict to the shell.
-$sd = $null
+function exitTrust([string]$verdict) {
+    Write-Output "PSSA_TRUST $verdict"
+    exit 6
+}
 try {
     $sd = Import-PowerShellDataFile -LiteralPath $env:PSSA_SETTINGS -ErrorAction Stop
 } catch {
     $sd = $null
 }
-if (-not ($sd -is [hashtable])) {
-    Write-Output "PSSA_TRUST UNVERIFIABLE"
-    exit 6
-}
+if (-not ($sd -is [hashtable])) { exitTrust UNVERIFIABLE }
+$settingsDir = Split-Path -Parent $env:PSSA_SETTINGS
 if ($sd.ContainsKey("CustomRulePath")) {
-    $settingsDir = Split-Path -Parent $env:PSSA_SETTINGS
     $ruleFiles = [System.Collections.Generic.List[string]]::new()
-    $unverifiable = $false
     foreach ($entry in @($sd["CustomRulePath"])) {
         if (-not ($entry -is [string]) -or [string]::IsNullOrWhiteSpace($entry)) {
-            $unverifiable = $true; break
+            exitTrust UNVERIFIABLE
         }
         $resolvedPath = $entry
         if (-not [System.IO.Path]::IsPathRooted($resolvedPath)) {
@@ -76,13 +75,10 @@ if ($sd.ContainsKey("CustomRulePath")) {
                 $ruleFiles.Add($f.FullName)
             }
         } else {
-            $unverifiable = $true; break
+            exitTrust UNVERIFIABLE
         }
     }
-    if ($unverifiable -or $ruleFiles.Count -gt 512) {
-        Write-Output "PSSA_TRUST UNVERIFIABLE"
-        exit 6
-    }
+    if ($ruleFiles.Count -gt 512) { exitTrust UNVERIFIABLE }
     # Transitive code-loading inputs: a declared leaf module may dot-source
     # or Import-Module further repository files, and those execute with it,
     # so they must be pinned too. Enumerating PowerShell resolution exactly
@@ -115,6 +111,25 @@ if ($sd.ContainsKey("CustomRulePath")) {
             "(?i)\`$(?:\{PSCommandPath\}|PSCommandPath(?![A-Za-z0-9_:]))",
             $commandPath.Replace("`$", "`$`$"))
     }
+    # Named code-loading commands. The dot-source and call-operator
+    # forms need no name match: InvocationOperator identifies them,
+    # and their element 0 IS the target, so it is checked too.
+    $loaders = @("Import-Module", "ipmo", "Add-Type", "New-Module",
+        "Import-PowerShellDataFile", "Invoke-Command", "Start-Job")
+    # Invoke-Expression is its own case: its argument is CODE, not a
+    # path, so even a constant string cannot be pinned - the code it
+    # evaluates may itself load a file this scan never sees, a
+    # dot-source spelled inside the evaluated text. Listing it as a
+    # loader pins the code STRING as if it named a file, so
+    # `Invoke-Expression 'Import-Module ./evil.psm1'` reads as pinned
+    # while the load it really performs is never seen. Binding it
+    # would mean recursively parsing evaluated text, so the state is
+    # refused instead. A linter rule has no reason to evaluate text.
+    $evaluators = @("Invoke-Expression", "iex")
+    # The `using` kinds that load repository code (see the using pass below).
+    $loadKinds = @(
+        [System.Management.Automation.Language.UsingStatementKind]::Module,
+        [System.Management.Automation.Language.UsingStatementKind]::Assembly)
     $seen = [System.Collections.Generic.HashSet[string]]::new(
         [System.StringComparer]::OrdinalIgnoreCase)
     $allFiles = [System.Collections.Generic.List[string]]::new()
@@ -126,15 +141,9 @@ if ($sd.ContainsKey("CustomRulePath")) {
     while ($scanQueue.Count -gt 0) {
         $cur = $scanQueue.Dequeue()
         $scanned++
-        if ($scanned -gt 256 -or $allFiles.Count -gt 512) {
-            Write-Output "PSSA_TRUST UNVERIFIABLE"
-            exit 6
-        }
+        if ($scanned -gt 256 -or $allFiles.Count -gt 512) { exitTrust UNVERIFIABLE }
         $curDir = Split-Path -Parent $cur
-        try { $text = [System.IO.File]::ReadAllText($cur) } catch {
-            Write-Output "PSSA_TRUST UNVERIFIABLE"
-            exit 6
-        }
+        try { $text = [System.IO.File]::ReadAllText($cur) } catch { exitTrust UNVERIFIABLE }
         # Candidate paths to resolve for this file: every load target the
         # parser reports plus every quoted literal the text scan finds.
         $pending = [System.Collections.Generic.List[string]]::new()
@@ -164,24 +173,8 @@ if ($sd.ContainsKey("CustomRulePath")) {
             $fileAst = [System.Management.Automation.Language.Parser]::ParseInput(
                 $text, [ref]$null, [ref]$perrs)
             if ($null -eq $fileAst -or ($null -ne $perrs -and $perrs.Count -gt 0)) {
-                Write-Output "PSSA_TRUST UNVERIFIABLE"
-                exit 6
+                exitTrust UNVERIFIABLE
             }
-            # Named code-loading commands. The dot-source and call-operator
-            # forms need no name match: InvocationOperator identifies them,
-            # and their element 0 IS the target, so it is checked too.
-            $loaders = @("Import-Module", "ipmo", "Add-Type", "New-Module",
-                "Import-PowerShellDataFile", "Invoke-Command", "Start-Job")
-            # Invoke-Expression is its own case: its argument is CODE, not a
-            # path, so even a constant string cannot be pinned - the code it
-            # evaluates may itself load a file this scan never sees, a
-            # dot-source spelled inside the evaluated text. Listing it as a
-            # loader pins the code STRING as if it named a file, so
-            # `Invoke-Expression 'Import-Module ./evil.psm1'` reads as pinned
-            # while the load it really performs is never seen. Binding it
-            # would mean recursively parsing evaluated text, so the state is
-            # refused instead. A linter rule has no reason to evaluate text.
-            $evaluators = @("Invoke-Expression", "iex")
             $cmdAsts = $fileAst.FindAll({
                     param($n) $n -is [System.Management.Automation.Language.CommandAst]
                 }, $true)
@@ -197,10 +190,7 @@ if ($sd.ContainsKey("CustomRulePath")) {
                 if (-not [string]::IsNullOrEmpty($bareName)) {
                     $bareName = ($bareName -split "[\\/]")[-1]
                 }
-                if ($evaluators -contains $bareName) {
-                    Write-Output "PSSA_TRUST UNPINNABLE"
-                    exit 6
-                }
+                if ($evaluators -contains $bareName) { exitTrust UNPINNABLE }
                 $isLoad = $cmdAst.InvocationOperator -ne
                     [System.Management.Automation.Language.TokenKind]::Unknown
                 if (-not $isLoad) {
@@ -216,12 +206,10 @@ if ($sd.ContainsKey("CustomRulePath")) {
                 # Get-ChildItem *.psm1 | Import-Module has the same shape.
                 # Anything but the first element of its own pipeline is
                 # refused.
-                if ($null -ne $cmdAst.Parent -and
-                    $cmdAst.Parent -is [System.Management.Automation.Language.PipelineAst] -and
+                if ($cmdAst.Parent -is [System.Management.Automation.Language.PipelineAst] -and
                     $cmdAst.Parent.PipelineElements.Count -gt 1 -and
                     -not [object]::ReferenceEquals($cmdAst.Parent.PipelineElements[0], $cmdAst)) {
-                    Write-Output "PSSA_TRUST UNPINNABLE"
-                    exit 6
+                    exitTrust UNPINNABLE
                 }
                 foreach ($el in $cmdAst.CommandElements) {
                     if ($el -is [System.Management.Automation.Language.CommandParameterAst]) { continue }
@@ -240,8 +228,7 @@ if ($sd.ContainsKey("CustomRulePath")) {
                             continue
                         }
                     }
-                    Write-Output "PSSA_TRUST UNPINNABLE"
-                    exit 6
+                    exitTrust UNPINNABLE
                 }
             }
             # `using module ./deps/helper.psm1` and `using assembly
@@ -252,9 +239,6 @@ if ($sd.ContainsKey("CustomRulePath")) {
             # no repository file and are left alone. The path must be a
             # constant (PowerShell requires one), so a hashtable module
             # specification cannot be pinned and refuses approval.
-            $loadKinds = @(
-                [System.Management.Automation.Language.UsingStatementKind]::Module,
-                [System.Management.Automation.Language.UsingStatementKind]::Assembly)
             $usingAsts = $fileAst.FindAll({
                     param($n) $n -is [System.Management.Automation.Language.UsingStatementAst]
                 }, $true)
@@ -267,8 +251,7 @@ if ($sd.ContainsKey("CustomRulePath")) {
                     [void]$pending.Add($useAst.Name.Value)
                     continue
                 }
-                Write-Output "PSSA_TRUST UNPINNABLE"
-                exit 6
+                exitTrust UNPINNABLE
             }
         }
         foreach ($hit in [regex]::Matches($text, $litPattern)) {
@@ -337,21 +320,14 @@ if ($sd.ContainsKey("CustomRulePath")) {
     foreach ($target in $digestTargets) {
         try {
             $h = (Get-FileHash -LiteralPath $target -Algorithm SHA256 -ErrorAction Stop).Hash
-        } catch {
-            Write-Output "PSSA_TRUST UNVERIFIABLE"
-            exit 6
-        }
+        } catch { exitTrust UNVERIFIABLE }
         [void]$manifest.AppendLine("$target`t$h")
     }
-    if ([string]::IsNullOrEmpty($env:PSSA_STATE_BASE)) {
-        Write-Output "PSSA_TRUST NOSTORE"
-        exit 6
-    }
+    if ([string]::IsNullOrEmpty($env:PSSA_STATE_BASE)) { exitTrust NOSTORE }
     # Instance SHA256 + x2 formatting: the static SHA256.HashData /
     # Convert.ToHexString shortcuts are .NET 5+, absent on the PowerShell
     # 7.0 (.NET Core 3.1) floor this hook supports. Any failure is
     # UNVERIFIABLE - an empty signature must never mint a shared marker.
-    $signature = ""
     try {
         $sha = [System.Security.Cryptography.SHA256]::Create()
         try {
@@ -360,24 +336,18 @@ if ($sd.ContainsKey("CustomRulePath")) {
         } finally {
             $sha.Dispose()
         }
-        $hex = [System.Text.StringBuilder]::new()
-        foreach ($b in $sigBytes) { [void]$hex.Append($b.ToString("x2")) }
-        $signature = $hex.ToString()
+        $signature = -join ($sigBytes | ForEach-Object { $_.ToString("x2") })
     } catch {
         $signature = ""
     }
-    if ([string]::IsNullOrEmpty($signature)) {
-        Write-Output "PSSA_TRUST UNVERIFIABLE"
-        exit 6
-    }
+    if ([string]::IsNullOrEmpty($signature)) { exitTrust UNVERIFIABLE }
     # Emit the marker NAME, not a path: the shell rebuilds the directory in
     # its own path form so the approval hint matches the POSIX shell the
     # user runs mkdir in, while Test-Path here uses the native form — both
     # views name the same physical directory.
     $trustDir = Join-Path $env:PSSA_STATE_BASE "trust-approvals" "pssa-$signature"
     if (-not (Test-Path -LiteralPath $trustDir -PathType Container)) {
-        Write-Output "PSSA_TRUST GATE pssa-$signature"
-        exit 6
+        exitTrust "GATE pssa-$signature"
     }
 }
 
@@ -389,7 +359,7 @@ $found = $false
 # Relative CustomRulePath entries in the settings file resolve from the current
 # PowerShell location, so anchor at the settings directory and the rule paths
 # resolve the way the repository intended.
-Set-Location -LiteralPath (Split-Path -Parent $settings)
+Set-Location -LiteralPath $settingsDir
 
 foreach ($rel in [System.IO.File]::ReadAllLines($env:PSSA_LIST)) {
     if ([string]::IsNullOrWhiteSpace($rel)) { continue }
