@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.6.1] - 2026-11-09
+
+### Changed
+
+- The `ship` and `work` skills describe `ready` as updating the branch from its base, since it now takes its method from a shared decision.
+
 ## [12.6.0] - 2026-11-09
 
 ### Changed

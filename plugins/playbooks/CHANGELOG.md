@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.29.1] - 2026-11-09
+
+### Changed
+
+- The `repo-sweep` skill describes `ready` as updating the branch from its base, since it now takes its method from a shared decision.
+
 ## [0.29.0] - 2026-11-08
 
 ### Changed
