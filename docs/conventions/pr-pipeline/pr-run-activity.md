@@ -1089,7 +1089,13 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    canonical the pull request changes, so a fix to the canonical can regenerate its copies; a copy
    adds no other file of its plugin. A path the fix creates gets no scope from `pr_paths` or `copy_paths`: the tool checks it exists at
    the gated head, `apply-patch.mjs` refuses an added entry, and the reply job an `added`,
-   `renamed` or `copied` file.
+   `renamed` or `copied` file. When a kept thread's only comment is a `claude-review` finding
+   whose first line opens `**Advisory`, the select job (which holds `issues: read`) reads the
+   closing issues' spec text as `pr-verify` reads it (`resolve-pr.mjs` `linkedIssues`), writes
+   it to the thread file's `closing_issues`, which the tool's `issues` prints, and marks each
+   such thread `may_follow_up` in the thread file and `run.json`. Such a thread alone takes the
+   `follow-up` disposition: an advisory whose change falls outside the issue's acceptance
+   criteria or Out of scope list, answered with no fix.
 3. After the skill, the run job carries the tool's `replies.jsonl` beside the patch, at most
    49152 bytes, sealed for the scan job ([Patch output mode](#patch-output-mode)), and only for a
    `review-threads` skill. The scan job scans it with the reply and the patch and, on a clean
@@ -1137,7 +1143,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
      (`review-run-sha256`) and at most 1 MiB; each file a regular file read only when within its
      size limit; `replies.jsonl` at most 49152 bytes, each line an object with exactly `thread`,
      `disposition`, `evidence`, `fix_sha` and `note`; `thread` one `run.json` names, at most one
-     reply per thread; `disposition` one of `VALID`, `INCORRECT`, `UNCERTAIN`, `VALID-defer`; at
+     reply per thread; `disposition` one of `VALID`, `INCORRECT`, `UNCERTAIN`, `VALID-defer`, or
+     `follow-up` only on a thread `run.json` marks `may_follow_up`; at
      most 10 `path:line` evidence entries, no `.` or `..` segment, each a file in the checkout, at
      least one for `VALID` and `INCORRECT`; an empty `fix_sha` on every reply; a note of 1-2000
      characters with no control, direction or zero-width character, no `<!--` or `-->`, and
@@ -1171,7 +1178,12 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
      reply had posted and `feedback-partial` otherwise;
    - posts the reply on the thread's root comment in the fixed template (disposition label,
      backticked evidence, `Fix: <sha>` naming the push job's commit for `VALID`, the note in a
-     `text` fence longer than any backtick run in it) and resolves the thread only for `VALID`,
+     `text` fence longer than any backtick run in it, and for `follow-up` a fixed line saying the
+     advisory is recorded under `## Follow-ups` in the pull request body, which it first appends
+     there as one bullet, the `Pre-existing (advisory):` marker the paused-filing sweep files
+     from, then the advisory's first line and a link to its root comment, adding the
+     section when missing and nothing when that link is already in the body) and resolves the thread only
+     for `VALID` or `follow-up`,
      and only when a re-read after the reply shows exactly the model's comments plus that reply
      (one retry on a failed read or resolve). Once a reply posts, no later round selects the
      thread until a trusted human answers a reply left open, so a post, read or resolve failure
