@@ -144,13 +144,13 @@ Why: trimming the line box to cap height and baseline makes equal padding look e
 Baseline: [`text-box`](https://developer.mozilla.org/en-US/docs/Web/CSS/text-box#browser_compatibility).
 As of 2026-10-11, recheck on a status change.
 
-Use it on single-line labels in buttons, badges and chips.
+Use it on single-line labels in buttons, badges and chips. Fill each `{{key}}` placeholder as [`values.md`](../../../reference/values.md) says.
 
 ```css
 .button {
   display: inline-block;
-  padding-block: 0.75rem;
-  padding-inline: 1.25rem;
+  padding-block: {{spacing.control_padding[0]}};
+  padding-inline: {{spacing.control_padding[1]}};
   text-box: trim-both cap alphabetic;
 }
 
@@ -158,8 +158,8 @@ Use it on single-line labels in buttons, badges and chips.
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding-block: 0.75rem;
-  padding-inline: 1.25rem;
+  padding-block: {{spacing.control_padding[0]}};
+  padding-inline: {{spacing.control_padding[1]}};
 }
 
 .button-with-icon > span { text-box: trim-both cap alphabetic; }

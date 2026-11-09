@@ -5,12 +5,14 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { parse } from "../scripts/lib/yaml-subset.mjs";
 
 const TESTS = dirname(fileURLToPath(import.meta.url));
 const PLUGIN = join(TESTS, "..");
 const DETECT = join(PLUGIN, "scripts/detect.mjs");
 const FIX = join(TESTS, "fixtures");
 const MCP = join(FIX, "mcp-list.txt");
+const SHIPPED = parse(readFileSync(join(PLUGIN, "reference/defaults.yaml"), "utf8"));
 
 const scratch = mkdtempSync(join(tmpdir(), "ui-detect-"));
 after(() => rmSync(scratch, { recursive: true, force: true }));
@@ -152,86 +154,36 @@ describe("--config", () => {
     assert.ok(!("config" in detect(["--project", PROJECT, ...seams])));
   });
 
+  // Expected values: the shipped defaults file for every key the fixtures leave unset, and the
+  // fixture layers' own values (config-project's conventions files and the userConfig above) for the
+  // keys they set. A list is one leaf; a `*.disable` list names every layer that added to it.
+  const OVERRIDES = {
+    css: { browser_target: "last 2 versions", rules: { disable: ["hover", "motion"] }, important: "utilities-only", layer: META, token_fallback: "literal" },
+    animation: { duration_ms: { large: 400 } },
+    routing: { version: 1, deny: ["superdesign"] },
+  };
+  const OVERRIDE_PROVENANCE = {
+    version: "team",
+    "css.browser_target": "userConfig",
+    "css.rules.disable": ["defaults", "team", "local"],
+    "css.important": "team",
+    "css.layer": "userConfig",
+    "css.token_fallback": "local",
+    "animation.duration_ms.large": "team",
+    routing: "team",
+  };
+  const isMap = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+  const merge = (base, over) => Object.fromEntries([...new Set([...Object.keys(base), ...Object.keys(over)])].map((k) => [k, isMap(base[k]) && isMap(over[k]) ? merge(base[k], over[k]) : k in over ? over[k] : base[k]]));
+  const leaves = (obj, prefix = "") => Object.entries(obj).flatMap(([k, v]) => (isMap(v) ? leaves(v, `${prefix}${k}.`) : [`${prefix}${k}`]));
+
   test("each key resolves from the highest layer that sets it validly", () => {
-    assert.deepEqual(config.values, {
-      version: 1,
-      css: {
-        browser_target: "last 2 versions",
-        techniques: { disable: [] },
-        rules: { disable: ["hover", "motion"] },
-        important: "utilities-only",
-        layer: META,
-        token_fallback: "literal",
-        concentric_radius: { max_gap_px: 24 },
-      },
-      animation: {
-        easing: {
-          out: [0.23, 1, 0.32, 1],
-          in: [0.3, 0, 1, 1],
-          in_out: [0.77, 0, 0.175, 1],
-          drawer: [0.32, 0.72, 0, 1],
-        },
-        easing_library: {
-          out: { quad: [0.25, 0.46, 0.45, 0.94], cubic: [0.215, 0.61, 0.355, 1], quart: [0.165, 0.84, 0.44, 1], quint: [0.23, 1, 0.32, 1], expo: [0.19, 1, 0.22, 1], circ: [0.075, 0.82, 0.165, 1] },
-          in_out: { quad: [0.455, 0.03, 0.515, 0.955], cubic: [0.645, 0.045, 0.355, 1], quart: [0.77, 0, 0.175, 1], quint: [0.86, 0, 0.07, 1], expo: [1, 0, 0, 1], circ: [0.785, 0.135, 0.15, 0.86] },
-        },
-        duration_ms: { press: 160, small: 200, medium: 250, large: 400, page: 400, exit_factor: 0.8 },
-        stagger_ms: { interval: 40, max_total: 400 },
-        blur_max_px: 20,
-        gesture: { velocity_threshold: 0.11, distance_threshold: 0.4 },
-        cleanup_order: ["removal", "review", "performance"],
-      },
-      components: { primitives_default: "base-ui" },
-      typography: { long_form_body_px: 18 },
-      touch: { both_axes_activation: "tap-to-activate" },
-      routing: { version: 1, deny: ["superdesign"] },
-    });
+    assert.deepEqual(config.values, merge(SHIPPED, OVERRIDES));
   });
 
   test("provenance names the layer of every key across all four layers; the user-home file is not read", () => {
     assert.deepEqual(config.layers.map((l) => l.name), ["defaults", "userConfig", "team", "local"]);
-    assert.deepEqual(config.provenance, {
-      version: "team",
-      "css.browser_target": "userConfig",
-      "css.techniques.disable": ["defaults"],
-      "css.rules.disable": ["defaults", "team", "local"],
-      "css.important": "team",
-      "css.layer": "userConfig",
-      "css.token_fallback": "local",
-      "css.concentric_radius.max_gap_px": "defaults",
-      "animation.easing.out": "defaults",
-      "animation.easing.in": "defaults",
-      "animation.easing.in_out": "defaults",
-      "animation.easing.drawer": "defaults",
-      "animation.easing_library.out.quad": "defaults",
-      "animation.easing_library.out.cubic": "defaults",
-      "animation.easing_library.out.quart": "defaults",
-      "animation.easing_library.out.quint": "defaults",
-      "animation.easing_library.out.expo": "defaults",
-      "animation.easing_library.out.circ": "defaults",
-      "animation.easing_library.in_out.quad": "defaults",
-      "animation.easing_library.in_out.cubic": "defaults",
-      "animation.easing_library.in_out.quart": "defaults",
-      "animation.easing_library.in_out.quint": "defaults",
-      "animation.easing_library.in_out.expo": "defaults",
-      "animation.easing_library.in_out.circ": "defaults",
-      "animation.duration_ms.press": "defaults",
-      "animation.duration_ms.small": "defaults",
-      "animation.duration_ms.medium": "defaults",
-      "animation.duration_ms.large": "team",
-      "animation.duration_ms.page": "defaults",
-      "animation.duration_ms.exit_factor": "defaults",
-      "animation.stagger_ms.interval": "defaults",
-      "animation.stagger_ms.max_total": "defaults",
-      "animation.blur_max_px": "defaults",
-      "animation.gesture.velocity_threshold": "defaults",
-      "animation.gesture.distance_threshold": "defaults",
-      "animation.cleanup_order": "defaults",
-      "components.primitives_default": "defaults",
-      "typography.long_form_body_px": "defaults",
-      "touch.both_axes_activation": "defaults",
-      routing: "team",
-    });
+    const fromDefaults = Object.fromEntries(leaves(SHIPPED).map((k) => [k, k.endsWith(".disable") ? ["defaults"] : "defaults"]));
+    assert.deepEqual(config.provenance, { ...fromDefaults, ...OVERRIDE_PROVENANCE });
   });
 
   test("the convention home comes from the project's pointer line", () => {

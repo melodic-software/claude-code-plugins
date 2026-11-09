@@ -125,29 +125,19 @@ function stripInlineQuotes(block) {
     const char = block[i];
     const closing = OPENING_TO_CLOSING.get(char);
 
-    if (closing === undefined) {
-      result += char;
-      i += 1;
-      continue;
-    }
-
     // An apostrophe-family mark OPENS a quotation only where a quotation can
     // start: at the beginning of the paragraph, after whitespace, or after an
     // opening bracket. Anything else before it makes it an apostrophe, including
     // a possessive after markup (`Location`'s, (FILE.md)'s), which a previous-char
     // word test misses and which would open a phantom quotation that hides copies.
-    if (char === "'" || char === "‘") {
-      const prev = block[i - 1];
-      if (prev !== undefined && !/[\s([{<]/.test(prev)) {
-        result += char;
-        i += 1;
-        continue;
-      }
-    }
+    const prev = block[i - 1];
+    const opens =
+      closing !== undefined &&
+      ((char !== "'" && char !== "‘") || prev === undefined || /[\s([{<]/.test(prev));
 
-    const end = findClosing(block, closing, i + 1);
+    // Not an opener, or unpaired within this paragraph: keep the mark and the text after it.
+    const end = opens ? findClosing(block, closing, i + 1) : -1;
     if (end === -1) {
-      // Unpaired within this paragraph: keep the mark and the text after it.
       result += char;
       i += 1;
       continue;
@@ -379,6 +369,15 @@ Options:
   --min-span-words   separation threshold (default ${DEFAULTS.min_span_words})
 `;
 
+/** Options that take a value: the args key each one sets, and how it parses. */
+const VALUE_OPTIONS = new Map([
+  ["--local", ["local", String]],
+  ["--source", ["source", String]],
+  ["--k", ["k", Number]],
+  ["--min-containment", ["min_containment", Number]],
+  ["--min-span-words", ["min_span_words", Number]],
+]);
+
 function parseArgs(argv) {
   const args = { json: true };
   let i = 0;
@@ -387,41 +386,23 @@ function parseArgs(argv) {
   else if (argv[i] === "--help" || argv[i] === "-h") return { help: true };
   else throw new Error(`unknown command: ${argv[i] ?? "(none)"}`);
 
-  const needsValue = (flag) => {
-    const value = argv[i + 1];
-    if (value === undefined || value.startsWith("--")) {
-      throw new Error(`${flag} requires a value`);
-    }
-    i += 2;
-    return value;
-  };
-
   while (i < argv.length) {
-    switch (argv[i]) {
-      case "--local":
-        args.local = needsValue("--local");
-        break;
-      case "--source":
-        args.source = needsValue("--source");
-        break;
-      case "--json":
-        args.json = true;
-        i += 1;
-        break;
-      case "--k":
-        args.k = Number(needsValue("--k"));
-        break;
-      case "--min-containment":
-        args.min_containment = Number(needsValue("--min-containment"));
-        break;
-      case "--min-span-words":
-        args.min_span_words = Number(needsValue("--min-span-words"));
-        break;
-      case "--help":
-      case "-h":
-        return { help: true };
-      default:
-        throw new Error(`unknown option: ${argv[i]}`);
+    const flag = argv[i];
+    const option = VALUE_OPTIONS.get(flag);
+    if (option) {
+      const value = argv[i + 1];
+      if (value === undefined || value.startsWith("--")) {
+        throw new Error(`${flag} requires a value`);
+      }
+      const [key, parse] = option;
+      args[key] = parse(value);
+      i += 2;
+    } else if (flag === "--json") {
+      i += 1;
+    } else if (flag === "--help" || flag === "-h") {
+      return { help: true };
+    } else {
+      throw new Error(`unknown option: ${flag}`);
     }
   }
 

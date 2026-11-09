@@ -80,14 +80,14 @@ Why: a pressed control that visibly reacts confirms the press, on every input ty
 Baseline: [`:active`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/:active#browser_compatibility),
 widely available. As of 2026-10-11, recheck on a status change.
 
-Use it on pressable controls. Which controls take the scale, which skip it, and the scale's limits
-are the `motion` concern's (`press`); this recipe is how to write it.
+Use it on pressable controls. Which controls take the scale and which skip it are the `motion`
+concern's (`press`); this recipe is how to write it. Fill each `{{key}}` placeholder as [`values.md`](../../../reference/values.md) says.
 
 ```css
-.button:active { transform: scale(0.97); }
+.button:active { transform: scale({{animation.scale.press}}); }
 
 @media (prefers-reduced-motion: no-preference) {
-  .button { transition: transform 160ms var(--ease-out, ease-out); }
+  .button { transition: transform {{animation.duration_ms.press}}ms var(--ease-out, ease-out); }
 }
 ```
 

@@ -50,6 +50,10 @@ function bindCli() {
   log = createLogger(resolveLogLevel(args));
 }
 
+function writeJson(path, data) {
+  writeFileSync(path, JSON.stringify(data, null, 2), "utf-8");
+}
+
 async function navigateWithFallback(page, url) {
   try {
     await page.goto(url, { waitUntil: "networkidle", timeout: 15000 });
@@ -131,7 +135,7 @@ async function runMetadataPhase({
 
   if (metaResult.success && Object.keys(metaResult.data).length > 0) {
     course.metadata = metaResult.data;
-    writeFileSync(courseJson, JSON.stringify(course, null, 2), "utf-8");
+    writeJson(courseJson, course);
     log.info(`  Metadata found: ${Object.keys(metaResult.data).join(", ")}`);
   } else {
     log.info("  No metadata found on course landing page.");
@@ -240,10 +244,10 @@ async function main() {
 
   const stats = createRunStats();
   const extractionStart = performance.now();
+  const runReportPath = join(courseDir, "run-report.json");
   const saveProgress = () => {
-    writeFileSync(courseJson, JSON.stringify(course, null, 2), "utf-8");
-    const report = tracker.finish();
-    writeFileSync(join(courseDir, "run-report.json"), JSON.stringify(report, null, 2), "utf-8");
+    writeJson(courseJson, course);
+    writeJson(runReportPath, tracker.finish());
     log.info("\n  Progress saved (interrupted).");
   };
   process.on("SIGINT", () => {
@@ -295,7 +299,7 @@ async function main() {
       extractionMs: extractionDurationMs,
     },
   });
-  writeFileSync(join(courseDir, "run-report.json"), JSON.stringify(report, null, 2), "utf-8");
+  writeJson(runReportPath, report);
 
   log.info("\n  ----------------------------------------");
   log.info(
@@ -307,7 +311,7 @@ async function main() {
   log.info(
     `  Total lessons processed: ${stats.extracted + stats.skipped + stats.failed}/${course.totalLessons}`,
   );
-  log.info(`  Run report: ${join(courseDir, "run-report.json")}`);
+  log.info(`  Run report: ${runReportPath}`);
 }
 
 if (isMainModule(import.meta.url)) {

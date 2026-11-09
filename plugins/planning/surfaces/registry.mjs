@@ -58,7 +58,8 @@ function onPath(name, env) {
       const p = join(dir, name + ext)
       try {
         accessSync(p, constants.X_OK)
-        if (statSync(p).isFile() && statSync(p).size > 0) return true
+        const st = statSync(p)
+        if (st.isFile() && st.size > 0) return true
       } catch {}
     }
   }
@@ -125,15 +126,14 @@ export async function resolveSurface(request = {}) {
 async function main(argv) {
   const [cmd, ...rest] = argv
   const opts = {}
-  for (let i = 0; i < rest.length; i += 2) {
+  for (let i = 0; i < rest.length; i++) {
     if (rest[i] === '--unattended') {
       opts.unattended = true
-      i -= 1
       continue
     }
     const key = { '--surface': 'surface', '--argument': 'argument', '--data-dir': 'dataDir' }[rest[i]]
     if (!key || rest[i + 1] === undefined) throw new Error(`unknown or incomplete option ${rest[i]}`)
-    opts[key] = rest[i + 1]
+    opts[key] = rest[++i]
   }
   if (cmd === 'list') {
     const entries = await loadEntries()

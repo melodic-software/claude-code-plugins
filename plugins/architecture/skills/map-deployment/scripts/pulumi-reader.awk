@@ -98,8 +98,10 @@ function collect_res(sc,    f, n, i, R, id, t, k, m, tp) {
     if (!fld(f, R[i] ".type")) continue
     t = FV
     k = ""
-    if (split(t, tp, ":") == 3 && tolower(tp[1]) == "aws" && tolower(tp[2]) ~ /^ecs(\/.*)?$/)
-      k = (tolower(tp[3]) == "cluster") ? "cluster" : (tolower(tp[3]) == "taskdefinition") ? "taskdef" : (tolower(tp[3]) == "service") ? "service" : ""
+    if (split(t, tp, ":") == 3 && tolower(tp[1]) == "aws" && tolower(tp[2]) ~ /^ecs(\/.*)?$/) {
+      k = tolower(tp[3])
+      k = (k == "taskdefinition") ? "taskdef" : (k == "cluster" || k == "service") ? k : ""
+    }
     if (k == "") { note_unmapped(tool, t, f); continue }
     m++
     RID[m] = id; RKIND[m] = k; RTYPE[m] = t; RPRE[m] = R[i] ".properties"

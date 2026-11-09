@@ -108,6 +108,7 @@ import html
 import json
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 from interview_server import (
@@ -381,8 +382,7 @@ def parse_hold(res, where):
         if not f or (f.group(1) in hold and f.group(1) != "confirmed"):
             raise SystemExit(f"refused: unreadable held row field {field!r} in {where}")
         if f.group(1) == "confirmed":
-            hold["confirmed"] = [unesc_field(f.group(2))]
-            hold["confirmed"] += [unesc_field(x) for x in rest[i + 1 :]]
+            hold["confirmed"] = list(map(unesc_field, [f.group(2), *rest[i + 1 :]]))
             break
         hold[f.group(1)] = unesc_field(f.group(2))
     if "answer" in hold and "aside" in hold:
@@ -636,10 +636,8 @@ def settle(q, responses, events, seed_rows):
         fields["note"] = note or None
         return "open", fields, "", False
     fields["note"] = seed_text(seed)
-    if status == "superseded-by-plan":
-        # A set-aside decision leaves the plan's proposal waiting on the user again.
-        return status, fields, "", False
-    return "open", fields, "", False
+    # A set-aside decision leaves the plan's proposal waiting on the user again.
+    return status if status == "superseded-by-plan" else "open", fields, "", False
 
 
 def numbering(ids, gaps=False):
@@ -679,25 +677,23 @@ def register(doc, resp, extra=(), gaps=False):
             stale = f"stale:: {', '.join(unchecked[q['id']])}"
             res = f"{res}; {stale}" if res else stale
         res = lead + res
-        confirmed, unconfirmed = commitments(q, events)
         decided = latest_decision(q, responses) or {}
         # An own answer replaces the recommendation, so the Brief and the report drop its
         # commitments; the ledger row keeps their ticks, so an import restores them.
-        briefed = marked
-        if decided.get("decision") == "own":
-            confirmed, unconfirmed, briefed = [], [], []
+        briefed = [] if decided.get("decision") == "own" else marked
+        shown = readable(status, fields, briefed)
         rows.append(
             {
                 "n": f"Q{pos[q['id']]}",
                 "q": q,
                 "status": status,
                 "resolution": res.rstrip(),
-                "display": clean(lead + readable(status, fields, briefed)),
-                "readable": clean(readable(status, fields, briefed)),
+                "display": clean(lead + shown),
+                "readable": shown,
                 "note": note,
                 "reserved": reserved,
-                "confirmed": confirmed,
-                "unconfirmed": unconfirmed,
+                "confirmed": [c for ok, c in briefed if ok],
+                "unconfirmed": [c for ok, c in briefed if not ok],
                 # Accept and hedged carry the recommendation's commitments; an own answer or an
                 # alternative withdraws them and a defer's open row covers them.
                 "carries": decided.get("decision") in CARRIES,
@@ -907,9 +903,7 @@ def confirmation_recap(d, cap, text=None, since=None):
     shown = [r for r in rows if r["n"] not in kept]
     live = [r for r in shown if r["status"] != "withdrawn"]
     gone = [r["n"] for r in shown if r["status"] == "withdrawn"]
-    counts = {}
-    for r in same:
-        counts[r["status"]] = counts.get(r["status"], 0) + 1
+    counts = Counter(r["status"] for r in same)
     out = ""
     for n in RECAP_ANSWER_STEPS:
         lines = [

@@ -107,11 +107,9 @@ rotate_events() {
   # One cleanup path for both failures: a tail that fails still leaves the
   # redirection's empty temp behind, and a rename that fails leaves the
   # written one. A rename that SUCCEEDS has already consumed the temp.
-  if tail -n 100 "$EVENTS" >"$tmp" 2>/dev/null &&
-    mv -f "$tmp" "$EVENTS" 2>/dev/null; then
-    return 0
+  if ! tail -n 100 "$EVENTS" >"$tmp" 2>/dev/null || ! mv -f "$tmp" "$EVENTS" 2>/dev/null; then
+    rm -f "$tmp" 2>/dev/null
   fi
-  rm -f "$tmp" 2>/dev/null
   return 0
 }
 

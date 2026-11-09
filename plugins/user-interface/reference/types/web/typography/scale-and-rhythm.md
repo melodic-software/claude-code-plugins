@@ -51,17 +51,18 @@ themselves.
 
 Two anchors:
 
-- **Body copy:** `1.5`-`1.6`. Reading rhythm needs air between lines.
-- **Display and headings:** around `1.1`. Large sizes carry their own optical spacing; default
-  leading leaves them gappy.
+- **Body copy:** within the `typography.line_height.body` range. Reading rhythm needs air between
+  lines.
+- **Display and headings:** around `typography.line_height.display`. Large sizes carry their own
+  optical spacing; default leading leaves them gappy.
 
 State it unitless. `line-height: 1.5` recomputes when the font size changes; `line-height: 24px`
 stays at 24px and breaks on the first size tweak or user zoom.
 
 ## Paragraph spacing
 
-Don't set paragraph spacing to an arbitrary value like 12px; set it to 1x the line-height so the
-vertical rhythm stays consistent.
+Don't set paragraph spacing to an arbitrary value like 12px; set it to the paragraph part of
+`spacing.flow` so the vertical rhythm stays consistent.
 
 **Audit: Suggestion.** Space between paragraphs set to a value unrelated to their line height.
 

@@ -110,6 +110,14 @@ class RawText(str):
     """A REST answer gh prints as it is: a raw-media-type file read."""
 
 
+class Answers(list):
+    """REST answers given one per call, in order; the last repeats."""
+
+
+# A REST answer where gh never reports a status: run_command's timeout.
+TIMEOUT = object()
+
+
 class GhFake:
     """A gh seam answering REST endpoints and named GraphQL operations.
 
@@ -151,6 +159,10 @@ class GhFake:
                     return http_error(404)
             raise AssertionError(f"unexpected gh call: {args}")
         answer = self.rest[endpoint]
+        if isinstance(answer, Answers):
+            answer = answer.pop(0) if len(answer) > 1 else answer[0]
+        if answer is TIMEOUT:
+            raise RuntimeError(f"gh api {endpoint} timed out after 60s")
         if isinstance(answer, int):
             return http_error(answer)
         if isinstance(answer, RawText):
@@ -1340,6 +1352,37 @@ class AutoClearOnGreen(unittest.TestCase):
                 gh.rest[endpoint] = 502
                 result = read_demotion()
                 self.assertEqual((result.active, result.reason), (True, "#9 open"))
+
+    def listings(self, gh: GhFake) -> int:
+        return sum(1 for call in gh.calls if call[1] == DISPATCH_RUNS)
+
+    def test_a_server_error_then_an_answer_recovers(self) -> None:
+        gh = self.fake()
+        gh.rest[DISPATCH_RUNS] = Answers([502, {"workflow_runs": [green_run()]}])
+        result = read_demotion()
+        self.assertFalse(result.active, result.reason)
+        self.assertEqual(self.listings(gh), 2, "one retry after the 502")
+
+    def test_two_timeouts_hold_and_warn(self) -> None:
+        gh = self.fake()
+        gh.rest[DISPATCH_RUNS] = Answers([TIMEOUT, TIMEOUT])
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            result = read_demotion()
+        self.assertEqual((result.active, result.reason), (True, "#9 open"))
+        self.assertEqual(self.listings(gh), 2, "one retry after the timeout")
+        self.assertIn(
+            f"::warning::demotion #9: recovery read failed: {DISPATCH_RUNS}: None\n",
+            err.getvalue(),
+        )
+
+    def test_a_403_is_not_retried_and_holds(self) -> None:
+        gh = self.fake()
+        gh.rest[DISPATCH_RUNS] = Answers([403, {"workflow_runs": [green_run()]}])
+        with contextlib.redirect_stderr(io.StringIO()):
+            result = read_demotion()
+        self.assertEqual((result.active, result.reason), (True, "#9 open"))
+        self.assertEqual(self.listings(gh), 1, "the rate guard owns 403")
 
     def test_other_records_never_clear_on_green_and_read_no_runs(self) -> None:
         for name, body in (

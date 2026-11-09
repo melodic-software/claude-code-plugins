@@ -34,28 +34,20 @@ FRONTMATTER_FILE="${SKILL_DIR}/SKILL.md"
 VENDOR_DIR="${SKILL_DIR}/vendor"
 TMPDIR_RUN=$(mktemp -d -t playwright-update-XXXXXX)
 
-cleanup() {
-  rm -rf "$TMPDIR_RUN"
-}
-trap cleanup EXIT
+trap 'rm -rf "$TMPDIR_RUN"' EXIT
 
 log() { printf '%s\n' "$*"; }
 err() { printf 'ERROR: %s\n' "$*" >&2; }
 section() { printf '\n== %s ==\n' "$*"; }
 
-require_tool() {
-  local tool="$1"
-  if ! command -v "$tool" >/dev/null 2>&1; then
-    err "$tool not on PATH — cannot continue"
-    return 1
-  fi
-}
-
 check_prereqs() {
-  local missing=0
-  require_tool npm || missing=1
-  require_tool tar || missing=1
-  require_tool diff || missing=1
+  local tool missing=0
+  for tool in npm tar diff; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      err "$tool not on PATH — cannot continue"
+      missing=1
+    fi
+  done
   [[ $missing -eq 0 ]] || exit 2
 }
 
@@ -238,13 +230,10 @@ EOF
 main() {
   local mode="${1:---check}"
 
-  case "$mode" in
-  -h | --help)
+  if [[ "$mode" == -h || "$mode" == --help ]]; then
     print_help
     exit 0
-    ;;
-  *) ;; # other modes handled below after prerequisite checks
-  esac
+  fi
 
   if [[ ! -f "$FRONTMATTER_FILE" ]]; then
     err "SKILL.md not found at $FRONTMATTER_FILE — run from a plugin checkout"

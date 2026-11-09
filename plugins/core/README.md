@@ -1,10 +1,11 @@
 # core
 
 One install for the vital lifecycle plugins, from planning a change through its pull request and
-the session handoff, for a setup that does not already enable them. `core` has no skills, agents or
-hooks of its own: its manifest lists those plugins in `dependencies`, so installing it installs and
-enables each of them. `core` itself is off by default (`"defaultEnabled": false`), so taking the
-default-on set never installs it; installing it is an explicit choice.
+the session handoff, plus the `guardrails` safety hooks, for a setup that does not already enable
+them. `core` has no skills, agents or hooks of its own: its manifest lists those plugins in
+`dependencies`, so installing it installs and enables each of them. `core` itself is off by default
+(`"defaultEnabled": false`), so taking the default-on set never installs it; installing it is an
+explicit choice.
 
 ## Install
 
@@ -25,6 +26,7 @@ default-on set never installs it; installing it is an explicit choice.
 | `source-control` | commits and pull requests |
 | `session-flow` | handoff and resume |
 | `work-items` | track, claim and work tracker items |
+| `guardrails` | guard hooks that block secret leaks and destructive commands at every step |
 
 The list is in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json). The dependencies carry
 no version constraint, so each member tracks the version the marketplace publishes.
@@ -34,9 +36,6 @@ Every member is also in the catalog's default-on set, the
 default-on plugins are not members. `scripts/validate-plugin-contracts.mjs` fails when a member is
 missing from the catalog or set `"defaultEnabled": false`, or when the `core` entry is not
 `"defaultEnabled": false`.
-
-`core` installs no guard hooks: [`guardrails`](../guardrails/README.md) is default-on in the
-catalog but not a member, so enable it alongside `core` when you install `core` on its own.
 
 No member declares a dependency on another member, so each member also installs and loads on its
 own.

@@ -26,9 +26,9 @@ Contents: 1 icon sizes, 2 iconography, 3 illustrations.
 
 ## 1. Icon sizes
 
-**Icon size system.** The defined sizes an icon is designed to appear at, typically 12, 16, 20,
-24, and 48px. Each size is ideally drawn or adjusted for that specific context rather than scaled
-from a single master.
+**Icon size system.** The defined sizes an icon is designed to appear at, the `icon.size_px`
+ladder. Each size is ideally drawn or adjusted for that specific context rather than scaled from a
+single master.
 
 Two worked examples of the stroke following the size. "Scaled weight" holds one
 24-unit drawing and changes its `stroke-width` per size; "drawn per size" draws each size with its
@@ -36,19 +36,21 @@ own stroke and drops fine detail at the small sizes.
 
 | Size | Typical place | Scaled weight: rendered stroke | Scaled weight: `stroke-width` in a 24-unit `viewBox` | Drawn per size: stroke, unit not given |
 | --- | --- | --- | --- | --- |
-| 12px | inline with text | 1.25px | 2.5 | 1.25 |
-| 16px | button | 1.5px | 2.25 | 1.5 |
-| 20px | navigation | not given | not given | 1.6 |
-| 24px | toolbar | 2px | 2 | 1.75 |
-| 48px | empty state | 3px | 1.5 | not given |
+| `icon.size_px`, smallest | inline with text | 1.25px | 2.5 | 1.25 |
+| `icon.size_px`, 2nd | button | 1.5px | 2.25 | 1.5 |
+| `icon.size_px`, 3rd | navigation | not given | not given | 1.6 |
+| `icon.size_px`, 4th | toolbar | 2px | 2 | 1.75 |
+| `icon.size_px`, largest | empty state | 3px | 1.5 | not given |
 
-Both examples thin the stroke as the icon shrinks and thicken it as it grows, and their numbers are
-not the same at every size, so treat them as a starting point and take the real values from the
-project's icon library. A stroke width in these rules is the rendered one, not the attribute: a
-24-unit drawing shown at 16px renders its `stroke-width="2"` at 1.33px, so measure what reaches the
-screen. The two ways to get this wrong are the extremes: one rendered stroke width at every size (a
-1px stroke at 12px almost vanishes and at 48px looks frail), and one master drawing scaled to every
-size (the 12px and 16px icons turn into dense blobs and the 48px one turns heavy).
+The stroke columns are worked for the shipped `icon.size_px` ladder in
+[`defaults.yaml`](../../defaults.yaml). Both examples thin the stroke as the icon shrinks and
+thicken it as it grows, and their numbers are not the same at every size, so treat them as a
+starting point and take the real values from the project's icon library. A stroke width in these
+rules is the rendered one, not the attribute: a 24-unit drawing shown at 16px renders its
+`stroke-width="2"` at 1.33px, so measure what reaches the screen. The two ways to get this wrong
+are the extremes: one rendered stroke width at every size (a 1px stroke at 12px almost vanishes
+and at 48px looks frail), and one master drawing scaled to every size (the 12px and 16px icons turn
+into dense blobs and the 48px one turns heavy).
 
 The ladder names the sizes an icon is drawn at. In CSS, an icon beside text takes its rendered size
 from that text through recipe `icon-sized-by-the-text-beside-it`; choose the drawing whose size is
@@ -71,9 +73,10 @@ drawing's stroke, such as a 24-unit drawing at 16px still rendering 2px or a 16p
    **Audit: Suggestion.** A small custom icon whose path coordinates or `viewBox` offsets land on
    half pixels at the size it renders at.
 
-3. Below ~12px, 1px-stroke icons disappear: swap to the filled variant at tiny sizes.
+3. Below `icon.filled_below_px`, 1px-stroke icons disappear: swap to the filled variant at tiny
+   sizes.
 
-   **Audit: Important.** A 1px-stroke outline icon rendered below 12px.
+   **Audit: Important.** A 1px-stroke outline icon rendered below `icon.filled_below_px`.
 
 4. Outlined vs filled for active/selected state is a trick question: either works. Consistency
    across the product is what matters.
@@ -82,7 +85,8 @@ drawing's stroke, such as a 24-unit drawing at 16px still rendering 2px or a 16p
    a tab bar where inactive tabs are filled too.
 
 5. Optical centering beats mathematical centering: a play triangle centered mathematically in a
-   circle looks left-heavy. Nudge it ~1px right. The `web-layout` concern grades this nudge.
+   circle looks left-heavy. Nudge it right by `spacing.optical_icon_px`. The `web-layout` concern
+   grades this nudge.
 
 6. Never mix two icon libraries on one surface, even similar-looking ones. Differences in stroke
    weight and corner radius compound across a card set.
@@ -148,12 +152,14 @@ drawing's stroke, such as a 24-unit drawing at 16px still rendering 2px or a 16p
     **Audit: Suggestion.** An alert icon whose shape means one severity here and another elsewhere
     in the same product.
 
-16. Give icon-plus-label buttons a 6–8px gap. With no breathing room they look collided.
+16. Give icon-plus-label buttons a gap in the `icon.label_gap_px` range. With no breathing room
+    they look collided.
 
-    Recipe `icon-sized-by-the-text-beside-it` sets that gap as `0.5em`, which is 8px beside 16px
-    text.
+    Recipe `icon-sized-by-the-text-beside-it` sets that gap in `em`, so it scales with the text; at
+    body size it should fall in the `icon.label_gap_px` range.
 
-    **Audit: Suggestion.** An icon and its label with no gap, or a gap well under 6px.
+    **Audit: Suggestion.** An icon and its label with no gap, or a gap well under the low end of
+    `icon.label_gap_px`.
 
 17. Don't use the star for both "favorite" and "rating" in one product: the double meaning makes
     state ambiguous. Heart for favorite, star only for rating.
@@ -213,10 +219,10 @@ renders at. Items 2, 4, 5, 6 and 9 are judged by looking at the screen, so their
 
    **Audit: Suggestion.** An illustration shown far larger than it was drawn for.
 
-8. Limit illustrations to ~3 colors. Six colors pulled from across the brand palette reads as
-   indecisive; a reduced palette reads as intentional.
+8. Limit illustrations to `color.illustration_max_colors` colors. Six colors pulled from across
+   the brand palette reads as indecisive; a reduced palette reads as intentional.
 
-   **Audit: Suggestion.** An illustration with more than three colors.
+   **Audit: Suggestion.** An illustration with more than `color.illustration_max_colors` colors.
 
 9. Match the illustration's shadow/light direction to the UI's shadow direction. Opposing light
    sources create a subliminal wrongness.

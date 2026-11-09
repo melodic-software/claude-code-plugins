@@ -20,12 +20,13 @@ def make_wheel(folder):
         f'{dist}/METADATA': f'Metadata-Version: 2.1\nName: {NAME}\nVersion: {VERSION}\n',
         f'{dist}/WHEEL': 'Wheel-Version: 1.0\nGenerator: test\nRoot-Is-Purelib: true\nTag: py3-none-any\n',
     }
-    record = ''.join(
+    record = f'{dist}/RECORD'
+    files[record] = ''.join(
         f'{p},sha256={base64.urlsafe_b64encode(hashlib.sha256(c.encode()).digest()).rstrip(b"=").decode()},{len(c)}\n'
-        for p, c in files.items()) + f'{dist}/RECORD,,\n'
+        for p, c in files.items()) + f'{record},,\n'
     path = Path(folder) / f'{NAME}-{VERSION}-py3-none-any.whl'
     with zipfile.ZipFile(path, 'w') as z:
-        for p, c in {**files, f'{dist}/RECORD': record}.items():
+        for p, c in files.items():
             z.writestr(p, c)
     return hashlib.sha256(path.read_bytes()).hexdigest()
 

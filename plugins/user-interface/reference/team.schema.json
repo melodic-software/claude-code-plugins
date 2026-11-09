@@ -58,6 +58,40 @@
           "properties": {
             "max_gap_px": {"type": "integer", "minimum": 0, "description": "The widest gap in px (the parent's border width plus its padding) at which reference/types/web/shape-and-depth.md, the write-css concentric-nested-radius recipe and scripts/nested-radius.mjs still derive a nested element's radius from its parent's; past it each radius is picked on its own."}
           }
+        },
+        "border_px": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Line widths in px.",
+          "properties": {
+            "hairline": {"type": "number", "minimum": 0, "description": "A standard line drawn on a high-density screen."},
+            "standard": {"type": "number", "minimum": 0, "description": "A separating border, a ring, and the outline around media."},
+            "strong": {"type": "number", "minimum": 0, "description": "An emphasis line, such as an active-tab indicator."}
+          }
+        },
+        "edge_fade": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The fade band on an overflowing scroller.",
+          "properties": {
+            "length": {"type": "string", "description": "The band's length, a CSS length."},
+            "stops_percent": {"type": "array", "items": {"type": "number", "minimum": 0, "maximum": 100}, "minItems": 2, "maxItems": 2, "description": "Where the fade reaches full, in percent of the scroller, in order: start, end."}
+          }
+        },
+        "focus_ring": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "offset_px": {"type": "integer", "minimum": 0, "description": "The gap in px between an element and its focus ring."},
+            "width": {"type": "string", "description": "The focus ring's width, a CSS length that may combine px with a share of the text size."}
+          }
+        },
+        "image_outline": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "opacity": {"type": "number", "minimum": 0, "maximum": 1, "description": "The opacity of the outline around an image, in both themes."}
+          }
         }
       }
     },
@@ -74,7 +108,8 @@
             "out": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "For elements entering, and leaving unless the exit is permanent; the default."},
             "in": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "An accelerate curve for an element leaving the screen for good, such as a modal closing or a toast dismissed."},
             "in_out": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "For elements already on screen moving or morphing."},
-            "drawer": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "For drawers and sheets, on the way in and out."}
+            "drawer": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "For drawers and sheets, on the way in and out."},
+            "spring_stand_in": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "A tween standing in for a spring where the stack has no spring."}
           }
         },
         "easing_library": {
@@ -113,14 +148,38 @@
         "duration_ms": {
           "type": "object",
           "additionalProperties": false,
-          "description": "The longest duration each role allows, in milliseconds, and exit_factor, the unitless fraction of its entrance an exit may last.",
+          "description": "Each role's duration in milliseconds, both the value a recipe writes and the longest the role allows, and exit_factor, the unitless fraction of its entrance an exit may last.",
           "properties": {
             "press": {"type": "integer", "minimum": 0, "description": "Press feedback."},
+            "hover": {"type": "integer", "minimum": 0, "description": "Hover feedback."},
             "small": {"type": "integer", "minimum": 0, "description": "Tooltips and small popovers."},
-            "medium": {"type": "integer", "minimum": 0, "description": "Dropdowns, menus, selects and any other UI transition."},
+            "medium": {"type": "integer", "minimum": 0, "description": "Dropdowns, menus, selects and any other UI transition except hover."},
             "large": {"type": "integer", "minimum": 0, "description": "Modals, dialogs, drawers, sheets and toasts."},
             "page": {"type": "integer", "minimum": 0, "description": "Page-level and full-screen transitions."},
             "exit_factor": {"type": "number", "minimum": 0, "maximum": 1, "description": "The longest an exit may run, as a fraction of its entrance's duration."}
+          }
+        },
+        "delay_ms": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Waits in milliseconds.",
+          "properties": {
+            "group_warm": {"type": "integer", "minimum": 0, "description": "How long a group of surfaces (tooltips on a toolbar) stays warm after its last one closes, so the next opens at once."},
+            "tooltip": {"type": "integer", "minimum": 0, "description": "The wait before a first tooltip shows."},
+            "indicator": {"type": "integer", "minimum": 0, "description": "The wait before a loading indicator shows, so a brief load shows nothing."}
+          }
+        },
+        "scale": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Scale factors, as a fraction of the element's own size.",
+          "properties": {
+            "press": {"type": "number", "minimum": 0, "maximum": 1, "description": "The scale a pressable element takes while pressed."},
+            "press_min": {"type": "number", "minimum": 0, "maximum": 1, "description": "The lower limit for a press scale: /user-interface:audit reports a project press scale below it and never rewrites it."},
+            "enter": {"type": "number", "minimum": 0, "maximum": 1, "description": "The scale an entering surface starts from."},
+            "enter_small": {"type": "number", "minimum": 0, "maximum": 1, "description": "The scale a small entering element starts from."},
+            "hover_max": {"type": "number", "minimum": 1, "description": "The largest scale a hovered element takes."},
+            "swap_start": {"type": "number", "minimum": 0, "maximum": 1, "description": "The scale an icon starts from when it swaps in for a state change."}
           }
         },
         "stagger_ms": {
@@ -129,19 +188,115 @@
           "description": "Staggered group entrances, in milliseconds.",
           "properties": {
             "interval": {"type": "integer", "minimum": 0, "description": "The gap between two items' entrances."},
-            "max_total": {"type": "integer", "minimum": 0, "description": "The longest the interval times the item count may run."}
+            "max_total": {"type": "integer", "minimum": 0, "description": "The longest the interval times the item count may run."},
+            "section": {"type": "integer", "minimum": 0, "description": "The offset between the large pieces of one section."},
+            "word": {"type": "integer", "minimum": 0, "description": "The offset between words of a headline."}
           }
         },
-        "blur_max_px": {"type": "integer", "minimum": 0, "description": "The largest blur radius in px an animated element takes by default; a heuristic, not a measured limit."},
+        "travel_px": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Distance in px a surface travels as it enters or leaves.",
+          "properties": {
+            "small": {"type": "integer", "minimum": 0, "description": "A nudge: an anchored surface, a hover."},
+            "medium": {"type": "integer", "minimum": 0, "description": "A short rise or exit."},
+            "large": {"type": "integer", "minimum": 0, "description": "A surface arriving from its edge."}
+          }
+        },
+        "blur_max_px": {"type": "integer", "minimum": 0, "description": "The largest blur radius in px an animated element takes by default."},
+        "blur_px": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "soften": {"type": "number", "minimum": 0, "description": "A small blur in px that bridges or softens a transition."}
+          }
+        },
+        "spring": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Springs, for stacks that have them.",
+          "properties": {
+            "bounce": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Overshoot, where 0 is none.",
+              "properties": {
+                "default": {"type": "number", "minimum": 0, "maximum": 1, "description": "Default interface motion."},
+                "playful_max": {"type": "number", "minimum": 0, "maximum": 1, "description": "The most a playful or released interaction takes."}
+              }
+            },
+            "duration_s": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Spring durations in seconds.",
+              "properties": {
+                "default": {"type": "number", "minimum": 0, "description": "The default spring."},
+                "small": {"type": "number", "minimum": 0, "description": "A small element's spring."}
+              }
+            },
+            "response_s": {"type": "array", "items": {"type": "number", "minimum": 0}, "minItems": 2, "maxItems": 2, "description": "The response range in seconds for stacks that take damping and response, in order: low, high."}
+          }
+        },
         "gesture": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
             "velocity_threshold": {"type": "number", "minimum": 0, "description": "Release speed in px/ms above which a small element's swipe dismisses it, whatever the distance."},
-            "distance_threshold": {"type": "number", "minimum": 0, "maximum": 1, "description": "Fraction of a dragged element's own travel, 0 to 1, past which release dismisses it."}
+            "distance_threshold": {"type": "number", "minimum": 0, "maximum": 1, "description": "Fraction of a dragged element's own travel, 0 to 1, past which release dismisses it."},
+            "deceleration_rate": {"type": "number", "minimum": 0, "maximum": 1, "description": "The per-millisecond rate a flicked element's momentum is projected with."},
+            "rubberband_constant": {"type": "number", "minimum": 0, "description": "The resistance a drag meets past an edge."},
+            "slop_px": {"type": "integer", "minimum": 0, "description": "Pointer travel in px before a tap cancels and a drag commits."}
           }
         },
+        "inspect_playback_rate": {"type": "number", "minimum": 0, "maximum": 1, "description": "The slowed playback rate for checking motion by eye."},
+        "skip_frequency": {"type": "integer", "minimum": 0, "description": "Uses per day above which an action takes no animation."},
         "cleanup_order": {"type": "array", "items": {"enum": ["removal", "review", "opportunities", "performance"]}, "minItems": 1, "maxItems": 4, "description": "The passes the motion lane's cleanup sub-mode of /user-interface:audit runs, in order, one per value; review is the lane's review pass with no sub-mode."}
+      }
+    },
+    "color": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Color taste defaults: OKLCH lightness from 0 to 1, alpha from 0 to 1, and percent shares. The project's own color tokens beat every layer.",
+      "properties": {
+        "border": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dark_solid_l": {"type": "number", "minimum": 0, "maximum": 1, "description": "The lightness of a solid layout border in a dark theme."},
+            "light_alpha": {"type": "number", "minimum": 0, "maximum": 1, "description": "The alpha of a translucent layout border in a light theme."}
+          }
+        },
+        "dark_mode": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "brand_desaturation_percent": {"type": "array", "items": {"type": "number", "minimum": 0, "maximum": 100}, "minItems": 2, "maxItems": 2, "description": "How far a brand color's saturation is pulled back for a dark theme, in percent, in order: low, high."}
+          }
+        },
+        "hover_mix_percent": {"type": "number", "minimum": 0, "maximum": 100, "description": "The share of black, in percent, mixed into a base color for its hover shade."},
+        "illustration_max_colors": {"type": "integer", "minimum": 1, "description": "The most colors an illustration's palette holds."},
+        "overlay_alpha": {"type": "number", "minimum": 0, "maximum": 1, "description": "The alpha of a translucent fill on a small control."},
+        "ramp": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "A generated color ramp.",
+          "properties": {
+            "chroma_percent": {"type": "array", "items": {"type": "number", "minimum": 0, "maximum": 100}, "minItems": 2, "maxItems": 2, "description": "Chroma as a percent of the sRGB ceiling, in order: at the ends, at the peak."},
+            "endpoints_l": {"type": "array", "items": {"type": "number", "minimum": 0, "maximum": 1}, "minItems": 2, "maxItems": 2, "description": "Lightness, in order: the lightest step, the darkest step."},
+            "hue_spread_max_deg": {"type": "integer", "minimum": 0, "description": "The largest hue spread in degrees across the ramp."}
+          }
+        },
+        "subtle_mix_percent": {"type": "number", "minimum": 0, "maximum": 100, "description": "The share of a base color, in percent, in a subtle tint."},
+        "triage": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Lightness thresholds for a quick contrast triage; the contrast calculation still decides.",
+          "properties": {
+            "light_surface_min_l": {"type": "number", "minimum": 0, "maximum": 1, "description": "The lightness above which a surface reads as light."},
+            "near_black_l": {"type": "array", "items": {"type": "number", "minimum": 0, "maximum": 1}, "minItems": 3, "maxItems": 3, "description": "A near-black surface, in order: its highest lightness, the lowest lightness of text on it, the bottom of the mid-tone band."},
+            "near_white_l": {"type": "array", "items": {"type": "number", "minimum": 0, "maximum": 1}, "minItems": 2, "maxItems": 2, "description": "A near-white surface, in order: its lowest lightness, the highest lightness of text on it."}
+          }
+        }
       }
     },
     "components": {
@@ -152,12 +307,129 @@
         "primitives_default": {"enum": ["base-ui", "radix", "react-aria"], "description": "The accessible primitives library a React project with none installed builds on, by its setting value in the primitives table in reference/component-libraries.md; a setting value is not a package name."}
       }
     },
+    "icon": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Icon taste defaults. The project's icon library and tokens beat every layer.",
+      "properties": {
+        "filled_below_px": {"type": "integer", "minimum": 0, "description": "The size in px under which an outline icon swaps to its filled form."},
+        "label_gap_px": {"type": "array", "items": {"type": "number", "minimum": 0}, "minItems": 2, "maxItems": 2, "description": "The gap in px between an icon and its label, in order: low, high."},
+        "size_em": {"type": "number", "minimum": 0, "description": "An icon's size in em when it is sized by the text beside it."},
+        "size_px": {"type": "array", "items": {"type": "number", "minimum": 0}, "minItems": 1, "description": "The sizes in px an icon is drawn at, smallest first; a team ladder may hold any number of sizes."}
+      }
+    },
+    "layout": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Layout taste defaults as CSS values. The project's own layout tokens beat every layer.",
+      "properties": {
+        "breakout_width": {"type": "string", "description": "The wide track of the content grid, a CSS length."},
+        "content_width": {"type": "string", "description": "The cap on a centered content container and its text column, a CSS length."},
+        "grid_track_min_width": {"type": "string", "description": "The smallest track of an intrinsic grid, a CSS length."},
+        "media_aspect_ratio": {"type": "string", "description": "The default image box ratio, a CSS aspect-ratio value."},
+        "media_small": {"type": "string", "description": "A fixed small media box, such as an avatar, a CSS length."},
+        "panel_max_height": {"type": "string", "description": "The height limit of a panel with a scrolling body, a CSS length."},
+        "sidebar_width": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 2, "description": "A sidebar, in order: its ideal width, the container share at which the pair stacks."},
+        "simple_page_columns": {"type": "integer", "minimum": 1, "description": "The column count a simple marketing page needs."},
+        "terminal_min_columns": {"type": "integer", "minimum": 1, "description": "The narrowest supported terminal width, in columns."},
+        "z_index_stray_above": {"type": "integer", "description": "The z-index above which a value that is not a token is a finding."}
+      }
+    },
+    "performance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "image_max_kb": {"type": "integer", "minimum": 0, "description": "The photo weight in KB an audit flags."},
+        "search_debounce_ms": {"type": "integer", "minimum": 0, "description": "The debounce in milliseconds on a search request."},
+        "virtualize_min_items": {"type": "integer", "minimum": 0, "description": "The list length past which a bounded list is virtualized."}
+      }
+    },
+    "radius": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Corner radii as CSS lengths. The project's own radius tokens beat every layer.",
+      "properties": {
+        "s": {"type": "string", "description": "A small radius, such as a scrollbar thumb."},
+        "l": {"type": "string", "description": "A large radius."}
+      }
+    },
+    "spacing": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Spacing taste defaults as CSS length strings. The project's own spacing tokens beat every layer.",
+      "properties": {
+        "xs": {"type": "string", "description": "A tight gap: a subgrid row, trigger to popover, between cards or buttons."},
+        "s": {"type": "string", "description": "The default gap."},
+        "m": {"type": "string", "description": "A gutter and a card grid gap."},
+        "l": {"type": "string", "description": "A large gap."},
+        "control_padding": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 2, "description": "A control's padding (a button, a chip), in order: block, inline."},
+        "flow": {"type": "array", "items": {"type": "string"}, "minItems": 3, "maxItems": 3, "description": "Vertical rhythm in prose, in order: between paragraphs, before a heading, after a heading."},
+        "optical_icon_px": {"type": "number", "minimum": 0, "description": "A small optical correction in px beside an icon: a side trim, a glyph nudge."},
+        "section": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 2, "description": "A page section's vertical padding, in order: the fluid value, the fallback for a browser without it."}
+      }
+    },
+    "states": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Timings for interface states.",
+      "properties": {
+        "copy_confirm_ms": {"type": "integer", "minimum": 0, "description": "How long a copy confirmation stays, in milliseconds."},
+        "toast_reading_wpm": {"type": "array", "items": {"type": "number", "minimum": 1}, "minItems": 2, "maxItems": 2, "description": "The reading speed in words per minute a toast's duration is computed from, in order: low, high."},
+        "wait_indicator_ms": {"type": "integer", "minimum": 0, "description": "The wait in milliseconds past which an indicator must show."}
+      }
+    },
     "typography": {
       "type": "object",
       "additionalProperties": false,
       "description": "Typography taste defaults read by the typography concern in reference/types/web/typography.md. The project's own type tokens beat every layer.",
       "properties": {
-        "long_form_body_px": {"type": "integer", "minimum": 16, "description": "The size in px of long-form reading text (articles, documentation), never below the 16px body floor; a skill writes it in rem, the value divided by the root size in px."}
+        "long_form_body_px": {"type": "integer", "minimum": 16, "description": "The size in px of long-form reading text (articles, documentation), never below the 16px body floor; a skill writes it in rem, the value divided by the root size in px."},
+        "fluid_body": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "A fluid body size, clamp(min_rem, preferred_rem + preferred_vw, max_rem).",
+          "properties": {
+            "min_rem": {"type": "number", "minimum": 1, "description": "The smallest size in rem, never below the 16px body floor."},
+            "preferred_rem": {"type": "number", "description": "The rem part of the preferred value."},
+            "preferred_vw": {"type": "number", "minimum": 0, "description": "The vw part of the preferred value."},
+            "max_rem": {"type": "number", "minimum": 0, "description": "The largest size in rem."}
+          }
+        },
+        "fluid_scale": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The inputs of one fluid scale for type and space.",
+          "properties": {
+            "narrow_rem": {"type": "number", "minimum": 0, "description": "The narrow reference width in rem."},
+            "wide_rem": {"type": "number", "minimum": 0, "description": "The wide reference width in rem."},
+            "size_narrow_rem": {"type": "number", "minimum": 1, "description": "Step 0 at the narrow width in rem, never below the 16px body floor."},
+            "size_wide_rem": {"type": "number", "minimum": 0, "description": "Step 0 at the wide width in rem."},
+            "ratio_narrow": {"type": "number", "minimum": 1, "description": "The ratio between steps at the narrow width."},
+            "ratio_wide": {"type": "number", "minimum": 1, "description": "The ratio between steps at the wide width."},
+            "space_m_factor": {"type": "number", "minimum": 0, "description": "The medium space as a multiple of step 0."},
+            "space_l_factor": {"type": "number", "minimum": 0, "description": "The large space as a multiple of step 0."}
+          }
+        },
+        "fluid_max_ratio": {"type": "number", "minimum": 1, "description": "The most a fluid font size's maximum may be as a multiple of its minimum."},
+        "line_height": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "body": {"type": "array", "items": {"type": "number", "minimum": 0}, "minItems": 2, "maxItems": 2, "description": "The leading of reading text, in order: low, high."},
+            "display": {"type": "number", "minimum": 0, "description": "The leading of display text and headings."}
+          }
+        },
+        "measure_ch": {"type": "integer", "minimum": 1, "description": "The reading column's width in ch."},
+        "small_text_px": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Small text sizes in px; a skill writes them in rem.",
+          "properties": {
+            "caption": {"type": "integer", "minimum": 0, "description": "Captions and metadata."},
+            "control": {"type": "integer", "minimum": 0, "description": "Controls and menus."},
+            "min": {"type": "integer", "minimum": 0, "description": "The lowest text size without a stated reason."}
+          }
+        }
       }
     },
     "touch": {
@@ -165,7 +437,10 @@
       "additionalProperties": false,
       "description": "Touch taste defaults read by the touch concern in reference/types/touch-web.md. The project's own pattern beats every layer.",
       "properties": {
-        "both_axes_activation": {"type": "string", "enum": ["tap-to-activate", "always-active"], "description": "How a touch element that needs both axes (a map, a canvas) takes gestures: tap-to-activate starts it inactive so the page scrolls across it and one tap activates it, with a tap outside, a visible control and Esc as shown ways out; always-active takes gestures from the first touch."}
+        "both_axes_activation": {"type": "string", "enum": ["tap-to-activate", "always-active"], "description": "How a touch element that needs both axes (a map, a canvas) takes gestures: tap-to-activate starts it inactive so the page scrolls across it and one tap activates it, with a tap outside, a visible control and Esc as shown ways out; always-active takes gestures from the first touch."},
+        "check_width_px": {"type": "integer", "minimum": 0, "description": "The narrow width in px a page is checked at."},
+        "fixed_width_hunt_px": {"type": "integer", "minimum": 0, "description": "The width in px above which a fixed width is a finding on a narrow screen."},
+        "target_desktop_px": {"type": "integer", "minimum": 24, "description": "The hit area in px on a fine-pointer desktop, never below the 24px target-size floor."}
       }
     },
     "routing": {

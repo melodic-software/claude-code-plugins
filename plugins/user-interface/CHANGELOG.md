@@ -3,6 +3,34 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0] - 2026-11-09
+
+### Added
+
+- The full set of user-interface taste keys in `reference/defaults.yaml`, `reference/team.schema.json` and the README key table: 101 roles across `animation`, `color`, `css`, `icon`, `layout`, `performance`, `radius`, `spacing`, `states`, `touch` and `typography`, among them hover duration, show delays, enter and hover scales, travel, springs, gesture constants, color ramp and triage thresholds, border widths, focus ring, icon sizes, layout widths, the spacing steps, fluid type inputs, line heights, measure and small text sizes. A team sets any of them in its config file; a project's own tokens still win. Skills start reading them as their references are rewritten to name the keys.
+- `animation.scale.press_min` (default `0.95`): the lower limit `/user-interface:audit` will report a project press scale below; it never rewrites the value.
+- `touch.target_desktop_px` refuses a value under the 24px target-size floor, and `typography.fluid_body.min_rem` and `typography.fluid_scale.size_narrow_rem` refuse one under `1` (the 16px body floor); a refused value leaves the default and is named in the config report.
+- Each default's source is recorded: course and Emil Kowalski keys in their upstream records, independent sources in the new `docs/upstream/user-interface-default-sources.md`, and heuristics labeled in the defaults file.
+
+### Changed
+
+- `animation.easing.out` is now `0.32, 0.72, 0, 1` (was `0.23, 1, 0.32, 1`), the curve the course names as its default for entering elements.
+- Hover feedback has its own `animation.duration_ms.hover` (`150`) and is no longer under `medium`; each duration key is stated as both the value a recipe writes and the role's ceiling.
+- `animation.blur_max_px` is no longer described as a heuristic: its `20` now has a recorded source.
+
+## [0.23.0] - 2026-11-09
+
+### Added
+
+- `animation.scale.press` (default `0.97`): the scale a pressed control takes. The press behavior and the write-css `press-feedback` recipe now name it instead of stating 0.95 to 0.98, 0.96 and 0.97 in different places.
+- `spacing.control_padding` (default `0.75rem`, `1.25rem`, block then inline): a control's padding, used by the write-css `label-centered-on-its-letters-with-text-box` recipe.
+- `reference/values.md`: the one place that says which value wins (a matching project token, then a team or personal key, then `css.token_fallback`, then the key's default), how a recipe's `{{key}}` placeholder is filled, and how a team file nests keys. The config step of write-css, write-animation, audit and design points there and names any setting the resolver dropped.
+
+### Changed
+
+- `write-animation`, `audit` and `design` now pass the `css_*` userConfig values to the resolver, so `css.token_fallback` set there is honored.
+- `write-css` falls back to the shipped `reference/defaults.yaml` when the resolver cannot run, and uses a key's value, not its own, when the project has no token source.
+
 ## [0.22.1] - 2026-11-09
 
 ### Changed

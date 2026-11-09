@@ -30,7 +30,8 @@ class conventions win over this map.
   default theme variables page), so read the project's `--leading-*` values first. Numbered
   `leading-<n>` classes come from the spacing scale, a length with a unit (the line-height page),
   so they break the unitless rule on text whose size can change.
-- The reading-column cap is `max-w-[65ch]`. Write `max-w-prose` only where the project's theme or
+- The reading-column cap is `max-w-[{{typography.measure_ch}}ch]`, filled as
+  [`values.md`](../../../values.md) says. Write `max-w-prose` only where the project's theme or
   typography plugin defines it; whether Tailwind ships one is on the max-width page.
 - `truncate` wraps the one-line trio (`white-space: nowrap`, `overflow: hidden`,
   `text-overflow: ellipsis`).
@@ -69,7 +70,7 @@ class conventions win over this map.
 | Leading | `line-height: ...` | `leading-*` |
 | Tracking | `letter-spacing: ...` | `tracking-*` |
 | Disable pair kerning | `font-kerning: none` | `[font-kerning:none]` |
-| Reading-column cap | `max-width: 65ch` | `max-w-[65ch]` |
+| Reading-column cap | `max-width: {{typography.measure_ch}}ch` | `max-w-[{{typography.measure_ch}}ch]` |
 | Crop leading above/below | `text-box: trim-both cap alphabetic` | `[text-box:trim-both_cap_alphabetic]` |
 | Line start/end alignment | `text-align: ...` | `text-start` / `text-center` |
 
