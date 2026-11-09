@@ -18,12 +18,6 @@
 #   prose). Of the candidates, only an ISO 8601 date is PARSED; every other
 #   date-shaped form is DECLINED with the reason, and counted.
 #
-# Declining is the point, not a shortfall. The live corpus carries stamp dates
-# in a long tail of prose forms — "verified <ISO>" dominates, but month-name,
-# slash and bare-year forms all appear — and a parser that guessed at those
-# would manufacture findings against dates nobody wrote down precisely. A high
-# declined count is an honest report of the corpus, not a defect to tune away.
-#
 # The trigger-less check (--trigger-less, config `trigger_less_stamp_check`)
 # ships OFF by default, per the Brief's portable-baseline constraint. It is
 # deliberately coarse: it asks whether the SURFACE — the whole file, which is
@@ -169,11 +163,13 @@ elif [[ "$TRIGGER_LESS" == "true" ]]; then
 else
   TRIGGER_LESS_CHECK=0
 fi
+TRIGGER_LESS_BOOL=false
+[[ "$TRIGGER_LESS_CHECK" -eq 1 ]] && TRIGGER_LESS_BOOL=true
 
 if [[ "$SHOW_CONFIG" -eq 1 ]]; then
   cfg_layers_print
   echo "Effective: stamp_expiry_days=$EXPIRY_DAYS $(cfg_from_label "$EXPIRY_FROM")"
-  echo "Effective: trigger_less_stamp_check=$([[ "$TRIGGER_LESS_CHECK" -eq 1 ]] && echo true || echo false) $(cfg_from_label "$TRIGGER_LESS_FROM")"
+  echo "Effective: trigger_less_stamp_check=$TRIGGER_LESS_BOOL $(cfg_from_label "$TRIGGER_LESS_FROM")"
   echo "Effective: as_of=$AS_OF"
   exit 0
 fi
@@ -258,15 +254,6 @@ function reset(name) {
 # ordinary English modal? "w" is the lowered window and "worig" the same span of
 # the original line, which is where the discriminating signal lives.
 #
-# "may" is split out of the month list because it is also a modal verb. Matched
-# bare, prose like "the first read may raise a permission prompt" became a
-# candidate whose date could not be parsed, so it landed in the declined bucket
-# and a reader could not tell it from a real stamp we failed to parse: 19 of the
-# 24 month-name declines were this word, measured over 1,352 files at --as-of
-# 2026-08-28. That count is tree-dependent and will drift, because the prose in
-# this repo also contains the modal; take it as the shape of the problem, not a
-# constant.
-#
 # Two signals separate the two words, and either one alone is enough:
 #
 #   A digit beside it. Every date form carries one ("may 2026", "may 17",
@@ -276,42 +263,16 @@ function reset(name) {
 #   A capital M on the original line. In edited prose the month is capitalized
 #   and the modal is not, and the rest of the scan works from a lowered copy
 #   that throws that signal away. This is what admits a digitless month date,
-#   "Verified this May", which the digit rule alone silently dropped: it was a
-#   candidate declining as a month-name form, visible to a human reading the
-#   declined bucket, and it became invisible to both this script and
-#   extract-breadcrumbs.sh. Under-reporting is the one direction this detector
-#   must not move in, and a digitless "Verified in June" still matches bare, so
-#   the same sentence written with May has to behave the same way.
+#   "Verified this May", as a digitless "Verified in June" is admitted.
 #
-# Two consequences, both measured over the 1,352-file corpus at 2026-08-28
-# rather than assumed:
-#
-#   A capitalized modal opening a sentence or a markdown table cell ("May the
-#   build stay green", "| May fail on usage limits") reads as a month. Ten of the
-#   24 capitalized "May" lines are that shape and 14 are month dates, counted by
-#   reading all 24 at commit 3c538bcc. It over-reports into a bucket a human
-#   reads, which is the safe direction.
-#
-#   ALL-CAPS defeats case, so a digitless ALL-CAPS May date stays invisible. Not
-#   one of the 34 ALL-CAPS "MAY" lines is a date; they are permission modals, and
-#   reading that form as a month would cost 34 false candidates to buy a date
-#   form nobody writes.
+# Known costs: a capitalized modal opening a sentence or a markdown table cell
+# ("May the build stay green") reads as a month, and ALL-CAPS defeats case, so a
+# digitless ALL-CAPS May date stays invisible.
 #
 # The two signals share ONE RSTART, and the caller reads it to decide whether
 # the match began inside the window or out in the 9 characters of slack. So both
 # are evaluated and the LEFTMOST wins, with RSTART and RLENGTH left describing
 # that match — never the one this function passed over.
-#
-# Returning on whichever branch is tested first under-reports. Test the digit
-# first and a digit-adjacent "may" out in the slack returns its own RSTART, the
-# caller rejects it against wlen, and a capital "May" sitting INSIDE the window is
-# never consulted: appending a stray "7 may" to "Verified this May" then removes
-# that line from the candidates. A second, weaker date signal deleting a stamp is
-# the one direction this detector must not move in. Testing the capital first only
-# mirrors that, a capital in the slack then hiding an in-window digit, so neither
-# order is enough. Leftmost changes nothing wherever the digit match already comes
-# first, which is every line in the corpus, measured by comparing parsed and
-# declined counts over 1,352 files at --as-of 2026-08-28, before and after.
 #
 # Both scripts carry this rule, so the cross-script agreement the suites assert is
 # blind to a defect they share: the two agree, on the wrong count. Both suites
@@ -364,19 +325,13 @@ function year_form(w,   off, s, pre, post) {
   return 0
 }
 
-# The stamp keyword list is shared with extract-breadcrumbs.sh on purpose: one
-# definition of what looks like a stamp, so the inventory and the check agree
-# about which lines are candidates. The month list, and may_form() above, are
-# shared for the same reason — change one and change the other, or the two
-# disagree.
+# The stamp keyword list, the month list and may_form() are shared with
+# extract-breadcrumbs.sh so the inventory and the check agree on which lines
+# are candidates: change one, change the other.
 #
-# "read" gets a much tighter window than the explicit stamp verbs. It is an
-# ordinary English verb, and at the wide window a corpus run turned lines like
-# "a single-source, unconfirmed read of a shipped build" into candidates purely
-# because a year appeared later in the sentence. The narrow window still admits
-# every real form the corpus uses ("read <ISO>", "read on <ISO>", "read of the
-# page on <ISO>") while the prose uses fall out, measured 2026-08-28 over 1,347
-# tracked files.
+# "read" is an ordinary English verb, so it gets a 30-character window rather
+# than 60. That still admits the real forms ("read <ISO>", "read on <ISO>",
+# "read of the page on <ISO>") while prose with a later year falls out.
 function keyword_window(line,   low, pos, off, kw, wlen, s) {
   low = tolower(line)
   off = 0
@@ -398,40 +353,21 @@ function keyword_window(line,   low, pos, off, kw, wlen, s) {
     }
     wlen = (kw ~ /read/) ? 30 : 60
     # The window is a distance from the keyword, not a cut through the text: a
-    # date that STARTS inside it is read whole. So slice wlen plus 9 more
-    # characters — one short of the longest FIXED-LENGTH form matched below, the
-    # 10-character ISO date; the "may" rule is unbounded and can outrun the slack,
-    # for which see the note under it — and require
-    # each match to begin at or before wlen. Slicing at exactly wlen truncated
-    # "as-of 2026-08-17" to "2026-08-", the ISO test failed on the fragment,
-    # and the bare-year fallback claimed the "2026" left behind: a conforming
-    # stamp was declined and so never expiry-checked
-    # (docs/upstream/aihero-course.md:127, corpus sweep of 2026-08-28).
-    # Each test returns the window cut at the end of its own match, so the
-    # caller classifies on the match this function accepted and never on one
-    # sitting in the 9 characters of slack.
-    # win_orig is the same span of the ORIGINAL line, cut at the same offsets:
-    # tolower() preserves length, so the two stay aligned character for
-    # character. may_form() reads it for the capital that separates the month
-    # from the modal, and the classifier below re-cuts it to the length of the
-    # window this function accepted.
+    # date that STARTS inside it is read whole. So slice wlen plus 9 characters,
+    # one short of the 10-character ISO date, and require each match to begin at
+    # or before wlen. Each test returns the window cut at the end of its own
+    # match, so the caller classifies on that match, never on one in the slack.
+    # win_orig is the same span of the original line (tolower() keeps length),
+    # read by may_form() for the capital May.
     win = substr(low, pos, wlen + 9)
     win_orig = substr(line, pos, wlen + 9)
     if (match(win, /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
     if (match(win, /[0-9]+\/[0-9]+\/[0-9]+/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
     if (match(win, /(january|february|march|april|june|july|august|september|october|november|december)/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
-    # "may" is a month and an ordinary English modal; may_form() above carries
-    # the two signals that separate them and the corpus measurements behind
-    # them, and leaves RSTART and RLENGTH set on the LEFTMOST of the two, which
-    # is what keeps a signal out here in the slack from hiding one the guard
-    # below would have taken. The digit half of that test is unbounded in
-    # length, unlike every other form
-    # here, so a contrived "may" + 10 or more non-letters + year starting at
-    # exactly wlen runs past the 9 characters of slack and stops being a
-    # candidate. Latent: no such line exists in the corpus, and the ordinary
-    # "may 2026" at the same offset is still caught. Widening the slack to cover
-    # it would move the RSTART <= wlen boundary that two earlier commits tuned,
-    # for a form nobody writes.
+    # may_form() leaves RSTART on the leftmost of its two signals. Its digit
+    # half is unbounded in length, so a contrived "may" + 10 or more
+    # non-letters + year starting at exactly wlen outruns the slack; no corpus
+    # line has that form.
     if (may_form(win, win_orig) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
     if (match(win, /(jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)[^a-z]/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
     if (year_form(win) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
@@ -486,11 +422,9 @@ tolower($0) ~ /recheck[ \t]+when[ \t]+[^ \t]|recheck\**:\**[ \t]*[^ \t*]/ {
   d_text[n_dec] = tsv($0)
   if (win ~ /[0-9]+\/[0-9]+\/[0-9]+/) d_reason[n_dec] = "slash"
   else if (win ~ /(january|february|march|april|june|july|august|september|october|november|december)/) d_reason[n_dec] = "month"
-  # The same may_form() the window test used, so the reason follows the rule
-  # that accepted the candidate. win is the window CUT at the accepted match,
-  # and win_orig is still the full slice, so re-cut it to the same length before
-  # asking: an uncut original could otherwise show a capital May sitting in the
-  # 9 characters of slack and relabel a bare-year decline as a month.
+  # The same may_form() the window test used, on win_orig re-cut to the length
+  # of the accepted window, so a capital May in the slack cannot relabel a
+  # bare-year decline as a month.
   else if (may_form(win, substr(win_orig, 1, length(win)))) d_reason[n_dec] = "month"
   else if (win ~ /(jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)[^a-z]/) d_reason[n_dec] = "month"
   else if (win ~ /(19|20)[0-9][0-9]-[0-9][0-9]$/) d_reason[n_dec] = "yearmonth"
@@ -548,7 +482,7 @@ done <<<"$RECORDS"
 printf '{\n'
 printf '  "as_of": %s,\n' "$(json_str "$AS_OF")"
 printf '  "expiry_days": %s,\n' "$EXPIRY_DAYS"
-printf '  "trigger_less_check": %s,\n' "$([[ "$TRIGGER_LESS_CHECK" -eq 1 ]] && echo true || echo false)"
+printf '  "trigger_less_check": %s,\n' "$TRIGGER_LESS_BOOL"
 
 printf '  "findings": ['
 first=1
