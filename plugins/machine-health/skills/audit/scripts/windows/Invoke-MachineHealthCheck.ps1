@@ -172,6 +172,7 @@ if ($PSCmdlet.ParameterSetName -eq 'ElevatedPass') {
     . (Join-Path $libRoot 'Write-ElevatedResult.ps1')
     $passLog = [System.Collections.Generic.List[string]]::new()
     $passResults = [System.Collections.Generic.List[object]]::new()
+    function Add-PassLog([string] $Line) { $passLog.Add("$((Get-Date).ToString('o')) $Line") }
     if (-not (Test-FileIdFormat $ResultFileId)) {
         [Console]::Error.WriteLine("[machine-health] elevated pass wrote no result: '$ResultFileId' is not a file ID.")
         exit 1
@@ -189,7 +190,7 @@ if ($PSCmdlet.ParameterSetName -eq 'ElevatedPass') {
                 $overlay = ConvertFrom-Jsonc -InputText (Get-Content -LiteralPath $overlayPath -Raw -ErrorAction Stop)
                 $effectiveChecks = @(Merge-CatalogOverlay -BaseChecks $shippedChecks -Overlay $overlay)
             } catch {
-                $passLog.Add("$((Get-Date).ToString('o')) catalog_overlay_failed $($_.Exception.Message)")
+                Add-PassLog "catalog_overlay_failed $($_.Exception.Message)"
             }
         }
         $matrixIds = @(Get-ElevationMatrix | ForEach-Object { [string]$_.CheckId } | Select-Object -Unique)
@@ -203,11 +204,11 @@ if ($PSCmdlet.ParameterSetName -eq 'ElevatedPass') {
             try {
                 [void](Assert-CatalogEntry $entry -Because 'shipped catalog')
             } catch {
-                $passLog.Add("$((Get-Date).ToString('o')) check_skipped id=$id reason=invalid_entry")
+                Add-PassLog "check_skipped id=$id reason=invalid_entry"
                 continue
             }
             if (-not ($effective -and ($effective.os -contains 'windows') -and $effective.enabled -and -not $effective.deprecated)) {
-                $passLog.Add("$((Get-Date).ToString('o')) check_skipped id=$id reason=disabled")
+                Add-PassLog "check_skipped id=$id reason=disabled"
                 continue
             }
             $scriptPath = [System.IO.Path]::GetFullPath((Join-Path $skillRootFull $entry.script))
@@ -215,7 +216,7 @@ if ($PSCmdlet.ParameterSetName -eq 'ElevatedPass') {
                 -not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
                 $passResults.Add((New-UnknownCheckResult -Entry $entry -Summary "Script not found: $($entry.script)" `
                             -ErrorReason 'script_missing'))
-                $passLog.Add("$((Get-Date).ToString('o')) check_skipped id=$id reason=script_missing")
+                Add-PassLog "check_skipped id=$id reason=script_missing"
                 continue
             }
             $checkArgs = Get-CheckArgument -CheckId $id -ScriptPath $scriptPath `
@@ -224,12 +225,12 @@ if ($PSCmdlet.ParameterSetName -eq 'ElevatedPass') {
                 -Arguments $checkArgs
             if ($dispatch.ok) {
                 $passResults.Add($dispatch.result)
-                $passLog.Add("$((Get-Date).ToString('o')) check_ok id=$id severity=$($dispatch.result.severity) elapsed_ms=$($dispatch.elapsed_ms)")
+                Add-PassLog "check_ok id=$id severity=$($dispatch.result.severity) elapsed_ms=$($dispatch.elapsed_ms)"
             } else {
                 $passResults.Add((New-UnknownCheckResult -Entry $entry `
                             -Summary "Check did not produce a valid result ($($dispatch.reason))." `
                             -ErrorReason $dispatch.reason -DurationMs ([int]$dispatch.elapsed_ms)))
-                $passLog.Add("$((Get-Date).ToString('o')) check_failed id=$id reason=$($dispatch.reason)")
+                Add-PassLog "check_failed id=$id reason=$($dispatch.reason)"
             }
         }
         Write-ElevatedResult -Path $ResultPath -FileId $ResultFileId -Results $passResults.ToArray() `
@@ -305,9 +306,8 @@ foreach ($k in $logDefaultKeys) {
 # Everything below runs while run.lock is held; the finally releases it on every exit path.
 try {
     Initialize-Directory -Path @($OutputBase, $reportsDir)
-    if ($stateWritable) { Initialize-Directory -Path $logsDir }
-
     if ($stateWritable) {
+        Initialize-Directory -Path $logsDir
         $runLog = Join-Path $logsDir "run-$runDate.log"
         $remedLog = Join-Path $logsDir "remediation-$runDate.log"
         # Bind LogPath once for the 30+ orchestrator-local Write-MachineHealthLog calls below.
@@ -331,20 +331,17 @@ try {
         try {
             $seedSize = (Get-Item -LiteralPath $seedKevPath).Length
             if ($seedSize -gt 4096) {
-                $msg = ('machine-specific state leaked: catalog/cisa-kev.json is ' +
-                    "$seedSize bytes (the shipped stub should be <1KB). Restore the " +
-                    'stub from source control, or reinstall/update the plugin.')
+                $msg = ("catalog/cisa-kev.json is $seedSize bytes (the shipped stub should be <1KB). " +
+                    'Restore the stub from source control, or reinstall/update the plugin.')
                 Write-MachineHealthLog "kev_seed_contaminated size=$seedSize mode=$RunMode"
-                Write-StderrBanner -Line "[machine-health] WARNING: $msg"
+                Write-StderrBanner -Line "[machine-health] WARNING: machine-specific state leaked: $msg"
                 # weekly and on-demand runs must not silently proceed past a
                 # contaminated seed -- CI or a scheduled task would bury the
                 # stderr banner. first-run keeps the soft warning so a new
                 # operator can see the banner and repair before the first
                 # real run.
                 if ($RunMode -ne 'first-run') {
-                    Write-Output ('[machine-health] FATAL: catalog/cisa-kev.json ' +
-                        "is $seedSize bytes (the shipped stub should be <1KB). Restore " +
-                        'the stub from source control, or reinstall/update the plugin.')
+                    Write-Output "[machine-health] FATAL: $msg"
                     exit 2
                 }
             }
@@ -394,10 +391,8 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
     # rest of the catalog, but each skip is synthesized as an UNKNOWN CheckResult
     # so the report / latest.json / severity_counts surface it (not only the run log).
     $catalogPath = Join-Path $skillRoot 'catalog\checks.jsonc'
-    $catalog = $null
     try {
-        $raw = Get-Content -LiteralPath $catalogPath -Raw -ErrorAction Stop
-        $catalog = ConvertFrom-Jsonc -InputText $raw
+        $catalog = ConvertFrom-Jsonc -InputText (Get-Content -LiteralPath $catalogPath -Raw -ErrorAction Stop)
         if ($null -eq $catalog -or -not $catalog.PSObject.Properties['checks']) {
             throw "Catalog missing 'checks' array."
         }
@@ -415,8 +410,7 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
     $overlayPath = Join-Path $StateBase 'catalog\checks.local.jsonc'
     if (Test-Path -LiteralPath $overlayPath) {
         try {
-            $overlayRaw = Get-Content -LiteralPath $overlayPath -Raw -ErrorAction Stop
-            $overlay = ConvertFrom-Jsonc -InputText $overlayRaw
+            $overlay = ConvertFrom-Jsonc -InputText (Get-Content -LiteralPath $overlayPath -Raw -ErrorAction Stop)
             $mergedChecks = @(Merge-CatalogOverlay -BaseChecks @($catalog.checks) -Overlay $overlay)
             $catalog = [pscustomobject]@{ checks = $mergedChecks }
             $customIds = @($mergedChecks |
@@ -606,6 +600,7 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
     # Remediation dispatch (dry-run-aware, user-load-aware, approval-gated via approvals.json)
     $remediationAttempts = [System.Collections.Generic.List[object]]::new()
     $remediationsEnabled = (-not $effectiveDry) -and (-not $userLoaded) -and $stateWritable
+    $skipReason = if ($effectiveDry) { 'dry_run' } elseif ($userLoaded) { 'user_load' } elseif (-not $stateWritable) { 'state_location' } else { 'disabled' }
 
     $todoPath = Get-TodoPath -StateBase $StateBase
     $queuedTodoTitles = [System.Collections.Generic.List[string]]::new()
@@ -664,16 +659,7 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
             }
         }
     } else {
-        $reason = if ($effectiveDry) {
-            'dry_run'
-        } elseif ($userLoaded) {
-            'user_load'
-        } elseif (-not $stateWritable) {
-            'state_location'
-        } else {
-            'disabled'
-        }
-        Write-MachineHealthLog "remediations_skipped reason=$reason"
+        Write-MachineHealthLog "remediations_skipped reason=$skipReason"
     }
 
     $discoveredChecks = @()
@@ -819,8 +805,6 @@ modules. Harmless to ignore.
         Write-MachineHealthLog "appended_history path=$historyPath"
     }
 
-    $templatePath = Join-Path $skillRoot 'reference\shared\report-template.md'
-
     $oneLine = ("$($totalBySeverity.CRIT) CRIT, $($totalBySeverity.WARN) WARN, " +
         "$($totalBySeverity.INFO) INFO, $($totalBySeverity.OK) OK, " +
         "$($totalBySeverity.UNKNOWN) UNKNOWN")
@@ -886,15 +870,12 @@ $glanceRows
 
     $remediationsSection = if ($remediationAttempts.Count -eq 0) {
         if (-not $remediationsEnabled) {
-            $reason = if ($effectiveDry) {
-                'dry-run mode'
-            } elseif ($userLoaded) {
-                'user load detected'
-            } elseif (-not $stateWritable) {
-                'state folder under a cloud sync root'
-            } else {
-                'no approvals in approvals.json'
-            }
+            $reason = @{
+                dry_run        = 'dry-run mode'
+                user_load      = 'user load detected'
+                state_location = 'state folder under a cloud sync root'
+                disabled       = 'no approvals in approvals.json'
+            }[$skipReason]
             "_No remediations attempted ($reason)._"
         } else {
             '_No remediation conditions met this run._'
@@ -908,7 +889,7 @@ $glanceRows
 
     $discoverySection = Get-DiscoveryMarkdown -Proposals $discoveredChecks
     if ($Scheduled -and $stateWritable) {
-        $discoverySection +="`n`nResearch notes on this run's new findings: ``$($discovery.DiscoveryPath)``"
+        $discoverySection += "`n`nResearch notes on this run's new findings: ``$($discovery.DiscoveryPath)``"
     }
     $openQuestions = Get-OpenQuestionsMarkdown -QueuedTitle $queuedTodoTitles.ToArray() -TodoPath $todoPath
 
@@ -941,21 +922,12 @@ $glanceRows
         # The report-template.md file is a spec document that embeds the actual
         # template inside a fenced markdown code block (```markdown ... ```).
         # Extract that block so the spec doesn't bleed into the rendered report.
-        $pattern = '(?ms)^```markdown\s*\r?\n(.*?)\r?\n```\s*$'
-        $match = [regex]::Match($raw, $pattern)
-        if ($match.Success) {
-            return $match.Groups[1].Value
-        }
-
-        # Fallback: if no fenced block, assume the entire file is the template.
-        # The previous anchor-based fallback (find "\n# Machine health") was
-        # fragile -- a heading variant or leading whitespace would break it.
-        return $raw
+        # With no fenced block, the entire file is the template.
+        $match = [regex]::Match($raw, '(?ms)^```markdown\s*\r?\n(.*?)\r?\n```\s*$')
+        return $match.Success ? $match.Groups[1].Value : $raw
     }
 
-    $template = Get-ReportTemplate -TemplatePath $templatePath
-
-    $report = $template
+    $report = Get-ReportTemplate -TemplatePath (Join-Path $skillRoot 'reference\shared\report-template.md')
     $durationHuman = if ($durationSeconds -lt 60) {
         "$([int]$durationSeconds)s"
     } else {
