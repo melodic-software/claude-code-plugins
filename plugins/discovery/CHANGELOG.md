@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [1.6.9] - 2026-11-09
+
+### Changed
+
+- Simplified the shared HTML escape helper and the slice index regeneration script without changing their output.
+
 ## [1.6.8] - 2026-11-09
 
 ### Changed
