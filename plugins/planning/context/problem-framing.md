@@ -18,6 +18,13 @@ The Brief's `### Problem` records each field as one line:
 
 A field with no evidence reads `unknown` in an engineering Brief. Never fill one from a guess.
 
+**Candidates for an unknown field.** Before a field is written `unknown`, propose candidate values
+drawn from the repository and the conversation, each with its source, for the user to confirm or
+correct; ask them after the instance question when one is asked ("Reported-only evidence"). A
+value the user confirms or corrects is rated `reported` and does not trigger the instance
+question. A declined field stays `unknown`, and so does every field in an unattended run, which
+asks no candidates.
+
 ## Evidence rating
 
 Each evidence item, and each inferred problem, carries exactly one rating:
@@ -47,6 +54,18 @@ against an alternative (a durable queue instead of the named wrapper); questions
 solution stay on its parameters. A concern that the solution may not cover the problem is recorded
 under `### Captured assumptions` with the condition that would revisit it, and stated in one line,
 never asked.
+
+## Reported-only evidence
+
+A stated problem whose evidence is only `reported` gets one instance question, asked with the
+restatement: the last concrete instance, what it cost, and who hit it. It is one question, never
+a why chain, and it asks about the problem's evidence only: it never reopens the named solution.
+Under `lock` it joins the one confirmation question. The answer rewrites the Evidence line (an
+artifact the user points at is `observed`; an instance the user recounts stays `reported`), and no
+follow-up question chases it. An `inferred` problem gets no separate question: the rethink-or-accept
+question above asks for the instance too. A problem with any `observed` evidence gets none, and
+the restatement names the artifact that shows it. Basis for asking only on `reported`-only
+evidence: judgment. Basis for no challenge on `observed` evidence: judgment.
 
 ## Idea-stage requests
 
@@ -115,6 +134,10 @@ A run with no human to answer still writes the problem. `### Problem` opens with
 register row with arbiter USER-RESERVED, under rung 3 of the interview's existing unattended
 ladder (`../skills/interview/context/loop.md` "Unattended path"). The Brief still locks, and the
 run names the blocker in its output.
+
+Unattended, the instance question and the unknown-field candidates are skipped: the Evidence line
+keeps its rating and an unknown field stays `unknown`. The default Finish line, and the stop for
+an item that needs a human, follow loop.md "Unattended path".
 
 ## Pre-confirmed
 

@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "Brief written to .work/timeout-literals/PLAN.md.\nQ1 (USER-RESERVED): hardcoding the timeout in three files contradicts the confirmed Vision.\nStopped: needs a human: the task hardcodes a setting the confirmed Vision keeps in config/settings.py alone.", "why": "ends on the stop line with its reason"},
+    {"answer": "**Stopped: needs a human:** three hardcoded timeouts contradict the recorded Vision of one source of truth for settings.", "why": "bold stop line"}
+  ],
+  "fail": [
+    {"answer": "Brief written to .work/timeout-literals/PLAN.md.\nBlocked: Q1 confirm the problem (arbiter: USER-RESERVED).", "why": "a rung-3 blocker line, no stop for a human"},
+    {"answer": "Stopped: needs a human:", "why": "no reason after the stop line"},
+    {"answer": "## Result: Stopped, needs a human\nThe task contradicts the Vision.", "why": "not the stop line's literal shape"},
+    {"answer": "", "why": "empty reply"}
+  ]
+}

@@ -88,6 +88,8 @@
 #     Captured assumptions, Out-of-scope, Deferred questions (headings only;
 #     content is not graded), plus Intent when the Brief carries a
 #     `- Restatement:` stamp (a page export)
+#   - with --brief, the Goal carries a `- Finish line:` line whose text is
+#     non-empty and not `not settled yet`
 #   - with --surface <data_dir> (the interview page's data dir), the gate runs
 #     `surface/round.sh export-brief --ledger <ledger>` on that data dir and
 #     the Brief holds every section that export writes (Decisions among them
@@ -1081,6 +1083,16 @@ if [[ "$procedure_on" -eq 1 ]]; then
       section_matches="$(printf '%s\n' "$section_matches" | awk -F'\t' -v lo="$brief_lo" -v hi="$brief_hi" '$1 > lo && $1 < hi')"
       [[ -n "$section_matches" ]] || proc_problems="${proc_problems}Brief is missing the section matching '$section_pattern'"$'\n'
     done
+
+    # The Goal's Finish line says when the whole effort is done and who checks it.
+    finish_line="$(section_lines 'goal' "$brief_lo" "$brief_hi" "$brief" | tr '[:upper:]' '[:lower:]' | sed -e 's/\*\*//g' -e 's/__//g' | sed -n 's/^[-*+] finish line:[[:space:]]*//p' | head -n 1)"
+    finish_check="$(printf '%s' "$finish_line" | tr -d '`' | tr '[:upper:]' '[:lower:]')"
+    case "$finish_check" in
+    '' | 'not settled yet' | 'not settled yet.')
+      proc_problems="${proc_problems}Brief's Goal has no settled '- Finish line:' line (<merged | released | in use> — checked by <who> via <observable check>)"$'\n'
+      ;;
+    *) ;;
+    esac
 
     # The page's own export is what the Brief must still carry: the sections a
     # confirmed restatement filled and the user's words in Intent exist only on
