@@ -418,6 +418,20 @@ class WhatGetsSettled(SettledCase):
             verdict.report()["settle"], [], "an open demotion record keeps it unsettled"
         )
 
+    def test_a_flake_whose_demotion_read_fails_is_not_listed_and_stays_readable(
+        self,
+    ) -> None:
+        # Past the quarantine, but the open-issue listing fails: the flake is
+        # not final, as before its reads existed, and the verdict stays readable.
+        self.flake_on_rerun()
+        self.gh.fail_reads.add("issues?state=open")
+        verdict = self.settled_check(now=datetime(2026, 10, 20, 11, 0, tzinfo=UTC))
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertTrue(verdict.merges[0].verified, verdict.merges[0].pending)
+        self.assertEqual(
+            verdict.report()["settle"], [], "a failed demotion read is not final"
+        )
+
     def test_a_superseded_flake_past_the_quarantine_window_is_not_listed(
         self,
     ) -> None:

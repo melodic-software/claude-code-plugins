@@ -1886,15 +1886,20 @@ class _Context:
         re-run passed (not a newer run superseding it, which holds only within
         the compare budget), `merge.quarantine-days` (`_quarantine_days`) have
         passed since it was created, so any quarantine its attempt 1 started
-        has expired, and no open demotion record names it."""
-        return (
-            run.id in self.flaked_on_rerun
-            and self.now >= run.created_at + timedelta(days=self._quarantine_days(run))
-            and not any(
+        has expired, and no open demotion record names it. A failed read
+        leaves it not final, so it holds the merge as it did before any of
+        these reads ran, rather than making the whole verdict unreadable."""
+        if run.id not in self.flaked_on_rerun:
+            return False
+        try:
+            return self.now >= run.created_at + timedelta(
+                days=self._quarantine_days(run)
+            ) and not any(
                 _demotes_run(run.url, issue.get("body"))
                 for issue in self._open_records()
             )
-        )
+        except (PostMergeReadError, policy.PolicyReadError):
+            return False
 
     def _edited_issues(self, numbers: list[int]) -> frozenset[int]:
         """The issues among `numbers` whose body was edited after filing, which
