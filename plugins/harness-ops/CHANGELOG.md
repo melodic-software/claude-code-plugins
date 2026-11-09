@@ -3,6 +3,16 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.0] - 2026-11-09
+
+### Changed
+
+- In a linked git worktree, the hook log root (`session_event_log_dir`) now sits under the main checkout instead of the worktree. The session event log, the telemetry sink and SessionEnd retention write there, and `/harness-ops:observability` reads there, so a worktree session's rows survive the worktree's removal and a report from the main checkout counts them. SessionEnd retention's `session_log_keep_sessions` now counts the sessions of every worktree together. A directory outside git, a submodule, a worktree of a bare repository whose directory is not named `.git`, and a `.git` file that is not a registered worktree of its common directory keep their own directory.
+
+### Fixed
+
+- Retirement records `harness-ops-r004` and `harness-ops-r005` name 8.10.2, the release that shipped them, as their `plugin_version`; they said 8.10.1.
+
 ## [8.11.0] - 2026-11-09
 
 ### Added
