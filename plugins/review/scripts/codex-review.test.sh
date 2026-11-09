@@ -174,7 +174,7 @@ printf -- '--look for races in reserve()' >"$BRIEF"
 run_case "$LIST_INSTALLED" 1 1 --base origin/main --model gpt-x --brief-file "$BRIEF"
 assert_eq "--brief-file runs adversarial-review with the brief as focus text after --" \
   "adversarial-review --wait --base origin/main --model gpt-x -- --look for races in reserve()" "$(cat "$REVIEW_LOG")"
-assert_eq "--brief-file keeps the status line contract" "codex: ran" "$(printf '%s\n' "$OUT" | head -n 1)"
+assert_eq "--brief-file keeps the first status line" "codex: ran" "$(printf '%s\n' "$OUT" | head -n 1)"
 
 for args in "--base origin/main" "--base origin/main --adversarial" "--base origin/main --model gpt-x --brief-file $BRIEF"; do
   # shellcheck disable=SC2086 # the word list is the argument vector under test

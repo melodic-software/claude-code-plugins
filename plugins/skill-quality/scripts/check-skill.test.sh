@@ -4325,6 +4325,16 @@ if [[ $rc -eq 0 ]] && grep -q 'case tags listed' <<<"$out"; then
 else
   fail "a converted case tagged listed should satisfy --require-evals (rc=$rc): $out"
 fi
+# 48d. A case with only a prompt.md, its front matter tagging the skill, counts too.
+rm -f "$TMP/plugins/p1/evals/c1/case.yaml"
+out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$TMP/plugins/p1/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" --require-evals listed 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'case tags listed' <<<"$out"; then
+  pass "--require-evals accepts a prompt.md-only case whose front matter tags the skill"
+else
+  fail "a prompt.md-only case tagged listed should satisfy --require-evals (rc=$rc): $out"
+fi
 rm -rf "${TMP:?}/plugins/p1/evals"
 
 # 49. The evals-warrant walk stops at a filesystem root instead of spinning.
