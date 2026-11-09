@@ -81,8 +81,8 @@ def decide_page(ev: dict) -> str:
     for arm, state in ev["arms"].items():
         if state != "pass":
             return f"unverified: verifier-{arm}-{state}"
-    for gate in ev["failed_gates"]:
-        return f"unverified: gate-{gate}-fail"
+    if ev["failed_gates"]:
+        return f"unverified: gate-{ev['failed_gates'][0]}-fail"
     if not ev["checklist"]:
         return "unverified: checklist-missing"
     if not ev["handoff"]:
@@ -144,9 +144,7 @@ def read_pin(slice_dir: Path, started_at: float):
         capture_output=True,
         check=False,
     )
-    if check.returncode != 0:
-        return "moved", pinned_at, hashes
-    return "ok", pinned_at, hashes
+    return ("ok" if check.returncode == 0 else "moved"), pinned_at, hashes
 
 
 def judge_verdict(text: str) -> str:
@@ -208,16 +206,15 @@ def failed_gates(slice_dir: Path) -> list:
     failed = []
     for gate, args in gate_commands(slice_dir).items():
         try:
-            run = subprocess.run(
+            passed = subprocess.run(
                 [sys.executable, "-I", "-B", str(SCRIPTS / f"{gate}.py"), *args],
                 capture_output=True,
                 check=False,
                 timeout=GATE_TIMEOUT_SECONDS,
-            )
+            ).returncode == 0
         except subprocess.TimeoutExpired:
-            failed.append(gate)
-            continue
-        if run.returncode != 0:
+            passed = False
+        if not passed:
             failed.append(gate)
     return failed
 

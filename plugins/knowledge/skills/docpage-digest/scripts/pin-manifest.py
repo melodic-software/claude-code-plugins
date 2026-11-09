@@ -33,18 +33,13 @@ def sha256(path: Path) -> str:
 
 def frozen_paths(root: Path, complete: bool) -> list:
     sources = sorted(p for p in root.glob("source.*") if p.is_file())
-    inventory = root / "SOURCES.md"
+    inventory = [p for p in (root / "SOURCES.md",) if p.is_file()]
     digests = sorted(p for p in (root / "digests").glob("*.md") if p.is_file())
-    missing = []
-    if not sources:
-        missing.append("source.*")
-    if not inventory.is_file():
-        missing.append("SOURCES.md")
-    if not digests:
-        missing.append("digests/*.md")
+    groups = (("source.*", sources), ("SOURCES.md", inventory), ("digests/*.md", digests))
+    missing = [name for name, found in groups if not found]
     if missing and complete:
         raise ValueError("nothing to pin, missing: " + ", ".join(missing))
-    return [*sources, *([inventory] if inventory.is_file() else []), *digests]
+    return [*sources, *inventory, *digests]
 
 
 def hashes(root: Path, complete: bool) -> dict:
