@@ -10,7 +10,8 @@ library first (`../component-libraries.md`).
 All values assume the defaults from `catalog.md`: `ease-out` to enter or leave and `in` for a
 permanent exit (`catalog.md`, "Easing"), exits within `exit_factor` of their entrance,
 transform/opacity only, and a `prefers-reduced-motion` path for everything. Adapt the syntax
-to the project's stack (CSS, Tailwind, Motion): keep the values. A block labeled with a stack (Motion
+to the project's stack (CSS, Tailwind, Motion), filling each `{{key}}` placeholder as
+[`../values.md`](../values.md) says. A block labeled with a stack (Motion
 for React, Tailwind) applies only when the project's files show that stack; otherwise keep the
 behavior and look up the stack's own form. A rule that ends in **Audit:** gives the severity
 `/user-interface:audit` uses for a finding against it.
@@ -50,8 +51,9 @@ function Button({ still = false, className, ...rest }) {
 
 ## Dropdown, popover, menu, select: `popover`
 
-- Opens from opacity zero and a scale near 0.95 to full; closes the reverse way.
-- Fade + scale from `0.95`, 150-200ms ease-out, **origin-aware**: scale from the trigger, not the
+- Opens from opacity zero and a scale near `animation.scale.enter` to full; closes the reverse way.
+- Fade + scale from `animation.scale.enter` over `animation.duration_ms.medium`, ease-out,
+  **origin-aware**: scale from the trigger, not the
   center.
 - Origin at the trigger, so the panel looks like it came out of what was clicked. A dropdown that
   grows from its own center looks detached from the button that opened it. Anchored surfaces scale
@@ -60,7 +62,8 @@ function Button({ still = false, className, ...rest }) {
 - Many headless component libraries expose the trigger position as a CSS variable for this; look
   it up for the project's library. The CSS is the popover recipe in `/user-interface:write-css`.
 - Role `medium` (`small` for a small popover), curve `out`.
-- A small directional nudge (`translateY(-4px)` → `0` when opening downward) adds polish.
+- A small directional nudge (in from `animation.travel_px.small` above when opening downward) adds
+  polish.
   Keyboard navigation *inside* the menu gets no animation: highlight moves instantly.
 
 Worked example, one share menu and two prompts. "the share menu feels janky, make it smoother"
@@ -77,12 +80,13 @@ component library exposes the trigger side; mirror it for right-to-left.
 
 ## Tooltip: `tooltip`
 
-- The popover behavior, faster: role `small`, a scale closer to 1 (about 0.97). Fast and subtle:
-  fade + `scale(0.97)`, ~125ms ease-out, origin-aware.
+- The popover behavior, faster: role `small`, a scale closer to full (`animation.scale.enter_small`).
+  Fast and subtle: fade + scale from `animation.scale.enter_small` over `animation.duration_ms.small`,
+  ease-out, origin-aware.
 - The critical detail is the **instant-group behavior**: the first tooltip gets a hover delay and
   animation; while one is open, sibling tooltips appear instantly with no delay and no animation.
-- A tooltip delay (~200ms) stops tooltips firing on incidental mouse travel. Track a shared "warm"
-  flag; clear it ~300ms after the last tooltip closes.
+- A tooltip delay (`animation.delay_ms.tooltip`) stops tooltips firing on incidental mouse travel.
+  Track a shared "warm" flag; clear it `animation.delay_ms.group_warm` after the last tooltip closes.
 - Most primitives have this built in, through a provider mounted once around the tooltips; the
   finding is a provider that's missing or mounted per tooltip instead of once. How the project's
   library names it (a skip-delay setting, an instant state or attribute) is a lookup.
@@ -99,8 +103,9 @@ missing or mounted per tooltip instead of once.
 
 ## Modal and dialog: `modal`
 
-- Opens from opacity zero and a scale near 0.96; stays centered (no trigger origin).
-- Enter: fade + slight scale-up from `0.95`-`0.97`, 200-250ms ease-out. Exit: the same fade and scale,
+- Opens from opacity zero and a scale near `animation.scale.enter`; stays centered (no trigger origin).
+- Enter: fade + slight scale-up from `animation.scale.enter`, within `animation.duration_ms.large`,
+  ease-out. Exit: the same fade and scale,
   faster (at most `exit_factor` of the entrance), on `in` as a permanent exit. Overlay fades with **identical duration and easing**:
   they move as one unit.
 - Role `large` at most, curve `out`, though most modals feel right well short of the limit.
@@ -114,17 +119,18 @@ missing or mounted per tooltip instead of once.
 
 - Slides in from its edge by its own full size (a percent translate), and leaves through the same
   edge. Slides from its edge with a translate transition (interruptible: users close drawers
-  mid-open). 250-300ms ease-out enter, faster exit. Backdrop fades with the same timing.
+  mid-open). `animation.duration_ms.large` ease-out enter, faster exit. Backdrop fades with the same
+  timing.
 - Role `large`, curve `drawer`, on the way in and on the way out: a drawer leaves but stays nearby.
 - Dragging it turns it into a gesture: `drag-to-dismiss` and `gestures.md`. If the drawer is
   draggable (mobile sheet), use a spring so release velocity carries into the animation.
 
-Illustration (CSS; the curve is the `drawer` default):
+Illustration (CSS):
 
 ```css
 .drawer {
   transform: translateX(100%);
-  transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition: transform {{animation.duration_ms.large}}ms cubic-bezier({{animation.easing.drawer}});
 }
 .drawer[data-open] { transform: translateX(0); }
 ```
@@ -132,8 +138,9 @@ Illustration (CSS; the curve is the `drawer` default):
 ## Toast: `toast`
 
 - Enters from its edge by its own size with a fade, and leaves the way it came. Enters with
-  translate + fade from its screen edge (bottom edge → `translateY(16px)` → `0`), 200-250ms
-  ease-out. Exit: fade + small translate toward the edge, faster. A dismissed toast is a permanent
+  translate + fade from its screen edge (at the bottom edge, up from `animation.travel_px.large`
+  below), within `animation.duration_ms.large`, ease-out. Exit: fade + small translate toward the
+  edge, faster. A dismissed toast is a permanent
   exit, so it leaves on `in`.
 - Motion that retargets from the current value, never a restarting keyframe, because toasts arrive
   in bursts.
@@ -161,9 +168,10 @@ Illustration (CSS; the curve is the `drawer` default):
 ## Section entrance, split then stagger: `section-entrance`
 
 For page/section entrances, never move one monolithic wrapper. Carve the content into meaningful
-pieces (heading, supporting copy, call to action) and offset each by roughly 100ms. The softest
-layered enter pairs a fade with a short upward travel (`translateY(8px)` → 0) while a light
-`blur(2px)` melts away. Hero headlines can go finer-grained: per-word offsets of ~80ms.
+pieces (heading, supporting copy, call to action) and offset each by `animation.stagger_ms.section`.
+The softest layered enter pairs a fade with a short upward travel (`animation.travel_px.medium`)
+while a light blur of `animation.blur_px.soften` melts away. Hero headlines can go finer-grained:
+per-word offsets of `animation.stagger_ms.word`.
 
 This offset is for a few large pieces of one section; a list's items take the shorter stagger
 interval in `catalog.md`. On a marketing page, an entrance that replays on every visit is the
@@ -205,11 +213,12 @@ Illustration (CSS; set `--n` per child, 0, 1, 2 and so on, in the markup):
 An exit deserves less emphasis than an enter, because by the time something leaves, attention has
 already moved elsewhere.
 
-- Nudge a fixed few pixels (`translateY(-8px)` or so), never the element's own height. The
+- Nudge a fixed few pixels (`animation.travel_px.medium` or so), never the element's own height. The
   direction follows the path it entered by, so the sign depends on the edge (`catalog.md`,
   "Physicality").
 - A hint of direction tells the eye where the thing went; a pure fade loses that.
-- Run it shorter: ~150ms out against ~250-300ms in, at most `exit_factor` of the entrance.
+- Run it shorter: at most `animation.duration_ms.exit_factor` of an entrance within
+  `animation.duration_ms.large`.
 - A permanent exit accelerates away on `in`; a toggled one leaves on the curve it entered with
   (`catalog.md`, "Easing").
 - Don't cut straight to `display: none`: instant disappearance severs spatial context.
@@ -217,11 +226,12 @@ already moved elsewhere.
 Reserve a full off-screen slide (`x: "-100%"`) for moments where the destination itself is the
 information: a swiped-away list card, a closing drawer.
 
-Illustration (Motion for React; a permanent exit, the curve is the `in` default):
+Illustration (Motion for React; a permanent exit on the `in` curve):
 
 ```tsx
-<motion.div exit={{ opacity: 0, y: -8, filter: "blur(2px)",
-  transition: { duration: 0.14, ease: [0.3, 0, 1, 1] } }} />
+<motion.div exit={{ opacity: 0, y: -{{animation.travel_px.medium}}, filter: "blur({{animation.blur_px.soften}}px)",
+  transition: { duration: {{animation.duration_ms.medium}} * {{animation.duration_ms.exit_factor}} / 1000,
+    ease: [{{animation.easing.in}}] } }} />
 ```
 
 ## Contextual icon swap: `icon-swap`
@@ -230,20 +240,22 @@ Icons that change with state (play → pause, like → liked, copy → check) de
 not a visibility toggle. The recipe is a deep scale-down, a fade, a slight blur, and a
 bounce-free spring.
 
-- `scale`: `0.3` → `1`: a deep scale-down reads as a swap; a timid one (0.8, 0.9) reads as a glitch
+- `scale`: from `animation.scale.swap_start` to full size: a deep scale-down reads as a swap; a
+  timid one (0.8, 0.9) reads as a glitch
 - `opacity`: fades `0` → `1` alongside the scale
-- `filter`: `blur(3px)` sharpening to `blur(0px)`
-- spring: `{ type: "spring", duration: 0.35, bounce: 0 }`: keep bounce at zero, icons aren't toys
+- `filter`: a blur of `animation.blur_px.soften` sharpening to none
+- spring: duration `animation.spring.duration_s.small`, bounce `animation.spring.bounce.default`:
+  icons aren't toys
 
 Illustration (Motion for React):
 
 ```tsx
 <AnimatePresence mode="popLayout" initial={false}>
   <motion.span key={copied ? "check" : "copy"}
-    initial={{ scale: 0.3, opacity: 0, filter: "blur(3px)" }}
+    initial={{ scale: {{animation.scale.swap_start}}, opacity: 0, filter: "blur({{animation.blur_px.soften}}px)" }}
     animate={{ scale: 1, opacity: 1, filter: "blur(0px)" }}
-    exit={{ scale: 0.3, opacity: 0, filter: "blur(3px)" }}
-    transition={{ type: "spring", duration: 0.35, bounce: 0 }}>
+    exit={{ scale: {{animation.scale.swap_start}}, opacity: 0, filter: "blur({{animation.blur_px.soften}}px)" }}
+    transition={{ type: "spring", duration: {{animation.spring.duration_s.small}}, bounce: {{animation.spring.bounce.default}} }}>
     {copied ? <CheckIcon /> : <CopyIcon />}
   </motion.span>
 </AnimatePresence>
@@ -251,7 +263,8 @@ Illustration (Motion for React):
 
 Without Motion: render **both icons at once**, layering one absolutely over the other, and swap
 classes to cross-fade: nothing ever unmounts, so the reverse direction animates just as well. A firm
-ease-out such as `cubic-bezier(0.25, 0.1, 0, 1)` over ~300ms stands in for the spring. The icon left
+ease-out such as `animation.easing.spring_stand_in` over `animation.spring.duration_s.small` stands
+in for the spring. The icon left
 in normal flow determines the component's size.
 
 Good candidates: actions revealed on hover, state toggles, icons inside contextual toolbars, loading
@@ -346,9 +359,8 @@ the `web-performance` concern.
 - It dismisses when dragged past `animation.gesture.distance_threshold` (a fraction of its travel,
   0 to 1) or released fast enough, so a flick is enough: faster than `animation.gesture.velocity_threshold` (px/ms) for a small element such as a
   toast; a drawer or sheet needs a higher threshold (`gestures.md`, "Drag details"). For
-  drag-to-dismiss, trigger dismissal when velocity (`swipeAmount / timeTaken`) exceeds ~0.11, not
-  only on distance thresholds. The threshold to compare against is the resolved
-  `animation.gesture.velocity_threshold`, not the literal.
+  drag-to-dismiss, compare velocity (`swipeAmount / timeTaken`) with
+  `animation.gesture.velocity_threshold`, not only distance.
 - Otherwise it springs back fast with the release velocity; a slow return reads as the interface
   disagreeing with the user.
 - Pointer capture, multi-touch protection, resistance past the edge: `gestures.md`.
@@ -357,6 +369,6 @@ the `web-performance` concern.
 
 - When two states visibly overlap during a crossfade and tuning easing and duration does not fix
   it, add a small blur and a slight opacity dip during the transition so the eye reads one change.
-  Add a subtle `blur(2px)` during the transition to bridge the states (keep well under 20px). The
-  limit to keep under is the resolved `animation.blur_max_px`, 20px by default.
+  Add a subtle blur of `animation.blur_px.soften` during the transition to bridge the states, kept
+  well under `animation.blur_max_px`.
 - Keep the blur small; its cost grows with radius and area (`performance.md`).

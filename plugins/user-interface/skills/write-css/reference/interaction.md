@@ -1,8 +1,8 @@
 # Interaction
 
-The project's design system, tokens and conventions override everything in this file. Literal
-values in the examples are this skill's defaults: use one only where the project has no token for
-it, and name each default you used.
+The project's design system, tokens and conventions override everything in this file. A
+configurable value in an example is a `{{key}}` placeholder; fill each as
+[`values.md`](../../../reference/values.md) says.
 
 Each `Baseline:` line links the live compat entry; never copy version numbers from it. As of
 2026-10-11; recheck when that entry's Baseline status changes or the project's browser target moves.
@@ -24,8 +24,8 @@ Use it as the focus style for every interactive element. Never write `outline: n
 
 ```css
 :focus-visible {
-  outline: max(2px, 0.08em) solid var(--focus-ring, currentColor);
-  outline-offset: 2px;
+  outline: {{css.focus_ring.width}} solid var(--focus-ring, currentColor);
+  outline-offset: {{css.focus_ring.offset_px}}px;
 }
 ```
 
@@ -81,7 +81,7 @@ Baseline: [`:active`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference
 widely available. As of 2026-10-11, recheck on a status change.
 
 Use it on pressable controls. Which controls take the scale and which skip it are the `motion`
-concern's (`press`); this recipe is how to write it. Fill each `{{key}}` placeholder as [`values.md`](../../../reference/values.md) says.
+concern's (`press`); this recipe is how to write it.
 
 ```css
 .button:active { transform: scale({{animation.scale.press}}); }
@@ -264,7 +264,7 @@ copy its height onto the wrapper, which transitions.
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .field { transition: height 0.2s var(--ease-out, ease-out); }
+  .field { transition: height {{animation.duration_ms.medium}}ms var(--ease-out, ease-out); }
 }
 ```
 

@@ -79,10 +79,11 @@ mass/stiffness/damping):
 { type: "spring", mass: 1, stiffness: 100, damping: 10 }
 ```
 
-**Bounce rules:** default to `bounce: 0` in product UI. Add bounce only for playful, physical
-interactions (drag-to-dismiss release, a toy-like toggle) and keep it subtle: 0.1-0.3, never more.
-Default spring: `{ type: "spring", duration: 0.5, bounce: 0 }`; the `bounce: 0.2` above shows the
-form for a playful case, not the default.
+**Bounce rules:** default to `animation.spring.bounce.default` in product UI. Add bounce only for
+playful, physical interactions (drag-to-dismiss release, a toy-like toggle) and keep it subtle,
+never above `animation.spring.bounce.playful_max`. Default spring: duration
+`animation.spring.duration_s.default`, bounce `animation.spring.bounce.default`; the `bounce: 0.2`
+above shows the form for a playful case, not the default.
 
 Whatever form the library takes, think in two parameters:
 
@@ -91,14 +92,14 @@ Whatever form the library takes, think in two parameters:
 - **Response** is roughly how quickly the value reaches its target, in seconds. It is not a
   duration: the settle time emerges from the parameters.
 
-| Interaction | Damping | Response |
+| Interaction | Damping | Response (`animation.spring.response_s`) |
 |---|---|---|
-| Default interface motion | 1.0 | 0.3 to 0.4 |
-| After a flick, throw or drag release | about 0.8 | 0.3 to 0.4 |
-| Moving or repositioning an element | 1.0 | 0.4 |
-| Rotation | 0.8 | 0.4 |
-| Drawer or sheet released from a drag | 0.8 | 0.3 |
-| Drawer or sheet opened by a control | 1.0 | 0.3 |
+| Default interface motion | 1.0 | `animation.spring.response_s` range |
+| After a flick, throw or drag release | about 0.8 | `animation.spring.response_s` range |
+| Moving or repositioning an element | 1.0 | high end of `animation.spring.response_s` |
+| Rotation | 0.8 | high end of `animation.spring.response_s` |
+| Drawer or sheet released from a drag | 0.8 | low end of `animation.spring.response_s` |
+| Drawer or sheet opened by a control | 1.0 | low end of `animation.spring.response_s` |
 
 - Overshoot on something the user flicked feels right; overshoot on a menu that simply opened feels
   wrong.
@@ -126,8 +127,9 @@ element, then snap to the target nearest that projected point; this is what make
 Decide whether to commit or return from the velocity's direction at release, not from position
 alone.
 
-Illustration (pseudocode, adapt to the stack; the deceleration rate is about 0.998 for a normal
-scroll feel and 0.99 for a snappier one):
+Illustration (pseudocode, adapt to the stack; the deceleration rate is
+`animation.gesture.deceleration_rate` for a normal scroll feel, and lower than
+`animation.gesture.deceleration_rate` for a snappier one):
 
 ```text
 project(velocityPxPerSecond, rate) = (velocityPxPerSecond / 1000) * rate / (1 - rate)
@@ -141,7 +143,8 @@ At an edge, resist progressively instead of stopping hard: the further past the 
 the element follows. A hard stop reads as frozen; rising resistance reads as responsive with
 nothing more there.
 
-Illustration (pseudocode, adapt to the stack; the constant is about 0.55):
+Illustration (pseudocode, adapt to the stack; the constant is
+`animation.gesture.rubberband_constant`):
 
 ```text
 rubberband(overshoot, dimension, c) = (overshoot * dimension * c) / (dimension + c * |overshoot|)
@@ -162,10 +165,10 @@ rubberband(overshoot, dimension, c) = (overshoot * dimension * c) / (dimension +
 
 ## Gesture intent: `gesture-intent`
 
-- **Tap**: highlight on touch-down, commit on touch-up, with about 10 px of slack around the
-  target, and cancel when the pointer is dragged away.
-- **Drag or swipe**: require a small movement (about 10 px) before committing to a direction, then
-  track 1:1.
+- **Tap**: highlight on touch-down, commit on touch-up, with `animation.gesture.slop_px` of slack
+  around the target, and cancel when the pointer is dragged away.
+- **Drag or swipe**: require a small movement (`animation.gesture.slop_px`) before committing to a
+  direction, then track 1:1.
 - Recognize every plausible gesture in parallel from the first movement and drop the losers once
   intent is clear. Avoid recognizers that report only a final swipe; they discard the continuous
   tracking feedback needs.
