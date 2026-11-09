@@ -34,15 +34,10 @@ registry="scripts/cross-plugin-source-registry.txt"
 
 # Filenames that are *expected* to differ per plugin by design -- excluded
 # from clustering entirely so they never produce noise.
-skip_basenames=(SKILL.md plugin.json README.md CHANGELOG.md evals.json hooks.json .gitignore)
-
-is_skipped() {
-  local base="$1" skip
-  for skip in "${skip_basenames[@]}"; do
-    [[ "$base" == "$skip" ]] && return 0
-  done
-  return 1
-}
+declare -A skip_basenames=(
+  [SKILL.md]=1 [plugin.json]=1 [README.md]=1 [CHANGELOG.md]=1
+  [evals.json]=1 [hooks.json]=1 [.gitignore]=1
+)
 
 # rel path within a plugin -> newline-delimited "plugin:fullpath" entries
 declare -A cluster_entries
@@ -56,11 +51,7 @@ while IFS= read -r -d '' full; do
   plugin="${rest%%/*}"
   rel="${rest#"$plugin"/}"
   [[ "$rel" != "$rest" ]] || continue
-  base="${full##*/}"
-  # shellcheck disable=SC2310  # is_skipped only compares strings; nothing inside it can fail
-  if is_skipped "$base"; then
-    continue
-  fi
+  [[ -z "${skip_basenames[${full##*/}]:-}" ]] || continue
   # NEWLINE-delimited, not space-delimited (#3376). `find -print0` already
   # hands us paths containing spaces intact; joining the accumulator on a
   # space would throw that away again the moment load_cluster split it back
@@ -162,11 +153,9 @@ if [[ -f "$registry" ]]; then
   for line in ${registry_entries[@]+"${registry_entries[@]}"}; do
     [[ "$line" == *" -> "* ]] && continue
     path_entries+=("$line")
-  done
-  registry_entries=(${path_entries[@]+"${path_entries[@]}"})
-  for line in ${registry_entries[@]+"${registry_entries[@]}"}; do
     registered["$line"]=1
   done
+  registry_entries=(${path_entries[@]+"${path_entries[@]}"})
 fi
 
 mode="${1:-discover}"

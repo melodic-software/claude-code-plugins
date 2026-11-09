@@ -19,7 +19,7 @@ mean moving documentation prose into the JSON the resolver loads at run time.
 The two columns that ARE derivable -- the key set and the default value -- are
 pinned here instead, byte for byte against a canonical rendering, so the
 mechanically checkable half cannot disagree while the prose half stays hand
-written and readable. That is the shape the issue calls "verify" (#3841).
+written and readable.
 
 WHAT IS PINNED, exactly:
 
@@ -115,13 +115,12 @@ def leaves(node, prefix: str = ""):
 
 def default_leaves(defaults: dict) -> dict[str, object]:
     """The consumer-configurable leaves, reserved members dropped at the root."""
-    out = {}
-    for key, value in defaults.items():
-        if key in RESERVED_KEYS or key.startswith(RESERVED_PREFIX):
-            continue
-        for path, leaf in leaves(value, f"{key}."):
-            out[path] = leaf
-    return out
+    return {
+        path: leaf
+        for key, value in defaults.items()
+        if key not in RESERVED_KEYS and not key.startswith(RESERVED_PREFIX)
+        for path, leaf in leaves(value, f"{key}.")
+    }
 
 
 def render_default(value) -> str:
@@ -170,11 +169,10 @@ def split_row(line: str) -> list[str]:
 def key_table(doc_text: str) -> list[tuple[int, list[str]]]:
     """The first table under `## Keys`, as (1-based line number, cells) rows."""
     lines = doc_text.splitlines()
-    start = None
-    for index, line in enumerate(lines):
-        if line.strip() == SECTION_HEADING:
-            start = index + 1
-            break
+    start = next(
+        (index + 1 for index, line in enumerate(lines) if line.strip() == SECTION_HEADING),
+        None,
+    )
     if start is None:
         raise GateError(f"no {SECTION_HEADING!r} heading in the reference document")
 
@@ -292,6 +290,12 @@ def check(defaults: dict, doc_text: str, doc_name: str) -> list[str]:
     return problems
 
 
+def cannot_run(path: Path, error: object) -> int:
+    """Report why the gate could not run; return the fail-closed exit code."""
+    print(f"CANNOT RUN: {path}: {error}", file=sys.stderr)
+    return 2
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--defaults", type=Path, default=DEFAULT_DEFAULTS)
@@ -301,30 +305,22 @@ def main(argv: list[str]) -> int:
     try:
         defaults_text = args.defaults.read_text(encoding="utf-8")
     except OSError as error:
-        print(f"CANNOT RUN: {args.defaults}: {error}", file=sys.stderr)
-        return 2
+        return cannot_run(args.defaults, error)
     try:
         doc_text = args.doc.read_text(encoding="utf-8")
     except OSError as error:
-        print(f"CANNOT RUN: {args.doc}: {error}", file=sys.stderr)
-        return 2
+        return cannot_run(args.doc, error)
     try:
         defaults = json.loads(defaults_text)
     except json.JSONDecodeError as error:
-        print(f"CANNOT RUN: {args.defaults}: {error}", file=sys.stderr)
-        return 2
+        return cannot_run(args.defaults, error)
     if not isinstance(defaults, dict):
-        print(
-            f"CANNOT RUN: {args.defaults}: top level is not a JSON object",
-            file=sys.stderr,
-        )
-        return 2
+        return cannot_run(args.defaults, "top level is not a JSON object")
 
     try:
         problems = check(defaults, doc_text, args.doc.name)
     except GateError as error:
-        print(f"CANNOT RUN: {args.doc}: {error}", file=sys.stderr)
-        return 2
+        return cannot_run(args.doc, error)
 
     if problems:
         for problem in problems:
