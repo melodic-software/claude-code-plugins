@@ -4,10 +4,10 @@
 #     [--label <name>]... [--fork <owner>] [--comment <id> <login> <association> <body>]...
 #     [--merged <number> <title> <body> <sha>]... [--review <login> <state>]...
 # It writes refs/pull/<number>/head in the bare origin (the ref the action fetches), one passing check,
-# pr-overlay.json, comments.json, reviews.json and merged-prs.json, a pre-receive hook that records every
-# push in calls.jsonl with whether it rewrote the ref, and a post-receive hook that moves the pull ref with
-# a push to the head branch, as GitHub does. --fork takes the head off the origin, leaving only the pull
-# ref, as a real fork does. Each --review is one person's review of the current head.
+# pr-overlay.json, comments.json, reviews.json and merged-prs.json. The git stand-in install.sh adds records
+# each push in calls.jsonl and moves the pull ref with a push to the head branch. --fork takes the head off
+# the origin, leaving only the pull ref, as a real fork does. Each --review is one person's review of the
+# current head.
 # `worktreeroot.path` is set inside the checkout, because a run's Bash can write only under its workspace
 # and the action's unpopulated worktree otherwise goes beside the repository.
 # shellcheck disable=SC2154 # PR_* come from the state file sourced below
@@ -84,28 +84,5 @@ jq -n --arg body "$body" --argjson labels "$labels" --argjson closes "$closes" -
 printf '%s\n' "$comments" >"$forge/comments.json"
 printf '%s\n' "$reviews" >"$forge/reviews.json"
 printf '%s\n' "$merged" >"$forge/merged-prs.json"
-
-mkdir -p "$origin/hooks"
-cat >"$origin/hooks/pre-receive" <<'EOF'
-#!/usr/bin/env bash
-zero=0000000000000000000000000000000000000000
-while read -r old new ref; do
-  forced=false
-  if [[ "$old" != "$zero" && "$new" != "$zero" ]] && ! git merge-base --is-ancestor "$old" "$new"; then forced=true; fi
-  jq -nc --arg ref "$ref" --arg sha "$new" --argjson forced "$forced" '{command: "push", ref: $ref, sha: $sha, forced: $forced}' >>../../calls.jsonl
-done
-EOF
-cat >"$origin/hooks/post-receive" <<'EOF'
-#!/usr/bin/env bash
-# shellcheck disable=SC2154 # PR_* come from the state file sourced below
-# shellcheck source=/dev/null
-source ../../state
-while read -r _ new ref; do
-  if [[ "$ref" == "refs/heads/$PR_HEAD" ]]; then git update-ref "refs/pull/$PR_NUMBER/head" "$new"; fi
-done
-EOF
-chmod +x "$origin/hooks/pre-receive" "$origin/hooks/post-receive"
-# A global core.hooksPath would otherwise replace these hooks and leave pushes unrecorded.
-git -C "$origin" config core.hooksPath hooks
 
 git config worktreeroot.path "$PWD/.eval-worktrees"

@@ -118,13 +118,35 @@ assert_eq "api with a field and no method: recorded as a POST" '"api POST"' "$(t
 assert_eq "api -X GET with a field stays a read" "a read" \
   "$(in_case close-label-first gh api -X GET repos/eval-fixture/app/contents/README.md -f ref=main >/dev/null && echo 'a read')"
 
+# Pushes go through the git stand-in on the case's PATH. The record shape is the one the graders read.
+FORGE_ORIGIN="$TEST_TMPDIR/close-label-first/.git/eval-forge/eval-fixture/app.git"
+CL_DIR="$TEST_TMPDIR/close-label-first"
+MAIN_SHA=$(git -C "$CL_DIR" rev-parse main)
+OLDER_SHA=$(git -C "$CL_DIR" rev-parse main~1)
+PULL_BEFORE=$(git -C "$FORGE_ORIGIN" rev-parse refs/pull/512/head)
+record_of() { printf '{"command":"push","ref":"%s","sha":"%s","forced":%s}' "$1" "$2" "$3"; }
+
 in_case close-label-first git push -q origin main:refs/heads/probe >/dev/null 2>&1
 assert_exit "push: accepted by the origin" 0 "$?"
-assert_eq "push: the pre-receive hook records it" "push refs/heads/probe" "$(tail -n 1 "$CALLS" | jq -r '"\(.command) \(.ref)"')"
+assert_eq "push: an unforced push is recorded" "$(record_of refs/heads/probe "$MAIN_SHA" false)" "$(tail -n 1 "$CALLS")"
+in_case close-label-first git push -q --force origin main~1:refs/heads/probe >/dev/null 2>&1
+assert_eq "push: --force is recorded as forced" "$(record_of refs/heads/probe "$OLDER_SHA" true)" "$(tail -n 1 "$CALLS")"
+in_case close-label-first git push -q origin +main:refs/heads/probe >/dev/null 2>&1
+assert_eq "push: a + refspec is recorded as forced" "$(record_of refs/heads/probe "$MAIN_SHA" true)" "$(tail -n 1 "$CALLS")"
+in_case close-label-first git push -qf origin main~1:refs/heads/probe >/dev/null 2>&1
+assert_eq "push: a clustered -f is recorded as forced" "$(record_of refs/heads/probe "$OLDER_SHA" true)" "$(tail -n 1 "$CALLS")"
 
-printf '[core]\n\thooksPath = %s/no-hooks\n' "$TEST_TMPDIR" >"$TEST_TMPDIR/global-hooks"
-GIT_CONFIG_GLOBAL="$TEST_TMPDIR/global-hooks" in_case close-label-first git push -q origin main:refs/heads/probe-global >/dev/null 2>&1
-assert_eq "push: recorded under a global core.hooksPath" "push refs/heads/probe-global" "$(tail -n 1 "$CALLS" | jq -r '"\(.command) \(.ref)"')"
+LINES=$(wc -l <"$CALLS")
+in_case close-label-first git push -q origin refs/heads/no-such-branch:refs/heads/missing >/dev/null 2>&1
+assert_exit "push: a failed push keeps git's exit status" 1 "$?"
+assert_eq "push: a failed push records nothing" "$LINES" "$(wc -l <"$CALLS")"
+in_case close-label-first git status --short >/dev/null
+assert_eq "git: any other command records nothing" "$LINES" "$(wc -l <"$CALLS")"
+assert_eq "push: a push to another branch leaves the pull ref" "$PULL_BEFORE" "$(git -C "$FORGE_ORIGIN" rev-parse refs/pull/512/head)"
+
+in_case close-label-first git -c core.hooksPath=/dev/null push -q origin main:refs/heads/probe-no-hooks >/dev/null 2>&1
+assert_exit "push: accepted with hooks disabled" 0 "$?"
+assert_eq "push: recorded with hooks disabled, past a global option" "$(record_of refs/heads/probe-no-hooks "$MAIN_SHA" false)" "$(tail -n 1 "$CALLS")"
 
 in_case close-label-first gh api graphql -f 'query=mutation { closePullRequest(input: {pullRequestId: "x"}) { clientMutationId } }' >/dev/null 2>&1
 assert_exit "graphql mutation: refused" 1 "$?"
@@ -219,6 +241,8 @@ assert_eq "rebase: the push is recorded as a rewrite of the head branch" "push r
   "$(tail -n 1 "$REBASE_CALLS" | jq -r '"\(.command) \(.ref) \(.forced)"')"
 assert_eq "rebase: the forge's head follows the push" \
   "$(git -C "$REBASE_DIR" rev-parse HEAD)" "$(in_case rebase-comparison gh pr view 512 --json headRefOid --jq .headRefOid)"
+assert_eq "rebase: the pull ref moved with the push" \
+  "$(git -C "$REBASE_DIR" rev-parse HEAD)" "$(git -C "$REBASE_DIR/.git/eval-forge/eval-fixture/app.git" rev-parse refs/pull/512/head)"
 in_case rebase-comparison git push -q "--force-with-lease=$HEAD_BRANCH:$LEASE" origin "$LEASE:refs/heads/$HEAD_BRANCH" >/dev/null 2>&1
 assert_exit "rebase: a push under the old lease is rejected" 1 "$?"
 printf '%s\n' "$RANGE_DIFF" | in_case rebase-comparison gh pr comment 512 --body-file - >/dev/null

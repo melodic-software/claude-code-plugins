@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Stand-in for git in pull-request eval runs: every command passes through to the real git. A `git push`
+# that succeeds and moves a ref in the bare origin appends one line per moved ref to calls.jsonl, and a
+# push to the pull request's head branch moves refs/pull/<n>/head, as GitHub does. It reads the moved refs
+# from the origin before and after, because the origin's receive hooks do not fire inside an eval run.
+# `forced` is what the push asked for, not what it did: --force, -f, --force-with-lease or a `+` refspec.
+# shellcheck disable=SC2154 # PR_* come from the state file sourced below
+set -uo pipefail
+
+real=""
+IFS=: read -ra dirs <<<"$PATH"
+for dir in "${dirs[@]}"; do
+  if [[ -x "${dir:-.}/git" && ! "${dir:-.}/git" -ef "${BASH_SOURCE[0]}" ]]; then
+    real="${dir:-.}/git"
+    break
+  fi
+done
+[[ -n "$real" ]] || {
+  echo "git (eval fixture forge): no git on PATH" >&2
+  exit 127
+}
+
+args=("$@")
+i=0
+while ((i < ${#args[@]})); do
+  case "${args[i]}" in
+    -C | -c | --git-dir | --work-tree | --namespace | --config-env | --attr-source) i=$((i + 2)) ;;
+    -*) i=$((i + 1)) ;;
+    *) break ;;
+  esac
+done
+[[ "${args[i]:-}" == push ]] || exec "$real" "$@"
+
+forced=false
+for ((i++; i < ${#args[@]}; i++)); do
+  case "${args[i]}" in
+    --repo | --receive-pack | --exec | --push-option | -o) i=$((i + 1)) ;;
+    --force | --force-with-lease | --force-with-lease=*) forced=true ;;
+    --* | -o*) ;;
+    -*f* | +*) forced=true ;;
+    *) ;;
+  esac
+done
+
+forge="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+origin="$forge/eval-fixture/app.git"
+zero=0000000000000000000000000000000000000000
+refs() { "$real" --git-dir="$origin" for-each-ref --format='%(objectname) %(refname)' refs/heads refs/tags 2>/dev/null; }
+
+declare -A before=() after=()
+while read -r sha ref; do before[$ref]="$sha"; done < <(refs)
+"$real" "$@"
+rc=$?
+((rc == 0)) || exit "$rc"
+while read -r sha ref; do after[$ref]="$sha"; done < <(refs)
+
+# shellcheck source=/dev/null
+source "$forge/state"
+while read -r ref; do
+  [[ -n "$ref" ]] || continue
+  new="${after[$ref]:-$zero}"
+  [[ "${before[$ref]:-}" != "$new" ]] || continue
+  jq -nc --arg ref "$ref" --arg sha "$new" --argjson forced "$forced" \
+    '{command: "push", ref: $ref, sha: $sha, forced: $forced}' >>"$forge/calls.jsonl"
+  if [[ "$ref" == "refs/heads/$PR_HEAD" && "$new" != "$zero" ]] &&
+    "$real" --git-dir="$origin" rev-parse -q --verify "refs/pull/$PR_NUMBER/head" >/dev/null; then
+    "$real" --git-dir="$origin" update-ref "refs/pull/$PR_NUMBER/head" "$new"
+  fi
+done < <(printf '%s\n' "${!before[@]}" "${!after[@]}" | sort -u)
+exit 0
