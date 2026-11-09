@@ -255,7 +255,7 @@ if ((plugin_stage)); then
 
   # Catalog entries this marketplace marks `defaultEnabled: false`. The two
   # sources above answer INSTALL; enablement is the catalog's separate axis, and
-  # `plugin install --scope user -y` honours it — measured on claude 2.1.263
+  # `plugin install --scope user -y` honors it — measured on claude 2.1.263
   # against a throwaway marketplace: exit 0, the CLI printing "This plugin is
   # disabled by default", and `plugin list --json` showing scope=user with
   # enabled=false. So DISABLED is the EXPECTED end state for these ids, and
@@ -287,14 +287,19 @@ if ((plugin_stage)); then
   # which takes session precedence over the cached install.
   plugins_registry="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/installed_plugins.json"
   head_sha="$(git -C "$source_repo" rev-parse HEAD 2>/dev/null || true)"
+  # recorded_sha <plugin-id> — the gitCommitSha the registry recorded for the
+  # plugin's user-scope install; empty when there is none.
+  recorded_sha() {
+    jq -r --arg id "$1" \
+      '(.plugins[$id] // []) | map(select(.scope == "user")) | .[0].gitCommitSha // ""' \
+      "$plugins_registry" 2>/dev/null | tr -d '\r'
+  }
   needs_refresh() {
     # needs_refresh <plugin-id> — true when the cached snapshot predates a
     # change to that plugin's directory in this checkout.
     local id="$1" name="${1%@*}" recorded
     [[ -n "$head_sha" && -f "$plugins_registry" ]] || return 1
-    recorded="$(jq -r --arg id "$id" \
-      '(.plugins[$id] // []) | map(select(.scope == "user")) | .[0].gitCommitSha // ""' \
-      "$plugins_registry" 2>/dev/null | tr -d '\r')"
+    recorded="$(recorded_sha "$id")"
     [[ -n "$recorded" && "$recorded" != "$head_sha" ]] || return 1
     # A commit this clone doesn't have (shallow fetch, force-push): refresh
     # rather than guess that the snapshot is current.
@@ -327,9 +332,7 @@ if ((plugin_stage)); then
       printf 'cannot verify snapshot: no plugin registry at %s' "$plugins_registry"
       return 0
     fi
-    recorded="$(jq -r --arg id "$id" \
-      '(.plugins[$id] // []) | map(select(.scope == "user")) | .[0].gitCommitSha // ""' \
-      "$plugins_registry" 2>/dev/null | tr -d '\r')"
+    recorded="$(recorded_sha "$id")"
     if [[ -z "$recorded" || "$recorded" == "null" ]]; then
       printf 'cannot verify snapshot: no user-scope gitCommitSha recorded in %s' \
         "$plugins_registry"
@@ -415,18 +418,23 @@ if ((plugin_stage)); then
     [[ -n "$id" ]] || continue
     action="${action_of[$id]}"
     reason=""
+    # One jq per id: whether a user-scope record exists, is enabled (true), or
+    # is disabled (false). An entry jq cannot read counts as no match.
+    on_user="" enabled_true="" enabled_false=""
+    if [[ "$listed" -eq 1 ]]; then
+      IFS=$'\t' read -r on_user enabled_true enabled_false < <(
+        jq -r --arg id "$id" \
+          'def user(f): try any(.[]?; .id == $id and .scope == "user" and f) catch false;
+           [user(true), user(.enabled == true), user(.enabled == false)] | @tsv' \
+          <<<"$end_state" 2>/dev/null | tr -d '\r'
+      ) || true
+    fi
     if [[ "$listed" -eq 0 ]]; then
       reason="unverified"
-    elif ! jq -e --arg id "$id" 'any(.[]?; .id == $id and .scope == "user")' \
-      <<<"$end_state" >/dev/null 2>&1; then
+    elif [[ "$on_user" != true ]]; then
       reason="not installed at user scope"
-    elif ! jq -e --arg id "$id" \
-      'any(.[]?; .id == $id and .scope == "user" and .enabled == true)' \
-      <<<"$end_state" >/dev/null 2>&1 &&
-      ! { jq -e --arg id "$id" \
-            'any(.[]?; .id == $id and .scope == "user" and .enabled == false)' \
-            <<<"$end_state" >/dev/null 2>&1 &&
-          [[ " ${default_disabled[*]} " == *" ${id%@*} "* ]]; }; then
+    elif [[ "$enabled_true" != true ]] &&
+      ! [[ "$enabled_false" == true && " ${default_disabled[*]} " == *" ${id%@*} "* ]]; then
       reason="installed at user scope but not enabled"
     else
       reason="$(snapshot_problem "$id")"
@@ -552,12 +560,10 @@ fi
 # committed SHA-256s above but an accepted one.
 if ! command -v check-jsonschema >/dev/null 2>&1; then
   if command -v uv >/dev/null 2>&1; then
-    uv tool install --quiet "check-jsonschema==${check_jsonschema_pin}" ||
-      echo "cloud-bootstrap: warning: check-jsonschema install failed" >&2
+    uv tool install --quiet "check-jsonschema==${check_jsonschema_pin}"
   else
-    python3 -m pip install --user --quiet "check-jsonschema==${check_jsonschema_pin}" ||
-      echo "cloud-bootstrap: warning: check-jsonschema install failed" >&2
-  fi
+    python3 -m pip install --user --quiet "check-jsonschema==${check_jsonschema_pin}"
+  fi || echo "cloud-bootstrap: warning: check-jsonschema install failed" >&2
 fi
 
 # --- Git history (best effort) --------------------------------------------------
