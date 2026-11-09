@@ -79,9 +79,10 @@ Rules:
   `press-feedback` (`interaction.md`).
 - Never fix input zoom with `user-scalable=no` or `maximum-scale=1`; that takes zoom from people
   who need it.
-- `max(16px, 1rem)` keeps input text at 16px even when the root font size is set lower. If the
-  design needs smaller input text on desktop, set the smaller size outside
-  `@media (pointer: coarse)` and keep 16px inside it; why is the `touch` concern's.
+- `max(16px, 1rem)` keeps input text at the input floor even when the root font size is set lower.
+  If the design needs smaller input text on desktop, set the smaller size outside
+  `@media (pointer: coarse)` and keep the floor inside it; the floor and why are the `touch`
+  concern's.
 - Keep `user-select: none` to controls, never on `body` or links: people copy text. Extend the
   selector to the project's other controls (tabs, chips, drag handles), and give a link or image
   used as a control `-webkit-touch-callout: none` so a long press opens no callout.

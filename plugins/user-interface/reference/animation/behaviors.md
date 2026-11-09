@@ -27,14 +27,17 @@ Contents: `press`, `popover`, `tooltip`, `modal`, `drawer`, `toast`, `accordion`
 - Children scale with it, which is what reads as physical.
 - No hover gate: a press is real on touch.
 - `animation.scale.press` on `:active`, animated over `animation.duration_ms.press` with an ease-out
-  CSS transition so a release mid-press glides back instead of snapping. Much further down than
-  `animation.scale.press` starts to look cartoonish. The CSS is the press recipe in
+  CSS transition so a release mid-press glides back instead of snapping. Below
+  `animation.scale.press_min` it starts to look cartoonish. The CSS is the press recipe in
   `/user-interface:write-css`; values are written as [`../values.md`](../values.md) says.
 - Not every button needs it: dense or high-frequency UI can skip it. Bake an opt-out into your
   Button component, e.g. a `still` prop.
 - What may be skipped is the scale, not the pressed state: a button that skips it still shows
   `:active` some other way, such as a color shift, and a button with no `:active` state at all is
   the `forms` concern's finding.
+
+**Audit: Suggestion.** A press scale below `animation.scale.press_min`. The project's value stands;
+the finding names the key and its resolved value.
 
 Illustration (React with Tailwind):
 

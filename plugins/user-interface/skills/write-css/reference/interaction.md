@@ -103,12 +103,13 @@ Rules:
 
 ## Hit area larger than the visual: `hit-area-larger-than-the-visual`
 
-Why: a pseudo-element grows the target to at least 44px without changing what the user sees.
+Why: a pseudo-element grows the target to the touch floor without changing what the user sees.
 
 Baseline: [`inset`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/inset#browser_compatibility).
 As of 2026-10-11, recheck on a status change.
 
-Use it on icon buttons, close buttons and any target that looks smaller than 44px.
+Use it on icon buttons, close buttons and any target that looks smaller than the touch floor. The
+code below uses its 44px; the floors and their sources are the `touch` concern's "2. Targets".
 
 ```css
 .icon-button { position: relative; }
