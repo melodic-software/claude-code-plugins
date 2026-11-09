@@ -1462,11 +1462,11 @@ if (existsSync(marketplacePath)) {
   }
 }
 
-// The `core` bundle installs the catalog's default-on set through its manifest
+// The `core` bundle installs a chosen set of plugins through its manifest
 // `dependencies`. It stays off by default itself, so taking the default-on set
-// never installs it, and its list must equal that set (every other entry whose
-// defaultEnabled is absent or true), or installing it adds or omits a plugin
-// the catalog does not enable by default.
+// never installs it, and each member must be a default-on catalog entry
+// (defaultEnabled absent or true), so installing it never adds a plugin the
+// catalog leaves off or does not publish.
 const coreManifestPath = join(pluginRoot, "core", ".claude-plugin", "plugin.json");
 if (existsSync(marketplacePath) && existsSync(coreManifestPath)) {
   const entries = [JSON.parse(read(marketplacePath)).plugins ?? []].flat().filter((e) => e && typeof e === "object");
@@ -1474,17 +1474,17 @@ if (existsSync(marketplacePath) && existsSync(coreManifestPath)) {
   if (coreEntry && coreEntry.defaultEnabled !== false) {
     fail(marketplacePath, 'plugin entry "core" must set "defaultEnabled": false');
   }
-  const defaultOn = new Set(entries.filter((e) => e.name !== "core" && e.defaultEnabled !== false).map((e) => e.name));
-  const deps = new Set(
-    [JSON.parse(read(coreManifestPath)).dependencies ?? []].flat().map((d) => (typeof d === "string" ? d : d?.name)),
-  );
-  const missing = [...defaultOn].filter((n) => !deps.has(n)).sort();
-  const extra = [...deps].filter((n) => !defaultOn.has(n)).sort();
-  if (missing.length || extra.length) {
-    fail(
-      coreManifestPath,
-      `dependencies must equal the catalog's default-on plugins (missing: ${missing.join(", ") || "none"}; not default-on: ${extra.join(", ") || "none"})`,
-    );
+  const byName = new Map(entries.map((e) => [e.name, e]));
+  const deps = [JSON.parse(read(coreManifestPath)).dependencies ?? []]
+    .flat()
+    .map((d) => (typeof d === "string" ? d : d?.name));
+  const absent = deps.filter((n) => !byName.has(n)).sort();
+  const off = deps.filter((n) => byName.get(n)?.defaultEnabled === false).sort();
+  if (absent.length) {
+    fail(coreManifestPath, `dependencies must be catalog plugins (not in the catalog: ${absent.join(", ")})`);
+  }
+  if (off.length) {
+    fail(coreManifestPath, `dependencies must be default-on catalog plugins (not default-on: ${off.join(", ")})`);
   }
 }
 
