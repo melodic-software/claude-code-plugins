@@ -62,7 +62,8 @@ def one(job):
     pe, pd = paper(src, rep, d['T'])
     cw, ch = min(CROP[0], x.shape[1]), min(CROP[1], x.shape[0])
     s = cv2.boxFilter(x.astype(np.float32), -1, (cw, ch), normalize=False, anchor=(0, 0), borderType=cv2.BORDER_CONSTANT)
-    y0, x0 = np.unravel_index(np.argmax(s[:x.shape[0] - ch + 1, :x.shape[1] - cw + 1]), (x.shape[0] - ch + 1, x.shape[1] - cw + 1))
+    starts = (x.shape[0] - ch + 1, x.shape[1] - cw + 1)   # every top-left corner a full crop window fits at
+    y0, x0 = np.unravel_index(np.argmax(s[:starts[0], :starts[1]]), starts)
     heat = np.full(src.shape, 255, np.uint8)
     heat[ms & mr] = (200, 200, 200)
     heat[red] = (0, 0, 255)

@@ -87,6 +87,10 @@ def ok(r):
     return r['xor'] <= FLOOR_X * r['floor'] and r['ssim'] >= SSIM_MIN and r['ssim_e'] >= SSIME_MIN
 
 
+def xor_floor(r):
+    return r['xor'] / max(r['floor'], 1e-9)
+
+
 def table(tag, rows):
     def rgb(v):
         return ','.join(f'{c:+.2f}' for c in v)
@@ -97,7 +101,7 @@ def table(tag, rows):
              f'ssim_e >= {SSIME_MIN}', '',
              '| k | pts | xor % | floor % | xor/floor | replica-only px | source-only px | ssim | ssim_e | paper_err | paper_d R,G,B | pass |',
              '|---|---|---|---|---|---|---|---|---|---|---|---|']
-    lines += [f"| {r['k']} | {r['pts']:.3f} | {r['xor']:.3f} | {r['floor']:.3f} | {r['xor'] / max(r['floor'], 1e-9):.2f} | "
+    lines += [f"| {r['k']} | {r['pts']:.3f} | {r['xor']:.3f} | {r['floor']:.3f} | {xor_floor(r):.2f} | "
               f"{r['rep_only']} | {r['src_only']} | {r['ssim']:.4f} | {r['ssim_e']:.4f} | {r['paper_err']:.2f} | "
               f"{rgb(r['paper_d'])} | {'yes' if ok(r) else 'NO'} |" for r in rows]
     lines.append(f"| mean | | {mean('xor'):.3f} | {mean('floor'):.3f} | | | | {mean('ssim'):.4f} | {mean('ssim_e'):.4f} | "
@@ -135,11 +139,11 @@ def main(argv=None):
     lines = table(tag, rows)
     (out / f'table-{ks[0]:03d}-{ks[-1]:03d}.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
     print('\n'.join(lines))
-    worst = sorted(rows, key=lambda r: -r['xor'] / max(r['floor'], 1e-9))[:3]
+    worst = sorted(rows, key=lambda r: -xor_floor(r))[:3]
     with open(workdir.learnings(work), 'a', encoding='utf-8') as f:
         f.write(f"- {datetime.date.today()} measure {tag} d{ks[0]:03d}-d{ks[-1]:03d}: {sum(map(ok, rows))}/{len(rows)} pass; "
                 f"mean xor {np.mean([r['xor'] for r in rows]):.3f}%, ssim {np.mean([r['ssim'] for r in rows]):.4f}; worst xor/floor "
-                + ', '.join(f"d{r['k']:03d} {r['xor'] / max(r['floor'], 1e-9):.2f}" for r in worst) + '\n')
+                + ', '.join(f"d{r['k']:03d} {xor_floor(r):.2f}" for r in worst) + '\n')
     return 0 if all(map(ok, rows)) else 1
 
 
