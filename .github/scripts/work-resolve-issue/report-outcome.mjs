@@ -917,7 +917,7 @@ const STALE_CAUSE =
 // reads too: a person decides each but `attended`, which waits on a step the
 // owner takes present, and `host-run`, which a host session builds while Work
 // status stays agent-ready; only a person removes OUTSIDE_ACTOR_LABEL.
-export const LANE_HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-reporter-info", "needs-human", ...UNTRUSTED_LABELS, ATTENDED_LABEL, HOST_RUN_LABEL, OUTSIDE_ACTOR_LABEL]);
+export const LANE_HOLDS = new Set(["needs-owner-decision", "needs-reporter-info", "needs-human", ...UNTRUSTED_LABELS, ATTENDED_LABEL, HOST_RUN_LABEL, OUTSIDE_ACTOR_LABEL]);
 const BLOB = /^[0-9a-f]{40}$/;
 
 // The admission record's lib, loaded on use: ci-status loads this file from a
@@ -1723,13 +1723,19 @@ export const listedCommits = (comparison) =>
   Array.isArray(comparison?.commits) && comparison.commits.length === comparison.total_commits ? comparison.commits : null;
 export const allLaneCommits = (commits, bot) => Array.isArray(commits) && commits.length > 0 && commits.every((commit) => laneCommit(commit, bot));
 
-export function readBranch(dir, issueNumber, key = "branch") {
+// `read` applied to the runner's lane.json in `dir`, or `fallback` when the
+// file cannot be read or parsed or `read` throws on what it holds: the run can
+// rewrite lane.json, so no value in it may stop the report.
+function fromLane(dir, read, fallback) {
   try {
-    const branch = JSON.parse(readFileSync(join(dir, "lane.json"), "utf8"))?.[key];
-    return isLaneBranch(branch, issueNumber) ? branch : "";
+    return read(JSON.parse(readFileSync(join(dir, "lane.json"), "utf8")));
   } catch {
-    return "";
+    return fallback;
   }
+}
+
+export function readBranch(dir, issueNumber, key = "branch") {
+  return fromLane(dir, (lane) => (isLaneBranch(lane?.[key], issueNumber) ? lane[key] : ""), "");
 }
 
 // The first of the issue's open closing PRs (closingPulls) in this repository
@@ -1880,16 +1886,13 @@ function readHumansOrNone(path) {
 // The runner's limit record in lane.json: {resets} (epoch ms, or null when
 // the run named none) when the run's class is rate-limit, else null.
 export function readLimit(dir) {
-  try {
-    const lane = JSON.parse(readFileSync(join(dir, "lane.json"), "utf8"));
+  return fromLane(dir, (lane) => {
     if (lane?.class !== "rate-limit") {
       return null;
     }
     const resets = ISO.test(lane.resets ?? "") ? Date.parse(lane.resets) : Number.NaN;
     return { resets: Number.isFinite(resets) ? resets : null };
-  } catch {
-    return null;
-  }
+  }, null);
 }
 
 // Why the run never started, from lane.json's class, or null: the runner set
@@ -1906,12 +1909,7 @@ export const ISSUE_STOPS = {
     "The run did not start: the runner could not write the issue file for the skill, so no model ran. The run job's `Write the issue for the skill` step names the reason.",
 };
 export function readIssueStop(dir) {
-  try {
-    const stop = JSON.parse(readFileSync(join(dir, "lane.json"), "utf8"))?.class;
-    return Object.hasOwn(ISSUE_STOPS, stop ?? "") ? ISSUE_STOPS[stop] : null;
-  } catch {
-    return null;
-  }
+  return fromLane(dir, (lane) => (Object.hasOwn(ISSUE_STOPS, lane?.class ?? "") ? ISSUE_STOPS[lane.class] : null), null);
 }
 
 // The runner's funding record in lane.json: {regain} (epoch ms, or null when
@@ -1920,25 +1918,25 @@ export function readIssueStop(dir) {
 // (401), else null. The stop text's shape is the one ci-workflows#781 records.
 const REGAIN = /regain access on ([^.\n"]{1,80})/i;
 export function readFunding(dir) {
-  try {
-    const lane = JSON.parse(readFileSync(join(dir, "lane.json"), "utf8"));
+  return fromLane(dir, (lane) => {
     if (lane?.failed !== "true") {
       return null;
     }
-    const text = typeof lane["error-text"] === "string" ? lane["error-text"].slice(0, 2000) : "";
     if (lane["api-error-status"] === "401") {
       return { regain: null };
     }
+    const text = typeof lane["error-text"] === "string" ? lane["error-text"].slice(0, 2000) : "";
     const match = lane["api-error-status"] === "400" ? REGAIN.exec(text) : null;
     if (!match) {
       return null;
     }
     const regain = Date.parse(match[1].trim());
     return { regain: Number.isFinite(regain) ? regain : null };
-  } catch {
-    return null;
-  }
+  }, null);
 }
+
+// A lane.json turn count as a number, or null when it is not one.
+const turnCount = (value) => (/^[1-9][0-9]{0,5}$/.test(value ?? "") ? Number(value) : null);
 
 // The runner's turn-cap record in lane.json: {cap} (the run's --max-turns, or
 // null when unreadable) when the run's class is max-turns, else null. A leg
@@ -1946,32 +1944,22 @@ export function readFunding(dir) {
 // the same way, so it is the same record with `timeout: true` and no cap: it
 // restarts from its branch under limits.turn-cap-restarts, never stops.
 export function readTurnCap(dir) {
-  try {
-    const lane = JSON.parse(readFileSync(join(dir, "lane.json"), "utf8"));
+  return fromLane(dir, (lane) => {
     if (lane?.class === "timeout") {
       return { cap: null, timeout: true };
     }
-    if (lane?.class !== "max-turns") {
-      return null;
-    }
-    return { cap: /^[1-9][0-9]{0,5}$/.test(lane["max-turns"] ?? "") ? Number(lane["max-turns"]) : null };
-  } catch {
-    return null;
-  }
+    return lane?.class === "max-turns" ? { cap: turnCount(lane["max-turns"]) } : null;
+  }, null);
 }
 
 // The runner's over-cap record in lane.json: {turns, cap} when the run took
 // more turns than its --max-turns and still ended, else null. run-claude-cli
 // counts such a run a success, so its class is empty.
 export function readOverCap(dir) {
-  try {
-    const lane = JSON.parse(readFileSync(join(dir, "lane.json"), "utf8"));
-    const count = (value) => (/^[1-9][0-9]{0,5}$/.test(value ?? "") ? Number(value) : null);
-    const [turns, cap] = [count(lane?.turns), count(lane?.["max-turns"])];
+  return fromLane(dir, (lane) => {
+    const [turns, cap] = [turnCount(lane?.turns), turnCount(lane?.["max-turns"])];
     return turns !== null && cap !== null && turns > cap ? { turns, cap } : null;
-  } catch {
-    return null;
-  }
+  }, null);
 }
 
 // When a listed human last set the Work status field (`fieldId`) to
@@ -2111,6 +2099,29 @@ const staleNoted = (body, branch) => String(body ?? "").split(/\r?\n/, 1)[0] ===
 export const staleComment = (branch) =>
   `${staleMarker(branch)}\nThis run started fresh from the default branch instead of resuming \`${branch}\`, which is behind it. That branch keeps the earlier run's commits until the next run on this issue deletes it, when no pull request uses it.`;
 
+// The issue number both entry points act on; throws when ISSUE_NUMBER or
+// GITHUB_REPOSITORY is malformed.
+function targetIssue(env) {
+  if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "")) {
+    throw new Error("ISSUE_NUMBER is not an issue number");
+  }
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(env.GITHUB_REPOSITORY ?? "")) {
+    throw new Error("GITHUB_REPOSITORY is not owner/repo");
+  }
+  return Number(env.ISSUE_NUMBER);
+}
+
+const botLogin = (env) => env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
+const resolvedConfigPath = (env) => env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json");
+
+// Whether the lanes App already posted this run's `outcome` marker, so a rerun
+// of this report posts none.
+const postedThisRun = (comments, { bot, outcome, runId }) =>
+  comments.some((comment) => {
+    const marker = comment.user?.login === bot ? parseOutcomeMarker(comment.body) : null;
+    return marker?.outcome === outcome && runId !== "" && marker.run === runId;
+  });
+
 // --find-prior: reads the facts findPrior decides on and writes its step
 // outputs. A failed read, or an answer of the wrong shape, holds
 // (docs/conventions/pr-pipeline/README.md#outage-posture, element 2): green with a notice and
@@ -2123,16 +2134,10 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
   const keepBehind = env.FIND_PRIOR_KEEP_BEHIND === "true";
   let reading = false;
   try {
-    if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "")) {
-      throw new Error("ISSUE_NUMBER is not an issue number");
-    }
-    if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(env.GITHUB_REPOSITORY ?? "")) {
-      throw new Error("GITHUB_REPOSITORY is not owner/repo");
-    }
-    const issueNumber = Number(env.ISSUE_NUMBER);
+    const issueNumber = targetIssue(env);
     const [owner, name] = env.GITHUB_REPOSITORY.split("/");
     const repo = `/repos/${env.GITHUB_REPOSITORY}`;
-    const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
+    const bot = botLogin(env);
     const humans = readHumans(env.TRUSTED_ACTORS_PATH ?? "");
     const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN, sleep });
     reading = true;
@@ -2179,10 +2184,9 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
       if (legacy && !Number.isFinite(tipAt)) {
         throw new Error(`the tip commit time of ${ref.name} could not be read`);
       }
-      // The compare listing holds at most 250 commits; a branch it cuts short
-      // carries no commit list, so it is never resumed.
-      const commits =
-        Array.isArray(comparison.commits) && comparison.commits.length === comparison.total_commits ? comparison.commits : null;
+      // A branch the compare listing cuts short carries no commit list, so it
+      // is never resumed.
+      const commits = listedCommits(comparison);
       branches.push({ name: ref.name, sha: ref.sha, aheadBy: comparison.ahead_by, behindBy: comparison.behind_by, tip, tipAt, pulls, commits });
     }
     reading = false;
@@ -2365,11 +2369,7 @@ async function finishStop(github, repo, plan, { bot, appId, humans, runId, limit
     }
   }
   if (KEPT.has(plan.action)) {
-    const posted = history.comments.some((comment) => {
-      const marker = comment.user?.login === bot ? parseOutcomeMarker(comment.body) : null;
-      return marker?.outcome === plan.exit && runId !== "" && marker.run === runId;
-    });
-    if (!posted) {
+    if (!postedThisRun(history.comments, { bot, outcome: plan.exit, runId })) {
       await github("POST", `${repo}/issues/${plan.issueNumber}/comments`, { body: plan.comment });
     }
     console.log(
@@ -2488,15 +2488,10 @@ async function labelState(env, label) {
 // and `field` reads and restarts the field (baseStatus at the command line).
 export async function main({ env = process.env, fetch = globalThis.fetch, now = Date.now(), sleep, setStatus = async () => {}, leaveAgentReady = async () => {}, statusOf = async (number, names) => names, field = NO_FIELD } = {}) {
   const stateOf = (label) => labelState(env, label);
-  const appId = appIdFrom(env, env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]");
+  const bot = botLogin(env);
+  const appId = appIdFrom(env, bot);
   try {
-    const issueNumber = Number(env.ISSUE_NUMBER);
-    if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "")) {
-      throw new Error("ISSUE_NUMBER is not an issue number");
-    }
-    if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(env.GITHUB_REPOSITORY ?? "")) {
-      throw new Error("GITHUB_REPOSITORY is not owner/repo");
-    }
+    const issueNumber = targetIssue(env);
     const dimensionSkip = env.DIMENSION_SKIP ?? "";
     if (dimensionSkip && !Object.hasOwn(DIMENSION_STEPS, dimensionSkip) && dimensionSkip !== OUTSIDE_AUTHOR && dimensionSkip !== WORKFLOW_STALE) {
       throw new Error("DIMENSION_SKIP is not an issue-dimension skip reason");
@@ -2517,13 +2512,12 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     const runId = /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "";
     // A dimension skip, an outside-author stop or a stale stop left no outcome to read: no model ran.
     if (dimensionSkip === WORKFLOW_STALE) {
-      const resolved = env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json");
       const done = await refireStale(github, repo, issueNumber, {
         workflowSha: env.GITHUB_WORKFLOW_SHA,
-        bot: env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]",
+        bot,
         appId,
         humans: readHumansOrNone(env.TRUSTED_ACTORS),
-        limits: readLimits(resolved),
+        limits: readLimits(resolvedConfigPath(env)),
         statusOf,
         field,
       });
@@ -2533,7 +2527,6 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     if (dimensionSkip === OUTSIDE_AUTHOR) {
       // A re-run finds the lanes App's own comment and posts none; the marker
       // from anyone else does not count, since the outside author can write it.
-      const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
       const comments = await paginate(github, `${repo}/issues/${issueNumber}/comments`);
       const posted = comments.some((comment) => comment.user?.login === bot && parseOutcomeMarker(comment.body)?.outcome === OUTSIDE_AUTHOR);
       const plan = outsideAuthorPlan({ issueNumber, runUrl, runId });
@@ -2542,14 +2535,13 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     }
     if (dimensionSkip) {
       const humanLabel = humanLabelFrom(env.TRACKER_CONFIG ?? ".base/docs/conventions/work-items.yaml");
-      const resolved = env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json");
       const plan = routeStop(dimensionSkip, { outcome: stopped(""), issueNumber, branch: "", humanLabel, runUrl, runId }, { why: DIMENSION_STEPS[dimensionSkip] });
       await finishStop(github, repo, plan, {
-        bot: env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]",
+        bot,
         appId,
         humans: readHumansOrNone(env.TRUSTED_ACTORS),
         runId,
-        limits: readLimits(resolved),
+        limits: readLimits(resolvedConfigPath(env)),
         setStatus,
         leaveAgentReady,
         statusOf,
@@ -2639,7 +2631,6 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         file.previous_filename ? [file.filename, file.previous_filename] : [file.filename],
       );
     };
-    const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
     let changedFiles = outcome?.exit === "done" && branch ? await compare() : [];
     if (outcome?.exit === "done" && resumed && checks) {
       // By the checked SHA: the name can move after the tip check above.
@@ -2649,7 +2640,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         checks = null;
       }
     }
-    const resolvedPath = env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json");
+    const resolvedPath = resolvedConfigPath(env);
     const holdPaths = heldPaths(resolvedPath);
     // A reuse whose outcome cannot be read never takes the limit record: the
     // skipped run hit no limit, and a limited marker would loop restarts. A
@@ -2736,11 +2727,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     if (plan.action === "turn-cap") {
       // Once per run, like the limited marker: a rerun of this report finds
       // its own marker and posts nothing.
-      const posted = comments.some((comment) => {
-        const marker = comment.user?.login === bot ? parseOutcomeMarker(comment.body) : null;
-        return marker?.outcome === "turn-cap" && runId !== "" && marker.run === runId;
-      });
-      if (!posted) {
+      if (!postedThisRun(comments, { bot, outcome: "turn-cap", runId })) {
         await github("POST", `${repo}/issues/${issueNumber}/comments`, { body: plan.comment });
       }
       console.log(`report-outcome: issue #${issueNumber} reached its turn cap; work-unblock restarts it`);
@@ -2750,11 +2737,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       // Once per run: a rerun of this report, however late, finds its own
       // marker in the issue's whole comment history and posts nothing.
       const comments = await paginate(github, `${repo}/issues/${issueNumber}/comments`);
-      const posted = comments.some((comment) => {
-        const marker = comment.user?.login === bot ? parseOutcomeMarker(comment.body) : null;
-        return marker?.outcome === plan.action && plan.runId !== "" && marker.run === plan.runId;
-      });
-      if (!posted) {
+      if (!postedThisRun(comments, { bot, outcome: plan.action, runId: plan.runId })) {
         await github("POST", `${repo}/issues/${issueNumber}/comments`, { body: plan.comment });
       }
       console.log(

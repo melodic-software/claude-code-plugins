@@ -418,7 +418,7 @@ class TheConfigBlock(unittest.TestCase):
         self.assertIn(("86380005", "needs-human"), status.options)
         self.assertEqual(
             dict(status.labels)["needs-owner-decision"],
-            ("status: needs-decision", "needs-owner-decision"),
+            ("needs-owner-decision",),
         )
         self.assertEqual(status.order[-1], "needs-triage")
 

@@ -88,7 +88,7 @@ An agent never chooses **abstract** on its own.
   the contain verdict and its rationale (safe whatever the answer), and lists the reserved
   question inside it, tagged `arbiter: USER-RESERVED`, for the user to answer later; when the work
   is tracked, the tracked item also carries the tracker's needs-decision status
-  (`status:needs-decision` in the `/work-items:track` label taxonomy). Because contain holds either
+  (`needs-owner-decision` in the `/work-items:track` label taxonomy). Because contain holds either
   way, the question never blocks the run or the design handoff.
 
 ## Respect the existing architecture style

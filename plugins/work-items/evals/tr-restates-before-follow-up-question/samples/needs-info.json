@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Parks it at status:needs-info with a structured comment.",
+      "answer": "Parks it at needs-reporter-info with a structured comment.",
       "why": "status label"
     },
     {

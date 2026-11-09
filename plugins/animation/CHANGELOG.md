@@ -3,6 +3,12 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.7] - 2026-11-09
+
+### Changed
+
+- Shared `hook-utils.sh` synced where this plugin carries it (#14227): `HOOK_TELEMETRY_SINK=@harness-ops` sends this plugin's hook telemetry to the harness-ops reference sink, and any other value starting with `@` is reserved and skipped. No other change to this plugin.
+
 ## [1.0.6] - 2026-11-07
 
 ### Fixed

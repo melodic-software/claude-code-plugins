@@ -59,7 +59,7 @@ test("a candidate has no status label, agent-ready or hold, is no PR, over an ho
   const issues = [
     issue(1),
     issue(2, { labels: [{ name: "needs-triage" }] }),
-    issue(3, { labels: [{ name: "status: needs-info" }] }),
+    issue(3, { labels: [{ name: "needs-reporter-info" }] }),
     issue(4, { labels: [{ name: "agent-ready" }] }),
     issue(5, { labels: [{ name: "needs-human" }] }),
     issue(6, { labels: [{ name: "priority: low" }] }),
@@ -92,7 +92,7 @@ test("a born-triaged issue in status: ready with no agent-ready, deferral, hold 
     born(2, ["agent-ready"]),
     born(3, ["admission-deferred"]),
     born(4, ["needs-human"]),
-    born(5, ["work-class: untrusted-provenance"]),
+    born(5, ["provenance: untrusted"]),
     born(6, [], { issue_dependencies_summary: { blocked_by: 1, total_blocked_by: 1, blocking: 0, total_blocking: 0 } }),
     born(7, [], { issue_dependencies_summary: { blocked_by: 0, total_blocked_by: 1, blocking: 0, total_blocking: 0 } }),
     born(8, ["priority: high"]),
@@ -150,8 +150,8 @@ test("a field that mirrors the labels chooses the same candidates", async () => 
   const born = (number, labels = [], over = {}) =>
     issue(number, { body: "Fix it.\n\n<!-- work-items:born-triaged -->", labels: [{ name: "status: ready" }, ...labels.map((name) => ({ name }))], ...over });
   const fixtures = [
-    [issue(1), issue(2, { labels: [{ name: "needs-triage" }] }), issue(3, { labels: [{ name: "status: needs-info" }] }), issue(4, { labels: [{ name: "agent-ready" }] }), issue(5, { labels: [{ name: "needs-human" }] }), issue(6, { labels: [{ name: "priority: low" }] }), issue(8, { labels: [{ name: "needs-spec" }] }), issue(16, { labels: [{ name: "status: ready" }] }), issue(17, { labels: [{ name: "needs-owner-decision" }] }), issue(18, { labels: [{ name: "admission-deferred" }] })],
-    [born(1), born(2, ["agent-ready"]), born(3, ["admission-deferred"]), born(4, ["needs-human"]), born(5, ["work-class: untrusted-provenance"]), born(8, ["priority: high"]), born(9, ["status: confirmed"])],
+    [issue(1), issue(2, { labels: [{ name: "needs-triage" }] }), issue(3, { labels: [{ name: "needs-reporter-info" }] }), issue(4, { labels: [{ name: "agent-ready" }] }), issue(5, { labels: [{ name: "needs-human" }] }), issue(6, { labels: [{ name: "priority: low" }] }), issue(8, { labels: [{ name: "needs-spec" }] }), issue(16, { labels: [{ name: "status: ready" }] }), issue(17, { labels: [{ name: "needs-owner-decision" }] }), issue(18, { labels: [{ name: "admission-deferred" }] })],
+    [born(1), born(2, ["agent-ready"]), born(3, ["admission-deferred"]), born(4, ["needs-human"]), born(5, ["provenance: untrusted"]), born(8, ["priority: high"]), born(9, ["status: confirmed"])],
   ];
   for (const issues of fixtures) {
     const statusLabels = new Map();
@@ -419,7 +419,7 @@ test("an issue with an intake comment but no status label is dispatched again, a
 
 test("an issue with a status label is left alone, whatever its comments", async () => {
   const gh = fakeGitHub({
-    issues: [issue(1, { labels: [{ name: "status: needs-decision" }] })],
+    issues: [issue(1, { labels: [{ name: "needs-owner-decision" }] })],
     comments: { 1: [{ id: 5, user: BOT, body: "<!-- claude-lane intake-triage -->\nok" }] },
   });
   const result = await sweep(gh);

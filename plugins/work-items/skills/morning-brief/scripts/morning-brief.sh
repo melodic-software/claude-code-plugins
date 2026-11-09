@@ -66,7 +66,7 @@
 #   morning-brief.sh --queue-labels A,B,C     pin the queue-label set (comma-separated)
 #   morning-brief.sh --decision-label L       pin the parked-decision label (default: the
 #                                             tracker binding's owner-decision role label in
-#                                             <home>/work-items.yaml, else status: needs-decision)
+#                                             <home>/work-items.yaml, else needs-owner-decision)
 #   morning-brief.sh --stale-hours N          age past which a lane is STALE (default 6)
 #   morning-brief.sh --stranded-days N        floor of the stranded-findings window, in days (default 3)
 #   morning-brief.sh --stuck-days N           age in a queue label past which an open item is listed as stuck (default 7)
@@ -181,11 +181,10 @@ set -uo pipefail
 DEFAULT_QUEUE_LABELS=(
   "needs-triage"
   "status: ready"
-  "status: needs-decision"
+  "needs-owner-decision"
   "needs-human"
 )
-DEFAULT_DECISION_LABEL="status: needs-decision"
-RENAMED_DECISION_LABEL="needs-owner-decision"
+DEFAULT_DECISION_LABEL="needs-owner-decision"
 QUEUE_LABELS=()
 DECISION_LABEL=""
 QUEUE_LABELS_ARG=""
@@ -943,9 +942,7 @@ label_exists_in_repo() {
 if ((NEEDS_LIVE_DECISIONS)) && [[ -n "$REPO_LABELS_JSON" ]]; then
   _probe_decision_label="${DECISION_LABEL_ARG:-${CONFIG_DECISION_LABEL:-$DEFAULT_DECISION_LABEL}}"
   if fetch_repo_label_names "$WORK/probe-labels.json"; then
-    label_exists_in_repo "$_probe_decision_label" "$WORK/probe-labels.json" ||
-      { [[ "$_probe_decision_label" == "$DEFAULT_DECISION_LABEL" ]] && label_exists_in_repo "$RENAMED_DECISION_LABEL" "$WORK/probe-labels.json"; } ||
-      NEEDS_LIVE_DECISIONS=0
+    label_exists_in_repo "$_probe_decision_label" "$WORK/probe-labels.json" || NEEDS_LIVE_DECISIONS=0
   fi
 fi
 # The stranded, stuck and owner-touch sections alone never force a repo resolution: every
@@ -1386,9 +1383,6 @@ print_queues() {
   fi
   if ((labels_available)); then
     for label in "${QUEUE_LABELS[@]}"; do
-      # The default decision label shows under its new name once the repository renamed it.
-      [[ "$label" == "$DEFAULT_DECISION_LABEL" ]] && ! label_exists_in_repo "$label" "$WORK/labels.json" &&
-        label_exists_in_repo "$RENAMED_DECISION_LABEL" "$WORK/labels.json" && label="$RENAMED_DECISION_LABEL"
       label_exists_in_repo "$label" "$WORK/labels.json" && labels_to_show+=("$label")
     done
     STUCK_LABELS=()
@@ -1855,11 +1849,6 @@ fetch_decisions_rest() {
 }
 
 print_decisions() {
-  # The default decision label under its new name, once the repository renamed it.
-  if [[ "$DECISION_LABEL" == "$DEFAULT_DECISION_LABEL" ]] && fetch_repo_label_names "$WORK/labels.json" &&
-    ! label_exists_in_repo "$DECISION_LABEL" "$WORK/labels.json" && label_exists_in_repo "$RENAMED_DECISION_LABEL" "$WORK/labels.json"; then
-    DECISION_LABEL="$RENAMED_DECISION_LABEL"
-  fi
   echo "== Parked decisions (${DECISION_LABEL}) with RECOMMENDED lines =="
   local decisions_file="$WORK/decisions.json"
   # An unreadable inventory does not decide this section; the decision read

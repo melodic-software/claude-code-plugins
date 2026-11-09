@@ -9,6 +9,6 @@ expected_outcome: 'One merged attention view, oldest first within each kind, row
 
 /work-items:attend-queue
 
-The repository has: two open items wearing the human-gated role label, one with a machine-marked work-items:escalation comment (a worker question) and one parked by the operator with no marker; four untriaged items (two unlabeled, one with the raw marker, one status:needs-info where the reporter just replied); and one already-triaged agent-ready item whose only blocker was closed as not planned, so triage's attention view lists it under blocked by won't-do. The binding remaps human-gated to blocked-on-human.
+The repository has: two open items wearing the human-gated role label, one with a machine-marked work-items:escalation comment (a worker question) and one parked by the operator with no marker; four untriaged items (two unlabeled, one with the raw marker, one needs-reporter-info where the reporter just replied); and one already-triaged agent-ready item whose only blocker was closed as not planned, so triage's attention view lists it under blocked by won't-do. The binding remaps human-gated to blocked-on-human.
 
 Treat the state above as what this run's reads return. No tracker, forge or shell is reachable in this session, so make no such call: say what the run does, in order, and why.

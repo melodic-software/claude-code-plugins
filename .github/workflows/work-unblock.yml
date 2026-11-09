@@ -7,7 +7,7 @@ name: Work Unblock
 # open, has every blocker closed, for any reason, by a listed human or a merge
 # in this repository (a pull request blocker: merged here; another
 # repository's blocker: closed there by a listed human), carries no hold (Work status or label: needs-owner-decision,
-# status: needs-decision, status: needs-info, needs-human), and whose agent-ready label was never
+# needs-owner-decision, needs-reporter-info, needs-human), and whose agent-ready label was never
 # removed, or had its Work status set to ready by the lanes App or a listed human
 # after its newest removal. That label starts work-resolve-issue.yml. The rules are in
 # .github/scripts/work-unblock/label-unblocked.mjs; the lane and its

@@ -471,7 +471,7 @@ test("live config: resolve-issue starts on agent-ready alone, whatever its work-
 
 // The holds stay: a person decides these, so the issue waits for them.
 test("live config: resolve-issue starts nothing for an issue carrying a hold label", () => {
-  for (const hold of ["needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info"]) {
+  for (const hold of ["needs-human", "needs-owner-decision", "needs-reporter-info"]) {
     assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels: ["agent-ready", hold] }), "awaiting-human", hold);
   }
 });
