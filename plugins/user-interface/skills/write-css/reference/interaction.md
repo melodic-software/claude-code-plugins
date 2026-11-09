@@ -81,13 +81,13 @@ Baseline: [`:active`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference
 widely available. As of 2026-10-11, recheck on a status change.
 
 Use it on pressable controls. Which controls take the scale, which skip it, and the scale's limits
-are the `motion` concern's (`press`); this recipe is how to write it.
+are the `motion` concern's (`press`); this recipe is how to write it. Fill each `{{key}}` placeholder as [`values.md`](../../../reference/values.md) says.
 
 ```css
-.button:active { transform: scale(0.97); }
+.button:active { transform: scale({{animation.scale.press}}); }
 
 @media (prefers-reduced-motion: no-preference) {
-  .button { transition: transform 160ms var(--ease-out, ease-out); }
+  .button { transition: transform {{animation.duration_ms.press}}ms var(--ease-out, ease-out); }
 }
 ```
 

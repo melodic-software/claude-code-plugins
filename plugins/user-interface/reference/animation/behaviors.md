@@ -21,13 +21,14 @@ Contents: `press`, `popover`, `tooltip`, `modal`, `drawer`, `toast`, `accordion`
 
 ## Button press: `press`
 
-- Any pressable element scales down slightly on press (0.95 to 0.98) and back on release.
+- Any pressable element scales down slightly on press (`animation.scale.press`) and back on release.
 - Role `press`, curve `out`. Feedback starts on press-down, never on release.
 - Children scale with it, which is what reads as physical.
 - No hover gate: a press is real on touch.
-- `scale(0.96)` on `:active`, animated with a ~150ms ease-out CSS transition so a release mid-press
-  glides back instead of snapping. Going under `0.95` starts to look cartoonish. The CSS is the
-  press recipe in `/user-interface:write-css`.
+- `animation.scale.press` on `:active`, animated over `animation.duration_ms.press` with an ease-out
+  CSS transition so a release mid-press glides back instead of snapping. Much further down than
+  `animation.scale.press` starts to look cartoonish. The CSS is the press recipe in
+  `/user-interface:write-css`; values are written as [`../values.md`](../values.md) says.
 - Not every button needs it: dense or high-frequency UI can skip it. Bake an opt-out into your
   Button component, e.g. a `still` prop.
 - What may be skipped is the scale, not the pressed state: a button that skips it still shows
