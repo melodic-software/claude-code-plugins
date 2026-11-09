@@ -122,7 +122,7 @@ fi
 cd -P . || exit 2
 
 # sha256sum is absent on stock macOS; shasum -a 256 is the portable partner.
-# Probe here in the main script, not inside sha256(). hash12/hash8 run that
+# Probe here in the main script, not inside sha256(). hash_prefix runs that
 # helper as a non-last pipeline stage inside a command substitution, and POSIX
 # XCU 2.6.3 plus Bash's pipeline rule both execute that in a subshell, so
 # `exit 2` there cannot terminate this process. Under `set -uo pipefail` (no
@@ -136,8 +136,8 @@ else
   exit 2
 fi
 
-hash12() { printf '%s' "$1" | sha256 | cut -c1-12; }
-hash8() { printf '%s' "$1" | sha256 | cut -c1-8; }
+# hash_prefix <length> <text>: the first <length> hex digits of sha256(<text>).
+hash_prefix() { printf '%s' "$2" | sha256 | cut -c1-"$1"; }
 
 # "the FIRST configured remote" — not necessarily one named `origin`. A repo
 # whose only remote is `upstream` still has a remote and must not fall through
@@ -164,21 +164,21 @@ if [[ -n "$remote" ]]; then
   if grep -qE '^[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)*$' <<<"$identity"; then
     rung="remote"
   else
-    identity="remote/$(hash12 "$remote")"
+    identity="remote/$(hash_prefix 12 "$remote")"
     rung="remote-hashed"
   fi
 elif [[ -n "$root" ]]; then
-  identity="local/$(hash12 "$root")"
+  identity="local/$(hash_prefix 12 "$root")"
   rung="local"
 else
   # Not a git repository. `audit-pass`'s ladder stops at the two git rungs
   # because it refuses non-git targets; a report-only skill audits them, so the
   # scheme needs a third rung rather than a failure.
-  identity="nonrepo/$(hash12 "$PWD")"
+  identity="nonrepo/$(hash_prefix 12 "$PWD")"
   rung="nonrepo"
 fi
 
-discriminator=$(hash8 "${root:-$PWD}")
+discriminator=$(hash_prefix 8 "${root:-$PWD}")
 
 if [[ $EXPLAIN -eq 1 ]]; then
   {

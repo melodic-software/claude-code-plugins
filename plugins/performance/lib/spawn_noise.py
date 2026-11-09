@@ -50,14 +50,7 @@ SPAWN_TIMEOUT_S = 20
 def summarize_spawn_samples(
     durations_ms: list[float], timeouts: int, concurrent_processes: int | None
 ) -> dict:
-    """Reduce repeated no-op spawn timings to min/median/max plus a load label.
-
-    A single spawn number is misleading because the floor itself moves with
-    machine load: the same no-op that costs ~120 ms on a drained box costs
-    ~1,100 ms under contention. Every reading here is labeled with the process
-    count observed at sample time so a reader cannot mistake a storm-state
-    number for a baseline.
-    """
+    """Reduce repeated no-op spawn timings to min/median/max plus a load label."""
     result: dict = {
         "samples": len(durations_ms),
         "timeouts": timeouts,
@@ -72,18 +65,12 @@ def summarize_spawn_samples(
     result["min_ms"] = round(low, 1)
     result["median_ms"] = round(statistics.median(durations_ms), 1)
     result["max_ms"] = round(high, 1)
-    result["spread_ratio"] = round(high / low, 2) if low > 0 else None
+    ratio = round(high / low, 2) if low > 0 else None
+    result["spread_ratio"] = ratio
     if low > SLOW_SPAWN_FLOOR_MS:
         result["findings"].append("slow-spawn-floor")
-    # A wide RATIO alone is not the contention signature: on a healthy machine a cold
-    # first spawn against a warm second one clears 3x while every sample is still fast.
-    # The signature is a wide spread whose slow mode is itself slow, so the absolute
-    # ceiling has to clear the floor threshold too.
-    if (
-        result["spread_ratio"] is not None
-        and result["spread_ratio"] >= BIMODAL_SPREAD_RATIO
-        and high >= SLOW_SPAWN_FLOOR_MS
-    ):
+    # The two-part signature from the module docstring: a wide spread whose slow mode is slow.
+    if ratio is not None and ratio >= BIMODAL_SPREAD_RATIO and high >= SLOW_SPAWN_FLOOR_MS:
         result["findings"].append("bimodal-spawn-latency")
     if timeouts:
         result["findings"].append("spawn-probe-timed-out")
@@ -103,7 +90,7 @@ def spawn_probe(samples: int = SPAWN_SAMPLES, timeout_s: float = SPAWN_TIMEOUT_S
     it does any work of its own. Timing an actual hook would mean executing a
     third-party command with arbitrary side effects, which this engine will not do.
     """
-    command = NOOP_SPAWN["win32"] if sys.platform == "win32" else NOOP_SPAWN["posix"]
+    command = NOOP_SPAWN["win32" if sys.platform == "win32" else "posix"]
     durations: list[float] = []
     timeouts = 0
     for _ in range(samples):
@@ -135,10 +122,7 @@ def is_measurable(summary: dict) -> tuple[bool, str]:
     level. A bare ratio comparison would fire on a healthy cold-then-warm host.
 
     A False is never the end of the road: a drift-immune counter (process spawns,
-    syscalls, queries) is still reportable from a host too noisy for a duration,
-    and that is what the source run of this workflow ultimately shipped -- a
-    deterministic 4 -> 1 spawn count, not a millisecond figure that no independent
-    verifier could reproduce an hour later on the same machine.
+    syscalls, queries) is still reportable from a host too noisy for a duration.
 
     Refusing above a variance threshold is stricter than the benchmarking field:
     pyperf, Criterion, JMH and benchstat all WARN and print the number anyway. This
@@ -182,9 +166,8 @@ def percentile_floor(percentile: float) -> int:
 
     This is the ONLY grounded constraint on sample count that this codebase is
     aware of, and it is grounded because it is derivable, not because a source
-    states it. The research pass behind #3530 found no benchmarking-community
-    consensus figure for "enough samples to make a percentile meaningful": the
-    familiar folklore numbers appear in no first-party or peer-reviewed source.
+    states it: the familiar folklore figures for "enough samples to make a
+    percentile meaningful" appear in no first-party or peer-reviewed source.
 
     So `performance` enforces this floor and labels its p50/p95-over-20 default as
     a house convention. p95 needs 20 samples; p99 needs 100. Below the floor the
