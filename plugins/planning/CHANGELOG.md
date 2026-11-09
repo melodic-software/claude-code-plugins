@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.13.3] - 2026-11-09
+
+### Changed
+
+- The variation-points reference names the tracker's decision hold as `needs-owner-decision`.
+
 ## [2.13.2] - 2026-11-07
 
 ### Fixed
