@@ -2,7 +2,7 @@
 
 Owner document for whether a role in [`defaults.yaml`](defaults.yaml), or any
 routing guidance in this repository, may name `haiku`. Accuracy comes before
-cost: a cheaper model that answers worse is not a saving.
+cost. A cheaper model that answers worse is not a saving.
 
 ## The rule
 

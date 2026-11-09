@@ -1047,8 +1047,8 @@ is its sibling constraint, and the write-time doctrine budgeting both lives in
 - **Evidence-gated additions.** A new standing instruction requires observed, repeated stumble
   evidence against the current model, the same failure seen more than once, never anticipation
   of a failure a past model had. Name the evidence where the instruction is added (PR body or an
-  adjacent comment). Anticipatory instructions keep guarding against an earlier model's weaknesses,
-  which limits what the next model does.
+  adjacent comment). Anticipatory instructions keep guarding against an earlier model's weaknesses
+  and limit what the next model does.
 - **Generation-triggered ablation.** Instructions are disposable per model generation. At each
   Claude model release, re-audit standing instruction surfaces against the new model
   (`harness-config:audit-instructions` for the static text-vs-doctrine pass, on any release;
@@ -1464,7 +1464,7 @@ well-scoped phases, dispatched with an explicit per-invocation `model`.
 
 A consumer can lose that floor. An enterprise `availableModels` allowlist reaches frontmatter
 pins too, and Claude Code handles a blocked pin differently for a subagent than for a skill or
-command. Our conclusion, with the per-surface rules left at the pointer: a subagent lane's tier is
+command. Our conclusion, with the per-surface rules left at the pointer, is that a subagent lane's tier is
 not self-enforcing, because a blocked pin can land below the session (an `opus` pin under an
 allowlist that permits only an older Opus) or on the inherited session model (a blocked cheap pin,
 which is then not cheap), with no error either way. A skill or command lane with a blocked pin stays
