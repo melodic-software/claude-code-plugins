@@ -37,8 +37,10 @@ const { values: opts } = parseArgs({
 const readJson = (file) => JSON.parse(readFileSync(file, "utf8"));
 const schema = readJson(join(ROOT, "schemas/domain-driven-design.schema.json"));
 const KEYS = ["glossary_file", "glossary_map_file"];
-const defaults = Object.fromEntries(KEYS.map((key) => [key, readJson(join(ROOT, ".claude-plugin/plugin.json")).userConfig[key].default]));
+const manifestConfig = readJson(join(ROOT, ".claude-plugin/plugin.json")).userConfig;
+const defaults = Object.fromEntries(KEYS.map((key) => [key, manifestConfig[key].default]));
 const isFileName = (key, value) => typeof value === "string" && new RegExp(schema.properties[key].pattern, "u").test(value);
+const notFileName = (key, value) => `"${key}": ${JSON.stringify(value)} is not a file name; a value names a file, never a path`;
 
 /** The git root of `dir`, else `dir` itself: settings anchor at the repository root, never a subdirectory. */
 function gitRoot(dir) {
@@ -74,7 +76,7 @@ function userConfig(file) {
   for (const [key, v] of Object.entries(value ?? {})) {
     const unset = v === "" || v === null || (typeof v === "string" && v.startsWith("${user_config."));
     if (KEYS.includes(key) && !unset && !isFileName(key, v)) {
-      errors.push(`userConfig (${file}): "${key}": ${JSON.stringify(v)} is not a file name; a value names a file, never a path`);
+      errors.push(`userConfig (${file}): ${notFileName(key, v)}`);
       keys.push(key);
     } else kept[key] = v;
   }
@@ -112,7 +114,7 @@ try {
     const fail = (name, v) => {
       const l = layer(name);
       l.state = "invalid";
-      l.errors.push(`${name} (${l.path}): "${key}": ${JSON.stringify(v)} is not a file name; a value names a file, never a path`);
+      l.errors.push(`${name} (${l.path}): ${notFileName(key, v)}`);
       l.error_keys.push(key);
     };
     const below = { value: withoutLocal.values[key], from: withoutLocal.provenance[key] };
@@ -121,8 +123,9 @@ try {
       Object.assign(below, { value: defaults[key], from: "defaults" });
     }
     const local = out.provenance[key] === "local" ? out.values[key] : undefined;
-    if (local !== undefined && !isFileName(key, local)) fail("local", local);
-    const { value, from } = local !== undefined && isFileName(key, local) ? { value: local, from: "local" } : below;
+    const localOk = isFileName(key, local);
+    if (local !== undefined && !localOk) fail("local", local);
+    const { value, from } = localOk ? { value: local, from: "local" } : below;
     values[key] = value;
     provenance[key] = from === "defaults" ? "default" : from;
   }
