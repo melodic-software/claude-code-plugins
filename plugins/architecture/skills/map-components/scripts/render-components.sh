@@ -101,106 +101,43 @@ threshold=""
 notes=""
 root=""
 
+# What a value flag's missing-value message asks for; empty for an unknown flag.
+value_noun() {
+  case "$1" in
+  --graph | --out | --notes) printf 'a path' ;;
+  --container | --group-by | --layers | --dialect | --source) printf 'a value' ;;
+  --node-threshold) printf 'a number' ;;
+  --root) printf 'a directory' ;;
+  *) ;;
+  esac
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --help | -h)
     usage
     exit 0
     ;;
-  --graph)
-    [[ $# -ge 2 ]] || die "--graph needs a path" 2
-    graph="$2"
-    shift 2
-    ;;
-  --graph=*)
-    graph="${1#--graph=}"
-    shift
-    ;;
-  --out)
-    [[ $# -ge 2 ]] || die "--out needs a path" 2
-    outdir="$2"
-    shift 2
-    ;;
-  --out=*)
-    outdir="${1#--out=}"
-    shift
-    ;;
-  --container)
-    [[ $# -ge 2 ]] || die "--container needs a value" 2
-    container="$2"
-    shift 2
-    ;;
-  --container=*)
-    container="${1#--container=}"
-    shift
-    ;;
-  --group-by)
-    [[ $# -ge 2 ]] || die "--group-by needs a value" 2
-    groupby="$2"
-    shift 2
-    ;;
-  --group-by=*)
-    groupby="${1#--group-by=}"
-    shift
-    ;;
-  --layers)
-    [[ $# -ge 2 ]] || die "--layers needs a value" 2
-    layers="$2"
-    shift 2
-    ;;
-  --layers=*)
-    layers="${1#--layers=}"
-    shift
-    ;;
-  --dialect)
-    [[ $# -ge 2 ]] || die "--dialect needs a value" 2
-    dialect="$2"
-    shift 2
-    ;;
-  --dialect=*)
-    dialect="${1#--dialect=}"
-    shift
-    ;;
-  --source)
-    [[ $# -ge 2 ]] || die "--source needs a value" 2
-    source_name="$2"
-    shift 2
-    ;;
-  --source=*)
-    source_name="${1#--source=}"
-    shift
-    ;;
-  --node-threshold)
-    [[ $# -ge 2 ]] || die "--node-threshold needs a number" 2
-    threshold="$2"
-    shift 2
-    ;;
-  --node-threshold=*)
-    threshold="${1#--node-threshold=}"
-    shift
-    ;;
-  --root)
-    [[ $# -ge 2 ]] || die "--root needs a directory" 2
-    root="$2"
-    shift 2
-    ;;
-  --root=*)
-    root="${1#--root=}"
-    shift
-    ;;
-  --notes)
-    [[ $# -ge 2 ]] || die "--notes needs a path" 2
-    notes="$2"
-    shift 2
-    ;;
-  --notes=*)
-    notes="${1#--notes=}"
-    shift
-    ;;
-  *)
-    die "unknown argument: $1" 2
-    ;;
+  --*=*) flag="${1%%=*}" value="${1#*=}" used=1 ;;
+  *) flag="$1" value="${2-}" used=2 ;;
   esac
+  noun="$(value_noun "$flag")"
+  [[ -n "$noun" ]] || die "unknown argument: $1" 2
+  [[ "$used" -eq 1 || $# -ge 2 ]] || die "$flag needs $noun" 2
+  case "$flag" in
+  --graph) graph="$value" ;;
+  --out) outdir="$value" ;;
+  --container) container="$value" ;;
+  --group-by) groupby="$value" ;;
+  --layers) layers="$value" ;;
+  --dialect) dialect="$value" ;;
+  --source) source_name="$value" ;;
+  --node-threshold) threshold="$value" ;;
+  --root) root="$value" ;;
+  --notes) notes="$value" ;;
+  *) ;;
+  esac
+  shift "$used"
 done
 
 [[ -n "$graph" && -n "$outdir" ]] || {
@@ -218,12 +155,10 @@ esac
 if [[ "$groupby" == "layer" && -z "$layers" ]]; then
   die "--group-by layer needs --layers (a declared layering convention)" 2
 fi
-if [[ -n "$threshold" ]]; then
-  case "$threshold" in
-  '' | *[!0-9]*) die "--node-threshold needs a whole number, got: $threshold" 2 ;;
-  *) ;;
-  esac
-fi
+case "$threshold" in
+*[!0-9]*) die "--node-threshold needs a whole number, got: $threshold" 2 ;;
+*) ;;
+esac
 [[ -r "$graph" ]] || die "cannot read graph: $graph" 1
 [[ -d "$outdir" ]] || die "not a directory: $outdir" 1
 [[ -z "$notes" || -r "$notes" ]] || die "cannot read notes: $notes" 1
@@ -301,17 +236,33 @@ write_summary() {
     "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "$dialect"
 }
 
+md_header() {
+  printf '# Component view\n\n'
+  printf 'Generated on %s from %s.\n\n%s' "$generated_on" "$source_name" "$stale_md"
+}
+
+md_notes() {
+  if [[ -n "$notes" ]]; then
+    printf '\n'
+    cat "$notes"
+  fi
+}
+
+# $1 names what /architecture:improve looks inside.
+md_rungs() {
+  printf 'Neighboring rungs:\n\n'
+  printf '%s\n' '- `/architecture:map-landscape` charts the repositories this one sits among.'
+  printf '%s\n' '- `/architecture:map-containers` charts the deployables. This view is one of them.'
+  printf '%s\n' "- \`/architecture:improve\` looks for module-design friction inside $1."
+}
+
 if [[ "$ecosystem" == "unknown" ]]; then
   [[ -n "$message" ]] || message="The dependency graph reports ecosystem unknown."
   {
-    printf '# Component view\n\n'
-    printf 'Generated on %s from %s.\n\n%s' "$generated_on" "$source_name" "$stale_md"
+    md_header
     printf 'Unknown: the dependency graph reports ecosystem `unknown`. %s\n\n' "$message"
     printf 'No diagram is drawn. An unrecognized ecosystem is not an empty architecture.\n'
-    if [[ -n "$notes" ]]; then
-      printf '\n'
-      cat "$notes"
-    fi
+    md_notes
   } >"$md_out"
   write_summary "none" 0 0 0 0 no yes 0 0
   exit 0
@@ -419,22 +370,22 @@ function trim(s) {
   gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
   return s
 }
-function directory_of(path,   n, segs, i, out) {
-  if (path == "") return "."
-  n = split(path, segs, "/")
-  if (n <= 2) return "."
+# s without its last sep-separated segment; s itself when it has one segment.
+function drop_last(s, sep,   n, segs, i, out) {
+  n = split(s, segs, sep)
+  if (n <= 1) return s
   out = segs[1]
-  for (i = 2; i < n - 1; i++) out = out "/" segs[i]
+  for (i = 2; i < n; i++) out = out sep segs[i]
   return out
 }
-function namespace_of(id,   full, n, segs, i, out) {
-  full = ns[id]
-  if (full == "") full = name[id]
-  n = split(full, segs, ".")
-  if (n <= 1) return full
-  out = segs[1]
-  for (i = 2; i < n; i++) out = out "." segs[i]
-  return out
+function parent_dir(p) {
+  return index(p, "/") ? drop_last(p, "/") : "."
+}
+function directory_of(path) {
+  return parent_dir(drop_last(path, "/"))
+}
+function namespace_of(id) {
+  return drop_last(ns[id] != "" ? ns[id] : name[id], ".")
 }
 function consider_segment(seg,   low, L) {
   low = tolower(seg)
@@ -447,7 +398,7 @@ function segments_of(text, sep,   n, parts, i) {
   n = split(text, parts, sep)
   for (i = 1; i <= n; i++) consider_segment(parts[i])
 }
-function layer_of(id,   explicit, n, parts, i) {
+function layer_of(id,   explicit) {
   best = ""
   bestlen = -1
   explicit = layer_field[id]
@@ -458,21 +409,10 @@ function layer_of(id,   explicit, n, parts, i) {
   if (best != "") return best
   return "undeclared"
 }
-function parent_group(g,   n, segs, i, out) {
+function parent_group(g) {
   if (groupby == "layer") return g
-  if (groupby == "namespace") {
-    n = split(g, segs, ".")
-    if (n <= 1) return g
-    out = segs[1]
-    for (i = 2; i < n; i++) out = out "." segs[i]
-    return out
-  }
-  if (g == ".") return "."
-  n = split(g, segs, "/")
-  if (n <= 1) return "."
-  out = segs[1]
-  for (i = 2; i < n; i++) out = out "/" segs[i]
-  return out
+  if (groupby == "namespace") return drop_last(g, ".")
+  return parent_dir(g)
 }
 function alias_of(s,   a) {
   a = s
@@ -773,7 +713,7 @@ END {
     for (j = i + 1; j <= er; j++) {
       a = eorder[i]
       b = eorder[j]
-      as = name[efrom[a]] "\t" (efrom[a] in name ? "" : "") name_of_to(a) "\t" ekind[a] "\t" eevidence[a]
+      as = name[efrom[a]] "\t" name_of_to(a) "\t" ekind[a] "\t" eevidence[a]
       bs = name[efrom[b]] "\t" name_of_to(b) "\t" ekind[b] "\t" eevidence[b]
       if (bs < as) { t = eorder[i]; eorder[i] = eorder[j]; eorder[j] = t }
     }
@@ -820,7 +760,9 @@ function collect_groups(   i, g) {
         t = groups[i]; groups[i] = groups[j]; groups[j] = t
       }
 }
-function lc4_open() {
+function diagram_open() {
+  printf "puml\ttitle Components of %s\n", safe(name[chosen])
+  printf "puml\tContainer_Boundary(c4box, \"%s\", $descr=\"deployable\") {\n", safe(name[chosen])
   printf "lc4\tspecification {\n"
   printf "lc4\t  element softwareSystem\n"
   printf "lc4\t  element container\n"
@@ -831,6 +773,11 @@ function lc4_open() {
   printf "lc4\t  c4system = softwareSystem \"%s\" {\n", safe(name[chosen])
   printf "lc4\t    c4container = container \"%s\" {\n", safe(name[chosen])
   printf "lc4\t      description \"deployable\"\n"
+}
+function container_close() {
+  printf "puml\t}\n"
+  printf "lc4\t    }\n"
+  printf "lc4\t  }\n"
 }
 function lc4_rel(from, to, label, vio) {
   if (vio) {
@@ -855,9 +802,7 @@ function lc4_close() {
 function emit_components(   i, id, g, gi, members, nm, label, vio, drawn) {
   collect_groups()
   drawn = 0
-  printf "puml\ttitle Components of %s\n", safe(name[chosen])
-  printf "puml\tContainer_Boundary(c4box, \"%s\", $descr=\"deployable\") {\n", safe(name[chosen])
-  lc4_open()
+  diagram_open()
   for (gi = 1; gi <= ng; gi++) {
     g = groups[gi]
     printf "puml\t  Boundary(grp_%d, \"%s\", \"%s\") {\n", gi - 1, safe(g), groupby
@@ -882,9 +827,7 @@ function emit_components(   i, id, g, gi, members, nm, label, vio, drawn) {
     printf "puml\t  }\n"
     printf "lc4\t      }\n"
   }
-  printf "puml\t}\n"
-  printf "lc4\t    }\n"
-  printf "lc4\t  }\n"
+  container_close()
   for (i = 1; i <= ne; i++) {
     if (eclass[i] != "project") continue
     if (!(efrom[i] in reached) || !(edge_to[i] in reached)) continue
@@ -898,12 +841,10 @@ function emit_components(   i, id, g, gi, members, nm, label, vio, drawn) {
   lc4_close()
   printf "meta\tdrawn_edges\t%d\n", drawn
 }
-function emit_aggregated(   i, g, gi, id, label, vio, drawn, key, fc, tc, members, nm, rep) {
+function emit_aggregated(   i, g, gi, label, drawn, key, fc, tc, nm) {
   collect_groups()
   drawn = 0
-  printf "puml\ttitle Components of %s\n", safe(name[chosen])
-  printf "puml\tContainer_Boundary(c4box, \"%s\", $descr=\"deployable\") {\n", safe(name[chosen])
-  lc4_open()
+  diagram_open()
   for (gi = 1; gi <= ng; gi++) {
     g = groups[gi]
     nm = 0
@@ -917,9 +858,7 @@ function emit_aggregated(   i, g, gi, id, label, vio, drawn, key, fc, tc, member
     printf "lc4\t        description \"%d components\"\n", nm
     printf "lc4\t      }\n"
   }
-  printf "puml\t}\n"
-  printf "lc4\t    }\n"
-  printf "lc4\t  }\n"
+  container_close()
   delete pair_count
   delete pair_vio
   delete pair_label
@@ -1008,33 +947,20 @@ meta_get() {
   printf '%s' "${META[$1]:-}"
 }
 
-if [[ "$status" == "choice" ]]; then
+if [[ "$status" == "choice" || "$status" == "error" ]]; then
   printf 'render-components.sh: %s\n' "$status_msg" >&2
   for c in "${choices[@]+"${choices[@]}"}"; do
     printf '  %s\n' "$c" >&2
   done
+  [[ "$status" == "error" ]] && exit 1
   exit 3
-fi
-if [[ "$status" == "error" ]]; then
-  printf 'render-components.sh: %s\n' "$status_msg" >&2
-  for c in "${choices[@]+"${choices[@]}"}"; do
-    printf '  %s\n' "$c" >&2
-  done
-  exit 1
 fi
 if [[ "$status" == "empty" ]]; then
   {
-    printf '# Component view\n\n'
-    printf 'Generated on %s from %s.\n\n%s' "$generated_on" "$source_name" "$stale_md"
+    md_header
     printf 'Thin result: yes. The graph has no internal modules. A one-box diagram is not the answer.\n\n'
-    printf 'Neighboring rungs:\n\n'
-    printf '%s\n' '- `/architecture:map-landscape` charts the repositories this one sits among.'
-    printf '%s\n' '- `/architecture:map-containers` charts the deployables. This view is one of them.'
-    printf '%s\n' '- `/architecture:improve` looks for module-design friction inside a module.'
-    if [[ -n "$notes" ]]; then
-      printf '\n'
-      cat "$notes"
-    fi
+    md_rungs "a module"
+    md_notes
   } >"$md_out"
   write_summary "none" 0 0 0 0 no yes 0 0
   exit 0
@@ -1059,35 +985,34 @@ nset="$(meta_get set_aside)"
 layers_declared="$(meta_get layers_declared)"
 
 {
-  printf '# Component view\n\n'
-  printf 'Generated on %s from %s.\n\n%s' "$generated_on" "$source_name" "$stale_md"
+  md_header
   printf 'Container: %s (`%s`).\n' "$cname" "$cid"
   printf 'Grouping: %s.\n' "$grouping"
   if [[ "$thin" == "yes" ]]; then
     printf 'Dialect: diagram_dialect.system=%s. No diagram is drawn for a thin result.\n\n' "$dialect"
+    printf 'Thin result: yes. Container `%s` is a single module with no internal component edges. A one-box diagram is not the answer.\n\n' "$cname"
+    md_rungs "the single module"
+    printf '\n'
   else
     printf 'Dialect: diagram_dialect.system=%s. The view covers this one container.\n\n' "$dialect"
-  fi
-  if [[ "$thin" == "yes" ]]; then
-    printf 'Thin result: yes. Container `%s` is a single module with no internal component edges. A one-box diagram is not the answer.\n\n' "$cname"
-    printf 'Neighboring rungs:\n\n'
-    printf '%s\n' '- `/architecture:map-landscape` charts the repositories this one sits among.'
-    printf '%s\n' '- `/architecture:map-containers` charts the deployables. This view is one of them.'
-    printf '%s\n' '- `/architecture:improve` looks for module-design friction inside the single module.'
-    printf '\n'
-  elif [[ "$dialect" == "none" ]]; then
-    printf 'No C4 view is drawn: diagram_dialect.system is unset (no C4 view emitted). The tables below come from the graph.\n\n'
-  elif [[ "$dialect" == "c4-plantuml" ]]; then
-    printf '```plantuml\n@startuml\n!include <C4/C4_Component>\n'
-    if [[ "$nviol" -gt 0 ]]; then
-      printf 'AddRelTag("layer-violation", $textColor="#b00020", $lineColor="#b00020")\n'
-    fi
-    cat "$puml"
-    printf '@enduml\n```\n\n'
-  else
-    printf '```likec4\n'
-    cat "$lc4"
-    printf '```\n\n'
+    case "$dialect" in
+    none)
+      printf 'No C4 view is drawn: diagram_dialect.system is unset (no C4 view emitted). The tables below come from the graph.\n\n'
+      ;;
+    c4-plantuml)
+      printf '```plantuml\n@startuml\n!include <C4/C4_Component>\n'
+      if [[ "$nviol" -gt 0 ]]; then
+        printf 'AddRelTag("layer-violation", $textColor="#b00020", $lineColor="#b00020")\n'
+      fi
+      cat "$puml"
+      printf '@enduml\n```\n\n'
+      ;;
+    *)
+      printf '```likec4\n'
+      cat "$lc4"
+      printf '```\n\n'
+      ;;
+    esac
   fi
   printf '%s\n\n' "$note"
   printf 'External packages collapsed: %s. Their declarations are in the evidence table.\n' "$next"
@@ -1101,9 +1026,7 @@ layers_declared="$(meta_get layers_declared)"
   printf '\n## Edges\n\n'
   printf 'Every edge below is directed. The evidence cell is the file and the matched declaration.\n\n'
   printf '| From | To | Kind | Evidence |\n|---|---|---|---|\n'
-  if [[ -s "$rows" ]]; then
-    cat "$rows"
-  fi
+  cat "$rows"
   printf '\n## Layer violations\n\n'
   if [[ "$layers_declared" == "yes" ]]; then
     printf 'Layer violations are informational. This run does not fail because of them. Enforcement belongs to the consumer'\''s architecture tests.\n\n'
@@ -1123,10 +1046,7 @@ layers_declared="$(meta_get layers_declared)"
   else
     printf 'None.\n'
   fi
-  if [[ -n "$notes" ]]; then
-    printf '\n'
-    cat "$notes"
-  fi
+  md_notes
 } >"$md_out"
 
 summary_name="$cname"
