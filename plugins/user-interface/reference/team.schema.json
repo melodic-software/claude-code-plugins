@@ -137,7 +137,8 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "velocity_threshold": {"type": "number", "minimum": 0, "description": "Release speed in px/ms above which a small element's swipe dismisses it, whatever the distance."}
+            "velocity_threshold": {"type": "number", "minimum": 0, "description": "Release speed in px/ms above which a small element's swipe dismisses it, whatever the distance."},
+            "distance_threshold": {"type": "number", "minimum": 0, "maximum": 1, "description": "Fraction of a dragged element's own travel, 0 to 1, past which release dismisses it."}
           }
         }
       }

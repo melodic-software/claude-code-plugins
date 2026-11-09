@@ -53,9 +53,6 @@ jobs:
           - skill: user-interface:write-css
             script: plugins/user-interface/scripts/check-good-css-drift.sh
             args: --check
-          - skill: user-interface:write-animation
-            script: plugins/user-interface/scripts/check-emilkowalski-drift.sh
-            args: --check
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

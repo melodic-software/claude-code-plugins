@@ -62,7 +62,7 @@ how often the user will trigger it:
 - **Marketing page vs. product**: marketing pages may use longer, showier motion; product UI must
   stay fast and purposeful.
 
-An animation the user sees a hundred times a day is a tax they pay a hundred times a day.
+A frequently seen animation costs the user its full duration on every repeat.
 
 - Data the user is reading or acting on does not move for style. A decorative pointer-tracking
   effect belongs on a marketing page, not on a chart someone is working from.
@@ -269,7 +269,7 @@ allows, not a target.
 - Explanatory and marketing motion may run longer than any role.
 - Perceived speed matters as much as real speed: a snappy 180ms dropdown makes the whole app feel
   faster. A spinner that feels slow even though load time is fixed: spin it faster, because
-  perceived speed is real UX.
+  perceived speed counts even when the measured time is unchanged.
 
 **Audit: Important.** A duration over its resolved role with no stated reason, on product UI (at
 the defaults, `duration-500`, `duration: 0.5` or `0.6s` on a dropdown or a modal), or a
@@ -466,6 +466,8 @@ fades; a multi-step form that slides crossfades instead. Never zero out feedback
   motion, instead of stripping it afterwards. If the project's animations run through shared
   keyframes or duration tokens, make the swap there. The CSS is the `reduced-motion-swap` recipe in
   `/user-interface:write-css`.
+- **Pointer tracking stays**, because the user is producing that movement. On release, drop momentum
+  and bounce and add no position settle; a short opacity or color change carries the outcome.
 - The blanket `* { animation: none !important; transition: none !important; }` is a finding, not a
   fix. It removes the fades that tell the user something happened.
 - **Autoplaying video**: don't autoplay under `reduce`; show controls. For video, a reduced-motion
