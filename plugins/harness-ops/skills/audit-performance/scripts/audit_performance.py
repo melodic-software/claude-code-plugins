@@ -467,14 +467,13 @@ def cli_version(project_dir: Path | None = None) -> dict:
         return {"version": None, "error": "claude not on PATH"}
     provenance = cli_probe_provenance(exe, project_dir)
     try:
-        t0 = time.perf_counter()
-        out = subprocess.run(
+        out, elapsed = timed(
+            subprocess.run,
             [exe, "--version"],
             capture_output=True,
             text=True,
             timeout=SUBPROCESS_TIMEOUT_S,
         )
-        elapsed = round(time.perf_counter() - t0, 3)
         version = out.stdout.strip() or None
         return {
             "version": version,
@@ -558,7 +557,7 @@ def tree_census(root: Path) -> dict:
             try:
                 size = top.stat().st_size
             except OSError:
-                size = 0
+                pass
         entries[top.name] = {"files": files, "mb": round(size / 1048576, 2)}
         total_files += files
         total_bytes += size
@@ -715,9 +714,8 @@ def _windows_object_type_table() -> dict[str, dict]:
         ctypes.c_uint32,
         ctypes.POINTER(ctypes.c_uint32),
     ]
-    size = (
-        1 << 20
-    )  # ~75 types at ~130 bytes each; a megabyte leaves two orders of magnitude spare
+    # ~75 types at ~130 bytes each; a megabyte leaves two orders of magnitude spare.
+    size = 1 << 20
     block = ctypes.create_string_buffer(size)
     needed = ctypes.c_uint32(0)
     status = ntdll.NtQueryObject(
@@ -912,21 +910,10 @@ def _windows_process_table() -> list[dict]:
         if not handle:
             return None, None
         try:
-            created, exited, kernel, user = (
-                FILETIME(),
-                FILETIME(),
-                FILETIME(),
-                FILETIME(),
-            )
-            ok = kernel32.GetProcessTimes(
-                handle,
-                ctypes.byref(created),
-                ctypes.byref(exited),
-                ctypes.byref(kernel),
-                ctypes.byref(user),
-            )
-            if not ok:
+            times = [FILETIME() for _ in range(4)]
+            if not kernel32.GetProcessTimes(handle, *map(ctypes.byref, times)):
                 return None, None
+            created, _exited, kernel, user = times
 
             def ticks(filetime: FILETIME) -> int:
                 return (filetime.dwHighDateTime << 32) | filetime.dwLowDateTime
@@ -1158,7 +1145,6 @@ def attribute_orphans(
         census_aged = in_census and age_seconds > DEAD_PARENT_CENSUS_MIN_AGE_SECONDS
         if not verdict_aged and not census_aged:
             continue
-        parent = by_pid.get(record["ppid"])
         parent_state = _parent_state(record, by_pid, started)
         summary = {
             "name": record["name"],
@@ -1167,23 +1153,21 @@ def attribute_orphans(
             "age_hours": round(age_hours, 1),
         }
         if verdict_aged:
-            if parent_state == "dead":
-                summary["parent_alive"] = False
-                orphans.append(summary)
+            if parent_state == "live":
+                summary["parent_alive"] = True
+                summary["parent_name"] = by_pid[record["ppid"]]["name"]
+                live_parent.append(summary)
             elif parent_state == "unknown":
                 summary["parent_alive"] = None
                 summary["reason"] = (
                     "parent start time unreadable; PID reuse cannot be excluded"
                 )
                 unknown.append(summary)
-            elif parent_state == "recycled":
-                summary["parent_alive"] = False
-                summary["reason"] = "parent pid recycled by a newer process"
-                orphans.append(summary)
             else:
-                summary["parent_alive"] = True
-                summary["parent_name"] = parent["name"]
-                live_parent.append(summary)
+                summary["parent_alive"] = False
+                if parent_state == "recycled":
+                    summary["reason"] = "parent pid recycled by a newer process"
+                orphans.append(summary)
         if census_aged and parent_state in {"dead", "recycled"}:
             cpu = record.get("cpu_seconds")
             row = census_by_name.get(lowered)
@@ -1191,10 +1175,8 @@ def attribute_orphans(
                 census_by_name[lowered] = [1, age_hours, age_hours, cpu]
             else:
                 row[0] += 1
-                if age_hours < row[1]:
-                    row[1] = age_hours
-                if age_hours > row[2]:
-                    row[2] = age_hours
+                row[1] = min(row[1], age_hours)
+                row[2] = max(row[2], age_hours)
                 # One unreadable member makes the sum unknown, never an undercount.
                 row[3] = None if row[3] is None or cpu is None else row[3] + cpu
         elif census_aged and parent_state == "unknown":
@@ -1215,10 +1197,10 @@ def attribute_orphans(
             "or whose parent pid was recycled, at any age above 5 seconds of teardown. "
             "The name set is the orphan candidate set plus tail.exe, grep.exe, sleep.exe, "
             "cat.exe, rm.exe, and du.exe. cpu_seconds sums kernel plus user time across the "
-            "name and is null when any member's time is unreadable. A process whose parent start time is unreadable is not a row "
-            "here; dead_parent_any_age_unknown_count counts every such census process, "
-            "while the orphan verdict's unknown_count holds only its own 24-hour "
-            "candidates. "
+            "name and is null when any member's time is unreadable. A process whose parent "
+            "start time is unreadable is not a row here; dead_parent_any_age_unknown_count "
+            "counts every such census process, while the orphan verdict's unknown_count "
+            "holds only its own 24-hour candidates. "
             "Counts are taken per name before any sample cap. This engine reports and "
             "never kills."
         )
