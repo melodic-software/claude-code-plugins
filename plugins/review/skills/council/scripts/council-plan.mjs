@@ -17,7 +17,7 @@
 //
 // Exit 0 with JSON on stdout; 2 with one stderr line on a usage error.
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -77,13 +77,20 @@ function repositoryLayer(root, ref) {
     }
     const sha = spawnSync("git", ["-C", real, "rev-parse", "--verify", "--quiet", `${ref}^{commit}`], { encoding: "utf8" });
     if (sha.status !== 0) return { doc: null, read_at: `none (${ref} does not exist)`, problems: [] };
-    const shown = spawnSync("git", ["-C", real, "show", `${ref}:${FILE}`], { encoding: "utf8" });
     readAt = `${ref} (${sha.stdout.trim()})`;
+    const entry = spawnSync("git", ["-C", real, "ls-tree", `${ref}`, "--", FILE], { encoding: "utf8" }).stdout.trim();
+    if (entry === "") return { doc: null, read_at: `${readAt}, no ${FILE}`, problems: [] };
+    if (!/^100(644|755) blob /.test(entry)) return { doc: null, read_at: readAt, problems: [`${FILE}: the committed entry is not a regular file; repository layer dropped`] };
+    const shown = spawnSync("git", ["-C", real, "show", `${ref}:${FILE}`], { encoding: "utf8" });
     if (shown.status !== 0) return { doc: null, read_at: `${readAt}, no ${FILE}`, problems: [] };
     text = shown.stdout;
   } else {
     const path = join(real, FILE);
     if (!existsSync(path)) return { doc: null, read_at: `working tree, no ${FILE}`, problems: [] };
+    // A symlink, or a path that resolves elsewhere through a linked directory, is refused (config.md "Resolution").
+    if (lstatSync(path).isSymbolicLink() || realpathSync(path) !== path || !lstatSync(path).isFile()) {
+      return { doc: null, read_at: "working tree", problems: [`${FILE}: not a regular file inside the repository; repository layer dropped`] };
+    }
     text = readFileSync(path, "utf8");
     readAt = "working tree";
   }

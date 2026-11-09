@@ -58,7 +58,7 @@
         "required": ["provider"],
         "properties": {
           "provider": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
-          "model": { "type": "string", "minLength": 1 },
+          "model": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$" },
           "brief": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
           "effort": { "type": "string", "pattern": "^[a-z]+$" }
         }

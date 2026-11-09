@@ -4,7 +4,7 @@
 // must match, a member that cannot run as written is skipped and never replaced).
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, test } from "node:test";
@@ -68,6 +68,40 @@ describe("config", () => {
     const out = resolveConfig({ root: repo("council_members: {a: {provider: claude}}\n") });
     assert.equal(out.members.layer, "default");
     assert.match(out.problems.join("\n"), /flow mapping/);
+  });
+
+  test("a symlinked review.yaml, or one reached through a linked directory, drops the repository layer", () => {
+    const target = join(TMP, `t${n++}.yaml`);
+    writeFileSync(target, "council_lanes: on\n");
+    const linked = repo();
+    symlinkSync(target, join(linked, "docs", "conventions", "review.yaml"));
+    const out = resolveConfig({ root: linked });
+    assert.equal(out.lanes.layer, "default");
+    assert.match(out.problems.join("\n"), /not a regular file/);
+    const dirTarget = join(TMP, `d${n++}`);
+    mkdirSync(dirTarget);
+    writeFileSync(join(dirTarget, "review.yaml"), "council_lanes: on\n");
+    const viaDir = join(TMP, `r${n++}`);
+    mkdirSync(join(viaDir, "docs"), { recursive: true });
+    symlinkSync(dirTarget, join(viaDir, "docs", "conventions"));
+    assert.equal(resolveConfig({ root: viaDir }).lanes.layer, "default");
+  });
+
+  test("a committed symlink at the ref drops the repository layer", () => {
+    const root = repo();
+    git(root, "init", "-q");
+    writeFileSync(join(root, "elsewhere.yaml"), "council_lanes: on\n");
+    symlinkSync("../../elsewhere.yaml", join(root, "docs", "conventions", "review.yaml"));
+    git(root, "add", "-A");
+    git(root, "commit", "-q", "-m", "link");
+    const out = resolveConfig({ root, ref: "HEAD" });
+    assert.equal(out.lanes.layer, "default");
+    assert.match(out.problems.join("\n"), /not a regular file/);
+  });
+
+  test("a member model outside the safe characters fails the schema", () => {
+    const out = resolveConfig({ root: repo("council_members:\n  x:\n    provider: codex\n    model: \"a$(id)\"\n") });
+    assert.equal(out.members.layer, "default");
   });
 
   test("a user council_max_rounds written as a whole-number string is read as a number", () => {
