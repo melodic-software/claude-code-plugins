@@ -1322,6 +1322,9 @@ class _Context:
     outcome_cache: dict[tuple[int, str], tuple[str, str]] = field(default_factory=dict)
     # Full runs whose red verdict came from the wrapper's re-run (attempt 2).
     red_on_rerun: set[int] = field(default_factory=set)
+    # Full runs whose flake verdict came from that re-run passing, not from a
+    # newer run superseding them (`flake_final`).
+    flaked_on_rerun: set[int] = field(default_factory=set)
     branch: str = ""
     branch_tip: str | None = None
     lane_cache: dict[str, bool] = field(default_factory=dict)
@@ -1378,6 +1381,8 @@ class _Context:
     )
     # Each suite's newest open quarantine issue by a filer; None until read.
     quarantine_issues: dict[str, dict[str, Any]] | None = None
+    # The filers' open issues (`_open_records`); None until read.
+    open_records: list[dict[str, Any]] | None = None
     # Excused failing suites, by (suite, sighting).
     quarantines: dict[tuple[str, str], Quarantine] = field(default_factory=dict)
     # The earliest time a quarantine that excused a failing suite expires,
@@ -1842,9 +1847,7 @@ class _Context:
         over, so an edit cannot extend or move a quarantine."""
         if self.quarantine_issues is None:
             found: dict[str, dict[str, Any]] = {}
-            for issue in _demotion_issues(
-                self.owner, self.name, (self.identity, *DEMOTION_FILERS), state="open"
-            ):
+            for issue in self._open_records():
                 suite = _quarantined_suite(issue.get("body"))
                 if suite is None or issue.get("state") != "open":
                     continue
@@ -1868,6 +1871,30 @@ class _Context:
                 for suite, issue in found.items()
             }
         return self.quarantine_issues
+
+    def _open_records(self) -> list[dict[str, Any]]:
+        """The open issues a filer (the agent identity or github-actions[bot])
+        opened, demotion and quarantine records alike, read once per check."""
+        if self.open_records is None:
+            self.open_records = _demotion_issues(
+                self.owner, self.name, (self.identity, *DEMOTION_FILERS), state="open"
+            )
+        return self.open_records
+
+    def flake_final(self, run: Run) -> bool:
+        """Whether flake `run` can no longer change the merge's verdict: its
+        re-run passed (not a newer run superseding it, which holds only within
+        the compare budget), `merge.quarantine-days` (`_quarantine_days`) have
+        passed since it was created, so any quarantine its attempt 1 started
+        has expired, and no open demotion record names it."""
+        return (
+            run.id in self.flaked_on_rerun
+            and self.now >= run.created_at + timedelta(days=self._quarantine_days(run))
+            and not any(
+                _demotes_run(run.url, issue.get("body"))
+                for issue in self._open_records()
+            )
+        )
 
     def _edited_issues(self, numbers: list[int]) -> frozenset[int]:
         """The issues among `numbers` whose body was edited after filing, which
@@ -2494,6 +2521,7 @@ class _Context:
         if second.status != "completed":
             return PENDING, "re-run-in-progress"
         if second.conclusion == "success":
+            self.flaked_on_rerun.add(run.id)
             return FLAKE, "attempt 1 failed, the one re-run passed"
         self.red_on_rerun.add(run.id)
         return RED, f"attempt 1 {first.conclusion}; re-run {second.conclusion}"
@@ -2611,9 +2639,10 @@ def _judge(
         if not in_window(run):
             continue
         state, detail = ctx.outcome(run, attributable=True)
-        if state in (RED, SETTLED, FLAKE):
+        if state in (RED, SETTLED) or (state == FLAKE and not ctx.flake_final(run)):
             # A superseded red run reads settled or flake only within the
-            # compare budget (`_Context.superseded`), so neither is final.
+            # compare budget (`_Context.superseded`), so neither is final; a
+            # flake on the re-run is final once `_Context.flake_final` holds.
             final = False
         if state == RED:
             new = ctx.regressions(signal, run, merged_at)
@@ -3811,9 +3840,15 @@ def _same_run(failure: Failure, body: Any) -> bool:
     this failure's record."""
     if not failure.run_url or "/attempts/" not in failure.run_url:
         return False
+    return _demotes_run(failure.run_url.rsplit("/attempts/", 1)[0], body)
+
+
+def _demotes_run(run_url: str, body: Any) -> bool:
+    """Whether a demotion record names run `run_url` (no attempt) as failing,
+    any attempt."""
     if not _first_line(body).startswith(policy.DEMOTION_MARKER):
         return False
-    prefix = f"- Failing run: {failure.run_url.rsplit('/attempts/', 1)[0]}/attempts/"
+    prefix = f"- Failing run: {run_url}/attempts/"
     return any(line.startswith(prefix) for line in _lines(body))
 
 
