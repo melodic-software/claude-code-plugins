@@ -759,24 +759,24 @@ test("main publishes the status as one flat JSON object in the output, the step 
 });
 
 test("main writes capped=true only when paused", async () => {
-  // With pause-from empty, over the cap (its min-cap floor of 24) it alerts, never caps.
+  // With pause-from empty, over the cap (its min-cap floor of 12) it alerts, never caps.
   const over = await runMain({ open: Array.from({ length: 25 }, () => pr()), merged: 24 }, {}, unsetConfig());
   assert.equal(over.wip.wip_over, true);
   assert.equal(over.capped, "false");
   assert.equal((await runMain({ open: [pr()], merged: 24 }, {}, unsetConfig())).capped, "false");
-  // The base config's past pause-from: over the cap (its min-cap floor of 24
+  // The base config's past pause-from: over the cap (its min-cap floor of 12
   // here, since 24 merged would compute 2) it pauses, under it it runs.
   const repoConfig = readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8");
   const config = repoConfig.replace(/^( +pause-from: ).*$/m, '$1"2026-10-01"');
   assert.notEqual(config, repoConfig.replace(/^( +pause-from: ).*$/m, '$1""'));
   const paused = await runMain({ open: Array.from({ length: 25 }, () => pr()), merged: 24 }, {}, config);
   assert.equal(paused.wip.pause_from, "2026-10-01");
-  assert.equal(paused.wip.wip_min_cap, 24);
+  assert.equal(paused.wip.wip_min_cap, 12);
   assert.equal(paused.capped, "true");
   // A pause that was read is no hold, so pick-slot still reads the dimensions.
   assert.equal(paused.held, "false");
-  assert.ok(paused.logs.some((line) => line.includes("25 countable lane PRs are at or over the WIP cap of 24")));
-  const line = "admission paused: reason=wip countable=25 wip_cap=24 held=0 held_cap=10";
+  assert.ok(paused.logs.some((line) => line.includes("25 countable lane PRs are at or over the WIP cap of 12")));
+  const line = "admission paused: reason=wip countable=25 wip_cap=12 held=0 held_cap=10";
   assert.ok(paused.logs.includes(`::notice title=admission paused::${line}`), paused.logs.join("\n"));
   assert.ok(paused.summary.includes(`\n${line}\n`));
   const running = await runMain({ open: [pr()], merged: 24 }, {}, config);
@@ -795,7 +795,7 @@ test("main pauses at this repository's held cap of 10, past pause-from, and logs
   assert.equal(held.capped, "true");
   const warning = held.logs.find((line) => line.startsWith("::warning title=check-wip-cap::") && line.includes("held cap of 10"));
   assert.ok(warning?.includes("this run starts no work and work-unblock re-fires it once under both caps"), warning);
-  assert.ok(held.logs.includes("::notice title=admission paused::admission paused: reason=held-cap countable=0 wip_cap=24 held=10 held_cap=10"));
+  assert.ok(held.logs.includes("::notice title=admission paused::admission paused: reason=held-cap countable=0 wip_cap=12 held=10 held_cap=10"));
   const nine = await runMain({ open: Array.from({ length: 9 }, () => pr({ labels: ["needs-human"] })), merged: 24 }, {}, config);
   assert.equal(nine.capped, "false");
 });
@@ -835,13 +835,13 @@ test("a read the pause depends on that fails holds the run with one notice", asy
 });
 
 // A merged count that cannot be read is no hold: the cap is this
-// repository's limits.wip-cap of 24, so 24 countable PRs past pause-from
-// pause and 23 run, both read.
+// repository's limits.wip-cap of 12, so 12 countable PRs past pause-from
+// pause and 11 run, both read.
 test("a failed merged count decides the pause from limits.wip-cap, with no hold", async () => {
-  for (const [count, capped] of [[24, "true"], [23, "false"]]) {
+  for (const [count, capped] of [[12, "true"], [11, "false"]]) {
     const result = await runMain({ open: Array.from({ length: count }, () => pr()), merged: failed }, {}, pastConfig());
     assert.equal(result.capped, capped, String(count));
-    assert.equal(result.wip.wip_cap, 24);
+    assert.equal(result.wip.wip_cap, 12);
     assert.equal(result.wip.wip_cap_source, "config");
     assert.equal(result.wip.merged_lane_prs_window, null);
     assert.equal(result.wip.pause_basis, "read");
