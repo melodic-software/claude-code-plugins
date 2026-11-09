@@ -333,9 +333,7 @@ if [[ -z "$compare_to" ]]; then
   printf '  "discovery_source": "%s",\n' "$(json_escape "$source_text")"
   printf '  "remote": "%s",\n' "$(json_escape "$remote_text")"
   printf '  "subject_owner": "%s",\n' "$(json_escape "$subject_owner")"
-  # `path` is dropped on the way in. It records where a checkout happened to sit
-  # on one machine at one moment, which is not a fact about the architecture and
-  # would make the committed record differ on every machine that regenerates it.
+  # `path` is dropped on the way in; the header says why.
   emit_array repositories "$(printf '%s\n' "$facts_out" | awk "$SPLIT_AWK"'
     NF {
       n = split_object($0, k, v)

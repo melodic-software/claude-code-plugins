@@ -1,7 +1,9 @@
 # Layer 1 of the user-interface config cascade: the plugin's own defaults.
 # Later layers override a key (userConfig, ~/docs/conventions/user-interface.yaml,
 # <home>/user-interface.yaml, <home>/user-interface.local.yaml); `*.disable` lists add up.
-# Keys and allowed values: team.schema.json. Block style only.
+# Keys and allowed values: team.schema.json. Block style only. Project tokens beat every layer.
+# A key marked heuristic has no upstream source; every other key's source is recorded under
+# docs/upstream/.
 version: 1
 css:
   browser_target: "baseline widely available"
@@ -15,17 +17,33 @@ css:
   # The widest gap in px (parent border plus padding) at which a nested radius is still derived from its parent's.
   concentric_radius:
     max_gap_px: 24
+  # Line widths in px: a high-density hairline, a standard border, an emphasis line.
+  border_px:
+    hairline: 0.5
+    standard: 1
+    strong: 2
+  # The fade band on an overflowing scroller: its length, and the points in percent where it is full.
+  edge_fade:
+    length: 2rem
+    stops_percent:
+      - 10
+      - 90
+  focus_ring:
+    offset_px: 2
+    width: "max(2px, 0.08em)"
+  image_outline:
+    opacity: 0.1
 # Animation taste defaults: each curve is four cubic Bezier control points [x1, y1, x2, y2];
-# durations are the upper end of each role's range in milliseconds, and exit_factor is the longest
-# an exit may run as a fraction of its entrance; the stagger values are milliseconds between items
-# and for the whole group; blur_max_px is a heuristic ceiling, not a measured limit; the gesture
-# threshold is px/ms for a small element's swipe to dismiss. Project tokens beat every layer.
+# each duration in milliseconds is both the value a recipe writes for its role and the role's
+# ceiling, and exit_factor is the longest an exit may run as a fraction of its entrance; the
+# stagger values are milliseconds between items and for the whole group; the gesture threshold is
+# px/ms for a small element's swipe to dismiss. animation.easing.in is a heuristic.
 animation:
   easing:
     out:
-      - 0.23
-      - 1
       - 0.32
+      - 0.72
+      - 0
       - 1
     in:
       - 0.3
@@ -40,6 +58,11 @@ animation:
     drawer:
       - 0.32
       - 0.72
+      - 0
+      - 1
+    spring_stand_in:
+      - 0.25
+      - 0.1
       - 0
       - 1
   easing_library:
@@ -107,44 +130,201 @@ animation:
         - 0.86
   duration_ms:
     press: 160
+    hover: 150
     small: 200
     medium: 250
     large: 300
     page: 400
     exit_factor: 0.8
-  # The scale a pressable element takes while pressed, as a fraction of its size.
+  # Waits in milliseconds: how long a group stays warm after it closes, and before a first tooltip
+  # or a loading indicator shows.
+  delay_ms:
+    group_warm: 300
+    tooltip: 200
+    indicator: 150
+  # Scales as a fraction of the element's own size; press_min is the lower limit the audit reports a
+  # press scale below.
   scale:
     press: 0.97
+    press_min: 0.95
+    enter: 0.95
+    enter_small: 0.97
+    hover_max: 1.02
+    swap_start: 0.3
   stagger_ms:
     interval: 40
     max_total: 400
+    section: 100
+    word: 80
+  # Distance in px a surface travels as it enters or leaves.
+  travel_px:
+    small: 4
+    medium: 8
+    large: 16
   blur_max_px: 20
+  blur_px:
+    soften: 2
+  # Spring bounce (0 is none), duration in seconds, and the response range in seconds for stacks
+  # that take damping and response.
+  spring:
+    bounce:
+      default: 0
+      playful_max: 0.3
+    duration_s:
+      default: 0.5
+      small: 0.35
+    response_s:
+      - 0.3
+      - 0.4
   gesture:
     velocity_threshold: 0.11
     # Fraction of a dragged element's own travel, 0 to 1, past which release dismisses it.
     distance_threshold: 0.4
+    deceleration_rate: 0.998
+    rubberband_constant: 0.55
+    slop_px: 10
+  # The playback rate for checking motion by eye, and the uses per day above which an action takes
+  # no animation.
+  inspect_playback_rate: 0.1
+  skip_frequency: 100
   # The passes the motion lane's cleanup sub-mode runs, in list order, one per value. Allowed
   # values: removal, review (the lane's review pass), opportunities, performance.
   cleanup_order:
     - removal
     - review
     - performance
+# Color taste defaults: OKLCH lightness from 0 to 1, alpha from 0 to 1, percent shares.
+# color.subtle_mix_percent is a heuristic.
+color:
+  border:
+    dark_solid_l: 0.285
+    light_alpha: 0.08
+  dark_mode:
+    brand_desaturation_percent:
+      - 20
+      - 30
+  hover_mix_percent: 15
+  illustration_max_colors: 3
+  overlay_alpha: 0.2
+  ramp:
+    chroma_percent:
+      - 30
+      - 85
+    endpoints_l:
+      - 0.97
+      - 0.22
+    hue_spread_max_deg: 10
+  subtle_mix_percent: 12
+  triage:
+    light_surface_min_l: 0.6
+    near_black_l:
+      - 0.25
+      - 0.75
+      - 0.3
+    near_white_l:
+      - 0.85
+      - 0.45
 # The primitives library a React project with none installed builds on: a setting value from the
 # primitives table in component-libraries.md, not a package name (install by the name its Install
 # page gives). The project's installed library and design system beat every layer.
 components:
   primitives_default: base-ui
-# A control's padding as CSS lengths, [block, inline]; a heuristic. Project tokens beat every layer.
+# Icon sizes and gaps in px or em. icon.size_px, the ladder of sizes, is a heuristic.
+icon:
+  filled_below_px: 12
+  label_gap_px:
+    - 6
+    - 8
+  size_em: 1
+  size_px:
+    - 12
+    - 16
+    - 20
+    - 24
+    - 48
+# Layout taste defaults as CSS values. Heuristics: breakout_width, grid_track_min_width,
+# media_aspect_ratio, media_small, panel_max_height, sidebar_width.
+layout:
+  breakout_width: 80rem
+  content_width: 1200px
+  grid_track_min_width: 16rem
+  media_aspect_ratio: "16 / 9"
+  media_small: 3.5rem
+  panel_max_height: 80dvh
+  sidebar_width:
+    - 20rem
+    - 50%
+  simple_page_columns: 8
+  terminal_min_columns: 80
+  z_index_stray_above: 100
+performance:
+  image_max_kb: 300
+  search_debounce_ms: 300
+  virtualize_min_items: 50
+# Corner radii as CSS lengths. radius.l is a heuristic.
+radius:
+  s: 4px
+  l: 1.25rem
+# Spacing as CSS lengths. Heuristics: control_padding, section, and the heading parts of flow.
 spacing:
+  xs: 0.5rem
+  s: 1rem
+  m: 1.5rem
+  l: 2rem
   control_padding:
     - 0.75rem
     - 1.25rem
-# Long-form reading text (articles, documentation) in px, never below the 16px body floor; a skill
-# writes it in rem, the value divided by the root size in px. Project tokens beat every layer.
+  flow:
+    - 1lh
+    - 2em
+    - 0.5em
+  optical_icon_px: 2
+  section:
+    - "clamp(3rem, 1rem + 6vw, 8rem)"
+    - 6rem
+# Timings for interface states in milliseconds, and reading speed in words per minute.
+states:
+  copy_confirm_ms: 1500
+  toast_reading_wpm:
+    - 200
+    - 250
+  wait_indicator_ms: 400
+# Type taste defaults. Long-form reading text (articles, documentation) is in px, never below the
+# 16px body floor; a skill writes a px value in rem, the value divided by the root size in px.
+# Heuristics: fluid_body, fluid_scale, fluid_max_ratio.
 typography:
   long_form_body_px: 18
+  fluid_body:
+    min_rem: 1
+    preferred_rem: 0.75
+    preferred_vw: 1
+    max_rem: 1.75
+  fluid_scale:
+    narrow_rem: 20
+    wide_rem: 77.5
+    size_narrow_rem: 1.125
+    size_wide_rem: 1.25
+    ratio_narrow: 1.2
+    ratio_wide: 1.25
+    space_m_factor: 1.5
+    space_l_factor: 2
+  fluid_max_ratio: 2.5
+  line_height:
+    body:
+      - 1.5
+      - 1.6
+    display: 1.1
+  measure_ch: 65
+  small_text_px:
+    caption: 13
+    control: 14
+    min: 12
 # How a touch element that needs both axes (a map, a canvas) takes gestures: tap-to-activate starts
 # it inactive so the page scrolls across it, and one tap activates it; always-active takes gestures
-# from the first touch. The project's own pattern beats every layer.
+# from the first touch. The project's own pattern beats every layer. The widths in px a page is
+# checked at and a fixed width is hunted below, and the hit area on a fine-pointer desktop.
 touch:
   both_axes_activation: tap-to-activate
+  check_width_px: 375
+  fixed_width_hunt_px: 340
+  target_desktop_px: 40

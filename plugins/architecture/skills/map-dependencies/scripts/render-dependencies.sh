@@ -111,6 +111,7 @@ grep -Eq '"schema_version"[[:space:]]*:[[:space:]]*1[[:space:]]*([,}]|$)' "$reco
 # per line until its closing bracket.
 read -r -d '' LAYOUT_AWK <<'AWK' || true
 BEGIN {
+  nkeys = split("nodes edges cycles findings", keys, " ")
   shape["nodes"] = "^[[:space:]]*[{]\"id\":"
   shape["edges"] = "^[[:space:]]*[{]\"from\":"
   shape["cycles"] = "^[[:space:]]*[{]\"id\":"
@@ -129,18 +130,13 @@ open != "" {
   next
 }
 {
-  open_array("nodes")
-  if (problem == "" && open == "") open_array("edges")
-  if (problem == "" && open == "") open_array("cycles")
-  if (problem == "" && open == "") open_array("findings")
+  for (i = 1; i <= nkeys && problem == "" && open == ""; i++) open_array(keys[i])
   if (problem != "") exit
 }
 END {
   if (problem == "" && open != "") problem = "the " open " array never closes"
-  if (problem == "" && !("nodes" in seen)) problem = "no nodes array was found"
-  if (problem == "" && !("edges" in seen)) problem = "no edges array was found"
-  if (problem == "" && !("cycles" in seen)) problem = "no cycles array was found"
-  if (problem == "" && !("findings" in seen)) problem = "no findings array was found"
+  for (i = 1; i <= nkeys && problem == ""; i++)
+    if (!(keys[i] in seen)) problem = "no " keys[i] " array was found"
   print problem
 }
 AWK
@@ -189,6 +185,9 @@ function parent_dir(path,    slash) {
   if (slash == 0) return "."
   return substr(path, 1, RSTART - 1)
 }
+function node_key(id) {
+  return aggregated ? parent_dir(id) : id
+}
 function edge_on_cycle(from, to,    i, needle) {
   needle = " -> " from " -> " to " -> "
   for (i = 1; i <= cn; i++) if (index(" -> " cycle_id[i] " -> ", needle) > 0) return 1
@@ -208,7 +207,7 @@ function want_vertex(key, label) {
   vorder[vn] = key
   vlabel[key] = label
 }
-function want_draw(src, dst) {
+function want_draw(src, dst,    k) {
   if (src == "" || dst == "" || src == dst) {
     if (src != "" && src == dst) intra++
     return
@@ -219,16 +218,15 @@ function want_draw(src, dst) {
   dn++
   dsrc[dn] = src
   ddst[dn] = dst
-  want_vertex(src, src_label(src))
-  want_vertex(dst, dst_label(dst))
+  want_vertex(src, vertex_label(src))
+  want_vertex(dst, vertex_label(dst))
 }
-function src_label(key) {
-  if (key in pkg_label) return pkg_label[key]
-  return key
+function vertex_label(key) {
+  return (key in pkg_label) ? pkg_label[key] : key
 }
-function dst_label(key) {
-  if (key in pkg_label) return pkg_label[key]
-  return key
+function add_evidence(ev) {
+  gsub(/`/, "'\''", ev)
+  add_line("- `" ev "`")
 }
 function sort_at(arr, n,    i, j, tmp) {
   for (i = 2; i <= n; i++) {
@@ -299,8 +297,10 @@ END {
   external_n = 0
   external_edges = 0
   unresolved_n = 0
-  for (i = 1; i <= nn; i++) if (node_kind[i] == "project") project_n++
-  for (i = 1; i <= nn; i++) if (node_kind[i] == "package") external_n++
+  for (i = 1; i <= nn; i++) {
+    if (node_kind[i] == "project") project_n++
+    else if (node_kind[i] == "package") external_n++
+  }
   for (i = 1; i <= en; i++) {
     if (edge_kind[i] == "project" && edge_status[i] == "resolved") internal_n++
     if (edge_kind[i] == "package" && edge_status[i] == "resolved") external_edges++
@@ -316,21 +316,18 @@ END {
   dn = 0
   if (result == "ok") {
     for (i = 1; i <= en; i++) {
-      if (edge_kind[i] == "project" && edge_status[i] == "resolved" && draw_project) {
+      if (edge_status[i] != "resolved") continue
+      if (edge_kind[i] == "project" && draw_project) {
         if (cycles_only == 1 && !edge_on_cycle(edge_from[i], edge_to[i])) continue
-        src = aggregated ? parent_dir(edge_from[i]) : edge_from[i]
-        dst = aggregated ? parent_dir(edge_to[i]) : edge_to[i]
-        want_draw(src, dst)
-      } else if (edge_kind[i] == "package" && edge_status[i] == "resolved" && draw_package) {
-        src = aggregated ? parent_dir(edge_from[i]) : edge_from[i]
-        dst = edge_to[i]
-        want_draw(src, dst)
+        want_draw(node_key(edge_from[i]), node_key(edge_to[i]))
+      } else if (edge_kind[i] == "package" && draw_package) {
+        want_draw(node_key(edge_from[i]), edge_to[i])
       }
     }
     if (draw_project && cycles_only == 0) {
       for (i = 1; i <= nn; i++) {
         if (node_kind[i] != "project") continue
-        key = aggregated ? parent_dir(node_id[i]) : node_id[i]
+        key = node_key(node_id[i])
         want_vertex(key, key)
       }
     }
@@ -355,8 +352,10 @@ END {
     add_line("")
     if (cn == 0) add_line("None.")
     else for (i = 1; i <= cn; i++) add_line("- `" cycle_id[i] "`")
-    if (truncated) add_line("")
-    if (truncated) add_line("Cycle search stopped early.")
+    if (truncated) {
+      add_line("")
+      add_line("Cycle search stopped early.")
+    }
     add_line("")
     add_line("- Result: ok")
     add_line("- Ecosystem: " ecosystem)
@@ -376,21 +375,14 @@ END {
     add_line("")
     add_line("## Unresolved")
     add_line("")
-    unresolved_lines = 0
+    unresolved_lines = fn + 0
     for (i = 1; i <= en; i++) {
       if (edge_status[i] == "unresolved") {
-        ev = edge_evidence[i]
-        gsub(/`/, "'\''", ev)
-        add_line("- `" ev "`")
+        add_evidence(edge_evidence[i])
         unresolved_lines++
       }
     }
-    for (i = 1; i <= fn; i++) {
-      ev = finding_evidence[i]
-      gsub(/`/, "'\''", ev)
-      add_line("- `" ev "`")
-      unresolved_lines++
-    }
+    for (i = 1; i <= fn; i++) add_evidence(finding_evidence[i])
     if (unresolved_lines == 0) add_line("None.")
     add_line("")
     add_line("## External packages")

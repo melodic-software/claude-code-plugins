@@ -27,7 +27,7 @@
 //   GITHUB_API_URL
 import { execFileSync } from "node:child_process";
 import { closeSync, mkdtempSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -142,7 +142,12 @@ export function ghDownloadArtifact({ repo, token, dir, name, file, env, timeout 
       archives.set(key, archive);
     }
     try {
-      return execFileSync("unzip", ["-p", archives.get(key), other], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...(timeout !== undefined && { timeout, killSignal: "SIGKILL" }) });
+      // Extracted beside the archive and read from disk: a piped `unzip -p`
+      // fails with ENOBUFS once the file passes execFileSync's 1 MiB default
+      // maxBuffer.
+      const out = join(dirname(archives.get(key)), "extracted");
+      execFileSync("unzip", ["-q", "-o", "-d", out, archives.get(key), other], { stdio: ["ignore", "ignore", "pipe"], ...(timeout !== undefined && { timeout, killSignal: "SIGKILL" }) });
+      return readFileSync(join(out, other), "utf8");
     } catch (error) {
       // unzip's exit 11 is "no matching files": the artifact lacks the file,
       // raised as reading an extracted copy (ghDownload's other path) would.

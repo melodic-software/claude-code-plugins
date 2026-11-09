@@ -49,31 +49,18 @@ const log = createLogger(resolveLogLevel(args));
 function parseTranscript(transcriptPath) {
   if (!existsSync(transcriptPath)) return [];
   const text = readFileSync(transcriptPath, "utf-8");
-  const segments = [];
   const pattern = /\[(\d+):(\d{2})\]\s*(.*?)(?=\n\n\[|\n\n$|$)/gs;
-  for (let match = pattern.exec(text); match !== null; match = pattern.exec(text)) {
-    const minutes = Number.parseInt(match[1], 10);
-    const seconds = Number.parseInt(match[2], 10);
-    segments.push({
-      timestamp: minutes * 60 + seconds,
-      text: match[3].trim(),
-    });
-  }
-  return segments;
+  return [...text.matchAll(pattern)].map(([, minutes, seconds, segmentText]) => ({
+    timestamp: Number.parseInt(minutes, 10) * 60 + Number.parseInt(seconds, 10),
+    text: segmentText.trim(),
+  }));
 }
 
+/** First segment closest to `targetTimestamp` (earliest wins a tie), or null when none. */
 function nearestSegment(segments, targetTimestamp) {
   if (segments.length === 0) return null;
-  let closest = segments[0];
-  let minDist = Math.abs(segments[0].timestamp - targetTimestamp);
-  for (const seg of segments) {
-    const dist = Math.abs(seg.timestamp - targetTimestamp);
-    if (dist < minDist) {
-      minDist = dist;
-      closest = seg;
-    }
-  }
-  return closest;
+  const distance = (seg) => Math.abs(seg.timestamp - targetTimestamp);
+  return segments.reduce((closest, seg) => (distance(seg) < distance(closest) ? seg : closest));
 }
 
 /**
@@ -87,6 +74,7 @@ function nearestSegment(segments, targetTimestamp) {
  * @property {string} [transcriptContext] - nearest transcript text, paired in a later pass
  */
 
+/** @returns {ClassifiedFrame[]} */
 function classifyLesson(dedupEntry, durationSec) {
   const { frames } = dedupEntry;
   const intervalFrames = frames.filter((f) => f.isInterval);
@@ -97,47 +85,30 @@ function classifyLesson(dedupEntry, durationSec) {
     intervalFrames.length > 3 &&
     dedupEntry.duplicates / dedupEntry.total > 0.8;
 
-  /** @type {ClassifiedFrame[]} */
-  const classified = [];
-
-  for (let i = 0; i < frames.length; i++) {
-    const frame = frames[i];
+  return frames.map(/** @returns {ClassifiedFrame} */ (frame, i) => {
     const isScene = !frame.isInterval;
-    const isDup = !!frame.likelyDuplicate;
-
     const position = i / Math.max(frames.length - 1, 1);
-    const estimatedTimestamp = Math.round(position * durationSec);
 
-    let type;
-    let keep;
-
+    let type = "slide";
+    let keep = true;
     if (isScene) {
       type = "code";
-      keep = true;
     } else if (isTalkingHead) {
       type = "talking-head";
       keep = false;
-    } else if (isDup) {
-      const nextFrame = frames[i + 1];
-      const isLastInRun = !nextFrame?.likelyDuplicate;
-      type = "slide";
-      keep = isLastInRun;
-    } else {
-      type = "slide";
-      keep = true;
+    } else if (frame.likelyDuplicate) {
+      keep = !frames[i + 1]?.likelyDuplicate;
     }
 
-    classified.push({
+    return {
       file: frame.file,
-      timestamp: estimatedTimestamp,
+      timestamp: Math.round(position * durationSec),
       timestampEstimated: isScene,
       type,
       description: null,
       keep,
-    });
-  }
-
-  return classified;
+    };
+  });
 }
 
 const { courseDir, course } = loadCourseDir(args, { logger: log });

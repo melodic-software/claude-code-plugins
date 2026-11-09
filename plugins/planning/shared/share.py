@@ -694,19 +694,17 @@ def cmd_status(d, a):
     rec = tunnel.alive(d)
     if s is None:
         doc = read_json(d / "state.json") or {}
+        session = doc.get("session") or {}
         rounds = doc.get("rounds") or []
         last = rounds[-1] if rounds else None
         return {
             "ok": True,
             "running": False,
             "tunnel": kind(rec) if rec else ("down" if tunnel.read(d) else "off"),
-            "guestUrl": guest_url(rec["url"] if rec else "", (doc.get("session") or {}).get("guestKey")),
+            "guestUrl": guest_url(rec["url"] if rec else "", session.get("guestKey")),
             "round": {"n": last["n"], "status": last["status"]["kind"]} if last else None,
-            "intro": bool((doc.get("session") or {}).get("intro")),
-            "people": None,
-            "queue": None,
-            "unhandled": None,
-            "lease": None,
+            "intro": bool(session.get("intro")),
+            **dict.fromkeys(("people", "queue", "unhandled", "lease")),
             "lives": stopped_lives(d, doc),
         }
     st = status_of(s)
@@ -715,19 +713,14 @@ def cmd_status(d, a):
         "running": True,
         "tunnel": st["tunnel"],
         "guestUrl": guest_url(st["publicUrl"], st["guestKey"]),
-        "round": st["round"],
-        "intro": st["intro"],
-        "people": st["people"],
-        "queue": st["queue"],
-        "unhandled": st["unhandled"],
-        "lease": st["lease"],
+        **{k: st[k] for k in ("round", "intro", "people", "queue", "unhandled", "lease")},
         "lives": st.get("lives", []),
     }
 
 
 def stopped_lives(d, doc):
     """status with the server down: each live entry as state.json last had it, and whether anything of it still runs."""
-    records = dict((rec["id"], rec) for _, rec in tunnel.live_records(d))
+    records = {rec["id"]: rec for _, rec in tunnel.live_records(d)}
     out = []
     for e in doc.get("lives") or []:
         rec = records.get(e.get("id")) or {}
@@ -752,6 +745,7 @@ def cmd_list(root, a):
             continue
         d = state.parent
         doc = read_json(state) or {}
+        session = doc.get("session") or {}
         s = live(d)
         rounds = doc.get("rounds") or []
         url = ""
@@ -764,11 +758,11 @@ def cmd_list(root, a):
         out.append(
             {
                 "dir": str(d),
-                "title": (doc.get("session") or {}).get("title", ""),
+                "title": session.get("title", ""),
                 "running": s is not None,
                 "guestUrl": url,
                 "round": rounds[-1]["n"] if rounds else None,
-                "ended": ((doc.get("session") or {}).get("phase") or {}).get("kind") == "ended",
+                "ended": (session.get("phase") or {}).get("kind") == "ended",
             }
         )
     return {"sessions": out}
@@ -974,8 +968,9 @@ def summarize(lines):
             g["devices"][device(f.get("ua"))] += 1
             g["browsers"][browser(f.get("ua"))] += 1
     for g in faults.values():
-        g["count"] += repeats.pop(g["fp"], 0) if g["fp"] else 0
-        g["lastSeen"] = max(g["lastSeen"], repeat_at.get(g["fp"], "")) if g["fp"] else g["lastSeen"]
+        if g["fp"]:
+            g["count"] += repeats.pop(g["fp"], 0)
+            g["lastSeen"] = max(g["lastSeen"], repeat_at.get(g["fp"], ""))
         g["devices"], g["browsers"] = dict(g["devices"]), dict(g["browsers"])
     group = lambda kinds: sorted((g for g in faults.values() if g["kind"] in kinds), key=lambda g: -g["count"])  # noqa: E731
     routes = {}
@@ -1115,7 +1110,7 @@ def main(argv=None):
         return 1
     else:
         target = Path(a.dir).resolve()
-    if a.cmd != "ensure-running" and a.cmd != "list" and not target.is_dir():
+    if a.cmd not in ("ensure-running", "list") and not target.is_dir():
         print(f"no such data dir: {target}", file=sys.stderr)
         return 1
     try:

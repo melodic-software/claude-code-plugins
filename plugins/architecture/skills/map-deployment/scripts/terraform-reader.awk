@@ -31,7 +31,7 @@ function fail(reason) { print reason > flag; failed = 1; exit 0 }
 function tok(t, v) { NT++; T[NT] = t; V[NT] = v }
 
 # Tokens: s string, n identifier or number or traversal, p punctuation, nl newline.
-function tokenize(f, s,    L, i, c, c2, j, out, depth, ch, nx, inner, rest, tag, body, m, e, line, pk) {
+function tokenize(f, s,    L, i, c, c2, j, out, depth, ch, nx, inner, tag, body, m, e, line, pk) {
   NT = 0
   L = length(s)
   i = 1
@@ -68,7 +68,7 @@ function tokenize(f, s,    L, i, c, c2, j, out, depth, ch, nx, inner, rest, tag,
         out = out ch
         j++
       }
-      pk =(NT >= 2 && T[NT] == "p" && (V[NT] == "=" || V[NT] == ":")) ? V[NT - 1] : ""
+      pk = (NT >= 2 && T[NT] == "p" && (V[NT] == "=" || V[NT] == ":")) ? V[NT - 1] : ""
       inner = ""
       if (f ~ /\.json$/ && substr(out, 1, 2) == "${" && substr(out, length(out)) == "}" && index(substr(out, 3), "${") == 0)
         inner = substr(out, 3, length(out) - 3)
@@ -278,7 +278,7 @@ function groups(d, pre, re, out,    k, r, rest, g, n, seen) {
 function unresolved(raw) { RES_OK = 0; return "unresolved:" raw }
 
 # Resolve one value in scope sc. Sets RES_OK and RES_SEC.
-function resolve(sc, kind, v, depth,    out, rest, p, q, inner, r, ok, sec) {
+function resolve(sc, kind, v, depth,    out, rest, p, q, inner, r, sec) {
   RES_SEC = 0
   RES_OK = 1
   if (depth > 8) return unresolved(v)
@@ -289,7 +289,7 @@ function resolve(sc, kind, v, depth,    out, rest, p, q, inner, r, ok, sec) {
     return unresolved(v)
   }
   if (index(v, "%{") > 0) return unresolved(v)
-  out = ""; rest = v; ok = 1; sec = 0
+  out = ""; rest = v; sec = 0
   while ((p = index(rest, "${")) > 0) {
     out = out substr(rest, 1, p - 1)
     rest = substr(rest, p + 2)
@@ -298,17 +298,16 @@ function resolve(sc, kind, v, depth,    out, rest, p, q, inner, r, ok, sec) {
     inner = trim(substr(rest, 1, q - 1))
     r = resolve(sc, "x", inner, depth + 1)
     if (RES_SEC) sec = 1
-    if (!RES_OK) { ok = 0; break }
+    if (!RES_OK) { RES_SEC = sec; return unresolved(v) }
     out = out r
     rest = substr(rest, q + 1)
   }
-  if (!ok) { r = unresolved(v); RES_SEC = sec; return r }
   RES_OK = 1
   RES_SEC = sec
   return out rest
 }
 
-function resolve_var(sc, name, depth,    d, cd, key, i, f, r, sec) {
+function resolve_var(sc, name, depth,    d, cd, i, f, r, sec) {
   d = S_dir[sc]
   sec = ((field(d, "variable." name ".", "sensitive") && FV == "true") || redact_secret_key(name))
   if (S_caller[sc] != "") {
@@ -376,7 +375,7 @@ function place(sc, c, img, reps, ports, compute, ev,    e) {
 # One container block: name, image, ports, and env entries. An env entry that
 # holds a secret reference instead of a value is a redacted parameter. sfx is
 # appended to the container name.
-function container(sc, g, dflt, reps, compute, ports, envre, secre, portre, portkey, ev, sfx,    d, c, img, n, i, pg, eg, k, v, pv, sec) {
+function container(sc, g, dflt, reps, compute, ports, envre, secre, portre, portkey, ev, sfx,    d, c, img, n, i, pg, eg, k, v, pv) {
   d = S_dir[sc]
   c = show(sc, g, "name", dflt) sfx
   img = show(sc, g, "image", "")
@@ -389,8 +388,7 @@ function container(sc, g, dflt, reps, compute, ports, envre, secre, portre, port
     if (k == "") continue
     if (has_under(d, eg[i], secre)) { param(sc, c, k, "reference", 1, ev); continue }
     v = get(sc, eg[i], "value", "")
-    sec = RES_SEC
-    param(sc, c, k, v, sec, ev)
+    param(sc, c, k, v, RES_SEC, ev)
   }
 }
 

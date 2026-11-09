@@ -7,8 +7,8 @@
 # distinction is the only thing standing between a cleanup sweep and data loss.
 #
 # Read-only by construction: no fetch, no ref write, no checkout, no removal, and
-# no network unless --merged-pr-proof is passed (one read-only `gh pr list` of
-# merged PRs per repository and base). Every verdict is computed from refs already on disk, so a stale remote
+# no network unless --merged-pr-proof is passed (one read-only, paged `gh api
+# graphql` listing of merged PRs per repository and base). Every verdict is computed from refs already on disk, so a stale remote
 # ref yields a conservative answer (see the fail-closed rule below), never a wrong
 # destructive one.
 #
@@ -96,14 +96,16 @@ Options:
                       request and report landed when local HEAD equals or is an
                       ancestor of the PR head commit, or every unpushed local
                       commit is in the PR's commit list. The PRs come from one
-                      \`gh pr list --state merged --base <base>\` per repository
-                      and base, read once and reused for every worktree (the
-                      only network use). The number of gh calls the run made is
-                      printed on stderr. A failed read keeps the prior verdict
+                      paged GraphQL listing (\`gh api\`) of merged PRs per
+                      repository and base, read once and reused for every
+                      worktree (the only network use). The number of gh calls
+                      the run made, one per page, is printed on stderr. A
+                      failed read keeps the prior verdict
                       and names the read in the reason. Off by default, so the
                       script stays offline.
   --merged-pr-limit <n>
-                      Most merged PRs that listing reads, newest first.
+                      Most merged PRs that listing reads, most recently updated
+                      first, 100 per page.
                       Default: 1000. A branch whose PR is older than that window
                       stays unproven, and its reason says the listing was full.
   --path-key <value>  Print the path comparison key for <value> and exit. A
@@ -666,15 +668,36 @@ MP_ERRS=()
 MP_FILE=""
 MP_ERR=""
 
+# Only the fields the proof reads. `gh pr list --json commits` also asks for each
+# commit's authors, which GitHub refuses past 500,000 possible nodes at 50 PRs.
+# shellcheck disable=SC2016 # GraphQL variables, not shell expansions
+MERGED_PR_QUERY='query($owner: String!, $name: String!, $base: String!, $first: Int!, $after: String) {
+  repository(owner: $owner, name: $name) {
+    pullRequests(states: MERGED, baseRefName: $base, first: $first, after: $after,
+      orderBy: {field: UPDATED_AT, direction: DESC}) {
+      pageInfo { hasNextPage endCursor }
+      nodes { headRefName headRefOid baseRefName commits(first: 100) { nodes { commit { oid } } } }
+    }
+  }
+}'
+# One page as `pr`/`head`/`commit` lines, then `page <hasNextPage> <endCursor>`.
+MERGED_PR_JQ='.data.repository.pullRequests
+  | (.nodes[] | "pr " + .headRefName + " " + .baseRefName, "head " + .headRefOid,
+      (.commits.nodes[] | "commit " + .commit.oid)),
+    "page " + (.pageInfo.hasNextPage | tostring) + " " + (.pageInfo.endCursor // "")'
+
 # merged_pr_listing <path> <base-name>: point MP_FILE at the merged PRs into
 # <base-name> for <path>'s repository, as `pr <head-ref> <base-ref>`, `head <oid>`
-# and `commit <oid>` lines. The first call for a repository and base runs one
-# `gh pr list`; later calls reuse its file, so N worktrees cost one listing, not
-# N reads. The repository is keyed by its common git dir, which every linked
-# worktree shares. A failed read is cached as well, so a rate-limited listing is
-# not retried once per worktree. Returns 1 with MP_ERR naming the failure.
+# and `commit <oid>` lines. The first call for a repository and base pages
+# through `gh api graphql`, 100 PRs a page, until MERGED_PR_LIMIT PRs are read;
+# each page counts as one gh call. Later calls reuse its file, so N worktrees cost
+# one listing, not N. The repository is keyed by its common git dir, which every
+# linked worktree shares. A failed page fails the whole listing, and the failure
+# is cached as well, so a rate-limited listing is not retried once per worktree.
+# Returns 1 with MP_ERR naming the failure.
 merged_pr_listing() {
-  local p="$1" base_name="$2" repo key i err
+  local p="$1" base_name="$2" repo key i err page got=0 n first more cursor
+  local -a after=()
   MP_FILE=""
   MP_ERR=""
   # `CDPATH=` keeps a relative `.git` from resolving through the caller's CDPATH.
@@ -691,15 +714,32 @@ merged_pr_listing() {
   done
   i=${#MP_KEYS[@]}
   MP_FILE="$WORKDIR/merged-prs.$i"
-  GH_CALLS=$((GH_CALLS + 1))
-  if ! (cd "$p" && gh pr list --state merged --base "$base_name" --limit "$MERGED_PR_LIMIT" \
-    --json headRefName,headRefOid,baseRefName,commits \
-    --jq '.[] | "pr " + .headRefName + " " + .baseRefName, "head " + .headRefOid, (.commits[] | "commit " + .oid)') >"$MP_FILE" 2>"$MP_FILE.err"; then
-    # Name gh's own error so a failed run states its cause; tabs and semicolons
-    # would break the record's columns and reason list.
-    err=$(head -n 1 "$MP_FILE.err" | tr '\t;' '  ' | cut -c1-120)
-    MP_ERR="gh-pr-list${err:+ ($err)}"
-  fi
+  page="$MP_FILE.page"
+  : >"$MP_FILE"
+  while :; do
+    first=$((MERGED_PR_LIMIT - got))
+    ((first > 100)) && first=100
+    GH_CALLS=$((GH_CALLS + 1))
+    # `{owner}`/`{repo}` resolve from <path>'s repository, as `gh pr list` did.
+    if ! (cd "$p" && gh api graphql -f query="$MERGED_PR_QUERY" -F owner='{owner}' -F name='{repo}' \
+      -f base="$base_name" -F first="$first" ${after[@]+"${after[@]}"} --jq "$MERGED_PR_JQ") >"$page" 2>"$MP_FILE.err"; then
+      # Name gh's own error so a failed run states its cause; tabs and semicolons
+      # would break the record's columns and reason list. The `gh-pr-list` token
+      # stays: callers match on it.
+      err=$(head -n 1 "$MP_FILE.err" | tr '\t;' '  ' | cut -c1-120)
+      MP_ERR="gh-pr-list${err:+ ($err)}"
+      : >"$MP_FILE"
+      break
+    fi
+    grep -v '^page ' "$page" >>"$MP_FILE"
+    n=$(grep -c '^pr ' "$page")
+    got=$((got + n))
+    more=$(sed -n 's/^page //p' "$page")
+    cursor="${more#* }"
+    # An empty page ends the listing too, so a bad cursor cannot loop forever.
+    [[ "${more%% *}" == "true" && -n "$cursor" && "$n" -gt 0 && "$got" -lt "$MERGED_PR_LIMIT" ]] || break
+    after=(-f after="$cursor")
+  done
   MP_KEYS+=("$key")
   MP_ERRS+=("$MP_ERR")
   [[ -z "$MP_ERR" ]]

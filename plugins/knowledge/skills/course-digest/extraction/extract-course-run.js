@@ -14,11 +14,11 @@ function saveLessonResources(lessonDir, res) {
     writeFileSync(join(lessonDir, "code-snippets.md"), `${snippetsMd}\n`, "utf-8");
   }
 
-  const resourceData = {};
-  if (res.downloads?.length > 0) resourceData.downloads = res.downloads;
-  if (res.articleLinks?.length > 0) resourceData.articleLinks = res.articleLinks;
-  if (res.pdfLinks?.length > 0) resourceData.pdfLinks = res.pdfLinks;
-  if (res.textContent?.length > 0) resourceData.textContent = res.textContent;
+  const resourceData = Object.fromEntries(
+    ["downloads", "articleLinks", "pdfLinks", "textContent"]
+      .filter((key) => res[key]?.length > 0)
+      .map((key) => [key, res[key]]),
+  );
 
   if (Object.keys(resourceData).length > 0) {
     writeFileSync(
