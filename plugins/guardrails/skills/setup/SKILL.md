@@ -10,8 +10,8 @@ allowed-tools:
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs verify:*)"
   - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" plan:*)"
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs plan:*)"
-  - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs\" check:*)"
-  - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs check:*)"
+  - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs\" check \"${CLAUDE_PLUGIN_ROOT}\" --for hook:run-guards.sh)"
+  - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs check ${CLAUDE_PLUGIN_ROOT} --for hook:run-guards.sh)"
 shell: bash
 ---
 
