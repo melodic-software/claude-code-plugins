@@ -48,7 +48,10 @@ Run the steps in order before writing CSS: step 3 needs what steps 1 and 2 found
    and delete the file. Read `project.browserslist`, `project.tokens`, `project.lint`,
    `project.style_files`, `project.docs`, and `config.values`, `config.provenance`, `config.prose`. Then find what
    detect cannot: the project's written CSS conventions and the existing component nearest to the
-   one you are writing. With no shell, no Write tool or no `node`, read the same signals by hand.
+   one you are writing. Pick and write every value as
+   [values.md](../../reference/values.md) says. With no shell, no Write tool or no `node`, read the
+   same signals by hand and take each key's value from
+   `${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml`.
 2. **Identify the stack and research what you do not know.** Name the styling mechanism from the
    files themselves, never from a framework's name alone. For what you are not sure of: when
    `/context7:lookup` is installed, invoke it with the Skill tool for the library's current docs;
@@ -73,7 +76,8 @@ Run the steps in order before writing CSS: step 3 needs what steps 1 and 2 found
   (default `ask`): `ask` asks before writing any value for it, in CSS or in prose, and a proposed
   value may sit inside the question; `propose-token` adds a token to the project's token source
   marked as a proposal; `literal` writes the value and names it. When the project has no token
-  source at all, say so, use your own values, and list each as a default the user can replace.
+  source at all, say so, use each key's resolved value, and list each as a default the user can
+  replace, with its key.
 - **Layers**: new CSS goes in a low-priority `@layer` (`css.layer` when set, otherwise one you name
   as a default) only when the project has no layer system; otherwise use the project's mechanism.
 - **Motion values**: the project's own easing and duration tokens first; where it has none, the

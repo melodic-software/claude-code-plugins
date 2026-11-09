@@ -147,10 +147,11 @@ if name="$(github_repo_name "$remote")"; then
   subject="$name"
 fi
 
+# write_record <status> <reason> <tier> <tool>: each array comes from its
+# $TMP/<key>.tsv row file.
 write_record() {
   local status="$1" reason="$2" tier="$3" tool="$4"
-  local mech_file="$5" module_file="$6" entity_file="$7" attr_file="$8" rel_file="$9" mismatch_file="${10}"
-  local dest body
+  local dest body key sep=""
   body="$(
     {
       printf '{\n'
@@ -161,17 +162,11 @@ write_record() {
       printf '  "reason": "%s",\n' "$(json_escape "$reason")"
       printf '  "source_tier": "%s",\n' "$(json_escape "$tier")"
       printf '  "source_tool": "%s",\n' "$(json_escape "$tool")"
-      emit_array mechanisms "$mech_file"
-      printf ',\n'
-      emit_array modules "$module_file"
-      printf ',\n'
-      emit_array entities "$entity_file"
-      printf ',\n'
-      emit_array attributes "$attr_file"
-      printf ',\n'
-      emit_array relationships "$rel_file"
-      printf ',\n'
-      emit_array mismatches "$mismatch_file"
+      for key in mechanisms modules entities attributes relationships mismatches; do
+        printf '%s' "$sep"
+        emit_array "$key" "$TMP/$key.tsv"
+        sep=$',\n'
+      done
       printf '\n}\n'
     }
   )"
@@ -203,15 +198,6 @@ emit_array() {
   printf '\n  ]'
 }
 
-empty_tsvs() {
-  : >"$1"
-  : >"$2"
-  : >"$3"
-  : >"$4"
-  : >"$5"
-  : >"$6"
-}
-
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 MECH="$TMP/mechanisms.tsv"
@@ -220,12 +206,18 @@ ENTS="$TMP/entities.tsv"
 ATTRS="$TMP/attributes.tsv"
 RELS="$TMP/relationships.tsv"
 MISMATCHES="$TMP/mismatches.tsv"
-empty_tsvs "$MECH" "$MODS" "$ENTS" "$ATTRS" "$RELS" "$MISMATCHES"
+for f in "$MECH" "$MODS" "$ENTS" "$ATTRS" "$RELS" "$MISMATCHES"; do : >"$f"; done
 
 refuse() {
-  local reason="$1"
-  write_record refused "$reason" none none "$MECH" "$MODS" "$ENTS" "$ATTRS" "$RELS" "$MISMATCHES"
+  write_record refused "$1" none none
   exit 0
+}
+
+# clear_drawn: empty the entity, attribute and relationship rows before a refusal.
+clear_drawn() {
+  : >"$ENTS"
+  : >"$ATTRS"
+  : >"$RELS"
 }
 
 if [[ "$live" -eq 1 ]]; then
@@ -1203,20 +1195,21 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
       ef_why="$fk_entity.$fk has no declared type that settles whether it is nullable"
       break
     fi
-    if [[ "$kind" == "one-to-one" ]]; then
-      token="$([[ "$optional" == "yes" ]] && printf '|o--o|' || printf '||--o|')"
-    else
-      token="$([[ "$optional" == "yes" ]] && printf '|o--o{' || printf '||--o{')"
-    fi
+    case "$kind/$optional" in
+    one-to-one/yes) token='|o--o|' ;;
+    one-to-one/*) token='||--o|' ;;
+    */yes) token='|o--o{' ;;
+    *) token='||--o{' ;;
+    esac
     from="$(entity_id "$module" "$fk_entity")"
     to="$(entity_id "$module" "$pk_entity")"
     # entities (once)
-    for pair in "$fk_entity" "$pk_entity"; do
-      eid="$(entity_id "$module" "$pair")"
+    for entity in "$fk_entity" "$pk_entity"; do
+      eid="$(entity_id "$module" "$entity")"
       esc_id="$(json_escape "$eid")"
       if ! grep -F -q "\"id\":\"$esc_id\"" "$EF_ENTS"; then
         printf '{"id":"%s","name":"%s","module":"%s","evidence":"%s"}\n' \
-          "$esc_id" "$(json_escape "$pair")" "$(json_escape "$module")" "$(json_escape "$rel")" >>"$EF_ENTS"
+          "$esc_id" "$(json_escape "$entity")" "$(json_escape "$module")" "$(json_escape "$rel")" >>"$EF_ENTS"
       fi
     done
     printf '{"from":"%s","to":"%s","cardinality":"%s","columns":"%s","references":"%s","optional":"%s","kind":"%s","evidence":"%s","tool":"ef-fluent"}\n' \
@@ -1233,16 +1226,11 @@ if [[ "$ef_seen" -eq 1 ]]; then
 fi
 
 if [[ -n "$unshipped" ]]; then
-  : >"$ENTS"
-  : >"$ATTRS"
-  : >"$RELS"
+  clear_drawn
   refuse "partial-read"
 fi
 if [[ -n "$prisma_flag" ]]; then
-  : >"$ENTS"
-  : >"$ATTRS"
-  : >"$RELS"
-  add_mech prisma model yes "$first_prisma"
+  clear_drawn
   refuse "$prisma_flag"
 fi
 
@@ -1292,9 +1280,7 @@ elif [[ -s "$TMP/sql.txt" ]]; then
   cat "$SQL_RELS" >>"$RELS"
 fi
 
-# Mark fk flags on attributes whose name is a relationship column. Done in the
-# renderer from the relationship list. Attributes stay fk:no unless the EF
-# path set them, or a later pass here rewrites prisma/sql rows.
+# Mark fk:yes on each attribute a relationship names among its columns.
 mark_fk() {
   awk '
     FNR == NR && /"from":/ {
@@ -1329,24 +1315,12 @@ if [[ -s "$RELS" && -s "$ATTRS" ]]; then
   mark_fk
 fi
 
-# Keep only winner entities? No: entities from other shipped tools stay in the
-# record so mismatches can name them. The renderer draws the winner tool only.
-# Tag is the tool on relationships. Entities do not carry a tool. Mismatch
-# comparison uses relationship tool fields.
-#
-# Drop entities that belong only to a non-winner tool when the winner also
-# declared that module, otherwise a SQL-only table in a prisma module shows up
-# as a drawn entity. Renderer filters relationships by tool == source_tool and
-# entities that are an endpoint of a winner relationship OR have evidence from
-# a winner file. Evidence for prisma/sql contains the file path. EF evidence is
-# the cs path. Filter here: keep entities whose evidence file extension matches
-# the winner, and relationships whose tool matches the winner. Other tools
-# relationships are copied aside for mismatch then removed from the drawn set.
-# Mismatch rows are computed first.
+# Mismatch rows compare the relationships of every shipped tier that was read.
+# Then only the winner's rows stay: relationships whose tool is the winner, and
+# entities and attributes whose evidence file has the winner's extension.
 
-shipped_tools="$(grep -c '"shipped":"yes"' "$MECH" || true)"
-if [[ $((${shipped_tools:-0} - not_compared)) -ge 2 ]]; then
-awk -v winner="$winner_tool" -v rels="$RELS" -v mismatches="$MISMATCHES" '
+# field(line, key): the string value of "key" in one JSON row, "" when absent.
+AWK_FIELD='
   function field(line, key,    re, s, i) {
     re = "\"" key "\":\""
     i = index(line, re)
@@ -1355,7 +1329,11 @@ awk -v winner="$winner_tool" -v rels="$RELS" -v mismatches="$MISMATCHES" '
     i = index(s, "\"")
     if (i == 0) return ""
     return substr(s, 1, i - 1)
-  }
+  }'
+
+shipped_tools="$(grep -c '"shipped":"yes"' "$MECH" || true)"
+if [[ $((${shipped_tools:-0} - not_compared)) -ge 2 ]]; then
+awk -v winner="$winner_tool" -v mismatches="$MISMATCHES" "$AWK_FIELD"'
   function jesc(s) {
     gsub(/\\/, "\\\\", s)
     gsub(/"/, "\\\"", s)
@@ -1405,79 +1383,40 @@ awk -v winner="$winner_tool" -v rels="$RELS" -v mismatches="$MISMATCHES" '
 ' "$RELS"
 fi
 
-awk -v winner="$winner_tool" '
-  function field(line, key,    re, s, i) {
-    re = "\"" key "\":\""
-    i = index(line, re)
-    if (i == 0) return ""
-    s = substr(line, i + length(re))
-    i = index(s, "\"")
-    if (i == 0) return ""
-    return substr(s, 1, i - 1)
-  }
-  field($0, "tool") == winner { print }
-' "$RELS" >"$TMP/rels-win.json"
-mv "$TMP/rels-win.json" "$RELS"
+# keep_rows <file> <key> <value> <contains>: keep the rows whose "key" field
+# equals the value (contains=0) or holds it (contains=1).
+keep_rows() {
+  awk -v key="$2" -v want="$3" -v contains="$4" "$AWK_FIELD"'
+    {
+      v = field($0, key)
+      if (contains ? index(v, want) > 0 : v == want) print
+    }
+  ' "$1" >"$1.keep"
+  mv "$1.keep" "$1"
+}
+
+keep_rows "$RELS" tool "$winner_tool" 0
 
 if grep -F -q '"cardinality":"unknown"' "$RELS"; then
-  : >"$ENTS"
-  : >"$ATTRS"
-  : >"$RELS"
+  clear_drawn
   : >"$MISMATCHES"
   refuse "unknown-cardinality"
 fi
 
-# Entities: keep those whose evidence extension matches the winner tool.
-# prisma -> .prisma, sql-migration -> .sql, ef-fluent -> .cs
 case "$winner_tool" in
 prisma) ext=".prisma" ;;
 sql-migration) ext=".sql" ;;
 ef-fluent) ext=".cs" ;;
 *) ext="" ;;
 esac
-awk -v ext="$ext" '
-  function field(line, key,    re, s, i) {
-    re = "\"" key "\":\""
-    i = index(line, re)
-    if (i == 0) return ""
-    s = substr(line, i + length(re))
-    i = index(s, "\"")
-    if (i == 0) return ""
-    return substr(s, 1, i - 1)
-  }
-  {
-    ev = field($0, "evidence")
-    if (index(ev, ext) > 0) print
-  }
-' "$ENTS" >"$TMP/ents-win.json"
-mv "$TMP/ents-win.json" "$ENTS"
-awk -v ext="$ext" '
-  function field(line, key,    re, s, i) {
-    re = "\"" key "\":\""
-    i = index(line, re)
-    if (i == 0) return ""
-    s = substr(line, i + length(re))
-    i = index(s, "\"")
-    if (i == 0) return ""
-    return substr(s, 1, i - 1)
-  }
-  {
-    ev = field($0, "evidence")
-    if (index(ev, ext) > 0) print
-  }
-' "$ATTRS" >"$TMP/attrs-win.json"
-mv "$TMP/attrs-win.json" "$ATTRS"
+keep_rows "$ENTS" evidence "$ext" 1
+keep_rows "$ATTRS" evidence "$ext" 1
 
 # A module is listed only when the winning tier declared an entity in it.
 sed -n 's/.*"module":"\([^"]*\)".*/{"id":"\1"}/p' "$ENTS" | sort -u >"$MODS"
 
 # Stable order
-sort -o "$MECH" "$MECH"
-sort -o "$MODS" "$MODS"
-sort -o "$ENTS" "$ENTS"
-sort -o "$ATTRS" "$ATTRS"
-sort -o "$RELS" "$RELS"
-sort -o "$MISMATCHES" "$MISMATCHES"
+for f in "$MECH" "$MODS" "$ENTS" "$ATTRS" "$RELS" "$MISMATCHES"; do sort -o "$f" "$f"; done
 
-write_record drawn "" "$winner_tier" "$winner_tool" "$MECH" "$MODS" "$ENTS" "$ATTRS" "$RELS" "$MISMATCHES"
+write_record drawn "" "$winner_tier" "$winner_tool"
 exit 0

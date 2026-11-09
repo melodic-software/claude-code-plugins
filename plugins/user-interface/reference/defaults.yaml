@@ -112,6 +112,9 @@ animation:
     large: 300
     page: 400
     exit_factor: 0.8
+  # The scale a pressable element takes while pressed, as a fraction of its size.
+  scale:
+    press: 0.97
   stagger_ms:
     interval: 40
     max_total: 400
@@ -131,6 +134,11 @@ animation:
 # page gives). The project's installed library and design system beat every layer.
 components:
   primitives_default: base-ui
+# A control's padding as CSS lengths, [block, inline]; a heuristic. Project tokens beat every layer.
+spacing:
+  control_padding:
+    - 0.75rem
+    - 1.25rem
 # Long-form reading text (articles, documentation) in px, never below the 16px body floor; a skill
 # writes it in rem, the value divided by the root size in px. Project tokens beat every layer.
 typography:

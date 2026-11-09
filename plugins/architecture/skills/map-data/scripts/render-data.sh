@@ -127,6 +127,7 @@ summary="$(
       return "(" out ")"
     }
     function take_array(first, key, prefix,    line, item) {
+      nkey = 0
       line = trim(first)
       if (line == "\"" key "\": []" || line == "\"" key "\": [],") return
       if (line != "\"" key "\": [") die(key " is not one object per line or []")
@@ -185,12 +186,12 @@ summary="$(
         else if (t ~ /^"reason":/) reason = jget(t, "reason")
         else if (t ~ /^"source_tier":/) tier = jget(t, "source_tier")
         else if (t ~ /^"source_tool":/) tool = jget(t, "source_tool")
-        else if (t ~ /^"mechanisms":/) { nkey = 0; take_array(t, "mechanisms", "{\"name\":") }
-        else if (t ~ /^"modules":/) { nkey = 0; take_array(t, "modules", "{\"id\":") }
-        else if (t ~ /^"entities":/) { nkey = 0; take_array(t, "entities", "{\"id\":") }
-        else if (t ~ /^"attributes":/) { nkey = 0; take_array(t, "attributes", "{\"entity\":") }
-        else if (t ~ /^"relationships":/) { nkey = 0; take_array(t, "relationships", "{\"from\":") }
-        else if (t ~ /^"mismatches":/) { nkey = 0; take_array(t, "mismatches", "{\"kind\":") }
+        else if (t ~ /^"mechanisms":/) take_array(t, "mechanisms", "{\"name\":")
+        else if (t ~ /^"modules":/) take_array(t, "modules", "{\"id\":")
+        else if (t ~ /^"entities":/) take_array(t, "entities", "{\"id\":")
+        else if (t ~ /^"attributes":/) take_array(t, "attributes", "{\"entity\":")
+        else if (t ~ /^"relationships":/) take_array(t, "relationships", "{\"from\":")
+        else if (t ~ /^"mismatches":/) take_array(t, "mismatches", "{\"kind\":")
         else if (t ~ /^"[a-z_]+": \[$/) die("unknown array " t)
       }
       if (status != "drawn" && status != "refused") die("status is missing")
@@ -344,11 +345,9 @@ summary="$(
         print "" > md
         # select entities
         for (i = 1; i <= ne; i++) if (nm == 0 || (emod[i] in in_scope) || scope_out == "all") {
-          if (scope_out == "all" || nm == 0 || (emod[i] in in_scope)) {
-            drawn_e++
-            keep_e[eid[i]] = 1
-            show_e[drawn_e] = i
-          }
+          drawn_e++
+          keep_e[eid[i]] = 1
+          show_e[drawn_e] = i
         }
         next_r = 0
         for (i = 1; i <= nr; i++) {
@@ -466,9 +465,8 @@ summary="$(
           print "" > md
         }
       }
-      colflag = (columns ? "yes" : "no")
       printf "data: status=%s reason=%s tier=%s tool=%s modules=%d entities=%d relationships=%d mismatches=%d columns=%s dialect=%s scope=%s\n", \
-        status, (reason == "" ? "none" : reason), (tier == "" ? "none" : tier), (tool == "" ? "none" : tool), nm, drawn_e + 0, drawn_r + 0, nmis, colflag, dialect, scope_out
+        status, (reason == "" ? "none" : reason), (tier == "" ? "none" : tier), (tool == "" ? "none" : tool), nm, drawn_e + 0, drawn_r + 0, nmis, (columns ? "yes" : "no"), dialect, scope_out
       exit exit_code
     }
   ' "$record"

@@ -3,6 +3,14 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.2.0] - 2026-11-09
+
+### Added
+
+- have reviewer briefs name the finding class they want
+
+  `/review:quality-gate` and `/review:fanout` now write every per-concern reviewer brief to name the class of finding it wants (for example correctness) and what to leave out (for example style).
+
 ## [8.1.6] - 2026-11-09
 
 ### Changed
