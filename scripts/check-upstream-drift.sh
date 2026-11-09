@@ -19,7 +19,11 @@
 #
 # Trees are read with `gh api 'repos/<o>/<r>/git/trees/<sha>:<path>?recursive=1'`
 # at the pin and at upstream HEAD. A truncated tree, a failed call, or a tree
-# path holding a control character exits 2 and is never a clean report.
+# path holding a control character exits 2 and is never a clean report. When an
+# owner's IP allow list refuses the token, that owner's calls retry anonymously
+# with curl; a page whose pin lookup is still refused is reported
+# `status=unreachable`, named on stderr, and skipped; --report goes on and exits
+# by drift alone, the other modes exit 2 after every page is read.
 #
 # Fixture seam, for tests: with UPSTREAM_DRIFT_FIXTURE_DIR set, gh is not used.
 # <dir>/<owner>__<repo>/HEAD holds a SHA; <dir>/<owner>__<repo>/<sha>.tree
@@ -187,9 +191,31 @@ parse_links() { # <page>
 
 # --- reading upstream --------------------------------------------------------
 
-declare -A HEADS=() TREES=() FIXTURE_FILES=()
+declare -A HEADS=() TREES=() FIXTURE_FILES=() ANON=()
 OUT_SHA=""
 OUT_TREE=""
+OUT_API=""
+API_STATUS=""
+
+# api <owner> <path>: GETs a REST path into OUT_API, the HTTP status of a
+# failure in API_STATUS. Returns 1 on a failure, 5 when <owner>'s IP allow list
+# refuses the token and the anonymous retry fails too.
+api() {
+  local o="$1" url="$2" resp
+  API_STATUS=""
+  if [[ -z "${ANON[$o]:-}" ]]; then
+    OUT_API="$(gh api "$url" 2>/dev/null)" && return 0
+    API_STATUS="$(jq -r '.status // empty' <<<"$OUT_API" 2>/dev/null)"
+    jq -e '.message // "" | test("IP allow list")' <<<"$OUT_API" >/dev/null 2>&1 || return 1
+    ANON[$o]=1
+  fi
+  resp="$(curl -sS -H 'Accept: application/vnd.github+json' -w '\n%{http_code}' "https://api.github.com/$url" 2>/dev/null)" || return 5
+  API_STATUS="${resp##*$'\n'}"
+  OUT_API="${resp%$'\n'*}"
+  [[ "$API_STATUS" == 2?? ]] && return 0
+  [[ "$API_STATUS" == 404 || "$API_STATUS" == 422 ]] && return 1
+  return 5
+}
 
 # check_tree_lines <text> <source>: dies on a truncated mark, a malformed line,
 # or a path with a control character.
@@ -214,7 +240,8 @@ head_sha() { # <owner> <repo>: sets OUT_SHA
     [[ -f "$FIXTURE/$1__$2/HEAD" ]] || die "fixture missing: $FIXTURE/$1__$2/HEAD"
     sha="$(tr -d '[:space:]' <"$FIXTURE/$1__$2/HEAD")"
   else
-    sha="$(gh api "repos/$1/$2/commits/HEAD" --jq .sha 2>/dev/null)" || die "gh api repos/$1/$2/commits/HEAD failed"
+    api "$1" "repos/$1/$2/commits/HEAD" || die "gh api repos/$1/$2/commits/HEAD failed${API_STATUS:+ (HTTP $API_STATUS)}"
+    sha="$(jq -r '.sha // empty' <<<"$OUT_API")"
   fi
   [[ "$sha" =~ $SHA_RE ]] || die "$key: HEAD is not a commit SHA: $(printf '%q' "$sha")"
   HEADS[$key]="$sha"
@@ -246,12 +273,12 @@ uri_path() { # percent-encodes every byte outside [A-Za-z0-9._~/-]
 # gh_tree <o> <r> <sha> <path> [<recursive 1|0>]: sets OUT_TREE to
 # `<blob> <path>` lines; returns 3 for 404 (absent), 4 for 422 (a blob).
 gh_tree() {
-  local o="$1" r="$2" sha="$3" p="$4" rec="${5:-1}" url out status
+  local o="$1" r="$2" sha="$3" p="$4" rec="${5:-1}" url status
   url="repos/$o/$r/git/trees/$sha"
   [[ -n "$p" ]] && url+=":$(uri_path "$p")"
   ((rec)) && url+="?recursive=1"
-  if ! out="$(gh api "$url" 2>/dev/null)"; then
-    status="$(jq -r '.status // empty' <<<"$out" 2>/dev/null)"
+  if ! api "$o" "$url"; then
+    status="$API_STATUS"
     case "$status" in
     404) return 3 ;;
     422) return 4 ;;
@@ -261,7 +288,7 @@ gh_tree() {
   OUT_TREE="$(jq -r --arg pre "${p:+$p/}" '
     if .truncated then "truncated"
     elif any(.tree[]; .path | explode | any(. < 32 or . == 127)) then "control"
-    else .tree[] | select(.type == "blob") | "\(.sha) \($pre)\(.path)" end' <<<"$out")" ||
+    else .tree[] | select(.type == "blob") | "\(.sha) \($pre)\(.path)" end' <<<"$OUT_API")" ||
     die "gh api $url returned unreadable JSON"
   [[ "$OUT_TREE" == truncated ]] && die "$o/$r@${sha:0:12}:$p: tree read was truncated; no verdict"
   [[ "$OUT_TREE" == control ]] && die "$o/$r@${sha:0:12}:$p: a tree path holds a control character"
@@ -355,6 +382,7 @@ done
 
 FINDINGS=()
 REPORT=()
+UNREACHABLE=()
 drifted=0
 links_checked=0
 
@@ -366,8 +394,16 @@ for page in ${GIT_PAGES[@]+"${GIT_PAGES[@]}"}; do
   # Without this, an unknown pin reads as every path absent. The fixture seam
   # already exits 2 on a missing <pin>.tree file.
   if [[ -z "$FIXTURE" ]]; then
-    err="$(gh api "repos/$o/$r/git/commits/$pin" --jq .sha 2>&1 >/dev/null)" ||
-      die "$page: pin $o/$r@$pin is not a commit upstream (or gh api failed): ${err:-no output}"
+    api "$o" "repos/$o/$r/git/commits/$pin"
+    case $? in
+    0) ;;
+    5)
+      UNREACHABLE+=("$page: $o/$r refused the token (IP allow list) and an anonymous read (HTTP ${API_STATUS:-none}); not checked")
+      REPORT+=("page repo=$o/$r pin=${pin:0:12} head=unknown status=unreachable path=$page")
+      continue
+      ;;
+    *) die "$page: pin $o/$r@$pin is not a commit upstream (or gh api failed): $(jq -r '.message // empty' <<<"$OUT_API" 2>/dev/null)${API_STATUS:+ (HTTP $API_STATUS)}" ;;
+    esac
   fi
 
   # A scope absent at the pin is a malformed record, not drift: both trees
@@ -470,6 +506,11 @@ for page in ${GIT_PAGES[@]+"${GIT_PAGES[@]}"}; do
 done
 
 # --- output ------------------------------------------------------------------
+
+if ((${#UNREACHABLE[@]} > 0)); then
+  printf '%s: %s\n' "$SELF" "${UNREACHABLE[@]}" >&2
+  [[ "$MODE" == report ]] || exit 2
+fi
 
 if [[ "$MODE" == links ]]; then
   if ((${#FINDINGS[@]} > 0)); then

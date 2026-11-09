@@ -443,7 +443,10 @@ locally). It is a member of the check-script family
 A truncated tree read, a failed API call, a missing `gh` or `jq`, a near-miss marker (including an
 indented or quoted one), an `under` scope absent at the pin, or a tree path holding a control
 character exits 2 with nothing on stdout: an unread tree is never a clean
-report ([the fetch route's read rules](#reading-the-basis-the-fetch-route)). The script writes no
+report ([the fetch route's read rules](#reading-the-basis-the-fetch-route)). When an owner's IP
+allow list refuses the token, that owner's calls retry anonymously; a page whose pin lookup is
+still refused is named on stderr and listed as `status=unreachable` with `head=unknown`, the other
+pages are still read, and every mode but `--report` then exits 2. The script writes no
 file. A change that converts or re-pins a page runs `--links` on it.
 
 ### Monthly drift issues
@@ -455,8 +458,9 @@ runs the check once a month with `--report` and hands the report to
 issue in place on later runs, reopens and updates it when it was closed, unless it was closed as not
 planned or duplicate, and closes it once the upstream is clean. It also closes, with a
 comment, any open `Upstream drift:` issue the workflow's bot opened for a repository the report no
-longer names, such as one whose `docs/upstream` page was removed or renamed. The run fails only on a
-script error or a failed issue write; drift alone does not fail it. After a failed write the other
+longer names, such as one whose `docs/upstream` page was removed or renamed. The run fails on a
+script error, a failed issue write, or an `unreachable` page, the last after every other upstream
+is filed; drift alone does not fail it. After a failed write the other
 upstreams still run, and the run then exits nonzero.
 
 - **Sources with no git pin.** A report `page` line's `pin` and `head` are each a hex SHA or the
@@ -472,7 +476,8 @@ upstreams still run, and the run then exits nonzero.
   issue adds no label. Removing `needs-human` does not admit a bot-authored issue to the issue
   lane: the lane starts only when a listed person or the lanes App sets the issue's Work status to
   agent-ready, and an issue this workflow's token opens starts no intake run.
-- **`untracked` blocks close.** An upstream with any `untracked` page is never closed as clean,
+- **`untracked` and `unreachable` block close.** An upstream with any `untracked` or
+  `unreachable` page is never closed as clean,
   even beside a `clean` page, and since the report names it, the sweep leaves its issue alone too.
 - **Accepted cases.** Closing an issue as not planned or duplicate mutes that upstream: later drift
   neither reopens it nor files another. An open issue's body is replaced in place on each drifted
