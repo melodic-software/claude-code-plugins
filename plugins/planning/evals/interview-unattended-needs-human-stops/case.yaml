@@ -18,7 +18,7 @@ graders:
     arm: with-only
   - name: stopped-line
     type: regex
-    pattern: 'Stopped:\s*needs a human:\s*\S'
+    pattern: 'Stopped:\s*needs a human:[\s*_]*[A-Za-z]'
     flags: i
     arm: both
   - name: blocked-row-names-conflict

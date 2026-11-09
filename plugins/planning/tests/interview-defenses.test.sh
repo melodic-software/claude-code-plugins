@@ -441,11 +441,12 @@ pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing su
 # #12660: the page-only clauses (the --surface flag on the Brief cross-check and its Gates twin, where the confirmation gate is shown, the facts-field citation, the full recap, the procedure-check exception's tick rows, and the terminal-lane wording) move to context/lane-page.md and SKILL.md names no surface value; the exception now applies only on a lane whose spoke says its restatement box offers commitment ticks, any other defect still halts, the register gate still holds those rows, and the lock row, STOP-on-gap, no-silent-resolve and fudge-prohibition lines are byte-identical
 # #12660: the Gates twin of the Brief cross-check says to re-read the lane spoke after a compaction, so the twin still reaches the spoke's flag; it adds a read and changes no halt
 # Gates: one added sentence routes an unattended stop at the instance question or Finish line to loop.md Unattended path; the lock STOP-on-gap halt is unchanged for every other gap. Unattended path and register: an unattended release or in-use item now exits like the stop path (blocked USER-RESERVED row, no lock or gate, Blocked: last line, owner Q13); rungs 1-5, the auto-guard and no-silent-resolve lines are byte-identical and nothing is resolved silently.
+# Gates and Step 4: one added sentence each says an unattended run that exits without the lock (the D2 Stopped: exit or the Q13 release/in-use Blocked: exit, per loop.md Unattended path) also skips the --brief cross-check, so the run reaches its last line instead of halting on an expected not-settled-yet Finish line. Every attended run and every locking run still cross-checks and halts on a non-zero exit.
 pin_section "SKILL.md Gates section is unchanged (the early twin of the five gates)" \
   "$SKILL" \
   "## Gates" \
   "## Action Router" \
-  "e3b54ad5d0a762a3dc627f69c0b7c39f0b5eb68187d16cbc8bced50d8417a9d4"
+  "fe5b699cb44bca9188c8d7155c57260c875534a45b6acabe62238c60405d6b83"
 for gate_line in \
   "**The user's decisions are never synthesized.**" \
   "**A gap during \`lock\` synthesis halts the run.**" \
@@ -619,11 +620,12 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
 # Both sections only gain the page-surface Step 4 command with --surface and a pointer to surface.md Wrap-up; every gate line stays, and --surface adds checks, so neither defense is weakened.
 # #12660: the page-only clauses (the --surface flag on the Brief cross-check and its Gates twin, where the confirmation gate is shown, the facts-field citation, the full recap, the procedure-check exception's tick rows, and the terminal-lane wording) move to context/lane-page.md and SKILL.md names no surface value; the exception now applies only on a lane whose spoke says its restatement box offers commitment ticks, any other defect still halts, the register gate still holds those rows, and the lock row, STOP-on-gap, no-silent-resolve and fudge-prohibition lines are byte-identical
 # #13185 review: the register gate now names the Brief or summary, so a general session's summary stays gated; Step 4 names PLAN.md as the Brief and case 13's expectation reports the Brief unconfirmed; each is a rename and every gate, halt and blocker rule is unchanged
+# Gates and Step 4: one added sentence each says an unattended run that exits without the lock (the D2 Stopped: exit or the Q13 release/in-use Blocked: exit, per loop.md Unattended path) also skips the --brief cross-check, so the run reaches its last line instead of halting on an expected not-settled-yet Finish line. Every attended run and every locking run still cross-checks and halts on a non-zero exit.
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
   "### Step 4. Persist the Brief" \
   "### Step 5. Hand off" \
-  "7210831591f13b1db5a4ed7ba91222de0b33de59d63e378deeb0b254f5ecbc2a"
+  "47cbf0744d957613409c6bb8bdb96104223a41ae714573d53f2ba2bc459e73ae"
 # The `me` and `scope` routing lines also run loop.md's "Problem first" paragraph; it adds a
 # question and leaves the auto-guard, unattended and `lock` lines byte-identical.
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
