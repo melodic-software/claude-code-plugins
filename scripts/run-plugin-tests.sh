@@ -284,6 +284,17 @@ if [[ ! "$jobs" =~ ^[1-9][0-9]*$ ]]; then
   echo "error: --jobs must be a positive integer (got '$jobs')" >&2
   exit 2
 fi
+# require_positive_ints <name:value>...: exit 2 naming the first value that is
+# not a positive integer.
+require_positive_ints() {
+  local v
+  for v in "$@"; do
+    if [[ ! "${v#*:}" =~ ^[1-9][0-9]*$ ]]; then
+      echo "error: ${v%%:*} must be a positive integer (got '${v#*:}')" >&2
+      exit 2
+    fi
+  done
+}
 if [[ -v PLUGIN_TEST_DEADLINE && ! "$PLUGIN_TEST_DEADLINE" =~ ^[0-9]+$ ]]; then
   echo "error: PLUGIN_TEST_DEADLINE must be epoch seconds (got '$PLUGIN_TEST_DEADLINE')" >&2
   exit 2
@@ -296,12 +307,7 @@ if ((budget_given)); then
     echo "error: PLUGIN_TEST_SHARE_WARN_ONLY must be 0 or 1 (got '$share_warn_only')" >&2
     exit 2
   fi
-  for v in "--budget:$budget" "PLUGIN_TEST_SHARE_MARGIN:$share_margin" "PLUGIN_TEST_SHARE_DEFAULT:$share_default"; do
-    if [[ ! "${v#*:}" =~ ^[1-9][0-9]*$ ]]; then
-      echo "error: ${v%%:*} must be a positive integer (got '${v#*:}')" >&2
-      exit 2
-    fi
-  done
+  require_positive_ints "--budget:$budget" "PLUGIN_TEST_SHARE_MARGIN:$share_margin" "PLUGIN_TEST_SHARE_DEFAULT:$share_default"
 fi
 suite_budget="${PLUGIN_TEST_SUITE_BUDGET:-}"
 if [[ -z "$suite_budget" ]]; then
@@ -314,12 +320,7 @@ fi
 suite_warn="${PLUGIN_TEST_SUITE_WARN:-120}"
 suite_ceiling="${PLUGIN_TEST_SUITE_CEILING:-300}"
 if ((suite_budget)); then
-  for v in "PLUGIN_TEST_SUITE_WARN:$suite_warn" "PLUGIN_TEST_SUITE_CEILING:$suite_ceiling"; do
-    if [[ ! "${v#*:}" =~ ^[1-9][0-9]*$ ]]; then
-      echo "error: ${v%%:*} must be a positive integer (got '${v#*:}')" >&2
-      exit 2
-    fi
-  done
+  require_positive_ints "PLUGIN_TEST_SUITE_WARN:$suite_warn" "PLUGIN_TEST_SUITE_CEILING:$suite_ceiling"
 fi
 if ! parse_shard "$shard_spec"; then
   echo "error: --shard wants <index>/<total> with total >= 1 and 0 <= index < total (got '$shard_spec')" >&2
@@ -575,7 +576,8 @@ for i in "${!tests[@]}"; do
     continue
   fi
   rc="$(<"$log.rc")"
-  [[ -z "$timings_file" ]] || printf '%s\t%s\t%s\n' "$t" "$(<"$log.secs")" "$rc" >>"$timings_file"
+  secs="$(<"$log.secs")"
+  [[ -z "$timings_file" ]] || printf '%s\t%s\t%s\n' "$t" "$secs" "$rc" >>"$timings_file"
   if ((rc != 0)) && [[ -n "${is_advisory[$t]+x}" ]]; then
     suite_annotate warning "$t" "$t failed (exit $rc) but is advisory on this run (nonce $advisory_nonce; PLUGIN_TEST_ADVISORY=1, scripts/run-plugin-tests-advisory.txt)"
     fail_excerpt "$t" "$log.out"
@@ -586,7 +588,6 @@ for i in "${!tests[@]}"; do
     failed=1
   fi
   if [[ -n "$budget" ]]; then
-    secs="$(<"$log.secs")"
     timings+=("$secs"$'\t'"$t")
     share="$(suite_share "$t")"
     if ((secs > share && share_warn_only)); then
@@ -599,7 +600,6 @@ for i in "${!tests[@]}"; do
     fi
   fi
   if ((suite_budget)); then
-    secs="$(<"$log.secs")"
     ceiling="${exception_ceiling[$t]:-$suite_ceiling}"
     if ((secs > ceiling)); then
       # `FAIL: <suite>` alone on its line, the shape log readers attribute.

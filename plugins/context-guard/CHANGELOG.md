@@ -5,6 +5,16 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.2] - 2026-11-09
+
+### Changed
+
+- Internal simplification of the shared write-snapshot helper, no behavior change.
+
+- Internal simplification of the shared hook test sink helper, no behavior change.
+
+- Simplified the internals of the hook launcher; its behavior is unchanged.
+
 ## [3.1.1] - 2026-11-09
 
 ### Changed

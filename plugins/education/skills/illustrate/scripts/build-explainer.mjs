@@ -55,7 +55,7 @@ const EMPTY = { flow: [], flowcol: [], stack: [], center: "", branches: [], poin
  */
 function shape(diagram, d, warnings) {
   const name = `diagram ${d + 1}`;
-  const kind = diagram.kind === undefined || diagram.kind === null || diagram.kind === "" ? "flow" : diagram.kind;
+  const kind = [undefined, null, ""].includes(diagram.kind) ? "flow" : diagram.kind;
   if (!KINDS.includes(kind)) {
     throw new Error(`${name}: unknown kind ${JSON.stringify(kind)}; use one of ${KINDS.join(", ")}`);
   }
@@ -123,18 +123,22 @@ function normalize(model, warnings = []) {
   };
 }
 
-/**
- * @param {Record<string, unknown>} model
- * @returns {string} the validated interactive page
- */
-export function buildExplainerPage(model) {
-  const data = normalize(model);
+/** @param {ReturnType<typeof normalize>} data */
+function explainerPage(data) {
   return buildView({
     profile: "interactive",
     template: readFileSync(TEMPLATE, "utf8"),
     data,
     title: data.title,
   });
+}
+
+/**
+ * @param {Record<string, unknown>} model
+ * @returns {string} the validated interactive page
+ */
+export function buildExplainerPage(model) {
+  return explainerPage(normalize(model));
 }
 
 // One line of record text: no line breaks, no raw HTML a markdown viewer would render, and no
@@ -151,6 +155,8 @@ const md = (value) =>
     .replaceAll("]", "\\]");
 
 const cell = (value) => md(value).replaceAll("|", "\\|");
+
+const bullets = (items) => items.map((item) => `- ${md(item)}`);
 
 /** @param {{heading: string, items: string[]}[]} columns */
 function table(columns) {
@@ -228,27 +234,23 @@ function mermaid(diagram) {
   return lines.length ? ["```mermaid", `flowchart ${direction}`, ...lines, "```"] : null;
 }
 
-/**
- * @param {Record<string, unknown>} model
- * @returns {string} the markdown record
- */
-export function buildExplainerRecord(model) {
-  const view = normalize(model);
+/** @param {ReturnType<typeof normalize>} view */
+function explainerRecord(view) {
   const out = [`# ${md(view.title)}`, ""];
   for (const line of view.summary) out.push(md(line), "");
   for (const diagram of view.diagrams) {
     out.push(`## ${md(diagram.heading) || "Diagram"}`, "");
     const flow = [...diagram.flow, ...diagram.flowcol];
     if (flow.length) out.push(flow.map(md).join(" → "), "");
-    if (diagram.stack.length) out.push(...diagram.stack.map((step) => `- ${md(step)}`), "");
+    if (diagram.stack.length) out.push(...bullets(diagram.stack), "");
     if (diagram.center) out.push(md(diagram.center), "");
-    if (diagram.branches.length) out.push(...diagram.branches.map((branch) => `- ${md(branch)}`), "");
+    if (diagram.branches.length) out.push(...bullets(diagram.branches), "");
     if (diagram.points.length) {
       out.push(...diagram.points.map((point) => `- ${[point.when, point.label].filter(Boolean).map(md).join(": ")}`), "");
     }
     if (diagram.columns.length) out.push(...table(diagram.columns), "");
-    if (diagram.before.length) out.push("Before:", "", ...diagram.before.map((item) => `- ${md(item)}`), "");
-    if (diagram.after.length) out.push("After:", "", ...diagram.after.map((item) => `- ${md(item)}`), "");
+    if (diagram.before.length) out.push("Before:", "", ...bullets(diagram.before), "");
+    if (diagram.after.length) out.push("After:", "", ...bullets(diagram.after), "");
     const drawing = mermaid(diagram);
     if (drawing) out.push(...drawing, "");
     if (diagram.caption) out.push(`**${md(diagram.caption)}**`, "");
@@ -258,9 +260,17 @@ export function buildExplainerRecord(model) {
     out.push("## Words used here", "", ...view.terms.map((row) => `- **${md(row.term)}**: ${md(row.plain)}`), "");
   }
   if (view.sources.length) {
-    out.push("## Where this came from", "", ...view.sources.map((item) => `- ${md(item)}`), "");
+    out.push("## Where this came from", "", ...bullets(view.sources), "");
   }
   return `${out.join("\n").trimEnd()}\n`;
+}
+
+/**
+ * @param {Record<string, unknown>} model
+ * @returns {string} the markdown record
+ */
+export function buildExplainerRecord(model) {
+  return explainerRecord(normalize(model));
 }
 
 function invokedDirectly() {
@@ -335,9 +345,11 @@ function main(args) {
     return [2, "", "--page and --record must not share a directory; keep HTML views away from the markdown record"];
   }
   try {
+    const warnings = [];
+    const view = normalize(model, warnings);
     // Build the page before writing anything, so a refused page leaves no half-written pair.
-    const page = opts.page ? buildExplainerPage(model) : null;
-    let out = write(opts.record, buildExplainerRecord(model));
+    const page = opts.page ? explainerPage(view) : null;
+    let out = write(opts.record, explainerRecord(view));
     if (page !== null) {
       try {
         out += write(opts.page, page);
@@ -346,8 +358,6 @@ function main(args) {
         throw error;
       }
     }
-    const warnings = [];
-    normalize(model, warnings);
     return [0, out, warnings.join("\n")];
   } catch (error) {
     return [error instanceof ViewBuildError ? 1 : 2, "", error.message];

@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [2.8.5] - 2026-11-09
+
+### Changed
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
 ## [2.8.4] - 2026-11-09
 
 ### Changed

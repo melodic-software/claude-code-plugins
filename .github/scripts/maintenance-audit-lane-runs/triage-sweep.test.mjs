@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ADMIT_MARKER, retriageNote } from "../intake-triage/admit.mjs";
-import { HUMAN_ID, mirroredStatusOf, OPTION, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
+import { fieldNode, mirroredStatusOf, OPTION, STATUS_CONFIG, statusBatchAnswer, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { issuesByStatus } from "../../actions/resolve-config/resolve-config.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
@@ -113,7 +113,6 @@ test("a born-triaged issue in status: ready with no agent-ready, deferral, hold 
 // one as github-actions[bot], the job token's account, and the open issues
 // listing (resolve-config.mjs issuesByStatus) answers from them.
 function fieldWorld(issues, fields = {}) {
-  const field = { fullDatabaseId: String(FIELD) };
   const github = async (method, path, body) => {
     const posted = /\/issues\/([0-9]+)\/issue-field-values$/.exec(path);
     if (method === "POST" && posted) {
@@ -122,17 +121,12 @@ function fieldWorld(issues, fields = {}) {
       return [{ issue_field_id: FIELD, single_select_option: { id: OPTION[state] } }];
     }
     if (method === "POST" && path === "/graphql" && /issues\(states: OPEN/.test(body.query)) {
-      const nodes = issues.map((i) => {
-        const entry = fields[i.number];
-        return {
-          number: i.number,
-          createdAt: i.created_at,
-          labels: { nodes: i.labels },
-          issueFieldValues: { nodes: entry ? [{ name: entry.state, field }] : [] },
-          timelineItems: { nodes: entry ? [{ __typename: "IssueFieldChangedEvent", newValue: entry.named ?? entry.state, actor: { databaseId: entry.setter ?? HUMAN_ID }, issueField: field }] : [] },
-        };
-      });
+      const nodes = issues.map((i) => ({ number: i.number, createdAt: i.created_at, labels: { nodes: i.labels } }));
       return { data: { repository: { issues: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } } } };
+    }
+    const batch = statusBatchAnswer(body, (number) => fieldNode(fields[number]));
+    if (method === "POST" && batch) {
+      return batch;
     }
     throw new Error(`unexpected ${method} ${path}`);
   };

@@ -173,16 +173,16 @@ def measure(a):
 
 
 def check(a):
-    pack, bad = inkstats.load_pack(a.pack), []
-    table = []
+    pack, bad, table = inkstats.load_pack(a.pack), [], []
     for f in sorted(Path(a.out).glob('*/*.json')):
         m = json.load(open(f, encoding='utf-8'))
         ds = [(s, d) for s, _, _, d in inkstats.check(m, pack) if d is not None]
-        margin = max(d for _, d in ds) - 1 if ds else None
-        worst = max(ds, key=lambda r: r[1])[0] if ds else '-'
+        worst, top = max(ds, key=lambda r: r[1]) if ds else ('-', None)
+        margin = None if top is None else top - 1
         role = f.parent.name
         ok = margin is not None and (margin <= 0 if role == 'positive' else margin > 0)
-        bad += [] if ok else [f'{role}/{f.stem}']
+        if not ok:
+            bad.append(f'{role}/{f.stem}')
         table.append(f"| {role} | {f.stem} | {sum(d > 1 for _, d in ds)}/{len(ds)} | "
                      f"{'n/a' if margin is None else f'{margin:+.2f}'} | {worst} | {'yes' if ok else 'NO'} |")
     print('| half | film | rows failed | margin | worst row | as required |\n|---|---|---|---|---|---|')
@@ -199,7 +199,8 @@ def selftest(a):
         rows = inkstats.check(inkstats.summary(inkstats.measure(post(spec, frames), FPS)), pack)
         failed = [s for s, _, _, d in rows if d is not None and d > 1]
         print(f"{name} + {spec}: fails {', '.join(failed) or 'nothing'}")
-        bad += [] if failed else [f'{name} + {spec}']
+        if not failed:
+            bad.append(f'{name} + {spec}')
     if bad:
         print(f"selftest: the gamed {', '.join(bad)} passes the check: a post filter games it again")
     return 1 if bad else 0

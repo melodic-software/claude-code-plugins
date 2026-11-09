@@ -81,8 +81,9 @@ def registry_key(rel: str, plain: set[str], clusters) -> str | None:
         if rel == canonical or any(glob_matches(m, rel) for m in members):
             return "cluster:" + canonical
     parts = rel.split("/")
-    if len(parts) > 2 and parts[0] == "plugins" and "/".join(parts[2:]) in plain:
-        return "plain:" + "/".join(parts[2:])
+    in_plugin = "/".join(parts[2:])
+    if len(parts) > 2 and parts[0] == "plugins" and in_plugin in plain:
+        return "plain:" + in_plugin
     return None
 
 
@@ -90,7 +91,7 @@ def is_test(rel: str) -> bool:
     parts = rel.split("/")
     # A plugin's own name is not a directory role: plugins/evals/lib is production.
     dirs = parts[2:-1] if parts[0] == "plugins" else parts[:-1]
-    return bool(TEST_DIRS & set(dirs)) or bool(TEST_NAME.search(parts[-1]))
+    return not TEST_DIRS.isdisjoint(dirs) or TEST_NAME.search(parts[-1]) is not None
 
 
 def production_files(registry: str) -> list[str]:
@@ -110,8 +111,7 @@ def production_files(registry: str) -> list[str]:
     seen: set[str] = set()
     kept: list[str] = []
     for rel in candidates:
-        with open(rel, "rb") as handle:
-            data = handle.read()
+        data = Path(rel).read_bytes()
         head = data[:600].decode("utf-8", "replace")
         if any(marker in head for marker in VENDORED_MARKERS):
             continue
@@ -162,7 +162,7 @@ def main() -> int:
     ]
     if not values:
         return fail("lizard measured no function.")
-    over = sum(1 for value in values if value >= REFERENCE)
+    over = sum(value >= REFERENCE for value in values)
     print(
         f"lizard={version or 'unknown'} files={len(files)} functions={len(values)} "
         f"over={over} share={100 * over / len(values):.2f}"
