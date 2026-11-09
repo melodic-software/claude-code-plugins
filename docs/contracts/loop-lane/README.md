@@ -775,7 +775,7 @@ from the model page whenever it matters, and never restated in this convention.
   [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases); for each model's
   position and capabilities, see
   [models overview: compare models](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison).
-- **As of:** 2026-10-10.
+- **As of:** 2026-11-09.
 - **Recheck trigger:** any new model on Claude Code's model page.
 
 The reasons behind each binding:
@@ -797,6 +797,14 @@ The reasons behind each binding:
   `reference/pre-escalation-dispatch.md`) does not take `opus`, because `opus` is also the strong
   tier's alias and adds no capability over the review-work model that reference rules out; while
   the Fable rung is off, that run escalates instead of dispatching.
+
+  *Note, 2026-11-09:* from Claude Code v2.1.321, `best` resolves to the same model as `opus`, so
+  the "Fable where the organization has it" reading above no longer holds and a frontier launch on
+  `best` runs Opus. The binding stays `best` by owner decision (2026-11-09): lane dispatch already
+  names `opus` while the Fable rung waits on the owner, so nothing a lane runs changes. Binding the
+  frontier tier to `fable` is part of that same pending decision. Pointer:
+  [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases). As of: 2026-11-09.
+  Recheck trigger: that table changing what `best` resolves to.
 - **strong binds `opus`.** We bind the strong tier to `opus` because the models overview names the
   model it resolves to as the general starting point; raw capability order (Fable above Opus) does
   not decide the binding alone.
@@ -1190,7 +1198,9 @@ prompt is pasted into a terminal that may have no plugin installed, so it stays 
 the rule governs a *mechanism* a plugin owns, and a self-contained paste block owns its own text.
 
 The `autonomy` plugin's `reference/autonomous-pipeline-reminder.md` states the same clause set once,
-with its provenance, as the artifact an adopting org drops into **its own** pipeline. No lane
+with its provenance, as the artifact an adopting org drops into **its own** pipeline. One sentence
+there has no counterpart in the lane prompts yet: the recovery clause's deliberate-block sentence
+(a protected file, withheld access or a guardrail is not an error to work past). No lane
 consumes that file, and a lane author changing these clauses should read it as the reference wording
 rather than as a source the prompts import.
 

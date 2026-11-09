@@ -30,7 +30,7 @@ Shipped May 28, 2026. Launch-day benchmarks, from the [launch announcement](http
 - **Recheck trigger**: that section changes how fast mode is toggled, or a Claude Code release note
   touches it.
 
-> **Superseded (Jun 9, 2026):** Fable 5 was the strongest coding model as of its launch (Section 94) and has since been succeeded. Opus 4.8 details remain accurate for that release. For the current lineup, fetch [Compare models](https://platform.claude.com/docs/en/models/overview#compare-models) and [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable) live (as of 2026-11-01; recheck on a new model release or when either section is renamed or moved).
+> **Superseded (Jun 9, 2026):** Fable 5 was the strongest coding model as of its launch (Section 94) and has since been succeeded. Opus 4.8 details remain accurate for that release. For the current lineup, fetch [Compare models](https://platform.claude.com/docs/en/models/overview#compare-models) and [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable) live (as of 2026-11-09; recheck on a new model release or when either section is renamed or moved).
 
 ## 79. High-Effort Default + xhigh + Raised Rate Limits
 
@@ -150,15 +150,15 @@ Specs and pricing are upstream-owned and not restated here.
   cutoff, fetch [Compare models](https://platform.claude.com/docs/en/models/overview#compare-models)
   live; for its rates, fetch [Model pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing)
   live.
-- **As of**: 2026-11-01
+- **As of**: 2026-11-09
 - **Recheck trigger**: a new frontier-model release, or either section is renamed or moved.
 
 <!-- ai-slop-ignore: verbatim Karpathy quotation --> Karpathy: "SOTA on everything by a margin… a major-version-bump-deserving step change… You can give it a lot more ambitious tasks — the model 'gets it' and it will just go."
 
 ## 95. What Fable 5 Changes for You
 
-- **New default for coding (historical, Fable 5 launch)**: updated Section 2 (Model Selection) and 78 (Opus 4.8 "strongest yet") at launch. Do not treat Fable as today's default; for which model a session runs on and when to pick Fable, fetch [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable) and [Compare models](https://platform.claude.com/docs/en/models/overview#compare-models) live (as of 2026-11-01; recheck on a new model release or when either section changes its default or recommendation).
+- **New default for coding (historical, Fable 5 launch)**: updated Section 2 (Model Selection) and 78 (Opus 4.8 "strongest yet") at launch. Do not treat Fable as today's default; for which model a session runs on and when to pick Fable, fetch [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable) and [Compare models](https://platform.claude.com/docs/en/models/overview#compare-models) live (as of 2026-11-09; recheck on a new model release or when either section changes its default or recommendation).
 - **"Less prompts and steers"**: lean into context minimalism (88) and delegation over guidance (65): give it the goal, not the micro-steps.
 - **Longer sessions + higher trust**: the autonomy stack (auto mode 42/68, `/goal` 77, nested subagents 91, workflows 80–86) pays off more on a base model that self-verifies better.
-- **Cost**: reach for Fable where the quality jump pays for itself. For current model economics, see [compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task) (as of 2026-10-02; recheck on a new model release or a change to that section's default recommendation).
-- **Effort**: for the effort levels Fable supports, see [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) (as of 2026-10-02; recheck when that section changes).
+- **Cost**: reach for Fable where the quality jump pays for itself. For current model economics, see [compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task) (as of 2026-11-09; recheck on a new model release or a change to that section's default recommendation).
+- **Effort**: for the effort levels Fable supports, see [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) (as of 2026-11-09; recheck when that section changes).

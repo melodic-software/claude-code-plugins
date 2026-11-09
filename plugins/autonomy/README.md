@@ -98,12 +98,15 @@ whether `node` and `jq` resolve.
   recover-instead-of-stopping sentence carry the two behaviors the Claude Fable 5.1 prompting guide
   adds in its section "Finish the whole task"
   (<https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#finish-the-whole-task>,
-  fetched 2026-09-06). Recheck a clause when its guide section is renamed or stops carrying the
-  behavior. Both are authored locally rather than reproduced, per this repository's rule
+  fetched 2026-09-06). The recovery clause's deliberate-block sentence carries the split between
+  ordinary obstacles and deliberate blockers that the Claude Fable 5.2 guide's section of the same
+  name draws (<https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#finish-the-whole-task>,
+  fetched 2026-11-09). Recheck a clause when its guide section is renamed or stops carrying the
+  behavior. All are authored locally rather than reproduced, per this repository's rule
   against hand-copying upstream content. The citation lives here rather than in the contract file
   because `reference/` docs are written in surface classes and may not name vendors.
-  **Recheck trigger:** either section changing its clause set, a later model guide restating this
-  guidance in materially different terms, or a model release that supersedes Claude Fable 5.1.
+  **Recheck trigger:** any of those sections changing its clause set, a later model guide restating
+  this guidance in materially different terms, or a model release that supersedes Claude Fable 5.2.
 - **Guided setup** (`/autonomy:setup`): discovery-first interview of the adopting org's state,
   covering role homes, substrate availability, and budget posture, that writes a schema-versioned
   binding under

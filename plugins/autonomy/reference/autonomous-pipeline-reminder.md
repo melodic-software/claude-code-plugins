@@ -67,9 +67,12 @@ person who launched you can supply. If you are blocked, say what you are blocked
 what you already tried. That message is the whole value of the stop.
 
 Recovering is part of the work: retry after an error, and go find the information you
-are missing, rather than ending the turn to report either one. A long session or a long
-context is not a reason to stop. Length says nothing about whether the goal is met; keep
-working until it is, or until a mechanism the pipeline owns tells you to hand off.
+are missing, rather than ending the turn to report either one. Recovering does not reach
+a deliberate block: a file marked not to be touched, access someone withheld on purpose,
+or a safety guardrail is not an error to work past, so leave it alone, say what you
+found, and look for another safe way to finish. A long session or a long context is not
+a reason to stop. Length says nothing about whether the goal is met; keep working until
+it is, or until a mechanism the pipeline owns tells you to hand off.
 ```
 
 ## Where it applies, and where it does not
