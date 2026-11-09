@@ -201,8 +201,9 @@
 // green, and the jobs listing alone shows it. A trip at broker-check ran no
 // model, and the sweep runs only with the kill switch off, so the first sweep
 // after the switch clears re-fires it; a trip at a mint ran the model and is
-// re-fired limits.reset-clamp-min hours after the run ended. Each gets a
-// breaker record of its own, and after
+// re-fired limits.reset-clamp-min hours after the run ended. A run whose
+// report-outcome mint alone stopped, after another mint took its token, is a
+// trip at a mint too. Each gets a breaker record of its own, and after
 // limits.limit-stops-per-issue trips since a listed human last added
 // agent-ready or a run last reported, on the stranded backoff. A breaker
 // record never spends the once-per-version re-fire, never counts toward the
@@ -1489,7 +1490,7 @@ const MINT_CAUSE = `The work-resolve-issue run that \`${LABEL}\` started could n
 // label moves, once per re-fire. It names the refused run and when it ended,
 // since the re-fire can come hours after the refusal.
 export const breakerComment = (key, { repo, run, ended }) =>
-  `<!-- work-unblock refired ${key} breaker -->\nThis records a re-fire of an earlier refusal, not a new refusal. The lanes kill switch stopped [run ${run}](https://github.com/${repo}/actions/runs/${run}), the work-resolve-issue run that \`${LABEL}\` started, before it did any work; that run ended at ${new Date(ended).toISOString().replace(/\.\d{3}Z$/, "Z")}. work-unblock has now removed and added \`${LABEL}\` back to start a fresh run. A kill-switch refusal is no fault in this issue or the lanes, so it never counts against later re-fires; after limits.limit-stops-per-issue of them since a person last added \`${LABEL}\` or a run last reported, work-unblock waits longer before each one, up to ${BACKOFF_CAP_HOURS} hours.`;
+  `<!-- work-unblock refired ${key} breaker -->\nThis records a re-fire of an earlier refusal, not a new refusal. The lanes kill switch stopped [run ${run}](https://github.com/${repo}/actions/runs/${run}), the work-resolve-issue run that \`${LABEL}\` started, before it finished; that run ended at ${new Date(ended).toISOString().replace(/\.\d{3}Z$/, "Z")}. work-unblock has now removed and added \`${LABEL}\` back to start a fresh run. A kill-switch refusal is no fault in this issue or the lanes, so it never counts against later re-fires; after limits.limit-stops-per-issue of them since a person last added \`${LABEL}\` or a run last reported, work-unblock waits longer before each one, up to ${BACKOFF_CAP_HOURS} hours.`;
 
 // The backoff record of an issue whose re-fires on these workflow files keep
 // ending the same way: one comment per issue, edited on each re-fire.
@@ -1538,8 +1539,10 @@ async function laneRuns(actions, repo, number, addedAt) {
 }
 
 // How every one of `runs` (completed) did no work in its latest attempt, or
-// null when one did some: no job minted a lane token, and the agent-ready run
-// either had its `Request the lane token` step or broker-check's BROKER_STEP
+// null when one did some: no job minted a lane token (a run that minted, then
+// had report-outcome's mint alone stop with the STOPPED notice in its log, is
+// `breaker` at `token`, since the switch left it unreported), and the
+// agent-ready run either had its `Request the lane token` step or broker-check's BROKER_STEP
 // fail for a reason other than the kill switch, or with no reason in its log,
 // or had that mint step stop green with no token and no STOPPED notice in its
 // log (`mint-failed`, which wins; the read runner resolve-issue calls has no
@@ -1574,7 +1577,13 @@ async function didNoWork(jobsOf, refusalOf, runs) {
     const jobs = await jobsOf(run);
     const failedAt = (job, name) => endedAt(job, name, "failure");
     if (jobs.some((job) => endedAt(job, MINT_STEP, "success") && !stoppedAt(job))) {
-      return null;
+      const report = namedJobs(jobs, "report-outcome").find(stoppedAt);
+      if (!report || (await refusalOf(report, "stop")) !== BREAKER) {
+        return null;
+      }
+      console.log(`::notice title=label-unblocked::run ${run.id} minted, then the kill switch stopped its report-outcome mint: a breaker trip`);
+      atLeast("breaker", run, "token");
+      continue;
     }
     const named = (name) => namedJobs(jobs, name);
     // Any call's broker-check: a later leg asks the broker again for its slot.

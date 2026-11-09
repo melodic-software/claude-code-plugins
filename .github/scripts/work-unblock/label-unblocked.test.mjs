@@ -3128,16 +3128,28 @@ test("a run whose stopped mint is followed by a mint that took its token did wor
 });
 
 // The reverse order: apply-issue-patch minted and pushed, then the switch
-// stopped report-outcome green. The run did work but never reported, so it
-// gets a failed run's once-per-version re-fire at once, not the stranded
-// wait for a green run, and it reads no log.
-test("a green run whose report mint the kill switch stopped after a patch mint is re-fired like a failed run", async () => {
-  const minted = { id: PATCH_MINT_ID, name: "apply-issue-patch / run", conclusion: "success", steps: [{ name: "Request the lane token", conclusion: "success" }, { name: "Stage the activity from the base", conclusion: "success" }] };
-  const jobs = [...MINT_STOPPED.slice(0, -2), minted, stoppedJob(REPORT_MINT_ID, "report-outcome / run")];
-  const { github, actions, calls } = stalledRun({ jobs, logs: MINT_STOPPED_LOGS, conclusion: "success" });
+// stopped report-outcome green. The run never reported because of the switch,
+// so it is a breaker trip, read from report-outcome's log alone.
+const REPORT_STOPPED_AFTER_PATCH = [
+  ...MINT_STOPPED.slice(0, -2),
+  { id: PATCH_MINT_ID, name: "apply-issue-patch / run", conclusion: "success", steps: [{ name: "Request the lane token", conclusion: "success" }, { name: "Stage the activity from the base", conclusion: "success" }] },
+  stoppedJob(REPORT_MINT_ID, "report-outcome / run"),
+];
+
+test("a green run whose report mint the kill switch stopped after a patch mint is a breaker trip", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: REPORT_STOPPED_AFTER_PATCH, logs: MINT_STOPPED_LOGS, conclusion: "success" });
+  assert.equal(await sweep({ github, actions }), 0);
+  tripped(calls);
+  assert.equal(logReads(calls).length, 1);
+  assert.ok(logReads(calls)[0].includes(String(REPORT_MINT_ID)));
+});
+
+test("a report mint stopped after a patch mint with no kill-switch notice keeps the once-per-version re-fire", async () => {
+  const logs = { [REPORT_MINT_ID]: stoppedLog({ line: "lane-token-stopped: the broker refused the token because a lanes kill switch is onward" }) };
+  const { github, actions, calls } = stalledRun({ jobs: REPORT_STOPPED_AFTER_PATCH, logs, conclusion: "success" });
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), refired(30));
-  assert.deepEqual(logReads(calls), []);
+  assert.equal(logReads(calls).length, 1);
 });
 
 test("a stopped mint whose log does not carry the kill-switch notice is a failed mint, never a breaker trip", async () => {
