@@ -230,6 +230,16 @@ concern.
 **Audit: Important.** Body text under `16px`, text under `12px`, or a layout that breaks when the
 text is zoomed or the root font size is raised.
 
+**Set long-form reading larger.** Articles, documentation and other text read for minutes at a time
+sit at `typography.long_form_body_px` (default `18`, `1.125rem` over a `16px` root), a size above
+the body floor, not a change to body text: dense interface text keeps the sizes above. The key is
+in px; write the size in `rem`, the key's value divided by the root size in px, so it still grows
+when the reader raises the root font size. The project's own type tokens beat the key.
+
+**Audit: Suggestion.** Long-form reading text below the configured long-form size, or set in `px`,
+where the project has no type token for it. A `px` size here is one finding under this rule, not a
+second one under "Units for text" in `typography/scale-and-rhythm.md`.
+
 ## Reviewing typography
 
 1. Detect the styling system first and phrase every fix in it.

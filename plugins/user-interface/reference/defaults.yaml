@@ -125,3 +125,7 @@ animation:
 # page gives). The project's installed library and design system beat every layer.
 components:
   primitives_default: base-ui
+# Long-form reading text (articles, documentation) in px, never below the 16px body floor; a skill
+# writes it in rem, the value divided by the root size in px. Project tokens beat every layer.
+typography:
+  long_form_body_px: 18
