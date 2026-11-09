@@ -19,6 +19,7 @@ import {
   flagsAfterDecision,
   FORBIDDEN_EDGE,
   isFault,
+  LANES_APP_LOGIN,
   MARKER,
   missedAnnotation,
   NEEDS_DECISION,
@@ -925,10 +926,14 @@ describe("checkRun", () => {
     };
     return { calls, github };
   };
+  const byHuman = { user: { id: HUMAN } };
   const cases = [
-    ["the issue is open", { state: "open" }, true],
-    ["the issue closed while triage ran", { state: "closed" }, false],
-    ["the number is a pull request", { state: "open", pull_request: {} }, false],
+    ["the issue is open", { state: "open", ...byHuman }, true],
+    ["the issue closed while triage ran", { state: "closed", ...byHuman }, false],
+    ["the number is a pull request", { state: "open", pull_request: {}, ...byHuman }, false],
+    ["the author is github-actions[bot]", { state: "open", user: { id: ACTIONS_BOT } }, false],
+    ["the author is an outsider", { state: "open", user: { id: OUTSIDER } }, false],
+    ["the issue names no author", { state: "open" }, false],
     ["the read fails, so the write step's own read decides", new GitHubError(502, "GET"), true],
   ];
   for (const [name, answer, expected] of cases) {
@@ -938,6 +943,11 @@ describe("checkRun", () => {
       assert.deepEqual(calls, ["GET /repos/o/r/issues/7"]);
     });
   }
+  test("proceeds when the lanes App filed the issue", async () => {
+    const { github } = answering({ state: "open", user: { id: 77 } });
+    const withApp = new Map([...logins, [LANES_APP_LOGIN, 77]]);
+    assert.equal(await checkRun({ env, humans, logins: withApp, github, log: () => {} }), true);
+  });
   test("stops on the actors without reading the issue", async () => {
     const { calls, github } = answering({ state: "open" });
     assert.equal(await checkRun({ env: { ...env, EVENT_NAME: "issues" }, humans, logins, github, log: () => {} }), false);

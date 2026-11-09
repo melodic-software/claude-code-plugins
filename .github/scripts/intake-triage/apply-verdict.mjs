@@ -185,8 +185,9 @@ export function checkActors(env, humans, logins) {
 }
 
 // The whole --check answer: checkActors, then the issue read live, since it
-// can close while triage runs. A failed read keeps the actors' answer: the
-// write's own open-issue read (run) still guards it.
+// can close while triage runs and the broker refuses an author admission does
+// not admit. A failed read keeps the actors' answer: the write's own read
+// (run) still guards it.
 export async function checkRun({ env, humans, logins, github, log = console.log }) {
   if (!checkActors(env, humans, logins)) {
     log("apply-verdict: the broker would not mint for this run's actors");
@@ -204,6 +205,10 @@ export async function checkRun({ env, humans, logins, github, log = console.log 
   }
   if (issue?.pull_request || issue?.state !== "open") {
     log(`::notice::apply-verdict: #${env.ISSUE_NUMBER} is not an open issue; no token requested, nothing written`);
+    return false;
+  }
+  if (!authorAdmitted(issue, humans, logins.get(LANES_APP_LOGIN))) {
+    log(`::notice::apply-verdict: #${env.ISSUE_NUMBER}'s author is neither a listed human nor the lanes App; no token requested, nothing written`);
     return false;
   }
   log("apply-verdict: the broker would mint for this run's actors");
