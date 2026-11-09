@@ -263,10 +263,14 @@ Co-authored-by: Claude <model> <noreply@anthropic.com>
 ```
 
 **The `<model>` placeholder is filled from your own knowledge of the running session**: the model
-family and version the harness reports for this session (the value `/usage` shows). If uncertain,
-invoke `/usage` to confirm before committing. There is no
+family and version the harness reports for this session. If uncertain, ask the person to read the
+model from `/status` and tell you, rather than guessing or running a command yourself. There is no
 environment variable that auto-fills it, the trailer is part of the message body sent to
-`git commit`, not git config.
+`git commit`, not git config. Pointer:
+[commands reference](https://code.claude.com/docs/en/commands#all-commands), rows `/status` and
+`/usage`; [Restrict Claude's skill access](https://code.claude.com/docs/en/skills#restrict-claude%E2%80%99s-skill-access)
+for which built-ins the model can invoke. As-of: 2026-11-09. Recheck trigger: a Claude Code
+release note that moves the model display out of `/status` or makes it model-invocable.
 
 **An optional context clause**, `Co-authored-by: Claude <model> (<context>) <noreply@anthropic.com>`,
 e.g. `(1M context)`, may be added when the context window is a genuinely distinguishing fact about
