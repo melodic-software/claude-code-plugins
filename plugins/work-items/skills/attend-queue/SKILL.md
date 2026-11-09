@@ -170,7 +170,6 @@ worker lane off the flipped item. Once the row's answer is written
   lands. A brief frontier delay after the flip is acceptable.
 - **When disposition leaves the item human-gated** (decline, an answered
   escalation on a human-floor work class that was not reclassified; only `provenance: untrusted`
- 
   and `provenance: signal` floor an item, never a structural class or a missing one, per
   [`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md)
   "The human-floor class excludes the autonomous-eligible role label"): clear `@me` via the
