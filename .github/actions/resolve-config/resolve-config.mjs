@@ -225,7 +225,7 @@ export async function issuesByStatus(github, repository, states, { since, config
     }
     for (const node of issues.nodes) {
       const labels = (node?.labels?.nodes ?? []).map((label) => label?.name).filter((label) => typeof label === "string");
-      const labelled = labels.some((label) => wanted.has(label.toLowerCase()));
+      const labeled = labels.some((label) => wanted.has(label.toLowerCase()));
       const fieldValues = (node?.issueFieldValues?.nodes ?? [])
         .filter((value) => typeof value?.name === "string" && typeof value.field?.fullDatabaseId === "string")
         .map((value) => ({ field: Number(value.field.fullDatabaseId), option: option[value.name] ?? value.name }));
@@ -240,7 +240,7 @@ export async function issuesByStatus(github, repository, states, { since, config
       // event naming one of them. Any other is skipped, so one issue's
       // unreadable field cannot stop a listing it has no part in.
       const couldMatch = () =>
-        labelled ||
+        labeled ||
         (node?.issueFieldValues?.nodes ?? []).some((value) => value?.field?.fullDatabaseId === statusField && states.includes(value?.name)) ||
         events.some((event) => event.field === statusField && states.includes(event.to));
       let state;
@@ -255,7 +255,7 @@ export async function issuesByStatus(github, repository, states, { since, config
         }
         continue;
       }
-      if (state === null ? labelled : states.includes(state)) {
+      if (state === null ? labeled : states.includes(state)) {
         found.push({ number: node.number, created_at: node.createdAt, labels, state });
       }
     }
