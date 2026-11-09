@@ -5,7 +5,12 @@
 # install path as `claude plugin list --json` reports it.
 #
 # Usage (from the root of the repository under review):
-#   bash "${CLAUDE_PLUGIN_ROOT}/skills/fanout/scripts/codex-review.sh" --base <ref> [--adversarial]
+#   bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-review.sh" --base <ref> [--adversarial]
+#        [--model <model>] [--brief-file <file>]
+#
+# `--brief-file` runs adversarial-review with the file's text as its focus text. Both review
+# commands review committed history from the base only, take a model and no effort, and keep no
+# resumable thread; this script never runs the companion's task mode.
 #
 # Output: the first stdout line is the surface status, one of
 #   codex: ran
@@ -27,10 +32,12 @@ usage() {
 codex-review.sh: run the Codex plugin's review through its companion runtime script.
 
 Usage:
-  codex-review.sh --base <ref> [--adversarial]
+  codex-review.sh --base <ref> [--adversarial] [--model <model>] [--brief-file <file>]
 
-  --base <ref>     the review diff base, passed to Codex as --base
-  --adversarial    run adversarial-review instead of review
+  --base <ref>          the review diff base, passed to Codex as --base
+  --adversarial         run adversarial-review instead of review
+  --model <model>       the Codex model, passed through as --model
+  --brief-file <file>   run adversarial-review with the file's text as focus text
 
 Prints `codex: ran` and the review, or `codex: skipped (<reason>)`, or
 `codex: failed (<reason>)`. Exits 0 for each, 2 for a usage error.
@@ -39,6 +46,8 @@ EOF
 
 base=""
 command_name="review"
+model=""
+brief_file=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --help | -h)
@@ -56,6 +65,23 @@ while [[ $# -gt 0 ]]; do
   --adversarial)
     command_name="adversarial-review"
     shift
+    ;;
+  --model)
+    if [[ $# -lt 2 || ! "$2" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]*$ ]]; then
+      printf 'codex-review.sh: --model needs a model name (letters, digits, ".", "_", ":", "-")\n' >&2
+      exit 2
+    fi
+    model="$2"
+    shift 2
+    ;;
+  --brief-file)
+    if [[ $# -lt 2 || ! -f "$2" || ! -r "$2" || ! -s "$2" ]]; then
+      printf 'codex-review.sh: --brief-file needs a readable, non-empty file\n' >&2
+      exit 2
+    fi
+    brief_file="$2"
+    command_name="adversarial-review"
+    shift 2
     ;;
   *)
     printf 'codex-review.sh: unknown argument: %s\n' "$1" >&2
@@ -124,8 +150,12 @@ esac
 
 stderr_file=$(mktemp) || skip "mktemp failed"
 trap 'rm -f "$stderr_file"' EXIT
+args=("$command_name" --wait --base "$base")
+[[ -z "$model" ]] || args+=(--model "$model")
+# `--` ends the companion's options, so focus text starting with a dash stays text.
+[[ -z "$brief_file" ]] || args+=(-- "$(cat "$brief_file")")
 rc=0
-review=$(node "$companion" "$command_name" --wait --base "$base" 2>"$stderr_file") || rc=$?
+review=$(node "$companion" "${args[@]}" 2>"$stderr_file") || rc=$?
 if [[ "$rc" -ne 0 ]]; then
   last_error=$(grep -v '^[[:space:]]*$' "$stderr_file" | tail -n 1)
   printf 'codex: failed (%s exited %s%s)\n' "$command_name" "$rc" "${last_error:+: $last_error}"
