@@ -113,7 +113,7 @@ anchor_dir() {
   if [[ -d "$TARGET" ]]; then
     printf '%s' "$TARGET"
   elif [[ -f "$TARGET" ]]; then
-    printf '%s' "$(dirname "$TARGET")"
+    dirname "$TARGET"
   else
     printf '%s' "$PWD"
   fi
@@ -216,12 +216,9 @@ if [[ -n "$PATHS_FILE" ]]; then
     [[ -n "$line" ]] || continue
     CANDIDATES+=("$(rel_to_root "$line")")
   done <"$PATHS_FILE"
-elif [[ -z "$TARGET" ]]; then
-  while IFS= read -r line; do
-    [[ -n "$line" ]] && CANDIDATES+=("$line")
-  done < <(tracked_markdown)
-elif [[ -d "$TARGET" ]]; then
-  prefix="$(rel_to_root "$TARGET")"
+elif [[ -z "$TARGET" || -d "$TARGET" ]]; then
+  prefix=""
+  [[ -z "$TARGET" ]] || prefix="$(rel_to_root "$TARGET")"
   prefix="${prefix%/}"
   DEFAULT_BASE="$prefix"
   while IFS= read -r line; do
@@ -327,33 +324,36 @@ done
 
 # --- JSON product ----------------------------------------------------------------
 
+# json_array <item>...: a JSON array of already-encoded items, one per line.
+json_array() {
+  local first=1 item
+  printf '['
+  for item in "$@"; do
+    [[ "$first" -eq 1 ]] && printf '\n' || printf ',\n'
+    first=0
+    printf '    %s' "$item"
+  done
+  [[ "$first" -eq 1 ]] || printf '\n  '
+  printf ']'
+}
+
+FILE_ITEMS=()
+for f in ${FILES[@]+"${FILES[@]}"}; do
+  FILE_ITEMS+=("$(json_str "$f")")
+done
+
 declined_total=0
+DECLINED_ITEMS=()
 for pattern in ${DECLINED_PATTERNS[@]+"${DECLINED_PATTERNS[@]}"}; do
   declined_total=$((declined_total + DECLINED_COUNT[$pattern]))
+  DECLINED_ITEMS+=("{\"path_pattern\": $(json_str "$pattern"), \"count\": ${DECLINED_COUNT[$pattern]}, \"reason\": $(json_str "${DECLINED_REASON[$pattern]}")}")
 done
 
 printf '{\n'
 printf '  "target": %s,\n' "$(json_str "${TARGET:-${PATHS_FILE:-$ROOT}}")"
 printf '  "root": %s,\n' "$(json_str "$ROOT")"
-printf '  "files": ['
-first=1
-for f in ${FILES[@]+"${FILES[@]}"}; do
-  [[ "$first" -eq 1 ]] && printf '\n' || printf ',\n'
-  first=0
-  printf '    %s' "$(json_str "$f")"
-done
-[[ "$first" -eq 1 ]] || printf '\n  '
-printf '],\n'
-printf '  "declined": ['
-first=1
-for pattern in ${DECLINED_PATTERNS[@]+"${DECLINED_PATTERNS[@]}"}; do
-  [[ "$first" -eq 1 ]] && printf '\n' || printf ',\n'
-  first=0
-  printf '    {"path_pattern": %s, "count": %s, "reason": %s}' \
-    "$(json_str "$pattern")" "${DECLINED_COUNT[$pattern]}" "$(json_str "${DECLINED_REASON[$pattern]}")"
-done
-[[ "$first" -eq 1 ]] || printf '\n  '
-printf '],\n'
+printf '  "files": %s,\n' "$(json_array ${FILE_ITEMS[@]+"${FILE_ITEMS[@]}"})"
+printf '  "declined": %s,\n' "$(json_array ${DECLINED_ITEMS[@]+"${DECLINED_ITEMS[@]}"})"
 printf '  "counts": {"considered": %s, "included": %s, "declined": %s}\n' \
   "$((${#FILES[@]} + declined_total))" "${#FILES[@]}" "$declined_total"
 printf '}\n'
