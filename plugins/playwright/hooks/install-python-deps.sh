@@ -47,17 +47,12 @@ fi
 # over as is, and Python resolves it against the current drive (C:\c\...). Fails rather than
 # return the unconverted path.
 to_native() {
-  case "${OSTYPE:-}" in
-  msys* | cygwin*)
-    [[ "$1" == /* ]] || {
-      printf '%s' "$1"
-      return 0
-    }
+  if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]] && [[ "$1" == /* ]]; then
     local converted
     converted="$(cygpath -m "$1" 2>/dev/null)" && [[ -n "$converted" ]] && printf '%s' "$converted"
-    ;;
-  *) printf '%s' "$1" ;;
-  esac
+  else
+    printf '%s' "$1"
+  fi
 }
 
 if ! script="$(to_native "$ROOT/skills/demo-video/scripts/pydeps.py")" || ! data_dir="$(to_native "$data")"; then

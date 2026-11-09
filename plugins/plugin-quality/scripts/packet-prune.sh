@@ -201,14 +201,9 @@ for packet in "$root_abs"/*/*/*; do
   scanned=$((scanned + 1))
   nonce="${packet##*/}"
 
-  # Containment is re-established per candidate, not once for the root. Checking
-  # only the root is insufficient: a symlink ANYWHERE on the way down — a
-  # symlinked session directory is enough — makes the glob yield a path whose
-  # real location is outside the tree, and `rm -rf` follows the real location.
-  # Canonicalize the candidate and require it to still live under the root. The
-  # candidate must also not BE a symlink, even one whose target is inside the
-  # root: removing the link is not removing the packet, and following it is how
-  # the containment check becomes load-bearing rather than decorative.
+  # Per-candidate containment (header property 3). The candidate must also not
+  # BE a symlink, even one whose target is inside the root: removing the link is
+  # not removing the packet.
   packet_real="$(cd "$packet" 2>/dev/null && pwd -P)" || packet_real=""
   if [[ -z "$packet_real" || "$packet_real" != "$root_abs"/* || -L "$packet" ]]; then
     echo "ESCAPED $packet"
@@ -216,13 +211,8 @@ for packet in "$root_abs"/*/*/*; do
     continue
   fi
 
-  # An unemitted deliverable outranks retention unconditionally, and is checked
-  # BEFORE age so the reported reason is the real one. Searched RECURSIVELY and
-  # case-insensitively: the packet layout does not forbid an item written into a
-  # subdirectory, and a deliverable one level down is exactly as unrecoverable.
-  # `item.md` is the primary emit. A second owner in the same packet is
-  # `item-<owner>.md` (item-plugin-quality.md). Retention matches every
-  # basename that starts with `item` and ends with `.md`, case-insensitive.
+  # An unemitted deliverable (header property 2) outranks retention, and is
+  # checked BEFORE age so the reported reason is the real one.
   if [[ -n "$(find "$packet_real" -iname 'item*.md' -print -quit 2>/dev/null)" ]]; then
     echo "RETAIN-ITEM $packet"
     retained_item=$((retained_item + 1))
@@ -258,14 +248,12 @@ for packet in "$root_abs"/*/*/*; do
   fi
 done
 
-if [[ "$apply" -eq 1 ]]; then
-  echo "scanned=$scanned deleted=$deleted retained-item=$retained_item kept=$kept unparsable=$unparsable escaped=$escaped failed=$failed"
-else
-  # Never report `deleted=` for a run that deleted nothing: a summary line is
-  # what a caller greps, and one that claims deletions in a dry run is a lie a
-  # log reader cannot catch.
-  echo "scanned=$scanned would-delete=$deleted retained-item=$retained_item kept=$kept unparsable=$unparsable escaped=$escaped failed=$failed"
-  echo "(dry run — re-run with --apply to delete)"
-fi
+# Never report `deleted=` for a run that deleted nothing: a summary line is
+# what a caller greps, and one that claims deletions in a dry run is a lie a
+# log reader cannot catch.
+deleted_key=would-delete
+[[ "$apply" -eq 0 ]] || deleted_key=deleted
+echo "scanned=$scanned $deleted_key=$deleted retained-item=$retained_item kept=$kept unparsable=$unparsable escaped=$escaped failed=$failed"
+[[ "$apply" -eq 1 ]] || echo "(dry run — re-run with --apply to delete)"
 [[ "$failed" -eq 0 ]] || exit 1
 exit 0

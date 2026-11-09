@@ -131,13 +131,8 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
   pw() { (cd "$tmp" && TMPDIR="$tmp/b" playwright-cli -s="$session" "$@"); } # prereq-ok: test-only, run by the surface-*.test.sh suites
   finish() {
     pw close >/dev/null 2>&1
-    bash "$here/round.sh" --dir "$d" stop >/dev/null 2>&1
-    bash "$here/round.sh" --dir "$c" stop >/dev/null 2>&1
-    bash "$here/round.sh" --dir "$e" stop >/dev/null 2>&1
-    bash "$here/round.sh" --dir "$j" stop >/dev/null 2>&1
-    bash "$here/round.sh" --dir "$g" stop >/dev/null 2>&1
-    [[ -z "${pg:-}" ]] || bash "$here/round.sh" --dir "$pg" stop >/dev/null 2>&1
-    [[ -z "${sd:-}" ]] || bash "$here/round.sh" --dir "$sd" stop >/dev/null 2>&1
+    for xd in "$d" "$c" "$e" "$j" "$g"; do bash "$here/round.sh" --dir "$xd" stop >/dev/null 2>&1; done
+    for xd in "${pg:-}" "${sd:-}"; do [[ -z "$xd" ]] || bash "$here/round.sh" --dir "$xd" stop >/dev/null 2>&1; done
     for xd in "$tmp/x9" "$tmp/x10"; do [[ ! -d "$xd" ]] || bash "$here/round.sh" --dir "$xd" stop >/dev/null 2>&1; done
     case "$tmp" in
       */iv-surface.*) rm -rf -- "$tmp" ;;
@@ -153,6 +148,7 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     printf '%s' "$3" >"$2"
     bash "$here/round.sh" --dir "$1" apply --file "$2"
   }
+  port_of() { sed -n 's/^PORT=//p' "$1/.interview-session.env" | tr -d '\r'; } # data-dir
   # One page script through playwright-cli, its wall seconds written beside the output for grade.
   run_code() { # script-file output-file
     local start=$SECONDS
@@ -173,7 +169,7 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     cp tests/fixtures/questions.json tests/fixtures/responses.json "$d/"
     bash "$here/round.sh" --dir "$d" add-round --file tests/round-d3.json --round 4 >/dev/null
     bash "$here/round.sh" --dir "$d" ensure-running --port 0 >/dev/null
-    port=$(sed -n 's/^PORT=//p' "$d/.interview-session.env" | tr -d '\r')
+    port=$(port_of "$d")
     for s in ui_a ui_b; do
       sed "s/__PORT__/$port/" "tests/$s.js" >"$tmp/$s.js"
     done
@@ -204,7 +200,7 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     rapply "$c" "$tmp/c-archive-d0.json" '{"ops": [{"op": "archive", "ids": ["D0"], "why": "The old path left the plan"}]}' >/dev/null
     CLAUDE_PROJECT_DIR="$repo" bash "$here/round.sh" --dir "$c" ensure-running --port 0 --emoji-markers true \
       --user-settings tests/fixtures/ui_c/user-settings.json >/dev/null
-    cport=$(sed -n 's/^PORT=//p' "$c/.interview-session.env" | tr -d '\r')
+    cport=$(port_of "$c")
     for n in 1 2 3; do
       sed "s/__PORT__/$cport/; s/__PHASE__/$n/" tests/ui_c.js >"$tmp/ui_c$n.js"
     done
@@ -216,8 +212,7 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     # A recommendation change on P1 marks its decided dependent P2 upstream changed: phase 2 reads the banner.
     rapply "$c" "$tmp/c-revise-p1.json" '{"ops": [{"op": "revise", "id": "P1", "rec": "Yes, the upstream step, revised.", "affects": "none", "keepAlternatives": true, "force": true}]}' >/dev/null
     # Claude declares Q3 as being revised: phase 2 reads the mark on its rail card and detail pane.
-    printf '%s' '{"ops": [{"op": "revising-by-claude", "ids": ["Q3"], "why": "auditing the cache choice"}]}' >"$tmp/revising.json"
-    bash "$here/round.sh" --dir "$c" apply --file "$tmp/revising.json" >/dev/null 2>&1
+    rapply "$c" "$tmp/revising.json" '{"ops": [{"op": "revising-by-claude", "ids": ["Q3"], "why": "auditing the cache choice"}]}' >/dev/null 2>&1
     bash "$here/round.sh" --dir "$c" ensure-running --emoji-markers false >/dev/null
     run_code "$tmp/ui_c2.js" "$tmp/ui_c2.out"
     read -r -a seqs <<<"$(unhandled)"
@@ -250,7 +245,7 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     mkdir -p "$e"
     cp tests/fixtures/ui_d/questions.json tests/fixtures/ui_d/responses.json "$e/"
     bash "$here/round.sh" --dir "$e" ensure-running --port 0 >/dev/null
-    eport=$(sed -n 's/^PORT=//p' "$e/.interview-session.env" | tr -d '\r')
+    eport=$(port_of "$e")
     sed "s/__PORT__/$eport/; s/__PHASE__/4/" tests/ui_c.js >"$tmp/ui_c4.js"
     run_code "$tmp/ui_c4.js" "$tmp/ui_c4.out"
     # Phase 5, same server: an interview round 3, then a newer design round 1, for the header's
@@ -269,7 +264,7 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     mkdir -p "$f"
     cp tests/fixtures/ui_d/questions.json "$f/"
     bash "$here/round.sh" --dir "$f" ensure-running --port 0 >/dev/null
-    fport=$(sed -n 's/^PORT=//p' "$f/.interview-session.env" | tr -d '\r')
+    fport=$(port_of "$f")
     sed "s/__PORT__/$fport/; s/__PHASE__/6/" tests/ui_c.js >"$tmp/ui_c6.js"
     (
       for _ in $(seq 1 120); do
@@ -297,7 +292,7 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     mkdir -p "$sd"
     cp tests/fixtures/ui_d/questions.json "$sd/"
     bash "$here/round.sh" --dir "$sd" ensure-running --port 0 >/dev/null
-    sport=$(sed -n 's/^PORT=//p' "$sd/.interview-session.env" | tr -d '\r')
+    sport=$(port_of "$sd")
     sed "s/__PORT__/$sport/; s/__PHASE__/7/" tests/ui_c.js >"$tmp/ui_c7.js"
     run_code "$tmp/ui_c7.js" "$tmp/ui_c7.out"
     read -r -a seqs <<<"$(unhandled "$sd")"
@@ -321,9 +316,8 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
       mkdir -p "$x"
       cp "tests/fixtures/ui_f/questions-$n.json" "$x/questions.json"
       bash "$here/round.sh" --dir "$x" ensure-running --port 0 >/dev/null
-      printf '%s' '{"ops": [{"op": "restate", "sections": {"goal": "Ship the build step."}}]}' >"$tmp/restate$n.json"
-      bash "$here/round.sh" --dir "$x" apply --file "$tmp/restate$n.json" >/dev/null || bad "ui_c.$n: restate refused"
-      xport=$(sed -n 's/^PORT=//p' "$x/.interview-session.env" | tr -d '\r')
+      rapply "$x" "$tmp/restate$n.json" '{"ops": [{"op": "restate", "sections": {"goal": "Ship the build step."}}]}' >/dev/null || bad "ui_c.$n: restate refused"
+      xport=$(port_of "$x")
       sed "s/__PORT__/$xport/; s/__PHASE__/$n/" tests/ui_c.js >"$tmp/ui_c$n.js"
       run_code "$tmp/ui_c$n.js" "$tmp/ui_c$n.out"
       bash "$here/round.sh" --dir "$x" stop >/dev/null 2>&1
@@ -336,7 +330,7 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     mkdir -p "$g"
     cp tests/fixtures/ui_e/questions.json "$g/"
     bash "$here/round.sh" --dir "$g" ensure-running --port 0 >/dev/null
-    gport=$(sed -n 's/^PORT=//p' "$g/.interview-session.env" | tr -d '\r')
+    gport=$(port_of "$g")
     sed "s/__PORT__/$gport/" tests/ui_e.js >"$tmp/ui_e.js"
     run_code "$tmp/ui_e.js" "$tmp/ui_e.out"
     bash "$here/round.sh" --dir "$g" stop >/dev/null 2>&1
@@ -367,7 +361,7 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     printf '%s' '{"readingWindow": 5}' >"$j/settings.json"
     jtime setup bash "$here/round.sh" --dir "$j" add-round --file tests/fixtures/journey/round1.json --round 1 >/dev/null
     jtime setup bash "$here/round.sh" --dir "$j" ensure-running --port 0 >/dev/null
-    jport=$(sed -n 's/^PORT=//p' "$j/.interview-session.env" | tr -d '\r')
+    jport=$(port_of "$j")
     for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
       sed "s/__PORT__/$jport/; s/__PHASE__/$n/" tests/ui_journey.js >"$tmp/uj$n.js"
     done
@@ -489,7 +483,7 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     jtime restart bash "$here/round.sh" --dir "$j" stop >/dev/null
     jrun 19
     jtime restart bash "$here/round.sh" --dir "$j" ensure-running --port 0 >/dev/null
-    [[ "$(sed -n 's/^PORT=//p' "$j/.interview-session.env" | tr -d '\r')" == "$jport" ]] || bad "journey: stop then ensure-running changed the port"
+    [[ "$(port_of "$j")" == "$jport" ]] || bad "journey: stop then ensure-running changed the port"
     jrun 20
     bash "$here/round.sh" --dir "$j" stop >/dev/null 2>&1
     for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
@@ -509,23 +503,20 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     cp tests/fixtures/journey/questions.json tests/fixtures/journey/responses.json "$l/"
     bash "$here/round.sh" --dir "$l" add-round --file tests/fixtures/journey/round1.json --round 1 >/dev/null
     bash "$here/round.sh" --dir "$l" ensure-running --port 0 >/dev/null
-    lport=$(sed -n 's/^PORT=//p' "$l/.interview-session.env" | tr -d '\r')
+    lport=$(port_of "$l")
     for n in 1 2 3 4 5 6; do
       sed "s/__PORT__/$lport/; s/__PHASE__/$n/" tests/ui_live.js >"$tmp/ul$n.js"
     done
     lrun() { run_code "$tmp/ul$1.js" "$tmp/ul$1.out"; }
     lrun 1
-    printf '%s' '{"ops": [{"op": "reply", "id": "Q1", "text": "Narrowed.", "rec": "Yes, but only for tagged releases.", "why": "Pushes are too noisy.", "affects": "none", "keepAlternatives": true}]}' >"$l/ops/a.json"
-    bash "$here/round.sh" --dir "$l" apply --file "$l/ops/a.json" >/dev/null || bad "live: reply op refused"
+    rapply "$l" "$l/ops/a.json" '{"ops": [{"op": "reply", "id": "Q1", "text": "Narrowed.", "rec": "Yes, but only for tagged releases.", "why": "Pushes are too noisy.", "affects": "none", "keepAlternatives": true}]}' >/dev/null || bad "live: reply op refused"
     lrun 2
     rapply "$l" "$l/ops/r1.json" '{"ops": [{"op": "revise", "id": "Q1", "rec": "Yes, every push on main and every tag.", "alternatives": ["a:Only on tags", "b:Only by hand"], "affects": "none", "force": true}]}' >/dev/null || bad "live: revise refused"
     lrun 3
-    printf '%s' '{"ops": [{"op": "record-terminal", "id": "Q2", "decision": "accept"}]}' >"$l/ops/b.json"
-    bash "$here/round.sh" --dir "$l" apply --file "$l/ops/b.json" >/dev/null || bad "live: record-terminal op refused"
+    rapply "$l" "$l/ops/b.json" '{"ops": [{"op": "record-terminal", "id": "Q2", "decision": "accept"}]}' >/dev/null || bad "live: record-terminal op refused"
     read -r -a ls <<<"$(unhandled "$l")"
     [[ "${#ls[@]}" -gt 0 ]] || bad "live: the page's accept left no event to handle"
-    printf '%s' '{"ops": [{"op": "handle", "seqs": ['"${ls[*]// /, }"']}]}' >"$l/ops/c.json"
-    bash "$here/round.sh" --dir "$l" apply --file "$l/ops/c.json" >/dev/null || bad "live: handle op refused"
+    rapply "$l" "$l/ops/c.json" '{"ops": [{"op": "handle", "seqs": ['"${ls[*]// /, }"']}]}' >/dev/null || bad "live: handle op refused"
     lrun 4
     # #7757: the page ticks Q3's commitment, then a revise of only its title and short must leave it closed
     lrun 5
@@ -544,7 +535,7 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     cp tests/fixtures/journey/questions.json tests/fixtures/journey/responses.json "$pg/"
     bash "$here/round.sh" --dir "$pg" add-round --file tests/fixtures/ui_page/round.json --round 1 >/dev/null || bad "page: add-round refused"
     bash "$here/round.sh" --dir "$pg" ensure-running --port 0 >/dev/null
-    gport=$(sed -n 's/^PORT=//p' "$pg/.interview-session.env" | tr -d '\r')
+    gport=$(port_of "$pg")
     gphases=27
     for n in $(seq 1 "$gphases"); do
       sed "s/__PORT__/$gport/; s/__PHASE__/$n/" tests/ui_page.js >"$tmp/up$n.js"
@@ -569,9 +560,8 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     grun 7
     grun 8
     grun 9
-    printf '%s' '{"ops": [{"op": "add", "question": {"id": "Q9", "group": "g1", "stage": "interview", "short": "Notes owner", "title": "Who writes the release notes?", "recommendation": "The release owner.", "dependsOn": ["Q8"], "commits": [], "alternatives": [{"key": "a", "text": "Each author"}, {"key": "b", "text": "Nobody"}]}},
-    {"op": "record-terminal", "id": "Q9", "decision": "accept"}]}' >"$pg/ops/t.json"
-    bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/t.json" >/dev/null || bad "page: add and record-terminal refused"
+    rapply "$pg" "$pg/ops/t.json" '{"ops": [{"op": "add", "question": {"id": "Q9", "group": "g1", "stage": "interview", "short": "Notes owner", "title": "Who writes the release notes?", "recommendation": "The release owner.", "dependsOn": ["Q8"], "commits": [], "alternatives": [{"key": "a", "text": "Each author"}, {"key": "b", "text": "Nobody"}]}},
+    {"op": "record-terminal", "id": "Q9", "decision": "accept"}]}' >/dev/null || bad "page: add and record-terminal refused"
     # An older terminal record has no rev: strip it, then revise Q9 so only the time orders the two.
     "$py" -c 'import json, sys; p = sys.argv[1]; d = json.load(open(p)); [q["terminal"].pop("rev", None) for q in d["questions"] if q["id"] == "Q9"]; json.dump(d, open(p, "w"))' "$pg/questions.json"
     grev Q9 '"rec": "The release owner, with the support lead."'
@@ -580,48 +570,40 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     rapply "$pg" "$pg/ops/note-ask.json" '{"ops": [{"op": "note-reply", "text": "Asking note: should support sign off?", "needsAnswer": true}]}' >/dev/null || bad "page: note-reply --needs-answer refused"
     grun 10
     grun 11
-    printf '%s' '{"ops": [{"op": "constraint", "text": "Builds stop at ten minutes."}, {"op": "constraint", "text": "Stdlib only."}]}' >"$pg/ops/k.json"
-    bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/k.json" >/dev/null || bad "page: constraint ops refused"
-    printf '%s' '{"ops": [{"op": "revise", "id": "Q1", "checkedAgainst": ["C1"], "force": true}]}' >"$pg/ops/k1.json"
-    bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/k1.json" >/dev/null || bad "page: checkedAgainst revise refused"
+    rapply "$pg" "$pg/ops/k.json" '{"ops": [{"op": "constraint", "text": "Builds stop at ten minutes."}, {"op": "constraint", "text": "Stdlib only."}]}' >/dev/null || bad "page: constraint ops refused"
+    rapply "$pg" "$pg/ops/k1.json" '{"ops": [{"op": "revise", "id": "Q1", "checkedAgainst": ["C1"], "force": true}]}' >/dev/null || bad "page: checkedAgainst revise refused"
     grun 12
-    printf '%s' '{"ops": [{"op": "revise", "id": "Q1", "checkedAgainst": ["C1", "C2"], "force": true}]}' >"$pg/ops/k2.json"
-    bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/k2.json" >/dev/null || bad "page: checkedAgainst revise refused"
+    rapply "$pg" "$pg/ops/k2.json" '{"ops": [{"op": "revise", "id": "Q1", "checkedAgainst": ["C1", "C2"], "force": true}]}' >/dev/null || bad "page: checkedAgainst revise refused"
     # Phases 13 and 14, the frontier lock: Q11 is open in round 2 and Q12 in round 3 depends on it.
     # Phase 13 runs the default confirm; the shell then sets the data dir's lock to hard.
-    printf '%s' '{"ops": [{"op": "add", "question": {"id": "Q11", "group": "g1", "stage": "interview", "round": 2, "short": "Rollout", "title": "How wide is the first rollout?", "recommendation": "One region.", "dependsOn": [], "commits": [], "alternatives": [{"key": "a", "text": "Every region"}, {"key": "b", "text": "Staff only"}]}},
-    {"op": "add", "question": {"id": "Q12", "group": "g1", "stage": "interview", "round": 3, "short": "Rollout gate", "title": "What gates the second region?", "recommendation": "A clean week of error logs.", "dependsOn": ["Q11"], "commits": [], "alternatives": [{"key": "a", "text": "A fixed date"}, {"key": "b", "text": "Nothing"}]}}]}' >"$pg/ops/lock.json"
-    bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/lock.json" >/dev/null || bad "page: the frontier-lock questions were refused"
+    rapply "$pg" "$pg/ops/lock.json" '{"ops": [{"op": "add", "question": {"id": "Q11", "group": "g1", "stage": "interview", "round": 2, "short": "Rollout", "title": "How wide is the first rollout?", "recommendation": "One region.", "dependsOn": [], "commits": [], "alternatives": [{"key": "a", "text": "Every region"}, {"key": "b", "text": "Staff only"}]}},
+    {"op": "add", "question": {"id": "Q12", "group": "g1", "stage": "interview", "round": 3, "short": "Rollout gate", "title": "What gates the second region?", "recommendation": "A clean week of error logs.", "dependsOn": ["Q11"], "commits": [], "alternatives": [{"key": "a", "text": "A fixed date"}, {"key": "b", "text": "Nothing"}]}}]}' >/dev/null || bad "page: the frontier-lock questions were refused"
     grun 13
     printf '%s' '{"frontierLock": "hard"}' >"$pg/settings.json"
     grun 14
     # Phases 15 and 16 (#9714): Q13 on Q11 has no answer; phase 15 changes Q11's answer under the
     # default confirm lock, the shell then reconfirms Q13, and phase 16 reads it unlocked.
     printf '%s' '{"frontierLock": "confirm"}' >"$pg/settings.json"
-    printf '%s' '{"ops": [{"op": "add", "question": {"id": "Q13", "group": "g1", "stage": "interview", "round": 3, "short": "Rollback owner", "title": "Who can roll the first region back?", "recommendation": "The on-call engineer.", "dependsOn": ["Q11"], "commits": [], "alternatives": [{"key": "a", "text": "The release owner"}, {"key": "b", "text": "Anyone on the team"}]}}]}' >"$pg/ops/up.json"
-    bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/up.json" >/dev/null || bad "page: the upstream-changed question was refused"
+    rapply "$pg" "$pg/ops/up.json" '{"ops": [{"op": "add", "question": {"id": "Q13", "group": "g1", "stage": "interview", "round": 3, "short": "Rollback owner", "title": "Who can roll the first region back?", "recommendation": "The on-call engineer.", "dependsOn": ["Q11"], "commits": [], "alternatives": [{"key": "a", "text": "The release owner"}, {"key": "b", "text": "Anyone on the team"}]}}]}' >/dev/null || bad "page: the upstream-changed question was refused"
     grun 15
     rapply "$pg" "$pg/ops/reconfirm.json" '{"ops": [{"op": "reconfirm", "ids": ["Q13"], "why": "The rollback owner does not turn on the rollout width."}]}' >/dev/null || bad "page: reconfirm refused"
     grun 16
     # Phase 17 (#9694): three proposals the page accepts, edits and declines.
-    printf '%s' '{"ops": [{"op": "propose", "id": "Q14", "group": "g1", "short": "Health-check pause", "title": "Should the rollout pause on a failed health check?"},
+    rapply "$pg" "$pg/ops/propose.json" '{"ops": [{"op": "propose", "id": "Q14", "group": "g1", "short": "Health-check pause", "title": "Should the rollout pause on a failed health check?"},
     {"op": "propose", "id": "Q15", "group": "g1", "short": "Pause scope", "title": "Should a pause stop one region?"},
-    {"op": "propose", "id": "Q16", "group": "g1", "short": "Pager", "title": "Should a pause page the on-call engineer?"}]}' >"$pg/ops/propose.json"
-    bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/propose.json" >/dev/null || bad "page: the propose ops were refused"
+    {"op": "propose", "id": "Q16", "group": "g1", "short": "Pager", "title": "Should a pause page the on-call engineer?"}]}' >/dev/null || bad "page: the propose ops were refused"
     grun 17
     # Phase 18 (gap G10): the page reloads as stamped, then with another build stamped in it.
     grun 18
     # Phase 19 (G6, #9721): Q17 is asked in round 1, re-issued as Q18 in round 2, then as Q19 in round 3.
-    printf '%s' '{"ops": [{"op": "add", "question": {"id": "Q17", "group": "g1", "stage": "interview", "round": 1, "short": "Canary size", "title": "How big is the canary?", "recommendation": "One percent of traffic.", "dependsOn": [], "commits": [], "alternatives": [{"key": "a", "text": "Ten percent"}, {"key": "b", "text": "No canary"}]}},
+    rapply "$pg" "$pg/ops/chain.json" '{"ops": [{"op": "add", "question": {"id": "Q17", "group": "g1", "stage": "interview", "round": 1, "short": "Canary size", "title": "How big is the canary?", "recommendation": "One percent of traffic.", "dependsOn": [], "commits": [], "alternatives": [{"key": "a", "text": "Ten percent"}, {"key": "b", "text": "No canary"}]}},
     {"op": "add", "question": {"id": "Q18", "group": "g1", "stage": "interview", "round": 2, "short": "Canary share", "title": "What share of traffic does the canary take?", "recommendation": "One percent.", "dependsOn": [], "supersedes": "Q17", "commits": [], "alternatives": [{"key": "a", "text": "Ten percent"}, {"key": "b", "text": "Half"}]}},
-    {"op": "add", "question": {"id": "Q19", "group": "g1", "stage": "interview", "round": 3, "short": "Canary traffic", "title": "How much traffic goes to the canary first?", "recommendation": "One percent for an hour.", "dependsOn": [], "supersedes": "Q18", "commits": [], "alternatives": [{"key": "a", "text": "Ten percent for a day"}, {"key": "b", "text": "Everything at once"}]}}]}' >"$pg/ops/chain.json"
-    bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/chain.json" >/dev/null || bad "page: the supersede chain was refused"
+    {"op": "add", "question": {"id": "Q19", "group": "g1", "stage": "interview", "round": 3, "short": "Canary traffic", "title": "How much traffic goes to the canary first?", "recommendation": "One percent for an hour.", "dependsOn": [], "supersedes": "Q18", "commits": [], "alternatives": [{"key": "a", "text": "Ten percent for a day"}, {"key": "b", "text": "Everything at once"}]}}]}' >/dev/null || bad "page: the supersede chain was refused"
     grun 19
     # Phase 20 (#9695): Q1 answered in the terminal, then a sweep round whose Q20 reconciles it.
-    printf '%s' '{"ops": [{"op": "record-terminal", "id": "Q1", "decision": "own", "text": "Ship on Wednesday after the code freeze."},
+    rapply "$pg" "$pg/ops/sweep.json" '{"ops": [{"op": "record-terminal", "id": "Q1", "decision": "own", "text": "Ship on Wednesday after the code freeze."},
     {"op": "add-round", "round": 4, "meta": {"kind": "sweep"}, "restate": {"text": "Q1 is settled. Q20 reconciles it with the rollout window.", "decided": ["Q1"], "open": ["Q20"]},
-    "questions": [{"id": "Q20", "group": "g1", "stage": "interview", "short": "Freeze conflict", "title": "Q1 ships inside the rollout window: which answer holds?", "recommendation": "Keep the Wednesday ship.", "basis": "Judgment", "dependsOn": [], "reconciles": ["Q1"], "commits": [], "alternatives": [{"key": "a", "text": "Move the rollout window"}, {"key": "b", "text": "Ship on Thursday"}]}]}]}' >"$pg/ops/sweep.json"
-    bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/sweep.json" >/dev/null || bad "page: the sweep round was refused"
+    "questions": [{"id": "Q20", "group": "g1", "stage": "interview", "short": "Freeze conflict", "title": "Q1 ships inside the rollout window: which answer holds?", "recommendation": "Keep the Wednesday ship.", "basis": "Judgment", "dependsOn": [], "reconciles": ["Q1"], "commits": [], "alternatives": [{"key": "a", "text": "Move the rollout window"}, {"key": "b", "text": "Ship on Thursday"}]}]}]}' >/dev/null || bad "page: the sweep round was refused"
     grun 20
     # Phases 21 to 23 (#11858): no round index, then Q20 held for research, then single pacing with the hold cleared.
     grun 21
@@ -631,8 +613,7 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     bash "$here/round.sh" --dir "$pg" ensure-running --pacing single >/dev/null || bad "page: ensure-running --pacing refused"
     grun 23
     # Phase 24 (#11858): still single pacing; Q21 joins Q20's round 4 with an add, then Q12 (round 3) and Q20 are held.
-    printf '%s' '{"ops": [{"op": "add", "question": {"id": "Q21", "group": "g1", "stage": "interview", "round": 4, "short": "Freeze notice", "title": "Who tells the team about the freeze?", "recommendation": "The release owner.", "basis": "Basis: verified, the release calendar\nInference: the owner already sends the calendar\nFlips if: the team moves release talk to a chat channel", "dependsOn": [], "commits": [], "alternatives": [{"key": "a", "text": "Each author"}, {"key": "b", "text": "Nobody"}]}}]}' >"$pg/ops/later.json"
-    bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/later.json" >/dev/null || bad "page: the later round-4 question was refused"
+    rapply "$pg" "$pg/ops/later.json" '{"ops": [{"op": "add", "question": {"id": "Q21", "group": "g1", "stage": "interview", "round": 4, "short": "Freeze notice", "title": "Who tells the team about the freeze?", "recommendation": "The release owner.", "basis": "Basis: verified, the release calendar\nInference: the owner already sends the calendar\nFlips if: the team moves release talk to a chat channel", "dependsOn": [], "commits": [], "alternatives": [{"key": "a", "text": "Each author"}, {"key": "b", "text": "Nobody"}]}}]}' >/dev/null || bad "page: the later round-4 question was refused"
     rapply "$pg" "$pg/ops/hold2.json" '{"ops": [{"op": "wait", "id": "Q12", "waitsOn": "the error-log baseline"}, {"op": "wait", "id": "Q20", "waitsOn": "the freeze calendar"}]}' >/dev/null || bad "page: the second wait ops were refused"
     grun 24
     # Phases 25 to 27 (#12103): the flip condition, then the read-back of Q21's own answer beside it, then the numbered final confirmation.

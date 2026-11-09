@@ -53,9 +53,8 @@ const DSF = Number(process.env.DEMO_DSF || 2);
 const SLOW = Number(process.env.DEMO_SLOW || 3);
 const out = path.resolve(outArg);
 const existing = fs.existsSync(out) ? fs.readdirSync(out) : [];
-const isDir = (p) => fs.statSync(p, { throwIfNoEntry: false })?.isDirectory() ?? false;
-const isFile = (p) => fs.statSync(p, { throwIfNoEntry: false })?.isFile() ?? false;
-const earlierCapture = existing.length === 2 && isDir(path.join(out, 'frames')) && isFile(path.join(out, 'timeline.json'));
+const stat = (name) => fs.statSync(path.join(out, name), { throwIfNoEntry: false });
+const earlierCapture = existing.length === 2 && stat('frames')?.isDirectory() && stat('timeline.json')?.isFile();
 if (existing.length && !earlierCapture) {
   console.error(`record.mjs: ${out} is not empty and is not an earlier capture (exactly timeline.json and frames/); pass a new or empty CAPTURE_DIR.`);
   process.exit(1);
@@ -176,11 +175,12 @@ const demo = {
   // a click that changes the URL is a navigation: the settled event records it and the camera cuts at 1.0x.
   async click(step, target, { block = null } = {}) {
     const box = await boxOf(target);
+    const at = centerOf(box);
     const blk = block ? await boxOf(block) : null;
     const url = page.url();
-    await demo.moveTo(step, centerOf(box));
+    await demo.moveTo(step, at);
     await page.waitForTimeout(250);
-    mark('click', { step, ...centerOf(box), box, block: blk, url });
+    mark('click', { step, ...at, box, block: blk, url });
     await page.mouse.down();
     await page.waitForTimeout(60);
     await page.mouse.up();
@@ -208,7 +208,7 @@ const demo = {
     const h = await page.addStyleTag({ content: css });
     return async () => h.evaluate((el) => el.remove());
   },
-  mark: (name, extra) => mark(name, extra),
+  mark,
   wait: (ms) => page.waitForTimeout(ms),
 };
 

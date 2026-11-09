@@ -141,13 +141,13 @@ for plugin in plugins/*/; do
 done
 
 if ((errors > 0)); then
-  {
-    echo
-    echo "A \${user_config.*} token in a plugin hook config silently drops the"
-    echo "whole hook entry whenever the key is unset (declared defaults are not"
-    echo "implemented upstream). Deliver the value per the channel decision"
-    echo "matrix instead: docs/contracts/hook-config-delivery/README.md."
-  } >&2
+  cat >&2 <<'REMEDY'
+
+A ${user_config.*} token in a plugin hook config silently drops the
+whole hook entry whenever the key is unset (declared defaults are not
+implemented upstream). Deliver the value per the channel decision
+matrix instead: docs/contracts/hook-config-delivery/README.md.
+REMEDY
   exit 1
 fi
 echo "No bare \${user_config.*} tokens in plugin hook configs."

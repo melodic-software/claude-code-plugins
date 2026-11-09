@@ -361,6 +361,93 @@ class WhatGetsSettled(SettledCase):
         self.assertTrue(verdict.merges[0].verified, verdict.merges[0].pending)
         self.assertEqual(verdict.report()["settle"], [])
 
+    def flake_on_rerun(self) -> None:
+        """Dispatch run 11 (created 2026-10-12T10:05Z): attempt 1 red, the
+        identity's one re-run green."""
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(11, run_attempt=2),
+        )
+        self.gh.attempts[(11, 1)] = dispatch_run(11, "failure")
+        self.green_canary()
+
+    def test_a_flake_inside_its_quarantine_window_is_not_listed(self) -> None:
+        # Six days after the run: inside the default 7-day merge.quarantine-days.
+        self.flake_on_rerun()
+        verdict = self.settled_check(now=datetime(2026, 10, 18, 11, 0, tzinfo=UTC))
+        self.assertTrue(verdict.merges[0].verified, verdict.merges[0].pending)
+        self.assertEqual(verdict.report()["settle"], [])
+
+    def test_a_flake_past_its_quarantine_window_with_no_demotion_is_listed(
+        self,
+    ) -> None:
+        # Eight days after the run, past the default 7-day quarantine, and no
+        # open demotion record names the run.
+        self.flake_on_rerun()
+        verdict = self.settled_check(now=datetime(2026, 10, 20, 11, 0, tzinfo=UTC))
+        self.assertTrue(verdict.merges[0].verified, verdict.merges[0].pending)
+        self.assertEqual(
+            [e["number"] for e in verdict.report()["settle"]],
+            [NUMBER],
+            "a flake past its quarantine with no demotion record is final",
+        )
+
+    def test_a_demoted_flake_past_its_quarantine_window_is_not_listed(self) -> None:
+        # The demotion workflow filed a record against attempt 1 of run 11.
+        self.flake_on_rerun()
+        self.gh.issues = [
+            {
+                "number": 8001,
+                "state": "open",
+                "user": {"login": "github-actions[bot]"},
+                "title": "post-merge demotion",
+                "created_at": "2026-10-12T10:40:00Z",
+                "body": "\n".join(
+                    [
+                        pm.demotion_marker(LATER_SHA, "dispatch"),
+                        "",
+                        f"- Failing run: https://github.com/{REPO}/actions/runs/11/attempts/1",
+                    ]
+                ),
+            }
+        ]
+        verdict = self.settled_check(now=datetime(2026, 10, 20, 11, 0, tzinfo=UTC))
+        self.assertTrue(verdict.merges[0].verified, verdict.merges[0].pending)
+        self.assertEqual(
+            verdict.report()["settle"], [], "an open demotion record keeps it unsettled"
+        )
+
+    def test_a_flake_whose_demotion_read_fails_is_not_listed_and_stays_readable(
+        self,
+    ) -> None:
+        # Past the quarantine, but the open-issue listing fails: the flake is
+        # not final, as before its reads existed, and the verdict stays readable.
+        self.flake_on_rerun()
+        self.gh.fail_reads.add("issues?state=open")
+        verdict = self.settled_check(now=datetime(2026, 10, 20, 11, 0, tzinfo=UTC))
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertTrue(verdict.merges[0].verified, verdict.merges[0].pending)
+        self.assertEqual(
+            verdict.report()["settle"], [], "a failed demotion read is not final"
+        )
+
+    def test_a_superseded_flake_past_the_quarantine_window_is_not_listed(
+        self,
+    ) -> None:
+        # Red attempt 1 of run 11, then green run 12 on the same commit: a
+        # flake read through the compare budget, never final.
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(11, "failure"),
+            dispatch_run(12, created_at="2026-10-12T10:10:00Z"),
+        )
+        self.green_canary()
+        verdict = self.settled_check(now=datetime(2026, 10, 20, 11, 0, tzinfo=UTC))
+        self.assertTrue(verdict.flakes, "run 11 reads as a superseded flake")
+        self.assertEqual(verdict.report()["settle"], [])
+
     def test_a_merge_another_app_enqueued_is_neither_listed_nor_settled(
         self,
     ) -> None:
