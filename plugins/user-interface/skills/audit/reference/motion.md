@@ -57,6 +57,15 @@ layout property ("Swap down a tier").
 
 ## Sub-modes
 
+- **`cleanup`**: the lane's passes in a configured order. Read the resolved
+  `animation.cleanup_order` from the detect step's `config.values`, and name the layer it came
+  from in `config.provenance`. Run one pass per value, in list order; a value listed twice runs
+  once, at its first position. `review` is the lane with no sub-mode (the CSS pre-pass and
+  "Review" above); `removal`, `opportunities` and `performance` are the sub-modes below. A pass
+  whose scope holds nothing to judge (`performance` with no animation named) says so and asks
+  which animation to diagnose. Report each pass as its own subsection of the motion lane's
+  section, in run order, under the lane's one verdict. A later pass does not report again on an
+  animation an earlier pass marked Delete. With `--fix`, findings are offered in pass order.
 - **`opportunities`**: where animation would help, and where it must not go. For each suggestion,
   the element, its purpose and its frequency tier; then the places that must stay still, with the
   reason.
