@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.3] - 2026-11-09
+
+### Changed
+
+- The audit's default owner-decision label is `needs-owner-decision` alone.
+
 ## [0.19.2] - 2026-11-08
 
 ### Changed
