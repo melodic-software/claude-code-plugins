@@ -109,23 +109,22 @@ while IFS= read -r -d '' path; do
   paths+=("$path")
 done < <(git ls-files -z -- docs/ ':(icase)*.md')
 
-# One pass for the basename rule. Exemptions are checked in the order the
-# header lists them; the regex only sees what nothing exempted.
+# One pass for the basename rule. The regex only sees what no exemption in the
+# header skipped.
 for path in ${paths+"${paths[@]}"}; do
   base="${path##*/}"
-  if [[ "$path" != docs/* ]]; then
+  if [[ "$path" == docs/* ]]; then
+    case "${base##*.}" in
+    py | sh | mjs | js | ps1) continue ;;
+    *) ;;
+    esac
+  else
     case "/$path" in
     */fixtures/* | */evals/* | */vendor/*) continue ;;
     *) ;;
     esac
   fi
   [[ "$EXEMPT_NAMES" == *" $base "* ]] && continue
-  if [[ "$path" == docs/* ]]; then
-    case "${base##*.}" in
-    py | sh | mjs | js | ps1) continue ;;
-    *) ;;
-    esac
-  fi
   if [[ ! "$base" =~ $NAME_RE ]]; then
     offenders+=("$path: basename is not lower-kebab-case (rule: $NAME_RE)")
   fi
@@ -147,24 +146,16 @@ done
 # are the folded path. `sort -z` is not used: BSD sort, which macOS ships, has
 # no `-z`.
 folded=()
+dups=""
 if ((${#paths[@]} > 0)); then
   while IFS= read -r -d '' one; do
     folded+=("$one")
   done < <(printf '%s\0' "${paths[@]}" | "$PYTHON" -c "$FOLD_PY")
-fi
-
-dups=""
-if ((${#folded[@]} > 0)); then
-  dups="$(
-    for one in ${folded+"${folded[@]}"}; do
-      printf '%q\n' "$one"
-    done | sort | uniq -d
-  )"
+  dups="$(printf '%q\n' ${folded+"${folded[@]}"} | sort | uniq -d)"
 fi
 
 if [[ -n "$dups" ]]; then
-  i=0
-  while ((i < ${#paths[@]})); do
+  for ((i = 0; i < ${#paths[@]}; i++)); do
     one="${folded[$i]}"
     if [[ -n "$one" ]]; then
       printf -v key '%q' "$one"
@@ -176,7 +167,6 @@ if [[ -n "$dups" ]]; then
         offenders+=("$shown: differs only by case from another tracked path ($one)")
       fi
     fi
-    i=$((i + 1))
   done
 fi
 

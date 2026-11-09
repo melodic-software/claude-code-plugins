@@ -25,8 +25,6 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
-errors=0
-
 mapfile -t test_files < <(find plugins .claude/hooks -type f -name '*.test.sh' 2>/dev/null | sort)
 
 # FNR is per-file so line numbers stay the file:line contract; FNR==1 closes a
@@ -36,9 +34,7 @@ if ((${#test_files[@]} > 0)); then
     function is_annotated(l) { return l ~ /#[[:space:]]*discriminating-skip-ok:/ }
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
     function is_required(l) { return l ~ /#[[:space:]]*discriminating-skip-required:/ }
-    function is_any_skip(l) {
-      return l ~ /skip_case/
-    }
+    function is_any_skip(l) { return l ~ /skip_case/ }
     function is_bad_skip(l) {
       return is_any_skip(l) &&
         (l ~ /did not pair/ || l ~ /did not produce both/)
@@ -147,21 +143,17 @@ if ((${#test_files[@]} > 0)); then
   ' "${test_files[@]}")
 
   if [[ -n "$out" ]]; then
-    while IFS= read -r v; do
-      echo "DISCRIMINATING TEST SKIP: ${v}" >&2
-      errors=$((errors + 1))
-    done <<<"$out"
+    {
+      while IFS= read -r v; do
+        echo "DISCRIMINATING TEST SKIP: ${v}"
+      done <<<"$out"
+      echo
+      echo "A skip that vacates discriminating coverage must call"
+      echo "fail_discriminating_skip (failure + DISCRIMINATING SKIP marker), not"
+      echo "skip_case. Documented exemptions carry '# discriminating-skip-ok:"
+      echo "<reason>' at the site."
+    } >&2
+    exit 1
   fi
-fi
-
-if ((errors > 0)); then
-  {
-    echo
-    echo "A skip that vacates discriminating coverage must call"
-    echo "fail_discriminating_skip (failure + DISCRIMINATING SKIP marker), not"
-    echo "skip_case. Documented exemptions carry '# discriminating-skip-ok:"
-    echo "<reason>' at the site."
-  } >&2
-  exit 1
 fi
 echo "No discriminating skip_case sites found in plugin test entry scripts."
