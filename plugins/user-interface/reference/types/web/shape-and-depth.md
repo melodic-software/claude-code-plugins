@@ -23,7 +23,7 @@ minus the parent's border width minus the padding, floored at zero; at zero the 
 square and the two curves no longer share a center. Copying the parent's radius onto the child makes
 the corner gap pinch, which reads as an unpolished UI. The rule loses force
 once the gap between layers (the border width plus the padding) passes
-`css.concentric_radius.max_gap_px` (default 24px); at that distance the surfaces read as
+`css.concentric_radius.max_gap_px`; at that distance the surfaces read as
 independent, so pick each radius on its own merits.
 
 The subtraction holds for a child that sits at the parent's content edge; a margin on the child adds
@@ -119,11 +119,11 @@ where the job is layout separation (dividers, table cells, form inputs).
 
 A card or button that draws a solid border to look raised has two problems: the color was picked
 against one specific background, and the edge reads flat. Replace it with a shadow stack built from
-three ingredients: a 1px spread that stands in for the border, a tight crisp layer just beneath the
-element, and a wider soft layer for ambient depth.
+three ingredients: a `css.border_px.standard` spread that stands in for the border, a tight crisp
+layer just beneath the element, and a wider soft layer for ambient depth.
 
 Stacked depth shadows can't be seen against dark surfaces. When the theme goes dark, collapse each
-shadow token down to one low-opacity white ring at 1px.
+shadow token down to one low-opacity white ring at `css.border_px.standard`.
 
 ```css
 :root {
@@ -200,8 +200,8 @@ transition to `box-shadow` only.
 ## 3. Hairline borders on high-density screens
 
 For the borders you keep, use density-aware hairlines so dividers stay crisp on retina screens:
-`0.5px` on high-density screens via a media-query-driven CSS variable, falling back to `1px` on
-standard displays.
+`css.border_px.hairline` on high-density screens via a media-query-driven CSS variable, falling
+back to `css.border_px.standard` on standard displays.
 
 ```css
 :root {
@@ -225,8 +225,8 @@ why.
 - **As of**: 2026-10-29
 - **Recheck trigger**: the page stops recommending the `resolution` feature in its place.
 
-**Audit: Suggestion.** Separation borders drawn at a full `1px` on high-density screens where the
-project has, or could take, a hairline token.
+**Audit: Suggestion.** Separation borders drawn at the full `css.border_px.standard` on
+high-density screens where the project has, or could take, a hairline token.
 
 ## 4. Eased gradients, masks for fades
 
@@ -257,15 +257,16 @@ overlay; rebuild it with `mask-image`.
 
 ## 5. Image outlines: pure black or pure white only
 
-Every image gets a `1px` low-opacity outline for consistent depth. Light mode: black at 10%. Dark
-mode: white at 10%. Never a tinted neutral (slate, zinc, `#111827`) and never the accent color: a
+Every image gets a `css.border_px.standard` low-opacity outline for consistent depth. Light mode:
+black at `css.image_outline.opacity`. Dark mode: white at `css.image_outline.opacity`. Never a
+tinted neutral (slate, zinc, `#111827`) and never the accent color: a
 tinted line inherits whatever surface sits behind it and ends up as a muddy edge
 instead of a clean boundary.
 
-Photos and screenshots should carry the same edge treatment as every other surface: a 1px
-translucent line drawn just inside the image bounds. "Every image" here means photos and
-screenshots: an icon, a logo or an illustration on a transparent background has no rectangular
-edge to finish, so scope the selector to the images that do.
+Photos and screenshots should carry the same edge treatment as every other surface: a
+`css.border_px.standard` translucent line drawn just inside the image bounds. "Every image" here
+means photos and screenshots: an icon, a logo or an illustration on a transparent background has no
+rectangular edge to finish, so scope the selector to the images that do.
 
 ```css
 /* Photos and screenshots, not icons or transparent artwork */
@@ -294,11 +295,12 @@ edge to finish, so scope the selector to the images that do.
 - **As of**: 2026-10-29
 - **Recheck trigger**: any of the three pages renames the width or solid-style utility.
 
-The color is fixed and not up for theming: black at 10% in light mode, white at 10% in dark. Palette
-neutrals (`outline-slate-*`, `outline-zinc-*`, `outline-neutral-*`) and accent colors are off the
-table: anything tinted picks up the surface color behind the image and looks like grime rather than
-a clean edge. Draw it with `outline` instead of `border` (no effect on box size), and inset it with
-`outline-offset: -1px` so the image keeps its intended dimensions.
+The color is fixed and not up for theming: black in light mode, white in dark, both at
+`css.image_outline.opacity`. Palette neutrals (`outline-slate-*`, `outline-zinc-*`,
+`outline-neutral-*`) and accent colors are off the table: anything tinted picks up the surface color
+behind the image and looks like grime rather than a clean edge. Draw it with `outline` instead of
+`border` (no effect on box size), and inset it with a negative `outline-offset` of
+`css.border_px.standard`, its own width, so the image keeps its intended dimensions.
 
 The fixed color holds for image outlines only; every other border and ring takes the project's
 tokens. The edge is a finish, not a contrast requirement: non-text contrast does not ask for one
@@ -313,7 +315,8 @@ around a photo. In forced colors mode the browser replaces the authored outline 
   from the forced properties.
 
 **Audit: Suggestion.** A photo or screenshot with no outline, or one outlined in a tinted neutral or
-the accent color, so its edges look dirty or smudged; switch to pure black or white at 10%, inset by 1px.
+the accent color, so its edges look dirty or smudged; switch to pure black or white at
+`css.image_outline.opacity`, `css.border_px.standard` wide and inset by its width.
 
 ## 6. Next to this concern
 
