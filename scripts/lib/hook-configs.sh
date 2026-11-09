@@ -223,26 +223,26 @@ hook_configs::_scan_files() {
   shift 2
   (($#)) || return 0
   if out="$(jq -r "$HOOK_CONFIGS_JQ_FILE" "$@" 2>/dev/null)"; then
-    hook_configs::_dispatch "$on_hook" "${out//$'\r'/}"
+    hook_configs::_dispatch "$on_hook" "$out"
     return 0
   fi
   for f in "$@"; do
     [[ -f "$f" ]] || continue
-    if ! out="$(jq -r "$HOOK_CONFIGS_JQ_FILE" "$f" 2>/dev/null)"; then
+    if out="$(jq -r "$HOOK_CONFIGS_JQ_FILE" "$f" 2>/dev/null)"; then
+      hook_configs::_dispatch "$on_hook" "$out"
+    else
       "$on_bad" json "$f" "" "not parseable as JSON"
-      continue
     fi
-    hook_configs::_dispatch "$on_hook" "${out//$'\r'/}"
   done
 }
 
-# hook_configs::_dispatch <on-hook> <rows>: H rows only.
+# hook_configs::_dispatch <on-hook> <rows>: H rows only, every CR removed.
 hook_configs::_dispatch() {
   local kind file where form args cmd argv
   while IFS="$HOOK_CONFIGS_SEP" read -r kind file where form args cmd argv; do
     [[ "$kind" == H ]] || continue
     "$1" "$file" "$where" "$form" "$args" "$cmd" "$argv"
-  done <<<"$2"
+  done <<<"${2//$'\r'/}"
 }
 
 # hook_configs::_reader <gate>: fills HOOK_CONFIGS_READER with the command that
