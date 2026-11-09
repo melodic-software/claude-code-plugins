@@ -10,7 +10,7 @@ mkdir -p tests
 cat >README.md <<'MD'
 # Larkspur Tool Library
 
-The catalogue and front desk of a neighbourhood tool library.
+The catalogue and front desk of a neighborhood tool library.
 MD
 
 cat >tool_library.py <<'PY'
@@ -37,7 +37,7 @@ class Library:
     def add_tool(self, tool):
         self.tools[tool.tool_id] = tool
 
-    def enrol(self, member):
+    def enroll(self, member):
         self.members[member.card_number] = member
 
     def tool(self, tool_id):
@@ -59,7 +59,7 @@ class CatalogueTest(unittest.TestCase):
 
     def test_enrolled_member_is_kept_by_card_number(self):
         library = Library()
-        library.enrol(Member("C-102", "Ada"))
+        library.enroll(Member("C-102", "Ada"))
         self.assertEqual(library.members["C-102"].name, "Ada")
 
 
