@@ -15,7 +15,7 @@ asset="lefthook_${LEFTHOOK_VERSION}_Linux_x86_64"
 bin="$HOME/.local/bin"
 mkdir -p "$bin" "$HOME/.cache/ci-tools"
 cached="$HOME/.cache/ci-tools/$asset"
-[[ -f "$cached" ]] || curl -fSL --no-progress-meter --retry 3 --retry-all-errors -o "$cached" \
+[[ -f "$cached" ]] || curl -fSL --no-progress-meter --retry 7 --retry-all-errors -o "$cached" \
   "https://github.com/evilmartians/lefthook/releases/download/v$LEFTHOOK_VERSION/$asset"
 cp "$cached" "$bin/lefthook"
 echo "$LEFTHOOK_SHA256  $bin/lefthook" | sha256sum -c -

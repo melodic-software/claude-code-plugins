@@ -212,7 +212,7 @@ jobs:
           SHFMT_SHA256: 13629ce28442ca80b6b5a819f7574ab39e1c28c6e26734ca816c9714e04851df
         run: |
           mkdir -p "$HOME/.local/bin"
-          curl -fSL --no-progress-meter --retry 3 --retry-all-errors -o "$HOME/.local/bin/shfmt.exe" \
+          curl -fSL --no-progress-meter --retry 7 --retry-all-errors -o "$HOME/.local/bin/shfmt.exe" \
             "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_windows_amd64.exe"
           echo "$SHFMT_SHA256  $HOME/.local/bin/shfmt.exe" | sha256sum -c -
           cygpath -w "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -368,7 +368,7 @@ jobs:
           SHFMT_SHA256: 13629ce28442ca80b6b5a819f7574ab39e1c28c6e26734ca816c9714e04851df
         run: |
           mkdir -p "$HOME/.local/bin"
-          curl -fSL --no-progress-meter --retry 3 --retry-all-errors -o "$HOME/.local/bin/shfmt.exe" \
+          curl -fSL --no-progress-meter --retry 7 --retry-all-errors -o "$HOME/.local/bin/shfmt.exe" \
             "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_windows_amd64.exe"
           echo "$SHFMT_SHA256  $HOME/.local/bin/shfmt.exe" | sha256sum -c -
           cygpath -w "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -414,7 +414,7 @@ jobs:
           SHFMT_SHA256: 13629ce28442ca80b6b5a819f7574ab39e1c28c6e26734ca816c9714e04851df
         run: |
           mkdir -p "$HOME/.local/bin"
-          curl -fSL --no-progress-meter --retry 3 --retry-all-errors -o "$HOME/.local/bin/shfmt.exe" \
+          curl -fSL --no-progress-meter --retry 7 --retry-all-errors -o "$HOME/.local/bin/shfmt.exe" \
             "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_windows_amd64.exe"
           echo "$SHFMT_SHA256  $HOME/.local/bin/shfmt.exe" | sha256sum -c -
           cygpath -w "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -512,7 +512,7 @@ jobs:
           SHFMT_SHA256: 13629ce28442ca80b6b5a819f7574ab39e1c28c6e26734ca816c9714e04851df
         run: |
           mkdir -p "$HOME/.local/bin"
-          curl -fSL --no-progress-meter --retry 3 --retry-all-errors -o "$HOME/.local/bin/shfmt.exe" \
+          curl -fSL --no-progress-meter --retry 7 --retry-all-errors -o "$HOME/.local/bin/shfmt.exe" \
             "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_windows_amd64.exe"
           echo "$SHFMT_SHA256  $HOME/.local/bin/shfmt.exe" | sha256sum -c -
           cygpath -w "$HOME/.local/bin" >> "$GITHUB_PATH"
