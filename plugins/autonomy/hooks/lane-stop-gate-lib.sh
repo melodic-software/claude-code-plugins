@@ -139,10 +139,9 @@ gate_resolve_install() {
 # marker file lives in the watched checkout. It cannot enable the gate or forge
 # an arm record. The redirect is not failure-direction-safe on its own — an
 # empty/unwritable target makes marker_already_consumed find no ledger and a
-# surviving marker RE-authorizes (a granted stop) — but that is exactly the
-# "no writable data dir → deletion is the only latch" behavior #1851 already
-# documented and accepted for the marker channel, not a new exposure. Anchored
-# installs never touch this fallback.
+# surviving marker RE-authorizes (a granted stop) — but that is the marker
+# channel's documented "no writable data dir → deletion is the only latch"
+# behavior, not a new exposure. Anchored installs never touch this fallback.
 gate_data_dir_to() {
   if [[ -n "$GATE_CONFIG_ROOT" ]]; then
     printf -v "$1" '%s/plugins/data/%s' "$GATE_CONFIG_ROOT" "$GATE_PLUGIN_ID_SAFE"
@@ -271,10 +270,9 @@ gate_managed_settings_files() {
 #
 # One pass, not one per key, because the gate resolves three keys per stop and
 # a jq process is the unit of cost on the host this gate is tuned for. The
-# per-key verdicts are the same as three single-key passes would give: the
 # entry selection does not depend on the key, and the one jq error the filter
 # can raise (`.value.options` holding a non-object) is raised for every key
-# alike, so a file either answers for all keys or for none — exactly as before.
+# alike, so a file either answers for all keys or for none.
 #
 # An anchored install matches the EXACT marketplace-qualified id, as the
 # channel-F exemplar does, so another marketplace's entry cannot mask this
@@ -294,10 +292,10 @@ gate_managed_settings_files() {
 # `2>/dev/null` is written BEFORE the input redirection: bash applies
 # redirections left to right, so an existing-but-unreadable settings file would
 # otherwise print "Permission denied" before stderr is silenced.
-# Trailing newlines are removed from each value as the former `$(jq -r …)`
-# capture removed them, so a value reads the same on either path. A trailing CR
-# goes with them: a jq that writes stdout in text mode turns every LF inside a
-# value into CRLF, which would otherwise leave a CR embedded in the value.
+# Trailing newlines are removed from each value, as a `$( )` capture would. A
+# trailing CR goes with them: a jq that writes stdout in text mode turns every
+# LF inside a value into CRLF, which would otherwise leave a CR embedded in the
+# value.
 #   gate_settings_options_to <file> <key>...
 # shellcheck disable=SC2034 # result arrays are consumed by the sourcing hook
 gate_settings_options_to() {
@@ -374,7 +372,6 @@ gate_managed_options_to() {
   done
   ((GATE_MANAGED_FILES_LOADED)) || gate_managed_settings_files_load
   for f in ${GATE_MANAGED_FILES[@]+"${GATE_MANAGED_FILES[@]}"}; do
-    [[ -n "$f" ]] || continue
     gate_settings_options_to "$f" "$@" || continue
     for ((i = 0; i < $#; i++)); do
       ((GATE_FILE_OPT_HAVE[i])) || continue
@@ -387,7 +384,7 @@ gate_managed_options_to() {
 }
 
 # Print form, one key: the managed verdict, or return 1 when managed configures
-# none. Derives the file list fresh, as it always did.
+# none. Derives the file list fresh.
 gate_managed_option() {
   GATE_MANAGED_FILES_LOADED=0
   gate_managed_options_to "$1" || return 1
