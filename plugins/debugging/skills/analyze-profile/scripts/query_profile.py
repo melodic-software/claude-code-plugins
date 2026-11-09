@@ -56,6 +56,12 @@ def read_only(action, *_):
     return sqlite3.SQLITE_OK if action in ALLOWED_ACTIONS else sqlite3.SQLITE_DENY
 
 
+def connect_read_only(path):
+    con = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+    con.set_authorizer(read_only)
+    return con
+
+
 def number_or_text(value):
     """An integer, else a finite decimal, else the text as given."""
     try:
@@ -69,11 +75,6 @@ def number_or_text(value):
     if number not in INT64:
         raise ValueError(f"{value} does not fit in a 64-bit integer")
     return number
-
-
-def fail(message):
-    print(f"query_profile: {message}", file=sys.stderr)
-    return 2
 
 
 class Refused(Exception):
@@ -94,9 +95,8 @@ def open_heap(path):
     if not path.is_file():
         raise Refused(f"database not found: {path}")
     try:
-        con = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+        con = connect_read_only(path)
         try:
-            con.set_authorizer(read_only)
             row = con.execute(
                 "SELECT value FROM meta WHERE key = ?", ("format",)
             ).fetchone()
@@ -163,7 +163,7 @@ def retainers(argv):
             "WHERE to_idx = ? AND type != 'weak' ORDER BY seq"
         )
         # reached[n] is (the node it was reached from, the edge n uses to point at it)
-        reached = {args.idx: None}
+        reached = {args.idx: (None, "")}
         queue = collections.deque([args.idx])
         while queue and 0 not in reached:
             current = queue.popleft()
@@ -179,12 +179,11 @@ def retainers(argv):
         step = 0
         while step is not None:
             chain.append(step)
-            step = reached[step][0] if reached[step] else None
+            step = reached[step][0]
         lines = ["depth\tidx\tnode_id\ttype\tname\tvia"]
         for depth, idx in enumerate(reversed(chain)):
             info = con.execute(node, (idx,)).fetchone()
-            via = reached[idx][1] if reached[idx] else ""
-            lines.append("\t".join(map(str, (depth, *info, via))))
+            lines.append("\t".join(map(str, (depth, *info, reached[idx][1]))))
     except sqlite3.Error as exc:
         raise Refused(f"{args.db}: {exc}") from exc
     finally:
@@ -197,15 +196,15 @@ SUBCOMMANDS = {"compare": compare, "retainers": retainers}
 
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
-    if argv and argv[0] in SUBCOMMANDS:
-        try:
+    try:
+        if argv and argv[0] in SUBCOMMANDS:
             lines, code = SUBCOMMANDS[argv[0]](argv[1:])
-        except Refused as exc:
-            print(f"query_profile: {exc}", file=sys.stderr)
-            return exc.code
-        print(*lines, sep="\n")
-        return code
-    return run_sql(argv)
+            print(*lines, sep="\n")
+            return code
+        return run_sql(argv)
+    except Refused as exc:
+        print(f"query_profile: {exc}", file=sys.stderr)
+        return exc.code
 
 
 def run_sql(argv):
@@ -215,20 +214,19 @@ def run_sql(argv):
     parser.add_argument("--param", action="append", default=[], metavar="NAME=VALUE")
     args = parser.parse_args(argv)
     if not args.db.is_file():
-        return fail(f"database not found: {args.db}")
+        raise Refused(f"database not found: {args.db}")
     params = {}
     for item in args.param:
         name, sep, value = item.partition("=")
         if not sep or not name:
-            return fail(f"--param needs NAME=VALUE, got {item!r}")
+            raise Refused(f"--param needs NAME=VALUE, got {item!r}")
         try:
             params[name] = number_or_text(value)
         except ValueError as exc:
-            return fail(f"--param {name}: {exc}")
+            raise Refused(f"--param {name}: {exc}") from exc
     try:
-        con = sqlite3.connect(f"{args.db.resolve().as_uri()}?mode=ro", uri=True)
+        con = connect_read_only(args.db)
         try:
-            con.set_authorizer(read_only)
             cursor = con.execute(args.sql, params)
             print(*(col[0] for col in cursor.description or ()), sep="\t")
             for row in cursor:
@@ -236,7 +234,7 @@ def run_sql(argv):
         finally:
             con.close()
     except sqlite3.Error as exc:
-        return fail(str(exc))
+        raise Refused(str(exc)) from exc
     return 0
 
 
