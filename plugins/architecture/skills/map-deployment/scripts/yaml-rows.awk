@@ -245,14 +245,13 @@ function split_key(s,    c, k, L, ch) {
   return 0
 }
 
-function block_scalar(path, ind,    raw, out, bi, n) {
-  P++; out = ""; bi = -1
+function block_scalar(path, ind,    raw, out) {
+  P++; out = ""
   while (P <= NL) {
     raw = LR[P]
     if (raw ~ /^ *$/) { P++; continue }
     match(raw, /^ */)
     if (RLENGTH <= ind) break
-    if (bi < 0) bi = RLENGTH
     out = out (out == "" ? "" : " ") trim(raw)
     P++
   }
@@ -337,8 +336,7 @@ function parse_map(path, ind,    kp, key, val) {
   while (!bad && cur() && LI[P] == ind && !is_dash(LC[P])) {
     if (!split_key(LC[P])) { bad = 1; return }
     key = KEY; val = VAL
-    if (key == "<<") { bad = 1; return }
-    if (substr(key, 1, 1) == "!" || substr(key, 1, 1) == "&") { bad = 1; return }
+    if (key == "<<" || substr(key, 1, 1) == "!" || substr(key, 1, 1) == "&") { bad = 1; return }
     kp = child_m(path, key)
     parse_value(kp, val, ind, 1)
   }
@@ -423,7 +421,7 @@ function place(sc, c, img, reps, ports, compute, ev,    e) {
 
 # One ECS container definition: name, image, ports, environment and secrets. A
 # secret reference is a redacted parameter. sfx is appended to the container name.
-function ecs_container(sc, g, dflt, reps, cl, ev, sfx,    f, c, img, ports, pg, eg, m, j, pv, k, v, sec) {
+function ecs_container(sc, g, dflt, reps, cl, ev, sfx,    f, c, img, ports, pg, eg, m, j, pv, k, v) {
   f = S_file[sc]
   c = show(sc, jp(g, ck("name")), dflt) sfx
   img = show(sc, jp(g, ck("image")), "")
@@ -436,8 +434,7 @@ function ecs_container(sc, g, dflt, reps, cl, ev, sfx,    f, c, img, ports, pg, 
     k = show(sc, jp(eg[j], ck("name")), "")
     if (k == "") continue
     v = get(sc, jp(eg[j], ck("value")), "")
-    sec = RES_SEC
-    param(sc, c, k, v, sec, ev)
+    param(sc, c, k, v, RES_SEC, ev)
   }
   m = items(f, jp(g, ck("secrets")), eg)
   for (j = 1; j <= m; j++) {

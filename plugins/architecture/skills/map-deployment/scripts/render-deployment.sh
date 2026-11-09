@@ -79,12 +79,11 @@ likec4 | c4-plantuml | none) ;;
 esac
 
 md="$out/deployment.md"
-target="$md"
 mkdir -p "$out"
 
 set +e
 summary="$(
-  awk -v dialect="$dialect" -v env_filter="$env_filter" -v diff_a="$diff_a" -v diff_b="$diff_b" -v md="$target" -f "$REDACT_AWK" -f - "$record" <<<'
+  awk -v dialect="$dialect" -v env_filter="$env_filter" -v diff_a="$diff_a" -v diff_b="$diff_b" -v md="$md" -f "$REDACT_AWK" -f - "$record" <<<'
     function die(msg) { printf "render-deployment.sh: %s\n", msg > "/dev/stderr"; exit 1 }
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
     function clean(s) { return redact_secret_value(s) ? "[redacted]" : s }
@@ -106,6 +105,8 @@ summary="$(
     function safe(s) { s = clean(s); gsub(/"/, "'\''", s); gsub(/\|/, "/", s); gsub(/`/, "'\''", s); gsub(/[\r\n]/, " ", s); return s }
     function hostof(p) { return (p in host) ? host[p] : "" }
     function alias(prefix, i, s,    a) { a = clean(s); gsub(/[^A-Za-z0-9_]/, "_", a); return prefix i "_" a }
+    function calias(p) { return alias("c", p, jget(held["placements", p], "container")) }
+    function nalias(prefix, n) { return alias(prefix, n, jget(held["nodes", n], "name")) }
     function take_array(first, key, prefix,    line, item) {
       line = trim(first)
       if (line == "\"" key "\": []" || line == "\"" key "\": [],") return
@@ -288,19 +289,19 @@ summary="$(
             for (n = 1; n <= nn; n++) {
               item = held["nodes", n]
               if (jget(item, "env") != e || jget(item, "kind") == "compute") continue
-              net_alias[e SUBSEP jget(item, "name")] = alias("n", n, jget(item, "name"))
-              node_alias[e SUBSEP jget(item, "id")] = alias("n", n, jget(item, "name"))
-              print "  Deployment_Node(" alias("n", n, jget(item, "name")) ", \"" lab(jget(item, "name")) "\", \"" lab(jget(item, "kind")) "\", \"" lab(jget(item, "detail")) "\")" > md
+              net_alias[e SUBSEP jget(item, "name")] = nalias("n", n)
+              node_alias[e SUBSEP jget(item, "id")] = nalias("n", n)
+              print "  Deployment_Node(" nalias("n", n) ", \"" lab(jget(item, "name")) "\", \"" lab(jget(item, "kind")) "\", \"" lab(jget(item, "detail")) "\")" > md
             }
             for (n = 1; n <= nn; n++) {
               item = held["nodes", n]
               if (jget(item, "env") != e || jget(item, "kind") != "compute" || !((e SUBSEP jget(item, "id")) in hosts)) continue
-              print "  Deployment_Node(" alias("cn", n, jget(item, "name")) ", \"" lab(jget(item, "name")) "\", \"compute\", \"" lab(jget(item, "detail")) "\") {" > md
+              print "  Deployment_Node(" nalias("cn", n) ", \"" lab(jget(item, "name")) "\", \"compute\", \"" lab(jget(item, "detail")) "\") {" > md
               for (p = 1; p <= np; p++) {
                 pit = held["placements", p]
                 if (jget(pit, "env") != e || hostof(p) != jget(item, "id")) continue
                 drawn_p++
-                print "    Container(" alias("c", p, jget(pit, "container")) ", \"" lab(jget(pit, "container")) "\", \"" lab(jget(pit, "image")) "\", \"replicas " lab(jget(pit, "replicas")) "\")" > md
+                print "    Container(" calias(p) ", \"" lab(jget(pit, "container")) "\", \"" lab(jget(pit, "image")) "\", \"replicas " lab(jget(pit, "replicas")) "\")" > md
               }
               print "  }" > md
             }
@@ -308,7 +309,7 @@ summary="$(
               item = held["placements", p]
               if (jget(item, "env") != e || hostof(p) != "") continue
               drawn_p++
-              print "  Container(" alias("c", p, jget(item, "container")) ", \"" lab(jget(item, "container")) "\", \"" lab(jget(item, "image")) "\", \"replicas " lab(jget(item, "replicas")) "\")" > md
+              print "  Container(" calias(p) ", \"" lab(jget(item, "container")) "\", \"" lab(jget(item, "image")) "\", \"replicas " lab(jget(item, "replicas")) "\")" > md
             }
             print "}" > md
             for (r = 1; r <= nr; r++) {
@@ -317,7 +318,7 @@ summary="$(
               for (p = 1; p <= np; p++) {
                 pit = held["placements", p]
                 if (jget(pit, "env") == e && jget(pit, "container") == jget(item, "to") && hostof(p) == jget(item, "to_compute"))
-                  print "Rel(" node_alias[e SUBSEP jget(item, "from")] ", " alias("c", p, jget(pit, "container")) ", \"" lab(jget(item, "label")) "\")" > md
+                  print "Rel(" node_alias[e SUBSEP jget(item, "from")] ", " calias(p) ", \"" lab(jget(item, "label")) "\")" > md
               }
             }
             for (p = 1; p <= np; p++) {
@@ -326,7 +327,7 @@ summary="$(
               nnet = split(jget(item, "networks"), nets, ",")
               for (k = 1; k <= nnet; k++)
                 if ((e SUBSEP nets[k]) in net_alias)
-                  print "Rel(" alias("c", p, jget(item, "container")) ", " net_alias[e SUBSEP nets[k]] ", \"joins\")" > md
+                  print "Rel(" calias(p) ", " net_alias[e SUBSEP nets[k]] ", \"joins\")" > md
             }
           }
           print "@enduml" > md
@@ -343,7 +344,7 @@ summary="$(
           for (p = 1; p <= np; p++) {
             item = held["placements", p]
             if (env_filter != "" && jget(item, "env") != env_filter) continue
-            print "  " alias("c", p, jget(item, "container")) " = container \047" lab(jget(item, "container")) "\047 {" > md
+            print "  " calias(p) " = container \047" lab(jget(item, "container")) "\047 {" > md
             print "    technology \047" lab(jget(item, "image")) "\047" > md
             print "    description \047replicas " lab(jget(item, "replicas")) "\047" > md
             print "  }" > md
@@ -357,19 +358,19 @@ summary="$(
             for (n = 1; n <= nn; n++) {
               item = held["nodes", n]
               if (jget(item, "env") != e || jget(item, "kind") == "compute") continue
-              node_alias[e SUBSEP jget(item, "id")] = alias("n", n, jget(item, "name"))
-              print "    " alias("n", n, jget(item, "name")) " = node \047" lab(jget(item, "name")) "\047 \047" kd(jget(item, "kind"), jget(item, "detail")) "\047" > md
+              node_alias[e SUBSEP jget(item, "id")] = nalias("n", n)
+              print "    " nalias("n", n) " = node \047" lab(jget(item, "name")) "\047 \047" kd(jget(item, "kind"), jget(item, "detail")) "\047" > md
             }
             for (n = 1; n <= nn; n++) {
               item = held["nodes", n]
               if (jget(item, "env") != e || jget(item, "kind") != "compute" || !((e SUBSEP jget(item, "id")) in hosts)) continue
-              print "    " alias("cn", n, jget(item, "name")) " = node \047" lab(jget(item, "name")) "\047 \047" kd("compute", jget(item, "detail")) "\047 {" > md
+              print "    " nalias("cn", n) " = node \047" lab(jget(item, "name")) "\047 \047" kd("compute", jget(item, "detail")) "\047 {" > md
               for (p = 1; p <= np; p++) {
                 pit = held["placements", p]
                 if (jget(pit, "env") != e || hostof(p) != jget(item, "id")) continue
                 drawn_p++
-                cpath[p] = alias("env", i, e) "." alias("cn", n, jget(item, "name")) "." alias("c", p, jget(pit, "container"))
-                print "      instanceOf " alias("c", p, jget(pit, "container")) > md
+                cpath[p] = alias("env", i, e) "." nalias("cn", n) "." calias(p)
+                print "      instanceOf " calias(p) > md
               }
               print "    }" > md
             }
@@ -377,8 +378,8 @@ summary="$(
               item = held["placements", p]
               if (jget(item, "env") != e || hostof(p) != "") continue
               drawn_p++
-              cpath[p] = alias("env", i, e) "." alias("c", p, jget(item, "container"))
-              print "    instanceOf " alias("c", p, jget(item, "container")) > md
+              cpath[p] = alias("env", i, e) "." calias(p)
+              print "    instanceOf " calias(p) > md
             }
             print "  }" > md
             for (r = 1; r <= nr; r++) {
@@ -444,7 +445,7 @@ summary="$(
 rc=$?
 set -e
 if [[ $rc -ne 0 && $rc -ne 3 ]]; then
-  [[ "$target" == "$md" ]] && rm -f "$md"
+  rm -f "$md"
   exit "$rc"
 fi
 printf '%s\n' "$summary"
