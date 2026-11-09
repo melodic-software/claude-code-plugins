@@ -2800,8 +2800,9 @@ jobs:
       # and its version is printed the same way.
       # The guardrails counters run the Bash guards, which read every command
       # through shfmt and refuse the call without it. Same v3.14.1 pin and
-      # SHA-256 as the `test-bash` install, read from the download cache
-      # `test-bash` saves on main, so a release outage misses only a cold cache.
+      # SHA-256 as the `check-skills` install, read from the download cache
+      # `check-skills` saves on main under the same key (keep the two keys
+      # equal), so a release outage misses only a cold cache.
       - name: Restore the pinned tool downloads
         if: needs.select-tests.outputs.run_tests == 'true'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
