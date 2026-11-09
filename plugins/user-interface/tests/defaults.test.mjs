@@ -35,12 +35,14 @@ const CONTRACT = {
       in_out: { quad: [0.455, 0.03, 0.515, 0.955], cubic: [0.645, 0.045, 0.355, 1], quart: [0.77, 0, 0.175, 1], quint: [0.86, 0, 0.07, 1], expo: [1, 0, 0, 1], circ: [0.785, 0.135, 0.15, 0.86] },
     },
     duration_ms: { press: 160, small: 200, medium: 250, large: 300, page: 400, exit_factor: 0.8 },
+    scale: { press: 0.97 },
     stagger_ms: { interval: 40, max_total: 400 },
     blur_max_px: 20,
     gesture: { velocity_threshold: 0.11, distance_threshold: 0.4 },
     cleanup_order: ["removal", "review", "performance"],
   },
   components: { primitives_default: "base-ui" },
+  spacing: { control_padding: ["0.75rem", "1.25rem"] },
   typography: { long_form_body_px: 18 },
   touch: { both_axes_activation: "tap-to-activate" },
 };
@@ -137,4 +139,28 @@ test("the exit factor takes a fraction from 0 to 1 and keeps 0.8 otherwise", () 
   assert.deepEqual(factorWith("1"), { factor: 1, error_keys: [] });
   assert.deepEqual(factorWith("1.5"), { factor: 0.8, error_keys: ["animation.duration_ms.exit_factor"] });
   assert.deepEqual(factorWith("-0.1"), { factor: 0.8, error_keys: ["animation.duration_ms.exit_factor"] });
+});
+
+// Expected values: the press scale's contract, a fraction from 0 to 1 with default 0.97.
+test("the press scale takes a fraction from 0 to 1 and keeps 0.97 otherwise", () => {
+  const scaleWith = (raw) => {
+    const { values, layers } = resolve({ plugin: "user-interface", projectRoot: PLUGIN, home: "no-such-home", schema, defaults, userConfig: { animation_scale_press: raw }, teamOnly: ["routing"], userHome: join(PLUGIN, "no-such-user") });
+    return { scale: values.animation.scale.press, error_keys: layers[1].error_keys };
+  };
+  assert.deepEqual(scaleWith("0.9"), { scale: 0.9, error_keys: [] });
+  assert.deepEqual(scaleWith("1"), { scale: 1, error_keys: [] });
+  assert.deepEqual(scaleWith("1.05"), { scale: 0.97, error_keys: ["animation.scale.press"] });
+  assert.deepEqual(scaleWith("-0.1"), { scale: 0.97, error_keys: ["animation.scale.press"] });
+});
+
+// Expected values: the control padding's contract, a list of exactly two CSS lengths (block, inline).
+test("the control padding takes two CSS length strings and refuses any other list", () => {
+  const errorKeysWith = (padding) => {
+    const { layers } = resolve({ plugin: "user-interface", projectRoot: PLUGIN, home: "no-such-home", schema, defaults: { ...defaults, spacing: { control_padding: padding } }, teamOnly: ["routing"], userHome: join(PLUGIN, "no-such-user") });
+    return layers[0].error_keys;
+  };
+  assert.deepEqual(errorKeysWith(["0.5rem", "1rem"]), []);
+  assert.deepEqual(errorKeysWith(["0.5rem"]), ["spacing.control_padding"]);
+  assert.deepEqual(errorKeysWith(["0.5rem", "1rem", "2rem"]), ["spacing.control_padding"]);
+  assert.deepEqual(errorKeysWith([8, 16]), ["spacing.control_padding"]);
 });

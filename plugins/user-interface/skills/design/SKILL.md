@@ -18,11 +18,20 @@ needed for that answer.
 
 ## Step 1: Detect
 
-Run from the project root:
+Write the userConfig values to
+`${CLAUDE_PLUGIN_DATA}/design-user-config-${CLAUDE_SESSION_ID}.json` with the Write tool, never
+through a shell command, as one JSON object: `css_browser_target` =
+`${user_config.css_browser_target}`, `css_important` = `${user_config.css_important}`, `css_layer` =
+`${user_config.css_layer}`, `css_token_fallback` = `${user_config.css_token_fallback}`. Leave a key
+out when its value is empty or still reads as a literal `${user_config.` placeholder. Then run from
+the project root, and delete the file:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/detect.mjs" --config
+node "${CLAUDE_PLUGIN_ROOT}/scripts/detect.mjs" --config --user-config "<that file>"
 ```
+
+Every measurement a spoke names by key is picked and written as
+[values.md](../../reference/values.md) says.
 
 It prints JSON:
 

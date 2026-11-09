@@ -123,6 +123,14 @@
             "exit_factor": {"type": "number", "minimum": 0, "maximum": 1, "description": "The longest an exit may run, as a fraction of its entrance's duration."}
           }
         },
+        "scale": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Scale factors, as a fraction of the element's own size.",
+          "properties": {
+            "press": {"type": "number", "minimum": 0, "maximum": 1, "description": "The scale a pressable element takes while pressed."}
+          }
+        },
         "stagger_ms": {
           "type": "object",
           "additionalProperties": false,
@@ -150,6 +158,14 @@
       "description": "Settings read by reference/component-libraries.md when /user-interface:design picks a component library. A library the project already uses, and its design system, beat every layer.",
       "properties": {
         "primitives_default": {"enum": ["base-ui", "radix", "react-aria"], "description": "The accessible primitives library a React project with none installed builds on, by its setting value in the primitives table in reference/component-libraries.md; a setting value is not a package name."}
+      }
+    },
+    "spacing": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Spacing taste defaults as CSS length strings. The project's own spacing tokens beat every layer.",
+      "properties": {
+        "control_padding": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 2, "description": "A control's padding (a button, a chip), in order: block, inline."}
       }
     },
     "typography": {

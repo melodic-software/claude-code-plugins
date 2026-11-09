@@ -1,6 +1,6 @@
 # Configuration
 
-Every `css` and `animation` setting, and `touch.both_axes_activation`, resolves through the plugin's five config layers and reaches
+Every `css` and `animation` setting, `spacing.control_padding` and `touch.both_axes_activation` resolves through the plugin's five config layers and reaches
 this skill as `config.values`, with the layer behind each in `config.provenance`. The layer order,
 locations and merge rules belong to the resolver and the plugin README's Configuration section;
 keys and allowed values to `<plugin-root>/reference/team.schema.json`. Never name a layer path from
@@ -19,6 +19,8 @@ memory.
 | `css.concentric_radius.max_gap_px` | the widest gap (border width plus padding) at which the `concentric-nested-radius` recipe still derives a nested radius from its parent's | files only; shared with the `shape-and-depth` concern and `scripts/nested-radius.mjs` |
 | `animation.easing.*`, `animation.easing_library.*` | the `out`, `in`, `in_out` and `drawer` curves written when the project has no easing tokens, and the named curve library | files only; shared with `/user-interface:write-animation` |
 | `animation.duration_ms.*`, `animation.stagger_ms.*`, `animation.blur_max_px` | the `press`, `small`, `medium`, `large` and `page` role limits and the exit factor the `duration` rule and the motion tokens use; stagger interval and group total; the blur ceiling | files only; shared with `/user-interface:write-animation` |
+| `animation.scale.press` | the scale the `press-feedback` recipe gives a pressed control | files only; shared with `/user-interface:write-animation` |
+| `spacing.control_padding` | the block and inline padding of the `label-centered-on-its-letters-with-text-box` recipe's buttons | files only |
 | `touch.both_axes_activation` | whether the `gesture-surface-that-claims-only-its-axis` recipe gives an element that needs both axes `touch-action: none` from the first render (`always-active`) or only once a tap activates it (`tap-to-activate`) | files only; shared with the `touch` concern |
 
 Per run, the skill's arguments vary the rest: `--target` (browser target), `--no-lint` (whether the

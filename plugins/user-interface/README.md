@@ -87,12 +87,14 @@ order. Keys and allowed values are in [`reference/team.schema.json`](reference/t
 | `animation.easing.out`, `.in`, `.in_out`, `.drawer`; `animation.easing_library.out.*`, `.in_out.*` | four cubic Bezier control points each, in `defaults.yaml` | a list of four numbers |
 | `animation.duration_ms.press`, `.small`, `.medium`, `.large`, `.page` | `160`, `200`, `250`, `300`, `400` | milliseconds |
 | `animation.duration_ms.exit_factor` | `0.8` | the longest an exit runs, as a fraction of its entrance |
+| `animation.scale.press` | `0.97` | the scale a pressable element takes while pressed, 0 to 1 |
 | `animation.stagger_ms.interval`, `.max_total` | `40`, `400` | milliseconds between items, and for the group |
 | `animation.blur_max_px` | `20` | px, a heuristic ceiling for an animated blur |
 | `animation.gesture.velocity_threshold` | `0.11` | px/ms for a small element's swipe to dismiss |
 | `animation.gesture.distance_threshold` | `0.4` | Fraction of its own travel, 0 to 1, past which a dragged element dismisses on release |
 | `animation.cleanup_order` | `removal`, `review`, `performance` | a list of `removal`, `review`, `opportunities`, `performance`: the passes `/user-interface:audit cleanup` runs, in order |
 | `components.primitives_default` | `base-ui` | `base-ui`, `radix`, `react-aria`: the primitives library a React project with none installed builds on |
+| `spacing.control_padding` | `0.75rem`, `1.25rem` | two CSS lengths: a control's block and inline padding |
 | `typography.long_form_body_px` | `18` | px, at least `16`: long-form reading text, written in `rem` |
 | `touch.both_axes_activation` | `tap-to-activate` | `tap-to-activate`, `always-active`: whether a touch element that needs both axes waits for a tap before it takes gestures |
 | `routing` | none | route rows, `disable` and `deny`, team layer only |
@@ -110,6 +112,9 @@ The `touch` key is read through the `touch` concern by `/user-interface:design` 
 `/user-interface:audit`, and by `/user-interface:write-css`'s
 `gesture-surface-that-claims-only-its-axis` recipe; it applies only where the project has no
 pattern of its own for these elements.
+The `spacing` key is read by `/user-interface:write-css` and applies only where the project has no
+spacing tokens for controls. How a skill writes any key's value is in
+[`reference/values.md`](reference/values.md).
 `routing` is validated and shown by `/user-interface:setup check`, and `/user-interface:design`
 routes from the bundled rows with it applied: a row with a bundled concern and id overrides that
 row key by key, a new row adds a route, and `disable` and `deny` skip routes (a `deny` skip names

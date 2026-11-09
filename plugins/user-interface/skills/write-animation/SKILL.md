@@ -35,12 +35,21 @@ this run writes.
 
 Run them in order: steps 2 and 3 can end the run with no code, and that is a correct result.
 
-1. **Detect.** Run
-   `node "${CLAUDE_PLUGIN_ROOT}/scripts/detect.mjs" --project "<project root>" --config` and read
-   `project.tokens`, `project.style_files`, `project.docs`, `config.values.animation` and
-   `config.provenance`. Then find what detect cannot: the project's motion tokens and conventions,
-   and the existing animation nearest to the one you are writing. With no shell or no `node`, read
-   the same signals by hand and use the defaults in `${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml`.
+1. **Detect.** Write the userConfig values to
+   `${CLAUDE_PLUGIN_DATA}/write-animation-user-config-${CLAUDE_SESSION_ID}.json` with the Write tool,
+   never through a shell command, as one JSON object: `css_browser_target` =
+   `${user_config.css_browser_target}`, `css_important` = `${user_config.css_important}`,
+   `css_layer` = `${user_config.css_layer}`, `css_token_fallback` =
+   `${user_config.css_token_fallback}`. Leave a key out when its value is empty or still reads as a
+   literal `${user_config.` placeholder. Then run
+   `node "${CLAUDE_PLUGIN_ROOT}/scripts/detect.mjs" --project "<project root>" --config --user-config "<that file>"`
+   and delete the file. Read `project.tokens`, `project.style_files`, `project.docs`,
+   `config.values.animation`, `config.values.css.token_fallback`, `config.provenance` and
+   `config.layers`. Then find what detect cannot: the project's motion tokens and conventions, and
+   the existing animation nearest to the one you are writing. Pick and write every value as
+   [values.md](../../reference/values.md) says, following `css.token_fallback` when the project has
+   motion tokens and none matches. With no shell or no `node`, read the same signals by hand and use
+   the defaults in `${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml`.
 2. **Should it animate?** Apply "Should it animate" in
    [catalog.md](../../reference/animation/catalog.md). A keyboard-initiated or many-times-an-hour
    action does not animate: say so, write nothing, and offer the instant alternative.
