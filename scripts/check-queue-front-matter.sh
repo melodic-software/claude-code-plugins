@@ -62,7 +62,7 @@ fm_value() {
 
 for item in "$QUEUE_DIR"/*.md; do
   [[ -e "$item" ]] || continue
-  base="$(basename "$item")"
+  base="${item##*/}"
   [[ "$base" == README.md ]] && continue
   file_count=$((file_count + 1))
   stem="${base%.md}"
@@ -81,12 +81,12 @@ for item in "$QUEUE_DIR"/*.md; do
   done
 
   status="$(fm_value "$fm" status)"
-  if [[ -n "$status" ]] && ! grep -qE "^(${VALID_STATUSES})$" <<<"$status"; then
+  if [[ -n "$status" && ! "$status" =~ ^(${VALID_STATUSES})$ ]]; then
     report_violation "$item" "status '$status' not in documented set (${VALID_STATUSES})"
   fi
 
   priority="$(fm_value "$fm" priority)"
-  if [[ -n "${priority//[[:space:]]/}" ]] && ! grep -qE "^(${VALID_PRIORITIES})$" <<<"$priority"; then
+  if [[ -n "${priority//[[:space:]]/}" && ! "$priority" =~ ^(${VALID_PRIORITIES})$ ]]; then
     report_violation "$item" "priority '$priority' not in documented set (${VALID_PRIORITIES})"
   fi
 

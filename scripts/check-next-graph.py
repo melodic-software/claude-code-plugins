@@ -55,6 +55,7 @@ ROSTER = "scripts/next-graph-chain.txt"
 STEPS = "plugins/session-flow/skills/workflow/context/steps.md"
 
 TOKEN = re.compile(r"(?<![\w/.-])/([a-z0-9][a-z0-9-]*):([a-z0-9][a-z0-9-]*)(?![\w-])")
+SKILL_NAME = re.compile(r"[a-z0-9-]+:[a-z0-9-]+")
 STAGE_HEADING = re.compile(r"^## (\d+)\. (\w+)(?: \((conditional|optional)\b)?")
 WORKFLOW_STAGE = re.compile(r"^\s+workflow-stage:\s*([a-z-]+)\s*$")
 # A frontmatter stage matches a ladder heading word exactly; this is the one
@@ -163,7 +164,7 @@ def read_roster(root: Path) -> dict[str, dict[str, str]]:
         if not line or line.startswith("#"):
             continue
         name, _, declaration = (part.strip() for part in line.partition("|"))
-        if not re.fullmatch(r"[a-z0-9-]+:[a-z0-9-]+", name):
+        if not SKILL_NAME.fullmatch(name):
             raise SetupError(f"{ROSTER}:{number}: '{name}' is not a plugin:skill name")
         flags: dict[str, str] = {}
         if declaration:
@@ -172,7 +173,7 @@ def read_roster(root: Path) -> dict[str, dict[str, str]]:
                 reason = ""
             elif kind == "skip-to":
                 target, _, reason = reason.partition(" ")
-                if not re.fullmatch(r"[a-z0-9-]+:[a-z0-9-]+", target):
+                if not SKILL_NAME.fullmatch(target):
                     reason = ""
                 kind = f"skip-to {target}"
             if not reason.strip():
