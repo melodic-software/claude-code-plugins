@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "class LoanTest(unittest.TestCase):\n    def test_lending_an_available_tool_records_a_loan_due_in_14_days(self):\n        loan = self.library.lend(\"T-7\", \"C-102\", on=date(2026, 3, 1))\n        self.assertEqual(loan.due_date, date(2026, 3, 15))\n\n    def test_returned_tool_is_available_again(self):\n        self.library.lend(\"T-7\", \"C-102\", on=date(2026, 3, 1))\n        self.library.receive_return(\"T-7\")\n        self.assertTrue(self.library.is_available(\"T-7\"))\n",
+      "why": "only the canonical term"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "def test_checkout_records_due_date(self):\n    self.assertEqual(self.library.checkout(\"T-7\", \"C-102\").due_date, DUE)\n",
+      "why": "checkout"
+    },
+    {
+      "answer": "def test_check_out_unknown_card_raises(self):\n    with self.assertRaises(KeyError):\n        self.library.check_out(\"T-7\", \"C-999\")\n",
+      "why": "check_out"
+    },
+    {
+      "answer": "def test_tool_already_checked_out_raises(self):\n    with self.assertRaises(ValueError):\n        self.library.lend(\"T-7\", \"C-102\")\n",
+      "why": "checked_out in a test name beside the canonical verb"
+    },
+    {
+      "answer": "class RentalTest(unittest.TestCase):\n    def test_rental_is_due_in_14_days(self):\n        pass\n",
+      "why": "rental"
+    },
+    {
+      "answer": "def test_booking_records_member(self):\n    self.assertEqual(self.library.book(\"T-7\", \"C-102\").card_number, \"C-102\")\n",
+      "why": "booking"
+    }
+  ]
+}
