@@ -13,7 +13,8 @@
 # drifted page gets that issue created, its body replaced in place, or, when
 # closed other than as not planned or duplicate, reopened with its body
 # replaced; an id whose pages are all clean gets an open issue closed with a
-# comment; an id with any `untracked` page and no drifted one is left alone.
+# comment; an id with any `untracked` or `unreachable` page and no drifted one
+# is left alone.
 # Last, the bot's open drift issue for any id the report no longer names is
 # closed with a comment, printed as `action=close-unreported`. The body names
 # the run date and run URL, then per drifted page either its pin and head (a
@@ -106,7 +107,7 @@ REPOS=()     # upstream id per index, first-seen order
 STATE=()     # none | clean | drift
 DETAIL=()    # body lines for drifted pages
 PINNED=()    # 1 when a drifted page has a hex pin
-UNTRACKED=() # 1 when any page is untracked; blocks a close
+UNTRACKED=() # 1 when any page is untracked or unreachable; blocks a close
 repo_index=-1
 page_status=""
 
@@ -126,7 +127,7 @@ find_repo() { # <id>: sets repo_index, adding the id if new
   repo_index=$((${#REPOS[@]} - 1))
 }
 
-re_page='^page repo=([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+) pin=([0-9a-f]+|unknown) head=([0-9a-f]+|unknown) status=(untracked|clean|drift) path=(.+)$'
+re_page='^page repo=([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+) pin=([0-9a-f]+|unknown) head=([0-9a-f]+|unknown) status=(untracked|unreachable|clean|drift) path=(.+)$'
 re_row='^row line=([0-9]+) status=([A-Za-z]+) path=(.+)$'
 re_unit='^(new|removed)-unit path=(.+)$'
 
