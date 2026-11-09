@@ -114,33 +114,33 @@ slog_contained() {
 # answers <project-dir> unchanged: a main checkout, a directory outside git, a
 # submodule (no commondir), a worktree of such a bare repository, and a
 # worktree whose common directory is gone. Builtins only. Locals carry a
-# `slog__anc_` prefix: slog_root_to passes its own `slog__` names as <var>.
+# `slog__anchor_` prefix: slog_root_to passes its own `slog__` names as <var>.
 slog_anchor_to() {
-  local slog__anc_var="$1" slog__anc_dir="${2%/}" slog__anc_line="" slog__anc_gitdir
-  local slog__anc_common="" slog__anc_saved="$PWD"
-  printf -v "$slog__anc_var" '%s' "$2"
-  [[ -n "$slog__anc_dir" && -f "$slog__anc_dir/.git" ]] || return 0
-  { IFS= read -r slog__anc_line || :; } 2>/dev/null <"$slog__anc_dir/.git"
-  slog__anc_line="${slog__anc_line%$'\r'}"
-  [[ "$slog__anc_line" == "gitdir: "?* ]] || return 0
-  slog__anc_gitdir="${slog__anc_line#gitdir: }"
-  case "$slog__anc_gitdir" in
+  local slog__anchor_var="$1" slog__anchor_dir="${2%/}" slog__anchor_line="" slog__anchor_gitdir
+  local slog__anchor_common="" slog__anchor_saved="$PWD"
+  printf -v "$slog__anchor_var" '%s' "$2"
+  [[ -n "$slog__anchor_dir" && -f "$slog__anchor_dir/.git" ]] || return 0
+  { IFS= read -r slog__anchor_line || :; } 2>/dev/null <"$slog__anchor_dir/.git"
+  slog__anchor_line="${slog__anchor_line%$'\r'}"
+  [[ "$slog__anchor_line" == "gitdir: "?* ]] || return 0
+  slog__anchor_gitdir="${slog__anchor_line#gitdir: }"
+  case "$slog__anchor_gitdir" in
   /* | [A-Za-z]:*) ;;
-  *) slog__anc_gitdir="$slog__anc_dir/$slog__anc_gitdir" ;;
+  *) slog__anchor_gitdir="$slog__anchor_dir/$slog__anchor_gitdir" ;;
   esac
-  [[ -f "$slog__anc_gitdir/commondir" ]] || return 0
-  { IFS= read -r slog__anc_common || :; } 2>/dev/null <"$slog__anc_gitdir/commondir"
-  slog__anc_common="${slog__anc_common%$'\r'}"
-  [[ -n "$slog__anc_common" ]] || return 0
-  case "$slog__anc_common" in
+  [[ -f "$slog__anchor_gitdir/commondir" ]] || return 0
+  { IFS= read -r slog__anchor_common || :; } 2>/dev/null <"$slog__anchor_gitdir/commondir"
+  slog__anchor_common="${slog__anchor_common%$'\r'}"
+  [[ -n "$slog__anchor_common" ]] || return 0
+  case "$slog__anchor_common" in
   /* | [A-Za-z]:*) ;;
-  *) slog__anc_common="$slog__anc_gitdir/$slog__anc_common" ;;
+  *) slog__anchor_common="$slog__anchor_gitdir/$slog__anchor_common" ;;
   esac
-  cd -P -- "$slog__anc_common" 2>/dev/null || return 0
-  slog__anc_common="$PWD"
-  cd -- "$slog__anc_saved" 2>/dev/null || cd / || true
-  [[ "${slog__anc_common##*/}" == .git && -n "${slog__anc_common%/.git}" ]] || return 0
-  printf -v "$slog__anc_var" '%s' "${slog__anc_common%/.git}"
+  cd -P -- "$slog__anchor_common" 2>/dev/null || return 0
+  slog__anchor_common="$PWD"
+  cd -- "$slog__anchor_saved" 2>/dev/null || cd / || true
+  [[ "${slog__anchor_common##*/}" == .git && -n "${slog__anchor_common%/.git}" ]] || return 0
+  printf -v "$slog__anchor_var" '%s' "${slog__anchor_common%/.git}"
 }
 
 # slog_root_to <var> <project-dir>: the absolute log root for <project-dir>,
