@@ -16,7 +16,7 @@ first; this file adds what only motion needs.
 ## CSS pre-pass
 
 For CSS-styled files in scope, invoke `/user-interface:write-css review` with the Skill tool on
-those paths. The linter's `duration` check uses fixed limits, not the configured roles, so judge
+those paths. Its `duration` check flags only a transition over the configured `large`, so judge
 every duration yourself under "Role durations" below, the ones it flagged and the ones it missed.
 Keep the rest of its motion findings (`ease-in`, `transition-all`, `motion`) as findings of this
 lane; an `ease-in` finding's fix is the one catalog.md "Easing" gives (the configured `in` curve on
@@ -118,8 +118,8 @@ imports. Then search for each removed name to confirm nothing still references i
 
 ## Gotchas
 
-- The bundled CSS linter has fixed duration limits of its own; the configured role decides, which
-  is why the pre-pass goes through write-css review mode and not the linter directly.
+- The bundled CSS linter's own duration limits ignore the config; write-css review mode checks the
+  configured `large` instead, which is why the pre-pass goes through it and not the linter directly.
 - "Smooth on my machine" is not evidence. A performance finding not reproduced on a device says
   needs a device recording.
 - A layer-promotion hint is the last fix, never the first; name the cause.
