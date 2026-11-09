@@ -146,10 +146,13 @@ enough that one skill no longer predicts its contents.
 - **The bound provider's client.** For the GitHub adapter that is the **`gh`
   CLI**, authenticated against the repository's host; the adapter is the only
   thing that leaves the machine.
-- **Labels** (optional but recommended): the universal `type:` / `priority:` /
-  `status:` / meta groups, plus any project-specific `area:` / `category:` /
-  `ecosystem:` groups the repo defines. The taxonomy and discovery command are
-  documented in the plugin's `reference/label-taxonomy.md`.
+- **Labels** (optional but recommended): the universal `type:` / `status:` / meta
+  groups, plus any project-specific `area:` / `category:` / `ecosystem:` groups the
+  repo defines. The taxonomy and discovery command are documented in the plugin's
+  `reference/label-taxonomy.md`.
+- **Priority** (optional): an organization `Priority` single-select issue field,
+  which triage and `/work-items:track add --priority` write. Where there is no such
+  field or the adapter cannot write one, they use the repo's `priority:` labels.
 - **Recurring schedule** (optional): a `.github/recurring-schedule.json` in the
   consuming repo enables the `due` / `recheck` actions and the recurring
   selection tiers of `/work-items:work`. Inspect it with `/work-items:setup check`;

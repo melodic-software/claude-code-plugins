@@ -49,7 +49,7 @@ plugins/playbooks/skills/repo-sweep/reference/next.md 2 # pending: the shorthand
 plugins/playbooks/skills/repo-sweep/reference/plan.md 2 # pending: the shorthands S and C name bundled paths through ${CLAUDE_SKILL_DIR}; cite <skill-dir>/... instead
 plugins/playwright/skills/playwright/actions/update.md 2 # pending: the commands run a bundled script through ${CLAUDE_PLUGIN_ROOT}; cite <skill-dir>/scripts/... instead
 plugins/work-items/skills/ship/actions/run.md 4 # pending: the steps run the tracker and link plugin references through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
-plugins/work-items/skills/track/actions/add.md 22 # pending: the steps run the tracker and link plugin references through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
+plugins/work-items/skills/track/actions/add.md 21 # pending: the steps run the tracker and link plugin references through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
 plugins/work-items/skills/track/actions/audit.md 4 # pending: the steps run the tracker and link plugin references through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
 plugins/work-items/skills/track/actions/done.md 2 # pending: the step links plugin references through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
 plugins/work-items/skills/track/actions/edit.md 1 # pending: the step runs the tracker through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead

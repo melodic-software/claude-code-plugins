@@ -151,7 +151,7 @@ from the tracker binding's `config.role_labels` (defaults `agent-ready` / `needs
 | Axis | Mechanism | Scope | What it encodes |
 |------|-----------|-------|-----------------|
 | Type | native Issue Type (org) · `type:` label (personal) | universal | `Bug` / `Feature` / `Task`, the kind of issue; commit-type granularity stays at the commit layer |
-| Priority | `priority:` | universal | urgency, members from the live set |
+| Priority | `Priority` issue field (org) · `priority:` label (no such field) | universal | urgency, members from the live set; written per "Setting an item's priority" below |
 | Status | `status:` | universal | exception + gate flags only (`needs-info`, `needs-decision`, `ready`); claim = assignee + lease, blocked = native edge (neither is a label). the triage floor is the bare label `needs-triage`, not a status or priority value; see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) |
 | Meta | (none) | universal | `automated`, `good-first-issue`, `migrated`, `stale`, plus the canonical-role labels (defaults `agent-ready`, `needs-human`, `recurring`) |
 | Area | `area:` | repo-specific | the consuming repo's architecture surface, see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) |
@@ -207,6 +207,28 @@ never restate it. Verb forms are in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-track
    skill names, then `"$TRACKER" set-fields <id> --field <field_id>=<option_id>`, before the label
    edit. A `null` `field_id`, a missing option, or a failed write leaves the item as it was, labels
    included, and is reported.
+
+## Setting an item's priority
+
+Skills that write an item's priority cite this rule and never restate it. Verb forms are in
+`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Verbs".
+
+1. **Where priority lives.** Once per invocation, before the first write, run
+   `"$TRACKER" capabilities`. When the adapter declares `get-field-options` and `set-fields`, run
+   `"$TRACKER" get-field-options --field Priority`. Priority lives in the field when that lists at
+   least one option. It lives in labels when the adapter does not declare both verbs, when
+   `field_id` is `null` or `options` is empty, and when the read is refused (`status-storage` in
+   `CONTRACT.md` says which exits are a refusal). Any other failure stops the pass, which reports it:
+   a provider that did not answer has not said priority lives in labels. Report which one is in
+   use.
+2. **The live set.** On the field, the priorities are its option names. On labels, they are the
+   repository's live `priority:` labels (adapter: "List labels"). Match a name case-insensitively,
+   ignoring a leading `priority:` and the space after it, so `high` and `priority: high` name one
+   priority. A value with no match is not a priority.
+3. **Writing the field.** `"$TRACKER" set-fields <id> --field <field_id>=<option_id>`, both ids
+   from step 1's read. No `priority:` label is applied.
+4. **Writing labels.** The axis is single-valued: the edit that applies the matched label removes
+   every other `priority:` label on the item.
 
 ## Recurring schedule
 
