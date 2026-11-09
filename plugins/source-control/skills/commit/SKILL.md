@@ -263,9 +263,9 @@ Co-authored-by: Claude <model> <noreply@anthropic.com>
 ```
 
 **The `<model>` placeholder is filled from your own knowledge of the running session**: the model
-family and version the harness reports for this session (the value `/usage` shows). If uncertain,
-invoke `/usage` to confirm before committing. There is no
-environment variable that auto-fills it, the trailer is part of the message body sent to
+family and version the harness reports for this session. If uncertain, ask the person to check
+`/status` and tell you the model rather than guessing; you cannot run that command yourself. There
+is no environment variable that auto-fills it, the trailer is part of the message body sent to
 `git commit`, not git config.
 
 **An optional context clause**, `Co-authored-by: Claude <model> (<context>) <noreply@anthropic.com>`,
