@@ -143,8 +143,7 @@ command -v jq >/dev/null 2>&1 || die "jq is required and is not on PATH"
 [[ -f "$TEMPLATE" ]] || die "bundled defaults missing at $TEMPLATE"
 
 if [[ -z "$ROOT" ]]; then
-  ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" ||
-    die "not inside a git repository and no --root given"
+  ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || ROOT=""
   [[ -n "$ROOT" ]] || die "not inside a git repository and no --root given"
 fi
 [[ -d "$ROOT" ]] || die "--root '$ROOT' is not a directory"
@@ -277,8 +276,7 @@ inert_lines=''
 
 for key in $KEY_ORDER; do
   value="$(layer_value "$key" "$BUNDLED_JSON")"
-  [[ "$value" = "null" ]] && [[ "$key" != "redirect_map" ]] && value='null'
-  [[ "$key" = tiers && "$value" != "null" ]] && value="$(stamp_layer "$value" bundled)"
+  [[ "$key" = tiers ]] && value="$(stamp_layer "$value" bundled)"
   contributors='bundled'
 
   # Nearest-wins keys apply the nearer layer last so it wins; additive keys apply
