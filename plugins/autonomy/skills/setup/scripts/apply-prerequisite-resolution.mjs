@@ -30,37 +30,18 @@ function usage(message) {
 }
 
 function parseArgs(argv) {
-  let repo = null;
-  let surface = null;
-  let nonInteractive = false;
-  let ratify = false;
-  let proposal = null;
+  const args = { repo: null, surface: null, nonInteractive: false, ratify: false, proposal: null };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === "--repo") {
-      repo = argv[++i];
-      continue;
-    }
-    if (arg === "--surface") {
-      surface = argv[++i];
-      continue;
-    }
-    if (arg === "--non-interactive") {
-      nonInteractive = true;
-      continue;
-    }
-    if (arg === "--ratify") {
-      ratify = true;
-      continue;
-    }
-    if (arg === "--proposal") {
-      proposal = argv[++i];
-      continue;
-    }
-    usage(`unknown argument: ${arg}`);
+    if (arg === "--repo") args.repo = argv[++i];
+    else if (arg === "--surface") args.surface = argv[++i];
+    else if (arg === "--non-interactive") args.nonInteractive = true;
+    else if (arg === "--ratify") args.ratify = true;
+    else if (arg === "--proposal") args.proposal = argv[++i];
+    else usage(`unknown argument: ${arg}`);
   }
-  if (!repo) usage("`--repo` is required");
-  return { repo, surface, nonInteractive, ratify, proposal };
+  if (!args.repo) usage("`--repo` is required");
+  return args;
 }
 
 function readJson(path) {
@@ -97,18 +78,14 @@ function* identityRows(check) {
 }
 
 function collectFindings(check) {
-  const findings = [];
-  for (const { report, row } of identityRows(check)) {
-    for (const finding of row.findings ?? []) {
-      findings.push({
-        surface: report.surface,
-        identity: row.identity,
-        verdict: row.verdict,
-        ...finding,
-      });
-    }
-  }
-  return findings;
+  return [...identityRows(check)].flatMap(({ report, row }) =>
+    [...(row.findings ?? [])].map((finding) => ({
+      surface: report.surface,
+      identity: row.identity,
+      verdict: row.verdict,
+      ...finding,
+    })),
+  );
 }
 
 // Judgment-only heuristics for *proposals* — never runtime authority.
@@ -126,51 +103,39 @@ const PROSE_RULES = [
 ];
 
 function proseProposals(repo) {
-  const proposals = [];
-  const files = ["CLAUDE.md", "AGENTS.md", "README.md", "README"];
-  for (const name of files) {
-    const path = join(repo, name);
+  return ["CLAUDE.md", "AGENTS.md", "README.md", "README"].flatMap((name) => {
     let body;
     try {
-      body = readFileSync(path, "utf8");
+      body = readFileSync(join(repo, name), "utf8");
     } catch {
-      continue;
+      return [];
     }
-    for (const rule of PROSE_RULES) {
-      if (!rule.re.test(body)) continue;
-      proposals.push({
-        source: name,
-        kind: "declaration-proposal",
-        need: rule.need,
-        state: "present",
-        rung: "repo-local",
-        note: rule.note,
-      });
-    }
-  }
-  return proposals;
+    return PROSE_RULES.filter((rule) => rule.re.test(body)).map((rule) => ({
+      source: name,
+      kind: "declaration-proposal",
+      need: rule.need,
+      state: "present",
+      rung: "repo-local",
+      note: rule.note,
+    }));
+  });
 }
 
+// Identities with connector entitlements at the org rung; current v1 leaves
+// are all repo-scoped, so this is empty today.
 function orgRungStops(check) {
-  const stops = [];
-  // Emission-backed: identities with non-empty connector entitlements would
-  // appear here; current v1 leaves are all repo-scoped (none).
-  for (const { row } of identityRows(check)) {
-    if (row.connector_entitlement_rung === "org") {
-      stops.push({
-        identity: row.identity,
-        reason: "connector entitlement awaits Org binding layer",
-      });
-    }
-  }
-  return stops;
+  return [...identityRows(check)]
+    .filter(({ row }) => row.connector_entitlement_rung === "org")
+    .map(({ row }) => ({
+      identity: row.identity,
+      reason: "connector entitlement awaits Org binding layer",
+    }));
 }
 
 function narrowingAdvice(check) {
-  const advice = [];
-  for (const { report, row } of identityRows(check)) {
+  return [...identityRows(check)].map(({ report, row }) => {
     const clears = row.verdict === "supported" || row.verdict === "conditional";
-    advice.push({
+    return {
       identity: row.identity,
       surface: report.surface,
       verdict: row.verdict,
@@ -178,9 +143,8 @@ function narrowingAdvice(check) {
       note: clears
         ? "narrowing-only: enable in routines.enabled only when verdict clears"
         : "negative/unknown routes to advisory path; do not enable",
-    });
-  }
-  return advice;
+    };
+  });
 }
 
 function writeRatified(repo, proposal) {
@@ -192,39 +156,27 @@ function writeRatified(repo, proposal) {
       "proposal must not carry a surfaces map — reference existing surface ids via surface_refs",
     );
   }
-  const section = {
-    schema_version: proposal.schema_version ?? "1.0",
-    surface_refs: proposal.surface_refs ?? [],
-    declarations: proposal.declarations ?? [],
-  };
-  // Detect-diff-reconcile: never silently drop existing declarations that
-  // contradict probes — keep them and rely on check findings.
-  const prior = existing.prerequisite_resolution?.declarations ?? [];
-  const merged = [...prior];
-  for (const decl of section.declarations) {
-    const idx = merged.findIndex(
+  // Detect-diff-reconcile: keep every existing declaration, even one that
+  // contradicts probes (check findings report it); a proposal declaration
+  // replaces only the one with its surface, identity and need.
+  const prior = existing.prerequisite_resolution;
+  const declarations = [...(prior?.declarations ?? [])];
+  for (const decl of proposal.declarations ?? []) {
+    const idx = declarations.findIndex(
       (d) =>
         d.surface === decl.surface &&
         d.identity === decl.identity &&
         d.need === decl.need,
     );
-    if (idx >= 0) {
-      // Do not overwrite a declaration that would hide a contradiction —
-      // ratify replaces only when explicitly included in the proposal.
-      merged[idx] = decl;
-    } else {
-      merged.push(decl);
-    }
+    if (idx >= 0) declarations[idx] = decl;
+    else declarations.push(decl);
   }
   existing.prerequisite_resolution = {
-    schema_version: section.schema_version,
+    schema_version: proposal.schema_version ?? "1.0",
     surface_refs: [
-      ...new Set([
-        ...(existing.prerequisite_resolution?.surface_refs ?? []),
-        ...section.surface_refs,
-      ]),
+      ...new Set([...(prior?.surface_refs ?? []), ...(proposal.surface_refs ?? [])]),
     ],
-    declarations: merged,
+    declarations,
   };
   if (existing.admission || existing.isolation || existing.executor_class) {
     throw new Error("refusing to write security-binding axes into autonomy binding");
@@ -251,20 +203,15 @@ function main() {
     }
 
     const check = runCheck(args.repo, args.surface);
-    const findings = collectFindings(check);
-    const proposals = proseProposals(args.repo);
-    const orgStops = orgRungStops(check);
-    const enablement = narrowingAdvice(check);
     const nonInteractive = args.nonInteractive || !process.stdin.isTTY;
-
     const report = {
       schema_version: 1,
       action: "apply-propose",
       non_interactive: nonInteractive,
-      reconcile_findings: findings,
-      prose_proposals: proposals,
-      org_rung_stops: orgStops,
-      enablement_advice: enablement,
+      reconcile_findings: collectFindings(check),
+      prose_proposals: proseProposals(args.repo),
+      org_rung_stops: orgRungStops(check),
+      enablement_advice: narrowingAdvice(check),
       security_binding_writes: false,
       assumptions: nonInteractive
         ? [
