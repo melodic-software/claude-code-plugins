@@ -190,7 +190,7 @@ Use it on every icon next to a label: buttons, links, list rows, notices.
 .with-icon {
   display: inline-flex;
   align-items: baseline;
-  gap: 0.5em;
+  gap: {{icon.label_gap_em}}em;
 }
 
 .with-icon > svg {
@@ -202,7 +202,7 @@ Use it on every icon next to a label: buttons, links, list rows, notices.
 .notice {
   display: flex;
   align-items: start;
-  gap: 0.5em;
+  gap: {{icon.label_gap_em}}em;
 }
 
 .notice > svg {

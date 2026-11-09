@@ -1,6 +1,10 @@
 ---
-bump: patch
+bump: minor
 ---
+
+### Added
+
+- Config key `icon.label_gap_em` (default 0.5): the gap between an icon and its label when it scales with the text. The icon-beside-text recipes write it.
 
 ### Changed
 

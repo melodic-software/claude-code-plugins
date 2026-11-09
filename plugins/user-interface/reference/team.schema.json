@@ -314,6 +314,7 @@
       "properties": {
         "filled_below_px": {"type": "integer", "minimum": 0, "description": "The size in px under which an outline icon swaps to its filled form."},
         "label_gap_px": {"type": "array", "items": {"type": "number", "minimum": 0}, "minItems": 2, "maxItems": 2, "description": "The gap in px between an icon and its label, in order: low, high."},
+        "label_gap_em": {"type": "number", "minimum": 0, "description": "The gap in em between an icon and its label when the gap scales with the text."},
         "size_em": {"type": "number", "minimum": 0, "description": "An icon's size in em when it is sized by the text beside it."},
         "size_px": {"type": "array", "items": {"type": "number", "minimum": 0}, "minItems": 1, "description": "The sizes in px an icon is drawn at, smallest first; a team ladder may hold any number of sizes."}
       }
