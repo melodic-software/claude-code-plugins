@@ -9,6 +9,9 @@
   (2026-10-11): the Context's premise that the operator cannot use API keys no longer holds.
 - Superseded in part by the 2026-09-24 removal addendum below: the evidence system of decisions
   1, 3, 4, 5, 6 and 8 is removed. Decision 7 and the ready step's merge-then-flip shape stand.
+- Superseded in part by
+  [ADR 0096](0096-choose-the-pull-request-branch-update-method-from-shared-criteria.md)
+  (2026-11-08): decision 4 and the "What stands" entry on merging, never rebasing.
 - Supersedes, for this repository: the lane wiring, the skip-actor exception, and the once-per-PR
   trigger set recorded in ADR 0002. ADR 0002's posture of advisory before blocking and earned
   promotion, which this record applied, is superseded by ADR 0002's 2026-10-30 addendum: the

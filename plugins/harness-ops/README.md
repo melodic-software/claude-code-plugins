@@ -252,27 +252,37 @@ what the `observability` skill reads. The root carries a self-ignoring
 `.claude/observability/hook-events.jsonl` location are detected by setup as
 retirement `harness-ops-r001` and migrated on request.
 
-Wire it by pointing `HOOK_TELEMETRY_SINK` at an **executable that exists at
-resolution time**. A *relative* value resolves against the **consuming repo
-root**, not the plugin cache, so the marketplace-installed copy under
-`${CLAUDE_PLUGIN_ROOT}` is **not** reachable by a relative path (and Claude Code
-injects `settings.json` `env` values literally, with no `${CLAUDE_PLUGIN_ROOT}`
-expansion). Two workable forms:
+Wire it with the reserved value `@harness-ops`, committed in the repository's
+`settings.json`. No copy of the sink goes in the repository and no per-machine
+path goes in the settings:
 
-- **Copy the reference sink into your repo** (e.g. `.claude/hooks/hook-telemetry-sink.sh`)
-  and wire that repo-relative path, the portable, team-shared, clone-safe form:
+```json
+{ "env": { "HOOK_TELEMETRY_SINK": "@harness-ops" } }
+```
 
-  ```json
-  { "env": { "HOOK_TELEMETRY_SINK": ".claude/hooks/hook-telemetry-sink.sh" } }
-  ```
+At each session start this plugin rewrites, only when it changed, a launcher in
+its plugin data directory, `~/.claude/plugins/data/harness-ops-<marketplace>/hook-telemetry-sink.sh`
+(under `CLAUDE_CONFIG_DIR` when that is set). The data directory survives plugin
+updates; the installed sink under `${CLAUDE_PLUGIN_ROOT}` moves on each one, and
+Claude Code copies `settings.json` `env` values as written, with no
+`${CLAUDE_PLUGIN_ROOT}` expansion. Every producer resolves `@harness-ops` to that
+launcher (`docs/contracts/hook-telemetry` at the repository root, "Sink path
+resolution"), which runs the installed sink with this plugin's
+`session_event_log_dir` and `hook_events_max_bytes`, so rows from every producer
+land in the same root. Until the first session start writes the launcher, and on
+a machine without this plugin, producers skip the event.
 
-  The sink `source`s `hook-utils.sh` from its own directory, so a bare copy
-  fails at startup: either copy `hook-utils.sh` alongside it, or edit the copy's
-  `source` line to point at a `hook-utils.sh` your repo already carries.
+Two other forms remain, for a sink of your own or a pinned copy:
 
-- **Or** point at an **absolute** path to the installed sink under your plugin
-  cache. It is per-machine, and it moves on each plugin update, so it is not
-  clone-portable.
+- **A repository copy**, wired by a repo-relative path such as
+  `.claude/hooks/hook-telemetry-sink.sh` (a relative value resolves against the
+  consuming repository's root). The sink sources two files from its own
+  directory, so copy all three side by side:
+  `hooks/hook-telemetry-sink.sh`, `hooks/hook-utils.sh` (for
+  `hook::repo_root_to`) and `hooks/session-log-lib.sh` (the record formatter
+  and root guard). A copy does not follow plugin updates.
+- **An absolute path** to the installed sink under your plugin cache. It is
+  per-machine and moves on each plugin update.
 
 Any envelope producer (this plugin's hooks, guardrails, the formatters) then
 flows into the same store. The sink is fire-and-forget and best-effort, a slow

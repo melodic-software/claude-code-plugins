@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Offline stand-in for the GitHub CLI in pull-request eval runs. It serves one pull request from the
 # state install.sh wrote (or, under --no-pr, opens it on `pr create`), any extra pull requests in
-# extra-prs, the issues in issues/<n>.json, and the REST reads the create phase makes, and never
+# extra-prs, the issues in issues/<n>.json, and the REST reads the create phase and the branch update signals make, and never
 # reaches a network or the real gh: any command it does not serve
 # exits 1 naming itself, so a run cannot touch GitHub through it. `pr merge`, `pr review`, `pr comment`
 # and the resolve-thread mutation only append a line to calls.jsonl in the forge state; every other call that
 # exits 0 appends a "read" line, so a grader can tell a served call from one the real gh failed.
-# `pr update-branch` is refused on
-# purpose: the ready phase then takes its documented local-merge fallback, which the graders read.
+# The forge's branch update (`PUT .../update-branch`) is refused on
+# purpose: a `merge` decision in the ready phase then takes its documented local-merge fallback, which the graders read.
 # shellcheck disable=SC2154 # PR_* come from the state file sourced below
 set -uo pipefail
 
@@ -24,8 +24,8 @@ refuse() {
   exit 1
 }
 
-# Split argv into positionals plus the --json, --jq, --head and --name-only options gh accepts.
-json="" jq_expr="" head="" name_only=0 args=()
+# Split argv into positionals plus the --json, --jq, --head, --base and --name-only options gh accepts.
+json="" jq_expr="" head="" base_filter="" name_only=0 args=()
 parse() {
   while (($#)); do
     case "$1" in
@@ -45,6 +45,11 @@ parse() {
         shift
         ;;
       --head=*) head="${1#--head=}" ;;
+      -B | --base)
+        base_filter="${2:-}"
+        shift
+        ;;
+      --base=*) base_filter="${1#--base=}" ;;
       -R | --repo) shift ;;
       -*) ;;
       *) args+=("$1") ;;
@@ -107,6 +112,28 @@ pr_doc() {
     }'
 }
 
+# The pull request as REST serves it. No native stack: GitHub sets `stack` only on a stack member.
+rest_pull() {
+  local count
+  count=$(git --git-dir="$origin" rev-list --count "refs/heads/$PR_BASE..refs/heads/$PR_HEAD")
+  pr_doc | jq --argjson commits "$count" '{
+    number, title, draft: .isDraft, state: "open",
+    head: {ref: .headRefName, sha: .headRefOid, repo: {full_name: "eval-fixture/app"}},
+    base: {ref: .baseRefName}, user: {login: .author.login},
+    mergeable: (.mergeable == "MERGEABLE"), mergeable_state: (.mergeStateStatus | ascii_downcase),
+    commits: $commits, stack: null
+  }'
+}
+
+# The pull request's commits as REST lists them, each by the pull request's author.
+rest_commits() {
+  local author
+  author=$(pr_doc | jq -r .author.login)
+  git --git-dir="$origin" rev-list --reverse --parents "refs/heads/$PR_BASE..refs/heads/$PR_HEAD" |
+    jq -Rsc --arg author "$author" 'split("\n") | map(select(length > 0) | split(" ")
+      | {sha: .[0], parents: (.[1:] | map({sha: .})), author: {login: $author}})'
+}
+
 # Append one line to the call record a grader reads: the command, the PR number and the arguments.
 record() {
   local what="$1"
@@ -138,8 +165,10 @@ case "$cmd $sub" in
     shift 2
     parse "$@"
     doc=$(
-      if [[ -f "$forge/created" && (-z "$head" || "$head" == "$PR_HEAD") ]]; then pr_doc; fi
-      extra_docs "$head"
+      if [[ -z "$base_filter" || "$base_filter" == "$PR_BASE" ]]; then
+        if [[ -f "$forge/created" && (-z "$head" || "$head" == "$PR_HEAD") ]]; then pr_doc; fi
+        extra_docs "$head"
+      fi
     )
     doc=$(jq -sc . <<<"$doc")
     if [[ -n "$json" ]]; then
@@ -254,7 +283,7 @@ case "$cmd $sub" in
   "repo view")
     shift 2
     parse "$@"
-    emit '{"name":"app","nameWithOwner":"eval-fixture/app","owner":{"login":"eval-fixture"},"defaultBranchRef":{"name":"main"},"visibility":"PRIVATE","url":"https://github.com/eval-fixture/app"}'
+    emit '{"name":"app","nameWithOwner":"eval-fixture/app","owner":{"login":"eval-fixture"},"defaultBranchRef":{"name":"main"},"visibility":"PRIVATE","url":"https://github.com/eval-fixture/app","squashMergeAllowed":true,"mergeCommitAllowed":false,"rebaseMergeAllowed":false}'
     ;;
   "auth status")
     echo "github.com"
@@ -333,10 +362,11 @@ case "$cmd $sub" in
     emit "$doc"
     ;;
   "api "*)
-    # REST reads: the repository, an issue and its sub-issues, and a file at a ref. Any method but
-    # GET, and any other path, is refused.
+    # REST reads: the repository, an issue and its sub-issues, a file at a ref, and the pull request
+    # and base facts the branch update signals read. Any method but GET, and any other path, is
+    # refused. -i prefixes the response with a status line; --slurp wraps a list in one page.
     shift
-    path="" method=GET
+    path="" method=GET include=0 slurp=0
     while (($#)); do
       case "$1" in
         -X | --method)
@@ -344,6 +374,8 @@ case "$cmd $sub" in
           shift
           ;;
         --method=*) method="${1#--method=}" ;;
+        -i | --include) include=1 ;;
+        --slurp) slurp=1 ;;
         -q | --jq)
           jq_expr="$2"
           shift
@@ -360,8 +392,18 @@ case "$cmd $sub" in
     ref="$PR_BASE"
     [[ "$path" == *"?ref="* ]] && ref="${path##*\?ref=}" && path="${path%%\?*}"
     not_found() {
+      ((include)) && printf 'HTTP/2.0 404 Not Found\r\nContent-Type: application/json\r\n\r\n{"message":"Not Found"}\n'
       echo "gh: Not Found (HTTP 404)" >&2
       exit 1
+    }
+    # One list as gh prints it: the bare array, or under --slurp an array of pages.
+    page() { if ((slurp)); then emit "[$1]"; else emit "$1"; fi; }
+    # The pull request number in a path, made the one later reads serve; a pull request the forge
+    # does not hold is a 404.
+    pull_of() {
+      local n="${path#repos/eval-fixture/app/pulls/}"
+      n="${n%%/*}"
+      if [[ ! "$n" =~ ^[0-9]+$ ]] || ! pr_matches "$n"; then not_found; fi
     }
     case "$path" in
       repos/eval-fixture/app)
@@ -380,8 +422,35 @@ case "$cmd $sub" in
         ;;
       repos/eval-fixture/app/contents/*)
         # Served raw, as with an Accept: application/vnd.github.raw header.
-        git --git-dir="$origin" show "refs/heads/$ref:${path#repos/eval-fixture/app/contents/}" 2>/dev/null || not_found
+        file="refs/heads/$ref:${path#repos/eval-fixture/app/contents/}"
+        git --git-dir="$origin" cat-file -e "$file" 2>/dev/null || not_found
+        ((include)) && printf 'HTTP/2.0 200 OK\r\nContent-Type: text/plain\r\n\r\n'
+        git --git-dir="$origin" show "$file"
         ;;
+      repos/eval-fixture/app/pulls/*/commits)
+        pull_of
+        page "$(rest_commits)"
+        ;;
+      repos/eval-fixture/app/pulls/*/reviews)
+        pull_of
+        page '[]'
+        ;;
+      repos/eval-fixture/app/pulls/*)
+        [[ "${path#repos/eval-fixture/app/pulls/}" != */* ]] || refuse api "$path"
+        pull_of
+        emit "$(rest_pull)"
+        ;;
+      repos/eval-fixture/app/compare/*)
+        range="${path#repos/eval-fixture/app/compare/}"
+        left="${range%%...*}"
+        left="${left//%2F//}"
+        right="${range##*...}"
+        behind=$(git --git-dir="$origin" rev-list --count "$right..refs/heads/$left" 2>/dev/null) || not_found
+        ahead=$(git --git-dir="$origin" rev-list --count "refs/heads/$left..$right" 2>/dev/null) || not_found
+        emit "$(jq -n --argjson behind "$behind" --argjson ahead "$ahead" '{behind_by: $behind, ahead_by: $ahead}')"
+        ;;
+      repos/eval-fixture/app/rules/branches/*) page '[]' ;;
+      repos/eval-fixture/app/branches/*/protection/required_status_checks) not_found ;;
       *) refuse api "$path" ;;
     esac
     ;;

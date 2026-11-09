@@ -1374,7 +1374,7 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "default": [],
-          "description": "Git pathspecs of files the pull request checks read but a pull request rarely changes (a registry, an allowlist). When the base changed one since a pull request's merge base, the unattended merge gate updates its branch from the base (a merge, never a rebase) instead of enqueuing it, and enqueues the new head once its checks pass. `scripts/shared-copies.txt` counts only for a pull request whose own changes touch a path it registers. Empty or absent: nothing is updated."
+          "description": "Git pathspecs of files the pull request checks read but a pull request rarely changes (a registry, an allowlist). When the base changed one since a pull request's merge base, the unattended merge gate updates its branch from the base (a merge, never a rebase) instead of enqueuing it, and enqueues the new head once its checks pass; a head the shared branch update decision holds, such as a native stack member, is neither updated nor enqueued. `scripts/shared-copies.txt` counts only for a pull request whose own changes touch a path it registers. Empty or absent: nothing is updated."
         },
         "verify-authors": {
           "enum": ["lane", "lane-or-owner", "any"],
