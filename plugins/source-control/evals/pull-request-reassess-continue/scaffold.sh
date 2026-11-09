@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PR 512 adds a retry limit to src/retry.ts for issue 81; main has moved on only in src/logger.ts through PR 620.
+# The PR adds a retry limit to src/retry.ts; main has moved on only in src/logger.ts.
 set -euo pipefail
 here="$(dirname "${BASH_SOURCE[0]}")"
 git init -q -b main
