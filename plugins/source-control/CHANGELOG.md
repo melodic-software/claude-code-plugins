@@ -3,6 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.10.2] - 2026-11-09
+
+### Fixed
+
+- point the commit trailer model check at /status
+
+  The commit skill told the model to invoke /usage to confirm the trailer
+  model. The model cannot run that user-typed command, and /usage shows
+  cost and limits, not the model. When unsure, the model now asks the
+  person to check /status instead of guessing.
+
 ## [8.10.1] - 2026-11-09
 
 ### Changed

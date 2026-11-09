@@ -191,7 +191,7 @@ assert_not_contains "no row is emitted with an empty excerpt" "$EOF_OUT" "frontm
 
 # --- Case 8c: unmatched --from lines are counted, never silent (#3279) ------
 # Count first, classify second: I28-z (well-formed except suffix outside
-# [a-f]), prose, and a blank increment Scan rows read and land in
+# [a-g]), prose, and a blank increment Scan rows read and land in
 # reason=unparsable-row. I100-a still matches and declines as
 # no-severity-crosswalk-row; I28-a still emits.
 UNPARSABLE="$TEST_TMPDIR/unparsable.txt"

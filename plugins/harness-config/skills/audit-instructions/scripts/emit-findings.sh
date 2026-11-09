@@ -25,11 +25,11 @@
 #                directory; I33 excludes SKILL.md. I32 is CRITICAL on a path
 #                under plugins/ and IMPORTANT anywhere else.
 # A row on the wrong path is declined with the path it belongs to. Every other
-# check id (I6, I8-a/b/c/f, I10, I23, I25, I27, ...) has no crosswalk row, and
+# check id (I6, I8-a/b/c/f/g, I10, I23, I25, I27, ...) has no crosswalk row, and
 # the detector-findings contract admits no row whose tier cannot be looked up
 # from one — those stay in the human report. Rows for them are counted as
 # declined, never silently dropped. A line that is not a row at all (suffix
-# outside [a-f], prose, blank) is counted as reason=unparsable-row, never
+# outside [a-g], prose, blank) is counted as reason=unparsable-row, never
 # omitted from both the rows-read count and every Declined line.
 #
 # Every emitted row carries its audit-pass finding identity in the Finding cell
@@ -177,7 +177,7 @@ fi
 # nor lane output. Strip a trailing CR first so an all-CRLF file with a matching
 # row is recognized rather than refused — the same strip the awk intake applies
 # before its pattern match.
-ROW_ERE='^.+:[0-9]+:I[0-9]+(-[a-f])?$'
+ROW_ERE='^.+:[0-9]+:I[0-9]+(-[a-g])?$'
 INPUTS=()
 [[ -n "$FROM" ]] && INPUTS+=("$FROM")
 [[ -n "$FROM_LANE" ]] && INPUTS+=("$FROM_LANE")
@@ -649,7 +649,7 @@ LC_ALL=C awk \
     is_lane = (lane_file != "" && FILENAME == lane_file)
     if (is_lane) nlane++; else nrows++
   }
-  /^.+:[0-9]+:I[0-9]+(-[a-f])?$/ {
+  /^.+:[0-9]+:I[0-9]+(-[a-g])?$/ {
     # Split from the RIGHT: a path may contain colons, the last two fields never do.
     id = $0; sub(/^.*:/, "", id)
     rest = $0; sub(/:[^:]*$/, "", rest)

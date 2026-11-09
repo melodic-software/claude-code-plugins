@@ -83,6 +83,7 @@ claim_template() {
   I8-d) echo "I8-d.short-turn-assumption" ;;
   I8-e) echo "I8-e.forced-interim-status" ;;
   I8-f) echo "I8-f.think-carefully-steer" ;;
+  I8-g) echo "I8-g.keep-going-exhortation" ;;
   I9) echo "I9.example-hygiene" ;;
   I10) echo "I10.reasoning-echo-directive" ;;
   I11) echo "I11.mcp-where-cli-equivalent" ;;
@@ -331,14 +332,14 @@ site_of() {
 
 process_row() {
   local row="$1" id pa la pb lb claim s1 s2 fid gid pairwise=0
-  if [[ "$row" =~ ^(.+):([0-9]+)\|(.+):([0-9]+)\|(I[0-9]+(-[a-f])?)$ ]]; then
+  if [[ "$row" =~ ^(.+):([0-9]+)\|(.+):([0-9]+)\|(I[0-9]+(-[a-g])?)$ ]]; then
     pa="${BASH_REMATCH[1]}"
     la="${BASH_REMATCH[2]}"
     pb="${BASH_REMATCH[3]}"
     lb="${BASH_REMATCH[4]}"
     id="${BASH_REMATCH[5]}"
     pairwise=1
-  elif [[ "$row" =~ ^(.+):([0-9]+):(I[0-9]+(-[a-f])?)$ ]]; then
+  elif [[ "$row" =~ ^(.+):([0-9]+):(I[0-9]+(-[a-g])?)$ ]]; then
     pa="${BASH_REMATCH[1]}"
     la="${BASH_REMATCH[2]}"
     id="${BASH_REMATCH[3]}"

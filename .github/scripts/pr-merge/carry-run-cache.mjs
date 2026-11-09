@@ -233,7 +233,7 @@ export async function read({ env = process.env, actions: client, download } = {}
     if (to) rmSync(to, { force: true });
     if (!to || !REPO.test(repo)) throw new Error("CARRY_TO and GITHUB_REPOSITORY are required");
     client ??= createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
-    download ??= (id, name) => ghDownload({ repo, token: env.ACTIONS_TOKEN, dir: env.RUNNER_TEMP, name, file: CARRY_FILE })(id);
+    download ??= (id, name) => ghDownload({ repo, token: env.ACTIONS_TOKEN, dir: env.RUNNER_TEMP, name, file: CARRY_FILE, shared: env.PR_MERGE_READS_PATH })(id);
     const actions = sharedReads(client, env.PR_MERGE_READS_PATH);
     const accept = (run) => onMain({ repo, actions, sha: run.head_sha });
     const find = (name) => newestTrustedRun({ repo, runId: String(env.GITHUB_RUN_ID), actions, name, accept });

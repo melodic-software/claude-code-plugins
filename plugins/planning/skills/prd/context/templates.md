@@ -40,6 +40,7 @@ updated: <ISO-8601 UTC, e.g. 2026-06-04T14:30:00Z>
 
 ## Success metrics
 - <metric> reaches <threshold> within <window>
+- Stop condition: <result that would end or kill the feature>
 
 ## Quality requirements
 - Quality requirement: <prompt where the feature moves the current bar>: <requirement>[; target: <measurable target>]
@@ -87,6 +88,7 @@ Solo and band artists who play 2+ gigs/month.
 ## Success metrics
 - 60% of weekly-active artists open the calendar widget within 14 days of launch
 - Self-reported "missed a prep deadline" rate (in monthly survey) drops by half within 60 days
+- Stop condition: under 20% of weekly-active artists open the widget within 30 days, so the widget is removed
 
 ## Quality requirements
 - Quality requirement: Performance: the calendar widget does not slow the dashboard's first load; target: adds under 200 ms at p95 for an artist with 50 upcoming gigs
@@ -149,6 +151,8 @@ Enumerate every significant user journey: every flow a product reviewer might as
 |--------|----------|--------|--------|
 | <name> | <today's value or "n/a"> | <target value> | <e.g. 30 days post-launch> |
 | <name> | <baseline> | <target> | <window> |
+
+Stop condition: <result that would end or kill the feature>
 
 Each metric must have a measurement window and a numeric or qualitative threshold. "Increase engagement" without a number does not belong here; push it to **Open questions**.
 
@@ -237,6 +241,8 @@ Enumerate all significant user journeys across every affected role, erring on co
 |--------|----------|--------|--------|-------|
 | <name> | <baseline> | <target> | <window> | <team> |
 | <name> | <baseline> | <target> | <window> | <team> |
+
+Stop condition: <result that would end or kill the feature>, and who calls it
 
 Each metric named with owner, because "who watches the dashboard" matters in tier-3.
 

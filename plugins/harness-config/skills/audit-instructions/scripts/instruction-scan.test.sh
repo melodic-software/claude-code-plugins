@@ -342,6 +342,32 @@ assert_contains "flags 'ultrathink'" "$OUT" "$I8TC:2:I8-f"
 assert_not_contains "step-by-step procedure not flagged as I8-f" "$OUT" ":3:I8-f"
 assert_contains "flags 'think hard'" "$OUT" "$I8TC:4:I8-f"
 
+# --- Case 10c: I8-g keep-going exhortations flagged, checks and P6 lines not ---
+# Positives are the best-practices "What you can stop doing" row's three
+# phrases; line 4 is that page's own recommended check-to-pass prompt, line 5
+# this repository's P6 carry-on statement, line 6 the technical sense of "lazy",
+# line 8 this repository's heading for that statement.
+I8KG="$TEST_TMPDIR/i8-keepgoing.md"
+cat >"$I8KG" <<'EOF'
+Keep going.
+Loop until done.
+Don't be lazy.
+Run the auth tests after, and keep going until they pass.
+Keep going, with status notes in the same message as the next action.
+Use lazy loading for images.
+Continue until the task is complete, and do not give up.
+## When to stop and when to keep going
+EOF
+OUT=$(bash "$SCRIPT" "$I8KG")
+assert_contains "flags 'keep going'" "$OUT" "$I8KG:1:I8-g"
+assert_contains "flags 'loop until done'" "$OUT" "$I8KG:2:I8-g"
+assert_contains "flags 'don't be lazy'" "$OUT" "$I8KG:3:I8-g"
+assert_not_contains "keep going until a check passes not flagged as I8-g" "$OUT" ":4:I8-g"
+assert_not_contains "P6 carry-on statement not flagged as I8-g" "$OUT" ":5:I8-g"
+assert_not_contains "lazy loading not flagged as I8-g" "$OUT" ":6:I8-g"
+assert_contains "flags 'continue until the task is complete'" "$OUT" "$I8KG:7:I8-g"
+assert_not_contains "a heading naming the topic not flagged as I8-g" "$OUT" ":8:I8-g"
+
 # --- Case 11: I8-b conservative-reporting directives flagged -----------------
 I8CV="$TEST_TMPDIR/i8-conservative.md"
 cat >"$I8CV" <<'EOF'
