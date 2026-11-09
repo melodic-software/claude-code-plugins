@@ -4,8 +4,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { HUMAN_ID, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "./read-status.fixtures.mjs";
-import { issuesByStatus, MAX_ISSUE_PAGES, MAX_STATUS_REREADS } from "./resolve-config.mjs";
+import { HUMAN_ID, STATUS_CONFIG, STRANGER_ID, statusBatchAnswer, TRUSTED_ACTORS, withFields } from "./read-status.fixtures.mjs";
+import { issuesByStatus, MAX_ISSUE_PAGES, MAX_STATUS_REREADS, STATUS_BATCH } from "./resolve-config.mjs";
 
 const FIELD = String(STATUS_CONFIG["field-id"]);
 
@@ -26,16 +26,26 @@ function issue(number, { labels = [], value, setter = HUMAN_ID } = {}) {
   };
 }
 
-// `github` answering each page in turn; the last page has no next.
+// `github` answering each listing page in turn (the last page has no next) and
+// each batched issue(number:) read from the same nodes. A node's `listed`, when
+// set, is the stale event list the listing's nested timelineItems would show.
 function pages(...nodes) {
   const calls = [];
+  const byNumber = new Map(nodes.flat().map((node) => [node.number, node]));
+  let page = -1;
   const github = async (method, path, body) => {
     calls.push({ method, path, variables: body?.variables, query: body?.query });
-    const page = calls.length - 1;
-    return { data: { repository: { issues: { pageInfo: { hasNextPage: page < nodes.length - 1, endCursor: `c${page + 1}` }, nodes: nodes[page] } } } };
+    const batch = statusBatchAnswer(body, (number) => byNumber.get(number));
+    if (batch) {
+      return batch;
+    }
+    page += 1;
+    const listed = nodes[page].map(({ listed, ...node }) => (listed ? { ...node, timelineItems: { nodes: listed } } : node));
+    return { data: { repository: { issues: { pageInfo: { hasNextPage: page < nodes.length - 1, endCursor: `c${page + 1}` }, nodes: listed } } } };
   };
   return { github, calls };
 }
+const isListing = ({ query }) => /issues\(states: OPEN/.test(query);
 const list = (github, states, options = {}) => issuesByStatus(github, "o/r", states, { config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, ...options });
 const numbers = (found) => found.map(({ number, state }) => `${number} ${state}`);
 
@@ -50,10 +60,25 @@ test("issuesByStatus reads every page, passing the cursor and since on", async (
     calls.map(({ method, path, variables }) => [method, path, variables]),
     [
       ["POST", "/graphql", { owner: "o", name: "r", cursor: null, since: "2026-11-01T00:00:00Z" }],
+      ["POST", "/graphql", { owner: "o", name: "r", n0: 1, n1: 2 }],
       ["POST", "/graphql", { owner: "o", name: "r", cursor: "c1", since: "2026-11-01T00:00:00Z" }],
+      ["POST", "/graphql", { owner: "o", name: "r", n0: 3 }],
     ],
   );
   assert.match(calls[0].query, /issues\(states: OPEN, first: 100, after: \$cursor, filterBy: \{ since: \$since \}\)/);
+  assert.doesNotMatch(calls[0].query, /timelineItems|issueFieldValues/, "the listing names the issues; their status comes from issue(number:)");
+  assert.match(calls[1].query, /i1: issue\(number: \$n1\)/);
+});
+
+test("a page's status reads go 25 issues to a call, and the listed order is kept", async () => {
+  const numbers = Array.from({ length: 2 * STATUS_BATCH + 1 }, (_, i) => 100 + i);
+  const { github, calls } = pages(numbers.map((number) => issue(number, { value: "ready" })));
+  const found = await list(github, ["ready"]);
+  assert.deepEqual(found.map(({ number }) => number), numbers);
+  assert.deepEqual(
+    calls.filter((call) => !isListing(call)).map(({ variables }) => Object.keys(variables).length - 2),
+    [25, 25, 1],
+  );
 });
 
 test("a field an untrusted account set reads as unset, so the issue's labels decide", async () => {
@@ -82,12 +107,25 @@ test("an untrusted change after a person's hold leaves the issue listed as held"
 
 test("a listing past the page cap throws rather than stopping short", async () => {
   let calls = 0;
-  const endless = async () => {
+  const endless = async (method, path, body) => {
+    const batch = statusBatchAnswer(body, () => issue(1, { value: "deferred" }));
+    if (batch) {
+      return batch;
+    }
     calls += 1;
     return { data: { repository: { issues: { pageInfo: { hasNextPage: true, endCursor: `c${calls}` }, nodes: [issue(1, { value: "deferred" })] } } } };
   };
   await assert.rejects(() => list(endless, ["deferred"]), /run past 20 pages/);
   assert.equal(calls, MAX_ISSUE_PAGES);
+});
+
+test("a status read that errors or names no issue throws rather than read the issue as unset", async () => {
+  const answering = (status) => {
+    const { github } = pages([issue(1, { labels: ["admission-deferred"] })]);
+    return async (method, path, body) => (isListing(body) ? github(method, path, body) : status);
+  };
+  await assert.rejects(() => list(answering({ errors: [{ message: "nope" }] }), ["deferred"]), /Work status could not be read: nope/);
+  await assert.rejects(() => list(answering({ data: { repository: { i0: null } } }), ["deferred"]), /holds no event list for #1/);
 });
 
 // Other fields' events, newest last, as GraphQL's `last:` window keeps them.
@@ -99,7 +137,7 @@ test("the listing reads each issue's newest 100 field events, so a Work status s
   held.timelineItems.nodes.push(...sizeEvents(99));
   const { github, calls } = pages([held]);
   assert.deepEqual(numbers(await list(github, ["needs-human"])), ["10 needs-human"]);
-  assert.match(calls[0].query, /timelineItems\(last: 100, /);
+  assert.match(calls[1].query, /timelineItems\(last: 100, /);
 });
 
 test("a Work status value whose setter is not among a full window of field events throws rather than read as unset", async () => {
@@ -128,9 +166,9 @@ test("an unreadable issue that could not be one of the states is skipped, so the
   await assert.rejects(() => list(pages(nodes).github, ["needs-human"]), /#13's Work status setter is older than its newest 100 field events/);
 });
 
-// An issue the listing shows at `ready` whose newest listed event is an older
-// `needs-triage`: the listing's events lag the value.
-const stale = (number) => {
+// An issue whose own read holds `ready` but whose newest event there is an
+// older `needs-triage`: a write landing between the value and its event.
+const racing = (number) => {
   const node = issue(number, { value: "ready" });
   node.timelineItems.nodes[0].value = "needs-triage";
   return node;
@@ -152,10 +190,21 @@ function rereading(nodes, fields) {
   return { github, sleep, counts };
 }
 
-test("an issue whose listed event lags its value is read again alone, and that read lists it", async () => {
-  const { github, sleep, counts } = rereading([stale(20), issue(21, { value: "ready" })], { 20: { state: "ready" } });
+test("an issue whose own read disagrees is read again alone, and that read lists it", async () => {
+  const { github, sleep, counts } = rereading([racing(20), issue(21, { value: "ready" })], { 20: { state: "ready" } });
   assert.deepEqual(numbers(await list(github, ["ready"], { sleep })), ["20 ready", "21 ready"]);
   assert.equal(counts.values, 1);
+  assert.deepEqual(counts.sleeps, []);
+});
+
+test("an agent-ready issue whose listing events lag but whose own read agrees is listed, not held, with no re-read", async () => {
+  const lagging = issue(40, { value: "agent-ready" });
+  lagging.listed = [{ __typename: "IssueFieldAddedEvent", createdAt: "2026-11-01T00:00:00Z", value: "needs-triage", actor: { __typename: "User", login: "someone", databaseId: HUMAN_ID }, issueField: { fullDatabaseId: FIELD } }];
+  const { github, sleep, counts } = rereading([lagging], {});
+  const found = await list(github, ["agent-ready"], { sleep });
+  assert.deepEqual(numbers(found), ["40 agent-ready"]);
+  assert.deepEqual(found.held, []);
+  assert.equal(counts.values, 0, "no issue is read again alone");
   assert.deepEqual(counts.sleeps, []);
 });
 
@@ -172,7 +221,7 @@ async function logged(body) {
 }
 
 test("an issue whose own read still disagrees is left out, named in held and a notice, and the others still list", async () => {
-  const { github, sleep, counts } = rereading([stale(22), issue(23, { value: "ready" })], { 22: { state: "ready", named: "needs-triage" } });
+  const { github, sleep, counts } = rereading([racing(22), issue(23, { value: "ready" })], { 22: { state: "ready", named: "needs-triage" } });
   const { result: found, lines } = await logged(() => list(github, ["ready"], { sleep }));
   assert.deepEqual(numbers(found), ["23 ready"]);
   assert.deepEqual(
@@ -188,14 +237,14 @@ test("an issue whose own read still disagrees is left out, named in held and a n
 });
 
 test("a re-read that fails with anything but a disagreement still throws", async () => {
-  const { github, sleep } = rereading([stale(24), issue(25, { value: "ready" })], { 24: new Error("HTTP 500") });
+  const { github, sleep } = rereading([racing(24), issue(25, { value: "ready" })], { 24: new Error("HTTP 500") });
   await assert.rejects(() => list(github, ["ready"], { sleep }), /HTTP 500/);
 });
 
 test("past the re-read cap, further disagreeing issues are left out with no more reads", async () => {
   const disagreeing = Array.from({ length: MAX_STATUS_REREADS + 2 }, (_, i) => 30 + i);
   const fields = Object.fromEntries(disagreeing.map((number) => [number, { state: "ready" }]));
-  const { github, sleep, counts } = rereading(disagreeing.map(stale), fields);
+  const { github, sleep, counts } = rereading(disagreeing.map(racing), fields);
   const { result: found, lines } = await logged(() => list(github, ["ready"], { sleep }));
   assert.deepEqual(
     found.map(({ number }) => number),
