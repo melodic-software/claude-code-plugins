@@ -12,12 +12,16 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+cd "$REPO_ROOT" || exit 1
 
 # Captured output is matched in-shell, never piped into an early-exit reader.
 has_line() { [[ $'\n'$1$'\n' == *$'\n'"$2"$'\n'* ]]; }
-contains() { [[ $1 == *"$2"* ]]; }
 
-contract_suite=scripts/validate-plugin-contracts.test.sh
+# Runs the selector on its arguments: stdout lands in out, the exit status in RC.
+select_for() {
+  out="$(bash scripts/affected-tests.sh "$@" 2>/dev/null)"
+  RC=$?
+}
 
 # --- LIVE repo: the derived copy set equals the published manifest today ---
 # The synthetic cases above prove the mechanism; this one proves it is still
@@ -26,11 +30,12 @@ contract_suite=scripts/validate-plugin-contracts.test.sh
 # renaming those variables cannot make this assertion go green for the wrong
 # reason.
 standards_src=docs/contracts/standards/README.md
-[[ -f "$REPO_ROOT/$standards_src" ]] || standards_src=docs/conventions/standards/README.md
+[[ -f "$standards_src" ]] || standards_src=docs/conventions/standards/README.md
+manifest=scripts/sync-shared-copies.sh
+manifest_out="$(bash "$manifest" --print-manifest)"
 for src in lib/hook-utils.sh lib/parse-concern-value.sh "$standards_src"; do
-  derived="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh --print-fanout "$src" 2>/dev/null | sort)"
-  manifest="scripts/sync-shared-copies.sh"
-  expected="$(cd "$REPO_ROOT" && bash "$manifest" --print-manifest | awk -F '\t' -v s="$src" '$1=="src"{on=($2==s)} on && $1=="copy" && $2!=""{print $2}' | while IFS= read -r pat; do
+  derived="$(bash scripts/affected-tests.sh --print-fanout "$src" 2>/dev/null | sort)"
+  expected="$(printf '%s\n' "$manifest_out" | awk -F '\t' -v s="$src" '$1=="src"{on=($2==s)} on && $1=="copy" && $2!=""{print $2}' | while IFS= read -r pat; do
     if [[ -e "$pat" ]]; then
       printf '%s\n' "$pat"
     else
@@ -51,11 +56,7 @@ done
 # which this script's pipefail then reports as a failed assertion.
 live_missing=0
 for manifest in "$REPO_ROOT"/scripts/sync-*.sh; do
-  case "$manifest" in
-  *.test.sh) continue ;;
-  *) ;;
-  esac
-  live_out=""
+  [[ "$manifest" == *.test.sh ]] && continue
   live_out="$(bash "$manifest" --print-manifest)" || {
     fail "live $manifest --print-manifest exited non-zero"
     live_missing=1
@@ -71,8 +72,7 @@ if [[ "$live_missing" -eq 0 ]]; then
 fi
 
 # --- LIVE repo: a real shared-lib change reaches a real carrying plugin ----
-out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh lib/hook-utils.sh 2>/dev/null)"
-RC=$?
+select_for lib/hook-utils.sh
 if [[ "$RC" -eq 0 ]] &&
   has_line "$out" lib/hook-utils.test.sh &&
   has_line "$out" plugins/guardrails/hooks/block-no-verify.test.sh &&
@@ -89,8 +89,7 @@ fi
 # declares — plugins/*/reference/standards-contract.md — and on to the suites
 # that bind against them. Neither the synthetic fixture nor the copy-set
 # assertions above isolate that interaction.
-out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh "$standards_src" 2>/dev/null)"
-RC=$?
+select_for "$standards_src"
 if [[ "$RC" -eq 0 ]] &&
   has_line "$out" plugins/planning/tests/standards-binding.test.sh &&
   has_line "$out" plugins/review/tests/standards-binding.test.sh; then
@@ -123,30 +122,27 @@ fi
 # make the assertion below tautological. One incoming reference anywhere is
 # enough to disqualify a candidate, because R3's first level would then have
 # somewhere to go.
-mapfile -t wf_candidates < <(cd "$REPO_ROOT" && git ls-files '.github/*.yaml' '.github/*.yml')
-wf_yaml=()
-for c in ${wf_candidates[@]+"${wf_candidates[@]}"}; do
+wf_yaml=""
+while IFS= read -r c; do
   # scripts/workflow-self-paths.test.sh declares `.github/workflows/*` (R8), so
   # a workflow file selects that suite and cannot be the probe.
   [[ "$c" == .github/workflows/* ]] && continue
-  if ! (cd "$REPO_ROOT" && git grep -q -F -- "${c##*/}" \
-    -- '*.sh' '*.bash' '*.js' '*.mjs' '*.cjs' '*.py' '*.ps1' '*.psm1') 2>/dev/null; then
-    wf_yaml=("$c")
+  if ! git grep -q -F -- "${c##*/}" \
+    -- '*.sh' '*.bash' '*.js' '*.mjs' '*.cjs' '*.py' '*.ps1' '*.psm1' 2>/dev/null; then
+    wf_yaml="$c"
     break
   fi
-done
-if [[ ${#wf_yaml[@]} -eq 0 ]]; then
+done < <(git ls-files '.github/*.yaml' '.github/*.yml')
+if [[ -z "$wf_yaml" ]]; then
   fail "no unreferenced .github YAML found to probe — the case below would be vacuous"
-fi
-for y in ${wf_yaml[@]+"${wf_yaml[@]}"}; do
-  out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh "$y" 2>/dev/null)"
-  RC=$?
+else
+  select_for "$wf_yaml"
   if [[ "$RC" -eq 0 && -z "$out" ]]; then
-    ok ".github YAML stays a recorded no-suite class via .github/*: $y"
+    ok ".github YAML stays a recorded no-suite class via .github/*: $wf_yaml"
   else
     fail ".github YAML should exit 0 with no suites (rc=$RC): $out"
   fi
-done
+fi
 
 # --- LIVE repo: the false coverage that masked a real suite ----------------
 # babysit_lease.py's suite is scripts/tests/test_babysit_lease.py, and nothing
@@ -157,8 +153,7 @@ done
 # masked-zero-coverage shape the boundary rule exists to expose, and exposing it
 # is only half the fix: the co-located rule then has to find the real suite by
 # path, or a covered file reports UNMAPPED.
-out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh plugins/source-control/skills/babysit-prs/scripts/babysit_lease.py 2>/dev/null)"
-RC=$?
+select_for plugins/source-control/skills/babysit-prs/scripts/babysit_lease.py
 if [[ "$RC" -eq 0 ]] &&
   has_line "$out" plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_lease.py; then
   ok "live: a .py whose only suite sits in tests/ maps to that suite"
@@ -167,8 +162,7 @@ else
 fi
 
 # --- LIVE repo: a co-located change stays narrow ---------------------------
-out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh plugins/eol-normalizer/hooks/eol-normalizer.sh 2>/dev/null)"
-RC=$?
+select_for plugins/eol-normalizer/hooks/eol-normalizer.sh
 count="$(printf '%s\n' "$out" | grep -c '.')"
 if [[ "$RC" -eq 0 ]] && has_line "$out" plugins/eol-normalizer/hooks/eol-normalizer.test.sh && [[ "$count" -lt 10 ]]; then
   ok "live co-located change selects a narrow set ($count suites)"
@@ -180,8 +174,7 @@ fi
 # hook_telemetry.py sits directly beside test_hook_telemetry.py and was still
 # reported UNMAPPED. Asserted against the LIVE repo, not a fixture: the point is
 # that the tool tracks THIS corpus's real conventions.
-out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh plugins/disk-hygiene/lib/hook_telemetry.py 2>/dev/null)"
-RC=$?
+select_for plugins/disk-hygiene/lib/hook_telemetry.py
 if [[ "$RC" -eq 0 ]] && has_line "$out" plugins/disk-hygiene/lib/test_hook_telemetry.py; then
   ok "live: a .py beside its test_<stem>.py is no longer UNMAPPED"
 else
@@ -191,19 +184,19 @@ fi
 # --- LIVE repo: a real autonomy reference doc selects the contract suite -----
 # The probe doc is discovered, never spelled: a basename written here would make
 # this script name that file, and R3 would then cover it without R7. The suite
-# path above IS spelled on purpose: renaming the suite fails this case instead
+# path below IS spelled on purpose: renaming the suite fails this case instead
 # of R7 silently selecting nothing.
 # The assertion is on the R7 reason, not on bare selection: a live doc can also
 # reach the suite through R4 fan-out (a hook naming it), which would pass without
 # R7. The seed is walked first, so R7's reason is the one recorded.
 # The exit status of this head pipe is never read, so its early exit is harmless.
-live_ref="$(cd "$REPO_ROOT" && git ls-files 'plugins/autonomy/reference/*.md' | head -n 1)"
+live_ref="$(git ls-files 'plugins/autonomy/reference/*.md' | head -n 1)"
 if [[ -z "$live_ref" ]]; then
   fail "LIVE R7: no tracked plugins/autonomy/reference/*.md to probe"
 else
-  out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh --explain "$live_ref" 2>&1)"
+  out="$(bash scripts/affected-tests.sh --explain "$live_ref" 2>&1)"
   RC=$?
-  if [[ "$RC" -eq 0 ]] && contains "$out" "select: $contract_suite  (path class:"; then
+  if [[ "$RC" -eq 0 && "$out" == *"select: scripts/validate-plugin-contracts.test.sh  (path class:"* ]]; then
     ok "LIVE R7: $live_ref selects the plugin-contract suite through R7"
   else
     fail "LIVE R7: $live_ref did not select the plugin-contract suite through R7 (rc=$RC): $out"
@@ -218,9 +211,8 @@ fi
 # this case.
 for probe in 'plugins/github/skills/advise/S*.md|plugins/github/github.test.sh' \
   'plugins/planning/skills/interview/S*.md|plugins/planning/tests/interview-defenses.test.sh'; do
-  body="$(cd "$REPO_ROOT" && git ls-files "${probe%%|*}")"
-  out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh "$body" 2>/dev/null)"
-  RC=$?
+  body="$(git ls-files "${probe%%|*}")"
+  select_for "$body"
   if [[ -n "$body" && "$RC" -eq 0 ]] && has_line "$out" "${probe#*|}"; then
     ok "LIVE: $body selects ${probe#*|}"
   else
@@ -265,9 +257,8 @@ for fixture in events-v1 invalid-device-scope-on-prototype invalid-reaction-agre
 done
 for pair in "${read_pairs[@]}"; do
   suite="${pair%%|*}" file="${pair#*|}"
-  out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh "$file" 2>/dev/null)"
-  RC=$?
-  if [[ -e "$REPO_ROOT/$file" && "$RC" -eq 0 ]] && has_line "$out" "$suite"; then
+  select_for "$file"
+  if [[ -e "$file" && "$RC" -eq 0 ]] && has_line "$out" "$suite"; then
     ok "LIVE: $file selects $suite"
   else
     fail "LIVE: $file did not select $suite (rc=$RC): $out"
