@@ -12016,6 +12016,57 @@ class GuardTests(unittest.TestCase):
                 with self.subTest(command=command):
                     self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
 
+    def test_engine_gate_defers_the_engine_name_in_a_quoted_argument_with_parens(
+        self,
+    ) -> None:
+        """A quoted issue title naming the engine beside "(" is a mention."""
+        command = (
+            "/repo/.work/gh-monitor/gate.sh run simplify-planning -- gh issue create"
+            " -R melodic-software/claude-code-plugins"
+            ' --title "Simplify the hygiene.py disk-hygiene plugin code (part 1 of 4)"'
+            " --body-file /repo/.work/post-zero-roadmap/simplify/bodies/S198.md"
+            ' --type Task --label "status: ready"'
+        )
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            self.assertFalse(guard._engine_gate_relevant(command, "Bash"))
+            self.assertIsNone(self.run_guard_engine_gate(command))
+
+    def test_engine_gate_keeps_gating_real_runs_beside_quoted_parens(self) -> None:
+        engine = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            for command in (
+                f"python3 {engine} $(echo x)",
+                f"{engine} --clean $X",
+                'python3 hygiene.py "scan (x)"',
+                f'{engine} "scan (x)"',
+                'gate.sh run -- python3 hygiene.py "(x)"',
+                'x "hygiene.py (x)"',
+                'sh -c "(./hygiene.py apply)"',
+                'bash -c "python3 hygiene.py scan (x)"',
+                "foo hygiene.py (x)",
+                # Not a whole-word quote, so its paren stays an operator.
+                'tool --title="Simplify hygiene.py (x)"',
+                # A backslash can move the quote boundary, so parens stay live.
+                'tool "a\\b" "Simplify hygiene.py (x)"',
+                # A quoted paren that can open a subshell stays live.
+                f'bash -c "( {engine} apply --plan p --token t )"',
+                'bash -c "(py hygiene.py apply)"',
+                f'bash -c "{{ ( {engine} apply ) }}"',
+                f'bash -c "time ( {engine} apply )"',
+                f'bash -c "if ( {engine} apply ) then ( : ) fi"',
+                f'eval coproc "foo ( {engine} apply )"',
+            ):
+                with self.subTest(command=command):
+                    self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
+            # PowerShell keeps rejecting a paren inside a quote.
+            self.assertTrue(
+                guard._engine_gate_relevant(
+                    'pwsh -Command "Write-Output hygiene.py (y)"', "PowerShell"
+                )
+            )
+        engine_call = self._engine_words('scan --target "t (x)" --output s')
+        self.assertIn("('(')", self._gated_reason(engine_call))
+
     def test_engine_gate_denial_names_the_payload_word_it_gated(self) -> None:
         cases = (
             'echo "run python3 hygiene.py"',
