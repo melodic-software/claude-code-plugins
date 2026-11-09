@@ -577,7 +577,7 @@ test("pr-merge takes a pr input, runs every 30 minutes and names a PR-scoped run
 // step is skipped and nothing arms.
 const KEEP_STEP = "Keep the last sweep's report only while nothing it read has moved";
 const FRESH_SHA = "f".repeat(40);
-const keepReport = ({ code = "0", settles = [0], fresh = 0, files = true, attempts = false } = {}) => {
+const keepReport = ({ code = "0", settles = [0], fresh = 0, files = true, attempts = false, refusal = "idle tick needs-dispatch" } = {}) => {
   const arm = job("enable-auto-merge");
   const body = new RegExp(`- name: ${KEEP_STEP.replace(/[.']/g, "\\$&")}\\n([\\s\\S]*?)(?=\\n {6}- name: )`).exec(arm)?.[1];
   assert.ok(body, "a PR-scoped run settles the last sweep's report");
@@ -598,7 +598,7 @@ case "$1" in
   *babysit_postmerge.py) echo '{"fresh":true}'; exit ${fresh} ;;
 esac
 next=$(head -n1 '${join(dir, "settles")}'); sed -i 1d '${join(dir, "settles")}'
-if [ "\${next:-1}" = 0 ]; then echo '{"reuse": true, "reason": null}'; else echo '{"reuse": false, "reason": "idle tick needs-dispatch"}'; fi
+if [ "\${next:-1}" = 0 ]; then echo '{"reuse": true, "reason": null}'; else echo '{"reuse": false, "reason": "${refusal}"}'; fi
 exit "\${next:-1}"
 `,
     { mode: 0o755 },
@@ -694,6 +694,16 @@ test("a PR-scoped run whose report does not stand runs the post-merge check fres
     if (check > 0) assert.match(run.calls[0], SETTLE("c{40}"), why);
     assert.equal(run.calls.length, check + 2, why);
   }
+});
+
+test("a PR-scoped run whose last report is refused as code-changed runs no fresh check and keeps no report", () => {
+  const run = keepReport({ settles: [1], refusal: "post-merge answer code-changed" });
+  assert.equal(run.status, 0);
+  assert.equal(run.kept, false);
+  assert.equal(run.output, "stands=false\nfresh=\nfresh-reason=\n");
+  assert.equal(run.calls.length, 1);
+  assert.match(run.calls[0], SETTLE("c{40}"));
+  assert.match(run.stdout, /::notice::the last sweep's post-merge report predates a code change/);
 });
 
 test("the fresh check answers the last check's completed attempts with no read", () => {

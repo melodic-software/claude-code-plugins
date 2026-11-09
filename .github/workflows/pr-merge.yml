@@ -2578,7 +2578,10 @@ jobs:
       # 5) and `settle --idle-tick` keeps, so a verifying run or canary that
       # moved since its computedAt, changed quarantine markers or pins, or
       # any hold the report carries refuses it (postmerge.idle_refusal).
-      # A report that does not stand is never reused: the step removes it
+      # A report refused as code-changed ends the wake with no fresh check:
+      # a fresh check at 110-169 calls after that refusal rarely arms, so the
+      # next sweep decides. Any other report that does not stand is never
+      # reused: the step removes it
       # and runs the sweep's post-merge check fresh, as post-merge-dispatch
       # does when its idle tick refuses, with this job's read-only token (the
       # check writes nothing without --remediate). The fresh report stands
@@ -2614,7 +2617,7 @@ jobs:
           set -uo pipefail
           last=$RUNNER_TEMP/post-merge
           scripts=.base/plugins/source-control/skills/babysit-prs/scripts
-          kept=false fresh='' reason=''
+          kept=false fresh='' reason='' last_reason=''
           settle() {
             python3 "$scripts/babysit_verify_evidence.py" settle --idle-tick --repo "$REPO" \
               --postmerge-result "$last/post-merge.json" --code-sha "$@"
@@ -2622,12 +2625,17 @@ jobs:
           if [ -f "$last/post-merge.json" ] && [ -f "$last/post-merge-code" ]; then
             last_code=$(cat "$last/post-merge-code")
             last_sha=$(cat "$last/post-merge-code-sha" 2>/dev/null || true)
-            if [[ $last_code =~ ^[05]$ ]] && settle "$last_sha"; then
-              kept=true
+            if [[ $last_code =~ ^[05]$ ]]; then
+              settled=$(settle "$last_sha") && kept=true
+              echo "$settled"
+              last_reason=$(jq -r '.reason // ""' <<<"$settled" 2>/dev/null | head -n 1) || last_reason=''
             fi
           fi
           if [ "$kept" = true ]; then
             echo "the last sweep's post-merge report still stands: nothing it reads has moved"
+          elif [ "$last_reason" = "post-merge answer code-changed" ]; then
+            rm -rf "${last:?}"
+            echo "::notice::the last sweep's post-merge report predates a code change; no fresh check runs, nothing is armed or disarmed, and the next sweep checks again"
           else
             [ ! -f "$last/attempts.json" ] || cp "$last/attempts.json" "$BABYSIT_POSTMERGE_ATTEMPTS"
             rm -rf "${last:?}"
