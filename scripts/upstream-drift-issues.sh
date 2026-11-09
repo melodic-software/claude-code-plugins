@@ -52,6 +52,11 @@ usage() {
   printf 'usage: %s [--dry-run] <report-file> | --help\n' "${0##*/}"
 }
 
+usage_error() {
+  usage >&2
+  exit 2
+}
+
 die() {
   printf '%s: %s\n' "$SELF" "$*" >&2
   exit 2
@@ -66,24 +71,15 @@ while (($# > 0)); do
     exit 0
     ;;
   --dry-run) DRY=1 ;;
-  -*)
-    usage >&2
-    exit 2
-    ;;
+  -*) usage_error ;;
   *)
-    [[ -z "$REPORT" ]] || {
-      usage >&2
-      exit 2
-    }
+    [[ -z "$REPORT" ]] || usage_error
     REPORT="$1"
     ;;
   esac
   shift
 done
-[[ -n "$REPORT" ]] || {
-  usage >&2
-  exit 2
-}
+[[ -n "$REPORT" ]] || usage_error
 [[ -f "$REPORT" && -r "$REPORT" ]] || die "cannot read report file: $REPORT"
 command -v jq >/dev/null 2>&1 || die "jq is required"
 
@@ -180,6 +176,12 @@ trap 'rm -rf "$TMPDIR_RUN"' EXIT
 
 failed=0
 
+# fail <message>: report a failed gh call; the run goes on and exits 1.
+fail() {
+  printf '%s: %s\n' "$SELF" "$*" >&2
+  failed=1
+}
+
 # Every issue the workflow's own bot opened, open and closed, read once through
 # the REST list (page by page) rather than search, which is rate-limited and
 # can return incomplete results. Anyone can open an issue with the same title,
@@ -210,18 +212,15 @@ bot_issue() {
 
 # write_body <index> <file>
 write_body() {
-  local body note repo="${REPOS[$1]}" pinned="${PINNED[$1]}"
-  if ((pinned)); then
-    body="Upstream $(span "$repo") changed since the pin on its docs/upstream page."
+  local body note lead footer
+  if ((PINNED[$1])); then
+    lead="changed since the pin on its docs/upstream page."
+    footer="Re-audit the rows named above as docs/contracts/upstream-drift/README.md, \"When a trigger fires\", requires. Moving the pin makes the next run clean, which closes this issue."
   else
-    body="Upstream $(span "$repo") no longer matches the copy vendored here."
+    lead="no longer matches the copy vendored here."
+    footer="A clean run closes this issue."
   fi
-  body+=$'\n\n'"Run: $RUN_DATE, $RUN_URL"$'\n'"${DETAIL[$1]}"
-  if ((pinned)); then
-    body+=$'\n'"Re-audit the rows named above as docs/contracts/upstream-drift/README.md, \"When a trigger fires\", requires. Moving the pin makes the next run clean, which closes this issue."$'\n'
-  else
-    body+=$'\n'"A clean run closes this issue."$'\n'
-  fi
+  body="Upstream $(span "${REPOS[$1]}") $lead"$'\n\n'"Run: $RUN_DATE, $RUN_URL"$'\n'"${DETAIL[$1]}"$'\n'"$footer"$'\n'
   if ((${#body} > CAP)); then
     note=$'\n'"Cut at $CAP characters. The full report is in the run's job summary: $RUN_URL"$'\n'
     body="${body:0:$((CAP - ${#note}))}"
@@ -238,8 +237,7 @@ for i in "${!REPOS[@]}"; do
   if [[ "${STATE[i]}" != none ]]; then
     if ! found="$(bot_issue "$title")" || ! read -r num issue_state reason <<<"$found" ||
       [[ -n "$num" && ! "$num" =~ ^[0-9]+$ ]]; then
-      printf '%s: unreadable issue list for %s\n' "$SELF" "$repo" >&2
-      failed=1
+      fail "unreadable issue list for $repo"
       continue
     fi
     # Closed as not planned or duplicate mutes the upstream; closed otherwise,
@@ -266,36 +264,27 @@ for i in "${!REPOS[@]}"; do
       [[ "$url" =~ /issues/([0-9]+)$ ]] && ! gh api -X PATCH "repos/{owner}/{repo}/issues/${BASH_REMATCH[1]}" -f type=Task >/dev/null &&
         printf '%s: could not set the Issue Type on %s\n' "$SELF" "$url" >&2
     else
-      printf '%s: issue create failed for %s\n' "$SELF" "$repo" >&2
-      failed=1
+      fail "issue create failed for $repo"
     fi
     ;;
   edit)
     write_body "$i" "$body_file"
-    gh issue edit "$num" --body-file "$body_file" >/dev/null || {
-      printf '%s: issue edit failed for %s\n' "$SELF" "$repo" >&2
-      failed=1
-    }
+    gh issue edit "$num" --body-file "$body_file" >/dev/null || fail "issue edit failed for $repo"
     ;;
   reopen)
     write_body "$i" "$body_file"
     # The label goes on first, so no reopened issue is ever unlabeled.
     if ! gh issue edit "$num" --add-label needs-human >/dev/null; then
-      printf '%s: label add failed for %s\n' "$SELF" "$repo" >&2
-      failed=1
+      fail "label add failed for $repo"
     elif ! gh issue reopen "$num" >/dev/null; then
-      printf '%s: issue reopen failed for %s\n' "$SELF" "$repo" >&2
-      failed=1
+      fail "issue reopen failed for $repo"
     elif ! gh issue edit "$num" --body-file "$body_file" >/dev/null; then
-      printf '%s: issue edit failed for %s\n' "$SELF" "$repo" >&2
-      failed=1
+      fail "issue edit failed for $repo"
     fi
     ;;
   close)
-    gh issue close "$num" --comment "Upstream $(span "$repo") is clean as of $RUN_DATE ($RUN_URL)." >/dev/null || {
-      printf '%s: issue close failed for %s\n' "$SELF" "$repo" >&2
-      failed=1
-    }
+    gh issue close "$num" --comment "Upstream $(span "$repo") is clean as of $RUN_DATE ($RUN_URL)." >/dev/null ||
+      fail "issue close failed for $repo"
     ;;
   *) ;; # none
   esac
@@ -317,10 +306,8 @@ while IFS=$'\t' read -r num repo; do
   grep -qxF -- "$repo" <<<"$reported" && continue
   printf 'action=close-unreported repo=%s\n' "$repo"
   ((DRY)) && continue
-  gh issue close "$num" --comment "Upstream $(span "$repo") is no longer in the drift report as of $RUN_DATE ($RUN_URL): its docs/upstream page was removed or renamed." >/dev/null || {
-    printf '%s: issue close failed for %s\n' "$SELF" "$repo" >&2
-    failed=1
-  }
+  gh issue close "$num" --comment "Upstream $(span "$repo") is no longer in the drift report as of $RUN_DATE ($RUN_URL): its docs/upstream page was removed or renamed." >/dev/null ||
+    fail "issue close failed for $repo"
 done <<<"$rows"
 
 exit "$failed"
