@@ -6,6 +6,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/reassess-limits.sh"
+BABYSIT="$SCRIPT_DIR/../../babysit-prs/scripts"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
@@ -17,7 +18,8 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 STUB_DIR="$TEST_TMPDIR/stubs"
 F="$TEST_TMPDIR/forge"
 mkdir -p "$STUB_DIR" "$F"
-# Each read answers from a file under $F; a missing file fails that read.
+# Each read answers from a raw API-shaped file under $F, through any --jq the
+# script passed, so the script's own filters run; a missing file fails the read.
 cat >"$STUB_DIR/gh" <<STUB_EOF
 #!/usr/bin/env bash
 file=""
@@ -31,7 +33,12 @@ case "\$*" in
   *repos/*/pulls/*) file=stack ;;
 esac
 [[ -n "\$file" && -f "$F/\$file" ]] || exit 1
-cat "$F/\$file"
+filter=""
+while (( \$# > 0 )); do
+  [[ "\$1" == --jq ]] && filter="\$2"
+  shift
+done
+if [[ -n "\$filter" ]]; then jq -r "\$filter" "$F/\$file"; else cat "$F/\$file"; fi
 STUB_EOF
 chmod +x "$STUB_DIR/gh"
 
@@ -54,11 +61,13 @@ pr() {
       headRepositoryOwner: {login: "acme"}}' >"$F/pr"
 }
 
+queued() { printf '{"data":{"repository":{"pullRequest":{"isInMergeQueue":%s}}}}' "$1" >"$F/queue"; }
+
 reset() {
   pr
-  echo false >"$F/queue"
-  echo no >"$F/stack"
-  echo 1 >"$F/same-head"
+  queued false
+  echo '{}' >"$F/stack"
+  echo '[{"headRepositoryOwner":{"login":"acme"}}]' >"$F/same-head"
   echo '[[]]' >"$F/comments"
   echo '[[]]' >"$F/reviews"
   echo '[[]]' >"$F/inline"
@@ -92,30 +101,47 @@ assert_exit "a Hold: body line is a limit" 3 "$?"
 assert_contains "a Hold: line reads as held" "$out" "held: its body"
 
 reset
+pr OPEN $'## Summary\n Hold: waiting'
+out=$(run)
+assert_contains "a Hold: line behind a no-break space holds" "$out" "held: its body"
+
+reset
+pr OPEN $'## Summary\rhold: waiting'
+out=$(run)
+assert_contains "a Hold: line after a bare carriage return holds" "$out" "held: its body"
+
+reset
 pr OPEN "Please don't merge this yet"
 out=$(run)
 assert_contains "a body saying not to merge reads as held" "$out" "held: its body"
 
 reset
-echo true >"$F/queue"
+pr OPEN "This threshold: mentions hold: mid-line"
+out=$(run)
+assert_exit "hold: in the middle of a line holds nothing" 0 "$?"
+
+reset
+queued true
 out=$(run)
 assert_contains "a queued pull request is limited" "$out" "queue: "
 
 reset
-echo yes >"$F/stack"
+echo '{"stack":{"id":1}}' >"$F/stack"
 out=$(run)
 assert_contains "a stack member is limited" "$out" "stack: "
 
-reset
-rm "$F/queue"
-out=$(run)
-assert_exit "a failed queue read is a limit, not a pass" 3 "$?"
-assert_contains "a failed queue read reads as unread" "$out" "unread: its merge queue"
+for read in queue stack comments reviews inline same-head; do
+  reset
+  rm "$F/$read"
+  out=$(run)
+  assert_exit "a failed $read read is a limit, not a pass" 3 "$?"
+  assert_contains "a failed $read read reads as unread" "$out" "unread: "
+done
 
 reset
-rm "$F/comments"
+echo 'null' >"$F/queue"
 out=$(run)
-assert_contains "a failed comment read reads as unread" "$out" "unread: its comments"
+assert_contains "a junk queue answer reads as unread" "$out" "unread: its merge queue"
 
 reset
 rm "$F/pr"
@@ -127,15 +153,34 @@ comment() {
   printf '{"user":{"login":"%s","type":"%s"},"author_association":"%s","created_at":"%s","body":"%s"}' "$1" "$2" "$3" "$4" "$5"
 }
 
+review() {
+  printf '{"user":{"login":"%s","type":"User"},"author_association":"MEMBER","submitted_at":"%s","state":"%s","body":"%s"}' "$1" "$2" "$3" "${4:-}"
+}
+
 reset
 echo "[[$(comment ana User MEMBER 2026-01-01T00:00:00Z 'do not merge')]]" >"$F/comments"
 out=$(run)
 assert_contains "a member's veto holds" "$out" "held: a veto from ana"
 
 reset
+echo "[[$(review ana 2026-01-01T00:00:00Z COMMENTED 'do not merge')]]" >"$F/reviews"
+out=$(run)
+assert_contains "a veto in a review body holds" "$out" "held: a veto from ana"
+
+reset
+echo "[[$(comment ana User MEMBER 2026-01-01T00:00:00Z 'do not merge')]]" >"$F/inline"
+out=$(run)
+assert_contains "a veto in an inline comment holds" "$out" "held: a veto from ana"
+
+reset
 echo "[[$(comment ana User MEMBER 2026-01-01T00:00:00Z 'do not merge'),$(comment ana User MEMBER 2026-01-02T00:00:00Z 'fine now')]]" >"$F/comments"
 out=$(run)
 assert_exit "a member's later comment lifts their veto" 0 "$?"
+
+reset
+echo "[[$(comment ana User MEMBER 2026-01-01T00:00:00Z 'do not merge'),$(comment ana User MEMBER 2026-01-02T00:00:00Z '  ')]]" >"$F/comments"
+out=$(run)
+assert_contains "a later empty item lifts nothing" "$out" "held: a veto from ana"
 
 reset
 echo "[[$(comment zed User NONE 2026-01-01T00:00:00Z 'do not merge')]]" >"$F/comments"
@@ -163,10 +208,6 @@ echo "[[$(comment ana User MEMBER 2026-01-01T00:00:00Z 'do-not-merge, please')]]
 out=$(run)
 assert_contains "a bare do-not-merge is a veto" "$out" "held: a veto from ana"
 
-review() {
-  printf '{"user":{"login":"%s","type":"User"},"author_association":"MEMBER","submitted_at":"%s","state":"%s","body":""}' "$1" "$2" "$3"
-}
-
 reset
 echo "[[$(review ana 2026-01-01T00:00:00Z CHANGES_REQUESTED)]]" >"$F/reviews"
 out=$(run)
@@ -184,9 +225,14 @@ assert_exit "a fork head is a limit" 3 "$?"
 assert_contains "a fork head stops an update" "$out" "no-update: the head is on a fork"
 
 reset
-echo 2 >"$F/same-head"
+echo '[{"headRepositoryOwner":{"login":"acme"}},{"headRepositoryOwner":{"login":"ACME"}}]' >"$F/same-head"
 out=$(run)
 assert_contains "a head branch two pull requests share stops an update" "$out" "no-update: its head branch"
+
+reset
+echo '[{"headRepositoryOwner":{"login":"acme"}},{"headRepositoryOwner":{"login":"fork-owner"}}]' >"$F/same-head"
+out=$(run)
+assert_exit "a fork's same-named head does not make it shared" 0 "$?"
 
 reset
 pr OPEN "" '[{"name":"standards-sync"}]'
@@ -196,6 +242,8 @@ assert_contains "the standards-sync label stops an update" "$out" "no-update: it
 reset
 out=$(run --expect-head other)
 assert_contains "a moved head is a limit" "$out" "moved: "
+out=$(run --expect-head abc)
+assert_exit "the expected head is no limit" 0 "$?"
 
 reset
 echo '{"expires_at":"2099-01-01T00:00:00+00:00"}' >"$LEASE"
@@ -214,13 +262,28 @@ echo 'not json' >"$LEASE"
 out=$(run)
 assert_contains "an unparsable lease reads as unread" "$out" "unread: the babysit worker lease"
 
-reset
-mv "$STATE/active-workers" "$STATE/moved"
-mkdir -p "$STATE/active-workers"
-out=$(run)
-assert_exit "no lease file holds nothing" 0 "$?"
-rmdir "$STATE/active-workers"
-mv "$STATE/moved" "$STATE/active-workers"
+if command -v python3 >/dev/null 2>&1; then
+  # The patterns and the lease path are babysit-prs'; these fail when either moves.
+  gate() {
+    python3 -I -c 'import sys
+sys.path.insert(0, sys.argv[1])
+import babysit_lease, babysit_merge, babysit_merge_policy
+print(babysit_merge_policy.BODY_MERGE_HOLD_RE.pattern)
+print(babysit_merge.HUMAN_MERGE_VETO_RE.pattern)
+print(babysit_lease.lease_path(sys.argv[2], "worker", "Acme/App#7"))' "$BABYSIT" "$STATE"
+  }
+  { read -r body_re; read -r veto_re; read -r lease_file; } < <(gate)
+  eval "$(grep -E '^(BODY_HOLD_RE|VETO_RE)=' "$SCRIPT")"
+  # shellcheck disable=SC2153,SC2154 # assigned by the eval above
+  assert_eq "the body hold pattern is the merge gate's" "$body_re" "$BODY_HOLD_RE"
+  # shellcheck disable=SC2153,SC2154 # assigned by the eval above
+  assert_eq "the veto pattern is the merge gate's" "$veto_re" "$VETO_RE"
+  reset
+  echo '{"expires_at":"2099-01-01T00:00:00+00:00"}' >"$lease_file"
+  out=$(cd "$REPO_DIR" && PATH="$STUB_DIR:$PATH" bash "$SCRIPT" 7 --repo Acme/App --state-dir "$STATE")
+  assert_contains "a mixed-case repository finds the file babysit writes" "$out" "held: a live babysit worker lease"
+  rm -f "$lease_file"
+fi
 
 reset
 out=$(cd "$REPO_DIR" && PATH="$STUB_DIR:$PATH" bash "$SCRIPT" 7 --repo acme/app)

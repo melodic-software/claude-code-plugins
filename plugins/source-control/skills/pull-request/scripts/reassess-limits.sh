@@ -34,6 +34,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAIM="$SCRIPT_DIR/../../../scripts/worktree-claim.sh"
 STANDARDS_SYNC_LABEL=standards-sync
+# The merge gate's two patterns; the test holds these equal to babysit-prs'.
+BODY_HOLD_RE=$'\\bdo(?:n[\'\u2019]?t| not)\\s+merge\\b|(?:^|\\r)[^\\S\\r\\n]*hold:'
 VETO_RE=$'\\bdo(?:n[\'\u2019]?t| not)[\\s-]*merge\\b|\\bdo-not(?!-merge\\b)[\\s-]*merge\\b|(?<!the )(?<!the `)\\bdo-not-merge\\b|(?<=the )do-not-merge\\b(?!\\s*labels?\\b)|(?<=the `)do-not-merge\\b(?!`\\s*labels?\\b)'
 
 die() {
@@ -79,7 +81,7 @@ facts=$(gh pr view "$PR" -R "$REPO" --json state,isCrossRepository,labels,body,h
     limit unread "the pull request"
     exit 3
   }
-field() { jq -r "$1" <<<"$facts"; }
+field() { jq -r "$1" <<<"$facts" | tr -d '\r'; }
 
 state=$(field .state)
 if [[ "$state" != OPEN ]]; then
@@ -94,8 +96,7 @@ fork=$(field .isCrossRepository)
 [[ "$(field '[.labels[]?.name | ascii_downcase] | index("do-not-merge") != null')" != true ]] ||
   limit label "the pull request carries do-not-merge"
 
-body_hold=$(jq -r --arg u $'\u2019' '.body // "" |
-  test("(?mi)^[ \\t>]*Hold:") or test("\\bdo(?:n[\u0027" + $u + "]?t| not)\\s+merge\\b"; "i")' <<<"$facts") ||
+body_hold=$(jq -r --arg re "$BODY_HOLD_RE" '.body // "" | test("(?m)" + $re; "i")' <<<"$facts") ||
   limit unread "the pull request body"
 [[ "$body_hold" != true ]] || limit held "its body carries a hold"
 
@@ -167,12 +168,12 @@ else
         ;;
       *) ;;
       esac
-    done <<<"$worktrees"
+    done <<<"${worktrees//$'\r'/}"
   else
     limit unread "the worktree list"
   fi
   if same_head=$(gh pr list -R "$REPO" --state open --head "$head_branch" --limit 100 --json headRepositoryOwner \
-    --jq "map(select(.headRepositoryOwner.login | ascii_downcase == \"$(tr '[:upper:]' '[:lower:]' <<<"${REPO%/*}")\")) | length") &&
+    --jq "map(select((.headRepositoryOwner.login // \"\") | ascii_downcase ==\"$(tr '[:upper:]' '[:lower:]' <<<"${REPO%/*}")\")) | length") &&
     [[ "$same_head" =~ ^[0-9]+$ ]]; then
     ((same_head <= 1)) || limit no-update "its head branch is not unique among open pull requests"
   else
