@@ -119,7 +119,6 @@ fi
 errors=0
 
 while IFS= read -r kind; do
-  [[ -n "$kind" ]] || continue
   kind_asserted "$kind" && continue
   if [[ -z "${baselined[$kind]+x}" ]]; then
     echo "UNCOVERED FINDING KIND: $kind (emitted by $SCRIPT, no Finding: assertion in $TEST)" >&2
