@@ -227,8 +227,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.s
 It emits `file:line:check-id` candidate rows for I6 (a prohibition sentence with no paired positive
 or rationale marker, per the catalog's Detect), I10 (reasoning-echo directives), the I8 families
 under per-family ids (`I8-a` instructed self-check, `I8-b` conservative-reporting, `I8-c`
-don't-think / don't-reason, `I8-f` think-carefully steer; I8-c's tag-naming sub-detect is lane-only,
-as are I8's base row and `I8-d` short-turn assumptions, whose phrasings are too varied for a pattern
+don't-think / don't-reason, `I8-f` think-carefully steer, `I8-g` keep-going exhortation; I8-c's
+tag-naming sub-detect is lane-only, as are I8's base row and `I8-d` short-turn assumptions, whose phrasings are too varied for a pattern
 that would earn its false-positive rate; `I8-e` forced interim-status cadence is likewise unseeded,
 on a narrower ground: its skeleton is patternable, and it waits only on an attested instance to
 calibrate the interval forms against), I23 (self-estimated context-budget phrasing, the budget clause
