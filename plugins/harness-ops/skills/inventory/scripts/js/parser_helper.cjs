@@ -155,6 +155,16 @@ function evalRead(call) {
   return { name: expr.name, trusts: folded.trusts };
 }
 
+// Calls `visit` on each AST node directly under `node`, in key order.
+function forEachChild(node, visit) {
+  for (const key of Object.keys(node)) {
+    const child = node[key];
+    for (const c of Array.isArray(child) ? child : [child]) {
+      if (c && typeof c.type === "string" && c !== node) visit(c);
+    }
+  }
+}
+
 // Rewrites, in place, each direct `eval` that only reads an identifier
 // (`evalRead`) into that read, so scope analysis sees a plain reference
 // and no direct eval around it. Returns the built-ins the folds trust.
@@ -171,12 +181,7 @@ function foldEvals(ast) {
       Object.assign(node, { type: "Identifier", name: read.name, start, end }, range ? { range } : {});
       continue;
     }
-    for (const key of Object.keys(node)) {
-      const child = node[key];
-      for (const c of Array.isArray(child) ? child : [child]) {
-        if (c && typeof c.type === "string" && c !== node) stack.push(c);
-      }
-    }
+    forEachChild(node, (c) => stack.push(c));
   }
   return trusts;
 }
@@ -220,15 +225,10 @@ function parentsOf(entry) {
   const stack = [entry.ast];
   while (stack.length) {
     const node = stack.pop();
-    for (const key of Object.keys(node)) {
-      const child = node[key];
-      for (const c of Array.isArray(child) ? child : [child]) {
-        if (c && typeof c.type === "string" && c !== node) {
-          parents.set(c, node);
-          stack.push(c);
-        }
-      }
-    }
+    forEachChild(node, (c) => {
+      parents.set(c, node);
+      stack.push(c);
+    });
   }
   entry.parents = parents;
   return parents;
@@ -261,7 +261,8 @@ function innermostScope(manager, offset) {
 
 function lookup(entry, req) {
   if (req.top) return entry.top?.set.get(req.name) ?? null;
-  if (entry.decls.get(req.offset)?.name === req.name) return entry.decls.get(req.offset);
+  const decl = entry.decls.get(req.offset);
+  if (decl?.name === req.name) return decl;
   const ref = entry.refs.get(req.offset);
   if (ref && ref.identifier.name === req.name && ref.resolved) return ref.resolved;
   for (let s = innermostScope(entry.manager, req.offset); s; s = s.upper) {
@@ -637,7 +638,7 @@ class Flow {
   // Where the value `node` evaluates to goes next.
   value(node) {
     let parent = this.parents.get(node);
-    while (forwards(parent, node) || parent?.type === "ChainExpression") {
+    while (forwards(parent, node)) {
       node = parent;
       parent = this.parents.get(node);
     }
@@ -780,12 +781,7 @@ class Flow {
     if (!this.once(`${fn.start}:${index}`)) return;
     const params = fn.params;
     if (params.slice(0, index + 1).some((p) => p.type === "RestElement")) throw new Unresolved("a rest parameter", fn.start);
-    if (fn.type !== "ArrowFunctionExpression") {
-      const scope = this.entry.manager.acquire(fn, true);
-      if (!scope || scope.set.get("arguments")?.references.length) {
-        throw new Unresolved("a function that reads `arguments`", fn.start);
-      }
-    }
+    if (argumentsAliased(this.entry, fn)) throw new Unresolved("a function that reads `arguments`", fn.start);
     const param = params[index];
     if (param === undefined) return;
     const id = param.type === "AssignmentPattern" ? param.left : param;
@@ -1149,12 +1145,7 @@ class Namespace {
           throw new Unresolved("`import.meta` used other than for a named read", node.start);
         }
       }
-      for (const key of Object.keys(node)) {
-        const child = node[key];
-        for (const c of Array.isArray(child) ? child : [child]) {
-          if (c && typeof c.type === "string" && c !== node) stack.push(c);
-        }
-      }
+      forEachChild(node, (c) => stack.push(c));
     }
     this.metaChecked = true;
   }
@@ -1375,12 +1366,7 @@ function namespace(req) {
         sites++;
         walk.site(node);
       }
-      for (const key of Object.keys(node)) {
-        const child = node[key];
-        for (const c of Array.isArray(child) ? child : [child]) {
-          if (c && typeof c.type === "string" && c !== node) stack.push(c);
-        }
-      }
+      forEachChild(node, (c) => stack.push(c));
     }
   } catch (e) {
     if (e instanceof RangeError) return { ok: true, safe: false, reason: "the namespace is too deep to follow", at: null };
