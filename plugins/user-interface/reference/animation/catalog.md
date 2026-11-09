@@ -199,7 +199,7 @@ curve it entered with, even when the framework unmounts it on close.
    item 5.
 2. **Element already on screen moving or resizing** (reordering, layout shift, slider) →
    `ease-in-out`. Natural accelerate-then-brake motion.
-3. **Hover / color / shadow change** → `ease` (or a soft ease-out), `animation.duration_ms.hover`.
+3. **Hover change** (a color or shadow change on hover) → `ease` (or a soft ease-out), `animation.duration_ms.hover`; the same change from another trigger takes `animation.duration_ms.medium`.
 4. **Constant-speed motion only** (marquee, spinner, progress-as-time) → `linear`.
 5. **`ease-in` alone → almost never.** The slow start delays feedback and feels sluggish. A
    permanent exit (a modal closing, a toast dismissed) accelerates away on an accelerate curve from
@@ -251,7 +251,7 @@ allows, not a target.
 | `press` | press feedback |
 | `small` | tooltips, small popovers |
 | `hover` | hover feedback |
-| `medium` | dropdowns, menus, selects, and any other UI transition (color, focus) |
+| `medium` | dropdowns, menus, selects, and any other UI transition (focus, a color change not triggered by hover) |
 | `large` | modals, dialogs, drawers, sheets, toasts |
 | `page` | page-level and full-screen transitions |
 
