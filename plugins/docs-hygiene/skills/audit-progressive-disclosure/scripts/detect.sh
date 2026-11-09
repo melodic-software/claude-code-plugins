@@ -208,19 +208,19 @@ md_links() {
   { grep -n -o '\][(][^)#][^)]*[)]' "$1" 2>/dev/null || true; } |
     sed -E 's/^([0-9]+):\]\(([^)]*)\)$/\1\t\2/' |
     while IFS=$'\t' read -r ln target; do
+      target="${target%%#*}"
       case "$target" in
       http://* | https://* | mailto:*) continue ;;
-      *) ;;
-      esac
-      target="${target%%#*}"
-      [[ -z "$target" ]] && continue
-      case "$target" in
       *.md) ;;
       *) continue ;;
       esac
-      ctx="$(sed -n "${ln}p" "$1" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' | cut -c1-160)"
-      printf '%s\t%s\t%s\n' "$ln" "$target" "$ctx"
+      printf '%s\t%s\t%s\n' "$ln" "$target" "$(line_ctx "$1" "$ln")"
     done
+}
+
+# Line $2 of file $1, trimmed of surrounding whitespace and cut to 160 chars.
+line_ctx() {
+  sed -n "${2}p" "$1" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' | cut -c1-160
 }
 
 # Backtick-quoted repo-relative markdown paths, same "line<TAB>target<TAB>ctx"
@@ -229,28 +229,21 @@ md_links() {
 # (`--force`), or a short token (`SKILL.md`) is not a path. Callers resolve
 # the target the same way they resolve a markdown link.
 backtick_paths() {
-  local hit ln span target ctx
+  local hit ln span target
   # shellcheck disable=SC2016  # literal backticks are the matched delimiters
   { grep -n -oE '`[^`[:space:]]+`' "$1" 2>/dev/null || true; } |
     while IFS= read -r hit; do
       ln="${hit%%:*}"
       span="${hit#*:}"
       span="${span//\`/}"
-      case "$span" in
-      http://* | https://* | mailto:*) continue ;;
-      *) ;;
-      esac
       target="${span%%#*}"
+      # The character class also rejects URLs and mailto: by their colon.
       case "$target" in
+      /* | *[!A-Za-z0-9._+/-]*) continue ;;
       */*.md) ;;
       *) continue ;;
       esac
-      case "$target" in
-      /* | *[!A-Za-z0-9._+/-]*) continue ;;
-      *) ;;
-      esac
-      ctx="$(sed -n "${ln}p" "$1" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' | cut -c1-160)"
-      printf '%s\t%s\t%s\n' "$ln" "$target" "$ctx"
+      printf '%s\t%s\t%s\n' "$ln" "$target" "$(line_ctx "$1" "$ln")"
     done
 }
 
@@ -260,20 +253,17 @@ FILE_RECORDS="$(mktemp)"
 POINTER_RECORDS="$(mktemp)"
 CHAIN_RECORDS="$(mktemp)"
 ORPHAN_RECORDS="$(mktemp)"
-SEEN_FILES="$(mktemp)"
-SEEN_PTR="$(mktemp)"
-trap 'rm -f "$FILE_RECORDS" "$POINTER_RECORDS" "$CHAIN_RECORDS" "$ORPHAN_RECORDS" "$SEEN_FILES" "$SEEN_PTR"' EXIT
+trap 'rm -f "$FILE_RECORDS" "$POINTER_RECORDS" "$CHAIN_RECORDS" "$ORPHAN_RECORDS"' EXIT
 
+declare -A seen_files=() seen_ptr=() reached=()
 pointers=0
 unresolved=0
 for i in "${!TARGETS[@]}"; do
   f="${TARGETS[$i]}"
   root="${TROOTS[$i]}"
   # De-duplicate targets named more than once (file + enclosing dir).
-  if grep -Fxq "$f" "$SEEN_FILES" 2>/dev/null; then
-    continue
-  fi
-  printf '%s\n' "$f" >>"$SEEN_FILES"
+  [[ -n "${seen_files[$f]:-}" ]] && continue
+  seen_files[$f]=1
 
   rel="${f#"$root"/}"
   lines="$(wc -l <"$f" | tr -d '[:space:]')"
@@ -285,15 +275,14 @@ for i in "${!TARGETS[@]}"; do
     "$f" "$lines" "$words" "${h2:-0}" "$tier" "$toc" >>"$FILE_RECORDS"
 
   dir="$(dirname "$f")"
-  : >"$SEEN_PTR"
+  seen_ptr=()
   # Markdown links and backtick paths are one inventory. The same target on
   # the same line (a code-span label around a markdown link) is one pointer.
   while IFS=$'\t' read -r ln target ctx; do
     [[ -z "${target:-}" ]] && continue
-    if grep -Fxq "${ln}"$'\t'"${target}" "$SEEN_PTR"; then
-      continue
-    fi
-    printf '%s\t%s\n' "$ln" "$target" >>"$SEEN_PTR"
+    key="$ln"$'\t'"$target"
+    [[ -n "${seen_ptr[$key]:-}" ]] && continue
+    seen_ptr[$key]=1
     pointers=$((pointers + 1))
     if [[ -f "$dir/$target" ]]; then
       resolved='yes'
@@ -357,8 +346,7 @@ for hub in "${HUB_ROOTS[@]:-}"; do
   # chain of links/mentions leads to it FROM SKILL.md — an arbitrary inbound
   # mention (e.g. two unreferenced spokes citing each other in a cycle) does
   # not make a file reachable.
-  REACHED="$(mktemp)"
-  printf '%s\n' "$hub/SKILL.md" >"$REACHED"
+  reached=(["$hub/SKILL.md"]=1)
   queue=("$hub/SKILL.md")
   while ((${#queue[@]})); do
     cur="${queue[0]}"
@@ -374,8 +362,8 @@ for hub in "${HUB_ROOTS[@]:-}"; do
         "$hub"/*) ;;
         *) continue ;;
         esac
-        if ! grep -Fxq "$t" "$REACHED"; then
-          printf '%s\n' "$t" >>"$REACHED"
+        if [[ -z "${reached[$t]:-}" ]]; then
+          reached[$t]=1
           queue+=("$t")
         fi
       done
@@ -389,7 +377,7 @@ for hub in "${HUB_ROOTS[@]:-}"; do
     scripts/* | vendor/* | evals/* | node_modules/*) continue ;;
     *) ;;
     esac
-    if ! grep -Fxq "$spoke" "$REACHED"; then
+    if [[ -z "${reached[$spoke]:-}" ]]; then
       printf 'orphan\t%s\thub=%s\n' "$spoke" "$hub" >>"$ORPHAN_RECORDS"
       orphans=$((orphans + 1))
     fi
@@ -400,7 +388,6 @@ for hub in "${HUB_ROOTS[@]:-}"; do
       printf 'chain\t%s\t%s\t%s\n' "$spoke" "$ln" "$target" >>"$CHAIN_RECORDS"
     done < <(md_links "$spoke")
   done < <(find "$hub" -mindepth 2 -type f -name '*.md' | LC_ALL=C sort)
-  rm -f "$REACHED"
 done
 
 # --- emit, deterministically ordered -----------------------------------------
@@ -409,7 +396,6 @@ LC_ALL=C sort "$FILE_RECORDS"
 LC_ALL=C sort "$POINTER_RECORDS"
 LC_ALL=C sort "$ORPHAN_RECORDS"
 LC_ALL=C sort "$CHAIN_RECORDS"
-files_n="$(wc -l <"$SEEN_FILES" | tr -d '[:space:]')"
 printf 'summary\tfiles=%s\tpointers=%s\tunresolved=%s\torphans=%s\tchains=%s\n' \
-  "$files_n" "$pointers" "$unresolved" "$orphans" "$chains"
+  "${#seen_files[@]}" "$pointers" "$unresolved" "$orphans" "$chains"
 exit 0

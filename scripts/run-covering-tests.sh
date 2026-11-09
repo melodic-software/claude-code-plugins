@@ -33,12 +33,10 @@ mapfile -t suites < <(grep -v '^$' <<<"$selection")
 }
 failed=0
 for suite in "${suites[@]}"; do
-  bash "$run" "$suite" >/dev/null 2>&1
-  status=$?
-  if [[ $status -eq 0 ]]; then
+  if bash "$run" "$suite" >/dev/null 2>&1; then
     echo "PASS $suite"
   else
-    echo "FAIL $suite (exit $status)"
+    echo "FAIL $suite (exit $?)"
     failed=$((failed + 1))
   fi
 done

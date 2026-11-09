@@ -37,6 +37,7 @@ const INT = /^[-+]?\d+$/;
 const FLOAT = /^[-+]?(\d+\.\d*|\.\d+|\d+)([eE][-+]?\d+)?$/;
 const quote = (text) => JSON.stringify(text.length > 60 ? `${text.slice(0, 60)}...` : text);
 const isItem = (content) => content === "-" || content.startsWith("- ");
+const isQuote = (ch) => ch === "'" || ch === '"';
 const put = (object, key, value) => Object.defineProperty(object, key, { value, enumerable: true, writable: true, configurable: true });
 
 /** The text before `#` as a comment ends it. A quote opens only where a value starts (line start,
@@ -50,7 +51,7 @@ function stripComment(text) {
       if (q === '"' && ch === "\\") i++;
       else if (q === "'" && ch === "'" && text[i + 1] === "'") i++;
       else if (ch === q) q = null;
-    } else if ((ch === "'" || ch === '"') && valueStarts(text, last, i)) {
+    } else if (isQuote(ch) && valueStarts(text, last, i)) {
       q = ch;
     } else if (ch === "#" && (i === 0 || text[i - 1] === " " || text[i - 1] === "\t")) {
       return text.slice(0, i).trimEnd();
@@ -94,7 +95,7 @@ function unquote(text, line, source) {
 function scalar(raw, line, source) {
   const text = raw.trim();
   if (text === "") return null;
-  if (text[0] === "'" || text[0] === '"') {
+  if (isQuote(text[0])) {
     const close = source ? closingQuote(text) : -1;
     if (close !== -1 && close !== text.length - 1) throw new YamlSubsetError(line, "unexpected text after a value");
     return unquote(text, line, source);
@@ -130,7 +131,7 @@ function flowSequence(text, line, source) {
       else if (ch === q) q = null;
       continue;
     }
-    if (ch === "'" || ch === '"') q = ch;
+    if (isQuote(ch)) q = ch;
     else if (ch === "[") depth++;
     else if (ch === "]") depth--;
     else if (ch === "," && depth === 0) {
@@ -164,7 +165,7 @@ function closingQuote(text) {
 
 /** [key, rest] when the content is a mapping entry, else null. */
 function splitKey(content, line, source) {
-  if (content[0] === "'" || content[0] === '"') {
+  if (isQuote(content[0])) {
     const close = closingQuote(content);
     if (close === -1) throw new YamlSubsetError(line, "unterminated quoted key");
     const key = unquote(content.slice(0, close + 1), line, source);
@@ -254,19 +255,17 @@ class Parser {
   }
 
   nested(parentIndent) {
-    if (this.pos < this.lines.length) {
-      const [childIndent, number, content] = this.lines[this.pos];
-      if (childIndent < parentIndent || (childIndent === parentIndent && !isItem(content))) return null;
-      if (this.depth === MAX_DEPTH) throw new YamlSubsetError(number, `nesting deeper than ${MAX_DEPTH} levels is outside the subset`);
-      this.depth++;
-      try {
-        // A sequence may sit at the parent's indent (`key:` then `- item`).
-        return childIndent > parentIndent ? this.block(childIndent) : this.sequence(childIndent);
-      } finally {
-        this.depth--;
-      }
+    if (this.pos >= this.lines.length) return null;
+    const [childIndent, number, content] = this.lines[this.pos];
+    if (childIndent < parentIndent || (childIndent === parentIndent && !isItem(content))) return null;
+    if (this.depth === MAX_DEPTH) throw new YamlSubsetError(number, `nesting deeper than ${MAX_DEPTH} levels is outside the subset`);
+    this.depth++;
+    try {
+      // A sequence may sit at the parent's indent (`key:` then `- item`).
+      return childIndent > parentIndent ? this.block(childIndent) : this.sequence(childIndent);
+    } finally {
+      this.depth--;
     }
-    return null;
   }
 
   sequence(indent) {
@@ -285,7 +284,7 @@ class Parser {
         continue;
       }
       // An item opening a quote it never closes is a quoted scalar, which scalar() reads or rejects.
-      const split = (item[0] === "'" || item[0] === '"') && closingQuote(item) === -1 ? null : splitKey(item, number, this.source);
+      const split = isQuote(item[0]) && closingQuote(item) === -1 ? null : splitKey(item, number, this.source);
       if (split === null) {
         result.push(scalar(item, number, this.source));
         continue;

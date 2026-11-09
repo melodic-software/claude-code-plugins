@@ -82,10 +82,12 @@ function e(value) {
   return escapeHtml(asText(value));
 }
 
+function texts(list) {
+  return list.map(asText).filter((item) => item !== "");
+}
+
 function paragraphs(value) {
-  const items = (Array.isArray(value) ? value : [value])
-    .map((item) => asText(item))
-    .filter((item) => item !== "");
+  const items = texts(Array.isArray(value) ? value : [value]);
   if (items.length === 0) return "<p>None.</p>";
   return items.map((item) => `<p>${e(item)}</p>`).join("\n");
 }
@@ -94,14 +96,6 @@ function sectionBlocks(source) {
   return SECTIONS.map(
     ([id, name]) => `<section id="${id}">\n<h2>${name}</h2>\n${paragraphs(source[id])}\n</section>`,
   ).join("\n");
-}
-
-function sectionName(id) {
-  return SECTION_NAMES.get(asText(id)) ?? "";
-}
-
-function questionRows(source) {
-  return asList(source.questions).filter((row) => row && typeof row === "object");
 }
 
 // Authors tend to write the correct choice first, and an instruction does not
@@ -119,9 +113,7 @@ function seededRandom(text) {
 }
 
 function choicesOf(row) {
-  const choices = asList(row.choices)
-    .map((item) => asText(item))
-    .filter((item) => item !== "");
+  const choices = texts(asList(row.choices));
   const random = seededRandom(JSON.stringify([asText(row.question), choices]));
   for (let i = choices.length - 1; i > 0; i -= 1) {
     const j = Math.floor(random() * (i + 1));
@@ -152,15 +144,13 @@ function keyItems(questions) {
   return questions
     .map(
       (row) =>
-        `<li><p>${keyAnswer(row)}</p><p class="muted">If missed, reread: ${e(sectionName(row.section) || row.section)}</p></li>`,
+        `<li><p>${keyAnswer(row)}</p><p class="muted">If missed, reread: ${e(SECTION_NAMES.get(asText(row.section)) ?? row.section)}</p></li>`,
     )
     .join("\n");
 }
 
 function referenceItems(source) {
-  const items = asList(source.references)
-    .map((item) => asText(item))
-    .filter((item) => item !== "");
+  const items = texts(asList(source.references));
   if (items.length === 0) return "";
   return `<h2 id="references">References</h2>\n<ol>${items
     .map((item) => `<li><code>${e(item)}</code></li>`)
@@ -174,7 +164,7 @@ function referenceItems(source) {
 export function buildReportPage(model) {
   const source = model && typeof model === "object" ? model : {};
   const title = asText(source.title) || "Change report";
-  const questions = questionRows(source);
+  const questions = asList(source.questions).filter((row) => row && typeof row === "object");
   const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -213,18 +203,21 @@ function fail(message, code) {
   process.exit(code);
 }
 
-function runCheck(path) {
-  let html;
-  try {
-    html = readFileSync(path, "utf8");
-  } catch (error) {
-    fail(error instanceof Error ? error.message : String(error), 2);
+function main() {
+  const args = process.argv.slice(2);
+  if (args[0] === "--check") {
+    if (!args[1]) fail("usage: build-report.mjs --check <file>", 2);
+    let html;
+    try {
+      html = readFileSync(args[1], "utf8");
+    } catch (error) {
+      fail(error instanceof Error ? error.message : String(error), 2);
+    }
+    const verdict = validateRenderedPage(html);
+    if (!verdict.ok) fail(verdict.failures.join(","), 1);
+    return;
   }
-  const verdict = validateRenderedPage(html);
-  if (!verdict.ok) fail(verdict.failures.join(","), 1);
-}
-
-function runBuild() {
+  if (args.length > 0) fail("usage: build-report.mjs [< model.json] | --check <file>", 2);
   let model;
   try {
     model = JSON.parse(readFileSync(0, "utf8"));
@@ -238,17 +231,6 @@ function runBuild() {
   const verdict = validateRenderedPage(page);
   if (!verdict.ok) fail(`refused to emit (${verdict.failures.join(",")})`, 1);
   process.stdout.write(page);
-}
-
-function main() {
-  const args = process.argv.slice(2);
-  if (args[0] === "--check") {
-    if (!args[1]) fail("usage: build-report.mjs --check <file>", 2);
-    runCheck(args[1]);
-    return;
-  }
-  if (args.length > 0) fail("usage: build-report.mjs [< model.json] | --check <file>", 2);
-  runBuild();
 }
 
 function invokedDirectly() {

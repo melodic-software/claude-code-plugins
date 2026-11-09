@@ -16,7 +16,7 @@
 # validates the CONTENTS of a manifest that exists. This is about one that
 # does not.
 #
-# Two checks, both static and repo-wide:
+# Three checks, all static and repo-wide:
 #   1. FORWARD  -- for every .claude-plugin/marketplace.json entry, the
 #      directory its "source" names must contain a readable
 #      .claude-plugin/plugin.json, and that manifest's own "name" must equal

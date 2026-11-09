@@ -129,7 +129,7 @@ function fieldWorld(issues, fields = {}) {
           createdAt: i.created_at,
           labels: { nodes: i.labels },
           issueFieldValues: { nodes: entry ? [{ name: entry.state, field }] : [] },
-          timelineItems: { nodes: entry ? [{ __typename: "IssueFieldChangedEvent", newValue: entry.state, actor: { databaseId: entry.setter ?? HUMAN_ID }, issueField: field }] : [] },
+          timelineItems: { nodes: entry ? [{ __typename: "IssueFieldChangedEvent", newValue: entry.named ?? entry.state, actor: { databaseId: entry.setter ?? HUMAN_ID }, issueField: field }] : [] },
         };
       });
       return { data: { repository: { issues: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } } } };
@@ -202,6 +202,24 @@ test("a needs-human the job token writes to the field reads back and a later sel
   assert.deepEqual(names, ["needs-human"]);
   assert.deepEqual(selectCandidates({ issues, now: NOW, authorIds: authors, statusLabels: new Map([[1, names]]) }), []);
   assert.deepEqual(await fieldSelect(issues, fields), []);
+});
+
+test("an issue the listing leaves out mid-write is not dispatched this pass, whatever its labels say", async () => {
+  const issues = [issue(1), issue(2)];
+  // #2's value and newest event disagree, in the listing and on its own read.
+  const fields = { 1: { state: "needs-triage" }, 2: { state: "needs-triage", named: "ready" } };
+  const noWait = (github, repository, states, options) => issuesByStatus(github, repository, states, { ...options, sleep: async () => {} });
+  const original = console.log;
+  console.log = () => {};
+  let map;
+  try {
+    map = await statusListing({ github: fieldWorld(issues, fields), repository: "o/r", config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, issuesByStatus: noWait });
+  } finally {
+    console.log = original;
+  }
+  assert.deepEqual([...map.held], [2]);
+  assert.deepEqual(selectCandidates({ issues, now: NOW, authorIds: authors, statusLabels: map }).map((i) => i.number), [1]);
+  assert.deepEqual(selectCandidates({ issues, now: NOW, authorIds: authors }).map((i) => i.number), [1, 2], "by labels alone #2 would be dispatched");
 });
 
 test("with no models.issue-status the listing maps nothing and reads nothing", async () => {

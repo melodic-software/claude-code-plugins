@@ -209,8 +209,13 @@ RE_LINK=""
 RE_TICK=""
 RE_TABLE=""
 
+# ere_escape <text>: the text with every ERE metacharacter escaped.
+ere_escape() {
+  printf '%s' "$1" | sed 's/[][\\.^$*+?(){}|]/\\&/g'
+}
+
 set_form_patterns() {
-  esc="$(printf '%s' "$1" | sed 's/[][\\.^$*+?(){}|]/\\&/g')"
+  esc="$(ere_escape "$1")"
   RE_RAW="raw\\.githubusercontent\\.com[^ )\"']*$esc"
   RE_GH="github\\.com[^ )\"']*$esc"
   RE_LINK="\\]\\([^)]*$esc"
@@ -306,6 +311,32 @@ trim() {
   printf '%s' "$1" | tr '\t' ' ' | cut -c1-160
 }
 
+# read_hit <git-grep-line>: split a `file:line:text` hit into file, lineno and
+# text.
+read_hit() {
+  file="${1%%:*}"
+  rest="${1#*:}"
+  lineno="${rest%%:*}"
+  text="${rest#*:}"
+}
+
+# read_tier: resolve the hit's file to its tier's name and forms.
+read_tier() {
+  tinfo="$(tier_of "$file")"
+  tname="${tinfo%%	*}"
+  tforms="${tinfo#*	}"
+}
+
+# override_action: a generated file is regenerated and a sweep_exclude_sites
+# entry skipped, whatever the tier allows the site's form.
+override_action() {
+  case "$GENERATED" in
+  *" $file "*) action='regenerate' ;;
+  *) ;;
+  esac
+  if is_excluded_site "$file" "$text"; then action='skip'; fi
+}
+
 # --- the sweep ---------------------------------------------------------------
 #
 # Pairs are swept longest old basename first, so a map for `CATALOG` can never
@@ -321,32 +352,22 @@ while IFS="$(printf '\t')" read -r old _new; do
   base="${old##*/}"
   set_form_patterns "$base"
   stem="${base%.*}"
-  # The stem goes into an ERE below, so its own metacharacters are escaped the
-  # same way `set_form_patterns` escapes the basename. A stem like `v1.2.schema`
-  # carries dots that would otherwise match any character, widening the sweep to
-  # lines that name no file at all.
-  stem_esc="$(printf '%s' "$stem" | sed 's/[][\\.^$*+?(){}|]/\\&/g')"
+  # The stem goes into an ERE below, so its own metacharacters are escaped: a
+  # stem like `v1.2.schema` carries dots that would otherwise match any
+  # character, widening the sweep to lines that name no file at all.
+  stem_esc="$(ere_escape "$stem")"
   seen=""
 
   while IFS= read -r hit; do
     [[ -n "$hit" ]] || continue
-    file="${hit%%:*}"
-    rest="${hit#*:}"
-    lineno="${rest%%:*}"
-    text="${rest#*:}"
+    read_hit "$hit"
+    read_tier
     seen="$seen$file:$lineno
 "
-    tinfo="$(tier_of "$file")"
-    tname="${tinfo%%	*}"
-    tforms="${tinfo#*	}"
     while IFS= read -r form; do
       [[ -n "$form" ]] || continue
       action="$(action_for "$tforms" "$form")"
-      case "$GENERATED" in
-      *" $file "*) action='regenerate' ;;
-      *) ;;
-      esac
-      is_excluded_site "$file" "$text" && action='skip'
+      override_action
       printf 'REF\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$old" "$file" "$lineno" "$form" "$tname" "$action" "$(trim "$text")"
       sites=$((sites + 1))
     done < <(classify_forms "$text" "$base")
@@ -370,10 +391,7 @@ while IFS="$(printf '\t')" read -r old _new; do
   }
   while IFS= read -r hit; do
     [[ -n "$hit" ]] || continue
-    file="${hit%%:*}"
-    rest="${hit#*:}"
-    lineno="${rest%%:*}"
-    text="${rest#*:}"
+    read_hit "$hit"
     case "
 $seen" in
     *"
@@ -381,9 +399,7 @@ $file:$lineno
 "*) stem_outside_basename "$text" || continue ;;
     *) ;;
     esac
-    tinfo="$(tier_of "$file")"
-    tname="${tinfo%%	*}"
-    tforms="${tinfo#*	}"
+    read_tier
     action="$(action_for "$tforms" bare-stem)"
     # A stem that is one plain word is also an ordinary English word, so it is
     # never edited on the strength of a text match alone.
@@ -391,11 +407,7 @@ $file:$lineno
     *-* | *[0-9]*) ;;
     *) [[ "$action" == "edit" ]] && action='review' ;;
     esac
-    case "$GENERATED" in
-    *" $file "*) action='regenerate' ;;
-    *) ;;
-    esac
-    is_excluded_site "$file" "$text" && action='skip'
+    override_action
     printf 'REF\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$old" "$file" "$lineno" "bare-stem" "$tname" "$action" "$(trim "$text")"
     sites=$((sites + 1))
   done < <(git -C "$ROOT" grep -nE -- "$stem_pattern" "${search_pathspec[@]+"${search_pathspec[@]}"}" 2>/dev/null)

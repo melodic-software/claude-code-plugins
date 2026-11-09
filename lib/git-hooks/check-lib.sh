@@ -207,7 +207,6 @@ checks_bash_run() {
 checks_skip_listed() {
   local list item
   list="$(git config --get checks.skipmissing 2>/dev/null || true)"
-  [[ -n "$list" ]] || return 1
   local IFS=,
   for item in $list; do
     item="${item#"${item%%[![:space:]]*}"}"
@@ -225,16 +224,15 @@ checks_git_verb() {
 }
 
 checks_require_tool() {
-  local tool="$1" install="$2" verb
+  local tool="$1" install="$2"
   command -v "$tool" >/dev/null 2>&1 && return 0
   if checks_skip_listed "$tool"; then
     printf 'SKIPPED: %s (missing)\n' "$tool" >&2
     exit 0
   fi
-  verb="$(checks_git_verb)"
   if checks_is_agent; then
     printf 'FAIL: %s missing. Install: %s\n' "$tool" "$install" >&2
-    printf 'To skip only while %s is missing: git -c checks.skipmissing=%s %s ...\n' "$tool" "$tool" "$verb" >&2
+    printf 'To skip only while %s is missing: git -c checks.skipmissing=%s %s ...\n' "$tool" "$tool" "$(checks_git_verb)" >&2
     exit 1
   fi
   printf 'NOTICE: %s missing, so this check did not run. Install: %s\n' "$tool" "$install" >&2
@@ -349,21 +347,15 @@ checks_tip_arg() {
 checks_regular_file() {
   local tip path entry
   checks_tip_arg "$@"
-  if [[ -z "$tip" ]]; then
-    case "$CHECKS_MODE" in
-    worktree)
-      [[ -f "$path" && ! -L "$path" ]]
-      return
-      ;;
-    pre-push) tip="$(checks_range_tip "$path")" || return 1 ;;
-    *)
-      entry="$(git ls-files -s -z -- ":(literal)$path" 2>/dev/null | tr -d '\0')"
-      [[ "$entry" == 100* && "${entry#*$'\t'}" == "$path" ]]
-      return
-      ;;
-    esac
+  if [[ -n "$tip" || "$CHECKS_MODE" == pre-push ]]; then
+    [[ -n "$tip" ]] || tip="$(checks_range_tip "$path")" || return 1
+    entry="$(git ls-tree -z "$tip" -- "$path" 2>/dev/null | tr -d '\0')"
+  elif [[ "$CHECKS_MODE" == worktree ]]; then
+    [[ -f "$path" && ! -L "$path" ]]
+    return
+  else
+    entry="$(git ls-files -s -z -- ":(literal)$path" 2>/dev/null | tr -d '\0')"
   fi
-  entry="$(git ls-tree -z "$tip" -- "$path" 2>/dev/null | tr -d '\0')"
   [[ "$entry" == 100* && "${entry#*$'\t'}" == "$path" ]]
 }
 

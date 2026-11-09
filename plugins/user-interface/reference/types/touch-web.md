@@ -65,6 +65,7 @@ exact code.
 | Keyboard opens by itself | No `autoFocus` on coarse pointers | the `forms` concern |
 | Long-press selects button text | `user-select: none` on controls only | 3 |
 | Carousel scrolls vertically | `touch-action: pan-y` on the gesture surface | 6 |
+| Page won't scroll past a map or canvas | Tap to activate, with a visible way out | 6 |
 | Video opens fullscreen or won't autoplay | `muted` + `playsinline` | the `web-performance` concern |
 | Status bar color doesn't match | `theme-color` per color scheme | the `theming` concern |
 | Anchor links land under the sticky header | `scroll-margin-top` | 5 |
@@ -366,7 +367,8 @@ The values name what the *browser* may still do. `pan-y` on a horizontal carouse
 you keep vertical panning; I'm handling horizontal". `none` means the element handles everything.
 Use it only on elements that really do, or the user won't be able to scroll past them. For custom
 components that implement their own pan/zoom gestures (canvases, sliders, drawing surfaces), disable
-native gestures entirely so they don't fight yours. Recipe:
+native gestures entirely so they don't fight yours; an element that needs both axes does that only
+once active, under the next rule. Recipe:
 `gesture-surface-that-claims-only-its-axis`.
 
 If the carousel is native scroll rather than a JS gesture, prefer `scroll-snap-type: x mandatory` on
@@ -383,7 +385,40 @@ Hunt for: carousels, sliders, drag-to-dismiss sheets, sortable lists, and canvas
 `touch-action`.
 
 **Audit: Important.** A carousel, slider, sheet, sortable list or canvas with no `touch-action`, or
-`touch-action: none` on something the user needs to scroll past.
+`touch-action: none` on something the user needs to scroll past. An element that needs both axes is
+graded under the next rule instead.
+
+**Elements that need both axes tap to activate.** Some elements own both axes: a map, a canvas, a
+2D picker, a pan-and-zoom diagram. On touch, the page can't scroll across such an element and let it
+take gestures at the same time, because one finger can't say which it means. The approach is the
+resolved `touch.both_axes_activation`. With the default, `tap-to-activate`, the element starts
+inactive: it keeps the browser's panning, so a swipe across it scrolls the page. One tap activates
+it, and only then does it claim the gestures (`touch-action: none`). Show that a tap activates it,
+such as a "Tap to interact" hint, or a user who swipes only ever scrolls the page. An active element
+always has a way out: a tap outside it, a visible control on it (a close or done button), and Esc
+for keyboard users. Show the user how to leave while it is active, such as a hint beside the
+control. A library that sets its own `touch-action` and touch listeners (a map library) needs its
+handlers off while inactive too, or its own opt-in gesture mode, which counts as the project's
+pattern. With `always-active` the element takes gestures from the first touch; leave the page a
+strip beside it to scroll by. The project's own pattern for these elements beats the key.
+
+The keyboard floor holds whatever the key says. If focus can enter the element, the user can move
+it out again with the keyboard alone. When that takes more than unmodified Tab or arrow keys, or
+another standard way out, the user is told how.
+
+- **Pointer**: WCAG 2.2 Understanding 2.1.2 No Keyboard Trap, "Intent",
+  <https://www.w3.org/WAI/WCAG22/Understanding/no-keyboard-trap.html#intent>
+- **As of**: 2026-11-09
+- **Recheck trigger**: the Understanding page changes what counts as a standard exit method or when
+  the user must be told how to leave.
+
+Hunt for: maps, canvases, pan-and-zoom viewers and 2D pickers with `touch-action: none` from the
+first render; an activated element with no close control, no outside-tap exit or no Esc handler.
+
+**Audit: Important.** An element that needs both axes and gives the user no way out once active: no
+tap outside, no visible control, no Esc, or a way out the user is never shown. Under the default
+key, the same element claiming every gesture before a tap is also a finding; under `always-active`,
+one that leaves the page no strip to scroll by is.
 
 **Nothing scrolls sideways.** One element wider than the viewport makes the whole page pan
 horizontally on a phone, and every screen feels loose. The usual causes: a long URL or email in a

@@ -2005,6 +2005,21 @@ describe("admit", () => {
       assert.equal(listings, 1);
     });
 
+    // issuesByStatus leaves an issue whose Work status is mid-write out and
+    // names it in `held`: it may be a racing admission, so it reads at null.
+    test("admissionsSince counts an issue the listing holds mid-write as entered with its add unread", async () => {
+      const since = Date.parse("2026-10-30T10:00:00Z");
+      const claim = { event: "labeled", label: { name: DEFERRED }, actor: { id: APP }, created_at: "2026-10-30T10:01:00Z" };
+      const listed = Object.defineProperty([{ number: 8 }], "held", { value: [{ number: 9, created_at: "2026-10-30T10:00:30Z" }] });
+      const listing = { issues: async () => listed, events: async (number) => (number === 8 ? [claim] : assert.fail(`#${number}'s events read`)) };
+      const entered = await admissionsSince(async () => assert.fail("no label listing"), "o/r", since, listing);
+      assert.deepEqual(entered, [
+        { number: 9, at: null },
+        { number: 8, at: Date.parse("2026-10-30T10:01:00Z") },
+      ]);
+      assert.equal(admissionsAhead(entered, 8), 1, "the held issue takes room ahead");
+    });
+
     test("admissionsAhead counts a tie and an unread add ahead, and every other entry when its own add is unread", () => {
       const entered = [
         { number: 9, at: null },
@@ -3988,6 +4003,17 @@ describe("deferredAhead", () => {
     assert.equal(await deferredAhead(null, "o/r", newer, listed([item(3, [READY, DEFERRED])]), failing), true);
     const broken = { issues: async () => assert.fail("the open issues could not be read") };
     assert.equal(await deferredAhead(null, "o/r", newer, broken, pullsFor({})), true);
+  });
+
+  // issuesByStatus leaves an issue whose Work status is mid-write out and
+  // names it in `held`: it could be deferred, so an older one counts as ahead.
+  test("an older issue the listing holds mid-write counts as ahead; a newer one or the issue itself does not", async () => {
+    const holding = (held) => Object.defineProperty([], "held", { value: held });
+    assert.equal(await deferredAhead(null, "o/r", newer, listed(holding([{ number: 3, created_at: "2026-10-19T00:00:00Z" }])), pullsFor({})), true);
+    assert.equal(
+      await deferredAhead(null, "o/r", newer, listed(holding([{ number: 9, created_at: "2026-10-21T00:00:00Z" }, { number: 7, created_at: "2026-10-19T00:00:00Z" }])), pullsFor({})),
+      false,
+    );
   });
 });
 

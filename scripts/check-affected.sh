@@ -192,7 +192,6 @@ while (($#)); do
     base="$2"
     shift
     ;;
-  -h | --help) usage ;;
   *) usage ;;
   esac
   shift
@@ -296,6 +295,16 @@ trap 'rm -rf "$out" "$out.failures" "$out.patterns" "$out.not-run" "$out.left" "
 
 skip() { skipped+=("$1 ($2)"); }
 
+# fail_check <name> <exit> <reproduce-command>: records the failure with the
+# last lines of $out.
+fail_check() {
+  failed+=("$1")
+  {
+    printf '\nFAIL %s (exit %s). Reproduce: %s\n' "$1" "$2" "$3"
+    tail -n 15 "$out"
+  } >>"$out.failures"
+}
+
 # run_check <name> <reproduce-command> <command...>: a 2 from a check script
 # means it could not look, which is a skip; 127 is a tool that is not there.
 run_check() {
@@ -310,13 +319,7 @@ run_check() {
   case "$rc" in
   0) passed+=("$name") ;;
   2 | 127) skip "$name" "could not run, exit $rc: $(tail -n 1 "$out")" ;;
-  *)
-    failed+=("$name")
-    {
-      printf '\nFAIL %s (exit %s). Reproduce: %s\n' "$name" "$rc" "$repro"
-      tail -n 15 "$out"
-    } >>"$out.failures"
-    ;;
+  *) fail_check "$name" "$rc" "$repro" ;;
   esac
 }
 
@@ -763,11 +766,7 @@ elif ((run_tests)); then
     skip npm-deps "could not run, exit $rc: $(tail -n 1 "$out")"
   else
     npm_failed=1
-    failed+=(npm-deps)
-    {
-      printf '\nFAIL npm-deps (exit %s). Reproduce: bash scripts/setup-env.sh --node\n' "$rc"
-      tail -n 15 "$out"
-    } >>"$out.failures"
+    fail_check npm-deps "$rc" "bash scripts/setup-env.sh --node"
   fi
   # affected-tests exits 3 when it ran every shell suite it selected but also
   # selected suites it does not run, which it writes to the --write-not-run

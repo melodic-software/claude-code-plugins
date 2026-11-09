@@ -362,6 +362,9 @@ Rules:
 - The value names what the browser may still do, not what the element handles.
 - `none` only on an element that handles every direction itself, or the user cannot scroll past
   it.
+- An element that needs both axes (a map, a canvas) takes `none` only once a tap activates it,
+  unless `touch.both_axes_activation` is `always-active`: the touch concern's rule "Elements that
+  need both axes tap to activate".
 - A carousel on native scroll needs none of this: `carousel-on-native-scroll`.
 
 ## Nothing wider than the viewport: `nothing-wider-than-the-viewport`

@@ -37,15 +37,11 @@ const SHOTS_DIR = shotsDir();
 // Purge stale screenshots before regen. Without this, section reordering
 // between meetings leaves orphan section-NN-foo.png files alongside the
 // current set, polluting the audit. Idempotent: only removes PNG/JSON.
-try {
-  const stale = await fs.readdir(SHOTS_DIR);
-  for (const f of stale) {
-    if (/\.(png|json)$/i.test(f)) {
-      await fs.unlink(path.join(SHOTS_DIR, f)).catch(() => {});
-    }
+// A missing dir reads as empty; mkdir below creates it.
+for (const f of await fs.readdir(SHOTS_DIR).catch(() => [])) {
+  if (/\.(png|json)$/i.test(f)) {
+    await fs.unlink(path.join(SHOTS_DIR, f)).catch(() => {});
   }
-} catch {
-  // dir doesn't exist yet — mkdir below handles it
 }
 await fs.mkdir(SHOTS_DIR, { recursive: true });
 
@@ -69,6 +65,21 @@ const collectSectionOverflows = () =>
       (s) => !["open", "qa"].includes(s.id) && s.scrollWidth > s.clientWidth + 4,
     )
     .map((s) => ({ id: s.id, sw: s.scrollWidth, cw: s.clientWidth }));
+
+// Loads the deck with every external request blocked, applies `zoom` when
+// given, and waits for a stable layout.
+const openDeck = async (page, { zoom, onExternalRequest } = {}) => {
+  await page.route(/^https?:\/\//, (route) => {
+    onExternalRequest?.(route.request().url());
+    return route.abort("blockedbyclient");
+  });
+  await page.goto(HTML_URL, { waitUntil: "load" });
+  await page.waitForSelector("main#deck");
+  if (zoom !== undefined) {
+    await page.evaluate((z) => { document.documentElement.style.zoom = String(z); }, zoom);
+  }
+  await page.evaluate(settleRender);
+};
 
 // ────────────────────────────────────────────────────────────────────
 // Gate 1: Zod schema
@@ -94,14 +105,7 @@ const consoleErrs = [];
 const externalRenderRequests = [];
 page.on("pageerror", (e) => consoleErrs.push(`PAGEERR: ${e.message}`));
 page.on("console", (m) => { if (m.type() === "error") consoleErrs.push(`CONSOLE: ${m.text()}`); });
-await page.route(/^https?:\/\//, (route) => {
-  externalRenderRequests.push(route.request().url());
-  return route.abort("blockedbyclient");
-});
-
-await page.goto(HTML_URL, { waitUntil: "load" });
-await page.waitForSelector("main#deck");
-await page.evaluate(settleRender);
+await openDeck(page, { onExternalRequest: (url) => externalRenderRequests.push(url) });
 
 // Section-based audit (sectioned-scroll deck). One screenshot per <section>.
 // Page-wide URL/headline coverage check.
@@ -136,11 +140,10 @@ slides.forEach((s) => (s.bullets || []).forEach((b) => (b.urls || []).forEach((u
 slides.forEach((s) => (s.items || []).forEach((it) => (it.urls || []).forEach((u) => allUrls.add(u))));
 
 // All source headlines (bullet titles + flair item titles + pattern item titles)
-const expectedHeadlines = [];
-slides.forEach((s) => {
-  (s.bullets || []).forEach((b) => expectedHeadlines.push(b.title));
-  if (s.type === "flair" || s.type === "patterns") (s.items || []).forEach((it) => expectedHeadlines.push(it.title));
-});
+const expectedHeadlines = slides.flatMap((s) => [
+  ...(s.bullets || []).map((b) => b.title),
+  ...(s.type === "flair" || s.type === "patterns" ? (s.items || []).map((it) => it.title) : []),
+]);
 
 // Normalize trailing slash — browsers canonicalize <a href="https://host"> to "https://host/"
 const normUrl = (u) => u.replace(/\/+$/, "");
@@ -182,10 +185,9 @@ try {
     retry: false,
     linksToSkip: shouldSkipLinkCheck,
   });
-  for (const link of result.links) {
-    if (link.state !== "BROKEN") continue;
-    linkResults.broken.push(`${link.url} [${link.status}]`);
-  }
+  linkResults.broken = result.links
+    .filter((link) => link.state === "BROKEN")
+    .map((link) => `${link.url} [${link.status}]`);
   console.log(`  Checked ${result.links.length} links`);
   console.log(`  Broken:    ${linkResults.broken.length}`);
   console.log("  X URLs:     skipped by collection policy");
@@ -211,12 +213,7 @@ try {
   // displayed form is in the text; href itself is preserved in PDF annotations
   // (clickable links work independently of text-layer content).
   const urlList = [...allUrls];
-  for (const u of urlList) {
-    const displayed = formatUrlDisplay(u);
-    if (!text.includes(displayed) && !text.includes(u)) {
-      pdfResult.missingUrls.push(u);
-    }
-  }
+  pdfResult.missingUrls = urlList.filter((u) => !text.includes(formatUrlDisplay(u)) && !text.includes(u));
   console.log(`  PDF pages:    ${totalPages} (sections: ${sectionInfo.length}; slide objects: ${total})`);
   console.log(`  URLs in PDF:  ${urlList.length - pdfResult.missingUrls.length} / ${urlList.length}`);
   console.log(`  Missing URLs: ${pdfResult.missingUrls.length}`);
@@ -264,11 +261,7 @@ try {
   for (const m of responsiveMatrix) {
     const ctx2 = await browser2.newContext({ viewport: m.viewport, deviceScaleFactor: 1 });
     const p2 = await ctx2.newPage();
-    await p2.route(/^https?:\/\//, (route) => route.abort("blockedbyclient"));
-    await p2.goto(HTML_URL, { waitUntil: "load" });
-    await p2.waitForSelector("main#deck");
-    await p2.evaluate((z) => { document.documentElement.style.zoom = String(z); }, m.zoom);
-    await p2.evaluate(settleRender);
+    await openDeck(p2, { zoom: m.zoom });
 
     const overflows = await p2.evaluate(collectSectionOverflows);
 

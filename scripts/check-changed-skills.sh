@@ -129,6 +129,7 @@ fi
 # A stale row is a gate failure so the list can only shrink.
 EXEMPTIONS="${EVALS_WARRANT_EXEMPTIONS:-scripts/evals-warrant-exemptions.txt}"
 evals_skip_dirs=()
+declare -A evals_skip=()
 if [[ -f "$EXEMPTIONS" ]]; then
   # `inline`: entries are skill paths, never regexes, so a `#` anywhere on the
   # line opens the reason comment (scripts/lib/read-list.sh owns the two comment
@@ -140,6 +141,7 @@ if [[ -f "$EXEMPTIONS" ]]; then
       printf 'FAIL: %s: not a skill path: %s\n' "$EXEMPTIONS" "$raw" >&2
       exit 2
     fi
+    evals_skip["$raw"]=1
     # A row still doing its job names a live skill that ships no evals; anything
     # else is an exemption outliving what it excuses. scripts/lib/read-list.sh
     # owns the consumed-set and the diagnostic.
@@ -153,14 +155,6 @@ if [[ -f "$EXEMPTIONS" ]]; then
   done
   ((evals_stale == 0)) || exit 1
 fi
-
-evals_warrant_skip() {
-  local dir="$1" listed
-  for listed in ${evals_skip_dirs[@]+"${evals_skip_dirs[@]}"}; do
-    [[ "$listed" == "$dir" ]] && return 0
-  done
-  return 1
-}
 
 # Changed skill dirs, mapped from any touched path (including vendor/ subtrees)
 # to the owning plugins/<plugin>/skills/<skill> dir and de-duplicated.
@@ -237,14 +231,14 @@ for skill_dir in ${changed[@]+"${changed[@]}"}; do
   skills_root="${skill_dir%/*}" # plugins/<plugin>/skills
   skill_name="${skill_dir##*/}" # <skill>
   checked=$((checked + 1))
-  key="$(printf '%06d' "$checked")"
+  printf -v key '%06d' "$checked"
   keys+=("$key")
   {
     printf '=== %s ===\n' "$skill_dir"
     require_evals_args=()
     skill_md="$skill_dir/SKILL.md"
     if grep -q . < <(git diff --name-only "$BASE" -- "$skill_md") || [[ -n "${untracked["$skill_md"]:-}" ]]; then
-      if evals_warrant_skip "$skill_dir"; then
+      if [[ -n "${evals_skip[$skill_dir]:-}" ]]; then
         printf 'evals skip recorded for %s — not passing --require-evals\n' "$skill_dir"
       else
         require_evals_args=(--require-evals)

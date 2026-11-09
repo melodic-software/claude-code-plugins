@@ -259,13 +259,9 @@ changelog_fragments::validate() {
 }
 
 changelog_fragments::bump_delivered() {
-  local base="$1" plugin="$2" base_version="$3" head_version="$4" added path rc
-  if [[ "$head_version" != "$base_version" ]]; then
-    return 0
-  fi
-  changelog_fragments::in_mode "$plugin"
-  rc=$?
-  ((rc == 0)) || return "$rc"
+  local base="$1" plugin="$2" base_version="$3" head_version="$4" added path
+  [[ "$head_version" == "$base_version" ]] || return 0
+  changelog_fragments::in_mode "$plugin" || return
   if ! added="$(git diff --name-only --no-renames --diff-filter=A "$base" -- ".changes/$plugin/")"; then
     echo "changelog-fragments: git diff against $base failed for .changes/$plugin/" >&2
     return 2

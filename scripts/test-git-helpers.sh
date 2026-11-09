@@ -79,14 +79,10 @@ git_init_safe() {
   if [[ -n "$repo_root" ]]; then
     local abs_repo
     abs_repo="$(cd "$repo_root" && pwd)"
-    case "$abs_dir" in
-      "$abs_repo" | "$abs_repo"/*)
-        echo "git_init_safe: refusing path inside current repository: $abs_dir" >&2
-        return 1
-        ;;
-      *)
-        ;;
-    esac
+    if [[ "$abs_dir" == "$abs_repo" || "$abs_dir" == "$abs_repo"/* ]]; then
+      echo "git_init_safe: refusing path inside current repository: $abs_dir" >&2
+      return 1
+    fi
   fi
   git_test_config "$dir" init -q
 }

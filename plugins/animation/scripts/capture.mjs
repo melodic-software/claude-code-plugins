@@ -17,6 +17,7 @@ import { delimiter, dirname, join, resolve } from 'node:path';
 const REMEDY = 'pass --playwright-core <dir> (the animation plugin\'s playwright_core option), run `npm i playwright-core` '
   + 'in the working directory, or install @playwright/cli (the playwright plugin\'s setup installs it, when that plugin '
   + 'is installed); then `npx playwright install chromium`';
+const fail = msg => { console.error(`capture.mjs: ${msg}`); process.exit(1); };
 
 function onPath(name) {
   const exts = process.platform === 'win32' ? ['.cmd', '.exe', ''] : [''];
@@ -57,7 +58,7 @@ if (argv[0] === '--probe') {
 }
 const [url, out, sel, ...rest] = argv;
 const fps = sel === '--fps' ? +rest.shift() : 0, workers = +rest[0];
-if (!(workers >= 1)) { console.error('capture.mjs: <workers> is required (render.py passes it)'); process.exit(1); }
+if (!(workers >= 1)) fail('<workers> is required (render.py passes it)');
 mkdirSync(out, { recursive: true });
 const browser = await launch();
 let failed = false;
@@ -70,13 +71,12 @@ const open = async () => {
     window.sceneReady.then(() => null, e => `the scene module failed: ${e?.message ?? e}`),
     new Promise(r => setTimeout(() => r('the scene module did not finish loading in 30 s'), 30000)),
   ]));
-  if (loaded) { console.error(`capture.mjs: ${loaded}`); process.exit(1); }
+  if (loaded) fail(loaded);
   await p.waitForFunction(() => typeof window.renderFrame === 'function', null, { timeout: 30000 });
   return p;
 };
 const pages = [await open()];
 const duration = await pages[0].evaluate(() => window.DURATION);
-const fail = msg => { console.error(`capture.mjs: ${msg}`); process.exit(1); };
 if (fps && !(typeof duration === 'number' && Number.isFinite(duration) && duration > 0))
   fail(`window.DURATION is ${duration}; a scene must set it to a positive number of seconds`);
 if (!fps && await pages[0].evaluate(() => typeof window.renderDrawing !== 'function'))
@@ -96,7 +96,7 @@ await Promise.all(pages.map(async p => {
     writeFileSync(join(out, j.name), Buffer.from(b64, 'base64'));
   }
 }));
-const size = await pages[0].evaluate(() => [document.getElementById('c').width, document.getElementById('c').height]);
+const size = await pages[0].evaluate(() => { const c = document.getElementById('c'); return [c.width, c.height]; });
 console.log(JSON.stringify({ browser_build: browser.version(), size, frames: jobs.length, duration: duration ?? null }));
 await browser.close();
 process.exit(failed ? 1 : 0);

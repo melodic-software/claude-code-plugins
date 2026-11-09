@@ -32,9 +32,7 @@ CAP=50
 
 WORKDIR=""
 finish() {
-  if [[ -n "$WORKDIR" ]] && [[ -d "$WORKDIR" ]]; then
-    rm -rf "$WORKDIR"
-  fi
+  [[ -z "$WORKDIR" ]] || rm -rf "$WORKDIR"
   exit 0
 }
 trap finish EXIT
@@ -99,8 +97,7 @@ annotate() {
       file = substr($0, j + 6, k - (j + 6))
       line = substr($0, k + 6, m - (k + 6))
       excerpt = substr($0, n + 9)
-      gsub(/%/, "%25", excerpt)
-      gsub(/%/, "%25", rule)
+      gsub(/%/, "%25", excerpt); gsub(/%/, "%25", rule)
       printf "::warning file=%s,line=%s::%s: %s\n", file, line, rule, excerpt
       emitted++
     }

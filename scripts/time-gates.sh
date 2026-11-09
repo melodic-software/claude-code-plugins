@@ -56,11 +56,12 @@ while (($# > 0)); do
   shift
 done
 [[ -n "$timings_file" && -n "$base" ]] || usage
-if [[ ! -d "$(dirname "$timings_file")" ]]; then
-  echo "error: --timings directory not found: $(dirname "$timings_file")" >&2
+timings_dir="$(dirname "$timings_file")"
+if [[ ! -d "$timings_dir" ]]; then
+  echo "error: --timings directory not found: $timings_dir" >&2
   exit 2
 fi
-timings_file="$(cd "$(dirname "$timings_file")" && pwd)/$(basename "$timings_file")" || exit 2
+timings_file="$(cd "$timings_dir" && pwd)/$(basename "$timings_file")" || exit 2
 
 root="${TIME_GATES_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 cd "$root" || exit 2

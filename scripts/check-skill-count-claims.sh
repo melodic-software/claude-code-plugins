@@ -111,12 +111,10 @@ done
 # canonical English form is hyphenated, so it is rendered rather than looked up.
 int_to_word() {
   local n="$1"
-  if ((n <= 20)); then
+  if ((n <= 20 || n == 30)); then
     printf '%s' "${number_words[$n]}"
   elif ((n < 30)); then
     printf 'twenty-%s' "${number_words[$((n - 20))]}"
-  elif ((n == 30)); then
-    printf 'thirty'
   else
     printf '%d' "$n"
   fi
@@ -353,9 +351,7 @@ for plugin_dir in plugins/*/; do
         next_norm="${norm_out,,}"
       fi
 
-      matched=0
       for ((sub_idx = 0; sub_idx < ${#subjects[@]}; sub_idx++)); do
-        ((matched)) && break
         subject="${subjects[sub_idx]}"
         # Case-folded BEFORE the cheap prefilter, not after: `[Ss]kill` rejects
         # an all-caps `SKILLS`, so prefiltering on the raw text would drop a
@@ -419,7 +415,6 @@ for plugin_dir in plugins/*/; do
           fi
 
           claims_found=$((claims_found + 1))
-          matched=1
           if ((claimed == expected)); then
             # Deliberately NOT consulted when the claim is already right: an
             # exemption is only "used" when it actually suppressed a mismatch, and
@@ -441,9 +436,9 @@ for plugin_dir in plugins/*/; do
           # One claim per line: the forms overlap by design (a line can satisfy
           # both the appositive and the line-start form), and the line-alone and
           # joined subjects overlap too. Reporting the same site twice would
-          # double-count the fleet total; `matched` above stops the subject loop
-          # for the same reason.
-          break
+          # double-count the fleet total, so the first claim ends both the form
+          # and the subject loops.
+          break 2
         done
       done
     done

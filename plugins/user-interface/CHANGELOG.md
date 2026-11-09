@@ -3,6 +3,28 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.1] - 2026-11-09
+
+### Changed
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
+## [0.22.0] - 2026-11-09
+
+### Added
+
+- `touch.both_axes_activation` (default `tap-to-activate`, or `always-active`): how a touch element that needs both axes, such as a map or a canvas, takes gestures. By default it starts inactive so the page scrolls across it, one tap activates it, and a tap outside, a visible control or Esc leaves it, with the way out shown to the user. The touch rules in `reference/types/touch-web.md` follow the key, and the project's own pattern beats it. The default follows Emil Kowalski's tap-to-interact approach for touch ([post](https://x.com/emilkowalski/status/2117955432438469085)).
+
+## [0.21.0] - 2026-11-09
+
+### Added
+
+- `/user-interface:audit cleanup`: a motion lane sub-mode that runs the lane's passes in the order `animation.cleanup_order` sets, one pass per value. The key takes `removal`, `review`, `opportunities` and `performance`. Its default, `removal`, `review`, `performance`, is the cleanup sequence Emil Kowalski suggests for his skills: remove, then improve, then check performance ([post](https://x.com/emilkowalski/status/2116583281332503038)).
+
+### Changed
+
+- Simplified the shared resolve-convention-home.sh, resolve-convention-pattern.sh and rewrite-guard.sh copies; behavior is unchanged.
+
 ## [0.20.0] - 2026-11-09
 
 ### Added

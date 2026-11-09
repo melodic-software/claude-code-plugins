@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.18.3] - 2026-11-09
+
+### Changed
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
+- Internal simplification, no behavior change.
+
+## [0.18.2] - 2026-11-09
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [0.18.1] - 2026-11-09
+
+### Changed
+
+- Simplified the shared resolve-convention-home.sh, resolve-convention-pattern.sh and rewrite-guard.sh copies; behavior is unchanged.
+
 ## [0.18.0] - 2026-11-06
 
 ### Added

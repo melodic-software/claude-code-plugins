@@ -3,6 +3,20 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.12] - 2026-11-09
+
+### Changed
+
+- Simplified the vendored git-hook check library and installer. They behave the same, but a git-hook copy you already installed shows as stale until setup refreshes it, because the copy's stamp covers the library's text.
+
+- Simplified the internals of the docs fetcher script; its behavior is unchanged.
+
+## [1.0.11] - 2026-11-09
+
+### Changed
+
+- Simplified `docs-cache.sh`: one routine now warns on a bad summary or note file, and the UTC formatter picks its format once. Outputs, exit codes and messages are unchanged.
+
 ## [1.0.10] - 2026-11-07
 
 ### Changed

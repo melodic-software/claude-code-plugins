@@ -121,6 +121,15 @@ overlap="$(
 
 behind_by="$(git rev-list --count "$merge_base..$base_tip" 2>/dev/null || echo '?')"
 
+# Prints the overlapping paths to stderr, one indented path per line.
+print_overlap() {
+  local path
+  while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+    printf '    %s\n' "$path" >&2
+  done <<<"$overlap"
+}
+
 if [[ -z "$overlap" ]]; then
   echo "check-stale-base-overlap: HEAD is $behind_by commit(s) behind $base_ref but touches no overlapping paths"
   gate_entry::finish 0
@@ -142,7 +151,7 @@ while IFS= read -r path; do
 done <<<"$overlap"
 if ((release_notes_only)); then
   echo "check-stale-base-overlap: WARNING: HEAD is $behind_by commit(s) behind $base_ref; the only overlapping paths are changelogs or changelog fragments:" >&2
-  while IFS= read -r path; do printf '    %s\n' "$path" >&2; done <<<"$overlap"
+  print_overlap
   echo "  Not refused: the merge queue tests this change on the current base." >&2
   gate_entry::finish 0
 fi
@@ -152,10 +161,7 @@ echo "  base:       $base_ref ($base_tip)" >&2
 echo "  merge-base: $merge_base" >&2
 echo "  behind_by:  $behind_by" >&2
 echo "  overlapping paths (changed on both base and this PR since the merge-base):" >&2
-while IFS= read -r path; do
-  [[ -n "$path" ]] || continue
-  printf '    %s\n' "$path" >&2
-done <<<"$overlap"
+print_overlap
 echo >&2
 echo "Refresh before merge: integrate $base_ref (merge or update-branch)," >&2
 echo "re-run CI, then merge. A stale-base squash can silently revert recently" >&2

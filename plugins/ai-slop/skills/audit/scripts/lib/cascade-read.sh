@@ -20,6 +20,7 @@ cascade_scalar_layer=""
 cascade_list_layer=""
 
 _cascade_is_yaml() { [[ "$1" == *.yaml || "$1" == *.yml ]]; }
+_cascade_has_jq() { command -v jq >/dev/null 2>&1; }
 
 # _cascade_usable <layer>: the layer can be parsed at all. A YAML layer must be
 # inside the parser's subset; a JSON layer needs jq and a single valid value.
@@ -27,7 +28,7 @@ _cascade_usable() {
   if _cascade_is_yaml "$1"; then
     [[ -f "$_CASCADE_PCV" ]] && bash "$_CASCADE_PCV" --strict "$1" __probe__ >/dev/null 2>&1
   else
-    command -v jq >/dev/null 2>&1 && jq -e . "$1" >/dev/null 2>&1
+    _cascade_has_jq && jq -e . "$1" >/dev/null 2>&1
   fi
 }
 
@@ -45,7 +46,7 @@ cascade::scalar() {
       _cascade_usable "$layer" || continue
       value="$(bash "$_CASCADE_PCV" "$layer" "${filter#.}" 2>/dev/null)" || continue
     else
-      command -v jq >/dev/null 2>&1 || continue
+      _cascade_has_jq || continue
       value="$(jq -r "${filter} // empty" "$layer" 2>/dev/null)" || continue
     fi
     value="${value//$'\r'/}"
@@ -74,9 +75,9 @@ _cascade_yaml_key_present() {
 # the last layer that defined the key (empty when none did). Elements keep their
 # internal spaces; one output line is one element.
 cascade::list() {
-  local dest="$1" key="$2"
+  local -n dest_ref="$1"
+  local key="$2"
   shift 2
-  local -n dest_ref="$dest"
   local layer v
   cascade_list_layer=""
   for layer in "$@"; do
@@ -85,7 +86,7 @@ cascade::list() {
       _cascade_yaml_key_present "$layer" "$key" || continue
       v="$(bash "$_CASCADE_PCV" --list "$layer" "$key" 2>/dev/null)" || continue
     else
-      command -v jq >/dev/null 2>&1 || continue
+      _cascade_has_jq || continue
       jq -e --arg k "$key" 'has($k)' "$layer" >/dev/null 2>&1 || continue
       v="$(jq -r --arg k "$key" '.[$k][]' "$layer" 2>/dev/null)" || continue
     fi
@@ -136,9 +137,9 @@ _cascade_yaml_slug_rows() {
 # whole, so a truncated object cannot apply the entries jq printed before
 # failing. Sets cascade_slug_layer[<slug>] to the layer that supplied the slug.
 cascade::slug_map() {
-  local dest="$1" key="$2"
+  local -n map_ref="$1"
+  local key="$2"
   shift 2
-  local -n map_ref="$dest"
   local layer raw slug globs
   cascade_slug_layer=()
   for layer in "$@"; do
@@ -146,7 +147,7 @@ cascade::slug_map() {
       _cascade_usable "$layer" || continue
       raw="$(_cascade_yaml_slug_rows "$layer" "$key")" || continue
     else
-      command -v jq >/dev/null 2>&1 || continue
+      _cascade_has_jq || continue
       raw="$(jq -r --arg k "$key" '
         if has($k) then
           (.[$k] | to_entries[] | [.key, (.value | join(" "))] | @tsv)

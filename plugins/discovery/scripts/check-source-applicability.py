@@ -342,10 +342,10 @@ def grade(slice_dir: Path, expected: str | None) -> tuple[int, str]:
                     f"{here}: applies_to missing or unparsable: {claim.get('applies_to')}"
                 )
             is_gap = claim.get("confidence") in GAP_CONFIDENCE
-            roles = [s.get("role") for s in claim["sources"]]
-            if not is_gap and roles.count("primary") != 1:
+            primaries = sum(s.get("role") == "primary" for s in claim["sources"])
+            if not is_gap and primaries != 1:
                 violations.append(
-                    f"{here}: expected exactly one primary source, found {roles.count('primary')}"
+                    f"{here}: expected exactly one primary source, found {primaries}"
                 )
             for s_no, src in enumerate(claim["sources"], start=1):
                 n_sources += 1

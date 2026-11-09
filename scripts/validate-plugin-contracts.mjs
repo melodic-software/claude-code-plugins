@@ -7,6 +7,7 @@ import process from "node:process";
 
 const root = process.cwd();
 const failures = [];
+const warnings = [];
 
 // Org-agnosticism tokens live in scripts/org-agnosticism-tokens.txt: one
 // data file, every site either reads it or is a documented extension (#3136).
@@ -84,6 +85,20 @@ function fail(path, message) {
   failures.push(`${relative(root, path)}: ${message}`);
 }
 
+function warn(path, message) {
+  warnings.push(`${relative(root, path)}: ${message}`);
+}
+
+// The frontmatter's inner text, or undefined when the file opens with none.
+function frontmatterOf(content) {
+  return content.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1];
+}
+
+// The text after the frontmatter's closing `---`.
+function afterFrontmatter(content) {
+  return content.slice(content.indexOf("---", 3) + 3);
+}
+
 const pluginRoot = join(root, "plugins");
 const pluginFiles = filesUnder(pluginRoot);
 
@@ -101,6 +116,9 @@ function pluginPathParts(path) {
 
 const setupSkills = pluginFiles.filter((path) =>
   /[\\/]skills[\\/]setup[\\/]SKILL\.md$/.test(path),
+);
+const pluginManifests = pluginFiles.filter((path) =>
+  path.endsWith(`${sep}.claude-plugin${sep}plugin.json`),
 );
 
 // plugin-philosophy's check-only carve-out is a consequence of a plugin's
@@ -196,7 +214,7 @@ function disablesModelInvocation(frontmatter) {
 
 for (const path of setupSkills) {
   const content = read(path);
-  const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? "";
+  const frontmatter = frontmatterOf(content) ?? "";
   if (!disablesModelInvocation(frontmatter)) {
     fail(path, "setup skills must set disable-model-invocation: true");
   }
@@ -211,7 +229,7 @@ for (const path of setupSkills) {
   if (!/^argument-hint:\s*"[[<]check[|\]>]/m.test(frontmatter)) {
     fail(path, 'setup skills must declare check as the leading action in argument-hint ("[check|apply] ...", "<check|apply> ...", or "[check] ...") (docs/contracts/argument-hint/README.md)');
   }
-  const body = content.slice(content.indexOf("---", 3) + 3);
+  const body = afterFrontmatter(content);
   if (!/`check`/.test(body)) {
     fail(path, "setup skills must document the read-only check action");
   }
@@ -472,8 +490,7 @@ const defaultComponentPaths = {
   mcpServers: [".mcp.json"],
   skills: ["skills", "skills/"],
 };
-for (const path of pluginFiles) {
-  if (!path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) continue;
+for (const path of pluginManifests) {
   const manifest = JSON.parse(read(path));
   for (const [field, defaults] of Object.entries(defaultComponentPaths)) {
     const declared = [manifest[field] ?? []].flat();
@@ -496,9 +513,12 @@ for (const path of pluginFiles) {
 // review (docs/migration-playbook.md, criterion 6) denies by default. The pin is
 // required here so review never has to catch it by eye.
 const marketplacePath = join(root, ".claude-plugin", "marketplace.json");
-if (existsSync(marketplacePath)) {
-  const catalog = JSON.parse(read(marketplacePath));
-  for (const entry of [catalog.plugins ?? []].flat()) {
+// The catalog's plugin entries, or null when there is no catalog.
+const catalogEntries = existsSync(marketplacePath)
+  ? [JSON.parse(read(marketplacePath)).plugins ?? []].flat()
+  : null;
+if (catalogEntries !== null) {
+  for (const entry of catalogEntries) {
     if (!entry || typeof entry !== "object") continue;
     const source = entry.source;
     // Documented entry shape: "source": { "source": "archive", "url": ..., "sha256"? : ... }.
@@ -519,7 +539,7 @@ if (existsSync(marketplacePath)) {
 // test file is required; a missing file must not skip the alignment check.
 {
   const githubPlugin = join(pluginRoot, "github");
-  const githubTest = join(pluginRoot, "github", "github.test.sh");
+  const githubTest = join(githubPlugin, "github.test.sh");
   if (existsSync(githubPlugin) && statSync(githubPlugin).isDirectory()) {
     if (!existsSync(githubTest)) {
       fail(
@@ -1092,12 +1112,11 @@ for (const path of pluginFiles) {
 // skills dir; a bare `<skill>` resolves inside the agent's own plugin.
 const SKILLS_ENTRY_MALFORMED = "`skills:` must be a YAML list of skill names";
 for (const path of pluginFiles) {
-  const parts = relative(pluginRoot, path).split(sep);
+  const parts = pluginPathParts(path);
   if (parts.length !== 3 || parts[1] !== "agents" || !parts[2].endsWith(".md")) continue;
   const ownPlugin = parts[0];
-  const frontmatter = read(path).match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!frontmatter) continue;
-  const body = frontmatter[1];
+  const body = frontmatterOf(read(path));
+  if (body === undefined) continue;
   const blockList = body.match(/^skills:[ \t]*\r?\n((?:[ \t]+-[ \t]*\S.*\r?\n?)+)/m);
   const flowList = body.match(/^skills:[ \t]*\[([^\]]*)\]/m);
   let entries = null;
@@ -1130,8 +1149,8 @@ for (const path of pluginFiles) {
       );
       continue;
     }
-    const targetFrontmatter = read(target).match(/^---\r?\n([\s\S]*?)\r?\n---/);
-    if (targetFrontmatter && disablesModelInvocation(targetFrontmatter[1])) {
+    const targetFrontmatter = frontmatterOf(read(target));
+    if (targetFrontmatter !== undefined && disablesModelInvocation(targetFrontmatter)) {
       fail(
         path,
         `\`skills:\` entry ${entry} targets a \`disable-model-invocation: true\` skill, which cannot be preloaded`,
@@ -1248,8 +1267,8 @@ const argumentSkills = pluginFiles.filter((path) =>
 );
 for (const path of argumentSkills) {
   const content = read(path);
-  const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? "";
-  const body = content.slice(content.indexOf("---", 3) + 3);
+  const frontmatter = frontmatterOf(content) ?? "";
+  const body = afterFrontmatter(content);
   if (!admitsArguments(frontmatter, body)) continue;
   const hit = firstUnescaped(body, "\\$[0-9]+");
   if (hit) {
@@ -1266,7 +1285,6 @@ for (const path of argumentSkills) {
 // asserts the shipping tree draws zero warnings.
 const ARGUMENT_HINT_DOC = "docs/contracts/argument-hint/README.md";
 const ARGUMENT_HINT_BUDGET = 100;
-const warnings = [];
 
 // A slot that names a closed set instead of writing it out. A literal flag such
 // as `--mode` is not a slot name; `--<mode>` is.
@@ -1339,7 +1357,7 @@ function argumentsLineSpan(text) {
 
 for (const path of argumentSkills) {
   const content = read(path);
-  const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? "";
+  const frontmatter = frontmatterOf(content) ?? "";
   const hint = /^argument-hint:[ \t]*(.*)$/m.exec(frontmatter);
   if (!hint) continue;
   // A trailing YAML comment is not part of the value: `"" # none` is empty.
@@ -1355,20 +1373,17 @@ for (const path of argumentSkills) {
   }
   const length = [...value].length;
   if (length > ARGUMENT_HINT_BUDGET) {
-    warnings.push(
-      `${relative(root, path)}: argument-hint is ${length} characters, over the ${ARGUMENT_HINT_BUDGET}-character budget (${ARGUMENT_HINT_DOC})`,
+    warn(
+      path,
+      `argument-hint is ${length} characters, over the ${ARGUMENT_HINT_BUDGET}-character budget (${ARGUMENT_HINT_DOC})`,
     );
   }
   for (const problem of argumentHintProblems(value)) {
-    warnings.push(
-      `${relative(root, path)}: argument-hint is malformed: ${problem} (${ARGUMENT_HINT_DOC})`,
-    );
+    warn(path, `argument-hint is malformed: ${problem} (${ARGUMENT_HINT_DOC})`);
   }
-  const span = argumentsLineSpan(content.slice(content.indexOf("---", 3) + 3));
+  const span = argumentsLineSpan(afterFrontmatter(content));
   if (span !== null && span !== value) {
-    warnings.push(
-      `${relative(root, path)}: the **Arguments.** line does not lead with the argument-hint (${ARGUMENT_HINT_DOC})`,
-    );
+    warn(path, `the **Arguments.** line does not lead with the argument-hint (${ARGUMENT_HINT_DOC})`);
   }
 }
 
@@ -1376,8 +1391,7 @@ for (const path of argumentSkills) {
 // displayName fails; every title and description shape warns on its own line.
 const OPTION_NAMING_DOC = "docs/contracts/plugin-option-naming/README.md";
 const DESCRIPTION_BUDGET = 300;
-const optionWarn = (path, message) =>
-  warnings.push(`${relative(root, path)}: ${message} (${OPTION_NAMING_DOC})`);
+const optionWarn = (path, message) => warn(path, `${message} (${OPTION_NAMING_DOC})`);
 const spacedLower = (text) => text.toLowerCase().replace(/[-\s]+/g, " ").trim();
 // Capitalized words that are proper nouns, so they may follow the first word.
 const TITLE_PROPER_NOUNS = new Set(["Windows", "Linux", "Claude", "Python", "Playwright", "Go"]);
@@ -1419,8 +1433,7 @@ function optionDescriptionProblems(description) {
 }
 
 const titlesByKey = new Map();
-for (const path of pluginFiles) {
-  if (!path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) continue;
+for (const path of pluginManifests) {
   const manifest = JSON.parse(read(path));
   const plugin = manifest.name ?? pluginPathParts(path)[0];
   if ("displayName" in manifest) {
@@ -1451,14 +1464,12 @@ for (const [key, titles] of titlesByKey) {
   const spread = [...titles].map(([title, plugins]) => `"${title}" (${plugins.join(", ")})`).join("; ");
   warnings.push(`userConfig "${key}" has different titles across plugins: ${spread} (${OPTION_NAMING_DOC})`);
 }
-if (existsSync(marketplacePath)) {
-  for (const entry of [JSON.parse(read(marketplacePath)).plugins ?? []].flat()) {
-    if (entry && typeof entry === "object" && "displayName" in entry) {
-      fail(
-        marketplacePath,
-        `plugin entry "${entry.name ?? "(unnamed)"}" must not set displayName (${OPTION_NAMING_DOC})`,
-      );
-    }
+for (const entry of catalogEntries ?? []) {
+  if (entry && typeof entry === "object" && "displayName" in entry) {
+    fail(
+      marketplacePath,
+      `plugin entry "${entry.name ?? "(unnamed)"}" must not set displayName (${OPTION_NAMING_DOC})`,
+    );
   }
 }
 
@@ -1468,8 +1479,8 @@ if (existsSync(marketplacePath)) {
 // (defaultEnabled absent or true), so installing it never adds a plugin the
 // catalog leaves off or does not publish.
 const coreManifestPath = join(pluginRoot, "core", ".claude-plugin", "plugin.json");
-if (existsSync(marketplacePath) && existsSync(coreManifestPath)) {
-  const entries = [JSON.parse(read(marketplacePath)).plugins ?? []].flat().filter((e) => e && typeof e === "object");
+if (catalogEntries !== null && existsSync(coreManifestPath)) {
+  const entries = catalogEntries.filter((e) => e && typeof e === "object");
   const coreEntry = entries.find((e) => e.name === "core");
   if (coreEntry && coreEntry.defaultEnabled !== false) {
     fail(marketplacePath, 'plugin entry "core" must set "defaultEnabled": false');
@@ -1524,8 +1535,7 @@ function topLevelKeyLines(text) {
   return lines;
 }
 
-for (const path of pluginFiles) {
-  if (!path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) continue;
+for (const path of pluginManifests) {
   const text = read(path);
   const manifest = JSON.parse(text);
   for (const key of ["$schema", "defaultEnabled"]) {
@@ -1575,7 +1585,7 @@ function frontmatterScalar(frontmatter, key) {
 for (const path of pluginFiles) {
   const parts = pluginPathParts(path);
   if (parts[1] !== "skills" || parts.at(-1).toLowerCase() !== "skill.md") continue;
-  const frontmatter = read(path).match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1];
+  const frontmatter = frontmatterOf(read(path));
   if (frontmatter === undefined) {
     fail(path, "a file named SKILL.md must start with YAML frontmatter (claude.ai reads it as a skill)");
     continue;

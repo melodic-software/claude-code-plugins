@@ -147,11 +147,11 @@ RULE="$(cfg '.file_names.rule')"
 grep -Eq "$REGEX" <<<'probe-name.md' >/dev/null 2>&1
 [[ "$?" -le 1 ]] || die "file_names.regex does not compile under grep -E: $REGEX"
 
-# `list <jq-path>` prints one entry per line; `quoted` turns those into a shell
-# array body; `human` turns them into a prose list for the headers.
-list() {
-  cfg "$1" 2>/dev/null
-}
+# Each exemption list, one entry per line. `quoted` turns a list into a shell
+# array body; `human` turns it into a prose list for the headers.
+EXEMPT_BASENAMES="$(cfg '.file_names.exempt_basenames[]')"
+EXEMPT_PATHS="$(cfg '.file_names.exempt_paths[]')"
+EXEMPT_EXTENSIONS="$(cfg '.file_names.exempt_extensions[]')"
 
 # EVERY VALUE THAT LANDS IN THE EMITTED SHELL IS SINGLE-QUOTED, WITH ITS OWN
 # SINGLE QUOTES ESCAPED. A configuration value is text somebody typed, and the
@@ -231,12 +231,12 @@ ROOTS_HUMAN="$(printf '%s' "$SCOPES" | jq -r '.[] |
 ROOTS_PLAIN="$(sq "$(printf '%s' "$SCOPES" | jq -r 'map(.label) | join(", ")' | tr -d '\r')")"
 REGEX_SQ="$(sq "$REGEX")"
 RULE_SQ="$(sq "$RULE")"
-EXEMPT_BASENAMES_ARRAY="$(list '.file_names.exempt_basenames[]' | quoted)"
-EXEMPT_BASENAMES_HUMAN="$(list '.file_names.exempt_basenames[]' | human)"
-EXEMPT_PATHS_ARRAY="$(list '.file_names.exempt_paths[]' | quoted)"
-EXEMPT_PATHS_HUMAN="$(list '.file_names.exempt_paths[]' | human)"
-EXEMPT_EXTENSIONS_ARRAY="$(list '.file_names.exempt_extensions[]' | quoted)"
-EXEMPT_EXTENSIONS_HUMAN="$(list '.file_names.exempt_extensions[]' | human)"
+EXEMPT_BASENAMES_ARRAY="$(printf '%s\n' "$EXEMPT_BASENAMES" | quoted)"
+EXEMPT_BASENAMES_HUMAN="$(printf '%s\n' "$EXEMPT_BASENAMES" | human)"
+EXEMPT_PATHS_ARRAY="$(printf '%s\n' "$EXEMPT_PATHS" | quoted)"
+EXEMPT_PATHS_HUMAN="$(printf '%s\n' "$EXEMPT_PATHS" | human)"
+EXEMPT_EXTENSIONS_ARRAY="$(printf '%s\n' "$EXEMPT_EXTENSIONS" | quoted)"
+EXEMPT_EXTENSIONS_HUMAN="$(printf '%s\n' "$EXEMPT_EXTENSIONS" | human)"
 
 # One seed path per exempt_paths glob: the glob's literal prefix plus a
 # basename the rule would reject, so the emitted case proves the exemption
@@ -246,7 +246,7 @@ EXEMPT_EXTENSIONS_HUMAN="$(list '.file_names.exempt_extensions[]' | human)"
 # `docs/legacy` matches that one path and nothing under it, so a seed beneath it
 # would be a case the emitted suite fails out of the box through no fault of the
 # consumer's configuration.
-EXEMPT_PATH_SEEDS_ARRAY="$(list '.file_names.exempt_paths[]' |
+EXEMPT_PATH_SEEDS_ARRAY="$(printf '%s\n' "$EXEMPT_PATHS" |
   awk '/\*$/ {sub(/\/*\**$/, ""); if (length($0)) print $0 "/Exempt_By-PATH.md"}' | quoted)"
 
 # The suite's probe names come from the configuration, never from this file. A
@@ -269,13 +269,19 @@ probe_names() {
 probe_ok() {
   for cand in $(probe_names conforming-name.md conformingname.md conforming.md c1.md name.txt n.md n.txt); do
     grep -Eq "$REGEX" <<<"$cand" || continue
-    exempt_by_list "$cand" "$(list '.file_names.exempt_basenames[]')" && continue
-    exempt_by_list "${cand##*.}" "$(list '.file_names.exempt_extensions[]')" && continue
-    in_primary_root "$cand" || continue
+    probe_eligible "$cand" || continue
     printf '%s' "$cand"
     return 0
   done
   return 1
+}
+
+# A probe the suite can seed: exempt by neither its basename nor its extension,
+# and claimed by the seeding root.
+probe_eligible() {
+  ! exempt_by_list "$1" "$EXEMPT_BASENAMES" &&
+    ! exempt_by_list "${1##*.}" "$EXEMPT_EXTENSIONS" &&
+    in_primary_root "$1"
 }
 
 exempt_by_list() {
@@ -301,9 +307,7 @@ PROBE_OK="$(probe_ok)" ||
 PROBE_BAD_ARRAY="$(
   for cand in $(probe_names UPPER-KEBAB.md snake_case.md Mixed.md double..dot.md BadName.txt); do
     grep -Eq "$REGEX" <<<"$cand" && continue
-    exempt_by_list "$cand" "$(list '.file_names.exempt_basenames[]')" && continue
-    exempt_by_list "${cand##*.}" "$(list '.file_names.exempt_extensions[]')" && continue
-    in_primary_root "$cand" || continue
+    probe_eligible "$cand" || continue
     printf '%s\n' "$cand"
   done | quoted
 )"
@@ -313,7 +317,7 @@ PROBE_BAD_ARRAY="$(
 # The rule file's `paths:` frontmatter, one glob per root.
 # The suite seeds an exempt extension only where the seeding root claims it;
 # elsewhere the case would pass whether or not the exemption works.
-EXEMPT_EXT_SEEDS_ARRAY="$(list '.file_names.exempt_extensions[]' | while IFS= read -r e; do
+EXEMPT_EXT_SEEDS_ARRAY="$(printf '%s\n' "$EXEMPT_EXTENSIONS" | while IFS= read -r e; do
   [[ -n "$e" ]] && in_primary_root "x.$e" && printf '%s\n' "$e"
 done | quoted)"
 
@@ -330,11 +334,13 @@ TEST_NAME="check-file-names.test.sh"
 SCRIPT_STEM="${SCRIPT_NAME%.sh}"
 if [[ -n "$OUT_DIR" && "$OUT_DIR" != "." ]]; then
   SCRIPT_PATH="$OUT_DIR/$SCRIPT_NAME"
+  TEST_PATH="$OUT_DIR/$TEST_NAME"
   # One `..` per segment of the out-dir, so the emitted checker resolves the
   # repository root from its own location rather than from the caller's cwd.
   ROOT_HOP="$(printf '%s\n' "$OUT_DIR" | awk -F/ '{for (i = 1; i <= NF; i++) printf "%s..", (i > 1 ? "/" : ""); print ""}')"
 else
   SCRIPT_PATH="$SCRIPT_NAME"
+  TEST_PATH="$TEST_NAME"
   ROOT_HOP="."
 fi
 
@@ -354,14 +360,14 @@ render() {
     GFG_SCOPE_EXEMPTS_ARRAY="$SCOPE_EXEMPTS_ARRAY" \
     GFG_ROOTS_HUMAN="$ROOTS_HUMAN" \
     GFG_ROOTS_PLAIN="$ROOTS_PLAIN" \
-    GFG_EB_ARRAY="$EXEMPT_BASENAMES_ARRAY" \
-    GFG_EB_HUMAN="$EXEMPT_BASENAMES_HUMAN" \
-    GFG_EP_ARRAY="$EXEMPT_PATHS_ARRAY" \
-    GFG_EP_HUMAN="$EXEMPT_PATHS_HUMAN" \
-    GFG_EE_ARRAY="$EXEMPT_EXTENSIONS_ARRAY" \
-    GFG_EE_HUMAN="$EXEMPT_EXTENSIONS_HUMAN" \
-    GFG_EPS_ARRAY="$EXEMPT_PATH_SEEDS_ARRAY" \
-    GFG_EES_ARRAY="$EXEMPT_EXT_SEEDS_ARRAY" \
+    GFG_EXEMPT_BASENAMES_ARRAY="$EXEMPT_BASENAMES_ARRAY" \
+    GFG_EXEMPT_BASENAMES_HUMAN="$EXEMPT_BASENAMES_HUMAN" \
+    GFG_EXEMPT_PATHS_ARRAY="$EXEMPT_PATHS_ARRAY" \
+    GFG_EXEMPT_PATHS_HUMAN="$EXEMPT_PATHS_HUMAN" \
+    GFG_EXEMPT_EXTENSIONS_ARRAY="$EXEMPT_EXTENSIONS_ARRAY" \
+    GFG_EXEMPT_EXTENSIONS_HUMAN="$EXEMPT_EXTENSIONS_HUMAN" \
+    GFG_EXEMPT_PATH_SEEDS_ARRAY="$EXEMPT_PATH_SEEDS_ARRAY" \
+    GFG_EXEMPT_EXT_SEEDS_ARRAY="$EXEMPT_EXT_SEEDS_ARRAY" \
     GFG_RULE_PATHS="$RULE_PATHS" \
     GFG_SCRIPT_NAME="$SCRIPT_NAME" \
     GFG_TEST_NAME="$TEST_NAME" \
@@ -375,31 +381,16 @@ render() {
     awk '
     BEGIN {
       split("REGEX REGEX_SQ RULE RULE_SQ SCOPE_SPECS_ARRAY SCOPE_EXEMPTS_ARRAY ROOTS_HUMAN ROOTS_PLAIN " \
-            "EB_ARRAY EB_HUMAN EP_ARRAY EP_HUMAN EE_ARRAY EE_HUMAN EPS_ARRAY EES_ARRAY " \
+            "EXEMPT_BASENAMES_ARRAY EXEMPT_BASENAMES_HUMAN EXEMPT_PATHS_ARRAY EXEMPT_PATHS_HUMAN " \
+            "EXEMPT_EXTENSIONS_ARRAY EXEMPT_EXTENSIONS_HUMAN EXEMPT_PATH_SEEDS_ARRAY EXEMPT_EXT_SEEDS_ARRAY " \
             "RULE_PATHS SCRIPT_NAME TEST_NAME SCRIPT_PATH SCRIPT_STEM ROOT_HOP " \
             "PRIMARY_ROOT PROBE_OK PROBE_BAD_ARRAY SHEBANG", names, " ")
-      # The placeholder for each name, and the value straight out of the
-      # environment. The two arrays are indexed together.
-      map["REGEX"] = "@@REGEX@@";                          map["REGEX_SQ"] = "@@REGEX_SQ@@"
-      map["RULE"] = "@@RULE@@";                            map["RULE_SQ"] = "@@RULE_SQ@@"
-      map["SCOPE_SPECS_ARRAY"] = "@@SCOPE_SPECS_ARRAY@@";  map["SCOPE_EXEMPTS_ARRAY"] = "@@SCOPE_EXEMPTS_ARRAY@@"
-      map["ROOTS_HUMAN"] = "@@ROOTS_HUMAN@@"
-      map["ROOTS_PLAIN"] = "@@ROOTS_PLAIN@@"
-      map["EB_ARRAY"] = "@@EXEMPT_BASENAMES_ARRAY@@";      map["EB_HUMAN"] = "@@EXEMPT_BASENAMES_HUMAN@@"
-      map["EP_ARRAY"] = "@@EXEMPT_PATHS_ARRAY@@";          map["EP_HUMAN"] = "@@EXEMPT_PATHS_HUMAN@@"
-      map["EE_ARRAY"] = "@@EXEMPT_EXTENSIONS_ARRAY@@";     map["EE_HUMAN"] = "@@EXEMPT_EXTENSIONS_HUMAN@@"
-      map["EPS_ARRAY"] = "@@EXEMPT_PATH_SEEDS_ARRAY@@";    map["RULE_PATHS"] = "@@RULE_PATHS@@"
-      map["EES_ARRAY"] = "@@EXEMPT_EXT_SEEDS_ARRAY@@"
-      map["SCRIPT_NAME"] = "@@SCRIPT_NAME@@";              map["TEST_NAME"] = "@@TEST_NAME@@"
-      map["SCRIPT_PATH"] = "@@SCRIPT_PATH@@";              map["SCRIPT_STEM"] = "@@SCRIPT_STEM@@"
-      map["ROOT_HOP"] = "@@ROOT_HOP@@";                    map["PRIMARY_ROOT"] = "@@PRIMARY_ROOT@@"
-      map["PROBE_OK"] = "@@PROBE_OK@@";                    map["PROBE_BAD_ARRAY"] = "@@PROBE_BAD_ARRAY@@"
-      map["SHEBANG"] = "@@SHEBANG@@"
-      n = 0
-      for (i = 1; i in names; i++) {
-        k[++n] = map[names[i]]
-        v[n] = ENVIRON["GFG_" names[i]]
+      # Each name is the placeholder `@@<name>@@` and the variable `GFG_<name>`.
+      for (n = 1; n in names; n++) {
+        k[n] = "@@" names[n] "@@"
+        v[n] = ENVIRON["GFG_" names[n]]
       }
+      n--
     }
     {
       line = $0
@@ -419,12 +410,7 @@ render() {
 
 # --- write --------------------------------------------------------------------
 
-targets=("$ROOT/$SCRIPT_PATH")
-if [[ -n "$OUT_DIR" && "$OUT_DIR" != "." ]]; then
-  targets+=("$ROOT/$OUT_DIR/$TEST_NAME")
-else
-  targets+=("$ROOT/$TEST_NAME")
-fi
+targets=("$ROOT/$SCRIPT_PATH" "$ROOT/$TEST_PATH")
 [[ "$WITH_RULE" -eq 1 ]] && targets+=("$ROOT/.claude/rules/file-names.md")
 
 if [[ "$FORCE" -eq 0 ]]; then
