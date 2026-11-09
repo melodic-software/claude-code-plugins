@@ -137,15 +137,12 @@ PARAMS="$TMP/params.jsonl"
 DIFFS="$TMP/diffs.jsonl"
 UNMAPPED="$TMP/unmapped.jsonl"
 CATALOG="$TMP/catalog.jsonl"
-: >"$TOOLS"
-: >"$ENVS"
-: >"$NODES"
-: >"$PLACES"
-: >"$EDGES"
-: >"$PARAMS"
-: >"$DIFFS"
-: >"$UNMAPPED"
-: >"$CATALOG"
+# Record keys in output order, each paired with the file that holds its rows.
+SECTIONS=(tools "$TOOLS" environments "$ENVS" nodes "$NODES" placements "$PLACES" relationships "$EDGES"
+  parameters "$PARAMS" diffs "$DIFFS" unmapped "$UNMAPPED" catalog "$CATALOG")
+for ((i = 1; i < ${#SECTIONS[@]}; i += 2)); do
+  : >"${SECTIONS[i]}"
+done
 
 emit_array() {
   local key="$1" file="$2" line first=1
@@ -167,7 +164,7 @@ emit_array() {
 }
 
 write_record() {
-  local status="$1" reason="$2" body
+  local status="$1" reason="$2" body i
   body="$(
     {
       printf '{\n'
@@ -176,23 +173,10 @@ write_record() {
       printf '  "subject": "%s",\n' "$(json_escape "$subject")"
       printf '  "status": "%s",\n' "$(json_escape "$status")"
       printf '  "reason": "%s",\n' "$(json_escape "$reason")"
-      emit_array tools "$TOOLS"
-      printf ',\n'
-      emit_array environments "$ENVS"
-      printf ',\n'
-      emit_array nodes "$NODES"
-      printf ',\n'
-      emit_array placements "$PLACES"
-      printf ',\n'
-      emit_array relationships "$EDGES"
-      printf ',\n'
-      emit_array parameters "$PARAMS"
-      printf ',\n'
-      emit_array diffs "$DIFFS"
-      printf ',\n'
-      emit_array unmapped "$UNMAPPED"
-      printf ',\n'
-      emit_array catalog "$CATALOG"
+      for ((i = 0; i < ${#SECTIONS[@]}; i += 2)); do
+        [[ $i -eq 0 ]] || printf ',\n'
+        emit_array "${SECTIONS[i]}" "${SECTIONS[i + 1]}"
+      done
       printf '\n}\n'
     }
   )"
@@ -205,26 +189,26 @@ write_record() {
 }
 
 refuse() {
-  : >"$ENVS"
-  : >"$NODES"
-  : >"$PLACES"
-  : >"$EDGES"
-  : >"$PARAMS"
-  : >"$DIFFS"
-  : >"$CATALOG"
+  local file
+  for file in "$ENVS" "$NODES" "$PLACES" "$EDGES" "$PARAMS" "$DIFFS" "$CATALOG"; do
+    : >"$file"
+  done
   # The refusal for a read that drew no container keeps the list that explains it.
   [[ "$1" == no-mapped-container ]] || : >"$UNMAPPED"
   write_record refused "$1"
   exit 0
 }
 
+# Record a tool once. A shipped reader marks the repository as read; any other
+# tool marks it for refusal.
+shipped=0
+unshipped=0
 add_tool() {
-  local name="$1" shipped="$2" evidence="$3"
-  local line
-  line="$(printf '{"name":"%s","shipped":"%s","evidence":"%s"}' \
-    "$(json_escape "$name")" "$(json_escape "$shipped")" "$(json_escape "$evidence")")"
-  if ! grep -F -q "\"name\":\"$(json_escape "$name")\"" "$TOOLS" 2>/dev/null; then
-    printf '%s\n' "$line" >>"$TOOLS"
+  local name
+  name="$(json_escape "$1")"
+  if [[ "$2" == yes ]]; then shipped=1; else unshipped=1; fi
+  if ! grep -F -q "\"name\":\"$name\"" "$TOOLS" 2>/dev/null; then
+    printf '{"name":"%s","shipped":"%s","evidence":"%s"}\n' "$name" "$(json_escape "$2")" "$(json_escape "$3")" >>"$TOOLS"
   fi
 }
 
@@ -250,8 +234,6 @@ fi
 : >"$TMP/azure.txt"
 : >"$TMP/cfn.txt"
 : >"$TMP/pulumi.txt"
-shipped=0
-unshipped=0
 
 is_compose() {
   local base
@@ -322,13 +304,11 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   if is_compose "$rel"; then
     printf '%s\n' "$rel" >>"$TMP/compose.txt"
     add_tool compose yes "$rel"
-    shipped=1
     continue
   fi
   case "$base" in
   Chart.yaml | Chart.yml)
     add_tool helm no "$rel"
-    unshipped=1
     continue
     ;;
   Pulumi.yaml | Pulumi.yml)
@@ -336,14 +316,11 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     if [[ "$runtime" == yaml ]]; then
       printf '%s\n' "$rel" >>"$TMP/pulumi.txt"
       add_tool pulumi-yaml yes "$rel"
-      shipped=1
       if grep -q 'kubernetes:helm\.sh/' "$repo/$rel"; then
         add_tool helm no "$rel (kubernetes:helm.sh)"
-        unshipped=1
       fi
     else
       add_tool pulumi no "$rel (runtime $runtime)"
-      unshipped=1
     fi
     continue
     ;;
@@ -353,24 +330,20 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     ;;
   kustomization.yaml | kustomization.yml)
     add_tool kustomize no "$rel"
-    unshipped=1
     continue
     ;;
   *.bicep | *.bicepparam)
     printf '%s\n' "$rel" >>"$TMP/azure.txt"
     add_tool bicep yes "$rel"
-    shipped=1
     continue
     ;;
   *.tf | *.tfvars | *.tf.json | *.tfvars.json)
     printf '%s\n' "$rel" >>"$TMP/tf.txt"
     add_tool terraform yes "$rel"
-    shipped=1
     # A Helm release declared in Terraform is Helm, which this skill does not read.
     if grep -E -q '^[[:space:]]*resource[[:space:]]+"?helm_release"?[[:space:]]|"helm_release"[[:space:]]*:' \
       < <(awk 'BEGIN { RS = "\001" } { gsub(/\/\*([^*]|\*+[^*\/])*\*+\//, ""); print }' "$repo/$rel"); then
       add_tool helm no "$rel (helm_release)"
-      unshipped=1
     fi
     continue
     ;;
@@ -378,7 +351,6 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     if grep -E -i -q '"[$]schema"[[:space:]]*:[[:space:]]*"[^"]*deploymentTemplate' "$repo/$rel"; then
       printf '%s\n' "$rel" >>"$TMP/azure.txt"
       add_tool arm yes "$rel"
-      shipped=1
       continue
     fi
     if grep -E -i -q '"[$]schema"[[:space:]]*:[[:space:]]*"[^"]*deploymentParameters' "$repo/$rel"; then
@@ -396,7 +368,6 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     is_cfn_template "$repo/$rel"; then
     printf '%s\n' "$rel" >>"$TMP/cfn.txt"
     add_tool cloudformation yes "$rel"
-    shipped=1
     continue
   fi
   case "$rel" in
@@ -410,7 +381,6 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
       grep -q '^apiVersion:' "$repo/$rel"; then
       printf '%s\n' "$rel" >>"$TMP/k8s.txt"
       add_tool kubernetes yes "$rel"
-      shipped=1
     fi
     ;;
   *) ;;
@@ -717,12 +687,6 @@ if [[ -s "$TMP/compose-layers.txt" ]]; then
   fi
 fi
 
-# The added/removed loops above can emit a container twice (once per side of
-# the image array). Collapse exact duplicate JSON lines.
-if [[ -s "$DIFFS" ]]; then
-  sort -u "$DIFFS" -o "$DIFFS"
-fi
-
 if [[ -s "$TMP/k8s.txt" ]]; then
   : >"$TMP/k8s-replay.txt"
   while IFS= read -r rel || [[ -n "$rel" ]]; do
@@ -960,65 +924,46 @@ if [[ -s "$TMP/k8s.txt" ]]; then
   if [[ -s "$TMP/k8s-flag" ]]; then
     refuse "$(head -n 1 "$TMP/k8s-flag")"
   fi
-  if [[ -s "$DIFFS" ]]; then
-    sort -u "$DIFFS" -o "$DIFFS"
-  fi
 fi
 
-if [[ -s "$TMP/tf.txt" ]]; then
-  tf_args=()
+# Run a reader from the repository root over the files a list names, after the
+# redaction and diff helpers. The arguments after the list and the reason a failed
+# run refuses with are the reader's own awk options. A reason the reader flags
+# refuses the record.
+run_reader() {
+  local list="$1" unreadable="$2" flag="$TMP/$2.flag" rel files=()
+  shift 2
   while IFS= read -r rel || [[ -n "$rel" ]]; do
-    tf_args+=("./$rel")
-  done <"$TMP/tf.txt"
-  if ! (cd "$repo" && awk -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v unmapped="$UNMAPPED" -v flag="$TMP/tf-flag" \
-    -f "$REDACT_AWK" -f "$SCRIPT_DIR/deployment-diff.awk" -f "$SCRIPT_DIR/terraform-reader.awk" "${tf_args[@]}"); then
-    refuse "terraform-unreadable"
+    files+=("./$rel")
+  done <"$list"
+  if ! (cd "$repo" && awk -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v unmapped="$UNMAPPED" -v flag="$flag" \
+    -f "$REDACT_AWK" -f "$SCRIPT_DIR/deployment-diff.awk" "$@" "${files[@]}"); then
+    refuse "$unreadable"
   fi
-  if [[ -s "$TMP/tf-flag" ]]; then
-    refuse "$(head -n 1 "$TMP/tf-flag")"
+  if [[ -s "$flag" ]]; then
+    refuse "$(head -n 1 "$flag")"
   fi
+}
+
+if [[ -s "$TMP/tf.txt" ]]; then
+  run_reader "$TMP/tf.txt" terraform-unreadable -f "$SCRIPT_DIR/terraform-reader.awk"
 fi
 
 # Bicep and ARM share one reader, run once per tool so each tool's environments
-# are diffed only against its own.
-if [[ -s "$TMP/azure.txt" ]]; then
-  az_args=()
-  while IFS= read -r rel || [[ -n "$rel" ]]; do
-    az_args+=("./$rel")
-  done <"$TMP/azure.txt"
-  for az_tool in bicep arm; do
-    grep -q "\"name\":\"$az_tool\"" "$TOOLS" || continue
-    if ! (cd "$repo" && awk -v tool="$az_tool" -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v unmapped="$UNMAPPED" -v flag="$TMP/az-flag" \
-      -f "$REDACT_AWK" -f "$SCRIPT_DIR/deployment-diff.awk" -f "$SCRIPT_DIR/azure-reader.awk" "${az_args[@]}"); then
-      refuse "$az_tool-unreadable"
-    fi
-    if [[ -s "$TMP/az-flag" ]]; then
-      refuse "$(head -n 1 "$TMP/az-flag")"
-    fi
-  done
-fi
-
-# CloudFormation and Pulumi YAML share one flattener and run once per tool.
-for yaml_tool in cloudformation pulumi-yaml; do
-  grep -q "\"name\":\"$yaml_tool\"" "$TOOLS" || continue
-  yaml_list="$TMP/cfn.txt"
-  yaml_reader="cloudformation-reader.awk"
-  if [[ "$yaml_tool" == pulumi-yaml ]]; then
-    yaml_list="$TMP/pulumi.txt"
-    yaml_reader="pulumi-reader.awk"
-  fi
-  yaml_args=()
-  while IFS= read -r rel || [[ -n "$rel" ]]; do
-    yaml_args+=("./$rel")
-  done <"$yaml_list"
-  if ! (cd "$repo" && awk -v tool="$yaml_tool" -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v unmapped="$UNMAPPED" -v flag="$TMP/yaml-flag" \
-    -f "$REDACT_AWK" -f "$SCRIPT_DIR/deployment-diff.awk" -f "$SCRIPT_DIR/yaml-rows.awk" -f "$SCRIPT_DIR/$yaml_reader" "${yaml_args[@]}"); then
-    refuse "${yaml_tool%-yaml}-unreadable"
-  fi
-  if [[ -s "$TMP/yaml-flag" ]]; then
-    refuse "$(head -n 1 "$TMP/yaml-flag")"
-  fi
+# are diffed only against its own. CloudFormation and Pulumi YAML share one
+# flattener and run once per tool the same way.
+for az_tool in bicep arm; do
+  grep -q "\"name\":\"$az_tool\"" "$TOOLS" || continue
+  run_reader "$TMP/azure.txt" "$az_tool-unreadable" -v tool="$az_tool" -f "$SCRIPT_DIR/azure-reader.awk"
 done
+if grep -q '"name":"cloudformation"' "$TOOLS"; then
+  run_reader "$TMP/cfn.txt" cloudformation-unreadable -v tool=cloudformation \
+    -f "$SCRIPT_DIR/yaml-rows.awk" -f "$SCRIPT_DIR/cloudformation-reader.awk"
+fi
+if grep -q '"name":"pulumi-yaml"' "$TOOLS"; then
+  run_reader "$TMP/pulumi.txt" pulumi-unreadable -v tool=pulumi-yaml \
+    -f "$SCRIPT_DIR/yaml-rows.awk" -f "$SCRIPT_DIR/pulumi-reader.awk"
+fi
 
 # Resources were read and none of them is a container the readers map: an empty
 # environment would look like a full read.
@@ -1043,15 +988,10 @@ if [[ -n "$containers_file" ]]; then
   done <<<"$names"
 fi
 
-sort -u -o "$TOOLS" "$TOOLS"
-sort -u -o "$ENVS" "$ENVS"
-sort -u -o "$NODES" "$NODES"
-sort -u -o "$PLACES" "$PLACES"
-sort -u -o "$EDGES" "$EDGES"
-sort -u -o "$PARAMS" "$PARAMS"
-sort -u -o "$DIFFS" "$DIFFS"
-sort -u -o "$UNMAPPED" "$UNMAPPED"
-sort -u -o "$CATALOG" "$CATALOG"
+# Collapse duplicate rows: a container can reach the diffs once from each environment's side.
+for ((i = 1; i < ${#SECTIONS[@]}; i += 2)); do
+  sort -u -o "${SECTIONS[i]}" "${SECTIONS[i]}"
+done
 
 write_record drawn ""
 exit 0

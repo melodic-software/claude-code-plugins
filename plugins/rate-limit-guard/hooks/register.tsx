@@ -16,7 +16,7 @@ const WINDOWS = [
 ] as const
 // The verdict is always in a line; these add to it.
 const DATA_ITEMS = ['verdict', 'percent', 'window', 'reset']
-const DEFAULT_DATA = ['verdict', 'percent', 'window', 'reset']
+const DEFAULT_DATA = DATA_ITEMS
 const RANK = { quiet: 0, approach: 1, edge: 2 } as const
 const PERSON_ORIGINS = ['composer', 'bridge']
 const COMMAND = 'rate-limit-guard'
@@ -130,13 +130,16 @@ export const parseConfig = (options: Record<string, unknown>): Config => {
   }
 }
 
+// NaN when the window reports no reset time or one that does not parse.
+const resetsMsOf = (limit: SessionRateLimit) => (limit.resetsAt === undefined ? NaN : Date.parse(limit.resetsAt))
+
 // The status line drops a window once its reset time has passed; so does this reading.
 export const liveWindows = (limits: readonly SessionRateLimit[], nowMs: number): Reading => {
   const reading: Reading = new Map()
   for (const { kind } of WINDOWS) {
     const limit = limits.find(l => l.kind === kind)
     if (limit === undefined) continue
-    const resetsMs = limit.resetsAt === undefined ? NaN : Date.parse(limit.resetsAt)
+    const resetsMs = resetsMsOf(limit)
     if (Number.isFinite(resetsMs) && resetsMs <= nowMs) continue
     reading.set(kind, limit)
   }
@@ -179,8 +182,9 @@ const clause = (kind: string, event: Event, limit: SessionRateLimit | undefined,
 
 // The person's short form: the 5-hour window resets within the day, so its time alone is enough.
 const toastBody = (kind: string, event: Event, limit: SessionRateLimit | undefined, cfg: Config) => {
-  if (event === 'reset') return `${windowOf(kind)?.short ?? kind} reset, below the ${edgeName(cfg)}`
-  const text = `${windowOf(kind)?.short ?? kind} ${verdictText(event, cfg)}`
+  const short = windowOf(kind)?.short ?? kind
+  if (event === 'reset') return `${short} reset, below the ${edgeName(cfg)}`
+  const text = `${short} ${verdictText(event, cfg)}`
   if (limit?.resetsAt === undefined) return text
   const label = resetLabel(limit.resetsAt)
   return `${text} · resets ${kind === 'five_hour' ? label.replace(/^\d{4}-\d{2}-\d{2} /, '') : label}`
@@ -211,7 +215,7 @@ export const recordCrossings = (st: State, reading: Reading, cfg: Config, nowMs:
     }
     if (limit === undefined) continue
     const level = levelOf(limit.percentUsed, cfg)
-    const resetsMs = limit.resetsAt === undefined ? NaN : Date.parse(limit.resetsAt)
+    const resetsMs = resetsMsOf(limit)
     if (prev !== undefined && Number.isFinite(prev.resetsMs) && resetsMs < prev.resetsMs - RESET_SLACK_MS) {
       if (prev.level !== 'quiet' || st.pending.has(kind) || st.handoff.has(kind)) moved.push(kind)
       dropWindows(st, [kind])
@@ -322,7 +326,7 @@ async function operatorHolds($: EngineInterface, st: State, cfg: Config) {
 }
 
 // Whether two identities are one account: by UUID when both have one, else by email; undefined when neither can tell.
-const sameAccount =(a: Identity, b: Identity) =>
+const sameAccount = (a: Identity, b: Identity) =>
   a.uuid !== undefined && b.uuid !== undefined
     ? a.uuid === b.uuid
     : a.email !== undefined && b.email !== undefined
@@ -528,7 +532,7 @@ async function accountEmail($: EngineInterface, st: State, home: string) {
 
 export const snapshotBody = (capturedAt: string, sessionId: string, reading: Reading, email?: string): Body => {
   const windows = [...reading.entries()].map(([kind, l]) => {
-    const resetsMs = l.resetsAt === undefined ? NaN : Date.parse(l.resetsAt)
+    const resetsMs = resetsMsOf(l)
     const resets = Number.isFinite(resetsMs) ? { resets_at: Math.floor(resetsMs / 1000) } : {}
     return [kind, { used_percentage: l.percentUsed, ...resets }] as const
   })
@@ -588,8 +592,7 @@ async function writeSnapshot($: EngineInterface, st: State, cfg: Config, trigger
     if (run.exitCode === 0 || run.exitCode === 3) {
       st.lastAttempt = { sig, at: now }
       st.branched = false
-    }
-    else logOnce($, st, 'write-failed', `snapshot write failed (exit ${run.exitCode}): ${run.stderr.trim()}`)
+    } else logOnce($, st, 'write-failed', `snapshot write failed (exit ${run.exitCode}): ${run.stderr.trim()}`)
   } catch (error) {
     logOnce($, st, 'write-threw', `snapshot write did not run: ${error instanceof Error ? error.message : String(error)}`)
   }
@@ -604,7 +607,7 @@ async function statusJson($: EngineInterface, st: State, cfg: Config) {
   await refresh($, st, cfg)
   // Every window the response reported except a gateway's spend limit, which has its own entry.
   const now = await $.clock.now()
-  const live = st.limits.filter(l => l.kind !== 'spend_limit' && !(Date.parse(l.resetsAt ?? '') <= now))
+  const live = st.limits.filter(l => l.kind !== 'spend_limit' && !(resetsMsOf(l) <= now))
   const windows = Object.fromEntries(
     live.map(l => [l.kind, { used_percentage: l.percentUsed, resets_at: l.resetsAt ?? null, verdict: levelOf(l.percentUsed, cfg) }]),
   )

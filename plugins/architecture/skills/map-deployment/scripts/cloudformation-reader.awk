@@ -23,10 +23,10 @@ function resolve_param(sc, name, depth,    f, pf, r, sec) {
   f = S_file[sc]; pf = S_pf[sc]
   sec = (((f SUBSEP name) in SECP) || redact_secret_key(name))
   RES_OK = 1
-  if (fld(f, "Parameters." name ".Type") && tolower(FV) ~ /^aws::ssm::parameter::value/) { r = unresolved("{Ref:" name "}"); RES_SEC = sec; return r }
-  if (pf != "" && ((pf SUBSEP name) in PFV)) r = PFV[pf, name]
+  if (fld(f, "Parameters." name ".Type") && tolower(FV) ~ /^aws::ssm::parameter::value/) r = unresolved("{Ref:" name "}")
+  else if (pf != "" && ((pf SUBSEP name) in PFV)) r = PFV[pf, name]
   else if (fld(f, "Parameters." name ".Default")) r = FV
-  else { r = unresolved("{Ref:" name "}"); RES_SEC = sec; return r }
+  else r = unresolved("{Ref:" name "}")
   RES_SEC = (sec || index(r, "{{resolve:") > 0)
   return r
 }
