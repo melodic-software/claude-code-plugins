@@ -217,6 +217,50 @@ note_divergence() {
   done <"$1"
 }
 
+# write_manifest <dest> <kind>: seals every name in `files` into <dest> through a
+# temp file beside it, then moves it into place. <kind> is `manifest` or
+# `generation manifest`, as the error messages name it; a generation skips
+# manifest names. Every failure removes the temp file and exits 2.
+#
+# A packet entry is never allowed to be a symlink. The rule is "no symlinks",
+# not "no symlinks that escape", deliberately. An evidence packet is written by
+# Write-tool calls and never legitimately contains a link, so the permissive
+# case buys nothing — while resolving a link's real target portably needs
+# `readlink -f`, which is GNU-only and silently absent on BSD userland, exactly
+# where a resolution bug would go unnoticed. Refusing the whole class is
+# simpler, portable, and fails closed: a link's bytes are not the packet's,
+# they can change with nothing in the packet changing, and digesting one would
+# let a link inside an evidence directory make an arbitrary file on the machine
+# read as sealed packet content.
+write_manifest() {
+  local dest="$1" kind="$2" tmp="$1.tmp.$$" name file d
+  seal_header >"$tmp" || {
+    echo "error: cannot write the $kind in: $packet" >&2
+    exit 2
+  }
+  for name in ${files[@]+"${files[@]}"}; do
+    [[ "$kind" == manifest ]] || ! is_manifest_name "$name" || continue
+    file="$packet/$name"
+    if [[ -L "$file" ]]; then
+      rm -f -- "$tmp"
+      echo "error: packet entry is a symlink: $name" >&2
+      [[ "$kind" != manifest ]] || echo "       An evidence packet holds its own bytes; sealing a link would certify a file it does not own." >&2
+      exit 2
+    fi
+    d="$(digest_of "$file")" || {
+      rm -f -- "$tmp"
+      echo "error: cannot digest: $file" >&2
+      exit 2
+    }
+    printf '%s  %s\n' "$d" "$name" >>"$tmp"
+  done
+  mv -f -- "$tmp" "$dest" || {
+    rm -f -- "$tmp"
+    echo "error: cannot install the $kind: $dest" >&2
+    exit 2
+  }
+}
+
 [[ -n "$digest_tool" ]] || {
   case "${1:-}" in
   --help | -h) ;;
@@ -321,31 +365,7 @@ if [[ "$action" == record ]]; then
         generation=$((generation + 1))
       done
       gen_manifest="$packet/packet.sha256.$generation"
-      gen_tmp="$gen_manifest.tmp.$$"
-      seal_header >"$gen_tmp" || {
-        echo "error: cannot write the generation manifest in: $packet" >&2
-        exit 2
-      }
-      for name in ${files[@]+"${files[@]}"}; do
-        ! is_manifest_name "$name" || continue
-        file="$packet/$name"
-        if [[ -L "$file" ]]; then
-          rm -f -- "$gen_tmp"
-          echo "error: packet entry is a symlink: $name" >&2
-          exit 2
-        fi
-        d="$(digest_of "$file")" || {
-          rm -f -- "$gen_tmp"
-          echo "error: cannot digest: $file" >&2
-          exit 2
-        }
-        printf '%s  %s\n' "$d" "$name" >>"$gen_tmp"
-      done
-      mv -f -- "$gen_tmp" "$gen_manifest" || {
-        rm -f -- "$gen_tmp"
-        echo "error: cannot install the generation manifest: $gen_manifest" >&2
-        exit 2
-      }
+      write_manifest "$gen_manifest" "generation manifest"
       echo "acknowledged=$relaundered generation=$generation manifest=$gen_manifest original-preserved=$manifest"
       exit 0
     fi
@@ -359,41 +379,7 @@ if [[ "$action" == record ]]; then
     exit 2
   fi
 
-  tmp="$manifest.tmp.$$"
-  seal_header >"$tmp" || {
-    echo "error: cannot write the manifest in: $packet" >&2
-    exit 2
-  }
-  # A packet entry is never allowed to be a symlink. The rule is "no symlinks",
-  # not "no symlinks that escape", deliberately. An evidence packet is written by
-  # Write-tool calls and never legitimately contains a link, so the permissive
-  # case buys nothing — while resolving a link's real target portably needs
-  # `readlink -f`, which is GNU-only and silently absent on BSD userland, exactly
-  # where a resolution bug would go unnoticed. Refusing the whole class is
-  # simpler, portable, and fails closed: a link's bytes are not the packet's,
-  # they can change with nothing in the packet changing, and digesting one would
-  # let a link inside an evidence directory make an arbitrary file on the machine
-  # read as sealed packet content.
-  for name in ${files[@]+"${files[@]}"}; do
-    file="$packet/$name"
-    if [[ -L "$file" ]]; then
-      rm -f -- "$tmp"
-      echo "error: packet entry is a symlink: $name" >&2
-      echo "       An evidence packet holds its own bytes; sealing a link would certify a file it does not own." >&2
-      exit 2
-    fi
-    d="$(digest_of "$file")" || {
-      rm -f -- "$tmp"
-      echo "error: cannot digest: $file" >&2
-      exit 2
-    }
-    printf '%s  %s\n' "$d" "$name" >>"$tmp"
-  done
-  mv -f -- "$tmp" "$manifest" || {
-    rm -f -- "$tmp"
-    echo "error: cannot install the manifest: $manifest" >&2
-    exit 2
-  }
+  write_manifest "$manifest" manifest
   echo "sealed=${#files[@]} manifest=$manifest"
   exit 0
 fi
