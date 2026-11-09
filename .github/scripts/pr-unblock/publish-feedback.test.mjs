@@ -1927,3 +1927,24 @@ test("every escalation reason publish-feedback can write is one the write runner
   for (const reason of written) assert.ok(accepted.has(reason), `${reason} is not in the write runner's publish-feedback case arms`);
   assert.ok(!accepted.has("feedback-bogus"));
 });
+
+// L469: an advisory outside the closing issue's scope is answered, not fixed.
+// The reply says it belongs under ## Follow-ups and resolves the thread; only
+// a thread the select job marked may_follow_up takes it.
+test("a follow-up reply on a may_follow_up thread posts the Follow-ups line and resolves the thread with no push", async () => {
+  const followUp = reply({ disposition: "follow-up", note: "Issue 7's Out of scope list names tests beyond the asserted lines." });
+  const marked = JSON.stringify({ ...RUN, threads: [{ ...RUN.threads[0], may_follow_up: true }] });
+  const api = fakeApi({ compare: { status: "identical", commits: [], files: [] } });
+  const result = await run(api, lines(followUp), marked);
+  assert.equal(result.escalationReason, "");
+  const [[, , onComment, body]] = api.posted();
+  assert.equal(onComment, 100);
+  assert.equal(body.split("\n")[0], "**pr-unblock / address-feedback: outside the closing issue's scope, a follow-up**");
+  assert.match(body, /list it under `## Follow-ups` in the pull request body/);
+  assert.deepEqual(api.resolved(), ["PRRT_a"]);
+
+  const unmarked = fakeApi({ compare: { status: "identical", commits: [], files: [] } });
+  const refused = await run(unmarked, lines(followUp));
+  assert.equal(refused.escalationReason, "feedback-invalid");
+  assert.deepEqual([unmarked.posted(), unmarked.resolved()], [[], []]);
+});

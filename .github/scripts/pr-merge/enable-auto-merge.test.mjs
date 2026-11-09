@@ -31,6 +31,7 @@ import {
   holdReason,
   unblockHold,
   notConverging,
+  stoodOpen,
   liftedByPerson,
   READER_EVENTS,
   personReason,
@@ -426,7 +427,7 @@ const NOW = "2026-10-23T10:00:00.000Z";
 const laneNote = (reason, since = NOW) =>
   [
     "<!-- babysit-merge-risk -->",
-    `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${HEAD}\`. The lanes clear this reason on their own; the next scheduled run judges it again.`,
+    `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${HEAD}\`. No person needs to act: a lane clears this reason, and the next scheduled run judges it again.`,
     "",
     "```text",
     reason,
@@ -1189,7 +1190,7 @@ test("a refusal's reasons wrap to 100 columns and come back whole, in each reaso
   ]) {
     const body = refusalBody(person, reason, HEAD, "needs-human", since, partial);
     assert.ok(fits(body), body);
-    assert.equal(body.split("\n")[person ? 2 : 1], `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${HEAD}\`. ${person ? "A person must clear this reason, so the pr-merge lane added the `needs-human` label: fix the reason, then remove the label, and the next scheduled run judges it again." : "The lanes clear this reason on their own; the next scheduled run judges it again."}`);
+    assert.equal(body.split("\n")[person ? 2 : 1], `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${HEAD}\`. ${person ? "A person must clear this reason, so the pr-merge lane added the `needs-human` label: fix the reason, then remove the label, and the next scheduled run judges it again." : "No person needs to act: a lane clears this reason, and the next scheduled run judges it again."}`);
     assert.deepEqual(refusalReasons(body, person, HEAD, "needs-human", { since, partial }), reason.split("\n"));
   }
   assert.deepEqual(fenceLines(refusalBody(false, LONG_RISK, HEAD, "needs-human", NOW)), LONG_RISK_WRAPPED);
@@ -3746,6 +3747,37 @@ test("review rounds stopped as not converging at the head close the pull request
     assert.ok(!result.writes.some(({ mutation }) => mutation === "arm"), why);
   }
   assert.equal(notConverging({ unblockStops: stopped, comments: { nodes: [lanesSaid(stoppedNote())] } }, LANES.login, HEAD), true);
+});
+
+// feedback-stood-open: the finding stood at adjudication and the lane left it
+// open again, so no lane run clears it. The refusal goes to a person, with the
+// human-gated label, and never says the lanes clear it (#14539, 11:50:40Z).
+test("review rounds stopped as stood-open at the head refuse for a person, with the label, and close nothing", async () => {
+  const stopped = [unblock("pr-unblock/address-feedback", "failure")];
+  // The fence wraps the reason at 100 columns.
+  const reason = [
+    "a pr-unblock lane stopped its head (pr-unblock/address-feedback is failure): a review finding stood",
+    "  at adjudication and the lane left it open again (feedback-stood-open), so a person resolves that",
+    "  thread",
+  ].join("\n");
+  const { closed, writes, notes } = await run([pull(1, { verdict: PASSED, statuses: stopped, discussion: { comments: [lanesSaid(stoppedNote("feedback-stood-open"))] } })]);
+  assert.deepEqual(closed, []);
+  assert.deepEqual(writes, []);
+  assert.deepEqual(notes, [
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(reason) } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+  ]);
+  assert.equal(stoodOpen({ unblockStops: stopped, comments: { nodes: [lanesSaid(stoppedNote("feedback-stood-open"))] } }, LANES.login, HEAD), true);
+
+  const lane = {
+    "an earlier head": [lanesSaid(stoppedNote("feedback-stood-open", "e".repeat(40)))],
+    "another reason": [lanesSaid(stoppedNote("feedback-verifier-open"))],
+  };
+  for (const [why, comments] of Object.entries(lane)) {
+    const result = await run([pull(1, { verdict: PASSED, statuses: stopped, discussion: { comments } })]);
+    assert.ok(!result.notes.some(({ path }) => path.endsWith("/labels")), why);
+    assert.ok(!result.writes.some(({ mutation }) => mutation === "arm"), why);
+  }
 });
 
 // The lanes App holds no commit-statuses permission, so the head's statuses

@@ -26,7 +26,8 @@
 //      feedback-not-landed.
 //   3. Re-reads each thread and skips one that is resolved, moved, or has a
 //      comment the model job did not see; posts the templated reply on its
-//      root comment and resolves it only when it is VALID, and only on a
+//      root comment and resolves it only when it is VALID or follow-up (an
+//      advisory outside the closing issue's scope), and only on a
 //      lanes App PR: on a PR a person opened the lanes App cannot resolve, so
 //      the thread is left open for the person or their babysit worker tier. The PR head is
 //      re-read before each post and each resolve: once it is not the head
@@ -132,7 +133,12 @@ const BAD_CHARS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f​-‏‪-‮⁠-⁩
 // whose header gh[opsur]_[A-Za-z0-9]{20} matches; this prefix check is not GitHub's recommended regex
 // (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
 const FORBIDDEN = /<!--|-->|gh[opsur]_[A-Za-z0-9]{20}|ghs_[0-9]+_|github_pat_/;
-const DISPOSITIONS = ["VALID", "INCORRECT", "UNCERTAIN", "VALID-defer"];
+// follow-up: an advisory finding whose change falls outside the closing
+// issue's scope, answered with no fix (run.json's may_follow_up threads only).
+export const FOLLOW_UP = "follow-up";
+const DISPOSITIONS = ["VALID", "INCORRECT", "UNCERTAIN", "VALID-defer", FOLLOW_UP];
+// The dispositions after which a lanes App PR's thread is resolved.
+const RESOLVING = new Set(["VALID", FOLLOW_UP]);
 // A pr-verify note from an earlier FAIL's verdict artifact (run.json's
 // verify_notes) is fixed, or already addressed by the diff.
 export const ALREADY_ADDRESSED = "already-addressed";
@@ -143,13 +149,15 @@ const LABELS = {
   INCORRECT: "INCORRECT, left open",
   UNCERTAIN: "UNCERTAIN, left open",
   "VALID-defer": "VALID (defer), left open",
+  [FOLLOW_UP]: "outside the closing issue's scope, a follow-up",
 };
+const FOLLOW_UP_LINE = "This advisory asks for a change outside the closing issue's scope, so this pull request leaves it out: list it under `## Follow-ups` in the pull request body instead.";
 
 // Whether a lane reply is one after which a lanes App PR's thread is resolved:
-// the VALID reply (renderReply) or an adjudication that found the finding
-// does not hold (FINDING_ANSWERED). On an owner PR such a thread is left open
-// here, and resolve-threads.mjs resolves it.
-const RESOLVING_FIRST_LINES = new Set([`**pr-unblock / address-feedback: ${LABELS.VALID}**`, FINDING_ANSWERED]);
+// the VALID or follow-up reply (renderReply) or an adjudication that found
+// the finding does not hold (FINDING_ANSWERED). On an owner PR such a thread
+// is left open here, and resolve-threads.mjs resolves it.
+const RESOLVING_FIRST_LINES = new Set([...[...RESOLVING].map((disposition) => `**pr-unblock / address-feedback: ${LABELS[disposition]}**`), FINDING_ANSWERED]);
 export const isResolvingAnswer = (body) => RESOLVING_FIRST_LINES.has(String(body ?? "").split("\n")[0].replace(/\r$/, ""));
 
 class Invalid extends Error {}
@@ -224,7 +232,8 @@ export function parseRun(text) {
         thread.comment_ids.length > 0 &&
         thread.comment_ids.every((id) => Number.isSafeInteger(id) && id > 0) &&
         (thread.named_paths === undefined ||
-          (Array.isArray(thread.named_paths) && thread.named_paths.every((path) => typeof path === "string"))),
+          (Array.isArray(thread.named_paths) && thread.named_paths.every((path) => typeof path === "string"))) &&
+        (thread.may_follow_up === undefined || thread.may_follow_up === true),
       "run.json holds a malformed thread",
     );
   }
@@ -254,7 +263,8 @@ export function parseReplies(text, run, fileExists) {
     if (notes.has(thread)) {
       check(NOTE_DISPOSITIONS.includes(disposition), "a pr-verify note's reply is not VALID or already-addressed");
     } else {
-      check(DISPOSITIONS.includes(disposition), "a reply's disposition is not one of the four");
+      check(DISPOSITIONS.includes(disposition), "a reply's disposition is not one the template allows");
+      check(disposition !== FOLLOW_UP || kept.get(thread).may_follow_up === true, "a follow-up reply names a thread that is no advisory finding with a closing issue's scope");
     }
     check(
       Array.isArray(evidence) &&
@@ -287,6 +297,7 @@ export function renderReply({ disposition, evidence, fixSha, note }) {
     "",
     evidence.length > 0 ? `Evidence: ${evidence.map((ev) => `\`${ev}\``).join(", ")}` : "Evidence: none in the checkout",
     ...(fixSha ? [`Fix: ${fixSha}`] : []),
+    ...(disposition === FOLLOW_UP ? ["", FOLLOW_UP_LINE] : []),
     "",
     `${fence}text`,
     note,
@@ -806,7 +817,7 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
           throw new Error(`the reply on ${reply.thread} did not land on its thread`);
         }
         posted.push({ thread: reply.thread, disposition: reply.disposition });
-        if (reply.disposition === "VALID" && !(await resolve(api, reply.thread, [...ids, answer.id], headMoved))) {
+        if (RESOLVING.has(reply.disposition) && !(await resolve(api, reply.thread, [...ids, answer.id], headMoved))) {
           log(`replied on ${reply.thread} but left it open: it or the PR head changed while the reply was posted`);
           escalationReason = "feedback-partial";
           continue;
@@ -816,7 +827,7 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
         escalationReason = "feedback-partial";
         break;
       }
-      log(`replied on ${reply.thread} (${reply.disposition})${reply.disposition === "VALID" && appPr ? "; resolved" : ""}`);
+      log(`replied on ${reply.thread} (${reply.disposition})${RESOLVING.has(reply.disposition) && appPr ? "; resolved" : ""}`);
     }
     // A thread left open (INCORRECT, UNCERTAIN or VALID-defer) goes to the
     // adjudicator's verdict, not straight to a person (owner decision): it is

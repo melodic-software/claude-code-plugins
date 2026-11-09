@@ -19,7 +19,10 @@
 //           review-thread tool reads, with the same-plugin files a write-access
 //           fix request names (namedPaths) and the files the PR already changes
 //           (pr_paths, prPathsOf) and the shared copies of the canonicals it
-//           changes (copy_paths, copyPathsFor), and run.json, the record the
+//           changes (copy_paths, copyPathsFor), and, when a kept thread is an
+//           advisory code-review finding (advisoryFinding), the closing
+//           issues' spec text (closing_issues, linkedSpec) with that thread
+//           marked may_follow_up, and run.json, the record the
 //           reply job checks the replies against, with the reviewed heads the
 //           threads were kept on (runRecord). On a PR carrying the human-gated
 //           label it keeps only threads a trusted person with write access
@@ -1048,6 +1051,53 @@ async function earlierFailRound({ api, pr, headSha, repository, appId, files, is
   };
 }
 
+// A kept thread whose only comment is the code-review lane's finding rated
+// advisory (its first line opens `**Advisory`): one the lane may answer with
+// a follow-up reply instead of a fix when the change it asks for falls outside
+// the closing issue's scope (comments-ci.md). A blocking finding, a security
+// finding, another bot's, or a thread already answered never qualifies.
+const ADVISORY = /^\*\*Advisory\b/;
+export const advisoryFinding = (thread) =>
+  thread.comments.length === 1 && thread.comments[0].author === "reviewer" && thread.comments[0].lane === "claude-review" && ADVISORY.test(firstLine(thread.comments[0].body));
+
+// The linked issues' spec text as the thread file and contract.json stage it:
+// each issue's URL, its body when trusted people wrote it, and its trusted
+// comments, all as resolve-pr.mjs linkedIssues returns them (`specText`).
+export function contractIssues(specText, repository) {
+  return (Array.isArray(specText) ? specText : [])
+    .filter((issue) => Number.isSafeInteger(issue?.number) && issue.number > 0)
+    .map((issue) => ({
+      number: issue.number,
+      url: `https://github.com/${repository}/issues/${issue.number}`,
+      body: typeof issue.body === "string" ? issue.body : null,
+      comments: (Array.isArray(issue.comments) ? issue.comments : []).filter((comment) => typeof comment === "string"),
+    }));
+}
+
+// The linked issues' spec text trusted people wrote, as pr-verify reads it
+// (resolve-pr.mjs linkedIssues): [] when PR_NUMBER is unset or the read
+// fails. Loaded on call, from the full base checkout: publish-feedback.mjs
+// imports this module from a copy of this directory alone.
+export async function linkedSpec(env, log) {
+  if (!/^[1-9][0-9]*$/.test(env.PR_NUMBER ?? "")) {
+    return [];
+  }
+  try {
+    const { linkedIssues } = await import("../pr-verify/resolve-pr.mjs");
+    const { createGitHub, loadTrustedList } = await import("../../actions/check-trusted-trigger/check-trusted-trigger.mjs");
+    const { loadRules } = await import("../intake-triage/admit.mjs");
+    const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH || ".base/.github/standards/trusted-actors/trusted-actors.json");
+    const api = (keepGraphQLErrors) => createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, keepGraphQLErrors });
+    const identity = String(env.LANE_IDENTITY ?? "").trim().toLowerCase().replace(/\[bot\]$/, "");
+    const taskList = loadRules(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url).pathname)["task-list"];
+    const { specText } = await linkedIssues(api(false), api(true), env.GITHUB_REPOSITORY, Number(env.PR_NUMBER), trusted.humans, identity ? trusted.logins.get(`${identity}[bot]`) : undefined, taskList);
+    return specText;
+  } catch (error) {
+    log(`::warning::cannot read the linked issues' spec text (${String(error?.message ?? error).slice(0, 300)}); this round reads none`);
+    return [];
+  }
+}
+
 export async function select({
   api,
   pr,
@@ -1070,6 +1120,8 @@ export async function select({
   },
   // The REST pull request when the caller already read it (pullFromFile).
   pull: given,
+  // The closing issues' spec text (linkedSpec).
+  readSpec = async () => [],
   log = () => {},
 }) {
   // Serial reads: element 6.
@@ -1227,6 +1279,15 @@ export async function select({
       thread.named_paths = named;
     }
   }
+  // The closing issues' scope, read only when a kept thread could take a
+  // follow-up reply: an advisory the lane then need not implement.
+  const advisory = worked.filter(advisoryFinding);
+  const closing = advisory.length > 0 ? contractIssues(await readSpec(), repository).filter((issue) => issue.body !== null || issue.comments.length > 0) : [];
+  if (closing.length > 0) {
+    for (const thread of advisory) {
+      thread.may_follow_up = true;
+    }
+  }
   return {
     decision: "proceed",
     // A retry after the reply job stopped on this head runs one rung up.
@@ -1239,7 +1300,17 @@ export async function select({
     // escalation that lets this activity work put the label on.
     humanGate: labeled ? (gated ? "fix-request" : "lane-escalation") : "",
     threads: worked,
-    file: { version: 1, repository, pr, head_sha: headSha, pr_paths: prPathsOf(files), copy_paths: copyPathsFor(files), threads: worked, ...(retry ? { retry } : {}) },
+    file: {
+      version: 1,
+      repository,
+      pr,
+      head_sha: headSha,
+      pr_paths: prPathsOf(files),
+      copy_paths: copyPathsFor(files),
+      threads: worked,
+      ...(closing.length > 0 ? { closing_issues: closing } : {}),
+      ...(retry ? { retry } : {}),
+    },
     reviewedHeads: [...heads].sort(),
     ci: await ci({ headSha, files }),
   };
@@ -1262,6 +1333,7 @@ export function runRecord(file, reviewedHeads, ci) {
       path: t.path,
       comment_ids: t.comments.map((c) => c.id),
       ...(t.named_paths ? { named_paths: t.named_paths } : {}),
+      ...(t.may_follow_up ? { may_follow_up: true } : {}),
     })),
     ...(file.stale_notes ? { stale_notes: file.stale_notes } : {}),
     ...(file.superseded_head ? { superseded_head: file.superseded_head } : {}),
@@ -1802,6 +1874,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
         return earlierFailNotes({ actions: { read: client.readPath, download: client.downloadArtifact }, repository: env.GITHUB_REPOSITORY, pr, heads, files });
       },
       pull: pullFromFile(env.PULL_FILE, pr, env.HEAD_SHA),
+      readSpec: () => linkedSpec({ ...env, TRUSTED_ACTORS_PATH: env.TRUSTED_ACTORS }, log),
       log,
     });
   };
