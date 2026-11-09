@@ -40,8 +40,8 @@ Illustration (React with Tailwind):
 ```tsx
 function Button({ still = false, className, ...rest }) {
   const classes = cn(
-    "transition-[scale] duration-150 ease-out",
-    !still && "active:not-disabled:scale-[0.96]",
+    "transition-[scale] duration-[{{animation.duration_ms.press}}ms] ease-out",
+    !still && "active:not-disabled:scale-[{{animation.scale.press}}]",
     className,
   );
   return <button className={classes} {...rest} />;
