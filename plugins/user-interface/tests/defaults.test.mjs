@@ -40,6 +40,7 @@ const CONTRACT = {
     gesture: { velocity_threshold: 0.11, distance_threshold: 0.4 },
   },
   components: { primitives_default: "base-ui" },
+  typography: { long_form_body_px: 18 },
 };
 
 test("the shipped defaults hold the contract's layer-1 values", () => {
@@ -83,6 +84,19 @@ test("the nested-radius gap limit takes an integer of at least 0 and keeps 24 ot
   assert.deepEqual(gapWith("0"), { gap: 0, error_keys: [] });
   assert.deepEqual(gapWith("-1"), { gap: 24, error_keys: ["css.concentric_radius.max_gap_px"] });
   assert.deepEqual(gapWith("1.5"), { gap: 24, error_keys: ["css.concentric_radius.max_gap_px"] });
+});
+
+// Expected values: the key's contract, an integer of at least 16 (the body floor) with default 18.
+test("the long-form reading size takes an integer of at least 16 and keeps 18 otherwise", () => {
+  assert.equal(schema.properties.typography.properties.long_form_body_px.minimum, 16);
+  const sizeWith = (raw) => {
+    const { values, layers } = resolve({ plugin: "user-interface", projectRoot: PLUGIN, home: "no-such-home", schema, defaults, userConfig: { typography_long_form_body_px: raw }, teamOnly: ["routing"], userHome: join(PLUGIN, "no-such-user") });
+    return { size: values.typography.long_form_body_px, error_keys: layers[1].error_keys };
+  };
+  assert.deepEqual(sizeWith("20"), { size: 20, error_keys: [] });
+  assert.deepEqual(sizeWith("16"), { size: 16, error_keys: [] });
+  assert.deepEqual(sizeWith("15"), { size: 18, error_keys: ["typography.long_form_body_px"] });
+  assert.deepEqual(sizeWith("18.5"), { size: 18, error_keys: ["typography.long_form_body_px"] });
 });
 
 // Expected values: the exit factor's contract, a fraction from 0 to 1 with default 0.8.

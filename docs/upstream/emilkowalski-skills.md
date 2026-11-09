@@ -78,6 +78,18 @@ Each upstream link is at the pin.
 | [`skills/prototype/SKILL.md`](https://github.com/emilkowalski/skills/blob/5206a950b715e0cabe7043ea0b2304332b91494e/skills/prototype/SKILL.md) | [`/prototype:explore-directions`](../../plugins/prototype/skills/explore-directions/SKILL.md) and `prototype` `context/discipline.md` | Absorbed (skill omitted) | **Taken:** variants differ on a named axis, the tradeoff table, never pre-pick a winner, cut a converged variant. |
 | [`skills/prototype/PICKER.md`](https://github.com/emilkowalski/skills/blob/5206a950b715e0cabe7043ea0b2304332b91494e/skills/prototype/PICKER.md) | `prototype` `skills/explore-directions/assets/variant-switcher.html` | Derived | **Taken:** the floating switcher's controls and behavior. **Rejected:** URL persistence, which a `file://` page cannot rely on. |
 
+## Post sources
+
+Defaults and rules taken from his posts rather than the repository. A post has no pin, so the drift
+check does not watch these rows.
+
+- **As of**: 2026-11-09
+- **Recheck trigger**: he posts a different long-form reading size, or the linked post is removed.
+
+| Key or topic | Post | Taken / rejected |
+|---|---|---|
+| `typography.long_form_body_px` | [2026-10-19](https://x.com/emilkowalski/status/2112245483464802700) | **Taken:** long-form reading text at 18 to 20px rather than 16px, his stated preference with no measurement, for long-form text only. The default is `18`, the low end of his range, by the owner's decision that the reading research does not contradict it; a team overrides it through the key. The skill writes it in `rem`. **Floor:** the `16px` body floor ([USWDS typography](https://designsystem.digital.gov/components/typography/)) holds over his value as the schema's `minimum`; it did not change his value. |
+
 ## Map
 
 Units we took nothing from; each counts only if removed upstream.

@@ -181,6 +181,7 @@ describe("--config", () => {
         gesture: { velocity_threshold: 0.11, distance_threshold: 0.4 },
       },
       components: { primitives_default: "base-ui" },
+      typography: { long_form_body_px: 18 },
       routing: { version: 1, deny: ["superdesign"] },
     });
   });
@@ -224,6 +225,7 @@ describe("--config", () => {
       "animation.gesture.velocity_threshold": "defaults",
       "animation.gesture.distance_threshold": "defaults",
       "components.primitives_default": "defaults",
+      "typography.long_form_body_px": "defaults",
       routing: "team",
     });
   });

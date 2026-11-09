@@ -54,7 +54,7 @@ Four beats, in order. The two **mechanical** beats reuse existing machinery verb
    in [`issue-conventions.md`](issue-conventions.md).
 
 4. **Label `needs-triage`, then hand off (mechanical label + policy).** Apply `needs-triage` when that exact name exists in the live set ([`label-taxonomy.md`](label-taxonomy.md)). **The filer does not self-triage.** Filing surfaces the problem into raw intake; triage verifies,
-   categorizes definitively, and routes it. The org floor workflow applies the same bare label when an issue opens with no `priority:` label (`#506`). Filing still applies it so the item is in the queue on a repository that does not run that workflow.
+   categorizes definitively, and routes it. The org floor workflow applies the same bare label when an issue opens with no value in the org Priority field and no `priority:` label (`#506`). Filing still applies it so the item is in the queue on a repository that does not run that workflow.
 
 ## Mechanical core is already scripted: reference it, do not duplicate
 

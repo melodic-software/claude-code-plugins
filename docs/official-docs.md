@@ -42,7 +42,8 @@ reached as absent, so read the `.md` channel verbatim and record no verdict from
 ## Evaluation guidance (platform docs)
 
 This marketplace authors model-graded eval fixtures for its skills (see the migration playbook's
-eval warrant policy) and ships the `evals` plugin distilling this guidance.
+[eval warrant policy](migration-playbook.md#evals-warrant-policy-and-consumer-verify-recipe)) and
+ships the `evals` plugin distilling this guidance.
 
 | Page | Official doc page | As of |
 |---|---|---|

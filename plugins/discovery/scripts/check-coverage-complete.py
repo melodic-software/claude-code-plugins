@@ -132,7 +132,7 @@ def grade(ledger_path: Path) -> int:
             continue
         if UNMARKED.match(box):
             unmarked += 1
-            item = row_cells[1] if header_cols >= 2 and done_col != 2 else row_cells[0]
+            item = row_cells[1] if done_col != 2 else row_cells[0]
             print(f"unmarked: row {rows} — {item}", file=sys.stderr)
             continue
         label = "<empty>" if box == "" else box

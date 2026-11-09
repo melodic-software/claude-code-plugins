@@ -16,8 +16,8 @@ import { buildView, ViewBuildError } from "../lib/view-builder.mjs";
 
 const TEMPLATE = "../skills/blindspot/templates/blindspot-view.html";
 
-// Data shape from reference/blindspot-view.md: top-level text fields, then one
-// list of rows whose fields are text.
+// Data shape from reference/rendered-view.md, "Discovery: blindspot": top-level
+// text fields, then one list of rows whose fields are text.
 const TEXT = ["title", "start", "prompt", "scope"];
 const LIST = "cards";
 const ROW = ["type", "gap", "why", "fix"];

@@ -151,6 +151,14 @@
         "primitives_default": {"enum": ["base-ui", "radix", "react-aria"], "description": "The accessible primitives library a React project with none installed builds on, by its setting value in the primitives table in reference/component-libraries.md; a setting value is not a package name."}
       }
     },
+    "typography": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Typography taste defaults read by the typography concern in reference/types/web/typography.md. The project's own type tokens beat every layer.",
+      "properties": {
+        "long_form_body_px": {"type": "integer", "minimum": 16, "description": "The size in px of long-form reading text (articles, documentation), never below the 16px body floor; a skill writes it in rem, the value divided by the root size in px."}
+      }
+    },
     "routing": {
       "type": "object",
       "additionalProperties": false,
