@@ -53,11 +53,6 @@ BEGIN {
   # class-scoped unit fixture uses.
   QRUN = "(\\$?[" SQ DQ "]|" BS BS ")*"
   STATNAME = "s" QRUN "t" QRUN "a" QRUN "t"
-  # What may sit between a pipeline position and the command name that
-  # position runs: environment assignments (repeatable, either side of a
-  # wrapper), an invocation wrapper, or a leading backslash. None changes
-  # WHICH command runs, so all are transparent both to the fallback guard
-  # after a `||` and to the negation check before a `!`-prefixed call.
   # A transparent prefix WORD: an environment assignment or a redirection.
   # Neither changes which command the position runs — 2.9.1 lets a simple
   # command carry redirections and assignments before its name — so both
@@ -69,6 +64,9 @@ BEGIN {
   # is one command with a prefix redirection, exactly like the attached
   # spelling. Requiring attachment rejected a genuine dual-dialect ladder.
   ASSIGN = "(([A-Za-z_][A-Za-z0-9_]*=[^;|&[:space:]]*|[0-9]*[<>][<>]?&?[[:space:]]*[^;|&[:space:]]*)[[:space:]]+)*"
+  # PREFIXES adds an optional invocation wrapper, with those words allowed on
+  # either side of it, and a leading backslash; none changes WHICH command
+  # runs.
   PREFIXES = ASSIGN "((command|env)[[:space:]]+)?" ASSIGN "(\\\\)?[[:space:]]*"
   # Characters a shell word may begin after, for the `#` comment test.
   # `)` is among them because it is a control operator, so `(cmd)# …`
@@ -86,6 +84,64 @@ BEGIN {
   # still governs the command inside it — `! x=$(stat -c …) || stat -f …`
   # skips the fallback on BSD exactly as the unnested spelling does.
   NEGOPEN = "(([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\(|" BT "|\\()[[:space:]]*)*"
+  # ---- The fallback-ladder regexes is_guarded() matches ----
+  # SEG is the run between the GNU call and the `||`, and stops at a command
+  # separator. Without it the two calls need not be in the same command at
+  # all: `stat -c %s "$f"; true || stat -f %z "$f"` runs the GNU-only call
+  # unconditionally and reaches the `||` from a LATER command. `;` and `|`
+  # are excluded, and so is a CONTROL `&`, which backgrounds the GNU call and
+  # hands the `||` to whatever follows. Redirections are kept, in BOTH
+  # ampersand positions: `2>&1` and `<&-` put it last, bash `&>` and `&>>`
+  # put it first, and neither ends the command (#1544).
+  SEG = "([^;|&" NL "]|[<>]&|&>|&&)*"
+  # CMDPOS is everything allowed between that `||` and the BSD-side command
+  # NAME for that command to be what the `||` actually runs: an optional
+  # name= assignment prefix, an optional opener, and the PREFIXES above.
+  # `command` is the POSIX-specified wrapper, and `env` and a leading
+  # backslash reach the same real utility.
+  #
+  # The opener may be any spelling that makes the command which follows it
+  # what the `||` actually runs: either substitution spelling, or a
+  # subshell/brace group whose first command it is. The bare `NAME=` (no
+  # value, no trailing space) is the `x=$(stat …)` shape. `|| (stat -f …)`
+  # and `|| { stat -f …; }` were forced into an exemption although the group
+  # genuinely executes the BSD fallback (#1544).
+  #
+  # `{` is a RESERVED WORD and only opens a group when a blank follows it,
+  # so `|| {stat -f …` names a command `{stat` and runs no fallback at all;
+  # admitting it without the blank was a fail-open (#1544). `(` is an
+  # operator, needs no blank, and keeps none.
+  CMDPOS = "\\|\\|[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\(|" BT "|\\(|\\{[[:space:]])?[[:space:]]*" PREFIXES
+  # The fallback command word carries the same optional quote and path
+  # spellings the token patterns already admit — quote removal invokes the
+  # same BSD utility, so `|| "stat" -f …` and `|| "/usr/bin/stat" -f …` are
+  # real ladders and were being forced into an exemption (#1544).
+  NAME = "(\\$?[" SQ DQ "]|" BS BS ")?" "(/[^;|&[:space:]]*/)?"
+  # PRE is what may sit between either command name and its own option: a
+  # redirection does not change the argv the utility receives, so
+  # `stat 2>/dev/null -f "%z" "$f"` is the same BSD call as `stat -f …`. A
+  # word inside PRE is any single argument that is not a control operator.
+  # Excluding the operators matters as much here as in SEG: a gap that may
+  # swallow a `;` lets the guard reach PAST the matched invocation and be
+  # satisfied by a ladder belonging to a later command, which is the
+  # line-wide behavior this anchoring replaced.
+  PRE = "(\\$?[" SQ DQ "]|" BS BS ")?" "[[:space:]]+([^;|&\n]*[[:space:]])?"
+  # An OPTION word may carry quotes on BOTH sides of the ladder (QRUN before
+  # its dash, QL within its letters), exactly as the shipped date/stat tokens
+  # admit: quote removal hands the utility the same option either way, so
+  # `stat "-c" … || stat "-f" …` is one real fallback ladder. Widening the
+  # token without widening the guard reported every quoted-flag ladder as
+  # unguarded (#1544). The trusted side is safe to widen for the same reason
+  # it is unsafe to trust `stat "--" -f`: `"-f"` IS the option after quote
+  # removal, while `"--"` is the end-of-options marker.
+  QL = "([A-Za-z]|\\$?[" SQ DQ "]|" BS BS ")*"
+  READLINK_LADDER = "realpath" SEG CMDPOS NAME "readlink$"
+  # The TRUSTED side of this regex is re-checked by fallback_proven() after
+  # it matches: a `stat -- -f` / `stat "--" -f` counterpart, an operand
+  # before the `-f`, an argument-taking cluster letter ahead of it, or a
+  # missing format argument each mean the "fallback" runs no BSD stat at
+  # all.
+  STAT_LADDER = "^" STATNAME PRE QRUN "(-" QL "c|--format|--printf)" SEG CMDPOS NAME STATNAME PRE QRUN "-" QL "f"
 }
 function is_annotated(l) { return l ~ /portability-ok:/ }
 function is_comment(l) { return l ~ /^[[:space:]]*#/ }
@@ -843,37 +899,6 @@ function fallback_proven(q, m, opos, os, oe,   i, c, w, uw, phase, j, wantarg) {
   if (c == "" || substr(q, j, 1) == "#" || index(";&|)" NL BT, c) > 0) return 0
   return 1
 }
-# SEG is the run between the GNU call and the `||`, and stops at a command
-# separator. Without it the two calls need not be in the same command at
-# all: `stat -c %s "$f"; true || stat -f %z "$f"` runs the GNU-only call
-# unconditionally and reaches the `||` from a LATER command. `;` and `|`
-# are excluded, and so is a CONTROL `&`, which backgrounds the GNU call and
-# hands the `||` to whatever follows. Redirections are kept, in BOTH
-# ampersand positions: `2>&1` and `<&-` put it last, bash `&>` and `&>>`
-# put it first, and neither ends the command (#1544).
-#
-# CMDPOS is everything allowed between that `||` and the BSD-side command
-# NAME for that command to be what the `||` actually runs: an optional
-# name= assignment prefix, an optional `$(` opening a command substitution,
-# and an optional invocation wrapper. `command` is the POSIX-specified one,
-# and `env` and a leading backslash reach the same real utility.
-#
-# PRE is what may sit between either command name and its own option: a
-# redirection does not change the argv the utility receives, so
-# `stat 2>/dev/null -f "%z" "$f"` is the same BSD call as `stat -f …`. Its
-# gap excludes the control operators for the same reason SEG does — a gap
-# that may swallow a `;` lets the guard be satisfied by a ladder belonging
-# to a later command.
-#
-# The TRUSTED side of that regex is re-checked by fallback_proven() after
-# it matches: a `stat -- -f` / `stat "--" -f` counterpart, an operand
-# before the `-f`, an argument-taking cluster letter ahead of it, or a
-# missing format argument each mean the "fallback" runs no BSD stat at
-# all.
-# A `!` in front of the GNU call inverts its status, so the `||` fires when
-# the call SUCCEEDS and is skipped when it fails — the fallback never runs
-# on the dialect that needs it. A negated probe therefore has no guard at
-# all, however well-formed the ladder after it looks.
 # Grown by DOUBLING and kept, not appended one space at a time (#3481). A
 # joined record is as long as the construct it spans, and every resumed
 # match blanks the whole prefix behind it, so a per-character loop here
@@ -885,6 +910,11 @@ function blanks(n) {
   while (length(PAD) < n) PAD = PAD PAD
   return substr(PAD, 1, n)
 }
+# A `!` in front of the GNU call inverts its status, so the `||` fires when
+# the call SUCCEEDS and is skipped when it fails — the fallback never runs
+# on the dialect that needs it. A negated probe therefore has no guard at
+# all, however well-formed the ladder after it looks.
+#
 # The `!` may be separated from the command name by the same prefixes
 # CMDPOS admits after a `||` — an invocation wrapper, an environment
 # assignment, or both — and none of them changes that the negation applies
@@ -905,19 +935,17 @@ function blanks(n) {
 #
 # Over-detecting a negation costs a false positive; under-detecting one
 # admits an unguarded GNU-only call. This is the safe direction to widen.
-# The text after the last command boundary before <at>. Spelled as a
-# backward scan rather than a greedy `.*[;|&)]` match because a record can
-# now contain a NEWLINE, and whether `.` matches one is exactly the kind of
-# awk-implementation difference this gate must not depend on. A structural
-# newline is a boundary here for the same reason `;` is: inside a `$( )`
-# frame it ends the command. A quoted newline never reaches this — it is
-# neutralized to a space upstream.
-# The text after the last boundary is the last FIELD of a split on the
-# boundary characters, which is the same answer the backward per-character
-# walk gave and reaches it in one pass through the string rather than one
-# awk-level substr() per character (#3481). The distinction matters only
-# where the walk had nowhere to stop: inside a quote-joined record every
-# separator is masked, so a boundary-free run is as long as the record.
+#
+# after_last_boundary — the text after the last command boundary in <h>: the
+# last FIELD of a split on the boundary characters. Not a greedy
+# `.*[;|&)]` match, because a record can contain a NEWLINE and whether `.`
+# matches one is exactly the kind of awk-implementation difference this gate
+# must not depend on. A structural newline is a boundary for the same reason
+# `;` is: inside a `$( )` frame it ends the command. A quoted newline never
+# reaches this — it is neutralized to a space upstream. The split takes one
+# pass rather than one awk-level substr() per character (#3481), which
+# matters inside a quote-joined record, where every separator is masked and
+# a boundary-free run is as long as the record.
 function after_last_boundary(h,   part, n) {
   n = split(h, part, "[;|&)" NL "]")
   if (n == 0) return ""
@@ -999,45 +1027,9 @@ function status_swallowed(q, at, m,   head, before, opener, i, c, depth, len, cl
   }
   return 0
 }
-function is_guarded(q, p, at, m,   CMDPOS, SEG, PRE, NAME, QP, QL, lend, opos, os, i, ladder, bar, past) {
+function is_guarded(q, p, at, m,   lend, opos, os, i, ladder, bar, past) {
   if (is_negated(q, at)) return 0
-  # An opener after the `||` may be any spelling that makes the command
-  # which follows it what the `||` actually runs: either substitution
-  # spelling, or a subshell/brace group whose first command it is. The bare
-  # `NAME=` (no value, no trailing space) is the `x=$(stat …)` shape.
-  # `|| (stat -f …)` and `|| { stat -f …; }` were forced into an exemption
-  # although the group genuinely executes the BSD fallback (#1544).
-  #
-  # `{` is a RESERVED WORD and only opens a group when a blank follows it,
-  # so `|| {stat -f …` names a command `{stat` and runs no fallback at all;
-  # admitting it without the blank was a fail-open (#1544). `(` is an
-  # operator, needs no blank, and keeps none.
-  CMDPOS = "\\|\\|[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\(|" BT "|\\(|\\{[[:space:]])?[[:space:]]*" PREFIXES
-  SEG = "([^;|&" NL "]|[<>]&|&>|&&)*"
-  # The fallback command word carries the same optional quote and path
-  # spellings the token patterns already admit — quote removal invokes the
-  # same BSD utility, so `|| "stat" -f …` and `|| "/usr/bin/stat" -f …` are
-  # real ladders and were being forced into an exemption (#1544).
-  NAME = "(\\$?[" SQ DQ "]|" BS BS ")?" "(/[^;|&[:space:]]*/)?"
-  # A word inside PRE is any single argument that is not a control
-  # operator. Excluding the operators matters as much here as in SEG: a gap
-  # that may swallow a `;` lets the guard reach PAST the matched invocation
-  # and be satisfied by a ladder belonging to a later command, which is the
-  # line-wide behavior this anchoring replaced.
-  PRE = "(\\$?[" SQ DQ "]|" BS BS ")?" "[[:space:]]+([^;|&\n]*[[:space:]])?"
-  # An OPTION word may carry quotes on BOTH sides of the ladder, exactly as
-  # the shipped date/stat tokens admit: quote removal hands the utility the
-  # same option either way, so `stat "-c" … || stat "-f" …` is one real
-  # fallback ladder. Widening the token without widening the guard reported
-  # every quoted-flag ladder as unguarded (#1544). The trusted side is safe
-  # to widen for the same reason it is unsafe to trust `stat "--" -f`:
-  # `"-f"` IS the option after quote removal, while `"--"` is the
-  # end-of-options marker this gate does not honor at all.
-  QP = QRUN
-  QL = "([A-Za-z]|\\$?[" SQ DQ "]|" BS BS ")*"
-  if (p ~ /readlink/) {
-    return substr(q, 1, at + 7) ~ ("realpath" SEG CMDPOS NAME "readlink$")
-  }
+  if (p ~ /readlink/) return substr(q, 1, at + 7) ~ READLINK_LADDER
   # Scoped to the stat ladder, which looks FORWARD from a call whose failure
   # is what fires the `||`. The readlink guard looks BACKWARD from the last
   # rung — reached only because a portable attempt already failed — so where
@@ -1060,7 +1052,7 @@ function is_guarded(q, p, at, m,   CMDPOS, SEG, PRE, NAME, QP, QL, lend, opos, o
     if (bar == 0 || substr(ladder, bar + 1, 1) != "|") return 0
     past = index(substr(ladder, bar + 2), "|")
     if (past > 0) ladder = substr(ladder, 1, bar + past)
-    if (!match(ladder, "^" STATNAME PRE QP "(-" QL "c|--format|--printf)" SEG CMDPOS NAME STATNAME PRE QP "-" QL "f")) return 0
+    if (!match(ladder, STAT_LADDER)) return 0
     # match() so the EXTENT of the ladder is known: fallback_proven()
     # walks from its `||` to its final `-f` word. SEG admits no `|`, so
     # the first `||` inside the extent is the operator of the ladder
@@ -1117,15 +1109,6 @@ function has_unguarded(view, q, p, m, from,   scan, st, len, at) {
   return 0
 }
 # ---- bash-5.2 `&`-in-replacement class (!subst-replacement-ampersand) ----
-# skip_frame <line> <at> <limit> — the offset just PAST the nested frame
-# opening at <at> (any opener opens_frame() recognizes). Its body is not part
-# of the enclosing pattern or replacement text: a `/` inside `${x:-a/b}` is
-# data belonging to the inner expansion and never the separator, and a `&`
-# inside `$(a && b)` is inner command syntax, never a match reference.
-# Quoting inside the frame is tracked so a `)`/`}` in a string cannot close
-# it early. An UNTERMINATED frame runs to <limit>, which ends the scan with
-# no hit — the under-flag direction, and unreachable in practice because the
-# record loop only calls this once every frame the mask opened has closed.
 # opens_frame <line> <at> — does a nested frame open at <at>? A backquote,
 # a `$(` / `$((` / `${`, or a PROCESS substitution `<(` / `>(`.
 #
@@ -1146,6 +1129,15 @@ function opens_frame(l, at,   c, n) {
   if ((c == "<" || c == ">") && n == "(") return 1
   return 0
 }
+# skip_frame <line> <at> <limit> — the offset just PAST the nested frame
+# opening at <at> (any opener opens_frame() recognizes). Its body is not part
+# of the enclosing pattern or replacement text: a `/` inside `${x:-a/b}` is
+# data belonging to the inner expansion and never the separator, and a `&`
+# inside `$(a && b)` is inner command syntax, never a match reference.
+# Quoting inside the frame is tracked so a `)`/`}` in a string cannot close
+# it early. An UNTERMINATED frame runs to <limit>, which ends the scan with
+# no hit — the under-flag direction, and unreachable in practice because the
+# record loop only calls this once every frame the mask opened has closed.
 function skip_frame(l, at, limit,   c, o, cl, depth, st) {
   c = substr(l, at, 1)
   if (c == BT) {
@@ -1235,7 +1227,7 @@ function skip_frame(l, at, limit,   c, o, cl, depth, st) {
 #     script header records for the ERE classes;
 #   - a parameter spelling this walk does not recognize (a name that is not
 #     an identifier, a digit run, or one of `@ * ? $ ! - #`) is skipped.
-function amp_in_frame(l, s, e,   i, c, st, sep, named) {
+function amp_in_frame(l, s, e,   i, c, sep, named) {
   i = s + 2
   if (i > e - 1) return 0
   c = substr(l, i, 1)
@@ -1274,7 +1266,6 @@ function amp_in_frame(l, s, e,   i, c, st, sep, named) {
       i++
     }
     if (sep > 0) return 0
-    sep = 0
   }
   if (substr(l, i, 1) != "/") return 0
   i++
@@ -1343,7 +1334,7 @@ function subst_amp_hit(l, from,   f, at, best) {
 # The delimiter is read from the ORIGINAL text at a `<<` the mask says is
 # structural: it may be quoted (`<<"EOF"`), and the mask has already blanked
 # those quotes. `<<<` is a here-string, not a heredoc, and is skipped.
-function heredoc_delim(l, m, i, len, j, c, d, q) {
+function heredoc_delim(l, m,   i, len, j, c, d, q) {
   len = length(m)
   for (i = 1; i < len; i++) {
     if (substr(m, i, 1) != "<" || substr(m, i + 1, 1) != "<") continue
