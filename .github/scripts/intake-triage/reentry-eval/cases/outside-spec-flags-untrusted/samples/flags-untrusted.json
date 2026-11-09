@@ -5,7 +5,7 @@
       "why": "untrusted alone on the Flags line"
     },
     {
-      "answer": "{\"labels\": [\"priority: low\", \"status: needs-decision\"], \"comment\": \"Size: Small\\nComplexity: Low\\nUncertainty: Known\\nFlags: intent, untrusted\\nBlocked by: none\\n\\nThe spec is quoted from an outside author nobody has identified.\", \"needs_human\": false, \"reason\": \"Spec from an unknown outside author.\", \"type\": \"Task\"}",
+      "answer": "{\"labels\": [\"priority: low\", \"needs-owner-decision\"], \"comment\": \"Size: Small\\nComplexity: Low\\nUncertainty: Known\\nFlags: intent, untrusted\\nBlocked by: none\\n\\nThe spec is quoted from an outside author nobody has identified.\", \"needs_human\": false, \"reason\": \"Spec from an unknown outside author.\", \"type\": \"Task\"}",
       "why": "untrusted listed after another flag"
     },
     {

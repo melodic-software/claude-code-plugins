@@ -38,7 +38,7 @@ graders:
     arm: both
   - name: reparks-needs-decision
     type: regex
-    pattern: '"labels"\s*:\s*\[[^\]]*"status: needs-decision"'
+    pattern: '"labels"\s*:\s*\[[^\]]*"needs-owner-decision"'
     target: last_message
     arm: both
   - name: asks-with-recommendation

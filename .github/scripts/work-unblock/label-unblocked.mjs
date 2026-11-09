@@ -39,7 +39,7 @@
 // deferralLapsed). One of those holds keeps it deferred, and one that lost
 // `status: ready` loses admission-deferred. One that gained the security area
 // or a body edit since gets admit.mjs's comment and loses `status: ready` and
-// admission-deferred, parked at `status: needs-decision` for the security
+// admission-deferred, parked at `needs-owner-decision` for the security
 // area, else at `status: confirmed`. A hold's comment names its owner reason
 // as the stop-reason marker and line (heldText). A person's mark below is judged by
 // decide, which refuses on the same changes. Restarts, re-fires and relabels below
@@ -71,7 +71,7 @@
 // human or the App set it, as `status: ready` must be added; no default
 // stands in) and runs intake's admission
 // rules on it (admit.mjs decide). It is admitted within the room only on an
-// admit verdict. A refusal gets admit.mjs's comment, `status: needs-decision`
+// admit verdict. A refusal gets admit.mjs's comment, `needs-owner-decision`
 // for `status: ready` when it holds for a person, else `status: confirmed`, as
 // intake's admit parks it; a wait on an open pull request stays deferred, and
 // one on a blocker goes back to ready, so its blocker's close admits it. One
@@ -307,10 +307,9 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, listedStatusOf, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker, stripStateLabels } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip, resolveStrandedBackoff, STRANDED_BACKOFF_MAX } from "../work-resolve-issue/limits.mjs";
-import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, CONFIRMED, confirmedOnly, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, SECURITY_AREA, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, clearedPastReport, CONFIRMED, confirmedOnly, decide, deferralLapsed, doneReason, judgedSince, loadRules, mergedRefsReader, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, retriageNote, sayWhy, SECURITY_AREA, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, splitLeftOpen, splitParentClosed, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { subIssueLeftOpen } from "../lib/done-evidence.mjs";
-import { clearedPastReport, retriageNote, doneReason, judgedSince, mergedRefsReader, splitLeftOpen, splitParentClosed } from "../intake-triage/admit.mjs";
 import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
 import { FIELD_API, statusWriter } from "../../actions/resolve-config/write-status.mjs";
@@ -347,21 +346,22 @@ const UNTRUSTED_STEP = "Stop on untrusted provenance";
 const BROKER_STEP = "Ask the broker whether the lane may run";
 // broker-check's step before BROKER_STEP, which skips it while a kill switch is on.
 const KILL_STEP = "Check the kill switch";
+// A raw job log line, its timestamp first, whose rest matches the pattern `rest`.
+const stamped = (rest) => new RegExp(String.raw`^\d{4}-\d\d-\d\dT[\d:.]+Z ` + rest);
 // request-lane-token's last line when the broker refuses it, in check mode
 // (BROKER_STEP) or token mode (MINT_STEP), and the runner's line that follows
 // it when the step fails. Only the reason word is read.
-const DENIAL = {
-  check: /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[error\]lane-check-denied: the broker answered 403 with reason ([a-z]+(?:-[a-z]+)*)(?::|$)/,
-  token: /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[error\]lane-token-denied: the broker answered 403 with reason ([a-z]+(?:-[a-z]+)*)(?::|$)/,
-};
-const STEP_FAILED = /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[error\]Process completed with exit code [0-9]+\.$/;
+const denial = (mode) => stamped(String.raw`##\[error\]lane-${mode}-denied: the broker answered 403 with reason ([a-z]+(?:-[a-z]+)*)(?::|$)`);
+const DENIAL = { check: denial("check"), token: denial("token") };
+const STEP_FAILED = stamped(String.raw`##\[error\]Process completed with exit code [0-9]+\.$`);
 // The write runner's step after MINT_STEP that runs exactly when a token was
 // minted; a MINT_STEP success with it skipped is a mint that stopped green.
 const STAGE_STEP = "Stage the activity from the base";
 // request-lane-token's notice when kill-switch-ok ends a kill-switch refusal
 // green with no token, at a mint or at broker-check's check.
-const STOPPED =
-  /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[notice\]lane-(?:token-stopped: the broker refused the token|check-stopped: the broker refused the check) because a lanes kill switch is on(?:,|$)/;
+const STOPPED = stamped(
+  String.raw`##\[notice\]lane-(?:token-stopped: the broker refused the token|check-stopped: the broker refused the check) because a lanes kill switch is on(?:,|$)`,
+);
 // broker-check's step after BROKER_STEP that runs in issue mode exactly on
 // the broker's allow; a BROKER_STEP success with it skipped is a check that
 // stopped green.
@@ -369,8 +369,8 @@ const LEASE_STEP = "Claim the issue with a lane lease";
 // The runner's markers around request-lane-token's one composite step, its
 // `Request the lane token` with id `request`; a STOPPED line counts only
 // between the job's first start marker and its end marker.
-const MINT_START = /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[start-action display=Request the lane token;id=([\w-]+\.request)\]$/;
-const mintEnd = (id) => new RegExp(`^\\d{4}-\\d\\d-\\d\\dT[\\d:.]+Z ##\\[end-action id=${id.replace(".", "\\.")};`);
+const MINT_START = stamped(String.raw`##\[start-action display=Request the lane token;id=([\w-]+\.request)\]$`);
+const mintEnd = (id) => stamped(String.raw`##\[end-action id=${id.replace(".", "\\.")};`);
 const BREAKER = "kill-switch";
 // The refused jobs' logs on 2026-10-24 were 45 KB (broker-check) and 94 KB
 // (apply-issue-patch); a longer one is left unread.
@@ -379,11 +379,11 @@ const LOG_CAP_BYTES = 1_048_576;
 // line in a raw job log, stamp first. A held sweep ends as green as a full one,
 // so this line alone lets the next sweep's window start from it.
 const LISTED_LINE = "label-unblocked: read the closed-issue listing";
-const LISTED = new RegExp(`^\\d{4}-\\d\\d-\\d\\dT[\\d:.]+Z ${LISTED_LINE}$`);
+const LISTED = stamped(`${LISTED_LINE}$`);
 // The line a run prints when it held an issue on a faulted read (failedFor),
 // and that line in a raw job log. The next sweep's window stays back past it.
 const HELD_LINE = "label-unblocked: held an issue on a failed read";
-const HELD = new RegExp(`^\\d{4}-\\d\\d-\\d\\dT[\\d:.]+Z ${HELD_LINE}$`);
+const HELD = stamped(`${HELD_LINE}$`);
 // work-unblock.yml's job and its step that runs this script. The kill switch
 // and a lane the config turns off skip the step and leave the run green, so
 // only this step's success shows a sweep ran.
@@ -804,7 +804,6 @@ const closedElsewhere = (args) => (blocker) => {
   return where ? trustedClose({ ...args, where, number: Number(blocker.number) }).catch(() => false) : false;
 };
 
-
 // The admission pace for one run: `take()` answers whether one more issue may
 // get agent-ready now, reading the issue lane's status the first time it is
 // asked and counting each admission against its room. A lane paused over its
@@ -915,10 +914,11 @@ async function staysParked({ github, repo, issue, lower, humans, appId, admissio
 // send it to intake.
 export const UNPARKED_MARKER = "<!-- work-unblock unparked triage -->";
 
-// Hands parked issue `number` (`had` its own label names, `comments` its
-// comments, `parkedAt` the time of its newest change to status: confirmed,
-// `isApp(user)` whether a comment is the lanes App's) back to intake: the App's UNPARKED_MARKER comment, unless one already
-// follows that park, then its Work status set to needs-triage. The comment
+// Hands parked issue `number` (`comments` its comments, `parkedAt` the time
+// of its newest change to status: confirmed, `isApp(user)` whether a comment
+// is the lanes App's) back to intake: the App's UNPARKED_MARKER comment,
+// unless one already follows that park, then its Work status set to
+// needs-triage. The comment
 // goes first, so a failed write leaves the issue parked for the next sweep,
 // which finds the comment.
 async function handBackParked({ github, repo, number, comments, parkedAt, isApp, writer, why }) {
@@ -954,7 +954,7 @@ async function unpark({ github, repo, parked, humans, appId, admission, writer =
   for (const { issue, parkedAt, comments } of going) {
     const number = Number(issue.number);
     try {
-      if (!(await handBackParked({ github, repo, number, had: labelNames(issue), comments, parkedAt, isApp: (user) => user?.id === appId, writer, why: `A blocker of this issue closed after admission parked it at \`${CONFIRMED}\`,` }))) {
+      if (!(await handBackParked({ github, repo, number, comments, parkedAt, isApp: (user) => user?.id === appId, writer, why: `A blocker of this issue closed after admission parked it at \`${CONFIRMED}\`,` }))) {
         console.log(`label-unblocked: #${number} set to needs-triage; the triage sweep sends it to intake`);
       }
     } catch (error) {
@@ -1020,19 +1020,16 @@ async function admitDeferred({ github, repo, humans, bot, gate, appId, admission
         console.log(`label-unblocked: #${number} stays deferred: open pull request #${pulls[0]} is for it`);
       } else if (reason === null) {
         const done = await doneBy(number);
-        await (done.length > 0
-          ? parkDone({ github, repo, number, had: labelNames(current), pulls: done, writer })
-          : admit({ github, repo, number, gate, deferred, had: labelNames(current), appId, writer }));
+        await (done.length > 0 ? parkDone({ github, repo, number, pulls: done, writer }) : admit({ github, repo, number, gate, deferred, appId, writer }));
       } else if (held || kept) {
         console.log(`label-unblocked: #${number} stays deferred: ${reason}`);
       } else if (stale.length > 0) {
         // As intake's admit: needs-decision when a person settles a reason, else status: confirmed.
         const code = lapsedReason(stale);
-        const status = code === null ? CONFIRMED : NEEDS_DECISION;
-        if (!(await refuseDeferred({ github, repo, number, comments: await paginate(github, `/repos/${repo}/issues/${number}/comments`), reasons: reason, labels: [status], had: labelNames(current), code, writer }))) {
+        if (!(await refuseDeferred({ github, repo, number, comments: await paginate(github, `/repos/${repo}/issues/${number}/comments`), reasons: reason, labels: [parkingStatus(code)], code, writer }))) {
           console.log(`label-unblocked: #${number} refused: ${reason}`);
         }
-      } else if (!(await dropDeferral({ github, repo, number, had: labelNames(current), events, bot, humans, notReady, writer }))) {
+      } else if (!(await dropDeferral({ number, events, bot, humans, notReady, writer }))) {
         console.log(`label-unblocked: #${number} deferral dropped: ${reason}`);
       }
     } catch (error) {
@@ -1208,6 +1205,10 @@ export function lapsedReason(lapsed) {
 // (`reason`); a hold that names none fails closed as intent.
 const decisionReason = (decision) => (decision.hold ? (decision.reason ?? "intent") : null);
 
+// The parking label of a refusal whose owner reason is `code`: needs-decision
+// when a person settles it, else status: confirmed for a park (`code` null).
+const parkingStatus = (code) => (code === null ? CONFIRMED : NEEDS_DECISION);
+
 // Refuses a deferred issue for `reasons`: the admission comment (`comments`
 // its comments; heldText with `code`) first, then the Work status the
 // parking label (`labels[0]`) names, then attended when `labels` names it, so
@@ -1232,19 +1233,18 @@ async function refuseDeferred({ github, repo, number, comments, reasons, labels,
 // the mark's own add must be.
 async function admitMarked({ github, repo, number, issue, names, events, humans, bot, appId, closes, gate, admission, doneBy, writer = NO_WRITER }) {
   const base = `/repos/${repo}/issues/${number}`;
-  const had = labelNames(issue);
   const { decision, facts } = await admissionDecision({ github, repo, number, issue, names, events, humans, bot, appId, closes, admission, doneBy });
   const reasons = decision.reasons.join("; ");
   if (decision.verdict === "admit") {
     console.log(`label-unblocked: #${number}, marked by a person, passes the admission rules`);
-    await admit({ github, repo, number, gate, deferred: true, had, appId, writer });
+    await admit({ github, repo, number, gate, deferred: true, appId, writer });
   } else if (decision.verdict === "refuse") {
     // As intake's admit: needs-decision only when a person settles a reason;
     // any other refusal (a split, a merged Refs pull request, a manual
     // external step beside attended, itself a hold) parks at status: confirmed.
     const code = decisionReason(decision);
-    const status = code === null ? CONFIRMED : NEEDS_DECISION;
-    if (!(await refuseDeferred({ github, repo, number, comments: facts.comments, reasons, labels: decision.attended ? [status, ATTENDED] : [status], had, code, writer }))) {
+    const status = parkingStatus(code);
+    if (!(await refuseDeferred({ github, repo, number, comments: facts.comments, reasons, labels: decision.attended ? [status, ATTENDED] : [status], code, writer }))) {
       console.log(`label-unblocked: #${number}, marked by a person, refused: ${reasons}`);
     }
   } else if (decision.retriage) {
@@ -1253,14 +1253,14 @@ async function admitMarked({ github, repo, number, issue, names, events, humans,
     }
   } else if (decision.verdict === "wait") {
     await sayWhy(github, repo, base, facts.comments, `Not admitted to the issue lane yet: ${reasons}.`);
-    const held = decision.pulls.length === 0 && (await dropDeferral({ github, repo, number, had, events, bot, humans, writer }));
+    const held = decision.pulls.length === 0 && (await dropDeferral({ number, events, bot, humans, writer }));
     if (!held) {
       console.log(`label-unblocked: #${number}, marked by a person, waits: ${reasons}`);
     }
   } else {
     // A skip drops the person's mark, so the comment tells them why.
     await sayWhy(github, repo, base, facts.comments, skipText(reasons));
-    if (!(await dropDeferral({ github, repo, number, had, events, bot, humans, writer }))) {
+    if (!(await dropDeferral({ number, events, bot, humans, writer }))) {
       console.log(`label-unblocked: #${number} deferral dropped: ${reasons}`);
     }
   }
@@ -1277,7 +1277,7 @@ async function admitMarked({ github, repo, number, issue, names, events, humans,
 // listed human nor the App added, or whose agent-ready removal stands
 // (admit.mjs admissionSettled). The writes are intake's (admit.mjs admit): an admit
 // verdict within the gate's room gets agent-ready, past it deferred;
-// a refusal parks at status: confirmed, or status: needs-decision when it
+// a refusal parks at status: confirmed, or needs-owner-decision when it
 // holds for a person; a wait on an open pull request is set deferred. `names`
 // gives a listed issue's names as the Work status field decides them
 // (listedNames).
@@ -1342,8 +1342,7 @@ async function readmitReady({ github, repo, listed: open, names = labelNames, hu
     try {
       // The issue is read fresh: an earlier pass of this sweep may have labeled it.
       const issue = await github("GET", base);
-      const had = labelNames(issue);
-      const labels = await fieldFirst(statusOf, number, had.map((name) => name.toLowerCase()));
+      const labels = await fieldFirst(statusOf, number, labelNames(issue).map((name) => name.toLowerCase()));
       const events = await eventsOf(github, repo, statusOf, number);
       const settled =
         issue.state !== "open"
@@ -1364,12 +1363,11 @@ async function readmitReady({ github, repo, listed: open, names = labelNames, hu
         decided += 1;
       }
       if (decision.verdict === "admit") {
-        await admit({ github, repo, number, gate, deferred: false, had, appId, writer });
+        await admit({ github, repo, number, gate, deferred: false, appId, writer });
       } else if (decision.verdict === "refuse") {
         // As intake's admit: the parking state is the one write.
         const code = decisionReason(decision);
-        const status = code === null ? CONFIRMED : NEEDS_DECISION;
-        if (await heldOnSet(writer, number, refusedState(status))) {
+        if (await heldOnSet(writer, number, refusedState(parkingStatus(code)))) {
           continue;
         }
         if (decision.attended) {

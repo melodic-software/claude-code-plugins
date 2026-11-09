@@ -367,6 +367,31 @@ pushed commit ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)
 thread against the reviewed heads the select job recorded in `run.json`, since a review lane edits
 its one marker in place when it reviews the pushed fix.
 
+### Outage posture
+
+Every lane pauses and resumes through an outage by these six elements (#9205, owner decision
+Q677). [The outage posture audit](../../outage-posture-audit.md) records each lane's verdicts.
+
+1. **Retries.** Scripts retry and the model never does. Each call gets at most 3 attempts. A
+   script waits for `retry-after` when the header is present. For a primary rate limit it waits
+   until `x-ratelimit-reset`, and for a secondary limit at least 60 s. Otherwise it uses capped
+   exponential backoff with full jitter. A wait longer than a small per-step budget counts as
+   unknown under element 2 instead of a sleep. Non-idempotent writes are never retried.
+2. **Unknown holds.** A failed read, or a 200 whose completeness check fails, makes the verdict
+   unknown. The lane then holds, files nothing, merges nothing, and exits green with a notice.
+3. **Next tick probes.** The next existing cron tick is the probe. There is no stored breaker, no
+   re-arm and no status-page trigger (element 5).
+4. **Positive evidence.** A lane demotes or files a failure only on positive evidence from a
+   complete read. When a later complete read contradicts a record the lane filed, the lane closes
+   it.
+5. **Status page.** The GitHub status page may stop work but never starts it. A lane may idle while
+   the page lists an Actions outage, and it resumes only when the page is green and its own reads
+   succeed. The page never opens or closes a record, and a hold notice may quote it as context
+   (owner decision, #12292).
+6. **No extra load.** Reads are serial and repeated polls send conditional requests (`etag`).
+   Scheduled lanes keep the default single-pending concurrency. Optional work is skipped while the
+   state is unknown, and other lanes stay off minute 0.
+
 ### Owner pull requests
 
 Agent sessions answer review threads under the owner's login, so on a PR the owner opened a lane
@@ -3802,7 +3827,7 @@ starts no run, work-unblock re-fires none, and the log and step summary carry on
 `admission paused: reason=<wip|held-cap|wip,held-cap> countable=<n> wip_cap=<n> held=<n> held_cap=<n>`
 (a `::notice` annotation titled `admission paused`). When the open listing or
 the base config cannot be read, or a search answers `incomplete_results: true`, the pause is
-unknown and the run holds (outage posture elements 2 and 3, `docs/outage-posture-audit.md`):
+unknown and the run holds ([outage posture](#outage-posture) elements 2 and 3):
 `capped` is `true`, `pause_basis` is `unknown`, and the log and step summary carry one line
 `WIP cap hold: <what could not be read>, ...` (a `::notice` annotation titled `WIP cap hold`).
 pick-slot starts resolve-issue only on `capped` `false`, so a check that fails or sets nothing

@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.8.5] - 2026-11-08
+
+### Changed
+
+- A read-only workflow's display name now follows the standards vocabulary's word list, so stems containing words such as `cli` or `oidc` match their Title Case names.
+
+- Shared `check-retirements.sh` synced where this plugin carries it ([#14251](https://github.com/melodic-software/claude-code-plugins/issues/14251)): it accepts a `block` record kind, which cleans one YAML key and its indented value instead of the whole file. No other change to this plugin.
+
+## [8.8.4] - 2026-11-08
+
+### Fixed
+
+- `worktree-claim.sh` reads the session id from `CLAUDE_CODE_SESSION_ID`, the variable Claude Code exports to Bash, when `--session-id` is absent, and keeps `CLAUDE_SESSION_ID` as a fallback. A bare `claim`, `check-enter` or `release` from a session now acts as that session, so its own claim no longer reads as foreign.
+
 ## [8.8.3] - 2026-11-08
 
 ### Changed

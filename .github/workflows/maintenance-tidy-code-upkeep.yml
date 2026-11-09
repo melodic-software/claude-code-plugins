@@ -338,7 +338,7 @@ jobs:
         if: steps.prepare.outcome == 'success' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 75
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@a5af46547856939969bee3c44d32d8ea6bc5dca4 # a5af465 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -351,6 +351,10 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
+          # Sandbox off (melodic-software/ci-workflows#1060): the code-tidying skills' Bash installs tools
+          # from PyPI and npm and runs the test suites, which reach hosts beyond
+          # GitHub and write under the home directory.
+          sandbox: "false"
           tools: |
             Read
             Grep
@@ -669,7 +673,7 @@ jobs:
         if: steps.prepare.outcome == 'success' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 75
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@a5af46547856939969bee3c44d32d8ea6bc5dca4 # a5af465 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -683,6 +687,10 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
+          # Sandbox off (melodic-software/ci-workflows#1060): the code-tidying skills' Bash installs tools
+          # from PyPI and npm and runs the test suites, which reach hosts beyond
+          # GitHub and write under the home directory.
+          sandbox: "false"
           tools: |
             Read
             Grep
@@ -953,7 +961,7 @@ jobs:
         if: steps.prepare.outcome == 'success' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 75
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@a5af46547856939969bee3c44d32d8ea6bc5dca4 # a5af465 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -966,6 +974,10 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
+          # Sandbox off (melodic-software/ci-workflows#1060): the code-tidying skills' Bash installs tools
+          # from PyPI and npm and runs the test suites, which reach hosts beyond
+          # GitHub and write under the home directory.
+          sandbox: "false"
           tools: |
             Read
             Grep

@@ -752,7 +752,7 @@ test("a workflow_run_id that is not 1 to 15 digits without a leading zero counts
 });
 
 // The outage posture's element 2: a failed read holds, whatever GitHub
-// answered (docs/outage-posture-audit.md).
+// answered (docs/conventions/pr-pipeline/README.md#outage-posture).
 test("a check-run read that fails, on a 5xx after its retries or any other answer, skips that PR with a warning and fails nothing", async () => {
   const { api, lines, run } = harness({ pages: [[pr(97), pr(98)]] });
   const listCheckRuns = api.listCheckRuns;

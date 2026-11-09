@@ -14,14 +14,14 @@ const GATES = ["kill-switch", "trigger"];
 const CONFIG = new Set(["valid", "invalid", "not-read"]);
 const OUTCOME = new Set(["success", "failure", "skipped", "not-run"]);
 // The read file's patch output mode. The title is fixed text per value.
-const PATCH_TITLE = { written: "Passed: patch written", empty: "Passed: no changes" };
-const PATCH_SUMMARY = {
-  written: "The activity ran and wrote its changes to a patch artifact.",
-  empty: "The activity ran and changed nothing, so it wrote no patch.",
+const PATCH = {
+  written: ["Passed: patch written", "The activity ran and wrote its changes to a patch artifact."],
+  empty: ["Passed: no changes", "The activity ran and changed nothing, so it wrote no patch."],
 };
 
 const isPlainObject = (value) =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+const isOptional = (value, type) => value == null || typeof value === type;
 const isGateResult = (gate) =>
   gate == null ||
   (isPlainObject(gate) &&
@@ -40,19 +40,17 @@ function isVerdict(verdict) {
     GATES.every((name) => isGateResult(verdict.gates[name])) &&
     CONFIG.has(verdict.config) &&
     OUTCOME.has(verdict.outcome) &&
-    (verdict["skip-reason"] == null ||
-      typeof verdict["skip-reason"] === "string") &&
-    (verdict["head-sha"] == null || typeof verdict["head-sha"] === "string") &&
-    (verdict["dirty-tree"] == null ||
-      typeof verdict["dirty-tree"] === "boolean") &&
-    (verdict.patch == null || Object.hasOwn(PATCH_TITLE, verdict.patch))
+    isOptional(verdict["skip-reason"], "string") &&
+    isOptional(verdict["head-sha"], "string") &&
+    isOptional(verdict["dirty-tree"], "boolean") &&
+    (verdict.patch == null || Object.hasOwn(PATCH, verdict.patch))
   );
 }
 
 export function decide(verdict, inputs) {
   const { lane, activity, runResult, actOutcome, signedCommits } = inputs;
   const { gateReason, headSha, headShaFallback, prHeadSha } = inputs;
-  const { gateSkipReasons, skipReasons, runFailure, notRunReason } = inputs;
+  const { gateSkipReasons, skipReasons, runFailure, notRunReason, notRunDetail } = inputs;
   if (
     ![lane, activity].every(
       (part) => NAME.test(part ?? "") && part !== RESERVED_NAME,
@@ -63,11 +61,12 @@ export function decide(verdict, inputs) {
       why: `lane and activity must be convention names other than ${RESERVED_NAME}`,
     };
   }
+  const checkSha = headSha || headShaFallback;
   const post = (conclusion, title, summary) => ({
     kind: "post",
     report: {
       name: `${lane} / ${activity}`,
-      head_sha: headSha || headShaFallback,
+      head_sha: checkSha,
       status: "completed",
       conclusion,
       output: { title, summary },
@@ -85,8 +84,7 @@ export function decide(verdict, inputs) {
   // A job timeout or a manual cancel also reads cancelled; only a newer PR head
   // read at report time shows the run was superseded.
   if (runResult === "cancelled") {
-    return SHA.test(prHeadSha ?? "") &&
-      prHeadSha !== (headSha || headShaFallback)
+    return SHA.test(prHeadSha ?? "") && prHeadSha !== checkSha
       ? neutral("superseded-sha")
       : failure("The run was cancelled and no newer head superseded it.");
   }
@@ -96,8 +94,8 @@ export function decide(verdict, inputs) {
     const skip = neutral(notRunReason);
     // The one detail line a caller may add: the round count a PR stopped at.
     // Any other text is left out of the check.
-    if (skip.report.conclusion === "neutral" && ROUND_COUNT.test(inputs.notRunDetail ?? "")) {
-      skip.report.output.summary += `\n\n${inputs.notRunDetail}`;
+    if (skip.report.conclusion === "neutral" && ROUND_COUNT.test(notRunDetail ?? "")) {
+      skip.report.output.summary += `\n\n${notRunDetail}`;
     }
     return skip;
   }
@@ -174,7 +172,7 @@ export function decide(verdict, inputs) {
   // Written after head code ran, so a forged value changes only which fixed
   // title a success carries; the patch's consumer checks the patch itself.
   if (verdict.patch != null) {
-    return post("success", PATCH_TITLE[verdict.patch], PATCH_SUMMARY[verdict.patch]);
+    return post("success", ...PATCH[verdict.patch]);
   }
   return post("success", "Passed", "The activity ran and passed.");
 }

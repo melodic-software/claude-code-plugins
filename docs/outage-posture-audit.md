@@ -1,7 +1,9 @@
 # Lane audit against the outage pause-and-resume posture
 
-This audit checks each of the 14 lanes in `.github/actions/resolve-config/lane-rules.json` against
-the six elements of the outage posture (#9205, owner decision Q677). It is slice 3 of #9205,
+This audit checks the 14 lanes `.github/actions/resolve-config/lane-rules.json` listed on
+2026-11-02 (commit `222d8023`) against the six elements of the
+[outage posture](conventions/pr-pipeline/README.md#outage-posture) (#9205, owner decision Q677).
+Lanes added to that file later are not audited here. It is slice 3 of #9205,
 and issue #12291 is part 1 of 2 of #12283. Each `path:line` links to the commit it describes, by full SHA: `222d8023` for the first audit's rows, and for a later row the commit its section names or the change that wrote the citation. Line numbers
 drift as the files change, so re-read a cited line before relying on it. This page assumes you
 know the lanes and their terms (the hub, the kill switch, the reconciler) from
@@ -14,27 +16,7 @@ Each lane's table has one row per element, with one of three verdicts:
 - **not applicable**: the lane has no such behavior here, such as no cron or no workflow in this
   repository.
 
-## The six elements
-
-1. **Retries.** Scripts retry and the model never does. Each call gets at most 3 attempts. A
-   script waits for `retry-after` when the header is present. For a primary rate limit it waits
-   until `x-ratelimit-reset`, and for a secondary limit at least 60 s. Otherwise it uses capped
-   exponential backoff with full jitter. A wait longer than a small per-step budget counts as
-   unknown under element 2 instead of a sleep. Non-idempotent writes are never retried.
-2. **Unknown holds.** A failed read, or a 200 whose completeness check fails, makes the verdict
-   unknown. The lane then holds, files nothing, merges nothing, and exits green with a notice.
-3. **Next tick probes.** The next existing cron tick is the probe. There is no stored breaker, no
-   re-arm and no status-page trigger (element 5).
-4. **Positive evidence.** A lane demotes or files a failure only on positive evidence from a
-   complete read. When a later complete read contradicts a record the lane filed, the lane closes
-   it.
-5. **Status page.** The GitHub status page may stop work but never starts it. A lane may idle while
-   the page lists an Actions outage, and it resumes only when the page is green and its own reads
-   succeed. The page never opens or closes a record, and a hold notice may quote it as context
-   (owner decision, #12292).
-6. **No extra load.** Reads are serial and repeated polls send conditional requests (`etag`).
-   Scheduled lanes keep the default single-pending concurrency. Optional work is skipped while the
-   state is unknown, and other lanes stay off minute 0.
+## Shared code
 
 Shared code shows up in many rows. `createGitHub` and `budgetedFetch`
 ([`.github/scripts/pr-unblock/request-budget.mjs`:36](https://github.com/melodic-software/claude-code-plugins/blob/ab3b3a2e03fd9a6fab6df6c708196c75cea4f71f/.github/scripts/pr-unblock/request-budget.mjs#L36)) use the retry at
@@ -261,17 +243,9 @@ Part 1 (#12291) fixed no gap. The **workflow** gaps below need a workflow-file c
 lane cannot push. The **script** gaps are part 2 of #12283 (#12292). #12282 built element 4's
 self-close for pr-merge's records.
 
-Part 2 fixed these element 1 gaps, each with a test:
-
-- **Shared client.** `createGitHub` and `budgetedFetch` send a read at most 3 times, with full
-  jitter (`.github/actions/check-trusted-trigger/check-trusted-trigger.mjs`).
-- **pr-merge.** `withRetry` resends only a GraphQL mutation, so a query goes out at most 3 times,
-  not 12 (`.github/scripts/pr-merge/enable-auto-merge.mjs`).
-- **retry-fetch.** The apply-patch, pr-unblock and work-resolve-issue copies wait out a rate limit
-  before a resend: `retry-after`, else the reset, else 60 s. A wait past 60 s per client is not
-  taken (`.github/scripts/work-resolve-issue/retry-fetch.mjs`).
-- **pr-unblock.** The escalation and lane-stopped comment POSTs go out once
-  (`.github/scripts/pr-unblock/report-escalation.sh`).
+Part 2's first element 1 fixes (the shared client, pr-merge's `withRetry`, `retry-fetch.mjs` and
+pr-unblock's comment POSTs) are the 8.35.1 entry of
+[the pr-pipeline changelog](conventions/pr-pipeline/CHANGELOG.md).
 
 A later part 2 change fixed these gaps, each with a test:
 

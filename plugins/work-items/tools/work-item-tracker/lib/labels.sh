@@ -17,7 +17,7 @@ readonly WIT_DEFAULT_RECURRING_MAINTENANCE_LABEL="recurring"
 # config.role_labels["owner-decision"]; a remap replaces this entry in the hold
 # label defaults below (lib/binding.sh).
 # shellcheck disable=SC2034
-readonly WIT_DEFAULT_OWNER_DECISION_LABEL="status: needs-decision"
+readonly WIT_DEFAULT_OWNER_DECISION_LABEL="needs-owner-decision"
 # Container marker (CONTRACT.md "Containers and state"): not a canonical role, but
 # remapped the same way through binding config.container_label.
 # shellcheck disable=SC2034
@@ -55,8 +55,8 @@ readonly WIT_HUMAN_FLOOR_PROVENANCE_LABELS=(
 # two holds are read under both names until the old ones are dropped.
 # shellcheck disable=SC2034
 readonly WIT_HUMAN_FLOOR_STATUS_LABELS=(
+  "status: needs-decision"
   "$WIT_DEFAULT_OWNER_DECISION_LABEL"
-  "needs-owner-decision"
   "status: needs-info"
   "needs-reporter-info"
   "needs-spec"
@@ -79,8 +79,8 @@ readonly WIT_HUMAN_FLOOR_STATUS_STATES=(
 # shellcheck disable=SC2034
 readonly WIT_HOLD_STATE_LABELS=(
   "needs-human"
+  "status: needs-decision"
   "$WIT_DEFAULT_OWNER_DECISION_LABEL"
-  "needs-owner-decision"
   "status: needs-info"
   "needs-reporter-info"
   "needs-spec"

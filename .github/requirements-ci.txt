@@ -41,7 +41,7 @@ pathspec==1.1.1 \
 # setup-python step resolves; a bump there and the cpXY hash sets here move
 # together) on Linux x64 plus the platforms the fleet develops on;
 # the cp311 set covers the cloud VM system Python (3.11) and the same fleet
-# platforms (#2654). scripts/check-hook-exec-form.sh reads this pin directly
+# platforms (#2654). scripts/lib/hook-configs.sh reads this pin directly
 # and borrows the same version through `uv run --with` when a local python
 # lacks the module, so a developer never has to match this list by hand.
 pyyaml==6.0.3 \
@@ -65,11 +65,13 @@ pyyaml==6.0.3 \
 # maps (Python, C#, TypeScript, Bash, JavaScript, YAML) are pinned so its
 # grammar-dependent suite RUNS in CI instead of skipping green, the same reason
 # pygments is pinned above (#1313). The core wheel is per-interpreter, so it
-# carries cp314 (CI) and cp311 (cloud VM) sets on the fleet platforms; every
+# carries cp314 (CI) and cp311 (cloud VM) sets on the fleet platforms, plus the
+# cp312 Linux x64 wheel for the hosted eval runner's system Python; every
 # grammar ships abi3 wheels, so those carry one hash per platform. The core
 # publishes no cp311/cp314 wheel for musllinux aarch64 or win32, which is why
-# its set is two entries shorter than pyyaml's.
+# its cp311/cp314 sets are two entries shorter than pyyaml's.
 tree-sitter==0.26.0 \
+    --hash=sha256:5a6b333b0282d8bb0af741f9b018bd2523d4eecb2686bf6717066a625fecfaa4 \
     --hash=sha256:1d6fe0e8fb4df77b5ee816228e2c4475a63d8cc1d4d3a7ffd7097b2b87fc3e95 \
     --hash=sha256:514a9bf8993e5210e7970736aaf6020d1759b670e195ef17b1c48f586aa30736 \
     --hash=sha256:10f0d4eb94aa7242dcb7f554bcd24dd7ba1c114f00d58759ba08c7a46c8ec51a \

@@ -3,6 +3,13 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## The reply-affordance and export-button rules move here, 2026-11-08
+
+- **Loop closure holds both rules.** The reply-affordance rule and the export-button rule, with who
+  they bind and their conformance surfaces, move from `docs/finding-your-unknowns.md` to two
+  subsections of Loop closure and the export obligation, and conformance dimension dim-22 names
+  the reply-affordance rule as its owner.
+
 ## The plan view reads PLAN.md, 2026-11-05
 
 - **`planning:plan`'s view is built from PLAN.md, not session JSON.** The builder's plan kind parses

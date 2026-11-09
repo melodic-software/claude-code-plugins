@@ -185,6 +185,9 @@ export async function api(path, { method = "GET", body, allow404 = false } = {})
   return res.status === 204 ? null : res.json();
 }
 
+// Every pull request, in any state, whose head is this branch.
+const pullsFor = (repo, branch) => api(`/repos/${repo}/pulls?state=all&head=${repo.split("/")[0]}:${encodeURIComponent(branch)}`);
+
 // The unread releases, oldest first, from changelog-status.sh's status file
 // (the file scripts/claude-code-release-issues.sh reads): `range: up to date`
 // is none; `cap: within budget` lists them on `releases:`; any other shape
@@ -320,29 +323,29 @@ export function validatePlan(plan, { release, baseSha }) {
   return { status, stop_reason, branches, handoffs };
 }
 
+// The change lines of a raw diff (`:<modes> <shas> <status>\t<path>...`).
+const rawLines = (raw) => raw.split("\n").filter((l) => l.startsWith(":"));
+
 // Every path the raw diff changes, either side of a rename, must sit under
 // plugins/<plugin>/ or .changes/<plugin>/, as a regular file. Messages name
 // the branch index and the raw line number, never a path.
 export function checkRawLog(raw, plugin, index = 0) {
   const allowed = [`plugins/${plugin}/`, `.changes/${plugin}/`];
-  raw
-    .split("\n")
-    .filter((l) => l.startsWith(":"))
-    .forEach((line, n) => {
-      const at = `branches[${index}] raw line ${n + 1}`;
-      const [meta, ...paths] = line.split("\t");
-      const [srcMode, dstMode] = meta.slice(1).split(" ");
-      for (const mode of [srcMode, dstMode]) {
-        if (mode !== "000000" && mode !== "100644" && mode !== "100755") {
-          throw new Error(`${at} writes a mode other than a regular file; only regular files may change`);
-        }
+  rawLines(raw).forEach((line, n) => {
+    const at = `branches[${index}] raw line ${n + 1}`;
+    const [meta, ...paths] = line.split("\t");
+    const [srcMode, dstMode] = meta.slice(1).split(" ");
+    for (const mode of [srcMode, dstMode]) {
+      if (mode !== "000000" && mode !== "100644" && mode !== "100755") {
+        throw new Error(`${at} writes a mode other than a regular file; only regular files may change`);
       }
-      for (const p of paths) {
-        if (!allowed.some((prefix) => p.startsWith(prefix)) || p.split("/").includes("..")) {
-          throw new Error(`${at} changes a path outside plugins/${plugin}/ and .changes/${plugin}/`);
-        }
+    }
+    for (const p of paths) {
+      if (!allowed.some((prefix) => p.startsWith(prefix)) || p.split("/").includes("..")) {
+        throw new Error(`${at} changes a path outside plugins/${plugin}/ and .changes/${plugin}/`);
       }
-    });
+    }
+  });
 }
 
 // The security review lane's hold-paths, which scripts/sync-hold-floor.py
@@ -365,10 +368,7 @@ export const loadHoldPaths = () => (holdPaths ??= readHoldPaths(readFileSync(HOL
 
 // Whether a raw diff changes a hold path, either side of a rename.
 export const changesHoldPath = (raw, globs = loadHoldPaths()) =>
-  raw
-    .split("\n")
-    .filter((l) => l.startsWith(":"))
-    .some((line) => line.split("\t").slice(1).some((p) => globs.some((g) => matchesHoldPath(p, g))));
+  rawLines(raw).some((line) => line.split("\t").slice(1).some((p) => globs.some((g) => matchesHoldPath(p, g))));
 
 // The first planned branch whose net diff changes a hold path, or -1, after
 // checking each one stays in its plugin. Each head must be in repoDir.
@@ -393,15 +393,12 @@ export const netRawDiff = (repoDir, baseSha, headSha) =>
 
 // The files the net diff changes: a deleted file has content null.
 export function readNetChanges(repoDir, baseSha, headSha) {
-  return netRawDiff(repoDir, baseSha, headSha)
-    .split("\n")
-    .filter((line) => line.startsWith(":"))
-    .map((line) => {
-      const [meta, path] = line.split("\t");
-      const [srcMode, dstMode, , dstSha] = meta.slice(1).split(" ");
-      if (dstMode === "000000") return { path, mode: srcMode, content: null };
-      return { path, mode: dstMode, content: execFileSync("git", ["-C", repoDir, "cat-file", "blob", dstSha], { maxBuffer: MAX_BLOB }) };
-    });
+  return rawLines(netRawDiff(repoDir, baseSha, headSha)).map((line) => {
+    const [meta, path] = line.split("\t");
+    const [srcMode, dstMode, , dstSha] = meta.slice(1).split(" ");
+    if (dstMode === "000000") return { path, mode: srcMode, content: null };
+    return { path, mode: dstMode, content: execFileSync("git", ["-C", repoDir, "cat-file", "blob", dstSha], { maxBuffer: MAX_BLOB }) };
+  });
 }
 
 // `git diff --numstat` marks a binary file `-\t-\t`; the scan reads text,
@@ -496,12 +493,11 @@ async function gate(env) {
     // Only the done marker skips a release: push skips a branch that exists
     // and publish opens a pull request a pushed branch lacks, so a run after a
     // failed publish finishes the work instead of stranding the branch.
-    if (alreadyProcessed(done)) {
-      console.log(`Claude Code ${candidate} was already processed`);
-      continue;
+    if (!alreadyProcessed(done)) {
+      release = candidate;
+      break;
     }
-    release = candidate;
-    break;
+    console.log(`Claude Code ${candidate} was already processed`);
   }
   if (!release) {
     console.log("no unprocessed Claude Code release; nothing to do");
@@ -542,15 +538,15 @@ async function push(env) {
     if (existing) {
       // A re-run's branch counts only when its tip holds the planned tree.
       const tip = existing.object?.sha;
-      const commit = SHA.test(tip ?? "") ? await api(`/repos/${repo}/git/commits/${tip}`) : null;
-      if (commit?.tree?.sha === headTree) {
+      const tipCommit = SHA.test(tip ?? "") ? await api(`/repos/${repo}/git/commits/${tip}`) : null;
+      if (tipCommit?.tree?.sha === headTree) {
         heads[b.branch] = tip;
         console.log(`${b.branch} already exists at the planned tree; not pushed`);
         continue;
       }
       // Another tree is an earlier run's work: done once it has a pull
       // request, else stranded, so the run fails before the done marker.
-      const prs = await api(`/repos/${repo}/pulls?state=all&head=${repo.split("/")[0]}:${encodeURIComponent(b.branch)}`);
+      const prs = await pullsFor(repo, b.branch);
       if (!prs?.length) throw new Error(`branches[${i}] already exists with another tree and no pull request; open one for it or delete it, then dispatch again`);
       console.log(`${b.branch} already has pull request #${prs[0].number} with another tree; not pushed`);
       continue;
@@ -594,7 +590,6 @@ async function scan(env) {
 async function publish(env) {
   const { RELEASE: release, BASE_SHA: baseSha, PLAN_FILE, GITHUB_REPOSITORY: repo } = env;
   const plan = readPlan(readFileSync(PLAN_FILE, "utf8"), { release, baseSha });
-  const owner = repo.split("/")[0];
   // push's heads output: each branch it pushed or found at the planned tree.
   const heads = JSON.parse(env.HEADS || "{}");
   let opened = 0;
@@ -604,7 +599,7 @@ async function publish(env) {
       console.log(`${b.branch} is missing or not at the head push left; no pull request`);
       continue;
     }
-    const prs = await api(`/repos/${repo}/pulls?state=all&head=${owner}:${encodeURIComponent(b.branch)}`);
+    const prs = await pullsFor(repo, b.branch);
     if (prs.length) {
       console.log(`${b.branch} already has pull request #${prs[0].number}`);
       continue;

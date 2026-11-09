@@ -27,7 +27,6 @@ const RUN_ID = /^[1-9][0-9]{0,19}$/;
 const PER_PAGE = 100;
 const MAX_PAGES = 10;
 
-
 // The resolver's jobs for run `runId`, or null when the file is missing, is
 // for another run, or is not a job list as shapeJobs writes it.
 export function keptJobs(env, runId) {

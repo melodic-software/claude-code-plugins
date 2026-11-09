@@ -199,6 +199,9 @@ export function planIssues({ findings, existing, unread = new Set(), rules, epis
 
     const rule = rules[signal];
     const number = match?.issue.number ?? null;
+    const unchanged = match?.marker.fingerprint === stateFingerprint(family.findings);
+    const onFor = hoursSince(onSince, now);
+    const clearFor = hoursSince(clearSince, now);
     const report = (state) => plan.status.push({ signal, on, state, findings: family.findings });
     const skip = (reason, state) => {
       plan.skip.push({ family: familyOf(signal), number, reason });
@@ -208,16 +211,16 @@ export function planIssues({ findings, existing, unread = new Set(), rules, epis
       skip("not read", `not read${number ? `, #${number} left as it is` : ""}`);
     } else if (open) {
       if (on) {
-        if (match.marker.fingerprint === stateFingerprint(family.findings)) skip("unchanged", `on, incident #${number} unchanged`);
+        if (unchanged) skip("unchanged", `on, incident #${number} unchanged`);
         else {
           plan.update.push({ number, family });
           report(`on, incident #${number} updated`);
         }
-      } else if (hoursSince(clearSince, now) >= rule.close) {
+      } else if (clearFor >= rule.close) {
         plan.close.push({ number, family });
-        report(`clear for ${inHours(hoursSince(clearSince, now))}, closing incident #${number}`);
+        report(`clear for ${inHours(clearFor)}, closing incident #${number}`);
       } else {
-        skip("clearing", `clear for ${inHours(hoursSince(clearSince, now))} of ${rule.close}h, incident #${number} stays open`);
+        skip("clearing", `clear for ${inHours(clearFor)} of ${rule.close}h, incident #${number} stays open`);
       }
     } else if (match && MUTED.has(match.issue.state_reason)) {
       if (on) skip("muted", `on, muted by #${number}`);
@@ -225,17 +228,16 @@ export function planIssues({ findings, existing, unread = new Set(), rules, epis
     } else if (!on) {
       report("clear");
     } else if (
-      match &&
-      match.marker.fingerprint === stateFingerprint(family.findings) &&
+      unchanged &&
       Date.parse(onSince) <= Date.parse(match.issue.closed_at) &&
       !family.findings.some((f) => Date.parse(f.observedAt) > Date.parse(match.issue.closed_at))
     ) {
       skip("closed-unchanged", `on, unchanged since #${number} was closed`);
-    } else if (hoursSince(onSince, now) >= rule.open) {
+    } else if (onFor >= rule.open) {
       plan.file.push({ family });
-      report(`on for ${inHours(hoursSince(onSince, now))}, filing an incident`);
+      report(`on for ${inHours(onFor)}, filing an incident`);
     } else {
-      skip("below threshold", `on for ${inHours(hoursSince(onSince, now))} of ${rule.open}h, no incident yet`);
+      skip("below threshold", `on for ${inHours(onFor)} of ${rule.open}h, no incident yet`);
     }
   }
   return plan;

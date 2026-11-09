@@ -3,6 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.1] - 2026-11-08
+
+### Changed
+
+- Shared `check-retirements.sh` synced where this plugin carries it ([#14251](https://github.com/melodic-software/claude-code-plugins/issues/14251)): it accepts a `block` record kind, which cleans one YAML key and its indented value instead of the whole file. No other change to this plugin.
+
+## [3.0.0] - 2026-11-08
+
+### Changed
+
+- The setup action that writes the credential-file `Read()` deny rules is now `apply read-deny`, in line with the other setup writes that install nothing (`apply identity-domains`). `apply install-read-deny` is no longer an argument; run `apply read-deny` with the same scope, `user` and `remove` arguments.
+
 ## [2.1.0] - 2026-11-07
 
 ### Added

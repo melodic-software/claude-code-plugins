@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [9.11.3] - 2026-11-08
+
+### Changed
+
+- The six outage posture elements are defined in the convention's new Outage posture section, moved from `docs/outage-posture-audit.md`, which keeps each lane's verdicts as a dated record.
+
 ## [9.11.2] - 2026-11-08
 
 ### Changed

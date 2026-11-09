@@ -75,8 +75,9 @@ writes=$(jq -n -c --arg w "$(write "$ws")" --arg h "$(write "$ws/head")" --arg b
   '{workspace: $w, head: $h, base: $b, capture_run: $r}')
 
 # Every unix socket on the file system that accepts a connection; only the
-# proxy's is expected, and with no socat the scan is untested. The toolcache, /usr and /snap hold none and would make
-# the scan slow; a scan cut off by its bound counts as not done.
+# proxy's is expected, and with no socat the scan is untested. The toolcache,
+# /usr and /snap hold none and would make the scan slow; a scan cut off by its
+# bound counts as not done.
 scan=$(timeout 90 find / \( -path /proc -o -path /sys -o -path /usr -o -path /opt/hostedtoolcache -o -path /snap \) -prune -o -type s -print 2>/dev/null)
 scan_rc=$?
 scanned=true

@@ -42,22 +42,19 @@ export async function readComponents({ fetchStatus: read = fetchStatus, componen
   return Promise.all(
     components.map(async ({ key, url, name }) => {
       const host = new URL(url).host;
+      const unknown = (reason) => ({ key, host, component: name, status: null, verdict: "unknown", reason });
       let page;
       try {
         page = await read(url);
       } catch (error) {
-        return { key, host, component: name, status: null, verdict: "unknown", reason: `${host} could not be read (${error?.message ?? error})` };
+        return unknown(`${host} could not be read (${error?.message ?? error})`);
       }
       const status = componentStatus(page, name);
       const verdict = verdictOf(status);
-      return {
-        key,
-        host,
-        component: name,
-        status: typeof status === "string" ? status : null,
-        verdict,
-        reason: verdict === "unknown" ? `${host} lists no ${name} component with a status` : "",
-      };
+      if (verdict === "unknown") {
+        return unknown(`${host} lists no ${name} component with a status`);
+      }
+      return { key, host, component: name, status, verdict, reason: "" };
     }),
   );
 }

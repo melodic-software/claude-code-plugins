@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.1] - 2026-11-08
+
+### Fixed
+
+- The comment-tooling eval seed now installs on the hosted eval runner's Python 3.12, where its pinned `tree-sitter` wheels were missing and every seeded case failed at setup.
+
 ## [0.41.0] - 2026-11-08
 
 ### Changed

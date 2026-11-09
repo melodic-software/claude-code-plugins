@@ -365,7 +365,7 @@ jobs:
         if: steps.prepare.outcome == 'success' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 75
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@a5af46547856939969bee3c44d32d8ea6bc5dca4 # a5af465 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -378,6 +378,10 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
+          # Sandbox off (melodic-software/ci-workflows#1060): harness-ops:changelog's Bash fetches the
+          # changelog from raw.githubusercontent.com (fetch-changelog.sh), a host
+          # the sandbox's GitHub-only network refuses.
+          sandbox: "false"
           tools: |
             Read
             Grep
@@ -751,7 +755,7 @@ jobs:
         if: steps.prepare.outcome == 'success' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 75
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@a5af46547856939969bee3c44d32d8ea6bc5dca4 # a5af465 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -765,6 +769,10 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
+          # Sandbox off (melodic-software/ci-workflows#1060): harness-ops:changelog's Bash fetches the
+          # changelog from raw.githubusercontent.com (fetch-changelog.sh), a host
+          # the sandbox's GitHub-only network refuses.
+          sandbox: "false"
           tools: |
             Read
             Grep
@@ -1091,7 +1099,7 @@ jobs:
         if: steps.prepare.outcome == 'success' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 75
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@a5af46547856939969bee3c44d32d8ea6bc5dca4 # a5af465 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -1104,6 +1112,10 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
+          # Sandbox off (melodic-software/ci-workflows#1060): harness-ops:changelog's Bash fetches the
+          # changelog from raw.githubusercontent.com (fetch-changelog.sh), a host
+          # the sandbox's GitHub-only network refuses.
+          sandbox: "false"
           tools: |
             Read
             Grep
@@ -1356,7 +1368,7 @@ jobs:
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 7
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@a5af46547856939969bee3c44d32d8ea6bc5dca4 # a5af465 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           CAPTURE_PROBE_EXTRA_NAMES: ISSUE_LANE_CLAUDE_API_KEY
@@ -1369,6 +1381,9 @@ jobs:
           model: ${{ steps.models.outputs.model }}
           max-turns: "6"
           permission-mode: dontAsk
+          # Sandbox off (melodic-software/ci-workflows#1060), as on the model legs, so the probe checks the
+          # scrub where their Bash runs.
+          sandbox: "false"
           cli-version: ${{ needs.gate.outputs.release }}
           tools: |
             Bash
@@ -1583,7 +1598,7 @@ jobs:
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 7
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@a5af46547856939969bee3c44d32d8ea6bc5dca4 # a5af465 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           CAPTURE_PROBE_EXTRA_NAMES: ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN
@@ -1597,6 +1612,9 @@ jobs:
           model: ${{ steps.models.outputs.model }}
           max-turns: "6"
           permission-mode: dontAsk
+          # Sandbox off (melodic-software/ci-workflows#1060), as on the model legs, so the probe checks the
+          # scrub where their Bash runs.
+          sandbox: "false"
           cli-version: ${{ needs.gate.outputs.release }}
           tools: |
             Bash
@@ -1807,7 +1825,7 @@ jobs:
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 7
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@a5af46547856939969bee3c44d32d8ea6bc5dca4 # a5af465 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           CAPTURE_PROBE_EXTRA_NAMES: FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
@@ -1820,6 +1838,9 @@ jobs:
           model: ${{ steps.models.outputs.model }}
           max-turns: "6"
           permission-mode: dontAsk
+          # Sandbox off (melodic-software/ci-workflows#1060), as on the model legs, so the probe checks the
+          # scrub where their Bash runs.
+          sandbox: "false"
           cli-version: ${{ needs.gate.outputs.release }}
           tools: |
             Bash

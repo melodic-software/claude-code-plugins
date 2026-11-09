@@ -33,12 +33,12 @@ import { timeLimitNoted } from "../maintenance-reconcile-lost-runs/infra-failure
 import { linkedIssues } from "../pr-verify/resolve-pr.mjs";
 import { anyListed, countedFetch, createGitHubApi, humanGatedLabelFrom, keepThreads, need, positive, readTriggers, reviewedHeads, reviewerIdFrom, reviewerIdsFrom, SHA, trustedHumansFrom } from "./address-feedback.mjs";
 import { failingChecks, prHold, reviewReader } from "./gate-source.mjs";
+import { ACTIONS_APP_ID, retryRung, stopSkip } from "./escalation-routes.mjs";
 import { FIX_TRAILER as FEEDBACK_TRAILER } from "./publish-feedback.mjs";
 
 // clear-escalations reads the head the same way, so the reader lives on the
 // merge path floor in gate-source.mjs.
 export { failingChecks };
-import { ACTIONS_APP_ID, retryRung, stopSkip } from "./escalation-routes.mjs";
 
 // The trailer apply-patch.mjs writes on every fix commit, from the ci-context
 // row of patch-rules.json; a round is one.
@@ -150,11 +150,7 @@ export function logExcerpt(text) {
     .map((line) => line.replace(/\r$/, "").replace(/^\d{4}-\d{2}-\d{2}T[0-9:.]+Z ?/, ""))
     .filter((line) => line.trim() !== "")
     .slice(-MAX_EXCERPT_LINES);
-  let excerpt = lines.join("\n");
-  if (excerpt.length > MAX_EXCERPT) {
-    excerpt = excerpt.slice(-MAX_EXCERPT);
-  }
-  return excerpt;
+  return lines.join("\n").slice(-MAX_EXCERPT);
 }
 
 const annotationOf = (row) => ({
@@ -194,7 +190,7 @@ async function contextOf(api, run, notes) {
 
 // Each kept thread's opening comment: where it points and what it says.
 async function reviewFindings(api, pr, { appId, reviewerId, reviewerIds, trustedHumans, pull }) {
-  // Serial reads: the outage posture's element 6 (docs/outage-posture-audit.md).
+  // Serial reads: the outage posture's element 6 (docs/conventions/pr-pipeline/README.md#outage-posture).
   const issueComments = await api.listIssueComments(pr);
   const reviews = await api.listReviews(pr);
   const reviewComments = await api.listReviewComments(pr);
@@ -320,48 +316,44 @@ export async function select({ api, pr, repository, appId, reviewerId, reviewerI
   return { decision: "proceed", rounds, headSha, laneEscalated, modelRung, weakenRetry, file };
 }
 
-// The base config's resolved loop caps, through the base checkout's
-// resolve-config, as dispatch.mjs reads its limits. A config the resolver
-// refuses throws, so the job fails before any context is written.
-async function loopFromBase(env) {
-  const { loopFromBase: load } = await import(
-    new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
-  );
-  return load({ BASE_PATH: env.BASE_PATH || ".base" });
+const basePath = (env) => env.BASE_PATH || ".base";
+
+// One of the base checkout's resolve-config readers, run on the base config.
+// A config the resolver refuses throws, so the job fails before any context
+// is written.
+async function fromBase(reader, env) {
+  const resolveConfig = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
+  return resolveConfig[reader]({ BASE_PATH: basePath(env) });
 }
 
 // merge.refire-skip-branches: OWNED_BRANCHES (a JSON list) when set, else the
 // base config's.
 async function ownedBranchesOf(env) {
-  if (env.OWNED_BRANCHES !== undefined) {
-    const list = JSON.parse(env.OWNED_BRANCHES);
-    if (!Array.isArray(list) || !list.every((ref) => typeof ref === "string" && ref !== "")) {
-      throw new Error("OWNED_BRANCHES is not a JSON list of branch names");
-    }
-    return list;
+  if (env.OWNED_BRANCHES === undefined) {
+    return fromBase("ownedBranchesFromBase", env);
   }
-  const { ownedBranchesFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
-  return ownedBranchesFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
+  const list = JSON.parse(env.OWNED_BRANCHES);
+  if (!Array.isArray(list) || !list.every((ref) => typeof ref === "string" && ref !== "")) {
+    throw new Error("OWNED_BRANCHES is not a JSON list of branch names");
+  }
+  return list;
 }
 
 // The issue lane's web hosts, which pr-verify.yml hands linkedIssues as
 // ISSUE_LANE_WEB_HOSTS: that value when set, else the base config's.
 async function webHostsOf(env) {
-  if (env.ISSUE_LANE_WEB_HOSTS !== undefined) {
-    return webHostsFrom(env.ISSUE_LANE_WEB_HOSTS);
-  }
-  const { issueLaneWebHostsFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
-  return issueLaneWebHostsFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
+  return env.ISSUE_LANE_WEB_HOSTS === undefined ? fromBase("issueLaneWebHostsFromBase", env) : webHostsFrom(env.ISSUE_LANE_WEB_HOSTS);
 }
 
 export async function main(env, { api, log = (line) => console.log(line) } = {}) {
   need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "PR_NUMBER", "APP_SENDER_ID", "CONTEXT_FILE"]);
   const pr = positive(env.PR_NUMBER, "PR_NUMBER");
   const appId = positive(env.APP_SENDER_ID, "APP_SENDER_ID");
-  const maxRounds = positive(env.FIX_CI_ROUNDS ?? (await loopFromBase(env))["fix-ci-rounds"], "FIX_CI_ROUNDS");
+  // The base config's resolved loop caps, as dispatch.mjs reads its limits.
+  const maxRounds = positive(env.FIX_CI_ROUNDS ?? (await fromBase("loopFromBase", env))["fix-ci-rounds"], "FIX_CI_ROUNDS");
   const ownedBranches = await ownedBranchesOf(env);
   // The base checkout's list, the one address-feedback reads.
-  const trustedActors = env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`;
+  const trustedActors = env.TRUSTED_ACTORS || `${basePath(env)}/.github/standards/trusted-actors/trusted-actors.json`;
   const reviewerId = reviewerIdFrom(trustedActors);
   const reviewerIds = reviewerIdsFrom(env.REVIEWER_IDS);
   const trustedHumans = trustedHumansFrom(trustedActors);
@@ -374,7 +366,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
       fetch: await countedFetch(),
     });
-  const humanGatedLabel = humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/docs/conventions/work-items.yaml`);
+  const humanGatedLabel = humanGatedLabelFrom(env.TRACKER_CONFIG || `${basePath(env)}/docs/conventions/work-items.yaml`);
   // linkedIssues takes check-trusted-trigger's github(method, path, body)
   // client: one that throws on GraphQL errors, and one that keeps them for
   // its Refs read.
@@ -388,10 +380,9 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   // linkedIssues' inputs as pr-verify's resolve-pr.mjs main builds them, the
   // lanes App's bot id as laneAppId. Read here, so a failure leaves null.
   const readSpec = async () => {
-    const humans = trustedHumansFrom(trustedActors);
     const taskList = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)))["task-list"];
     const webHosts = await webHostsOf(env);
-    return (await linkedIssues(graphql(false), graphql(true), env.GITHUB_REPOSITORY, pr, humans, appId, taskList, webHosts)).specText;
+    return (await linkedIssues(graphql(false), graphql(true), env.GITHUB_REPOSITORY, pr, trustedHumans, appId, taskList, webHosts)).specText;
   };
   const result = await select({ api: client, pr, repository: env.GITHUB_REPOSITORY, appId, reviewerId, reviewerIds, trustedHumans, maxRounds, humanGatedLabel, ownedBranches, readSpec, log });
   let sha256 = "";

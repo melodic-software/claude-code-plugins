@@ -205,7 +205,7 @@ const trustedHuman = (actor, humans) => actor?.__typename === "User" && humans.h
 // lets one judgment share one RELINK_QUERY read.
 async function actedByPeople(github, repository, number, humans, since, bodyEdit, read) {
   const start = Date.parse(since ?? "");
-  const acts = Number.isNaN(start) ? null : await (read ?? (() => relinkActs(github, repository, number)))();
+  const acts = await actsFrom(github, repository, number, start, read);
   const inside = (acts ?? []).filter(([at]) => Date.parse(at) >= start);
   return inside.some(([, , kind]) => !bodyEdit || kind === "edit") && inside.every(([, actor]) => trustedHuman(actor, humans));
 }
@@ -240,6 +240,11 @@ function actsOf(edits, events) {
   return acts.some(([at]) => Number.isNaN(Date.parse(at ?? ""))) ? null : acts;
 }
 
+// The acts through `read`, else relinkActs; null, read nothing, when `start`
+// is no time.
+const actsFrom = async (github, repository, number, start, read) =>
+  Number.isNaN(start) ? null : (read ?? (() => relinkActs(github, repository, number)))();
+
 // Whether anyone edited the pull request's body or connected or disconnected
 // an issue from `since`, the head commit's time, on. Only then can a pass
 // judged at the head supersede a FAIL there (babysit_verify_evidence
@@ -248,7 +253,7 @@ function actsOf(edits, events) {
 // or read that fails answers true.
 export async function relinkedSince(github, repository, number, since, read) {
   const start = Date.parse(since ?? "");
-  const acts = Number.isNaN(start) ? null : await (read ?? (() => relinkActs(github, repository, number)))();
+  const acts = await actsFrom(github, repository, number, start, read);
   return acts === null || acts.some(([at]) => Date.parse(at) >= start);
 }
 
@@ -587,15 +592,17 @@ async function judged({ github, repository, number, head, base, prs, issues, aft
       }
       const runId = artifact.workflow_run?.id;
       const run = Number.isSafeInteger(runId) ? await countedRun({ github, repository, runId, verdict, base }) : null;
-      if (run !== null && verdict === "fail" && (await draftJudged(run))) {
+      if (run === null) {
         continue;
       }
-      if (run !== null && verdict === "fail" && (name === own || name === own + suffix)) {
-        created.push(Date.parse(run.created_at ?? ""));
-      } else if (run !== null && verdict === "fail") {
-        return { fail: true, passes };
-      } else if (run !== null) {
+      if (verdict !== "fail") {
         passes.push(run.run_started_at);
+      } else if (await draftJudged(run)) {
+        continue;
+      } else if (name === own || name === own + suffix) {
+        created.push(Date.parse(run.created_at ?? ""));
+      } else {
+        return { fail: true, passes };
       }
     }
     if (created.length > 0) {
@@ -836,15 +843,17 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
       // in no form, so its prose names no item a person runs; a split drafts
       // no criteria (refine.mjs validateOutput), so nothing else goes with it.
       const counted = refinement !== undefined && (checks.length > 0 || !carriesSplit(refinement.body)) ? refinement : undefined;
-      const recurring = written(issue) || childBodies.has(issue.number) ? null : recurringSpec(issue, schedule);
+      const childBody = childBodies.get(issue.number);
+      const recurring = written(issue) || childBody !== undefined ? null : recurringSpec(issue, schedule);
+      // A trusted target-subset part's Scope line (admit.mjs splitScope):
+      // its done-when lines apply only to these targets.
+      const scope = !written(issue) && childBody !== undefined ? splitScope(childBody) : null;
       return {
         number: issue.number,
         spec_kind: named !== null ? "refs" : "closes",
         ...(recurring !== null && { source: "recurring-schedule" }),
-        body: written(issue) && typeof issue.body === "string" ? issue.body : (childBodies.get(issue.number) ?? recurring),
-        // A trusted target-subset part's Scope line (admit.mjs splitScope):
-        // its done-when lines apply only to these targets.
-        ...(!written(issue) && childBodies.has(issue.number) && splitScope(childBodies.get(issue.number)) !== null && { scope: splitScope(childBodies.get(issue.number)) }),
+        body: written(issue) && typeof issue.body === "string" ? issue.body : (childBody ?? recurring),
+        ...(scope !== null && { scope }),
         comments: issue.comments.nodes.filter((comment) => written(comment) || comment === counted).map((comment) => String(comment.body ?? "")),
         // The body's done-when items that refinement lists as checks a
         // person runs (admit.mjs personChecks), each as written.
@@ -858,7 +867,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
 }
 
 export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], keepJobs, rated, schedule = readSchedule() }) {
-  const skip =(reason) => ({ proceed: false, reason });
+  const skip = (reason) => ({ proceed: false, reason });
   if (!RUN_ID.test(String(upstreamRunId))) {
     throw new Error("the upstream run id is not a run id");
   }
@@ -938,7 +947,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     const { bodyEditor, bodyEditedAt, ...spec } = await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList, webHosts, undefined, base, schedule);
     return { proceed: true, reason: "ok", relinkSinceHead: false, prNumber: pull.number, headSha: head, baseSha: pull.base.sha, headRef: String(pull.head.ref ?? ""), ...spec };
   }
-  const prs =new Set(associated.map((item) => item?.number).filter((n) => Number.isSafeInteger(n) && n > 0));
+  const prs = new Set(associated.map((item) => item?.number).filter((n) => Number.isSafeInteger(n) && n > 0));
   const draftJudged = draftJudgments(github, repository, head);
   let { fail, passes, ownFail, ownLast } = await judged({ github, repository, number: pull.number, head, base, prs, draftJudged });
   if (fail) {
@@ -1165,13 +1174,15 @@ export function ratedBy(env) {
 // another reader of the same pull request.
 const laneOf = (env) => (/^[a-z][a-z0-9-]{0,40}$/.test(env?.RESOLVE_LANE ?? "") ? env.RESOLVE_LANE : "pr-verify");
 
+const writeJson = (file, value) => writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
+
 export async function main(env = process.env, { github, fetchImpl, latch } = {}) {
   if (env.CARRIED) {
     const taken = takeReads(env.CARRIED, env.GITHUB_RUN_ATTEMPT);
     if (taken !== null && env.CONTEXT_FILE && env.SPEC_FILE && env.SPEC_TEXT_FILE && env.GITHUB_OUTPUT) {
-      writeFileSync(env.SPEC_FILE, `${JSON.stringify(taken.linkedIssues, null, 2)}\n`);
-      writeFileSync(env.SPEC_TEXT_FILE, `${JSON.stringify(taken.specText, null, 2)}\n`);
-      writeFileSync(env.CONTEXT_FILE, `${JSON.stringify(taken.context, null, 2)}\n`);
+      writeJson(env.SPEC_FILE, taken.linkedIssues);
+      writeJson(env.SPEC_TEXT_FILE, taken.specText);
+      writeJson(env.CONTEXT_FILE, taken.context);
       const lines = [
         "proceed=true",
         "reason=carried",
@@ -1255,11 +1266,12 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
     throw new Error("the head branch has a name the outputs cannot carry");
   }
   if (result.proceed) {
-    writeFileSync(env.SPEC_FILE, `${JSON.stringify(result.linkedIssues, null, 2)}\n`);
-    writeFileSync(env.SPEC_TEXT_FILE, `${JSON.stringify(result.specText, null, 2)}\n`);
+    writeJson(env.SPEC_FILE, result.linkedIssues);
+    writeJson(env.SPEC_TEXT_FILE, result.specText);
     // The run's jobs, read whole, for upstream-jobs.mjs (keptJobs).
-    if (jobs !== undefined && keptJobsPath(env)) {
-      writeFileSync(keptJobsPath(env), `${JSON.stringify(shapeJobs(env.UPSTREAM_RUN_ID, jobs))}\n`);
+    const keptFile = jobs !== undefined && keptJobsPath(env);
+    if (keptFile) {
+      writeFileSync(keptFile, `${JSON.stringify(shapeJobs(env.UPSTREAM_RUN_ID, jobs))}\n`);
     }
   }
   const lines = [
@@ -1308,9 +1320,10 @@ export function closing(error, env = process.env) {
   return { lines: [`::notice title=${lane}::held: ${lane} could not resolve the pull request: ${why}`], outputs: `proceed=false\nreason=${HELD_REASON}\n`, code: 0 };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href && process.argv[2] === "carry") {
+const isEntry = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isEntry && process.argv[2] === "carry") {
   carryMain();
-} else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+} else if (isEntry) {
   main().catch((error) => {
     const closed = closing(error);
     closed.lines.forEach((line) => console.log(line));

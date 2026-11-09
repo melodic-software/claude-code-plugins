@@ -459,7 +459,7 @@ test("a fix request works a thread whose review is on an earlier head, in the se
   assert.deepEqual(kept.map((row) => row.id), ["PRRT_1"]);
 });
 
-// Element 6 of the outage posture (docs/outage-posture-audit.md): reads are
+// Element 6 of the outage posture (docs/conventions/pr-pipeline/README.md#outage-posture): reads are
 // serial, so each of the re-read's reads starts after the one before it ends.
 test("currentThreads sends its reads one after the other", async () => {
   const api = fakeApi({ ...asked([[101, HUMAN, REQUEST]]), ...OLD_REVIEW });

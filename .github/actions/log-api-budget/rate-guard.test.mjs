@@ -239,7 +239,7 @@ test("a stop within the 60 s budget is waited out and the call sent; past the bu
   assert.equal(failed(), 3);
 });
 
-// Outage posture element 2 (docs/outage-posture-audit.md): under
+// Outage posture element 2 (docs/conventions/pr-pipeline/README.md#outage-posture): under
 // API_BUDGET_HOLD the step holds: a notice, no ::error, the step not failed;
 // the call is still refused, so a caller never reads a refusal as an answer.
 test("a holding latch refuses a stop past the budget with a notice and fails nothing", async () => {
@@ -544,6 +544,9 @@ const UNGUARDED = {
   // A test helper no lane runs: the credential-legs tests' read of ci-workflows
   // files at a pinned SHA from raw.githubusercontent.com, not the API.
   ".github/scripts/lib/model-credential.mjs": "test helper reading raw.githubusercontent.com, not the API",
+  // Its API calls go through lib/github-rest.mjs, which imports the guard; the
+  // one raw fetch is getStatus, reading www.githubstatus.com, not the API.
+  ".github/scripts/maintenance-monitor-signals/monitor.mjs": "githubstatus.com reads; API calls via lib/github-rest.mjs",
 };
 
 test("every lane script that calls fetch goes through the rate guard, or is listed with its reason", () => {

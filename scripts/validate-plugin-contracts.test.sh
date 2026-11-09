@@ -556,6 +556,17 @@ action: remove-line
 note: one line
 YAML
 
+malformed_case "a block record with an action other than migrate fails the manifest" 'kind block takes only action migrate' <<'YAML'
+id: alpha-r001
+retired: 2026-08-01
+plugin_version: 1.4.0
+kind: block
+path: docs/conventions/alpha.yaml
+match: '^old_key:'
+action: remove-line
+note: one line
+YAML
+
 # Process substitution, not a pipe: a piped malformed_case runs in a subshell
 # and its ok/fail counts never reach the report.
 malformed_case "a separator with trailing whitespace is not a record break" 'not a "key: value" line' < <({

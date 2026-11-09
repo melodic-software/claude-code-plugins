@@ -313,14 +313,23 @@ runs:
             + (if $upstream == "" then {} else {expected_upstream_head: $upstream} end)
             + (if $pushed == "" then {} else {pushed_commit: $pushed} end)')
 
-        reason_of() { jq -r 'if type == "object" and (.reason | type) == "string" then .reason else "" end' "$response" 2>/dev/null || true; }
-        detail_of() { jq -r 'if type == "object" and (.detail | type) == "string" then .detail else "" end' "$response" 2>/dev/null | one_line || true; }
+        # The response's string field $1, or "" when it has none.
+        field_of() { jq -r --arg key "$1" 'if type == "object" and (.[$key] | type) == "string" then .[$key] else "" end' "$response"; }
+        reason_of() { field_of reason 2>/dev/null || true; }
+        detail_of() { field_of detail 2>/dev/null | one_line || true; }
+        # Ends the step green with no token, after the caller's annotation: $1
+        # goes to the step summary and $2, when set, to the skip-reason output.
+        skip() {
+          printf -- '- %s\n' "$1" >>"$GITHUB_STEP_SUMMARY"
+          [ -z "${2:-}" ] || echo "skip-reason=$2" >>"$GITHUB_OUTPUT"
+          exit 0
+        }
 
         # Two 503s come before the broker reserves anything, so they are retried,
         # each with a fresh OIDC token, as GitHub's rate-limit guidance asks:
         # https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#exceeding-the-rate-limit
         # At most 3 requests, and at most 60 s of waiting in all (the outage
-        # posture's element 1 budget, docs/outage-posture-audit.md): a wait
+        # posture's element 1 budget, docs/conventions/pr-pipeline/README.md#outage-posture): a wait
         # past it is not taken, and the step fails as it does on any final
         # answer. github-rate-limited carries GitHub's wait as Retry-After: the
         # retry waits exactly that (a minute when absent) plus jitter cut to fit
@@ -397,8 +406,7 @@ runs:
           if [[ $SUPERSEDED_OK == true && $status == 403 && $reason == workflow-modified ]]; then
             msg="lane-token-superseded: $LANE.yml changed on the default branch after this run started, so a newer run of it does this work; this run takes no token and skips the rest"
             echo "::warning::$msg"
-            printf -- '- %s\n' "$msg" >>"$GITHUB_STEP_SUMMARY"
-            exit 0
+            skip "$msg"
           fi
           # The broker reads the kill switches live; this run's vars were read
           # when it was queued, so a switch turned on since reaches it here.
@@ -407,9 +415,7 @@ runs:
             [ "$MODE" = token ] ||
               msg="lane-check-stopped: the broker refused the check because a lanes kill switch is on, a designed stop; this run runs no lane and skips the rest"
             echo "::notice::$msg"
-            printf -- '- %s\n' "$msg" >>"$GITHUB_STEP_SUMMARY"
-            echo "skip-reason=kill-switch" >>"$GITHUB_OUTPUT"
-            exit 0
+            skip "$msg" kill-switch
           fi
           # A rate limit the retry budget could not wait out leaves the answer
           # unknown, so the outage posture's element 2 holds instead of failing.
@@ -417,15 +423,13 @@ runs:
           if [[ $RATE_LIMIT_HOLD_OK == true && $status == 503 && $reason == github-rate-limited ]]; then
             msg="lane-token-held: the broker answered 503 github-rate-limited after its retries${rate_limit}; this run takes no token and skips the rest, and the next run asks again"
             echo "::notice title=Lane token hold::$msg"
-            printf -- '- %s\n' "$msg" >>"$GITHUB_STEP_SUMMARY"
-            echo "skip-reason=rate-limited" >>"$GITHUB_OUTPUT"
-            exit 0
+            skip "$msg" rate-limited
           fi
           # The refusal does not say whether the PR or the default branch
           # changed the file, so the skip needs GitHub's own three-dot compare
           # at the gated head to list it; any doubt stays red.
           if [[ $PR_WORKFLOW_CHANGE_OK == true && $status == 403 && $reason == workflow-modified ]]; then
-            raw=$(jq -r 'if type == "object" and (.detail | type) == "string" then .detail else "" end' "$response" 2>/dev/null) || raw=""
+            raw=$(field_of detail 2>/dev/null) || raw=""
             file="" why=""
             if [[ $raw =~ ^(\.github/workflows/[A-Za-z0-9._-]+\.ya?ml)\ differs\ from\ refs/heads/([A-Za-z0-9._-]+)$ &&
               ${BASH_REMATCH[2]} == "$DEFAULT_BRANCH" ]]; then
@@ -449,9 +453,7 @@ runs:
             if [ -z "$why" ]; then
               msg="lane-token-skipped: the broker refused the token as workflow-modified because this pull request changes $file; no lane run gets a token while it does, so the activity is skipped"
               echo "::notice::$msg"
-              printf -- '- %s\n' "$msg" >>"$GITHUB_STEP_SUMMARY"
-              echo "skip-reason=workflow-modified" >>"$GITHUB_OUTPUT"
-              exit 0
+              skip "$msg" workflow-modified
             fi
             detail="$detail; not skipped: $why"
           fi
@@ -469,7 +471,7 @@ runs:
           exit 0
         fi
 
-        token=$(jq -r 'if type == "object" and (.token | type) == "string" then .token else "" end' "$response") || token=""
+        token=$(field_of token) || token=""
         [[ $token =~ ^[A-Za-z0-9_.-]+$ ]] || fail "lane-token-denied: the broker's 200 carries no usable token"
         echo "::add-mask::$token"
         issued=$token

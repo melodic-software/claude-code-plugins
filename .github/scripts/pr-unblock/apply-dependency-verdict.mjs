@@ -339,11 +339,16 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
     return { escalationReason: "dependency-invalid", skipReason: "" };
   }
   const { verdict, reasons, evidence } = run.output;
+  // Posts the round marker as `marker`, with the verdict's reasons and
+  // evidence, and ends the round on `escalationReason`.
+  const end = async (marker, escalationReason) => {
+    await record(marker, { reasons, evidence });
+    return { escalationReason, skipReason: "" };
+  };
   const head = pull.head.sha;
   if (verdict === "fix") {
     if (head === run.head_sha) {
-      await record("fix", { reasons, evidence });
-      return { escalationReason: "dependency-fix-not-landed", skipReason: "" };
+      return end("fix", "dependency-fix-not-landed");
     }
     const compare = await api.compare(run.head_sha, head);
     if (compare.status !== "ahead") {
@@ -361,8 +366,7 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
       compare.total_commits !== commits.length
     ) {
       log(`#${pr}: the comparison from ${run.head_sha} to ${head} is not listed whole`);
-      await record("invalid", { reasons, evidence });
-      return { escalationReason: "dependency-invalid", skipReason: "" };
+      return end("invalid", "dependency-invalid");
     }
     const started = Date.parse(run.started_at);
     if (!commits.every((commit) => isLaneCommit(commit, appId, started))) {
@@ -373,17 +377,14 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
     // landed, since anyone with write access could push the branch.
     const pairs = await basePairs(api, baseSha);
     if (pairs === null) {
-      await record("invalid", { reasons, evidence });
-      return { escalationReason: "dependency-config-unreadable", skipReason: "" };
+      return end("invalid", "dependency-config-unreadable");
     }
     const refusal = await changeRefusal(api, files, pairs, run.head_sha, head);
     if (refusal) {
       log(`#${pr}: the lane's fix is refused (${refusal})`);
-      await record("invalid", { reasons, evidence });
-      return { escalationReason: "dependency-fix-refused", skipReason: "" };
+      return end("invalid", "dependency-fix-refused");
     }
-    await record("fix", { reasons, evidence });
-    return { escalationReason: "", skipReason: "" };
+    return end("fix", "");
   }
   if (head !== run.head_sha) {
     log(`#${pr}: the head moved from ${run.head_sha} to ${head} after the review; the next run reviews it`);
@@ -393,26 +394,22 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
     // The content rule could not run, so no merge marker is posted on it.
     const pairs = await basePairs(api, baseSha);
     if (run.config_unreadable || pairs === null) {
-      await record("escalate", { reasons, evidence });
-      return { escalationReason: "dependency-config-unreadable", skipReason: "" };
+      return end("escalate", "dependency-config-unreadable");
     }
     // The model saw only part of the files listing.
     if (run.files_truncated) {
-      await record("escalate", { reasons, evidence });
-      return { escalationReason: "dependency-files-truncated", skipReason: "" };
+      return end("escalate", "dependency-files-truncated");
     }
     // A workflow or action file change merges only as a full-SHA pin swap:
     // the verdict read upstream text, so it alone never admits more.
     const files = await api.listPullFiles(pr);
     if (!Array.isArray(files) || files.length >= FILES_CAP) {
-      await record("escalate", { reasons, evidence });
-      return { escalationReason: "dependency-files-truncated", skipReason: "" };
+      return end("escalate", "dependency-files-truncated");
     }
     const unpinned = pinSwapRefusal(files);
     if (unpinned) {
       log(`#${pr}: a workflow or action file change is not a full-SHA pin swap (${unpinned})`);
-      await record("escalate", { reasons, evidence });
-      return { escalationReason: "dependency-workflow-unpinned", skipReason: "" };
+      return end("escalate", "dependency-workflow-unpinned");
     }
     // Every commit that is not Dependabot's own: a lanes App commit pushed
     // outside a fix round reaches the head the model reviewed, and pr-merge
@@ -436,25 +433,21 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
     refusal ??= pushRefusal(await api.listActivity(pull.head.ref), head, commits, appId);
     if (refusal) {
       log(`#${pr}: a commit is not Dependabot's or a lane fix, or not its pusher's own (${refusal}); a person decides`);
-      await record("escalate", { reasons, evidence });
-      return { escalationReason: "dependency-fix-refused", skipReason: "" };
+      return end("escalate", "dependency-fix-refused");
     }
     // A review-only dependency merges only on a verdict that quotes each
     // matched entry's control verbatim in an evidence entry.
     const uncited = run.controls.filter((control) => !evidence.some((item) => item.includes(control)));
     if (uncited.length) {
       log(`#${pr}: the merge verdict's evidence does not quote ${uncited.length} review-only control(s)`);
-      await record("escalate", { reasons, evidence });
-      return { escalationReason: "dependency-control-uncited", skipReason: "" };
+      return end("escalate", "dependency-control-uncited");
     }
-    await record("merge", { reasons, evidence });
-    return { escalationReason: "", skipReason: "" };
+    return end("merge", "");
   }
   if (verdict === "close") {
     const labels = (pull.labels ?? []).map((label) => (typeof label === "string" ? label : label.name));
     if (run.security || isSecurityUpdate({ labels, body: pull.body ?? "" })) {
-      await record("escalate", { reasons, evidence });
-      return { escalationReason: "dependency-security-close", skipReason: "" };
+      return end("escalate", "dependency-security-close");
     }
     // Each step is safe to repeat, so a re-run after a partial failure
     // resumes: the issue is looked up by its marker before it is filed, the
@@ -473,8 +466,7 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
     log(`#${pr}: closed`);
     return { escalationReason: "", skipReason: "" };
   }
-  await record("escalate", { reasons, evidence });
-  return { escalationReason: escalateReason(run.output.owner_reason), skipReason: "" };
+  return end("escalate", escalateReason(run.output.owner_reason));
 }
 
 // A regular file of at most LIMITS.bytes whose SHA-256 is `sha256`, parsed;

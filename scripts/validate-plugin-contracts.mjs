@@ -587,7 +587,7 @@ const RETIREMENT_REQUIRED_KEYS = Object.freeze([
   "note",
 ]);
 const RETIREMENT_ENUMS = Object.freeze({
-  kind: ["file", "dir", "line"],
+  kind: ["file", "dir", "line", "block"],
   action: ["delete", "remove-line", "migrate"],
   status: ["active", "report-only"],
 });
@@ -867,11 +867,12 @@ function validateRetirementRecords(manifestPath, plugin, records) {
       );
     }
     const kind = fields.kind;
-    if (kind === "line" && fields.match === undefined) {
-      recordFail(`"match" is required when kind is line`);
+    const takesMatch = kind === "line" || kind === "block";
+    if (takesMatch && fields.match === undefined) {
+      recordFail(`"match" is required when kind is ${kind}`);
     }
-    if (kind !== undefined && kind !== "line" && fields.match !== undefined) {
-      recordFail(`"match" is only allowed when kind is line`);
+    if (kind !== undefined && !takesMatch && fields.match !== undefined) {
+      recordFail(`"match" is only allowed when kind is line or block`);
     }
     if (kind !== undefined && kind !== "file" && fields.content_match !== undefined) {
       recordFail(`"content_match" is only allowed when kind is file`);
@@ -890,8 +891,11 @@ function validateRetirementRecords(manifestPath, plugin, records) {
     if (action === "remove-line" && kind !== undefined && kind !== "line") {
       recordFail(`action remove-line requires kind line`);
     }
-    if (action === "delete" && kind === "line") {
+    if (action === "delete" && takesMatch) {
       recordFail(`action delete requires kind file or dir`);
+    }
+    if (kind === "block" && action !== undefined && action !== "migrate") {
+      recordFail(`kind block takes only action migrate`);
     }
     if (action === "migrate" && fields.successor === undefined) {
       recordFail(`action migrate requires "successor"`);

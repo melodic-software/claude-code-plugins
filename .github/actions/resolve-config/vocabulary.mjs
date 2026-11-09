@@ -9,22 +9,21 @@ function longestPrefix(candidates, text) {
     .sort((left, right) => right.length - left.length)[0];
 }
 
-// A lane is named `<stage>-<function>[-<modifier>]`, both from the vocabulary.
-export function checkLaneName(name, vocabulary) {
-  const stage = longestPrefix(
+const stageOf = (name, vocabulary) =>
+  longestPrefix(
     vocabulary.stages.map((entry) => entry.name),
     name,
   );
-  const rest =
-    stage === undefined || name === stage
-      ? undefined
-      : name.slice(stage.length + 1);
+
+// A lane is named `<stage>-<function>[-<modifier>]`, both from the vocabulary.
+export function checkLaneName(name, vocabulary) {
+  const stage = stageOf(name, vocabulary);
   const fn =
-    rest === undefined
+    stage === undefined || name === stage
       ? undefined
       : longestPrefix(
           (vocabulary.functions[stage] ?? []).map((entry) => entry.name),
-          rest,
+          name.slice(stage.length + 1),
         );
   return fn === undefined
     ? `lane \`${name}\` is not <stage>-<function> from the vocabulary`
@@ -44,10 +43,7 @@ export function checkActivityName(name, vocabulary) {
   if (vocabulary.engines.includes(name)) {
     return undefined;
   }
-  const stage = longestPrefix(
-    vocabulary.stages.map((entry) => entry.name),
-    name,
-  );
+  const stage = stageOf(name, vocabulary);
   if (stage !== undefined) {
     return `activity \`${name}\` starts with the stage word \`${stage}\``;
   }

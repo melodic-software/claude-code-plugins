@@ -6,8 +6,8 @@ RE-ENTRY rules in the `instructions` input of [`intake-triage.yml`](../../../wor
 
 | Case | Decision | Expected |
 |---|---|---|
-| `partial-answer-reparks` | answers question 1 only | quote, `status: needs-decision`, question 2 asked again with `RECOMMENDED:` |
-| `unsettled-assumption-asks` | answers both, names undefined "long-lived branches" | quote, `status: needs-decision`, a new question about those branches |
+| `partial-answer-reparks` | answers question 1 only | quote, `needs-owner-decision`, question 2 asked again with `RECOMMENDED:` |
+| `unsettled-assumption-asks` | answers both, names undefined "long-lived branches" | quote, `needs-owner-decision`, a new question about those branches |
 | `person-needed-keeps-needs-human` | answers both, first report waits on the owner's hand run | quote, `needs-human` label, `needs_human` false |
 | `settled-confirms` | answers both | quote, no status label, no `needs-human`, nothing asked, no `untrusted` flag |
 

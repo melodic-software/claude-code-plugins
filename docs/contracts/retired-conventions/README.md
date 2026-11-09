@@ -55,12 +55,12 @@ subset the flat-key parser already handles, while CI validates the same file wit
 | `id` | yes | `<plugin>-rNNN`. Stable, unique within the manifest, **never reused**. It is the finding key in every consumer and in the fleet sweep. |
 | `retired` | yes | `YYYY-MM-DD`, the date the convention was retired. |
 | `plugin_version` | yes | The plugin version that retired it. For a plugin in changelog-fragment mode (listed in `scripts/fragment-plugins.txt`), the PR does not set the version, so this is the first release at or after the change: the current version raised by the fragment's `bump` level. When the release that ships it lands on a different version, correct the field after that release. |
-| `kind` | yes | `file` \| `dir` \| `line`. What the leftover is. |
+| `kind` | yes | `file` \| `dir` \| `line` \| `block`. What the leftover is. `block` is one YAML key and its value inside a file whose other keys stay in use. |
 | `path` | yes | Repo-relative path of the leftover. Absolute paths, `..` segments, a leading `~`, backslashes, and `.` are rejected. Emitted verbatim, never joined onto the root ([windows-path-emit](../windows-path-emit/README.md)). |
-| `match` | `line` only | POSIX ERE a line must match. Required for `kind: line`; forbidden otherwise. |
-| `heading` | optional, `line` only | Exact ATX heading (`#{1,6}` + whitespace + title). When set, `match` is evaluated only against the body of every markdown section whose heading line equals this value (trailing whitespace ignored). The section runs from the line after that heading through the line before the next ATX heading of the same or higher level, or EOF. A standalone matching line outside that section is not a leftover. Forbidden on `file` and `dir`. |
+| `match` | `line` and `block` | POSIX ERE a line must match. Required for `kind: line` and `kind: block`; forbidden otherwise. For `block`, the matching line starts the block. |
+| `heading` | optional, `line` only | Exact ATX heading (`#{1,6}` + whitespace + title). When set, `match` is evaluated only against the body of every markdown section whose heading line equals this value (trailing whitespace ignored). The section runs from the line after that heading through the line before the next ATX heading of the same or higher level, or EOF. A standalone matching line outside that section is not a leftover. Forbidden on `file`, `dir` and `block`. |
 | `content_match` | optional, `file` only | POSIX ERE the file's content must match for the record to fire. Guards against a consumer legitimately reusing the path for something else. |
-| `action` | yes | `delete` (file or dir) \| `remove-line` (line) \| `migrate` (any kind). What cleanup does. |
+| `action` | yes | `delete` (file or dir) \| `remove-line` (line) \| `migrate` (any kind, and the only action for `block`). What cleanup does. |
 | `successor` | `migrate` only | Prose the model follows to carry content forward: where the convention went and what to move. Required for `migrate`. |
 | `note` | yes | One report line, shown in every finding. |
 | `status` | optional | `active` (default) \| `report-only`. The demotion field (below). |
@@ -68,7 +68,10 @@ subset the flat-key parser already handles, while CI validates the same file wit
 Detection semantics per kind: `file` is present when a regular file exists at `path` and (no
 `content_match`, or it matches); `dir` when a directory exists; `line` when the file exists and some
 line matches `match` (and, when `heading` is set, that line sits in the named heading's section
-body). Unset `heading` preserves the whole-file 1.0 line rule. A trailing carriage return is
+body); `block` when the file exists and some line matches `match`. That line starts a block that
+also holds every following blank line, line indented deeper than it, or `-` sequence item at its
+own indent (YAML lets a key's sequence sit there), up to the next other non-blank line indented no
+deeper. Unset `heading` preserves the whole-file 1.0 line rule. A trailing carriage return is
 stripped from every line before matching, so a `$`-anchored pattern matches a CRLF-authored
 consumer file.
 
@@ -172,7 +175,7 @@ id<TAB>kind<TAB>path<TAB>action<TAB>status<TAB>note
 
 | Exit | Meaning |
 |---|---|
-| 0 | Cleaned. `delete` unlinks the file (only if `content_match`, when declared, still matches) or removes the directory (only after re-resolving that it is inside the root, or the common git dir for a linked worktree's `.git/` path, and is not that directory itself); `remove-line` rewrites the file keeping every non-matching line byte-for-byte (and, when `heading` is set, only removing matches inside that heading's section body), via a temp file in the same directory and a rename, so a CRLF file stays CRLF. |
+| 0 | Cleaned. `delete` unlinks the file (only if `content_match`, when declared, still matches) or removes the directory (only after re-resolving that it is inside the root, or the common git dir for a linked worktree's `.git/` path, and is not that directory itself); `remove-line` rewrites the file keeping every non-matching line byte-for-byte (and, when `heading` is set, only removing matches inside that heading's section body), via a temp file in the same directory and a rename, so a CRLF file stays CRLF; a `block` `migrate` rewrites the file the same way without each block, then removes the file if only whitespace is left. |
 | 1 | Nothing present to clean. |
 | 2 | Usage, invalid record, unknown id, a `migrate` record without `--i-migrated`, a `kind: file` record at a root that is `$HOME` or not a repository, or a failed remove or rename. **On Windows a failed remove is usually a locked file**: nothing is left half-done; close the file and re-run. |
 
@@ -317,6 +320,8 @@ the row states the manifest as it exists on `main`.
 | `plugin-quality` | 2 | 2026-09-01 |
 | `docs-naming` | 2 | 2026-10-01 |
 | `guardrails` | 4 | 2026-10-16 |
+| `attribution` | 4 | 2026-09-27 |
+| `harness-ops` | 5 | 2026-09-05 |
 
 Row shape for a plugin adding itself: `` `<plugin>` `` \| count \| `YYYY-MM-DD`. The convention-doc
 expression-form pilot was `plugin-quality`'s `.claude/plugin-quality.md` (ADR 0018), retired by that

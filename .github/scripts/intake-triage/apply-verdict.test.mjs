@@ -244,7 +244,7 @@ describe("planWrites", () => {
 
   test("an escalated run adds only needs-decision and takes status: ready off", () => {
     const result = plan(ESCALATED_BODY, { labels: [READY, "needs-human"] });
-    assert.deepEqual(result.add, [NEEDS_DECISION]);
+    assert.deepEqual(result.add, ["needs-owner-decision"]);
     assert.deepEqual(result.remove, [READY]);
     assert.deepEqual(result.fieldWrites, []);
   });
@@ -260,7 +260,7 @@ describe("planWrites", () => {
     assert.deepEqual(planWrites(verdict, { ...base, labels: shown }).remove, ["needs-triage"], "without its own labels only the shown floor label goes");
   });
 
-  for (const hold of ["needs-human", "status: needs-info", NEEDS_DECISION]) {
+  for (const hold of ["needs-human", "status: needs-info", "status: needs-decision", NEEDS_DECISION]) {
     test(`${hold} on the issue keeps it from ready`, () => {
       const result = plan(laneBody(), { labels: [hold] });
       assert.equal(result.ready, false);
@@ -436,10 +436,10 @@ describe("planWrites", () => {
     assert.ok(!result.remove.includes("needs-human"), result.remove.join(", "));
   });
 
-  // Run 41064812826 (#9953) also applied status: needs-decision with no flag.
+  // Run 41064812826 (#9953) also applied needs-owner-decision with no flag.
   // Owner's standing direction §2: only a flag (intent, security, cost) stops
   // for a person, so this run's flagless needs-decision gives way like needs-human.
-  test("status: needs-decision this run's triage applied with no flag is refused on an otherwise ready plan", () => {
+  test("needs-owner-decision this run's triage applied with no flag is refused on an otherwise ready plan", () => {
     const result = plan(laneBody(), { labels: [NEEDS_DECISION], triageLabels: [NEEDS_DECISION] });
     assert.equal(result.ready, true);
     assert.deepEqual(result.add, [READY]);
@@ -447,11 +447,18 @@ describe("planWrites", () => {
     assert.deepEqual(result.refused, [NEEDS_DECISION]);
   });
 
-  test("needs-human and status: needs-decision this run's triage applied with no flag are both refused", () => {
+  test("needs-human and needs-owner-decision this run's triage applied with no flag are both refused", () => {
     const result = plan(laneBody(), { labels: ["needs-human", NEEDS_DECISION], triageLabels: ["needs-human", NEEDS_DECISION] });
     assert.equal(result.ready, true);
     assert.deepEqual(result.refused, ["needs-human", NEEDS_DECISION]);
     assert.deepEqual(result.remove, ["needs-human", NEEDS_DECISION]);
+  });
+
+  test("the old name status: needs-decision this run's triage applied with no flag is refused too", () => {
+    const result = plan(laneBody(), { labels: ["status: needs-decision"], triageLabels: ["status: needs-decision"] });
+    assert.equal(result.ready, true);
+    assert.deepEqual(result.remove, ["status: needs-decision"]);
+    assert.deepEqual(result.refused, ["status: needs-decision"]);
   });
 
   for (const [name, options] of [
@@ -461,7 +468,7 @@ describe("planWrites", () => {
     ["beside work-class: untrusted-provenance", { labels: ["work-class: untrusted-provenance"] }],
     ["beside status: needs-info", { labels: ["status: needs-info"] }],
   ]) {
-    test(`status: needs-decision this run's triage applied holds ${name}`, () => {
+    test(`needs-owner-decision this run's triage applied holds ${name}`, () => {
       const result = plan(options.body ?? laneBody(), { labels: [NEEDS_DECISION, ...(options.labels ?? [])], triageLabels: [NEEDS_DECISION] });
       assert.equal(result.ready, false);
       assert.deepEqual(result.refused, []);
@@ -1629,7 +1636,7 @@ describe("run", () => {
     assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
   });
 
-  test("#9953's shape: needs-human and status: needs-decision this run's triage applied with no flag both come off before admission", async () => {
+  test("#9953's shape: needs-human and needs-owner-decision this run's triage applied with no flag both come off before admission", async () => {
     const at = "2026-10-22T12:04:00Z";
     const fake = fakeGitHub({
       issue: { labels: [{ name: "needs-human" }, { name: NEEDS_DECISION }] },
@@ -1652,7 +1659,7 @@ describe("run", () => {
       log: () => {},
     });
     assert.equal(result.outcome, "ready");
-    assert.match(result.summary, /- Refused: `needs-human`, `status: needs-decision` came off/);
+    assert.match(result.summary, /- Refused: `needs-human`, `needs-owner-decision` came off/);
   });
 
   test("a needs-human a person set before this run started keeps the hold when the bot labels it again after", async () => {
@@ -2002,6 +2009,7 @@ describe("run", () => {
     [["status: needs-info"], "needs-reporter-info"],
     [["needs-human", "status: needs-info"], "needs-human"],
     [["status: needs-decision"], "needs-owner-decision"],
+    [["needs-owner-decision"], "needs-owner-decision"],
   ]) {
     test(`a held verdict writes the triage run's ${labels.join(" and ")} as ${state}, keeping the labels`, async () => {
       const fake = fakeGitHub({ issue: { labels: labels.map((name) => ({ name })) }, comments: [laneComment(ESCALATED_BODY)] });
@@ -2025,7 +2033,7 @@ describe("run", () => {
     const fields = async () => ({ [String(STATUS_CONFIG["field-id"])]: HUMAN });
     const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: fields, setStatus: fake.setStatus, statusConfig: STATUS_CONFIG, statusOf, log: () => {} });
     assert.equal(result.outcome, "needs-decision");
-    assert.ok(result.plan.reasons.includes(`held by ${NEEDS_DECISION}`), JSON.stringify(result.plan.reasons));
+    assert.ok(result.plan.reasons.includes(`held by status: needs-decision`), JSON.stringify(result.plan.reasons));
     const [written] = fake.calls.filter(({ method }) => method === "STATUS");
     assert.equal(written.body, "needs-owner-decision");
     assert.ok(written.fields[String(STATUS_CONFIG["field-id"])], "the person's value is handed over, so the writer skips it");
@@ -2421,13 +2429,13 @@ describe("the triage prompt", () => {
     );
     assert.match(
       PROMPT,
-      /A primary-design choice the issue lists and leaves unpicked \(two architectures, a new shared store or an existing one\) is an intent question: set `Flags: intent`, apply `status: needs-decision`, and ask it as a numbered question with a `RECOMMENDED:` answer/,
+      /A primary-design choice the issue lists and leaves unpicked \(two architectures, a new shared store or an existing one\) is an intent question: set `Flags: intent`, apply `needs-owner-decision`, and ask it as a numbered question with a `RECOMMENDED:` answer/,
     );
   });
 
-  test("every status: needs-decision the prompt asks for comes with a flag, and a flagless one is said to come off", () => {
-    assert.match(PROMPT, /c\. When one or more stay open, set `Flags: intent`, apply `status: needs-decision`/);
-    assert.match(PROMPT, /A `status: needs-decision` or `needs-human` label you apply holds only beside a flag on the Flags line/);
+  test("every needs-owner-decision the prompt asks for comes with a flag, and a flagless one is said to come off", () => {
+    assert.match(PROMPT, /c\. When one or more stay open, set `Flags: intent`, apply `needs-owner-decision`/);
+    assert.match(PROMPT, /A `needs-owner-decision` or `needs-human` label you apply holds only beside a flag on the Flags line/);
   });
 
   test("a charge a recorded decision covers goes on a Cost decided line, never a Cost line", () => {

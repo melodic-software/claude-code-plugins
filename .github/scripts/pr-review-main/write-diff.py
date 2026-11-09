@@ -99,8 +99,9 @@ def named(path: str, added: bytes) -> bool:
     """Whether an added line names `path`, its last directory and name, its
     name, or its name without the extension. Matching too much only prints
     more."""
-    name = path.split("/")[-1]
-    forms = {path, "/".join(path.split("/")[-2:]), name, name.rsplit(".", 1)[0]}
+    parts = path.split("/")
+    name = parts[-1]
+    forms = {path, "/".join(parts[-2:]), name, name.rsplit(".", 1)[0]}
     return any(form and os.fsencode(form) in added for form in forms)
 
 
@@ -136,9 +137,8 @@ def write_diff(repo: str, base: str, head: str, max_bytes: int) -> bytes:
         shown = [move for move in moves if named(move[1], added)]
         if not shown:
             return patch
-        for move in shown:
-            moves.remove(move)
-            whole += list(move)
+        moves = [move for move in moves if move not in shown]
+        whole += [path for move in shown for path in move]
 
 
 if __name__ == "__main__":

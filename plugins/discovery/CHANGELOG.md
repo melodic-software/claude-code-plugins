@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [1.6.3] - 2026-11-08
+
+### Changed
+
+- explore's dispatch reference no longer says the marketplace's `docs/official-docs.md` indexes the subagents page; that file no longer holds a page index.
+
 ## [1.6.2] - 2026-11-07
 
 ### Fixed
