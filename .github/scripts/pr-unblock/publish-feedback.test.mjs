@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { isEscalationReply } from "./address-feedback.mjs";
-import { main, publish, renderReply, undisposedLines } from "./publish-feedback.mjs";
+import { followUpBullet, main, publish, renderReply, undisposedLines, withFollowUp } from "./publish-feedback.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // Ids from .github/standards/trusted-actors/trusted-actors.json and the
@@ -52,7 +52,16 @@ function fakeApi(overrides = {}) {
   const calls = [];
   // A code-review lane finding as the lane posts it (github-actions[bot],
   // review 30, the lane footer), which the adjudicator may judge.
-  const comment = (id, path) => ({ id, user: { id: ACTIONS_BOT }, pull_request_review_id: 30, path, line: 1, body: `finding ${id}\n\nclaude-lane: claude-review` });
+  const comment = (id, path) => ({
+    id,
+    user: { id: ACTIONS_BOT },
+    pull_request_review_id: 30,
+    path,
+    line: 1,
+    body: `finding ${id}\n\nclaude-lane: claude-review`,
+    html_url: `https://github.com/o/r/pull/42#discussion_r${id}`,
+  });
+  let prBody = overrides.prBody ?? null;
   const threads = overrides.threads ?? {
     PRRT_a: { ids: [100], resolved: false },
     PRRT_b: { ids: [200], resolved: false },
@@ -90,7 +99,15 @@ function fakeApi(overrides = {}) {
     },
     getCommit: async (sha) => overrides.commits?.[sha] ?? { files: [{ filename: "src/a.js" }] },
     // The lanes App opened the PR unless the case names another opener.
-    getPull: async () => ({ user: { id: overrides.opener ?? APP } }),
+    getPull: async () => ({ user: { id: overrides.opener ?? APP }, body: prBody }),
+    prBody: () => prBody,
+    updatePullBody: async (pr, body) => {
+      calls.push(["body", pr, body]);
+      if (overrides.bodyFails) {
+        throw new Error("PATCH https://api.github.com/repos/o/r/pulls/42 returned 502");
+      }
+      prBody = body;
+    },
     // The PR's commits, oldest first; none earlier than the range by default.
     listPullCommits: async () => overrides.pullCommits ?? [],
     compare: async (base, head) => {
@@ -1929,22 +1946,71 @@ test("every escalation reason publish-feedback can write is one the write runner
 });
 
 // L469: an advisory outside the closing issue's scope is answered, not fixed.
-// The reply says it belongs under ## Follow-ups and resolves the thread; only
-// a thread the select job marked may_follow_up takes it.
-test("a follow-up reply on a may_follow_up thread posts the Follow-ups line and resolves the thread with no push", async () => {
-  const followUp = reply({ disposition: "follow-up", note: "Issue 7's Out of scope list names tests beyond the asserted lines." });
-  const marked = JSON.stringify({ ...RUN, threads: [{ ...RUN.threads[0], may_follow_up: true }] });
-  const api = fakeApi({ compare: { status: "identical", commits: [], files: [] } });
-  const result = await run(api, lines(followUp), marked);
+// It is recorded under ## Follow-ups in the PR body, then the reply says so
+// and the thread resolves; only a thread the select job marked may_follow_up
+// takes it.
+const FOLLOW_UP_RUN = JSON.stringify({ ...RUN, threads: [{ ...RUN.threads[0], may_follow_up: true }] });
+const followUpReply = () => reply({ disposition: "follow-up", note: "Issue 7's Out of scope list names tests beyond the asserted lines." });
+const THREAD_100 = "https://github.com/o/r/pull/42#discussion_r100";
+
+test("a follow-up reply on a may_follow_up thread records the advisory, posts the recorded line and resolves the thread with no push", async () => {
+  const followUp = followUpReply();
+  const api = fakeApi({ compare: { status: "identical", commits: [], files: [] }, prBody: "Closes #7\n\n## Summary\n\nScoped fix.\n" });
+  const result = await run(api, lines(followUp), FOLLOW_UP_RUN);
   assert.equal(result.escalationReason, "");
+  assert.equal(api.prBody(), `Closes #7\n\n## Summary\n\nScoped fix.\n\n## Follow-ups\n\n- \`finding 100\` ([thread](${THREAD_100}))\n`);
+  const order = api.calls.map((call) => call[0]).filter((kind) => ["body", "reply", "resolve"].includes(kind));
+  assert.deepEqual(order, ["body", "reply", "resolve"], "the body records the advisory before the reply and the resolve");
   const [[, , onComment, body]] = api.posted();
   assert.equal(onComment, 100);
   assert.equal(body.split("\n")[0], "**pr-unblock / address-feedback: outside the closing issue's scope, a follow-up**");
-  assert.match(body, /list it under `## Follow-ups` in the pull request body/);
+  assert.match(body, /records it under `## Follow-ups` in the pull request body/);
   assert.deepEqual(api.resolved(), ["PRRT_a"]);
 
-  const unmarked = fakeApi({ compare: { status: "identical", commits: [], files: [] } });
-  const refused = await run(unmarked, lines(followUp));
+  const unmarked = fakeApi({ compare: { status: "identical", commits: [], files: [] } });  const refused = await run(unmarked, lines(followUp));
   assert.equal(refused.escalationReason, "feedback-invalid");
   assert.deepEqual([unmarked.posted(), unmarked.resolved()], [[], []]);
+});
+
+test("a follow-up appends one bullet to an existing Follow-ups section, before the next heading", async () => {
+  const api = fakeApi({
+    compare: { status: "identical", commits: [], files: [] },
+    prBody: "## Summary\n\nFix.\n\n## Follow-ups\n\n- earlier item\n\n## Related\n\n- #5\n",
+  });
+  const result = await run(api, lines(followUpReply()), FOLLOW_UP_RUN);
+  assert.equal(result.escalationReason, "");
+  assert.equal(api.prBody(), `## Summary\n\nFix.\n\n## Follow-ups\n\n- earlier item\n- \`finding 100\` ([thread](${THREAD_100}))\n\n## Related\n\n- #5\n`);
+});
+
+test("a second run over an already recorded follow-up leaves the body as it is", async () => {
+  const recorded = `## Follow-ups\n\n- \`finding 100\` ([thread](${THREAD_100}))\n`;
+  const api = fakeApi({ compare: { status: "identical", commits: [], files: [] }, prBody: recorded });
+  const result = await run(api, lines(followUpReply()), FOLLOW_UP_RUN);
+  assert.equal(result.escalationReason, "");
+  assert.equal(api.prBody(), recorded);
+  assert.deepEqual(api.calls.filter((call) => call[0] === "body"), [], "no body write when the bullet is there");
+  assert.deepEqual(api.resolved(), ["PRRT_a"]);
+});
+
+test("a follow-up whose body write fails posts no reply, resolves nothing and escalates feedback-partial", async () => {
+  const api = fakeApi({ compare: { status: "identical", commits: [], files: [] }, prBody: "## Summary\n", bodyFails: true });
+  const result = await run(api, lines(followUpReply()), FOLLOW_UP_RUN);
+  assert.equal(result.escalationReason, "feedback-partial");
+  assert.deepEqual([api.posted(), api.resolved()], [[], []]);
+});
+
+test("withFollowUp creates the section in an empty body and keeps CRLF line endings", () => {
+  const bullet = "- `x` ([thread](https://github.com/o/r/pull/1#discussion_r9))";
+  const link = "https://github.com/o/r/pull/1#discussion_r9";
+  assert.equal(withFollowUp(null, bullet, link), `## Follow-ups\n\n${bullet}\n`);
+  assert.equal(withFollowUp("## Summary\r\n\r\nFix.\r\n", bullet, link), `## Summary\r\n\r\nFix.\r\n\r\n## Follow-ups\r\n\r\n${bullet}\r\n`);
+  assert.equal(withFollowUp("## Follow-ups\n", bullet, link), `## Follow-ups\n\n${bullet}\n`);
+});
+
+test("followUpBullet quotes the advisory's first line in a code span so a closing keyword or mention does nothing", () => {
+  assert.equal(
+    followUpBullet("\n  **Advisory:** Fixes #12 for `@someone` <!--m-->\nsecond line", "https://github.com/o/r/pull/1#discussion_r9"),
+    "- `**Advisory:** Fixes #12 for '@someone' m` ([thread](https://github.com/o/r/pull/1#discussion_r9))",
+  );
+  assert.equal(followUpBullet("", "L"), "- `advisory` ([thread](L))");
 });

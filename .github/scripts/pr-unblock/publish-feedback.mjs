@@ -25,9 +25,10 @@
 //      that was superseded, refused, escalated or held ends the round
 //      feedback-not-landed.
 //   3. Re-reads each thread and skips one that is resolved, moved, or has a
-//      comment the model job did not see; posts the templated reply on its
-//      root comment and resolves it only when it is VALID or follow-up (an
-//      advisory outside the closing issue's scope), and only on a
+//      comment the model job did not see; for a follow-up (an advisory
+//      outside the closing issue's scope) first records it under the PR
+//      body's `## Follow-ups` (recordFollowUp); posts the templated reply on its
+//      root comment and resolves it only when it is VALID or follow-up, and only on a
 //      lanes App PR: on a PR a person opened the lanes App cannot resolve, so
 //      the thread is left open for the person or their babysit worker tier. The PR head is
 //      re-read before each post and each resolve: once it is not the head
@@ -151,7 +152,57 @@ const LABELS = {
   "VALID-defer": "VALID (defer), left open",
   [FOLLOW_UP]: "outside the closing issue's scope, a follow-up",
 };
-const FOLLOW_UP_LINE = "This advisory asks for a change outside the closing issue's scope, so this pull request leaves it out: list it under `## Follow-ups` in the pull request body instead.";
+const FOLLOW_UP_LINE = "This advisory asks for a change outside the closing issue's scope, so this pull request leaves it out and records it under `## Follow-ups` in the pull request body.";
+const FOLLOW_UPS_HEADING = /^## Follow-ups[ \t]*$/;
+const FOLLOW_UP_TEXT_CAP = 200;
+
+// A `## Follow-ups` bullet: the advisory's first non-blank line in a code
+// span, so a closing keyword or an @-mention in it does nothing, then `link`.
+export function followUpBullet(advisory, link) {
+  const first = String(advisory ?? "")
+    .split(/\r?\n/)
+    .map((row) => row.trim())
+    .find((row) => row !== "");
+  const text = [...(first ?? "").replace(/`/g, "'").replace(/<!--|-->/g, "")].slice(0, FOLLOW_UP_TEXT_CAP).join("") || "advisory";
+  return `- \`${text}\` ([thread](${link}))`;
+}
+
+// `body` with `bullet` last in its `## Follow-ups` section, the section
+// appended when missing; `body` unchanged when it already holds `link`.
+export function withFollowUp(body, bullet, link) {
+  const text = String(body ?? "");
+  if (text.includes(link)) {
+    return text;
+  }
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  const rows = text.split(/\r?\n/);
+  const start = rows.findIndex((row) => FOLLOW_UPS_HEADING.test(row));
+  if (start === -1) {
+    const kept = text.replace(/\s+$/, "");
+    return [...(kept ? [kept, ""] : []), "## Follow-ups", "", bullet].join(eol) + eol;
+  }
+  const next = rows.findIndex((row, i) => i > start && /^#{1,2} /.test(row));
+  let at = next === -1 ? rows.length : next;
+  while (at > start + 1 && rows[at - 1].trim() === "") {
+    at -= 1;
+  }
+  rows.splice(at, 0, ...(at === start + 1 ? ["", bullet] : [bullet]));
+  return rows.join(eol);
+}
+
+// Records a follow-up advisory (its root review comment) in the PR body
+// before its thread is answered, so resolving the thread loses nothing.
+async function recordFollowUp(api, pr, comment) {
+  const link = comment?.html_url;
+  if (typeof link !== "string" || !link.startsWith("https://github.com/")) {
+    throw new Error(`root comment ${comment?.id} has no link to record under ## Follow-ups`);
+  }
+  const body = (await api.getPull(pr))?.body ?? "";
+  const next = withFollowUp(body, followUpBullet(comment.body, link), link);
+  if (next !== body) {
+    await api.updatePullBody(pr, next);
+  }
+}
 
 // Whether a lane reply is one after which a lanes App PR's thread is resolved:
 // the VALID or follow-up reply (renderReply) or an adjudication that found
@@ -748,6 +799,7 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
     const now = new Map(kept.map((thread) => [thread.id, thread]));
     const shown = new Map(run.threads.map((thread) => [thread.id, thread]));
     const createdAt = new Map(reviewComments.map((comment) => [comment.id, comment.created_at]));
+    const rootComments = new Map(reviewComments.map((comment) => [comment.id, comment]));
     // The newest of the thread's comments, as the reply job reads them now,
     // by the reviewer, the verifier or the lane. NaN (no such comment, or no
     // readable time) compares false, so it finds no earlier fix.
@@ -811,6 +863,9 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
           log(`stopped at ${reply.thread}: the PR head is no longer ${headSha}`);
           escalationReason = posted.length === 0 ? "feedback-not-landed" : "feedback-partial";
           break;
+        }
+        if (reply.disposition === FOLLOW_UP) {
+          await recordFollowUp(api, pr, rootComments.get(ids[0]));
         }
         const answer = await api.replyToComment(pr, ids[0], renderReply(reply));
         if (answer?.in_reply_to_id !== ids[0]) {

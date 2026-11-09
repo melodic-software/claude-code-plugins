@@ -1515,6 +1515,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       return (await response.json()).permission;
     },
     closePull: async (pr) => requestData(`${repo}/pulls/${pr}`, "PATCH", { state: "closed" }, true),
+    updatePullBody: async (pr, body) => requestData(`${repo}/pulls/${pr}`, "PATCH", { body }, true),
     createIssue: (fields) => requestData(`${repo}/issues`, "POST", fields),
     listIssues: (query) => paginate(`issues?${query}`),
     listPullFiles: (pr) => paginate(`pulls/${pr}/files`),

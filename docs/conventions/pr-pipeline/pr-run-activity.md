@@ -1179,7 +1179,9 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    - posts the reply on the thread's root comment in the fixed template (disposition label,
      backticked evidence, `Fix: <sha>` naming the push job's commit for `VALID`, the note in a
      `text` fence longer than any backtick run in it, and for `follow-up` a fixed line saying the
-     advisory belongs under `## Follow-ups` in the pull request body) and resolves the thread only
+     advisory is recorded under `## Follow-ups` in the pull request body, which it first appends
+     there as one bullet, the advisory's first line and a link to its root comment, adding the
+     section when missing and nothing when that link is already in the body) and resolves the thread only
      for `VALID` or `follow-up`,
      and only when a re-read after the reply shows exactly the model's comments plus that reply
      (one retry on a failed read or resolve). Once a reply posts, no later round selects the

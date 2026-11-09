@@ -79,8 +79,8 @@ The preamble names the tool's path. It is the only shell command this mode runs,
    first. When the change it asks for (a new test is the usual case) falls outside the closing
    issue's acceptance criteria, or under an item of its Out of scope list, make no edit and record
    `follow-up`: the note quotes the criterion or Out of scope line it falls outside and names the
-   issue's URL. The reply job posts it with a fixed line saying the advisory belongs under
-   `## Follow-ups` in the pull request body, and resolves the thread. An advisory the issue's
+   issue's URL. The reply job records the advisory under `## Follow-ups` in the pull request
+   body, posts the reply with a fixed line saying so, and resolves the thread. An advisory the issue's
    scope allows is classified as any other finding.
 3. VALID: run `check-paths` on every file the fix changes before you edit it, and edit only when
    it prints `allowed`. Leave the fix uncommitted in the working tree before you record it: there
