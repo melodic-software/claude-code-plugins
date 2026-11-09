@@ -24,13 +24,18 @@ Use it as the focus style for every interactive element. Never write `outline: n
 
 ```css
 :focus-visible {
-  outline: {{css.focus_ring.width}} solid var(--focus-ring, currentColor);
+  outline: max(2px, {{css.focus_ring.width}}) solid var(--focus-ring, currentColor);
   outline-offset: {{css.focus_ring.offset_px}}px;
 }
 ```
 
 Rules:
 
+- The ring is never thinner than 2px, the perimeter thickness WCAG 2.2 success criterion 2.4.13
+  Focus Appearance (AAA) names
+  (<https://www.w3.org/WAI/WCAG22/Understanding/focus-appearance.html#success-criterion>). The
+  `max()` keeps that floor whatever `css.focus_ring.width` resolves to; report a resolved width
+  below it with this source.
 - The ring's color is the `--focus-ring` token; the contrast it must keep in both themes is the
   `color` concern's rule. Use the project's focus token where it has one.
 - Without the token the ring falls back to `currentColor`, which can fail contrast on a filled

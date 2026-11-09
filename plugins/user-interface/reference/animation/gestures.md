@@ -80,8 +80,8 @@ mass/stiffness/damping):
 ```
 
 **Bounce rules:** default to `animation.spring.bounce.default` in product UI. Add bounce only for
-playful, physical interactions (drag-to-dismiss release, a toy-like toggle) and keep it subtle,
-never above `animation.spring.bounce.playful_max`. Default spring: duration
+playful, physical interactions (drag-to-dismiss release, a toy-like toggle), starting small (0.1 is
+an example), never above `animation.spring.bounce.playful_max`. Default spring: duration
 `animation.spring.duration_s.default`, bounce `animation.spring.bounce.default`; the `bounce: 0.2`
 above shows the form for a playful case, not the default.
 
@@ -129,7 +129,7 @@ alone.
 
 Illustration (pseudocode, adapt to the stack; the deceleration rate is
 `animation.gesture.deceleration_rate` for a normal scroll feel, and lower than
-`animation.gesture.deceleration_rate` for a snappier one):
+`animation.gesture.deceleration_rate` for a snappier one, such as 0.99):
 
 ```text
 project(velocityPxPerSecond, rate) = (velocityPxPerSecond / 1000) * rate / (1 - rate)

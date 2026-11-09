@@ -217,8 +217,8 @@ already moved elsewhere.
   direction follows the path it entered by, so the sign depends on the edge (`catalog.md`,
   "Physicality").
 - A hint of direction tells the eye where the thing went; a pure fade loses that.
-- Run it shorter: at most `animation.duration_ms.exit_factor` of an entrance within
-  `animation.duration_ms.large`.
+- Run it shorter: at most `animation.duration_ms.exit_factor` of its own entrance, whose role is at
+  most `animation.duration_ms.large`.
 - A permanent exit accelerates away on `in`; a toggled one leaves on the curve it entered with
   (`catalog.md`, "Easing").
 - Don't cut straight to `display: none`: instant disappearance severs spatial context.
@@ -226,7 +226,7 @@ already moved elsewhere.
 Reserve a full off-screen slide (`x: "-100%"`) for moments where the destination itself is the
 information: a swiped-away list card, a closing drawer.
 
-Illustration (Motion for React; a permanent exit on the `in` curve):
+Illustration (Motion for React; the permanent exit of a `medium`-role element, on the `in` curve):
 
 ```tsx
 <motion.div exit={{ opacity: 0, y: -{{animation.travel_px.medium}}, filter: "blur({{animation.blur_px.soften}}px)",

@@ -154,8 +154,8 @@ project's existing stack does the job.
 
 - **Never enter from `scale(0)`.** Elements should always have a visible shape: start at
   `animation.scale.enter` (or `animation.scale.enter_small` for small elements) with `opacity: 0`,
-  and settle to full scale and opacity. A start near `animation.scale.enter` keeps a shape; nothing
-  in the physical world appears from nothing.
+  and settle to full scale and opacity. A start near `animation.scale.enter` keeps a shape, and so
+  does one as low as 0.9; nothing in the physical world appears from nothing.
 - An element scaling up from nothing reads as a glitch; real objects always have a visible shape.
   The same goes for a toast that travels the full viewport height to arrive. Travel distances stay
   small (`animation.travel_px.medium` to `animation.travel_px.large`) unless the element really is
@@ -250,7 +250,8 @@ allows, not a target.
 |---|---|
 | `press` | press feedback |
 | `small` | tooltips, small popovers |
-| `medium` | dropdowns, menus, selects, and any other UI transition (hover, color, focus) |
+| `hover` | hover feedback |
+| `medium` | dropdowns, menus, selects, and any other UI transition (color, focus) |
 | `large` | modals, dialogs, drawers, sheets, toasts |
 | `page` | page-level and full-screen transitions |
 

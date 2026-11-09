@@ -31,7 +31,7 @@ Use it for every transition or animation that moves or scales something.
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .button .icon { transition: transform {{animation.duration_ms.medium}}ms var(--ease-out, ease-out); }
+  .button .icon { transition: transform {{animation.duration_ms.hover}}ms var(--ease-out, ease-out); }
 }
 ```
 
@@ -109,8 +109,9 @@ Rules:
   too, with a warning that its slow start can read as lag.
 - `out` is for anything entering or leaving, `in` for a permanent exit, `in_out` for something
   already on screen that moves or morphs, and `drawer` for a drawer or sheet on the way in and out.
-- Keep each transition within its role: `press` for press feedback, `small` for tooltips and small
-  popovers, `medium` for dropdowns, menus and any other UI transition, `large` for modals, dialogs,
+- Keep each transition within its role: `press` for press feedback, `hover` for hover feedback,
+  `small` for tooltips and small popovers, `medium` for dropdowns, menus and any other UI
+  transition, `large` for modals, dialogs,
   drawers, sheets and toasts, `page` for page-level and full-screen transitions.
   Small, frequent UI sits near the short end of its role, and an exit runs at most
   `animation.duration_ms.exit_factor` of its entrance.
@@ -214,7 +215,7 @@ Use it on cards that lift on hover, most of all in a grid of many cards or with 
 
 @media (prefers-reduced-motion: no-preference) {
   .card::before,
-  .card::after { transition: opacity {{animation.duration_ms.medium}}ms var(--ease-out, ease-out); }
+  .card::after { transition: opacity {{animation.duration_ms.hover}}ms var(--ease-out, ease-out); }
 }
 ```
 
@@ -248,7 +249,7 @@ Use it on any card or button that lifts, slides or scales on hover.
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .card-inner { transition: transform {{animation.duration_ms.medium}}ms var(--ease-out, ease-out); }
+  .card-inner { transition: transform {{animation.duration_ms.hover}}ms var(--ease-out, ease-out); }
 }
 ```
 
