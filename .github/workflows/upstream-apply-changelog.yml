@@ -143,8 +143,7 @@ jobs:
           RELEASE_INPUT: ${{ inputs.release }}
           STATUS_FILE: ${{ runner.temp }}/changelog-status.txt
         run: |
-          # The unread releases, as maintenance-file-claude-code-release-issues.yml
-          # reads them. The replay cap bounds a replayed range, and a run here
+          # The unread releases. The replay cap bounds a replayed range, and a run here
           # takes one release, so the caps are raised to keep the list printed.
           if [ "$EVENT_NAME" = schedule ]; then
             bash plugins/harness-ops/skills/changelog/scripts/changelog-status.sh --ledger docs/upstream/claude-code.md \

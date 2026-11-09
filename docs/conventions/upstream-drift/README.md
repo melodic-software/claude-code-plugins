@@ -75,9 +75,9 @@ Moved to [this section](../../contracts/upstream-drift/README.md#the-drift-check
 
 Moved to [this section](../../contracts/upstream-drift/README.md#monthly-drift-issues).
 
-### Daily Claude Code release issues
+### Claude Code release intake
 
-Moved to [this section](../../contracts/upstream-drift/README.md#daily-claude-code-release-issues).
+Moved to [this section](../../contracts/upstream-drift/README.md#claude-code-release-intake).
 
 ## Enforceability
 

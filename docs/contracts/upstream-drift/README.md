@@ -463,18 +463,15 @@ upstream change stays a person's decision: the issue is the to-do, and re-auditi
 moves the pin and records the outcome as [When a trigger fires](#when-a-trigger-fires) requires, is
 what closes it.
 
-### Daily Claude Code release issues
+### Claude Code release intake
 
 `docs/upstream/claude-code.md` uses the `changelog through` marker, which
 `scripts/check-upstream-drift.sh` skips. Its trigger, a release newer than that marker, is detected
-by `.github/workflows/maintenance-file-claude-code-release-issues.yml`: once a day it runs the
-`/harness-ops:changelog` status script against the live changelog page and hands the status to
-`scripts/claude-code-release-issues.sh`. That script files one issue per unread release, titled
-`Claude Code changelog: <version>`, unless an issue with that title exists in any state. When the
-range is over the replay cap, it instead files one `Claude Code changelog: unread releases beyond
-the replay cap` issue holding the status script's recommendation, unless one is open. A range the
-status script could not compute, or a missing marker, fails the run and files nothing. The issues
-carry no label; whether and when to run `apply` stays a person's decision.
+by `.github/workflows/upstream-apply-changelog.yml`: every ten minutes it takes the newest unread
+release not yet done, opens the pull requests that release calls for, and, when its plan has
+handoffs or a stop reason, files them as one issue from the lanes App. Intake triage reads that
+issue and does not admit it to the issue lane. A release with no handoffs and no stop reason files
+no issue.
 
 ## Enforceability
 
@@ -484,7 +481,7 @@ Classified per `melodic-software/standards` `standards/engineering/enforceabilit
 |---|---|
 | Every verification stamp carries a recheck trigger | **Deterministic** by nature (a presence check) once stamps and triggers use greppable forms. The check, flagging a dated stamp in a file that states no trigger, is **built, off by default, repo override enabled**: `/attribution:audit` runs it when `trigger_less_stamp_check` is true, the shipped default is false, and this repository sets it true in `docs/conventions/attribution.yaml`. It was built after its build trigger, a trigger-less stamp landing on `main` again, fired. |
 | The trigger clears the observability bar | **Reasoning-only**. Whether an event is decidable from evidence is a judgment about meaning. |
-| A trigger has fired | **Detect-then-judge** for [pinned git upstreams](#pinned-git-upstreams): `scripts/check-upstream-drift.sh` flags a change under a linked path or scope, and a person decides whether the change touches the decision, and for the Claude Code changelog record, where [a daily workflow](#daily-claude-code-release-issues) files an issue per unread release. **Reasoning-only** for every other record today; detect-then-judge there too if a hash store lands: the hash mismatch flags, and judgment decides whether the page change touches the claim, because a changed page is not a changed fact. |
+| A trigger has fired | **Detect-then-judge** for [pinned git upstreams](#pinned-git-upstreams): `scripts/check-upstream-drift.sh` flags a change under a linked path or scope, and a person decides whether the change touches the decision, and for the Claude Code changelog record, where [the release intake lane](#claude-code-release-intake) takes in each unread release. **Reasoning-only** for every other record today; detect-then-judge there too if a hash store lands: the hash mismatch flags, and judgment decides whether the page change touches the claim, because a changed page is not a changed fact. |
 
 ### Recorded decision: an adoption gate is deferred, and the check named above would have missed the case that prompted it
 

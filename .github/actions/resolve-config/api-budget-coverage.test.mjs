@@ -322,7 +322,7 @@ test("the detector sees each kind of GitHub call", () => {
     true,
   );
   assert.equal(
-    stepCallsGitHub({ run: "bash scripts/claude-code-release-issues.sh" }),
+    stepCallsGitHub({ run: "bash scripts/check-upstream-drift.sh" }),
     true,
   );
   assert.equal(stepCallsGitHub({ run: "gh auth status" }), false);

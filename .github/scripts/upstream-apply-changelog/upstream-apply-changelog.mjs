@@ -188,9 +188,8 @@ export async function api(path, { method = "GET", body, allow404 = false } = {})
 // Every pull request, in any state, whose head is this branch.
 const pullsFor = (repo, branch) => api(`/repos/${repo}/pulls?state=all&head=${repo.split("/")[0]}:${encodeURIComponent(branch)}`);
 
-// The unread releases, oldest first, from changelog-status.sh's status file
-// (the file scripts/claude-code-release-issues.sh reads): `range: up to date`
-// is none; `cap: within budget` lists them on `releases:`; any other shape
+// The unread releases, oldest first, from changelog-status.sh's status file:
+// `range: up to date` is none; `cap: within budget` lists them on `releases:`; any other shape
 // (cap exceeded, range not computed) throws, so a person handles it.
 export function releasesFromStatus(text) {
   const value = (key) => text.match(new RegExp(`^${key}: (.*)$`, "m"))?.[1]?.trim() ?? "";
