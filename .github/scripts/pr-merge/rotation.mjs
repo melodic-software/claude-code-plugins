@@ -81,10 +81,19 @@ export function countedGh(args, { token, env = process.env, stdout = "ignore", t
 }
 
 // A run's artifact `name`, downloaded once per run id, as the text of `file`
-// (another file of the same artifact when the caller names one).
-export function ghDownload({ repo, token, dir, name = CURSOR_ARTIFACT, file = "cursor.json", env }) {
+// (another file of the same artifact when the caller names one). With
+// `shared` (PR_MERGE_READS_PATH), the artifact id comes from the run's whole
+// artifact listing a reader already saved there (artifactsNamed), so the
+// archive is one request (ghDownloadArtifact); with no such listing, or no
+// unexpired artifact named `name` in it, `gh run download` lists and fetches.
+export function ghDownload({ repo, token, dir, name = CURSOR_ARTIFACT, file = "cursor.json", env, shared }) {
   const targets = new Map();
+  const byId = ghDownloadArtifact({ repo, token, dir, name, file, env });
   return (runId, other = file) => {
+    const artifactId = listedArtifactId({ repo, runId, name, shared });
+    if (artifactId !== undefined) {
+      return byId(artifactId, other);
+    }
     if (!targets.has(String(runId))) {
       const target = mkdtempSync(join(dir, `${name}-`));
       countedGh(["run", "download", String(runId), "-R", repo, "-n", name, "-D", target], { token, env });
@@ -94,13 +103,33 @@ export function ghDownload({ repo, token, dir, name = CURSOR_ARTIFACT, file = "c
   };
 }
 
-// An artifact's file `file`, fetched once per artifact id from its archive
-// endpoint. Unlike `gh run download -n`, it lists none of the run's artifacts
-// again, so a caller that already holds the id spends one request, not two.
-// `timeout` (ms) caps the fetch and the unzip each, killing either past it.
+// The newest (highest id) unexpired artifact named `name` in run `runId`'s
+// whole artifact listing as saved in the file at `shared`, or undefined when
+// the file holds no complete listing for the run, or none such in it.
+function listedArtifactId({ repo, runId, name, shared }) {
+  if (!shared) return undefined;
+  let saved;
+  try {
+    saved = JSON.parse(readFileSync(shared, "utf8"));
+  } catch {
+    return undefined;
+  }
+  const all = isObject(saved) ? saved[`/repos/${repo}/actions/runs/${runId}/artifacts?per_page=100`] : undefined;
+  if (!Array.isArray(all?.artifacts) || !Number.isInteger(all.total_count) || all.total_count > all.artifacts.length) {
+    return undefined;
+  }
+  const ids = all.artifacts.filter((a) => a?.name === name && a.expired === false && Number.isSafeInteger(a.id)).map((a) => a.id);
+  return ids.length > 0 ? Math.max(...ids) : undefined;
+}
+
+// An artifact's file `file` (another file of it when the caller names one),
+// fetched once per artifact id from its archive endpoint. Unlike `gh run
+// download -n`, it lists none of the run's artifacts again, so a caller that
+// already holds the id spends one request, not two. `timeout` (ms) caps the
+// fetch and the unzip each, killing either past it.
 export function ghDownloadArtifact({ repo, token, dir, name, file, env, timeout }) {
   const archives = new Map();
-  return (artifactId) => {
+  return (artifactId, other = file) => {
     const key = String(artifactId);
     if (!archives.has(key)) {
       const archive = join(mkdtempSync(join(dir, `${name}-`)), "artifact.zip");
@@ -112,7 +141,7 @@ export function ghDownloadArtifact({ repo, token, dir, name, file, env, timeout 
       }
       archives.set(key, archive);
     }
-    return execFileSync("unzip", ["-p", archives.get(key), file], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...(timeout !== undefined && { timeout, killSignal: "SIGKILL" }) });
+    return execFileSync("unzip", ["-p", archives.get(key), other], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...(timeout !== undefined && { timeout, killSignal: "SIGKILL" }) });
   };
 }
 
@@ -230,7 +259,7 @@ export async function main({ env = process.env, actions, download } = {}) {
       throw new Error("candidates.json is not a list of PRs");
     }
     actions ??= createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
-    download ??= ghDownload({ repo, token: env.ACTIONS_TOKEN, dir: env.RUNNER_TEMP });
+    download ??= ghDownload({ repo, token: env.ACTIONS_TOKEN, dir: env.RUNNER_TEMP, shared: env.PR_MERGE_READS_PATH });
     const cursor = await readCursor({ repo, runId: String(env.GITHUB_RUN_ID), actions, download, shared: env.PR_MERGE_READS_PATH });
     const deferred = cursor?.deferred;
     const ordered = rotate(candidates, deferred === undefined ? cursor?.last : deferred - 1).map((c) =>
