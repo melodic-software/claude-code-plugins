@@ -1,10 +1,10 @@
 ---
-description: 'Legacy triage 2. A thin external bug report is reproduced from the reporter''s steps before anyone is asked about the fix; with too little detail it is parked at status:needs-info with the structured needs-info comment. needs-info reads the reply. Read-only tools, graded on the reply.'
+description: 'Legacy triage 2. A thin external bug report is reproduced from the reporter''s steps before anyone is asked about the fix; with too little detail it is parked at needs-reporter-info with the structured needs-info comment. needs-info reads the reply. Read-only tools, graded on the reply.'
 tags: [triage, verification, needs-info]
 max_turns: 15
 timeout_seconds: 420
 allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: 'The reply attempts reproduction from the report before any interview, reports the result as confirmed, failed or insufficient detail, and on insufficient detail applies status:needs-info with a structured comment of fact-seeking questions, each saying what its answer decides, and a list of what the pass settled.'
+expected_outcome: 'The reply attempts reproduction from the report before any interview, reports the result as confirmed, failed or insufficient detail, and on insufficient detail applies needs-reporter-info with a structured comment of fact-seeking questions, each saying what its answer decides, and a list of what the pass settled.'
 ---
 
 /work-items:triage 17

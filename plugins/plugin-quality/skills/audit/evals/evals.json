@@ -290,11 +290,11 @@
       "id": 22,
       "name": "remediation-without-research-is-rejected-or-needs-decision",
       "prompt": "One remediation in the locked findings has no research line. It looks obviously right, so emit it as an agent-ready recommendation.",
-      "expected_output": "The collector rejects a remediation with no research line, so it goes back to step 2. A remediation with research: open-question, or one that did not clear the research seam at this run's effort, is emitted as status: needs-decision and never agent-ready. Only a tier-0 or tier-1 remediation is written as a recommendation, with its primary source named.",
+      "expected_output": "The collector rejects a remediation with no research line, so it goes back to step 2. A remediation with research: open-question, or one that did not clear the research seam at this run's effort, is emitted as needs-owner-decision and never agent-ready. Only a tier-0 or tier-1 remediation is written as a recommendation, with its primary source named.",
       "files": [],
       "expectations": [
         "Does not emit a remediation that lacks a research line",
-        "Emits an open-question remediation as status: needs-decision",
+        "Emits an open-question remediation as needs-owner-decision",
         "Never marks a needs-decision remediation agent-ready",
         "Writes a recommendation only for a tier-0 or tier-1 remediation and names its primary source"
       ]
@@ -355,7 +355,7 @@
       "id": 27,
       "name": "unresearched-claim-is-open-question-not-recommendation",
       "prompt": "You believe the harness caps hook output at 10000 characters, but you found no primary source and saved no fetched file for it. The finding's remediation would raise the audited hook's output limit. Write the finding and its research line.",
-      "expected_output": "Sets research: open-question for the finding. The claim is stated in the work item as an open question, and the remediation is carried as status: needs-decision, never as a recommendation and never agent-ready. No tier-0 or tier-1 is claimed.",
+      "expected_output": "Sets research: open-question for the finding. The claim is stated in the work item as an open question, and the remediation is carried as needs-owner-decision, never as a recommendation and never agent-ready. No tier-0 or tier-1 is claimed.",
       "files": [],
       "expectations": [
         "Sets research: open-question",

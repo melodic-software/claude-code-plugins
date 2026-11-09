@@ -62,5 +62,5 @@ When a lane that may not apply the autonomous-eligible role label proposes admit
 item, the comment body carries a one-line basis for admitting it and a ready-to-paste label edit
 that swaps the human-gated role label for the autonomous-eligible one. It is a proposal for the
 operator, never an admission input: no consumer admits, dispatches, or merges on it. The marker
-`kind` stays `escalated`. The CI intake lane's verdict comment is a separate format with its own
-`Proposed work class:` line, read by `.github/scripts/intake-triage/apply-verdict.mjs`.
+`kind` stays `escalated`. The CI intake lane's verdict comment is a separate format, read by
+`.github/scripts/intake-triage/apply-verdict.mjs`.

@@ -65,7 +65,7 @@ FIXTURE_REPO="example/test-repo"
 printf '{}\n' >"$TMP/lanes-empty.json"
 
 cat >"$TMP/counts.json" <<'EOF'
-{"needs-triage": 28, "status: ready": 44, "status: needs-decision": 3, "needs-human": 7}
+{"needs-triage": 28, "status: ready": 44, "needs-owner-decision": 3, "needs-human": 7}
 EOF
 
 # One clean non-draft (#10, kept), one draft-but-clean (#11, excluded), one
@@ -1269,7 +1269,7 @@ mkdir -p "$REST"
 rest_key() { printf '%s' "$1" | sed -E 's/[^A-Za-z0-9._-]/_/g'; }
 R="repos/$FIXTURE_REPO"
 cat >"$REST/$(rest_key "$R/labels?per_page=100").json" <<'EOF'
-[{"name": "status: ready"}, {"name": "needs-human"}, {"name": "status: needs-decision"}]
+[{"name": "status: ready"}, {"name": "needs-human"}, {"name": "needs-owner-decision"}]
 EOF
 # Two issues and one pull request carry the label: the count excludes the PR.
 cat >"$REST/$(rest_key "$R/issues?state=open&per_page=100&labels=status%3A%20ready").json" <<'EOF'
@@ -1278,7 +1278,7 @@ EOF
 cat >"$REST/$(rest_key "$R/issues?state=open&per_page=100&labels=needs-human").json" <<'EOF'
 [{"number": 4, "title": "c"}]
 EOF
-cat >"$REST/$(rest_key "$R/issues?state=open&per_page=100&labels=status%3A%20needs-decision").json" <<'EOF'
+cat >"$REST/$(rest_key "$R/issues?state=open&per_page=100&labels=needs-owner-decision").json" <<'EOF'
 [{"number": 42, "title": "pick a store", "html_url": "http://x/i/42", "body": "Options weighed.\nRECOMMENDED: option B."}]
 EOF
 cat >"$REST/$(rest_key "$R/issues/42/comments?per_page=100").json" <<'EOF'
@@ -1393,10 +1393,10 @@ assert_contains "rest: header counts the four lost sections" "$OUT_REST" "4 of 1
 
 # The same data through the gh-shaped fixtures.
 cat >"$TMP/same-counts.json" <<'EOF'
-{"status: ready": 2, "needs-human": 1, "status: needs-decision": 1}
+{"status: ready": 2, "needs-human": 1, "needs-owner-decision": 1}
 EOF
 cat >"$TMP/same-labels.json" <<'EOF'
-["status: ready", "needs-human", "status: needs-decision"]
+["status: ready", "needs-human", "needs-owner-decision"]
 EOF
 cat >"$TMP/same-pr.json" <<'EOF'
 [
@@ -1509,7 +1509,7 @@ jq -n '[range(1001) | {number: .}]' >"$CAPS/issue-list-label-status__ready.json"
 printf '[]\n' >"$CAPS/issue-list-label-needs-human.json"
 printf '[]\n' >"$CAPS/$(rest_key "$R/issues?state=open&per_page=100&labels=needs-human").json"
 jq -n '[range(201) | {number: (. + 1), title: "decision \(.)", url: "http://x/d", body: "RECOMMENDED: go", comments: []}]' \
-  >"$CAPS/issue-list-label-status__needs-decision.json"
+  >"$CAPS/issue-list-label-needs-owner-decision.json"
 jq -n '[range(201) | {number: (. + 1), title: "pr \(.)", url: "http://x/p", isDraft: true, mergeStateStatus: "BLOCKED", reviewDecision: ""}]' \
   >"$CAPS/pr-list.json"
 jq -n '[range(150) | {number: (. + 1000)}]' >"$CAPS/issue-list-search.json"
@@ -1725,13 +1725,13 @@ cat >"$STK/api-graphql-stuck-status__ready-p2.json" <<'EOF'
     {"createdAt": "2026-07-10T08:00:00Z", "label": {"name": "status: ready"}}]}}
 ]}}}
 EOF
-for stk_label in needs-triage status__needs-decision needs-human; do
+for stk_label in needs-triage needs-owner-decision needs-human; do
   cat >"$STK/api-graphql-stuck-$stk_label-first.json" <<'EOF'
 {"data": {"search": {"issueCount": 0, "pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": []}}}
 EOF
 done
 # The REST issue listing confirms each empty search.
-for stk_label in needs-triage status%3A%20needs-decision needs-human; do
+for stk_label in needs-triage needs-owner-decision needs-human; do
   printf '[]\n' >"$STK/$(rest_key "$R/issues?state=open&per_page=100&labels=$stk_label").json"
 done
 OUT_STUCK_LIVE="$(MB_STUCK_LIVE=1 MB_GH_FIXTURES="$STK" MB_GH_LOG="$TMP/log-stuck" run_stub gql "${FIX_ARGS[@]}" --merged-json "$TMP/merged-clean.json")"
@@ -2901,10 +2901,10 @@ EOF
   assert_eq "settings: no ESC from a key reaches the terminal" "0" "$(grep -c $'\x1b' <<<"$OUT_ESC_KEY")"
   # The tracker binding's owner-decision role label is the decision label; the flag beats it.
   mkdir -p "$TMP/cfg-decision"
-  printf 'tracker:\n  config:\n    role_labels:\n      owner-decision: needs-owner-decision\n' >"$TMP/cfg-decision/work-items.yaml"
+  printf 'tracker:\n  config:\n    role_labels:\n      owner-decision: awaiting-owner\n' >"$TMP/cfg-decision/work-items.yaml"
   assert_contains "decision label: the binding's owner-decision role label names it" \
     "$(bash "$BRIEF" "${CFG_BRIEF[@]}" --config-home "$TMP/cfg-decision" 2>&1)" \
-    "== Parked decisions (needs-owner-decision) with RECOMMENDED lines =="
+    "== Parked decisions (awaiting-owner) with RECOMMENDED lines =="
   assert_contains "decision label: the flag beats the binding" \
     "$(bash "$BRIEF" "${CFG_BRIEF[@]}" --config-home "$TMP/cfg-decision" --decision-label decide 2>&1)" \
     "== Parked decisions (decide) with RECOMMENDED lines =="
@@ -2920,10 +2920,10 @@ fi
 #  #404 agent-ready and status: ready labels, field agent-ready: no queue row.
 #  #405 needs-triage label, no field value: lists by its label, days unknown.
 #  #406 no label, field needs-owner-decision (07-18T08:00): parked, 2d.
-#  #407 status: needs-decision label (07-12T08:00), field confirmed: still parked, 8d.
+#  #407 needs-owner-decision label (07-12T08:00), field confirmed: still parked, 8d.
 MODEL_JSON='{"field-id": "48484079",
   "options": {"1": "needs-triage", "2": "needs-owner-decision", "3": "ready", "4": "agent-ready", "5": "needs-human", "6": "confirmed"},
-  "labels": {"needs-triage": ["needs-triage"], "needs-owner-decision": ["status: needs-decision", "needs-owner-decision"],
+  "labels": {"needs-triage": ["needs-triage"], "needs-owner-decision": ["needs-owner-decision"],
              "ready": ["status: ready"], "agent-ready": ["agent-ready"], "needs-human": ["needs-human"], "confirmed": ["status: confirmed"]}}'
 cat >"$TMP/status-pages.json" <<'EOF'
 [{"data": {"repository": {"issues": {"pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": [
@@ -2952,9 +2952,9 @@ cat >"$TMP/status-pages.json" <<'EOF'
    "issueFieldValues": {"pageInfo": {"hasNextPage": false}, "nodes": [{"name": "needs-owner-decision", "field": {"fullDatabaseId": "48484079"}}]},
    "labelEvents": {"nodes": []},
    "fieldEvents": {"nodes": [{"__typename": "IssueFieldAddedEvent", "createdAt": "2026-07-18T08:00:00Z", "value": "needs-owner-decision", "actor": {"__typename": "User", "login": "op-user"}, "issueField": {"fullDatabaseId": "48484079"}}]}},
-  {"number": 407, "title": "parked on the label", "url": "http://x/i/407", "labels": {"nodes": [{"name": "status: needs-decision"}]},
+  {"number": 407, "title": "parked on the label", "url": "http://x/i/407", "labels": {"nodes": [{"name": "needs-owner-decision"}]},
    "issueFieldValues": {"pageInfo": {"hasNextPage": false}, "nodes": [{"name": "confirmed", "field": {"fullDatabaseId": "48484079"}}]},
-   "labelEvents": {"nodes": [{"__typename": "LabeledEvent", "createdAt": "2026-07-12T08:00:00Z", "label": {"name": "status: needs-decision"}}]},
+   "labelEvents": {"nodes": [{"__typename": "LabeledEvent", "createdAt": "2026-07-12T08:00:00Z", "label": {"name": "needs-owner-decision"}}]},
    "fieldEvents": {"nodes": []}}
 ]}}}}]
 EOF
@@ -2974,7 +2974,7 @@ assert_exit "status: a fully fixtured brief with a model exits 0" 0 "$?"
 STATUS_Q="$(section "$OUT_STATUS" "== Queues")"
 assert_contains "status: a field value moves an issue off its queue label" "$STATUS_Q" "  needs-triage             1"
 assert_contains "status: ready over a needs-triage label; agent-ready leaves status: ready" "$STATUS_Q" "  status: ready            1"
-assert_contains "status: a field-only decision and a labeled one both count" "$STATUS_Q" "  status: needs-decision   2"
+assert_contains "status: a field-only decision and a labeled one both count" "$STATUS_Q" "  needs-owner-decision     2"
 assert_contains "status: a hold on the field and a hold label both count" "$STATUS_Q" "  needs-human              2"
 assert_not_contains "status: the model replaces --counts-json" "$STATUS_Q" "44"
 

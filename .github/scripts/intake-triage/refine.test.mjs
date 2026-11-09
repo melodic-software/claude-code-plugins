@@ -18,7 +18,7 @@ const APP = 337595936;
 const humans = new Set([HUMAN]);
 const rules = { "task-list": "- [ ] " };
 const webHosts = ["code.claude.com"];
-const NEEDS_DECISION = "status: needs-decision";
+const NEEDS_DECISION = "needs-owner-decision";
 const STARTED = "2026-10-23T10:00:00Z";
 const AFTER = "2026-10-23T10:05:00Z";
 const BEFORE = "2026-10-23T09:00:00Z";
@@ -383,7 +383,7 @@ describe("applyRefinement", () => {
     assert.equal(result.redispatch, true);
     const done = writes(fake.calls).map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
     assert.equal(done[0], `STATUS #7 "needs-triage"`);
-    assert.equal(done[1], "DELETE /repos/o/r/issues/7/labels/status%3A%20needs-decision undefined");
+    assert.equal(done[1], "DELETE /repos/o/r/issues/7/labels/needs-owner-decision undefined");
     assert.match(done[2], /^POST \/repos\/o\/r\/issues\/7\/comments /, "the marker comment goes last");
     assert.equal(done.length, 3);
     assert.ok(writes(fake.calls)[2].body.body.startsWith(`${REFINE_MARKER}\n${bodyVersion(issueOf().body)}\n`), "it names the body it refined");
@@ -396,7 +396,7 @@ describe("applyRefinement", () => {
     assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: true });
     assert.deepEqual(
       writes(fake.calls).map(({ method, path, body }) => `${method} ${path}${method === "STATUS" ? ` ${body}` : ""}`),
-      ["STATUS #7 needs-triage", "DELETE /repos/o/r/issues/7/labels/status%3A%20needs-decision", "POST /repos/o/r/issues/7/comments"],
+      ["STATUS #7 needs-triage", "DELETE /repos/o/r/issues/7/labels/needs-owner-decision", "POST /repos/o/r/issues/7/comments"],
     );
   });
 
@@ -449,9 +449,6 @@ describe("applyRefinement", () => {
     }
   });
 
-  // The label's events carry the new name while the field's read as
-  // `status: needs-info` (read-status.mjs syntheticFrom), so who set the hold
-  // last has to be read across both names.
   const infoLabelAt = (id, created_at) => [{ event: "labeled", label: { name: "needs-reporter-info" }, actor: { id }, created_at }];
   test("an inexact refinement keeps needs-reporter-info when a person labeled it after the App's field write", async () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "needs-reporter-info" }] }), comments: [laneComment()], events: infoLabelAt(HUMAN, "2026-11-09T00:00:00Z"), fields: onField(APP, "needs-reporter-info") });
@@ -515,7 +512,7 @@ describe("applyRefinement", () => {
     const fake = fakeGitHub({ issue: issueOf(), comments: [laneComment(), verdictComment("- flagged: intent")], events: labeledBy(APP), spec: CONFIRMED });
     const result = await apply(fake, EXACT);
     assert.equal(result.redispatch, true);
-    assert.ok(writes(fake.calls).some(({ method, path }) => method === "DELETE" && path.endsWith("/labels/status%3A%20needs-decision")));
+    assert.ok(writes(fake.calls).some(({ method, path }) => method === "DELETE" && path.endsWith("/labels/needs-owner-decision")));
   });
 
   test("an exact refinement keeps a needs-decision a person set, and asks for no re-triage", async () => {
@@ -616,9 +613,9 @@ describe("applyRefinement", () => {
   test("an inexact refinement writes needs-decision under a person's label-only needs-info over an unset field", async () => {
     for (const fields of [{}, undefined]) {
       const fake = fakeGitHub({
-        issue: issueOf({ labels: [{ name: "status: ready" }, { name: "status: needs-info" }] }),
+        issue: issueOf({ labels: [{ name: "status: ready" }, { name: "needs-reporter-info" }] }),
         comments: [laneComment()],
-        events: [{ event: "labeled", label: { name: "status: needs-info" }, actor: { id: HUMAN } }],
+        events: [{ event: "labeled", label: { name: "needs-reporter-info" }, actor: { id: HUMAN } }],
         fields,
       });
       assert.deepEqual(await apply(fake, INEXACT), { outcome: "needs-decision", redispatch: false });
@@ -689,7 +686,7 @@ describe("applyRefinement", () => {
       const fake = fakeGitHub({ ...setup, comments: [laneComment()], spec: specOf() });
       assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: true });
       const done = writes(fake.calls).map(({ method, path }) => `${method} ${path}`);
-      const lifted = setup.events.length > 0 ? ["DELETE /repos/o/r/issues/7/labels/status%3A%20needs-decision"] : [];
+      const lifted = setup.events.length > 0 ? ["DELETE /repos/o/r/issues/7/labels/needs-owner-decision"] : [];
       assert.deepEqual(done, ["STATUS #7", ...lifted, "POST /repos/o/r/issues/7/comments"]);
       assert.deepEqual(writes(fake.calls)[0], status("needs-triage"));
       assert.match(writes(fake.calls).at(-1).body.body, /triages the issue again/);
@@ -906,7 +903,7 @@ describe("split", () => {
     const done = writes(fake.calls);
     assert.deepEqual(
       done.map(({ method, path }) => `${method} ${path}`),
-      ["STATUS #7", "DELETE /repos/o/r/issues/7/labels/status%3A%20needs-decision", "POST /repos/o/r/issues/7/comments"],
+      ["STATUS #7", "DELETE /repos/o/r/issues/7/labels/needs-owner-decision", "POST /repos/o/r/issues/7/comments"],
       "the comment goes last, as its marker stops a second refinement; no issue is filed and the body is not edited",
     );
     assert.deepEqual(bodyEdits(fake.calls), []);

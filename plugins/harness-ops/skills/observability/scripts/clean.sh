@@ -196,7 +196,13 @@ OBS_DIR="${REPO_ROOT}/.claude/observability"
 # The retired shared-file location (harness-ops-r001): pruned while a consumer
 # still carries it, so the old rows keep aging out until setup migrates them.
 HOOK_LOG="${OBS_DIR}/hook-events.jsonl"
-HOOK_ROOT="${REPO_ROOT}/${HOOK_ROOT_REL}"
+# The hook log root sits under the main checkout when REPO_ROOT is a linked
+# worktree: the anchor the hooks write under (session-log-lib.sh).
+# shellcheck source=../../../hooks/session-log-lib.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../hooks/session-log-lib.sh"
+HOOK_ANCHOR=""
+slog_anchor_to HOOK_ANCHOR "$REPO_ROOT"
+HOOK_ROOT="${HOOK_ANCHOR}/${HOOK_ROOT_REL}"
 
 # Cutoff timestamp for N days ago — ISO-8601 UTC. GNU date (Linux/Git Bash) and
 # BSD date (macOS) require different flags for relative time and epoch-to-ISO

@@ -4,18 +4,18 @@
 // (read-status.mjs statusReader; a hold label still holds on top). On a new
 // comment on an open issue (never a pull request):
 //
-// - `status: needs-decision` and a decision comment (select-trusted-text's
+// - `needs-owner-decision` and a decision comment (select-trusted-text's
 //   isDecisionComment, the rule write-issue.mjs marks `decision: true` by);
 // - `status: confirmed` as the only status, with no `agent-ready` (where
 //   admission parks a refusal no person must answer, or a person confirmed
 //   the issue before any admission), and a decision comment;
-// - `status: needs-info` and a comment by the issue's author or a listed
+// - `needs-reporter-info` and a comment by the issue's author or a listed
 //   human, not posted through an App;
 // - no `status:`, `agent-ready`, `needs-human`, `needs-triage` or
 //   `admission-deferred`, and a listed human's decision comment;
 // - EVENT_NAME `issues` (no comment) with REMOVED_LABEL `needs-human` (the
 //   default; any other removed label changes nothing): a listed human removed
-//   it, and the issue carries no `status:` but `status: needs-decision`, and no
+//   it, and the issue carries no status label but `needs-owner-decision`, and no
 //   `agent-ready`, `needs-human` or `needs-triage`. The newest `needs-human`
 //   removal in the issue's history (read-status.mjs statusEvents, so a
 //   person's change of the field away from needs-human counts) must be that
@@ -34,7 +34,7 @@
 // A decision on an issue that carries `needs-human` changes nothing: only a
 // listed human releases that hold (docs/contracts/loop-lane/README.md, the
 // label table), and their release re-enters an issue at
-// `status: needs-decision` (owner decision on #10735). At `status: confirmed`
+// `needs-owner-decision` (owner decision on #10735). At `status: confirmed`
 // it re-enters nothing, so the decision is posted again after it;
 //
 // then, on a comment or a needs-human removal, it sets the Work status field
@@ -81,8 +81,8 @@ import { carried, DECISION_LABELS, HOLD_STATES, INFO_LABELS, isStatusLabel, stat
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { ownComment } from "../lib/upsert-comment.mjs";
 
-export const NEEDS_DECISION = "status: needs-decision";
-export const NEEDS_INFO = "status: needs-info";
+export const NEEDS_DECISION = "needs-owner-decision";
+export const NEEDS_INFO = "needs-reporter-info";
 // Where admission parks a refusal no person must answer (admit.mjs CONFIRMED),
 // or a person confirmed the issue before any admission.
 export const CONFIRMED = "status: confirmed";
@@ -94,7 +94,7 @@ const WORKFLOW = "intake-triage.yml";
 // The issues actions a Work status field change starts this run with.
 const FIELD_ACTIONS = new Set(["field_added", "field_removed"]);
 // The holds other than needs-info, as the field-first names carry them.
-const INFO_HOLDS = new Set([NEEDS_HUMAN, NEEDS_DECISION, "needs-owner-decision", "needs-spec"]);
+const INFO_HOLDS = new Set([NEEDS_HUMAN, NEEDS_DECISION, "needs-spec"]);
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 
@@ -174,7 +174,7 @@ async function removeLabel(github, base, name) {
 }
 
 // A listed human lifted `needs-human` and left the issue parked nowhere or at
-// `status: needs-decision`: true when intake should take it again. `labels`
+// `needs-owner-decision`: true when intake should take it again. `labels`
 // are the issue's names as the field decides them; `events()` its
 // statusEvents, whose newest `needs-human` removal names who lifted it.
 async function liftReenters({ issue, humans, lanesAppId, labels, events }) {

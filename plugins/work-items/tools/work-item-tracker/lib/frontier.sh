@@ -33,11 +33,11 @@ wit_filter_label() {
 wit_filter_frontier() {
   local autonomous="${1:-false}" human_gated="${2:-$WIT_DEFAULT_HUMAN_GATED_LABEL}" container="${3:-$WIT_DEFAULT_CONTAINER_LABEL}"
   local status_json floor_json states_json state_labels_json hold_labels_json
-  # Build the floor lists (work classes, provenance and status labels; the hold
+  # Build the floor lists (provenance and status labels; the hold
   # states) as jq array arguments. --args positionals keep labels containing
   # spaces intact (every member does).
   status_json="${WIT_HOLD_LABELS_JSON:-$(jq -n -c '$ARGS.positional' --args "${WIT_HUMAN_FLOOR_STATUS_LABELS[@]}")}"
-  floor_json="$(jq -n -c --argjson status "$status_json" '$ARGS.positional + $status' --args "${WIT_HUMAN_FLOOR_WORK_CLASS_LABELS[@]}" "${WIT_HUMAN_FLOOR_PROVENANCE_LABELS[@]}")"
+  floor_json="$(jq -n -c --argjson status "$status_json" '$ARGS.positional + $status' --args "${WIT_HUMAN_FLOOR_PROVENANCE_LABELS[@]}")"
   states_json="${WIT_HOLD_STATES_JSON:-$(jq -n -c '$ARGS.positional' --args "${WIT_HUMAN_FLOOR_STATUS_STATES[@]}")}"
   state_labels_json="${WIT_HOLD_STATE_LABELS_JSON:-$(jq -n -c '$ARGS.positional' --args "${WIT_HOLD_STATE_LABELS[@]}")}"
   hold_labels_json="$(jq -n -c --argjson held "$state_labels_json" '$ARGS.positional + $held' --args "$human_gated")"

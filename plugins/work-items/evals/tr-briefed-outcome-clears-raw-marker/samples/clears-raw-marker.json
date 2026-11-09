@@ -9,11 +9,11 @@
       "why": "cleared"
     },
     {
-      "answer": "The edit replaces needs-triage with status:needs-info.",
+      "answer": "The edit replaces needs-triage with needs-reporter-info.",
       "why": "replaces"
     },
     {
-      "answer": "Then one label edit applies `status:needs-info`, removing any other `status:` label and replacing the raw marker.",
+      "answer": "Then one label edit applies `needs-reporter-info`, removing any other `status:` label and replacing the raw marker.",
       "why": "raw marker, from smoke r1"
     },
     {
