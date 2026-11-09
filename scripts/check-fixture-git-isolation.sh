@@ -556,8 +556,7 @@ scan() {
   ' "$@"
 }
 
-declare -A ISOLATING_BASENAME=() IS_FIXTURE=() CLEARS_FILE=() SCOPED=()
-declare -A SOURCES=()
+declare -A ISOLATING_BASENAME=() IS_FIXTURE=() CLEARS_FILE=() SCOPED=() SOURCES=()
 
 mapfile -t tracked < <(git ls-files '*.sh' '*.py' 2>/dev/null)
 ((${#tracked[@]} > 0)) || {
@@ -585,10 +584,6 @@ sources_isolating_harness() {
   done
   return 1
 }
-
-clears_env() { [[ -n "${CLEARS_FILE["$1"]:-}" ]]; }
-
-declared_scope() { [[ -n "${SCOPED["$1"]:-}" ]]; }
 
 declare -A BASELINED=()
 BASELINE_ENTRIES=()
@@ -619,12 +614,12 @@ for t in "${suites[@]}"; do
   # suites containing a declaration line — would otherwise be reported as
   # merely declared and its real property hidden. Ordering this way keeps the
   # accidental-token surface to files that genuinely do not clear.
-  if clears_env "$t" || sources_isolating_harness "$t"; then
+  if [[ -n "${CLEARS_FILE[$t]:-}" ]] || sources_isolating_harness "$t"; then
     covered+=("$t")
     [[ "$mode" == "list" ]] && printf 'isolated    %s\n' "$t"
     continue
   fi
-  if declared_scope "$t"; then
+  if [[ -n "${SCOPED[$t]:-}" ]]; then
     covered+=("$t")
     [[ "$mode" == "list" ]] && printf 'declared    %s\n' "$t"
     continue
@@ -653,30 +648,30 @@ rc=0
 
 if ((${#violations[@]} > 0)); then
   rc=1
-  echo "FIXTURE GIT ISOLATION: ${#violations[@]} suite(s) build a git fixture without clearing the inherited git environment." >&2
-  echo >&2
-  for v in "${violations[@]}"; do echo "  $v" >&2; done
-  echo >&2
-  echo "Each builds a repository or writes a git identity, so under an inherited ABSOLUTE" >&2
-  echo "GIT_DIR — which overrides repository discovery and outranks -C — it writes that" >&2
-  echo "identity into the CALLER's .git/config, shared by every worktree of the clone," >&2
-  echo "instead of into its fixture. Any process can export it; a git hook is one way and" >&2
-  echo "an ad-hoc command is another, which is why this is cleared unconditionally." >&2
-  echo >&2
-  echo "Fix by clearing the environment once, at the top of the suite:" >&2
-  echo >&2
-  echo "    unset GIT_DIR GIT_WORK_TREE GIT_CONFIG" >&2
-  echo >&2
-  echo "or by sourcing a harness that already does (scripts/test-git-helpers.sh)." >&2
-  echo "Do NOT add a new suite to $BASELINE — it records pre-existing debt only." >&2
+  {
+    printf 'FIXTURE GIT ISOLATION: %d suite(s) build a git fixture without clearing the inherited git environment.\n\n' "${#violations[@]}"
+    printf '  %s\n' "${violations[@]}"
+    cat <<EOF
+
+Each builds a repository or writes a git identity, so under an inherited ABSOLUTE
+GIT_DIR — which overrides repository discovery and outranks -C — it writes that
+identity into the CALLER's .git/config, shared by every worktree of the clone,
+instead of into its fixture. Any process can export it; a git hook is one way and
+an ad-hoc command is another, which is why this is cleared unconditionally.
+
+Fix by clearing the environment once, at the top of the suite:
+
+    unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
+or by sourcing a harness that already does (scripts/test-git-helpers.sh).
+Do NOT add a new suite to $BASELINE — it records pre-existing debt only.
+EOF
+  } >&2
 fi
 
 if ((${#stale[@]} > 0)); then
   rc=1
-  echo >&2
-  echo "${#stale[@]} entry(ies) in $BASELINE no longer shadow a violation." >&2
-  echo "Delete each line below — the debt it recorded is paid." >&2
-  echo >&2
+  printf '\n%d entry(ies) in %s no longer shadow a violation.\nDelete each line below — the debt it recorded is paid.\n\n' "${#stale[@]}" "$BASELINE" >&2
   # scripts/lib/read-list.sh owns the one STALE BASELINE diagnostic every list
   # gate here prints.
   while IFS= read -r s; do
