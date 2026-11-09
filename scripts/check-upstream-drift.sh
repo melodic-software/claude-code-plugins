@@ -366,8 +366,8 @@ for page in ${GIT_PAGES[@]+"${GIT_PAGES[@]}"}; do
   # Without this, an unknown pin reads as every path absent. The fixture seam
   # already exits 2 on a missing <pin>.tree file.
   if [[ -z "$FIXTURE" ]]; then
-    gh api "repos/$o/$r/git/commits/$pin" --jq .sha >/dev/null 2>&1 ||
-      die "$page: pin $o/$r@$pin is not a commit upstream (or gh api failed)"
+    err="$(gh api "repos/$o/$r/git/commits/$pin" --jq .sha 2>&1 >/dev/null)" ||
+      die "$page: pin $o/$r@$pin is not a commit upstream (or gh api failed): ${err:-no output}"
   fi
 
   # A scope absent at the pin is a malformed record, not drift: both trees
