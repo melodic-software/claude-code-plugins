@@ -50,20 +50,6 @@ refs="$(jq -r '
   ][]
 ' "$SETTINGS" | tr -d '\r')"
 
-# True when $3 names $1 (repo-relative path) or $2 (basename) as a path
-# segment, not as a substring of a longer filename. `gate.sh` must not
-# match a ref that only names `not-gate.sh`.
-hook_ref_matches() {
-  local hook="$1" base="$2" ref="$3" ere pat
-  case "$ref" in
-  *"$hook"*) return 0 ;;
-  *) ;;
-  esac
-  ere="$(printf '%s' "$base" | sed 's/[][(){}.^$*+?|\\]/\\&/g')"
-  pat="(^|[/\\\\ \"'])${ere}([/\\\\ \"']|$)"
-  [[ "$ref" =~ $pat ]]
-}
-
 errors=0
 shopt -s nullglob
 for hook in "$HOOKS_DIR"/*.sh; do
@@ -72,13 +58,17 @@ for hook in "$HOOKS_DIR"/*.sh; do
   *.test.sh) continue ;;
   *) ;;
   esac
+  # A ref wires the hook when it names the repo-relative path, or the
+  # basename as a path segment rather than a substring of a longer filename:
+  # `gate.sh` must not match a ref that only names `not-gate.sh`.
+  ere="$(printf '%s' "$base" | sed 's/[][(){}.^$*+?|\\]/\\&/g')"
+  pat="(^|[/\\\\ \"'])${ere}([/\\\\ \"']|$)"
   wired=0
   while IFS= read -r ref; do
-    [[ -n "$ref" ]] || continue
-    # shellcheck disable=SC2310
-    hook_ref_matches "$hook" "$base" "$ref" || continue
-    wired=1
-    break
+    if [[ -n "$ref" ]] && [[ "$ref" == *"$hook"* || "$ref" =~ $pat ]]; then
+      wired=1
+      break
+    fi
   done <<<"$refs"
   if ((wired)); then
     continue
