@@ -183,7 +183,7 @@ function is_separator(line) {
     next
   } else if (box ~ /^\[[ \t]*\][ \t]*$/) {
     unmarked++
-    item = (header_cols >= 2 && done_col != 2) ? cell[2] : cell[1]
+    item = (done_col != 2) ? cell[2] : cell[1]
     printf "unmarked: row %d — %s\n", rows, item > "/dev/stderr"
   } else {
     printf "error: row %d has an ungradeable Done cell: %s\n", rows, (box == "" ? "<empty>" : box) > "/dev/stderr"
