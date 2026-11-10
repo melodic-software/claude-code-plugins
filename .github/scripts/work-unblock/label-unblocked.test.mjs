@@ -871,7 +871,7 @@ test("a pull request in the blocking list is skipped", async () => {
 });
 
 test("an event other than an issue closing changes nothing and fails red", async () => {
-  for (const [event, name] of [[{ action: "reopened" }, "issues"], [{}, "workflow_dispatch"]]) {
+  for (const [event, name] of [[{ action: "reopened" }, "issues"], [{}, "pull_request"], [{}, "repository_dispatch"]]) {
     const { github, calls } = oneDependent();
     assert.equal(await main({ env: envFor(event, { GITHUB_EVENT_NAME: name }), github }), 1, name);
     assert.deepEqual(calls, [], name);
@@ -2403,6 +2403,12 @@ test("a run whose lane token request failed is re-fired an hour after it ended, 
   assert.deepEqual(writes(calls), refired(30));
   // No write names needs-human.
   assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
+});
+
+test("a hand-started run sweeps as the schedule does, reading no event payload", async () => {
+  const { github, actions, calls } = stalledRun();
+  assert.equal(await sweep({ github, actions }, { GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_EVENT_PATH: "/nonexistent/event.json" }), 0);
+  assert.deepEqual(writes(calls), refired(30));
 });
 
 test("a run that did no work waits until an hour after it ended, past any rate-limit reset", async () => {
