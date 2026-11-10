@@ -155,14 +155,14 @@ two classifications override every bucket above, Certain included, and are decid
   notification template, a localization file, or an error or validation message. Report-only; never
   edited. A hit matching the glossary entry's `Shown to users as:` wording is intended and left out.
 
+When a hit's context does not show which it is, it goes to Ambiguous with its context, never to
+Certain. Both lists are counted in their own rows of the report and recorded as spans, each with its matched snippet,
+`(file, line, start, end)` for apply.md Phase 6.
+
 When the pair is a verb from an entity's `Actions:` line, a hit is in scope only where the verb names
 that operation on that entity: beside the entity's name, or inside an identifier with it (`sendRefund`
 for `Refund ... Actions: issue (Avoid: send)`). The verb used on anything else is ordinary English
 and goes to Excluded; a hit whose context does not show the entity goes to Ambiguous.
-
-When a hit's context does not show which it is, it goes to Ambiguous with its context, never to
-Certain. Both lists are counted in their own rows of the report and recorded as spans, each with its matched snippet,
-`(file, line, start, end)` for apply.md Phase 6.
 
 ## Special case: Memory entries
 
