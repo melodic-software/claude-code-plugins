@@ -81,12 +81,7 @@ commit_ranges() {
       continue
     fi
     # Keep only the lines this parent's diff adds too.
-    awk -F '\t' -v OFS='\t' '
-      NR == FNR { n++; f[n] = $1; s[n] = $2 + 0; e[n] = $3 + 0; next }
-      { for (i = 1; i <= n; i++) if (f[i] == $1) {
-          lo = ($2 + 0 > s[i]) ? $2 + 0 : s[i]; hi = ($3 + 0 < e[i]) ? $3 + 0 : e[i]
-          if (lo <= hi) print $1, lo, hi } }' \
-      "$CHECKS_TMP/ranges" "$CHECKS_TMP/ranges.all" >"$CHECKS_TMP/ranges.both"
+    checks_intersect_ranges "$CHECKS_TMP/ranges" "$CHECKS_TMP/ranges.all" >"$CHECKS_TMP/ranges.both"
     mv "$CHECKS_TMP/ranges.both" "$CHECKS_TMP/ranges.all"
   done
   mv "$CHECKS_TMP/ranges.all" "$CHECKS_TMP/ranges"
