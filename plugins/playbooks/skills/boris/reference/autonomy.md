@@ -192,7 +192,7 @@ Auto mode routes permission prompts to a model-based classifier. Safe = auto-app
 
 Shift-tab in the CLI, dropdown in Desktop or VSCode. For who can use auto mode (plan, organization,
 model, provider), see
-[Permission modes, "Eliminate permission prompts with auto mode"](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode).
+[Permission modes, "Eliminate permission prompts with auto mode"](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode).
 **As of:** 2026-11-01. **Recheck trigger:** that section's requirements list changes, or the
 section is renamed or removed.
 

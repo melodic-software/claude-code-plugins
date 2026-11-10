@@ -66,7 +66,7 @@ correct under Manual too, and the reverse does not hold.
 
 ## Anti-pattern 1: interpreter-wildcard / blanket allow rules (dropped in auto mode)
 
-On entering [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode),
+On entering [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode),
 Claude Code **drops broad allow rules that grant arbitrary code execution**. Per the official decision
 order:
 
@@ -76,7 +76,7 @@ order:
 > through the shell. Narrow rules like `Bash(npm test)` carry over. Dropped rules are
 > restored when you leave auto mode.
 >
-> [permission-modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
+> [permission-modes](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode)
 > ("How the classifier evaluates actions"; re-fetched 2026-08-26. The `Monitor` category was
 > added upstream in v2.1.236, which before then left Monitor allow rules in effect in auto mode;
 > recheck when that dropped-rules list changes)
@@ -259,14 +259,14 @@ Two consequences for anyone writing a guarded helper today:
   It is *not* exported to the Bash tool's own environment, so a raw shell expansion yields an
   empty string ([Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)).
 - **Do not assume the operator can pre-approve the helper.** `bash` is not one of the
-  [wrappers Claude Code strips](https://code.claude.com/docs/en/permissions#process-wrappers)
+  [wrappers Claude Code strips](https://code.claude.com/docs/en/permissions#wrappers)
   before matching (as of 2026-10-07; recheck when that section's wrapper list changes), so a rule for a `bash <path> …` command has to name `bash`, making it
   interpreter-led, i.e. anti-pattern 1. The documented drop categories clearly reach the
   wildcarded-target form (`Bash(bash <path>*)`); whether they reach a fixed-path form
   (`Bash(bash <fixed-path>:*)`) is not stated, so that shape is an anti-pattern on convention grounds
   rather than a confirmed drop. What happens to an uncovered call is then the **permission mode's**
   decision, not the allow rule's: a prompting mode issues a per-call prompt, while
-  [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
+  [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode)
   routes it to the classifier, which may approve or deny without prompting. Design for both. Never
   document a prompt the operator will wait for in a session that will never issue one.
 
@@ -324,11 +324,11 @@ case fails, or `/harness-ops:changelog apply` lists it for a release range.
 
 ## Sources
 
-- Auto-mode drop behavior and decision order: [permission-modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
+- Auto-mode drop behavior and decision order: [permission-modes](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode)
 - `classifyAllShell`, narrow-rule carryover: [auto-mode-config](https://code.claude.com/docs/en/auto-mode-config#route-all-shell-commands-through-the-classifier)
 - Literal matching, wildcard / `:*` semantics: [permissions](https://code.claude.com/docs/en/permissions#permission-rule-syntax)
 - Process-wrapper and leading env-assignment stripping, and how allow rules differ from deny and ask
-  rules past an assignment: [permissions](https://code.claude.com/docs/en/permissions#process-wrappers),
+  rules past an assignment: [permissions](https://code.claude.com/docs/en/permissions#wrappers),
   as of 2026-10-07; recheck when that section's env-assignment paragraph changes
 - `allowed-tools` scope and `${CLAUDE_PROJECT_DIR}` substitution: [skills](https://code.claude.com/docs/en/skills)
 - Plugin `bin/` on PATH and the `agent`/`subagentStatusLine`-only `settings.json`: [Executables](https://code.claude.com/docs/en/plugins/components#executables), [`settings`](https://code.claude.com/docs/en/plugins/manifest-reference#settings)

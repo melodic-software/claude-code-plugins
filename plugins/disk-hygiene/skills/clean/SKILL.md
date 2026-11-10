@@ -480,7 +480,7 @@ and what the guard does when no Python resolves → "Hook launch form".
   relying on it, and add an explicit `permissions.ask` rule for those spellings, or change mode,
   when they show it would not. **Pointer:** when checking how a hook `ask` or a `permissions.ask`
   rule behaves in each mode, fetch [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control),
-  [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode) and
+  [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode) and
   [dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode)
   live. **As of:** 2026-11-06. **Recheck trigger:** a section changes whether either kind of `ask`
   prompts in a mode, or a release note names hook permission decisions.

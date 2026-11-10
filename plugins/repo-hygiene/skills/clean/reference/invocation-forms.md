@@ -79,7 +79,7 @@ decide. Never work around it with a hand-rolled `rm` or another script.
   **As of**: 2026-10-11. **Recheck trigger**: either section changes the evaluation order or what
   a hook decision can override, or is renamed.
 - **Pointer**: which leading assignments a rule matches past is in
-  [Wrappers](https://code.claude.com/docs/en/permissions#process-wrappers). **As of**: 2026-10-11.
+  [Wrappers](https://code.claude.com/docs/en/permissions#wrappers). **As of**: 2026-10-11.
   **Recheck trigger**: that section lists the known-safe variables, changes how allow and deny
   rules treat a leading assignment, or is renamed.
 - **Pointer**: the classifier's default block list is in
