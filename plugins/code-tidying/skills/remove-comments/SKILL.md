@@ -103,7 +103,9 @@ class-B moves, and reports.
    reaches outside the scope, deletes a kept comment or misstates a reason.
 3. **On a rejection**, revert that report's edits and dispatch once more, naming the failure. A
    second rejection is reverted, reported as open, and the run fails.
-4. **Apply the class-B moves** the agent proposed, each behind its tier's gate, then report.
+4. **Apply the class-B moves** the agent proposed, each behind its tier's gate, hand each ADR
+   candidate it listed to `/architecture:record-decision` per [ADR candidates](#postures), then
+   report.
 
 With no subagent tool, or when this skill is itself running inside `comment-reviewer`, run the
 workflow in [actions/remove.md](actions/remove.md) inline.
@@ -147,17 +149,20 @@ one of them, link or not: it is deleted and listed as open root-cause work, unle
 `TODO(#issue)` marker. A warning of consequence, a unit or sentinel annotation, a section divider and
 rationale about this repository's own code are **our-code surprises**: deleted, narrative staged, and
 each one a reshape flag naming the symbol and the move that would make the comment unnecessary
-(rename, extract, a type, an assertion, a redesign). When the deleted rationale records one of this
-repository's own deliberate decisions and names the alternative it was chosen over, it is also an
-**ADR candidate**: in an interactive run with the `architecture` plugin enabled, invoke
-`/architecture:record-decision` via the Skill tool with the decision, the alternative and the
-comment's text; that skill owns the admission test and declines a decision that fails it.
-Otherwise (unattended, `report` mode, or no `architecture` plugin) list it as an ADR candidate in
-the report. A comment that names no alternative stays a reshape flag only. A constraint the code could enforce gets the
+(rename, extract, a type, an assertion, a redesign). A constraint the code could enforce gets the
 encode step in [actions/remove.md](actions/remove.md#encode-a-constraint).
 
 **What `none` keeps above the floor**: public-API doc comments, except that one which only restates
 the signature is proposed for deletion, never deleted.
+
+**ADR candidates** (`necessary` and `none`): a deleted comment that records one of this
+repository's own deliberate decisions and names the alternative it was chosen over is an ADR
+candidate as well as a reshape flag; one that names no alternative is a reshape flag only. The
+run that triages it lists it in the report. In an interactive run with the `architecture` plugin
+enabled, the orchestrator, never `comment-reviewer`, then invokes `/architecture:record-decision`
+via the Skill tool for each listed candidate, with the decision, the alternative and the comment's
+text; that skill owns and applies the admission test. Otherwise
+(unattended, `report` mode, or no `architecture` plugin) the candidate stays listed.
 
 **What `explanatory` keeps** is the full earn-its-keep contract: the floor, the public-API doc
 comments, unit and sentinel annotations on the adjacent declaration, and every class-C comment that
