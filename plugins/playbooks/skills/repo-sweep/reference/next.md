@@ -17,8 +17,8 @@ never combined with `&&` or other commands in one call. The record for these sha
    `git merge --ff-only 'origin/<branch>'`. A step committed on another machine is only reconciled
    when its commit is local.
 2. Run `S/state.sh`. If it printed `mergeable CONFLICTING` (any exit code), stop before the exit
-   code handling below and before any step, because step commits pushed to a conflicting sweep PR
-   would go without CI. Ask the user to merge the base branch into the sweep branch and push, then
+   code handling below and before any step: step commits must not land on a conflicting sweep PR.
+   Ask the user to merge the base branch into the sweep branch and push, then
    rerun `next`. `UNKNOWN` never stops. **Pointer**: when deciding whether a conflicting PR runs
    CI, fetch
    [`pull_request`](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request)
