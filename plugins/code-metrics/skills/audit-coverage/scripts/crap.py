@@ -54,7 +54,7 @@ def _coverage(text: str) -> float | None:
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(prog="crap.py", add_help=True)
+    parser = argparse.ArgumentParser(prog="crap.py")
     parser.add_argument("--comp", required=True, type=int)
     parser.add_argument("--cov", required=True)
     args = parser.parse_args(argv)
