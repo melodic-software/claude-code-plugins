@@ -515,9 +515,10 @@ Verification records for the directory channel:
   [Path variables and persistent data](https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data)
   live. **As of:** 2026-11-10. **Recheck trigger:** that section's id rule changes, or a release
   note names the plugin data directory.
-- The guard couples only to the documented top-level fields of a `known_marketplaces.json` entry
-  (`source`, `installLocation`) plus the `directory` source shape the marketplace reference
-  defines for settings; it relies on no stored form of the nested `source` object. **Pointer:**
+- The guard couples to the documented top-level fields of a `known_marketplaces.json` entry
+  (`source`, `installLocation`) and assumes the nested `source` object is stored in the
+  `directory` source shape the marketplace reference defines for settings. The docs do not specify
+  that stored form, so a change to it makes data-root resolution fail closed. **Pointer:**
   when checking those fields, fetch
   [Check which stage a plugin reached](https://code.claude.com/docs/en/plugins/loading#check-which-stage-a-plugin-reached),
   [Find plugins on disk](https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk), and
