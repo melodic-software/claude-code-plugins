@@ -30,6 +30,7 @@ already-redacted findings block is written to the durable, portable ledger.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import re
@@ -422,10 +423,8 @@ class Observer:
         return stale
 
     def release_lock(self) -> None:
-        try:
+        with contextlib.suppress(OSError):
             self.lock_path.unlink()
-        except OSError:
-            pass
 
     def run(self) -> int:
         if not self.acquire_lock():
@@ -886,10 +885,8 @@ class Observer:
         return None
 
     def _cleanup_observations(self) -> None:
-        try:
+        with contextlib.suppress(OSError):
             self.obs_path.unlink()
-        except OSError:
-            pass
 
 
 def _pid_alive(pid: int) -> bool:
@@ -928,16 +925,20 @@ def _find_claude() -> str | None:
     return None
 
 
-def _extract_result(stdout: str) -> str:
+def _json_object(stdout: str) -> dict:
+    """The -p run's JSON body as a dict; empty when it is not a JSON object."""
     try:
         data = json.loads(stdout)
     except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _extract_result(stdout: str) -> str:
+    data = _json_object(stdout)
+    if data.get("is_error"):
         return ""
-    if isinstance(data, dict):
-        if data.get("is_error"):
-            return ""
-        return str(data.get("result") or data.get("text") or "").strip()
-    return ""
+    return str(data.get("result") or data.get("text") or "").strip()
 
 
 # Mechanical secret-shape patterns for the ledger-write redaction hop. Conservative
@@ -1013,11 +1014,8 @@ def _redact(text: str) -> str:
 
 def _result_error(stdout: str) -> str:
     """Return the -p run's own error text when its JSON body signals failure."""
-    try:
-        data = json.loads(stdout)
-    except json.JSONDecodeError:
-        return ""
-    if isinstance(data, dict) and data.get("is_error"):
+    data = _json_object(stdout)
+    if data.get("is_error"):
         return str(data.get("result") or data.get("terminal_reason") or "api_error")
     return ""
 
