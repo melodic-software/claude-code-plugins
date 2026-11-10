@@ -21,6 +21,11 @@ usage() {
   exit 2
 }
 
+fail() {
+  printf 'seed-copy: %s\n' "$1" >&2
+  exit 2
+}
+
 # seed_files <dir>: the seed's copied files, relative and sorted. The offline tests and
 # the linear schema check need this plugin's test helpers and conformance bindings, so
 # they stay in the plugin.
@@ -88,20 +93,12 @@ if [[ ! -d "$seed" ]]; then
   for d in "$SEEDS_DIR"/*/; do
     known+="$(basename "$d") "
   done
-  printf "seed-copy: no seed for provider '%s'; seeds: %s\n" "$provider" "$known" >&2
-  exit 2
+  fail "no seed for provider '$provider'; seeds: $known"
 fi
 if [[ -z "$root" ]]; then
-  root="$(wit_project_root)" || {
-    printf 'seed-copy: no repo root (set CLAUDE_PROJECT_DIR, run inside a git checkout, or pass --root)\n' >&2
-    exit 2
-  }
+  root="$(wit_project_root)" ||
+    fail "no repo root (set CLAUDE_PROJECT_DIR, run inside a git checkout, or pass --root)"
 fi
-
-fail() {
-  printf 'seed-copy: %s\n' "$1" >&2
-  exit 2
-}
 
 dest="$root/tools/work-item-tracker/adapters/$provider"
 mkdir -p "$(dirname "$dest")" || fail "cannot create $(dirname "$dest")"

@@ -32,7 +32,7 @@ wit_strip_cr() {
 # wit_check_contract_version <provider> <manifest-path>: CONTRACT.md "Contract-version
 # handshake". Returns 1 on a missing or major-skewed schema_version; callers map it to exit 3.
 wit_check_contract_version() {
-  local provider="$1" manifest="$2" declared core_major core_minor a_major a_minor
+  local provider="$1" manifest="$2" declared core_major core_minor a_major a_minor fix
   declared="$(jq -r '.schema_version // empty' "$manifest" 2>/dev/null)"
   if [[ ! "$declared" =~ ^[0-9]+\.[0-9]+$ ]]; then
     printf "work-item-tracker: adapter '%s' capabilities.json declares no valid schema_version (need MAJOR.MINOR; found: %s) — cannot handshake with core contract v%s\n" \
@@ -46,13 +46,10 @@ wit_check_contract_version() {
   a_major=$((10#${declared%%.*}))
   a_minor=$((10#${declared#*.}))
   if ((a_major != core_major)); then
-    if ((a_major > core_major)); then
-      printf "work-item-tracker: adapter '%s' speaks contract v%s but this core speaks v%s — update the work-items plugin\n" \
-        "$provider" "$declared" "$WIT_SCHEMA_VERSION" >&2
-    else
-      printf "work-item-tracker: adapter '%s' speaks contract v%s but this core speaks v%s — update or regenerate the adapter\n" \
-        "$provider" "$declared" "$WIT_SCHEMA_VERSION" >&2
-    fi
+    fix="update or regenerate the adapter"
+    ((a_major > core_major)) && fix="update the work-items plugin"
+    printf "work-item-tracker: adapter '%s' speaks contract v%s but this core speaks v%s — %s\n" \
+      "$provider" "$declared" "$WIT_SCHEMA_VERSION" "$fix" >&2
     return 1
   fi
   if ((a_minor > core_minor)); then
