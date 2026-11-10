@@ -360,39 +360,12 @@ function probeSourceTree(repoRoot) {
 }
 
 function probeDocumentationCorpus(repoRoot) {
-  if (pathExists(join(repoRoot, "docs"))) {
-    return {
-      result: "present",
-      ran: true,
-      provenance: {
-        kind: "probe",
-        probe_class: "repo-file",
-        path: "docs",
-      },
-    };
-  }
+  if (pathExists(join(repoRoot, "docs"))) return probeOutcome("present", { probe_class: "repo-file", path: "docs" });
   const rootMd = (listDir(repoRoot) ?? []).filter((n) => n.endsWith(".md"));
   if (rootMd.length > 0 && pathExists(join(repoRoot, "src"))) {
-    return {
-      result: "present",
-      ran: true,
-      provenance: {
-        kind: "probe",
-        probe_class: "repo-file",
-        path: rootMd[0],
-      },
-    };
+    return probeOutcome("present", { probe_class: "repo-file", path: rootMd[0] });
   }
-  return {
-    result: "absent",
-    ran: true,
-    provenance: {
-      kind: "probe",
-      probe_class: "repo-file",
-      path: "docs",
-      detail: "documentation corpus not established",
-    },
-  };
+  return probeOutcome("absent", { probe_class: "repo-file", path: "docs", detail: "documentation corpus not established" });
 }
 
 function probeActivitySignals(repoRoot) {
@@ -439,53 +412,23 @@ function probeMcp(repoRoot) {
 
 function probeAdvisoryDatabase(machineContext) {
   // Curated advisory source is not established by repo-file presence alone.
-  if (!machineContext) {
-    return {
-      result: "unresolvable",
-      ran: false,
-      provenance: {
-        kind: "probe",
-        probe_class: "harness-context",
-        path: "advisory-database",
-        detail: "curated source reachability not established without declaration or --machine-context",
-      },
-    };
-  }
-  return {
-    result: "unresolvable",
-    ran: false,
-    provenance: {
-      kind: "probe",
-      probe_class: "machine-context",
-      path: "advisory-database",
-      detail: "machine-context probe for curated advisory source not implemented as a network fetch",
-    },
-  };
+  return probeOutcome("unresolvable", {
+    probe_class: machineContext ? "machine-context" : "harness-context",
+    path: "advisory-database",
+    detail: machineContext
+      ? "machine-context probe for curated advisory source not implemented as a network fetch"
+      : "curated source reachability not established without declaration or --machine-context",
+  });
 }
 
 function probeUpstreamChangelog(machineContext) {
-  if (!machineContext) {
-    return {
-      result: "unresolvable",
-      ran: false,
-      provenance: {
-        kind: "probe",
-        probe_class: "harness-context",
-        path: "upstream-changelog",
-        detail: "upstream release-note reachability unprobeable on committed surfaces alone",
-      },
-    };
-  }
-  return {
-    result: "unresolvable",
-    ran: false,
-    provenance: {
-      kind: "probe",
-      probe_class: "machine-context",
-      path: "upstream-changelog",
-      detail: "machine-context network reachability not asserted by this resolver",
-    },
-  };
+  return probeOutcome("unresolvable", {
+    probe_class: machineContext ? "machine-context" : "harness-context",
+    path: "upstream-changelog",
+    detail: machineContext
+      ? "machine-context network reachability not asserted by this resolver"
+      : "upstream release-note reachability unprobeable on committed surfaces alone",
+  });
 }
 
 function probeMergePath(surface, binding) {
@@ -547,18 +490,19 @@ function resolveNeed(need, identity, ctx) {
   if (decl) {
     const declState = decl.state;
     const rung = decl.rung ?? "repo-local";
+    const declarationProvenance = {
+      kind: "declaration",
+      rung,
+      state: declState,
+      need: need.id,
+      surface: ctx.surface,
+      probe_result: probe.result,
+      probe_ran: probe.ran,
+    };
     if (declState === "absent" || declState === "disabled") {
       // Declaration narrows: disables even when probe finds present.
       effective = "absent";
-      provenance = {
-        kind: "declaration",
-        rung,
-        state: declState,
-        need: need.id,
-        surface: ctx.surface,
-        probe_result: probe.result,
-        probe_ran: probe.ran,
-      };
+      provenance = declarationProvenance;
     } else if (declState === "present") {
       if (probe.ran && probe.result === "absent") {
         effective = "absent";
@@ -578,27 +522,10 @@ function resolveNeed(need, identity, ctx) {
       } else if (!probe.ran || probe.result === "unresolvable") {
         // Probe could not run — declaration stands, qualified.
         effective = "conditional";
-        provenance = {
-          kind: "declaration",
-          rung,
-          state: declState,
-          need: need.id,
-          surface: ctx.surface,
-          probe_result: probe.result,
-          probe_ran: probe.ran,
-          unprobeable: true,
-        };
+        provenance = { ...declarationProvenance, unprobeable: true };
       } else {
         effective = "present";
-        provenance = {
-          kind: "declaration",
-          rung,
-          state: declState,
-          need: need.id,
-          surface: ctx.surface,
-          probe_result: probe.result,
-          probe_ran: probe.ran,
-        };
+        provenance = declarationProvenance;
       }
     }
   }
