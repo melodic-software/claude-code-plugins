@@ -1202,13 +1202,23 @@ limits:
   # stranded issues wait for the next one; far above it, queued runs go stale
   # on a lane workflow change.
   restarts-per-run: 10
+  # Kill-switch re-fires keep the issue lane's unfinished runs at this many
+  # per slot (SLOTS in work-resolve-issue.yml) and no more: after the switch
+  # clears, each sweep, a finished run's included, tops the queue back up,
+  # oldest stranded first, so the lane stays full without a flood (owner
+  # decision Q109).
+  refire-queue-per-slot: 2
   # Base hours of work-unblock's re-fire backoff for a stranded agent-ready
   # issue, per cause, doubled once per re-fire already made and held at 24
   # (the schema's description says where each cause's doubling starts). The
   # transient causes, where no model ran and nothing in the issue failed (no
   # run started, no lane token, a kill-switch refusal), take 1; a run that
   # ended with no report or failed again after a re-fire may fail the same way
-  # and spend run-hours each time, so those keep 3.
+  # and spend run-hours each time, so those keep 3. kill-switch never doubles:
+  # a breaker trip is the lanes' load, not the issue's, so past
+  # limit-stops-per-issue trips each re-fire waits this flat hour, and
+  # refire-queue-per-slot paces the drain after the switch clears (owner
+  # decision Q109, 2026-11-10).
   stranded-backoff-hours:
     no-run: 1
     no-report: 3

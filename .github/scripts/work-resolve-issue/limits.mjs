@@ -24,6 +24,7 @@ export const LIMIT_DEFAULTS = Object.freeze({
   "reset-clamp-min": 1,
   "reset-clamp-max": 168,
   "restarts-per-run": 5,
+  "refire-queue-per-slot": 2,
   "readmit-per-run": 20,
   "parent-rescan-per-run": 5,
   "limit-stops-per-head": 3,
@@ -48,7 +49,8 @@ export function readLimits(path) {
 
 // The `limits.stranded-backoff-hours` leaf: per cause work-unblock's sweep
 // re-fires a stranded issue for, the base hours of its backoff, doubled once
-// per re-fire already counted and held at STRANDED_BACKOFF_MAX.
+// per re-fire already counted and held at STRANDED_BACKOFF_MAX; kill-switch's
+// hours are a flat wait that never doubles.
 export const STRANDED_BACKOFF_MAX = 24;
 export const STRANDED_BACKOFF_DEFAULTS = Object.freeze({
   "no-run": 3,

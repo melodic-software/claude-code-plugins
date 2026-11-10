@@ -3417,10 +3417,38 @@ class StopUncovered(CheckCase):
         self.assertTrue(verdict.needs_dispatch)
 
     def test_an_unreadable_listing_is_unreadable_not_a_stop(self) -> None:
-        self.gh.fail_reads.add("post-merge-detect-silent-revert.yml")
+        for why, workflow in [
+            ("the canary listing", "post-merge-detect-silent-revert.yml"),
+            ("the dispatch listing", "event=workflow_dispatch"),
+        ]:
+            with self.subTest(why):
+                self.setUp()
+                self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+                self.gh.fail_reads.add(workflow)
+                verdict, _, number, _ = self.both()
+                self.assertIsNone(number)
+                self.assertFalse(verdict.readable)
+
+    def test_a_dispatch_run_off_the_branch_still_stops(self) -> None:
+        # Listed after the merge, so the dispatch listing alone does not stop;
+        # the branch read drops it, and the merge stops as uncovered.
+        self.gh.add_runs(
+            "pr-require-checks.yml", "workflow_dispatch", dispatch_run(11, head_sha=OTHER_SHA)
+        )
         verdict, _, number, _ = self.both()
-        self.assertIsNone(number)
-        self.assertFalse(verdict.readable)
+        self.assertTrue(verdict.needs_dispatch)
+        self.assertEqual(number, 7001)
+
+    def test_the_stop_reads_no_schedule_or_canary_listing(self) -> None:
+        # Only the dispatch runs decide the stop, so a canary listing that
+        # would fail is never reached.
+        self.gh.fail_reads.add("post-merge-detect-silent-revert.yml")
+        _, full, number, reads = self.both()
+        self.assertEqual(number, 7001)
+        listed = [" ".join(c) for c in self.gh.calls if "/runs?" in " ".join(c)]
+        self.assertEqual(len(listed), 1, listed)
+        self.assertIn("pr-require-checks.yml/runs?event=workflow_dispatch", listed[0])
+        self.assertLessEqual(reads, full - 2)
 
     def test_the_cli_exits_6_with_no_verdict(self) -> None:
         out = io.StringIO()

@@ -100,6 +100,13 @@
           "default": 5,
           "description": "Issues one work-unblock sweep restarts or re-fires."
         },
+        "refire-queue-per-slot": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 2,
+          "description": "Kill-switch re-fires' queue target per issue-lane slot (SLOTS in work-resolve-issue.yml): a work-unblock sweep re-fires breaker-stranded issues, oldest first, only until the work-resolve-issue runs not yet finished reach this times SLOTS, within restarts-per-run."
+        },
         "readmit-per-run": {
           "type": "integer",
           "minimum": 1,
@@ -152,7 +159,7 @@
         "stranded-backoff-hours": {
           "type": "object",
           "additionalProperties": false,
-          "description": "Per cause work-unblock's sweep re-fires a stranded agent-ready issue for, the base hours of its re-fire backoff: the wait after the run ended (or the label was added) is these hours doubled once per re-fire already made on the same lane workflow files, or per trip past limit-stops-per-issue for kill-switch, up to 24 hours. no-run: no work-resolve-issue run started, and these hours are also the wait before the first re-fire; no-report: a run ended green with no report and no pull request, the same; failed-again: a re-fired run failed or was cancelled again, so the wait is at least twice these hours; failed-mint: a run got no lane token, backed off only past limit-stops-per-issue re-fires, so the wait is at least these hours doubled that many times; kill-switch: a run the lanes kill switch refused, backed off past limit-stops-per-issue trips.",
+          "description": "Per cause work-unblock's sweep re-fires a stranded agent-ready issue for, the base hours of its re-fire backoff: the wait after the run ended (or the label was added) is these hours doubled once per re-fire already made on the same lane workflow files, up to 24 hours, except kill-switch, which never doubles. no-run: no work-resolve-issue run started, and these hours are also the wait before the first re-fire; no-report: a run ended green with no report and no pull request, the same; failed-again: a re-fired run failed or was cancelled again, so the wait is at least twice these hours; failed-mint: a run got no lane token, backed off only past limit-stops-per-issue re-fires, so the wait is at least these hours doubled that many times; kill-switch: a run the lanes kill switch refused; past limit-stops-per-issue trips each re-fire waits these hours after the run ended, flat, with no doubling and no cap on trips.",
           "properties": {
             "no-run": { "type": "integer", "minimum": 1, "maximum": 24, "default": 3 },
             "no-report": { "type": "integer", "minimum": 1, "maximum": 24, "default": 3 },
