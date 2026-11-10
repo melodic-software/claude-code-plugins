@@ -91,6 +91,11 @@ on:
   schedule:
     - cron: "4,34 * * * *"
   workflow_dispatch:
+    inputs:
+      force:
+        description: Run the pass even when a full pass finished under MIN_GAP_MINUTES ago
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -159,9 +164,23 @@ jobs:
           RUN_NUMBER: ${{ github.run_number }}
         run: node .base/.github/actions/log-api-budget/pace.mjs
 
+      # A dispatch skips its work when a full pass finished under
+      # MIN_GAP_MINUTES ago, the schedule's cadence, unless dispatched with
+      # force; the next tick reads the same runs. A read that fails runs the
+      # pass (.github/scripts/maintenance-reconcile-lost-runs/recent-pass.mjs).
+      - name: Skip a dispatch right after a full pass
+        id: recent
+        continue-on-error: true
+        env:
+          MIN_GAP_MINUTES: "30"
+          FORCE: ${{ inputs.force }}
+          GITHUB_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: node .base/.github/scripts/maintenance-reconcile-lost-runs/recent-pass.mjs
+
       - name: Find lost runs
         id: plan
-        if: steps.pace.outputs.paced != 'true'
+        if: steps.pace.outputs.paced != 'true' && steps.recent.outputs.skip != 'true'
         env:
           MODE: plan
           PLAN_PATH: ${{ runner.temp }}/reconcile-plan.json
@@ -255,7 +274,7 @@ jobs:
           retention-days: 2
 
       - name: Re-run lost runs
-        if: steps.pace.outputs.paced != 'true'
+        if: steps.pace.outputs.paced != 'true' && steps.recent.outputs.skip != 'true'
         env:
           MODE: act
           PLAN_PATH: ${{ runner.temp }}/reconcile-plan.json
