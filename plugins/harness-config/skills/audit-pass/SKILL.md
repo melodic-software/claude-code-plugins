@@ -126,9 +126,8 @@ bash "$S" lease acquire --run-dir "<run-dir>" --run-id "<run-id>" --plugin-data 
 ```
 
 `paths` derives `<plugin-data>/runs/<state-key>/<run-id>` through the plugin's own `lib/state-key.sh`,
-the library whose header records the keying scheme. Pass `--plugin-data` explicitly: `${CLAUDE_PLUGIN_DATA}`
-substitutes in this text but is **not** exported to the Bash tool's environment, so a shell cannot
-expand it. `acquire` takes it too, and refuses a `--run-dir` that is not under
+the library whose header records the keying scheme. Pass `--plugin-data` explicitly with the `${CLAUDE_PLUGIN_DATA}` value from this text; never rely on the shell to expand it (Pointer: fetch [manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves) live. As of: 2026-11-10. Recheck trigger: that section exports the variable to Bash-tool commands).
+`acquire` takes it too, and refuses a `--run-dir` that is not under
 `<plugin-data>/runs/`. It is the only command that *creates* a directory, so it is where the write
 tree is pinned; a wrong or invented run dir would otherwise be created and written into.
 
@@ -190,10 +189,9 @@ is a reported derived-tier artifact, so a surface that silently drops out of sco
 fails the determinism property rather than looking like an improvement.
 
 **Output styles are the case a walk alone cannot get right.** A style changes the instructions
-Claude receives, `keep-coding-instructions` changes what a custom one keeps, and a plugin's
-`force-for-plugin` style can be live without the user's `outputStyle` naming it, so a walk plus
-settings reports a selection as live when it is not. Report the resolved live style and what
-resolved it.
+Claude receives, and the live style can differ from the one the user's settings name, so a walk
+plus settings can report a selection as live when it is not. Report the resolved live style and
+what resolved it.
 
 - **Pointer**: when resolving the live style and what it changes, fetch [output styles: how output styles work](https://code.claude.com/docs/en/output-styles#how-output-styles-work) and [create a custom output style](https://code.claude.com/docs/en/output-styles#create-a-custom-output-style) live. **As of**: 2026-10-11. **Recheck trigger**: either section changes what `keep-coding-instructions` keeps or how `force-for-plugin` interacts with `outputStyle`.
 
@@ -478,8 +476,8 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
   bug: a finding about a file *as a whole* must not be retired by editing a line inside it.
 - **A judged finding does not contribute to the determinism gate, which is the norm rather than a weakness.** Every
   delegated check passes through model refinement first; the gate belongs to the derived tier.
-- **Never propose an `@path` import as a context saving.** An import does not defer loading, so a
-  split remediation must name a load-deferring destination and price what it costs. Pointer: when
+- **Never propose an `@path` import as a context saving.** A split remediation must name a
+  load-deferring destination and price what it costs. Pointer: when
   judging whether a split saves context, fetch
   [memory: import additional files](https://code.claude.com/docs/en/memory#import-additional-files)
   and [memory: my CLAUDE.md is too large](https://code.claude.com/docs/en/memory#my-claude-md-is-too-large)
