@@ -195,6 +195,7 @@ import os
 import re
 import subprocess
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 from typing import Any, cast
 
@@ -316,11 +317,6 @@ def _has_severity_marker(body: str) -> bool:
     bracket, or declaration prefix), the word CRITICAL, or the word
     "security"."""
     return any(pattern.search(body) for pattern in FORBIDDEN_CLASS_PATTERNS)
-
-
-def _has_human_deferral_marker(body: str) -> bool:
-    """True when a human reply explicitly parks the thread instead of addressing it."""
-    return bool(HUMAN_DEFERRAL_RE.search(body))
 
 
 def _most_recent_human_reply_body(
@@ -518,6 +514,17 @@ def project_thread(
         body = comment.get("body")
         return body if isinstance(body, str) else None
 
+    # A human reply that explicitly parks the thread instead of addressing it.
+    human_deferred = truncated or (
+        (
+            human_reply := _most_recent_human_reply_body(
+                comments, extra_bot_logins=extra_bot_logins, self_logins=self_logins
+            )
+        )
+        is not None
+        and bool(HUMAN_DEFERRAL_RE.search(human_reply))
+    )
+
     return {
         "id": record.get("id"),
         "isResolved": record.get("isResolved", False),
@@ -544,20 +551,7 @@ def project_thread(
         "replyBodies": [
             body for c in comments[1:] if (body := _reply_body(c)) is not None
         ],
-        "humanDeferred": (
-            truncated
-            or (
-                (
-                    human_reply := _most_recent_human_reply_body(
-                        comments,
-                        extra_bot_logins=extra_bot_logins,
-                        self_logins=self_logins,
-                    )
-                )
-                is not None
-                and _has_human_deferral_marker(human_reply)
-            )
-        ),
+        "humanDeferred": human_deferred,
     }
 
 
@@ -571,14 +565,12 @@ def fetch_threads(
 ) -> list[dict[str, object]]:
     # include_resolved so the caller can see (and skip) already-resolved threads;
     # comments_first=100 to inspect every participant for the bot-only test.
-    def _project(record: dict[str, Any]) -> dict[str, object]:
-        return project_thread(
-            record,
-            extra_bot_logins=extra_bot_logins,
-            self_logins=self_logins,
-            lane_logins=lane_logins,
-        )
-
+    project = partial(
+        project_thread,
+        extra_bot_logins=extra_bot_logins,
+        self_logins=self_logins,
+        lane_logins=lane_logins,
+    )
     return [
         cast(dict[str, object], record)
         for record in fetch_review_threads(
@@ -586,7 +578,7 @@ def fetch_threads(
             number,
             include_resolved=True,
             comments_first=100,
-            projection=_project,
+            projection=project,
         )
     ]
 
@@ -863,12 +855,12 @@ def verify_counter_evidence(thread: dict[str, object], text: str) -> tuple[bool,
     caller is quoting a fragment of a reply it did not necessarily author.
     """
     needle = text.strip().casefold()
-    if not needle:
-        return False, "refused-counter-evidence-not-found"
     replies = thread.get("replyBodies")
-    if not isinstance(replies, list):
-        return False, "refused-counter-evidence-not-found"
-    if any(isinstance(body, str) and needle in body.casefold() for body in replies):
+    if (
+        needle
+        and isinstance(replies, list)
+        and any(isinstance(body, str) and needle in body.casefold() for body in replies)
+    ):
         return True, ""
     return False, "refused-counter-evidence-not-found"
 
@@ -1452,7 +1444,6 @@ def main() -> int:
                 linked_pr=args.linked_pr,
             )
             if verified:
-                evidence_refusal = ""
                 entry["disposition"] = args.disposition
         if verdict != "eligible":
             entry["action"] = verdict
