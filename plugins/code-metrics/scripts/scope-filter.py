@@ -14,10 +14,6 @@ first-seen order:
 - a file whose first 8000 bytes hold a NUL byte is dropped as binary, the same
   sniff `grep -I` performs without depending on GNU grep.
 
-The dispatcher used to do this as a shell loop with two subprocesses per file,
-which on a tree of a few thousand files was most of a whole-tree run. One
-process over the list is the same decision at a fixed cost.
-
 Exit 0 when the list was filtered, 2 on a usage error.
 """
 

@@ -1634,8 +1634,8 @@ test("the driver's file tools are fenced to the head and the run directory, and 
     assert.ok(capIndex("Write the driven settings and the proxy config") < capIndex("Apply the Claude managed settings"));
     assert.ok(capIndex("Apply the Claude managed settings") < capIndex(ISOLATE));
   }
-  // Both legs run the Claude Code the proxy's betas were measured on.
-  for (const leg of [driver, capStep(PROBE)]) assert.equal(input(leg, "cli-version"), "${{ steps.driven.outputs.claude-code-version }}");
+  // Both legs run the Claude Code the install step read from the lock.
+  for (const leg of [driver, capStep(PROBE)]) assert.equal(input(leg, "cli-version"), "${{ steps.claude.outputs.version }}");
   // Both legs run without Claude Code's sandbox: launch's nested claude and
   // npm ci need hosts beyond GitHub, and the probe checks where they run.
   for (const leg of [driver, capStep(PROBE)]) assert.equal(input(leg, "sandbox"), '"false"');
@@ -2346,16 +2346,24 @@ test("the driven settings carry no scrub while the outer leg keeps it, and the b
   assert.match(SIBLING_INIT, /exec node "\$driver\/broker\.mjs" [^\n]*\\\n[^\n]* --in-sandbox /);
 });
 
-test("the betas were measured on the Claude Code the lock pins", { skip: spawnSync("yq", ["--version"]).status !== 0 && "needs yq" }, () => {
-  const configFile = fileURLToPath(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url));
-  const version = spawnSync("yq", ['.merge."verify-capture".proxy."claude-code-version"', configFile], { encoding: "utf8" }).stdout.trim();
-  const pkg = JSON.parse(readFileSync(new URL("../../../package.json", import.meta.url), "utf8"));
-  const lock = JSON.parse(readFileSync(new URL("../../../package-lock.json", import.meta.url), "utf8"));
-  assert.equal(version, pkg.devDependencies["@anthropic-ai/claude-code"]);
-  assert.equal(version, lock.packages["node_modules/@anthropic-ai/claude-code"].version);
-  // The install compares them again on main's files, and installs from main's lock only.
+test("the capture takes the Claude Code version from the lock alone", { skip: (spawnSync("yq", ["--version"]).status !== 0 || spawnSync("jq", ["--version"]).status !== 0) && "needs yq and jq" }, () => {
   const install = scriptOf(capStep("Install the driven Claude Code"));
-  assert.match(install, /\[ "\$version" != "\$want" \]/);
+  const filter = /^version=\$\(jq -r '([^']+)' \.base\/package-lock\.json\)$/m.exec(install)?.[1];
+  assert.ok(filter, "the install step reads the version from main's package-lock.json");
+  const lockFile = fileURLToPath(new URL("../../../package-lock.json", import.meta.url));
+  const read = spawnSync("jq", ["-r", filter, lockFile], { encoding: "utf8" });
+  assert.equal(read.status, 0, read.stderr);
+  const pkg = JSON.parse(readFileSync(new URL("../../../package.json", import.meta.url), "utf8"));
+  assert.equal(read.stdout.trim(), pkg.devDependencies["@anthropic-ai/claude-code"], "the install step's filter yields package.json's exact pin from the lock");
+  assert.match(install, /^echo "version=\$version" >>"\$GITHUB_OUTPUT"$/m, "the install step hands the version to the driver legs");
+  assert.match(capStep("Install the driven Claude Code"), /^ {8}id: claude$/m, "the install step's outputs are steps.claude");
+  const configFile = fileURLToPath(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url));
+  const proxyKeys = spawnSync("yq", ['.merge."verify-capture".proxy | keys | .[]', configFile], { encoding: "utf8" });
+  assert.equal(proxyKeys.status, 0, proxyKeys.stderr);
+  assert.ok(proxyKeys.stdout.split("\n").includes("betas"), "the proxy block is read");
+  assert.ok(!proxyKeys.stdout.split("\n").includes("claude-code-version"), "pr-pipeline.yaml holds no second copy of the version");
+  assert.doesNotMatch(CAPTURE_TEXT, /claude-code-version/, "no workflow step reads a version outside the lock");
+  // It installs from main's lock only.
   assert.match(install, /^timeout \d+m npm ci --prefix "\$dir" --no-audit --no-fund$/m);
   assert.match(install, /^timeout \d+m npm audit signatures --prefix "\$dir"$/m);
   assert.match(install, /\.base\/package-lock\.json >"\$dir\/package-lock\.json"$/m);

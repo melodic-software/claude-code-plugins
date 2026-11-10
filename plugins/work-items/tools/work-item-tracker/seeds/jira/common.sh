@@ -143,7 +143,7 @@ wit_require_jira_id() {
 # WIT_JIRA_AUTH_ENV, WIT_JIRA_BLOCKED_BY_LINK_TYPE, WIT_JIRA_DONE_KEYS (JSON array),
 # WIT_JIRA_RESOLUTIONS (the config.jira.resolutions object, or `null` when absent).
 wit_need_jira_config() {
-  local name binding ejson
+  local name binding ejson allow_custom_domain
   name="$(basename "${BASH_SOURCE[1]}")"
   binding="$(wit_find_binding)" ||
     {
@@ -175,7 +175,6 @@ wit_need_jira_config() {
   # resolutions has no default: absent turns won't-do detection off (`null`); a present
   # value, even `null`, is judged below.
   WIT_JIRA_RESOLUTIONS="$(jq -c '.config.jira | if has("resolutions") then .resolutions // "null-value" else null end' <<<"$ejson")"
-  local allow_custom_domain
   allow_custom_domain="$(jq -r '.config.jira.allow_custom_domain // false' <<<"$ejson")"
   local missing=""
   [[ -n "$WIT_JIRA_SITE" ]] || missing+=" config.jira.site"
@@ -223,11 +222,9 @@ wit_need_jira_config() {
   # resolutions classifies resolution ids, matched in jq and never interpolated into JQL:
   # exactly the keys completed and wont_do, each an array of non-empty strings, with no
   # id in both.
-  [[ "$(jq -r 'if . == null then "ok"
-    elif type == "object" and (keys == ["completed", "wont_do"])
+  jq -e '. == null or (type == "object" and (keys == ["completed", "wont_do"])
       and all(.[]; type == "array" and all(.[]; type == "string" and length > 0))
-      and ((.completed - (.completed - .wont_do)) == [])
-    then "ok" else "bad" end' <<<"$WIT_JIRA_RESOLUTIONS")" == "ok" ]] ||
+      and ((.completed - (.completed - .wont_do)) == []))' <<<"$WIT_JIRA_RESOLUTIONS" >/dev/null ||
     bad+=" resolutions(must be {\"completed\":[ids],\"wont_do\":[ids]}, non-empty string ids, none in both)"
   # Every element (each project key, each done key) is checked IN jq so an empty or
   # non-string element cannot slip through — a bash line-loop loses trailing empty
@@ -262,7 +259,7 @@ wit_need_jira_config() {
 # list-items on --repo — each maps a miss to its own usage error (exit 2) before any
 # request, so the diagnostic names the calling verb.
 wit_jira_project_in_scope() {
-  [[ "$(jq -r --arg k "$1" 'if (index($k) != null) then "in" else "out" end' <<<"$WIT_JIRA_PROJECT_KEYS")" == "in" ]]
+  jq -e --arg k "$1" 'index($k) != null' <<<"$WIT_JIRA_PROJECT_KEYS" >/dev/null
 }
 
 # wit_jira_token — echo the API token from the env var named by config.jira.auth_env.
@@ -364,7 +361,7 @@ export WIT_JIRA_FIELDS
 # the whole chunk), and a key the search did not return keeps blocking; both warn on
 # stderr.
 wit_jira_blocker_resolutions() {
-  local json keys n i chunk jql body out page res missing
+  local json keys n i chunk chunk_len jql body out page res missing
   json="$(cat)"
   if [[ "$WIT_JIRA_RESOLUTIONS" == "null" ]]; then
     printf '{}'
@@ -381,8 +378,9 @@ wit_jira_blocker_resolutions() {
   n="$(jq 'length' <<<"$keys")"
   for ((i = 0; i < n; i += 100)); do
     chunk="$(jq -c --argjson i "$i" '.[$i:$i + 100]' <<<"$keys")"
+    chunk_len="$(jq 'length' <<<"$chunk")"
     jql="key in ($(jq -r 'map("\"\(.)\"") | join(",")' <<<"$chunk"))"
-    body="$(jq -cn --arg jql "$jql" --argjson mr "$(jq 'length' <<<"$chunk")" \
+    body="$(jq -cn --arg jql "$jql" --argjson mr "$chunk_len" \
       '{jql: $jql, fields: ["resolution"], maxResults: $mr}')"
     if out="$(wit_jira_http POST "/search/jql" "$body" 2>/dev/null && [[ "$WIT_JIRA_STATUS" == 2* ]] &&
       printf '%s' "$WIT_JIRA_BODY")" &&
@@ -402,7 +400,7 @@ wit_jira_blocker_resolutions() {
       [[ -z "$missing" ]] ||
         echo "wit_jira_blocker_resolutions: the resolution query did not return $missing; they keep blocking" >&2
     else
-      echo "wit_jira_blocker_resolutions: resolution query failed; its $(jq 'length' <<<"$chunk") done blocker(s) keep blocking" >&2
+      echo "wit_jira_blocker_resolutions: resolution query failed; its $chunk_len done blocker(s) keep blocking" >&2
     fi
   done
   jq -r 'to_entries[] | select(.value.unclassified) | .value.unclassified as $u
@@ -435,14 +433,13 @@ readonly WIT_JIRA_NORMALIZE_PROGRAM="$WIT_JQ_DEF_UTC_TS"'
     schema_version: $sv,
     id: (.key | qualify),
     title: (.fields.summary // ""),
-    state: ((.fields.status.statusCategory.key) as $k
-      | if ($dk | index($k)) then "closed" else "open" end),
+    state: (if done then "closed" else "open" end),
     assignees: [ .fields.assignee.accountId // empty ],
     labels: (.fields.labels // []),
     type: (.fields.issuetype.name // null),
     blocked_by_count: ([blockers[] | select((done | not) or class != "resolved")] | length),
     blocked_by_wont_do_count: ([blockers[] | select(done and class == "wont_do")] | length),
-    parent_id: (if (.fields.parent.key // null) == null then null else (.fields.parent.key | qualify) end),
+    parent_id: (.fields.parent.key // null | if . == null then null else qualify end),
     url: ("https://" + $site + "/browse/" + .key),
     created_at: (.fields.created | wit_utc_ts),
     milestone: null

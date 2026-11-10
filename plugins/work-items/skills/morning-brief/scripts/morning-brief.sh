@@ -1862,10 +1862,10 @@ print_telemetry() {
         if ((delta > STALE_HOURS * 3600)); then
           age_note="$age_note  STALE (>${STALE_HOURS}h)"
         fi
+        last="$last UTC"
       else
         age_note="unparsable timestamp"
       fi
-      [[ -n "$then_epoch" ]] && last="$last UTC"
     else
       last="(none)"
       age_note="no last-cycle recorded"
@@ -2520,32 +2520,29 @@ print_lanes() {
     }
     fetch_lane_annotations "$runs" "$ann"
   fi
-  local rows
-  rows="$(jq -n -r --argjson since "$since" --slurpfile runs "$runs" --slurpfile ann "$ann" \
-    --argjson lanes "$(printf '%s\n' "${LANE_WORKFLOWS[@]}" | jq -R . | jq -s .)" "$LANES_JQ" 2>&1)" || {
+  local rows lane_args
+  lane_args=(-n -r --argjson since "$since" --slurpfile runs "$runs" --slurpfile ann "$ann"
+    --argjson lanes "$(printf '%s\n' "${LANE_WORKFLOWS[@]}" | jq -R . | jq -s .)")
+  rows="$(jq "${lane_args[@]}" "$LANES_JQ" 2>&1)" || {
     unreadable lanes "could not parse the lane runs: ${rows%%$'\n'*}"
     return
   }
   echo "$rows"
   ((LANE_RUNS_SHORT)) && echo "  PARTIAL: $LANE_RUNS_SHORT runs not listed: a lane passed the runs search's result cap in one day"
   ((LANES_PARTIAL)) && echo "  PARTIAL: annotations read for $LANE_READ_LIMIT runs, the newest 3 of each lane and then failed runs first; $LANES_PARTIAL more were not read (raise --lane-read-limit)"
-  rows="$(jq -n -r --argjson since "$since" --slurpfile runs "$runs" --slurpfile ann "$ann" \
-    --argjson lanes "$(printf '%s\n' "${LANE_WORKFLOWS[@]}" | jq -R . | jq -s .)" "$KEYS_JQ" 2>&1)" || {
+  rows="$(jq "${lane_args[@]}" "$KEYS_JQ" 2>&1)" || {
     UNREADABLE=$((UNREADABLE + 1))
     UNREADABLE_NAMES+=(lanes)
     rows="  UNREADABLE: could not parse the lane-outcome records: ${rows%%$'\n'*}"
   }
   [[ -n "$rows" ]] && echo "$rows"
-  rows="$(jq -n -r --argjson since "$since" --argjson days "$LANE_DAYS" --slurpfile runs "$runs" --slurpfile ann "$ann" \
-    --argjson lanes "$(printf '%s\n' "${LANE_WORKFLOWS[@]}" | jq -R . | jq -s .)" "$SPEND_JQ" 2>&1)" || {
+  rows="$(jq "${lane_args[@]}" --argjson days "$LANE_DAYS" "$SPEND_JQ" 2>&1)" || {
     UNREADABLE=$((UNREADABLE + 1))
     UNREADABLE_NAMES+=(lanes)
     rows="  UNREADABLE: could not read the lane spend: ${rows%%$'\n'*}"
   }
   [[ -n "$rows" ]] && echo "$rows"
-  rows="$(jq -n -r --argjson since "$since" --slurpfile runs "$runs" --slurpfile ann "$ann" \
-    --argjson threshold "${MAX_TURNS_HITS:-null}" \
-    --argjson lanes "$(printf '%s\n' "${LANE_WORKFLOWS[@]}" | jq -R . | jq -s .)" "$MODELS_JQ" 2>&1)" || {
+  rows="$(jq "${lane_args[@]}" --argjson threshold "${MAX_TURNS_HITS:-null}" "$MODELS_JQ" 2>&1)" || {
     unreadable lanes "could not parse the lane records: ${rows%%$'\n'*}"
     return
   }
@@ -2617,6 +2614,9 @@ TOUCH_QUERY='
       }
     }'
 
+# gql_stamp EPOCH SECONDS: from_epoch's minute stamp with a seconds field.
+gql_stamp() { local s; s="$(from_epoch "$1")" && printf '%s:%sZ' "${s%Z}" "$2"; }
+
 # fetch_touch_pages OUTFILE START_EPOCH: one GraphQL page document per page,
 # every UTC day from START_EPOCH to now. With a Work status model an issue also
 # carries its newest 100 field events.
@@ -2625,14 +2625,14 @@ fetch_touch_pages() {
   [[ "${STATUS_MODEL:-null}" == null ]] || fields="fields: timelineItems(itemTypes:$STATUS_EVENT_TYPES, last:100) { $STATUS_FIELD_EVENTS }"
   query="${TOUCH_QUERY/@FIELDS@/$fields}"
   [[ -z "$fields" ]] || query+=$'\n'"$STATUS_FRAGMENT"
-  since="$(from_epoch "$start" | sed 's/Z$/:00Z/')"
+  since="$(gql_stamp "$start" 00)"
   : >"$out"
   for ((day_start = start; day_start <= NOW_EPOCH; day_start += 86400)); do
     day_end=$((day_start + 86399))
     cursor="" pages=0
     while :; do
       args=(api graphql -f query="$query" -f since="$since"
-        -f search="repo:$REPO updated:$(from_epoch "$day_start" | sed 's/Z$/:00Z/')..$(from_epoch "$day_end" | sed 's/Z$/:59Z/')")
+        -f search="repo:$REPO updated:$(gql_stamp "$day_start" 00)..$(gql_stamp "$day_end" 59)")
       [[ -n "$cursor" ]] && args+=(-f endCursor="$cursor")
       gh_read "$WORK/touch.page" "${args[@]}" || return 1
       cat "$WORK/touch.page" >>"$out"
@@ -2859,6 +2859,8 @@ COST_HOURS=$((($(to_epoch "${COST_NEXT}-01T00:00Z") - $(to_epoch "${COST_MONTH}-
 csv_json() { jq -cn --arg s "$1" '$s | split(",") | map(gsub("^[[:space:]]+|[[:space:]]+$"; "")) | map(select(length > 0))'; }
 REQUIRED_BUDGETS_JSON="$(csv_json "$REQUIRED_BUDGETS_ARG")"
 ALLOWED_COLLABORATORS_JSON="$(csv_json "$ALLOWED_COLLABORATORS_ARG")"
+ANOMALY_ALERT_JSON="$(jq -cn --arg a "$ANOMALY_ALERT" 'if $a == "" then null else $a end')"
+COST_READ_AT="$(utc_stamp "$NOW_EPOCH")"
 # The GitHub billing usage lines, and the Azure lines, so a read that fails
 # before any of them renders each of them UNREADABLE.
 USAGE_LABELS=("usage $COST_MONTH" "Actions minutes $COST_MONTH, private repos" "Actions storage $COST_MONTH, private repos")
@@ -3067,8 +3069,8 @@ cost_jq() {
     --argjson pct_alert "$USAGE_ALERT_PERCENT" --argjson log_pct_alert "$LOG_CAP_ALERT_PERCENT" \
     --argjson inc_minutes "${ACTIONS_INCLUDED_MINUTES:-null}" --argjson inc_gb "${ACTIONS_INCLUDED_STORAGE_GB:-null}" \
     --argjson hours "$COST_HOURS" --argjson forecast_alert "${FORECAST_ALERT:-null}" \
-    --arg read_at "$(utc_stamp "$NOW_EPOCH")" --argjson now "$NOW_EPOCH" --argjson days "$EXPIRY_DAYS" \
-    --argjson required "$REQUIRED_BUDGETS_JSON" --argjson anomaly "$(jq -cn --arg a "$ANOMALY_ALERT" 'if $a == "" then null else $a end')" \
+    --arg read_at "$COST_READ_AT" --argjson now "$NOW_EPOCH" --argjson days "$EXPIRY_DAYS" \
+    --argjson required "$REQUIRED_BUDGETS_JSON" --argjson anomaly "$ANOMALY_ALERT_JSON" \
     --argjson allowed "$ALLOWED_COLLABORATORS_JSON" --arg data_date "$COST_DATA_DATE" \
     "$COST_DEFS $2"' | map(tostring | gsub("[[:cntrl:]]"; " ")) | join("\u001f")' "$1" 2>/dev/null)" || return 1
   [[ -n "$rows" ]] || return 1
@@ -3316,7 +3318,7 @@ cost_query() {
 }
 
 cost_azure() {
-  local acct="$WORK/az-account.json" sub arm ws_file id
+  local acct="$WORK/az-account.json" ws_file="$WORK/az-workspaces.json" sub arm id
   if [[ -z "$AZURE_JSON" ]] && ((!AZ_COST_LIVE)); then
     az_unreadable "not read live in a fixture run; pass --subscription or --azure-json"
     return
@@ -3351,10 +3353,8 @@ cost_azure() {
   az_check budgets "budgets" "$AZ_BUDGETS_JQ" rest --method get --url "$arm/Microsoft.Consumption/budgets?api-version=2024-08-01"
   if az_read "$WORK/az-actions.json" scheduledActions rest --method get \
     --url "$arm/Microsoft.CostManagement/scheduledActions?api-version=2023-11-01"; then
-    if jq -n --slurpfile b "$WORK/az-budgets.json" --slurpfile a "$WORK/az-actions.json" '{budgets: $b[0], actions: $a[0]}' \
-      >"$WORK/az-alerts.json" 2>/dev/null && cost_jq "$WORK/az-alerts.json" "$ALERTS_JQ" ""; then
-      :
-    else
+    if ! jq -n --slurpfile b "$WORK/az-budgets.json" --slurpfile a "$WORK/az-actions.json" '{budgets: $b[0], actions: $a[0]}' \
+      >"$WORK/az-alerts.json" 2>/dev/null || ! cost_jq "$WORK/az-alerts.json" "$ALERTS_JQ" ""; then
       cost_row UNREADABLE Azure "budget and anomaly alerts" "could not parse the budgets or scheduled actions"
     fi
   else
@@ -3368,7 +3368,6 @@ cost_azure() {
   elif ! cost_jq "$WORK/az-defenderCost.json" "$CHARGES_JQ" "Defender charges, month to date"; then
     cost_row UNREADABLE Azure "Defender charges, month to date" "could not parse the defenderCost response"
   fi
-  ws_file="$WORK/az-workspaces.json"
   if ! az_read "$ws_file" workspaces monitor log-analytics workspace list; then
     cost_row UNREADABLE Azure "Log Analytics" "$LAST_ERR"
   elif ! jq -e 'type == "array"' "$ws_file" >/dev/null 2>&1; then
@@ -3377,12 +3376,10 @@ cost_azure() {
     cost_row INFO Azure "Log Analytics" "no workspaces on this subscription"
   else
     while IFS= read -r id; do
-      if az_read "$WORK/az-la.json" "laUsage/$id" monitor log-analytics query --workspace "$id" --analytics-query "$LA_PEAK_QUERY" &&
-        jq -n --slurpfile w "$ws_file" --slurpfile r "$WORK/az-la.json" --arg id "$id" \
-          '{ws: ($w[0][] | select(.customerId == $id)), rows: $r[0]}' >"$WORK/az-la-one.json" 2>/dev/null &&
-        cost_jq "$WORK/az-la-one.json" "$LA_JQ" ""; then
-        :
-      else
+      if ! az_read "$WORK/az-la.json" "laUsage/$id" monitor log-analytics query --workspace "$id" --analytics-query "$LA_PEAK_QUERY" ||
+        ! jq -n --slurpfile w "$ws_file" --slurpfile r "$WORK/az-la.json" --arg id "$id" \
+          '{ws: ($w[0][] | select(.customerId == $id)), rows: $r[0]}' >"$WORK/az-la-one.json" 2>/dev/null ||
+        ! cost_jq "$WORK/az-la-one.json" "$LA_JQ" ""; then
         [[ -n "$LAST_ERR" ]] || LAST_ERR="could not parse the Log Analytics response"
         cost_row UNREADABLE Azure "Log Analytics $(jq -r --arg id "$id" '.[] | select(.customerId == $id) | .name' "$ws_file")" "$LAST_ERR"
       fi
@@ -3411,8 +3408,7 @@ print_cost() {
   for row in "${COST_ROWS[@]}"; do
     IFS=$'\x1f' read -r status source label detail <<<"$row"
     if [[ "$status" == UNREADABLE ]]; then unread=$((unread + 1)); else COST_HAS_DATA=1; fi
-    line="$source${label:+ $label}: $detail"
-    printf '  %-10s %s\n' "$status" "$line"
+    printf '  %-10s %s\n' "$status" "$source${label:+ $label}: $detail"
   done
   for line in "${COST_PARTIAL[@]}"; do
     echo "  PARTIAL: $line"

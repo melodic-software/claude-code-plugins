@@ -542,10 +542,12 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
   // when a lane had more than the cap. It stays unbroken when the last run
   // read through a time inside the run list's lookback: runs that completed
   // since then are read, so a late cron loses none. Otherwise (no carry, a
-  // stale one, a failed read) it starts again at this window. An unread rule,
-  // a lane over the cap, or a span shorter than the rule's window, is a gap,
-  // so signal 13's issue neither clears nor files from part of its window;
-  // the carried runs still go on to the next run.
+  // stale one, a failed read) it starts again at this window. An unread rule
+  // is a gap that leaves signal 13 unread. A lane over the cap, or a span
+  // shorter than the rule's window, is a partly-read gap: holds read in part
+  // of the window are a floor on the whole window's, so a lane at the
+  // threshold still files or keeps its issue, but the issue never clears on
+  // such a read. The carried runs still go on to the next run.
   const heldRuns = new Map();
   const scannedRuns = new Map();
   const listedRuns = new Map();
@@ -629,10 +631,10 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
         if (at < since || at > now.getTime()) heldRuns.delete(key);
       }
       data.holdRule = holds.rule;
-      if (cut.length > 0) {
-        throw new Error(`over the cap of unread green runs of ${cut.join(", ")}; held runs read only through ${heldThrough}`);
-      }
-      if (Date.parse(heldFrom) > since) throw new Error(`held runs read only since ${heldFrom}, short of the ${holds.rule.windowHours}-hour window`);
+      const partly = [];
+      if (cut.length > 0) partly.push(`over the cap of unread green runs of ${cut.join(", ")}; held runs read only through ${heldThrough}`);
+      if (Date.parse(heldFrom) > since) partly.push(`held runs read only since ${heldFrom}, short of the ${holds.rule.windowHours}-hour window`);
+      if (partly.length > 0) gaps.push(`lane holds partly read: ${partly.join("; ")}`);
     });
 
     // The lane-hold-<lane> artifact each hold job keeps for a day when it held

@@ -295,7 +295,7 @@ export const PULLS_QUERY = `query($owner: String!, $name: String!, $after: Strin
     pullRequests(states: OPEN, baseRefName: "main", first: 100, after: $after) {
       pageInfo { hasNextPage endCursor }
       nodes {
-        id number isDraft isCrossRepository headRefOid baseRefOid body updatedAt
+        id number isDraft isCrossRepository headRefOid baseRefOid body updatedAt mergeStateStatus
         author { __typename login }
         userContentEdits(first: 100) { totalCount nodes { editor { __typename login } } }
         labels(first: 100) { totalCount nodes { name } }
@@ -1422,6 +1422,14 @@ export function rotated(pulls, runNumber) {
   return [...pulls.slice(start), ...pulls.slice(0, start)];
 }
 
+// `pulls` with the ones `candidate` picks moved into each other's places,
+// lowest number (oldest) first; every other pull request keeps its place, so
+// the verdict reads of armed and held ones keep their rotation.
+export function oldestFirst(pulls, candidate) {
+  const oldest = pulls.filter(candidate).sort((a, b) => a.number - b.number);
+  return pulls.map((pull) => (candidate(pull) ? oldest.shift() : pull));
+}
+
 // The address-feedback lane-stopped comment report-escalation.sh posts, one
 // per activity, edited in place, the reason that closes the pull request, and
 // the one no further round clears: the finding stood at adjudication and the
@@ -1924,6 +1932,20 @@ export async function main({ env = process.env, github, actions, verify, room, c
       }
       return inFlight >= lane.cap ? { disarm: false, reason: `merge.max-in-flight is ${lane.cap} and ${inFlight} merges are in flight` } : null;
     };
+    // A lanes App pull request that may take a merge slot this run, judged
+    // from the listing alone. While there are fewer free slots than these,
+    // the slots go oldest first: a sweep reads them in that order, and a
+    // PR-scoped run leaves its pull request to the next sweep when as many
+    // older ready ones (mergeStateStatus CLEAN; one still in CI, failing or
+    // UNKNOWN does not count) wait as there are free slots.
+    const candidate = (pull) => lanes(pull) && pull.autoMergeRequest == null && pull.isDraft === false && holdReason(pull, humanGated) === null;
+    const free = () => (lane === null || laneHeld !== null ? null : lane.cap - inFlight);
+    const scarce = free() !== null && free() < listed.filter(candidate).length;
+    const older = (pull) => listed.filter((other) => candidate(other) && other.mergeStateStatus === "CLEAN" && other.number < pull.number).length;
+    const waitHold = (pull) =>
+      wake && scarce && candidate(pull) && free() > 0 && older(pull) >= free()
+        ? { disarm: false, reason: `${older(pull)} older ready lanes App pull requests wait for the ${free()} free merge slots; the next scheduled run gives them out oldest first` }
+        : null;
     // A whole-review or verifier child stopped on a rate limit holds every
     // lanes App pull request after it.
     const readerStopped = (error) => {
@@ -2182,7 +2204,8 @@ export async function main({ env = process.env, github, actions, verify, room, c
     }
     const humans = trustedHumans(env);
     const judging = { bot: slug, humanGated, holdPaths, pathHolds };
-    for (let pull of rotated(pulls, Number(env.GITHUB_RUN_NUMBER))) {
+    const order = rotated(pulls, Number(env.GITHUB_RUN_NUMBER));
+    for (let pull of scarce ? oldestFirst(order, candidate) : order) {
       if (stopped === null && lanes(pull) && !(pull.labels?.totalCount <= (pull.labels?.nodes?.length ?? 0))) {
         try {
           pull = { ...pull, labels: await allLabels(github, repo[0], pull.number) };
@@ -2212,7 +2235,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
       let detail = null;
       let decided = false;
       // Checked before the reads, so a held lane spends none.
-      const held = ["read", "verify", "arm"].includes(action) ? roomHold(pull) : null;
+      const held = ["read", "verify", "arm"].includes(action) ? (roomHold(pull) ?? waitHold(pull)) : null;
       if (held?.disarm) {
         roomHeld.set(pull.number, pull.autoMergeRequest != null ? "armed" : "unarmed");
       }
