@@ -7350,7 +7350,10 @@ function assertHandoffEvidenceJob(job) {
   const read = job.steps.find((step) => step.id === "posted");
   assert.equal(read.uses, undefined);
   assert.match(read.run, /^bash \.base\/\.github\/scripts\/lib\/handoff-evidence\.sh( posted| allowed| handed-off)+$/);
-  assert.deepEqual(Object.keys(read.env).sort(), ["CALLS", "GH_TOKEN"]);
+  // A hold lane's read also names its lane-hold marker path (lane-hold-marker.mjs).
+  const { LANE_HOLD_MARKER: marker, ...env } = read.env;
+  assert.deepEqual(Object.keys(env).sort(), ["CALLS", "GH_TOKEN"]);
+  if (marker !== undefined) assert.match(marker, /^\$\{\{ runner\.temp \}\}\/lane-hold\/[a-z]+(?:-[a-z]+)*$/);
   assertFallbackPresence(job);
 }
 

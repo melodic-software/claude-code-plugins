@@ -5314,6 +5314,7 @@ jobs:
             /.github/scripts/lib/done-evidence.mjs
             /.github/scripts/lib/stop-reason.mjs
             /.github/scripts/lib/admission-comment.mjs
+            /.github/scripts/lib/lane-hold-marker.mjs
             /.github/actions/check-trusted-trigger/check-trusted-trigger.mjs
             /.github/actions/check-kill-switch/check-kill-switch.mjs
             /.github/actions/log-api-budget/rate-guard.mjs

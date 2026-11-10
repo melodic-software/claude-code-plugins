@@ -864,10 +864,15 @@ test("the prompt names the per-concern review rules the criteria step copies", (
 
 test("the verdict uploads once, after it is written, under the writer's name", () => {
   // Each leg's verdict, plus review-handoffs' credit-stop marker, the gate's
-  // probing marker and the trusted-text job's shared read.
-  assert.equal(text.match(/uses: actions\/upload-artifact@/g).length, LEGS.length + 3);
+  // probing marker, the trusted-text job's shared read, and the lane-hold
+  // marker of the trigger job and each leg.
+  assert.equal(text.match(/uses: actions\/upload-artifact@/g).length, LEGS.length + 3 + LEGS.length + 1);
   for (const job of LEGS) {
-    const uploads = STEPS[job].filter((s) => /uses: actions\/upload-artifact@/.test(s.block));
+    const marker = step("Keep the lane hold marker", job);
+    assert.match(marker, /^ {8}if: steps\.note-hold\.outcome == 'success'$/m, `${job}: the marker uploads only after Note the hold ran`);
+    assert.match(marker, /^ {10}path: \$\{\{ runner\.temp \}\}\/lane-hold\/pr-review-main$/m, job);
+    assert.match(step("Note the hold", job), /^ {8}id: note-hold$/m, job);
+    const uploads = STEPS[job].filter((s) => /uses: actions\/upload-artifact@/.test(s.block) && s.name !== "Keep the lane hold marker");
     assert.equal(uploads.length, 1, job);
     assert.equal(uploads[0].name, "Upload the verdict");
     // The written verdict is scanned just before it uploads, and uploads only on the scan's clean output.

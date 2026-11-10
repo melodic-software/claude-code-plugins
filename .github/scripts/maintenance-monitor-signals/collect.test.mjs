@@ -7,6 +7,7 @@ import { test } from "node:test";
 
 import { collect, jobsCarryFile, JOBS_VERSION, LIMITS, listFiled, parseEpisodeCarry, parseHeldCarry, parseJobsCarry } from "./collect.mjs";
 import { ceilingFindings } from "./signals.mjs";
+import { unreadSignals } from "./issues.mjs";
 
 const repo = "o/r";
 const now = new Date("2026-10-19T16:41:00Z");
@@ -183,6 +184,7 @@ const routes = () => [
   ],
   [/actions\/runs\/(\d+)$/, (path) => prMergeRun(Number(/(\d+)$/.exec(path)[1]))],
   [/actions\/artifacts\?name=pr-merge-post-merge-report/, { artifacts: [artifact(70, "2026-10-19T16:01:00Z", 10)] }],
+  [/actions\/artifacts\?name=lane-hold-/, { artifacts: [] }],
   [/\/pulls\?state=closed/, [
     { merged_at: "2026-10-19T13:00:00Z", user: { login: "melodic-automation-lanes[bot]" } },
     { merged_at: "2026-10-19T16:00:00Z", user: { login: "dependabot[bot]" } },
@@ -1186,6 +1188,56 @@ test("lane holds: past the cap the oldest unread runs are read, a carried one ta
   assert.deepEqual(next.gaps.filter((g) => g.startsWith("lane holds")), []);
   for (const id of [906, 907]) assert.ok(later.calls.some((c) => c.includes(`runs/${id}/jobs`)), id);
   assert.equal(next.heldCarry.through, "2026-10-19T17:41:00Z");
+});
+
+// Lane-hold markers: 86, whose report job skipped, so the scan found no hold,
+// marked twice; 81, held by the scan; 82, a pull_request run the listing does
+// not trust; 999, a run the listing does not hold; 85, marked but expired.
+const marker = (id, runId, extra = {}) => ({ id, expired: false, created_at: "2026-10-19T16:00:00Z", workflow_run: { id: runId }, ...extra });
+const markerRoutes = () => [
+  [/artifacts\?name=lane-hold-work-resolve-issue&/, { artifacts: [marker(1, 86), marker(2, 86), marker(3, 85, { expired: true }), marker(4, 999)] }],
+  [/artifacts\?name=lane-hold-work-unblock&/, { artifacts: [marker(5, 81), marker(6, 82)] }],
+  ...holdRoutes(),
+];
+
+test("lane hold markers: a marked listed run the scan found no hold in counts once; an untrusted, unlisted or expired marker does not", async () => {
+  const api = fakeApi(markerRoutes());
+  const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
+  assert.deepEqual(data.gaps, []);
+  assert.deepEqual(
+    data.laneHolds.map((h) => [h.lane, h.runId, h.reason]),
+    [
+      ["work-resolve-issue", 85, "fault outcome-unread"],
+      ["work-unblock", 81, "closed-issue listing failed; open listing failed"],
+      ["work-resolve-issue", 86, "hold marker"],
+      ["work-resolve-issue", 84, "closed-issue listing failed"],
+      ["work-unblock", 70, "closed-issue listing failed"],
+    ],
+    "86 is added once; 81 keeps the scan's reason; 82, 999 and the expired 85 add nothing",
+  );
+  assert.ok(!data.heldCarry.scanned.some((s) => s.runId === 86), "a marked run is carried as held, not as read with no hold");
+  assert.equal(api.calls.filter((c) => c.includes("artifacts?name=lane-hold-")).length, 7, "one marker list per hold lane");
+});
+
+test("lane hold markers: a marker reaches a run past the scan's cap", async () => {
+  const api = fakeApi([[/artifacts\?name=lane-hold-pr-refine&/, { artifacts: [marker(7, 907)] }], ...refineRoutes()]);
+  const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
+  assert.ok(!api.calls.some((c) => c.includes("runs/907/jobs")), "907 is past the cap, so the scan does not read it");
+  assert.deepEqual(data.laneHolds.filter((h) => h.lane === "pr-refine").map((h) => [h.runId, h.reason]), [
+    [907, "hold marker"],
+    [901, "fix-docs handoff evidence missing"],
+    [900, "fix-docs handoff evidence missing"],
+  ]);
+});
+
+test("lane hold markers: a failed marker list is a gap that leaves only signal 13 unread", async () => {
+  const api = fakeApi([[/artifacts\?name=lane-hold-pr-verify&/, new Error("GET artifacts: HTTP 502")], ...markerRoutes()]);
+  const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
+  assert.deepEqual(data.gaps, ["lane hold markers: GET artifacts: HTTP 502"]);
+  assert.deepEqual([...unreadSignals(data.gaps)], ["13 lane holds"]);
+  const off = fakeApi(routes());
+  await collect(input(off));
+  assert.ok(!off.calls.some((c) => c.includes("lane-hold-")), "no hold rule input, no marker read");
 });
 
 // A red pr-refine run, 950, whose record-passes job logged a failed pass, and

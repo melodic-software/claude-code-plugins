@@ -287,6 +287,8 @@ jobs:
           # A sweep's carried verdicts in, and the ones it keeps for the next.
           VERDICTS_IN: ${{ runner.temp }}/work-unblock-verdicts-in.json
           VERDICTS_OUT: ${{ runner.temp }}/work-unblock-verdicts.json
+          # A held sweep's marker for monitor signal 13 (lane-hold-marker.mjs).
+          LANE_HOLD_MARKER: ${{ runner.temp }}/lane-hold/work-unblock
         run: node ".base/$SCRIPT"
 
       - name: Scan the upload for credentials
@@ -306,6 +308,19 @@ jobs:
           name: work-unblock-verdicts
           path: ${{ runner.temp }}/work-unblock-verdicts.json
           retention-days: 1
+          if-no-files-found: ignore
+
+      # On a green job only, as monitor signal 13 reads holds; no marker
+      # uploads nothing.
+      - name: Keep the lane hold marker
+        if: steps.label.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lane-hold-work-unblock
+          path: ${{ runner.temp }}/lane-hold/work-unblock
+          retention-days: 1
+          overwrite: true
           if-no-files-found: ignore
 
       # The token is cancelled as soon as the job is done; it would otherwise

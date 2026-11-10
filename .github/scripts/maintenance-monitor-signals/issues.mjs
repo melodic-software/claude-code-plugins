@@ -134,6 +134,7 @@ const SOURCES = {
   "stalled stops": ["10 stalled lane stop"],
   "post-merge reports": ["11 post-merge unreadable"],
   "lane holds": ["13 lane holds"],
+  "lane hold markers": ["13 lane holds"],
   audits: ["6 report-only audit"],
   "githubstatus.com": [],
 };

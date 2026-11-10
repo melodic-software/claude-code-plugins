@@ -190,9 +190,18 @@ test("the verdict is each job's only artifact upload but the key job's probing a
     const uploads = STEPS[job].filter((s) => /uses: actions\/upload-artifact@/.test(s.block));
     assert.deepEqual(
       uploads.map((s) => s.name),
-      job === KEY ? ["Upload the key's probing marker", "Upload the verdict", "Upload the key's credit-stop marker"] : ["Upload the verdict"],
+      job === KEY
+        ? ["Upload the key's probing marker", "Upload the verdict", "Upload the key's credit-stop marker", "Keep the lane hold marker"]
+        : ["Upload the verdict", "Keep the lane hold marker"],
       job,
     );
+    // The lane-hold marker uploads only after Note the hold ran, when no judge
+    // ran, and holds the fixed text that step wrote.
+    const marker = step("Keep the lane hold marker", job);
+    assert.match(marker, /^ {8}if: steps\.note-hold\.outcome == 'success'$/m, job);
+    assert.match(marker, /^ {10}path: \$\{\{ runner\.temp \}\}\/lane-hold\/pr-verify$/m, job);
+    assert.match(step("Note the hold", job), /^ {8}id: note-hold$/m, job);
+    assert.equal(index("Keep the lane hold marker", job), index("Log the API budget", job) - 1, job);
     assert.ok(index("Judge the pull request", job) >= 0 && index("Write the verdict", job) > index("Judge the pull request", job), job);
     // The written verdict is scanned just before it uploads, and uploads only on the scan's clean output.
     assert.ok(index("Scan the upload for credentials", job) > index("Write the verdict", job), job);
@@ -672,7 +681,7 @@ test("the key job hands the judgment on only after a clean handoff or with no ke
     assert.equal(input(next, "state"), "${{ steps.credential.outputs.state }}", job);
     assert.equal(input(next, "handoff"), `\${{ (${chainOf((id) => `steps.${id}.outputs.handoff == 'true'`, "judge")}) && (${chainOf((id) => `steps.${id}.outputs.clean`, legStep)}) == 'true' }}`, job);
     assert.equal(input(next, "handoff-reason"), `\${{ ${chainOf((id) => `steps.${id}.outputs.handoff-reason`, "judge")} }}`, job);
-    assert.equal(index("Pick the next leg", job), index("Log the API budget", job) - 1, job);
+    assert.equal(index("Pick the next leg", job), index("Keep the lane hold marker", job) - 1, job);
   }
   assert.equal(index("Pick the next leg", FB), -1);
 });

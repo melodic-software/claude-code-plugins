@@ -599,6 +599,24 @@ jobs:
           RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
         run: node ".base/$SCRIPT"
 
+      # A held verdict, kept as the lane-hold-intake-triage artifact for
+      # monitor signal 13 (lane-hold-marker.mjs).
+      - name: Mark the lane hold
+        id: hold-marker
+        if: steps.verdict.outputs.held == 'true'
+        continue-on-error: true
+        run: mkdir -p "$RUNNER_TEMP/lane-hold" && echo "intake-triage $GITHUB_RUN_ID" >"$RUNNER_TEMP/lane-hold/intake-triage"
+      - name: Keep the lane hold marker
+        if: steps.hold-marker.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lane-hold-intake-triage
+          path: ${{ runner.temp }}/lane-hold/intake-triage
+          retention-days: 1
+          overwrite: true
+          if-no-files-found: ignore
+
       # The token is cancelled as soon as the job is done; it would otherwise
       # expire within the hour. This never fails the job.
       - name: Revoke the lane token

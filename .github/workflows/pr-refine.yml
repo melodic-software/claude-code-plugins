@@ -382,6 +382,17 @@ jobs:
           else
             echo "::notice title=PR head hold::the changed files of #$PR_NUMBER could not be read; no Refine pass ran, and the next dispatcher tick sends the PR again"
           fi
+          # The hold's marker for monitor signal 13 (lane-hold-marker.mjs).
+          { mkdir -p "$RUNNER_TEMP/lane-hold" && echo "pr-refine $GITHUB_RUN_ID" >"$RUNNER_TEMP/lane-hold/pr-refine"; } || true
+      - name: Keep the lane hold marker
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lane-hold-pr-refine
+          path: ${{ runner.temp }}/lane-hold/pr-refine
+          retention-days: 1
+          overwrite: true
+          if-no-files-found: ignore
 
   # fix-docs is four jobs, so no model ever holds a write token. The model
   # job: a read activity with no write token and no OIDC token in the job that
@@ -480,7 +491,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CALLS: fix-docs
+          LANE_HOLD_MARKER: ${{ runner.temp }}/lane-hold/pr-refine
         run: bash .base/.github/scripts/lib/handoff-evidence.sh posted allowed handed-off
+
+      # A held read's marker for monitor signal 13; no marker uploads nothing.
+      - name: Keep the lane hold marker
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lane-hold-pr-refine
+          path: ${{ runner.temp }}/lane-hold/pr-refine
+          retention-days: 1
+          overwrite: true
+          if-no-files-found: ignore
 
       # Whether the third call can run, never the token. fix-docs-subscription passes it
       # on as fallback-ready, so with the token empty its subscription leg
@@ -675,7 +698,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CALLS: fix-docs-subscription
+          LANE_HOLD_MARKER: ${{ runner.temp }}/lane-hold/pr-refine
         run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
+
+      # A held read's marker for monitor signal 13, on a green job only; no
+      # marker uploads nothing.
+      - name: Keep the lane hold marker
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lane-hold-pr-refine
+          path: ${{ runner.temp }}/lane-hold/pr-refine
+          retention-days: 1
+          overwrite: true
+          if-no-files-found: ignore
 
       - name: Log the API budget at the end
         if: always()
@@ -801,6 +837,7 @@ jobs:
           path: .base
           sparse-checkout: |
             .github/scripts/pr-refine/log-pass-records.mjs
+            .github/scripts/lib/lane-hold-marker.mjs
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
@@ -821,4 +858,16 @@ jobs:
             "apply-docs-patch": "${{ needs.apply-docs-patch.result }}"}
           FIX_DOCS_PUSHED: ${{ needs.apply-docs-patch.outputs.pushed-commit }}
           FIX_DOCS_SKIP: ${{ needs.apply-docs-patch.outputs.skip-reason }}
+          # A failed pass's marker for monitor signal 13 (lane-hold-marker.mjs).
+          LANE_HOLD_MARKER: ${{ runner.temp }}/lane-hold/pr-refine
         run: node .base/.github/scripts/pr-refine/log-pass-records.mjs
+
+      - name: Keep the lane hold marker
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lane-hold-pr-refine
+          path: ${{ runner.temp }}/lane-hold/pr-refine
+          retention-days: 1
+          overwrite: true
+          if-no-files-found: ignore
