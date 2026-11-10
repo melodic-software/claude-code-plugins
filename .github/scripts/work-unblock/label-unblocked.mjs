@@ -2311,10 +2311,12 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
       const listed = {};
       // The events carry the Work status field's changes (eventsOf), so a hold
       // set only on the field has its setter read, and its moves onto and off
-      // agent-ready as agent-ready label events (agentReadyEvents).
+      // agent-ready as agent-ready label events (agentReadyEvents), from the
+      // field read the reader already made for the issue when it has one.
+      const rowsOf = statusOf?.fieldRows ?? fieldRows;
       const history = async () => {
         const events = await eventsOf(github, repo, statusOf, issue.number);
-        return fieldRows ? mergeByTime(events, agentReadyEvents(await fieldRows(issue.number), { field, bot, humans })) : events;
+        return fieldRows ? mergeByTime(events, agentReadyEvents(await rowsOf(issue.number), { field, bot, humans })) : events;
       };
       const read = (kind) => (listed[kind] ??= kind === "events" ? history() : paginate(github, `/repos/${repo}/issues/${issue.number}/${kind}`));
       listings.set(issue.number, read);

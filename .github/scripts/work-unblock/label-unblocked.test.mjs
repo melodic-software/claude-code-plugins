@@ -6690,8 +6690,9 @@ test("fieldListing lists every state once a sweep and answers each caller's stat
 // further agent-ready issue once the budget has run out, writes what it
 // decided, and the next sweep decides the ones it left first.
 const BUDGET_NUMBERS = [30, 31, 32, 33, 34, 35, 36, 37, 38, 39];
-const limitWorld = () =>
+const limitWorld = (extra = {}) =>
   world({
+    ...extra,
     openReady: BUDGET_NUMBERS.map((n) => ready(n)),
     comments: Object.fromEntries(BUDGET_NUMBERS.map((n) => [n, [note(), limitedNote("2026-10-16T01:30:00Z", "2026-10-16T01:00:00Z")]])),
     events: Object.fromEntries(BUDGET_NUMBERS.map((n) => [n, [added("2026-10-16T00:00:00Z")]])),
@@ -6754,4 +6755,25 @@ test("the next sweep decides the issues the last one's budget left first, so non
   assert.equal(await sweep({ github: two.github, clock: two.clock }, { SWEEP_BUDGET_MINUTES: "6", VERDICTS_IN: join(dir, "1.json"), VERDICTS_OUT: join(dir, "2.json") }), 0);
   // The four never decided first, then the least recently decided, by listing order.
   assert.deepEqual(decided(second.calls), [36, 37, 38, 39, 30, 31]);
+});
+
+test("a sweep reads each agent-ready issue's field events once, for its holds, its history and its field restarts", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { fieldEvents } = await import("../../actions/resolve-config/resolve-config.mjs");
+  const fake = withFieldHistory(limitWorld({ fieldValues: Object.fromEntries(BUDGET_NUMBERS.map((n) => [n, [workRow("agent-ready")]])) }), Object.fromEntries(BUDGET_NUMBERS.map((n) => [n, [fieldEvent(GRAPH_OWNER, "agent-ready", "ready", "2026-10-16T00:00:00Z")]])));
+  const reads = [];
+  const github = Object.assign(
+    async (method, path, body, ...rest) => {
+      if (method === "POST" && path === "/graphql" && /IssueFieldAddedEvent/.test(body?.query ?? "")) {
+        reads.push(body.variables.number);
+      }
+      return fake.github(method, path, body, ...rest);
+    },
+    { writer: fake.writer },
+  );
+  const statusOf = statusReader({ github, repository: REPO, config: STATUS_CONFIG, trustedActors: JSON.parse(readFileSync(TRUSTED, "utf8")), log: () => {} });
+  const statusField = { field: STATUS_CONFIG["field-id"], fieldRows: (n) => fieldEvents(github, REPO, n) };
+  assert.equal(await sweep({ github, statusOf, statusField }, withLimits({ "restarts-per-run": 10 })), 0);
+  assert.deepEqual(decided(fake.calls), BUDGET_NUMBERS);
+  assert.deepEqual(reads, BUDGET_NUMBERS, "one field-events read per issue");
 });

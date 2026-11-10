@@ -9,7 +9,7 @@
 // For the scripts that build on it:
 // - statusLabels(state, names, config) -> label names (pure)
 // - statusEvents({github, repository, number, config, since, fieldEvents}) -> REST-shaped events
-// - statusReader({...}) -> labels(number, names), with labels.events(number) and labels.state(number); each throws StatusReadError
+// - statusReader({...}) -> labels(number, names), with labels.events(number), labels.state(number) and labels.fieldRows(number); each throws StatusReadError
 // - resolve-config.mjs issuesByStatus(github, repository, states, {since, config, trustedActors})
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -256,6 +256,20 @@ export function statusReader({ env = {}, github, repository, log = console.log, 
     overLimit(issue);
     try {
       return await statusEvents({ github, repository, number: issue, config: setup.config, fieldEvents: () => fieldEventsOf(issue) });
+    } catch (error) {
+      throw new StatusReadError(issue, error);
+    }
+  };
+  // The issue's raw field events (resolve-config.mjs fieldEvents), the same
+  // read `labels` and `labels.events` made for it, or [] with no config.
+  labels.fieldRows = async (number) => {
+    const issue = Number(number);
+    if ((await ready()) === null) {
+      return [];
+    }
+    overLimit(issue);
+    try {
+      return await fieldEventsOf(issue);
     } catch (error) {
       throw new StatusReadError(issue, error);
     }
