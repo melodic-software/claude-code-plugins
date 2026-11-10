@@ -18,6 +18,15 @@ const F = `
   inverseRelations(first: 100) { nodes { type issue { state { type } } } }
 `;
 
+const ISSUE_UPDATE = `mutation($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }`;
+const RELATION_CREATE = `mutation($input: IssueRelationCreateInput!) { issueRelationCreate(input: $input) { success } }`;
+const LIST_ITEMS = `query($filter: IssueFilter!, $first: Int!, $after: String) {
+  issues(filter: $filter, first: $first, after: $after) {
+    nodes { ${F} }
+    pageInfo { hasNextPage endCursor }
+  }
+}`;
+
 const ops = [
   { name: 'fetch_issue (wit_linear_fetch_issue)', loc: 'common.sh:556-560',
     q: `query($team: String!, $num: Float!) {
@@ -58,29 +67,17 @@ const ops = [
     vars: { id: 'u', input: { body: 'b' } } },
 
   { name: 'issueUpdate assign (wit_linear_set_assignee, assign)', loc: 'common.sh:832',
-    q: `mutation($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }`,
-    vars: { id: 'u', input: { assigneeId: 'uid' } } },
+    q: ISSUE_UPDATE, vars: { id: 'u', input: { assigneeId: 'uid' } } },
 
   { name: 'issueUpdate unassign (assigneeId: null)', loc: 'common.sh:832-833',
-    q: `mutation($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }`,
-    vars: { id: 'u', input: { assigneeId: null } } },
+    q: ISSUE_UPDATE, vars: { id: 'u', input: { assigneeId: null } } },
 
   { name: 'list-items issues (open, labeled)', loc: 'list-items.sh:70-75',
-    q: `query($filter: IssueFilter!, $first: Int!, $after: String) {
-  issues(filter: $filter, first: $first, after: $after) {
-    nodes { ${F} }
-    pageInfo { hasNextPage endCursor }
-  }
-}`, vars: { filter: { team: { key: { in: ['ENG'] } }, state: { type: { nin: ['completed', 'canceled', 'duplicate'] } }, // spellchecker:disable-line
+    q: LIST_ITEMS, vars: { filter: { team: { key: { in: ['ENG'] } }, state: { type: { nin: ['completed', 'canceled', 'duplicate'] } }, // spellchecker:disable-line
     labels: { some: { name: { eq: 'area: ci' } } } }, first: 50, after: null } },
 
   { name: 'list-items issues (closed)', loc: 'list-items.sh:70-75',
-    q: `query($filter: IssueFilter!, $first: Int!, $after: String) {
-  issues(filter: $filter, first: $first, after: $after) {
-    nodes { ${F} }
-    pageInfo { hasNextPage endCursor }
-  }
-}`, vars: { filter: { team: { key: { in: ['ENG'] } }, state: { type: { in: ['completed'] } } }, first: 50, after: 'cur' } },
+    q: LIST_ITEMS, vars: { filter: { team: { key: { in: ['ENG'] } }, state: { type: { in: ['completed'] } } }, first: 50, after: 'cur' } },
 
   { name: 'create-item team resolve', loc: 'create-item.sh:110',
     q: `query($key: String!) { teams(filter: { key: { eq: $key } }, first: 1) { nodes { id } } }`,
@@ -106,12 +103,10 @@ const ops = [
     vars: { input: { title: 't', teamId: 'tid', description: 'd', labelIds: ['l1'], parentId: 'p' } } },
 
   { name: 'issueRelationCreate (create-item)', loc: 'create-item.sh:232-233',
-    q: `mutation($input: IssueRelationCreateInput!) { issueRelationCreate(input: $input) { success } }`,
-    vars: { input: { issueId: 'b', relatedIssueId: 't', type: 'blocks' } } },
+    q: RELATION_CREATE, vars: { input: { issueId: 'b', relatedIssueId: 't', type: 'blocks' } } },
 
   { name: 'issueUpdate parentId (add-sub-item)', loc: 'add-sub-item.sh:60-61',
-    q: `mutation($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }`,
-    vars: { id: 'c', input: { parentId: 'p' } } },
+    q: ISSUE_UPDATE, vars: { id: 'c', input: { parentId: 'p' } } },
 
   { name: 'list-sub-items children', loc: 'list-sub-items.sh:53-60',
     q: `query($id: String!, $first: Int!, $after: String) {
@@ -124,8 +119,7 @@ const ops = [
 }`, vars: { id: 'u', first: 50, after: null } },
 
   { name: 'issueRelationCreate (link-blocks)', loc: 'link-blocks.sh:55-57',
-    q: `mutation($input: IssueRelationCreateInput!) { issueRelationCreate(input: $input) { success } }`,
-    vars: { input: { issueId: 'b', relatedIssueId: 't', type: 'blocks' } } },
+    q: RELATION_CREATE, vars: { input: { issueId: 'b', relatedIssueId: 't', type: 'blocks' } } },
 
   { name: 'conformance list issues', loc: 'conformance/bindings/linear.sh:58',
     q: `query($t: String!, $a: String) { issues(filter: { team: { key: { eq: $t } } }, first: 50, after: $a) { nodes { id } pageInfo { hasNextPage endCursor } } }`,

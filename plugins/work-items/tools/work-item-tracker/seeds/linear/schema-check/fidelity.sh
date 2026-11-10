@@ -64,6 +64,7 @@ done
 # `\$` in the file while validate.mjs holds them bare. Strip that one escape before comparing,
 # or every multi-line entry mismatches on punctuation rather than on substance.
 unesc() { sed 's/\\\$/$/g'; }
+V_NORM="$(unesc <"$V" | norm)"
 
 declare -a MULTILINE=(
   "$A/common.sh|issues(filter: { team: { key: { eq: \$team } }, number: { eq: \$num } }, first: 1)"
@@ -79,7 +80,7 @@ for e in "${MULTILINE[@]}"; do
   in_val=0
   needle="$(printf '%s' "$lit" | unesc | norm)"
   grep -qF -- "$needle" < <(unesc <"$f" | norm) && in_src=1
-  grep -qF -- "$needle" < <(unesc <"$V" | norm) && in_val=1
+  grep -qF -- "$needle" <<<"$V_NORM" && in_val=1
   if ((in_src && in_val)); then
     ok=$((ok + 1))
     echo "VERBATIM  $(basename "$f") [multi-line]: ${lit:0:56}..."
@@ -98,7 +99,7 @@ fields_needle="$(printf '%s' "$FIELDS" | unesc | norm)"
 if [[ -z "$fields_needle" ]]; then
   bad=$((bad + 1))
   echo "MISMATCH  WIT_LINEAR_ISSUE_FIELDS could not be extracted from common.sh"
-elif grep -qF -- "$fields_needle" < <(unesc <"$V" | norm); then
+elif grep -qF -- "$fields_needle" <<<"$V_NORM"; then
   ok=$((ok + 1))
   echo "VERBATIM  WIT_LINEAR_ISSUE_FIELDS [shared field selection]: ${fields_needle:0:56}..."
 else
