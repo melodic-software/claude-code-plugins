@@ -140,14 +140,6 @@ def _split_list(lines: list[str]) -> frozenset[str]:
     return frozenset(item for item in items if item)
 
 
-def _check_merge_method(layer: RepoLayer) -> None:
-    method = layer.get("babysit_merge_method")
-    if method is not None and method not in MERGE_METHODS:
-        raise RepoConfigError(
-            f"babysit_merge_method {method!r} is not one of {MERGE_METHODS}"
-        )
-
-
 def _yaml_writes(text: str, key: str) -> bool:
     """Whether the YAML writes `key` at the top level, whatever its value."""
     return re.search(rf"^{key}[ \t]*:", text, re.M) is not None
@@ -176,7 +168,11 @@ def parse_yaml_policy(text: str, yaml_values: YamlReader | None = None) -> RepoL
         if not layer.get(key) and _yaml_writes(text, key):
             shape = "a list" if key in LIST_KEYS else "a scalar value"
             raise RepoConfigError(f"{key} is not {shape}")
-    _check_merge_method(layer)
+    method = layer.get("babysit_merge_method")
+    if method is not None and method not in MERGE_METHODS:
+        raise RepoConfigError(
+            f"babysit_merge_method {method!r} is not one of {MERGE_METHODS}"
+        )
     return layer
 
 
@@ -316,7 +312,8 @@ def _fetch_file(
     except (RuntimeError, ValueError, OSError) as exc:
         raise RepoConfigError(f"{owner_repo}: {path} fetch failed: {exc}") from exc
     if proc.returncode != 0:
-        if gh_http_status(proc.stderr or "") == 404:
+        stderr = proc.stderr or ""
+        if gh_http_status(stderr) == 404:
             if _contents_readable(gh_runner, owner, name):
                 return None
             raise RepoConfigError(
@@ -324,7 +321,7 @@ def _fetch_file(
                 "contents are not readable, so the file may exist but be hidden "
                 "from this token"
             )
-        detail = (proc.stderr or "").strip() or f"exit {proc.returncode}"
+        detail = stderr.strip() or f"exit {proc.returncode}"
         raise RepoConfigError(f"{owner_repo}: {path} fetch failed: {detail}")
     try:
         payload = json.loads(proc.stdout)
@@ -462,11 +459,13 @@ def _policy_yaml_values(
     found: dict[str, list[str]] = {}
     for key, as_list in keys:
         if as_list:
-            items = sorted(
-                (int(k[len(key) + 1 :]), v)
+            prefix = f"{key}."
+            indexed = (
+                (k.removeprefix(prefix), v)
                 for k, v in records.items()
-                if k.startswith(f"{key}.") and k[len(key) + 1 :].isdigit()
+                if k.startswith(prefix)
             )
+            items = sorted((int(i), v) for i, v in indexed if i.isdigit())
             found[key] = [v for _, v in items if v]
         else:
             found[key] = [records[key]] if records.get(key) else []
@@ -494,18 +493,16 @@ def resolve_loop_keys(
     adopted = False
     yaml_text = _fetch_file(owner_repo, YAML_CONFIG_PATH, gh_runner)
     if yaml_text is not None:
+        where = f"{owner_repo}: {YAML_CONFIG_PATH}"
         found = yaml_values(yaml_text, [(key, False) for key in LOOP_KEYS])
         if found is None:
-            raise RepoConfigError(
-                f"{owner_repo}: {YAML_CONFIG_PATH}: the shared YAML reader rejects it"
-            )
-        where = f"{owner_repo}: {YAML_CONFIG_PATH}"
+            raise RepoConfigError(f"{where}: the shared YAML reader rejects it")
         for key in LOOP_KEYS:
             items = found.get(key) or []
             if items:
                 values[key] = _loop_value(key, items[0], where)
                 sources[key] = YAML_CONFIG_PATH
-            elif re.search(rf"^{key}[ \t]*:", yaml_text, re.M):
+            elif _yaml_writes(yaml_text, key):
                 # The reader prints nothing for an empty or non-scalar value,
                 # which must not fall through to the default.
                 raise RepoConfigError(f"{where}: {key} is not a scalar value")
