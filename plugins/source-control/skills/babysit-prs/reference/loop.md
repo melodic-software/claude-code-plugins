@@ -415,17 +415,13 @@ heartbeat sitting behind some other armed wake event, so the generic skill's hea
 not apply here: an `active` cycle schedules at 300s, never 1200–1800s.
 
 **Idle ceiling (a true daily cadence cannot run in single-session `/loop`).** `ScheduleWakeup`
-clamps `delaySeconds` to `[60, 3600]`, so cadence.md's `idle` = daily (86400s) truncates to the
+clamps `delaySeconds` to its ceiling (pointer below), so cadence.md's `idle` = daily (86400s) truncates to the
 3600s ceiling, the same wake interval as `quiet`. This is a documented limitation, not a silent
 truncation: within `/loop`, `idle` and `quiet` both wake hourly. A genuine daily babysit cadence
 needs the durable `/schedule` cron mechanism (a scheduled routine on a real cron interval), not a
 single-session `/loop` wakeup. Reach for `/schedule` when that is what is wanted.
 
-The `[60, 3600]` bound is verified 2026-09-06 against Claude Code 2.1.263 and the
-[tools reference](https://code.claude.com/docs/en/tools-reference), where `ScheduleWakeup`
-"Reschedules the next iteration of a self-paced `/loop`" and picks when the next one runs "between
-one minute and one hour out". Recheck when that page names a different range, or when a release
-note names `ScheduleWakeup` or self-paced `/loop` scheduling.
+- **Pointer**: when the wakeup range decides a cadence, fetch [Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval) live. **As of**: 2026-11-10. **Recheck trigger**: that section names a different range, or a release note names `ScheduleWakeup` or self-paced `/loop` scheduling.
 
 **Python-free degrade ladder** (no snapshot available this iteration):
 
