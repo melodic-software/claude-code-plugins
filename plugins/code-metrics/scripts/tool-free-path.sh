@@ -20,6 +20,10 @@ _CM_SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _CM_LADDER="${_CM_SCRIPTS_DIR}/collector-ladder.tsv"
 _CM_COLLECTORS="${_CM_SCRIPTS_DIR}/collectors"
 
+_cm_python() {
+  if command -v python3 >/dev/null 2>&1; then echo python3; else echo python; fi
+}
+
 # Unique non-reserved tool names from the ladder, same column and skip rules
 # dispatch.sh uses when it walks a lane/measure.
 cm_ladder_tools() {
@@ -34,10 +38,8 @@ cm_ladder_tools() {
 # every shutil.which argument in that tool's adapter (a string literal, or a
 # module-level NAME/TOOL constant).
 cm_ladder_path_bins() {
-  local py=python3
-  command -v python3 >/dev/null 2>&1 || py=python
   # The CR strip keeps a native Windows Python's CRLF out of the names (#6794).
-  "$py" -I - "$_CM_LADDER" "$_CM_COLLECTORS" <<'PY' | sed $'s/\r$//'
+  "$(_cm_python)" -I - "$_CM_LADDER" "$_CM_COLLECTORS" <<'PY' | sed $'s/\r$//'
 import ast
 import os
 import sys
@@ -45,19 +47,13 @@ import sys
 RESERVED = {"none", "n/a", "deferred"}
 ladder, collectors_dir = sys.argv[1], sys.argv[2]
 tools = []
-seen = set()
 with open(ladder, encoding="utf-8") as handle:
     for raw in handle:
         if raw.startswith("#") or not raw.strip():
             continue
         parts = raw.rstrip("\n").split("\t")
-        if len(parts) < 3:
-            continue
-        tool = parts[2]
-        if tool in RESERVED or tool in seen:
-            continue
-        seen.add(tool)
-        tools.append(tool)
+        if len(parts) >= 3 and parts[2] not in RESERVED and parts[2] not in tools:
+            tools.append(parts[2])
 
 bins = set(tools)
 for tool in tools:
@@ -80,9 +76,7 @@ for tool in tools:
         if not isinstance(node, ast.Call):
             continue
         func = node.func
-        if not (isinstance(func, ast.Attribute) and func.attr == "which"):
-            continue
-        if not node.args:
+        if not (isinstance(func, ast.Attribute) and func.attr == "which" and node.args):
             continue
         arg = node.args[0]
         if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
@@ -147,8 +141,8 @@ cm_fill_tool_free_path() {
 # tool-free.
 cm_resolvable_ladder_collectors() {
   local dest="$1"
-  local py=python3
-  command -v python3 >/dev/null 2>&1 || py=python
+  local py
+  py="$(_cm_python)"
   local name tool adapter
   while IFS= read -r name; do
     [[ -n "$name" ]] || continue
