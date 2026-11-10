@@ -18,7 +18,8 @@ existing usage (counted as the contract's
 [Counting a term](../context/glossary-contract.md#counting-a-term) says), then the domain's
 published standards and references. A standard is an input to the decision, never its authority;
 when none is known, look for one with `/discovery:research`. Where users' own words differ from the
-chosen term, record them on `Shown to users as:`.
+chosen term, record that on `Shown to users as:` as the contract's bullet says (words that vary by
+tenant as `configurable per tenant`).
 
 ## 2. Find the record
 
