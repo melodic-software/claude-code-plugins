@@ -3,6 +3,19 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.18.6] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Skill bodies that restated Claude Code behavior (how injected commands, Bash output, forks,
+  plan mode, the skill re-attach budget and plugin reconfiguration work) now state our rule and
+  point at the live docs section with an as-of date and a recheck trigger. Fixed wording that
+  called a wayfind map a "decision map", moved a misplaced gotchas pointer out of the interview
+  skill's does-NOT list, and made the plan skill's "stress-test, always" line name the exceptions
+  its own steps already allow. No behavior change.
+
 ## [2.18.5] - 2026-11-10
 
 ### Changed

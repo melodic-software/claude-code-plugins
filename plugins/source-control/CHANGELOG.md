@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.8] - 2026-11-10
+
+### Changed
+
+- The `babysit-prs` worker prompt template now carries the subagent discipline preamble the
+  loop-lane convention requires of every dispatch: the discipline plugin's sweep skill when it is
+  installed, else the three standing instructions inline.
+
 ## [8.12.7] - 2026-11-10
 
 ### Changed
