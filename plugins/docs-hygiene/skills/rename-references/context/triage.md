@@ -162,6 +162,11 @@ When a hit's context does not show which it is, it goes to Ambiguous with its co
 Certain. Each list is counted in its own layer row of the report and recorded as spans, each with
 its matched snippet, `(file, line, start, end)` for apply.md Phase 6.
 
+When the pair is a verb from an entity's `Actions:` line, a hit is in scope only where the verb names
+that operation on that entity: beside the entity's name, or inside an identifier with it (`sendRefund`
+for `Refund ... Actions: issue (Avoid: send)`). The verb used on anything else is ordinary English
+and goes to Excluded; a hit whose context does not show the entity goes to Ambiguous.
+
 ## Special case: Memory entries
 
 Claude Code auto-memory entries (the directory [SKILL.md "Auto-memory location"](../SKILL.md#auto-memory-location) resolves) and `MEMORY.md` indices describe past renames as append-only historical record.
@@ -181,7 +186,7 @@ Sweep results across <N> tracked files:
 | Certain         | <X>   | Auto-apply           |
 | Chain-context   | <Y>   | Review-recommended   |
 | Ambiguous       | <Z>   | Per-match confirm    |
-| Excluded        | <W>   | Skipped (plan-docs/historical/memory) |
+| Excluded        | <W>   | Skipped (plan-docs/historical/memory/off-entity verb) |
 
 Kept as history: <file>:<line>[, <file>:<line>...]  (frozen records; omit the line when none)
 

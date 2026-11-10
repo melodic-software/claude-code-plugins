@@ -134,6 +134,18 @@ Read-only: tick `report-only <n>` or `no-findings`. Removals, merges and renames
 `/domain-driven-design:ubiquitous-language curate` and `/docs-hygiene:rename-references` in their
 own change, never in this step.
 
+### adr-audit
+
+- skill: architecture:record-decision
+- args: audit
+- applies-when: repo has an ADR folder
+- checked: true
+
+#### Notes
+
+Read-only: tick `report-only <n>` or `no-findings`. Retirements go through
+`/architecture:record-decision` in their own change, after a yes, never in this step.
+
 ### overengineering
 
 - skill: overengineering:audit, overengineering:realign

@@ -5299,10 +5299,8 @@ def extract_builtin_plugins(
         named = _merged_string(src, braces, fields, "name")
         if not named or named["source"] not in ("literal", "constant"):
             text = src[name_entry[2] : name_entry[2] + 32]
-            if (
-                re.match(_IDENT + r"(?=\s*[,}])", text)
-                and len(re.match(_IDENT, text).group(0)) == 1
-            ):
+            ident = re.match(_IDENT + r"(?=\s*[,}])", text)
+            if ident and len(ident.group(0)) == 1:
                 factories += 1
             else:
                 unresolved.append(text.split(",")[0])
@@ -5355,11 +5353,9 @@ def extract_builtin_plugins(
             flag = _merged_flag(src, fields, key)
             if flag is None and (key in fields or not complete):
                 partial.append(out_key)
-            rec[out_key] = (
-                flag
-                if flag is not None
-                else (None if key in fields or not complete else False)
-            )
+            elif flag is None:
+                flag = False
+            rec[out_key] = flag
         gate = fields.get("isAvailable")
         rec["gated"] = gate is not None if (gate is not None or complete) else None
         if rec["gated"] is None:
@@ -5494,12 +5490,10 @@ def detect_cli_version(src: str) -> str | None:
     to execute the binary.
     """
     counts: dict[str, int] = {}
-    for m in re.finditer(r'"(\d+\.\d+\.\d+)"', src):
-        counts[m.group(1)] = counts.get(m.group(1), 0) + 1
-    if not counts:
-        return None
-    best = max(counts.items(), key=lambda kv: kv[1])
-    return best[0] if best[1] >= 20 else None
+    for version in re.findall(r'"(\d+\.\d+\.\d+)"', src):
+        counts[version] = counts.get(version, 0) + 1
+    best = max(counts, key=counts.__getitem__, default=None)
+    return best if best and counts[best] >= 20 else None
 
 
 def _lane_status(problems: list[str], advisories: list[str]) -> str:
@@ -5757,9 +5751,9 @@ def check_integrity(
             )
         advisories.extend(f"{lane}: {a}" for a in entry["advisories"])
 
-    status = "broken" if all_broken else ("degraded" if advisories else "ok")
+    # `problems` is filled only when every lane is broken.
     return {
-        "status": status,
+        "status": _lane_status(problems, advisories),
         "lanes": lanes,
         "cli_version": version,
         "validated_against": VALIDATED_AGAINST,
@@ -5949,8 +5943,8 @@ def scan_config_scope(root: Path) -> dict[str, Any]:
             for e in skills.iterdir()
             if e.is_dir() and (e / "SKILL.md").is_file()
         )
-    for name, sub in (("agents", "agents"), ("commands", "commands")):
-        d = root / sub
+    for name in ("agents", "commands"):
+        d = root / name
         if d.is_dir():
             out[name] = sorted(e.name for e in d.iterdir() if e.is_file())
     settings = _load_json(root / "settings.json") or {}
@@ -6524,9 +6518,8 @@ def extract_binary(src: str, meta: dict[str, Any]) -> dict[str, Any]:
                 registration["source"] = "plugin-backed-builtin"
 
     # A name registered as a bundled skill is a skill, not a command.
-    for name in list(commands):
-        if name in skills:
-            del commands[name]
+    for name in commands.keys() & skills.keys():
+        del commands[name]
 
     out: dict[str, Any] = {
         "builtin_commands": commands,
