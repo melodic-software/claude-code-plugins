@@ -168,8 +168,9 @@ Paths skipped from sweeps automatically:
 
 ## Glossary-driven renames
 
-When the pair comes from a domain glossary change (a term renamed, or a word moved to the entry's
-`Avoid:` line, usually handed over by the domain-driven-design plugin's glossary skill), code names
+When the pair comes from a domain glossary change (a term renamed, a word moved to the entry's
+`Avoid:` line, or a verb moved into the parentheses of an entity's `Actions:` line, usually handed
+over by `/domain-driven-design:ubiquitous-language`), code names
 follow the glossary too, and the sweep runs as its own reviewed change, never folded into the
 glossary edit:
 
