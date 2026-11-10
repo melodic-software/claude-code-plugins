@@ -259,7 +259,7 @@ is_worktree_root() {
 # resolves the per-worktree vs common-dir split correctly — which is precisely
 # the subject matter here.
 inprogress_of() {
-  local p="$1" name resolved
+  local p="$1" name resolved pair
   for name in rebase-merge rebase-apply; do
     resolved=$(git -C "$p" rev-parse --git-path "$name" 2>/dev/null) || continue
     if [[ -d "$resolved" ]]; then
@@ -267,15 +267,10 @@ inprogress_of() {
       return 0
     fi
   done
-  for name in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG; do
-    resolved=$(git -C "$p" rev-parse --git-path "$name" 2>/dev/null) || continue
+  for pair in MERGE_HEAD:merge CHERRY_PICK_HEAD:cherry-pick REVERT_HEAD:revert BISECT_LOG:bisect; do
+    resolved=$(git -C "$p" rev-parse --git-path "${pair%%:*}" 2>/dev/null) || continue
     if [[ -e "$resolved" ]]; then
-      case "$name" in
-      MERGE_HEAD) printf 'merge' ;;
-      CHERRY_PICK_HEAD) printf 'cherry-pick' ;;
-      REVERT_HEAD) printf 'revert' ;;
-      *) printf 'bisect' ;;
-      esac
+      printf '%s' "${pair#*:}"
       return 0
     fi
   done
@@ -745,6 +740,9 @@ merged_pr_listing() {
   [[ -z "$MP_ERR" ]]
 }
 
+# add_reason <text>: append <text> to L_REASON, `; `-separated.
+add_reason() { L_REASON="${L_REASON:+$L_REASON; }$1"; }
+
 # merged_pr_proof <path> <branch>: affirmative proof from the branch's MERGED pull
 # request, for a row the content probes left `no` or `?`. Sets L_STATE, L_METHOD
 # and L_REASON; returns 0 only when it proved the branch landed.
@@ -764,7 +762,7 @@ merged_pr_proof() {
   local commits_file="$WORKDIR/merged-pr.commits" kind val
   : >"$commits_file"
   if ! command -v gh >/dev/null 2>&1; then
-    L_REASON="${L_REASON:+$L_REASON; }merged-pr-read-failed:gh-not-found"
+    add_reason "merged-pr-read-failed:gh-not-found"
     return 1
   fi
   # Only a PR merged INTO the resolved base proves anything: a stacked PR merged
@@ -772,11 +770,11 @@ merged_pr_proof() {
   local base_name="${L_BASE%@*}"
   base_name="${base_name#*/}"
   if [[ -z "$L_BASE" || -z "$base_name" ]]; then
-    L_REASON="${L_REASON:+$L_REASON; }merged-pr-read-failed:no-resolved-base"
+    add_reason "merged-pr-read-failed:no-resolved-base"
     return 1
   fi
   if ! merged_pr_listing "$p" "$base_name"; then
-    L_REASON="${L_REASON:+$L_REASON; }merged-pr-read-failed:$MP_ERR"
+    add_reason "merged-pr-read-failed:$MP_ERR"
     return 1
   fi
   # This branch's PRs, as `pr <base-ref>` / `head` / `commit` lines. A ref name
@@ -784,7 +782,7 @@ merged_pr_proof() {
   # forces a string compare, so branch `1.0` never matches a PR from branch `1`.
   if ! awk -v b="$branch" '$1 == "pr" { keep = ($2 "" == b ""); if (keep) print "pr " $3; next } keep' \
     "$MP_FILE" >"$out"; then
-    L_REASON="${L_REASON:+$L_REASON; }merged-pr-read-failed:branch-filter"
+    add_reason "merged-pr-read-failed:branch-filter"
     return 1
   fi
   local in_base=false
@@ -805,7 +803,7 @@ merged_pr_proof() {
     if [[ "$(grep -c '^pr ' "$MP_FILE")" -ge "$MERGED_PR_LIMIT" ]]; then
       window="-in-newest-$MERGED_PR_LIMIT"
     fi
-    L_REASON="${L_REASON:+$L_REASON; }no-merged-pr-into-$base_name-for-branch$window"
+    add_reason "no-merged-pr-into-$base_name-for-branch$window"
     return 1
   fi
 
@@ -821,13 +819,13 @@ merged_pr_proof() {
   done
 
   if ! unpushed_list=$(git -C "$p" rev-list HEAD --not --remotes 2>/dev/null) || [[ -z "$unpushed_list" ]]; then
-    L_REASON="${L_REASON:+$L_REASON; }merged-pr-read-failed:local-commit-list"
+    add_reason "merged-pr-read-failed:local-commit-list"
     return 1
   fi
   while read -r sha; do
     [[ -z "$sha" ]] && continue
     if ! grep -Fxq "$sha" "$commits_file"; then
-      L_REASON="${L_REASON:+$L_REASON; }local-commits-not-all-in-merged-pr"
+      add_reason "local-commits-not-all-in-merged-pr"
       return 1
     fi
   done <<<"$unpushed_list"
@@ -930,6 +928,28 @@ merged_ref() {
   grep -Fxq "$name" "$MERGED_REFS_FILE"
 }
 
+# push_counts <staged> <unstaged> <conflicted> <untracked>
+push_counts() {
+  R_STAGED+=("$1")
+  R_UNSTAGED+=("$2")
+  R_CONFLICTED+=("$3")
+  R_UNTRACKED+=("$4")
+}
+
+# push_unprobed_row <notgit> <bare> <value> <inprogress> <count> <reason>: a row
+# the probes skip. unpushed and landed take <value>, every status count <count>.
+push_unprobed_row() {
+  R_NOTGIT+=("$1")
+  R_BARE+=("$2")
+  R_UNPUSHED+=("$3")
+  R_LANDED+=("$3")
+  R_METHOD+=("none")
+  R_BASE+=("")
+  R_INPROGRESS+=("$4")
+  push_counts "$5" "$5" "$5" "$5"
+  R_REASON+=("$6")
+}
+
 for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
   p="${T_PATH[$idx]}"
   reason=""
@@ -939,41 +959,20 @@ for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
     reason="not-a-worktree-root; probing it with git -C reports the containing repository"
   fi
   if [[ -n "$reason" ]]; then
-    R_NOTGIT+=("yes")
-    R_BARE+=("no")
-    R_UNPUSHED+=("?")
-    R_LANDED+=("?")
-    R_METHOD+=("none")
-    R_BASE+=("")
-    R_INPROGRESS+=("?")
-    R_STAGED+=("?")
-    R_UNSTAGED+=("?")
-    R_CONFLICTED+=("?")
-    R_UNTRACKED+=("?")
-    R_REASON+=("$reason")
+    push_unprobed_row yes no "?" "?" "?" "$reason"
     continue
   fi
-  R_NOTGIT+=("no")
 
   # A bare-clone hub's own entry is the first row `git worktree list` emits, and
   # it carries no HEAD. It passes the work-tree-root probe (a bare repository's
   # --show-prefix is empty), so without this it would reach the landed
   # computation, fail at merge-base, and report a healthy hub as UNKNOWN.
   if [[ "$(git -C "$p" rev-parse --is-bare-repository 2>/dev/null)" == "true" ]]; then
-    R_UNPUSHED+=("n/a")
-    R_LANDED+=("n/a")
-    R_METHOD+=("none")
-    R_BASE+=("")
-    R_INPROGRESS+=("none")
-    R_STAGED+=("0")
-    R_UNSTAGED+=("0")
-    R_CONFLICTED+=("0")
-    R_UNTRACKED+=("0")
-    R_BARE+=("yes")
-    R_REASON+=("bare-repository; holds no working tree to strand")
+    push_unprobed_row no yes "n/a" none 0 "bare-repository; holds no working tree to strand"
     T_BRANCH[idx]="(bare)"
     continue
   fi
+  R_NOTGIT+=("no")
   R_BARE+=("no")
 
   # HEAD, never --branches: on a detached HEAD --branches reports every OTHER
@@ -1019,15 +1018,9 @@ for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
   inprog=$(inprogress_of "$p")
   R_INPROGRESS+=("$inprog")
   if status_counts "$p"; then
-    R_STAGED+=("$S_STAGED")
-    R_UNSTAGED+=("$S_UNSTAGED")
-    R_CONFLICTED+=("$S_CONFLICTED")
-    R_UNTRACKED+=("$S_UNTRACKED")
+    push_counts "$S_STAGED" "$S_UNSTAGED" "$S_CONFLICTED" "$S_UNTRACKED"
   else
-    R_STAGED+=("?")
-    R_UNSTAGED+=("?")
-    R_CONFLICTED+=("?")
-    R_UNTRACKED+=("?")
+    push_counts "?" "?" "?" "?"
     reason="${reason:+$reason; }status-unreadable: the working tree was not inspected"
   fi
   if [[ "$inprog" != "none" ]]; then
