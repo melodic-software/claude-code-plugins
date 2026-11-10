@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.9] - 2026-11-10
+
+### Changed
+
+- `--stop-uncovered` stops on the dispatch run listing alone, before the schedule and canary listings and the branch reads that filter them. `babysit_verify_evidence.py check-code` answers settle's code-changed refusal with no GitHub read.
+
 ## [8.12.8] - 2026-11-10
 
 ### Changed
