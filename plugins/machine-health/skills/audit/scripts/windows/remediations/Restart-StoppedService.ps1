@@ -80,8 +80,6 @@ function Resolve-FindingTarget {
     [OutputType([object[]])]
     param($FindingData)
 
-    if ($null -eq $FindingData) { return @() }
-
     # A badly shaped finding yields an empty target list, never a crash; read properties
     # through Get-PropertyValue, since StrictMode 3.0 throws on an absent one.
     $obj = $FindingData
@@ -96,7 +94,6 @@ function Resolve-FindingTarget {
     }
 
     $detail = Get-PropertyValue -InputObject $obj -Name 'detail'
-    if ($null -eq $detail) { return @() }
     $services = Get-PropertyValue -InputObject $detail -Name 'stopped_auto_services'
     if ($null -eq $services) { return @() }
     return @($services)
@@ -154,11 +151,8 @@ foreach ($t in $targets) {
 
 if ($Human) {
     foreach ($a in $attempts) {
-        $status = if ($a.succeeded) { 'OK' } else { 'FAIL' }
-        $beforeStatus = $a.before.status
-        $afterStatus = $a.after.status
-        Write-Output ("[$status] restart-stopped-service $($a.target) -- " +
-            "before=$beforeStatus after=$afterStatus")
+        Write-Output ("[$($a.succeeded ? 'OK' : 'FAIL')] restart-stopped-service $($a.target) -- " +
+            "before=$($a.before.status) after=$($a.after.status)")
         if ($a.error) { Write-Output "  error: $($a.error)" }
     }
 } else {

@@ -23,12 +23,12 @@ function Install-MonthlyRun {
         [Parameter(Mandatory)] [string] $StateBase
     )
 
-    $dir = New-Item -ItemType Directory -Force -Path (Join-Path $StateBase 'scheduler')
-    $wrapper = Join-Path $dir.FullName 'monthly-run.ps1'
+    $dir = (New-Item -ItemType Directory -Force -Path (Join-Path $StateBase 'scheduler')).FullName
+    $wrapper = Join-Path $dir 'monthly-run.ps1'
     $text = [System.IO.File]::ReadAllText($script:MonthlyRunTemplate)
     $null = Write-StateFile -Path $wrapper -Update { $text }.GetNewClosure()
     # Earlier builds installed a deny settings file beside the wrapper; the wrapper no longer reads it.
-    Remove-Item -LiteralPath (Join-Path $dir.FullName 'scheduled-settings.json') -ErrorAction Ignore
+    Remove-Item -LiteralPath (Join-Path $dir 'scheduled-settings.json') -ErrorAction Ignore
     [pscustomobject]@{ WrapperPath = $wrapper }
 }
 
