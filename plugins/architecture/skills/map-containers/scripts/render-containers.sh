@@ -203,8 +203,23 @@ END {
   thin = (deployables == 0 ? "yes" : "no")
   out = ENVIRON["OUT_FILE"]
   dialect = ENVIRON["DIALECT"]
-  for (i = 1; i <= cn; i++) calias[i] = uniq(alias(cname[i]))
-  for (i = 1; i <= cn; i++) idalias[cid[i]] = calias[i]
+  for (i = 1; i <= cn; i++) {
+    calias[i] = uniq(alias(cname[i]))
+    idalias[cid[i]] = calias[i]
+    cdesc[i] = (csum[i] == "" ? ckind[i] : csum[i])
+    cel[i] = element(ckind[i], cstore[i])
+  }
+  # The diagram draws each non-shared edge whose two ends are charted containers.
+  for (i = 1; i <= en; i++) {
+    if (ekind[i] == "shared-infrastructure") continue
+    fa = idalias[efrom[i]]
+    ta = idalias[edge_to[i]]
+    if (fa == "" || ta == "") continue
+    rn++
+    rel_from[rn] = fa
+    rel_to[rn] = ta
+    rel_ev[rn] = eev[i]
+  }
   {
     print "# Containers" > out
     print "" > out
@@ -218,20 +233,11 @@ END {
       print "!include <C4/C4_Container>" > out
       print "title Container diagram for " safe(focal) > out
       print "System_Boundary(e_sys, \"" safe(focal) "\") {" > out
-      for (i = 1; i <= cn; i++) {
-        desc = csum[i]
-        if (desc == "") desc = ckind[i]
-        el = element(ckind[i], cstore[i])
-        print "  " el "(" calias[i] ", \"" safe(cname[i]) "\", \"" safe(ctech[i]) "\", \"" safe(desc) "\")" > out
-      }
+      for (i = 1; i <= cn; i++)
+        print "  " cel[i] "(" calias[i] ", \"" safe(cname[i]) "\", \"" safe(ctech[i]) "\", \"" safe(cdesc[i]) "\")" > out
       print "}" > out
-      for (i = 1; i <= en; i++) {
-        if (ekind[i] == "shared-infrastructure") continue
-        fa = idalias[efrom[i]]
-        ta = idalias[edge_to[i]]
-        if (fa == "" || ta == "") continue
-        print "Rel(" fa ", " ta ", \"" "Uses" "\", \"" safe(eev[i]) "\")" > out
-      }
+      for (i = 1; i <= rn; i++)
+        print "Rel(" rel_from[i] ", " rel_to[i] ", \"Uses\", \"" safe(rel_ev[i]) "\")" > out
       print "@enduml" > out
     } else {
       print "```likec4" > out
@@ -252,23 +258,15 @@ END {
       print "model {" > out
       print "  e_sys = softwareSystem \"" safe(focal) "\" {" > out
       for (i = 1; i <= cn; i++) {
-        desc = csum[i]
-        if (desc == "") desc = ckind[i]
-        el = element(ckind[i], cstore[i])
-        lk = (el == "ContainerDb" ? "store" : (el == "ContainerQueue" ? "queue" : "container"))
+        lk = (cel[i] == "ContainerDb" ? "store" : (cel[i] == "ContainerQueue" ? "queue" : "container"))
         print "    " calias[i] " = " lk " \"" safe(cname[i]) "\" {" > out
         print "      technology \"" safe(ctech[i]) "\"" > out
-        print "      description \"" safe(desc) "\"" > out
+        print "      description \"" safe(cdesc[i]) "\"" > out
         print "    }" > out
       }
       print "  }" > out
-      for (i = 1; i <= en; i++) {
-        if (ekind[i] == "shared-infrastructure") continue
-        fa = idalias[efrom[i]]
-        ta = idalias[edge_to[i]]
-        if (fa == "" || ta == "") continue
-        print "  e_sys." fa " -> e_sys." ta " \"" "Uses" "\"" > out
-      }
+      for (i = 1; i <= rn; i++)
+        print "  e_sys." rel_from[i] " -> e_sys." rel_to[i] " \"Uses\"" > out
       print "}" > out
       print "views {" > out
       print "  view containers of e_sys {" > out
