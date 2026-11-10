@@ -2633,9 +2633,8 @@ const baseAdmission = (env) => {
 // models.issue-status), each `labels` its names as the field decides them
 // (read-status.mjs statusLabels); null while models.issue-status is unset.
 // resolve-config loads only on the first call, as baseAdmission does. One
-// listing of every state serves every call of a sweep (about 9 calls and 20 s
-// at 25 issues a page); a failed one is not kept, so the next call lists
-// again. Its 10 re-reads are shared by every state. `held` (issues
+// listing of every state serves every call of a sweep (one call per page of
+// open issues); a failed one is not kept, so the next call lists again. Its 10 re-reads are shared by every state. `held` (issues
 // whose Work status is mid-write) is the whole listing's, for listedNames.
 const fieldListing = (env, github, repo) => {
   let loaded;
