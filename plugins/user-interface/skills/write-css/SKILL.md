@@ -140,8 +140,9 @@ node "${CLAUDE_SKILL_DIR}/scripts/review.mjs" --config '{"css":{"rules":{"disabl
 ```
 
 The ids come from `config.values.css.rules.disable`, a closed set, and `<duration_ms>` is
-`config.values.animation.duration_ms` as JSON, all numbers: both are safe on a command line. is clean, 1 has findings, 2 is a usage error or crash: report a 2, never read it as clean. Report
-every finding as `path:line [rule-id] message` under `## Findings`, then `## Suppressed`, then
+`config.values.animation.duration_ms` as JSON, all numbers: both are safe on a command line.
+Exit 0 is clean, 1 has findings, 2 is a usage error or crash: report a 2, never read it as clean.
+Report every finding as `path:line [rule-id] message` under `## Findings`, then `## Suppressed`, then
 `## Judgment`. Under Suppressed, list each finding a project convention contradicts, with the
 convention's file as the reason. The linter's `duration` check flags only a transition over
 `large`, so judge each duration against its role in `config.values.animation.duration_ms`: a
