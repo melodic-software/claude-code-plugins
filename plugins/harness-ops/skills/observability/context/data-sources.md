@@ -23,8 +23,10 @@ jq pipelines and CLI invocations for the **hook log root** and **ccusage**. OTEL
 
 The hook log root is the plugin's `session_event_log_dir` option, project-relative, default
 `.observability/claude`. Its rendered value is the `root` entry on the skill body's "Rendered
-options" line: use that, never `CLAUDE_PLUGIN_DATA` and never the environment (a skill subprocess
-inherits no `CLAUDE_PLUGIN_OPTION_*`). A `--hook-root REL` token on the invocation overrides it for one
+options" line: use that, never `CLAUDE_PLUGIN_DATA` and never the environment (which processes receive
+`CLAUDE_PLUGIN_OPTION_*` is read live from
+[plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves),
+as of 2026-11-10; recheck when that table exports it to skill subprocesses). A `--hook-root REL` token on the invocation overrides it for one
 run. Under the root: `sessions/<session_id>.jsonl`, one file per session, holding the
 per-session event log rows (`source: "event-log"`) and the sink's envelope rows for that
 session (`source: "envelope"`); and the shared `hook-events.jsonl`, holding the same envelope
@@ -177,7 +179,7 @@ jq -s --arg since "$SINCE_ISO" 'map(select(.ts >= $since and .hook != null))
 
 **Flag rules:**
 
-- HIGH severity: `p95 > 3000` ms (exceeds the PostToolUse hook 3s warm-cache latency budget) OR `p95 > 5 * p50` (variance outlier)
+- HIGH severity: `p95 > 3000` ms (this report's own 3000 ms threshold) OR `p95 > 5 * p50` (variance outlier)
 - MEDIUM: `p95 > 1000` ms but ≤ 3000
 - INFO: distribution table
 
@@ -418,7 +420,7 @@ Function and symbol references are out of scope; the check covers file paths onl
 If the consumer project has a rule that surfaces side observations, user dismissals are signal that its noise threshold needs tightening. Source: `~/.claude/projects/<slug>/memory/feedback_*.md` lines mentioning "side observation" / "noticed" / "mentioned".
 
 ```bash
-PROJECT_SLUG=$(echo "$REPO_ROOT" | sed 's|[/:]|-|g; s|^-||')
+PROJECT_SLUG=$(printf '%s' "$REPO_ROOT" | sed 's/[^A-Za-z0-9]/-/g')
 grep -l -i "side observation\|surfaced\|dismissed" \
   ~/.claude/projects/"$PROJECT_SLUG"/memory/feedback_*.md 2>/dev/null \
   | wc -l

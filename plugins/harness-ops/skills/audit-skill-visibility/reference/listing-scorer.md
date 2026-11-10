@@ -78,9 +78,9 @@ one of them is a setting:
   model gets a budget a quarter smaller than a 4-byte model at the same fraction
   and window.
 
-So the familiar 8,000 is one point on a surface: 200k window, 4 bytes, 1%. At
-1M and 4 bytes the same fraction budgets 40,000, and at 1M with a 5% fraction
-200,000. The engine never resolves the model from disk, so unpinned it reports
+So any single budget figure is one point on a surface of
+`window x bytesPerToken x fraction`, and changing one input scales the budget by
+the same factor. The engine never resolves the model from disk, so unpinned it reports
 the budget as a band over both windows and both byte estimates, each row
 labeled, and names no row as the session's; `--context-window` and
 `--bytes-per-token` collapse the axes when the operator knows them.

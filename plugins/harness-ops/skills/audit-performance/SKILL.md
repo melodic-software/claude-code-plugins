@@ -59,10 +59,9 @@ owns the deep inventory of the tree against the same surface.
 it refuses deletion, so never chain into a `doctor` fix on this skill's behalf. Surface the
 finding and let the user invoke the fix.
 
-**Availability is never assumed.** `doctor` survives the bundled-skill kill switch but an
-environment variable or a `skillOverrides` entry still hides it; this section states what to do
-when it resolves, never that it is present. The four-part records live in
-[reference/bundled-doctor.md](reference/bundled-doctor.md).
+**Availability is never assumed.** Settings and the environment can hide `doctor`; this section
+states what to do when it resolves, never that it is present. What hides it, and the four-part
+records, live in [reference/bundled-doctor.md](reference/bundled-doctor.md).
 
 ## Never read
 
@@ -203,8 +202,8 @@ spawns. Read `fan_out` in this order:
    (`"C:/Program Files/PowerShell/7/pwsh.exe" -File hook.ps1`) stays one token and is
    recognized, and a shell operator inside a quoted argument (`grep -e 'a|sh' f`) is not read
    as a delimiter. The two LEGACY findings still flatten quotes and read their own token
-   list, unchanged on every input. A row spelling an explicit `"args": []` is exec form and reports
-   no second shell; a row that omits the key is shell form.
+   list, unchanged on every input. The engine treats a row with an `args` key, even
+   `[]`, as exec form and reports no second shell for it, and a row without the key as shell form.
    Which bash pays the wrapping spawn is item 3. `per_tool_call.count` is the
    registered-row ceiling, so read `by_matcher` and
    `projection` beside it for what one tool call of a given shape actually spawns, and
@@ -227,10 +226,10 @@ spawns. Read `fan_out` in this order:
 3. **`fan_out.shell_resolution`**, which names WHICH bash pays that wrapping spawn on Windows:
    `CLAUDE_CODE_GIT_BASH_PATH`, where the value came from, whether the path exists, whether
    Claude Code accepts the filename, and whether it resolves to Git's `bin` launcher or to
-   `usr/bin/bash.exe`. A rejected filename and a path that does not exist get the SAME documented
-   fallback, so a `resolves_to` shown beside either finding names a binary the harness will not
-   use. Unset, Claude Code searches for `bash.exe` itself; this block reports the engine's copy of
-   that search and never performs it.
+   `usr/bin/bash.exe`. We treat a rejected filename and a path that does not exist alike: a
+   `resolves_to` shown beside either finding names a binary the harness will not use. When the
+   variable is unset, this block reports the engine's copy of the harness's own search and never
+   performs it.
    - **Pointer**: when stating the search order, the accepted filenames, or the fallback, fetch
      [troubleshoot install: Git for Windows or PowerShell](https://code.claude.com/docs/en/troubleshoot-install#claude-code-on-windows-requires-either-git-for-windows-for-bash-or-powershell)
      live. **As of**: 2026-10-11. **Recheck trigger**: that section's resolution order,
@@ -241,7 +240,8 @@ spawns. Read `fan_out` in this order:
    observation with its provenance, never as a count this engine asserts. The block answers
    only for rows the harness wraps with bash, and only from the install-root `settings.json`:
    a hook whose own `shell` field is `"powershell"`, or a Windows host with no Git Bash
-   installed, has PowerShell wrap that row and no `bash.exe` resolved for it, and a project or
+   installed, gets no `bash.exe` resolved for it (which shell wraps it: the exec-form pointer in
+   item 2), and a project or
    local `.claude/settings.json` `env` that outranks the install root is not read here.
 4. **`fan_out.config_liveness`** before attributing any cost to configuration.
    `sessions_predating_settings` greater than zero means the file on disk may not describe what
@@ -258,7 +258,8 @@ spawns. Read `fan_out` in this order:
    disabling either cap**; read what a value does, and where a cap is not enforced, from the
    pointer. The engine's `trap` string beside them describes only the truthiness-gated observer
    flag and says removing that variable disables it; never relay it for the caps. Rewording it
-   is left undone because `scripts/test_audit_performance.py:910` pins that text.
+   is left undone because `test_the_trap_never_advises_setting_a_flag_to_zero` in
+   `scripts/test_audit_performance.py` pins that text.
    - **Pointer**: when judging what a cap value does or where it is not enforced, fetch
      [sub-agents: concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit),
      [sub-agents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents),
@@ -309,7 +310,7 @@ subsystem).
 
 Relay the sentence below to the user and do not run `/doctor` yourself: it is reserved for the person to run.
 
-If /doctor is available in your session (claim: `/doctor` is reserved for the person to run, `DISABLE_DOCTOR_COMMAND` or a `skillOverrides` entry hides it, and it survives `disableBundledSkills`; basis: the `/doctor` row on the commands reference and the bundled-skills section of the skills reference, both fetched 2026-09-29, and the 2.1.263 binary registering it as model-invocation-disabled on 2026-09-11; as of 2026-09-29; recheck: either page drops that gate, or a release lets the model invoke it), run it for the quick health-and-fix pass this timed capture does not perform.
+If /doctor is available in your session (gate basis: **Boundary, the bundled `doctor` skill** above), run it for the quick health-and-fix pass this timed capture does not perform.
 
 **`--unattended`:** record the suggestion in the report's final section; do not ask.
 
@@ -357,7 +358,8 @@ If /doctor is available in your session (claim: `/doctor` is reserved for the pe
   leak can produce seconds per process creation at low CPU that a reboot clears. Report the leak,
   route the reboot and the attribution to the operator, and do not let the fan-out numbers carry
   the diagnosis.
-- **Do not present parallel hook cost as additive.** Summing hook timings overstates the stall the
+- **Do not present hook cost as additive** (scheduling: the hook-handler-fields pointer in
+  item 2 of the report reading). Summing hook timings overstates the stall the
   operator observes several times over.
 - **Config on disk is not config in force.** Check `fan_out.config_liveness` before saying a
   setting is or is not the cause: everything can look disabled while its hooks still run.

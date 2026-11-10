@@ -80,8 +80,8 @@ Every attribute the monitoring docs list is a typed column on `cc_logs`, `cc_met
 every attribute as JSON. A cold file compacted before a column existed reads that column as
 NULL, so the union pattern above binds over any mix of old and new cold files.
 
-Hot-tier only, deliberately: the `cc_*_cold()` macros raise `IO Error: No files found that match
-the pattern …` when the cold tier holds no parquet yet, so the union pattern above is for stores
+Hot-tier only, deliberately: the `cc_*_cold()` macros raise an IO error when the cold tier holds
+no parquet yet, so the union pattern above is for stores
 that have aged, not a safe default. Add the cold half only after confirming `cold/` is populated.
 
 ### Tool decisions (`claude_code.tool_decision`)
@@ -91,7 +91,8 @@ Event `event_name='tool_decision'` in `cc_logs` / `cc_logs_cold()`. Promoted col
 `trace_id`, `span_id`.
 
 **Column mapping:** Claude Code's `tool_decision` event emits the deciding-mechanism
-attribute as `source` (see monitoring docs). `tool_result` events use `decision_source` for
+attribute as `source` (see
+[monitoring usage: tool decision event](https://code.claude.com/docs/en/monitoring-usage#tool-decision-event)). `tool_result` events use `decision_source` for
 the same semantics; `cc-otel.sql` coalesces both into the `source` column.
 
 **Use when:** "which tool calls were denied?", "why was this tool call blocked?", "how many
@@ -100,9 +101,9 @@ permission denials this session?"
 **Do not:** search session transcripts or hook-events.jsonl. Those surfaces do not carry
 permission outcomes.
 
-**Attribution caveat:** `source='config'` lumps settings, allow/deny rules, managed
-policy, CLI tool lists, permission mode, session grants, and inherently-safe-tool logic.
-Counts of `reject`+`config` are an upper bound on config-driven denials, not per-rule
+**Attribution caveat:** we treat `source='config'` as covering several deciding mechanisms,
+which are read live from the tool decision event pointer above (as of 2026-11-10; recheck when
+that event splits `config` into separate values). Counts of `reject`+`config` are an upper bound on config-driven denials, not per-rule
 attribution.
 
 ```sql

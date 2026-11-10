@@ -51,12 +51,20 @@ name is a lane in the resolved config, a hand-started session (e.g. an interacti
 
 ## A relaunch is the only context reset a loop lane gets
 
-`/loop` re-invokes its prompt in the **same** session (it self-paces via
-`ScheduleWakeup`), so a lane's context carries forward across every cycle, subagent
-return, and operator turn, the loop never starts a fresh one. A running loop
-**cannot** reset its own context on demand: a built-in like `/clear` issued from a
-loop re-run reaches the model as plain text, not an executed command, so the model
-cannot `/clear` itself. Any "restart the loop when context passes ~N%" discipline is
+We treat `/loop` as re-running its prompt in the **same** session, so a lane's
+context carries forward across every cycle, subagent return, and operator turn, and
+the loop never starts a fresh one. We treat a running loop as **unable** to reset
+its own context on demand: the model cannot `/clear` itself from a loop re-run.
+
+- **Pointer**: when stating how `/loop` re-runs a prompt or what a built-in command
+  issued from a loop does, fetch
+  [scheduled tasks: run a prompt repeatedly with /loop](https://code.claude.com/docs/en/scheduled-tasks#run-a-prompt-repeatedly-with-loop)
+  live.
+- **As of**: 2026-11-10
+- **Recheck trigger**: that section says a loop re-run starts a fresh context or
+  runs built-in commands.
+
+Any "restart the loop when context passes ~N%" discipline is
 therefore an admonition with no in-session enforcement, the lane has no reliable way
 to measure its own context usage and no way to act on the threshold if it could.
 
@@ -93,28 +101,23 @@ run first with `--dry-run` (prints the exact `claude`/`git` commands, seeds
 nothing, kills nothing).
 
 **`--data-dir` is passed explicitly, not left to the script's own
-`$CLAUDE_PLUGIN_DATA` env-var fallback.** Per
-[plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables),
-`${CLAUDE_PLUGIN_DATA}` is exported as a real environment variable only to hook
-processes and MCP/LSP subprocesses. For skill content it instead resolves by
-**inline text substitution anywhere the placeholder appears** in the rendered
-skill body, exactly like `${CLAUDE_PLUGIN_ROOT}` above. A script this skill
-shells out to via the Bash tool does **not** inherit `CLAUDE_PLUGIN_DATA` as an
-env var, so leaving `--data-dir` off here would silently fall through to
+`$CLAUDE_PLUGIN_DATA` env-var fallback.** We rely on the skill body's inline
+`${CLAUDE_PLUGIN_DATA}` substitution and never on the Bash tool's environment, so
+leaving `--data-dir` off here would silently fall through to
 `lane-launcher.sh`'s own `~/.claude/plugins/data/harness-ops` guess instead of
 the marketplace-qualified directory Claude Code actually resolves. `$ARGUMENTS`
 comes after `--data-dir`, so an explicit `--data-dir` the caller passes in
 `$ARGUMENTS` still wins (last flag wins in `lane-launcher.sh`'s parser).
 
-This is the dated record for the export claim; the two restatements below point
-here, and `context/refresh.md` points at the docs section directly. The page says of `${CLAUDE_PLUGIN_ROOT}`,
-`${CLAUDE_PLUGIN_DATA}` and `${CLAUDE_PROJECT_DIR}` that "All three are exported
-as environment variables to hook processes and to MCP and LSP server
-subprocesses", and its component table gives skill and agent content inline
-placeholder substitution only. Verified 2026-09-06 against Claude Code 2.1.263
-and that page as fetched that day. Recheck when the page's environment-variable
-section stops naming those three process kinds, or a release note names plugin
-environment variables.
+This is the dated record for the export decision; the two restatements below
+point here, and `context/refresh.md` points at the docs section directly.
+
+- **Pointer**: when stating which processes receive the plugin path variables, fetch
+  [plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
+  live.
+- **As of**: 2026-11-10
+- **Recheck trigger**: that table exports the variables to the Bash tool, or a
+  release note names plugin environment variables.
 
 ## Action Router
 
@@ -185,7 +188,9 @@ keeps no list of them:
 
 ## Consume restart-requests
 
-A lane that hits its cycle budget or the `/loop` seven-day expiry writes a
+A lane that hits its cycle budget or the `/loop` expiry
+([scheduled tasks: seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry),
+as of 2026-11-10; recheck when that section changes how a recurring task expires) writes a
 `restart_request` into its telemetry state block and stops. It cannot relaunch
 itself. The consumer is the reader that closes that gap, meant to run unattended
 on an **OS-owned schedule** (its `print-schedule` action emits the registration
@@ -254,10 +259,8 @@ committed directory. The launcher resolves the prompt dir in exactly one place
 
 A **running** lane keeps the skill versions it loaded at launch: a fix merged to a
 plugin the lane runs does **not** reach that lane mid-session. This is not a missing
-feature to build around. It is documented Claude Code behavior (a live session keeps
-its launch-time plugin versions, `/loop` never re-reads a skill's body on later
-cycles, and a loop can't self-trigger `/reload-plugins`); the dated record with
-all three citations is [context/refresh.md](context/refresh.md), "Empirical
+feature to build around. We treat it as Claude Code behavior; the dated record with
+its three citations is [context/refresh.md](context/refresh.md), "Empirical
 answer: no true mid-session hot-reload for a running loop lane". Restart is the honest
 refresh mechanism, the same `restart` that clears context bloat. Detect an
 unconsumed self-fix with a read-only git probe against the repo's default branch,
@@ -296,10 +299,10 @@ Verified 2026-09-06 against Claude Code 2.1.263, by reading `claude --help`,
 `claude agents --help`, and `claude plugin marketplace --help`; `--permission-mode
 auto` re-verified 2026-09-27 against Claude Code 2.1.283, by running `claude --bg
 -n <test-name> --permission-mode auto "<prompt>"` and confirming `auto` is a
-listed `--permission-mode` choice, and against the official
-[CLI reference](https://code.claude.com/docs/en/cli-reference), which lists
-`--permission-mode` as accepting `default`, `acceptEdits`, `plan`, `auto`,
-`dontAsk`, `bypassPermissions`, or `manual`. Recheck when the CLI's major or
+listed `--permission-mode` choice. Its accepted values are read live from the
+`--permission-mode` row of
+[CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags)
+(as of 2026-11-10). Recheck when the CLI's major or
 minor version moves, or a release note names background sessions, the
 `agents` command, `plugin marketplace`, or `--permission-mode`. The primitives:
 `claude --bg -n <name> --permission-mode auto [--permission-prompts none]
@@ -428,10 +431,13 @@ each, the summary below is a pointer, not a copy.
 installed plugin cannot invoke a sibling plugin's script.
 
 Pass the body as file contents (`--body-file PATH`) or pipe it (`--body-file -`).
-**Never interpolate an `@path` string into a body value**: `gh issue comment --body
-@path` and `gh api -f body=@path` send the literal text `@path`. Reading from a file
-takes `gh issue comment --body-file`, or `gh api -F`/`--field key=@path`, per each
-command's own `--help` (gh 2.95.0); `gh api` has no `--body-file` flag at all.
+**Never interpolate an `@path` string into a body value**: on gh 2.95.0 we observed
+`gh issue comment --body @path` and `gh api -f body=@path` post the literal text
+`@path`. Read a body from a file with `gh issue comment --body-file` or
+`gh api -F`/`--field key=@path`; which flags read a file is read live from the
+[gh api](https://cli.github.com/manual/gh_api) and
+[gh issue comment](https://cli.github.com/manual/gh_issue_comment) manual pages (as of
+2026-11-10; recheck when either page changes which flags read a value from a file).
 
 The failure is invisible from the outside: the comment's timestamp still
 moves, so any check keying on `updatedAt` reads the lane as **fresh** while it

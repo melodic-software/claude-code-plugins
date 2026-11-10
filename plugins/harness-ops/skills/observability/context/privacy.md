@@ -1,6 +1,6 @@
 # `/harness-ops:observability` privacy filter
 
-Defense-in-depth redaction at output time. Write-time enforcement (in `hook::record_event`) is primary; read-time filter here catches drift if a hook ever logs raw command/prompt content.
+Defense-in-depth redaction at output time. Write-time enforcement is primary: each hook records only its own fields through `slog_event_record_to` in `hooks/session-log-lib.sh`, and content keys only when `session_event_log_content` is on; read-time filter here catches drift if a hook ever logs raw command/prompt content.
 
 ## Hard rules
 
@@ -10,7 +10,7 @@ Defense-in-depth redaction at output time. Write-time enforcement (in `hook::rec
 | `subject` containing full command (`>50 chars` AND containing `\|`, `&&`, `&`, `>`, `<`) | REPLACE with first token + `[truncated]` | Hook bug, should never have logged full cmd; defensive trim |
 | `cwd` field | KEEP | Already a path |
 | Field values matching env-var deny list (see below) | REPLACE with `[redacted-env]` | Catches accidental env-var-as-subject |
-| Lines containing 8+ char base64-like token (`[A-Za-z0-9+/]{32,}={0,2}`) | REPLACE token with `[redacted-token]` | Catches accidental secret leak |
+| Lines containing 32+ char base64-like token (`[A-Za-z0-9+/]{32,}={0,2}`) | REPLACE token with `[redacted-token]` | Catches accidental secret leak |
 | File contents excerpts | REMOVE | Should not appear in any source; if present, hook bug |
 | Prompt text snippets, and the event log's content keys (`prompt`, `last_assistant_message`, `message` and the rest of the `session_event_log_content` list in data-sources.md, with their `<key>_truncated` and `content_truncated` markers) | REMOVE | Present in an event-log file only when the operator turned `session_event_log_content` on; a report never repeats them. Anywhere else, a hook bug |
 
@@ -55,7 +55,7 @@ paths and hook file names stay readable.
 - Hook names, event names, exit codes, durations
 - Branch names, commit SHAs (these are public via `git log`)
 - Cost/token totals (no PII)
-- Statusline payload: by spec contains no user content
+- Statusline payload: we treat it as carrying no user content; its fields are read live from [statusline: available data](https://code.claude.com/docs/en/statusline#available-data) (as of 2026-11-10; recheck when that section adds a prompt or message field)
 
 ## Trust boundary
 
@@ -86,7 +86,7 @@ list is the cold content boundary comment in `../otel/cc-otel.sql`.
 
 ## Memory feedback handling
 
-When reading `~/.claude/projects/<slug>/memory/feedback_*.md` for the calibration signal (Section 6 of report), only count occurrences, never include feedback text in output. Format:
+When reading `~/.claude/projects/<slug>/memory/feedback_*.md` for the calibration signal (section 6 of data-sources.md), only count occurrences, never include feedback text in output. Format:
 
 ```
 "<N> dismissals matching 'side observation' / 'noticed' / 'mentioned'"

@@ -56,9 +56,10 @@ scope named and is never reported as "nothing observed".
 
 ## It is a proxy: do not strip the caveat
 
-The `SkillUse` record carries **no caller attribution**. A PostToolUse hook on the Skill tool
-receives `tool_name`, `tool_input`, and `tool_response`; nothing in that payload names the skill
-whose instructions caused the call. So the script cannot observe "Y was invoked *by* X", only
+The `SkillUse` record carries **no caller attribution**. We read the PostToolUse payload on the
+Skill tool as naming no skill whose instructions caused the call; its fields are read live from
+[hooks: PostToolUse input](https://code.claude.com/docs/en/hooks#posttooluse-input) (as of
+2026-11-10; recheck when that input gains a caller field). So the script cannot observe "Y was invoked *by* X", only
 that both fired in the same `(project_id, branch)` group, ordered by timestamp. A Y the user
 typed by hand counts identically to one X produced.
 
@@ -86,7 +87,9 @@ its schema, so widening the write would have nothing to write; recovering it wou
 the session transcript, which turns a bounded telemetry hook into a conversation reader and
 crosses the boundary `observability/context/privacy.md` guards.
 
-The nearer signal needs no change and already ships: OTEL's `claude_code.skill_activated` carries
-`invocation_trigger`, separating `user-slash` from `claude-proactive`. That is the axis a "does
+The nearer signal needs no change and already ships: the `invocation_trigger` attribute of OTEL's
+`claude_code.skill_activated` event, whose values are read live from
+[monitoring usage: skill activated event](https://code.claude.com/docs/en/monitoring-usage#skill-activated-event)
+(as of 2026-11-10; recheck when that event drops the attribute). That is the axis a "does
 the model reach for it unprompted" question actually wants, and the tier model already gates it
 as `T-full`-only.

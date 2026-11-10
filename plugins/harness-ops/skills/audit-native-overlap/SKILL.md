@@ -15,8 +15,8 @@ Answers one question: **which of this repository's components now overlap someth
 ships itself, and what should each one do about it?**
 
 Claude Code's own surface moves every week. A skill written when no bundled equivalent existed can
-wake up duplicating one, and nothing in the product says so. Plugin skills are namespaced, so a
-native surface never shadows ours and the collision is silent. The model then picks between two
+wake up duplicating one, and nothing in the product says so. We treat ours and the native surface
+as both loading (see the first gotcha), so the collision is silent. The model then picks between two
 overlapping capabilities from descriptions alone.
 
 This skill makes the overlap visible, records a ruled verdict per pair in a committed store, and, only when asked, bakes the resulting routing guidance into the components themselves.
@@ -189,11 +189,9 @@ rosters per host; a merged list cannot be acted on.
 
 ## Budget exposure, a presence-gated seam
 
-Baked phrases live in frontmatter descriptions, which are the routing-effective surface:
-descriptions load into model context by default, while bodies load only on invocation. That surface
-is budgeted twice over: a per-entry cap on the combined `description` + `when_to_use` text, and a
-listing-wide cap set as a share of the context window, whose values come from the pointers in the
-table at the end of this file. On overflow our binary reading keeps every skill *name* and drops
+Baked phrases live in frontmatter descriptions, which we treat as the routing-effective surface.
+We measure that surface against two budgets, a per-entry cap and a listing-wide cap, whose
+mechanics and values come from the pointers in the table at the end of this file. On overflow our binary reading keeps every skill *name* and drops
 whole descriptions lowest-score-first. The score is decay-weighted and the walk is first-fit, so raw invocation count
 is NOT the exposure ranking and description length matters too; see
 [`audit-skill-visibility/reference/listing-scorer.md`](../audit-skill-visibility/reference/listing-scorer.md).
@@ -396,8 +394,11 @@ Two upstream dependencies of this skill, each with the trigger that obliges re-d
 
 ## Gotchas
 
-- **A plugin skill never shadows a native one.** Ours are namespaced, so both resolve and the model
-  chooses. That is why the routing lives in descriptions rather than in a name.
+- **We treat a plugin skill as never shadowing a native one**: both resolve and the model chooses.
+  That is why the routing lives in descriptions rather than in a name. Pointer: when stating how
+  same-named skills resolve, fetch the plugin-skill row of
+  [skills: resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name)
+  live. As of: 2026-11-10. Recheck trigger: that row stops saying both load.
 - **`plugin_backed` is its own lane.** `security-review` is reported there, not under
   `builtin_commands`. Read the wrong key and the row looks absent. Pointer: our probe, the
   `plugin_backed` key of an `inventory.py --binary-only` extraction on this machine, which held

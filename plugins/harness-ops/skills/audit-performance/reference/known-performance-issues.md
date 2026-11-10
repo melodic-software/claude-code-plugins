@@ -127,10 +127,14 @@ process count at sample time, and never a single number.
 
 Eight `PreToolUse` hooks matching `Bash|PowerShell` fired on every Bash or PowerShell tool call,
 each invoked as a 3-deep bash chain worth about 24 spawns per tool call. One measured 5,891 to
-33,381 ms. Because hooks on an event run in parallel, 51 to 64 were alive simultaneously and
-wall-clock cost was roughly the slowest hook plus contention, which matched the observed 60 to
+33,381 ms. 51 to 64 were alive simultaneously and wall-clock cost was roughly the slowest hook plus contention, which matched the observed 60 to
 70 s stalls. A naive 8 x 24 s sum predicts about 200 s and is wrong by a factor of three, which
 is worse than useless: it fails to match the symptom and discredits the report.
+
+- **Pointer**: when stating how an event's hooks are scheduled, fetch
+  [hooks: hook handler fields](https://code.claude.com/docs/en/hooks#hook-handler-fields) live.
+  **As of**: 2026-11-10. **Recheck trigger**: that section changes whether an event's matching
+  hooks run together.
 
 `invocation_shape` detects three shapes. Two cost extra process creations before the hook's own
 work begins:
@@ -172,8 +176,8 @@ rows carried an `if` gate, so a write of one file kind spawned a handful of proc
 than 33. Three independent levels stand between a row and a spawn, and only the first is visible
 in a bucket count.
 
-**Level 1, the event key.** The `if` field is evaluated only on the tool events, so those events
-are what per-tool-call means, and a handler carrying an `if` on any other event is dead
+**Level 1, the event key.** We treat the `if` field as evaluated only on the tool events, so those
+events are what per-tool-call means, and a handler carrying an `if` on any other event is dead
 configuration rather than a cost. The engine reports those as `if_on_non_tool_event` and counts
 them as never firing; its event list is our copy of the firing rule.
 
@@ -181,10 +185,8 @@ them as never firing; its event list is our copy of the firing rule.
   [hooks: common fields](https://code.claude.com/docs/en/hooks#common-fields) live. **As of**:
   2026-10-11. **Recheck trigger**: the `if` row adds or drops an event.
 
-**Level 2, the group matcher**, which is a character class before it is a regex: a match-all
-form, an exact-string or exact-list form for plain identifier characters, and an unanchored
-regular expression for anything else. The engine's `matcher_matches` encodes that rule as our
-decision.
+**Level 2, the group matcher**, whose evaluation rule the engine's `matcher_matches` encodes as
+our decision.
 
 - **Pointer**: when deciding how a matcher string is evaluated, fetch
   [hooks: matcher patterns](https://code.claude.com/docs/en/hooks#matcher-patterns) live. **As
@@ -294,10 +296,9 @@ truthiness test on the raw string (`if (!process.env.CLAUDE_CODE_...) return fal
 JavaScript the string `"0"` is TRUTHY. Setting it to `0` reads like a disable in a settings file
 and is a silent no-op; only removing the variable disables it. Any advisory that says "set it to
 0" is actively wrong. Re-verify the gating shape against the shipped binary before resting a
-conclusion on it. The two caps work differently: neither can be disabled, and removing one
-restores its default. For the values each accepts, see their rows in
-[env vars](https://code.claude.com/docs/en/env-vars) (as of 2026-10-02; recheck when those rows
-change what they accept).
+conclusion on it. For what each cap accepts, and whether any value disables it, see their rows in
+[env vars: variables](https://code.claude.com/docs/en/env-vars#variables) (as of 2026-11-10;
+recheck when those rows change what they accept).
 
 The engine reports these three against their documented defaults and flags one that is set but
 undocumented upstream. It deliberately does NOT cross-check env keys against a strings scan of
@@ -543,11 +544,11 @@ charged it. Both thresholds are calibrated on this one host's two states, ten ti
 clean-boot count and a fifteenth of its leaking count. A second host's readings, healthy or
 leaking, are the recheck trigger for them.
 
-### The per-logon workaround, on trial on melo-lap-001
+### The per-logon workaround, on trial on the reference host
 
 We reapply the workaround after every logon because the write-up linked below reports that the
-live value is reset at logon; we have not yet observed that reset on melo-lap-001. We run it from
-the first interactive terminal because melo-lap-001's own probe (the rendered
+live value is reset at logon; we have not yet observed that reset on the reference host. We run it from
+the first interactive terminal because the reference host's own probe (the rendered
 `foreground-lock.ps1` run from a background process over the WSL hop, 2026-10-26) shows a
 background caller is refused: `before=2147483647 after=2147483647 set=False error=87`.
 
@@ -558,7 +559,7 @@ background caller is refused: `before=2147483647 after=2147483647 set=False erro
   **As of**: 2026-10-26. **Recheck trigger**: either source changes its account of the logon
   reset, or a Windows update's notes name win32k foreground or token handling.
 
-- **Where it lives:** dotfiles. Host data `windowsPrefs.hosts.melo-lap-001.foregroundLockTimeoutAtLogon`
+- **Where it lives:** dotfiles. Host data `windowsPrefs.hosts.<host>.foregroundLockTimeoutAtLogon`
   renders `AppData/Local/PowerShell/foreground-lock.ps1`, which the PowerShell profile's deferred
   init runs in every interactive terminal. When the value differs it sets it, live only, and
   appends one line to `%LOCALAPPDATA%\PowerShell\foreground-lock.log`. Deleting the key ends the
@@ -577,7 +578,7 @@ background caller is refused: `before=2147483647 after=2147483647 set=False erro
 
 **Probe record.** The baseline and the error-87 refusal come from `measure.py` (the
 2026-09-23 `arms.py` plus the live timeout per row) and the rendered `foreground-lock.ps1`, both
-run on melo-lap-001 on 2026-10-26. **As of**: 2026-10-26. **Recheck trigger**: the day-7
+run on the reference host on 2026-10-26. **As of**: 2026-10-26. **Recheck trigger**: the day-7
 after-measurement on #4372.
 
 ### Attribution runbook (the engine never does this)
@@ -595,12 +596,9 @@ The capture a reboot destroys comes first; after that the order is by cost, not 
 
    The tag table ships with the Windows SDK debuggers, under `Debuggers/x64/triage/pooltag.txt` in
    the Windows Kits install; `/g` with no argument takes the default.
-   `/g [PoolTagFile]` "Adds a column to the display (Mapped_Driver) listing Windows components and
-   commonly used drivers that assign each tag". While it runs, `p` "Toggles
-   the display through nonpaged allocations, paged allocations, and both" and `b` "Sorts by bytes
-   used"; `/b` does the same sort from the command line. `/i` "Displays only the allocations with
-   the specified pool tag", with no space between the `i` and the tag and wildcards allowed, so
-   `poolmon /iWC*` and `poolmon /iToke` narrow the capture. **Sample the `WC*` tags alongside
+   We use `/g` for the `Mapped_Driver` column, the run-time `p` and `b` keys (or `/b` at start)
+   to view paged allocations by bytes, and `/i` with the tag written directly after the `i`,
+   wildcards allowed, to filter, so `poolmon /iWC*` and `poolmon /iToke` narrow the capture. **Sample the `WC*` tags alongside
    `Toke` first**: the wcifs retention and the foreground-launch leak are two different leaks that
    a host can carry at once, and only that pairing tells you which one you have. It is what the
    reference host's dump did to rule wcifs out there. Snapshot, repeat every 30 minutes,
@@ -663,17 +661,15 @@ The capture a reboot destroys comes first; after that the order is by cost, not 
    suspect list, or a vendor documents its filter stack well enough to replace the per-host check
    with a citation.
 
-**Drift record.** *Claim:* every documented `poolmon` switch is slash-prefixed and none is
-dash-prefixed; `/g [PoolTagFile]` adds the `Mapped_Driver` column, `/i` filters to a tag with no
-intervening space, and `/b` sorts tags by bytes used; at run time `p` toggles pool type and `b`
-sorts by bytes used. *Basis:* Microsoft Learn
+**Drift record.** *Decision:* we invoke `poolmon` with slash-prefixed switches only, and use the
+switches and run-time keys the runbook step names for the purposes it gives them. *Pointer:* when
+checking a switch, a key or the syntax, read Microsoft Learn
 [PoolMon Startup Command](https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/poolmon-startup-command)
 for the syntax line and the `/g`, `/i` and `/b` rows,
 [PoolMon Run-time Commands](https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/poolmon-run-time-commands)
 for `p` and `b`, and
 [PoolMon Examples](https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/poolmon-examples)
-for the wildcard form (`poolmon /iAfd*` there); all three fetched live on 2026-09-22, each
-arriving whole with its own first heading checked, and the quoted spans copied from them. *As of:* 2026-09-22. *Recheck trigger:* either
+for the wildcard form, live. *As of:* 2026-09-22. *Recheck trigger:* either
 page adds or removes a switch or run-time key this step names, or a dash-prefixed form appears in
 the documented syntax. Only the `devtest` pages are cited: Learn also carries a condensed poolmon
 key table under `debugger/` that was not read for this record, so nothing here rests on it.
@@ -758,7 +754,7 @@ coverage is unmeasured until someone takes readings there.
 ## Windows-specific amplifiers
 
 - Defender interacts with the tree's file churn (handle-hold EPERM during plugin install:
-  anthropics/claude-code#54053; installer false positive: #36796). Never treat an empty
+  anthropics/claude-code#54053; installer false positive: anthropics/claude-code#36796). Never treat an empty
   `Get-MpPreference` exclusions read from a non-elevated shell as evidence that no exclusion
   exists; read it from an elevated shell or say it is unverified. No Microsoft Learn page found
   as of 2026-11-03 states what a non-elevated read shows; recheck when one does, and point at it
@@ -770,5 +766,5 @@ coverage is unmeasured until someone takes readings there.
   taxes every process creation system-wide at idle CPU; see "The host-level floor" above. A
   reboot restores the floor, and only attribution of the minter ends the leak.
 - Claude **Desktop** (Electron) has its own distinct lag bugs (unbounded LocalStorage sync,
-  #55149; idle disk-write churn, #58799). Do not import Desktop evidence into a CLI diagnosis
+  anthropics/claude-code#55149; idle disk-write churn, anthropics/claude-code#58799). Do not import Desktop evidence into a CLI diagnosis
   or vice versa; say which surface the symptom was observed on.
