@@ -196,12 +196,8 @@ SKILLDATA_COUNT=0
 # removal would otherwise cause silently. Shared by the repo scan (ignored files)
 # and the plain-dir scan (target-relative descendants).
 count_preserve_classes() {
-  if clean_path_matches_secret_class "$1"; then
-    SECRETS_COUNT=$((SECRETS_COUNT + 1))
-  fi
-  if clean_path_matches_skilldata "$1"; then
-    SKILLDATA_COUNT=$((SKILLDATA_COUNT + 1))
-  fi
+  clean_path_matches_secret_class "$1" && SECRETS_COUNT=$((SECRETS_COUNT + 1))
+  clean_path_matches_skilldata "$1" && SKILLDATA_COUNT=$((SKILLDATA_COUNT + 1))
 }
 
 # Structural bare-repo detection (HEAD + objects/ + refs/ at the top level) —
