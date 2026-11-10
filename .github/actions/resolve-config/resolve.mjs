@@ -356,6 +356,7 @@ export function loadConfig(files, { configPath }) {
     );
   }
   validateSchema(doc, files.schema, configPath);
+  checkLimits(doc.limits, configPath);
 
   for (const name of Object.keys(doc.activities)) {
     if (RESERVED_ACTIVITIES.has(name)) {
@@ -947,6 +948,22 @@ function resolveMerge(merge = {}) {
   };
 }
 
+// LANE_LEVEL_DEFAULTS in .github/scripts/lib/lane-level.mjs holds the same;
+// resolve.test.mjs holds the two, the schema and the yaml equal.
+const laneLevelOf = (limits = {}) => ({ floor: 2, ceiling: 4, default: 3, "clean-windows": 2, pools: ["lanes-app"], ...limits["lane-level"] });
+
+// What the schema cannot check about limits: the lane level's floor, as set
+// or defaulted, is at most its ceiling.
+function checkLimits(limits, configPath) {
+  const { floor, ceiling } = laneLevelOf(limits);
+  if (floor > ceiling) {
+    throw new Rejection(
+      "invalid-config",
+      `${configPath}: limits.lane-level floor ${floor} is above its ceiling ${ceiling}`,
+    );
+  }
+}
+
 // The `limits` leaf with every default applied, in hours and counts; the lane
 // scripts' copy of these defaults is
 // .github/scripts/work-resolve-issue/limits.mjs.
@@ -979,6 +996,7 @@ const limitsOf = (limits = {}) => ({
   },
   // As set: rate-guard.mjs fills it from rate-limits.json beside it.
   api: limits.api ?? {},
+  "lane-level": laneLevelOf(limits),
 });
 
 const loopOf = (loop = {}) => ({

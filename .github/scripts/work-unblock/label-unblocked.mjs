@@ -284,9 +284,9 @@
 // Environment:
 //   GH_TOKEN              the lane App token (issues: write)
 //   GITHUB_REPOSITORY      owner/repo
-//   GITHUB_EVENT_NAME      `issues` (a close), or `schedule` or
-//                          `workflow_run` (a finished work-resolve-issue run)
-//                          for the sweep
+//   GITHUB_EVENT_NAME      `issues` (a close), or `schedule`,
+//                          `workflow_dispatch` or `workflow_run` (a finished
+//                          work-resolve-issue run) for the sweep
 //   GITHUB_EVENT_PATH      the event payload; on `issues` only its action,
 //                          sender and issue number are read; on a sweep
 //                          event it is not read
@@ -2872,12 +2872,13 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
     }
-    // A finished work-resolve-issue run sweeps as the schedule does: its
-    // payload is not read, and its sender is usually the lanes App.
-    const sweep = env.GITHUB_EVENT_NAME === "schedule" || env.GITHUB_EVENT_NAME === "workflow_run";
+    // A finished work-resolve-issue run and a hand-started run sweep as the
+    // schedule does: the payload is not read, and a finished run's sender is
+    // usually the lanes App.
+    const sweep = ["schedule", "workflow_dispatch", "workflow_run"].includes(env.GITHUB_EVENT_NAME);
     const event = sweep ? {} : JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
     if (!sweep && (env.GITHUB_EVENT_NAME !== "issues" || event.action !== "closed" || !NUMBER.test(String(event.issue?.number)))) {
-      throw new Error("this runs only on an issue closing, on the schedule or after a work-resolve-issue run");
+      throw new Error("this runs only on an issue closing, on the schedule, by hand or after a work-resolve-issue run");
     }
     if (env.KILL_SWITCH !== "proceed") {
       console.log("label-unblocked: the lanes kill switch stops this run; nothing read or labeled");

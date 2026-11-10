@@ -24,8 +24,8 @@
 //             than WAIT_MAX_HOURS after the file is read, is dropped
 //
 // `read` takes the file from the newest successful sweep of main's
-// work-unblock.yml (a scheduled run or one a finished work-resolve-issue run
-// started), this run aside, holding the work-unblock-verdicts artifact. Only
+// work-unblock.yml (a scheduled run, a hand-started one, or one a finished
+// work-resolve-issue run started), this run aside, holding the work-unblock-verdicts artifact. Only
 // that run's own steps could upload it, and every work-unblock event runs
 // main's copy of the workflow; it never goes through actions/cache, which any
 // job in main's cache scope can write (pr-merge/carry-run-cache.mjs). `read`
@@ -219,10 +219,12 @@ export function loadCarry(path, now = Date.now(), code = codeDigest()) {
 }
 
 // A sweep of main's work-unblock.yml, whatever it concluded: only a sweep
-// uploads the file.
+// uploads the file. A dispatched run sweeps exactly as a scheduled one and
+// runs main's copy.
+const SWEEP_EVENTS = new Set(["schedule", "workflow_dispatch", "workflow_run"]);
 export const anySweepRun = (repo) => (run) =>
   run?.path === WORKFLOW_PATH &&
-  (run.event === "schedule" || run.event === "workflow_run") &&
+  SWEEP_EVENTS.has(run.event) &&
   run.head_branch === "main" &&
   run.head_repository?.full_name === repo;
 

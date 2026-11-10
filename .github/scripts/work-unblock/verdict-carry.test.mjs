@@ -1,5 +1,5 @@
 // Expected values come from verdict-carry.mjs's rules: `read` takes the file
-// only from a successful sweep (schedule or workflow_run) of main's
+// only from a successful sweep (schedule, workflow_dispatch or workflow_run) of main's
 // work-unblock.yml in this repository, and any failure leaves no file; a
 // saved carry keeps at most JOBS_MAX and REFUSALS_MAX entries, newest used first.
 import assert from "node:assert/strict";
@@ -58,6 +58,15 @@ test("read takes the file of the newest successful sweep of main's work-unblock.
   assert.equal(readFileSync(join(dir, "in.json"), "utf8"), '{"jobs":{}}');
   // Only the one trusted run before it was asked for its artifacts.
   assert.deepEqual(calls.filter((path) => path.includes("/artifacts")), [`/repos/${REPO}/actions/runs/895/artifacts?per_page=100`]);
+});
+
+test("read takes the file of a hand-started sweep like a scheduled one", async () => {
+  const dir = tempDir("verdict-carry-");
+  const runs = [sweepRun(900), sweepRun(899, { event: "workflow_dispatch" }), sweepRun(898, { event: "schedule" })];
+  const { actions } = fakeActions(runs, [900, 899, 898]);
+  const asked = [];
+  await read({ env: envFor(dir), actions, download: (id) => (asked.push(id), '{"jobs":{}}') });
+  assert.deepEqual(asked, [8990]);
 });
 
 test("read leaves no file when no sweep kept one, the download is not a JSON object, or the listing fails", async () => {

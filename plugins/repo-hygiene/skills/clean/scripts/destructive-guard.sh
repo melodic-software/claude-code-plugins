@@ -174,10 +174,8 @@ argv_destructive() {
     base="${word##*/}"
     base="${base##*\\}"
     [[ "$word" == "--apply" ]] && apply=1
+    [[ "$base" =~ ^(${CLEAN_SCRIPT_NAMES})\.sh$ ]] && script=1
     case "$base" in
-    clean-caches.sh | clean-build.sh | git-prune.sh | git-tree-reset-batch.sh | git-tree-reset.sh | remove-path.sh | clean-batch.sh)
-      script=1
-      ;;
     rm)
       recursive=0 force=0
       for ((j = i + 1; j < n; j++)); do
@@ -766,13 +764,10 @@ if is_acknowledged "$CMD" "$TOOL"; then
   exit 0
 fi
 
-DESTRUCTIVE=0
-if [[ "$TOOL" == Bash ]]; then
-  is_destructive_bash "$CMD" && DESTRUCTIVE=1
-else
-  is_destructive "$CMD" && DESTRUCTIVE=1
-fi
-if ((DESTRUCTIVE)); then
+command_is_destructive() {
+  if [[ "$TOOL" == Bash ]]; then is_destructive_bash "$CMD"; else is_destructive "$CMD"; fi
+}
+if command_is_destructive; then
   refresh_marker
   # shellcheck disable=SC2016  # literal `$env:` is the PowerShell spelling
   case "$TOOL" in

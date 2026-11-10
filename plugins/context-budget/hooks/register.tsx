@@ -137,10 +137,11 @@ export const register: Register = (on, options) => {
     if (e.props.hasSurvey || (await read($, mode)) !== 'band') return theirs
     const { view: v, error } = await read($, live)
     if (v === null || v.categories.length === 0 || error !== null) return theirs
-    const { Box } = $.ui.resolve(e)
+    const draw = $.ui.resolve(e)
+    const { Box } = draw
     return (
       <Box flexDirection="column">
-        {Band($.ui.resolve(e), v, e.props.bodyColumns)}
+        {Band(draw, v, e.props.bodyColumns)}
         {theirs}
       </Box>
     )

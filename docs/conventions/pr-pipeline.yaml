@@ -1251,6 +1251,21 @@ limits:
   # thresholds meant for the hub's limits sampler, which nothing here enforces. Their
   # defaults live in .github/actions/log-api-budget/rate-limits.json, held
   # for a person like this file; add an `api:` entry here only to override one.
+  # The adaptive lane level L (owner decision Q111, 2026-11-10): the issue
+  # lane's concurrency .github/scripts/lib/lane-level.mjs would pick each
+  # window. Nothing reads it yet; SLOTS stays 3. L steps up 1 after
+  # clean-windows windows in a row with no limit signal, lane demand and room
+  # (peak share used x (L+1)/L at most api.<pool>.plan, no pool at or under
+  # api.<pool>.writer-pause left), and halves on any limit signal the lanes
+  # App's own calls meet, within floor and ceiling. pools are the budgets L
+  # spends: the lanes App's bursts. A breaker trip, mostly GITHUB_TOKEN spend
+  # that pacing controls, is not a signal; the breaker stays the backstop.
+  lane-level:
+    floor: 2
+    ceiling: 4
+    default: 3
+    clean-windows: 2
+    pools: [lanes-app]
 
 wip:
   # Cap = lane PRs merged per hour over the window times this target.
