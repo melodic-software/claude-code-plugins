@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "docs/adr/0003-serve-the-public-api-over-rest.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "docs/adr/0002-serve-the-public-api-over-graphql.md",
+            "old_string": "Status: accepted",
+            "new_string": "Status: superseded by 0003"
+          }
+        }
+      ]
+    }
+  ]
+}

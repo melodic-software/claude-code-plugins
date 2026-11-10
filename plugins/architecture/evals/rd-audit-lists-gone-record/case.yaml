@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: rd-audit-lists-gone-record
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-write
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\brm\b|\bunlink\b|\bmkdir\b|\btouch\b|\btee\b|\bcp\b|\bmv\b|\bsed\s+-i|>>?\s*(?!/dev/null|&)\S*\.(?:md|markdown|txt|yaml|yml)\b|\|\s*(?:bash|zsh|dash|sh)\b|\bgit\s+(?:add|commit|restore|checkout|reset)\b)'
+    min: 0
+    max: 0
+    arm: both
+  - name: lists-redis-record
+    type: regex
+    pattern: '(?:\b0001\b|ADR[- ]?0*1\b)[^\n]*\bredis\b|\bredis\b[^\n]*(?:\b0001\b|ADR[- ]?0*1\b)'
+    flags: 'i'
+    target: last_message
