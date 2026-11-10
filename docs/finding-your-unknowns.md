@@ -105,7 +105,7 @@ this order when you run several:
 Notes: the sequencing is chat-portable. Every pass works as plain conversation, and the
 artifact form is optional. The passes a person answers (interview through plan) run in one
 session, and `/session-flow:workflow` suggests a handoff between them only when context-guard
-reports zone `dumb`; execution of a finished plan moves to a fresh session with the artifacts
+reports zone `heavy`; execution of a finished plan moves to a fresh session with the artifacts
 carried forward.
 
 ## Prompt-pattern catalog

@@ -24,7 +24,8 @@ there; this router consumes only the resulting word, and inlines no band values)
 enabled, no tool and an absent snapshot, or `unknown` → assume degraded and lean on the judgment tests below (window position
 and response quality). If context-guard's evidence-degraded marker exists for this session, or
 the session is otherwise known to have been compacted, treat the context as degraded regardless
-of a smart zone word.
+of a light zone word. A context-guard release before the rename reports `smart`, `acceptable` and
+`dumb`; read them as `light`, `moderate` and `heavy`.
 
 ## Informant inputs (presence-gated pointers, never duplicated reads)
 
@@ -99,7 +100,7 @@ boundary.
    that skill: say that the work looks delegable and what a brief would have to carry, meaning
    scope, turn and budget caps, a checkable completion condition (`/goal` or a Stop-hook check),
    and the return contract, then leave the spawn decision with the user.)
-3. **Is there enough smart zone left, or is the remaining work simple enough for a degraded
+3. **Is there enough light zone left, or is the remaining work simple enough for a degraded
    context, and does neither question 4 nor question 5 apply?** → continue in session.
    *Questions 4 and 5 do not depend on the zone, so their cases route there whatever the zone
    says. The zero-cost exit for everything questions 1 and 2 didn't
@@ -130,11 +131,11 @@ boundary.
    compacts again when the window needs it. A related next task uses this stage's artifact or files
    and serves the same Original goal or work item, so the session's context is still its context.*
 
-**Between human stages, suggest a handoff only at context-guard zone `dumb`.** The human stages
+**Between human stages, suggest a handoff only at context-guard zone `heavy`.** The human stages
 are the interview, PRD, design and plan (`context/steps.md`, stages 1, 4, 5 and 6, with the
 explore and research detours they call), and they run in one session. At a boundary between two of
 them, the move to the next stage does not by itself reach question 5: the router suggests
-`session-flow:handoff` for it only when the zone word is `dumb`. At `smart`, `acceptable` or
+`session-flow:handoff` for it only when the zone word is `heavy`. At `light`, `moderate` or
 `unknown` it goes on to question 6 and suggests `/compact <focus>` when the window needs it, or
 continues; for this boundary an `unknown` zone is not read as degraded. Questions 0, 1 and 4 still
 apply, and so does question 5 when the work leaves this session (the Timing paragraph below),
@@ -147,7 +148,7 @@ leaving.
 
 - within one phase or activity → `/compact <focus>` each time the window needs it (question 6).
 - interview → design → plan, with any explore or research detour, stays in one session,
-  `/compact <focus>` when the window needs it; a handoff only at zone `dumb` (the rule above).
+  `/compact <focus>` when the window needs it; a handoff only at zone `heavy` (the rule above).
 - a finished spec or plan → execution moves to a fresh session (question 5).
 - implementation → review runs in fresh context, for example a reviewer subagent.
 - two failed corrections on one issue → `/clear` (question 4).

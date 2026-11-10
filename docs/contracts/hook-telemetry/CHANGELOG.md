@@ -5,6 +5,12 @@ Notable changes to the hook-telemetry envelope contract. The envelope is version
 compatibility"). Removal, rename, or type-change of a field is a major `schema_version` bump; a field is
 marked deprecated here for one minor cycle before removal.
 
+## Data schemas, envelope unchanged at 1.1 - 2026-11-10
+
+- `zone-crossing-inject`: the `zone`, `previous` and `armed` values are now `light`, `moderate` and
+  `heavy`, the renamed context zones. Records written before keep `smart`, `acceptable` and `dumb`;
+  a reader maps those to the new words. No field changed.
+
 ## Consumer rule, envelope unchanged at 1.1 - 2026-11-09
 
 - README "Consuming (sink side)" gains a store-anchoring rule: a project-relative store is joined
