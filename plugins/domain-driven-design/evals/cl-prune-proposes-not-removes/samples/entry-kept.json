@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "# Northwind Trading glossary\n\n**Order**\n\nA buyer's confirmed request to purchase one or more catalog items.\n\n**Orders table**\n\nThe `orders` table in Postgres, with columns `id`, `buyer_id` and `created_at`.\n", "why": "entry still present"}
+  ],
+  "fail": [
+    {"answer": "# Northwind Trading glossary\n\n**Order**\n\nA buyer's confirmed request to purchase one or more catalog items.\n", "why": "entry removed"},
+    {"answer": "", "why": "glossary emptied"}
+  ]
+}
