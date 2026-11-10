@@ -312,7 +312,7 @@ test("a merge-pr slot the config turns off prints its skip reason before the tok
     const name = block.slice(0, block.indexOf("\n"));
     const condition = conditionOf(block, name);
     const unminted = new Proxy(
-      { ...configured("false"), "lane-token": { outputs: { token: "" } }, mode: { outputs: {} }, candidates: { outcome: "skipped", outputs: {} }, gate: { outcome: "skipped" }, "head-refs": { outcome: "skipped" }, "post-merge": { outcome: "skipped", outputs: {} }, "lane-records": { outcome: "skipped" }, carry: { outputs: {} } },
+      { ...configured("false"), "lane-token": { outputs: { token: "" } }, mode: { outputs: {} }, candidates: { outcome: "skipped", outputs: {} }, gate: { outcome: "skipped" }, "head-refs": { outcome: "skipped" }, "post-merge": { outcome: "skipped", outputs: {} }, "lane-records": { outcome: "skipped" }, carry: { outputs: {} }, "hold-marker": { outcome: "skipped" } },
       { get: (known, id) => known[id] ?? (/^scan-upload(-\d+)?$/.test(id) ? { outcome: "success", outputs: { clean: "true" } } : undefined) },
     );
     const always = () => true;

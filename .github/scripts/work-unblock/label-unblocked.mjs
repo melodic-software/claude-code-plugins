@@ -315,6 +315,7 @@ import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarke
 import { readLimits, readWip, resolveStrandedBackoff, STRANDED_BACKOFF_MAX } from "../work-resolve-issue/limits.mjs";
 import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, clearedPastReport, CONFIRMED, confirmedOnly, decide, deferralLapsed, doneReason, judgedSince, loadRules, mergedRefsReader, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, retriageNote, sayWhy, SECURITY_AREA, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, splitLeftOpen, splitParentClosed, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
+import { markLaneHold } from "../lib/lane-hold-marker.mjs";
 import { subIssueLeftOpen } from "../lib/done-evidence.mjs";
 import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
@@ -470,8 +471,10 @@ const reportError = (number, error) =>
   console.log(`::error title=label-unblocked::#${number}: ${escapeCommand(error?.message ?? error)}`);
 // A failed listing is no verdict on any issue (outage posture element 2): the
 // sweep holds, with this notice, and the next tick reads it again.
-const reportHold = (what, error) =>
+const reportHold = (what, error) => {
   console.log(`::notice title=label-unblocked::the ${what} listing failed (${escapeCommand(error?.message ?? error)}); holding, and the next sweep reads it again`);
+  markLaneHold();
+};
 // main's clients tag the error of a read (a GET, or a GraphQL query as
 // retryServerErrors tells one) that met a GitHub fault (isFault), and count
 // on the GitHub client (`held`) the issues failedFor holds on one.
@@ -505,6 +508,7 @@ function failedFor(github, number, error) {
   }
   if (error?.[READ_FAULT]) {
     console.log(`::notice title=label-unblocked::#${number}: ${escapeCommand(error.message)}; holding, and the next sweep reads it again`);
+    markLaneHold();
     github.held += 1;
     return 0;
   }
