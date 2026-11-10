@@ -2,7 +2,8 @@
 
 Change the glossary when language resolves: a new term, a term used for two concepts, competing
 names for one concept, a definition that no longer matches the model, or one spelling that
-intentionally means different things in different known contexts.
+intentionally means different things in different known contexts. It also removes or merges entries
+a person accepted, such as `audit`'s prune candidates.
 
 ## 1. Establish what is resolved
 
@@ -39,21 +40,35 @@ and no implementation details, requirements, scratch notes or speculative terms.
 Refine an existing entry in place instead of appending a duplicate. Preserve unrelated content and
 ordering.
 
+**Remove or merge.** Present the prune candidates (from `audit` or the request) one group at a
+time, each with its reason and, for an unused term, its count. Write only the entries the person
+said yes to; a group without a yes stays as it is. A merge keeps the covering term's entry, removes the other and records the removed phrase
+on the covering entry's `Avoid:` line. Unattended, report the candidates and write nothing.
+
 ## 5. Check where the old words still live
 
-When the change adds a rejected synonym or rejected verb, or changes a term, search the context's code, docs, copy and
-error messages for the rejected words (whole words, case-insensitive; a rejected verb only where it
-names that operation on that entity, as `audit` step 3 says) and report each hit by file and line, in
-two groups:
+When the change adds a rejected synonym or rejected verb, or changes a term, search the context's
+code, docs, copy and error messages for the rejected words (a rejected verb only where it names that
+operation on that entity, as `audit` step 4 says), counted as the contract's
+[Counting a term](../context/glossary-contract.md#counting-a-term) says, and report each hit by file
+and line, in these groups:
 
-- **Code and docs names** (types, functions, enum values, file names, prose): hand them to
-  `/docs-hygiene:rename-references <old> to <new>` as their own reviewed change; a stored value
-  (an enum persisted in a database, a schema value) needs a data migration, named in the report.
+- **Code and identifiers** (types, functions, enum names, file names): hand them to
+  `/docs-hygiene:rename-references <old> to <new>`, renamed in one reviewed change.
+- **Docs and ADR text**: the same hand-off. Accepted ADR text takes the new term; ADR file names and
+  numbers stay unchanged.
 - **User-facing copy and error messages**: report only, never rewrite. Users' words may rightly
   differ from the model's; a hit matching the entry's `Shown to users as:` wording is not drift.
+- **Stored values and migrations** (an enum persisted in a database, a schema value): never edited;
+  each is a decision. Either migrate in expand, migrate and contract phases, or keep the stored name
+  behind an explicit mapping, and record the choice with `/architecture:record-decision`.
+  - **Pointer**: [Parallel Change](https://martinfowler.com/bliki/ParallelChange.html)
+  - **As of**: 2026-11-10
+  - **Recheck trigger**: the page moves.
 
 ## 6. Report
 
 Return the canonical term and definition, rejected synonyms and verbs, the bounded context when there is more
 than one, the file updated or created (or the proposed file and its setting layer when nothing was
-written), the step 5 hits, and any unresolved ambiguity.
+written), the entries removed or merged with the counts their question gave, the step 5 hits, and
+any unresolved ambiguity.

@@ -46,6 +46,8 @@ Shown to users as: bill
   meaning, a clash between meanings, or a rejected synonym.
 - **Purity:** the glossary contains vocabulary, not specifications, decisions, tasks, examples of
   implementation, or unresolved brainstorming.
+- **One definition:** ADRs and docs use a term but never redefine it; the definition lives only in
+  the glossary.
 - **Business rules:** an entry says what the concept is, never what may or must happen to it ("an
   invoice over 10,000 needs a second approver" is a rule, not a definition). The rule lives in code (a type, a
   validation) and a test that names it; the reason for the rule goes in an architecture decision
@@ -56,6 +58,18 @@ Shown to users as: bill
 Use scenarios to test whether the definition is precise enough for domain experts and developers to
 use consistently. Update the language as understanding changes; do not preserve a stale entry merely
 because it is already written.
+
+## Counting a term
+
+`audit` and `curate` count a term, a rejected synonym or a rejected verb one way, and a question
+and its recap give the same numbers:
+
+- Split identifiers at camelCase, PascalCase and snake_case boundaries, so `createShipment`,
+  `ShipmentStatus` and `shipment_id` each hold the word `shipment`.
+- Match whole words, case-insensitive; a multi-word term matches as consecutive words, so
+  `paymentRequest` matches "payment request".
+- Uses in the glossary and the glossary index do not count.
+- Report the uses and the number of files: `Shipment: 7 uses in 3 files`.
 
 ## Convention-resolution ladder
 
