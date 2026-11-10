@@ -83,17 +83,13 @@ done < <(checks_files)
 
 checks_changed_lines
 
-# typos --format brief prints "<path>:<line>:<col>: error: <message>"; the
-# contract line drops the column and the severity.
-to_contract() {
-  sed -n 's/^\(.*\):\([0-9][0-9]*\):[0-9][0-9]*: [a-z]*: \(.*\)$/\1:\2: \3/p'
-}
-
 out="$CHECKS_TMP/findings"
 : >"$out"
 # run_typos <dir> <path>...: typos on <path>... from <dir>, findings appended to
 # $out. typos exits 0 when clean and 2 on findings; any other status (a config
-# it cannot read, say) is no verdict, and no verdict blocks.
+# it cannot read, say) is no verdict, and no verdict blocks. typos --format
+# brief prints "<path>:<line>:<col>: error: <message>"; the contract line drops
+# the column and the severity.
 run_typos() {
   local dir="$1" rc
   shift
@@ -105,7 +101,7 @@ run_typos() {
     printf 'typos-format: typos exited %s without a verdict; fix what it reports above.\n' "$rc" >&2
     exit 1
   fi
-  to_contract <"$CHECKS_TMP/typos.out" >>"$out"
+  sed -n 's/^\(.*\):\([0-9][0-9]*\):[0-9][0-9]*: [a-z]*: \(.*\)$/\1:\2: \3/p' "$CHECKS_TMP/typos.out" >>"$out"
 }
 ((${#whole[@]})) && run_typos . "${whole[@]}"
 for f in ${partial[@]+"${partial[@]}"}; do
