@@ -53,10 +53,7 @@ def normalize_scope_repos(value: Any) -> tuple[str, ...]:
     deduplicated tuple of validated, casefolded `owner/repo` keys."""
     if value is None:
         return ()
-    if isinstance(value, str):
-        raw = value.split(",")
-    else:
-        raw = [str(part) for part in value]
+    raw = value.split(",") if isinstance(value, str) else [str(part) for part in value]
     return tuple(sorted({parse_repo(part) for part in raw if part.strip()}))
 
 
@@ -310,51 +307,39 @@ def reap(
                 expiry = lease_expiry(current)
             except RuntimeError:
                 # Never guess at an unparsable expiry; leave it for a human.
-                results.append(
-                    {
-                        "path": str(path),
-                        "reaped": False,
-                        "reason": "invalid expires_at",
-                        "scope": current.get("scope"),
-                        "run_id": current.get("run_id"),
-                        "expires_at": current.get("expires_at"),
-                    }
-                )
+                results.append(_reap_row(path, current, "invalid expires_at"))
                 continue
-            check_time = now if now is not None else datetime.now(UTC)
-            if expiry > check_time:
+            if expiry > (now or datetime.now(UTC)):
                 results.append(
-                    {
-                        "path": str(path),
-                        "reaped": False,
-                        "reason": "not expired",
-                        "expires_at": current.get("expires_at"),
-                    }
+                    _reap_row(path, current, "not expired", with_holder=False)
                 )
                 continue
             if not apply:
                 results.append(
-                    {
-                        "path": str(path),
-                        "reaped": False,
-                        "reason": "expired; dry run (pass --apply to reap)",
-                        "scope": current.get("scope"),
-                        "run_id": current.get("run_id"),
-                        "expires_at": current.get("expires_at"),
-                    }
+                    _reap_row(path, current, "expired; dry run (pass --apply to reap)")
                 )
                 continue
             path.unlink(missing_ok=True)
-            results.append(
-                {
-                    "path": str(path),
-                    "reaped": True,
-                    "scope": current.get("scope"),
-                    "run_id": current.get("run_id"),
-                    "expires_at": current.get("expires_at"),
-                }
-            )
+            results.append(_reap_row(path, current))
     return results
+
+
+def _reap_row(
+    path: Path,
+    lease: dict[str, Any],
+    skip_reason: str | None = None,
+    *,
+    with_holder: bool = True,
+) -> dict[str, Any]:
+    """One `reap` result: reaped unless a `skip_reason` says why not."""
+    row: dict[str, Any] = {"path": str(path), "reaped": skip_reason is None}
+    if skip_reason is not None:
+        row["reason"] = skip_reason
+    if with_holder:
+        row["scope"] = lease.get("scope")
+        row["run_id"] = lease.get("run_id")
+    row["expires_at"] = lease.get("expires_at")
+    return row
 
 
 def validate_snapshot_scope(

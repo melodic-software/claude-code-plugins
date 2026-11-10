@@ -24,6 +24,7 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Iterator
+from functools import partial
 from pathlib import Path
 from urllib.parse import quote
 
@@ -59,9 +60,7 @@ def canary_lines(repo_dir: str, commits: list[str]) -> list[tuple[str, bytes]]:
             if proc.returncode not in (0, 1):
                 tail = proc.stderr.decode("utf-8", "replace").strip()[-300:]
                 raise RuntimeError(f"the canary could not scan {commit}: {tail}")
-            for record in sink.read_bytes().split(b"\n"):
-                if not record:
-                    continue
+            for record in filter(None, sink.read_bytes().split(b"\n")):
                 parts = record.split(b"\t", 2)
                 if len(parts) != 3:
                     raise RuntimeError(f"an unreadable sink line for {commit}")
@@ -120,13 +119,12 @@ def close_lifted(repo: str, identity: str | None) -> int:
     number closed."""
     owner, name = policy._split_repo(repo)
     filers = [policy.DEMOTION_FILER, *([identity] if identity else [])]
-    permission = policy.permission_reader(repo)
-
-    def human(actor: object) -> bool:
-        return policy.is_human(
-            actor, repo=repo, agent_identity=identity, permission=permission
-        )
-
+    human = partial(
+        policy.is_human,
+        repo=repo,
+        agent_identity=identity,
+        permission=policy.permission_reader(repo),
+    )
     green = policy._GreenMain(owner, name)
     label = postmerge._role_label(owner, name)
     closed = 0
