@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.6] - 2026-11-10
+
+### Changed
+
+- Skill bodies point at the live upstream sections for scheduling bounds, worktree isolation,
+  plugin variables, GitHub limits and auto-mode scopes instead of restating them, and the commit
+  type set no longer claims every source lists the same 11 types. No behavior change.
+
+### Fixed
+
+- Links to Claude Code's docs that pointed at moved section anchors now resolve: the permissions page's wrapper list, the permission-modes auto-mode section, and Code Review's setup and review-request sections.
+
 ## [8.12.5] - 2026-11-10
 
 ### Changed
