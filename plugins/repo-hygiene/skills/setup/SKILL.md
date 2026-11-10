@@ -75,8 +75,7 @@ Install nothing, and run no mutating tier.
    scripts and the guard alike cannot launch.
 4. **`node` on `PATH`**. `command -v node`, and report the resolved path and version. Probe it
    through Bash, so it works without the launcher. FAIL when absent: every hook row runs
-   `node hooks/exec-bash.mjs`, and Claude Code itself does not supply a Node for it, so without it
-   the guard does not launch and is not enforced.
+   `node hooks/exec-bash.mjs`, so without it the guard does not launch and is not enforced.
 
    - **Pointer**: for whether Claude Code's install uses Node at runtime, fetch
      <https://code.claude.com/docs/en/setup#install-with-npm> live.

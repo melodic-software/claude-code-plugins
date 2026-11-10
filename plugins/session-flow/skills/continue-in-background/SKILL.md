@@ -415,7 +415,7 @@ can mean any of them.
   terminal. None writes a save-point, and this skill never runs them. What each launches, its
   alias, its gate and whether the model can invoke it: the records table in
   [native-surfaces § verification record](reference/native-surfaces.md#native-background-surfaces-verification-record)
-  (as of 2026-11-10; recheck trigger: that table's rows or their recheck events change).
+  (as of 2026-10-11; recheck trigger: that table's rows or their recheck events change).
 - **This skill (marketplace plugin).** Writes a durable, redacted save-point, gates on a dirty
   tree, and launches a fresh `claude --bg` session seeded only with the save-point's `/goal`
   payload, so the continuation carries no conversation history, survives on disk, and ends on a
