@@ -668,7 +668,11 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     const at = Date.parse(s.at);
     return at >= listedSince && at <= now.getTime();
   });
-  data.heldCarry = { runs: data.laneHolds, from: heldThrough ? heldFrom : null, through: heldThrough, scanned };
+  // A marker-only hold is not carried: its marker re-adds it each run while it
+  // lasts, and a run neither carried as held nor as scanned is read again, so
+  // the scan can still give it its real reason once the cap leaves room.
+  const carriedHolds = data.laneHolds.filter((h) => h.reason !== "hold marker");
+  data.heldCarry = { runs: carriedHolds, from: heldThrough ? heldFrom : null, through: heldThrough, scanned };
 
   // Open pull requests whose head carries a stop the pr-unblock lane routed to
   // a failing status (its lane-stopped comment, by the lanes App, names the
