@@ -110,9 +110,8 @@ everything Step 2 does.
 
 ## Step 2a. Convention found
 
-1. Derive the next identifier: highest existing plus one, preserving the observed zero-pad width and
-   separator. A date-prefixed scheme uses today's date in the observed format. Done when the
-   identifier is one no existing filename already carries.
+1. Derive the next identifier per discovery's "Inference: numbering" (the directory, its archive folder and its git history). Done when the
+   identifier is one no current, archived or deleted record has carried.
 2. Derive the filename in the observed form (identifier, separator, kebab-case title, extension).
    Done when it is indistinguishable in form from the records already there.
 3. Derive the section set from the template source; absent a template, from the newest records. Done
