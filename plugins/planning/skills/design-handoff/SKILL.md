@@ -15,11 +15,9 @@ invocation:
 - Current branch, `git branch --show-current`
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git. The dated record for that composition claim is the
-[gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation".
+separate body Bash calls rather than pre-compute lines. How the harness runs a skill's injected commands:
+[How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run), as
+of 2026-11-10; recheck when that section changes how injected commands run.
 
 ## Purpose
 

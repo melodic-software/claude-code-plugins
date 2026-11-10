@@ -19,13 +19,15 @@ Run each as its own Bash call, never combined:
 - Shallow clone, `git rev-parse --is-shallow-repository`
 
 A failure (not a repository, git unavailable) is an unknown value; carry on. These stay body Bash
-calls rather than pre-compute lines because a worktree-isolated session refuses a compound command
-that contains git. The dated record for how the pre-compute block is composed is
+calls rather than pre-compute lines. The dated record for how the pre-compute block is composed is
 owned by `/source-control:worktree` (its gather-block record, "The pre-compute block runs as one
-shell invocation"); how injected commands run is read at
+shell invocation"); which commands a worktree-isolated session refuses is read at
+[worktrees: how Claude Code enforces isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation),
+and how injected commands run at
 [skills: how injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
-As of: 2026-10-11. Recheck triggers: the gather-block section moves, is renamed, or changes how the
-block is composed; the skills section changes how a block's commands are run.
+As of: 2026-11-10. Recheck triggers: the gather-block section moves, is renamed, or changes how the
+block is composed; the worktrees section changes which commands it refuses; the skills section
+changes how a block's commands are run.
 
 ## Pre-computed context
 

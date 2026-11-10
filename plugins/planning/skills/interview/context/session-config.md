@@ -124,9 +124,9 @@ one, and never a guessed-from-memory model name.
 
 ## Advisory framing: effort is readable, advisor state is not
 
-The skill knows its own main model, stated in the system prompt. It reads effort from
-`${CLAUDE_EFFORT}` in its body, or from `CLAUDE_EFFORT` in a Bash subprocess, and treats an absent
-value as a model without effort support rather than an unset level. The user can work with the
+The skill knows its own main model, stated in the system prompt. It reads its effort level where
+the pointer below says it is exposed, and treats an absent value as a model without effort support
+rather than an unset level. The user can work with the
 advisor through `/advisor` (what a bare `/advisor` shows is read live), but the skill has no way to read it from inside its
 own session, so it treats advisor state as unknown and may suggest the user check it.
 

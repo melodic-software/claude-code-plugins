@@ -20,8 +20,8 @@ invocation:
 - Working tree status (empty = clean), `git status --porcelain | head -10`
 
 The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
-bounds nothing: the Bash tool returns the command's complete output into context before there is
-anything to decide about.
+bounds nothing. How the Bash tool returns output: [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits),
+as of 2026-11-10; recheck when that section changes what a command's output puts into context.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines. How the harness runs a skill's injected
@@ -121,7 +121,7 @@ Every other skill the interview hands to or detours through: [`context/compositi
 
 **Every goal carries a "because".** When the user states a goal with no reason, ask why, as a registered question, before the goal locks, and keep the answer in their words on the Goal's Intent line. The Intent line reads `none stated` only where no one could be asked: an upstream artifact that quotes no reason, `lock`, or an unattended run.
 
-A new effort starts here, however big. When the interview shows the effort will outrun a single session AND is still too foggy to phrase as sharp questions, the user can't yet list the decisions, let alone lock them. Name `/planning:wayfind` to the user (it charts the fog as a decision map and works the frontier down decision by decision, graduating to a Brief once it clears); recommend, never auto-switch. The user can run it in this same session: its chart step reads this topic's ledger, so settled answers become decisions so far and open questions become decision items.
+A new effort starts here, however big. When the interview shows the effort will outrun a single session AND is still too foggy to phrase as sharp questions, the user can't yet list the decisions, let alone lock them. Name `/planning:wayfind` to the user (it charts the fog as a map of decision items and works the frontier down decision by decision, graduating to a Brief once it clears); recommend, never auto-switch. The user can run it in this same session: its chart step reads this topic's ledger, so settled answers become decisions so far and open questions become decision items.
 
 **Question budget scales with what's already settled.** Upstream artifacts, research findings, exploration output, a PRD, a design resolution, count as settled prerequisites: an interview invoked after them starts with a smaller tree and fewer rounds; never re-ask what an artifact already answers. There is no numeric question cap, but a frontier that keeps *ballooning* (each round opens more branches than it closes) is the wayfind signal above, not a license for a marathon session. Surface the routing recommendation instead of grinding on.
 
@@ -392,9 +392,9 @@ Read [`context/session-config.md`](context/session-config.md) at that boundary, 
 
 Read [`context/routing.md`](context/routing.md) at entry and at every round boundary. It owns why the entry gate is diff size and retry cost, the bigger-than-you-thought check that recommends `/planning:wayfind chart` on fog or `/session-flow:workflow` on context size alone and suggests wayfind once the register passes `wayfind_suggest_questions`, what the wayfind handoff carries, and the "this is small, ship it" exit with the gates it still runs.
 
-## What this skill does NOT do
+Failure patterns from real sessions: `context/gotchas.md`.
 
-- `context/gotchas.md`. Failure patterns from real sessions
+## What this skill does NOT do
 
 - **Does not deep-dive the codebase**. Step 1 is a fast survey; the codebase gate in Step 2 is a lightweight per-question check (Grep/Read/Glob). Neither is exploration-depth work. If exploration grows beyond quick lookups, stop and recommend the exploration capability
 - **Does not plan implementation**. The Brief says *what* and *what we are assuming*; `/planning:plan` says *how*. Resist drafting an approach mid-interview

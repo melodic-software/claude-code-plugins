@@ -519,11 +519,12 @@ done
 # Glossary skill renamed (Q61): /domain-driven-design:curate-language becomes /domain-driven-design:ubiquitous-language with its curate action for writes, and the interview reads the glossary through its lookup action (Q64) with a repository search fallback; only those tokens and the read line changed, so the no-silent-resolve rule, the constraint-ledger rows and the late-commitment next-free-id rule are byte-identical
 # Owner decisions Q70, Q72, Q74, Q75: the question template folds the Inference line into the recommendation reason and shows Checked against and Flips if only when they carry something; "grilling" wording becomes interview wording; a domain_docs setting (auto, ask, off) gates the glossary and ADR writes; a scenario comparison is offered when candidates compete. None of these resolves a row or touches the no-silent-resolve rule, the constraint-ledger rows or their re-check, which are byte-identical
 # Only the ADR handoff changed: the Domain-aware ADR bullet now points at round step 8, loop.md adds item 8 Decision record (sweep becomes 9), and eval 18 is renamed to the ADR-candidate fallback. No line about silent resolution, gaps, constraint rows or process changes was touched, and cases 15 and 16 are unchanged.
+# Re-audit: the wayfind pointer says map of decision items instead of decision map (wayfind's own vocabulary rule); the no-silent-resolve rule is untouched.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "7885d62adb2ebd31820391a315033113166e99f3e76d27ebcfc6425d195ce1db"
+  "9c3088b036bb705964f43e66afd4d8d411726487a0253f4c050893bf6f087ee2"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -721,11 +722,12 @@ pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exempti
 # #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
 # #12476: the no-tests bullet names the read-only Run it to settle it step as its one exception; the fudge prohibition line is byte-identical
 # does-NOT-do: only the ADR fallback wording changed (by hand -> ADR candidate in the register row); the fudge-prohibition bullet is untouched and byte-pinned. loop.md Step 2: only item 8 changed, replacing the record-decision outcome claim and saying how its skip offer is answered (asked in me/auto, taken in lock or unattended); no constraint-ledger row or process-change line moved.
+# Re-audit: the gotchas.md pointer moves out of the does-NOT list to a line above it, so it no longer reads as something the skill does not do; every does-NOT bullet, the fudge prohibition included, is unchanged.
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
   "## Next" \
-  "06165ba7c8660195b270cea2d4b2d23f4ec260e8210e93b852ca38e4830bc6e2"
+  "7b17ed95b24e4a8c4f2a4f40aa02ebce1df3d46497736c09f5d1d35381dce47a"
 
 # Step 2 and its loop.md twins house the rules that stop an assumption from locking
 # unseen: the constraint ledger, composed artifacts as candidates, evidence-currency labels,
@@ -799,9 +801,10 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
 # Re-pin for #8365: a recommendation reusing a value states the literal and its source, the sweep gains an `unstated-value` item that always becomes a register row, and a found contact address or identity stays an `open` row, never an F-line; this adds rows the user confirms, resolves none on their behalf, and the no-silent-resolve, lock and auto-guard defenses are unchanged.
 # Re-pin for #8365 review: an unstated-value item keeps its register row whoever owns the value and a contact address looked up after connecting stays open until the user confirms it; both add rows the user confirms, resolve none on their behalf, and the no-silent-resolve, lock and auto-guard defenses are unchanged.
 # Reworded phrases shared with mattpocock grilling (#9790): Stance names the wayfind trigger as an effort that will outrun a single session, Step 2 and the sweep run once no open question remains on the frontier, the coverage-prompt exemption still covers no other question, and the confirmation gate opens with the stop wording; every rule and its halt are unchanged
+# Re-audit: the Dispatch paragraph drops text quoted from the subagents page and keeps the pointer as a dated record; the sweep's scope, item shape, disposition and the request-any-type-but-fork rule are unchanged, so both plants survive.
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
-  "5309a7feecb1686f5c3b4f9e1a3729f9e577c25a209e48eab28f60a789270bd4"
+  "88bbca19e57fb736778c20618e6691bc74df3327c503a55001ffd1f0ded6f9cb"
 # The coverage prompt's exemption from the register, the gate and the unattended ladder moved
 # here from SKILL.md "Acceptance-criteria capture"; it exempts that one prompt, and every other
 # question still writes its row at ask-time and brings the gate into scope.
