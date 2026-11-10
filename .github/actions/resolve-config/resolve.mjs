@@ -978,6 +978,8 @@ const limitsOf = (limits = {}) => ({
   },
   // As set: rate-guard.mjs fills it from rate-limits.json beside it.
   api: limits.api ?? {},
+  // LANE_LEVEL_DEFAULTS in .github/scripts/lib/lane-level.mjs holds the same.
+  "lane-level": { floor: 2, ceiling: 6, default: 3, "clean-windows": 2, pools: ["lanes-app"], ...limits["lane-level"] },
 });
 
 const loopOf = (loop = {}) => ({
