@@ -53,7 +53,27 @@ test("issuesByStatus reads every page, passing the cursor and since on", async (
       ["POST", "/graphql", { owner: "o", name: "r", cursor: "c1", since: "2026-11-01T00:00:00Z" }],
     ],
   );
-  assert.match(calls[0].query, /issues\(states: OPEN, first: 100, after: \$cursor, filterBy: \{ since: \$since \}\)/);
+  assert.match(calls[0].query, /issues\(states: OPEN, first: \d+, after: \$cursor, filterBy: \{ since: \$since \}\)/);
+});
+
+// Pages of 50 and 100 answered stale nested field events; pages of 25 and 30
+// did not.
+const STALE_FREE_PAGE = 30;
+// The open issues a listing must reach: 210 were open when the page size was
+// measured, so this leaves room to more than double.
+const OPEN_ISSUES_FLOOR = 500;
+
+test("a listing page holds at most the measured stale-free size, and the page cap still reaches every open issue", async () => {
+  let calls = 0;
+  let size;
+  const endless = async (method, path, body) => {
+    calls += 1;
+    size = Number(/issues\(states: OPEN, first: (\d+),/.exec(body.query)[1]);
+    return { data: { repository: { issues: { pageInfo: { hasNextPage: true, endCursor: `c${calls}` }, nodes: [] } } } };
+  };
+  await assert.rejects(() => list(endless, ["deferred"]), /run past \d+ pages/);
+  assert.ok(size <= STALE_FREE_PAGE, `a page of ${size} issues is larger than ${STALE_FREE_PAGE}, where GitHub answered stale field events`);
+  assert.ok(size * calls >= OPEN_ISSUES_FLOOR, `${calls} pages of ${size} reach ${size * calls} issues, fewer than ${OPEN_ISSUES_FLOOR}`);
 });
 
 test("a field an untrusted account set reads as unset, so the issue's labels decide", async () => {
@@ -86,7 +106,7 @@ test("a listing past the page cap throws rather than stopping short", async () =
     calls += 1;
     return { data: { repository: { issues: { pageInfo: { hasNextPage: true, endCursor: `c${calls}` }, nodes: [issue(1, { value: "deferred" })] } } } };
   };
-  await assert.rejects(() => list(endless, ["deferred"]), /run past 20 pages/);
+  await assert.rejects(() => list(endless, ["deferred"]), new RegExp(`run past ${MAX_ISSUE_PAGES} pages`));
   assert.equal(calls, MAX_ISSUE_PAGES);
 });
 
@@ -206,6 +226,36 @@ test("past the re-read cap, further disagreeing issues are left out with no more
     disagreeing.slice(MAX_STATUS_REREADS),
   );
   assert.equal(lines.length, 2);
+  assert.equal(counts.values, MAX_STATUS_REREADS);
+});
+
+// An issue the listing shows at `value` with none of its Work status events.
+const eventless = (number, value) => {
+  const node = issue(number, { value });
+  node.timelineItems.nodes = [];
+  return node;
+};
+
+test("an unlabeled issue listed at a wanted state with no Work status event is read again alone, and that read lists it", async () => {
+  const { github, sleep, counts } = rereading([eventless(40, "agent-ready"), issue(41, { value: "agent-ready" })], { 40: { state: "agent-ready" } });
+  assert.deepEqual(numbers(await list(github, ["agent-ready"], { sleep })), ["40 agent-ready", "41 agent-ready"]);
+  assert.equal(counts.values, 1, "only the issue with no listed event is read again");
+});
+
+test("an issue listed at an unwanted state with no Work status event is not read again", async () => {
+  const { github, sleep, counts } = rereading([eventless(42, "deferred"), issue(43, { value: "agent-ready" })], { 42: { state: "deferred" } });
+  assert.deepEqual(numbers(await list(github, ["agent-ready"], { sleep })), ["43 agent-ready"]);
+  assert.equal(counts.values, 0);
+});
+
+test("past the re-read cap, an issue listed at a wanted state with no Work status event is named in held and a notice", async () => {
+  const disagreeing = Array.from({ length: MAX_STATUS_REREADS }, (_, i) => 50 + i);
+  const fields = Object.fromEntries(disagreeing.map((number) => [number, { state: "ready" }]));
+  const { github, sleep, counts } = rereading([...disagreeing.map(stale), eventless(60, "ready")], fields);
+  const { result: found, lines } = await logged(() => list(github, ["ready"], { sleep }));
+  assert.deepEqual(found.held.map(({ number }) => number), [60]);
+  assert.match(found.held[0].reason, /holds `ready`, but the listing shows no Work status event/);
+  assert.deepEqual(lines, [`::notice title=issuesByStatus::#60 is left out of this listing: ${found.held[0].reason}`]);
   assert.equal(counts.values, MAX_STATUS_REREADS);
 });
 
