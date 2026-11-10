@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Rejected words in use:\n- parcel (Avoid on Shipment): 3 uses in 3 files: src/fulfillment/label.ts:1, src/fulfillment/dispatch.ts:1, src/fulfillment/split.py:1", "why": "count with three files"},
+    {"answer": "| parcel | 3 uses | three files |", "why": "table row"}
+  ],
+  "fail": [
+    {"answer": "- parcel: 1 use in 1 file (src/fulfillment/label.ts:1)", "why": "whole-word count without splitting identifiers"},
+    {"answer": "parcel appears in the code.", "why": "no file count"},
+    {"answer": "", "why": "empty"}
+  ]
+}

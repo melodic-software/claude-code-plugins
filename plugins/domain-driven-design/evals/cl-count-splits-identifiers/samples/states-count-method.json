@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "Counted as whole words, case-insensitive, with identifiers split at camelCase, PascalCase and snake_case boundaries.", "why": "names the boundaries"},
+    {"answer": "Method: split identifiers, then match whole words.", "why": "names the split"}
+  ],
+  "fail": [
+    {"answer": "Counted with a whole-word, case-insensitive search.", "why": "no identifier splitting"},
+    {"answer": "", "why": "empty"}
+  ]
+}

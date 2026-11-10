@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [], "why": "no call"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/ws/src/orders/order.ts", "old_string": "a", "new_string": "b"}}], "why": "not a .md file"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/ws/docs/glossary.md", "old_string": "**Orders table**\n\nThe `orders` table in Postgres, with columns `id`, `buyer_id` and `created_at`.\n", "new_string": ""}}], "why": "removes the entry without a yes"}
+  ]
+}
