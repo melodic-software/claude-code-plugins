@@ -84,8 +84,34 @@ json_escape() {
   JSON_ESC="$s"
 }
 
+# json_object key value [key value]...: one JSON object of string fields, in order.
+json_object() {
+  local obj="" sep="{"
+  while [[ $# -ge 2 ]]; do
+    json_escape "$2"
+    obj="$obj$sep\"$1\":\"$JSON_ESC\""
+    sep=","
+    shift 2
+  done
+  printf '%s}\n' "$obj"
+}
+
+# join_lines <separator>: stdin lines joined on one line, no trailing newline.
+join_lines() {
+  awk -v sep="$1" 'BEGIN { ORS="" } { if (n++) printf "%s", sep; printf "%s", $0 }'
+}
+
+# append_evidence <deployable id> <text>: add "; <text>" to that row's evidence.
+append_evidence() {
+  awk -F'\t' -v id="$1" -v extra="$2" 'BEGIN { OFS="\t" }
+    $1 == id { $5 = $5 "; " extra }
+    { print }
+  ' "$deploy" >"$deploy.tmp"
+  mv "$deploy.tmp" "$deploy"
+}
+
 normalize_inside() {
-  local raw="$1" seg joined="" s
+  local raw="$1" seg joined
   local -a segs=() out=()
   raw="${raw//\\//}"
   local IFS=/
@@ -103,13 +129,7 @@ normalize_inside() {
     *) out+=("$seg") ;;
     esac
   done
-  for s in "${out[@]+"${out[@]}"}"; do
-    if [[ -z "$joined" ]]; then
-      joined="$s"
-    else
-      joined="$joined/$s"
-    fi
-  done
+  joined="${out[*]-}"
   [[ -n "$joined" ]] || return 1
   printf '%s' "$joined"
 }
@@ -159,23 +179,26 @@ if [[ -n "$origin" ]]; then
 fi
 [[ -n "$focal" ]] || focal="$subject"
 
-files_list="$(mktemp)"
-all_proj="$(mktemp)"
-deploy="$(mktemp)"
-refs="$(mktemp)"
-modules="$(mktemp)"
-extras="$(mktemp)"
-edges="$(mktemp)"
-hits="$(mktemp)"
-container_body="$(mktemp)"
-module_body="$(mktemp)"
-edge_body="$(mktemp)"
-excluded="$(mktemp)"
-finding_body="$(mktemp)"
-endpoints="$(mktemp)"
-listen="$(mktemp)"
-svcmap="$(mktemp)"
-trap 'rm -f "$files_list" "$all_proj" "$deploy" "$refs" "$modules" "$extras" "$edges" "$hits" "$container_body" "$module_body" "$edge_body" "$excluded" "$finding_body" "$endpoints" "$listen" "$svcmap"' EXIT
+work="$(mktemp -d)" || die "cannot create a temporary directory" 1
+trap 'rm -rf "$work"' EXIT
+files_list="$work/files"
+all_proj="$work/all_proj"
+deploy="$work/deploy"
+refs="$work/refs"
+modules="$work/modules"
+extras="$work/extras"
+edges="$work/edges"
+hits="$work/hits"
+container_body="$work/container_body"
+module_body="$work/module_body"
+edge_body="$work/edge_body"
+excluded="$work/excluded"
+finding_body="$work/finding_body"
+endpoints="$work/endpoints"
+listen="$work/listen"
+svcmap="$work/svcmap"
+touch "$all_proj" "$deploy" "$refs" "$modules" "$extras" "$edges" "$hits" "$container_body" \
+  "$module_body" "$edge_body" "$excluded" "$finding_body" "$endpoints" "$listen" "$svcmap"
 
 git -C "$root" ls-tree -r --name-only -z HEAD | tr '\0' '\n' | LC_ALL=C sort >"$files_list"
 dirty_n="$(git -C "$root" --no-optional-locks status --porcelain --untracked-files=no 2>/dev/null | awk 'END { print NR }')"
@@ -186,6 +209,11 @@ has_project() {
 
 is_deployable() {
   awk -F'\t' -v id="$1" '$1 == id { found = 1 } END { exit !found }' "$deploy"
+}
+
+# sdk_is <name>: the project's Sdk is <name> or a versioned <name>/<version>.
+sdk_is() {
+  [[ "$sdk" == "$1" || "$sdk" == "$1"/* ]]
 }
 
 while IFS= read -r rel || [[ -n "$rel" ]]; do
@@ -247,17 +275,15 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     }
   ' "$abs")"
   functions=0
-  if [[ "$sdk" == Microsoft.NET.Sdk.Functions || "$sdk" == Microsoft.NET.Sdk.Functions/* ]]; then
-    functions=1
-  fi
-  if awk 'BEGIN { found = 0 } /<AzureFunctionsVersion>/ { found = 1 } END { exit found ? 0 : 1 }' "$abs"; then
+  if sdk_is Microsoft.NET.Sdk.Functions || awk '/<AzureFunctionsVersion>/ { found = 1 } END { exit !found }' "$abs"; then
     functions=1
   fi
   web_builder=0
   generic_host=0
   api_marker=0
   candidate=0
-  if [[ "$functions" -eq 1 || "$sdk" == Microsoft.NET.Sdk.Web || "$sdk" == Microsoft.NET.Sdk.Web/* || "$sdk" == Microsoft.NET.Sdk.Worker || "$sdk" == Microsoft.NET.Sdk.Worker/* || "$output_type" == "exe" || "$output_type" == "winexe" ]]; then
+  if [[ "$functions" -eq 1 || "$output_type" == "exe" || "$output_type" == "winexe" ]] ||
+    sdk_is Microsoft.NET.Sdk.Web || sdk_is Microsoft.NET.Sdk.Worker; then
     candidate=1
   fi
   if [[ "$candidate" -eq 1 ]] && dotnet_is_test_project "$abs"; then
@@ -289,13 +315,13 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   kind=""
   if [[ "$functions" -eq 1 ]]; then
     kind="function"
-  elif [[ "$sdk" == Microsoft.NET.Sdk.Web || "$sdk" == Microsoft.NET.Sdk.Web/* || "$web_builder" -eq 1 ]]; then
+  elif [[ "$web_builder" -eq 1 ]] || sdk_is Microsoft.NET.Sdk.Web; then
     if [[ "$api_marker" -eq 1 ]]; then
       kind="api"
     else
       kind="web"
     fi
-  elif [[ "$sdk" == Microsoft.NET.Sdk.Worker || "$sdk" == Microsoft.NET.Sdk.Worker/* || "$generic_host" -eq 1 ]]; then
+  elif [[ "$generic_host" -eq 1 ]] || sdk_is Microsoft.NET.Sdk.Worker; then
     kind="worker"
   elif [[ "$output_type" == "exe" || "$output_type" == "winexe" ]]; then
     kind="cli"
@@ -410,7 +436,8 @@ else
 fi
 
 declare -A seen_mod=()
-queue="$(mktemp)"
+queue="$work/queue"
+: >"$queue"
 while IFS=$'\t' read -r id _rest; do
   [[ -n "$id" ]] || continue
   printf '%s\t%s\n' "$id" "$id" >>"$queue"
@@ -430,7 +457,6 @@ while IFS=$'\t' read -r origin_id current || [[ -n "$origin_id" ]]; do
     printf '%s\t%s\n' "$origin_id" "$to" >>"$queue"
   done < <(awk -F'\t' -v cur="$current" '$1 == cur { printf "%s\t%s\n", $2, $3 }' "$refs")
 done <"$queue"
-rm -f "$queue"
 
 while IFS= read -r rel || [[ -n "$rel" ]]; do
   base="$(basename "$rel")"
@@ -478,11 +504,7 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   if [[ -n "$attached" ]]; then
     extra="$rel: Dockerfile"
     [[ -n "$image" ]] && extra="$extra FROM $image"
-    awk -F'\t' -v id="$attached" -v extra="$extra" 'BEGIN { OFS="\t" }
-      $1 == id { $5 = $5 "; " extra }
-      { print }
-    ' "$deploy" >"$deploy.tmp"
-    mv "$deploy.tmp" "$deploy"
+    append_evidence "$attached" "$extra"
     continue
   fi
   image_l="$(printf '%s' "$image" | tr '[:upper:]' '[:lower:]')"
@@ -501,7 +523,7 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   esac
   abs="$root/$rel"
   [[ -f "$abs" && ! -L "$abs" ]] || continue
-  parsed="$(mktemp)"
+  parsed="$work/parsed"
   awk '
     function flush() {
       if (name == "") return
@@ -582,11 +604,7 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     if [[ "$match_n" -eq 1 ]]; then
       svc_host="$(printf '%s' "$svc" | tr '[:upper:]' '[:lower:]')"
       printf '%s\034%s\034%s\034%s\n' "$svc_host" "$matched" "$ports" "$rel: service $svc build $context" >>"$svcmap"
-      awk -F'\t' -v id="$matched" -v extra="$rel: service $svc" 'BEGIN { OFS="\t" }
-        $1 == id { $5 = $5 "; " extra }
-        { print }
-      ' "$deploy" >"$deploy.tmp"
-      mv "$deploy.tmp" "$deploy"
+      append_evidence "$matched" "$rel: service $svc"
       continue
     fi
     leaf="$(printf '%s' "$image" | tr '[:upper:]' '[:lower:]')"
@@ -594,27 +612,20 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     leaf="${leaf%%:*}"
     leaf="${leaf##*/}"
     case "$leaf" in
-    postgres | mysql | mariadb | mssql | mongo | mongodb)
-      printf '%s\t%s\t%s\t%s\t%s\t%s\n' "store:image:$rel:$svc" "$svc" "store" "${image:-unknown}" "sql" "$rel: image ${image:-unknown}" >>"$extras"
-      ;;
-    redis)
-      printf '%s\t%s\t%s\t%s\t%s\t%s\n' "store:image:$rel:$svc" "$svc" "store" "${image:-unknown}" "cache" "$rel: image ${image:-unknown}" >>"$extras"
-      ;;
-    elasticsearch | opensearch)
-      printf '%s\t%s\t%s\t%s\t%s\t%s\n' "store:image:$rel:$svc" "$svc" "store" "${image:-unknown}" "search" "$rel: image ${image:-unknown}" >>"$extras"
-      ;;
-    rabbitmq | nats | kafka)
-      printf '%s\t%s\t%s\t%s\t%s\t%s\n' "store:image:$rel:$svc" "$svc" "store" "${image:-unknown}" "broker" "$rel: image ${image:-unknown}" >>"$extras"
-      ;;
-    "")
-      printf '%s\t%s\t%s\t%s\t%s\t%s\n' "manifest:$rel:$svc" "$svc" "process" "unknown" "-" "$rel: service $svc" >>"$extras"
-      ;;
-    *)
-      printf '%s\t%s\t%s\t%s\t%s\t%s\n' "manifest:$rel:$svc" "$svc" "process" "$image" "-" "$rel: image $image" >>"$extras"
-      ;;
+    postgres | mysql | mariadb | mssql | mongo | mongodb) store_kind="sql" ;;
+    redis) store_kind="cache" ;;
+    elasticsearch | opensearch) store_kind="search" ;;
+    rabbitmq | nats | kafka) store_kind="broker" ;;
+    *) store_kind="" ;;
     esac
+    if [[ -n "$store_kind" ]]; then
+      printf '%s\t%s\t%s\t%s\t%s\t%s\n' "store:image:$rel:$svc" "$svc" "store" "${image:-unknown}" "$store_kind" "$rel: image ${image:-unknown}" >>"$extras"
+    elif [[ -z "$leaf" ]]; then
+      printf '%s\t%s\t%s\t%s\t%s\t%s\n' "manifest:$rel:$svc" "$svc" "process" "unknown" "-" "$rel: service $svc" >>"$extras"
+    else
+      printf '%s\t%s\t%s\t%s\t%s\t%s\n' "manifest:$rel:$svc" "$svc" "process" "$image" "-" "$rel: image $image" >>"$extras"
+    fi
   done <"$parsed"
-  rm -f "$parsed"
 done <"$files_list"
 
 while IFS= read -r rel || [[ -n "$rel" ]]; do
@@ -678,10 +689,7 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     ' >>"$hits"
 done <"$files_list"
 
-if [[ -s "$hits" ]]; then
-  LC_ALL=C sort -u "$hits" >"$hits.sorted"
-  mv "$hits.sorted" "$hits"
-fi
+LC_ALL=C sort -u -o "$hits" "$hits"
 
 bind_deployable() {
   local file="$1" best="" best_len=-1 id dir len
@@ -738,17 +746,13 @@ store_technology() {
 
 # Unit separator, not tab: bash read collapses empty tab fields, and a blank
 # port would slide the file path into the port.
-if [[ -s "$hits" ]]; then
-  while IFS=$'\034' read -r skind host port file key db scheme; do
-    [[ -n "$host" ]] || continue
-    owner="$(bind_deployable "$file")"
-    sid="store:${skind}:${host}:${port}"
-    [[ "$skind" == sql ]] && sid="$sid:${db:-database unknown}"
-    printf '%s\036%s\036%s\036%s\036%s\036%s\036%s\036%s\n' "$sid" "$skind" "$host" "$owner" "$file: $key" "$scheme" "$port" "$db"
-  done < <(awk -F'\t' '{ printf "%s\034%s\034%s\034%s\034%s\034%s\034%s\n", $1, $2, $3, $4, $5, $6, $7 }' "$hits") >"$hits.grouped"
-else
-  : >"$hits.grouped"
-fi
+while IFS=$'\034' read -r skind host port file key db scheme; do
+  [[ -n "$host" ]] || continue
+  owner="$(bind_deployable "$file")"
+  sid="store:${skind}:${host}:${port}"
+  [[ "$skind" == sql ]] && sid="$sid:${db:-database unknown}"
+  printf '%s\036%s\036%s\036%s\036%s\036%s\036%s\036%s\n' "$sid" "$skind" "$host" "$owner" "$file: $key" "$scheme" "$port" "$db"
+done < <(awk -F'\t' '{ printf "%s\034%s\034%s\034%s\034%s\034%s\034%s\n", $1, $2, $3, $4, $5, $6, $7 }' "$hits") >"$hits.grouped"
 
 # Every pair of owners of one store is one shared-infrastructure edge, and each
 # cites the config keys of both owners.
@@ -765,7 +769,7 @@ if [[ -s "$hits.grouped" ]]; then
       [[ -z "$db" ]] || name="$host/$db"
     fi
     tech="$(store_technology "$skind" "$host" "$scheme")"
-    cites="$(awk -F'\036' -v sid="$sid" '$1 == sid { print $5 }' "$hits.grouped" | LC_ALL=C sort -u | awk 'BEGIN { ORS="" } { if (n++) printf "; "; printf "%s", $0 }')"
+    cites="$(awk -F'\036' -v sid="$sid" '$1 == sid { print $5 }' "$hits.grouped" | LC_ALL=C sort -u | join_lines "; ")"
     printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$sid" "$name" "store" "$tech" "$skind" "$cites" >>"$extras"
     awk -F'\036' -v sid="$sid" '$1 == sid && $4 != "" { printf "%s\t%s\tuses\t-\t%s\n", $4, sid, $5 }' "$hits.grouped" |
       LC_ALL=C sort -u >>"$edges"
@@ -792,7 +796,6 @@ if [[ -s "$hits.grouped" ]]; then
     ' "$hits.grouped" >>"$edges"
   done < <(awk -F'\036' '{ print $1 }' "$hits.grouped" | LC_ALL=C sort -u)
 fi
-rm -f "$hits.grouped"
 
 # An endpoint a deployable's own config names is an edge to another deployable
 # only through a cited fact: a compose service whose build context is that
@@ -811,7 +814,7 @@ if [[ -s "$listen" ]]; then
   done <"$listen"
 fi
 if [[ -s "$endpoints" ]]; then
-  ep_edges="$(mktemp)"
+  ep_edges="$work/ep_edges"
   while IFS=$'\034' read -r host port file key scheme; do
     owner="$(bind_deployable "$file")"
     [[ -n "$owner" ]] || continue
@@ -854,80 +857,32 @@ if [[ -s "$endpoints" ]]; then
       }
     ' >>"$edges"
   fi
-  rm -f "$ep_edges"
 fi
-rm -f "$listen.map"
-
-emit_container() {
-  local id="$1" name="$2" kind="$3" technology="$4" store_kind="$5" evidence="$6" summary="$7"
-  json_escape "$id"
-  local obj="{\"id\":\"$JSON_ESC\""
-  json_escape "$name"
-  obj="$obj,\"name\":\"$JSON_ESC\""
-  json_escape "$kind"
-  obj="$obj,\"kind\":\"$JSON_ESC\""
-  json_escape "$technology"
-  obj="$obj,\"technology\":\"$JSON_ESC\""
-  json_escape "$store_kind"
-  obj="$obj,\"store_kind\":\"$JSON_ESC\""
-  json_escape "$summary"
-  obj="$obj,\"summary\":\"$JSON_ESC\""
-  json_escape "$evidence"
-  obj="$obj,\"evidence\":\"$JSON_ESC\"}"
-  printf '%s\n' "$obj"
-}
 
 while IFS=$'\t' read -r id name kind technology evidence _dir; do
   [[ -n "$id" ]] || continue
-  summary="$(awk -F'\t' -v id="$id" '$1 == id { print $2 }' "$modules" | LC_ALL=C sort -u | awk 'BEGIN { ORS="" } { if (n++) printf ", "; printf "%s", $0 }')"
-  if [[ -n "$summary" ]]; then
-    summary="Contains: $summary"
-  fi
-  emit_container "$id" "$name" "$kind" "$technology" "" "$evidence" "$summary"
+  summary="$(awk -F'\t' -v id="$id" '$1 == id { print $2 }' "$modules" | LC_ALL=C sort -u | join_lines ", ")"
+  [[ -z "$summary" ]] || summary="Contains: $summary"
+  json_object id "$id" name "$name" kind "$kind" technology "$technology" store_kind "" summary "$summary" evidence "$evidence"
 done <"$deploy" >>"$container_body"
 
 while IFS=$'\t' read -r id name kind technology store_kind evidence; do
   [[ -n "$id" ]] || continue
   [[ "$store_kind" == "-" ]] && store_kind=""
-  emit_container "$id" "$name" "$kind" "$technology" "$store_kind" "$evidence" ""
+  json_object id "$id" name "$name" kind "$kind" technology "$technology" store_kind "$store_kind" summary "" evidence "$evidence"
 done <"$extras" >>"$container_body"
 
-if [[ -s "$container_body" ]]; then
-  LC_ALL=C sort -u "$container_body" >"$container_body.sorted"
-  mv "$container_body.sorted" "$container_body"
-fi
+LC_ALL=C sort -u -o "$container_body" "$container_body"
 
-if [[ -s "$modules" ]]; then
-  LC_ALL=C sort -u "$modules" | while IFS=$'\t' read -r container name path evidence; do
-    json_escape "$container"
-    obj="{\"container\":\"$JSON_ESC\""
-    json_escape "$name"
-    obj="$obj,\"name\":\"$JSON_ESC\""
-    json_escape "$path"
-    obj="$obj,\"path\":\"$JSON_ESC\""
-    json_escape "$evidence"
-    obj="$obj,\"evidence\":\"$JSON_ESC\"}"
-    printf '%s\n' "$obj"
-  done >"$module_body"
-fi
+LC_ALL=C sort -u "$modules" | while IFS=$'\t' read -r container name path evidence; do
+  json_object container "$container" name "$name" path "$path" evidence "$evidence"
+done >"$module_body"
 
-if [[ -s "$edges" ]]; then
-  LC_ALL=C sort -u "$edges" | while IFS=$'\t' read -r from to kind via evidence; do
-    [[ -n "$from" && -n "$to" ]] || continue
-    [[ "$via" == "-" ]] && via=""
-    json_escape "$from"
-    obj="{\"from\":\"$JSON_ESC\""
-    json_escape "$to"
-    obj="$obj,\"to\":\"$JSON_ESC\""
-    json_escape "$kind"
-    obj="$obj,\"kind\":\"$JSON_ESC\""
-    json_escape "$via"
-    obj="$obj,\"via\":\"$JSON_ESC\""
-    json_escape "$evidence"
-    obj="$obj,\"evidence\":\"$JSON_ESC\"}"
-    printf '%s\n' "$obj"
-  done >"$edge_body"
-fi
+LC_ALL=C sort -u "$edges" | while IFS=$'\t' read -r from to kind via evidence; do
+  [[ -n "$from" && -n "$to" ]] || continue
+  [[ "$via" == "-" ]] && via=""
+  json_object from "$from" to "$to" kind "$kind" via "$via" evidence "$evidence"
+done >"$edge_body"
 
 if [[ "$dirty_n" -gt 0 ]]; then
   printf 'collect-containers.sh: %d tracked file(s) differ from HEAD; their contents are read from the working tree\n' "$dirty_n" >&2
@@ -935,7 +890,7 @@ if [[ "$dirty_n" -gt 0 ]]; then
 fi
 excluded_n="$(awk 'END { print NR }' "$excluded")"
 if [[ "$excluded_n" -gt 0 ]]; then
-  json_escape "$(LC_ALL=C sort "$excluded" | awk 'BEGIN { ORS="" } { if (n++) printf "; "; printf "%s", $0 }')"
+  json_escape "$(LC_ALL=C sort "$excluded" | join_lines "; ")"
   printf '{"kind":"excluded-test-projects","count":%d,"evidence":"not charted as deployables: %s"}\n' "$excluded_n" "$JSON_ESC" >>"$finding_body"
 fi
 

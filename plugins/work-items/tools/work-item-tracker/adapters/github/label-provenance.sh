@@ -44,10 +44,10 @@ events="$(jq -cs 'add // []' <<<"$WIT_GH_OUT")" || {
 # A GitHub login, optionally an app's `[bot]` form. Anything else never reaches the API path.
 login_re='^[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?$'
 
-# entry <label> <actor> <permission> <role> <trusted> <reason> [<at>]: one result row; empty
-# strings become null so a reader can tell "not read" from a value.
+# entry <label> <actor> <permission> <role> <trusted> <reason> [<at>]: append one result row
+# to rows; empty strings become null so a reader can tell "not read" from a value.
 entry() {
-  jq -nc --arg label "$1" --arg actor "$2" --arg permission "$3" --arg role "$4" \
+  rows+="$(jq -nc --arg label "$1" --arg actor "$2" --arg permission "$3" --arg role "$4" \
     --argjson trusted "$5" --arg reason "$6" --arg at "${7:-}" \
     '{label: $label,
       actor: (if $actor == "" then null else $actor end),
@@ -55,43 +55,44 @@ entry() {
       permission: (if $permission == "" then null else $permission end),
       role: (if $role == "" then null else $role end),
       trusted: $trusted,
-      reason: (if $reason == "" then null else $reason end)}'
+      reason: (if $reason == "" then null else $reason end)}')"$'\n'
+}
+
+# read_gh <gh-args…>: run bare gh without exiting on failure. READ_OUT = stdout, READ_RC = its
+# exit code, READ_ERR = the first stderr line.
+read_gh() {
+  local errfile
+  errfile="$(mktemp)"
+  READ_OUT="$(gh "$@" 2>"$errfile")"
+  READ_RC=$?
+  READ_ERR="$(head -n 1 "$errfile")"
+  rm -f "$errfile"
 }
 
 rows=""
 for label in "${labels[@]}"; do
   last="$(jq -c --arg l "$label" '[.[] | select(.label == $l)] | sort_by(.at) | last // empty' <<<"$events")"
   if [[ -z "$last" ]]; then
-    rows+="$(entry "$label" "" "" "" false "no labeled event for this label")"$'\n'
+    entry "$label" "" "" "" false "no labeled event for this label"
     continue
   fi
   at="$(jq -r '.at // ""' <<<"$last")"
   actor="$(jq -r '.actor // ""' <<<"$last")"
   if [[ ! "$actor" =~ $login_re ]]; then
-    rows+="$(entry "$label" "" "" "" false "labeled event has no usable actor login" "$at")"$'\n'
+    entry "$label" "" "" "" false "labeled event has no usable actor login" "$at"
     continue
   fi
-  errfile="$(mktemp)"
-  perm_json="$(gh api "repos/$owner/$repo/collaborators/$actor/permission" 2>"$errfile")"
-  perm_rc=$?
-  perm_err="$(head -n 1 "$errfile")"
-  rm -f "$errfile"
-  if ((perm_rc != 0)); then
-    rows+="$(entry "$label" "$actor" "" "" false "permission read failed: ${perm_err:-gh exited $perm_rc}" "$at")"$'\n'
+  read_gh api "repos/$owner/$repo/collaborators/$actor/permission"
+  if ((READ_RC != 0)); then
+    entry "$label" "$actor" "" "" false "permission read failed: ${READ_ERR:-gh exited $READ_RC}" "$at"
     continue
   fi
-  permission="$(jq -r '.permission // ""' <<<"$perm_json" 2>/dev/null)"
-  role="$(jq -r '.role_name // ""' <<<"$perm_json" 2>/dev/null)"
+  permission="$(jq -r '.permission // ""' <<<"$READ_OUT" 2>/dev/null)"
+  role="$(jq -r '.role_name // ""' <<<"$READ_OUT" 2>/dev/null)"
   case "$permission" in
-  admin | write)
-    rows+="$(entry "$label" "$actor" "$permission" "$role" true "" "$at")"$'\n'
-    ;;
-  "")
-    rows+="$(entry "$label" "$actor" "" "$role" false "permission read returned no permission" "$at")"$'\n'
-    ;;
-  *)
-    rows+="$(entry "$label" "$actor" "$permission" "$role" false "labeler permission is below write" "$at")"$'\n'
-    ;;
+  admin | write) entry "$label" "$actor" "$permission" "$role" true "" "$at" ;;
+  "") entry "$label" "$actor" "" "$role" false "permission read returned no permission" "$at" ;;
+  *) entry "$label" "$actor" "$permission" "$role" false "labeler permission is below write" "$at" ;;
   esac
 done
 
@@ -100,18 +101,14 @@ done
 # (https://docs.github.com/en/rest/using-the-rest-api/issue-event-types lists no body-edit
 # event), so this one read is GraphQL; a failed or unparsable read refuses, like any failed
 # read, and the work-loop escalates that refusal once.
-errfile="$(mktemp)"
 # shellcheck disable=SC2016 # GraphQL variables, not shell expansions
-edit_json="$(gh api graphql \
+read_gh api graphql \
   -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){issueOrPullRequest(number:$number){... on Issue{lastEditedAt} ... on PullRequest{lastEditedAt}}}}' \
-  -f owner="$owner" -f name="$repo" -F number="$number" 2>"$errfile")"
-edit_rc=$?
-edit_err="$(head -n 1 "$errfile")"
-rm -f "$errfile"
+  -f owner="$owner" -f name="$repo" -F number="$number"
 edited_at="" edit_reason=""
-if ((edit_rc != 0)); then
-  edit_reason="body edit-time read failed: ${edit_err:-gh exited $edit_rc}"
-elif ! edited_at="$(jq -er '.data.repository.issueOrPullRequest | if type == "object" then (.lastEditedAt // "") else error end' <<<"$edit_json" 2>/dev/null)"; then
+if ((READ_RC != 0)); then
+  edit_reason="body edit-time read failed: ${READ_ERR:-gh exited $READ_RC}"
+elif ! edited_at="$(jq -er '.data.repository.issueOrPullRequest | if type == "object" then (.lastEditedAt // "") else error end' <<<"$READ_OUT" 2>/dev/null)"; then
   edited_at=""
   edit_reason="body edit-time read returned no item"
 fi

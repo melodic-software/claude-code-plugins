@@ -213,24 +213,22 @@ wit_read_assignees() {
   wit_run_gh read api "repos/$1/$2/issues/$3" --jq '[.assignees[].login]'
 }
 
+# _wit_edit_assignee <method> <writer> <owner> <repo> <number> <login>
+_wit_edit_assignee() {
+  local method="$1" writer="$2"
+  [[ "$writer" == "write" ]] || wit_write_pause # session-identity write skips gh_write
+  wit_run_gh "$writer" api --method "$method" "repos/$3/$4/issues/$5/assignees" \
+    -f "assignees[]=$6" --jq '[.assignees[].login]'
+}
+
 # wit_add_assignee <writer> <owner> <repo> <number> <login>
 # NOTE: unlike `gh issue edit --add-assignee`, REST POST silently IGNORES a user
 # who cannot be assigned (no push access) and still returns 201. Callers that
 # depend on the assignment having landed MUST verify with wit_read_assignees.
-wit_add_assignee() {
-  local writer="$1"
-  [[ "$writer" == "write" ]] || wit_write_pause # session-identity write skips gh_write
-  wit_run_gh "$writer" api --method POST "repos/$2/$3/issues/$4/assignees" \
-    -f "assignees[]=$5" --jq '[.assignees[].login]'
-}
+wit_add_assignee() { _wit_edit_assignee POST "$@"; }
 
 # wit_remove_assignee <writer> <owner> <repo> <number> <login>
-wit_remove_assignee() {
-  local writer="$1"
-  [[ "$writer" == "write" ]] || wit_write_pause # session-identity write skips gh_write
-  wit_run_gh "$writer" api --method DELETE "repos/$2/$3/issues/$4/assignees" \
-    -f "assignees[]=$5" --jq '[.assignees[].login]'
-}
+wit_remove_assignee() { _wit_edit_assignee DELETE "$@"; }
 
 # wit_try_remove_assignee <owner> <repo> <number> <login> — best-effort rollback
 # on the session identity; never fails the caller.
@@ -305,24 +303,30 @@ readonly WIT_ITEM_JQ="$WIT_JQ_DEF_UTC_TS"'{
   milestone: (.milestone.title // null)
 }'
 
+# _wit_gh_read_binding — set _WIT_GH_BINDING_JSON to the effective binding; return 1
+# when there is no binding, exit 3 when it is invalid.
+_wit_gh_read_binding() {
+  local binding
+  binding="$(wit_find_binding)" || return 1
+  _WIT_GH_BINDING_JSON="$(wit_effective_binding_json "$binding")" || {
+    echo "github: invalid binding at $binding; run /work-items:setup check" >&2
+    exit "$EX_CONFIG"
+  }
+}
+
 # wit_gh_load_wont_do_labels — set WIT_GH_WONT_DO_LABELS (JSON array, lowercased) from
 # the binding's optional config.github.wont_do_labels; `[]` when the key or the binding
 # is absent. A present value must be an array of non-empty strings, else exit 3. Call
 # it before a pipeline into wit_gh_annotate_blocker_reasons, so the exit is not lost in
 # a pipeline stage.
 wit_gh_load_wont_do_labels() {
-  local binding ejson
   WIT_GH_WONT_DO_LABELS='[]'
-  binding="$(wit_find_binding)" || return 0
-  ejson="$(wit_effective_binding_json "$binding")" || {
-    echo "github: invalid binding at $binding; run /work-items:setup check" >&2
-    exit "$EX_CONFIG"
-  }
+  _wit_gh_read_binding || return 0
   WIT_GH_WONT_DO_LABELS="$(jq -c '(.config.github // {}) as $g
     | if ($g | type) != "object" or ($g | has("wont_do_labels") | not) then []
       elif ($g.wont_do_labels | type) == "array" and all($g.wont_do_labels[]; type == "string" and length > 0)
       then $g.wont_do_labels | map(ascii_downcase)
-      else "bad" end' <<<"$ejson")"
+      else "bad" end' <<<"$_WIT_GH_BINDING_JSON")"
   if [[ "$WIT_GH_WONT_DO_LABELS" == '"bad"' ]]; then
     echo "github: config.github.wont_do_labels must be an array of non-empty label names" >&2
     exit "$EX_CONFIG"
@@ -334,13 +338,8 @@ wit_gh_load_wont_do_labels() {
 # binding is absent, else {trusted_actors, model, lanes_app} as one JSON object. Each
 # member must be a non-empty string and each path repo-relative, else exit 3.
 wit_gh_load_status_trust() {
-  local binding ejson
   WIT_GH_STATUS_TRUST=""
-  binding="$(wit_find_binding)" || return 0
-  ejson="$(wit_effective_binding_json "$binding")" || {
-    echo "github: invalid binding at $binding; run /work-items:setup check" >&2
-    exit "$EX_CONFIG"
-  }
+  _wit_gh_read_binding || return 0
   WIT_GH_STATUS_TRUST="$(jq -c '(.config.github // {}) as $g
     | def text: type == "string" and length > 0;
     def relative: text and (startswith("/") | not) and (split("/") | index("..") | not);
@@ -348,7 +347,7 @@ wit_gh_load_status_trust() {
     elif ($g.status_trust | type) == "object" and ($g.status_trust.trusted_actors | relative)
       and ($g.status_trust.model | relative) and ($g.status_trust.lanes_app | text)
     then $g.status_trust | {trusted_actors, model, lanes_app}
-    else "bad" end' <<<"$ejson")"
+    else "bad" end' <<<"$_WIT_GH_BINDING_JSON")"
   case "$WIT_GH_STATUS_TRUST" in
   null) WIT_GH_STATUS_TRUST="" ;;
   '"bad"')

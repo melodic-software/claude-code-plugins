@@ -61,6 +61,7 @@ import re
 import shutil
 import subprocess
 import sys
+from collections import Counter
 
 from adapter_paths import (
     dispatch,
@@ -198,10 +199,7 @@ def translate(
     notes: list[str] = []
     file_rows: list[dict] = []
     if payload.get("totalCount") and isinstance(details, list):
-        listed: dict[str, int] = {}
-        for entry in details:
-            key = _key(str(entry.get("filePath", "")))
-            listed[key] = listed.get(key, 0) + 1
+        listed = Counter(_key(str(entry.get("filePath", ""))) for entry in details)
         outside: list[str] = []
         for path in files:
             key = _key(path)
@@ -219,7 +217,7 @@ def translate(
                         "type_coverage_pct": None,
                         "typed_identifiers": None,
                         "total_identifiers": None,
-                        "any_count": listed.get(key, 0),
+                        "any_count": listed[key],
                     },
                     [],
                 )

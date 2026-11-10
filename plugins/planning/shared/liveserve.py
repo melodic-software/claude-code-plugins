@@ -49,11 +49,12 @@ HEADERS = {"Content-Security-Policy": CSP, "Referrer-Policy": "no-referrer", "X-
 SENDING = 16  # judgment: files sent at once; a request past them waits up to WAIT seconds, then answers 503
 WAIT = 10.0
 CHUNK = 64 * 1024
+TEXT = "text/plain; charset=utf-8"
 # A fixed map, not mimetypes: on Windows mimetypes reads the registry, which can name .js text/plain and break a module.
 TYPES = {
     ".html": "text/html; charset=utf-8", ".htm": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
     ".mjs": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json",
-    ".map": "application/json", ".txt": "text/plain; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png",
+    ".map": "application/json", ".txt": TEXT, ".svg": "image/svg+xml", ".png": "image/png",
     ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".avif": "image/avif",
     ".ico": "image/x-icon", ".woff": "font/woff", ".woff2": "font/woff2", ".ttf": "font/ttf", ".otf": "font/otf",
     ".wasm": "application/wasm", ".mp4": "video/mp4", ".webm": "video/webm",
@@ -129,19 +130,19 @@ def copy_build(src, dest):
 def _copy_one(base, rel, size, ident, dest):
     """Copy one file the walk saw as `size` bytes: still under `base` once its folders' links are resolved, and opened
     without following a link (nor waiting on a pipe swapped in)."""
-    source = base.joinpath(*rel)
+    source, name = base.joinpath(*rel), "/".join(rel)
     if source.parent.resolve() != base.joinpath(*rel[:-1]):
-        raise BuildRefused(f"{'/'.join(rel)} changed while it was copied")
+        raise BuildRefused(f"{name} changed while it was copied")
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
     try:
         fd = os.open(source, flags)
     except OSError as exc:
-        raise BuildRefused(f"{'/'.join(rel)} cannot be read: {exc.strerror or exc}") from exc
+        raise BuildRefused(f"{name} cannot be read: {exc.strerror or exc}") from exc
     with os.fdopen(fd, "rb") as f:
         st = os.fstat(f.fileno())
         data = f.read(size + 1) if stat.S_ISREG(st.st_mode) else b""
         if not stat.S_ISREG(st.st_mode) or _linked(os.lstat(source)) or len(data) != size or st.st_nlink != 1 or (st.st_dev, st.st_ino) != ident:
-            raise BuildRefused(f"{'/'.join(rel)} changed while it was copied")
+            raise BuildRefused(f"{name} changed while it was copied")
     detached.make_private_dir(dest.joinpath(*rel[:-1]))
     with detached.open_private(dest.joinpath(*rel), "wb") as out:
         out.write(data)
@@ -205,16 +206,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def refuse(self):
         self.close_connection = True  # the request body, if any, is never read
-        self.answer(405, b"Method not allowed\n", "text/plain; charset=utf-8", {"Allow": "GET, HEAD", "Connection": "close"})
+        self.answer(405, b"Method not allowed\n", TEXT, {"Allow": "GET, HEAD", "Connection": "close"})
 
     def do_GET(self):
         if self.headers.get("Transfer-Encoding") or self.headers.get("Content-Length", "0").strip() != "0":
             self.close_connection = True  # a body is never read, so it must never be taken as the next request
         f = resolve(self.server.root, self.path)
         if f is None:
-            return self.answer(404, b"Not found\n", "text/plain; charset=utf-8")
+            return self.answer(404, b"Not found\n", TEXT)
         if not self.server.sending.acquire(timeout=WAIT):
-            return self.answer(503, b"Busy\n", "text/plain; charset=utf-8", {"Retry-After": "5"})
+            return self.answer(503, b"Busy\n", TEXT, {"Retry-After": "5"})
         try:
             with open(f, "rb") as src:
                 size = os.fstat(src.fileno()).st_size

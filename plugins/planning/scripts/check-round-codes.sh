@@ -147,10 +147,20 @@ LC_ALL=C awk '
       }
     }
   }
+  # The id of the question a line opens, or "" when it opens none.
+  function question_id(line,    c) {
+    if (!match(line, /^[^A-Za-z0-9]*Q[0-9]+[.):]/)) return ""
+    c = substr(line, RSTART, RLENGTH)
+    sub(/^[^A-Za-z0-9]*/, "", c)
+    sub(/[.):]$/, "", c)
+    return c
+  }
   FNR == 1 && NR > 1 && in_fence { exit 4 }
-  FILENAME == ledger_file {
+  {
     sub(/\r$/, "")
     if (fence($0) || in_fence) next
+  }
+  FILENAME == ledger_file {
     if ($0 ~ /^[ \t]*- [QCFS][0-9]+[ \t]*\|/) {
       c = $0
       sub(/^[ \t]*- /, "", c)
@@ -173,26 +183,14 @@ LC_ALL=C awk '
     next
   }
   pass == 1 {
-    sub(/\r$/, "")
-    if (fence($0) || in_fence) next
-    if (match($0, /^[^A-Za-z0-9]*Q[0-9]+[.):]/)) {
-      c = substr($0, RSTART, RLENGTH)
-      sub(/^[^A-Za-z0-9]*/, "", c)
-      sub(/[.):]$/, "", c)
-      add_code(c, 0)
-    }
+    add_code(question_id($0), 0)
     next
   }
   {
-    sub(/\r$/, "")
-    if (fence($0) || in_fence) next
-    if (match($0, /^[^A-Za-z0-9]*Q[0-9]+[.):]/)) {
+    if ((c = question_id($0)) != "") {
       delete used
       # The Q<N> that opens a question line is the handle of that question,
       # named by the question itself whatever separator follows it.
-      c = substr($0, RSTART, RLENGTH)
-      sub(/^[^A-Za-z0-9]*/, "", c)
-      sub(/[.):]$/, "", c)
       used[c] = 1
     }
     grade($0, FNR)

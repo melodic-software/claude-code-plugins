@@ -122,15 +122,18 @@ lease="$(jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg holder "$login" --arg now "
 wit_run_gh write api "repos/$owner/$repo/issues/$number/comments" \
   -f body="${WIT_LEASE_MARKER}${lease} -->" --jq '.id'
 our_comment_id="$WIT_GH_OUT"
+
+# Best-effort: mark our own lease comment superseded; never fails the caller.
+supersede_our_lease() {
+  local superseded
+  superseded="$(jq -c --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '. + {superseded_at: $ts}' <<<"$lease")"
+  gh_write api --method PATCH "repos/$owner/$repo/issues/comments/$our_comment_id" \
+    -f body="${WIT_LEASE_MARKER}${superseded} -->" >/dev/null 2>&1 || true
+}
+
 # A lease-only claim that fails before its emit supersedes its own comment, so a
 # lease whose handle never reached the caller does not block the item for its TTL.
-if [[ "$lease_only" == true ]]; then
-  _wit_claim_rollback() {
-    gh_write api --method PATCH "repos/$owner/$repo/issues/comments/$our_comment_id" \
-      -f body="${WIT_LEASE_MARKER}$(jq -c --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '. + {superseded_at: $ts}' <<<"$lease") -->" >/dev/null 2>&1 || true
-  }
-  trap _wit_claim_rollback EXIT
-fi
+[[ "$lease_only" == false ]] || trap supersede_our_lease EXIT
 
 # 4. Re-read all lease comments; the EARLIEST live lease wins. The rollback
 # guard STAYS armed through arbitration: a read failure here (exit "$?" below)
@@ -157,9 +160,7 @@ done < <(jq -c 'sort_by(.id) | .[]' <<<"$leases")
 # Earliest LIVE lease wins. No live lease at all (e.g. ttl 0) → our claim stands;
 # expiry is reclaim's concern.
 if [[ -n "$winner_id" && "$winner_id" != "$our_comment_id" ]]; then
-  superseded="$(jq -c --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '. + {superseded_at: $ts}' <<<"$lease")"
-  gh_write api --method PATCH "repos/$owner/$repo/issues/comments/$our_comment_id" \
-    -f body="${WIT_LEASE_MARKER}${superseded} -->" >/dev/null 2>&1 || true
+  supersede_our_lease
   # Keep the @me assignment only on a SAME-login race (the winner shares our
   # login, so the assignee still matches the holder). If the winning lease
   # belongs to a different holder, our @me would leave the item assigned to the

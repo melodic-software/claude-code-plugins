@@ -515,7 +515,7 @@ test("verify runs that succeeded, are older than the lookback, or ran off main a
   assert.deepEqual(records(outputs), ["", "", ""]);
 });
 
-test("verify re-runs share the cap of 3 with PR CI sets, CI first, then the newest verify run", async () => {
+test("verify re-runs share the cap of 3 with PR CI sets, CI first, then the oldest verify run", async () => {
   // One verify re-run is already in flight, so two places are left.
   const { reruns, outputs } = await reconcile({
     pulls: [pr(1)],
@@ -526,19 +526,19 @@ test("verify re-runs share the cap of 3 with PR CI sets, CI first, then the newe
       verifyRun(201, { created: "2026-10-19T19:10:00Z" }),
     ],
   });
-  assert.deepEqual(reruns, [101, 202]);
-  assert.deepEqual(records(outputs), [`reconcile-rerun-101-2-${sha(1)}`, `reconcile-rerun-202-2-${MAIN_TIP}`, ""]);
+  assert.deepEqual(reruns, [101, 201]);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-101-2-${sha(1)}`, `reconcile-rerun-201-2-${MAIN_TIP}`, ""]);
 });
 
-test("verify re-runs go before flake re-runs, newest first, since nothing else re-runs them", async () => {
+test("verify re-runs go before flake re-runs, oldest first, since nothing else re-runs them", async () => {
   const flake = (id, n) => failed(id, sha(n), { jobs: MIXED_JOBS, updated: "2026-10-19T19:00:00Z" });
   const { reruns, failedJobReruns, outputs } = await reconcile({
     pulls: [pr(1), pr(2), pr(3)],
     runs: [flake(101, 1), flake(102, 2), flake(103, 3), verifyRun(201, { created: "2026-10-19T19:10:00Z" }), verifyRun(202, { created: "2026-10-19T19:20:00Z" })],
   });
-  assert.deepEqual(reruns, [202, 201]);
+  assert.deepEqual(reruns, [201, 202]);
   assert.deepEqual(failedJobReruns, [101]);
-  assert.deepEqual(records(outputs), [`reconcile-rerun-202-2-${MAIN_TIP}`, `reconcile-rerun-201-2-${MAIN_TIP}`, `reconcile-rerun-101-2-${sha(1)}`]);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, `reconcile-rerun-202-2-${MAIN_TIP}`, `reconcile-rerun-101-2-${sha(1)}`]);
 });
 
 test("at most 3 verify runs are recorded and re-run in one run", async () => {
@@ -546,8 +546,8 @@ test("at most 3 verify runs are recorded and re-run in one run", async () => {
     pulls: [],
     runs: [verifyRun(201), verifyRun(202), verifyRun(203), verifyRun(204)].map((r, i) => ({ ...r, created_at: `2026-10-19T19:0${i}:00Z` })),
   });
-  assert.deepEqual(reruns, [204, 203, 202]);
-  assert.deepEqual(records(outputs), [204, 203, 202].map((id) => `reconcile-rerun-${id}-2-${MAIN_TIP}`));
+  assert.deepEqual(reruns, [201, 202, 203]);
+  assert.deepEqual(records(outputs), [201, 202, 203].map((id) => `reconcile-rerun-${id}-2-${MAIN_TIP}`));
 });
 
 // A lane workflow's jobs (pr-verify's legs by default), as name and body.
@@ -894,7 +894,7 @@ test("a verify run lost after it started but before its judge step is re-run", a
       { ...verifyRun(202), jobs: verifyJob("skipped"), created_at: "2026-10-19T19:00:00Z" },
     ],
   });
-  assert.deepEqual(reruns, [202, 201]);
+  assert.deepEqual(reruns, [201, 202]);
 });
 
 test("a verify run none of whose first-attempt jobs started is never re-run or recorded", async () => {
@@ -1164,7 +1164,7 @@ test("a held main-run review waits out the upstream gate and is listed again nex
   assert.deepEqual((await reconcile({ pulls: [], runs: [heldRun(317)], upstream })).reruns, [317]);
 });
 
-test("a main-run review re-run shares the cap of 3 with pr-verify re-runs, newest first", async () => {
+test("a main-run review re-run shares the cap of 3 with pr-verify re-runs, oldest first", async () => {
   const { reruns, outputs } = await reconcile({
     pulls: [],
     runs: [
@@ -1174,8 +1174,70 @@ test("a main-run review re-run shares the cap of 3 with pr-verify re-runs, newes
       mainReviewRun(302, { created: "2026-10-19T19:20:00Z" }),
     ],
   });
-  assert.deepEqual(reruns, [302, 202, 201]);
-  assert.deepEqual(records(outputs), [302, 202, 201].map((id) => `reconcile-rerun-${id}-2-${MAIN_TIP}`));
+  assert.deepEqual(reruns, [301, 201, 202]);
+  assert.deepEqual(records(outputs), [301, 201, 202].map((id) => `reconcile-rerun-${id}-2-${MAIN_TIP}`));
+});
+
+// A lane run is matched to an open head when it was created between 60 s
+// before and 15 minutes after the head's newest checks run completed; the
+// recorded pair is a checks run done at 04:13:36Z and its pr-verify run
+// created at 04:13:40Z, 4 s later.
+const doneChecks = (id, n, done) => run(id, sha(n), { conclusion: "success", created: "2026-10-19T16:50:00Z", updated: done });
+const deferredLanes = (log) => log.mock.calls.map((c) => c.arguments[0]).filter((line) => / deferred, /.test(line)).map((line) => Number(/lane run ([0-9]+) /.exec(line)?.[1]));
+
+test("lane runs of open heads go first, oldest first, ahead of an older run whose PR is gone and of newer runs", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { code, reruns } = await reconcile({
+    pulls: [pr(1), pr(2)],
+    runs: [
+      doneChecks(101, 1, "2026-10-19T17:00:00Z"),
+      doneChecks(102, 2, "2026-10-19T17:30:00Z"),
+      verifyRun(210, { created: "2026-10-19T16:00:00Z" }),
+      verifyRun(211, { created: "2026-10-19T17:00:04Z" }),
+      verifyRun(212, { created: "2026-10-19T17:30:04Z" }),
+      verifyRun(221, { created: "2026-10-19T19:00:00Z" }),
+      verifyRun(222, { created: "2026-10-19T19:10:00Z" }),
+      verifyRun(223, { created: "2026-10-19T19:20:00Z" }),
+    ],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [211, 212, 210], "the two matched runs, then the oldest unmatched one");
+  assert.deepEqual(deferredLanes(log), [221, 222, 223], "every lane run not re-run is named as deferred");
+});
+
+test("a second lane run for one head goes behind every matched run, while each lane matches the head once", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { code, reruns } = await reconcile({
+    pulls: [pr(1), pr(2)],
+    runs: [
+      doneChecks(101, 1, "2026-10-19T17:00:00Z"),
+      doneChecks(102, 2, "2026-10-19T17:30:00Z"),
+      verifyRun(231, { created: "2026-10-19T17:00:04Z" }),
+      verifyRun(232, { created: "2026-10-19T17:00:30Z" }),
+      mainReviewRun(331, { created: "2026-10-19T17:00:05Z" }),
+      verifyRun(233, { created: "2026-10-19T17:30:04Z" }),
+    ],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [231, 331, 233], "head 1's closest verify and review runs, then head 2's verify run");
+  assert.deepEqual(deferredLanes(log), [232], "the duplicate waits and is named");
+});
+
+test("a lane run created more than 60 s before or 15 minutes after a head's checks completion is not matched", async () => {
+  const { code, reruns } = await reconcile({
+    pulls: [pr(1)],
+    runs: [
+      doneChecks(101, 1, "2026-10-19T17:00:00Z"),
+      verifyRun(240, { created: "2026-10-19T16:00:00Z" }),
+      verifyRun(241, { created: "2026-10-19T16:58:59Z" }),
+      verifyRun(242, { created: "2026-10-19T17:15:01Z" }),
+      verifyRun(244, { created: "2026-10-19T17:14:59Z" }),
+    ],
+  });
+  assert.equal(code, 0);
+  // 241 is 61 s before the completion and 242 is 15 min 1 s after; 244, at
+  // 14 min 59 s after, is the one match, and the rest go oldest first.
+  assert.deepEqual(reruns, [244, 240, 241]);
 });
 
 test("a non-operational Actions status records nothing", async () => {
@@ -1204,7 +1266,7 @@ const lostQueries = (calls) => calls.filter((c) => c.includes("/workflows/pr-ver
 test("a lost-run listing of 150 runs over 2 pages is read in full", async () => {
   const { code, reruns, calls } = await reconcile({ pulls: [], runs: lostDay(150) });
   assert.equal(code, 0);
-  assert.deepEqual(reruns, [1149, 1148, 1147]);
+  assert.deepEqual(reruns, [1000, 1001, 1002]);
   assert.equal(lostQueries(calls).length, 2);
 });
 
@@ -1214,8 +1276,8 @@ test("700 succeeded verify runs and 2 lost ones plan the 2 lost runs without hit
     runs: [...verifyDay(700, new Map()), verifyRun(201), verifyRun(202, { created: "2026-10-19T19:00:00Z" })],
   });
   assert.equal(code, 0);
-  assert.deepEqual(reruns, [202, 201]);
-  assert.deepEqual(records(outputs), [`reconcile-rerun-202-2-${MAIN_TIP}`, `reconcile-rerun-201-2-${MAIN_TIP}`, ""]);
+  assert.deepEqual(reruns, [201, 202]);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, `reconcile-rerun-202-2-${MAIN_TIP}`, ""]);
   // The lost-run listings; the held-run listing of the last 6 hours' 175 runs is its own.
   assert.ok(calls.filter((c) => !c.includes("&status=success&")).every((c) => !c.includes("&page=2")));
 });
@@ -1232,7 +1294,7 @@ test("with 700 succeeded runs listed, verify re-runs already queued or in progre
     ],
   });
   assert.equal(code, 0);
-  assert.deepEqual(reruns, [202]);
+  assert.deepEqual(reruns, [201]);
 });
 
 test("verify re-runs that start while the listing is read still take places", async () => {
@@ -1254,7 +1316,7 @@ test("verify re-runs that start while the listing is read still take places", as
 });
 
 // Two lane re-runs already in flight leave one of MAX_IN_FLIGHT's 3 places,
-// which the newest lost run (202, created 19:00) takes; a CI run in progress
+// which the oldest lost run (201, created 18:59:43) takes; a CI run in progress
 // belongs to neither lane.
 const laneMix = () => [
   verifyRun(201),
@@ -1277,8 +1339,8 @@ test("the near-empty statuses are listed once repository-wide and split by lane,
   const fallback = await reconcile({ pulls: [], runs: laneMix(), carry: null, github: overfull });
   for (const [label, result] of Object.entries({ shared, fallback })) {
     assert.equal(result.code, 0, label);
-    assert.deepEqual(result.reruns, [202], label);
-    assert.deepEqual(records(result.outputs), [`reconcile-rerun-202-2-${MAIN_TIP}`, "", ""], label);
+    assert.deepEqual(result.reruns, [201], label);
+    assert.deepEqual(records(result.outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, "", ""], label);
   }
   assert.deepEqual(shared.settled, fallback.settled);
   assert.equal(repoWide(shared.calls).length, 7, "one listing per shared status");
@@ -1296,7 +1358,7 @@ test("a repository-wide listing that fails is read per lane, and a rate limit on
   };
   const failed = await reconcile({ pulls: [], runs: laneMix(), github: failing(new GitHubError(502, "bad gateway")) });
   assert.equal(failed.code, 0);
-  assert.deepEqual(failed.reruns, [202]);
+  assert.deepEqual(failed.reruns, [201]);
   assert.equal(perLane(failed.calls).filter((c) => c.includes("&status=in_progress&")).length, 2);
   const limited = await reconcile({ pulls: [], runs: laneMix(), github: failing(new GitHubError(429, "rate limited")) });
   assert.equal(limited.code, 1);
@@ -2695,7 +2757,8 @@ test("a lane run deferred for want of a place is not read again while it stays a
       ],
     },
   ];
-  const lost = (id) => ({ ...verifyRun(id, { conclusion: "failure", created: `2026-10-19T19:0${id - 200}:00Z` }), jobs: lostJob(id * 10) });
+  // 205 is the oldest and 201 the newest, so oldest first places 205 to 203.
+  const lost = (id) => ({ ...verifyRun(id, { conclusion: "failure", created: `2026-10-19T19:0${206 - id}:00Z` }), jobs: lostJob(id * 10) });
   const first = await reconcile({ pulls: [], runs: [201, 202, 203, 204, 205].map(lost), carry: null });
   assert.equal(first.code, 0);
   assert.deepEqual(first.reruns, [205, 204, 203]);

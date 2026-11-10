@@ -65,62 +65,74 @@ def _flatten(entries: list) -> list[dict]:
     return out
 
 
-def _non_blank(path: str, start: int | None = None, end: int | None = None) -> int:
+def _read_lines(path: str) -> list[str]:
     try:
         with open(path, encoding="utf-8", errors="replace") as handle:
-            lines = handle.read().splitlines()
+            return handle.read().splitlines()
     except OSError:
-        return 0
-    if start is not None and end is not None:
-        lines = lines[start - 1 : end]
+        return []
+
+
+def _non_blank(lines: list[str]) -> int:
     return sum(1 for line in lines if line.strip())
+
+
+def _document(raw: str, subcommand: str) -> dict:
+    document = json.loads(raw)
+    if not isinstance(document, dict):
+        raise ValueError(f"radon {subcommand} -j did not print an object")
+    return document
+
+
+def _row(
+    path: str,
+    function: str | None,
+    start: int | None,
+    end: int | None,
+    values: dict,
+    labels: list[str],
+) -> dict:
+    return {
+        "file": path.replace("\\", "/"),
+        "function": function,
+        "start_line": start,
+        "end_line": end,
+        "lane": LANE,
+        "values": values,
+        "collector": NAME,
+        "labels": labels,
+    }
 
 
 def translate_cc(raw: str, measure: str, wanted: list[str]) -> list[dict]:
     wanted_norm = {normalize(p): p for p in wanted}
-    document = json.loads(raw)
-    if not isinstance(document, dict):
-        raise ValueError("radon cc -j did not print an object")
     rows: list[dict] = []
-    for location, entries in document.items():
+    for location, entries in _document(raw, "cc").items():
         path = wanted_norm.get(normalize(location))
         if path is None or not isinstance(entries, list):
             continue
-        total = _non_blank(path) if measure == "function_lines" else 0
+        lines = [] if measure == "cyclomatic" else _read_lines(path)
+        total = _non_blank(lines) if measure == "function_lines" else 0
         for entry in _flatten(entries):
             start, end = int(entry["lineno"]), int(entry["endline"])
             if measure == "cyclomatic":
                 values: dict = {"cyclomatic": int(entry["complexity"])}
             else:
-                inside = _non_blank(path, start, end)
+                inside = _non_blank(lines[start - 1 : end])
                 values = {
                     "function_lines": inside,
                     "function_lines_pct": round(100.0 * inside / total, 2)
                     if total
                     else None,
                 }
-            rows.append(
-                {
-                    "file": path.replace("\\", "/"),
-                    "function": entry.get("name"),
-                    "start_line": start,
-                    "end_line": end,
-                    "lane": LANE,
-                    "values": values,
-                    "collector": NAME,
-                    "labels": [],
-                }
-            )
+            rows.append(_row(path, entry.get("name"), start, end, values, []))
     return rows
 
 
 def translate_hal(raw: str, wanted: list[str]) -> list[dict]:
     wanted_norm = {normalize(p): p for p in wanted}
-    document = json.loads(raw)
-    if not isinstance(document, dict):
-        raise ValueError("radon hal -j did not print an object")
     rows: list[dict] = []
-    for location, block in document.items():
+    for location, block in _document(raw, "hal").items():
         path = wanted_norm.get(normalize(location))
         if path is None or not isinstance(block, dict):
             continue
@@ -130,22 +142,12 @@ def translate_hal(raw: str, wanted: list[str]) -> list[dict]:
         for function, metrics in functions.items():
             if not isinstance(metrics, dict):
                 continue
-            rows.append(
-                {
-                    "file": path.replace("\\", "/"),
-                    "function": function,
-                    "start_line": None,
-                    "end_line": None,
-                    "lane": LANE,
-                    "values": {
-                        "halstead_difficulty": metrics.get("difficulty"),
-                        "halstead_volume": metrics.get("volume"),
-                        "halstead_effort": metrics.get("effort"),
-                    },
-                    "collector": NAME,
-                    "labels": ["no-line-range"],
-                }
-            )
+            values = {
+                "halstead_difficulty": metrics.get("difficulty"),
+                "halstead_volume": metrics.get("volume"),
+                "halstead_effort": metrics.get("effort"),
+            }
+            rows.append(_row(path, function, None, None, values, ["no-line-range"]))
     return rows
 
 

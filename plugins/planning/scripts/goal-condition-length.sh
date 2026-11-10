@@ -24,13 +24,9 @@
 set -uo pipefail
 
 usage() {
-  # Sentinel range (not fixed line numbers) so the printed usage never silently
-  # truncates when the header grows or shrinks on a future edit.
   sed -n '/^# Mechanical/,/^# Output/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
-# Every failure in this gate is exit 2 (usage or environment error) on stderr;
-# exits 0 and 1 are the graded verdict and are printed on stdout instead.
 die() {
   echo "error: $1" >&2
   exit 2
@@ -67,21 +63,15 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# The limit is supplied by the caller (read live from the official docs); this
-# gate deliberately has no default so a stale number can never be baked in.
-if [[ -z "$limit" ]]; then
-  die "--limit <N> is required (pass the current limit read from the official /goal docs)"
-fi
+# No default limit, so a stale number is never baked in.
+[[ -n "$limit" ]] || die "--limit <N> is required (pass the current limit read from the official /goal docs)"
 if ! [[ "$limit" =~ ^[0-9]+$ ]] || [[ "$limit" -eq 0 ]]; then
   die "--limit must be a positive integer, got: $limit"
 fi
 
-# Read the condition. Command substitution strips trailing newlines, which is
-# the desired normalization: a pasted /goal condition carries none.
+# Command substitution strips trailing newlines; a pasted /goal condition carries none.
 if [[ -n "$file" ]]; then
-  if [[ ! -f "$file" ]]; then
-    die "--file not found: $file"
-  fi
+  [[ -f "$file" ]] || die "--file not found: $file"
   condition="$(cat -- "$file")"
 elif [[ -t 0 ]]; then
   die "no condition to read: stdin is a terminal; pipe the condition in or pass --file <path>"
@@ -89,28 +79,18 @@ else
   condition="$(cat)"
 fi
 
-if [[ -z "$condition" ]]; then
-  die "empty condition (nothing to measure)"
-fi
+[[ -n "$condition" ]] || die "empty condition (nothing to measure)"
 
-# Count characters (Unicode code points), not bytes.
 if command -v perl >/dev/null 2>&1; then
   chars="$(printf '%s' "$condition" | perl -CSAD -e 'my $c = do { local $/; <STDIN> }; print length $c;')"
 else
   chars="$(printf '%s' "$condition" | wc -m | tr -d '[:space:]')"
 fi
 
-# Without set -e, a crashed counter would leave $chars empty and the -gt test
-# below would error-and-fall-through to a false "status=ok". Fail loudly instead:
-# a length gate that silently passes when its own counter broke is worse than useless.
-if ! [[ "$chars" =~ ^[0-9]+$ ]]; then
-  die "character count failed (counter returned: '${chars:-<empty>}')"
-fi
+# A crashed counter leaves $chars empty, which the comparison below would grade "ok".
+[[ "$chars" =~ ^[0-9]+$ ]] || die "character count failed (counter returned: '${chars:-<empty>}')"
 
-if [[ "$chars" -gt "$limit" ]]; then
-  echo "chars=$chars limit=$limit status=over"
-  exit 1
-fi
-
-echo "chars=$chars limit=$limit status=ok"
-exit 0
+status=ok
+[[ "$chars" -gt "$limit" ]] && status=over
+echo "chars=$chars limit=$limit status=$status"
+[[ "$status" == ok ]]

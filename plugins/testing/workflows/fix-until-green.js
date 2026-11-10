@@ -41,6 +41,8 @@ const GROUP_CAP = 8
 // output decides what the runner reports.
 const norm = p => p.trim().replace(/\\/g, '/').replace(/^(\.\/)+/, '').replace(/\/+$/, '')
 const isRelative = p => !!p && !p.startsWith('/') && !/^[A-Za-z]:/.test(p) && !p.split('/').includes('..')
+// The strings of a reported path list, normalized; anything else is dropped.
+const paths = v => (Array.isArray(v) ? v : []).filter(x => typeof x === 'string').map(norm)
 // A reported path under one of these directories, or with one of these names,
 // never reaches a fixer: git internals and ignored dependency trees escape the
 // diff the check reads; agent settings, hooks, CI, editor tasks, dependency
@@ -171,29 +173,27 @@ const NO_GIT_WRITES =
   ' Run no git command that writes: no add, rm, mv, stash, checkout, restore, reset or commit. Another fixer\'s ' +
   'edits share this tree, and the check reads the diff from the run\'s starting commit.'
 
+const STR = { type: 'string' }
+const STRS = { type: 'array', items: STR }
+const BOOL = { type: 'boolean' }
 const RUN_SCHEMA = {
   type: 'object',
   properties: {
-    passed: { type: 'boolean' },
+    passed: BOOL,
     exitCode: { type: ['integer', 'null'] },
     failures: {
       type: 'array',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string' },
-          file: { type: 'string' },
-          message: { type: 'string' },
-          suspects: { type: 'array', items: { type: 'string' } },
-        },
+        properties: { id: STR, file: STR, message: STR, suspects: STRS },
         required: ['id', 'file', 'message'],
       },
     },
-    root: { type: 'string' },
-    changedFiles: { type: 'array', items: { type: 'string' } },
-    head: { type: 'string' },
-    note: { type: 'string' },
-    environmentFailure: { type: 'boolean' },
+    root: STR,
+    changedFiles: STRS,
+    head: STR,
+    note: STR,
+    environmentFailure: BOOL,
   },
   required: ['passed', 'failures', 'head', 'changedFiles'],
 }
@@ -201,45 +201,36 @@ const FIX_SCHEMA = {
   type: 'object',
   properties: {
     status: { type: 'string', enum: ['fixed', 'partial', 'not-fixed', 'out-of-scope'] },
-    rootCause: { type: 'string' },
-    filesChanged: { type: 'array', items: { type: 'string' } },
-    outsideFile: { type: 'string' },
-    note: { type: 'string' },
+    rootCause: STR,
+    filesChanged: STRS,
+    outsideFile: STR,
+    note: STR,
   },
   required: ['status', 'rootCause', 'filesChanged'],
 }
+const WEAKENED = {
+  type: 'array',
+  items: {
+    type: 'object',
+    properties: { file: STR, kind: STR, evidence: STR },
+    required: ['file', 'kind', 'evidence'],
+  },
+}
 const CHECK_SCHEMA = {
   type: 'object',
-  properties: {
-    weakened: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          file: { type: 'string' },
-          kind: { type: 'string' },
-          evidence: { type: 'string' },
-        },
-        required: ['file', 'kind', 'evidence'],
-      },
-    },
-    head: { type: 'string' },
-    tracked: { type: 'array', items: { type: 'string' } },
-    changedFiles: { type: 'array', items: { type: 'string' } },
-  },
+  properties: { weakened: WEAKENED, head: STR, tracked: STRS, changedFiles: STRS },
   required: ['weakened', 'head', 'changedFiles'],
 }
 const FINAL_SCHEMA = {
   type: 'object',
-  properties: {
-    passed: { type: 'boolean' },
-    weakened: CHECK_SCHEMA.properties.weakened,
-    head: { type: 'string' },
-    changedFiles: { type: 'array', items: { type: 'string' } },
-    note: { type: 'string' },
-  },
+  properties: { passed: BOOL, weakened: WEAKENED, head: STR, changedFiles: STRS, note: STR },
   required: ['passed', 'weakened', 'head', 'changedFiles'],
 }
+
+// Untracked files count: a new config or conftest file can skip tests without
+// touching a tracked line.
+const changedList = base =>
+  'every path `git diff --name-only ' + base + '` lists plus every path `git ls-files --others --exclude-standard` lists'
 
 const nulls = []
 
@@ -250,8 +241,7 @@ const nulls = []
 // they stood before the run.
 async function runCommand(label, base, restore) {
   const tree = base
-    ? ' Then, in the repository root, report as changedFiles every path `git diff --name-only ' + base + '` lists plus every path ' +
-      '`git ls-files --others --exclude-standard` lists.'
+    ? ' Then, in the repository root, report as changedFiles ' + changedList(base) + '.'
     : ' Report changedFiles as an empty list.'
   const how = restore
     ? 'Stage: base re-run. Check whether the command below passes with the test edits undone. Create a throwaway ' +
@@ -286,7 +276,7 @@ async function runCommand(label, base, restore) {
     .filter(f => f && typeof f.file === 'string' && isEditable(norm(f.file)))
     .map(f => ({
       id: String(f.id), file: norm(f.file), message: String(f.message || ''),
-      suspects: (Array.isArray(f.suspects) ? f.suspects : []).filter(s => typeof s === 'string').map(norm).filter(isEditable),
+      suspects: paths(f.suspects).filter(isEditable),
     }))
   if (failures.length > FAILURE_CAP) log(label + ': ' + (failures.length - FAILURE_CAP) + ' failures past the cap of ' + FAILURE_CAP + ' wait for a later round')
   return { passed: got.passed === true && failures.length === 0, exitCode: got.exitCode ?? null, failures, head: shaOf(got.head), root: typeof got.root === 'string' ? norm(got.root) : null, changedFiles: got.changedFiles, note: got.note || '', environmentFailure: got.environmentFailure === true }
@@ -331,15 +321,15 @@ if (!first) {
 // committed change is as visible as an unstaged one, and a moved HEAD stops the run.
 const BASE = first.head
 const ROOT = first.root
+// An absolute path under the repository root the runner reported is relative to it.
+const rel = x => (ROOT && x.startsWith(ROOT + '/') ? x.slice(ROOT.length + 1) : x)
 if (!first.passed && !BASE) {
   return { green: false, rounds: 0, remaining: first.failures, changes: [], stoppedBecause: 'no-base', nulls, ran: ['run:0'] }
 }
 const DIFF = '`git diff ' + BASE + '`'
-// What every check reports about the tree. Untracked files count: a new
-// config or conftest file can skip tests without touching a tracked line.
+// What every check reports about the tree.
 const CHANGED =
-  ' Report as changedFiles every path `git diff --name-only ' + BASE + '` lists plus every path ' +
-  '`git ls-files --others --exclude-standard` lists, and as head the output of `git rev-parse HEAD`. ' +
+  ' Report as changedFiles ' + changedList(BASE) + ', and as head the output of `git rev-parse HEAD`. ' +
   'Read each untracked file in full and judge it with the diff: a new file that deselects, skips or ' +
   'reconfigures tests is weakening.'
 const everAllowed = new Set()
@@ -351,7 +341,7 @@ let lastChanged = []
 // Judge what a check agent saw: a changed tracked file no fixer was allowed to
 // edit, or a HEAD that is no longer the base, stops the run.
 function judgeTree(seen, roundStrays) {
-  const changed = (Array.isArray(seen.changedFiles) ? seen.changedFiles : []).filter(x => typeof x === 'string').map(norm)
+  const changed = paths(seen.changedFiles)
   lastChanged = [...new Set(changed)].sort()
   outsideEdits = [...new Set([...changed.filter(x => !everAllowed.has(x)), ...roundStrays])].sort()
   if (shaOf(seen.head) !== BASE) return 'head-moved'
@@ -400,19 +390,16 @@ while (true) {
   )), MAX_CONCURRENT)
   fixers.forEach((f, i) => { ran.push(f.label); if (results[i] == null) nulls.push(f.label) })
 
-  const reports = fixers
-    .map((f, i) => ({ label: f.label, allowed: f.allowed, failures: f.g.failures.map(x => x.id), result: results[i] }))
-    .filter(r => r.result != null)
-    .map(r => {
-      // An absolute path under the repository root the runner reported is relative to it.
-      const rel = x => (ROOT && x.startsWith(ROOT + '/') ? x.slice(ROOT.length + 1) : x)
-      const changed = (Array.isArray(r.result.filesChanged) ? r.result.filesChanged : []).filter(x => typeof x === 'string').map(norm).map(rel)
-      return {
-        label: r.label, failures: r.failures, status: r.result.status, rootCause: r.result.rootCause,
-        filesChanged: changed, strayEdits: changed.filter(x => !r.allowed.includes(x)),
-        outsideFile: r.result.outsideFile || null, note: r.result.note || '',
-      }
-    })
+  const reports = fixers.flatMap((f, i) => {
+    const r = results[i]
+    if (r == null) return []
+    const changed = paths(r.filesChanged).map(rel)
+    return [{
+      label: f.label, failures: f.g.failures.map(x => x.id), status: r.status, rootCause: r.rootCause,
+      filesChanged: changed, strayEdits: changed.filter(x => !f.allowed.includes(x)),
+      outsideFile: r.outsideFile || null, note: r.note || '',
+    }]
+  })
   for (const r of reports) if (r.strayEdits.length) log(r.label + ': edited files outside its group: ' + r.strayEdits.join(', '))
   // A fixer that needs a file outside its group names it. An editable file in
   // scope is a request the check confirms git tracks; anything else stops the
@@ -426,7 +413,7 @@ while (true) {
     if (!isEditable(file) || !inScope(file) || f.allowed.includes(file)) { scopeStops.push(f.label); return }
     requests.push({ f, file })
   })
-  const round = { round: rounds, failuresBefore: current.failures.length, fixers: reports, widened: [], deferred: outOfScope.map(g => g.failures.map(x => x.id)).flat() }
+  const round = { round: rounds, failuresBefore: current.failures.length, fixers: reports, widened: [], deferred: outOfScope.flatMap(g => g.failures.map(x => x.id)) }
   changes.push(round)
   const requested = [...new Set(requests.map(q => q.file))]
   const askTracked = requested.length
@@ -456,7 +443,7 @@ while (true) {
   if (weakening.length) { stoppedBecause = 'test-weakening'; break }
   const tree = judgeTree(check, reports.flatMap(r => r.strayEdits))
   if (tree) { round.outsideEdits = outsideEdits; stoppedBecause = tree; break }
-  const tracked = new Set((Array.isArray(check.tracked) ? check.tracked : []).filter(x => typeof x === 'string').map(norm))
+  const tracked = new Set(paths(check.tracked))
   for (const { f, file } of requests) {
     if (!tracked.has(file)) { scopeStops.push(f.label); continue }
     for (const t of new Set(f.g.failures.map(x => x.file))) extra.set(t, [...new Set([...(extra.get(t) || []), file])])

@@ -20,10 +20,7 @@ def lua_long_string(text):
 
 def sheet_order(spec):
     frames = spec["frames"]
-    order = spec.get("sheet", {}).get("order") or list(frames)
-    if not order:
-        order = list(frames)
-    return order
+    return spec.get("sheet", {}).get("order") or list(frames)
 
 
 def export_plan(spec):
@@ -33,8 +30,7 @@ def export_plan(spec):
     order = sheet_order(spec)
     durations = {}
     for anim in spec.get("animations", {}).values():
-        for name, ms in zip(anim["frames"], render.frame_durations(anim)):
-            durations[name] = ms
+        durations.update(zip(anim["frames"], render.frame_durations(anim)))
     frames = []
     index = {}
     for slot, name in enumerate(order, start=1):

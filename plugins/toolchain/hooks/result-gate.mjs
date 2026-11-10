@@ -85,16 +85,15 @@ function main() {
     entry.verdict === null ? `${entry.skill}: unreadable record` : `${entry.skill}: ${entry.line}`,
   );
   const message = `toolchain: the recorded result for this tree (${short}) is not a pass. ${named.join("; ")}`;
-  const failed = notPassing.some((entry) => entry.verdict === "FAIL");
-  if (gate === "enforce" && failed && payload.stop_hook_active !== true) {
-    emit({
-      systemMessage: message,
+  const block =
+    gate === "enforce" && notPassing.some((entry) => entry.verdict === "FAIL") && payload.stop_hook_active !== true;
+  emit({
+    systemMessage: message,
+    ...(block && {
       decision: "block",
       reason: `${message}. Fix the failure and run the skill again, or say why it stays failing, before ending the turn.`,
-    });
-    return;
-  }
-  emit({ systemMessage: message });
+    }),
+  });
 }
 
 main();

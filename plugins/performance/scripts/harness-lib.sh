@@ -130,12 +130,9 @@ harness_ledger_path() {
   local key="$1" dir base
   dir="${PERF_HARNESS_LEDGER_DIR:-}"
   if [[ -z "$dir" ]]; then
-    base="${XDG_CACHE_HOME:-}"
+    base="${XDG_CACHE_HOME:-${HOME:+$HOME/.cache}}"
     if [[ -z "$base" ]]; then
-      if [[ -z "${HOME:-}" ]]; then
-        harness_die "none of PERF_HARNESS_LEDGER_DIR, XDG_CACHE_HOME or HOME is set, so the harness cannot record the PATH entry it injects and cannot prove that entry stayed fixed. Set PERF_HARNESS_LEDGER_DIR, or pass --no-ledger and prove stability another way."
-      fi
-      base="$HOME/.cache"
+      harness_die "none of PERF_HARNESS_LEDGER_DIR, XDG_CACHE_HOME or HOME is set, so the harness cannot record the PATH entry it injects and cannot prove that entry stayed fixed. Set PERF_HARNESS_LEDGER_DIR, or pass --no-ledger and prove stability another way."
     fi
     dir="$base/performance-harness/ledger"
   fi
@@ -185,7 +182,6 @@ harness_require_python() {
   local candidate resolved
   for candidate in python3 python; do
     resolved="$(type -P "$candidate" 2>/dev/null)" || continue
-    [[ -n "$resolved" ]] || continue
     if "$resolved" -c 'import sys' </dev/null >/dev/null 2>&1; then
       # shellcheck disable=SC2034  # this is the function's OUTPUT, read by every sourcing script
       HARNESS_PYTHON="$resolved"

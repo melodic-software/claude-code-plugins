@@ -86,39 +86,37 @@
 # pixel_tolerance (check-visual-parity's map) skips with its indented lines and
 # no warning, since a map is its expected shape.
 
+function set_kind(names, kind,    t, i, n) {
+  n = split(names, t, " ")
+  for (i = 1; i <= n; i++) KIND[t[i]] = kind
+}
+
 BEGIN {
-  split("id extends language block_model advisory suppress_marker", t, " ")
-  for (i in t) KIND[t[i]] = "s"
-  split("files claim_by_content.files claim_by_content.any_regex detect.any_regex test_start test_skip body_skip suite_skip additional_test_blocks assertion.calls assertion.idioms assertion.async assertion.inert assertion.weak assertion.exists assertion.count assertion.fail delegation mock.create mock.verify mock.strip snapshot property_markers rules_off equality.call2 equality.receiver equality.pipeline", t, " ")
-  for (i in t) KIND[t[i]] = "l"
-  split("claim_by_content detect assertion mock equality", t, " ")
-  for (i in t) KIND[t[i]] = "m"
-  split("claim_by_content.any_regex detect.any_regex test_start test_skip body_skip suite_skip assertion.calls assertion.idioms assertion.async assertion.inert assertion.weak assertion.exists assertion.count assertion.fail delegation mock.create mock.verify mock.strip snapshot property_markers suppress_marker", t, " ")
-  for (i in t) IS_RE[t[i]] = 1
+  set_kind("id extends language block_model advisory suppress_marker", "s")
+  set_kind("files claim_by_content.files claim_by_content.any_regex detect.any_regex test_start test_skip body_skip suite_skip additional_test_blocks assertion.calls assertion.idioms assertion.async assertion.inert assertion.weak assertion.exists assertion.count assertion.fail delegation mock.create mock.verify mock.strip snapshot property_markers rules_off equality.call2 equality.receiver equality.pipeline", "l")
+  set_kind("claim_by_content detect assertion mock equality", "m")
+  for (k in KIND)
+    if (KIND[k] == "l" && k !~ /^(files|claim_by_content\.files|rules_off|equality\..+)$/) IS_RE[k] = 1
+  IS_RE["suppress_marker"] = 1
   # Schema fields no engine code reads yet; accepting them would drop them silently.
-  split("additional_test_blocks", t, " ")
-  for (i in t) RESERVED[t[i]] = 1
-  RULE_RE = "^(zero-assertion|recomputed-expectation|mock-only-oracle|inert-assertion|constant-restatement|source-text-read|conditional-assertion|recomputed-derived|snapshot-only|weak-oracle|throw-only-oracle|flaky-passes-suite|only-not-forbidden)$"
+  RESERVED["additional_test_blocks"] = 1
+  BODY_RULES = "zero-assertion|recomputed-expectation|mock-only-oracle|inert-assertion|constant-restatement|source-text-read|conditional-assertion|recomputed-derived|snapshot-only|weak-oracle|throw-only-oracle"
+  RULE_RE = "^(" BODY_RULES "|flaky-passes-suite|only-not-forbidden)$"
+  RULES_OFF_RE = "^(" BODY_RULES ")$"
   KEY_RE = MODE == "config" ? "^[A-Za-z_][A-Za-z0-9_./-]*:" : "^[A-Za-z_][A-Za-z0-9_.]*:"
   nf = 0; nr = 0; nl = 0; ns = 0
 }
 
-function die(msg) {
-  printf "adapter-load: %s:%d: %s\n", FILENAME, FNR, msg > "/dev/stderr"
+function fail(where, msg) {
+  printf "adapter-load: %s: %s\n", where, msg > "/dev/stderr"
   FAILED = 1
   exit 2
 }
 
-function die_file(fi, msg) {
-  printf "adapter-load: %s: %s\n", F_NAME[fi], msg > "/dev/stderr"
-  FAILED = 1
-  exit 2
-}
-
-function die_ext(msg) {
-  printf "adapter-load: %s: %s\n", EXTEND, msg > "/dev/stderr"
-  exit 2
-}
+function die(msg) { fail(FILENAME ":" FNR, msg) }
+function die_file(fi, msg) { fail(F_NAME[fi], msg) }
+function die_ext(msg) { fail(EXTEND, msg) }
+function md_die(ln, msg) { fail(F_NAME[nf] ":" ln, msg) }
 
 function portable_ere(v,    i, n, c, d) {
   n = length(v)
@@ -164,7 +162,7 @@ function plain_value(s,    rest) {
   }
   sub(/[ ]+#.*$/, "", SCALAR)
   sub(/[ ]+$/, "", SCALAR)
-  if (SCALAR ~ /: / || SCALAR ~ /:$/) die("nested mapping in a value; quote it: " SCALAR)
+  if (SCALAR ~ /:( |$)/) die("nested mapping in a value; quote it: " SCALAR)
   return SCALAR
 }
 
@@ -186,7 +184,7 @@ function cfg_add(key, v,    r) {
   if (key ~ /^rules\./) {
     r = substr(key, 7)
     sub(/^testing\/audit\//, "", r)
-    if (r == "test-weaken-block" || r == "rule-test-weaken-block") r = "rule-test-weaken-block"
+    if (r ~ /^(rule-)?test-weaken-block$/) r = "rule-test-weaken-block"
     else if (r !~ /^rule-/ || substr(r, 6) !~ RULE_RE) die("unknown rule: " substr(key, 7))
     if (v !~ /^(off|warn|error)$/) die(key " is off, warn or error, got: " v)
     r = "rules." substr(r, 6)
@@ -202,9 +200,10 @@ function cfg_add(key, v,    r) {
   L_KEY[++nl] = key; L_VAL[nl] = v
 }
 
-function add(key, v) {
-  if (kind_of(key) == "") die("unknown key: " key)
-  if (kind_of(key) == "m") die(key " is a map, not a value")
+function add(key, v,    k) {
+  k = kind_of(key)
+  if (k == "") die("unknown key: " key)
+  if (k == "m") die(key " is a map, not a value")
   if (MODE == "config") { cfg_add(key, v); return }
   check_value(key, v)
   nr++; R_F[nr] = nf; R_K[nr] = key; R_V[nr] = v
@@ -219,7 +218,7 @@ function check_value(key, v) {
   # An empty pattern would leave grep with no -e, reading the path as its pattern.
   if (key == "claim_by_content.any_regex" && v == "") die("empty claim_by_content.any_regex item")
   # The config rules read a Playwright config, which no test adapter claims.
-  if (key == "rules_off" && v !~ /^(zero-assertion|recomputed-expectation|mock-only-oracle|inert-assertion|constant-restatement|source-text-read|conditional-assertion|recomputed-derived|snapshot-only|weak-oracle|throw-only-oracle)$/)
+  if (key == "rules_off" && v !~ RULES_OFF_RE)
     die("rules_off entries are test-body rule slugs such as recomputed-derived, got: " v)
   if (key == "equality.receiver" && v !~ /^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*$/)
     die("equality.receiver entries are <wrapper>.<matcher>, got: " v)
@@ -251,17 +250,8 @@ function md_scan(line,    t) {
   return 0
 }
 
-function md_die(ln, msg) {
-  printf "adapter-load: %s:%d: %s\n", F_NAME[nf], ln, msg > "/dev/stderr"
-  FAILED = 1
-  exit 2
-}
-
 function md_end(fi) {
-  if (F_MD[fi] && IN) {
-    nf = fi
-    md_die(B_FROM[fi] - 1, "config block is never closed")
-  }
+  if (F_MD[fi] && IN) fail(F_NAME[fi] ":" (B_FROM[fi] - 1), "config block is never closed")
 }
 
 function open_key(key) {
@@ -330,7 +320,8 @@ FNR == 1 {
   # A key sits at column 0 or at the one child indent its open parent set.
   if (sp == 0 ? ind != 0 : ((sp in S_CHILD) && S_CHILD[sp] != ind)) die("bad indentation")
   if (sp > 0) { S_CHILD[sp] = ind; key = S_KEY[sp] "." key }
-  if (kind_of(key) == "") die("unknown key: " key)
+  kind = kind_of(key)
+  if (kind == "") die("unknown key: " key)
   open_key(key)
 
   if (rest ~ /^(#.*)?$/) {
@@ -339,7 +330,7 @@ FNR == 1 {
     next
   }
   if (rest ~ /^\[/) {
-    if (kind_of(key) != "l") die(key " does not take a list")
+    if (kind != "l") die(key " does not take a list")
     rest = substr(rest, 2)
     for (;;) {
       sub(/^[ ]+/, "", rest)
@@ -363,7 +354,7 @@ FNR == 1 {
     if (substr(rest, 2) !~ /^[ ]*(#.*)?$/) die("text after a flow list")
     next
   }
-  if (kind_of(key) != "s") die(key " takes a " (kind_of(key) == "l" ? "list" : "map") ", not a scalar")
+  if (kind != "s") die(key " takes a " (kind == "l" ? "list" : "map") ", not a scalar")
   add(key, plain_value(rest))
 }
 

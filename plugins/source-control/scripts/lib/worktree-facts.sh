@@ -64,7 +64,7 @@ worktree_list_z_floor_note() {
 # The first record consumes the main slot, including a bare hub, so a later
 # linked worktree is never reported as the main checkout.
 worktree_facts_parse_z() {
-  local file="$1" line path="" head="" branch="" detached=0 bare=0 locked="" is_locked=no prunable=""
+  local file="$1" line path="" head="" branch="" detached=0 bare=no locked="" is_locked=no prunable=no
   WT_FACT_PATH=()
   WT_FACT_HEAD=()
   WT_FACT_BRANCH=()
@@ -77,29 +77,19 @@ worktree_facts_parse_z() {
   _worktree_facts_flush() {
     [[ -n "$path" ]] || return 0
     [[ "$detached" -eq 1 ]] && branch="(detached)"
+    if [[ ${#WT_FACT_PATH[@]} -eq 0 || "$bare" == yes ]]; then
+      WT_FACT_LINKED+=("no")
+    else
+      WT_FACT_LINKED+=("yes")
+    fi
     WT_FACT_PATH+=("$path")
     WT_FACT_HEAD+=("$head")
     WT_FACT_BRANCH+=("$branch")
-    if [[ "$bare" -eq 1 ]]; then
-      WT_FACT_BARE+=("yes")
-    else
-      WT_FACT_BARE+=("no")
-    fi
+    WT_FACT_BARE+=("$bare")
     WT_FACT_LOCKED+=("$locked")
     WT_FACT_IS_LOCKED+=("$is_locked")
-    if [[ -n "$prunable" ]]; then
-      WT_FACT_PRUNABLE+=("yes")
-    else
-      WT_FACT_PRUNABLE+=("no")
-    fi
-    path=""
-    head=""
-    branch=""
-    detached=0
-    bare=0
-    locked=""
-    is_locked=no
-    prunable=""
+    WT_FACT_PRUNABLE+=("$prunable")
+    path="" head="" branch="" detached=0 bare=no locked="" is_locked=no prunable=no
   }
 
   while IFS= read -r -d '' line || [[ -n "$line" ]]; do
@@ -112,7 +102,7 @@ worktree_facts_parse_z() {
     "HEAD "*) head="${line#HEAD }" ;;
     "branch "*) branch="${line#branch refs/heads/}" ;;
     "detached") detached=1 ;;
-    "bare") bare=1 ;;
+    "bare") bare=yes ;;
     "locked")
       locked=""
       is_locked=yes
@@ -121,27 +111,11 @@ worktree_facts_parse_z() {
       locked="${line#locked }"
       is_locked=yes
       ;;
-    "prunable" | "prunable "*) prunable="yes" ;;
+    "prunable" | "prunable "*) prunable=yes ;;
     *) ;;
     esac
   done <"$file"
   _worktree_facts_flush
-
-  local i seen=0 linked
-  if [[ ${#WT_FACT_PATH[@]} -eq 0 ]]; then
-    return 0
-  fi
-  for i in "${!WT_FACT_PATH[@]}"; do
-    if [[ "$seen" -eq 0 ]]; then
-      linked="no"
-      seen=1
-    elif [[ "${WT_FACT_BARE[$i]}" == "yes" ]]; then
-      linked="no"
-    else
-      linked="yes"
-    fi
-    WT_FACT_LINKED+=("$linked")
-  done
 }
 
 # worktree_fact_row FIELD...

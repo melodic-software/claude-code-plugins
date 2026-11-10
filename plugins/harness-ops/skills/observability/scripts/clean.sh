@@ -85,60 +85,43 @@ need_value() { # <flag> <remaining args...>
 }
 
 while [[ $# -gt 0 ]]; do
+  # A value flag's --flag=value form becomes --flag value.
+  case "$1" in
+  --keep-days=* | --hook-root=* | --skill-usage-scope=* | --skill-usage-dir=* | --skill-usage-data-root=* | --keep-skill-usage-days=*)
+    set -- "${1%%=*}" "${1#*=}" "${@:2}"
+    ;;
+  *) ;;
+  esac
   case "$1" in
   --keep-days)
     need_value "$@"
     KEEP_DAYS="$2"
     shift 2
     ;;
-  --keep-days=*)
-    KEEP_DAYS="${1#*=}"
-    shift
-    ;;
   --hook-root)
     need_value "$@"
     HOOK_ROOT_REL="$2"
     shift 2
-    ;;
-  --hook-root=*)
-    HOOK_ROOT_REL="${1#*=}"
-    shift
     ;;
   --skill-usage-scope)
     need_value "$@"
     SKILL_USAGE_SCOPE="$2"
     shift 2
     ;;
-  --skill-usage-scope=*)
-    SKILL_USAGE_SCOPE="${1#*=}"
-    shift
-    ;;
   --skill-usage-dir)
     need_value "$@"
     SKILL_USAGE_DIR="$2"
     shift 2
-    ;;
-  --skill-usage-dir=*)
-    SKILL_USAGE_DIR="${1#*=}"
-    shift
     ;;
   --skill-usage-data-root)
     need_value "$@"
     SKILL_USAGE_DATA_ROOT="$2"
     shift 2
     ;;
-  --skill-usage-data-root=*)
-    SKILL_USAGE_DATA_ROOT="${1#*=}"
-    shift
-    ;;
   --keep-skill-usage-days)
     need_value "$@"
     KEEP_SKILL_USAGE_DAYS="$2"
     shift 2
-    ;;
-  --keep-skill-usage-days=*)
-    KEEP_SKILL_USAGE_DAYS="${1#*=}"
-    shift
     ;;
   --dry-run)
     DRY_RUN=1
@@ -343,8 +326,7 @@ prune_file "$HOOK_ROOT/hook-events.jsonl" "ts"
 # .1 takes that same lock.
 prune_file "$HOOK_ROOT/hook-events.jsonl.1" "ts" "" "$HOOK_ROOT/hook-events.jsonl.lock"
 if [[ -d "$HOOK_ROOT/sessions" ]]; then
-  OLD_SESSIONS=()
-  while IFS= read -r f; do OLD_SESSIONS+=("$f"); done < <(
+  mapfile -t OLD_SESSIONS < <(
     find "$HOOK_ROOT/sessions" -mindepth 1 -maxdepth 1 -type f -name '*.jsonl' -mmin +"$((KEEP_DAYS * 1440))" 2>/dev/null
   )
   if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -359,8 +341,7 @@ else
   log "  sessions/: missing — skip"
 fi
 if [[ -d "$HOOK_ROOT/prune-pending" ]]; then
-  STALE_PENDING=()
-  while IFS= read -r d; do STALE_PENDING+=("$d"); done < <(
+  mapfile -t STALE_PENDING < <(
     find "$HOOK_ROOT/prune-pending" -mindepth 1 -maxdepth 1 -type d -mmin +1440 2>/dev/null
   )
   if [[ "$DRY_RUN" -eq 1 ]]; then

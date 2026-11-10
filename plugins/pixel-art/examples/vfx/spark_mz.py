@@ -16,29 +16,21 @@ CELLS = ((6, "y", "o"), (14, "y", "o"), (28, "y", "o"), (18, "o", "r"), (0, None
 def frame(radius, core_key, rim_key):
     if radius == 0:
         return ["." * SIZE] * SIZE
-    rows = []
-    core = max(2, radius // 3)
-    for y in range(SIZE):
-        chars = []
-        for x in range(SIZE):
-            dist = (x - 96) ** 2 + (y - 96) ** 2
-            if dist <= core * core:
-                chars.append(core_key)
-            elif dist <= radius * radius:
-                chars.append(rim_key)
-            else:
-                chars.append(".")
-        rows.append("".join(chars))
-    return rows
+    center = SIZE // 2
+    core_sq, rim_sq = max(2, radius // 3) ** 2, radius ** 2
+
+    def pixel(x, y):
+        dist = (x - center) ** 2 + (y - center) ** 2
+        if dist <= core_sq:
+            return core_key
+        return rim_key if dist <= rim_sq else "."
+
+    return ["".join(pixel(x, y) for x in range(SIZE)) for y in range(SIZE)]
 
 
 def build():
-    frames = {}
-    order = []
-    for index, cell in enumerate(CELLS):
-        name = f"fx{index}"
-        frames[name] = frame(*cell)
-        order.append(name)
+    order = [f"fx{index}" for index in range(len(CELLS))]
+    frames = {name: frame(*cell) for name, cell in zip(order, CELLS)}
     return {
         "palette": {"y": "#ffe060", "o": "#e05020", "r": "#802010"},
         "frames": frames,

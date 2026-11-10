@@ -60,21 +60,13 @@ source "$HOOK_DIR/hook-utils.sh"
 
 # shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
 biome_config_here() {
-  local name
-  for name in biome.json biome.jsonc; do
-    [[ -f "$1/$name" ]] && return 0
-  done
-  return 1
+  [[ -f "$1/biome.json" || -f "$1/biome.jsonc" ]]
 }
 
-BIOME_BIN=""
 # shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
 biome_local_bin_here() {
-  [[ -f "$1/node_modules/.bin/biome" ]] || return 1
   # A node_modules the repository commits is its code, not the user's install.
-  [[ -z "$(git -C "$1" ls-files -- ':(literal)node_modules' 2>/dev/null)" ]] || return 1
-  BIOME_BIN="$1/node_modules/.bin/biome"
-  return 0
+  [[ -f "$1/node_modules/.bin/biome" && -z "$(git -C "$1" ls-files -- ':(literal)node_modules' 2>/dev/null)" ]]
 }
 
 CONFIGS=()
@@ -93,7 +85,6 @@ while IFS= read -r path; do
   hook::dirname_to dir "$file"
   hook::repo_root_to root "$dir" || :
   [[ -d "$root" ]] || continue
-  config_dir=""
   hook::walk_up_to config_dir "$dir" "$root" biome_config_here topmost || continue
   hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_LINT_GITIGNORED:-false}" "$file" && continue
   CONFIGS+=("$config_dir")
@@ -104,24 +95,23 @@ done <<<"$PATHS"
 # One run per Biome config directory, from that directory with the files named
 # relative to it, as Biome discovers configuration from the working directory.
 done_dirs=$'\n'
+bin_dir=""
 for i in "${!CONFIGS[@]}"; do
   config_dir="${CONFIGS[i]}"
   [[ "$done_dirs" != *$'\n'"$config_dir"$'\n'* ]] || continue
   done_dirs+="$config_dir"$'\n'
-  root="${ROOTS[i]}"
   group=()
   for j in "${!CONFIGS[@]}"; do
-    [[ "${CONFIGS[j]}" == "$config_dir" ]] || continue
-    rel="${FILES[j]#"$config_dir"/}"
-    group+=("$rel")
+    [[ "${CONFIGS[j]}" == "$config_dir" ]] && group+=("${FILES[j]#"$config_dir"/}")
   done
-  BIOME_BIN=""
   hook::dirname_to dir "${FILES[i]}"
-  hook::walk_up_to bin_dir "$dir" "$root" biome_local_bin_here || :
-  if [[ -z "$BIOME_BIN" ]]; then
-    command -v biome >/dev/null 2>&1 && BIOME_BIN=biome
+  if hook::walk_up_to bin_dir "$dir" "${ROOTS[i]}" biome_local_bin_here; then
+    BIOME_BIN="$bin_dir/node_modules/.bin/biome"
+  elif command -v biome >/dev/null 2>&1; then
+    BIOME_BIN=biome
+  else
+    continue
   fi
-  [[ -n "$BIOME_BIN" ]] || continue
   # BIOME_CONFIG_PATH is unset: Biome reads it as a config-path override, which
   # would make the rewrite follow another config than the one that opted in.
   (cd "$config_dir" && env -u BIOME_CONFIG_PATH "$BIOME_BIN" check --write --no-errors-on-unmatched -- "${group[@]}") >/dev/null 2>&1 || :

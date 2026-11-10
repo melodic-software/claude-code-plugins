@@ -214,7 +214,7 @@ binaries() { # TABLE
 }
 
 discover() {
-  local cores by table origin pat inc tree
+  local cores by table line origin pat inc tree m d doc
   local -a machine=() pairs=()
   machine+=("$(rec os "$(uname -s)" set --arg observed_by "uname -s" --arg mode observed --arg supplied_by host)")
   if cores="$(nproc 2>/dev/null)" && [[ -n "$cores" ]]; then
@@ -258,7 +258,6 @@ discover() {
   done < <(cd / && env -u GIT_DIR -u GIT_WORK_TREE -u GIT_CONFIG git config --list --show-origin 2>/dev/null |
     jq -Rr 'capture("^(?<origin>[^\t]*)\t(?<key>includeif\\.gitdir(?:/i)?:(?<pat>.*)\\.path)=(?<inc>.*)$")? | [.origin, .pat, .inc] | @tsv')
 
-  local m d doc
   m="$(printf '%s\n' "${machine[@]}" | jq -sc 'sort_by(.key)')"
   d="$(printf '%s\n' ${pairs[@]+"${pairs[@]}"} | jq -sc '.')"
   doc="$(jq -nS --argjson m "$m" --argjson d "$d" '
@@ -343,7 +342,7 @@ explain() {
 }
 
 apply() {
-  local key plugin opt hits status=0
+  local key plugin opt hits hit scope verdict value status=0
   [[ ${#OPTIONS[@]} -gt 0 ]] || die "apply needs at least one --option KEY"
   load_stored
   for key in "${OPTIONS[@]}"; do
@@ -391,8 +390,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
     --data-dir) DATA_DIR="$2" ;;
     --prerequisites) PREREQ="$2" ;;
-    --option) OPTIONS+=("$2") ;;
-    *) ;;
+    *) OPTIONS+=("$2") ;;
     esac
     shift 2
     ;;

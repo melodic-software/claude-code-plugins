@@ -36,6 +36,7 @@ import os
 import sys
 from collections import Counter
 from fractions import Fraction
+from typing import NoReturn
 
 import pathfix
 
@@ -46,7 +47,7 @@ DEFAULT_PERCENTILES = "50,95"
 OUTLIER_SHIFT = 0.10
 
 
-def fail(message: str) -> None:
+def fail(message: str) -> NoReturn:
     print(f"HARNESS FAIL: {message}", file=sys.stderr)
     raise SystemExit(2)
 
@@ -59,7 +60,7 @@ def env(name: str) -> str:
             f"with no defaults, because a default would silently summarize the wrong "
             f"file or label the wrong arm."
         )
-    return value or ""
+    return value
 
 
 def listed_percentiles() -> list[float]:
@@ -112,7 +113,6 @@ def load(path: str) -> tuple[list[int], list[int]]:
             raw = handle.read()
     except OSError as error:
         fail(f"cannot read the sample file {path}: {error}")
-        raise  # unreachable; keeps the type checker and the reader honest
     milliseconds: list[int] = []
     codes: list[int] = []
     for number, line in enumerate(raw.splitlines(), start=1):

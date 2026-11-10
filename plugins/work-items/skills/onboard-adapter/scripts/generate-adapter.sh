@@ -169,10 +169,8 @@ BASE_PATH="$(sget '.api.base_path')"
   die_spec "api.base_path must be empty or a slash-led path of [A-Za-z0-9._~-] segments (found: $BASE_PATH)"
 
 HOST_SUFFIX="$(sget '.api.host_suffix')"
-if [[ -n "$HOST_SUFFIX" ]]; then
-  [[ "$HOST_SUFFIX" =~ ^\.[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]] ||
-    die_spec "api.host_suffix must be empty or a dot-led domain suffix (found: $HOST_SUFFIX)"
-fi
+[[ -z "$HOST_SUFFIX" || "$HOST_SUFFIX" =~ ^\.[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]] ||
+  die_spec "api.host_suffix must be empty or a dot-led domain suffix (found: $HOST_SUFFIX)"
 
 AUTH_SCHEME="$(sget '.api.auth_scheme')"
 case "$AUTH_SCHEME" in
@@ -215,9 +213,7 @@ SAMPLE_ENV="$(jq -r --arg d "WIT_${PROVIDER_UPPER}_TOKEN" '.api.auth_env_example
   die_spec "api.auth_env_example must be a valid env var name (found: $SAMPLE_ENV)"
 
 default_sample_host="tracker.example.com"
-if [[ -n "$HOST_SUFFIX" ]]; then
-  default_sample_host="example$HOST_SUFFIX"
-fi
+[[ -z "$HOST_SUFFIX" ]] || default_sample_host="example$HOST_SUFFIX"
 SAMPLE_HOST="$(jq -r --arg d "$default_sample_host" '.api.sample_host // $d' <<<"$SPEC_JSON")"
 [[ "$SAMPLE_HOST" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]] ||
   die_spec "api.sample_host must be a bare hostname (found: $SAMPLE_HOST)"
@@ -308,23 +304,23 @@ check_coherence() {
     bad+=$'\n'"  features.sub_items=true but limits.sub_items_per_parent=0 (no container could hold a child; use null for no ceiling)"
   fi
 
+  # verb_limit <verb> <limit> <hint>: a declared verb needs a nonzero limit, and an
+  # undeclared one needs the limit at 0; <hint> follows the first complaint.
+  verb_limit() {
+    local limit
+    limit="$(lm "$2")"
+    if [[ "$(vb "$1")" == "true" ]]; then
+      [[ "$limit" != "0" ]] || bad+=$'\n'"  verbs[\"$1\"]=true but limits.$2=0 ($3)"
+    else
+      [[ "$limit" == "0" ]] || bad+=$'\n'"  verbs[\"$1\"]=false but limits.$2=$limit (use 0)"
+    fi
+  }
   # list-items is what the core derives list-frontier from; without it the seam can
   # enumerate nothing, and its declared ceiling must be a real one.
-  if [[ "$(vb list-items)" == "true" && "$(lm list_items_max)" == "0" ]]; then
-    bad+=$'\n'"  verbs[\"list-items\"]=true but limits.list_items_max=0 (pagination must have a real ceiling; use null only if the provider truly returns everything)"
-  fi
-  if [[ "$(vb list-items)" != "true" && "$(lm list_items_max)" != "0" ]]; then
-    bad+=$'\n'"  verbs[\"list-items\"]=false but limits.list_items_max=$(lm list_items_max) (use 0)"
-  fi
-
+  verb_limit list-items list_items_max "pagination must have a real ceiling; use null only if the provider truly returns everything"
   # link-blocks is how blocked_by edges are written; without cross_repo_edges the
   # ceiling on dependencies is still meaningful, so only the verb/limit pair is checked.
-  if [[ "$(vb link-blocks)" == "true" && "$(lm dependencies_per_type)" == "0" ]]; then
-    bad+=$'\n'"  verbs[\"link-blocks\"]=true but limits.dependencies_per_type=0 (use null when the provider enforces no ceiling)"
-  fi
-  if [[ "$(vb link-blocks)" != "true" && "$(lm dependencies_per_type)" != "0" ]]; then
-    bad+=$'\n'"  verbs[\"link-blocks\"]=false but limits.dependencies_per_type=$(lm dependencies_per_type) (use 0)"
-  fi
+  verb_limit link-blocks dependencies_per_type "use null when the provider enforces no ceiling"
 
   if [[ -n "$bad" ]]; then
     printf 'generate-adapter.sh: incoherent spec — the manifest would misdescribe the adapter:%s\n' "$bad" >&2
@@ -542,60 +538,72 @@ opt_loop() {
   printf '  *) wit_usage_error "unexpected argument: $1" ;;\n  esac\ndone\n'
 }
 
+# id_head <VAR>: the generated lines that take the verb's leading positional id into VAR.
+id_head() {
+  cat <<EOF
+$1="\${1:-}"
+[[ -n "\$$1" ]] || wit_usage_error "\$USAGE"
+shift
+EOF
+}
+
+# require_id <VAR>: the generated guard that VAR holds this provider's item id.
+require_id() {
+  cat <<EOF
+wit_require_${PROVIDER_FUNC}_id "\$$1" || wit_usage_error "not a @@PROVIDER@@ item id: \$$1"
+EOF
+}
+
+# no_more_args: the generated guard that refuses any argument left over.
+no_more_args() {
+  printf '%s\n' "[[ \$# -eq 0 ]] || wit_usage_error \"unexpected argument: \$1\""
+}
+
+# state_check: the generated guard on a --state value.
+state_check() {
+  cat <<EOF
+case "\$STATE" in
+open | closed | all) ;;
+*) wit_usage_error "--state must be one of: open, closed, all" ;;
+esac
+EOF
+}
+
 # parse_block_for <verb> — the generated argument-parsing code for that verb.
 parse_block_for() {
   local verb="$1"
   case "$verb" in
   get-item | reclaim)
-    cat <<EOF
-ID="\${1:-}"
-[[ -n "\$ID" ]] || wit_usage_error "\$USAGE"
-shift
-[[ \$# -eq 0 ]] || wit_usage_error "unexpected argument: \$1"
-wit_require_${PROVIDER_FUNC}_id "\$ID" || wit_usage_error "not a @@PROVIDER@@ item id: \$ID"
-EOF
+    id_head ID
+    no_more_args
+    require_id ID
     ;;
   claim)
-    cat <<EOF
-ID="\${1:-}"
-[[ -n "\$ID" ]] || wit_usage_error "\$USAGE"
-shift
-TTL_HOURS=""
-TTL_MINUTES=""
-SESSION_ID=""
-EOF
+    id_head ID
+    printf 'TTL_HOURS=""\nTTL_MINUTES=""\nSESSION_ID=""\n'
     opt_loop ttl-hours=TTL_HOURS ttl-minutes=TTL_MINUTES session-id=SESSION_ID
+    require_id ID
     cat <<EOF
-wit_require_${PROVIDER_FUNC}_id "\$ID" || wit_usage_error "not a @@PROVIDER@@ item id: \$ID"
 [[ -z "\$TTL_HOURS" || "\$TTL_HOURS" =~ ^[0-9]+\$ ]] || wit_usage_error "--ttl-hours must be a non-negative integer"
 [[ -z "\$TTL_MINUTES" || "\$TTL_MINUTES" =~ ^[0-9]+\$ ]] || wit_usage_error "--ttl-minutes must be 0-59"
 [[ -z "\$TTL_MINUTES" || "\$TTL_MINUTES" -le 59 ]] || wit_usage_error "--ttl-minutes must be 0-59"
 EOF
     ;;
   renew-lease | release)
-    cat <<EOF
-ID="\${1:-}"
-[[ -n "\$ID" ]] || wit_usage_error "\$USAGE"
-shift
-LEASE_COMMENT_ID=""
-EOF
+    id_head ID
+    printf 'LEASE_COMMENT_ID=""\n'
     opt_loop lease-comment-id=LEASE_COMMENT_ID
+    require_id ID
     cat <<EOF
-wit_require_${PROVIDER_FUNC}_id "\$ID" || wit_usage_error "not a @@PROVIDER@@ item id: \$ID"
 [[ "\$LEASE_COMMENT_ID" =~ ^[0-9]+\$ ]] || wit_usage_error "--lease-comment-id is required and must be numeric"
 EOF
     ;;
   add-recurrence)
-    cat <<EOF
-ID="\${1:-}"
-[[ -n "\$ID" ]] || wit_usage_error "\$USAGE"
-shift
-SOURCE_LINK=""
-NOTE=""
-EOF
+    id_head ID
+    printf 'SOURCE_LINK=""\nNOTE=""\n'
     opt_loop source-link=SOURCE_LINK note=NOTE
+    require_id ID
     cat <<EOF
-wit_require_${PROVIDER_FUNC}_id "\$ID" || wit_usage_error "not a @@PROVIDER@@ item id: \$ID"
 [[ "\$SOURCE_LINK" =~ ^https?://[^[:space:]]+\$ ]] || wit_usage_error "--source-link must be an http(s) URL with no whitespace"
 [[ -n "\$NOTE" ]] || wit_usage_error "--note is required"
 EOF
@@ -609,18 +617,12 @@ EOF
     else
       flag="parent" var="PARENT"
     fi
-    cat <<EOF
-ID="\${1:-}"
-[[ -n "\$ID" ]] || wit_usage_error "\$USAGE"
-shift
-$var=""
-EOF
+    id_head ID
+    printf '%s=""\n' "$var"
     opt_loop "$flag=$var"
-    cat <<EOF
-wit_require_${PROVIDER_FUNC}_id "\$ID" || wit_usage_error "not a @@PROVIDER@@ item id: \$ID"
-[[ -n "\$$var" ]] || wit_usage_error "--$flag is required"
-wit_require_${PROVIDER_FUNC}_id "\$$var" || wit_usage_error "not a @@PROVIDER@@ item id: \$$var"
-EOF
+    require_id ID
+    printf '%s\n' "[[ -n \"\$$var\" ]] || wit_usage_error \"--$flag is required\""
+    require_id "$var"
     ;;
   create-item)
     cat <<EOF
@@ -645,28 +647,14 @@ STATE="open"
 REPO=""
 EOF
     opt_loop state=STATE repo=REPO
-    cat <<EOF
-case "\$STATE" in
-open | closed | all) ;;
-*) wit_usage_error "--state must be one of: open, closed, all" ;;
-esac
-EOF
+    state_check
     ;;
   list-sub-items)
-    cat <<EOF
-PARENT_ID="\${1:-}"
-[[ -n "\$PARENT_ID" ]] || wit_usage_error "\$USAGE"
-shift
-STATE="all"
-EOF
+    id_head PARENT_ID
+    printf 'STATE="all"\n'
     opt_loop state=STATE
-    cat <<EOF
-wit_require_${PROVIDER_FUNC}_id "\$PARENT_ID" || wit_usage_error "not a @@PROVIDER@@ item id: \$PARENT_ID"
-case "\$STATE" in
-open | closed | all) ;;
-*) wit_usage_error "--state must be one of: open, closed, all" ;;
-esac
-EOF
+    require_id PARENT_ID
+    state_check
     ;;
   change-link)
     cat <<EOF
@@ -674,9 +662,7 @@ wit_change_link_args "\$@"
 [[ -z "\$WIT_CL_ID" ]] || wit_require_${PROVIDER_FUNC}_id "\$WIT_CL_ID" || wit_usage_error "not a @@PROVIDER@@ item id: \$WIT_CL_ID"
 EOF
     ;;
-  *)
-    printf '%s\n' "[[ \$# -eq 0 ]] || wit_usage_error \"unexpected argument: \$1\""
-    ;;
+  *) no_more_args ;;
   esac
 }
 

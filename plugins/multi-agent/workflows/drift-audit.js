@@ -555,9 +555,9 @@ function defaultsPrompt(u, extra) {
 // claim is kept only for a listed file, and the checker sees it by id.
 const claimsByUnit = units.map(() => [])
 async function repoUnit(u, i) {
-  const read = await agentRetry(readPrompt(u),
-    { label: u.label.replace('find:', 'read:'), phase: 'Find', schema: CLAIMS_SCHEMA, ...opts(R.worker.fanout, READER) })
-  if (read == null) { nulls.push(u.label.replace('find:', 'read:')); return null }
+  const label = u.label.replace('find:', 'read:')
+  const read = await agentRetry(readPrompt(u), { label, phase: 'Find', schema: CLAIMS_SCHEMA, ...opts(R.worker.fanout, READER) })
+  if (read == null) { nulls.push(label); return null }
   const allowed = new Set(u.files)
   const claims = (Array.isArray(read.claims) ? read.claims : [])
     .filter(c => c && allowed.has(c.file) && Number.isInteger(c.line) && c.line >= 1 && typeof c.quote === 'string' && c.quote.trim())
@@ -580,12 +580,12 @@ const notes = found.filter(Boolean).map(r => r.notes).filter(n => typeof n === '
 
 // A proposed default must fit its key's grammar, so model text cannot smuggle
 // extra lines into the diff or turn the fan-out guard off.
+const ALIASES = MODELS.filter(m => m !== 'inherit')
 function validProposed(key, v) {
   if (typeof v !== 'string' || !/^[\x20-\x7e]{1,60}$/.test(v)) return false
-  const aliases = MODELS.filter(m => m !== 'inherit')
   if (key === 'fanout.frontier_guard') return v === 'true'
-  if (key === 'fanout.model') return aliases.includes(v)
-  if (key === 'frontier') return v.split(',').every(a => aliases.includes(a))
+  if (key === 'fanout.model') return ALIASES.includes(v)
+  if (key === 'frontier') return v.split(',').every(a => ALIASES.includes(a))
   if (/\.model$/.test(key)) return MODELS.includes(v)
   if (/\.effort$/.test(key)) return EFFORTS.includes(v)
   return /^[A-Za-z0-9_.,-]+$/.test(v)
@@ -645,7 +645,8 @@ const keyOf = f => (MODE === 'repo' ? f.file + ':' + f.line + ':' + f.kind : f.o
 const byKey = new Map()
 for (const f of candidates) {
   const have = byKey.get(keyOf(f))
-  if (have) { if (f.area && !have.areas.includes(f.area)) have.areas.push(f.area) } else byKey.set(keyOf(f), { ...f, areas: f.area ? [f.area] : [] })
+  if (!have) byKey.set(keyOf(f), { ...f, areas: f.area ? [f.area] : [] })
+  else if (f.area && !have.areas.includes(f.area)) have.areas.push(f.area)
 }
 const deduped = [...byKey.values()].map((f, i) => ({ id: 'f' + (i + 1), ...f }))
 log('Find: ' + candidates.length + ' findings, ' + deduped.length + ' after dedup, from ' + (units.length - nulls.length) + '/' + units.length + ' finders')
@@ -667,12 +668,12 @@ await inWaves([...new Set(toVerify.map(f => pageOf(f.evidenceUrl)))].map(u => ()
 
 const batches = []
 for (let i = 0; i < toVerify.length; i += BATCH) batches.push(toVerify.slice(i, i + BATCH))
-const panel = batches.flatMap((b, n) => Array.from({ length: SKEPTICS }, (_, k) => ({ b, n, k })))
+const panel = batches.flatMap((b, n) => Array.from({ length: SKEPTICS }, (_, k) => ({ b, k, label: 'skeptic:' + (n + 1) + ':' + (k + 1) })))
 const skepticView = f => (MODE === 'repo'
   ? { id: f.id, file: f.file, line: f.line, quote: f.quote, pointer: f.pointer, kind: f.kind, disposition: f.disposition, evidenceUrl: f.evidenceUrl, evidence: f.evidence }
   : { id: f.id, owner: f.owner, key: f.key, value: f.value, verdict: f.verdict, proposed: f.proposed, evidenceUrl: f.evidenceUrl, evidence: f.evidence, reason: f.reason })
 
-const votes = await inWaves(panel.map(({ b, n, k }) => () => judged(extra =>
+const votes = await inWaves(panel.map(({ b, k, label }) => () => judged(extra =>
   'Stage: skeptic. You are skeptic ' + (k + 1) + ' of ' + SKEPTICS + ' on this batch, working independently. For ' +
   'each finding below, try to REFUTE it: ' +
   (MODE === 'repo'
@@ -686,11 +687,11 @@ const votes = await inWaves(panel.map(({ b, n, k }) => () => judged(extra =>
   '"refuted" only because you could not check. When a finding is real but its fix or value is wrong, give ' +
   'the right one as correction. Return one verdict per id.' + POINTER_RULE + READ_ONLY + FETCH_RULE +
   fence('findings', b.map(skepticView)) + fence('sources', sources) + extra,
-  { label: 'skeptic:' + (n + 1) + ':' + (k + 1), phase: 'Verify', schema: VERDICT_SCHEMA, ...opts(R.verifier.fanout, CHECKER) },
+  { label, phase: 'Verify', schema: VERDICT_SCHEMA, ...opts(R.verifier.fanout, CHECKER) },
   b.map(f => f.evidenceUrl),
 )), MAX_CONCURRENT)
 
-panel.forEach((p, i) => { if (votes[i] == null) nulls.push('skeptic:' + (p.n + 1) + ':' + (p.k + 1)) })
+panel.forEach((p, i) => { if (votes[i] == null) nulls.push(p.label) })
 
 const confirmed = []
 const refuted = []
@@ -711,9 +712,10 @@ for (const f of toVerify) {
   })
   // A defaults row whose value an upholding skeptic corrected never reaches the
   // diff with the finder's value: it is reported unverified with the corrections.
-  if (count.upheld >= MAJORITY && MODE === 'defaults' && corrections.length) unverified.push({ ...f, consensus: count, corrections, why: 'a skeptic upheld the drift but corrected the proposed value' })
-  else if (count.upheld >= MAJORITY) confirmed.push({ ...f, consensus: count, corrections })
-  else if (count.refuted >= MAJORITY) refuted.push({ ...f, consensus: count, reasons })
+  if (count.upheld >= MAJORITY) {
+    if (MODE === 'defaults' && corrections.length) unverified.push({ ...f, consensus: count, corrections, why: 'a skeptic upheld the drift but corrected the proposed value' })
+    else confirmed.push({ ...f, consensus: count, corrections })
+  } else if (count.refuted >= MAJORITY) refuted.push({ ...f, consensus: count, reasons })
   else unverified.push({ ...f, consensus: count, why: 'no majority of the panel upheld or refuted it' })
 }
 log('Verify: ' + confirmed.length + ' confirmed, ' + refuted.length + ' refuted, ' + unverified.length + ' unverified')
@@ -762,6 +764,6 @@ return {
   notes,
   nulls,
   fetched: [...slices.values()].map(({ body, ...s }) => s),
-  ran: fetchLabels.concat(units.flatMap(u => (MODE === 'repo' ? [u.label.replace('find:', 'read:'), u.label] : [u.label])), panel.map(p => 'skeptic:' + (p.n + 1) + ':' + (p.k + 1)), secondRounds),
+  ran: fetchLabels.concat(units.flatMap(u => (MODE === 'repo' ? [u.label.replace('find:', 'read:'), u.label] : [u.label])), panel.map(p => p.label), secondRounds),
   roles: { reader: R.worker.fanout, finder: R.verifier.fanout, skeptic: R.verifier.fanout },
 }

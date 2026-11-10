@@ -40,11 +40,4 @@ def palette_violations(rows, palette):
     """Pixels that are neither a palette color nor fully transparent."""
     allowed = {palette_mod.hex_rgb(color) + (255,) for color in palette.values()}
     allowed.add((0, 0, 0, 0))
-    bad = 0
-    for row in rows:
-        for pixel in row:
-            if pixel[3] not in (0, 255) or (pixel[3] == 255 and pixel not in allowed):
-                bad += 1
-            elif pixel[3] == 0 and pixel != (0, 0, 0, 0):
-                bad += 1
-    return bad
+    return sum(pixel not in allowed for row in rows for pixel in row)

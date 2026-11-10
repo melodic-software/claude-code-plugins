@@ -8,9 +8,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LIB_DIR="$SCRIPT_DIR/lib"
 # shellcheck source=lib/legacy-frontier-tier-signal.sh
-source "$LIB_DIR/legacy-frontier-tier-signal.sh"
+source "$SCRIPT_DIR/lib/legacy-frontier-tier-signal.sh"
 
 CAPABILITY_TIER_LABEL='capability-tier: frontier'
 MODE="${1:-}"
@@ -80,16 +79,17 @@ list_open_items_without_label_json() {
 }
 
 collect_candidates() {
-  local items item body number
+  local items body number
   items="$(list_open_items_without_label_json)"
-  jq -c '.[]' <<<"$items" | while IFS= read -r item; do
-    body="$(jq -r '.body // ""' <<<"$item")"
-    number="$(jq -r '.number' <<<"$item")"
-    # shellcheck disable=SC2310  # regex probe; false means "no legacy stamp", not a fault
-    if wit_body_has_legacy_frontier_tier_signal "$body"; then
-      printf '%s\n' "$number"
-    fi
-  done
+  # One jq pass emitting NUL-separated number/body pairs, not two jq forks per item.
+  # A NUL inside a body is dropped, as command substitution would, so pairs stay aligned.
+  jq -j '.[] | "\(.number)\u0000\(.body // "" | split("\u0000") | join(""))\u0000"' <<<"$items" |
+    while IFS= read -r -d '' number && IFS= read -r -d '' body; do
+      # shellcheck disable=SC2310  # regex probe; false means "no legacy stamp", not a fault
+      if wit_body_has_legacy_frontier_tier_signal "$body"; then
+        printf '%s\n' "$number"
+      fi
+    done
 }
 
 usage() {
