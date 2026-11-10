@@ -178,27 +178,28 @@ EOF
 # Resolve the consumer project root so prune + duckdb queries resolve the same fallback store:
 # CLAUDE_PROJECT_DIR when the harness sets it, else the git worktree containing the CWD, else CWD.
 resolve_repo_root() {
-  local root
-  root="${CLAUDE_PROJECT_DIR:-}"
-  if [[ -z "$root" ]]; then
-    root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r' || true)"
+  local root="${CLAUDE_PROJECT_DIR:-}"
+  [[ -n "$root" ]] || root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r' || true)"
+  printf '%s\n' "${root:-$(pwd)}"
+}
+
+# Print the timestamp field a store file's batches date from: startTimeUnixNano for traces,
+# timeUnixNano for logs and metrics.
+time_field() {
+  if [[ "${1##*/}" == cc-traces.json ]]; then
+    printf 'startTimeUnixNano\n'
+  else
+    printf 'timeUnixNano\n'
   fi
-  if [[ -z "$root" ]]; then
-    root="$(pwd)"
-  fi
-  printf '%s\n' "$root"
 }
 
 # Route one store file's lines 3 ways by the batch's first timestamp field (single awk pass).
-# See prune-filter.awk for routing rules and count format. Trace batches date from
-# startTimeUnixNano; logs and metrics from timeUnixNano.
+# See prune-filter.awk for routing rules and count format.
 filter_file() {
   local src="$1" dst="$2" cutoff_seconds="$3" dropped_dst="${4:-}"
   local body_cutoff_seconds="${5:-0}" surgery_dst="${6:-}"
-  local time_field="timeUnixNano"
-  [[ "${src##*/}" == cc-traces.json ]] && time_field="startTimeUnixNano"
   awk -v cutoff="$cutoff_seconds" -v body_cutoff="$body_cutoff_seconds" \
-    -v dst="$dst" -v ddst="$dropped_dst" -v sdst="$surgery_dst" -v tf="$time_field" \
+    -v dst="$dst" -v ddst="$dropped_dst" -v sdst="$surgery_dst" -v tf="$(time_field "$src")" \
     -f "$SCRIPT_DIR/prune-filter.awk" "$src"
 }
 
@@ -210,14 +211,12 @@ file_bytes() {
 
 # Print "<epoch seconds> <bytes>" per timestamped line of one store file (bytes include the newline).
 line_sizes() {
-  local src="$1" time_field="timeUnixNano"
-  [[ "${src##*/}" == cc-traces.json ]] && time_field="startTimeUnixNano"
-  LC_ALL=C awk -v tf="$time_field" '
+  LC_ALL=C awk -v tf="$(time_field "$1")" '
     match($0, "\"" tf "\":\"[0-9]+\"") {
       prefix_len = length(tf) + 4
       ns = substr($0, RSTART + prefix_len, RLENGTH - prefix_len - 1)
       print substr(ns, 1, length(ns) - 9), length($0) + 1
-    }' "$src"
+    }' "$1"
 }
 
 # Read line_sizes rows and print the second after the newest line that no longer fits in
@@ -442,8 +441,9 @@ main() {
     present_files+=("$f")
     present_paths+=("$src")
   done
+  local hot_max_bytes=$((hot_max_mb * BYTES_PER_MB)) hot_total_max_bytes=$((hot_total_max_mb * BYTES_PER_MB))
   local total_cut
-  total_cut="$(total_cutoff $((hot_total_max_mb * BYTES_PER_MB)) "${present_paths[@]}")"
+  total_cut="$(total_cutoff "$hot_total_max_bytes" "${present_paths[@]}")"
   if [[ -n "$total_cut" ]] && ((total_cut > cutoff_seconds)); then
     printf 'hot_total: size_prune cutoff_epoch_seconds=%s\n' "$total_cut"
   fi
@@ -454,7 +454,7 @@ main() {
   local -A file_cutoffs=()
   for f in "${present_files[@]}"; do
     src="$store_dir/$f"
-    file_cutoff="$(effective_cutoff "$src" "$cutoff_seconds" $((hot_max_mb * BYTES_PER_MB)) "$total_cut")"
+    file_cutoff="$(effective_cutoff "$src" "$cutoff_seconds" "$hot_max_bytes" "$total_cut")"
     file_cutoffs["$f"]="$file_cutoff"
     # A shared total cutoff can sit before a file's oldest line; size-pruned means it drops more.
     age_dropped=0
@@ -537,14 +537,14 @@ main() {
   # -> verify kept temp -> atomic mv. Compact-before-trim: the cold mv lands BEFORE the hot
   # mv, so every failure path (compact, surgery, verify) leaves the original hot file intact.
   # The preflight cutoffs predate the Collector stop; batches it appended since count toward the caps.
-  total_cut="$(total_cutoff $((hot_total_max_mb * BYTES_PER_MB)) "${present_paths[@]}")"
+  total_cut="$(total_cutoff "$hot_total_max_bytes" "${present_paths[@]}")"
   local temp dropped surgery_tmp surgery_counts surgery_kept surgery_dropped
   for f in "${present_files[@]}"; do
     src="$store_dir/$f"
     temp="$src.prune.tmp"
     dropped="$src.dropped.tmp"
     surgery_tmp="$src.surgery.tmp"
-    file_cutoffs["$f"]="$(effective_cutoff "$src" "$cutoff_seconds" $((hot_max_mb * BYTES_PER_MB)) "$total_cut")"
+    file_cutoffs["$f"]="$(effective_cutoff "$src" "$cutoff_seconds" "$hot_max_bytes" "$total_cut")"
     counts="$(filter_file "$src" "$temp" "${file_cutoffs[$f]}" "$dropped" "$body_cutoff_seconds" "$surgery_tmp")"
     # awk only opens dst when it prints a kept line, so a file with ZERO kept records (every
     # record older than the cutoff — the case retention exists for) leaves the temp absent.
