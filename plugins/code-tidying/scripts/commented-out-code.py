@@ -34,6 +34,7 @@ import subprocess
 import sys
 import tempfile
 from importlib import import_module
+from itertools import groupby
 from pathlib import Path
 
 EXIT_NO_TOOLING = 3
@@ -319,18 +320,8 @@ def looks_like_code(body: str, lang, lang_name: str) -> bool:
 
 def directive_free_runs(lines: list[str]) -> list[list[int]]:
     """Indexes of consecutive non-directive lines, one list per run."""
-    runs: list[list[int]] = []
-    current: list[int] = []
-    for i, line in enumerate(lines):
-        if DIRECTIVE.match(line):
-            if current:
-                runs.append(current)
-                current = []
-        else:
-            current.append(i)
-    if current:
-        runs.append(current)
-    return runs
+    grouped = groupby(range(len(lines)), key=lambda i: bool(DIRECTIVE.match(lines[i])))
+    return [list(run) for is_directive, run in grouped if not is_directive]
 
 
 def scan(path: Path):
@@ -393,8 +384,7 @@ def findings_for(path: Path, blocks, is_code):
         for idx, i in enumerate(hits):
             if run_start is None:
                 run_start = i
-            last = idx == len(hits) - 1
-            if last or hits[idx + 1] != i + 1:
+            if idx == len(hits) - 1 or hits[idx + 1] != i + 1:
                 findings.append(
                     {
                         "path": str(path),
