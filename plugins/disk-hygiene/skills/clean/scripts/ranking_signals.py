@@ -173,10 +173,12 @@ def annotate(entries: list[dict[str, Any]]) -> dict[str, Any]:
             reached[path].append({"signal": group["signal"], "group": group["id"]})
     for signals in reached.values():
         signals.sort(key=lambda item: (SIGNALS.index(item["signal"]), item["group"]))
+    distinct = {
+        path: {item["signal"] for item in signals} for path, signals in reached.items()
+    }
 
     def order(path: str) -> tuple[int, str, str]:
-        signals = reached[path]
-        return (-len({item["signal"] for item in signals}), signals[0]["group"], path)
+        return (-len(distinct[path]), reached[path][0]["group"], path)
 
     positions = {path: index for index, path in enumerate(sorted(reached, key=order), 1)}
     for entry in entries:
@@ -189,10 +191,9 @@ def annotate(entries: list[dict[str, Any]]) -> dict[str, Any]:
             }
         else:
             entry["review_rank"] = {"status": "unranked", "position": None, "signals": []}
-    by_signal = dict.fromkeys(SIGNALS, 0)
-    for signals in reached.values():
-        for signal in {item["signal"] for item in signals}:
-            by_signal[signal] += 1
+    by_signal = {
+        signal: sum(signal in seen for seen in distinct.values()) for signal in SIGNALS
+    }
     return {
         "basis": RANKING_BASIS,
         "signal_reads": {signal: list(fields) for signal, fields in SIGNAL_READS.items()},
