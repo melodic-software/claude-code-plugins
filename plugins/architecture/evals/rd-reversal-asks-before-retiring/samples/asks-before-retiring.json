@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "adr_retirement: delete (default). Delete docs/adr/0002-serve-the-public-api-over-graphql.md now? Its number will not be reused."
+    },
+    {
+      "answer": "Retiring 0002 means removing the file. Shall I go ahead?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Deleted docs/adr/0002-serve-the-public-api-over-graphql.md and wrote 0003."
+    },
+    {
+      "answer": "Wrote the new record. Anything else?"
+    }
+  ]
+}

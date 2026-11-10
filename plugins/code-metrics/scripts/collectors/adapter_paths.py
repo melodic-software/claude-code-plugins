@@ -56,24 +56,21 @@ def files_from(args: list[str]) -> list[str]:
     not report an empty lane as measured.
     """
     files: list[str] = []
-    index = 0
-    while index < len(args):
-        if args[index] != PATHS_FROM:
-            files.append(args[index])
-            index += 1
+    remaining = iter(args)
+    for arg in remaining:
+        if arg != PATHS_FROM:
+            files.append(arg)
             continue
-        if index + 1 >= len(args):
+        listing = next(remaining, None)
+        if listing is None:
             print(f"{PATHS_FROM} needs a file", file=sys.stderr)
             raise SystemExit(2)
         try:
-            with open(
-                args[index + 1], encoding="utf-8", errors="surrogateescape"
-            ) as handle:
+            with open(listing, encoding="utf-8", errors="surrogateescape") as handle:
                 files.extend(line.rstrip("\n") for line in handle if line.strip())
         except OSError as exc:
             print(f"{PATHS_FROM}: {exc}", file=sys.stderr)
             raise SystemExit(2) from exc
-        index += 2
     return files
 
 
@@ -133,8 +130,7 @@ def version_in(text: str) -> str | None:
 
 def version_or_unknown(text: str) -> str:
     """The first dotted version number in `text`, or `unknown-version`."""
-    found = version_in(text)
-    return found if found is not None else UNKNOWN_VERSION
+    return version_in(text) or UNKNOWN_VERSION
 
 
 def version_output(exe: str, tool: str, flag: str = "--version") -> str | None:

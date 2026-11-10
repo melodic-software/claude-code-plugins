@@ -55,13 +55,45 @@ export function formatVttCues(cues) {
 }
 
 /**
+ * Drop the line a rolling caption carries over: when either cue has two or
+ * more lines and a cue's first line is the previous cue's last line, the cue
+ * keeps only the lines after it, and a cue with no line after it is dropped.
+ * The match is on whole lines, so a word the speaker repeats within a line, or
+ * at the start of a new line, stays, and single-line cues are never matched.
+ *
+ * @param {VttCue[]} cues - cues parsed with their `lines`
+ * @returns {VttCue[]} cues without `lines`, each trimmed one marked
+ *   `carriedLineDropped`
+ */
+export function dropCarriedCaptionLines(cues) {
+  /** @type {VttCue[]} */
+  const kept = [];
+  let previousLastLine = "";
+  let previousLineCount = 0;
+  for (const { lines = [], ...cue } of cues) {
+    const carried =
+      lines.length > 0 &&
+      Math.max(lines.length, previousLineCount) > 1 &&
+      normalizeProgressiveText(lines[0]) === previousLastLine;
+    previousLastLine = lines.length > 0 ? normalizeProgressiveText(lines[lines.length - 1]) : "";
+    previousLineCount = lines.length;
+    if (!carried) {
+      kept.push(cue);
+    } else if (lines.length > 1) {
+      kept.push({ ...cue, text: lines.slice(1).join(" "), carriedLineDropped: true });
+    }
+  }
+  return kept;
+}
+
+/**
  * @param {string} vttText
  * @param {object} [options]
  * @returns {{ vtt: string, cues: VttCue[], inputCueCount: number, outputCueCount: number }}
  */
 export function cleanAutoCaptions(vttText, options = {}) {
-  const inputCues = parseVttSegment(vttText);
-  const merged = mergeProgressiveCaptionCues(inputCues, options);
+  const inputCues = parseVttSegment(vttText, { keepLines: true });
+  const merged = dropCarriedCaptionLines(mergeProgressiveCaptionCues(inputCues, options));
   return {
     vtt: formatVttCues(merged),
     cues: merged,

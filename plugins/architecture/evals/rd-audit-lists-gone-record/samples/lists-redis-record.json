@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**Gone**\n- 0001 Keep sessions in Redis: redis is no longer in the code; commit abc1234 removed src/session/redis_store.py and the redis dependency."
+    },
+    {
+      "answer": "Gone: Redis session store (ADR-1) was removed in abc1234."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "All 2 records are still backed by the code."
+    },
+    {
+      "answer": "Gone: 0002 Store orders in PostgreSQL."
+    }
+  ]
+}
