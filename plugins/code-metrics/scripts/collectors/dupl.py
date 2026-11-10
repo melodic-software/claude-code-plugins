@@ -47,7 +47,13 @@ import shutil
 import subprocess
 import sys
 
-from adapter_paths import dispatch, int_or_none, relative_to_cwd, require_python
+from adapter_paths import (
+    UNKNOWN_VERSION,
+    dispatch,
+    int_or_none,
+    relative_to_cwd,
+    require_python,
+)
 
 NAME = "dupl"
 LANE = "go"
@@ -61,15 +67,13 @@ def probe() -> int:
     if not shutil.which(NAME):
         print("dupl not on PATH", file=sys.stderr)
         return 1
-    print("unknown-version")
+    print(UNKNOWN_VERSION)
     return 0
 
 
 def _row(instances: list[dict], lane: str) -> dict:
-    first = instances[0]
-    lines = None
-    if first["start_line"] is not None and first["end_line"] is not None:
-        lines = first["end_line"] - first["start_line"] + 1
+    start, end = instances[0]["start_line"], instances[0]["end_line"]
+    lines = end - start + 1 if start is not None and end is not None else None
     return {
         "file": None,
         "function": None,
@@ -88,7 +92,7 @@ def translate(raw: str, lane: str, min_lines: int) -> list[dict]:
     def close() -> None:
         if len(instances) < 2:
             return
-        row = _row(list(instances), lane)
+        row = _row(instances, lane)
         lines = row["values"]["lines"]
         if lines is None or lines >= min_lines:
             rows.append(row)
