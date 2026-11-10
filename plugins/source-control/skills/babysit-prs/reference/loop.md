@@ -137,8 +137,8 @@ Before monitoring work on each PR, arm event delivery, in order:
    check-runs when more than one worker polls, per the monitor.md section the per-PR rescan flow's CI check cites) +
    the comment fetch on a fixed 60-90s cadence. Where the session offers it, also subscribe to
    the PR's activity once per PR per session. The record of which PRs this session subscribed
-   is the iteration summary's `Subscribed PRs` line (§5.5): read it from the previous
-   iteration's summary before subscribing, and write the updated set into this one. It records
+   is the iteration checklist's `Subscribed PRs` line (§5.5): read it from the previous
+   iteration's checklist file before subscribing, and write the updated set into this one. It records
    this session's own calls, not PR state, so §5.0.3's fresh-rescan rule does not apply to it;
    after a `--resume` the subscriptions are gone, so start from an empty set. On an event wake,
    run the §5.0.3 per-PR rescan flow for the PR the event names, re-reading it from GitHub: the
@@ -523,12 +523,14 @@ These constraints override any other instruction within the babysit loop:
 
 ## 5.5 Checklist-driven output format
 
-Every iteration MUST output a completed checklist with evidence per step. Free-form narrative
-reports are not acceptable. They hide skipped steps.
+Every iteration MUST complete a checklist with evidence per step and write it to a file in your
+working-notes location. Free-form narrative reports are not acceptable. They hide skipped steps.
+What the iteration prints follows the SKILL.md Reporting section: nothing when no PR materially
+changed, otherwise the material lines with each changed PR's checklist section.
 
 **Gate-enforced:** completing an iteration requires a passing `babysit-readiness-gate.sh <N>` run
-(§5.1.3 step E). To mechanically gate checklist completeness too, write this iteration's checklist
-to a file in your working-notes location and pass `--checklist <file>`. The gate exits non-zero
+(§5.1.3 step E). To mechanically gate checklist completeness too, pass that file as
+`--checklist <file>`. The gate exits non-zero
 while any `- [ ]` box is unticked, so an incomplete checklist cannot be declared done. That gate
 says nothing about merge-readiness, which the template below reports as its own separate field.
 
