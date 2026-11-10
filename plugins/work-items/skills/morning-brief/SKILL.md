@@ -393,7 +393,7 @@ Each pointer below is as of 2026-10-21; its recheck trigger follows it.
   and <https://docs.github.com/en/billing/concepts/product-billing/github-actions#how-storage-billing-works>.
   Recheck: either section changes what is free or how storage is measured.
 - The amounts each plan includes:
-  <https://docs.github.com/en/billing/concepts/product-billing/github-actions#free-use-of-github-actions>.
+  <https://docs.github.com/en/billing/concepts/product-billing/github-actions#included-compute-usage-and-storage>.
   Recheck: that table changes, or a multiplier applies to minutes.
 - The org repo list and its `visibility`:
   <https://docs.github.com/en/rest/repos/repos#list-organization-repositories>. Recheck: the field
