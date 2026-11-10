@@ -164,11 +164,14 @@
 // mid-incident. At most MAX_IN_FLIGHT re-runs are in flight at once (PR CI
 // sets and recorded lane runs, counting those already running), in three
 // bands, the PR sets in each merge-critical (auto-merge set) first, then
-// oldest PR: PR sets with anything but a flake re-run, then lane runs, newest
-// first, then flake-only sets. Nothing else re-runs a lane run, while fix-ci
-// does not wait for a flake re-run, and a newer lane run more likely belongs
-// to a head still open: a run's listing does not name its PR, so an older run
-// may be spent on a merged one. One pass uploads at most MAX_IN_FLIGHT
+// oldest PR: PR sets with anything but a flake re-run, then lane runs, then
+// flake-only sets. Nothing else re-runs a lane run, while fix-ci does not wait
+// for a flake re-run. A lane run's listing does not name its PR, so lane runs
+// go oldest first among those whose creation matches an open head's newest
+// checks completion (laneOrder), then the rest oldest first: a run for a
+// closed PR, or a second run for one head, takes no place before a live one,
+// and the newer runs each kill-switch trip adds no longer push the oldest
+// live ones back pass after pass. One pass uploads at most MAX_IN_FLIGHT
 // records, so what would pass that waits too.
 // Writes are at least WRITE_GAP_MS apart. The first rate-limit error stops the
 // run.
@@ -674,6 +677,53 @@ const recorded = (item) => item.kind === "lane" || item.kind === "fault-held" ||
 const byMergeCriticality = (a, b) => Number(b.auto_merge != null) - Number(a.auto_merge != null) || a.number - b.number;
 const byAge = (a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a.id - b.id;
 
+// How far a lane run's creation may sit from the completion of the checks run
+// that started it. Judgment from one measured pair: checks run done at
+// 04:13:36Z, its pr-verify run created at 04:13:40Z (4 s); the 15 minutes
+// after allow for a backed-up workflow_run queue. To re-measure, take
+// pr-verify runs from a busy hour, read UPSTREAM_RUN_ID from each verify job's
+// log, and compare the run's created_at with that checks run's updated_at.
+const MATCH_BEFORE_MS = 60_000;
+const MATCH_AFTER_MS = 15 * 60_000;
+
+// When a head's newest completed pull_request checks run finished, the one
+// whose completion started the head's live lane runs.
+const checksDone = (own) => {
+  const done = own
+    .filter((r) => RECORDED_UPSTREAMS.has(r.path) && r.event === "pull_request" && r.status === "completed" && isTime(r.updated_at))
+    .map((r) => Date.parse(r.updated_at));
+  return done.length > 0 ? Math.max(...done) : undefined;
+};
+
+// The lane items in place order: those matched to an open head, oldest first,
+// then the rest, oldest first. A lane run's listing names main's tip, not its
+// PR, so a run is matched by time: each open head's checks completion takes the
+// closest run of each lane created inside the match window, and each run is
+// taken once, so a duplicate run for a head and a run whose PR is gone sort
+// last. The match sets the order only; check-trusted-trigger and resolve-pr
+// still bind the re-run to its PR.
+function laneOrder(lanes, openChecks) {
+  const pairs = [];
+  for (const lane of lanes) {
+    for (const { head, done } of openChecks) {
+      const gap = Date.parse(lane.created_at) - done;
+      if (gap >= -MATCH_BEFORE_MS && gap <= MATCH_AFTER_MS) {
+        pairs.push({ lane, key: `${head} ${lane.path}`, distance: Math.abs(gap) });
+      }
+    }
+  }
+  pairs.sort((a, b) => a.distance - b.distance || a.lane.id - b.lane.id);
+  const matched = new Set();
+  const taken = new Set();
+  for (const { lane, key } of pairs) {
+    if (!matched.has(lane) && !taken.has(key)) {
+      matched.add(lane);
+      taken.add(key);
+    }
+  }
+  return [...lanes.filter((l) => matched.has(l)).sort(byAge), ...lanes.filter((l) => !matched.has(l)).sort(byAge)];
+}
+
 // A job whose steps did not list in full may have lost its runner, which cuts
 // the list at the running step; its check-run annotations tell
 // (infra-failure.mjs lostRunnerNoted). Reads them for each such job `wanted` picks.
@@ -928,6 +978,9 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   let failed = 0;
   let inFlight = 0;
   const ready = [];
+  // Each open head's newest checks completion, {head, done}, for laneOrder;
+  // taken before any skip, so a busy head still matches its lane runs.
+  const openChecks = [];
   // Heads whose checks passed, each with its earliest checks run's creation.
   const passed = [];
   // Heads with a pass whose spec may have changed since (`prefilterSpec`).
@@ -979,6 +1032,10 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       // spends this repository's minutes on the fork's code, and a newer one
       // would hide this repository's run. Only this repository's runs count.
       const own = listing.workflow_runs.filter((r) => r.head_repository?.full_name === repo);
+      const done = checksDone(own);
+      if (done !== undefined) {
+        openChecks.push({ head: pull.head.sha, done });
+      }
       const { rerun, again, lane, inFlight: busy } = classify(own, since);
       inFlight += busy ? 1 : 0;
       for (const r of lane) {
@@ -1512,7 +1569,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   for (const set of ready.filter((s) => !flakeOnly(s))) {
     place(`#${set[0].pr}`, set);
   }
-  for (const lane of lanes.sort(newerFirst)) {
+  for (const lane of laneOrder(lanes, openChecks)) {
     place(`lane run ${lane.id} (${lane.path})`, [lane]);
   }
   for (const set of ready.filter(flakeOnly)) {

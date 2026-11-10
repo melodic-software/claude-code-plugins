@@ -236,28 +236,26 @@ fi
 
 # Tracked state per path, fail closed: "unknown" counts every id as a committed
 # enable. Exit 1 from ls-files is "not tracked" (untracked or missing file); any
-# other failure decides nothing, so it stays closed.
-committed_lines=""
+# other failure decides nothing, so it stays closed. The object is assembled in
+# the shell, so no jq runs per path; LC_ALL=C keeps the encoder byte-wise, so a
+# non-ASCII path passes through verbatim under any bash locale.
+committed_body=""
+path_json=""
 while IFS= read -r p; do
   [[ -n "$p" ]] || continue
   state='"unknown"'
-  pfs="${p//\\//}"
   ls_rc=0
-  git -C "$pfs" ls-files --error-unmatch .claude/settings.json >/dev/null 2>&1 || ls_rc=$?
+  git -C "${p//\\//}" ls-files --error-unmatch .claude/settings.json >/dev/null 2>&1 || ls_rc=$?
   if ((ls_rc == 1)); then
     state='"untracked"'
   elif ((ls_rc == 0)); then
     state='"tracked"'
   fi
-  line=""
-  # shellcheck disable=SC2016  # a jq program
-  jq_to line -cn --arg k "$p" --argjson v "$state" '{key: $k, value: $v}'
-  committed_lines+="$line"$'\n'
+  LC_ALL=C json_string_to path_json "$p"
+  [[ -z "$committed_body" ]] || committed_body+=","
+  committed_body+="$path_json:$state"
 done <<<"$paths_needed"
-
-committed="{}"
-jq_to committed -s 'from_entries' <<<"$committed_lines" || committed="{}"
-[[ -n "$committed" ]] || committed="{}"
+committed="{$committed_body}"
 
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
 PLAN_PROGRAM="$ROWS_PROGRAM"'
@@ -278,8 +276,9 @@ PLAN_PROGRAM="$ROWS_PROGRAM"'
        elif $r.worktree then "worktree"
        elif $strategy == "update" and $r.catalogLower then "blocked-catalog"
        else "actionable" end) as $class
-    | (if $r.scope == "user" or ($r.projectPath | type) != "string" then "" else "(cd " + ($r.projectPath | shq) + " && " end) as $pre
-    | (if $r.scope == "user" or ($r.projectPath | type) != "string" then "" else ")" end) as $post
+    | ($r.scope == "user" or ($r.projectPath | type) != "string") as $bare
+    | (if $bare then "" else "(cd " + ($r.projectPath | shq) + " && " end) as $pre
+    | (if $bare then "" else ")" end) as $post
     | def cmd($s):
         if $s == "uninstall" then $pre + "claude plugin uninstall " + $r.id + " -s " + $r.scope + " --keep-data" + $post
         elif $s == "update" then $pre + "claude plugin update " + $r.id + " -s " + $r.scope + $post

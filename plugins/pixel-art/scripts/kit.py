@@ -116,25 +116,17 @@ def layout(size, preset, step):
     """Pixel boxes for one frame. step is -1, 0, or 1."""
     p = PRESETS[preset]
     bob = 0 if step == 0 else max(1, size // 48)
-    torso = (
-        _px(size, p["torso"][0]),
-        _px(size, p["torso"][1]) + bob,
-        _px(size, p["torso"][2]),
-        _px(size, p["torso"][3]),
-    )
-    leg_w = _px(size, p["legs"][2])
-    legs = (
-        _px(size, p["legs"][0]),
-        _px(size, p["legs"][1]) + bob,
-        leg_w,
-        _px(size, p["legs"][3]),
-    )
+
+    def box(fracs):
+        x, y, w, h = (_px(size, frac) for frac in fracs)
+        return (x, y + bob, w, h)
+
     return {
         "bob": bob,
         "cx": size // 2,
         "head": (size // 2, _px(size, p["head_cy"]) + bob, size * p["head_rx"], size * p["head_ry"]),
-        "torso": torso,
-        "legs": legs,
+        "torso": box(p["torso"]),
+        "legs": box(p["legs"]),
         "gap": max(1, size // 24),
         "boot_h": _px(size, p["boots"]),
         "arm": max(2, size // 12),
@@ -192,9 +184,10 @@ def _body(canvas, lay, direction, step):
             lift = gap if ((step == -1 and i == 0) or (step == 1 and i == 1)) else 0
             canvas.rect(x, ly, lw, lh - lift, "pants")
             canvas.rect(x, ly + lh - lift, lw, lay["boot_h"], "boot")
-    body_w = tw // 2 + 2 if side else tw
-    canvas.rect(tx if not side else tx + tw // 4, ty, body_w, th, "tunic")
-    canvas.rect(tx if not side else tx + tw // 4, ty + th - max(2, th // 5), body_w, max(2, th // 5), "belt")
+    body_x, body_w = (tx + tw // 4, tw // 2 + 2) if side else (tx, tw)
+    belt_h = max(2, th // 5)
+    canvas.rect(body_x, ty, body_w, th, "tunic")
+    canvas.rect(body_x, ty + th - belt_h, body_w, belt_h, "belt")
     arm = lay["arm"]
     if side:
         ax = tx + tw // 3 + step
@@ -242,7 +235,7 @@ class Walker:
         """Material grid for one pose. direction is down, left, up, or right."""
         if direction not in ("down", "left", "up", "right"):
             raise ValueError(f"unknown direction {direction!r}")
-        src ="left" if direction == "right" else direction
+        src = "left" if direction == "right" else direction
         lay = layout(self.size, self.preset, step)
         canvas = Canvas(self.size)
         _body(canvas, lay, src, step)

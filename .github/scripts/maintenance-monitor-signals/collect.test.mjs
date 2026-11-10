@@ -1100,7 +1100,15 @@ test("lane holds: green runs in the window add their holds to the carried ones i
     ],
   );
   assert.equal(data.laneHolds[0].at, "2026-10-19T16:00:00Z");
-  assert.deepEqual(data.heldCarry, { runs: data.laneHolds, from: CARRIED.from, through: "2026-10-19T16:41:00Z" });
+  assert.deepEqual(data.heldCarry, {
+    runs: data.laneHolds,
+    from: CARRIED.from,
+    through: "2026-10-19T16:41:00Z",
+    scanned: [
+      { lane: "work-resolve-issue", runId: 86, at: "2026-10-19T16:00:00Z" },
+      { lane: "pr-refine", runId: 87, at: "2026-10-19T16:00:00Z" },
+    ],
+  });
   assert.deepEqual(data.holdRule, RULE);
   for (const path of ["runs/82/jobs", "runs/83/jobs", "runs/84/jobs", "check-runs/811/", "check-runs/851/", "check-runs/860/"]) {
     assert.ok(!api.calls.some((c) => c.includes(path)), path);
@@ -1250,6 +1258,116 @@ test("lane holds: work-unblock reads past the default cap of 6 up to its own of 
   assert.match(over.gaps[0], /^lane holds: over the cap of unread green runs of work-unblock \(cap 20\)/);
 });
 
+// Two lanes over their caps in one window: work-resolve-issue runs 3000 to
+// 3007 completed a minute apart from 15:37, cut at its 6th (15:42), and
+// work-unblock runs 3100 to 3121 a minute apart from 15:38, cut at its 20th
+// (15:57). None prints a hold. `later` adds work-unblock runs 3122 to 3125,
+// completed 16:40 to 16:43.
+const minute = (from, i) => {
+  const at = from + i;
+  return `2026-10-19T${String(Math.floor(at / 60)).padStart(2, "0")}:${String(at % 60).padStart(2, "0")}:00Z`;
+};
+const twoLaneRoutes = ({ later = false } = {}) => [
+  [/workflows\/work-resolve-issue\.yml\/runs/, { workflow_runs: Array.from({ length: 8 }, (_, i) => run(3000 + i, { event: "issues", updated_at: minute(15 * 60 + 37, i) })).reverse() }],
+  [/workflows\/work-unblock\.yml\/runs/, {
+    workflow_runs: [
+      ...Array.from({ length: 22 }, (_, i) => run(3100 + i, { updated_at: minute(15 * 60 + 38, i) })),
+      ...(later ? Array.from({ length: 4 }, (_, i) => run(3122 + i, { updated_at: minute(16 * 60 + 40, i) })) : []),
+    ].reverse(),
+  }],
+  [/runs\/3[01]\d{2}\/jobs/, (path) => {
+    const id = Number(/runs\/(\d+)/.exec(path)[1]);
+    return { jobs: [{ id: id * 10, name: id < 3100 ? "report-outcome / run" : "label-unblocked", conclusion: "success" }] };
+  }],
+  [/check-runs\/3[01]\d{3}\/annotations/, []],
+  ...holdRoutes(),
+];
+const NEXT_HOUR = { now: new Date("2026-10-19T17:41:00Z"), windowStart: new Date("2026-10-19T16:36:00Z") };
+const readJobs = (api, ids) => ids.filter((id) => api.calls.some((c) => c.includes(`runs/${id}/jobs`)));
+const readAnnotations = (api, ids) => ids.filter((id) => api.calls.some((c) => c.includes(`check-runs/${id * 10}/annotations`)));
+const ids = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
+
+test("lane holds: a run read with no hold is carried and not read again, so the span moves past it", async () => {
+  const first = await collect(input(fakeApi(twoLaneRoutes()), { holds: { rule: RULE, carried: CARRIED } }));
+  assert.deepEqual(first.gaps, ["lane holds: over the cap of unread green runs of work-resolve-issue (cap 6), work-unblock (cap 20); held runs read only through 2026-10-19T15:42:00Z"]);
+  const scannedIds = first.heldCarry.scanned.map((s) => s.runId);
+  assert.deepEqual(scannedIds, [...ids(3000, 3005), ...ids(3100, 3119), 87]);
+  assert.equal(first.heldCarry.scanned.find((s) => s.runId === 3119).at, "2026-10-19T15:57:00Z");
+
+  // An hour on, the 4 new work-unblock runs and the unread 3006, 3007, 3120
+  // and 3121 fit both caps once the 26 runs already read are left out.
+  const api = fakeApi(twoLaneRoutes({ later: true }));
+  const next = await collect(input(api, { ...NEXT_HOUR, holds: { rule: RULE, carried: first.heldCarry } }));
+  assert.deepEqual(next.gaps.filter((g) => g.startsWith("lane holds")), []);
+  assert.equal(next.heldCarry.through, "2026-10-19T17:41:00Z");
+  const readBefore = [...ids(3000, 3005), ...ids(3100, 3119)];
+  assert.deepEqual(readAnnotations(api, readBefore), [], "no annotations of a run read last hour are read again");
+  assert.deepEqual(readJobs(api, readBefore), [], "no jobs of a run read last hour are read again");
+  assert.deepEqual(readJobs(api, [3006, 3007, ...ids(3120, 3125)]), [3006, 3007, ...ids(3120, 3125)]);
+  assert.deepEqual(readAnnotations(api, [3006, 3007, ...ids(3120, 3125)]), [3006, 3007, ...ids(3120, 3125)]);
+});
+
+test("lane holds: a held run records as before beside carried clean runs, and a new attempt of a clean run is read again", async () => {
+  const carried = {
+    ...CARRIED,
+    through: "2026-10-19T15:37:00Z",
+    scanned: [
+      { lane: "work-unblock", runId: 3100, at: "2026-10-19T15:38:00Z" },
+      // Carried at its first attempt's completion; the listing now shows a later one.
+      { lane: "work-unblock", runId: 3101, at: "2026-10-19T15:30:00Z" },
+    ],
+  };
+  const api = fakeApi([
+    // 3123 completed 16:41, in this window; 3100 and 3101 in the last.
+    [/workflows\/work-unblock\.yml\/runs/, {
+      workflow_runs: [run(3123, { updated_at: "2026-10-19T16:41:00Z" }), run(3101, { updated_at: "2026-10-19T15:39:00Z" }), run(3100, { updated_at: "2026-10-19T15:38:00Z" })],
+    }],
+    [/check-runs\/31010\/annotations/, [notice("label-unblocked", "the open listing failed (HTTP 502); holding, and the next sweep reads it again")]],
+    [/check-runs\/31230\/annotations/, [notice("label-unblocked", "#44: GET failed with status 503; holding, and the next sweep reads it again")]],
+    // Its jobs and annotations routes; holdRoutes lists work-resolve-issue's 84 to 86.
+    ...twoLaneRoutes().slice(2),
+  ]);
+  const data = await collect(input(api, { ...NEXT_HOUR, holds: { rule: RULE, carried } }));
+  assert.deepEqual(data.laneHolds.filter((h) => h.lane === "work-unblock").map((h) => [h.runId, h.item, h.reason, h.at]), [
+    [3123, "#44", "read fault HTTP 503", "2026-10-19T16:41:00Z"],
+    [3101, null, "open listing failed", "2026-10-19T15:39:00Z"],
+    [70, null, "closed-issue listing failed", "2026-10-19T09:00:00Z"],
+  ]);
+  assert.deepEqual(readJobs(api, [3100, 3101]), [3101]);
+  // 3101 and 3123 are carried as held, not as clean; 86 and 87 are holdRoutes' clean runs.
+  assert.deepEqual(data.heldCarry.scanned.map((s) => s.runId), [3100, 86, 87]);
+});
+
+test("lane holds: a clean run that completed before the run list's lookback is no longer carried", async () => {
+  // This window opens at 15:36, so the list reaches back to runs created from 09:36.
+  const carried = {
+    ...CARRIED,
+    scanned: [
+      { lane: "pr-verify", runId: 5000, at: "2026-10-19T09:35:00Z" },
+      { lane: "pr-verify", runId: 5001, at: "2026-10-19T09:36:00Z" },
+      { lane: "pr-verify", runId: 5002, at: "2026-10-19T16:42:00Z" },
+    ],
+  };
+  const data = await collect(input(fakeApi(holdRoutes()), { holds: { rule: RULE, carried } }));
+  assert.deepEqual(data.heldCarry.scanned.map((s) => s.runId), [5001, 86, 87]);
+  // A failed read still carries the clean runs read so far.
+  const failed = await collect(input(fakeApi([[/workflows\/work-unblock\.yml\/runs/, new Error("GET runs: HTTP 502")], ...holdRoutes()]), { holds: { rule: RULE, carried } }));
+  assert.deepEqual([failed.heldCarry.scanned.map((s) => s.runId), failed.heldCarry.through], [[5001, 86], null]);
+});
+
+test("lane holds: a carry written before it held clean runs reads as none, and those runs are read again", async () => {
+  const first = await collect(input(fakeApi(twoLaneRoutes()), { holds: { rule: RULE, carried: CARRIED } }));
+  const { scanned, ...older } = first.heldCarry;
+  assert.ok(scanned.length > 0);
+  const carried = parseHeldCarry(JSON.stringify({ version: JOBS_VERSION, repository: repo, runs: [], held: older }), repo);
+  assert.deepEqual(carried.scanned, []);
+  const api = fakeApi(twoLaneRoutes());
+  const next = await collect(input(api, { ...NEXT_HOUR, holds: { rule: RULE, carried } }));
+  // From 15:42 the 2 work-resolve-issue runs from 3005 and the 18 work-unblock runs from 3104 are read.
+  assert.deepEqual(readJobs(api, [...ids(3000, 3007), ...ids(3100, 3121)]), [...ids(3005, 3007), ...ids(3104, 3121)]);
+  assert.deepEqual(next.gaps.filter((g) => g.startsWith("lane holds")), []);
+});
+
 test("lane holds: a run list past one page reads the next, and past three pages is a gap", async () => {
   // 150 listed: page 1 the 100 newest-created, none completed in the window;
   // page 2 holds the held run 1000, completed in it.
@@ -1374,9 +1492,14 @@ test("lane holds: pr-merge counts a lane token hold in its merge or enable-auto-
 });
 
 test("a carried held run of another repository or an unknown lane, or a bad span, is refused", () => {
-  assert.deepEqual(parseHeldCarry(JSON.stringify({ version: JOBS_VERSION, repository: repo, runs: [] }), repo), { runs: [], from: null, through: null });
+  assert.deepEqual(parseHeldCarry(JSON.stringify({ version: JOBS_VERSION, repository: repo, runs: [] }), repo), { runs: [], from: null, through: null, scanned: [] });
   const [first] = CARRIED.runs;
+  const clean = { lane: "work-unblock", runId: 72, at: "2026-10-19T15:10:00Z" };
   for (const text of [
+    jobsCarryFile(repo, [], { ...CARRIED, scanned: [{ ...clean, lane: "pr-unblock" }] }),
+    jobsCarryFile(repo, [], { ...CARRIED, scanned: [{ ...clean, runId: "72" }] }),
+    jobsCarryFile(repo, [], { ...CARRIED, scanned: [{ ...clean, at: "never" }] }),
+    jobsCarryFile(repo, [], { ...CARRIED, scanned: {} }),
     jobsCarryFile("other/repo", [], CARRIED),
     jobsCarryFile(repo, [], { ...CARRIED, runs: [{ ...first, lane: "pr-unblock" }] }),
     jobsCarryFile(repo, [], { ...CARRIED, runs: [{ ...first, at: "never" }] }),

@@ -261,13 +261,10 @@ main() {
     create-item)
       local gated_flag="" a
       for a in "$@"; do
-        case "$a" in
-        --parent | --blocked-by)
+        if [[ "$a" == "--parent" || "$a" == "--blocked-by" ]]; then
           gated_flag="$a"
           break
-          ;;
-        *) ;;
-        esac
+        fi
       done
       if [[ -n "$gated_flag" ]]; then
         check_gh_version "$gated_flag"
@@ -333,7 +330,7 @@ main() {
 
   local out rc
   if [[ "$verb" == "list-frontier" || "$verb" == "list-items" ]]; then
-    local autonomous="false" parent="" state="open" label="" has_label="false" list_args=() repo_args=()
+    local autonomous="false" parent="" state="open" label="" list_args=() repo_args=()
     while [[ $# -gt 0 ]]; do
       case "$1" in
       --autonomous)
@@ -360,7 +357,6 @@ main() {
       --label)
         [[ $# -ge 2 && -n "$2" ]] || fail_usage
         label="$2"
-        has_label="true"
         shift 2
         ;;
       *) fail_usage ;;
@@ -374,7 +370,7 @@ main() {
     # CONTRACT.md "Adapter contract": an adapter that declares the label filter narrows
     # its provider query, so list_items_max counts only matching items. Any other adapter
     # gets no --label (it would be a usage error there) and lists unfiltered.
-    if [[ "$has_label" == "true" && -z "$parent" &&
+    if [[ -n "$label" && -z "$parent" &&
       "$(jq -r '.features.list_items_label_filter // false' "$manifest")" == "true" ]]; then
       list_args+=(--label "$label")
     fi
@@ -386,13 +382,11 @@ main() {
       out="$(bash "$adapter_dir/list-items.sh" --state "$state" "${list_args[@]+"${list_args[@]}"}")"
     fi
     rc=$?
-    if ((rc != 0)); then
-      exit "$rc"
-    fi
+    ((rc == 0)) || exit "$rc"
     out="$(printf '%s\n' "$out" | wit_strip_cr)"
     # Exact match core-side in every case: it is the whole filter for an adapter without
     # the provider filter, and the guard against a provider that matches loosely.
-    if [[ "$has_label" == "true" ]]; then
+    if [[ -n "$label" ]]; then
       out="$(printf '%s\n' "$out" | wit_filter_label "$label")" || exit 1
     fi
     if [[ "$verb" == "list-items" ]]; then
@@ -483,9 +477,7 @@ main() {
 
   out="$(bash "$adapter_dir/$adapter_verb.sh" "$@")"
   rc=$?
-  if [[ -n "$out" ]]; then
-    printf '%s\n' "$out" | wit_strip_cr
-  fi
+  [[ -z "$out" ]] || printf '%s\n' "$out" | wit_strip_cr
   exit "$rc"
 }
 

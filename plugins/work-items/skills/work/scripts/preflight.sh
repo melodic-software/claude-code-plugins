@@ -103,41 +103,27 @@ while [[ "$#" -gt 0 ]]; do
     usage
     exit 0
     ;;
-  --count)
-    mode="count"
-    shift
-    ;;
-  --worktree-root)
-    shift
-    [[ "$#" -gt 0 ]] || {
-      echo "ERROR: --worktree-root requires a path" >&2
+  --count) mode="count" ;;
+  --worktree-root | --project-root)
+    [[ "$#" -gt 1 ]] || {
+      echo "ERROR: $1 requires a path" >&2
       exit 2
     }
-    worktree_root="$1"
+    if [[ "$1" == "--worktree-root" ]]; then
+      worktree_root="$2"
+    else
+      project_root="$2"
+    fi
     shift
     ;;
-  --worktree-root=*)
-    worktree_root="${1#--worktree-root=}"
-    shift
-    ;;
-  --project-root)
-    shift
-    [[ "$#" -gt 0 ]] || {
-      echo "ERROR: --project-root requires a path" >&2
-      exit 2
-    }
-    project_root="$1"
-    shift
-    ;;
-  --project-root=*)
-    project_root="${1#--project-root=}"
-    shift
-    ;;
+  --worktree-root=*) worktree_root="${1#*=}" ;;
+  --project-root=*) project_root="${1#*=}" ;;
   *)
     echo "ERROR: unknown argument: $1" >&2
     exit 2
     ;;
   esac
+  shift
 done
 
 if ! command -v jq >/dev/null 2>&1; then
@@ -319,15 +305,9 @@ resolve_main_root() {
   fi
 
   # 4. The conventional "<root>/.git" spelling: the parent of the common dir.
-  case "$main_gitdir" in
-  */.git)
-    cand="${main_gitdir%/.git}"
-    if accept_main_worktree "$cand"; then
-      return
-    fi
-    ;;
-  *) ;;
-  esac
+  if [[ "$main_gitdir" == */.git ]] && accept_main_worktree "${main_gitdir%/.git}"; then
+    return
+  fi
 
   main_reason="the common git dir '$main_gitdir' names no verifiable working tree"
 }
@@ -478,20 +458,14 @@ collect() {
 # mask a gap among those layers, but it cannot widen a main checkout that never
 # resolved — which is why an unresolved one is reported rather than passed over.
 distinct_project_root=""
-if [[ -n "$project_root" && "$proj_base" != "$repo_root" ]]; then
-  distinct_project_root="yes"
-fi
+[[ -n "$project_root" && "$proj_base" != "$repo_root" ]] && distinct_project_root="yes"
 cov_local="with-local"
-if [[ -n "$worktree_root" && -z "$distinct_project_root" ]]; then
-  cov_local="no-local"
-fi
+[[ -n "$worktree_root" && -z "$distinct_project_root" ]] && cov_local="no-local"
 # An undeterminable layout leaves the main checkout's file uncredited, which only
 # matters where that file is not the checkout's own: a session started in the main
 # checkout always loads its own local file, so a with-local read of it is sound.
 layout_unread=""
-if [[ "$layout" == "unknown" && ( -z "$main_is_proj_base" || "$cov_local" == "no-local" ) ]]; then
-  layout_unread="yes"
-fi
+[[ "$layout" == "unknown" && (-z "$main_is_proj_base" || "$cov_local" == "no-local") ]] && layout_unread="yes"
 ALL_ALLOW="$(collect '.permissions.allow' "$cov_local")"
 ALL_DENY="$(collect '.permissions.deny' "with-local" deny)"
 ALL_ADDDIRS="$(collect '.permissions.additionalDirectories' "$cov_local")"
@@ -587,8 +561,7 @@ fi
 # (b) probed working verbs blocked by deny, or missing from the effective
 # allow-list. Deny is checked first because deny wins over allow in the
 # permission model — an allowed-but-denied verb is still unrunnable.
-while IFS= read -r verb; do
-  [[ -n "$verb" ]] || continue
+for verb in "git add" "git commit" "gh pr create" "gh issue comment"; do
   if verb_denied "$verb"; then
     emit_gap "(b) '$verb' is DENIED by a matching deny rule (deny wins over allow), so the unattended lane cannot run it even if allowed. Resolve the deny rule operator-side before relying on this verb. See reference/permission-preflight.md."
     continue
@@ -599,12 +572,7 @@ while IFS= read -r verb; do
     continue
   fi
   emit_gap "(b) no Bash()/PowerShell() allow rule covers '$verb'. Apply the fleet permission floor operator-side (standards components/claude-permissions, composed into settings via dotfiles#233) — never a plugin self-grant. See reference/permission-preflight.md."
-done <<PROBES
-git add
-git commit
-gh pr create
-gh issue comment
-PROBES
+done
 
 # (c) worktree root not covered by additionalDirectories.
 if [[ -n "$worktree_root" ]]; then

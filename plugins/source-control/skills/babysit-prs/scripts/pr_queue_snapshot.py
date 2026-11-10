@@ -52,26 +52,20 @@ def _csv(value: str | None) -> frozenset[str]:
 
 
 def build_config(args: argparse.Namespace) -> delta.ClassifyConfig:
-    owners = _csv(getattr(args, "owners", None))
+    extra_bot_logins = _csv(getattr(args, "extra_bot_logins", None))
     # `self_logins` (the posting identities whose comments to suppress) is resolved
     # by `resolve_self_logins` from the dedicated self flags, never from the
     # `--author` discovery filter (#511). A hand-built Namespace that omits
     # `resolved_self_logins` supplies no self set; `--author` is deliberately not
     # consulted as a fallback, so no discovery author can leak in.
-    resolved_self_logins = getattr(args, "resolved_self_logins", None)
-    self_logins = (
-        frozenset(resolved_self_logins)
-        if resolved_self_logins is not None
-        else frozenset()
-    )
     return delta.ClassifyConfig(
-        allowed_owners=owners,
-        self_logins=self_logins,
+        allowed_owners=_csv(getattr(args, "owners", None)),
+        self_logins=frozenset(getattr(args, "resolved_self_logins", None) or ()),
         intended_write_identity=str(
             getattr(args, "intended_write_identity", None) or ""
         ),
         feedback=FeedbackConfig(
-            extra_bot_logins=_csv(getattr(args, "extra_bot_logins", None)),
+            extra_bot_logins=extra_bot_logins,
             approval_downgrade_logins=_csv(
                 getattr(args, "approval_downgrade_logins", None)
             ),
@@ -82,7 +76,7 @@ def build_config(args: argparse.Namespace) -> delta.ClassifyConfig:
             reviewer_logins=_csv(getattr(args, "review_bot_logins", None)),
             gate_context=str(getattr(args, "review_gate_context", None) or ""),
             ci_gateway_context=str(getattr(args, "ci_gateway_context", None) or ""),
-            extra_bot_logins=_csv(getattr(args, "extra_bot_logins", None)),
+            extra_bot_logins=extra_bot_logins,
         ),
         max_quiet_recheck_seconds=float(
             getattr(args, "max_quiet_recheck_seconds", None)
@@ -284,21 +278,20 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
             pr_error_keys.append(key)
 
     if args.pr and prs:
+        pr = prs[0]
+        prev_unique = delta.prev_head_ref_unique(pr, previous_prs)
         try:
-            matches = gh.find_open_prs_for_head_ref(prs[0])
+            matches = gh.find_open_prs_for_head_ref(pr)
             delta.apply_head_ref_guard(
-                prs[0],
-                checked=prs[0]["key"] in matches,
+                pr,
+                checked=pr["key"] in matches,
                 matching_prs=matches,
-                prev_unique=delta.prev_head_ref_unique(prs[0], previous_prs),
+                prev_unique=prev_unique,
             )
         except Exception as exc:
-            errors.append(f"{prs[0]['key']} {delta.HEAD_REF_ALIAS_ERROR_MARKER} {exc}")
+            errors.append(f"{pr['key']} {delta.HEAD_REF_ALIAS_ERROR_MARKER} {exc}")
             delta.apply_head_ref_guard(
-                prs[0],
-                checked=False,
-                matching_prs=[],
-                prev_unique=delta.prev_head_ref_unique(prs[0], previous_prs),
+                pr, checked=False, matching_prs=[], prev_unique=prev_unique
             )
     else:
         delta.annotate_queue_head_refs(
@@ -314,9 +307,8 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
     )
     cadence_blocking_errors = [
         message
-        for message in errors
+        for message in substantive_errors(errors)
         if message.split(":", 1)[0] not in quarantined
-        and not delta.is_head_ref_alias_error(message)
     ]
     cadence = (
         "active"
@@ -345,6 +337,16 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
             pr_errors=pr_errors,
         )
     return snapshot
+
+
+_FEEDBACK_LINES = (
+    ("feedback", "blocking", "blocking feedback"),
+    ("feedback", "material", "material feedback"),
+    ("feedback", "human_blocking", "blocking human feedback"),
+    ("new_feedback", "blocking", "new blocking feedback"),
+    ("new_feedback", "material", "new material feedback"),
+    ("new_feedback", "human", "new human feedback"),
+)
 
 
 def print_text(snapshot: dict[str, Any]) -> None:
@@ -398,18 +400,9 @@ def print_text(snapshot: dict[str, Any]) -> None:
             )
         for name in pr["checks"]["pending"]:
             print(f"  pending check: name={json.dumps(name)}")
-        for item in pr["feedback"]["blocking"]:
-            print(f"  blocking feedback: {item['author']} {item['preview']}")
-        for item in pr["feedback"]["material"]:
-            print(f"  material feedback: {item['author']} {item['preview']}")
-        for item in pr["feedback"]["human_blocking"]:
-            print(f"  blocking human feedback: {item['author']} {item['preview']}")
-        for item in pr["new_feedback"]["blocking"]:
-            print(f"  new blocking feedback: {item['author']} {item['preview']}")
-        for item in pr["new_feedback"]["material"]:
-            print(f"  new material feedback: {item['author']} {item['preview']}")
-        for item in pr["new_feedback"]["human"]:
-            print(f"  new human feedback: {item['author']} {item['preview']}")
+        for section, bucket, label in _FEEDBACK_LINES:
+            for item in pr[section][bucket]:
+                print(f"  {label}: {item['author']} {item['preview']}")
 
 
 def exit_code_for(snapshot: dict[str, Any]) -> int:

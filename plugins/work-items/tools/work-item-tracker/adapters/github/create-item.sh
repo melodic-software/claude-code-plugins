@@ -85,15 +85,13 @@ if [[ -n "$type" ]] && ((!native)); then
   degrade_type
 fi
 
-label_list=()
-[[ -z "$labels" ]] || IFS=',' read -ra label_list <<<"$labels"
-
 # Sibling dedupe (CONTRACT.md "Verbs"): a child of the parent in the target repo with the
 # same trimmed title, open or closed within 24 hours, is returned instead of a new issue.
 # One GraphQL read, since the subIssues projection list-sub-items reads has no closedAt.
 # A proxy refusal drops to the REST branch, which refuses --parent.
 if ((native)) && [[ -n "$parent" ]]; then
   wit_require_github_id "$parent" || wit_usage_error "malformed or non-github --parent id: $parent"
+  parent_url="$(wit_issue_url "$WIT_ID_OWNER" "$WIT_ID_REPO" "$WIT_ID_NUMBER")"
   # shellcheck disable=SC2016  # GraphQL query: $o/$r/$n are GraphQL variables
   wit_run_gh_native read api graphql \
     -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){issue(number:$n){subIssues(first:100){nodes{number title state closedAt repository{nameWithOwner}}}}}}' \
@@ -123,14 +121,12 @@ fi
 if ((native)); then
   args=(issue create -R "$target_repo" --title "$title" --body "$body")
   [[ -z "$type" ]] || args+=(--type "$type")
+  IFS=',' read -ra label_list <<<"$labels"
   for label in ${label_list[@]+"${label_list[@]}"}; do
     args+=(--label "$label")
   done
-
-  if [[ -n "$parent" ]]; then
-    wit_require_github_id "$parent" || wit_usage_error "malformed or non-github --parent id: $parent"
-    args+=(--parent "$(wit_issue_url "$WIT_ID_OWNER" "$WIT_ID_REPO" "$WIT_ID_NUMBER")")
-  fi
+  # The sibling dedupe above validated --parent and set parent_url.
+  [[ -z "$parent" ]] || args+=(--parent "$parent_url")
 
   if [[ -n "$blocked_by" ]]; then
     blocker_urls=""
@@ -146,12 +142,7 @@ if ((native)); then
   if (($? == 10)); then
     # The proxy refused GraphQL before creating anything: retry over REST below.
     native=0
-    if [[ -n "$type" ]]; then
-      degrade_type
-      # degrade_type may append the type label; rebuild the list the REST branch reads.
-      label_list=()
-      [[ -z "$labels" ]] || IFS=',' read -ra label_list <<<"$labels"
-    fi
+    [[ -z "$type" ]] || degrade_type
   else
     created_url="${WIT_GH_OUT##*$'\n'}" # last line — gh prints the created URL last
     number="${created_url##*/}"
@@ -171,6 +162,7 @@ if ((!native)); then
     wit_usage_error "--parent and --blocked-by require gh >= 2.94 and a session that allows GraphQL"
   fi
   rest_args=(api --method POST "repos/$target_repo/issues" -f "title=$title" -f "body=$body")
+  IFS=',' read -ra label_list <<<"$labels"
   for label in ${label_list[@]+"${label_list[@]}"}; do
     rest_args+=(-f "labels[]=$label")
   done

@@ -35,5 +35,4 @@ registerConnectorTools(server, lowLevel);
 registerBulkTools(server, api);
 registerOverlapTools(server, api);
 
-const transport = new StdioServerTransport();
-await server.connect(transport);
+await server.connect(new StdioServerTransport());

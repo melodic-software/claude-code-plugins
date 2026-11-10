@@ -1739,6 +1739,19 @@
 
     const settingsPop = E("div", "vf-pop vf-settings"); settingsPop.setAttribute("role", "dialog"); settingsPop.setAttribute("aria-label", "Session settings"); settingsPop.hidden = true;
     settingsPop.append(E("h2", "vf-pop-title", "Session settings"), E("p", "vf-pop-note", "Changes apply to everyone right away."));
+    /** A switch row: its label, with the description under it when given, then the switch. */
+    function swRow(label, desc) {
+      const b = btn("vf-sw-row"); b.setAttribute("role", "switch");
+      const txt = desc == null ? E("span", "vf-sw-txt vf-sw-label", label) : E("span", "vf-sw-txt");
+      if (desc != null) txt.append(E("span", "vf-sw-label", label), E("span", "vf-sw-desc", desc));
+      b.append(txt, E("span", "vf-switch"));
+      return b;
+    }
+    /** The keys of `rows` ([key, ...] entries), in their order, that are in `on` once `k` is toggled there. */
+    function toggledKeys(rows, on, k) {
+      const s = new Set(on); s.has(k) ? s.delete(k) : s.add(k);
+      return rows.map(([kk]) => kk).filter(kk => s.has(kk));
+    }
     const switches = {};
     for (const [k, label, desc] of [
       ["voting", "Voting", "Votes on answers; the most voted leads"],
@@ -1752,9 +1765,7 @@
       ["approveJoins", "Approve new joins", "New people wait in the queue until you let them in; while they wait they see the title and Why you're here. People already here are not affected"],
       ["reviewAnswers", "Review Claude's answers before they are shared", "Each answer to a guest's request waits for your Share; off, an answer asked for everyone is shared when it arrives"],
     ]) {
-      const b = btn("vf-sw-row"); b.setAttribute("role", "switch");
-      const txt = E("span", "vf-sw-txt"); txt.append(E("span", "vf-sw-label", label), E("span", "vf-sw-desc", desc));
-      b.append(txt, E("span", "vf-switch"));
+      const b = swRow(label, desc);
       b.onclick = () => Core.saveSettings({ [k]: !st()[k] }).catch(fail);
       settingsPop.append(b); switches[k] = b;
     }
@@ -1766,10 +1777,8 @@
     const tierRows = {};
     settingsPop.append(E("h3", "vf-pop-sub", "Prototypes"));
     for (const [k, label, desc] of TIERS) {
-      const b = btn("vf-sw-row"); b.setAttribute("role", "switch"); b.dataset.tier = k;
-      const txt = E("span", "vf-sw-txt"); txt.append(E("span", "vf-sw-label", label), E("span", "vf-sw-desc", desc));
-      b.append(txt, E("span", "vf-switch"));
-      b.onclick = () => { const on = new Set(st().prototypeTiers); on.has(k) ? on.delete(k) : on.add(k); Core.saveSettings({ prototypeTiers: TIERS.map(([kk]) => kk).filter(kk => on.has(kk)) }).catch(fail); };
+      const b = swRow(label, desc); b.dataset.tier = k;
+      b.onclick = () => Core.saveSettings({ prototypeTiers: toggledKeys(TIERS, st().prototypeTiers, k) }).catch(fail);
       settingsPop.append(b); tierRows[k] = b;
     }
     const MODES = [["system", "System"], ["light", "Light"], ["dark", "Dark"]];
@@ -2105,10 +2114,8 @@
     const revBox = ixGroup("vf-ibrev", revList), revHead = E("div", "vf-rev-head");
     const runAllBtn = lbtn("vf-btn vf-btn-primary vf-btn-sm", "play", "Run all shown");
     revHead.append(revBox._h, E("span", "vf-spacer"), runAllBtn); revBox.prepend(revHead);
-    const needQ = E("ul", "vf-plist vf-ibq");
-    const needQBox = ixGroup("vf-ibneedq", needQ);
-    const needIx = E("ul", "vf-ixlist");
-    const needIxBox = ixGroup("vf-ibneedix", needIx);
+    const needQ = E("ul", "vf-plist vf-ibq"), needQBox = ixGroup("vf-ibneedq", needQ);
+    const needIx = E("ul", "vf-ixlist"), needIxBox = ixGroup("vf-ibneedix", needIx);
     const needEmpty = E("p", "vf-empty vf-empty-sm vf-ibempty");
     const ixNeeds = E("div", "vf-ibtab vf-ibneeds"); ixNeeds.append(revBox, needQBox, needIxBox, needEmpty);
     // My requests
@@ -2123,9 +2130,7 @@
     const muteBox = E("div", "vf-mutebox");
     const muteRows = {};
     for (const [k, label] of NOTE_KINDS) {
-      const b = btn("vf-sw-row"); b.setAttribute("role", "switch");
-      b.append(E("span", "vf-sw-txt", label), E("span", "vf-switch"));
-      b.querySelector(".vf-sw-txt").classList.add("vf-sw-label");
+      const b = swRow(label);
       b.onclick = () => { const m = new Set(pref("mute", [])); m.has(k) ? m.delete(k) : m.add(k); setPrefs({ mute: [...m] }); render(); };
       muteBox.append(b); muteRows[k] = b;
     }
@@ -2146,10 +2151,8 @@
     // History: what needed someone and was handled, a page at a time
     const histRev = E("ul", "vf-plist vf-revlist vf-ibhistrev"); histRev.setAttribute("aria-label", "Requests to Claude, handled");
     const histRevBox = ixGroup("vf-ibhistreq", histRev);
-    const histQ = E("ul", "vf-plist vf-ibq");
-    const histQBox = ixGroup("vf-ibhistq", histQ);
-    const histIx = E("ul", "vf-ixlist");
-    const histIxBox = ixGroup("vf-ibhistix", histIx);
+    const histQ = E("ul", "vf-plist vf-ibq"), histQBox = ixGroup("vf-ibhistq", histQ);
+    const histIx = E("ul", "vf-ixlist"), histIxBox = ixGroup("vf-ibhistix", histIx);
     const histMore = showMore("history", 30);
     const histEmpty = E("p", "vf-empty vf-empty-sm vf-ibempty");
     const ixHist = E("div", "vf-ibtab vf-ibhist"); ixHist.append(histRevBox, histQBox, histIxBox, histMore.foot, histEmpty);
@@ -2209,21 +2212,23 @@
         at: () => (phone.matches ? tabBtns.more : keysBtn) },
     ];
     const TT = { i: 0, from: null, steps: [] };
+    /** While the tour runs, everything behind its card is inert. */
+    const tourInert = v => { for (const el of [top, body, tabs, fab, chat]) el.inert = v; };
     function startTour(from) {
       closePop(); hideCard(); if (ui.chatOpen) setChat(false);
-      setMode("focus"); if (phone.matches) setTab("answer");
+      showMode("focus");
       TT.from = from || null;
       const who = Core.me.isOwner ? "host" : "guest";
       TT.steps = TOUR.filter(s => (!s.who || s.who === who) && shown(s.at()));
       if (!TT.steps.length) return;
       TT.i = 0; tour.hidden = false; root.dataset.tour = "";
-      for (const el of [top, body, tabs, fab, chat]) el.inert = true;
+      tourInert(true);
       paintTour();
     }
     function endTour(how) {
       if (tour.hidden) return;
       tour.hidden = true; delete root.dataset.tour;
-      for (const el of [top, body, tabs, fab, chat]) el.inert = false;
+      tourInert(false);
       syncModal();
       setPrefs({ tour: how });
       const back = TT.from && shown(TT.from) ? TT.from : qText;
@@ -2291,8 +2296,7 @@
     const apLabel = E("label", "vf-asklabel"); const apTa = E("textarea", "vf-ta"); apTa.rows = 3; apTa.maxLength = 2000; apTa.id = "vf-ap-ta"; apLabel.htmlFor = apTa.id;
     const apNote = E("p", "vf-pop-note");
     // Connect your Claude (R2-12): a guest's request can run on their own Claude, never the host's.
-    const apSelf = btn("vf-sw-row vf-apself"); apSelf.setAttribute("role", "switch");
-    apSelf.append(E("span", "vf-sw-txt vf-sw-label", "Run it on my own Claude"), E("span", "vf-switch"));
+    const apSelf = swRow("Run it on my own Claude"); apSelf.classList.add("vf-apself");
     apSelf.onclick = () => { ui.askSelf = !ui.askSelf; render(); };
     const apRow = E("div", "vf-crow");
     const apAttach = ibtn("vf-btn vf-btn-ghost vf-btn-sm vf-attach", "clip", "Attach a file");
@@ -2385,6 +2389,8 @@
       render();
       if (m === "compare") requestAnimationFrame(() => { revealCol(ui.cur); edges(); });
     }
+    /** Switch the center to mode `m` and, on a phone, to the tab that holds it. */
+    function showMode(m) { setMode(m); if (phone.matches) setTab(m === "focus" ? "answer" : m); }
     function markSeen(qid) {
       if (!qid) return;
       ui.seen[qid] = Core.state.serverTime || Date.now() / 1000;
@@ -2448,7 +2454,7 @@
     // Writing anywhere in the question pane stays on the question.
     on(scroll, "input", e => { if (e.target.matches?.("textarea, input:not([type=radio], [type=checkbox])")) stopAdvance(); });
     advStay.onclick = () => { stopAdvance(); (ta.disabled ? qText : ta).focus({ preventScroll: true }); };
-    function focusQuestion(qid) { select(qid, { manual: true }); setMode("focus"); if (phone.matches) setTab("answer"); }
+    function focusQuestion(qid) { select(qid, { manual: true }); showMode("focus"); }
     function setFollow(v) { setPrefs({ follow: v }); follow.setAttribute("aria-pressed", String(v)); render(); }
     const sameCites = qid => JSON.stringify(ui.cites[qid] || []) === JSON.stringify(myRec(qid)?.cites || []);
     async function submit() {
@@ -2458,8 +2464,8 @@
       const extra = attExtra(cSlot);
       try {
         // A question that takes a pick (or a poll): the text is a comment on my pick. Without a pick (or on confirm) it is my own answer.
-        const fields = savedPick(q, rec);
-        if (!fields && commentFirst(q) && (q.format === "choice" || isFormat(q) || q.purpose === "poll")) {
+        const fields = savedPick(q, rec), takesPick = q?.format === "choice" || isFormat(q) || q?.purpose === "poll";
+        if (!fields && commentFirst(q) && takesPick) {
           // no pick yet: picks drafted on a pick-many question save with the comment; otherwise the comment waits for the
           // pick, and a phone's sheet closes so the options show
           ui.drafts[qid] = ta.value; closeSheet();
@@ -2468,11 +2474,11 @@
           else flash("Pick first. Your comment goes in with your pick.");
           return;
         }
-        if (fields && (q.format === "choice" || isFormat(q) || q.purpose === "poll")) await Core.pickWith(qid, fields, { comment: text, ...extra });
+        if (fields && takesPick) await Core.pickWith(qid, fields, { comment: text, ...extra });
         else await Core.answerCiting(qid, text, ui.cites[qid] || [], extra);
         delete ui.drafts[qid]; delete ui.attDraft[qid]; ui.dirty = false; ta.value = Core.myAnswer(qid); Kit.grow(ta);
         closeSheet();
-        announce(fields && (q.format === "choice" || isFormat(q) || q.purpose === "poll") ? "Your comment is saved." : "Your answer is saved.");
+        announce(fields && takesPick ? "Your comment is saved." : "Your answer is saved.");
         if (phone.matches) ta.blur(); // the one-line composer folds back once sent
       }
       catch (e) {
@@ -3038,7 +3044,7 @@
       const m = ui.msgMenu, c = ui.msgCmt; closePop(); if (!m) return;
       openAskPanel("ask", c ? c.qid : ui.cur, `About this ${c ? "comment" : "chat message"} from ${mmWho(m)}: "${m.text}"\n\n`);
     };
-    mmCopy.onclick = async () => {
+    mmCopy.onclick = () => {
       const m = ui.msgMenu; closePop(); if (!m) return;
       copyOut(m.text, "Copied.", ui.msgCmt ? "Comment" : "Message", ui.msgCmt ? discTa : mInput);
     };
@@ -3081,7 +3087,7 @@
     }
 
     // ---------- Q87: theme, one tap cycles System, Light, Dark ----------
-    const THEME_NEXT = { system: "light", light: "dark", dark: "system" }, THEME_LABEL = { system: "System", light: "Light", dark: "Dark" };
+    const THEME_NEXT = { system: "light", light: "dark", dark: "system" }, THEME_LABEL = Object.fromEntries(MODES);
     function cycleTheme() {
       const next = THEME_NEXT[myMode()] || "system";
       setTheme(next);
@@ -3119,7 +3125,7 @@
         return;
       }
       if (n.qid && qById(n.qid)) return focusQuestion(n.qid);
-      if ((n.kind === "queue" || n.kind === "ready") && Core.canModerate()) { setMode("host"); if (phone.matches) setTab("host"); }
+      if ((n.kind === "queue" || n.kind === "ready") && Core.canModerate()) showMode("host");
     }
     // ---------- Item 11 and spec PR 9: the Inbox page ----------
     const inbox = () => Core.state.inbox || [];
@@ -3139,15 +3145,13 @@
     /** What may pop up: a waiting item of a kind switched on, never the host's own report, and a failure only until opened. */
     const alertable = i => i.group === "waiting" && urgent().includes(i.kind) && !isMe(i.byCid) && (i.kind !== "fail" || i.unread);
     for (const [k, label] of [...POPUP_KINDS, ...GUEST_POPUPS]) {
-      const b = btn("vf-sw-row"); b.setAttribute("role", "switch"); b.dataset.k = k;
-      b.append(E("span", "vf-sw-txt vf-sw-label", label), E("span", "vf-switch"));
-      b.onclick = () => { const u = new Set(urgent()); u.has(k) ? u.delete(k) : u.add(k); setPrefs({ popups: popKinds().map(([kk]) => kk).filter(kk => u.has(kk)) }); render(); };
+      const b = swRow(label); b.dataset.k = k;
+      b.onclick = () => { setPrefs({ popups: toggledKeys(popKinds(), urgent(), k) }); render(); };
       popList.append(b); popRows[k] = b;
     }
     for (const [k, label] of GUEST_POPUPS) {
-      const b = btn("vf-sw-row"); b.setAttribute("role", "switch"); b.dataset.k = k;
-      b.append(E("span", "vf-sw-txt vf-sw-label", label), E("span", "vf-switch"));
-      b.onclick = () => { const u = new Set(guestDefault()); u.has(k) ? u.delete(k) : u.add(k); Core.saveSettings({ guestPopups: GUEST_POPUPS.map(([kk]) => kk).filter(kk => u.has(kk)) }).catch(fail); };
+      const b = swRow(label); b.dataset.k = k;
+      b.onclick = () => Core.saveSettings({ guestPopups: toggledKeys(GUEST_POPUPS, guestDefault(), k) }).catch(fail);
       gPopList.append(b); gPopRows[k] = b;
     }
     const IX_STAT = { waiting: "Waiting", running: "Running", answered: "Answered", unshared: "Answered", shared: "Shared", declined: "Declined", failed: "Failed" };
@@ -3177,8 +3181,13 @@
     function openGeneral(key) {
       if (key?.startsWith("x:")) ui.resClosed.delete(key.slice(2));
       openAskPanel(null, Core.GENERAL);
+      const answer = key.startsWith("x:");
+      ringRow(answer ? apGen : apReqs, answer ? key : key.slice(2));
+    }
+    /** After the next frame, scroll row `key` of `list` into view and ring it, when the list still has it. */
+    function ringRow(list, key) {
       requestAnimationFrame(() => {
-        const li = (key?.startsWith("x:") ? apGen : apReqs)._map?.get(key.startsWith("x:") ? key : key.slice(2)); if (!li) return;
+        const li = list._map?.get(key); if (!li) return;
         li.scrollIntoView({ block: "nearest", behavior: smooth() });
         ring(li);
       });
@@ -3187,24 +3196,16 @@
     function showRequest(qid, rid) {
       ui.clOpen.set(qid, true);
       if (ui.cur !== qid) select(qid, { manual: true });
-      setMode("focus"); if (phone.matches) setTab("answer");
+      showMode("focus");
       render();
-      requestAnimationFrame(() => {
-        const li = thList._map?.get("r:" + rid); if (!li) return;
-        li.scrollIntoView({ block: "nearest", behavior: smooth() });
-        ring(li);
-      });
+      ringRow(thList, "r:" + rid);
     }
     /** The Host view with one queue row in sight. */
     function showHostRow(id) {
       closePop();
       ui.hostFilter = "all"; ui.more["queue:all"] = Infinity;
-      setMode("host"); if (phone.matches) setTab("host");
-      requestAnimationFrame(() => {
-        const li = queueList._map?.get(id); if (!li) return;
-        li.scrollIntoView({ block: "nearest", behavior: smooth() });
-        ring(li);
-      });
+      showMode("host");
+      ringRow(queueList, id);
     }
     /** Where an Inbox item happened. What waits on the host opens its row on the Inbox page, where it is handled. */
     function openInboxItem(i) {
@@ -3217,14 +3218,14 @@
       closePop();
       if (i.unread) Core.readInbox([i.key], { [i.key]: i.status }).catch(() => {});
       if (i.kind === "ask") return focusQuestion(i.qid);
-      if (i.kind === "markready") { setMode("host"); if (phone.matches) setTab("host"); return; }
+      if (i.kind === "markready") return showMode("host");
       if (!i.qid && i.scope) { // about the whole session: a shared answer is in chat, the rest in Ask Claude
         const xid = i.result, x = xid && (Core.state.research?.[Core.GENERAL] || []).find(y => y.id === xid);
         if (x?.msg && x.published !== false && st().chat) { setChat(true); return goMsg(x.msg, () => openGeneral("x:" + xid)); } // a message chat dropped: the answer is still in Ask Claude
         return openGeneral(xid ? "x:" + xid : "r:" + i.id);
       }
       if (!qById(i.qid)) return;
-      if (i.result) { setMode("focus"); if (phone.matches) setTab("answer"); return showResult(i.qid, i.result); }
+      if (i.result) { showMode("focus"); return showResult(i.qid, i.result); }
       showRequest(i.qid, i.id);
     }
     /** One Inbox row: the question, what was asked or what waits, a status chip, when, and an unread dot. */
@@ -3303,12 +3304,15 @@
       declined: "Declined", picture: "Pictures", file: "Files", report: "Problems", join: "Joins", merge: "Merges", people: "From Claude", reopen: "Possibly reopened", proposal: "Proposals", suggestion: "Suggestions",
       ready: "Rounds", answer: "Answers", question: "Questions for you", mention: "Mentions", reply: "Replies", request: "Requests", round: "New rounds",
       role: "Roles", votes: "Agreement", reaction: "Reactions", discussion: "Discussions", queue: "Queue" };
+    function ixOffOf(tab) { return [].concat(ui.ixOff[tab] || []); }
+    /** History's page key: which chips are off, so turning one on or off starts the page over. */
+    function histKey() { return "history:" + ixOffOf("history").join(); }
     /** This tab's filter chips, one per kind of item it holds, with counts; a chip turned off hides its kind, remembered on this device. */
     function ixFilter(tab, list) {
-      const off = new Set([].concat(ui.ixOff[tab] || [])), keys = [...new Set(list.map(x => x.ck))];
+      const off = new Set(ixOffOf(tab)), keys = [...new Set(list.map(x => x.ck))];
       sync(ixChips, keys, k => tab + ":" + k, () => {
         const b = btn("vf-btn vf-btn-ghost vf-btn-sm vf-toggle vf-rev-chip");
-        b.onclick = () => { const o = new Set([].concat(ui.ixOff[b._tab] || [])); o.has(b.dataset.stat) ? o.delete(b.dataset.stat) : o.add(b.dataset.stat); ui.ixOff[b._tab] = [...o]; store.put("vf-ix-off", ui.ixOff); render(); };
+        b.onclick = () => { const o = new Set(ixOffOf(b._tab)); o.has(b.dataset.stat) ? o.delete(b.dataset.stat) : o.add(b.dataset.stat); ui.ixOff[b._tab] = [...o]; store.put("vf-ix-off", ui.ixOff); render(); };
         return b;
       }, (b, k) => { b._tab = tab; b.dataset.stat = k; b.textContent = `${CHIP_WORD[k] || k} · ${list.filter(x => x.ck === k).length}`; b.setAttribute("aria-pressed", String(!off.has(k))); });
       ixChips.hidden = keys.length < 2 && !keys.some(k => off.has(k)); // a chip turned off always stays in reach
@@ -3388,7 +3392,7 @@
         popNote.textContent = owner ? "On: it pops up the moment it happens. Off: it waits in Needs you." : "On: it pops up the moment it happens. Off: it waits here.";
         bpUnread.setAttribute("aria-pressed", String(ui.unreadOnly));
         const kept = ixFilter("notes", (ui.unreadOnly ? list.filter(n => !n.read) : list).map(n => ({ ...n, ck: n.kind })));
-        sync(nList, noteMore.page(kept, nList, `notes:${ui.unreadOnly}:${[].concat(ui.ixOff.notes || []).join()}`), n => n.id, () => {
+        sync(nList, noteMore.page(kept, nList, `notes:${ui.unreadOnly}:${ixOffOf("notes").join()}`), n => n.id, () => {
           const li = E("li"), b = btn("vf-nitem");
           const lead = E("span", "vf-nlead"), txt = E("span", "vf-ntxt"), title = E("span", "vf-ntitle"), bodyT = E("span", "vf-nbody"), tm = E("span", "vf-card-time"), dot = E("span", "vf-ndot");
           txt.append(title, bodyT); b.append(lead, txt, tm, dot); li.append(b);
@@ -3416,7 +3420,7 @@
         for (const [kk, b] of Object.entries(muteRows)) { b.hidden = !mod && (kk === "queue" || kk === "ready"); b.setAttribute("aria-checked", String(!muted.has(kk))); }
       } else {
         const h = historyItems(S), all = [...rows.filter(r => !revNeeds(r)).map(r => ({ ...r, ck: r.st })), ...h.q, ...h.ix];
-        const shown = histMore.page(ixFilter("history", all).sort((a, b) => (b.changedTs ?? b.ts) - (a.changedTs ?? a.ts)), histRev, "history:" + [].concat(ui.ixOff.history || []).join());
+        const shown = histMore.page(ixFilter("history", all).sort((a, b) => (b.changedTs ?? b.ts) - (a.changedTs ?? a.ts)), histRev, histKey());
         const sRev = shown.filter(x => x.st), sQ = shown.filter(x => x.t), sIx = shown.filter(x => x.group === "mine");
         histRevBox.hidden = !sRev.length; histRevBox._h.textContent = "Requests to Claude";
         sync(histRev, sRev, r => r.key, makeRev, fillRev);
@@ -3445,8 +3449,9 @@
       const S = Core.state, row = revRows(S).find(r => r.key === key), q = needItems(S).q.find(i => i.id === key);
       const tab = (row ? revNeeds(row) : !!q) ? "needs" : "history", ck = row ? row.st : q?.ck;
       ui.ixTab = tab;
-      if (ck && [].concat(ui.ixOff[tab] || []).includes(ck)) { ui.ixOff[tab] = [].concat(ui.ixOff[tab]).filter(x => x !== ck); store.put("vf-ix-off", ui.ixOff); }
-      if (tab === "history") ui.more["history:" + [].concat(ui.ixOff.history || []).join()] = Infinity;
+      const off = ixOffOf(tab);
+      if (ck && off.includes(ck)) { ui.ixOff[tab] = off.filter(x => x !== ck); store.put("vf-ix-off", ui.ixOff); }
+      if (tab === "history") ui.more[histKey()] = Infinity;
       if (ui.pop !== bellPop) openBell(bellBtn.offsetParent ? bellBtn : tabBtns.more);
       render();
       requestAnimationFrame(() => {
@@ -3488,7 +3493,7 @@
     }
     const REV_WORD = { waiting: "Waiting", running: "Running", failed: "Failed", unshared: "Not shared", shared: "Shared", declined: "Declined" };
     function fillRev(li, row) {
-      const k = li._k, x = row.x, q = qById(row.qid);
+      const k = li._k, x = row.x, q = qById(row.qid), qLine = q ? `${q.id}: ${q.text}` : "";
       li._row = row;
       if (row.r) {
         fillReq(li, row.r);
@@ -3499,10 +3504,10 @@
       } else {
         li._r = null;
         k.kind.textContent = x.own ? "Their own Claude" : "Claude"; k.kind.className = "vf-chip vf-chip-quiet";
-        k.qref.textContent = q ? `${q.id}: ${q.text}` : `${GEN_LABEL}: ${GEN_Q.text}`;
+        k.qref.textContent = qLine || `${GEN_LABEL}: ${GEN_Q.text}`;
         k.who.replaceChildren(...(x.byCid ? whoLine(x.byCid, x.by, x.ts) : [E("span", "vf-card-time", since(x.ts))]));
         k.status.hidden = true; k.fresh.hidden = true; k.tarea.hidden = true;
-        k.text.hidden = !x.ask; if (x.ask) fillClamp(k.text, "rx:" + x.id, x.ask, `What ${disp(x.by || "someone")} asked`, q ? `${q.id}: ${q.text}` : "");
+        k.text.hidden = !x.ask; if (x.ask) fillClamp(k.text, "rx:" + x.id, x.ask, `What ${disp(x.by || "someone")} asked`, qLine);
         for (const b of [k.edit, k.save, k.cancel, k.decline, k.run, k.failB, k.rerun, k.move]) b.hidden = true;
       }
       k.stat.textContent = row.st === "private" ? (x.takenDown ? "Taken down" : "Just me") : REV_WORD[row.st]; k.stat.dataset.stat = row.st;
@@ -3513,7 +3518,7 @@
       k.res.hidden = !x;
       if (!x) return;
       k.rwho.textContent = x.published ? "Everyone sees it" : x.takenDown ? "Taken down: only you and the asker see it" : x.private ? "Just me: only you and the asker see it" : "Only you see it until you share it";
-      fillClamp(k.sum, "rv:" + x.id, x.summary, "Claude's answer", q ? `${q.id}: ${q.text}` : GEN_LABEL);
+      fillClamp(k.sum, "rv:" + x.id, x.summary, "Claude's answer", qLine || GEN_LABEL);
       paintResActs(k, x);
     }
 
@@ -3673,6 +3678,8 @@
     // ---------- attachments: one picker and one renderer for answers, chat, requests, suggestions, proposals and references ----------
     const httpUrl = u => { try { return ["http:", "https:"].includes(new URL(u).protocol) ? u : ""; } catch { return ""; } };
     const domainOf = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
+    function dataBytes(url) { return Uint8Array.from(atob(url.slice(url.indexOf(",") + 1)), c => c.charCodeAt(0)); }
+    function isMyUpload(id) { return (Core.state.myUploads || []).some(u => u.id === id); }
     // C44: an answer, pick, chat message, request, suggestion, proposal or comment carries files (uploads the owner
     // accepted). A received picture shows to whoever sees what carries it, read from the server as a data: URL.
     // The uploader and the owner see a received picture at once; everyone else once the owner approves it (`image` in files).
@@ -3731,7 +3738,7 @@
     const gifStill = (id, src) => {
       if (!src.startsWith("data:image/gif;")) return Promise.resolve(null);
       if (!gifStills.has(id)) gifStills.set(id, (async () => {
-        if ((gifWalk(Uint8Array.from(atob(src.slice(src.indexOf(",") + 1)), c => c.charCodeAt(0)))?.frames || 0) < 2) return null;
+        if ((gifWalk(dataBytes(src))?.frames || 0) < 2) return null;
         const im = new Image(); im.src = src; await im.decode();
         const c = document.createElement("canvas"); c.width = im.naturalWidth; c.height = im.naturalHeight;
         c.getContext("2d").drawImage(im, 0, 0);
@@ -3751,7 +3758,7 @@
     const picWaits = a => {
       const f = fileOf(a);
       return !!f && !f.image && (!!f.awaitsHost || (PIC_EXT.has(f.ext) && ["offered", "accepted", "uploading"].includes(f.status)
-        && (Core.me.isOwner || (Core.state.myUploads || []).some(u => u.id === a.upload))));
+        && (Core.me.isOwner || isMyUpload(a.upload))));
     };
     const isPic = a => !!attAsset(a) || !!fileOf(a)?.image;
     /** The viewer's items for a record's pictures: an asset, or a received upload read from the server. */
@@ -3768,21 +3775,18 @@
       const li = E("li", "vf-ref"), asset = attAsset(a);
       const diagram = a.kind === "diagram";
       li.dataset.kind = asset ? (diagram ? "diagram" : "image") : a.kind === "image" ? "file" : a.kind;
+      const viewBtn = (cls, thumb, label) => { const b = btn(cls); b.append(thumb, E("span", "vf-ref-cap", attTitle(a))); b.setAttribute("aria-label", label); b.onclick = () => open(b); li.append(b); };
       if (asset) {
-        const b = btn("vf-ref-img"), thumb = E("span", "vf-ref-thumb"), img = E("img"), mark = E("span", "vf-confirm-mark");
+        const thumb = E("span", "vf-ref-thumb"), img = E("img"), mark = E("span", "vf-confirm-mark");
         img.src = assetUrl(asset); img.alt = diagram ? a.alt || "" : ""; img.loading = "lazy"; mark.setAttribute("aria-hidden", "true"); markRect(mark, a.rect);
         thumb.append(img, mark, zoomTag());
-        b.append(thumb, E("span", "vf-ref-cap", attTitle(a)));
         // A diagram's button is named by its alt text and caption; a picture's by its caption alone.
-        b.setAttribute("aria-label", diagram ? `View larger: ${attTitle(a)}. ${a.alt || ""}`.trim() : `View larger: ${attTitle(a)}${a.rect ? ", with a marked area" : ""}`);
-        b.onclick = () => open(b);
-        li.append(b);
+        viewBtn("vf-ref-img", thumb, diagram ? `View larger: ${attTitle(a)}. ${a.alt || ""}`.trim() : `View larger: ${attTitle(a)}${a.rect ? ", with a marked area" : ""}`);
       } else if (a.kind === "file" && (fileOf(a)?.image || picWaits(a))) {
         const f = fileOf(a), thumb = E("span", "vf-ref-thumb"), img = E("img");
         img.alt = ""; thumb.append(img);
         li.dataset.kind = "image";
         if (f.image) {
-          const b = btn("vf-ref-img vf-uppic");
           img.hidden = true;
           upPic(a.upload).then(async u => {
             const still = await gifStill(a.upload, u);
@@ -3790,12 +3794,9 @@
             img.hidden = false;
           }).catch(() => {});
           thumb.append(zoomTag());
-          b.append(thumb, E("span", "vf-ref-cap", attTitle(a)));
-          b.setAttribute("aria-label", `View larger: ${attTitle(a)}`);
-          b.onclick = () => open(b);
-          li.append(b);
+          viewBtn("vf-ref-img vf-uppic", thumb, `View larger: ${attTitle(a)}`);
           if (open.approvable && Core.me.isOwner && !upShown(a)) li.append(approveBtn(a.upload));
-          if (open.removable && (Core.me.isOwner || (Core.state.myUploads || []).some(u => u.id === a.upload))) li.append(removeBtn(a.upload, f.file));
+          if (open.removable && (Core.me.isOwner || isMyUpload(a.upload))) li.append(removeBtn(a.upload, f.file));
         } else {
           // Not received yet: only its uploader and the host see this, with the thumbnail this browser made, if any.
           const box = E("div", "vf-ref-img vf-uppic vf-uppic-wait"), local = localPics.get(a.upload) || "";
@@ -4194,13 +4195,14 @@
       s.append(bg, p);
       return s;
     }
+    function myCardAnchor() { return people.querySelector(".vf-person-me") || (gear.offsetParent ? gear : askTop); }
     function openDevice() {
       const link = Core.personalLink();
       if (!link) return flash("Join first, then you can take this to another device.");
       devField.value = link;
       qrBox.replaceChildren(qrSvg(link));
       devWarn.replaceChildren(icon("alert"), E("span", null, "Keep this private: anyone with this link can answer, vote and chat as you."));
-      openSurface(devicePop, people.querySelector(".vf-person-me") || (gear.offsetParent ? gear : askTop));
+      openSurface(devicePop, myCardAnchor());
       devCopy.focus({ preventScroll: true });
     }
     devCopy.onclick = () => copyOut(devField.value, "Link copied. Open it on your other device.", "Your link", devCopy, devField);
@@ -4240,7 +4242,7 @@
       for (const el of [pairQr, pairCode, pairWhen, pairRow]) el.hidden = dev;
       delete pairList.dataset.sig;
       fillPairList();
-      openSurface(pairPop, people.querySelector(".vf-person-me") || (gear.offsetParent ? gear : askTop));
+      openSurface(pairPop, myCardAnchor());
       if (!dev) newPairCode();
     }
 
@@ -4319,19 +4321,20 @@
       } catch {}
       return "";
     }
+    function stem(name) { return name.replace(/\.[^.]*$/, ""); }
     /** A picture as this browser redraws it before it is offered: at most 1600 px and 512 KB (shrinkShot), so no
      *  metadata (EXIF, GPS) survives and others can be shown it; the name keeps its stem with the new kind's extension. */
     async function redrawn(file, avatar = false) {
       const shot = await (avatar ? shrinkShot(file, AVATAR_EDGE, AVATAR_MAX, true) : shrinkShot(file)).catch(() => { throw { error: `${file.name} could not be read as a picture.` }; });
-      const type = shot.url.slice(5, shot.url.indexOf(";")), bytes = Uint8Array.from(atob(shot.url.slice(shot.url.indexOf(",") + 1)), c => c.charCodeAt(0));
-      return new File([bytes], `${file.name.replace(/\.[^.]*$/, "")}.${type === "image/webp" ? "webp" : "jpg"}`, { type });
+      const type = shot.url.slice(5, shot.url.indexOf(";"));
+      return new File([dataBytes(shot.url)], `${stem(file.name)}.${type === "image/webp" ? "webp" : "jpg"}`, { type });
     }
     /** A GIF as offered: whole, with only its frames, their timing and the loop count, at most SHOWN_MAX so it shows in place. A
      *  redraw would keep only its first frame. */
     async function bareGif(file) {
       const g = gifWalk(new Uint8Array(await file.arrayBuffer()));
       if (!g?.whole) throw { error: `${file.name} could not be read as a GIF.` };
-      const out = new File(g.parts, `${file.name.replace(/\.[^.]*$/, "")}.gif`, { type: "image/gif" });
+      const out = new File(g.parts, `${stem(file.name)}.gif`, { type: "image/gif" });
       if (out.size > SHOWN_MAX) throw { error: `${file.name} is ${sizeTxt(out.size)}. A GIF shows in place up to 512 KB.` };
       return out;
     }
@@ -4362,7 +4365,7 @@
       for (const u of Core.state.myUploads || []) {
         if (["declined", "withdrawn", "failed", "done"].includes(u.status)) { if (up.files.has(u.id)) forget(u.id); continue; }
         const f = up.files.get(u.id);
-        if ((u.status === "accepted" || u.status === "uploading") && f && !up.running.has(u.id) && !(Date.now() < (up.retryAt[u.id] || 0))) runUpload(u, f);
+        if ((u.status === "accepted" || u.status === "uploading") && f && !up.running.has(u.id) && Date.now() >= (up.retryAt[u.id] || 0)) runUpload(u, f);
       }
     }
     async function runUpload(u, file) {
@@ -4436,30 +4439,31 @@
       else { k.thumb.hidden = true; k.ico.hidden = false; }
       const q = u.qid && qById(u.qid);
       const where = q ? ` · ${q.id}` : u.avatar ? " · Profile picture" : "";
+      const offered = u.status === "offered", moving = u.status === "uploading" || u.status === "accepted", lost = mine && up.loaded && !up.files.has(u.id);
       let s = UPSTAT[u.status] || u.status;
       if (u.status === "uploading" || (u.status === "accepted" && bytes)) s = `Sending, ${pct}%`;
       if (u.status === "failed" && u.reason) s = `Failed: ${u.reason}`;
-      if (mine && u.status === "offered" && up.loaded && !up.files.has(u.id)) s = "This browser no longer has the file. Withdraw it and offer it again.";
-      if (mine && (u.status === "accepted" || u.status === "uploading") && up.loaded && !up.files.has(u.id)) s = "Open this session in the browser that offered it to send it.";
-      if (mine && up.memOnly.has(u.id) && u.status === "offered") s = "Waiting for the host. Keep this tab open: this browser cannot store it.";
+      if (lost && offered) s = "This browser no longer has the file. Withdraw it and offer it again.";
+      if (lost && moving) s = "Open this session in the browser that offered it to send it.";
+      if (mine && up.memOnly.has(u.id) && offered) s = "Waiting for the host. Keep this tab open: this browser cannot store it.";
       if (host && !mine) s = `${disp(u.by)}${where} · ${u.status === "done" ? "Saved on the host's computer" : s}`;
       else if (where) s += where;
       k.stat.textContent = s;
-      const moving = u.status === "uploading" || u.status === "accepted";
       k.bar2.hidden = !(moving || u.status === "done");
       k.bar2.firstChild.style.transform = `scaleX(${u.status === "done" ? 1 : pct / 100})`;
       k.bar2.setAttribute("aria-valuenow", String(u.status === "done" ? 100 : pct)); k.bar2.setAttribute("aria-label", `${u.file} sent`);
       li.dataset.stat = u.status;
-      k.accept.hidden = !(host && Core.me.isOwner && u.status === "offered");
-      k.decline.hidden = !(host && Core.me.isOwner && ["offered", "accepted", "uploading"].includes(u.status));
-      k.withdraw.hidden = !(mine && ["offered", "accepted", "uploading"].includes(u.status));
+      const decides = host && Core.me.isOwner;
+      k.accept.hidden = !(decides && offered);
+      k.decline.hidden = !(decides && (offered || moving));
+      k.withdraw.hidden = !(mine && (offered || moving));
       k.remove.hidden = !((mine || Core.me.isOwner) && u.status === "done");
-      k.approve.hidden = !(host && Core.me.isOwner && !mine && u.status === "done" && u.image && !u.shown);
+      k.approve.hidden = !(decides && !mine && u.status === "done" && u.image && !u.shown);
       if (!k.approve.hidden) k.stat.textContent = `${disp(u.by)}${u.avatar ? " · Profile picture" : ""} · Received. Approve the picture before others see it.`;
     }
     /** Progress moves between polls: repaint just the rows. */
     function paintUploads() {
-      for (const list of [upStrip, apFiles, queueList]) for (const li of list.children) if (li._u) fillUpRow(li._k ? li : li, li._u);
+      for (const list of [upStrip, apFiles, queueList]) for (const li of list.children) if (li._u) fillUpRow(li, li._u);
     }
     // One attach picker on every form; the answer keeps a draft list per question, prefilled from my answer.
     ui.attDraft = {};
@@ -4623,18 +4627,20 @@
     // Picking another option moves my pick (one vote per question); only Undo clears it. Pressing my own pick does nothing.
     // A comment rides along with a new pick; my own option's text does not (it was the option, not a comment).
     const keptComment = (q, rec) => (q.format === "choice" && !rec?.other ? rec?.text || "" : "");
+    /** What is written in a question's answer field: the field itself on the question in view, else its saved draft. */
+    function answerDraft(qid) { return qid === ui.cur ? ta.value : ui.drafts[qid] || ""; }
     /** The comment, and the files, written before the first pick on a poll or pick-many question (follow-up 26): what
      *  that pick sends with it, or null. */
     function earlyOf(q, rec) {
       if (!commentFirst(q) || savedPick(q, rec) || rec?.other) return null;
-      const comment = (q.id === ui.cur ? ta.value : ui.drafts[q.id] || "").trim(), att = ui.attDraft[q.id];
+      const comment = answerDraft(q.id).trim(), att = ui.attDraft[q.id];
       if (!comment && !att?.length) return null;
       return { comment, ...(att?.length ? { attachments: att.map(a => a.upload).filter(Boolean) } : {}) };
     }
     /** Sent: the files leave the draft; the text does too, unless more was typed while the pick was on its way. */
     function sentEarly(qid, sent) {
       if (sent.attachments) delete ui.attDraft[qid];
-      if ((ui.cur === qid ? ta.value : ui.drafts[qid] || "").trim() === sent.comment) {
+      if (answerDraft(qid).trim() === sent.comment) {
         delete ui.drafts[qid];
         if (ui.cur === qid) { ui.dirty = false; ta.value = Core.myAnswer(qid); Kit.grow(ta); }
       }
@@ -4645,8 +4651,9 @@
     const pickOpt = (optId, qid = ui.cur) => {
       const rec = myRec(qid), q = qById(qid);
       if (!q || readOnly(q) || Core.lockOf(qid) || rec?.pick === optId) return;
-      if (optionsOf(q).find(x => x.id === optId)?.other) return openOther(qid);
-      const label = optionsOf(q).find(x => x.id === optId)?.label || "it";
+      const opt = optionsOf(q).find(x => x.id === optId);
+      if (opt?.other) return openOther(qid);
+      const label = opt?.label || "it";
       const early = earlyOf(q, rec);
       if (earlyWaits(qid, early)) return;
       Core.pickWith(qid, { option: optId }, early || { comment: keptComment(q, rec) }).then(() => { if (early) sentEarly(qid, early); announce(rec?.pick ? `Your choice moved to ${label}.` : `You picked ${label}.`); armAdvance(qid); }).catch(fail);

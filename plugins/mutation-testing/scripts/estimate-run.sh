@@ -26,15 +26,14 @@ usage() {
 n="" s=""
 while (($#)); do
   case "$1" in
-  --mutants | --seconds)
-    (($# >= 2)) || usage
-    if [[ "$1" == --mutants ]]; then
-      [[ -z "$n" ]] || usage
-      n="$2"
-    else
-      [[ -z "$s" ]] || usage
-      s="$2"
-    fi
+  --mutants)
+    (($# >= 2)) && [[ -z "$n" ]] || usage
+    n="$2"
+    shift 2
+    ;;
+  --seconds)
+    (($# >= 2)) && [[ -z "$s" ]] || usage
+    s="$2"
     shift 2
     ;;
   *) usage ;;

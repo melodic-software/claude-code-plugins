@@ -74,8 +74,8 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_KINDS="$SCRIPT_DIR/../skills/principles/reference/scaling-and-suppression.md"
-US="$(printf '\037')"
-TAB="$(printf '\t')"
+US=$'\037'
+TAB=$'\t'
 
 usage() {
   sed -n '2,71{s/^# \{0,1\}//;p;}' "${BASH_SOURCE[0]}"
@@ -115,9 +115,9 @@ is_calendar_iso_date() {
 digest16() {
   local out
   if command -v sha256sum >/dev/null 2>&1; then
-    out="$(printf '%s' "$1" | sha256sum | awk '{print $1}')"
+    out="$(printf '%s' "$1" | sha256sum)"
   elif command -v shasum >/dev/null 2>&1; then
-    out="$(printf '%s' "$1" | shasum -a 256 | awk '{print $1}')"
+    out="$(printf '%s' "$1" | shasum -a 256)"
   else
     return 2
   fi
@@ -170,7 +170,7 @@ parse_record() {
       if (entry_open) printf "X%s%s\n", tab, msg
       else printf "F%s%s\n", tab, msg
     }
-    function flush_site(   ) {
+    function flush_site() {
       if (!site_open) return
       site_open = 0
       if (site_surface == "") { err("a site carries no surface"); return }
@@ -271,16 +271,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --)
     shift
-    while [[ $# -gt 0 ]]; do
-      records+=("$1")
-      shift
-    done
+    [[ $# -eq 0 ]] || records+=("$@")
+    break
     ;;
-  -)
-    records+=("-")
-    shift
-    ;;
-  -*)
+  -?*)
     die "unknown argument: $1"
     ;;
   *)
@@ -296,8 +290,8 @@ digest16 probe >/dev/null || die "neither sha256sum nor shasum is available"
 
 kinds="$(read_kinds "$kinds_file")"
 [[ -n "$kinds" ]] || die "no node kinds found in $kinds_file"
-kinds_flat="$(printf '%s' "$kinds" | tr '\n' ' ')"
-kinds_list="$(printf '%s' "$kinds_flat" | sed 's/ *$//; s/ /, /g')"
+kinds_flat="${kinds//$'\n'/ }"
+kinds_list="${kinds//$'\n'/, }"
 
 is_kind() {
   case " $kinds_flat " in
@@ -337,9 +331,7 @@ grade_entry() {
     while IFS="$TAB" read -r surface anchor; do
       [[ -n "$surface" ]] || continue
       joined="$joined$US$surface$US$anchor"
-    done <<EOF
-$(printf '%s' "$cur_sites" | LC_ALL=C sort)
-EOF
+    done < <(printf '%s' "$cur_sites" | LC_ALL=C sort)
     derived="$(digest16 "$joined")"
     if [[ "$derived" != "$cur_id" ]]; then
       [[ -n "$verdict" ]] || verdict="mismatch"
@@ -349,13 +341,10 @@ EOF
 
   if [[ -n "$has_claim" ]]; then
     local kind=""
-    case "$cur_claim" in
-    "arid(kind="*")")
+    if [[ "$cur_claim" == "arid(kind="*")" ]]; then
       kind="${cur_claim#arid(kind=}"
       kind="${kind%)}"
-      ;;
-    *) ;;
-    esac
+    fi
     if [[ -z "$kind" ]]; then
       [[ -n "$verdict" ]] || verdict="malformed"
       detail="${detail:+$detail; }claim is not the canonical arid(kind=<node-kind>)"
@@ -373,11 +362,10 @@ EOF
     printf 'ok %s\n' "$cur_id"
     ok_count=$((ok_count + 1))
   fi
-
-  cur_id=""
 }
 
 reset_entry() {
+  cur_id=""
   cur_check=""
   cur_claim=""
   cur_sites=""
@@ -389,7 +377,6 @@ reset_entry() {
   site_count=0
 }
 
-cur_id=""
 reset_entry
 
 stdin_copy=""
@@ -458,9 +445,7 @@ for record in "${records[@]}"; do
     X) cur_defects="${cur_defects:+$cur_defects; }$f1" ;;
     *) ;;
     esac
-  done <<EOF
-$stream
-EOF
+  done <<<"$stream"
   grade_entry
   reset_entry
 done

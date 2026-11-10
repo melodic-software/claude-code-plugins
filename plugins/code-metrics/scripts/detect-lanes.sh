@@ -154,7 +154,6 @@ done
 
 for file in "${FILES[@]}"; do
   normalized="${file//\\//}"
-  lane=""
   if [[ -n "${GLOB_LANE_OF[$file]:-}" ]]; then
     lane="${GLOB_LANE_OF[$file]}"
   else

@@ -1520,14 +1520,21 @@ export const refsClosedComment = (pr) =>
 // A work-resolve-issue run title that names an issue ends with ` #<number>`.
 const NAMES_ISSUE = / #[1-9][0-9]*$/;
 
+// A label window as the `created=a..b` listing filter reads it: both ends cut
+// to the second, and both inclusive, as GitHub's `n..n` range is.
+const runWindow = (addedAt) => [Math.floor(addedAt / 1000) * 1000, Math.floor((addedAt + RUN_WINDOW_MS) / 1000) * 1000];
+const laneRunsPath = (repo, [from, to]) => {
+  const iso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+  return `/repos/${repo}/actions/workflows/work-resolve-issue.yml/runs?event=issues&created=${encodeURIComponent(`${iso(from)}..${iso(to)}`)}`;
+};
+const runTitle = (run) => String(run.display_title ?? "");
+
 // The work-resolve-issue runs for issue `number` created within RUN_WINDOW_MS
 // of the label event at `addedAt`, as `mine`. The run title ends with
 // ` #<number>`; `untitled` counts the runs in the window whose title names no
 // issue (titles from before that run name), which may include this issue's.
-async function laneRuns(actions, repo, number, addedAt) {
-  const iso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
-  const created = encodeURIComponent(`${iso(addedAt)}..${iso(addedAt + RUN_WINDOW_MS)}`);
-  const path = `/repos/${repo}/actions/workflows/work-resolve-issue.yml/runs?event=issues&created=${created}`;
+export async function laneRuns(actions, repo, number, addedAt) {
+  const path = laneRunsPath(repo, runWindow(addedAt));
   const runs = [];
   for (let page = 1; page <= 10; page += 1) {
     const batch = (await actions("GET", `${path}&per_page=100&page=${page}`))?.workflow_runs;
@@ -1536,14 +1543,80 @@ async function laneRuns(actions, repo, number, addedAt) {
     }
     runs.push(...batch);
     if (batch.length < 100) {
-      const title = (run) => String(run.display_title ?? "");
       return {
-        mine: runs.filter((run) => title(run).endsWith(` #${number}`)),
-        untitled: runs.filter((run) => !NAMES_ISSUE.test(title(run))).length,
+        mine: runs.filter((run) => runTitle(run).endsWith(` #${number}`)),
+        untitled: runs.filter((run) => !NAMES_ISSUE.test(runTitle(run))).length,
       };
     }
   }
   throw new Error("the workflow run listing has more than 10 pages");
+}
+
+// Label windows closer than this share one listing. At about 75 lane runs an
+// hour, an hour's gap adds about one page, the call a second listing costs.
+const CLUSTER_GAP_MS = 60 * 60_000;
+// The listing filtered by `created` answers at most 1,000 runs.
+const LISTING_CAP = 1000;
+
+// The runs of one cluster's listing, or null when it holds more than the
+// listing answers, so each of its issues is listed on its own.
+async function clusterRuns(actions, repo, cluster) {
+  const path = laneRunsPath(repo, [cluster.from, cluster.to]);
+  const runs = [];
+  for (let page = 1; page <= LISTING_CAP / 100; page += 1) {
+    const answer = await actions("GET", `${path}&per_page=100&page=${page}`);
+    const batch = answer?.workflow_runs;
+    if (!Array.isArray(batch)) {
+      throw new Error("the workflow run listing has an unexpected shape");
+    }
+    if (Number(answer.total_count) > LISTING_CAP) {
+      return null;
+    }
+    runs.push(...batch);
+    if (batch.length < 100) {
+      return runs;
+    }
+  }
+  return null;
+}
+
+// laneRuns for each label time in `addedAts`, from one listing per cluster of
+// near windows, read once when an issue first asks and never reused by another
+// sweep, so status and updated_at are this sweep's. An issue whose window no
+// cluster holds, or whose cluster is too big to list, is listed on its own.
+export function sharedLaneRuns(actions, repo, addedAts) {
+  const clusters = [];
+  for (const [from, to] of addedAts.filter(Number.isFinite).map(runWindow).sort((a, b) => a[0] - b[0])) {
+    const last = clusters.at(-1);
+    if (last && from - last.to <= CLUSTER_GAP_MS) {
+      last.to = Math.max(last.to, to);
+    } else {
+      clusters.push({ from, to, runs: undefined });
+    }
+  }
+  return async (number, addedAt) => {
+    const [from, to] = runWindow(addedAt);
+    const cluster = clusters.find((item) => item.from <= from && to <= item.to);
+    if (cluster) {
+      // A failed listing is not kept: the next issue in the cluster reads again.
+      cluster.runs ??= clusterRuns(actions, repo, cluster).catch((error) => {
+        cluster.runs = undefined;
+        throw error;
+      });
+      const runs = await cluster.runs;
+      if (runs) {
+        const inWindow = runs.filter((run) => {
+          const at = Date.parse(run.created_at);
+          return at >= from && at <= to;
+        });
+        return {
+          mine: inWindow.filter((run) => runTitle(run).endsWith(` #${number}`)),
+          untitled: inWindow.filter((run) => !NAMES_ISSUE.test(runTitle(run))).length,
+        };
+      }
+    }
+    return laneRuns(actions, repo, number, addedAt);
+  };
 }
 
 // How every one of `runs` (completed) did no work in its latest attempt, or
@@ -1930,7 +2003,7 @@ function pullRefusal({ pull, number, comments, events, bot, held }) {
 
 // Why an agent-ready issue whose newest label has no marker after it is not
 // re-fired or handed off now, or null with what to do.
-async function refireRefusal({ github, actions, jobLog, carry, repo, number, issue, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped }) {
+async function refireRefusal({ github, actions, jobLog, carry, repo, number, issue, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped, runsOf }) {
   if (!trustedLabeler(lastAdd, { bot, humans })) {
     return { reason: `${LABEL} was added by neither a listed human nor the lanes App` };
   }
@@ -2020,7 +2093,7 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
     }
     return { reason: null, resets: since, refire: key, recorded: fired.length > 0, cause: strandedCause[cause](hours) };
   };
-  const { mine: runs, untitled } = await laneRuns(actions, repo, number, addedAt);
+  const { mine: runs, untitled } = await runsOf(number, addedAt);
   if (runs.length === 0) {
     return untitled > 0
       ? {
@@ -2093,7 +2166,7 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
 // re-fired (after a failed run), or null with the time it has waited since.
 // Every fact is read from the API this sweep; `read` lists the issue's
 // comments or events once, shared with the recurrence check.
-async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read, statusOf }) {
+async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read, statusOf, runsOf }) {
   // The holds as the Work status field decides them, so a hold set only on
   // the field stops here too.
   const holds = (await fieldNamesOf(statusOf, issue)).filter((label) => HOLDS.has(label));
@@ -2121,7 +2194,7 @@ async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot
   const lastAdd = events.filter((event) => isLabel(event, "labeled")).at(-1);
   const addedAt = Date.parse(lastAdd?.created_at);
   if (Number.isFinite(addedAt) && (marker === undefined || addedAt > marker.at)) {
-    return refireRefusal({ github, actions, jobLog, carry, repo, number: issue.number, issue, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped });
+    return refireRefusal({ github, actions, jobLog, carry, repo, number: issue.number, issue, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped, runsOf });
   }
   if (held) {
     return { reason: `held by ${HUMAN_LABEL}` };
@@ -2225,20 +2298,48 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
   // opened it, is work done off the lane: admission's own check, read only
   // for an issue about to be re-fired, and as none when the read fails.
   const doneBy = mergedRefsReader({ github, repository: repo, numbers: open.map((item) => Number(item.number)), humans, appId });
+  // Each issue's comments and events, listed once a sweep.
+  const listings = new Map();
+  const readsOf = (issue) => {
+    if (!listings.has(issue.number)) {
+      const listed = {};
+      // The events carry the Work status field's changes (eventsOf), so a hold
+      // set only on the field has its setter read, and its moves onto and off
+      // agent-ready as agent-ready label events (agentReadyEvents).
+      const history = async () => {
+        const events = await eventsOf(github, repo, statusOf, issue.number);
+        return fieldRows ? mergeByTime(events, agentReadyEvents(await fieldRows(issue.number), { field, bot, humans })) : events;
+      };
+      const read = (kind) => (listed[kind] ??= kind === "events" ? history() : paginate(github, `/repos/${repo}/issues/${issue.number}/${kind}`));
+      listings.set(issue.number, Object.assign(read, { forget: (kind) => delete listed[kind] }));
+    }
+    return listings.get(issue.number);
+  };
+  // The lane runs of every agent-ready issue's newest label, from one shared
+  // listing (sharedLaneRuns) planned when an issue first asks: each issue's
+  // events are read then, in order, and an issue whose read fails is listed on
+  // its own and reads its events again when its turn comes.
+  let lanes;
+  const plan = async () => {
+    const addedAts = [];
+    for (const issue of open) {
+      const read = readsOf(issue);
+      try {
+        const lastAdd = (await read("events")).filter((event) => isLabel(event, "labeled")).at(-1);
+        addedAts.push(Date.parse(lastAdd?.created_at));
+      } catch {
+        read.forget("events");
+      }
+    }
+    return sharedLaneRuns(actions, repo, addedAts);
+  };
+  const runsOf = async (number, addedAt) => (await (lanes ??= plan()))(number, addedAt);
   for (const issue of open) {
-    const listed = {};
-    // The events carry the Work status field's changes (eventsOf), so a hold
-    // set only on the field has its setter read, and its moves onto and off
-    // agent-ready as agent-ready label events (agentReadyEvents).
-    const history = async () => {
-      const events = await eventsOf(github, repo, statusOf, issue.number);
-      return fieldRows ? mergeByTime(events, agentReadyEvents(await fieldRows(issue.number), { field, bot, humans })) : events;
-    };
-    const read = (kind) => (listed[kind] ??= kind === "events" ? history() : paginate(github, `/repos/${repo}/issues/${issue.number}/${kind}`));
+    const read = readsOf(issue);
     try {
       const verdict =
         (await recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, read, statusOf })) ??
-        (await restartRefusal({ github, actions, jobLog, carry, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read, statusOf }));
+        (await restartRefusal({ github, actions, jobLog, carry, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read, statusOf, runsOf }));
       const { reason, fail } = verdict;
       if (fail) {
         // The fail route: the comment first and the field write last, so the

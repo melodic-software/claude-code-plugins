@@ -95,6 +95,10 @@ function tables(text) {
   return out.filter((t) => t.length > 1).map(([header, ...body]) => ({ header, body }));
 }
 
+const verdictColumn = (header) => header.findIndex((cell) => /^(verdict|classification)$/i.test(cell));
+// A table row's text, led by its verdict cell when the table has a verdict column.
+const rowText = (cells, col) => (col >= 0 ? `${cells[col]} | ${cells.join(" | ")}` : cells.join(" | "));
+
 // The label a piece of answer text carries, or null. A verdict column wins over the rest of the
 // row; prose counts only its uppercase D5 labels, never a paraphrase.
 export function labelOf(text) {
@@ -137,10 +141,10 @@ export function bucketOf(text, prNumber, repo = null) {
 // the whole reply.
 function replyText(body) {
   for (const { header, body: rows } of tables(body)) {
-    const col = header.findIndex((cell) => /^(verdict|classification)$/i.test(cell));
+    const col = verdictColumn(header);
     if (col < 0) continue;
     const row = rows.find((cells) => labelOf(cells[col] ?? "") !== null);
-    if (row) return `${row[col]} | ${row.join(" | ")}`;
+    if (row) return rowText(row, col);
   }
   return body;
 }
@@ -158,9 +162,9 @@ const botLogin = (login) => String(login ?? "").replace(/\[bot\]$/, "");
 function summaryRows(body) {
   const out = [];
   for (const { header, body: rows } of tables(body)) {
-    const col = header.findIndex((cell) => /^(verdict|classification)$/i.test(cell));
+    const col = verdictColumn(header);
     const m = SUMMARY_HEADER.exec(header[0] ?? "");
-    const text = (cells) => (col >= 0 ? `${cells[col]} | ${cells.join(" | ")}` : cells.join(" | "));
+    const text = (cells) => rowText(cells, col);
     if (m) {
       for (const cells of rows) out.push({ lane: m[1], sha: m[2] ?? null, login: null, text: text(cells) });
     } else if (header[0] === "#" && col >= 0) {
@@ -196,10 +200,12 @@ export function normalizeFirstLine(body) {
 
 // ---------------------------------------------------------------- compute
 
-const byTime = (a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : String(a.key) < String(b.key) ? -1 : String(a.key) > String(b.key) ? 1 : 0);
-const emptyOutcomes = () => Object.fromEntries(BUCKETS.map((bucket) => [bucket, 0]));
+const cmp = (x, y) => (x < y ? -1 : x > y ? 1 : 0);
+const byTime = (a, b) => cmp(a.at, b.at) || cmp(String(a.key), String(b.key));
+const zeros = (keys) => Object.fromEntries(keys.map((key) => [key, 0]));
 // The answered outcomes per answer author kind; an unanswered finding has no answerer.
-const emptyByAuthor = () => Object.fromEntries(AUTHOR_KINDS.map((kind) => [kind, { outcomes: Object.fromEntries(ANSWERED.map((bucket) => [bucket, 0])) }]));
+const emptyByAuthor = () => Object.fromEntries(AUTHOR_KINDS.map((kind) => [kind, { outcomes: zeros(ANSWERED) }]));
+const emptyStats = () => ({ findings: 0, reposts: 0, outcomes: zeros(BUCKETS), by_author_kind: emptyByAuthor(), defer_unlinked: 0, resolved_unanswered: 0 });
 
 function laneRounds(reviews) {
   // Heads in order, up to and including the first clean one after the last head with findings;
@@ -211,8 +217,7 @@ function laneRounds(reviews) {
 }
 
 function computePr(pr, until, repo, roundAuthor) {
-  const reviews = {};
-  for (const lane of LANES) reviews[lane] = [];
+  const reviews = Object.fromEntries(LANES.map((lane) => [lane, []]));
   for (const review of pr.reviews ?? []) {
     if (!(review.at < until) || !LANES.includes(review.lane) || !Number.isInteger(review.findings)) continue;
     reviews[review.lane].push({ sha: review.sha, at: review.at, key: review.sha, findings: review.findings, inline: review.inline });
@@ -290,10 +295,7 @@ function computePr(pr, until, repo, roundAuthor) {
     return false;
   };
 
-  const lanes = {};
-  for (const lane of LANES) {
-    lanes[lane] = { findings: 0, reposts: 0, outcomes: emptyOutcomes(), by_author_kind: emptyByAuthor(), defer_unlinked: 0, resolved_unanswered: 0 };
-  }
+  const lanes = Object.fromEntries(LANES.map((lane) => [lane, emptyStats()]));
   for (const f of findings) {
     const stats = lanes[f.lane];
     stats.findings++;
@@ -317,7 +319,7 @@ function computePr(pr, until, repo, roundAuthor) {
   // A round is a comment whose first line is the marker, from the lanes App when the snapshot
   // names it (address-feedback.mjs isRoundMarker); a quote of the marker elsewhere is not one.
   const isRound = (c) => String(c.body).split(/\r?\n/)[0].trim() === ROUND_MARKER && (!roundAuthor || botLogin(c.author) === botLogin(roundAuthor));
-  const markers = (pr.comments ?? []).filter((c) => c.createdAt < until && isRound(c)).length;
+  const markers = comments.filter(isRound).length;
   return {
     number: pr.number,
     lanes,
@@ -343,7 +345,7 @@ export function compute(snapshot) {
     .map((pr) => computePr(pr, until, snapshot.repo, snapshot.round_author ?? null));
   const lanes = {};
   for (const lane of LANES) {
-    const total = { findings: 0, reposts: 0, outcomes: emptyOutcomes(), by_author_kind: emptyByAuthor(), defer_unlinked: 0, resolved_unanswered: 0, inline_mismatch: 0, heads_reviewed: 0 };
+    const total = { ...emptyStats(), inline_mismatch: 0, heads_reviewed: 0 };
     for (const pr of prs) {
       const one = pr.lanes[lane];
       for (const key of ["findings", "reposts", "defer_unlinked", "resolved_unanswered", "inline_mismatch", "heads_reviewed"]) total[key] += one[key];
@@ -431,8 +433,9 @@ function gh(args) {
   try {
     return execFileSync("gh", args, { encoding: "utf8", maxBuffer: 1 << 30, stdio: ["ignore", "pipe", "pipe"] });
   } catch (error) {
-    const why = `${error.stderr ?? ""}${error.stdout ?? ""}`.trim().split("\n")[0] || error.message;
-    if (/rate limit|HTTP 429|secondary rate/i.test(`${error.stderr ?? ""}${error.stdout ?? ""}`)) throw new RateLimited(`gh ${args[1] ?? ""}: ${why}`);
+    const output = `${error.stderr ?? ""}${error.stdout ?? ""}`;
+    const why = output.trim().split("\n")[0] || error.message;
+    if (/rate limit|HTTP 429|secondary rate/i.test(output)) throw new RateLimited(`gh ${args[1] ?? ""}: ${why}`);
     throw new Error(`gh ${args.slice(0, 2).join(" ")}: ${why}`);
   }
 }

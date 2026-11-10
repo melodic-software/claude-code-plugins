@@ -85,9 +85,9 @@ while IFS= read -r -d '' f; do
   esac
 done < <(checks_files)
 ((${#candidates[@]})) || exit 0
-checks_refuse_config_drift .markdownlint-cli2.jsonc .markdownlint-cli2.yaml .markdownlint-cli2.cjs \
-  .markdownlint-cli2.mjs .markdownlint.jsonc .markdownlint.json .markdownlint.yaml .markdownlint.yml \
-  .markdownlint.cjs .markdownlint.mjs -- "${candidates[@]}" || exit 1
+config_names=(.markdownlint-cli2.jsonc .markdownlint-cli2.yaml .markdownlint-cli2.cjs .markdownlint-cli2.mjs
+  .markdownlint.jsonc .markdownlint.json .markdownlint.yaml .markdownlint.yml .markdownlint.cjs .markdownlint.mjs)
+checks_refuse_config_drift "${config_names[@]}" -- "${candidates[@]}" || exit 1
 
 files=()
 gone=()
@@ -115,11 +115,9 @@ done
 
 if ! command -v markdownlint-cli2 >/dev/null 2>&1; then
   first="${files[0]:-${gone[0]}}"
-  first="${first%/*}"
-  [[ "$first" == "${files[0]:-${gone[0]}}" ]] && first=.
-  if bin="$(md_local_bin "$first" .)"; then
-    PATH="$PWD/${bin%/*}:$PATH"
-  fi
+  dir="${first%/*}"
+  [[ "$dir" == "$first" ]] && dir=.
+  bin="$(md_local_bin "$dir" .)" && PATH="$PWD/${bin%/*}:$PATH"
 fi
 checks_require_tool markdownlint-cli2 "npm i -D markdownlint-cli2, or another method at https://github.com/DavidAnson/markdownlint-cli2"
 
@@ -144,13 +142,9 @@ out="$CHECKS_TMP/markdownlint"
 : >"$out"
 rc=0
 lint() {
-  local dir="$1" f one
+  local dir="$1" one
   shift
-  local literal=()
-  for f in "$@"; do
-    literal+=(":$f")
-  done
-  (cd "$dir" && markdownlint-cli2 ${fix[@]+"${fix[@]}"} "${literal[@]}") >>"$out" 2>&1
+  (cd "$dir" && markdownlint-cli2 ${fix[@]+"${fix[@]}"} "${@/#/:}") >>"$out" 2>&1
   one=$?
   ((one > rc)) && rc=$one
   return 0
@@ -168,9 +162,7 @@ mirror() {
   local root="$CHECKS_TMP/staged" rel=. rest="$1" name
   mkdir -p "$root"
   while :; do
-    for name in .markdownlint-cli2.jsonc .markdownlint-cli2.yaml .markdownlint-cli2.cjs .markdownlint-cli2.mjs \
-      .markdownlint.jsonc .markdownlint.json .markdownlint.yaml .markdownlint.yml .markdownlint.cjs .markdownlint.mjs \
-      .gitignore; do
+    for name in "${config_names[@]}" .gitignore; do
       [[ -f "$rel/$name" && ! -e "$root/$rel/$name" ]] && ln -s "$PWD/$rel/$name" "$root/$rel/$name"
     done
     [[ "$rest" == */* ]] || break

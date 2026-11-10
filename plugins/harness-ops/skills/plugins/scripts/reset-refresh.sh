@@ -84,6 +84,14 @@ Exit: 0 preview, or a run with every snapshot identical; 1 a run with a CLI
 failure or a snapshot difference; 2 usage error, refusal or failed move.
 EOF
 }
+die() {
+  echo "ERROR: $*" >&2
+  exit 2
+}
+refuse() {
+  echo "REFUSED: $*" >&2
+  exit 2
+}
 
 MODE="${1:-}"
 [[ $# -gt 0 ]] && shift
@@ -91,10 +99,7 @@ JOURNAL_ROOT="$CLAUDE_DIR/plugins-refresh"
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --journal-root)
-    [[ $# -ge 2 ]] || {
-      echo "ERROR: --journal-root requires a directory" >&2
-      exit 2
-    }
+    [[ $# -ge 2 ]] || die "--journal-root requires a directory"
     JOURNAL_ROOT="$2"
     shift 2
     ;;
@@ -117,20 +122,15 @@ preview | refresh | clean) ;;
   ;;
 esac
 
-if ! command -v jq >/dev/null 2>&1; then
-  echo "ERROR: jq required (install with: winget install jqlang.jq | apt install jq | brew install jq)" >&2
-  exit 2
-fi
+command -v jq >/dev/null 2>&1 ||
+  die "jq required (install with: winget install jqlang.jq | apt install jq | brew install jq)"
 for f in "$INSTALLED_JSON" "$MARKETPLACES_JSON" "$USER_SETTINGS"; do
-  [[ -f "$f" || "$f" == "$USER_SETTINGS" ]] || {
-    echo "ERROR: not found: $f" >&2
-    exit 2
-  }
+  if [[ ! -f "$f" ]]; then
+    [[ "$f" == "$USER_SETTINGS" ]] && continue
+    die "not found: $f"
+  fi
   # An unreadable file would snapshot as empty before and after and compare equal.
-  [[ -f "$f" ]] && ! jq empty "$f" >/dev/null 2>&1 && {
-    echo "ERROR: not valid JSON: $f" >&2
-    exit 2
-  }
+  jq empty "$f" >/dev/null 2>&1 || die "not valid JSON: $f"
 done
 
 # jq with the `\r` a Windows jq prints stripped, so no id carries it into a CLI call.
@@ -147,6 +147,8 @@ non_user_ids() {
 reinstall_ids() { user_ids | grep -v '@builtin$'; }
 marketplace_names() { jqr -r 'keys[]' "$MARKETPLACES_JSON"; }
 size_kb() { du -sk "$1" 2>/dev/null | awk '{print $1}'; }
+# Counts the direct entries of directory $1, narrowed by any further find tests.
+entry_count() { find "$1" -mindepth 1 -maxdepth 1 "${@:2}" | wc -l | tr -d ' '; }
 
 if [[ "$MODE" == "preview" ]]; then
   echo "Preview: refresh would move these aside, then fetch them again"
@@ -161,9 +163,7 @@ if [[ "$MODE" == "preview" ]]; then
   done < <(marketplace_names)
   echo "Marketplace clones: $n (${total} KB)"
   if [[ -d "$PLUGINS_DIR/cache" ]]; then
-    entries=$(find "$PLUGINS_DIR/cache" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')
-    temps=$(find "$PLUGINS_DIR/cache" -mindepth 1 -maxdepth 1 -name 'temp_git_*' | wc -l | tr -d ' ')
-    echo "Cache: $entries entries, $temps temp_git_* ($(size_kb "$PLUGINS_DIR/cache") KB)"
+    echo "Cache: $(entry_count "$PLUGINS_DIR/cache") entries, $(entry_count "$PLUGINS_DIR/cache" -name 'temp_git_*') temp_git_* ($(size_kb "$PLUGINS_DIR/cache") KB)"
   else
     echo "Cache: absent"
   fi
@@ -171,8 +171,7 @@ if [[ "$MODE" == "preview" ]]; then
   echo "Left out (@builtin): $(user_ids | grep -c '@builtin$') id(s)"
   echo "Project/local records, cache moved but not reinstalled: $(non_user_ids | grep -c .) id(s)"
   if [[ -d "$PLUGINS_DIR/data" ]]; then
-    entries=$(find "$PLUGINS_DIR/data" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')
-    echo "clean also discards data/: $entries entries ($(size_kb "$PLUGINS_DIR/data") KB)"
+    echo "clean also discards data/: $(entry_count "$PLUGINS_DIR/data") entries ($(size_kb "$PLUGINS_DIR/data") KB)"
   else
     echo "clean also discards data/: absent"
   fi
@@ -183,55 +182,34 @@ if [[ "$MODE" == "preview" ]]; then
 fi
 
 # --- refresh and clean ---------------------------------------------------------
-if [[ -n "${CLAUDE_CODE_REMOTE:-}" ]]; then
-  echo "REFUSED: CLAUDE_CODE_REMOTE is set; run $MODE from a terminal on this machine" >&2
-  exit 2
-fi
+[[ -z "${CLAUDE_CODE_REMOTE:-}" ]] ||
+  refuse "CLAUDE_CODE_REMOTE is set; run $MODE from a terminal on this machine"
 if [[ "$MODE" == "clean" ]]; then
-  if [[ ! -t 0 ]]; then
-    echo "REFUSED: clean asks before some installs, so it runs only from a terminal, never autonomously" >&2
-    exit 2
-  fi
+  [[ -t 0 ]] || refuse "clean asks before some installs, so it runs only from a terminal, never autonomously"
   for bak in "$CLAUDE_DIR"/plugins.bak-*; do
-    [[ -e "$bak" ]] || continue
-    echo "REFUSED: an earlier backup exists: $bak; remove it yourself, then run clean again" >&2
-    exit 2
+    [[ -e "$bak" ]] && refuse "an earlier backup exists: $bak; remove it yourself, then run clean again"
   done
 fi
 # Git Bash has no pgrep; Windows lists its processes through tasklist.exe. `//` keeps
 # MSYS from rewriting the `/FI` switches as paths.
 case "$(uname -s 2>/dev/null)" in
 MINGW* | MSYS* | CYGWIN*)
-  if ! command -v tasklist.exe >/dev/null 2>&1; then
-    echo "REFUSED: tasklist.exe not found, so no running claude process can be ruled out" >&2
-    exit 2
-  fi
-  if ! listing=$(tasklist.exe //FI "IMAGENAME eq claude.exe" //NH //FO CSV); then
-    echo "REFUSED: tasklist.exe failed, so no running claude process can be ruled out" >&2
-    exit 2
-  fi
+  command -v tasklist.exe >/dev/null 2>&1 ||
+    refuse "tasklist.exe not found, so no running claude process can be ruled out"
+  listing=$(tasklist.exe //FI "IMAGENAME eq claude.exe" //NH //FO CSV) ||
+    refuse "tasklist.exe failed, so no running claude process can be ruled out"
   pids=$(printf '%s\n' "$listing" | tr -d '\r' | awk -F'","' '/^"claude\.exe"/ {print $2}')
-  if [[ -n "$pids" ]]; then
-    echo "REFUSED: a claude process is running (pid ${pids//$'\n'/ }); close every session first" >&2
-    exit 2
-  fi
   ;;
 *)
-  if ! command -v pgrep >/dev/null 2>&1; then
-    echo "REFUSED: pgrep not found, so no running claude process can be ruled out" >&2
-    exit 2
-  fi
+  command -v pgrep >/dev/null 2>&1 ||
+    refuse "pgrep not found, so no running claude process can be ruled out"
   pids=$(pgrep -x claude)
   pgrep_rc=$?
-  if ((pgrep_rc == 0)); then
-    echo "REFUSED: a claude process is running (pid ${pids//$'\n'/ }); close every session first" >&2
-    exit 2
-  elif ((pgrep_rc != 1)); then
-    echo "REFUSED: pgrep failed (exit $pgrep_rc), so no running claude process can be ruled out" >&2
-    exit 2
-  fi
+  ((pgrep_rc > 1)) &&
+    refuse "pgrep failed (exit $pgrep_rc), so no running claude process can be ruled out"
   ;;
 esac
+[[ -z "$pids" ]] || refuse "a claude process is running (pid ${pids//$'\n'/ }); close every session first"
 
 if [[ -z "${RESET_REFRESH_RUN_DIR:-}" ]]; then
   # Judged on the nearest existing ancestor, so a refused root is never created.
@@ -239,13 +217,8 @@ if [[ -z "${RESET_REFRESH_RUN_DIR:-}" ]]; then
   while [[ ! -d "$probe" ]]; do probe=$(dirname "$probe"); done
   plugins_real=$(cd "$PLUGINS_DIR" && pwd -P)
   probe_real=$(cd "$probe" && pwd -P)
-  case "$probe_real/" in
-  "$plugins_real"/*)
-    echo "ERROR: the journal root is inside $PLUGINS_DIR; pick a directory outside it" >&2
-    exit 2
-    ;;
-  *) ;;
-  esac
+  [[ "$probe_real/" != "$plugins_real"/* ]] ||
+    die "the journal root is inside $PLUGINS_DIR; pick a directory outside it"
   mkdir -p "$JOURNAL_ROOT" || exit 2
   root_real=$(cd "$JOURNAL_ROOT" && pwd -P)
   run_dir=$(mktemp -d "$root_real/$(date -u +%Y%m%dT%H%M%SZ).XXXXXX") || exit 2
@@ -363,13 +336,9 @@ install_user() {
   esac
 }
 
-snapshot before || {
-  echo "ERROR: could not snapshot the state files; nothing was moved" >&2
-  exit 2
-}
+snapshot before || die "could not snapshot the state files; nothing was moved"
 if [[ "$MODE" == "clean" ]] && ! snapshot_settings; then
-  echo "ERROR: could not copy the settings files; nothing was moved" >&2
-  exit 2
+  die "could not copy the settings files; nothing was moved"
 fi
 # A read loop, not mapfile: macOS system bash is 3.2.
 IDS=()
@@ -384,10 +353,7 @@ fi
 if [[ "$MODE" == "clean" ]]; then
   # A sibling of plugins/, so each move is a rename on the same filesystem.
   moved="$CLAUDE_DIR/plugins.bak-$(date -u +%Y%m%dT%H%M%SZ)"
-  mkdir "$moved" "$moved/marketplaces" || {
-    echo "ERROR: could not create the backup $moved; nothing was moved" >&2
-    exit 2
-  }
+  mkdir "$moved" "$moved/marketplaces" || die "could not create the backup $moved; nothing was moved"
 else
   moved="$RUN_DIR/moved"
   mkdir -p "$moved/marketplaces" || exit 2

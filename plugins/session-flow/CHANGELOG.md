@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [7.6.4] - 2026-11-10
+
+### Changed
+
+- `/session-flow:workflow`'s design step points at the architecture-decision capability's admission test instead of restating an older copy of it.
+
 ## [7.6.3] - 2026-11-10
 
 ### Changed

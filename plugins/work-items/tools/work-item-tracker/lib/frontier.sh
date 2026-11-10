@@ -47,17 +47,18 @@ wit_filter_frontier() {
     schema_version: .schema_version,
     items: [
       .items[]
+      | (.labels // []) as $labels
       | select(
           .state == "open"
           and .blocked_by_count == 0
           and ((.assignees // []) | length == 0)
-          and (((.labels // []) | index($container)) | not)
-          and (any((.labels // [])[]?; type == "string" and startswith($wayfind)) | not)
+          and (($labels | index($container)) | not)
+          and (any($labels[]?; type == "string" and startswith($wayfind)) | not)
           and (if $auto == "true"
-               then (((.labels // []) | index($human_gated)) | not)
-                    and (((.labels // []) | any(. as $l | $floor | index($l))) | not)
+               then (($labels | index($human_gated)) | not)
+                    and (($labels | any(. as $l | $floor | index($l))) | not)
                     and (((.status | type) == "string" and (.status as $s | $states | index($s))
-                          and (((.labels // []) | any(. as $l | $hold_labels | index($l))) | not)) | not)
+                          and (($labels | any(. as $l | $hold_labels | index($l))) | not)) | not)
                else true
                end)
         )

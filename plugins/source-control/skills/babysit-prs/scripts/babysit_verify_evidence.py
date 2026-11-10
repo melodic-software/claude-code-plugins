@@ -323,6 +323,23 @@ INDEX_RUNS_CAP = 120
 INDEX_NAMES_CAP = 100
 # One line per judgment on stderr: the exact-name reads it made.
 INDEX_READS_PREFIX = "babysit-index-reads"
+# Most exact-name reads answer empty. One read per job of a name nothing
+# uploads gives the empty answer's ETag, kept beside `listing_path`; each
+# first page then sends it as If-None-Match, and GitHub answers an unchanged
+# (empty) name with a 304 that does not count against the primary limit.
+# The ETag follows the body across names, as observed on 2026-11-10 (owner
+# token); GitHub documents ETags per resource, not across names. A seed that
+# fails, or whose body is not exactly empty, is no seed: every read is a 200.
+#   Pointer: <https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api>,
+#   "Use conditional requests".
+#   As-of: 2026-11-10.
+#   Recheck trigger: a name read that sent the seed answers 304 while it holds
+#   an artifact, or no 304 reaches the job's api-budget notice.
+EMPTY_ETAG_SUFFIX = ".empty-etag"
+EMPTY_ETAG_SEED_NAME = "babysit-empty-etag-seed"
+EMPTY_NAMED = {"total_count": 0, "artifacts": []}
+ETAG_RE = re.compile(r'(W/)?"[!#-~]{1,200}"')
+NOT_MODIFIED_RE = re.compile(r"^gh: HTTP 304$", re.MULTILINE)
 # A file holding the pull request's REST record as the caller read it
 # (`merge_policy.cached_pull_request`).
 PULL_ENV = "BABYSIT_VERIFY_PULL"
@@ -1391,6 +1408,9 @@ class Reader:
     # This Reader took the job's over-count whole listing
     # (`OVERCOUNT_FALLBACK_SUFFIX`) and records its outcome there.
     _overcount_mine: bool = False
+    # The job's empty-name ETag (`EMPTY_ETAG_SUFFIX`), once looked up.
+    _empty_etag: str | None = None
+    _empty_etag_looked: bool = False
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
     _created: dict[int, Any] = field(default_factory=dict)
@@ -2069,22 +2089,24 @@ class Reader:
         return read if isinstance(read, tuple) else None
 
     def _api_object(
-        self, path: str, deadline: float
+        self, path: str, deadline: float, empty_etag: str | None = None
     ) -> tuple[dict[str, Any], dict[str, str]] | int | None:
         """The JSON object at `path` and its headers, read again after
         `LISTING_WAITS` while time is left when the read fails transiently
         (`_transient`) or its body is cut short; the HTTP status of any other
         failed answer (None without one), or None once the waits or the time
         run out, with `_page_transient` set when the last read was one of
-        those."""
+        those. With `empty_etag` (`_seed_empty_etag`) the read is conditional
+        and a 304 is `EMPTY_NAMED`."""
         self._page_transient = False
+        conditional = ["-H", f"If-None-Match: {empty_etag}"] if empty_etag else []
         for wait in (*LISTING_WAITS, None):
             left = deadline - _listing_clock()
             if left <= 0:
                 return None
             try:
                 proc, headers = gh_api_with_headers(
-                    ["api", path],
+                    ["api", *conditional, path],
                     timeout_seconds=left,
                     env_overrides=self._env(),
                 )
@@ -2101,6 +2123,9 @@ class Reader:
                     return body, headers
             else:
                 detail = (proc.stderr or "").strip()
+                if conditional and NOT_MODIFIED_RE.search(detail):
+                    self._page_transient = False
+                    return dict(EMPTY_NAMED, artifacts=[]), headers
                 if not _transient(detail):
                     self._page_transient = False
                     return gh_http_status(detail)
@@ -2943,6 +2968,41 @@ class Reader:
             if a["expires_at"] is None or _when(a["expires_at"]) > now
         ]
 
+    def _named_path(self, name: str, page: int) -> str:
+        return (
+            f"repos/{self.repo}/actions/artifacts"
+            f"?name={urllib.parse.quote(name)}&per_page={LISTING_PAGE_SIZE}&page={page}"
+        )
+
+    def _seed_empty_etag(self, deadline: float) -> str | None:
+        """The job's empty-name ETag (`EMPTY_ETAG_SUFFIX`): read from the
+        file beside `listing_path`, else from one read of
+        `EMPTY_ETAG_SEED_NAME` under the Actions token, kept only when its
+        body is exactly `EMPTY_NAMED`. An empty file is a seed that failed;
+        no `listing_path` is no job to seed for. Either way, None."""
+        if self._empty_etag_looked:
+            return self._empty_etag
+        self._empty_etag_looked = True
+        if not self.listing_path:
+            return None
+        path = Path(f"{self.listing_path}{EMPTY_ETAG_SUFFIX}")
+        try:
+            kept = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            read = self._api_object(
+                self._named_path(EMPTY_ETAG_SEED_NAME, 1), deadline
+            )
+            self.index_reads += 1
+            kept = ""
+            if isinstance(read, tuple) and read[0] == EMPTY_NAMED:
+                kept = read[1].get("etag", "")
+            tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+            with contextlib.suppress(OSError):
+                tmp.write_text(kept, encoding="utf-8")
+                os.replace(tmp, path)
+        self._empty_etag = kept if kept and ETAG_RE.fullmatch(kept) else None
+        return self._empty_etag
+
     def _named(self, name: str, deadline: float) -> list[dict[str, Any]]:
         """Every unexpired artifact named exactly `name`, under any run: the
         API's name filter matches whole names. The pages must hold, each id
@@ -2954,9 +3014,9 @@ class Reader:
             page = 1
             while True:
                 read = self._api_object(
-                    f"repos/{self.repo}/actions/artifacts"
-                    f"?name={urllib.parse.quote(name)}&per_page={LISTING_PAGE_SIZE}&page={page}",
+                    self._named_path(name, page),
                     deadline,
+                    self._seed_empty_etag(deadline) if page == 1 else None,
                 )
                 self.index_reads += 1
                 if not isinstance(read, tuple):

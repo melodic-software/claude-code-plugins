@@ -71,11 +71,12 @@ def package_row(data):
 
 
 def model_row(data, model_dir=None):
-    gaps = assets.missing(data, model_dir=model_dir)
-    where = f'{assets.assets_dir(data, model_dir=model_dir)} (set by the {assets.models_root(data, model_dir)[1]})'
+    m = assets.manifest()
+    gaps = assets.missing(data, m, model_dir)
+    where = f'{assets.assets_dir(data, m, model_dir)} (set by the {assets.models_root(data, model_dir)[1]})'
     if not gaps:
         return 'PASS', 'kokoro-model', where
-    size = sum(assets.manifest()['files'][g]['size'] for g in gaps) / 1e6
+    size = sum(m['files'][g]['size'] for g in gaps) / 1e6
     return ('FAIL', 'kokoro-model',
             f'{len(gaps)} of the pinned files are missing from {where} ({size:.0f} MB); run /speech:setup apply '
             'install-model to download them')
