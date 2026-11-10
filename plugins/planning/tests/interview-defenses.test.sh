@@ -716,11 +716,13 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
 # #13185 review: the register gate now names the Brief or summary, so a general session's summary stays gated; Step 4 names PLAN.md as the Brief and case 13's expectation reports the Brief unconfirmed; each is a rename and every gate, halt and blocker rule is unchanged
 # Step 3 gains a closing summary placed before the recap, whose ADR verdicts come from the round's Decision record step and never from the interview applying the test; the confirmation gate, register gate and procedure check are untouched, so the restatement still waits for an explicit confirm
 # Review fixes only: Step 3's ADR verdict line adds the passing part and the declined-under-ask case, and the overrule notes that under ask it is the answer; loop.md item 8 asks record-decision to name the part a recorded decision passes. No constraint-ledger row, process-change definition, confirmation gate, register gate or procedure check changed
+# The closing summary lists the Glossary group first and schedules a new or renamed term as its own reviewed change before plan and decompose; the confirmation gate, register gate and procedure check are untouched, so the restatement still waits for an explicit confirm
+# Only the closing summary Glossary bullet gained a fallback clause for when docs-hygiene is not enabled; the confirmation gate and its exemption text are untouched.
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the Brief" \
-  "2a1a5e1658fa6930bedc9758144e08ceb6584f4367cea47ed403adc46a25658a"
+  "101586e9916d476589a8519aa93cf89121ad517d46278a480aab737027563419"
 # The not-adversarial bullet names the product action as its one exception, pointing at context/product.md; the fudge-prohibition bullet is byte-identical
 # #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
 # #12476: the no-tests bullet names the read-only Run it to settle it step as its one exception; the fudge prohibition line is byte-identical
