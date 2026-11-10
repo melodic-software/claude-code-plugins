@@ -1888,6 +1888,11 @@ GREEN_SPANS = 53
 # records filed close together read the same pages; each record's span is
 # cut from the one or two cells that cover it.
 GREEN_GRID = datetime(2026, 1, 5, 10, tzinfo=UTC)
+# Pages one cell may take. A record's span is still bound by `GREEN_PAGES`;
+# a cell holds the busy days before the record too, and a cell it cannot read
+# whole holds the record where its own span would not have. Main listed 582
+# green dispatch runs in the week from 2026-10-19T10:00:00Z.
+GREEN_CELL_PAGES = 2 * GREEN_PAGES
 # A canary, revert or read-back record, which `_lift` lifts. A canary record
 # may be a post-merge-failure one, which holds nothing but is closed the same
 # way (babysit_lift.py close).
@@ -2089,13 +2094,13 @@ class _GreenMain:
     def _cell(self, event: str, cell: int) -> list[dict[str, Any]]:
         """Every green `event` full run on main created in `GREEN_GRID` cell
         `cell`, both ends included as `created=a..b` includes them, read
-        once; more than `GREEN_PAGES` pages raises, so the earliest is never
-        a guess."""
+        once; more than `GREEN_CELL_PAGES` pages raises, so the earliest is
+        never a guess."""
         if (event, cell) not in self.cells:
             start = GREEN_GRID + cell * GREEN_SPAN
             created = quote(f"{_stamp(start)}..{_stamp(start + GREEN_SPAN)}", safe=":")
             found: list[dict[str, Any]] = []
-            for page in range(1, GREEN_PAGES + 1):
+            for page in range(1, GREEN_CELL_PAGES + 1):
                 answer = self._read(
                     GREEN_RUNS.format(self.owner, self.name, event, created, page)
                 )
@@ -2105,7 +2110,8 @@ class _GreenMain:
                     break
             else:
                 raise PolicyReadError(
-                    f"{event} green runs: more than {GREEN_PAGES} pages"
+                    f"{event} green runs: more than {GREEN_CELL_PAGES} pages"
+                    f" in the week from {_stamp(start)}"
                 )
             self.cells[event, cell] = found
         return self.cells[event, cell]

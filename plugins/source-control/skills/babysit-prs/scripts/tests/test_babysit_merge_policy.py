@@ -1538,6 +1538,8 @@ class AutoClearOnGreen(unittest.TestCase):
         full = {"workflow_runs": [green_run()] * 100}
         for page in range(1, policy.GREEN_PAGES + 1):
             gh.rest[green_runs("schedule", page)] = full
+        # The span is the record's whole grid cell, which lists on past five.
+        gh.rest[green_runs("schedule", policy.GREEN_PAGES + 1)] = {"workflow_runs": []}
         result = read_demotion()
         self.assertEqual((result.active, result.reason), (True, "#9 open"))
 
@@ -2365,11 +2367,11 @@ class SharedGreenGrid(unittest.TestCase):
                 policy.datetime.fromisoformat("2026-10-14T03:30:00Z"),
             )
 
-    def test_a_cell_past_the_page_bound_raises_where_the_span_reads(self) -> None:
-        # 500 runs in the cell before the record: the record's own span holds
+    def test_a_cell_past_its_page_bound_raises_where_the_span_reads(self) -> None:
+        # 1000 runs in the cell before the record: the record's own span holds
         # one run and clears, but the shared cell cannot be read whole.
         runs = [
-            *minutes_from("2026-10-12T11:00:00Z", 500),
+            *minutes_from("2026-10-12T11:00:00Z", 1000),
             grid_run("2026-10-14T05:00:00Z"),
         ]
         self.assertEqual(
@@ -2378,6 +2380,24 @@ class SharedGreenGrid(unittest.TestCase):
         )
         got = self.recovered(policy._GreenMain, runs)
         self.assertIsInstance(got, policy.PolicyReadError)
+        self.assertEqual(
+            str(got),
+            "workflow_dispatch green runs: more than 10 pages"
+            " in the week from 2026-10-12T10:00:00Z",
+        )
+
+    def test_a_busy_week_before_the_record_still_reads(self) -> None:
+        # 998 runs before the record, more than one span may list, and the
+        # green after it fill ten pages less one run: the cell reads whole and
+        # the span clears.
+        runs = [
+            *minutes_from("2026-10-12T11:00:00Z", 998),
+            grid_run("2026-10-14T05:00:00Z"),
+        ]
+        self.assertEqual(
+            self.recovered(policy._GreenMain, runs),
+            policy.datetime.fromisoformat("2026-10-14T05:00:00Z"),
+        )
 
     def read(self, records: dict[int, str], runs: list[dict[str, Any]]) -> Any:
         """`read_demotion` over open red-main records filed at `records`'
