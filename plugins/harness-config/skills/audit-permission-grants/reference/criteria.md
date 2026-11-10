@@ -182,7 +182,7 @@ The two exceptions on Bash rules:
    grant never matches.
 2. **Leading env-assignment stripping**, which is scoped, and scoped differently for allow rules than
    for deny or ask rules. Read which variables are stripped and how each rule kind matches live from
-   [permissions](https://code.claude.com/docs/en/permissions#process-wrappers), as of 2026-10-07;
+   [permissions](https://code.claude.com/docs/en/permissions#wrappers), as of 2026-10-07;
    recheck trigger: that section's env-assignment paragraph changes. Never assume an allow rule
    matches past an assignment that section does not cover.
 

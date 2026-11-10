@@ -177,7 +177,7 @@ Think of subagents as automations for the most common PR workflows:
 - Route permission requests to Opus 4.5 via a hook, letting it scan for attacks and auto-approve the safe ones
 
 > **Superseded:** auto mode's classifier now reviews permission prompts (see
-> [permission modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)),
+> [permission modes](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode)),
 > and the model this tip names is a legacy model. For current models, see
 > [available models](https://code.claude.com/docs/en/model-config#available-models).
 > As of 2026-10-02; recheck when either linked section changes.

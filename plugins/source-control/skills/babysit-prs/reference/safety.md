@@ -417,7 +417,7 @@ Two facts decide the invocation form:
   ([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066)).
 - **The path form cannot match a bare-name allow rule.** Before matching Bash rules Claude Code
   strips only a fixed wrapper set, read at
-  [permissions](https://code.claude.com/docs/en/permissions#process-wrappers).
+  [permissions](https://code.claude.com/docs/en/permissions#wrappers).
   `bash` is not among them (as of 2026-11-04), so `bash "…/scripts/source-control-babysit-merge" …` matches as a `bash`
   command and never satisfies a pre-approved `Bash(source-control-babysit-merge:*)`. That rule does
   not cover these invocations, and cannot while the wrappers have no bare name, so **what happens next is the permission mode's call, not the allow rule's.** Six modes
@@ -442,7 +442,7 @@ Two facts decide the invocation form:
     classifier that approves or blocks them; `dontAsk` auto-denies every call that would otherwise
     have prompted, so an uncovered wrapper invocation is refused outright with no classifier and no
     prompt; `bypassPermissions` executes it immediately
-    ([permission modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)).
+    ([permission modes](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode)).
     **`--permission-prompts none` is the unattended form that keeps the mode.** From Claude Code
     v2.1.259, `claude -p --permission-mode auto --permission-prompts none` leaves auto mode and its
     classifier in place and denies only a call that would have prompted. It is not `dontAsk` (which
@@ -463,7 +463,7 @@ Two facts decide the invocation form:
 
 **Verification record for this block.** The claims above are verified 2026-09-06 against Claude
 Code 2.1.263. The wrapper-strip list and the read-only carve-out come from
-[permissions](https://code.claude.com/docs/en/permissions#process-wrappers), which states that the
+[permissions](https://code.claude.com/docs/en/permissions#wrappers), which states that the
 list "is built in and is not configurable". The mode names, the `manual` alias from v2.1.200, the `acceptEdits`
 filesystem set, and the plan-mode branch on `useAutoModeDuringPlan` being on by default come from
 [permission modes](https://code.claude.com/docs/en/permission-modes#available-modes). The plugin

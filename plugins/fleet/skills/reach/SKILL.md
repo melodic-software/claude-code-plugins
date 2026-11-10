@@ -203,7 +203,7 @@ on-demand tasks FLEET.md lists.
   these prompt under auto mode by design; let them prompt, and say so with every such command you
   run, delegate or hand over. A script is judged on its own content.
   When a prompt's cause is in doubt, fetch
-  [Eliminate prompts with auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
+  [Eliminate prompts with auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode)
   live (as of 2026-10-11; recheck when that section changes what the classifier lets through
   for remote commands).
 - There is no `Bash(ssh ...)` allow rule anywhere in this fleet, and adding one is not the fix for a

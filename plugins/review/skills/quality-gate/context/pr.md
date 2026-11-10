@@ -35,10 +35,10 @@ routinely conflated; they are distinct:
   live.
 
 **Pointer record for the three surfaces above.** Pointer: the managed service's enablement at
-[code-review: set up Code Review](https://code.claude.com/docs/en/code-review#set-up-code-review),
+[code-review: set up and use Code Review](https://code.claude.com/docs/en/code-review#set-up-and-use-code-review),
 and its availability (plans, preview status, excluded configurations) in the note that opens
 [the page](https://code.claude.com/docs/en/code-review), above its first section; its triggers at
-[code-review: manually trigger reviews](https://code.claude.com/docs/en/code-review#manually-trigger-reviews),
+[code-review: request a review](https://code.claude.com/docs/en/code-review-pull-requests#request-a-review),
 its check-run behavior at
 [code-review: check run output](https://code.claude.com/docs/en/code-review-pull-requests#check-run-output); the
 bundled command's arguments and what each mutates at
