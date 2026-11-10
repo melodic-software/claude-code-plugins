@@ -6,13 +6,14 @@ cost. A cheaper model that answers worse is not a saving.
 
 ## The rule
 
-- **No role routes to Haiku until it passes this repository's routing eval**
+- **No role routes to Haiku.** The owner decided this on 2026-11-09 (Evidence
+  so far). Only the owner reopens it, and the evidence for doing so is a pass
+  on this repository's routing eval
   ([#6901](https://github.com/melodic-software/claude-code-plugins/issues/6901))
-  for that role. Passing means matching the role's current default on
-  accuracy at no higher tokens per completed task and no longer wall time. A
-  retry or a re-run counts against the task it completes.
-- **Haiku runs at effort `high` when a role does use it, never `xhigh` or
-  `max`.**
+  for that role: matching the role's current default on accuracy at no higher
+  tokens per completed task and no longer wall time, with a retry or a re-run
+  counted against the task it completes.
+- **Haiku runs at effort `high` wherever it runs, never `xhigh` or `max`.**
 - **No advisor is required.** A Haiku role is judged on its own output, not on
   an advisor model escalating for it.
 - **A judge model the user selects is outside the rule.** The rubric governs

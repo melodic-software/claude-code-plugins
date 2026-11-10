@@ -27,8 +27,8 @@ page.
 
 ## Where Haiku runs here
 
-Our decision: no role, agent, skill, or loop lane in this repository routes to `haiku` until that
-role passes this repository's routing eval; the routing rubric owns the rule. A user who names this
+Our decision: no role, agent, skill, or loop lane in this repository routes to `haiku`, by owner
+decision; the routing rubric owns the rule. A user who names this
 model for a run is outside that rule, so you most often arrive here because a user or an
 orchestrator chose you, under a brief. Read the brief's scope and return contract as binding; this
 chapter does not widen them. The release evidence behind the rule, vendor-reported figures

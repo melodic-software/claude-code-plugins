@@ -394,7 +394,7 @@ role_json() {
   [[ "$model" == inherit ]] && model="$SESSION_MODEL"
   [[ "$fan" == inherit ]] && fan="$SESSION_MODEL"
   if [[ "$model" == haiku || "$fan" == haiku ]]; then
-    NOTES+=("$r: resolves to haiku; no Haiku role until it passes the routing eval (#6901), effort high and never xhigh or max: reference/routing-rubric.md")
+    NOTES+=("$r: resolves to haiku; no role routes to Haiku by owner decision, effort high and never xhigh or max: reference/routing-rubric.md")
   fi
 }
 
