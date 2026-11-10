@@ -43,6 +43,13 @@
       "description": "Whether diagram content may go to a canvas server reached over the network (a remote MCP server). allow (default) permits it where the surface renders a canvas; deny keeps diagrams local or on a local server. deny from any layer wins.",
       "default": "allow",
       "options": ["allow", "deny"]
+    },
+    "diagram_target": {
+      "type": "string",
+      "title": "Preferred diagram target",
+      "description": "Where a diagram is drawn. auto (default) picks by surface; terminal draws an inline Mermaid or ASCII fence; local-page writes a local HTML file; excalidraw or tldraw draws on that connected canvas server. A target that is unavailable, or that hosted_canvas forbids, falls back to auto.",
+      "default": "auto",
+      "options": ["auto", "terminal", "local-page", "excalidraw", "tldraw"]
     }
   }
 }
