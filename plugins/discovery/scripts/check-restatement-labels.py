@@ -112,8 +112,6 @@ LABEL_ON_LINE = {
     for label in LABELS
 }
 SWEEP = re.compile(r"(?<![A-Za-z])(?:every|all|none|only)(?![A-Za-z])", re.IGNORECASE)
-
-
 QUOTE_LABEL = r"(?: \((?:HIGH \(single source\)|HIGH|MEDIUM|LOW)\))?"
 
 
@@ -157,9 +155,13 @@ def claims_block(csa, lines: list[str]) -> range:
     end = start + 1
     while end < len(lines):
         body = lines[end].strip()
-        if body and not body.startswith("#") and csa.indent(lines[end]) == 0:
-            if not csa.DASH.match(body):
-                break
+        if (
+            body
+            and not body.startswith("#")
+            and csa.indent(lines[end]) == 0
+            and not csa.DASH.match(body)
+        ):
+            break
         end += 1
     return range(start, end)
 
@@ -210,11 +212,10 @@ def abstract_violations(csa, index: Path, sidecars, headers, declared, opener) -
         # Another bullet may open with the same prefix, so one exact copy suffices.
         if any(line[len(key) :] == value for _, line in mirrors):
             continue
-        for n, line in mirrors:
-            if line[len(key) :] != value:
-                violations.append(
-                    f"{index}:{n}: abstract line differs from {sidecar.name}'s abstract"
-                )
+        violations.extend(
+            f"{index}:{n}: abstract line differs from {sidecar.name}'s abstract"
+            for n, _ in mirrors
+        )
     return violations
 
 

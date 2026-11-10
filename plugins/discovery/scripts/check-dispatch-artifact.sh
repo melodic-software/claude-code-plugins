@@ -136,6 +136,14 @@ canonical() {
   fi
 }
 
+# need_value <remaining-arg-count> <error>: a flag with no value is a usage error.
+need_value() {
+  if [[ "$1" -lt 2 ]]; then
+    echo "error: $2" >&2
+    exit 2
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --help | -h)
@@ -143,10 +151,7 @@ while [[ $# -gt 0 ]]; do
     exit 0
     ;;
   --index-name)
-    if [[ $# -lt 2 ]]; then
-      echo "error: --index-name requires an index filename (EXPLORE.md or RESEARCH.md)" >&2
-      exit 2
-    fi
+    need_value $# "--index-name requires an index filename (EXPLORE.md or RESEARCH.md)"
     # The name is not just echoed — its stem becomes the sidecar-matching
     # pattern below, so it is constrained to characters that carry no meaning in
     # an ERE. A name with a `.` or a `*` in its stem would silently widen that
@@ -159,26 +164,17 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   --newer-than)
-    if [[ $# -lt 2 ]]; then
-      echo "error: --newer-than requires a baseline file path" >&2
-      exit 2
-    fi
+    need_value $# "--newer-than requires a baseline file path"
     newer_than="$2"
     shift 2
     ;;
   --expect-index)
-    if [[ $# -lt 2 ]]; then
-      echo "error: --expect-index requires the payload's artifact: path" >&2
-      exit 2
-    fi
+    need_value $# "--expect-index requires the payload's artifact: path"
     expect_index="$2"
     shift 2
     ;;
   --expect-sidecars)
-    if [[ $# -lt 2 ]]; then
-      echo "error: --expect-sidecars requires a count" >&2
-      exit 2
-    fi
+    need_value $# "--expect-sidecars requires a count"
     if [[ ! "$2" =~ ^[0-9]+$ ]]; then
       echo "error: --expect-sidecars takes a non-negative integer, got: $2" >&2
       exit 2
