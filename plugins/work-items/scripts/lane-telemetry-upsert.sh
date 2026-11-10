@@ -162,39 +162,12 @@ while (($#)); do
   --lane=* | --instance=* | --repo=* | --issue=* | --body-file=* | --body-dir=* | --app-slug=*)
     set -- "${1%%=*}" "${1#*=}" "${@:2}"
     ;;
-  --lane)
+  --lane | --instance | --repo | --issue | --body-file | --body-dir | --app-slug)
     require_value "$@"
-    LANE="$2"
-    shift 2
-    ;;
-  --instance)
-    require_value "$@"
-    INSTANCE="$2"
-    shift 2
-    ;;
-  --repo)
-    require_value "$@"
-    REPO="$2"
-    shift 2
-    ;;
-  --issue)
-    require_value "$@"
-    ISSUE="$2"
-    shift 2
-    ;;
-  --body-file)
-    require_value "$@"
-    BODY_FILE="$2"
-    shift 2
-    ;;
-  --body-dir)
-    require_value "$@"
-    BODY_DIR="$2"
-    shift 2
-    ;;
-  --app-slug)
-    require_value "$@"
-    APP_SLUG="$2"
+    # --body-file names BODY_FILE: drop the dashes, hyphens to underscores, upper-case.
+    var="${1#--}"
+    var="${var//-/_}"
+    printf -v "${var^^}" '%s' "$2"
     shift 2
     ;;
   -h | --help)
@@ -222,19 +195,11 @@ work-loop | attend-queue) : ;;
 esac
 
 # A surviving literal placeholder means the userConfig key is unset, so it takes
-# the same path as an absent value rather than being validated as an id.
+# the same path as an absent value rather than being validated as an id or slug.
 # shellcheck disable=SC2016  # the placeholder is matched literally, never expanded
-case "$INSTANCE" in
-'${user_config.'*) INSTANCE="" ;;
-*) : ;;
-esac
-
-# The same holds for --app-slug: an unset key is absent, not a malformed slug.
+[[ "$INSTANCE" != '${user_config.'* ]] || INSTANCE=""
 # shellcheck disable=SC2016  # the placeholder is matched literally, never expanded
-case "$APP_SLUG" in
-'${user_config.'*) APP_SLUG="" ;;
-*) : ;;
-esac
+[[ "$APP_SLUG" != '${user_config.'* ]] || APP_SLUG=""
 
 for bin in gh jq node; do
   command -v "$bin" >/dev/null 2>&1 || {
@@ -322,7 +287,7 @@ if [[ "$(head -c 1 "$BODY_FILE")" == "@" ]]; then
   exit 9
 fi
 
-BODY_TEXT="$(cat "$BODY_FILE")"
+BODY_TEXT="$(<"$BODY_FILE")"
 
 # A byte-prefix match, not a whole-line one, so the payload floor below line 1
 # reads the same whether that line ends in LF or CRLF.

@@ -184,10 +184,9 @@ done <"$TMP/merges"
 # reverts nothing on the default branch. Only deployments in the window are read.
 jq -rn --rawfile raw "$TMP/deploys" --rawfile member_msgs "$TMP/member_msgs" \
   --argjson since "$SINCE_EPOCH" '
-  (($raw | split("\u001e") | map(ltrimstr("\n") | select(length > 0) | split("\u001f")
-     | select((.[3] | tonumber) >= $since) | [.[0], (.[5] // "")]))
-   + ($member_msgs | split("\u001e") | map(ltrimstr("\n") | select(length > 0) | split("\u001f")
-     | [.[0], (.[1] // "")])))[]
+  def records: split("\u001e") | map(ltrimstr("\n") | select(length > 0) | split("\u001f"));
+  (($raw | records | map(select((.[3] | tonumber) >= $since) | [.[0], (.[5] // "")]))
+   + ($member_msgs | records | map([.[0], (.[1] // "")])))[]
   | .[0] as $d | .[1] | scan("This reverts (?:commit )?([0-9a-f]{40})") | "\($d)\t\(.[0])"
 ' >"$TMP/named" || {
   err "could not read the revert lines"
@@ -210,6 +209,8 @@ jq -n \
   --arg bucket "$BUCKET" \
   --arg branch "$BRANCH" \
   --arg signal "$SIGNAL" '
+# The US/RS-delimited git log records, each split into its fields.
+def records: split("\u001e") | map(ltrimstr("\n") | select(length > 0) | split("\u001f"));
 def median: sort | length as $n
   | if $n == 0 then null
     elif $n % 2 == 1 then .[($n - 1) / 2]
@@ -236,8 +237,7 @@ def revert_form: test("^Revert \"") or test("^revert(\\([^)]*\\))?!?: ");
 # A squash subject without its trailing own pull request number.
 def strip_own_ref: sub(" *\\(#[0-9]+\\)$"; "");
 
-($raw | split("\u001e") | map(ltrimstr("\n") | select(length > 0) | split("\u001f")
-  | {sha: .[0], parents: (.[1] | split(" ") | map(select(length > 0))),
+($raw | records | map({sha: .[0], parents: (.[1] | split(" ") | map(select(length > 0))),
      at: (.[2] | tonumber), ct: (.[3] | tonumber), subject: (.[4] // ""), body: (.[5] // "")})) as $all
 | ($all | map(select(.ct >= $since))) as $scope
 # Each squash landing by the pull request number that ends its subject.
@@ -247,10 +247,9 @@ def strip_own_ref: sub(" *\\(#[0-9]+\\)$"; "");
 | (reduce $all[] as $d ({}; .[$d.sha] = $d.sha)
    | reduce $mem[] as $m (.; .[$m.sha] //= $m.deploy)) as $owner
 | (reduce $mem[] as $m ({}; .[$m.deploy] += [$m.at])) as $member_at
-| (reduce ($member_msgs | split("\u001e") | map(ltrimstr("\n") | select(length > 0) | split("\u001f")))[] as $m
-    ({}; .[$m[0]] += "\n" + ($m[1] // ""))) as $member_text
-| (reduce ($member_msgs | split("\u001e") | map(ltrimstr("\n") | select(length > 0) | split("\u001f")))[] as $m
-    ({}; .[$m[0]] += [($m[1] // "") | split("\n")[0]])) as $member_subjects
+| ($member_msgs | records) as $msgs
+| (reduce $msgs[] as $m ({}; .[$m[0]] += "\n" + ($m[1] // ""))) as $member_text
+| (reduce $msgs[] as $m ({}; .[$m[0]] += [($m[1] // "") | split("\n")[0]])) as $member_subjects
 | (reduce ($reachable | split("\n") | map(select(length > 0)))[] as $p ({}; .[$p] = true)) as $reach
 | ($scope | map(. as $r
     # The latest earlier deployment, not this one, whose subject, with or

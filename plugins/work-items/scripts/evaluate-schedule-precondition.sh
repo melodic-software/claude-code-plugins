@@ -53,18 +53,17 @@ requires_confirm="$(jq -r '.precondition.requires_operator_confirmation // false
 
 case "$precond_id" in
 frontier-release-since-last-checked)
-  if [[ "$requires_confirm" == "true" && "$OPERATOR_CONFIRMED" -eq 0 ]]; then
+  if [[ "$requires_confirm" != "true" ]]; then
+    # With no operator gate the caller settles the check itself, so it gets the
+    # prompt's steps (standing-item-preconditions.md) ahead of the marker.
+    prompt="$(jq -r '.precondition.prompt // empty' <<<"$row")"
+    [[ -z "$prompt" ]] || printf '%s\n' "$prompt"
+  elif [[ "$OPERATOR_CONFIRMED" -eq 0 ]]; then
     # Keep the printf wrapper: command substitution strips the prompt's trailing
     # newlines, so a blank line never lands before the marker below.
     printf '%s\n' "$(jq -r '.precondition.prompt // "precondition unmet"' <<<"$row")"
     echo "needs-confirmation"
     exit 2
-  fi
-  # With no operator gate the caller settles the check itself, so it gets the
-  # prompt's steps (standing-item-preconditions.md) ahead of the marker.
-  if [[ "$requires_confirm" != "true" ]]; then
-    prompt="$(jq -r '.precondition.prompt // empty' <<<"$row")"
-    [[ -z "$prompt" ]] || printf '%s\n' "$prompt"
   fi
   echo "met"
   exit 0
