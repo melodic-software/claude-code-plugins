@@ -46,7 +46,7 @@ hook::refuse_unwatched() {
 }
 
 hook::refuse_asks() {
-  [[ "${CLAUDE_CODE_SESSION_ATTENDED-}" == 1 ]] && ! hook::refuse_unwatched
+  [[ "${CLAUDE_CODE_SESSION_ATTENDED-}" == 1 && "${GUARDRAILS_SESSION_UNWATCHED-}" != 1 ]]
 }
 
 hook::refuse() {
