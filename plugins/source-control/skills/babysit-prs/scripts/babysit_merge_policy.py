@@ -760,6 +760,11 @@ def _time(value: Any) -> datetime:
     return parsed
 
 
+def _stamp(moment: datetime) -> str:
+    """`moment` to the second in UTC, as a `created=` qualifier names it."""
+    return moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def _has_next_page(info: dict[str, Any], label: str) -> bool:
     """`pageInfo.hasNextPage`, which must be a boolean: only False ends a read."""
     more = info.get("hasNextPage")
@@ -1879,6 +1884,10 @@ GREEN_PAGES = 5
 GREEN_SPAN = timedelta(days=7)
 # Spans read before giving up (holding the record), about a year.
 GREEN_SPANS = 53
+# Listings are read as fixed `GREEN_SPAN` cells counted from this instant, so
+# records filed close together read the same pages; each record's span is
+# cut from the one or two cells that cover it.
+GREEN_GRID = datetime(2026, 1, 5, 10, tzinfo=UTC)
 # A canary, revert or read-back record, which `_lift` lifts. A canary record
 # may be a post-merge-failure one, which holds nothing but is closed the same
 # way (babysit_lift.py close).
@@ -2055,11 +2064,13 @@ def _edits_refusal(issue: dict[str, Any], human: Callable[[Any], bool]) -> str |
 
 class _GreenMain:
     """`_recovered_at`'s reads, shared by the records of one `read_demotion`:
-    each record time's listing, one read of main's tip, and each compare once."""
+    each `GREEN_GRID` cell's listing, one read of main's tip, and each compare
+    once. Nothing outlives the instance, so every `read_demotion` reads fresh."""
 
     def __init__(self, owner: str, name: str) -> None:
         self.owner, self.name = owner, name
         self.runs: dict[str, list[dict[str, Any]]] = {}
+        self.cells: dict[tuple[str, int], list[dict[str, Any]]] = {}
         self.tip: str | None = None
         self.compares: dict[tuple[str, str], str | None] = {}
         # babysit_postmerge's `_Context` for local ancestry; False: unavailable.
@@ -2075,13 +2086,15 @@ class _GreenMain:
             raise PolicyReadError(f"{endpoint}: {status}")
         return answer
 
-    def _window(self, since: str, until: str) -> list[dict[str, Any]]:
-        """Every green schedule and workflow_dispatch full run on main
-        created from `since` to `until`; more than `GREEN_PAGES` pages of
-        either raises, so the earliest is never a guess."""
-        found: list[dict[str, Any]] = []
-        created = quote(f"{since}..{until}", safe=":")
-        for event in GREEN_EVENTS:
+    def _cell(self, event: str, cell: int) -> list[dict[str, Any]]:
+        """Every green `event` full run on main created in `GREEN_GRID` cell
+        `cell`, both ends included as `created=a..b` includes them, read
+        once; more than `GREEN_PAGES` pages raises, so the earliest is never
+        a guess."""
+        if (event, cell) not in self.cells:
+            start = GREEN_GRID + cell * GREEN_SPAN
+            created = quote(f"{_stamp(start)}..{_stamp(start + GREEN_SPAN)}", safe=":")
+            found: list[dict[str, Any]] = []
             for page in range(1, GREEN_PAGES + 1):
                 answer = self._read(
                     GREEN_RUNS.format(self.owner, self.name, event, created, page)
@@ -2094,6 +2107,36 @@ class _GreenMain:
                 raise PolicyReadError(
                     f"{event} green runs: more than {GREEN_PAGES} pages"
                 )
+            self.cells[event, cell] = found
+        return self.cells[event, cell]
+
+    def _window(self, since: str, until: str) -> list[dict[str, Any]]:
+        """Every green schedule and workflow_dispatch full run on main
+        created from `since` to `until`, cut from the cells that cover them.
+        A run on the line between two cells is listed by both and kept once.
+        `GREEN_PAGES` full pages of either event in the window raises, as
+        listing the window itself would, so a cell overflowing is the only
+        new way to raise."""
+        low, high = _time(since), _time(until)
+        first = (low - GREEN_GRID) // GREEN_SPAN
+        last = max(first, -((GREEN_GRID - high) // GREEN_SPAN) - 1)
+        found: list[dict[str, Any]] = []
+        for event in GREEN_EVENTS:
+            runs = [
+                run
+                for cell in range(first, last + 1)
+                for run in self._cell(event, cell)
+                if low <= _time(run.get("created_at")) <= high
+                and (
+                    cell == first
+                    or _time(run.get("created_at")) > GREEN_GRID + cell * GREEN_SPAN
+                )
+            ]
+            if len(runs) >= GREEN_PAGES * 100:
+                raise PolicyReadError(
+                    f"{event} green runs: more than {GREEN_PAGES} pages"
+                )
+            found += runs
         return found
 
     def listed(self, since: datetime, now: datetime) -> Iterator[dict[str, Any]]:
@@ -2112,8 +2155,7 @@ class _GreenMain:
 
     def _span(self, start: datetime, end: datetime) -> list[dict[str, Any]]:
         """`listed`'s runs created from `start` to `end`, read once."""
-        stamp = start.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-        until = end.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        stamp, until = _stamp(start), _stamp(end)
         if stamp not in self.runs:
             repo = f"{self.owner}/{self.name}"
             self.runs[stamp] = sorted(

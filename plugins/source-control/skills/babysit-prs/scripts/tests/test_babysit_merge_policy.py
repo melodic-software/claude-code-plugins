@@ -2187,6 +2187,254 @@ class ReadDemotionBatched(unittest.TestCase):
             )
 
 
+class GreenRunsApi:
+    """GitHub's green-run listing over `runs`: each endpoint's event and
+    `created=a..b` range, both ends included, newest first, 100 a page. A
+    compare answers ahead and main's tip is `MAIN_TIP`."""
+
+    QUERY = re.compile(
+        r"event=(\w+)&status=success&created=([^&]+)\.\.([^&]+)&per_page=100&page=(\d+)$"
+    )
+
+    def __init__(self, runs: list[dict[str, Any]]) -> None:
+        self.runs = runs
+        self.listings: list[str] = []
+
+    def __call__(self, args: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        endpoint = unquote(args[1])
+        if endpoint.startswith(GREEN_RUNS_PATH):
+            self.listings.append(endpoint)
+            event, since, until, page = self.QUERY.search(endpoint).groups()
+            low, high = datetime.fromisoformat(since), datetime.fromisoformat(until)
+            hits = sorted(
+                (
+                    run
+                    for run in self.runs
+                    if run["event"] == event
+                    and low <= datetime.fromisoformat(run["created_at"]) <= high
+                ),
+                key=lambda run: run["created_at"],
+                reverse=True,
+            )
+            first = (int(page) - 1) * 100
+            return ok({"workflow_runs": hits[first : first + 100]})
+        if "/compare/" in endpoint:
+            return ok({"status": "ahead"})
+        if endpoint.endswith("/git/ref/heads/main"):
+            return ok({"object": {"sha": MAIN_TIP}})
+        raise AssertionError(f"unexpected gh call: {args}")
+
+
+class PerRecordGreenMain(policy._GreenMain):
+    """The reference: each record's span listed by its own `created=` range,
+    as `_GreenMain._window` read it before the shared grid. A pin: it proves
+    the grid answers the same, not that either answer is right."""
+
+    def _window(self, since: str, until: str) -> list[dict[str, Any]]:
+        found: list[dict[str, Any]] = []
+        created = policy.quote(f"{since}..{until}", safe=":")
+        for event in policy.GREEN_EVENTS:
+            for page in range(1, policy.GREEN_PAGES + 1):
+                answer = self._read(
+                    policy.GREEN_RUNS.format(self.owner, self.name, event, created, page)
+                )
+                runs = policy.json_array(policy.json_object(answer).get("workflow_runs"))
+                found += map(policy.json_object, runs)
+                if len(runs) < 100:
+                    break
+            else:
+                raise policy.PolicyReadError(
+                    f"{event} green runs: more than {policy.GREEN_PAGES} pages"
+                )
+        return found
+
+
+def grid_run(created_at: str, **fields: Any) -> dict[str, Any]:
+    return green_run(id=next(GRID_IDS), created_at=created_at) | fields
+
+
+GRID_IDS = iter(range(10_000, 1_000_000))
+# A red-main record filed between grid lines: its first span,
+# 2026-10-14T03:00:00Z..2026-10-21T03:00:00Z, straddles the cells
+# 2026-10-12T10:00:00Z..2026-10-19T10:00:00Z and the one after.
+GRID_RECORD = "2026-10-14T03:00:00Z"
+
+
+def minutes_from(start: str, count: int, **fields: Any) -> list[dict[str, Any]]:
+    """`count` runs a minute apart from `start`, none of which clears a record
+    (attempt 2) unless `fields` says otherwise."""
+    base = datetime.fromisoformat(start)
+    return [
+        grid_run(
+            (base + timedelta(minutes=i)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            **({"run_attempt": 2} | fields),
+        )
+        for i in range(count)
+    ]
+
+
+class SharedGreenGrid(unittest.TestCase):
+    """Records read main's green runs from shared `GREEN_GRID` cells, each
+    page once per `read_demotion`, and each record's recovery is the one its
+    own span listing gives; only a cell overflowing where the span would not
+    answers differently, and that holds."""
+
+    def recovered(
+        self, green_class: type, runs: list[dict[str, Any]], created: str = GRID_RECORD
+    ) -> Any:
+        api = GreenRunsApi(runs)
+        issue = {
+            "body": DEMOTION_BODY,
+            "createdAt": created,
+            "userContentEdits": {"totalCount": 0, "nodes": []},
+        }
+        green = green_class("owner", "repo")
+        green.local = False
+        with mock.patch.object(policy, "gh_capture", api):
+            try:
+                return policy._recovered_at(issue, lambda _: False, green, NOW)
+            except policy.PolicyReadError as exc:
+                return exc
+
+    def test_each_recovery_matches_the_per_record_listing(self) -> None:
+        at = policy.datetime.fromisoformat
+        cases = {
+            "none": ([], None),
+            "only before the record": ([grid_run("2026-10-13T00:00:00Z")], None),
+            "at the record's own second": ([grid_run(GRID_RECORD)], None),
+            "after the record": (
+                [grid_run("2026-10-14T05:00:00Z")],
+                at("2026-10-14T05:00:00Z"),
+            ),
+            "before and after": (
+                [grid_run("2026-10-13T00:00:00Z"), grid_run("2026-10-15T00:00:00Z")],
+                at("2026-10-15T00:00:00Z"),
+            ),
+            "on the line between two cells": (
+                [grid_run("2026-10-19T10:00:00Z")],
+                at("2026-10-19T10:00:00Z"),
+            ),
+            "on the line between two spans": (
+                [grid_run("2026-10-21T03:00:00Z")],
+                at("2026-10-21T03:00:00Z"),
+            ),
+            "in a later span": (
+                [grid_run("2026-10-29T00:00:00Z")],
+                at("2026-10-29T00:00:00Z"),
+            ),
+            "a schedule run beside two pages of dispatch runs": (
+                [
+                    *minutes_from("2026-10-15T00:00:00Z", 150),
+                    grid_run("2026-10-14T04:00:00Z", event="schedule"),
+                ],
+                at("2026-10-14T04:00:00Z"),
+            ),
+            "the earliest on a second page": (
+                [
+                    *minutes_from("2026-10-15T00:00:00Z", 150),
+                    grid_run("2026-10-14T04:00:00Z"),
+                ],
+                at("2026-10-14T04:00:00Z"),
+            ),
+        }
+        for name, (runs, expected) in cases.items():
+            with self.subTest(name):
+                self.assertEqual(self.recovered(PerRecordGreenMain, runs), expected)
+                self.assertEqual(self.recovered(policy._GreenMain, runs), expected)
+
+    def test_a_span_past_the_page_bound_raises_though_no_cell_is(self) -> None:
+        # 301 runs in the first cell's part of the span and 199 from the line
+        # between the cells on, the first of which both cells list: 500 in
+        # the span, as five full pages of it would list.
+        runs = [
+            grid_run("2026-10-14T03:30:00Z"),
+            *minutes_from("2026-10-14T04:00:00Z", 300),
+            *minutes_from("2026-10-19T10:00:00Z", 199),
+        ]
+        for green_class in (PerRecordGreenMain, policy._GreenMain):
+            with self.subTest(green_class.__name__):
+                got = self.recovered(green_class, runs)
+                self.assertIsInstance(got, policy.PolicyReadError)
+                self.assertEqual(
+                    str(got), "workflow_dispatch green runs: more than 5 pages"
+                )
+        # One run fewer is 499, under the bound, and the earliest clears.
+        for green_class in (PerRecordGreenMain, policy._GreenMain):
+            self.assertEqual(
+                self.recovered(green_class, runs[:-1]),
+                policy.datetime.fromisoformat("2026-10-14T03:30:00Z"),
+            )
+
+    def test_a_cell_past_the_page_bound_raises_where_the_span_reads(self) -> None:
+        # 500 runs in the cell before the record: the record's own span holds
+        # one run and clears, but the shared cell cannot be read whole.
+        runs = [
+            *minutes_from("2026-10-12T11:00:00Z", 500),
+            grid_run("2026-10-14T05:00:00Z"),
+        ]
+        self.assertEqual(
+            self.recovered(PerRecordGreenMain, runs),
+            policy.datetime.fromisoformat("2026-10-14T05:00:00Z"),
+        )
+        got = self.recovered(policy._GreenMain, runs)
+        self.assertIsInstance(got, policy.PolicyReadError)
+
+    def read(self, records: dict[int, str], runs: list[dict[str, Any]]) -> Any:
+        """`read_demotion` over open red-main records filed at `records`'
+        times, with `GreenRunsApi(runs)` answering every REST read."""
+        api = GreenRunsApi(runs)
+        fake = RecordsFake(
+            {
+                n: demotion_record(
+                    n, createdAt=created, state="OPEN", timelineItems={"nodes": []}
+                )
+                for n, created in records.items()
+            }
+        )
+
+        def gh(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            return fake(args, **kwargs) if args[:2] == ["api", "graphql"] else api(args)
+
+        with mock.patch.object(policy, "gh_capture", gh):
+            return read_demotion(), api.listings
+
+    def test_records_filed_close_together_read_each_page_once(self) -> None:
+        records = {
+            1: GRID_RECORD,
+            2: "2026-10-16T08:00:00Z",
+            3: "2026-10-18T20:00:00Z",
+        }
+        result, listings = self.read(records, [grid_run("2026-10-20T00:00:00Z")])
+        self.assertFalse(result.active, result.reason)
+        self.assertEqual(
+            result.cleared_at, policy.datetime.fromisoformat("2026-10-20T00:00:00Z")
+        )
+        cells = (
+            "created=2026-10-12T10:00:00Z..2026-10-19T10:00:00Z",
+            "created=2026-10-19T10:00:00Z..2026-10-26T10:00:00Z",
+        )
+        self.assertEqual(
+            sorted(listings),
+            sorted(
+                f"{GREEN_RUNS_PATH}?branch=main&event={event}&status=success"
+                f"&{cell}&per_page=100&page=1"
+                for cell in cells
+                for event in ("schedule", "workflow_dispatch")
+            ),
+        )
+
+    def test_a_span_past_the_page_bound_holds_the_record(self) -> None:
+        runs = [
+            grid_run("2026-10-14T03:30:00Z"),
+            *minutes_from("2026-10-14T04:00:00Z", 300),
+            *minutes_from("2026-10-19T10:00:00Z", 199),
+        ]
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            result, _ = self.read({1: GRID_RECORD}, runs)
+        self.assertEqual((result.active, result.reason), (True, "#1 open"))
+        self.assertIn("recovery read failed: workflow_dispatch green runs", err.getvalue())
+
+
 class ResolveIdentity(unittest.TestCase):
     def test_equal_logins_resolve(self) -> None:
         result = policy.resolve_identity(IDENTITY, "Agent-Lanes[bot]")
