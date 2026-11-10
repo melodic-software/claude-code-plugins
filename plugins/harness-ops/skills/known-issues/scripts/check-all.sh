@@ -144,9 +144,11 @@ while IFS=$'\t' read -r number repo tracked || [[ -n "$number" ]]; do
     printf '%s\t%s\t%s\t\t\t\tFETCH_FAILED\n' "$number" "$repo" "$tracked" >>"$OUT"
     continue
   fi
-  state=$(jq -r '.state // ""' <<<"$result" | tr -d '\r')
-  reason=$(jq -r '.stateReason // ""' <<<"$result" | tr -d '\r')
-  closed=$(jq -r '.closedAt // ""' <<<"$result" | tr -d '\r')
+  # Unit separator, not tab: read collapses adjacent tabs, which shifts an empty
+  # stateReason's column onto closedAt.
+  IFS=$'\x1f' read -r state reason closed < <(
+    jq -r '[.state, .stateReason, .closedAt] | map(. // "") | join("\u001f")' <<<"$result" | tr -d '\r'
+  )
   if [[ "$tracked" == "open" && "$state" == "CLOSED" ]]; then
     transition="OPEN->CLOSED"
   elif [[ "$tracked" == "closed" && "$state" == "OPEN" ]]; then
