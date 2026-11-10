@@ -247,7 +247,7 @@ def census(files: list[Path], layer: str) -> tuple[list[dict], dict]:
         rec = {"path": str(p), "sha256": sha256_of(p), "size": p.stat().st_size}
         s = scc.get(os.path.normpath(str(p))) if scc else None
         g = pygments_counts(p) if use_pygments else None
-        if g is None and use_pygments and layer == "pygments":
+        if g is None and layer == "pygments":
             return [], {"error": "pygments is not installed (pip install pygments)"}
         if s:
             rec.update(
@@ -284,8 +284,6 @@ def census(files: list[Path], layer: str) -> tuple[list[dict], dict]:
         return [], {
             "error": "neither scc nor pygments is available (install scc, or pip install pygments)"
         }
-    if not records:
-        return [], sources
     return records, sources
 
 
@@ -300,7 +298,7 @@ def totals(records: list[dict], dedupe: bool) -> dict:
         duplicates = len(records) - len(chosen)
     cl = sum(r.get("comment_lines", 0) for r in chosen)
     lines = sum(r.get("lines", 0) for r in chosen)
-    cb = sum(r.get("comment_bytes", 0) for r in chosen if "comment_bytes" in r)
+    cb = sum(r.get("comment_bytes", 0) for r in chosen)
     return {
         "files": len(chosen),
         "duplicate_copies_collapsed": duplicates,
@@ -325,17 +323,16 @@ def by_language(records: list[dict]) -> list[dict]:
         a["comment_lines"] += r.get("comment_lines", 0)
         a["lines"] += r.get("lines", 0)
         a["comment_bytes"] += r.get("comment_bytes", 0)
-    rows = []
-    for lang, a in agg.items():
-        rows.append(
-            {
-                "language": lang,
-                **a,
-                "comment_ratio": round(a["comment_lines"] / a["lines"], 4)
-                if a["lines"]
-                else 0.0,
-            }
-        )
+    rows = [
+        {
+            "language": lang,
+            **a,
+            "comment_ratio": round(a["comment_lines"] / a["lines"], 4)
+            if a["lines"]
+            else 0.0,
+        }
+        for lang, a in agg.items()
+    ]
     return sorted(rows, key=lambda r: (-r["comment_lines"], r["language"]))
 
 
