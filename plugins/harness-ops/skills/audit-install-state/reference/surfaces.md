@@ -152,7 +152,7 @@ We never route `~/.claude.json`, `~/.claude/settings.json`, or `~/.claude/plugin
 ## Home-root state, outside the swept tree
 
 `~/.claude.json` lives in the home directory, **not** under `~/.claude`, and no retention-sweep
-row names it, so we read it as outside the sweep at any value of `cleanupPeriodDays`. We route its growth to `claude purge <path>`
+row lists it as swept, so we read it as outside the sweep at any value of `cleanupPeriodDays`. We route its growth to `claude purge <path>`
 everywhere, never to its old name `claude project purge`; what it removes and how it confirms are
 in the pointer below.
 

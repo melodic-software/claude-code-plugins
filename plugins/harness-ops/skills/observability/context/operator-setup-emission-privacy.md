@@ -118,5 +118,4 @@ profile. To turn one off for a single project, check the ignored-variables point
 which off values a project or local settings file honors. The user-scope baseline and traces keep emitting, and the committed `settings.json` carries no
 content keys to remove.
 
-Start a **new** CC session after a change; when env is read is in the ignored-variables pointer
-above.
+Start a **new** CC session after a change.

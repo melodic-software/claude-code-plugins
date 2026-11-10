@@ -420,7 +420,7 @@ Function and symbol references are out of scope; the check covers file paths onl
 If the consumer project has a rule that surfaces side observations, user dismissals are signal that its noise threshold needs tightening. Source: `~/.claude/projects/<slug>/memory/feedback_*.md` lines mentioning "side observation" / "noticed" / "mentioned".
 
 ```bash
-PROJECT_SLUG=$(printf '%s' "$REPO_ROOT" | sed 's/[^A-Za-z0-9]/-/g')
+PROJECT_SLUG=$(echo "$REPO_ROOT" | sed 's|[/:]|-|g; s|^-||')
 grep -l -i "side observation\|surfaced\|dismissed" \
   ~/.claude/projects/"$PROJECT_SLUG"/memory/feedback_*.md 2>/dev/null \
   | wc -l

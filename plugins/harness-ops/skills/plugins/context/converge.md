@@ -76,8 +76,8 @@ Then decide the consolidation strategy:
 - **`user` scope holds the highest version** → the default strategy is to make the *project/local*
   scope fall through to it: `claude plugin uninstall <id> -s project --keep-data` (or
   `-s local --keep-data`) removes the redundant lower-precedence pin, and scope precedence (read live from
-  [settings reference: enabledPlugins](https://code.claude.com/docs/en/settings-reference#enabledplugins),
-  as of 2026-11-10; recheck when that entry reorders the scopes) means the project now loads whatever `user` scope has, always current
+  [settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence),
+  as of 2026-11-10; recheck when that section reorders the scopes) means the project now loads whatever `user` scope has, always current
   from here on without a standing project pin. `--keep-data` is required: this step removes a
   scope pin, never the plugin's `${CLAUDE_PLUGIN_DATA}` directory. This default holds only for a
   pin the tracked settings do not mirror: see the committed-enable check below.

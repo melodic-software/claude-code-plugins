@@ -417,8 +417,8 @@ is silent in both directions, so the asymmetry is stated here once and pointed a
 else.
 
 **`pluginConfigs`: three sources only.** This skill reads `pluginConfigs` from user settings
-(`~/.claude/settings.json`), `--settings`, and managed settings, with the precedence the
-pointer below gives, and ignores entries in a project's `.claude/settings.json` or
+(`~/.claude/settings.json`), `--settings`, and managed settings, with the precedence
+[settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence) gives (as of 2026-11-10), and ignores entries in a project's `.claude/settings.json` or
 `.claude/settings.local.json`, matching Claude Code's own refusal of values a cloned repository
 could supply. In every one of those sources the value nests under `options`:
 `{"pluginConfigs":{"<id>@<marketplace>":{"options":{"<key>":"<value>"}}}}`. A key placed directly
@@ -434,8 +434,8 @@ under the plugin id is silently ignored and the render shows the literal placeho
   `pluginConfigs` scope changes, or project or local settings become a source again.
 
 **`enabledPlugins`: user, project, and local all count**, merged in the order
-[settings reference: enabledPlugins](https://code.claude.com/docs/en/settings-reference#enabledplugins)
-gives (as of 2026-11-10; recheck when that entry reorders the scopes). That is
+[settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence)
+gives (as of 2026-11-10; recheck when that section reorders the scopes). That is
 why `fleet-state.sh` reads all three settings maps for enablement, and why doing the same for
 `pluginConfigs` would be wrong.
 

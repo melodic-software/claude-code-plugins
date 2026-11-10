@@ -388,7 +388,8 @@ no human is present to receive the count.
 word into the skill content before the model sees it, but **only when the key is explicitly set**
 in a scope Claude Code reads `pluginConfigs` from, read live from
 [settings reference: pluginConfigs](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-(as of 2026-11-10; recheck when that entry changes its scopes or their precedence). We treat a
+with the precedence
+[settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence) gives (as of 2026-11-10; recheck when either changes the scopes or their order). We treat a
 project's `.claude/settings.json` or `.claude/settings.local.json` entry as doing nothing, and declaring the option in `plugin.json` alone does not make its value readable
 here either. See [context/scope-semantics.md](context/scope-semantics.md) for the read path, its
 pointer, and why it differs from `enabledPlugins`, which this same skill reads from project and

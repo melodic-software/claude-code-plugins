@@ -1,6 +1,6 @@
 # `/harness-ops:observability` privacy filter
 
-Defense-in-depth redaction at output time. Write-time enforcement is primary: each hook records only its own fields through `slog_event_record_to` in `hooks/session-log-lib.sh`, and content keys only when `session_event_log_content` is on; read-time filter here catches drift if a hook ever logs raw command/prompt content.
+Defense-in-depth redaction at output time. Write-time enforcement is primary: `hooks/session-event-log.sh` records content keys only when `session_event_log_content` is on; read-time filter here catches drift if a hook ever logs raw command/prompt content.
 
 ## Hard rules
 

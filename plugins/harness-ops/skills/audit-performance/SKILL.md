@@ -188,8 +188,8 @@ spawns. Read `fan_out` in this order:
    and `nested-shell-invocation`, each an extra process creation before the hook's own work
    starts, and `shell-form-hook-names-a-second-shell`, a shell-form command that spells a shell
    inside the shell the harness has already wrapped the string in. **An empty list does not mean
-   the hooks run un-nested.** A shell-form command is handed to a shell whatever it names, so a
-   row with no finding still pays one wrapping shell; the list names only the rows that add a
+   the hooks run un-nested.** We treat a shell-form command as handed to a shell whatever it
+   names, so a row with no finding still pays one wrapping shell; the list names only the rows that add a
    second, and its command-position rule is a floor, so a shell reached through a position the
    rule does not cover is missed rather than reported: a subshell (`$(bash x.sh)` or a
    backquoted one) and a runner taking arguments of its own first (`timeout 5 bash x.sh`) are

@@ -544,11 +544,11 @@ charged it. Both thresholds are calibrated on this one host's two states, ten ti
 clean-boot count and a fifteenth of its leaking count. A second host's readings, healthy or
 leaking, are the recheck trigger for them.
 
-### The per-logon workaround, on trial on the reference host
+### The per-logon workaround, on trial on one host
 
 We reapply the workaround after every logon because the write-up linked below reports that the
-live value is reset at logon; we have not yet observed that reset on the reference host. We run it from
-the first interactive terminal because the reference host's own probe (the rendered
+live value is reset at logon; we have not yet observed that reset on the trial host. We run it from
+the first interactive terminal because the trial host's own probe (the rendered
 `foreground-lock.ps1` run from a background process over the WSL hop, 2026-10-26) shows a
 background caller is refused: `before=2147483647 after=2147483647 set=False error=87`.
 
@@ -578,7 +578,7 @@ background caller is refused: `before=2147483647 after=2147483647 set=False erro
 
 **Probe record.** The baseline and the error-87 refusal come from `measure.py` (the
 2026-09-23 `arms.py` plus the live timeout per row) and the rendered `foreground-lock.ps1`, both
-run on the reference host on 2026-10-26. **As of**: 2026-10-26. **Recheck trigger**: the day-7
+run on the trial host on 2026-10-26. **As of**: 2026-10-26. **Recheck trigger**: the day-7
 after-measurement on #4372.
 
 ### Attribution runbook (the engine never does this)

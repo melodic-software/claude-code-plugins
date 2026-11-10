@@ -284,11 +284,9 @@ data_dir="${CLAUDE_PLUGIN_DATA}"
 
 Copy it as it renders **here**, already substituted to an absolute path. Writing
 the placeholder, or a `${CLAUDE_PLUGIN_DATA:-…}` env fallback, inside
-`context/refresh.md` would not work: that file is read raw, and per
-[plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
-`CLAUDE_PLUGIN_DATA` reaches only hook and MCP/LSP subprocesses as a real
-environment variable, never a script the Bash tool runs (the dated record for
-that claim is the `--data-dir` note above). The probe would then
+`context/refresh.md` would not work: that file is read raw, and we never rely on
+the Bash tool's environment for `CLAUDE_PLUGIN_DATA` (the dated record for that
+decision is the `--data-dir` note above). The probe would then
 read the unqualified `~/.claude/plugins/data/harness-ops` guess, find no marker,
 and skip the staleness check silently.
 
@@ -431,8 +429,8 @@ each, the summary below is a pointer, not a copy.
 installed plugin cannot invoke a sibling plugin's script.
 
 Pass the body as file contents (`--body-file PATH`) or pipe it (`--body-file -`).
-**Never interpolate an `@path` string into a body value**: on gh 2.95.0 we observed
-`gh issue comment --body @path` and `gh api -f body=@path` post the literal text
+**Never interpolate an `@path` string into a body value**: we treat
+`gh issue comment --body @path` and `gh api -f body=@path` as sending the literal text
 `@path`. Read a body from a file with `gh issue comment --body-file` or
 `gh api -F`/`--field key=@path`; which flags read a file is read live from the
 [gh api](https://cli.github.com/manual/gh_api) and

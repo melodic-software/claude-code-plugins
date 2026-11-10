@@ -223,8 +223,10 @@ The budget has five inputs, and the report states where each one came from:
   is read live from its row in
   [environment variables](https://code.claude.com/docs/en/env-vars#variables)
   (as of 2026-11-03; recheck when that row changes what the override replaces).
-- The context window is per model. `CLAUDE_CODE_DISABLE_1M_CONTEXT`,
-  `CLAUDE_CODE_MAX_CONTEXT_TOKENS` and `DISABLE_COMPACT` are read from the process environment and recorded; what each does to the window is read live from its row in [environment variables](https://code.claude.com/docs/en/env-vars#variables) (as of 2026-11-10; recheck when one of those rows changes how the window is set). Otherwise `--context-window <tokens>` pins it, and unpinned the
+- The context window is per model. The engine treats `CLAUDE_CODE_DISABLE_1M_CONTEXT` as
+  collapsing it to 200k, and `CLAUDE_CODE_MAX_CONTEXT_TOKENS` as naming it when
+  `DISABLE_COMPACT` is also set; both are read from the process environment and
+  recorded. What each does in the product is read live from its row in [environment variables](https://code.claude.com/docs/en/env-vars#variables) (as of 2026-11-10; recheck when one of those rows changes how the window is set). Otherwise `--context-window <tokens>` pins it, and unpinned the
   report carries both 200k and 1M.
 - Bytes per token is 4 or 3 per model. `--bytes-per-token` pins it; unpinned the
   report carries both.
