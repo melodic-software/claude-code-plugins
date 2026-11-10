@@ -163,12 +163,7 @@ narrow_to_branch() {
   changed_lines
   mv "$CHECKS_TMP/ranges" "$CHECKS_TMP/ranges.main"
   printf '%s %s\n' "$BASE" "$TIP" >"$CHECKS_TMP/push-ranges"
-  awk -F '\t' -v OFS='\t' '
-    NR == FNR { n++; p[n] = $1; s[n] = $2 + 0; e[n] = $3 + 0; next }
-    { for (i = 1; i <= n; i++) if (p[i] == $1) {
-        lo = ($2 + 0 > s[i]) ? $2 + 0 : s[i]; hi = ($3 + 0 < e[i]) ? $3 + 0 : e[i]
-        if (lo <= hi) print $1, lo, hi } }' \
-    "$CHECKS_TMP/ranges.main" "$CHECKS_TMP/ranges.push" >"$CHECKS_TMP/ranges.new"
+  checks_intersect_ranges "$CHECKS_TMP/ranges.main" "$CHECKS_TMP/ranges.push" >"$CHECKS_TMP/ranges.new"
   local s=$?
   # A failed awk fails the hook and keeps the plain range, never fewer lines.
   if ((s != 0)); then
@@ -407,16 +402,14 @@ else
     # of the tip. An empty hooks path keeps post-checkout hooks from firing.
     # A tip it cannot check out is a blocking finding: its range went
     # unchecked.
-    if ! git -c core.hooksPath="$CHECKS_TMP/no-hooks" worktree add -q --detach "$tip_tree" "$TIP" >/dev/null 2>&1 ||
-      ! cd "$tip_tree"; then
+    if git -c core.hooksPath="$CHECKS_TMP/no-hooks" worktree add -q --detach "$tip_tree" "$TIP" >/dev/null 2>&1 &&
+      cd "$tip_tree"; then
+      check_range
+      cd "$top" || exit 1
+    else
       printf '%s: reference-verify: could not check out this pushed tip, so its range was not checked; fix that failure (disk space, a lock under .git/worktrees), then push again.\n' \
         "$TIP" >>"$out"
-      git worktree remove --force "$tip_tree" >/dev/null 2>&1
-      git worktree prune 2>/dev/null
-      continue
     fi
-    check_range
-    cd "$top" || exit 1
     git worktree remove --force "$tip_tree" >/dev/null 2>&1
     git worktree prune 2>/dev/null
   done 3<"$CHECKS_TMP/all-ranges"

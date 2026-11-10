@@ -131,15 +131,8 @@ content_scan_init() {
   scan_root="$PWD"
   local home="${HOME:-${USERPROFILE:-}}"
   home="${home%/}"
-  if [[ -n "$home" ]]; then
-    case "$PWD/" in
-    "$home/" | "$home"/*) scan_root="" ;;
-    *) ;;
-    esac
-    case "$home/" in
-    "$PWD"/*) scan_root="" ;;
-    *) ;;
-    esac
+  if [[ -n "$home" ]] && [[ "$PWD/" == "$home"/* || "$home/" == "$PWD"/* ]]; then
+    scan_root=""
   fi
 }
 
