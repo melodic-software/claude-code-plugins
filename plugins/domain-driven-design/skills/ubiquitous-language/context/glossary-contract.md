@@ -40,6 +40,9 @@ Shown to users as: bill
   syntax; otherwise use the plain `Avoid:` line above. Omit the line when no synonym was rejected.
 - **Shown to users as:** optional, only when the wording on screens, emails and error messages
   deliberately differs from the term. Checks for rejected words treat this wording as intended.
+  When tenants rename the concept on their own screens, the line reads `Shown to users as:
+  configurable per tenant`: the context keeps one model term, the tenant words are configuration,
+  never synonyms or `Avoid:` words, and a hit on one of them is not drift.
 - **Admission:** project-context terms only. Generic programming or methodology vocabulary stays out
   unless it has a distinct project-domain meaning, and so do everyday words used in their ordinary
   sense. A term earns an entry only when it removes ambiguity in this context: a project-specific
@@ -115,6 +118,9 @@ therefore have separate definitions in separate context glossaries.
 - A minimal new glossary index records each known context, its glossary path, and only relationships already
   established by accepted project artifacts or the user.
 - Route each entry to one context. If context is ambiguous, ask. Do not duplicate the entry as a hedge.
+- Use a term bare inside its own context ("Policy" in Underwriting). Wherever contexts meet (the
+  glossary index, integration code, cross-context docs), qualify it by its context ("Underwriting
+  Policy", "Claims Policy").
 - Do not infer new boundaries or relationships. Context discovery belongs to a separate modeling or
   EventStorming workflow.
 
