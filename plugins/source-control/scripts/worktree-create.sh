@@ -256,12 +256,12 @@ Options:
                       fresh picks the remote generically — the current branch's
                       configured remote, else origin, else the sole remote — so a
                       clone made with 'git clone -o upstream' resolves upstream's
-                      default branch. When the repository has not been fetched
-                      in 24 hours, fresh first fetches that branch (capped at
-                      5s, prompts off); a failed or timed-out fetch warns and
-                      keeps the cached ref. With no resolvable remote, or an
-                      uncached <remote>/HEAD, it warns and branches from local
-                      HEAD.
+                      default branch. fresh first fetches that branch on every
+                      run (capped at 5s, prompts off); a failed or timed-out
+                      fetch warns, keeps the cached ref, and reports the base
+                      as <remote>/<branch>@<sha>, not refreshed. With no
+                      resolvable remote, or an uncached <remote>/HEAD, it
+                      warns and branches from local HEAD.
   --repo-dir <dir>    Source repository directory. Default: current directory.
   --session-id <id>   Session id recorded in the git worktree lock reason as
                       \`session <id> since\`, the token worktree-claim.sh
@@ -1138,6 +1138,7 @@ elif ((branch_exists)); then
   fi
 else
 [[ -z "$base_ref" ]] && base_ref="fresh"
+base_label="$base_ref"
 
 # resolve_default_remote <repo-toplevel> — echo the repository's effective
 # default remote name, or return non-zero when none can be resolved. `origin` is
@@ -1203,43 +1204,27 @@ resolve_default_remote() {
   return 1
 }
 
-# FETCH_MAX_AGE_MINUTES / FETCH_CAP_SECONDS — the same freshness window and
-# fetch cap Claude Code's native `fresh` uses (1440 = 24 hours; see
-# refresh_remote_branch).
-FETCH_MAX_AGE_MINUTES=1440
+# FETCH_CAP_SECONDS — the cap on the default-branch fetch a `fresh` base runs,
+# the same cap Claude Code's native `fresh` uses (see refresh_remote_branch).
 FETCH_CAP_SECONDS=5
 
-# fetched_recently <repo-toplevel> — succeed when FETCH_HEAD was written inside
-# the freshness window. FETCH_HEAD lives in the git dir of the worktree the fetch
-# ran from, so both the per-worktree and the common git dir are checked. `find
-# -mmin` is the mtime test GNU, BSD and Git for Windows all share; `stat` is not.
-fetched_recently() {
-  local repo_top="$1" dir
-  for dir in "$(git -C "$repo_top" rev-parse --absolute-git-dir 2>/dev/null | tr -d '\r')" \
-    "$(git -C "$repo_top" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')"; do
-    [[ -n "$dir" && -f "$dir/FETCH_HEAD" ]] || continue
-    [[ -n "$(find "$dir/FETCH_HEAD" -mmin "-$FETCH_MAX_AGE_MINUTES" 2>/dev/null)" ]] && return 0
-  done
-  return 1
-}
-
 # refresh_remote_branch <repo-toplevel> <remote> <branch> — bring
-# refs/remotes/<remote>/<branch> current before `fresh` bases on it, mirroring
-# Claude Code's native `fresh`: when the repository has not been fetched inside
-# the freshness window, fetch the default branch under the cap, and keep the
-# cached ref if the fetch fails. The window and cap above are our mirror of the
-# native values.
+# refs/remotes/<remote>/<branch> current before `fresh` bases on it: fetch the
+# default branch under the cap on every run, and keep the cached ref if the
+# fetch fails. Claude Code's native `fresh` skips the fetch when the repository
+# was fetched in the last 24 hours; this script deliberately does not, because a
+# busy default branch moves many times inside that window, and a base that
+# missed those moves is not fresh.
 #   Pointer: <https://code.claude.com/docs/en/worktrees#choose-the-base-branch>
-#   As-of: 2026-10-11.
+#   As-of: 2026-11-10.
 #   Recheck trigger: that section changes how a "fresh" base refreshes the
-#   remote default branch, the window or cap it names, or its fallback to
-#   local HEAD.
-# Returns 0 when no fetch was needed or it succeeded, 1 when it failed or hit
-# the cap. Prompts are disabled so a credential helper cannot stall the cap
-# waiting on input nobody will type.
+#   remote default branch, the cap it names, or its fallback to local HEAD.
+#   A change to its 24-hour window does not apply here.
+# Returns 0 when the fetch succeeded, 1 when it failed or hit the cap. Prompts
+# are disabled so a credential helper cannot stall the cap waiting on input
+# nobody will type.
 refresh_remote_branch() {
   local repo_top="$1" remote="$2" branch="$3"
-  fetched_recently "$repo_top" && return 0
   GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never run_capped "$FETCH_CAP_SECONDS" \
     git -C "$repo_top" fetch --quiet --no-tags -- "$remote" "$branch" </dev/null >/dev/null 2>&1
 }
@@ -1251,10 +1236,9 @@ head)
 fresh)
   # Resolve the default REMOTE first, then that remote's default BRANCH
   # symbolically (never hardcode origin/main — the portability lint forbids
-  # it), refreshing that branch first when the last fetch is over 24 hours old
-  # (refresh_remote_branch). When the symref is not cached locally, fall back to local HEAD
-  # (matching Claude Code's documented behavior, which is itself origin-centric;
-  # see the pointer record on refresh_remote_branch) but warn loudly: "fresh"
+  # it), refreshing that branch first (refresh_remote_branch). When the symref
+  # is not cached locally, fall back to local HEAD (matching Claude Code's
+  # documented behavior, which is itself origin-centric; see the pointer record on refresh_remote_branch) but warn loudly: "fresh"
   # promises the remote default branch, so a silent fall-through to HEAD could
   # carry unpushed local commits the caller did not want.
   #
@@ -1273,6 +1257,7 @@ fresh)
     if ! refresh_remote_branch "$toplevel" "$default_remote" "${head_ref#"refs/remotes/$default_remote/"}"; then
       printf '%s: warning: --base-ref fresh could not refresh %s within %ss (fetch failed or timed out); basing on the cached ref, which may be behind the remote.\n' \
         "$PROG" "${head_ref#refs/remotes/}" "$FETCH_CAP_SECONDS" >&2
+      base_label="${head_ref#refs/remotes/}@$(git -C "$toplevel" rev-parse --short "$head_ref" 2>/dev/null | tr -d '\r'), not refreshed"
     fi
     base_commit="$head_ref"
   else
@@ -1439,7 +1424,7 @@ fi
 if ((branch_exists)); then
   printf '%s: created worktree on existing branch %q\n' "$PROG" "$branch" >&2
 else
-  printf '%s: created worktree on branch %q (base %s)\n' "$PROG" "$branch" "$base_ref" >&2
+  printf '%s: created worktree on branch %q (base %s)\n' "$PROG" "$branch" "$base_label" >&2
 fi
 printf '%s\n' "$worktree_path"
 if ((lock_failed)); then
