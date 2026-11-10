@@ -77,7 +77,7 @@ blanket `vendor/` or `node_modules/` exclusion would make an `error`-tier check 
 live grants under nested `.claude/skills/` paths, which we treat as live grants because Claude
 Code can load them during a session (Pointer: when deciding whether a nested `.claude/skills/`
 directory is loadable, fetch
-[skills: load skills in monorepos and subdirectories](https://code.claude.com/docs/en/skills#load-skills-in-monorepos-and-subdirectories)
+[skills: load skills in monorepos and subdirectories](https://code.claude.com/docs/en/skills#discovery-from-parent-and-nested-directories)
 live. As of: 2026-11-10. Recheck trigger: that section stops loading nested skill directories in
 some session shape). The
 detector instead applies a **loadability model**: only frontmatter at documented discovery paths is
