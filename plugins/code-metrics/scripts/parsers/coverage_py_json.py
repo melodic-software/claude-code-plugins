@@ -53,6 +53,17 @@ def _lines(region: dict[str, Any]) -> dict[int, int]:
     return out
 
 
+def _function(name: str, region: dict[str, Any]) -> dict[str, Any]:
+    lines = _lines(region)
+    return {
+        "name": name,
+        "start_line": min(lines) if lines else None,
+        "end_line": max(lines) if lines else None,
+        "hit": int(any(lines.values())) if lines else None,
+        "lines": lines or None,
+    }
+
+
 def parse(path: str) -> dict[str, dict]:
     """Read `path` and return the per-file coverage mapping."""
     with open(path, encoding="utf-8") as handle:
@@ -66,24 +77,13 @@ def parse(path: str) -> dict[str, dict]:
         section: dict[str, Any] = {"lines": _lines(entry), "functions": None}
         regions = entry.get("functions")
         if isinstance(regions, dict):
-            functions = []
-            for function_name, region in regions.items():
-                if not isinstance(region, dict):
-                    continue
-                region_lines = _lines(region)
-                functions.append(
-                    {
-                        "name": function_name,
-                        "start_line": min(region_lines) if region_lines else None,
-                        "end_line": max(region_lines) if region_lines else None,
-                        "hit": int(any(region_lines.values()))
-                        if region_lines
-                        else None,
-                        "lines": region_lines or None,
-                    }
-                )
             section["functions"] = sorted(
-                functions, key=lambda f: (f["start_line"] is None, f["start_line"] or 0)
+                (
+                    _function(function_name, region)
+                    for function_name, region in regions.items()
+                    if isinstance(region, dict)
+                ),
+                key=lambda f: (f["start_line"] is None, f["start_line"] or 0),
             )
         files[_norm(name)] = section
     return files
