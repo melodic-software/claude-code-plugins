@@ -38,14 +38,10 @@ md_classify() {
       code=0
       # An executable cli2 config resolves these keys' entries itself, from any
       # expression that yields a string, so the module scan cannot pin them.
-      case "${1##*/}" in
-        .markdownlint-cli2.*)
-          if grep -Eq 'customRules|markdownItPlugins|outputFormatters' "$1" 2>/dev/null; then
-            [[ -n "$MD_TRUST_BLOCK" ]] || MD_TRUST_BLOCK=unpinnable
-          fi
-          ;;
-        *) ;;
-      esac
+      if [[ "${1##*/}" == .markdownlint-cli2.* && -z "$MD_TRUST_BLOCK" ]] &&
+        grep -Eq 'customRules|markdownItPlugins|outputFormatters' "$1" 2>/dev/null; then
+        MD_TRUST_BLOCK=unpinnable
+      fi
       ;;
     *markdownlint-cli2.jsonc | *markdownlint-cli2.yaml)
       grep -Eq 'customRules|markdownItPlugins|outputFormatters' "$1" 2>/dev/null && code=0
@@ -53,15 +49,10 @@ md_classify() {
         code=0
         MD_TRUST_BLOCK=unverifiable
       fi
-      case "$1" in
-        *.yaml)
-          if grep -Eq '\\$|!![A-Za-z]' "$1" 2>/dev/null; then
-            code=0
-            MD_TRUST_BLOCK=unverifiable
-          fi
-          ;;
-        *) ;;
-      esac
+      if [[ "$1" == *.yaml ]] && grep -Eq '\\$|!![A-Za-z]' "$1" 2>/dev/null; then
+        code=0
+        MD_TRUST_BLOCK=unverifiable
+      fi
       ;;
     *) ;;
   esac
@@ -72,17 +63,18 @@ md_classify() {
 # The first config of each family wins in a directory, as markdownlint-cli2
 # resolves it, so a shadowed executable config does not count.
 md_scan_dir() {
-  local c
-  for c in .markdownlint-cli2.jsonc .markdownlint-cli2.yaml .markdownlint-cli2.cjs .markdownlint-cli2.mjs; do
-    if [[ -f "$1/$c" ]]; then
-      md_note_config "$1/$c"
-      break
-    fi
-  done
-  for c in .markdownlint.jsonc .markdownlint.json .markdownlint.yaml .markdownlint.yml .markdownlint.cjs .markdownlint.mjs; do
-    if [[ -f "$1/$c" ]]; then
-      md_note_config "$1/$c"
-      break
+  md_scan_family "$1" .markdownlint-cli2.jsonc .markdownlint-cli2.yaml .markdownlint-cli2.cjs .markdownlint-cli2.mjs
+  md_scan_family "$1" .markdownlint.jsonc .markdownlint.json .markdownlint.yaml .markdownlint.yml .markdownlint.cjs .markdownlint.mjs
+}
+
+# md_scan_family <dir> <name>...: note the first of the names present in <dir>.
+md_scan_family() {
+  local dir="$1" c
+  shift
+  for c in "$@"; do
+    if [[ -f "$dir/$c" ]]; then
+      md_note_config "$dir/$c"
+      return 0
     fi
   done
 }
