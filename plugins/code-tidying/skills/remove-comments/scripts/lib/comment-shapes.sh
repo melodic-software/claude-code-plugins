@@ -172,9 +172,7 @@ cr_add_shape() {
 # The same over comment text already extracted from a line, or joined from two lines.
 # $2: the line sits in a license block; $3: the line sits in a justified comment run.
 cr_detect_shapes_text() {
-  local ct="$1"
-  local in_license_block="${2:-0}"
-  local in_justified_run="${3:-0}"
+  local ct="$1" in_license_block="${2:-0}" in_justified_run="${3:-0}"
   REPLY=""
   [[ -z "${ct//[[:space:]]/}" ]] && return 0
   local lc="${ct,,}"
@@ -212,8 +210,8 @@ cr_detect_shapes_text() {
   # The ISO time is spelled out because `T` is alphanumeric and would fail the end boundary.
   # Markers and license headers are exempt; the caller passes the block-scoped license verdict.
   if ! cr_is_sanctioned_todo "$ct" && ((!in_license_block)); then
-    if [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+|\([[:space:]]*)(ported|copied|migrated|adapted|borrowed|lifted|taken)[[:space:]]+from([^[:alnum:]]|$) ]] ||
-      [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+)(added|merged|introduced|backported|ported)[[:space:]]+(on[[:space:]]+)?[0-9]{4}-[0-9]{2}-[0-9]{2}(t[0-9:]{4,8}z?)?([^[:alnum:]]|$) ]]; then
+    if [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+|\([[:space:]]*)(ported|copied|migrated|adapted|borrowed|lifted|taken)[[:space:]]+from${eb} ]] ||
+      [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+)(added|merged|introduced|backported|ported)[[:space:]]+(on[[:space:]]+)?[0-9]{4}-[0-9]{2}-[0-9]{2}(t[0-9:]{4,8}z?)?${eb} ]]; then
       cr_add_shape 'origin-note'
     fi
   fi

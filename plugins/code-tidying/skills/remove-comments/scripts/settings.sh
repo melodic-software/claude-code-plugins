@@ -68,7 +68,7 @@ PERSONAL="$conventions/code-tidying.local.yaml"
 # Sets val to the layer's valid value for a key, or bad to a description of an
 # invalid one; both stay empty when the file does not set the key.
 read_layer() {
-  local file="$root/$1" key="$2" count value status
+  local file="$root/$1" key="$2" count value
   val=""
   bad=""
   [[ -f "$file" ]] || return 0
@@ -78,8 +78,7 @@ read_layer() {
     return 0
   fi
   value="$(bash "$READER" --strict "$file" "$key" 2>/dev/null)"
-  status=$?
-  if ((status == 3)); then
+  if (($? == 3)); then
     bad="does not parse"
     return 0
   fi

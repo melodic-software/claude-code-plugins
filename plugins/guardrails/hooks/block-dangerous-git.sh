@@ -381,14 +381,6 @@ is_lease_opt() { abbrev_match "force-with-lease" "${1%%=*}" 7; }
 # narrowing this gap should treat the false block as the primary symptom, not
 # the bypass.
 #
-# An earlier wording
-# here listed a "compound cd" as one of three conjuncts and read as far narrower
-# than the gap was: at the time the payload cwd was not read at all, so NO cd and
-# NO wrapper were required either — a plain `git push` from a session directory
-# the hook process did not share was already enough (#2124). Reading `.cwd`
-# closed that; the understatement is corrected here so the remaining gap is not
-# re-measured from a description that undersells it.
-#
 # Resolved at most once per option set and only on the rare path that sees a hex
 # expectation; the guard's one other subprocess is repo_is_temp_scratch's probe,
 # on the reset --hard and clean -f paths. The result is assigned by a
@@ -792,7 +784,7 @@ alias_reexpand_admit() {
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 check_segment() {
   local -a w=()
-  local nseg gi k x rest ch sub sub_idx staged worktree dry excl pos opseen
+  local nseg gi k x rest ch sub sub_idx staged worktree dry forced excl pos opseen
   local if_includes lease_tracking lease_movable lease_width_unknown lease_seen lease_ref lease_expect
   # Read by lease_expect_is_immutable further down the call chain; per-frame, so
   # a recursive re-check of an alias expansion collects its own.
@@ -1152,18 +1144,16 @@ check_segment() {
     # abbreviation ≥ --f), or f in a short bundle (-f, -fd, -fdx, -ff). A
     # dry-run flag anywhere (-n, --dry-run ≥ --d, or n in a bundle) makes the
     # whole command a preview — git honors it regardless of flag order — so it
-    # disarms the force check. -e/--exclude consumes the next word as its
-    # pattern in BOTH scans, so a flag-looking value (`-e --dry-run`) neither
-    # disarms nor triggers anything.
+    # disarms the force check. -e/--exclude and its accepted abbreviations
+    # (`--ex`) consume the next word as a pattern, so a flag-looking value
+    # (`-e --dry-run`) neither disarms nor triggers anything.
     # `--` ends option parsing: a pathspec literally named "--dry-run" after
     # the marker must not disarm the force check, and no force flag can
     # appear there either.
     # Dry-run is last-wins here too: `--no-dry-run` after a dry token re-arms
-    # the deletion, so track state instead of early-returning. --exclude and
-    # its accepted abbreviations (`--ex`) consume the next word as a pattern
-    # in BOTH scans, so a flag-looking exclude value neither disarms nor
-    # triggers anything.
+    # the deletion, so the one scan counts force flags and decides after it.
     dry=0
+    forced=0
     for ((k = sub_idx + 1; k < nseg; k++)); do
       x="${w[k]}"
       [[ "$x" == "--" ]] && break
@@ -1194,43 +1184,20 @@ check_segment() {
         rest="${x%%e*}"
         [[ "$x" == *e ]] && ((k++))
         [[ "$rest" == *n* ]] && dry=1
+        [[ "$rest" == *f* ]] && ((++forced))
         continue
       fi
       if [[ "$x" == "-n" ]] || abbrev_match "dry-run" "$x" 1 ||
         [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *n* ]]; then
         dry=1
       fi
+      if abbrev_match "force" "$x" 1 || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
+        ((++forced))
+      fi
     done
     ((dry)) && return 0
-    for ((k = sub_idx + 1; k < nseg; k++)); do
-      x="${w[k]}"
-      [[ "$x" == "--" ]] && break
-      case "$x" in
-      -e)
-        ((k++))
-        continue
-        ;;
-      -e?*) continue ;;
-      *) ;;
-      esac
-      if [[ "$x" == --*=* ]] && abbrev_match "exclude" "${x%%=*}" 1; then
-        continue
-      fi
-      if [[ "$x" != *=* ]] && abbrev_match "exclude" "$x" 1; then
-        ((k++))
-        continue
-      fi
-      # Same bundle rule as the dry-run pre-scan: letters at and after the
-      # first `e` are its value, so only the prefix carries flags.
-      if [[ "$x" =~ ^-[A-Za-z]*e[A-Za-z]*$ ]]; then
-        rest="${x%%e*}"
-        [[ "$x" == *e ]] && ((k++))
-        [[ "$rest" == *f* ]] && block_clean_force
-        continue
-      fi
-      if abbrev_match "force" "$x" 1 || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
-        block_clean_force
-      fi
+    for (( ; forced > 0; forced--)); do
+      block_clean_force
     done
     ;;
   checkout)
@@ -1370,8 +1337,6 @@ check_segment() {
       # LAST selector (`--staged --worktree --no-worktree .` is index-only
       # — verified), so --no- forms clear the corresponding flag.
       case "$x" in
-      --staged) staged=1 ;;
-      --worktree) worktree=1 ;;
       --no-*)
         rest="--${x#--no-}"
         abbrev_match "staged" "$rest" 2 && staged=0

@@ -129,10 +129,8 @@ while [[ $# -gt 0 ]]; do
     ;;
   --)
     shift
-    while [[ $# -gt 0 ]]; do
-      BRANCHES+=("$1")
-      shift
-    done
+    BRANCHES+=("$@")
+    break
     ;;
   -*)
     echo "git-branch-delete.sh: unknown arg '$1'" >&2
@@ -197,9 +195,9 @@ if [[ $REFUSED -eq 0 ]]; then
       IFS=$'\t' read -r c_branch c_tip c_tier c_pr _up _ahead _behind _not_on_default c_landed _rest <<<"$line"
       if [[ -n "$c_branch" && "$c_tip" =~ ^[0-9a-f]{40,64}$ ]]; then
         CAP_TIP["$c_branch"]="$c_tip"
-        CAP_TIER["$c_branch"]="${c_tier:-}"
+        CAP_TIER["$c_branch"]="$c_tier"
         CAP_PR["$c_branch"]="${c_pr:-none}"
-        CAP_LANDED["$c_branch"]="${c_landed:-}"
+        CAP_LANDED["$c_branch"]="$c_landed"
         CAP_ROWS=$((CAP_ROWS + 1))
       elif [[ "$line" == '# common_dir: '* ]]; then
         CAP_COMMON="${line#\# common_dir: }"
@@ -272,13 +270,7 @@ LANDED_RE='^landed '
 # (`#<n> MERGED` or `#<n> MERGED (tip drift)`). A substring containing MERGED is
 # not enough: that would skip the ancestry check on a forged or edited capture.
 delete_mode() {
-  local tier="$1" pr="$2"
-  case "$tier" in
-  SAFE)
-    if [[ "$pr" =~ $PR_MERGED_RE ]]; then printf 'force'; else printf 'safe'; fi
-    ;;
-  *) printf 'force' ;;
-  esac
+  if [[ "$1" == SAFE && ! "$2" =~ $PR_MERGED_RE ]]; then printf 'safe'; else printf 'force'; fi
 }
 
 # What a safe delete must be merged into: origin/<default>, which is what the
@@ -383,9 +375,7 @@ for branch in "${BRANCHES[@]}"; do
       if [[ ! "$pr" =~ $PR_OPEN_RE && ! "$pr" =~ $PR_MERGED_RE ]]; then
         has_proof=0
         [[ "$tier" == LIKELY-SAFE && "${CAP_LANDED[$branch]:-}" =~ $LANDED_RE ]] && has_proof=1
-        if [[ $has_proof -eq 1 ]] && clean_landed_proof "$REPO_ROOT" "$DEFAULT_BRANCH" "$branch" >/dev/null; then
-          :
-        else
+        if ! { [[ $has_proof -eq 1 ]] && clean_landed_proof "$REPO_ROOT" "$DEFAULT_BRANCH" "$branch" >/dev/null; }; then
           captured_as="$tier"
           [[ $has_proof -eq 1 ]] && captured_as+=" with a Landed proof that no longer holds"
           refuse "$branch (live reachability now loses $live_lost commits that exist on no remote ref and no tag; captured as $captured_as; re-run git-branch-audit.sh before deleting)"
