@@ -3,6 +3,15 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.7] - 2026-11-10
+
+### Changed
+
+- `babysit-prs` prints nothing on an iteration where no PR materially changed. Every iteration
+  still completes its evidence checklist and writes it to `babysit-checklist.md` in the working-notes
+  location, where the next iteration reads its `Subscribed PRs` line; an iteration with a material
+  change prints the Reporting lines followed by the completed checklist.
+
 ## [8.12.6] - 2026-11-10
 
 ### Changed
