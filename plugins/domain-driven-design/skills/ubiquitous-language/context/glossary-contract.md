@@ -8,13 +8,15 @@ fallback when the repository provides no entry convention:
 ```markdown
 # Billing glossary
 
-Terms the billing team uses. Avoid lists names we rejected; use the term above instead.
+Terms the billing team uses. Avoid marks words we rejected; use the chosen term or verb instead.
 
 **Invoice**
 
 A request for payment issued to a customer after delivery.
 
 States: Draft, then Sent, then Paid or Void.
+
+Actions: void (Avoid: cancel)
 
 Avoid: bill, payment request
 
@@ -23,19 +25,25 @@ Shown to users as: bill
 
 - **Header sentence:** a new glossary says once, under its title, what `Avoid:` means. The line is
   plain on purpose; a hard ban belongs in a check (a spelling or lint rule generated from the
-  `Avoid:` lines), not in emphatic wording.
+  rejected words on `Avoid:` and `Actions:` lines), not in emphatic wording.
 - **Canonical term:** one preferred name for the concept within this bounded context.
 - **Definition:** 1–2 sentences stating what the term is. Define its conceptual boundary, not its
   implementation, behavior backlog, or storage representation.
 - **States:** one entry per entity, with its states listed under it and what moves it into each when
   that is part of the meaning. A state gets its own entry only when people use it as a noun on its own
   and it carries rules of its own. Omit the line when the entity has no named states.
+- **Actions:** optional, under the entity like `States:`, only when one verb was chosen over another
+  for an operation on it: the chosen verb, then the rejected one in parentheses, `Actions: submit
+  (Avoid: raise)`; several contested operations are comma-separated pairs on one line. Omit the line
+  when no verb was contested.
 - **Rejected synonyms:** names considered and rejected for this concept. Follow the existing file's
   syntax; otherwise use the plain `Avoid:` line above. Omit the line when no synonym was rejected.
 - **Shown to users as:** optional, only when the wording on screens, emails and error messages
   deliberately differs from the term. Checks for rejected words treat this wording as intended.
 - **Admission:** project-context terms only. Generic programming or methodology vocabulary stays out
-  unless it has a distinct project-domain meaning.
+  unless it has a distinct project-domain meaning, and so do everyday words used in their ordinary
+  sense. A term earns an entry only when it removes ambiguity in this context: a project-specific
+  meaning, a clash between meanings, or a rejected synonym.
 - **Purity:** the glossary contains vocabulary, not specifications, decisions, tasks, examples of
   implementation, or unresolved brainstorming.
 - **Business rules:** an entry says what the concept is, never what may or must happen to it ("an
