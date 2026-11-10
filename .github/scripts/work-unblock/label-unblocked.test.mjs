@@ -898,6 +898,8 @@ const sweep = (args, extra = {}) =>
     }),
     // A job's log goes through the same fake as every other read.
     jobLog: args.actions ? (repo, id, options) => args.actions("GET", `/repos/${repo}/actions/jobs/${id}/logs`, undefined, {}, options) : undefined,
+    // A fixed 3 slots, so a SLOTS change in work-resolve-issue.yml does not move these expectations.
+    slots: () => 3,
     ...args,
   });
 
@@ -3299,8 +3301,8 @@ test("the issue lane's slot count is the SLOTS work-resolve-issue.yml sets", () 
   assert.equal(laneSlots(path), 4);
   writeFileSync(path, "jobs:\n  pick-slot:\n    env:\n      SLOT: 4\n");
   assert.throws(() => laneSlots(path), /sets no SLOTS/);
-  // The repository's own workflow: 3 slots, so a queue target of 6 at 2 per slot.
-  assert.equal(laneSlots(), 3);
+  // The repository's own workflow sets a whole number of slots (its value is free to change).
+  assert.ok(Number.isInteger(laneSlots()) && laneSlots() >= 1);
 });
 
 test("after the switch clears, breaker re-fires top the unfinished lane runs up to refire-queue-per-slot x SLOTS, the oldest stranded first", async () => {
