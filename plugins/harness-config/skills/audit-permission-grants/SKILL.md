@@ -105,7 +105,7 @@ numbers into the report:
 - **Name the scopes this detector never opens**: managed-policy and enterprise settings, a
   `--settings` flag file, the start-directory copy. `audit-permission-state` owns the
   question of which scopes exist, and its `reference/criteria.md` §Scopes carries the dated record
-  for that version boundary; this skill's silence about them is a boundary, not a result.
+  for the start-directory copy; this skill's silence about them is a boundary, not a result.
 
 A user-global finding is reported the same as any other, but its remediation is the operator's: a
 skill cannot write that file. When deciding where an approval-prompt grant lands, fetch

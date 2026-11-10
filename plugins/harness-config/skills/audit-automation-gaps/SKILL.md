@@ -386,7 +386,9 @@ script exits 2 rather than guessing when it is missing.
   live.
 - **As of**: 2026-11-10
 - **Recheck trigger**: that section starts exporting the variable to commands run through the Bash
-  tool. The payload is exactly one JSON object with a `candidates` array, each entry carrying
+  tool.
+
+The payload is exactly one JSON object with a `candidates` array, each entry carrying
 `id`, `candidate`, `category`, `verdict`, an `evidence` array, and a `plan` object on any `PASS` or
 `CONDITIONAL`. Each entry also carries `approved`, the boolean that records the human's selection.
 A malformed payload, or a stream carrying more than one document, exits 3 and writes nothing,
@@ -396,9 +398,9 @@ Writes are all or nothing. A run id already taken is reserved under the next fre
 overwritten, so two runs racing for one id both survive and each is told the id it actually got.
 
 Findings are keyed per project, so one checkout never reads another's verdicts. This tree is the
-only durable copy, so check what an uninstall removes before running one.
+only durable copy, and an uninstall can delete it.
 
-- **Pointer**: before uninstalling this plugin, fetch
+- **Pointer**: when deciding whether the findings survive an uninstall, fetch
   [plugins CLI reference: what an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps)
   live.
 - **As of**: 2026-11-10

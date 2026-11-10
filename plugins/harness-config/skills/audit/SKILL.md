@@ -329,7 +329,7 @@ Present all findings as a severity-rated GFM table:
 
 | # | Category | Severity | Finding | Current | Recommended |
 | --- | --- | --- | --- | --- | --- |
-| 1 | B, Permissions | error | Deny rule placed in `settings.local.json` (known issue #8961, row in [reference/known-issues.md](reference/known-issues.md)) | `settings.local.json` → `permissions.deny: ["Bash(rm -rf:*)"]` | Move the rule into `settings.json`; keep `settings.local.json` deny empty |
+| 1 | B, Permissions | error | Deny rule placed in `settings.local.json`, where bug #8961 leaves it inert | `settings.local.json` → `permissions.deny: ["Bash(rm -rf:*)"]` | Move the rule into `settings.json`; keep `settings.local.json` deny empty |
 
 Then three short sections the engine's document already carries:
 
@@ -425,11 +425,9 @@ engine takes narrowing 3 from that manifest mechanically: the pattern drops to `
 hook, and opt-out levers named, and only while the hook is live (no suppression lever set, plugin
 resolved). Without a manifest the narrowing stays the model's reading of the guard's source.
 
-Report the secret-file Read denies with their scope, not as protection (Pointer: for what a
-`Read(...)` deny covers, fetch
-[permissions: what Read and Edit rules cover](https://code.claude.com/docs/en/permissions#what-read-and-edit-rules-cover)
-live. As of: 2026-11-10. Recheck trigger: that section changes which tools or commands a Read rule
-reaches). "Scope of a Read deny" in
+Report the secret-file Read denies with their scope, not as protection: a `Read(...)` deny covers the
+built-in file tools and the Bash file commands Claude Code recognizes, but not a subprocess that opens
+the path itself. "Scope of a Read deny" in
 [reference/required-permissions.md](reference/required-permissions.md) carries the covered /
 not-covered split, the ranked remedies, and the platform limit. Carry it into the finding rather than
 implying the file is unreachable.
