@@ -148,25 +148,49 @@ run "a question opened with Q<N>) names its own id" 1 paren-heading.md '^bare=2:
 run "only the later bare use of a Q<N>) id fails" 1 paren-heading.md 'bare=1 status=fail'
 
 # A scenario walk numbers its scenarios S1, S2 inside one question. Once an assumption sweep has
-# logged `- S<N> |` rows, those ids are ledger codes, so each scenario must open with `S<N>:`.
+# logged `- S<N> |` rows, a bare S<N> is a sweep item, so scenarios are qualified (`Q17.S1:`).
 cat >"$TMP/sweep-ledger.md" <<'MD'
-## Assumption sweep log
+## Assumption sweep
 
 - sweep 1 | register through Q14
 - S1 | sweep 1 | undecided | decision | Q14 recommendation, retry window | Q15
 - S2 | sweep 1 | hidden-default | decision | Q14 recommendation, alert channel | Q16
 MD
-round walk.md \
+round walk-overlap.md \
   'Q17: What is a booking once it moves?' \
   'Context:' \
   'S1: Priya holds Tuesday 10:00 and pays 40.00; on Monday she moves it to Thursday.' \
+  'Checked against: S1'
+out="$(bash "$SUT" --ledger "$TMP/sweep-ledger.md" "$TMP/walk-overlap.md" 2>&1)"
+got=$?
+if [[ "$got" -eq 1 ]] && grep -q '^bare=3:S1$' <<<"$out" && grep -q 'bare=1 status=fail' <<<"$out"; then
+  pass "a scenario opened with a bare S<N>: that is also a sweep id fails"
+else
+  fail "a scenario opened with a bare S<N>: that is also a sweep id fails ($out)"
+fi
+run "with no sweep rows a scenario opened with a bare S<N>: passes" 0 walk-overlap.md 'bare=0 status=ok'
+round walk.md \
+  'Q17: What is a booking once it moves?' \
+  'Context:' \
+  'Q17.S1: Priya holds Tuesday 10:00 and pays 40.00; on Monday she moves it to Thursday.' \
   '(a) Same booking. (b) A new booking. Recommend (a): forces "reschedule".' \
-  '**S2:** Omar cancels on Wednesday. Recommend (b), S1 still stands: forces "cancel".'
+  '**Q17.S2:** Omar cancels on Wednesday. Recommend (b), Q17.S1 still stands: forces "cancel".'
 if out="$(bash "$SUT" --ledger "$TMP/sweep-ledger.md" "$TMP/walk.md" 2>&1)" &&
   grep -q 'codes=3 bare=0 status=ok' <<<"$out"; then
-  pass "a scenario walk whose scenarios open with S<N>: passes"
+  pass "a scenario walk with question-qualified ids passes beside sweep rows"
 else
-  fail "a scenario walk whose scenarios open with S<N>: passes ($out)"
+  fail "a scenario walk with question-qualified ids passes beside sweep rows ($out)"
+fi
+round walk-then-sweep.md \
+  'Q17: What is a booking once it moves?' \
+  'Q17.S1: Priya holds Tuesday 10:00. Recommend (a): forces "reschedule".' \
+  'Checked against: S1'
+out="$(bash "$SUT" --ledger "$TMP/sweep-ledger.md" "$TMP/walk-then-sweep.md" 2>&1)"
+got=$?
+if [[ "$got" -eq 1 ]] && grep -q '^bare=3:S1$' <<<"$out"; then
+  pass "a qualified scenario id does not name the sweep's S<N>"
+else
+  fail "a qualified scenario id does not name the sweep's S<N> ($out)"
 fi
 round walk-bare.md \
   'Q17: What is a booking once it moves?' \

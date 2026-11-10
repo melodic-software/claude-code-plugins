@@ -57,7 +57,13 @@ the walk without the offer.
 Number the scenarios `S1`, `S2`, and so on within one question, and put them in that question's
 Context; a topic whose whole Context is its set of scenarios is one question too. Each scenario opens
 with `S<N>:`, is concrete (named people, amounts, days or dates), states the outcome it tests, and
-ends with its own recommendation and the term or rule that answer forces:
+ends with its own recommendation and the term or rule that answer forces. Once the ledger's
+`## Assumption sweep` section holds `- S<N> |` rows, a bare `S<N>` is a sweep item, so every
+scenario id is qualified by its question instead (`Q17.S1:`), in the round, in the user's answers
+and in the register resolution; `check-round-codes.sh` fails a scenario opened with a bare `S<N>:`
+that is also a sweep id.
+
+Without sweep rows:
 
 ```markdown
 S1: Priya holds a physio slot for Tuesday 10:00 and pays the 40.00 deposit; on Monday she moves it
@@ -71,14 +77,14 @@ rule does not apply to them. The per-scenario picks roll up into the question's 
 `My recommendation:` line ("(a) for each", or the picks listed) with its `Basis:`; the scenario
 options stand in for the question's `Alternatives:`. A walk is asked in prose, never on a card.
 
-The user answers per scenario ("S3: a"). With two walks in one round, the answer names the question
-too ("Q12 S3: a").
+The user answers per scenario ("S3: a"). With two walks in one round, or with qualified ids, the
+answer names the question too ("Q12.S3: a").
 
 ### Recording
 
 - The resolutions go in the resolution field of that question's register row, one per scenario
-  (`S1: a, reschedule; S2: b`), with no `|` in them. A scenario gets no register row of its own, and
-  its id is not the assumption sweep's `S<N>`. A reply that answers only some scenarios leaves the
+  (`S1: a, reschedule; S2: b`, or `Q17.S1: a, reschedule; Q17.S2: b` once the sweep has rows), with
+  no `|` in them. A scenario gets no register row of its own. A reply that answers only some scenarios leaves the
   row `open`; the unanswered ones are restated.
 - An agreed term goes to the glossary through SKILL.md's inline vocabulary update, under
   `domain_docs` like any resolved term.
