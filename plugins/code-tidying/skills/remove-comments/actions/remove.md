@@ -141,6 +141,10 @@ absent, and no move dissolves a *why* ("Apply capacity" in dissolving-moves.md).
    layer, never `+0`. Then these lists, each "none" when empty:
    - **Reshape flags**: each deleted our-code surprise or undissolved class-B comment, by file, line
      and symbol, with the move that would make it unnecessary.
+   - **ADR candidates**: each deleted rationale for one of the repository's own decisions that names
+     the alternative it beat, by file, line and symbol, with whether `/architecture:record-decision`
+     recorded it, declined it, or was not invoked (unattended, `report` mode, or no `architecture`
+     plugin), per SKILL.md "What `necessary` keeps above the floor".
    - **Open root-cause work**: each workaround comment removed or proposed for removal, and each
      correctness or safety suppression kept, by file and line with the comment's text. Deleting the
      comment leaves the workaround in the code. When `/corrections:codify` is among the available

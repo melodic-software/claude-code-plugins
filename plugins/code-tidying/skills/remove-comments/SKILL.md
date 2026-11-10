@@ -147,7 +147,13 @@ one of them, link or not: it is deleted and listed as open root-cause work, unle
 `TODO(#issue)` marker. A warning of consequence, a unit or sentinel annotation, a section divider and
 rationale about this repository's own code are **our-code surprises**: deleted, narrative staged, and
 each one a reshape flag naming the symbol and the move that would make the comment unnecessary
-(rename, extract, a type, an assertion, a redesign). A constraint the code could enforce gets the
+(rename, extract, a type, an assertion, a redesign). When the deleted rationale records one of this
+repository's own deliberate decisions and names the alternative it was chosen over, it is also an
+**ADR candidate**: in an interactive run with the `architecture` plugin enabled, invoke
+`/architecture:record-decision` via the Skill tool with the decision, the alternative and the
+comment's text; that skill owns the admission test and declines a decision that fails it.
+Otherwise (unattended, `report` mode, or no `architecture` plugin) list it as an ADR candidate in
+the report. A comment that names no alternative stays a reshape flag only. A constraint the code could enforce gets the
 encode step in [actions/remove.md](actions/remove.md#encode-a-constraint).
 
 **What `none` keeps above the floor**: public-API doc comments, except that one which only restates
@@ -210,6 +216,7 @@ an UNPROVABLE file yields proposals only.
 - `/source-control:commit`, which takes the staged commit-message block and lands the removed
   narrative with the diff that removed it.
 - Reshape flags that need a design decision: `/architecture:improve` on the flagged symbols.
+- ADR candidates listed but not recorded: `/architecture:record-decision` with each one.
 - Open root-cause work (a workaround, a correctness suppression): `/debugging:debug` or
   `/implementation:implement`.
 
@@ -220,7 +227,8 @@ an UNPROVABLE file yields proposals only.
   and `none` the narrative is staged before anything is deleted.
 - Rationale for a *rejected* approach has no referent in the adjacent code, the same surface as a
   stale comment. It is class C ([reference/safety.md](reference/safety.md)); outside `explanatory`
-  it is staged and deleted, since rejected alternatives belong in the commit or PR that removed them.
+  it is staged and deleted, since rejected alternatives belong in the commit or PR that removed them,
+  or in an ADR when the decision is an ADR candidate.
 - Extraction has a cost curve: a name that must grow megasyllabic to stay honest signals the
   information did not fit the name channel ([reference/dissolving-moves.md](reference/dissolving-moves.md)).
 - A tests/ directory near the target is not a net until it demonstrably covers the touched file.
