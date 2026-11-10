@@ -188,11 +188,24 @@ test("a FAIL index never replaces or keeps a name its run already holds", () => 
 test("the verdict is each job's only artifact upload but the key job's probing and credit-stop markers, and follows the written verdict", () => {
   for (const job of JOBS) {
     const uploads = STEPS[job].filter((s) => /uses: actions\/upload-artifact@/.test(s.block));
+    // The lane-hold marker is told by its artifact name, never its step name:
+    // exactly one upload names lane-hold-pr-verify, only after Note the hold
+    // ran (when no judge ran), with the fixed path that step wrote.
+    const markers = uploads.filter((s) => input(s.block, "name") === "lane-hold-pr-verify");
+    assert.equal(markers.length, 1, `${job}: one lane-hold marker upload`);
+    const [marker] = markers;
+    assert.match(marker.block, /^ {8}if: steps\.note-hold\.outcome == 'success'$/m, job);
+    assert.equal(input(marker.block, "path"), "${{ runner.temp }}/lane-hold/pr-verify", job);
+    assert.equal(input(marker.block, "retention-days"), "1", job);
+    assert.equal(input(marker.block, "if-no-files-found"), "ignore", job);
+    assert.match(step("Note the hold", job), /^ {8}id: note-hold$/m, job);
+    assert.equal(STEPS[job].indexOf(marker), index("Log the API budget", job) - 1, job);
     assert.deepEqual(
-      uploads.map((s) => s.name),
+      uploads.filter((s) => s !== marker).map((s) => s.name),
       job === KEY ? ["Upload the key's probing marker", "Upload the verdict", "Upload the key's credit-stop marker"] : ["Upload the verdict"],
       job,
     );
+    assert.ok(uploads.filter((s) => s !== marker).every((s) => !String(input(s.block, "name")).startsWith("lane-hold-")), job);
     assert.ok(index("Judge the pull request", job) >= 0 && index("Write the verdict", job) > index("Judge the pull request", job), job);
     // The written verdict is scanned just before it uploads, and uploads only on the scan's clean output.
     assert.ok(index("Scan the upload for credentials", job) > index("Write the verdict", job), job);
@@ -672,7 +685,9 @@ test("the key job hands the judgment on only after a clean handoff or with no ke
     assert.equal(input(next, "state"), "${{ steps.credential.outputs.state }}", job);
     assert.equal(input(next, "handoff"), `\${{ (${chainOf((id) => `steps.${id}.outputs.handoff == 'true'`, "judge")}) && (${chainOf((id) => `steps.${id}.outputs.clean`, legStep)}) == 'true' }}`, job);
     assert.equal(input(next, "handoff-reason"), `\${{ ${chainOf((id) => `steps.${id}.outputs.handoff-reason`, "judge")} }}`, job);
-    assert.equal(index("Pick the next leg", job), index("Log the API budget", job) - 1, job);
+    // Only the lane-hold marker upload sits between it and the budget log.
+    assert.equal(index("Pick the next leg", job), index("Log the API budget", job) - 2, job);
+    assert.equal(input(STEPS[job][index("Log the API budget", job) - 1].block, "name"), "lane-hold-pr-verify", job);
   }
   assert.equal(index("Pick the next leg", FB), -1);
 });
