@@ -207,7 +207,12 @@
 // limits.limit-stops-per-issue trips since a listed human last added
 // agent-ready or a run last reported, waits the kill-switch
 // limits.stranded-backoff-hours after the run ended, flat, never doubled,
-// with no cap on trips and no fail route. A breaker
+// with no cap on trips and no fail route. A sweep re-fires breaker trips,
+// oldest run end first, only while the work-resolve-issue runs not yet
+// finished (five status listings, read once a sweep that has one) are under
+// limits.refire-queue-per-slot times the lane's SLOTS, within
+// limits.restarts-per-run, so after a clear the lane stays full with a short
+// queue that each finished run's sweep tops up. A breaker
 // record never spends the once-per-version re-fire, never counts toward the
 // failed-mint bound and never raises another cause's backoff. Each run's log
 // is read once, from its one refused job and at most LOG_CAP_BYTES, and only
@@ -1894,6 +1899,15 @@ async function lastLanePull({ github, repo, number, addedAt, bot }) {
   return last;
 }
 
+// The issue lane's slot count, from the one line work-resolve-issue.yml sets it on.
+export function laneSlots(path = new URL("../../workflows/work-resolve-issue.yml", import.meta.url)) {
+  const slots = /^ +SLOTS: ([1-9][0-9]*)$/m.exec(readFileSync(path, "utf8"))?.[1];
+  if (slots === undefined) {
+    throw new Error("work-resolve-issue.yml sets no SLOTS");
+  }
+  return Number(slots);
+}
+
 // The titles of every work-resolve-issue run that has not finished.
 async function runsInFlight(actions, repo) {
   const titles = [];
@@ -2383,10 +2397,31 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
   }
   ready.sort((a, b) => a.resets - b.resets || a.number - b.number);
   console.log(`label-unblocked: ${ready.filter((item) => item.recurrence).length} reopened fix issue(s) to relabel`);
-  for (const { number } of ready.slice(cap)) {
+  // Kill-switch re-fires only top the lane's unfinished runs up to the queue
+  // target, so a clear keeps the slots full instead of flooding their queue;
+  // a listing that fails re-fires none of them this sweep.
+  let room = 0;
+  if (ready.some((item) => item.stall === "breaker")) {
+    try {
+      const target = limits["refire-queue-per-slot"] * laneSlots();
+      const queued = (await inFlight()).length;
+      room = Math.max(0, target - queued);
+      console.log(`label-unblocked: ${queued} work-resolve-issue run(s) unfinished, kill-switch re-fire room ${room} of ${target}`);
+    } catch (error) {
+      reportHold("kill-switch re-fire queue", error);
+    }
+  }
+  const go = ready.filter((item) => {
+    if (item.stall !== "breaker" || room-- > 0) {
+      return true;
+    }
+    console.log(`label-unblocked: #${item.number} re-fire deferred: the issue lane's queue is at its kill-switch re-fire target`);
+    return false;
+  });
+  for (const { number } of go.slice(cap)) {
     console.log(`label-unblocked: #${number} restart deferred: ${cap} restarts this run`);
   }
-  for (const { number, refire, cause, stall, trip, recurrence, recorded, handOff, pr, explained, release, infra, had } of ready.slice(0, cap)) {
+  for (const { number, refire, cause, stall, trip, recurrence, recorded, handOff, pr, explained, release, infra, had } of go.slice(0, cap)) {
     const base = `/repos/${repo}/issues/${number}`;
     if (handOff) {
       // The comment first, then the Work status, set to needs-triage, which

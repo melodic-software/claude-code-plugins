@@ -35,6 +35,7 @@ import {
   refsMergedComment,
   infraComment,
   laneRuns,
+  laneSlots,
   sharedLaneRuns,
   skipText,
   UNPARKED_MARKER,
@@ -3255,31 +3256,74 @@ test("other stranded causes still double with kill-switch at one flat hour", asy
   assert.deepEqual(writes(due.calls).slice(-restarted(30).length), restarted(30), "the failed mint did not re-fire at its doubled backoff");
 });
 
-test("after the switch clears, breaker re-fires stay within restarts-per-run, the oldest stranded first", async () => {
-  // Each issue's newest add, the run's end five minutes later, and its trips so far.
-  const issues = [
-    [31, "2026-10-16T09:30:00Z", 0],
-    [32, "2026-10-16T08:00:00Z", 3],
-    [33, "2026-10-16T09:00:00Z", 0],
-    [34, "2026-10-16T08:30:00Z", 6],
-  ];
+// Five breaker-stranded issues: each one's newest add, its run's end five
+// minutes later, and its trips so far. Oldest run end first: #35 07:35, #32
+// 08:05, #34 08:35, #33 09:05, #31 09:35. #36's run failed its mint at 10:05,
+// a cause the queue target does not pace. `unfinished` other issues' lane runs
+// are not yet finished, spread over the statuses the in-flight read lists.
+const BREAKER_ISSUES = [
+  [31, "2026-10-16T09:30:00Z", 0],
+  [32, "2026-10-16T08:00:00Z", 3],
+  [33, "2026-10-16T09:00:00Z", 0],
+  [34, "2026-10-16T08:30:00Z", 6],
+  [35, "2026-10-16T07:30:00Z", 1],
+];
+const afterClear = (unfinished) => {
   const end = (at) => new Date(Date.parse(at) + 5 * 60_000).toISOString();
-  const fake = world({
-    openReady: issues.map(([n]) => ready(n)),
-    comments: Object.fromEntries(issues.map(([n, at, trips]) => [n, tripHistory(trips, at).comments])),
-    events: Object.fromEntries(issues.map(([n, at, trips]) => [n, tripHistory(trips, at).events])),
-    runs: issues.map(([n, at]) => ({ ...laneRun({ number: n, at: new Date(Date.parse(at) + 3000).toISOString() }), updated_at: end(at) })),
-    jobs: Object.fromEntries(issues.map(([n]) => [5000 + n, BROKER_REFUSED])),
+  const statuses = ["queued", "in_progress", "pending", "waiting"];
+  const others = Array.from({ length: unfinished }, (_, index) => ({
+    ...laneRun({ number: 900 + index, at: "2026-10-16T11:50:00Z", status: statuses[index % statuses.length], conclusion: null }),
+  }));
+  return world({
+    openReady: [...BREAKER_ISSUES.map(([n]) => ready(n)), ready(36)],
+    comments: { ...Object.fromEntries(BREAKER_ISSUES.map(([n, at, trips]) => [n, tripHistory(trips, at).comments])), 36: [note()] },
+    events: { ...Object.fromEntries(BREAKER_ISSUES.map(([n, at, trips]) => [n, tripHistory(trips, at).events])), 36: [added(LABELED_AT, OWNER)] },
+    runs: [
+      ...BREAKER_ISSUES.map(([n, at]) => ({ ...laneRun({ number: n, at: new Date(Date.parse(at) + 3000).toISOString() }), updated_at: end(at) })),
+      { ...laneRun({ number: 36 }), updated_at: "2026-10-16T10:05:00Z" },
+      ...others,
+    ],
+    jobs: { ...Object.fromEntries(BREAKER_ISSUES.map(([n]) => [5000 + n, BROKER_REFUSED])), 5036: MINT_FAILED },
     logs: CHECK_KILLED,
     openLanePrs: 10,
     blobs: BLOBS,
   });
-  assert.equal(await sweep({ github: fake.github, actions: fake.github }, withLimits({ "stranded-backoff-hours": { "kill-switch": 1 }, "restarts-per-run": 2 })), 0);
-  // #32 ended 08:05 and #34 08:35; #33 (09:05) and #31 (09:35) wait for the next sweep.
-  assert.deepEqual(
-    writes(fake.calls).filter((call) => call.startsWith("RESTART ")),
-    ["RESTART 32", "RESTART 34"],
-  );
+};
+const restarts = (calls) => writes(calls).filter((call) => call.startsWith("RESTART "));
+const clearLimits = (extra = {}) => withLimits({ "stranded-backoff-hours": { "kill-switch": 1 }, "restarts-per-run": 10, ...extra });
+
+test("the issue lane's slot count is the SLOTS work-resolve-issue.yml sets", () => {
+  const path = join(tempDir("work-unblock-slots-"), "work-resolve-issue.yml");
+  writeFileSync(path, "jobs:\n  pick-slot:\n    env:\n      SLOTS: 4\n");
+  assert.equal(laneSlots(path), 4);
+  writeFileSync(path, "jobs:\n  pick-slot:\n    env:\n      SLOT: 4\n");
+  assert.throws(() => laneSlots(path), /sets no SLOTS/);
+  // The repository's own workflow: 3 slots, so a queue target of 6 at 2 per slot.
+  assert.equal(laneSlots(), 3);
+});
+
+test("after the switch clears, breaker re-fires top the unfinished lane runs up to refire-queue-per-slot x SLOTS, the oldest stranded first", async () => {
+  // Target 2 x 3 = 6; 3 unfinished leaves room for 3: the three oldest run ends.
+  const room = afterClear(3);
+  assert.equal(await sweep({ github: room.github, actions: room.github }, clearLimits()), 0);
+  assert.deepEqual(restarts(room.calls), ["RESTART 35", "RESTART 32", "RESTART 34", "RESTART 36"]);
+  // At or over the target no breaker trip re-fires; the failed mint still does.
+  for (const unfinished of [6, 8]) {
+    const full = afterClear(unfinished);
+    assert.equal(await sweep({ github: full.github, actions: full.github }, clearLimits()), 0);
+    assert.deepEqual(restarts(full.calls), ["RESTART 36"], `${unfinished} unfinished`);
+    assert.ok(!writes(full.calls).some((call) => call.includes("breaker")), `${unfinished} unfinished posted a breaker record`);
+  }
+  // The per-slot leaf sets the target: 1 x 3 with 1 unfinished leaves room for 2.
+  const narrow = afterClear(1);
+  assert.equal(await sweep({ github: narrow.github, actions: narrow.github }, clearLimits({ "refire-queue-per-slot": 1 })), 0);
+  assert.deepEqual(restarts(narrow.calls), ["RESTART 35", "RESTART 32", "RESTART 36"]);
+});
+
+test("restarts-per-run still caps breaker re-fires under the queue target, the oldest stranded first", async () => {
+  const fake = afterClear(0);
+  assert.equal(await sweep({ github: fake.github, actions: fake.github }, clearLimits({ "restarts-per-run": 2 })), 0);
+  assert.deepEqual(restarts(fake.calls), ["RESTART 35", "RESTART 32"]);
 });
 
 // The backoff comment is dated by its last edit, which moves it past the

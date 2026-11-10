@@ -100,6 +100,13 @@
           "default": 5,
           "description": "Issues one work-unblock sweep restarts or re-fires."
         },
+        "refire-queue-per-slot": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 2,
+          "description": "Kill-switch re-fires' queue target per issue-lane slot (SLOTS in work-resolve-issue.yml): a work-unblock sweep re-fires breaker-stranded issues, oldest first, only until the work-resolve-issue runs not yet finished reach this times SLOTS, within restarts-per-run."
+        },
         "readmit-per-run": {
           "type": "integer",
           "minimum": 1,
