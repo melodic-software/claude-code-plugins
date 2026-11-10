@@ -86,7 +86,8 @@ that, and they resolve **differently**:
 
 1. **Extractor allow-list (`--use-extractors twitter.*`)**, the primary guard, carried on every
    invocation (probe, media, queue preflight). yt-dlp refuses the delegated URL **without fetching
-   it**, emitting `ERROR: No suitable extractor found for URL <url>`. This does *not* error the
+   it**; the adapter recognizes the refusal line by `DELEGATION_REFUSAL_PATTERN` in
+   `extraction/adapters/x.js`. This does *not* error the
    post: the status resolves as a well-formed 0-entry result with the blocked link recorded.
 2. **Info-JSON extractor check**, defense in depth. A non-`twitter` info JSON on disk means layer
    1 failed, so the acquisition **hard-fails** with a provenance violation rather than digesting

@@ -20,7 +20,7 @@ Tick only after verification evidence. Criteria SSOT: `quality-gates.md` (the `/
 ## Phase 0b: Companion primary sources (when `source/companion-sources.md` exists)
 
 - [ ] **0b.1** Brief read. Verify: `source/companion-sources.md` present; section fan-out table complete
-- [ ] **0b.2** Companion URL(s) deep-fetched. Verify: WebFetch full page per URL; not surface skim
+- [ ] **0b.2** Companion URL(s) deep-fetched. Verify: full page per URL by the fetch-route rungs (`companion-primary-sources.md`); not surface skim
 - [ ] **0b.3** Section fan-out complete. Verify: `source/companion-digest/<section-slug>.md` for every row in brief
 - [ ] **0b.4** Hub digest written. Verify: `source/companion-digest/README.md` links all section shards
 - [ ] **0b.5** `mark-phase <slice-dir> companion` only after 0b.1–0b.4. Verify: `watch.json`; run **before** Phase 1 on fresh watch

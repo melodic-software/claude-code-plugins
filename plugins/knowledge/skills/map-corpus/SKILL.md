@@ -239,7 +239,7 @@ Emit a continuation prompt when pausing mid-pipeline (slug, first unticked phase
   unrecognized input (duplicate JSON keys included). That behavior was verified adversarially
   BEFORE the gates became required artifacts.
 - **Effort depends on the dispatch surface.** Which surfaces take a per-call effort setting is
-  recorded in [Effort tiers](../../../../docs/plugin-philosophy.md#effort-tiers), in its "Where
+  recorded in [Effort tiers](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/plugin-philosophy.md#effort-tiers), in its "Where
   per-task effort is set" record, which covers the Agent tool's per-spawn `effort` and Workflow;
   read it there. This skill promises neither a verification tier nor
   a spend ceiling through its fan-out; it states batch limits and actual effort.

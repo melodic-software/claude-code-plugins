@@ -32,7 +32,7 @@ Phase 1; `vision` closes Phase 6; `research` is Phase 7; `synthesis` is Phase 8'
 Runs **before** CLI bootstrap, when `source/companion-sources.md` exists. **SSOT:**
 `companion-primary-sources.md`.
 
-WebFetch companion URL(s) → subagent fan-out per section table → `source/companion-digest/<section-slug>.md`
+Read companion URL(s) by the fetch-route rungs → subagent fan-out per section table → `source/companion-digest/<section-slug>.md`
 plus hub `source/companion-digest/README.md`. Once the CLI bootstrap has written `watch.json`,
 `mark-phase <slice-dir> companion` (it fails without `watch.json`). No surface
 reads; use deep external research per section. Downstream phases frame against the digest (claim
