@@ -151,14 +151,12 @@ function Invoke-KevFetch {
         Move-Item -LiteralPath $tempPath -Destination $CachePath -Force
         return @{ Data = $downloaded; Error = $null }
     } catch {
-        $fetchFailure = $_.Exception.Message
-        Write-EgressLogLine -LogPath $LogPath -Kind 'FAIL' -Uri $script:CisaKevUrl `
-            -Message $_.Exception.Message
-        Write-Warning "Get-CisaKevCache: fetch failed; keeping prior cache. $($_.Exception.Message)"
+        $message = $_.Exception.Message
+        Write-EgressLogLine -LogPath $LogPath -Kind 'FAIL' -Uri $script:CisaKevUrl -Message $message
+        Write-Warning "Get-CisaKevCache: fetch failed; keeping prior cache. $message"
         if (Test-Path -LiteralPath $tempPath) {
             Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
         }
-        $message = $fetchFailure
         if ([string]::IsNullOrWhiteSpace($message)) { $message = 'KEV fetch failed (no error detail).' }
         return @{ Data = $null; Error = $message }
     }

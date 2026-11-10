@@ -43,17 +43,13 @@ function Get-DriverStoreInventory {
     }
 
     try {
-        $raw = $invoked.output
-
-        $records = $raw -split '(?m)^\s*$' | Where-Object { $_ -match '\S' }
+        $records = $invoked.output -split '(?m)^\s*$' | Where-Object { $_ -match '\S' }
         $result = [System.Collections.Generic.List[pscustomobject]]::new()
         foreach ($rec in $records) {
             $entry = [ordered]@{}
             foreach ($line in $rec -split "`r?`n") {
                 if ($line -match '^\s*([^:]+?)\s*:\s*(.*)$') {
-                    $key = ($Matches[1] -replace '\s+', '')
-                    $val = $Matches[2].Trim()
-                    $entry[$key] = $val
+                    $entry[($Matches[1] -replace '\s+', '')] = $Matches[2].Trim()
                 }
             }
             # Skip the pnputil header record (no PublishedName field)

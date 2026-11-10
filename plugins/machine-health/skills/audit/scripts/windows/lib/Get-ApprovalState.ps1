@@ -45,24 +45,19 @@ function Get-ApprovalState {
     }
 
     $approvalsPath = Join-Path $StateDir 'approvals.json'
+    if (-not (Test-Path -LiteralPath $approvalsPath)) { return (New-DefaultApprovalState) }
 
-    if (Test-Path -LiteralPath $approvalsPath) {
-        try {
-            $raw = Read-SharedText -Path $approvalsPath
-            if ([string]::IsNullOrWhiteSpace($raw)) {
-                return (New-DefaultApprovalState)
-            }
-            $parsed = $raw | ConvertFrom-Json -ErrorAction Stop
-            [void](Assert-ApprovalState $parsed -Because $approvalsPath)
-            return $parsed
-        } catch {
-            Write-Warning "Get-ApprovalState: '$approvalsPath' invalid, using defaults. $($_.Exception.Message)"
-            Write-MachineHealthLog -LogPath $LogPath -Message "approvals_invalid $approvalsPath $($_.Exception.Message)"
-            return (New-DefaultApprovalState)
-        }
+    try {
+        $raw = Read-SharedText -Path $approvalsPath
+        if ([string]::IsNullOrWhiteSpace($raw)) { return (New-DefaultApprovalState) }
+        $parsed = $raw | ConvertFrom-Json -ErrorAction Stop
+        [void](Assert-ApprovalState $parsed -Because $approvalsPath)
+        return $parsed
+    } catch {
+        Write-Warning "Get-ApprovalState: '$approvalsPath' invalid, using defaults. $($_.Exception.Message)"
+        Write-MachineHealthLog -LogPath $LogPath -Message "approvals_invalid $approvalsPath $($_.Exception.Message)"
+        return (New-DefaultApprovalState)
     }
-
-    return (New-DefaultApprovalState)
 }
 
 function Test-ApprovalGranted {
