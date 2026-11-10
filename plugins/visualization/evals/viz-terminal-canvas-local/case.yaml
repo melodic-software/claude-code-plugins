@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: viz-terminal-canvas-local
+plugins: ["../..", "canvas-stub"]
+graders:
+  - name: no-canvas-call
+    type: 'tool_used'
+    tool: 'mcp__plugin_canvas-stub_excalidraw__create_view'
+    min: 0
+    max: 0
+    arm: 'with-only'
+  - name: local-diagram
+    type: 'regex'
+    pattern: '^(?:(?:(?!```)[\s\S])*?```[^\n]*\n(?:(?!```)[\s\S])*?```)*?(?:(?!```)[\s\S])*?```[^\n]*\n(?=(?:(?!```)[\s\S])*?\btoken)(?=(?:(?!```)[\s\S])*?\brevok)'
+    flags: 'i'
+    target: 'last_message'
+    arm: 'with-only'
+  - name: no-page
+    type: 'regex'
+    pattern: '<!doctype\s+html|<html\b|<body\b|<head\b|<div\b|<section\b|<svg\b|<x-embed\b|<script\b|visualize\.html|claude\.ai/(?:code/)?artifact'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'

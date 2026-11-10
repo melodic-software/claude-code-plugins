@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool calls at all"
+    },
+    {
+      "answer": [
+        { "tool": "Skill", "input": { "skill": "visualization:visualize" } },
+        { "tool": "Read", "input": { "file_path": "/plugin/skills/visualize/context/decision-matrix.md" } }
+      ],
+      "why": "the skill and its catalog, no canvas tool"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Skill", "input": { "skill": "visualization:visualize" } },
+        { "tool": "mcp__plugin_canvas-stub_excalidraw__create_view", "input": { "elements": "[]" } }
+      ],
+      "why": "drew on the canvas from the terminal"
+    }
+  ]
+}

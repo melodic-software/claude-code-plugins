@@ -1,0 +1,37 @@
+{
+  "pass": [
+    {
+      "answer": "Shipped default (auto): a Mermaid flowchart as source, drawn here rather than on the Excalidraw canvas, which this terminal does not show.\n\n```mermaid\nflowchart TD\n  A[User requests reset] --> B[Email one-time token]\n  B --> C{Token used within 30 min?}\n  C -->|no| D[Token expires]\n  C -->|yes| E[Set new password]\n  E --> F[Revoke all sessions]\n```\n\nThis is Mermaid source; paste it into a renderer to see the picture."
+    },
+    {
+      "answer": "```text\nrequest reset\n   |\n   v\nemail token (expires in 30 min)\n   |\n   v\nset new password\n   |\n   v\nrevoke every session\n```",
+      "why": "an ASCII fence"
+    },
+    {
+      "answer": "```mermaid\nsequenceDiagram\n  User->>App: request reset\n  App->>Mail: send Token\n  User->>App: new password + token\n  App->>Sessions: revoke all\n```",
+      "why": "sequence family, capitalized Token"
+    },
+    {
+      "answer": "```text\nhosted_canvas: not resolved (terminal)\n```\n\n```mermaid\nflowchart LR\n  R[Request] --> T[Email token] --> P[New password] --> S[Revoke sessions]\n```",
+      "why": "the diagram is the second fence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I drew the flow on your Excalidraw canvas: request, emailed token, new password, then every session revoked.",
+      "why": "no fence, the steps only in prose"
+    },
+    {
+      "answer": "```mermaid\nflowchart TD\n  A[Request reset] --> B[Email token] --> C[Set password]\n```\nAfter that, all sessions are revoked.",
+      "why": "revocation outside the fence"
+    },
+    {
+      "answer": "```mermaid\nflowchart TD\n  A[Request reset] --> B[Set password]\n```\nThe token is emailed first, and sessions are revoked at the end.",
+      "why": "prose after the fence names both steps"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

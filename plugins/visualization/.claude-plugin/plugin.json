@@ -36,6 +36,13 @@
       "description": "What the skill does when code is pasted with little context and no form named. auto (default) asks one ranked question only when two or more code-shape forms fit about equally; always offers the ranked menu on any bare code paste; never renders the recommended form without asking.",
       "default": "auto",
       "options": ["auto", "always", "never"]
+    },
+    "hosted_canvas": {
+      "type": "string",
+      "title": "Hosted canvas servers",
+      "description": "Whether diagram content may go to a canvas server reached over the network (a remote MCP server). allow (default) permits it where the surface renders a canvas; deny keeps diagrams local or on a local server. deny from any layer wins.",
+      "default": "allow",
+      "options": ["allow", "deny"]
     }
   }
 }

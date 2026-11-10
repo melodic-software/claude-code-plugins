@@ -82,6 +82,9 @@ question needs, and use one form, sometimes several, rarely all. One example per
 form lives in [`context/code-shapes.md`](context/code-shapes.md); its paths and
 identifiers are placeholders.
 
+A diagram that will be committed to the repository (a doc, ADR or README) is Mermaid source, over
+any canvas or page, so it diffs and reviews as text.
+
 When the form is a chart and a chart-craft/dataviz capability is installed, invoke
 it for the craft (form heuristic, palette, mark specs); when it is not installed,
 fall back to a simple, honest default (a labeled bar/line as inline SVG on a
@@ -152,6 +155,32 @@ self-contained local HTML file and open it; if neither page surface is available
 degrade **visibly** to the best terminal form with a one-line notice. Never assume
 the Artifact surface exists. A medium that does not publish keeps the page on the
 machine; a publishing one prefers publishing but degrades the same way.
+
+**Canvas server.** A canvas server is an MCP server whose tools draw a diagram in an interactive
+view, such as an Excalidraw or tldraw server; detect one by the session's MCP tool names. In the
+Claude Code terminal, never draw there: use the forms above, a Mermaid or ASCII fence inline or a
+local page. On a surface that renders MCP Apps, with a canvas server connected, you may draw there
+instead of a page, except for a diagram that will be committed (Step 2). The surface facts behind
+this rule, and the optional servers a person can install, are in
+[the catalog's canvas section](context/decision-matrix.md#mcp-app-canvas-connected-canvas-server)
+(as of 2026-11-10; recheck when that heading is renamed or its pointer moves).
+
+Before drawing on a canvas, resolve `hosted_canvas` (`allow` or `deny`) from three layers: the
+option `${user_config.hosted_canvas}` (empty, or still an unsubstituted placeholder, is unset);
+the `hosted_canvas` key of the repository's `docs/conventions/visualization.yaml`; and the same key
+of the personal override `docs/conventions/visualization.local.yaml`. Read the two files only when
+the repository root (`CLAUDE_PROJECT_DIR`, else `git rev-parse --show-toplevel`) is inside a git
+working tree and is neither `$HOME` nor an ancestor of it; a missing file or key leaves that layer
+unset. A value other than `allow` or `deny` is named with its option or file, the key and the value,
+and that layer is dropped. `deny` from any layer wins, so a tracked file can never undo one person's
+`deny`; otherwise the value is `allow`, the default. Print one line with the value and the layer
+that set it, for example `hosted_canvas: deny (docs/conventions/visualization.yaml)` or
+`hosted_canvas: allow (plugin default)`.
+
+With `deny`, send no diagram content to a hosted canvas server, one reached over the network; a
+local server, one the session starts as a process on this machine, stays allowed. Tool names do not
+show where a server runs, so count a server as local only when the person or the session's MCP
+configuration shows it is; otherwise treat it as hosted and render locally.
 
 **Code-shape sketches take these same layers** (under auto they build no page, per
 layer 3; an argument or resolved medium is honored for them as for any form), with
@@ -286,6 +315,8 @@ It turns the material into a slide deck when the request is for slides rather th
   an Artifact is worse, not richer. Match richness to the content.
 - **The Artifact surface is often unavailable.** Gate on it; never let a missing
   surface become a silent failure. Degrade visibly down the fallback chain.
+- **Canvas tools in the tool list are not a reason to use them.** In the Claude Code terminal,
+  render locally even when an Excalidraw or tldraw server is connected (Step 3).
 - **Craft is not this skill's job.** If you find yourself writing palette or axis
   guidance, stop and route to the chart-craft capability instead.
 - **Prefer a mermaid family known to render** on an Artifact page, or verify a
@@ -375,3 +406,4 @@ cases are probed behavior recorded in
 - **Does not explain a topic from scratch**. A one-idea-per-diagram picture explainer of a concept or codebase topic, ELI5 included, is `education:illustrate` (if enabled). This skill picks a form for what is already in the conversation.
 - **Does not render a pull-request diff, fetched content, or another repository's files to HTML** until this lane is wired through the rendered-views escape helper. Those stay terminal fences.
 - **Does not publish an Artifact when that surface is absent or the resolved medium does not publish**. It steps down the fallback chain.
+- **Does not ship or install a canvas server**. It uses one the person connected, under Step 3's canvas rule.
