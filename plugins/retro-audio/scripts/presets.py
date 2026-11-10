@@ -7,26 +7,12 @@ changes). This package does not copy either program. Pulse duties are 12.5%,
 25%, 50%, and 75%, shared across the three chips.
 """
 
-CHIPS = {
-    "gameboy": {
-        "channels": 4,
-        "noise_channels": 1,
-        "bass_wave": "wave",
-        "duties": (0.125, 0.25, 0.5, 0.75),
-    },
-    "nes": {
-        "channels": 4,
-        "noise_channels": 1,
-        "bass_wave": "triangle",
-        "duties": (0.125, 0.25, 0.5, 0.75),
-    },
-    "pico-8": {
-        "channels": 4,
-        "noise_channels": 1,
-        "bass_wave": "triangle",
-        "duties": (0.125, 0.25, 0.5, 0.75),
-    },
-}
+
+def _chip(bass_wave):
+    return {"channels": 4, "noise_channels": 1, "bass_wave": bass_wave, "duties": (0.125, 0.25, 0.5, 0.75)}
+
+
+CHIPS = {"gameboy": _chip("wave"), "nes": _chip("triangle"), "pico-8": _chip("triangle")}
 
 # Times are seconds. freq and freq_slide are Hz and Hz/second.
 SFX_PRESETS = {
