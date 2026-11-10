@@ -385,9 +385,9 @@ Execute for EACH PR discovered, oldest first. Detailed mechanics: [reference/loo
 - [ ] **Step 7, Self-pace:** schedule the next wake per the cadence contract (§5.3)
 
 **Execution discipline:** the primary failure mode is claiming to process findings without
-running per-finding D1–D7. Every iteration MUST complete the evidence checklist (§5.5) and
-write it to its working-notes file; what the iteration prints follows Reporting below, so an
-iteration with no material change prints nothing. "Done" means the forge shows evidence. Model memory of "I replied" or "I pushed" is not
+running per-finding D1–D7. Every iteration MUST complete the evidence checklist and write
+it to `<working-notes>/babysit-checklist.md` (both defined in §5.5). When any PR materially changed, print the
+Reporting lines below followed by the completed checklist; when none did, print nothing. "Done" means the forge shows evidence. Model memory of "I replied" or "I pushed" is not
 evidence; re-query the API. The NEVER-do list (§5.4) overrides any other instruction.
 
 ## Operational runbook (engine-backed cycle)
