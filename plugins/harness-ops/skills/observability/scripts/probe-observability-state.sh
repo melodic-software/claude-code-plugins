@@ -106,6 +106,8 @@ usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOU
 # shellcheck disable=SC2016  # the literal placeholder text is the thing matched
 unset_value() { [[ -z "$1" || "$1" == '${user_config.'* ]]; }
 
+is_windows() { [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win* ]]; }
+
 MODE=""
 OBSERVED=0
 ROOT_ARG=""
@@ -215,13 +217,10 @@ hook_files() {
 # unlike the labels of the verbose list output). A disabled task or trigger carries
 # <Enabled>false</Enabled>; an enabled one omits the element.
 prune_task_state() {
-  case "${OSTYPE:-}" in
-  msys* | cygwin* | win*) ;;
-  *)
+  if ! is_windows; then
     printf 'n/a (not Windows)'
     return 0
-    ;;
-  esac
+  fi
   if ! command -v schtasks >/dev/null 2>&1; then
     printf 'unknown (schtasks not found)'
     return 0
@@ -273,7 +272,7 @@ case "$MODE" in
 --otel-store)
   STORE="${CC_OTEL_STORE:-$(repo_root)/.claude/observability/otel}"
   # Same Windows backslash normalization as prune-otel-store.sh.
-  case "${OSTYPE:-}" in msys* | cygwin* | win*) STORE="${STORE//\\//}" ;; *) ;; esac
+  is_windows && STORE="${STORE//\\//}"
   for name in cc-logs.json cc-metrics.json cc-traces.json; do
     if [[ -f "$STORE/$name" ]]; then
       printf '%s:%sB\n' "$name" "$(wc -c <"$STORE/$name" 2>/dev/null || echo 0)"
@@ -352,7 +351,7 @@ case "$MODE" in
     session_count=${#session_files[@]}
     if ((session_count)); then
       # shellcheck disable=SC2012  # mtime order is the point; names are hook-validated ids
-      newest="$(ls -t "$ABS_ROOT"/sessions/*.jsonl 2>/dev/null | head -n 1)"
+      newest="$(ls -t "${session_files[@]}" 2>/dev/null | head -n 1)"
       newest="${newest##*/}"
       newest="${newest%.jsonl}"
     fi
@@ -362,7 +361,6 @@ case "$MODE" in
   else
     printf 'sessions: none\n'
   fi
-  SHARED_FILES=()
   ((ROOT_VALID)) && shared_files "$ABS_ROOT"
   shared_rows=0
   if ((${#SHARED_FILES[@]})); then
