@@ -354,13 +354,18 @@ Exit: 0 the run completed (per-marketplace and per-id failures are in the digest
 EOF
 }
 
+# need_value <args-left> <message>: exit 2 with the message when the flag has no value.
+need_value() {
+  (($1 >= 2)) || {
+    echo "ERROR: $2" >&2
+    exit 2
+  }
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --marketplace)
-    [[ $# -ge 2 ]] || {
-      echo "ERROR: --marketplace requires a name" >&2
-      exit 2
-    }
+    need_value $# "--marketplace requires a name"
     TARGET_MP="$2"
     shift 2
     ;;
@@ -381,60 +386,39 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --install-new)
-    [[ $# -ge 2 ]] || {
-      echo "ERROR: --install-new requires a value" >&2
-      exit 2
-    }
+    need_value $# "--install-new requires a value"
     INSTALL_NEW="$2"
     shift 2
     ;;
   --journal-root)
-    [[ $# -ge 2 ]] || {
-      echo "ERROR: --journal-root requires a directory" >&2
-      exit 2
-    }
+    need_value $# "--journal-root requires a directory"
     JOURNAL_ROOT="$2"
     shift 2
     ;;
   --run-dir)
-    [[ $# -ge 2 ]] || {
-      echo "ERROR: --run-dir requires a directory" >&2
-      exit 2
-    }
+    need_value $# "--run-dir requires a directory"
     RUN_DIR="$2"
     shift 2
     ;;
   --only-install)
-    [[ $# -ge 2 ]] || {
-      echo "ERROR: --only-install requires an id list (an empty string is legal)" >&2
-      exit 2
-    }
+    need_value $# "--only-install requires an id list (an empty string is legal)"
     ONLY_INSTALL="$2"
     ONLY_INSTALL_MODE=1
     shift 2
     ;;
   --source-pull)
-    [[ $# -ge 2 ]] || {
-      echo "ERROR: --source-pull requires a value" >&2
-      exit 2
-    }
+    need_value $# "--source-pull requires a value"
     SOURCE_PULL="$2"
     shift 2
     ;;
   --pull-source)
-    [[ $# -ge 2 ]] || {
-      echo "ERROR: --pull-source requires marketplace names" >&2
-      exit 2
-    }
+    need_value $# "--pull-source requires marketplace names"
     PULL_SOURCES="$2"
     PULL_SOURCES_SET=1
     shift 2
     ;;
   --quiet-auto-update)
-    [[ $# -ge 2 ]] || {
-      echo "ERROR: --quiet-auto-update requires marketplace names" >&2
-      exit 2
-    }
+    need_value $# "--quiet-auto-update requires marketplace names"
     QUIET_AUTO_UPDATE="$2"
     shift 2
     ;;
@@ -635,17 +619,7 @@ version_direction() {
 
 # version_direction into the variable named by $1, with no subshell.
 version_direction_to() {
-  local __vd_var="$1"
-  local old="$2"
-  local new="$3"
-  local ore_ok=0
-  local nre_ok=0
-  local o1
-  local o2
-  local o3
-  local n1
-  local n2
-  local n3
+  local __vd_var="$1" old="$2" new="$3" ore_ok=0 nre_ok=0 o1 o2 o3 n1 n2 n3 __vd_d
   # Base 10 on every capture. A bare ((08)) is an octal error that makes the
   # pair "unknown", and a longer leading-zero segment such as 010 is octal
   # with no error and the wrong rank. sync.md's triple compare is decimal.
@@ -661,7 +635,6 @@ version_direction_to() {
     n3=$((10#${BASH_REMATCH[3]}))
     nre_ok=1
   fi
-  local __vd_d
   if [[ "$ore_ok$nre_ok" != "11" ]]; then
     __vd_d="unknown"
   elif ((n1 > o1)) || { ((n1 == o1)) && ((n2 > o2)); } ||
@@ -772,6 +745,16 @@ predict_cli() {
   CLI_OUT="would run: $label"
 }
 
+# The lines of $2 that start with `{`, into the variable named by $1: the
+# candidates for the result line below.
+object_lines_to() {
+  local __ol_line __ol_lines=""
+  while IFS= read -r __ol_line || [[ -n "$__ol_line" ]]; do
+    [[ "$__ol_line" == '{'* ]] && __ol_lines+="$__ol_line"$'\n'
+  done <<<"$2"
+  printf -v "$1" '%s' "$__ol_lines"
+}
+
 # The result line `claude plugin install|update --json` prints (Claude Code
 # 2.1.268 or later): the last output line that is a JSON object with a `command`
 # key, or empty when there is none, as from a CLI older than the flag. stderr is
@@ -786,19 +769,14 @@ predict_cli() {
 #   As of: 2026-10-25.
 #   Recheck: a Claude Code release that adds a field for either sentence, or
 #     changes `updateOutcome`'s values.
+# One jq reads every candidate line. `values`: jq 1.7's last() of nothing is
+# null, and a found null would read as a result line.
+RESULT_LINE_JQ='last(inputs | (try fromjson catch null) | select(type == "object" and has("command"))) | values'
 cli_json() {
-  local __var="$1"
-  local __text="$2"
-  local __line __lines="" __found=""
-  while IFS= read -r __line || [[ -n "$__line" ]]; do
-    [[ "$__line" == '{'* ]] && __lines+="$__line"$'\n'
-  done <<<"$__text"
-  # One jq reads every candidate line. `values`: jq 1.7's last() of nothing is
-  # null, and a found null would read as a result line.
+  local __var="$1" __lines __found=""
+  object_lines_to __lines "$2"
   [[ -z "$__lines" ]] ||
-    jq_to __found -c -R -n \
-      'last(inputs | (try fromjson catch null) | select(type == "object" and has("command"))) | values' \
-      <<<"$__lines" 2>/dev/null || __found=""
+    jq_to __found -c -R -n "$RESULT_LINE_JQ" <<<"$__lines" 2>/dev/null || __found=""
   printf -v "$__var" '%s' "$__found"
 }
 
@@ -897,18 +875,11 @@ cli_move_result() {
 # cli_move_result into $1 and cli_reported_version into $2 from one read of the
 # result line: one jq per update call.
 cli_update_result() {
-  local __ur_res="$1"
-  local __ur_new="$2"
-  local __ur_line
-  local __ur_lines=""
-  local __ur_pair=""
-  while IFS= read -r __ur_line || [[ -n "$__ur_line" ]]; do
-    [[ "$__ur_line" == '{'* ]] && __ur_lines+="$__ur_line"$'\n'
-  done <<<"$3"
+  local __ur_res="$1" __ur_new="$2" __ur_lines __ur_pair=""
+  object_lines_to __ur_lines "$3"
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   [[ -z "$__ur_lines" ]] ||
-    jq_to __ur_pair -r -R -n '
-      last(inputs | (try fromjson catch null) | select(type == "object" and has("command"))) | values
+    jq_to __ur_pair -r -R -n "$RESULT_LINE_JQ"'
       | (.updateOutcome // "") as $o
       | (if $o == "updated" then "updated" elif $o == "up_to_date" then "noop" else "other" end)
         + "\u001f"
@@ -989,9 +960,7 @@ project_ids() {
 # The digest is read by a model in one turn, so no single field may run away with
 # the window. Output is kept, bounded.
 trunc() {
-  local __var="$1"
-  local text="$2"
-  local max="${3:-400}"
+  local __var="$1" text="$2" max="${3:-400}"
   if ((${#text} > max)); then
     printf -v "$__var" '%s' "${text:0:max}…"
   else
@@ -1062,10 +1031,7 @@ catalog_regression_rows() {
   local __rows_var="$2"
   local mp="$3"
   local snaps=(pre-refresh pre mid post)
-  local i
-  local a
-  local b
-  local rows=""
+  local i a b rows=""
   printf -v "$__interval_var" '%s' ""
   printf -v "$__rows_var" '%s' "[]"
   for ((i = 0; i + 1 < ${#snaps[@]}; i++)); do
@@ -1073,12 +1039,7 @@ catalog_regression_rows() {
     b="$RUN_DIR/${snaps[i + 1]}.$mp.json"
     [[ -f "$a" && -f "$b" ]] || continue
     # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-    jq_to rows -c --slurpfile a "$a" --slurpfile b "$b" -n '
-      def triple:
-        if type == "string" then
-          ((capture("^v?(?<x>[0-9]+)[.](?<y>[0-9]+)[.](?<z>[0-9]+)") // null)
-           | if . == null then null else [.x, .y, .z] | map(tonumber) end)
-        else null end;
+    jq_to rows -c --slurpfile a "$a" --slurpfile b "$b" -n "$TRIPLE_DEF"'
       ($a[0].catalog_versions // {}) as $before | ($b[0].catalog_versions // {}) as $after
       | [$before | to_entries[]
          | select((.value | triple) != null and ($after[.key] | triple) != null
@@ -1127,12 +1088,7 @@ ACTIONABLE_DEF='def actionable: select(.versionsMatch == false)
 # (`row_class`), so a pin already at the highest version does not make a row
 # actionable while its stale pin sits in a path that is not present.
 linked_worktree_paths() {
-  local __var="$1"
-  local post="$2"
-  local paths=""
-  local p
-  local fs
-  local line
+  local __var="$1" post="$2" paths="" p fs line
   local found=()
   jq_to paths -r "$ACTIONABLE_DEF"'[.divergences[]? | actionable | .scopes[]?
     | select(.projectPathIsHome != true and .projectPathPresent == true) | .projectPath]
@@ -1168,12 +1124,8 @@ would_pins() {
 }
 
 divergence_block() {
-  local __var="$1"
-  local mp="$2"
-  local pre="$RUN_DIR/pre.$mp.json"
-  local mid="$RUN_DIR/mid.$mp.json"
-  local post="$RUN_DIR/post.$mp.json"
-  local linked="[]"
+  local __var="$1" mp="$2" linked="[]"
+  local pre="$RUN_DIR/pre.$mp.json" mid="$RUN_DIR/mid.$mp.json" post="$RUN_DIR/post.$mp.json"
   if [[ ! -f "$pre" || ! -f "$mid" || ! -f "$post" ]]; then
     jq_to "$__var" -c -n '{pre: null, mid: null, post: null, new_total: null,
       new_by_interval: {in_repo: null, user_sweep: null, concurrent: null}, pre_existing: null,
@@ -1223,11 +1175,6 @@ divergence_block() {
       elif .projectPathPresent == true and (.projectPath as $pp | $curp | index($pp)) == null
            and (.projectPath as $pp | $wt | index($pp)) != null then "worktree"
       else "actionable" end;
-    def version_triple:
-      if type == "string" then
-        ((capture("^v?(?<a>[0-9]+)[.](?<b>[0-9]+)[.](?<c>[0-9]+)") // null)
-         | if . == null then null else [.a, .b, .c] | map(tonumber) end)
-      else null end;
     # Only a pin that differs from the row'"'"'s highest version is the skew converge or
     # a worktree removal would settle; a pin already at it is not what makes the
     # row actionable. An unparsable version stays in, the conservative direction.
@@ -1235,9 +1182,9 @@ divergence_block() {
     # it never sets the highest version and never classes the row.
     def row_class:
       [.scopes[]? | select(.projectPathIsHome != true)] as $s
-      | ([$s[] | .version | version_triple | select(. != null)] | max) as $top
+      | ([$s[] | .version | triple | select(. != null)] | max) as $top
       | [$s[] | select((.projectPath // "") != "")
-         | select($top == null or (.version | version_triple) != $top)
+         | select($top == null or (.version | triple) != $top)
          | pin_class] as $c
       | if ($c | length) == 0 or ($c | index("actionable")) != null then "actionable"
         elif ($c | index("worktree")) != null then "worktree"
@@ -1250,8 +1197,8 @@ divergence_block() {
     def diverging_records:
       .id as $id
       | [.scopes[]? | select(.projectPathIsHome != true)] as $s
-      | ([$s[] | .version | version_triple | select(. != null)] | max) as $top
-      | [$s[] | select($top == null or (.version | version_triple) != $top)] as $d
+      | ([$s[] | .version | triple | select(. != null)] | max) as $top
+      | [$s[] | select($top == null or (.version | triple) != $top)] as $d
       | (if ($d | length) > 0 then $d else $s end)
       | map({id: $id, scope, version, projectPath: (.projectPath // null),
              class: (if (.projectPath // "") != "" then pin_class else null end)});
@@ -1457,14 +1404,10 @@ other_paths_step() {
 # its own report row. Any other record left behind is a failure. A re-entry
 # reuses the first pass's result, which no later step changes.
 finalize_other_paths() {
-  local mp="$1"
-  local file="$RUN_DIR/other-paths.$mp.json"
-  local rows_file="$RUN_DIR/.other-paths-rows.$mp.json"
-  local post="$RUN_DIR/post.$mp.json"
-  local pre="$RUN_DIR/pre.$mp.json"
+  local mp="$1" rows result=""
+  local file="$RUN_DIR/other-paths.$mp.json" rows_file="$RUN_DIR/.other-paths-rows.$mp.json"
+  local post="$RUN_DIR/post.$mp.json" pre="$RUN_DIR/pre.$mp.json"
   local skipped="$RUN_DIR/.other-paths-skipped.$mp.jsonl"
-  local rows
-  local result=""
   if ((ONLY_INSTALL_MODE == 1)); then
     [[ -f "$file" ]] && OTHER_PATHS_JSON=$(<"$file")
     return 0
@@ -1536,11 +1479,7 @@ reset_marketplace_state
 # error has no other store. Without this sidecar the replacement digest drops
 # them and a run that left a plugin stale can report as a successful sync.
 persist_first_pass_rows() {
-  local mp="$1"
-  local ir_f
-  local us_f
-  local errs
-  local persisted
+  local mp="$1" ir_f us_f errs persisted
   json_array_of ir_f ${IR_FAILED[@]+"${IR_FAILED[@]}"}
   json_array_of us_f ${US_FAILED[@]+"${US_FAILED[@]}"}
   json_strings_of errs ${MP_ERRORS[@]+"${MP_ERRORS[@]}"}
@@ -1567,10 +1506,8 @@ persist_first_pass_rows() {
 # needs a `local -n` nameref (bash 4.3), and this script runs in Claude Code's
 # Bash-tool shell on every platform, which on macOS is the stock bash 3.2.
 restore_first_pass_rows() {
-  local mp="$1"
+  local mp="$1" lines line
   local sidecar="$RUN_DIR/first-pass.$mp.json"
-  local lines
-  local line
   [[ -f "$sidecar" ]] || return 0
   jq_to lines -r '.errors[]?' "$sidecar"
   while IFS= read -r line; do
@@ -1630,17 +1567,7 @@ FF_REFUSAL_DEF='def ff_refusal:
 # or a mistyped name touches nothing. The pull is journaled like a CLI call, with
 # stdin closed and git's prompts off, and SOURCE_PULL_JSON records the outcome.
 source_fast_forward() {
-  local mp="$1"
-  local snapshot="$2"
-  local src=""
-  local checkout="null"
-  local refusal=""
-  local path=""
-  local from=""
-  local to=""
-  local rc=0
-  local out=""
-  local reason=""
+  local mp="$1" snapshot="$2" src="" checkout="null" refusal="" path="" from="" to="" rc=0 out="" reason=""
   local sink="$RUN_DIR/.last-git-out"
   if [[ -n "$SOURCE_PULL_OFF" ]]; then
     refusal="$SOURCE_PULL_OFF"
