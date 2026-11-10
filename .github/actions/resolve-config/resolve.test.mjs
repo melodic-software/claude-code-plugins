@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { parse, stringify } from "yaml";
 
 import { WIP_DEFAULTS, resolveWip } from "../../scripts/work-resolve-issue/limits.mjs";
+import { LANE_LEVEL_DEFAULTS } from "../../scripts/lib/lane-level.mjs";
 
 import {
   checkAppliedBySupported,
@@ -13,6 +14,7 @@ import {
   Rejection,
   resolve,
   resolveGrant,
+  resolveLimits,
 } from "./resolve.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
 
@@ -355,6 +357,8 @@ const LIMITS = {
   "stranded-backoff-hours": { "no-run": 3, "no-report": 3, "failed-again": 3, "failed-mint": 3, "kill-switch": 3 },
   // Passed through as set; rate-guard.mjs fills it from the schema's defaults.
   api: {},
+  // The adaptive lane level's bounds and streak (owner decision Q111, 2026-11-10).
+  "lane-level": { floor: 2, ceiling: 4, default: 3, "clean-windows": 2, pools: ["lanes-app"] },
 };
 
 test("limits: a config with no limits leaf resolves today's thirteen values", () => {
@@ -366,6 +370,41 @@ test("limits: a set leaf overrides its default and leaves the others", () => {
     doc.limits = { "fallback-reset": 2, "limit-stops-per-issue": 4, "turn-cap-restarts": 1, "admission-factor": 0.5 };
   });
   assert.deepEqual(run(config).limits, { ...LIMITS, "fallback-reset": 2, "limit-stops-per-issue": 4, "turn-cap-restarts": 1, "admission-factor": 0.5 });
+});
+
+test("limits: a set lane-level key overrides its default and keeps the others; an out-of-range one or an unknown pool is rejected", () => {
+  const set = edited((doc) => {
+    doc.limits = { "lane-level": { ceiling: 5, pools: ["lanes-app", "github-token"] } };
+  });
+  assert.deepEqual(run(set).limits["lane-level"], { floor: 2, ceiling: 5, default: 3, "clean-windows": 2, pools: ["lanes-app", "github-token"] });
+  for (const bad of [{ ceiling: 11 }, { floor: 0 }, { "clean-windows": 1.5 }, { pools: ["content-creation"] }, { pools: [] }, { step: 1 }]) {
+    const rejected = edited((doc) => {
+      doc.limits = { "lane-level": bad };
+    });
+    assertRejected(() => run(rejected), "invalid-config");
+  }
+});
+
+test("limits: a lane-level floor above its ceiling is rejected, set or defaulted; a floor equal to it resolves", () => {
+  const level = (laneLevel) =>
+    edited((doc) => {
+      doc.limits = { "lane-level": laneLevel };
+    });
+  assert.deepEqual(run(level({ floor: 4 })).limits["lane-level"], { ...LIMITS["lane-level"], floor: 4 });
+  for (const bad of [{ floor: 5, ceiling: 3 }, { floor: 5 }, { ceiling: 1 }]) {
+    assertRejected(() => run(level(bad)), "invalid-config");
+    assertRejected(() => resolveLimits(files(level(bad)), { configPath: CONFIG_PATH }), "invalid-config");
+  }
+});
+
+test("lane-level: the schema's defaults, resolve-config's, decide()'s and the live yaml's are one set", () => {
+  const schema = Object.fromEntries(Object.entries(SCHEMA.properties.limits.properties["lane-level"].properties).map(([key, value]) => [key, value.default]));
+  const live = parse(read("../../../docs/conventions/pr-pipeline.yaml")).limits["lane-level"];
+  const decides = { ...LANE_LEVEL_DEFAULTS, pools: [...LANE_LEVEL_DEFAULTS.pools] };
+  assert.deepEqual(schema, LIMITS["lane-level"], "the schema's defaults are the ceiling-4 set");
+  assert.deepEqual(run(fixture("valid.yaml")).limits["lane-level"], schema, "resolve-config's");
+  assert.deepEqual(decides, schema, "LANE_LEVEL_DEFAULTS in lane-level.mjs");
+  assert.deepEqual(live, schema, "docs/conventions/pr-pipeline.yaml");
 });
 
 test("limits: refire-queue-per-slot is a whole number from 1 to 10", () => {
