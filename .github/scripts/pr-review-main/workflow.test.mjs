@@ -867,12 +867,24 @@ test("the verdict uploads once, after it is written, under the writer's name", (
   // probing marker, the trusted-text job's shared read, and the lane-hold
   // marker of the trigger job and each leg.
   assert.equal(text.match(/uses: actions\/upload-artifact@/g).length, LEGS.length + 3 + LEGS.length + 1);
+  // The lane-hold marker is told by its artifact name, never its step name:
+  // exactly one upload per job names lane-hold-pr-review-main, only after
+  // Note the hold ran, with the fixed path that step wrote.
+  const markerOf = (job, steps) => {
+    const uploads = steps.filter((s) => /uses: actions\/upload-artifact@/.test(s.block));
+    const markers = uploads.filter((s) => input(s.block, "name") === "lane-hold-pr-review-main");
+    assert.equal(markers.length, 1, `${job}: one lane-hold marker upload`);
+    const [marker] = markers;
+    assert.match(marker.block, /^ {8}if: steps\.note-hold\.outcome == 'success'$/m, `${job}: the marker uploads only after Note the hold ran`);
+    assert.equal(input(marker.block, "path"), "${{ runner.temp }}/lane-hold/pr-review-main", job);
+    assert.equal(input(marker.block, "retention-days"), "1", job);
+    assert.equal(input(marker.block, "if-no-files-found"), "ignore", job);
+    assert.match(steps.find((s) => s.name === "Note the hold").block, /^ {8}id: note-hold$/m, job);
+    return { marker, others: uploads.filter((s) => s !== marker) };
+  };
+  assert.deepEqual(markerOf("trigger", stepsOf("trigger")).others, [], "the trigger job uploads only its marker");
   for (const job of LEGS) {
-    const marker = step("Keep the lane hold marker", job);
-    assert.match(marker, /^ {8}if: steps\.note-hold\.outcome == 'success'$/m, `${job}: the marker uploads only after Note the hold ran`);
-    assert.match(marker, /^ {10}path: \$\{\{ runner\.temp \}\}\/lane-hold\/pr-review-main$/m, job);
-    assert.match(step("Note the hold", job), /^ {8}id: note-hold$/m, job);
-    const uploads = STEPS[job].filter((s) => /uses: actions\/upload-artifact@/.test(s.block) && s.name !== "Keep the lane hold marker");
+    const { others: uploads } = markerOf(job, STEPS[job]);
     assert.equal(uploads.length, 1, job);
     assert.equal(uploads[0].name, "Upload the verdict");
     // The written verdict is scanned just before it uploads, and uploads only on the scan's clean output.
