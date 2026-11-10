@@ -1,6 +1,6 @@
 {
   "name": "planning",
-  "version": "2.18.0",
+  "version": "2.18.1",
   "userConfig": {
     "surface": {
       "type": "string",
