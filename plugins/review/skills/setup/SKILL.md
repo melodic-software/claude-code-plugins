@@ -173,7 +173,7 @@ the value `check` reads back, and whether the file is tracked.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`. The per-user
   `downstream_probe`, `fanout_diversity` and `fanout_act_on_cap` options are set through
   `/plugin configure`, not here.
-- Write any settings file other than `docs/conventions/review.yaml`.
+- Write any settings file but `docs/conventions/review.yaml` and, on request, `review-digest.yaml`.
 - Edit the consumer's root `.gitignore` or any ignore file it did not itself create, the single
   setup-owned ignore file is the standards root's bootstrap-shipped `<standards_dir>/.gitignore`.
 - Write anything into the plugin directory or the plugin data directory
