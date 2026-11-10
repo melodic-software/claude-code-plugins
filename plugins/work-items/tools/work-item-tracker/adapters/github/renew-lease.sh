@@ -6,10 +6,11 @@ set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-wit_help_if_requested "usage: renew-lease <id> --lease-comment-id <n>" "$@"
+usage='usage: renew-lease <id> --lease-comment-id <n>'
+wit_help_if_requested "$usage" "$@"
 
 id="${1:-}"
-[[ -n "$id" ]] || wit_usage_error "usage: renew-lease <id> --lease-comment-id <n>"
+[[ -n "$id" ]] || wit_usage_error "$usage"
 shift
 lease_comment_id=""
 while [[ $# -gt 0 ]]; do
@@ -27,10 +28,9 @@ wit_require_github_id "$id" || wit_usage_error "malformed or non-github id: $id"
 
 owner="$WIT_ID_OWNER" repo="$WIT_ID_REPO" number="$WIT_ID_NUMBER"
 
-# The comment REST path is repo + comment id, NOT issue-scoped: a stale or
-# cross-issue --lease-comment-id would otherwise patch a DIFFERENT item's lease
-# and report success for $id. Verify the comment's own issue number matches the
-# requested item before touching it.
+# The comment REST path is repo + comment id, not issue-scoped, so a stale or
+# cross-issue handle would otherwise renew a different item's lease and report
+# success for $id.
 wit_run_gh read api "repos/$owner/$repo/issues/comments/$lease_comment_id" \
   --jq '{body, issue: (.issue_url | capture("/issues/(?<n>[0-9]+)$") | .n)}'
 comment_issue="$(jq -r '.issue // empty' <<<"$WIT_GH_OUT")"
@@ -49,10 +49,8 @@ if [[ -n "$(jq -r '.superseded_at // empty' <<<"$lease_json")" ]]; then
   exit "$EX_CONFLICT"
 fi
 
-# The comment being non-superseded is not enough: an EXPIRED-but-not-superseded
-# lease can coexist with a newer active claim. Renewing it would produce two live
-# lease records and let a stale session keep work it no longer owns. Require this
-# comment to BE the current active lease = the newest non-superseded lease.
+# Non-superseded is not enough: an expired lease can coexist with a newer claim, and
+# renewing it would leave two live leases. Require the newest non-superseded lease.
 leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || exit "$?"
 wit_select_active_lease "$leases"
 if [[ "$WIT_ACTIVE_LEASE_ID" != "$lease_comment_id" ]]; then
@@ -61,12 +59,9 @@ if [[ "$WIT_ACTIVE_LEASE_ID" != "$lease_comment_id" ]]; then
   exit "$EX_CONFLICT"
 fi
 
-# Being the active (non-superseded) lease is still not enough: an active lease can
-# be EXPIRED — `renewed_at + ttl_hours` already elapsed — without a superseding
-# comment yet, e.g. a crashed/delayed holder that never backed off. Renewing that
-# would revive a lease another worker has reasonably treated as expired and handed
-# off, defeating TTL-based handoff. Refuse the renewal (conflict) for an expired
-# lease; recovery is a fresh claim/reclaim, not a revive of the dead handle.
+# The active lease can still be expired, e.g. a crashed or delayed holder that never
+# backed off. Reviving it would undo a handoff another worker made on expiry;
+# recovery is a fresh claim or reclaim.
 if ! wit_lease_is_live "$lease_json" "$(date -u +%s)"; then
   printf 'renew-lease: lease %s is expired (renewed_at + ttl_hours elapsed); not renewing\n' \
     "$lease_comment_id" >&2

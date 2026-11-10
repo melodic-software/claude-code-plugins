@@ -42,8 +42,7 @@ parent_quoted="$(jq -cn --arg p "$id" '$p')"
   for n in $(wit_item_numbers); do
     file="$(wit_item_file "$n")"
     [[ "$(wit_fm_field "$file" parent)" == "$parent_quoted" ]] || continue
-    item_state="$(wit_fm_field "$file" state)"
-    wit_state_matches "$state" "$item_state" || continue
+    wit_state_matches "$state" "$(wit_fm_field "$file" state)" || continue
     wit_emit_local_item "$n" true
   done
 } | jq -c -s --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: ., truncated: false}'
