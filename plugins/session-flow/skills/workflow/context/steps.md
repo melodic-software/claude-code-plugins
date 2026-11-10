@@ -116,9 +116,9 @@ design section, which is how they reach the implementer.
 - Skip conditions: a single-file bug fix, a config or doc change, a rename, a pure test addition.
   The skip is recorded as a one-line early exit with its reason, not left implicit, so the plan
   stage can see it. On the full path, size alone never skips it
-- Domain modeling, prototypes, and architecture surveys feed it; a decision that is costly to
-  undo, not obvious from the code, and chosen over a live alternative is recorded as an
-  architecture decision before planning
+- Domain modeling, prototypes, and architecture surveys feed it; a decision that passes the
+  admission test of an architecture-decision capability (if installed, e.g.
+  /architecture:record-decision) is recorded as an architecture decision before planning
 - A user-facing flow or screen is designed before the technical design: the flow and navigation
   through a user-experience capability (if installed, e.g. /user-experience:structure), then the
   screens through an interface-design capability (if installed, e.g. /user-interface:design);
