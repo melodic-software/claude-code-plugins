@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.0] - 2026-11-10
+
+### Removed
+
+- The babysit-prs verdict-evidence script's `evidence` command no longer takes `--answers-in`, `--answers-out`, `--answers-mode` or `--answers-only`, and no longer probes an answer key before its read: every call reads in full and prints the plain report, as it did without those flags.
+
 ## [8.11.6] - 2026-11-10
 
 ### Changed
