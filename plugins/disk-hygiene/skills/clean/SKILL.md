@@ -218,8 +218,7 @@ fan-out worker receives a bounded subtree and returns evidence only (see
 [fan-out-worker-brief.md](reference/fan-out-worker-brief.md)). The parent owns classification, the
 single report, every approval, preview, and all execution. Do not let workers delete or prepare approvals.
 Do not count on the skill-frontmatter Bash/PowerShell belt inside those subagents. Our probe on
-Claude Code 2.1.285 (Linux), recorded in [#5565](https://github.com/melodic-software/claude-code-plugins/pull/5565), ran before [#11295](https://github.com/melodic-software/claude-code-plugins/pull/11295) released the belt
-outside an open run: after `/disk-hygiene:clean` loaded, the session's `git --version` was denied
+Claude Code 2.1.285 (Linux), recorded in [#5565](https://github.com/melodic-software/claude-code-plugins/pull/5565), observed the difference: after `/disk-hygiene:clean` loaded, the session's `git --version` was denied
 by the belt and a subagent's `git --version` ran. **Pointer:** when checking which hooks apply inside subagents, fetch
 [Define hooks for subagents](https://code.claude.com/docs/en/sub-agents#define-hooks-for-subagents)
 and [Hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents)

@@ -207,8 +207,8 @@ Upstream facts the script restates, each with its verification record:
   switch is runtime detection, so a host that never sends this shape never switches.
   Recheck trigger: that section changes its GraphQL entry, or a cloud session refuses
   a GraphQL query with a different message.
-- **The REST path reports the review decision as `n/a`; the GraphQL path reads
-  `reviewDecision` and `mergeStateStatus` through `gh pr list --json`.** **Pointer**: when
+- **The REST path reports the review decision as `n/a`; the `gh pr list --json`
+  path reads `reviewDecision` and `mergeStateStatus`.** **Pointer**: when
   the REST path reports a review decision, fetch the response schema at
   <https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request> live, and
   `gh pr list --help` for the `--json` fields. **As of**: 2026-11-10. **Recheck trigger**:

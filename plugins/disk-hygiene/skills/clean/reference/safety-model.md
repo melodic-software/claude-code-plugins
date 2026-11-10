@@ -563,7 +563,7 @@ resolve `disk_hygiene_enabled` the same single way: by reading it from `pluginCo
 `settings.json` files, through the shared `lib/killswitch_config.py` reader (the same read the setup
 skill's `kill_switch_probe.py` reports). Neither surface takes the value from the process environment.
 The design counts on project and local `.claude/settings.json` being unable to set that key, so a
-hostile repo cannot flip it, and treats `--settings` as a read source too. **Pointer:** when
+hostile repo cannot flip it, and knows a `--settings` file can set it too. **Pointer:** when
 checking which scopes `pluginConfigs` is honored from and what `--settings` can set, fetch
 [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) and
 [Change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session)

@@ -36,8 +36,7 @@ unconditionally and still scans with the toggle off, so most prerequisite absenc
 FAIL semantics regardless of the toggle. Only the execution-tier tools the audit lane never
 invokes (step 4's `lsof`-class probes) downgrade from FAIL to INFO when the toggle is
 disabled, report those informationally and note that re-enabling restores the FAIL semantics.
-A missing `git` keeps its step-3 semantics either way (INFO, and FAIL for a worktree-containing
-target): the audit lane itself calls it, and its absence degrades the VCS-tracked-content evidence the plugin's fail-closed posture depends on.
+A missing `git` keeps its step-3 verdict either way: the audit lane itself calls it, and its absence degrades the VCS-tracked-content evidence the plugin's fail-closed posture depends on.
 
 Every step-1 and step-2 failure likewise stays FAIL with the toggle disabled.
 Audit-only mode is *enforced by* the guard, every guard surface
