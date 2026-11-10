@@ -21,10 +21,7 @@
 
 # $1 is the text inside the brackets.
 section_applies_to_shell() {
-  local h="$1"
-  [[ "$h" =~ \*\.(sh|bash)([^[:alnum:]]|$) ]] && return 0
-  [[ "$h" =~ [{,](sh|bash)[,}] ]] && return 0
-  return 1
+  [[ "$1" =~ \*\.(sh|bash)([^[:alnum:]]|$) || "$1" =~ [{,](sh|bash)[,}] ]]
 }
 
 editorconfig_shell_section_here() {
@@ -60,8 +57,7 @@ shfmt_governed() {
 
 SHFMT_NOTE=""
 shfmt_note() {
-  [[ -n "$SHFMT_NOTE" ]] && SHFMT_NOTE+=" "
-  SHFMT_NOTE+="$1"
+  SHFMT_NOTE+="${SHFMT_NOTE:+ }$1"
 }
 
 # Subscript guard. shfmt parses an unquoted array subscript as arithmetic,
@@ -130,24 +126,18 @@ subscript_guard_end() {
     return 0
   fi
   for ((i = 0; i < ${#before[@]}; i++)); do
-    span="${before[i]}"
-    s="${span%% *}" span="${span#* }"
-    e="${span%% *}" l="${span#* }"
+    read -r s e l <<<"${before[i]}"
     subscript_text "$SUBSCRIPT_ORIG" "$s" "$e"
     was="$SUBSCRIPT_TEXT"
-    span="${after[i]}"
-    s="${span%% *}" span="${span#* }"
-    e="${span%% *}"
+    read -r s e _ <<<"${after[i]}"
     subscript_text "$new" "$s" "$e"
     now="$SUBSCRIPT_TEXT"
     [[ "$was" == "$now" ]] && continue
     n=$((n + 1))
-    if ((n == 1)); then
-      first_was="$was" first_now="$now"
-    elif ((n <= 5)); then
-      named+=", "
-    fi
-    ((n <= 5)) && named+="\`[$was]\` on line $l as \`[$now]\`"
+    ((n == 1)) && first_was="$was" first_now="$now"
+    ((n > 5)) && continue
+    ((n > 1)) && named+=", "
+    named+="\`[$was]\` on line $l as \`[$now]\`"
   done
   ((n)) || return 0
   ((n > 1)) && noun="the array subscripts" key="each a different key"
