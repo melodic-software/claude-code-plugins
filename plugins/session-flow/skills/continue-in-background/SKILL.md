@@ -310,7 +310,7 @@ matches its remote:
   <https://code.claude.com/docs/en/claude-code-on-the-web#continue-a-cloud-session-in-your-terminal>,
   <https://code.claude.com/docs/en/claude-code-on-the-web#send-follow-ups-from-the-cli>; what the
   session lacks: <https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup>.
-- **As of**: 2026-10-11
+- **As of**: 2026-11-10
 - **Recheck trigger**: any of those sections changes what the VM clones or bundles, the `--cloud`,
   `--teleport` or follow-up syntax, or teleport's requirements.
 
@@ -413,11 +413,9 @@ can mean any of them.
 
 - **`/subtask`, `/fork`, `/background` (built-in commands)**: three ways to move work off this
   terminal. None writes a save-point, and this skill never runs them. What each launches, its
-  alias, its gate and who may invoke it: the records table in
+  alias, its gate and whether the model can invoke it: the records table in
   [native-surfaces § verification record](reference/native-surfaces.md#native-background-surfaces-verification-record)
-  and the rows of <https://code.claude.com/docs/en/commands#all-commands> (as of 2026-11-10;
-  recheck trigger: that table's rows or their recheck events change, or a row on that page
-  changes who may invoke the command).
+  (as of 2026-11-10; recheck trigger: that table's rows or their recheck events change).
 - **This skill (marketplace plugin).** Writes a durable, redacted save-point, gates on a dirty
   tree, and launches a fresh `claude --bg` session seeded only with the save-point's `/goal`
   payload, so the continuation carries no conversation history, survives on disk, and ends on a

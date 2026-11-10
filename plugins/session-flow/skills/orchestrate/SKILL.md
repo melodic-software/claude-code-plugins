@@ -301,7 +301,7 @@ forbidden intermediate tier either. The version history behind the caps lives in
   concurrency cap, see <https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit>; for
   workflow limits, see <https://code.claude.com/docs/en/workflows#behavior-and-limits>; for forks,
   see <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>.
-- **As of**: 2026-08-15; 2026-10-01 for the workflow concurrency override.
+- **As of**: 2026-11-10
 - **Recheck trigger**: a changelog entry touches subagent limits, or `context/sources.md` is
   re-verified.
 

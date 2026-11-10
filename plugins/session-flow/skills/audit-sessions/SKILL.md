@@ -311,10 +311,10 @@ This skill keeps a durable store, flags sessions over the shipped thresholds and
 finding; `/insights` is a separate report the person runs. We treat them as complementary:
 If /insights is available in your session (gate basis: this skill never assumes it resolves; the
 **Pointer** record below), suggest that the person run it alongside this skill. This skill never
-runs it; who may invoke it is in the record below. When the caller passes `--unattended`, record the `/insights` suggestion in the run's output and do not ask the person;
+runs it. When the caller passes `--unattended`, record the `/insights` suggestion in the run's output and do not ask the person;
 without that flag, make the suggestion to the person. For `trends`, make the suggestion at the end of the run.
 
-- **Pointer**: for what `/insights` reports and who may invoke it, fetch
+- **Pointer**: for what `/insights` reports, fetch
   <https://code.claude.com/docs/en/commands#all-commands> live, the `/insights` row.
 - **As of**: 2026-11-10
 - **Recheck trigger**: that row changes what the command reports, or `/insights` becomes

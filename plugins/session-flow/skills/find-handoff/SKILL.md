@@ -97,7 +97,7 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    [reference/rung-1-known-location.md](reference/rung-1-known-location.md) before globbing: it owns
    the fallback-root rule and when it applies, the `type: handoff` frontmatter filter, the
    unfinished-skeleton skip, the mtime ranking, the short-circuit bar and where a short-circuit
-   jumps to, how a shape-2 candidate's stored `## Resume prompt` is printed, and the
+   jumps to, how a shape-2 or shape-3 candidate's stored `## Resume prompt` is printed, and the
    repo-correlation check that stops a merely recent candidate from being presented as this
    work's. A strong, recent candidate ends the ladder here.
 
