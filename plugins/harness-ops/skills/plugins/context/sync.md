@@ -1039,7 +1039,7 @@ absent paths in `by_path`, which the render folds into the count entry.
 which can include the plugin providing this skill, and a concurrent update can move it too; the
 digest's `self_updated` is true when this plugin's install moved either way, whichever step or
 process moved it and in whichever direction. When it did, we treat the algorithm that ran as the
-**pre-update** one (pointer below), so the report describes work done by a version the user no
+**pre-update** one, read from the `${CLAUDE_PLUGIN_ROOT}` the session loaded (pointer below), so the report describes work done by a version the user no
 longer has installed. We treat this as a reporting obligation, not a crash risk. The render emits the self-update note when the digest's
 `self_updated` is true, and names the plugin and versions from the digest's `self_update` row, the
 record of this plugin the run moved, never from whichever moved row comes first.
