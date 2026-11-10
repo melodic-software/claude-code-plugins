@@ -931,10 +931,8 @@ if [[ "$TOOL_NAME" == "PowerShell" && ("$INPUT" == *'\r'* || "$INPUT" == *'\u000
   rdt_bs=$'\\'
   rdt_cr="${rdt_bs}r" rdt_lf="${rdt_bs}n"
   rdt_in="${INPUT//"$rdt_bs$rdt_bs"/$'\001'}"
-  rdt_in="${rdt_in//"${rdt_bs}u000d"/"$rdt_cr"}"
-  rdt_in="${rdt_in//"${rdt_bs}u000D"/"$rdt_cr"}"
-  rdt_in="${rdt_in//"${rdt_bs}u000a"/"$rdt_lf"}"
-  rdt_in="${rdt_in//"${rdt_bs}u000A"/"$rdt_lf"}"
+  rdt_in="${rdt_in//"${rdt_bs}u000"[dD]/"$rdt_cr"}"
+  rdt_in="${rdt_in//"${rdt_bs}u000"[aA]/"$rdt_lf"}"
   rdt_in="${rdt_in//"$rdt_cr$rdt_lf"/"$rdt_lf"}"
   rdt_in="${rdt_in//"$rdt_cr"/"$rdt_lf"}"
   rdt_in="${rdt_in//$'\001'/"$rdt_bs$rdt_bs"}"
@@ -1195,18 +1193,13 @@ fi
 # on purpose; the tokenizer decides.
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   rdt_ps_pre="${COMMAND,,}"
-  rdt_ps_hit=0
   case "$rdt_ps_pre" in
   *rm* | *remove-item* | *erase* | *cmd* | *rd* | *del* | *robocopy* | *frombase64* | *pwsh* | *powershell* | \
-    *move* | *mv* | *clear-content* | *set-content*) rdt_ps_hit=1 ;;
+    *move* | *mv* | *clear-content* | *set-content*) ;;
   # The Bash lane's words, for the program a bash -c or wsl runs.
-  *unlink* | *rsync* | *worktree* | *truncate* | *shred* | *of=* | *base64* | *base32* | *basenc* | *xxd*) rdt_ps_hit=1 ;;
-  *) ;;
+  *unlink* | *rsync* | *worktree* | *truncate* | *shred* | *of=* | *base64* | *base32* | *basenc* | *xxd*) ;;
+  *) [[ "$rdt_ps_pre" =~ (^|[^[:alnum:]_])(ri|mi|clc)([^[:alnum:]_]|$) ]] || exit 0 ;;
   esac
-  if ((rdt_ps_hit == 0)) && [[ "$rdt_ps_pre" =~ (^|[^[:alnum:]_])(ri|mi|clc)([^[:alnum:]_]|$) ]]; then
-    rdt_ps_hit=1
-  fi
-  ((rdt_ps_hit)) || exit 0
 else
   case "${COMMAND,,}" in
   *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove* | *mv* | *truncate* | \
@@ -1333,11 +1326,8 @@ rdt_is_root() {
   [[ "$s" =~ ^/+$ ]] && return 0
   # A UNC share root: exactly two leading slashes, a host, a share, nothing more.
   [[ "$s" =~ ^//[^/]+/[^/]+$ ]] && return 0
-  [[ "$s" =~ ^[a-z]:$ ]] && return 0
-  [[ "$s" =~ ^/[a-z]$ ]] && return 0
-  [[ "$s" =~ ^/cygdrive/[a-z]$ ]] && return 0
-  [[ "$s" =~ ^/mnt/[a-z]$ ]] && return 0
-  return 1
+  # A drive root, in its Windows, MSYS, Cygwin and WSL spellings.
+  [[ "$s" =~ ^([a-z]:|/[a-z]|/cygdrive/[a-z]|/mnt/[a-z])$ ]]
 }
 
 # rdt_runuser_argv <offset> <words after runuser>: read runuser's argv the way
@@ -1426,9 +1416,11 @@ rdt_runuser_argv() {
           val="${a[k]-}"
           ((k < n)) && k=$((k + 1))
         fi
-        [[ "$hit" == "command" || "$hit" == "session-command" ]] && RDT_RU_CMDS+=("$val")
-        # su builds `sh -c -- CMD` from an operand of `--`, so CMD is the next word.
-        [[ ("$hit" == "command" || "$hit" == "session-command") && "$val" == "--" ]] && ((k < n)) && RDT_RU_CMDS+=("${a[k]}")
+        if [[ "$hit" == "command" || "$hit" == "session-command" ]]; then
+          RDT_RU_CMDS+=("$val")
+          # su builds `sh -c -- CMD` from an operand of `--`, so CMD is the next word.
+          [[ "$val" == "--" ]] && ((k < n)) && RDT_RU_CMDS+=("${a[k]}")
+        fi
         [[ "$hit" == "user" ]] && RDT_RU_U=1
         [[ "$hit" == "shell" ]] && RDT_RU_SHELL="$val"
         ;;
