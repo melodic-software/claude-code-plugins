@@ -3117,14 +3117,19 @@ def check(
             if any(m.merged_at for m in judged)
             else merged_since
         )
-        # The stop needs only the dispatch listing, so it comes before the
-        # schedule and canary listings and the branch reads that filter them.
+        # A merge no listed dispatch run covers stops before the schedule and
+        # canary listings and the branch reads that filter them; one only a
+        # filtered-out run covers stops once they are read.
         dispatched = _dispatch_runs(ctx, floor, now) if stop_uncovered else None
         if dispatched is not None:
             _stop_uncovered(judged, dispatched)
         full_runs, canary_runs = _listed_runs(
             ctx, floor, now, record=True, dispatched=dispatched
         )
+        if stop_uncovered:
+            _stop_uncovered(
+                judged, [r for signal, r in full_runs if signal == SIGNAL_DISPATCH]
+            )
         states = tuple(
             _settled_state(merge)
             if merge.number in done

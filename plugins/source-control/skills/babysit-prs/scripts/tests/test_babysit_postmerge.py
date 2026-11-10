@@ -3429,6 +3429,16 @@ class StopUncovered(CheckCase):
                 self.assertIsNone(number)
                 self.assertFalse(verdict.readable)
 
+    def test_a_dispatch_run_off_the_branch_still_stops(self) -> None:
+        # Listed after the merge, so the dispatch listing alone does not stop;
+        # the branch read drops it, and the merge stops as uncovered.
+        self.gh.add_runs(
+            "pr-require-checks.yml", "workflow_dispatch", dispatch_run(11, head_sha=OTHER_SHA)
+        )
+        verdict, _, number, _ = self.both()
+        self.assertTrue(verdict.needs_dispatch)
+        self.assertEqual(number, 7001)
+
     def test_the_stop_reads_no_schedule_or_canary_listing(self) -> None:
         # Only the dispatch runs decide the stop, so a canary listing that
         # would fail is never reached.
