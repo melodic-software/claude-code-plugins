@@ -100,7 +100,9 @@ pre-scoring filters could not match.
      project's glossary entries for it: invoke
      `/domain-driven-design:ubiquitous-language lookup` via the Skill tool
      when that skill is available, else find and read the glossary
-     yourself. Canonical terms feed the domain-lore lens; `Avoid:` words
+     yourself. Canonical terms and chosen verbs feed the domain-lore lens;
+     `Avoid:` words, and a verb in the parentheses of the entity's
+     `Actions:` line (blocked only for that operation on that entity),
      join the blocklist with the reason "rejected in the glossary" and the
      provenance glossary-stated, treated as user-stated: the team resolved
      it, so the merge step disqualifies a candidate that uses it.

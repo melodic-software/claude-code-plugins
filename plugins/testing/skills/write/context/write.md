@@ -31,7 +31,7 @@ When invoked from `/implementation:implement` (plan already approved) or as part
 
 ## Sequence
 
-1. **Tracer bullet first**. Write ONE test confirming ONE thing about the system end-to-end, to prove the path before investing in edge cases. Name tests and interfaces in the domain's own words, from the glossary read in SKILL.md Step 1 ("Domain language read?"): its canonical terms, never an `Avoid:` word. Follow any ADRs that govern the code being changed. Then list the remaining behavior scenarios:
+1. **Tracer bullet first**. Write ONE test confirming ONE thing about the system end-to-end, to prove the path before investing in edge cases. Name tests and interfaces in the domain's own words, from the glossary read in SKILL.md Step 1 ("Domain language read?"): its canonical terms and chosen verbs, never an `Avoid:` word or a verb an `Actions:` line rejects for that operation. Follow any ADRs that govern the code being changed. Then list the remaining behavior scenarios:
    - Happy path (basic correct behavior)
    - Edge cases (null, empty, boundary values)
    - Error paths (invalid input, missing dependencies, timeouts)
