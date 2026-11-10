@@ -157,6 +157,10 @@ JQ_PROG='
   input_filename as $f |
   def items: ((.expectations // []) + (.assertions // []));
   def caseref: if .name then "case \(.name) (id=\(.id))" else "case id=\(.id)" end;
+  # Cases graded by expected_output alone.
+  def sole_criterion: select(.expectations == null and .assertions == null);
+  # Every string criterion a grader reads: string items, then expected_output.
+  def criteria: (items[]? | select(type == "string")), (.expected_output // empty);
   # Path-shaped tokens in prompt/expected_output. scan/g keeps every
   # non-overlapping match; trailing sentence punctuation is stripped in bash.
   def prose_paths:
@@ -180,7 +184,7 @@ JQ_PROG='
     | "FAIL" + $u + "\($f): \($c): empty or non-gradeable expectations/assertions item (empty/whitespace string, null, or empty container) — an empty criterion cannot be graded (Q3)"),
   # Q3 also covers a sole-criterion expected_output that is whitespace-only:
   # it clears the schema (minLength counts whitespace) yet cannot be graded.
-  ($cases[] | select(.expectations == null and .assertions == null)
+  ($cases[] | sole_criterion
     | select((.expected_output // "") | (length > 0) and (gsub("[[:space:]]"; "") == ""))
     | caseref as $c
     | "FAIL" + $u + "\($f): \($c): whitespace-only expected_output is the sole grading criterion — it cannot be graded (Q3)"),
@@ -200,23 +204,22 @@ JQ_PROG='
   ($cases | group_by([.prompt, (.files // [])]) | .[] | select(length > 1)
     | "WARN" + $u + "\($f): cases \(map(.id | tostring) | join(", ")) share an identical prompt and files — distinguishable only by criteria or out-of-band context; confirm the duplication is intentional (Q6)"),
   # Q7: vague whole-item criteria (items and expected_output).
-  ($cases[] | caseref as $c |
-    ((items[]? | select(type == "string")), (.expected_output // empty))
+  ($cases[] | caseref as $c | criteria
     | select(test($vague; "i"))
     | "WARN" + $u + "\($f): \($c): vague criterion \"\(.)\" — state what a grader must find, not that the output is good (Q7)"),
   # Q10: undefined evaluative qualifier (items Q7 already flags are skipped).
-  ($cases[] | caseref as $c |
-    ((items[]? | select(type == "string")), (.expected_output // empty))
+  ($cases[] | caseref as $c | criteria
     | select(test($vague; "i") | not)
     | select(test($evaluative; "i"))
     | "WARN" + $u + "\($f): \($c): criterion leaves \"\(match($evaluative; "i").string | ascii_downcase)\" undefined, so name what a grader must find (Q10)"),
   # Q8: thin sole-criterion expected_output. Length is measured after
   # trimming, so padding cannot clear the floor; whitespace-only strings are
   # Q3 FAILs and excluded here to avoid a double report.
-  ($cases[] | select(.expectations == null and .assertions == null)
+  ($cases[] | sole_criterion
     | select((.expected_output // "") | (gsub("[[:space:]]"; "") != "") or . == "")
-    | select(((.expected_output // "") | gsub("^[[:space:]]+|[[:space:]]+$"; "") | length) < $min) | caseref as $c
-    | "WARN" + $u + "\($f): \($c): sole grading criterion is a \((.expected_output // "") | gsub("^[[:space:]]+|[[:space:]]+$"; "") | length)-char expected_output (min \($min)) — too thin to guide a grader (Q8)"),
+    | ((.expected_output // "") | gsub("^[[:space:]]+|[[:space:]]+$"; "") | length) as $len
+    | select($len < $min) | caseref as $c
+    | "WARN" + $u + "\($f): \($c): sole grading criterion is a \($len)-char expected_output (min \($min)) — too thin to guide a grader (Q8)"),
   # Q9: set-level refusal/anti-pattern coverage.
   (if ($cases | length) > 0 and
       ([$cases[] | [(.name // ""), .prompt, (.expected_output // ""),
@@ -259,6 +262,18 @@ strip_trailing_punct() {
   printf '%s' "$s"
 }
 
+# Fixture roots for lint file $1: the skill dir (the evals dir's parent),
+# then the evals dir.
+set_fixture_roots() {
+  evals_dir="$(dirname "$1")"
+  skill_dir="$(dirname "$evals_dir")"
+}
+
+# True when path $1 exists under neither fixture root.
+fixture_missing() {
+  [[ ! -e "$skill_dir/$1" && ! -e "$evals_dir/$1" ]]
+}
+
 while IFS="$US" read -r kind a b c; do
   [[ -z "$kind" ]] && continue
   case "$kind" in
@@ -273,9 +288,8 @@ while IFS="$US" read -r kind a b c; do
     if [[ "$c" == /* || "$c" =~ ^[A-Za-z]: || "/$c/" == *"/../"* ]]; then
       err "$a: $b: files entry \"$c\" escapes the documented fixture roots (absolute path or '..' component) — fixtures must live under the skill or evals directory (Q4)"
     else
-      evals_dir="$(dirname "$a")"
-      skill_dir="$(dirname "$evals_dir")"
-      if [[ ! -e "$skill_dir/$c" && ! -e "$evals_dir/$c" ]]; then
+      set_fixture_roots "$a"
+      if fixture_missing "$c"; then
         err "$a: $b: files entry \"$c\" not found under $skill_dir/ or $evals_dir/ — a case whose fixtures cannot be found cannot be exercised (Q4)"
       fi
     fi
@@ -298,14 +312,12 @@ while IFS="$US" read -r kind a b c; do
       [[ "$first" =~ ^[A-Za-z0-9-]+([.][A-Za-z0-9-]+)*[.][A-Za-z]{2,}$ ]]; then
       continue
     fi
-    evals_dir="$(dirname "$a")"
-    skill_dir="$(dirname "$evals_dir")"
+    set_fixture_roots "$a"
     # PROSE tokens come from PROSE_PATH_RE, which has no leading-/ or drive
     # alternative — absolute-looking prose is scanned without the leading /
     # and falls through to the existence check. Only `../` traversal is
     # reachable as an escape here; keep that gate before the -e test.
-    if [[ "/$c/" == *"/../"* ]] ||
-      { [[ ! -e "$skill_dir/$c" && ! -e "$evals_dir/$c" ]]; }; then
+    if [[ "/$c/" == *"/../"* ]] || fixture_missing "$c"; then
       warn "$a: $b: path-shaped token \"$c\" in prompt/expected_output resolves to no fixture under $skill_dir/ or $evals_dir/ while files is empty — add it to files, ship a fixture, or set narration: true (Q4)"
     fi
     ;;
