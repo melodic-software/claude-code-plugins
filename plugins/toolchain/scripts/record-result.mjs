@@ -31,8 +31,9 @@ for (let i = 0; i < args.length; i += 2) {
   if (i + 1 >= args.length) fail(1, `${args[i]} needs a value`);
   values[args[i]] = args[i + 1];
 }
-if (values["--skill"] === null) fail(1, "--skill is required");
-if (values["--overall"] === null) fail(1, "--overall is required");
+for (const flag of ["--skill", "--overall"]) {
+  if (values[flag] === null) fail(1, `${flag} is required`);
+}
 
 let repo;
 let tree;

@@ -33,10 +33,11 @@ export const VERDICTS = ["PASS", "FAIL", "INCOMPLETE", "STOPPED"];
 const OVERALL = /^Overall: (PASS|FAIL|INCOMPLETE|STOPPED)(?![A-Za-z])/;
 const MAX_LINE = 2000;
 
-function git(dir, args, env) {
+function git(dir, args, env, input) {
   return execFileSync("git", ["-C", dir, ...args], {
     encoding: "utf8",
     env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", ...env },
+    input,
     stdio: ["pipe", "pipe", "ignore"],
     maxBuffer: 64 * 1024 * 1024,
   });
@@ -71,12 +72,8 @@ export function isClean(repo) {
 }
 
 function updateIndex(top, flags, paths, env) {
-  if (paths === "") return;
-  execFileSync("git", ["-C", top, "update-index", ...flags, "-z", "--stdin"], {
-    env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", ...env },
-    input: paths,
-    stdio: ["pipe", "ignore", "ignore"],
-  });
+  if (paths.length === 0) return;
+  git(top, ["update-index", ...flags, "-z", "--stdin"], env, paths.map((path) => `${path}\0`).join(""));
 }
 
 // The tree id of the working tree as described at the top of this file.
@@ -118,16 +115,13 @@ export function treeHash(repo) {
         const match = /^(\d+) \S+ \d+\t(.*)$/s.exec(line);
         if (match && match[1] !== "160000" && dirSet.has(match[2])) removed.add(match[2]);
       }
-      updateIndex(repo.top, ["--force-remove"], [...removed].map((path) => `${path}\0`).join(""), env);
+      updateIndex(repo.top, ["--force-remove"], [...removed], env);
     }
     // --replace lets a tracked directory that is now a file drop the entries under it.
     updateIndex(
       repo.top,
       ["--add", "--remove", "--replace", "--info-only"],
-      listed
-        .filter((path) => !removed.has(path))
-        .map((path) => `${path}\0`)
-        .join(""),
+      listed.filter((path) => !removed.has(path)),
       env,
     );
     return git(repo.top, ["write-tree", "--missing-ok"], env).trim();
@@ -143,16 +137,21 @@ function sanitize(line) {
   return String(line).replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, MAX_LINE);
 }
 
+// Writes <text> to <dir>/<name> through a temporary file and a rename, so a reader never sees a
+// partly written file.
+function writeAtomically(dir, name, text) {
+  mkdirSync(dir, { recursive: true });
+  const part = join(dir, `.${name}.${process.pid}`);
+  writeFileSync(part, text);
+  renameSync(part, join(dir, name));
+}
+
 // Stores <line> as <skill>'s result for <tree>. The line must be an Overall line.
 export function record(repo, tree, skill, line) {
   if (!SKILLS.includes(skill)) throw new Error(`skill must be one of ${SKILLS.join(", ")}`);
   const clean = sanitize(line);
   if (verdictOf(clean) === null) throw new Error(`not an Overall line: ${clean}`);
-  const dir = join(repo.store, tree);
-  mkdirSync(dir, { recursive: true });
-  const part = join(dir, `.${skill}.${process.pid}`);
-  writeFileSync(part, `${clean}\n`);
-  renameSync(part, join(dir, skill));
+  writeAtomically(join(repo.store, tree), skill, `${clean}\n`);
   return clean;
 }
 
@@ -174,11 +173,7 @@ export function lastSeen(repo, session) {
 export function remember(repo, session, seen) {
   if (!SESSION_ID.test(session ?? "")) return;
   try {
-    const dir = join(repo.store, "sessions");
-    mkdirSync(dir, { recursive: true });
-    const part = join(dir, `.${session}.${process.pid}`);
-    writeFileSync(part, `${seen}\n`);
-    renameSync(part, join(dir, session));
+    writeAtomically(join(repo.store, "sessions"), session, `${seen}\n`);
   } catch {
     // Reporting again next turn is the safe direction.
   }
@@ -193,8 +188,7 @@ export function results(repo, tree) {
     try {
       text = readFileSync(join(repo.store, tree, skill), "utf8");
     } catch (error) {
-      if (error.code === "ENOENT" || error.code === "ENOTDIR") continue;
-      found.push({ skill, line: "", verdict: null });
+      if (error.code !== "ENOENT" && error.code !== "ENOTDIR") found.push({ skill, line: "", verdict: null });
       continue;
     }
     const line = sanitize(text.split("\n")[0]);
