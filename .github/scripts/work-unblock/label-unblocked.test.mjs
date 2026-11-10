@@ -3207,6 +3207,81 @@ test("breaker trips past limit-stops-per-issue since a person last added agent-r
   tripped(fresh.calls);
 });
 
+// Owner decision Q109: past limit-stops-per-issue trips, a breaker trip waits
+// a flat limits.stranded-backoff-hours kill-switch after its run ended,
+// never doubled, and no trip count gives the issue up. `trips` earlier breaker
+// records, each with the App's remove and re-add, before the newest add at
+// `lastAdd`.
+const tripHistory = (trips, lastAdd = LABELED_AT) => {
+  const comments = [note()];
+  const events = [added("2026-10-16T05:00:00Z", OWNER)];
+  for (let index = 0; index < trips; index += 1) {
+    const at = `2026-10-16T05:${String(10 + index).padStart(2, "0")}:00Z`;
+    comments.push({ id: 70 + index, body: breakerComment(KEY, { repo: REPO, run: 4000 + index, ended: Date.parse(at) }), user: LANES_BOT, created_at: at });
+    events.push({ event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: at });
+    events.push(added(index === trips - 1 ? lastAdd : `2026-10-16T05:${String(10 + index).padStart(2, "0")}:01Z`));
+  }
+  return { comments, events: trips === 0 ? [added(lastAdd, OWNER)] : events };
+};
+const KILL_SWITCH_HOUR = withLimits({ "stranded-backoff-hours": { "kill-switch": 1 } });
+const ENDED = Date.parse("2026-10-16T10:05:00Z");
+const HOUR_MS = 3_600_000;
+
+test("a breaker trip waits a flat kill-switch hour after its run ended at trip 1, 4, 5 and 7, never doubled and never given up", async () => {
+  // Trip 1 at a post-model mint: limits.reset-clamp-min, one hour.
+  for (const [trip, jobs, logs] of [
+    [1, MINT_REFUSED, MINT_KILLED],
+    [4, BROKER_REFUSED, CHECK_KILLED],
+    [5, BROKER_REFUSED, CHECK_KILLED],
+    [7, BROKER_REFUSED, CHECK_KILLED],
+  ]) {
+    const early = stalledRun({ jobs, logs, ...tripHistory(trip - 1) });
+    assert.equal(await sweep({ github: early.github, actions: early.actions, now: ENDED + HOUR_MS - 1 }, KILL_SWITCH_HOUR), 0);
+    assert.deepEqual(writes(early.calls), [], `trip ${trip} re-fired before its hour`);
+    const due = stalledRun({ jobs, logs, ...tripHistory(trip - 1) });
+    assert.equal(await sweep({ github: due.github, actions: due.actions, now: ENDED + HOUR_MS }, KILL_SWITCH_HOUR), 0);
+    // Exactly the breaker record and the restart: no outcome=failed comment, no confirmed write.
+    tripped(due.calls);
+  }
+});
+
+test("other stranded causes still double with kill-switch at one flat hour", async () => {
+  // A failed mint past limit-stops-per-issue re-fires: 3 hours doubled three times, 24 after 10:05.
+  const early = stalledRun({ jobs: BROKER_REFUSED, logs: {}, ...earlierPumps(3) });
+  assert.equal(await sweep({ github: early.github, actions: early.actions, now: Date.parse("2026-10-17T10:04:59Z") }, KILL_SWITCH_HOUR), 0);
+  assert.deepEqual(writes(early.calls), [], "the failed mint re-fired before its doubled backoff");
+  const due = stalledRun({ jobs: BROKER_REFUSED, logs: {}, ...earlierPumps(3) });
+  assert.equal(await sweep({ github: due.github, actions: due.actions, now: Date.parse("2026-10-17T10:05:00Z") }, KILL_SWITCH_HOUR), 0);
+  assert.deepEqual(writes(due.calls).slice(-restarted(30).length), restarted(30), "the failed mint did not re-fire at its doubled backoff");
+});
+
+test("after the switch clears, breaker re-fires stay within restarts-per-run, the oldest stranded first", async () => {
+  // Each issue's newest add, the run's end five minutes later, and its trips so far.
+  const issues = [
+    [31, "2026-10-16T09:30:00Z", 0],
+    [32, "2026-10-16T08:00:00Z", 3],
+    [33, "2026-10-16T09:00:00Z", 0],
+    [34, "2026-10-16T08:30:00Z", 6],
+  ];
+  const end = (at) => new Date(Date.parse(at) + 5 * 60_000).toISOString();
+  const fake = world({
+    openReady: issues.map(([n]) => ready(n)),
+    comments: Object.fromEntries(issues.map(([n, at, trips]) => [n, tripHistory(trips, at).comments])),
+    events: Object.fromEntries(issues.map(([n, at, trips]) => [n, tripHistory(trips, at).events])),
+    runs: issues.map(([n, at]) => ({ ...laneRun({ number: n, at: new Date(Date.parse(at) + 3000).toISOString() }), updated_at: end(at) })),
+    jobs: Object.fromEntries(issues.map(([n]) => [5000 + n, BROKER_REFUSED])),
+    logs: CHECK_KILLED,
+    openLanePrs: 10,
+    blobs: BLOBS,
+  });
+  assert.equal(await sweep({ github: fake.github, actions: fake.github }, withLimits({ "stranded-backoff-hours": { "kill-switch": 1 }, "restarts-per-run": 2 })), 0);
+  // #32 ended 08:05 and #34 08:35; #33 (09:05) and #31 (09:35) wait for the next sweep.
+  assert.deepEqual(
+    writes(fake.calls).filter((call) => call.startsWith("RESTART ")),
+    ["RESTART 32", "RESTART 34"],
+  );
+});
+
 // The backoff comment is dated by its last edit, which moves it past the
 // re-adds it made earlier; a breaker record before it still claims only its
 // own re-add. Three re-fires of a failed run on these workflow files (06:00,
