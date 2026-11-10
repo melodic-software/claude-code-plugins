@@ -27,15 +27,16 @@ function boardData(input) {
   const rows = items.map((item) => {
     // An item whose blockers were not read is neither blocked nor unblocked.
     const blockers = Array.isArray(item?.blockedBy) ? item.blockedBy.map((n) => `#${number(n)}`) : null;
+    const blockerNames = blockers === null ? ["blockers not read"] : blockers.length ? blockers : ["unblocked"];
     const labels = (Array.isArray(item?.labels) ? item.labels : []).map(text).filter(Boolean);
     return {
       ref: `#${number(item?.number)}`,
       kind: text(item?.kind) || "issue",
       title: text(item?.title),
       state: text(item?.state) || "untriaged",
-      blocker: blockers === null ? "blockers not read" : blockers.length ? `blocked by ${blockers.join(" ")}` : "unblocked",
+      blocker: blockers?.length ? `blocked by ${blockers.join(" ")}` : blockerNames[0],
       labels: labels.join(", "),
-      blockers: blockers === null ? ["blockers not read"] : blockers.length ? blockers : ["unblocked"],
+      blockers: blockerNames,
       labelList: labels.length ? labels : ["no label"],
     };
   });
@@ -44,7 +45,8 @@ function boardData(input) {
     const byName = new Map();
     for (const row of rows) {
       for (const name of names(row)) {
-        byName.set(name, [...(byName.get(name) ?? []), view(row)]);
+        if (!byName.has(name)) byName.set(name, []);
+        byName.get(name).push(view(row));
       }
     }
     return [...byName]

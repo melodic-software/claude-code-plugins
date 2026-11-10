@@ -34,25 +34,27 @@ source "$SCRIPT_DIR/../../../tools/work-item-tracker/lib/binding.sh"
 
 LEGACY_OVERRIDE=".work-item-tracker.local.json"
 
+die() {
+  echo "migrate-binding: $2" >&2
+  exit "$1"
+}
+
 ROOT=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --root)
-    [[ $# -ge 2 ]] || { echo "migrate-binding: --root needs a path" >&2; exit 2; }
+    [[ $# -ge 2 ]] || die 2 "--root needs a path"
     ROOT="$2"
     shift 2
     ;;
-  *)
-    echo "migrate-binding: unknown argument: $1" >&2
-    exit 2
-    ;;
+  *) die 2 "unknown argument: $1" ;;
   esac
 done
 if [[ -z "$ROOT" ]]; then
-  ROOT="$(wit_project_root)" || { echo "migrate-binding: not in a git repository; pass --root" >&2; exit 2; }
+  ROOT="$(wit_project_root)" || die 2 "not in a git repository; pass --root"
 fi
-[[ -d "$ROOT" ]] || { echo "migrate-binding: --root is not a directory: $ROOT" >&2; exit 2; }
-command -v jq >/dev/null 2>&1 || { echo "migrate-binding: jq is required" >&2; exit 1; }
+[[ -d "$ROOT" ]] || die 2 "--root is not a directory: $ROOT"
+command -v jq >/dev/null 2>&1 || die 1 "jq is required"
 
 WORK="$(mktemp -d)" || exit 1
 trap 'rm -rf "$WORK"' EXIT
@@ -176,10 +178,8 @@ gitignored() {
   esac
 }
 
-if ! HOME_DIR="$(wit_convention_home "$ROOT")"; then
-  echo "migrate-binding: no convention home applies under $ROOT; $WIT_LEGACY_BINDING stays the binding" >&2
-  exit 4
-fi
+HOME_DIR="$(wit_convention_home "$ROOT")" ||
+  die 4 "no convention home applies under $ROOT; $WIT_LEGACY_BINDING stays the binding"
 JSON="$ROOT/$WIT_LEGACY_BINDING"
 YAML="$ROOT/$HOME_DIR/work-items.yaml"
 OVERRIDE_JSON="$ROOT/$LEGACY_OVERRIDE"
@@ -196,13 +196,11 @@ OVERRIDE_DETAIL="$DETAIL"
 if [[ "$OVERRIDE_STATE" == "copy" ]]; then
   if ! gitignored "$OVERRIDE_REL"; then
     printf 'override: not-ignored %s\n' "$OVERRIDE_REL"
-    echo "migrate-binding: add a .gitignore rule for $OVERRIDE_REL, then run again" >&2
-    exit 3
+    die 3 "add a .gitignore rule for $OVERRIDE_REL, then run again"
   fi
   if [[ -n "$(git -C "$ROOT" ls-files -- "$OVERRIDE_REL")" ]]; then
     printf 'override: tracked %s\n' "$OVERRIDE_REL"
-    echo "migrate-binding: $OVERRIDE_REL is in the index; untrack it (git rm --cached), then run again" >&2
-    exit 3
+    die 3 "$OVERRIDE_REL is in the index; untrack it (git rm --cached), then run again"
   fi
 fi
 
