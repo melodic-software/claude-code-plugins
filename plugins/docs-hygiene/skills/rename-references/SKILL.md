@@ -166,9 +166,28 @@ Paths skipped from sweeps automatically:
 - **Frontmatter trailing newline**. YAML frontmatter description strings can span lines. Patterns must handle multi-line. Use `multiline: true` on the Grep tool.
 - **Renames with overlap**. `test` → `test e2e` is a substring expansion. Apply most-specific match first, mark already-edited regions to prevent double-edit.
 
+## Glossary-driven renames
+
+When the pair comes from a domain glossary change (a term renamed, or a word moved to the entry's
+`Avoid:` line, usually handed over by the domain-driven-design plugin's glossary skill), code names
+follow the glossary too, and the sweep runs as its own reviewed change, never folded into the
+glossary edit:
+
+- **Code names**: occurrences in docs, config, comments and string literals are swept here like
+  any other form; declarations of types, functions, variables and enum members, and the call sites a
+  symbol rename reaches, are listed for a language-aware refactor tool, per "What this skill does
+  NOT do".
+- **Stored values** (an enum value or string persisted in a database, a message schema, a public
+  API field): listed separately and never edited in place; each needs a data migration or a
+  versioned contract change in the same reviewed change, which the report names.
+- **User-facing copy and error messages** (UI strings, emails, notifications, error text): a
+  report-only bucket. Each hit is listed with `file:line` and the glossary term; none is edited,
+  because users' words may rightly differ from the model's. A hit matching the entry's
+  `Shown to users as:` wording is intended, not drift.
+
 ## What this skill does NOT do
 
-- **Does not perform AST-level renames** (Python class names, C# type names, JS function refactors). Use IDE or language-aware refactoring tools. This skill handles documentation, configuration, and identifier-string renames in text files.
+- **Does not perform AST-level renames** (Python class names, C# type names, JS function refactors). Use IDE or language-aware refactoring tools; a glossary-driven rename lists them for that tool ([Glossary-driven renames](#glossary-driven-renames)). This skill handles documentation, configuration, and identifier-string renames in text files.
 - **Does not rename git branches**. Use `git branch -m`.
 - **Does not handle framework version migrations**. Use dedicated migration tooling: that is a behavioral upgrade, not a text rename.
 - **Does not auto-fix conversation history or memory entries**. Past mentions of the old name there are preserved as historical record. Future renames are the user's responsibility to invoke this skill for.
