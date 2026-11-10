@@ -210,8 +210,9 @@ function Get-FileHistorySignal {
         return New-BackupSource -Source $id -State 'unknown' -Signal 'config-folder' `
             -Basis 'File History configuration folder unreadable'
     }
-    return New-BackupSource -Source $id -State ($configs.Count -gt 0 ? 'present' : 'absent') `
-        -Signal 'config-folder' -Basis ($configs.Count -gt 0 ? 'File History configured' : 'no File History configuration')
+    $configured = $configs.Count -gt 0
+    return New-BackupSource -Source $id -State ($configured ? 'present' : 'absent') `
+        -Signal 'config-folder' -Basis ($configured ? 'File History configured' : 'no File History configuration')
 }
 
 function Get-WindowsBackupSignal {
