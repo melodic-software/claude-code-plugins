@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.13] - 2026-11-10
+
+### Changed
+
+- The routing rubric, README and `/multi-agent:route`'s haiku note state the owner's rule that no role routes to Haiku; a routing-eval pass is now the evidence for the owner to reopen it, not a gate that lifts it on its own.
+
 ## [2.0.12] - 2026-11-10
 
 ### Changed
