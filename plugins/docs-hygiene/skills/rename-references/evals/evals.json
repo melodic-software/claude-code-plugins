@@ -610,6 +610,19 @@
         "Both Certain edits are applied after the proceed answer",
         "The one-by-one route uses the per-match format with a \"skip remaining Certain\" option"
       ]
+    },
+    {
+      "id": 50,
+      "name": "glossary-rename-keeps-adr-file-name-and-link",
+      "prompt": "The domain glossary renamed the term cart to basket; sweep the references. The hits are: the ADR file docs/adr/0012-cart-policy.md, a markdown link [cart policy](docs/adr/0012-cart-policy.md) in docs/guide.md, and the sentence \"A cart holds at most 50 items.\" inside that ADR's text.",
+      "expected_output": "This is a glossary-driven rename, so the ADR-file-name override is decided before the Certain bucket. The ADR file name and the link path naming it are kept and never edited, even though a Form 3 path would otherwise be Certain; they are counted in the report's docs and ADR text row in `ADR file names kept: <k>` with k above 0. No git mv is proposed for the ADR. The sentence in the ADR's text stays in an editing bucket and is updated to basket once the proceed gate passes.",
+      "files": [],
+      "expectations": [
+        "The link path docs/adr/0012-cart-policy.md is not rewritten to 0012-basket-policy.md",
+        "No git mv or rename of the ADR file is proposed",
+        "The report's docs and ADR text row shows an `ADR file names kept:` count above 0",
+        "The ADR's text hit is in a bucket that edits and is updated to basket after the proceed answer"
+      ]
     }
   ]
 }
