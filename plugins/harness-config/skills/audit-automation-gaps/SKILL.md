@@ -150,8 +150,9 @@ time <tool-command> 2>&1 | tail -5
 
 Judge that measurement against the **consuming repository's own documented hook budget** where one
 exists, and say which source the threshold came from. No upstream latency budget exists, so any
-fixed number this skill supplies is a house rule, labeled as one in the verdict. `PostToolUse`
-cannot block a tool call, so its cost is turn latency. For the budget-resolution ladder, per-event
+fixed number this skill supplies is a house rule, labeled as one in the verdict. We judge a
+`PostToolUse` hook's cost as turn latency, never as a blocked call; the record that points at the
+live per-event blocking table is in hook-timing.md. For the budget-resolution ladder, per-event
 costs, the documented levers, and the dated upstream-fact records, read
 [context/hook-timing.md](context/hook-timing.md).
 
@@ -165,8 +166,14 @@ evidence looks. That covers hook event semantics and what each event can and can
 `async` and `timeout` behavior, MCP server scope and configuration, and skill, agent or plugin
 frontmatter fields. Collect every such question across every surviving candidate into ONE fetch
 pass. The batch is mandatory because a docs pass routinely reshapes a candidate that local evidence
-had settled: a gate written as `exit 2` on `PermissionRequest` reads as settled locally and is
-inert upstream, which no local reading surfaces.
+had settled: a per-event exit-code gate can look settled locally while the event's decision
+control upstream says it never fires, which no local reading surfaces.
+
+- **Pointer**: when a candidate gates on a hook event's exit code, fetch that event's decision
+  control live, for example
+  [hooks: PermissionRequest decision control](https://code.claude.com/docs/en/hooks#permissionrequest-decision-control).
+- **As of**: 2026-11-10
+- **Recheck trigger**: that section changes which exit codes or decision fields the event honors.
 
 **Conditional: facts the harness does not own.** Third-party tool performance, an ecosystem's
 standard formatter, server stability and auth, known issues in a tool the candidate would run. Fetch
@@ -217,7 +224,7 @@ The gate's verdict is this audit's product, so each candidate is listed as `unve
 | Gate | Condition | Evidence Required |
 |------|-----------|-------------------|
 | **Already enforced** | A higher enforcement hierarchy level covers it, and the shift-left carve-out below does not apply | Name the level and mechanism; where the candidate claims the carve-out, the result of each of its three conjuncts |
-| **Too slow** | Measured cost exceeds the resolved budget ([context/hook-timing.md](context/hook-timing.md)) for the event's actual cost: a blocked call on a blocking event, turn latency on `PostToolUse`, which never blocks | Timing measurement + the budget it was judged against and that budget's source |
+| **Too slow** | Measured cost exceeds the resolved budget ([context/hook-timing.md](context/hook-timing.md)) for the event's actual cost: a blocked call on a blocking event, turn latency on `PostToolUse` | Timing measurement + the budget it was judged against and that budget's source |
 | **Not scriptable** | The mechanism can't be automated with available tools | Specific limitation cited |
 | **Zero incidents** | A read sample of the matching commits shows the problem has never occurred. A `--grep` count alone never triggers this gate, in either direction | Keyword match count, total commit count, the sample size read, and what the sampled commits turned out to be |
 | **Already exists** | A skill, behavioral rule, or convention already handles it | File path and line |
@@ -285,7 +292,12 @@ may be offered as an upstream one. The record for both facts:
 These gates answer *should* we mechanize. Whether a candidate *can* be, and how far up the hierarchy
 it climbs, is a separate enforceability question: the **Not scriptable** gate maps to concerns no
 hook type reaches, **Already enforced** to a deterministic finding already escalated. `prompt` and
-`agent` hooks do evaluate reasoning-only concerns, `agent` experimentally.
+`agent` hooks do evaluate reasoning-only concerns.
+
+- **Pointer**: before proposing a `prompt` or `agent` hook, fetch its status and fields live at
+  [hooks: prompt and agent hook fields](https://code.claude.com/docs/en/hooks#prompt-and-agent-hook-fields).
+- **As of**: 2026-11-10
+- **Recheck trigger**: that section changes either type's status or the fields it accepts.
 
 Produce a verdict per candidate:
 
@@ -366,9 +378,15 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/findings-state.
   --plugin-data "${CLAUDE_PLUGIN_DATA}" --findings <file-or-->
 ```
 
-`${CLAUDE_PLUGIN_DATA}` substitutes here in the skill text but is absent from the Bash tool's own
-environment, so it has to travel as that argument; the script exits 2 rather than guessing when it
-is missing. The payload is exactly one JSON object with a `candidates` array, each entry carrying
+We pass `${CLAUDE_PLUGIN_DATA}` as that argument rather than relying on the shell to have it; the
+script exits 2 rather than guessing when it is missing.
+
+- **Pointer**: when deciding how a script receives a plugin path variable, fetch
+  [plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
+  live.
+- **As of**: 2026-11-10
+- **Recheck trigger**: that section starts exporting the variable to commands run through the Bash
+  tool. The payload is exactly one JSON object with a `candidates` array, each entry carrying
 `id`, `candidate`, `category`, `verdict`, an `evidence` array, and a `plan` object on any `PASS` or
 `CONDITIONAL`. Each entry also carries `approved`, the boolean that records the human's selection.
 A malformed payload, or a stream carrying more than one document, exits 3 and writes nothing,
@@ -378,7 +396,14 @@ Writes are all or nothing. A run id already taken is reserved under the next fre
 overwritten, so two runs racing for one id both survive and each is told the id it actually got.
 
 Findings are keyed per project, so one checkout never reads another's verdicts. This tree is the
-only durable copy: uninstalling the plugin without `--keep-data` deletes it.
+only durable copy, so check what an uninstall removes before running one.
+
+- **Pointer**: before uninstalling this plugin, fetch
+  [plugins CLI reference: what an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps)
+  live.
+- **As of**: 2026-11-10
+- **Recheck trigger**: that section changes whether the plugin data directory survives an
+  uninstall.
 
 ## Phase 4: Implement (if `--implement` or user requests)
 
@@ -445,5 +470,6 @@ Principles that govern every verdict:
 
 Five failure modes this skill has produced, each with its evidence and dated upstream records: a partial inventory anchoring every later verdict, keyword counts read as
 frequencies, `PostToolUse` candidates phrased as gates, an `exit 2` gate on `PermissionRequest` that
-is silently inert, and a candidate generator that reaches three of the 33 documented hook events.
+is silently inert, and a candidate generator that reaches four of the
+[documented hook events](https://code.claude.com/docs/en/hooks#hook-events).
 Read [context/gotchas.md](context/gotchas.md) before any run whose verdicts a human will act on.

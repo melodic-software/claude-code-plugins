@@ -77,9 +77,9 @@ A row the engine marks `skip` or `not-inspectable` is exactly that in the report
 | `.claude/settings.local.json` | the engine (structure and the four model and effort keys only) | Treated as secret-bearing; a project may deny-list it for the Read tool, though the baseline does not require that. **Never echo secret values** |
 | `.mcp.json` | the engine, or `jq` | Project-level MCP server definitions |
 | `~/.claude/settings.json` | the engine, or the Read tool | User-level defaults (optional; checked when it exists) |
-| start-directory `.claude/settings.local.json` | `check-structure.sh` (structure only) | Only when the session's start directory is not the repository root AND a copy is there. A pre-v2.1.211 Claude Code wrote the file to the start directory and the current one still reads what it left; the repository-root copy wins on a shared key, but **permission rules from both files stay in effect**. The dated record for that boundary is `audit-permission-state/reference/criteria.md` §Scopes |
-| `managed-settings.json` + `managed-settings.d/` | `check-structure.sh` (structure only) | Machine-scope managed policy, the highest-precedence layer. OS-specific path resolved by the script (macOS `/Library/Application Support/ClaudeCode/`, Linux/WSL `/etc/claude-code/`, Windows `%ProgramFiles%\ClaudeCode\`). Findings on it are report-only routing; managed policy is the administrator's, never edited by `--fix` |
-| managed policy outside the filesystem | not read | The Windows `HKLM`/`HKCU\SOFTWARE\Policies\ClaudeCode` policy keys and the macOS `com.anthropic.claudecode` managed-preferences domain. `check-structure.sh` names them so an absent `managed-settings.json` is never read as "no managed policy deployed", but it does not read them |
+| start-directory `.claude/settings.local.json` | `check-structure.sh` (structure only) | Only when the session's start directory is not the repository root AND a copy is there. We treat it as live beside the repository-root copy; how the two combine, and the version boundary behind the copy, are the dated record in `audit-permission-state/reference/criteria.md` §Scopes |
+| `managed-settings.json` + `managed-settings.d/` | `check-structure.sh` (structure only) | Machine-scope managed policy, the highest-precedence layer. OS-specific path resolved by the script (Pointer: for each OS's location, fetch [managed settings: where each mechanism stores the policy](https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy) live. As of: 2026-11-10. Recheck trigger: that section moves a file location). Findings on it are report-only routing; managed policy is the administrator's, never edited by `--fix` |
+| managed policy outside the filesystem | not read | The OS-level policy stores (Windows registry policy keys, the macOS managed-preferences domain) listed at the same pointer. `check-structure.sh` names them so an absent `managed-settings.json` is never read as "no managed policy deployed", but it does not read them |
 | `docs/conventions/harness-config.yaml` (`suppressions`, the team layer of three cascade layers) | the engine | The consumer's suppression record, keyed by `finding_id`, in the convention home the repository binds (default `docs/conventions`). A finding it carries is reported as suppressed with its reason and the layer and file that supplied it; only the team layer suppresses, a personal-only entry is reported as not applied, and a malformed entry is reported and never suppresses. `suppressions.layers` in the engine's output names each file read |
 
 ### Reading settings.local.json safely
@@ -145,8 +145,10 @@ A large configuration takes a minute or two (106 seconds for 83 plugins and 259 
 Each category writes an `audit-engine: <category>` line to stderr as it starts; `SETTINGS_AUDIT_ENGINE_PROGRESS=0` turns them off.
 
 Pass `--debug-log` when you know where this session's debug log is; otherwise the engine looks in the documented locations
-(`CLAUDE_CODE_DEBUG_LOGS_DIR`, a file path despite its name, then the newest file under
-`<user dir>/debug/`). A log it found rather than was given settles the row only when the log
+(the debug-log variable first, then the newest file under `<user dir>/debug/`; Pointer: for that
+variable and what it names, fetch
+[environment variables: variables](https://code.claude.com/docs/en/env-vars#variables) live. As
+of: 2026-11-10. Recheck trigger: the debug-log variable is renamed or changes what it names). A log it found rather than was given settles the row only when the log
 names this project.
 
 ### 1.0 Hook inventory
@@ -155,7 +157,10 @@ The engine runs `scripts/check-hook-coverage.sh` itself and carries its result i
 `hook_inventory`. That script enumerates settings-declared hooks **and** the hooks shipped by every
 enabled plugin, read from the directory the session actually loads (a `directory` marketplace's
 checkout first, the installed-plugin registry otherwise), plus the levers (`disableAllHooks`,
-`allowManagedHooksOnly`, `strictPluginOnlyCustomization` when it is `true` or names `"hooks"`) that
+`allowManagedHooksOnly`, `strictPluginOnlyCustomization` in the forms that cover hooks; Pointer:
+for those forms, fetch
+[settings reference: strictPluginOnlyCustomization](https://code.claude.com/docs/en/settings-reference#strictpluginonlycustomization)
+live. As of: 2026-11-10. Recheck trigger: that section changes which values lock hooks) that
 switch hooks off, the mod-plane keys reported apart from them (`D/mod-plane`), and any
 divergence between the loaded directory and the registry's cache snapshot.
 
@@ -215,9 +220,8 @@ The engine already read `settings-reference` and `env-vars` in Phase 1 and decid
 rest on them. This phase covers the pages and questions it does not: the pages the citation check
 names, model configuration, permission syntax, and known issues.
 
-**Read every page in this phase verbatim, not through a summarizer.** These pages are long, with
-`settings-reference` and `env-vars` running to hundreds of KB, and a summarizing fetch truncates,
-then reports the rows past the cutoff as *absent*. So for each page,
+**Read every page in this phase verbatim, not through a summarizer.** A cut read can make a row
+that is present look absent. So for each page,
 run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --cache --max-age 0 --out <dir> <page>...` to fetch
 fresh bytes into one directory and grep the files, per the
 [fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#reading-the-basis-the-fetch-route).
@@ -325,7 +329,7 @@ Present all findings as a severity-rated GFM table:
 
 | # | Category | Severity | Finding | Current | Recommended |
 | --- | --- | --- | --- | --- | --- |
-| 1 | B, Permissions | error | Deny rule placed in `settings.local.json`, where bug #8961 leaves it inert | `settings.local.json` → `permissions.deny: ["Bash(rm -rf:*)"]` | Move the rule into `settings.json`; keep `settings.local.json` deny empty |
+| 1 | B, Permissions | error | Deny rule placed in `settings.local.json` (known issue #8961, row in [reference/known-issues.md](reference/known-issues.md)) | `settings.local.json` → `permissions.deny: ["Bash(rm -rf:*)"]` | Move the rule into `settings.json`; keep `settings.local.json` deny empty |
 
 Then three short sections the engine's document already carries:
 
@@ -421,9 +425,11 @@ engine takes narrowing 3 from that manifest mechanically: the pattern drops to `
 hook, and opt-out levers named, and only while the hook is live (no suppression lever set, plugin
 resolved). Without a manifest the narrowing stays the model's reading of the guard's source.
 
-Report the secret-file Read denies with their scope, not as protection: a `Read(...)` deny covers the
-built-in file tools and the Bash file commands Claude Code recognizes, but not a subprocess that opens
-the path itself. "Scope of a Read deny" in
+Report the secret-file Read denies with their scope, not as protection (Pointer: for what a
+`Read(...)` deny covers, fetch
+[permissions: what Read and Edit rules cover](https://code.claude.com/docs/en/permissions#what-read-and-edit-rules-cover)
+live. As of: 2026-11-10. Recheck trigger: that section changes which tools or commands a Read rule
+reaches). "Scope of a Read deny" in
 [reference/required-permissions.md](reference/required-permissions.md) carries the covered /
 not-covered split, the ranked remedies, and the platform limit. Carry it into the finding rather than
 implying the file is unreachable.
@@ -452,8 +458,8 @@ an audit.
 Phase 5, under `--fix`, one confirmed fix at a time; Phase 5 routes each such settings edit through
 `update-config`, and outside `--fix` this skill never chains into it on its own behalf.
 
-**Availability is never assumed.** Bundled skills are gated by settings such as
-`disableBundledSkills` and vary by version and host; this section states what to do when the
+**Availability is never assumed.** Settings, version and host decide whether the surface
+resolves; this section states what to do when the
 surface resolves, never that it is present. The four-part records live in
 [reference/native-update-config.md](reference/native-update-config.md).
 
