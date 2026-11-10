@@ -22,6 +22,7 @@ import {
   DISARM_MUTATION,
   DISCUSSION_PAGE_QUERIES,
   rotated,
+  oldestFirst,
   HUMAN_VETO,
   PULLS_QUERY,
   THREAD_PAGE_QUERY,
@@ -2427,6 +2428,48 @@ test("the run starts at an offset that moves with the run number", async () => {
   assert.deepEqual(rotated([], 7), []);
   const { verified } = await run([pull(1), pull(2), pull(3)], { GITHUB_RUN_NUMBER: "4" });
   assert.deepEqual(verified, [2, 3, 1]);
+});
+
+// Fewer free merge slots than unarmed lanes App pull requests: the slots go
+// to the oldest (lowest number), whatever the rotation's start.
+test("with merge slots scarce, the oldest unarmed lanes App pull request is armed first", async () => {
+  const { writes, verified, lines } = await run([pull(1), pull(2), pull(3)], { GITHUB_RUN_NUMBER: "4" }, {}, { ...ROOM, count: 4, cap: 5 });
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }], "the one free slot goes to #1, not to #2 where rotation starts");
+  assert.deepEqual(verified, [1], "a held pull request spends no verdict read");
+  assert.ok(lines.includes("enable-auto-merge: #2 left: merge.max-in-flight is 5 and 5 merges are in flight"));
+  assert.ok(lines.includes("enable-auto-merge: #3 left: merge.max-in-flight is 5 and 5 merges are in flight"));
+});
+
+test("with merge slots scarce, an oldest pull request that cannot arm passes its slot to the next oldest in the same run", async () => {
+  const { writes, verified } = await run([pull(1, { verdict: MISSING }), pull(2), pull(3)], { GITHUB_RUN_NUMBER: "5" }, {}, { ...ROOM, count: 4, cap: 5 });
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_2", head: HEAD }], "#1's refusal leaves the slot to #2, not to #3 where rotation starts");
+  assert.deepEqual(verified, [1, 2]);
+});
+
+test("with merge slots plentiful, the run keeps the rotation's order", async () => {
+  const { writes, verified } = await run([pull(1), pull(2), pull(3)], { GITHUB_RUN_NUMBER: "4" }, {}, { ...ROOM, count: 2, cap: 5 });
+  assert.deepEqual(verified, [2, 3, 1]);
+  assert.deepEqual(writes.map(({ id }) => id), ["PR_2", "PR_3", "PR_1"]);
+});
+
+// Armed and held pull requests keep their rotated places, so their verdict
+// reads keep the rotation; only the unarmed candidates trade places.
+test("oldestFirst reorders only the candidates, each in a candidate's place", () => {
+  const pulls = [7, 3, 9, 1, 5].map((number) => ({ number }));
+  const odd = ({ number }) => number !== 9 && number !== 3;
+  assert.deepEqual(oldestFirst(pulls, odd).map(({ number }) => number), [1, 3, 9, 5, 7]);
+  assert.deepEqual(oldestFirst(pulls, () => false), pulls);
+});
+
+test("a PR-scoped dispatch leaves its pull request when as many older ones wait as there are free slots", async () => {
+  const { writes, verified, outcome } = await run([pull(1), pull(2), pull(3)], WAKE, {}, { ...ROOM, count: 4, cap: 5 });
+  assert.deepEqual(writes, []);
+  assert.deepEqual(verified, []);
+  assert.equal(outcome, "refused: 1 older lanes App pull requests wait for the 1 free merge slots; the next scheduled run gives them out oldest first");
+  // One free slot per waiting older pull request and one more: the wake arms its own.
+  const roomy = await run([pull(1), pull(2), pull(3)], WAKE, {}, { ...ROOM, count: 3, cap: 5 });
+  assert.deepEqual(roomy.writes, [{ mutation: "arm", id: "PR_2", head: HEAD }]);
+  assert.equal(roomy.outcome, "armed");
 });
 
 // pr-merge's gate merges only on a pr-verify pass at the head, FAILs at fewer
