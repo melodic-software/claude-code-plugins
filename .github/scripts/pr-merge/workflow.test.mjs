@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { CACHE_ONLY_TIMEOUT_MS, CACHE_ONLY_WINDOW_MS, LANE_ROOM_TIMEOUT_MS, VERIFY_BUDGET_MS, VERIFY_TIMEOUT_MS } from "./enable-auto-merge.mjs";
+import { LANE_ROOM_TIMEOUT_MS, VERIFY_BUDGET_MS, VERIFY_TIMEOUT_MS } from "./enable-auto-merge.mjs";
 import { classify, resetLabel } from "../../actions/log-api-budget/rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -882,9 +882,6 @@ test("the last verifier read enable-auto-merge starts ends inside its step's tim
   assert.ok(step, "the arm step names its timeout");
   // The room read, then the verdict budget and the last read it starts.
   assert.ok(LANE_ROOM_TIMEOUT_MS + VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS < Number(step[1]) * 60_000);
-  // A read of a kept refusal alone starts no later than its window past the
-  // budget and ends inside the same bound.
-  assert.ok(CACHE_ONLY_WINDOW_MS + CACHE_ONLY_TIMEOUT_MS <= VERIFY_TIMEOUT_MS);
 });
 
 test("enable-auto-merge logs both tokens' readings at job end, before the token is revoked", () => {
@@ -1855,50 +1852,47 @@ test("a token grant is found at any indentation", () => {
   }
 });
 
-// The verifier answers (babysit_verify_evidence.py --answers-in/--answers-out)
-// cross runs only as the artifact of a scheduled or hand-started run of
-// main's pr-merge.yml, read through rotation.mjs newestTrustedRun and
-// onMain, never actions/cache, which any job in main's cache scope can write.
-test("enable-auto-merge reads the verifier answers only from a trusted run and uploads them under their own name, always", () => {
+// The arm step's skip records (enable-auto-merge.mjs SKIPPABLE) cross runs
+// only as the artifact of a scheduled or hand-started run of main's
+// pr-merge.yml, read through rotation.mjs newestTrustedRun and onMain, never
+// actions/cache, which any job in main's cache scope can write.
+test("enable-auto-merge reads the skip records only from a trusted run and uploads them under their own name, always", () => {
   const arm = job("enable-auto-merge");
   const step = (name) => new RegExp(`- name: ${name}\\n([\\s\\S]*?)(?=\\n {6}- name: |\\n*$)`).exec(arm)?.[1];
-  const read = step("Read the verifier answers the last run kept");
-  assert.ok(read, "an answers read");
+  const read = step("Read the skip records the last run kept");
+  assert.ok(read, "a skip records read");
   assert.match(read, new RegExp(`^${ARM_READ_IF}`));
   assert.match(read, /\n {8}continue-on-error: true\n/);
-  assert.match(read, /\n {10}ACTIONS_TOKEN: \$\{\{ github\.token \}\}\n {10}VERIFY_ANSWERS_PATH: \$\{\{ runner\.temp \}\}\/verify-answers-in\.json\n/);
+  assert.match(read, /\n {10}ACTIONS_TOKEN: \$\{\{ github\.token \}\}\n {10}EAM_SKIP_PATH: \$\{\{ runner\.temp \}\}\/eam-skip-in\.json\n/);
   const script = readFileSync(new URL("./verify-answers.mjs", import.meta.url), "utf8");
   assert.match(script, /newestTrustedRun\(\{ repo, runId, actions, name: ANSWERS_ARTIFACT, accept \}\)/);
   assert.match(script, /const accept = \(run\) => onMain\(/);
   assert.match(script, /export const ANSWERS_ARTIFACT = "pr-merge-verify-answers";/);
   const armStep = step("Arm and disarm auto-merge");
-  assert.match(armStep, /\n {10}VERIFY_ANSWERS_IN: \$\{\{ runner\.temp \}\}\/verify-answers-in\.json\n {10}VERIFY_ANSWERS_OUT: \$\{\{ runner\.temp \}\}\/verify-answers\/verify-answers\.json\n/);
-  assert.match(armStep, /\n {10}VERIFY_CACHE=\$\(yq '\.merge\."verify-cache" \/\/ "shadow"' "\$config"\)\n/);
-  assert.match(armStep, /\n {10}export [^\n]*\bVERIFY_CACHE\b/);
-  const upload = step("Upload the verifier answers for the next run");
-  assert.ok(upload, "an answers upload");
+  assert.match(armStep, /\n {10}EAM_SKIP_IN: \$\{\{ runner\.temp \}\}\/eam-skip-in\.json\n {10}EAM_SKIP_OUT: \$\{\{ runner\.temp \}\}\/verify-answers\/eam-skip\.json\n/);
+  // The verifier-answers cache is gone: nothing hands the reader its files.
+  assert.doesNotMatch(merge, /VERIFY_ANSWERS|VERIFY_CACHE|verify-cache|verify-answers\.json/);
+  const upload = step("Upload the skip records for the next run");
+  assert.ok(upload, "a skip records upload");
   // A PR-scoped dispatch (inputs.pr) uploads none of a sweep's carried files.
   const predicate = "always() && steps.arm.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && !inputs.pr";
   assert.ok(upload.startsWith(`        if: >-\n          (${predicate}) && steps.scan-upload.outputs.clean == 'true'\n`), upload);
   // The credential scan just before it runs on the same condition over the
-  // same two files.
-  const scan = arm.split("\n      - name: Upload the verifier answers for the next run\n")[0].split("\n      - name: ").at(-1);
+  // same file.
+  const scan = arm.split("\n      - name: Upload the skip records for the next run\n")[0].split("\n      - name: ").at(-1);
   assert.ok(scan.startsWith(`Scan the upload for credentials\n        id: scan-upload\n        if: >-\n          ${predicate}\n`), scan);
   assert.ok(scan.includes("\n        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]\n"), scan);
   // A best-effort upload: neither it nor its scan can fail the job.
   for (const block of [scan, upload]) assert.ok(block.includes("\n        continue-on-error: true\n"), block);
-  assert.ok(
-    scan.includes("\n          path: |\n            ${{ runner.temp }}/verify-answers/verify-answers.json\n            ${{ runner.temp }}/verify-answers/eam-skip.json\n"),
-    scan,
-  );
+  assert.ok(scan.includes("\n          path: ${{ runner.temp }}/verify-answers/eam-skip.json\n"), scan);
   assert.match(upload, /\n {8}uses: actions\/upload-artifact@[0-9a-f]{40} /);
   // Bounded, so the job's timeout stays above the sum of its steps'.
   assert.match(upload, /\n {8}timeout-minutes: [0-9]+\n/);
-  assert.match(upload, /\n {10}name: pr-merge-verify-answers\n {10}path: \|\n {12}\$\{\{ runner\.temp \}\}\/verify-answers\/verify-answers\.json\n {12}\$\{\{ runner\.temp \}\}\/verify-answers\/eam-skip\.json\n {10}retention-days: 1\n {10}if-no-files-found: ignore\n/);
+  assert.match(upload, /\n {10}name: pr-merge-verify-answers\n {10}path: \$\{\{ runner\.temp \}\}\/verify-answers\/eam-skip\.json\n {10}retention-days: 1\n {10}if-no-files-found: ignore\n/);
   const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
-  assert.ok(names.indexOf(KEEP_STEP) < names.indexOf("Read the verifier answers the last run kept"));
-  assert.ok(names.indexOf("Read the verifier answers the last run kept") < names.indexOf("Arm and disarm auto-merge"));
-  assert.ok(names.indexOf("Arm and disarm auto-merge") < names.indexOf("Upload the verifier answers for the next run"));
+  assert.ok(names.indexOf(KEEP_STEP) < names.indexOf("Read the skip records the last run kept"));
+  assert.ok(names.indexOf("Read the skip records the last run kept") < names.indexOf("Arm and disarm auto-merge"));
+  assert.ok(names.indexOf("Arm and disarm auto-merge") < names.indexOf("Upload the skip records for the next run"));
   // Its own name in the workflow, never downloaded by name, never cached.
   assert.equal([...merge.matchAll(/\n {10}name: pr-merge-verify-answers\n/g)].length, 1);
   assert.doesNotMatch(merge, /uses: actions\/cache[^\n]*\n(?:[^\n]*\n){0,6}[^\n]*verify-answers/);
