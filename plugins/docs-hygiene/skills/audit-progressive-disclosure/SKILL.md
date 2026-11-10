@@ -68,7 +68,7 @@ single-file skill is never flagged for lacking spokes.
 - **Pointer**: when sizing a CLAUDE.md, fetch
   [Write effective instructions](https://code.claude.com/docs/en/memory#write-effective-instructions)
   live. For the `missing-toc` bands, the pages
-  [Structure longer reference files with a table of contents](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#structure-longer-reference-files-with-a-table-of-contents)
+  [Structure longer reference files with a table of contents](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#structure-longer-reference-files-with-table-of-contents)
   and skill-creator's
   [Progressive Disclosure](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md#progressive-disclosure)
   disagree on the TOC threshold; fetch both live when placing a file in a band.
