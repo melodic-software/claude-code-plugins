@@ -184,26 +184,26 @@ function scopeToEntry(names, videoName, entryNamed) {
  */
 export function resolveWorkArtifacts(workDir, captionClass = "manual-and-auto") {
   const entries = fs.readdirSync(workDir);
-  const videoPath = entries.find((name) => name.endsWith(".mp4"));
+  const videoName = entries.find((name) => name.endsWith(".mp4"));
   const infoNames = entries.filter((name) => name.endsWith(".info.json"));
   const vttNames = entries.filter((name) => name.endsWith(".vtt"));
-  if (!videoPath || vttNames.length === 0 || infoNames.length === 0) {
+  if (!videoName || vttNames.length === 0 || infoNames.length === 0) {
     throw new Error(`Missing mp4/vtt/info.json in ${workDir}`);
   }
   const entryNamed = infoNames.some((info) => {
     const prefix = `${info.slice(0, -".info.json".length)}.`;
     return entries.some((name) => name !== info && name.startsWith(prefix));
   });
-  const [infoPath] = scopeToEntry(infoNames, videoPath, entryNamed);
-  const entryVttNames = scopeToEntry(vttNames, videoPath, entryNamed);
-  if (!infoPath || entryVttNames.length === 0) {
-    throw new Error(`Missing vtt/info.json for ${videoPath} in ${workDir}`);
+  const [infoName] = scopeToEntry(infoNames, videoName, entryNamed);
+  const entryVttNames = scopeToEntry(vttNames, videoName, entryNamed);
+  if (!infoName || entryVttNames.length === 0) {
+    throw new Error(`Missing vtt/info.json for ${videoName} in ${workDir}`);
   }
-  const vttPath = pickCaptionName(entryVttNames, path.join(workDir, infoPath), captionClass);
+  const infoPath = path.join(workDir, infoName);
   return {
-    videoPath: path.join(workDir, videoPath),
-    vttPath: path.join(workDir, vttPath),
-    infoPath: path.join(workDir, infoPath),
+    videoPath: path.join(workDir, videoName),
+    vttPath: path.join(workDir, pickCaptionName(entryVttNames, infoPath, captionClass)),
+    infoPath,
   };
 }
 
@@ -308,9 +308,11 @@ export async function recoverWatchBootstrapCli(argv) {
 
   const batches = batchFramesForContactSheets(selection.selected, FRAMES_PER_CONTACT_SHEET);
   const contactSheets = loadExistingContactSheets(contactSheetsDir, sheetFiles, batches);
+  const selectedCount = selection.selected.length;
+  const targetMinFrames = selection.targetMinFrames ?? 0;
 
   const highVolume = isHighVolume({
-    candidateCount: selection.selected.length,
+    candidateCount: selectedCount,
     targetMinFrames: coveragePlan.targetMinFrames,
     contactSheetCount: contactSheets.length,
     durationSec,
@@ -351,8 +353,8 @@ export async function recoverWatchBootstrapCli(argv) {
   state = markPhaseComplete(state, "acquire", { videoDownloaded: true, recovered: true });
   state = markPhaseComplete(state, "transcript", { recovered: true });
   state.frameSelection = {
-    selectedCount: watching.selectedFrames.length,
-    targetMinFrames: watching.targetMinFrames ?? 0,
+    selectedCount,
+    targetMinFrames,
     highVolume,
     overCap: false,
     candidateCount: watching.candidateCount,
@@ -371,12 +373,12 @@ export async function recoverWatchBootstrapCli(argv) {
     contactSheetCount: manifest.contactSheetCount,
   };
   state = markPhaseComplete(state, "watching", {
-    selectedCount: watching.selectedFrames.length,
+    selectedCount,
     highVolume,
     densificationWindows: windows.length,
     frameCount: manifest.frameCount,
     contactSheetCount: manifest.contactSheetCount,
-    targetMinFrames: watching.targetMinFrames ?? 0,
+    targetMinFrames,
     recovered: true,
   });
 
@@ -397,7 +399,7 @@ export async function recoverWatchBootstrapCli(argv) {
       {
         recovered: true,
         sliceDir,
-        selectedCount: watching.selectedFrames.length,
+        selectedCount,
         contactSheetCount: contactSheets.length,
         highVolume,
         durationSec,
