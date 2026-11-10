@@ -30,11 +30,11 @@ against that contract rather than restating it.
 2. **Context-guard seam**. Run the same resolver the audit's context-gate runs, this plugin's own
    copy, synced byte-identical from the context-guard canonical:
    `bash "${CLAUDE_PLUGIN_ROOT}/scripts/context-zone.sh" "${CLAUDE_SESSION_ID}"`. One argument,
-   the session id; exit code always 0; the one word on stdout is the answer, `smart` /
-   `acceptable` / `dumb` / `unknown`, and anything else is `unknown`. Its stderr carries
+   the session id; exit code always 0; the one word on stdout is the answer, `light` /
+   `moderate` / `heavy` / `unknown`, and anything else is `unknown`. Its stderr carries
    `zones.json` band-configuration notices only, so it never tells one `unknown` from another.
    Report the dispatch mode the audit will run in:
-   - `smart` / `acceptable` / `dumb` → **zone-informed dispatch** (report the zone too).
+   - `light` / `moderate` / `heavy` → **zone-informed dispatch** (report the zone too).
    - `unknown`, or the `${CLAUDE_SESSION_ID}` substitution surviving unexpanded → **conservative
      dispatch** (the audit's unknown row + visible notice). `unknown` carries no direction: it is
      a working state, not a defect and not evidence about the window either way. Tell

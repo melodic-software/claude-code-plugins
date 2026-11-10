@@ -45,7 +45,7 @@ their repo mid-session.
 
 The audit consumes the `context-guard` plugin's per-session snapshots as a **soft dependency**:
 a fresh snapshot routes packet handling, review dispatch, and evidence-flush timing by zone
-(smart / acceptable / dumb); an absent or stale snapshot degrades to the conservative row with a
+(light / moderate / heavy); an absent or stale snapshot degrades to the conservative row with a
 visible notice. Deep analysis always runs in a fresh subagent either way. No context-guard
 install is required. With one, a long-session audit adapts its handling as the context fills.
 

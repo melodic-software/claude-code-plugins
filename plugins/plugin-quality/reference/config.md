@@ -61,7 +61,7 @@ repo_map:
 |---|---|---|
 | `sink` | `gh-issues` (default) \| `markdown-dir` \| `local-fallback` | Where step 6 emits the work item. |
 | `markdown_dir` | absolute path (may use `~`) | `markdown-dir` sink target directory. The emitted item uses the markdown-item schema below. |
-| `zone_behavior` | `default` \| `always-conservative` | `always-conservative` forces the unknown/dumb row regardless of a fresh smart snapshot (for operators who never want inline handling). It can only tighten, never loosen: zones and criteria route *dispatch*, and no value here can skip the fresh-subagent steps or the emit confirm gate. |
+| `zone_behavior` | `default` \| `always-conservative` | `always-conservative` forces the unknown/heavy row regardless of a fresh light snapshot (for operators who never want inline handling). It can only tighten, never loosen: zones and criteria route *dispatch*, and no value here can skip the fresh-subagent steps or the emit confirm gate. |
 | `repo_map` | mapping `plugin-name: owner/repo` | Overrides sink-ladder rung 2's registration inference for named plugins (e.g. a plugin whose marketplace registration points at a monorepo mirror). |
 
 ## Sink resolution ladder (step 6 of the audit)

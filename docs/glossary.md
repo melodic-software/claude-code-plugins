@@ -66,11 +66,13 @@ A description or summary standing in for a primary source: the model-visible con
 compaction, a header comment describing code beneath it, another agent's summary. Usable, but a
 claim resting on one is verified against the primary before it ships.
 
-**smart zone**
+**light zone**
 
-The healthiest of `context-guard`'s three context zones (`smart` / `acceptable` / `dumb`), naming
+The healthiest of `context-guard`'s three context zones (`light` / `moderate` / `heavy`), naming
 the band rather than any token figure. The band numbers are declared judgment defaults and tunable
 per consumer.
+
+Avoid: smart zone (and acceptable zone, dumb zone for the other two)
 
 **unknowns quadrants**
 
@@ -140,7 +142,7 @@ Each maps to the term or doctrine that owns the concept.
 
 ## Provenance
 
-Terms through "smart zone" were graded and adopted in lane 6 of the AI Hero course vetting
+Terms through "light zone" (adopted as "smart zone") were graded and adopted in lane 6 of the AI Hero course vetting
 (2026-08-18). The decision rows, including the basis for each verdict and the rejected-term
 mappings, are in [`upstream/aihero-course.md`](upstream/aihero-course.md) under "Term adoption".
 Materialization of this file was tracked as

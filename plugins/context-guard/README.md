@@ -1,7 +1,7 @@
 # context-guard
 
 A Claude Code plugin that makes each session's context-window usage observable to Claude itself and
-to any session or tool that needs it, so long-running workflows can route heavy work away from a
+to any session or tool that needs it, so long-running workflows can route demanding work away from a
 degraded context **before** quality slips, instead of guessing. Four parts:
 
 - **The module** (`hooks/register.tsx`), a mod: a hooks module Claude Code runs in its own process.
@@ -14,16 +14,16 @@ degraded context **before** quality slips, instead of guessing. Four parts:
   live. **As of**: 2026-10-11. **Recheck trigger**: the terminal version that section names for
   mods changes. See [The module](#the-module).
 - **Zone resolver** (`scripts/context-zone.sh`). `context-zone.sh <session_id>` prints exactly one
-  word: `smart` / `acceptable` / `dumb` / `unknown`. Two band shapes, combined conservatively (the
+  word: `light` / `moderate` / `heavy` / `unknown`. Two band shapes, combined conservatively (the
   worse computable zone wins): percentage bands over `used_percentage` (shipped defaults
-  smart ≤ 50 < acceptable ≤ 75 < dumb) and window-class token bands over occupancy
+  light ≤ 50 < moderate ≤ 75 < heavy) and window-class token bands over occupancy
   (`total_input_tokens + total_output_tokens`; shipped defaults 100k/150k on a 200k window,
   128k/500k on a 1M window). Bands come from the machine-scope
   `~/.claude/context-guard/zones.json` when present and valid, else from the shipped defaults.
   Zones say *where you are*; consumers decide *what to do*.
 - **PostCompact marker hook** (`hooks/post-compact-mark.sh`), a settings hook, so it runs where
   mods are off: it writes an evidence-degraded marker next to the session's snapshot, and the
-  module honors it: a compacted session's effective zone is dumb regardless of its
+  module honors it: a compacted session's effective zone is heavy regardless of its
   post-compaction numbers. Its row carries a 60-second timeout. The module is the only source of
   zone lines. No part of the plugin denies a tool call.
 - **Reader contract** (`reference/reader-contract.md`), the authoritative consumer contract: the
@@ -62,16 +62,16 @@ their defaults:
 
 | When | Line |
 |---|---|
-| The session first reaches a worse zone this cycle | once per zone, "acceptable zone (2 of 3)." |
-| The session comes within `approach_margin` points (5) of a zone edge or a `zones.json` threshold; where a token band edge decides the crossing, within that many points of the window in tokens | once per boundary, "acceptable zone (2 of 3), nearing dumb." |
+| The session first reaches a worse zone this cycle | once per zone, "moderate zone (2 of 3)." |
+| The session comes within `approach_margin` points (5) of a zone edge or a `zones.json` threshold; where a token band edge decides the crossing, within that many points of the window in tokens | once per boundary, "moderate zone (2 of 3), nearing heavy." |
 | The session passes a `zones.json` threshold | once per threshold, "past an operator threshold", with the threshold's action |
-| After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict, once, only when it is past `smart`; after a compaction it is `dumb zone (3 of 3, compacted)` once figures arrive, and until then a session with no figures gets "the context reading is unavailable after the compaction, until the next API response." |
-| When the module loads into a session that already has turns (a `--resume` launch, a reload after an options change, a hooks-worker restart) | the verdict, once, only when it is past `smart` |
-| After `/clear` | nothing: the new session starts in `smart` and a fresh cycle |
+| After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict, once, only when it is past `light`; after a compaction it is `heavy zone (3 of 3, compacted)` once figures arrive, and until then a session with no figures gets "the context reading is unavailable after the compaction, until the next API response." |
+| When the module loads into a session that already has turns (a `--resume` launch, a reload after an options change, a hooks-worker restart) | the verdict, once, only when it is past `light` |
+| After `/clear` | nothing: the new session starts in `light` and a fresh cycle |
 
-A dip below a boundary sends nothing and starts no new cycle; only a return to `smart` does. An
+A dip below a boundary sends nothing and starts no new cycle; only a return to `light` does. An
 `unknown` reading sends nothing and changes nothing. Every line carries only the verdict: the zone
-word and its rank of three. Past `smart`, the verdict lines at a carrier are followed by one options
+word and its rank of three. Past `light`, the verdict lines at a carrier are followed by one options
 line:
 
 ```text
@@ -92,12 +92,12 @@ appears at its crossing, never before. Subagents get no line. Each line sent to 
 
 At a crossing the person gets the continuation menu (continue, `/compact`, `/clear`,
 `/session-flow:handoff` then `/clear`) as a 4-second toast, such as
-`smart → acceptable · continue, /compact, /clear or handoff`, and one transcript line Claude does
+`light → moderate · continue, /compact, /clear or handoff`, and one transcript line Claude does
 not read, ending `more: /context-guard`. `context_guard_toast` turns the toast off; the transcript
 line stays. Both come right after the response, tool call, prompt or status read (`/context-guard`
 or the status tool) that showed the crossing, even when Claude's line waits for the next prompt. A
 turn [operator mode](#operator-mode) holds gets neither, and neither does a session whose first
-reading is already past `smart`, which gets only Claude's line. A crossing already shown in an
+reading is already past `light`, which gets only Claude's line. A crossing already shown in an
 unattended turn is not offered again in the next typed turn; Claude gets it at that turn's first
 carrier. On every surface but the terminal (the Desktop app, VS Code, mobile), where a toast may not
 show, the line is also drawn as one notice row above the prompt until the next typed prompt.
@@ -233,19 +233,19 @@ beside `context_window`:
 ```json
 {
   "captured_at": "2026-10-11T18:00:00Z",
-  "zone": "acceptable",
+  "zone": "moderate",
   "evidence_degraded": false,
   "bands": {
-    "smart_max_used_percentage": 50,
-    "acceptable_max_used_percentage": 75,
-    "smart_max_tokens": 100000,
-    "acceptable_max_tokens": 150000
+    "light_max_used_percentage": 50,
+    "moderate_max_used_percentage": 75,
+    "light_max_tokens": 100000,
+    "moderate_max_tokens": 150000
   }
 }
 ```
 
-- `zone` is `smart`, `acceptable`, `dumb` or `unknown`. It is computed from the bands below, and is
-  `dumb` once the session was compacted.
+- `zone` is `light`, `moderate`, `heavy` or `unknown`. It is computed from the bands below, and is
+  `heavy` once the session was compacted.
 - `bands` are the edges after `zones.json`. The token edges are for the session's window class, and
   are `null` when the token shape is not computable. Under a lowered auto-compact window `bands`
   also holds `auto_compact_window`, and the percentage edges are already scaled to it.
@@ -413,10 +413,12 @@ Settings outside `userConfig`:
 
 | Setting | Where | Default | What it controls |
 |---|---|---|---|
-| Zone bands | `~/.claude/context-guard/zones.json` `smart_max_used_percentage`, `acceptable_max_used_percentage`, `token_bands` (see the [reader contract](reference/reader-contract.md)) | smart up to 50%, acceptable up to 75%, plus the window-class token bands | Where each zone starts. |
+| Zone bands | `~/.claude/context-guard/zones.json` `light_max_used_percentage`, `moderate_max_used_percentage`, `token_bands` (see the [reader contract](reference/reader-contract.md)) | light up to 50%, moderate up to 75%, plus the window-class token bands | Where each zone starts. |
 | `approach_margin` | `zones.json` | 5 points | How early the approach line comes; 0 turns approach lines off. |
 | `actions`, `thresholds` | `zones.json` | none | An extra sentence at a zone, and extra boundaries. |
 | Snapshot file a status line can read | `~/.claude/context-guard/context/<session_id>.json` | on | Written whenever the plugin is enabled; no option stops it. It carries the zone and the bands in force; see [Published zone](#published-zone-for-status-lines). |
+
+The zones were renamed from smart, acceptable and dumb; for one release `zones.json` still reads the old key names (`smart_max_*`, `acceptable_max_*`) and `actions.smart`, `.acceptable`, `.dumb` as the new ones, and `/context-guard:setup apply` renames them.
 
 When `zones.json` is malformed (the file does not parse, or a band shape fails validation), each
 malformed shape falls back to the shipped defaults. `/context-guard:setup check` reports it in
