@@ -287,6 +287,10 @@ jobs:
           # A sweep's carried verdicts in, and the ones it keeps for the next.
           VERDICTS_IN: ${{ runner.temp }}/work-unblock-verdicts-in.json
           VERDICTS_OUT: ${{ runner.temp }}/work-unblock-verdicts.json
+          # Minutes after which the sweep decides no further agent-ready issue
+          # and writes what it decided: inside the job's 10-minute limit, with
+          # room for the last decision, the writes and the steps after this.
+          SWEEP_BUDGET_MINUTES: "6"
           # A held sweep's marker for monitor signal 13 (lane-hold-marker.mjs).
           LANE_HOLD_MARKER: ${{ runner.temp }}/lane-hold/work-unblock
         run: node ".base/$SCRIPT"

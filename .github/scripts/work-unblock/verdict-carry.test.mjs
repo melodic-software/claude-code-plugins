@@ -115,7 +115,25 @@ test("a carry kept by the same code is used, and one kept by other code is read 
   assert.equal(other.refusal(70, "check"), undefined);
   // The file it keeps holds only what this code reads, stamped with its code.
   other.save(join(dir, "next.json"));
-  assert.deepEqual(JSON.parse(readFileSync(join(dir, "next.json"), "utf8")), { code: "b".repeat(64), jobs: {}, refusals: {} });
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, "next.json"), "utf8")), { code: "b".repeat(64), jobs: {}, refusals: {}, decided: {} });
+});
+
+test("the decided times carry each issue's last decision, and a file kept before them carries none", () => {
+  const dir = tempDir("verdict-carry-decided-");
+  const now = Date.parse("2026-11-10T03:00:00Z");
+  const first = loadCarry(undefined, now - 3_600_000, "a".repeat(64));
+  first.keepDecided(30);
+  first.keepDecided("not-an-issue");
+  first.save(join(dir, "kept.json"));
+  const next = loadCarry(join(dir, "kept.json"), now, "a".repeat(64));
+  assert.equal(next.decidedAt(30), Date.parse("2026-11-10T02:00:00Z"));
+  assert.equal(next.decidedAt(31), undefined);
+  next.keepDecided(31);
+  next.save(join(dir, "next.json"));
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, "next.json"), "utf8")).decided, { 30: { at: "2026-11-10T02:00:00.000Z" }, 31: { at: "2026-11-10T03:00:00.000Z" } });
+  writeFileSync(join(dir, "before.json"), JSON.stringify({ code: "a".repeat(64), jobs: {}, refusals: {} }));
+  const before = loadCarry(join(dir, "before.json"), now, "a".repeat(64));
+  assert.equal(before.decidedAt(30), undefined);
 });
 
 test("the code digest changes with a module beside verdict-carry.mjs, never with a test file", () => {

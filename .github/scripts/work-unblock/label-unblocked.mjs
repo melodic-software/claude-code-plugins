@@ -429,6 +429,13 @@ const IN_FLIGHT = ["queued", "in_progress", "waiting", "pending", "requested"];
 export const LOOKBACK_HOURS = 3;
 // The sweep reads from this long before the last good sweep started.
 export const SWEEP_MARGIN_MIN = 15;
+// Minutes from the script's start after which a sweep decides no further
+// agent-ready issue, when SWEEP_BUDGET_MINUTES (work-unblock.yml) names none.
+export const SWEEP_BUDGET_MIN = 6;
+const sweepBudgetMs = (env) => {
+  const minutes = Number(env.SWEEP_BUDGET_MINUTES);
+  return (Number.isFinite(minutes) && minutes > 0 ? minutes : SWEEP_BUDGET_MIN) * 60_000;
+};
 // The one comment per issue that says it keeps being re-fired on a backoff,
 // edited in place on each re-fire; it reads as a re-fire record timed by its
 // last edit.
@@ -1563,16 +1570,17 @@ export async function laneRuns(actions, repo, number, addedAt) {
   throw new Error("the workflow run listing has more than 10 pages");
 }
 
-// Label windows closer than this share one listing. At about 75 lane runs an
-// hour, an hour's gap adds about one page, the call a second listing costs.
-const CLUSTER_GAP_MS = 60 * 60_000;
+// Label windows starting in the same span of this length share one listing.
+// At about 75 lane runs an hour, a span's listing is about one page, the call
+// one issue's own listing costs.
+const BUCKET_MS = 60 * 60_000;
 // The listing filtered by `created` answers at most 1,000 runs.
 const LISTING_CAP = 1000;
 
-// The runs of one cluster's listing, or null when it holds more than the
-// listing answers, so each of its issues is listed on its own.
-async function clusterRuns(actions, repo, cluster) {
-  const path = laneRunsPath(repo, [cluster.from, cluster.to]);
+// The runs of one span's listing, or null when it holds more than the listing
+// answers, so each of its issues is listed on its own.
+async function spanRuns(actions, repo, span) {
+  const path = laneRunsPath(repo, span);
   const runs = [];
   for (let page = 1; page <= LISTING_CAP / 100; page += 1) {
     const answer = await actions("GET", `${path}&per_page=100&page=${page}`);
@@ -1591,42 +1599,39 @@ async function clusterRuns(actions, repo, cluster) {
   return null;
 }
 
-// laneRuns for each label time in `addedAts`, from one listing per cluster of
-// near windows, read once when an issue first asks and never reused by another
-// sweep, so status and updated_at are this sweep's. An issue whose window no
-// cluster holds, or whose cluster is too big to list, is listed on its own.
-export function sharedLaneRuns(actions, repo, addedAts) {
-  const clusters = [];
-  for (const [from, to] of addedAts.filter(Number.isFinite).map(runWindow).sort((a, b) => a[0] - b[0])) {
-    const last = clusters.at(-1);
-    if (last && from - last.to <= CLUSTER_GAP_MS) {
-      last.to = Math.max(last.to, to);
-    } else {
-      clusters.push({ from, to, runs: undefined });
-    }
-  }
+// laneRuns as `(number, addedAt)`, from one listing per BUCKET_MS span that a
+// label window starts in, read when an issue of that span first asks, so no
+// issue's history is read ahead of its own turn. Each span's listing reaches
+// RUN_WINDOW_MS past its end, so it holds the whole window of every label in
+// it. A listing is never reused by another sweep, so status and updated_at
+// are this sweep's; a span too big to list has each issue listed on its own.
+export function sharedLaneRuns(actions, repo) {
+  const spans = new Map();
   return async (number, addedAt) => {
     const [from, to] = runWindow(addedAt);
-    const cluster = clusters.find((item) => item.from <= from && to <= item.to);
-    if (cluster) {
-      // A failed listing is not kept: the next issue in the cluster reads again.
-      cluster.runs ??= clusterRuns(actions, repo, cluster).catch((error) => {
-        cluster.runs = undefined;
-        throw error;
-      });
-      const runs = await cluster.runs;
-      if (runs) {
-        const inWindow = runs.filter((run) => {
-          const at = Date.parse(run.created_at);
-          return at >= from && at <= to;
-        });
-        return {
-          mine: inWindow.filter((run) => runTitle(run).endsWith(` #${number}`)),
-          untitled: inWindow.filter((run) => !NAMES_ISSUE.test(runTitle(run))).length,
-        };
-      }
+    const start = Math.floor(from / BUCKET_MS) * BUCKET_MS;
+    if (!spans.has(start)) {
+      // A failed listing is not kept: the next issue in the span reads again.
+      spans.set(
+        start,
+        spanRuns(actions, repo, [start, start + BUCKET_MS + RUN_WINDOW_MS]).catch((error) => {
+          spans.delete(start);
+          throw error;
+        }),
+      );
     }
-    return laneRuns(actions, repo, number, addedAt);
+    const runs = await spans.get(start);
+    if (!runs) {
+      return laneRuns(actions, repo, number, addedAt);
+    }
+    const inWindow = runs.filter((run) => {
+      const at = Date.parse(run.created_at);
+      return at >= from && at <= to;
+    });
+    return {
+      mine: inWindow.filter((run) => runTitle(run).endsWith(` #${number}`)),
+      untitled: inWindow.filter((run) => !NAMES_ISSUE.test(runTitle(run))).length,
+    };
   };
 }
 
@@ -2084,7 +2089,7 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
     const refires = adds.filter((event) => Date.parse(event.created_at) >= first && !trips.has(event)).length;
     const due = backoffDue(since, refires, hours);
     if (now < due) {
-      return { reason: `re-fired ${refires} time(s) on workflow files ${key}; it is re-fired again after ${new Date(due).toISOString()}` };
+      return { reason: `re-fired ${refires} time(s) on workflow files ${key}; it is re-fired again after ${new Date(due).toISOString()}`, due };
     }
     const own = comments.filter((comment) => comment.user?.login === bot && INFRA.test(String(comment.body ?? ""))).at(-1);
     return { reason: null, resets: due, refire: key, recorded: true, infra: { id: own?.id, body: infraComment(key, cause, refires + 1) } };
@@ -2096,7 +2101,7 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
   const stranded = async (since, why, cause) => {
     const hours = hoursFor[cause];
     if (now - since < hours * HOUR_MS) {
-      return { reason: why };
+      return { reason: why, due: since + hours * HOUR_MS };
     }
     const open = (await lanePulls({ github, repo, number, bot })).find((item) => item.state === "open");
     if (open) {
@@ -2153,7 +2158,7 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
     const due = ended + (over >= 0 ? hoursFor["kill-switch"] : clamp) * HOUR_MS;
     if (now < due) {
       const why = stalled === "breaker" ? `the broker refused its lane run for the lanes kill switch (trip ${trips + 1})` : "its lane run did no work";
-      return { reason: `${why}; it is re-fired after ${new Date(due).toISOString()}` };
+      return { reason: `${why}; it is re-fired after ${new Date(due).toISOString()}`, due };
     }
     if (await wipCapped()) {
       return { reason: "its lane run did no work, and the issue lane is paused over its WIP cap" };
@@ -2270,14 +2275,15 @@ async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot
   // limit stop with no reset does (clampReset).
   const resets = clampReset(marker.resets, marker.at, limits);
   if (now < resets) {
-    return { reason: `waiting for the limit to reset at ${new Date(resets).toISOString()}` };
+    return { reason: `waiting for the limit to reset at ${new Date(resets).toISOString()}`, due: resets };
   }
   return { reason: null, resets };
 }
 
-// Restarts, re-fires or hands off up to `cap` issues, longest-waiting first.
-// Returns how many reads or writes failed.
-async function restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, cap = limits["restarts-per-run"], writer = NO_WRITER, statusOf, openIssues, byStatus, field, fieldRows, slots = laneSlots }) {
+// Restarts, re-fires or hands off up to `cap` issues, longest-waiting first,
+// of those it decides before `clock()` reaches `deadline`. Returns how many
+// reads or writes failed.
+async function restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, cap = limits["restarts-per-run"], writer = NO_WRITER, statusOf, openIssues, byStatus, field, fieldRows, slots = laneSlots, clock = Date.now, deadline = Number.POSITIVE_INFINITY }) {
   let failed = 0;
   const ready = [];
   // Main's blob SHAs of the lane workflow files, read once per run.
@@ -2329,42 +2335,71 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
       const listed = {};
       // The events carry the Work status field's changes (eventsOf), so a hold
       // set only on the field has its setter read, and its moves onto and off
-      // agent-ready as agent-ready label events (agentReadyEvents).
+      // agent-ready as agent-ready label events (agentReadyEvents), from the
+      // field read the reader already made for the issue when it has one.
+      const rowsOf = statusOf?.fieldRows ?? fieldRows;
       const history = async () => {
         const events = await eventsOf(github, repo, statusOf, issue.number);
-        return fieldRows ? mergeByTime(events, agentReadyEvents(await fieldRows(issue.number), { field, bot, humans })) : events;
+        return fieldRows ? mergeByTime(events, agentReadyEvents(await rowsOf(issue.number), { field, bot, humans })) : events;
       };
       const read = (kind) => (listed[kind] ??= kind === "events" ? history() : paginate(github, `/repos/${repo}/issues/${issue.number}/${kind}`));
-      listings.set(issue.number, Object.assign(read, { forget: (kind) => delete listed[kind] }));
+      listings.set(issue.number, read);
     }
     return listings.get(issue.number);
   };
-  // The lane runs of every agent-ready issue's newest label, from one shared
-  // listing (sharedLaneRuns) planned when an issue first asks: each issue's
-  // events are read then, in order, and an issue whose read fails is listed on
-  // its own and reads its events again when its turn comes.
-  let lanes;
-  const plan = async () => {
-    const addedAts = [];
-    for (const issue of open) {
-      const read = readsOf(issue);
-      try {
-        const lastAdd = (await read("events")).filter((event) => isLabel(event, "labeled")).at(-1);
-        addedAts.push(Date.parse(lastAdd?.created_at));
-      } catch {
-        read.forget("events");
-      }
-    }
-    return sharedLaneRuns(actions, repo, addedAts);
+  // The lane runs of each agent-ready issue's newest label, from listings
+  // shared by the issues whose labels fall in the same span (sharedLaneRuns).
+  const runsOf = sharedLaneRuns(actions, repo);
+  // Least recently decided first (the carried `decided` times; one never
+  // decided goes first), so issues a sweep's budget leaves out lead the next
+  // one and none waits behind issues decided every sweep.
+  const decidedAt = (issue) => carry?.decidedAt(Number(issue.number)) ?? Number.NEGATIVE_INFINITY;
+  const sorted = open.map((issue, at) => ({ issue, at, decided: decidedAt(issue) })).sort((a, b) => a.decided - b.decided || a.at - b.at);
+  // A wait carried from an earlier sweep (verdict-carry.mjs `decided`) stands
+  // while the issue is unchanged since (its listed updated_at), the wait has
+  // not ended and the lane workflow files are the same; it only ever keeps
+  // an issue waiting, and every other issue is read and decided fresh.
+  const carriedOf = (issue) => carry?.carriedWait(Number(issue.number));
+  const current = sorted.some(({ issue }) => carriedOf(issue)) ? await workflowKey().catch(() => null) : null;
+  const stands = (issue) => {
+    const wait = carriedOf(issue);
+    return Boolean(wait && current && wait.key === current && wait.updated === issue.updated_at && now < wait.due);
   };
-  const runsOf = async (number, addedAt) => (await (lanes ??= plan()))(number, addedAt);
-  for (const issue of open) {
+  const order = [];
+  for (const { issue } of sorted) {
+    if (stands(issue)) {
+      carry.keepDecided(Number(issue.number), carriedOf(issue));
+      console.log(`label-unblocked: #${issue.number} not restarted: ${carriedOf(issue).reason} (carried: unchanged since it was decided)`);
+    } else {
+      order.push(issue);
+    }
+  }
+  console.log(`::notice title=label-unblocked::${order.length} agent-ready issue(s) to decide, ${sorted.length - order.length} carried waiting from an earlier sweep`);
+  // A wait this sweep decided, kept for the next one when it has an end and
+  // the lane workflow files' key reads; anything else keeps no wait.
+  const keepWait = async (issue, verdict) => {
+    const number = Number(issue.number);
+    const due = verdict?.reason ? verdict.due : undefined;
+    const key = Number.isFinite(due) && typeof issue.updated_at === "string" ? await workflowKey().catch(() => null) : null;
+    carry?.keepDecided(number, key ? { reason: verdict.reason, due, updated: issue.updated_at, key } : undefined);
+  };
+  for (const [index, issue] of order.entries()) {
+    // Past the budget no further issue is decided, so the job ends inside its
+    // limit and the decided ones below are still written.
+    if (clock() >= deadline) {
+      console.log(`::notice title=label-unblocked::the sweep's time budget ran out: ${order.length - index} of ${order.length} agent-ready issue(s) left for the next sweep, which decides them first`);
+      break;
+    }
+    carry?.keepDecided(Number(issue.number));
     const read = readsOf(issue);
     try {
       const verdict =
         (await recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, read, statusOf })) ??
         (await restartRefusal({ github, actions, jobLog, carry, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read, statusOf, runsOf }));
       const { reason, fail } = verdict;
+      if (carry && reason !== null && !fail) {
+        await keepWait(issue, verdict);
+      }
       if (fail) {
         // The fail route: the comment first and the field write last, so the
         // stop is never invisible. A failed write is retried by the next sweep,
@@ -2673,9 +2708,18 @@ const baseAdmission = (env) => {
 // none is given; resolve-config.mjs issuesByStatus over the base config's
 // models.issue-status), each `labels` its names as the field decides them
 // (read-status.mjs statusLabels); null while models.issue-status is unset.
-// resolve-config loads only on the first call, as baseAdmission does.
+// resolve-config loads only on the first call, as baseAdmission does. One
+// listing of every state serves every call of a sweep (one call per page of
+// open issues); its 10 re-reads are shared by every state. When that listing
+// fails, this call and every later one list only their own `states`, as
+// before the shared listing: one issue whose status cannot be read then stops
+// only a listing that could match it, never one for a state it is not in.
+// `held` (issues whose Work status is mid-write) is the listing's, for
+// listedNames.
 const fieldListing = (env, github, repo) => {
   let loaded;
+  let listing;
+  let sharedFailed = false;
   return async (states) => {
     loaded ??= (async () => {
       const { issueStatusFromBase, issuesByStatus } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
@@ -2687,10 +2731,27 @@ const fieldListing = (env, github, repo) => {
       return null;
     }
     const { config, trustedActors, issuesByStatus } = setup;
-    const found = await issuesByStatus(github, repo, states ?? Object.keys(config.labels), { config, trustedActors });
-    // `held` (issues whose Work status is mid-write) rides along for listedNames.
+    const own = () => issuesByStatus(github, repo, states ?? Object.keys(config.labels), { config, trustedActors });
+    let found;
+    if (sharedFailed) {
+      found = await own();
+    } else {
+      listing ??= issuesByStatus(github, repo, Object.keys(config.labels), { config, trustedActors });
+      try {
+        found = await listing;
+      } catch (error) {
+        sharedFailed = true;
+        listing = undefined;
+        console.log(`::warning title=label-unblocked::the shared Work status listing failed (${error?.message ?? error}); each pass lists its own states`);
+        found = await own();
+      }
+    }
+    // issuesByStatus's own match for `states`: the field's state, or with no
+    // state a label of one of them.
+    const wanted = states && new Set(states.flatMap((state) => config.labels[state] ?? []).map((label) => label.toLowerCase()));
+    const kept = wanted ? found.filter((item) => (item.state === null ? item.labels.some((label) => wanted.has(label.toLowerCase())) : states.includes(item.state))) : found;
     return Object.defineProperty(
-      found.map((item) => ({ ...item, labels: statusLabels(item.state, item.labels, config) })),
+      kept.map((item) => ({ ...item, labels: statusLabels(item.state, item.labels, config) })),
       "held",
       { value: found.held ?? [] },
     );
@@ -2733,7 +2794,8 @@ async function listedNames(byStatus) {
 
 export { budgetLatch, failedFor, fieldListing, markReads };
 
-export async function main({ env = process.env, github, actions, jobLog, now = Date.now(), rate = searchRateLimit(), admission = baseAdmission(env), writer, statusOf, byStatus, statusField, slots } = {}) {
+export async function main({ env = process.env, github, actions, jobLog, now = Date.now(), rate = searchRateLimit(), admission = baseAdmission(env), writer, statusOf, byStatus, statusField, slots, clock = Date.now } = {}) {
+  const deadline = clock() + sweepBudgetMs(env);
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
@@ -2839,7 +2901,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
           failed += await readmitReady({ github, repo, listed, names, humans, bot, gate, appId, admission, cap: limits["readmit-per-run"], now, writer: writeTo, statusOf: statusTo });
         }
       }
-      failed += await restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, slots, writer: writeTo, statusOf: statusTo, openIssues: listed, byStatus: listing, ...(statusField ?? (own ? {} : await workStatusField(env, github, repo))) });
+      failed += await restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, slots, writer: writeTo, statusOf: statusTo, openIssues: listed, byStatus: listing, clock, deadline, ...(statusField ?? (own ? {} : await workStatusField(env, github, repo))) });
       if (carry) {
         const { jobsHit, jobsRead, refusalsHit, refusalsRead } = carry.counts;
         console.log(`::notice title=label-unblocked::carried verdicts: ${jobsHit} job listing(s) and ${refusalsHit} log verdict(s) reused, ${jobsRead} and ${refusalsRead} read`);
