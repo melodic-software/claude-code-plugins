@@ -1,0 +1,98 @@
+// Expected values come from verdict-carry.mjs's rules: `read` takes the file
+// only from a successful sweep (schedule or workflow_run) of main's
+// work-unblock.yml in this repository, and any failure leaves no file; a
+// saved carry keeps at most JOBS_MAX and REFUSALS_MAX entries, newest used first.
+import assert from "node:assert/strict";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { test } from "node:test";
+
+import { CARRY_ARTIFACT, JOBS_MAX, loadCarry, read, REFUSALS_MAX } from "./verdict-carry.mjs";
+
+const REPO = "melodic-software/claude-code-plugins";
+const sweepRun = (id, extra = {}) => ({
+  id,
+  path: ".github/workflows/work-unblock.yml",
+  event: "workflow_run",
+  head_branch: "main",
+  conclusion: "success",
+  head_repository: { full_name: REPO },
+  ...extra,
+});
+
+// A fake Actions API: the listed runs, and one artifact per run in `withFile`.
+function fakeActions(runs, withFile) {
+  const calls = [];
+  const actions = async (method, path) => {
+    calls.push(path);
+    if (path.includes("/actions/workflows/work-unblock.yml/runs")) return { workflow_runs: runs };
+    const match = /\/actions\/runs\/(\d+)\/artifacts/.exec(path);
+    if (match) {
+      const artifacts = withFile.includes(Number(match[1])) ? [{ id: Number(match[1]) * 10, name: CARRY_ARTIFACT, expired: false }] : [];
+      return { total_count: artifacts.length, artifacts };
+    }
+    throw new Error(`unexpected ${method} ${path}`);
+  };
+  return { actions, calls };
+}
+
+const envFor = (dir) => ({ VERDICTS_IN: join(dir, "in.json"), GITHUB_REPOSITORY: REPO, GITHUB_RUN_ID: "900" });
+
+test("read takes the file of the newest successful sweep of main's work-unblock.yml, and of no other run", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "verdict-carry-"));
+  const runs = [
+    sweepRun(900),
+    sweepRun(899, { event: "issues" }),
+    sweepRun(898, { conclusion: "cancelled" }),
+    sweepRun(897, { head_repository: { full_name: "someone/fork" } }),
+    sweepRun(896, { head_branch: "feature" }),
+    sweepRun(895),
+    sweepRun(894, { event: "schedule" }),
+  ];
+  const { actions, calls } = fakeActions(runs, [900, 899, 898, 897, 896, 895, 894]);
+  const asked = [];
+  await read({ env: envFor(dir), actions, download: (id) => (asked.push(id), '{"jobs":{}}') });
+  assert.deepEqual(asked, [8950]);
+  assert.equal(readFileSync(join(dir, "in.json"), "utf8"), '{"jobs":{}}');
+  // Only the one trusted run before it was asked for its artifacts.
+  assert.deepEqual(calls.filter((path) => path.includes("/artifacts")), [`/repos/${REPO}/actions/runs/895/artifacts?per_page=100`]);
+});
+
+test("read leaves no file when no sweep kept one, the download is not a JSON object, or the listing fails", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "verdict-carry-"));
+  const env = envFor(dir);
+  const cases = [
+    [fakeActions([sweepRun(895)], []).actions, () => "{}"],
+    [fakeActions([sweepRun(895)], [895]).actions, () => "[1]"],
+    [fakeActions([sweepRun(895)], [895]).actions, () => "{nope"],
+    [async () => { throw new Error("403"); }, () => "{}"],
+  ];
+  for (const [actions, download] of cases) {
+    // A file left there before is removed, never read.
+    writeFileSync(env.VERDICTS_IN, '{"left":true}');
+    await read({ env, actions, download });
+    assert.equal(existsSync(env.VERDICTS_IN), false);
+  }
+});
+
+test("a saved carry keeps the newest used entries up to its caps", () => {
+  const dir = mkdtempSync(join(tmpdir(), "verdict-carry-"));
+  const now = Date.parse("2026-11-10T03:00:00Z");
+  const old = loadCarry(undefined, now - 60_000);
+  for (let id = 1; id <= JOBS_MAX + 5; id += 1) {
+    old.keepJobs({ id, run_attempt: 1, status: "completed", updated_at: "2026-11-10T01:00:00Z" }, [{ id: id * 10, name: "admit", steps: [] }]);
+  }
+  for (let id = 1; id <= REFUSALS_MAX + 5; id += 1) old.keepRefusal(id, "check", null);
+  old.save(join(dir, "old.json"));
+  // The next sweep uses run 1's entry, which is then the newest.
+  const next = loadCarry(join(dir, "old.json"), now);
+  assert.ok(next.jobsOf({ id: 1, run_attempt: 1, status: "completed", updated_at: "2026-11-10T01:00:00Z" }));
+  next.save(join(dir, "new.json"));
+  const saved = JSON.parse(readFileSync(join(dir, "new.json"), "utf8"));
+  assert.equal(Object.keys(saved.jobs).length, JOBS_MAX);
+  assert.equal(Object.keys(saved.refusals).length, REFUSALS_MAX);
+  assert.ok(saved.jobs["1|1"]);
+  // The kept job is the fields the sweep reads, no more.
+  assert.deepEqual(saved.jobs["1|1"].jobs, [{ id: 10, name: "admit", conclusion: null, runner_id: null, started_at: null, steps: [] }]);
+});

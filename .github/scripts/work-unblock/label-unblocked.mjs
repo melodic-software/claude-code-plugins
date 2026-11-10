@@ -290,6 +290,11 @@
 //                          `issues` only) and skipped when reading the last
 //                          sweep
 //   GITHUB_RUN_ATTEMPT     this run's attempt, checked against its record
+//   VERDICTS_IN            a sweep's carried job listings and log verdicts
+//                          (verdict-carry.mjs read); missing carries nothing
+//   VERDICTS_OUT           where a sweep keeps them for the next one, and
+//                          sets the `verdicts=true` output; unset keeps
+//                          and carries nothing
 //   LANES_BOT_LOGIN        the lanes App bot login, the only author of a marker
 //                          and actor of a restart this trusts (default
 //                          melodic-automation-lanes[bot])
@@ -313,6 +318,7 @@ import { personReasonLines } from "../lib/stop-reason.mjs";
 import { subIssueLeftOpen } from "../lib/done-evidence.mjs";
 import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
+import { loadCarry, markSaved } from "./verdict-carry.mjs";
 import { FIELD_API, statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { writeAdmissionRecord } from "../lib/admission-record.mjs";
 import { isStatusLabel, HOLD_STATES, loadTrustedActors, readyWhileDeferred, StatusReadError, statusLabels, statusReader } from "../../actions/resolve-config/read-status.mjs";
@@ -1634,11 +1640,17 @@ async function didNoWork(jobsOf, refusalOf, runs) {
 // mint step's MINT_START section. Null when there is no such line or the log
 // cannot be read within LOG_CAP_BYTES, or no log reader was given; the log is
 // data: check and token modes read only that one line, and a STOPPED line
-// outside the section never counts.
-function refusalReader(jobLog, repo) {
+// outside the section never counts. A job's log never changes once it ends,
+// so the answer from a log that was read is kept in `carry`
+// (verdict-carry.mjs) and the next sweep reads it from there.
+function refusalReader(jobLog, repo, carry) {
   return async (job, mode) => {
     if (!jobLog || !RUN_ID.test(String(job?.id))) {
       return null;
+    }
+    const carried = carry?.refusal(job.id, mode);
+    if (carried) {
+      return carried.value;
     }
     let log;
     try {
@@ -1647,33 +1659,46 @@ function refusalReader(jobLog, repo) {
       console.log(`::warning title=label-unblocked::job ${job.id}'s log was not read: ${escapeCommand(error?.message ?? error)}`);
       return null;
     }
-    const lines = String(log ?? "").split("\n");
-    if (mode === "stop") {
-      const start = lines.findIndex((line) => MINT_START.test(line));
-      if (start < 0) {
-        return null;
-      }
-      const end = mintEnd(MINT_START.exec(lines[start])[1]);
-      const stop = lines.findIndex((line, at) => at > start && end.test(line));
-      return stop > 0 && lines.slice(start, stop).some((line) => STOPPED.test(line)) ? BREAKER : null;
-    }
-    const end = lines.findIndex((line) => STEP_FAILED.test(line));
-    return end > 0 ? (DENIAL[mode].exec(lines[end - 1])?.[1] ?? null) : null;
+    const value = refusalIn(String(log ?? "").split("\n"), mode);
+    carry?.keepRefusal(job.id, mode, value);
+    return value;
   };
 }
 
-// Each run's latest-attempt job listing, read once per run id.
-function jobLister(actions, repo) {
+// The refusal in a log's `lines`, in `mode`, as refusalReader describes.
+function refusalIn(lines, mode) {
+  if (mode === "stop") {
+    const start = lines.findIndex((line) => MINT_START.test(line));
+    if (start < 0) {
+      return null;
+    }
+    const end = mintEnd(MINT_START.exec(lines[start])[1]);
+    const stop = lines.findIndex((line, at) => at > start && end.test(line));
+    return stop > 0 && lines.slice(start, stop).some((line) => STOPPED.test(line)) ? BREAKER : null;
+  }
+  const end = lines.findIndex((line) => STEP_FAILED.test(line));
+  return end > 0 ? (DENIAL[mode].exec(lines[end - 1])?.[1] ?? null) : null;
+}
+
+// Each run's latest-attempt job listing, read once per run id. A completed
+// run's listing is kept in `carry` (verdict-carry.mjs), which answers it while
+// the run listing shows the same attempt and update.
+function jobLister(actions, repo, carry) {
   const listed = new Map();
   return (run) => {
     if (!listed.has(run.id)) {
       listed.set(
         run.id,
         (async () => {
+          const carried = carry?.jobsOf(run);
+          if (carried) {
+            return carried;
+          }
           const jobs = (await actions("GET", `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`))?.jobs;
           if (!Array.isArray(jobs)) {
             throw new Error(`run ${run.id}'s job listing has an unexpected shape`);
           }
+          carry?.keepJobs(run, jobs);
           return jobs;
         })(),
       );
@@ -1905,7 +1930,7 @@ function pullRefusal({ pull, number, comments, events, bot, held }) {
 
 // Why an agent-ready issue whose newest label has no marker after it is not
 // re-fired or handed off now, or null with what to do.
-async function refireRefusal({ github, actions, jobLog, repo, number, issue, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped }) {
+async function refireRefusal({ github, actions, jobLog, carry, repo, number, issue, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped }) {
   if (!trustedLabeler(lastAdd, { bot, humans })) {
     return { reason: `${LABEL} was added by neither a listed human nor the lanes App` };
   }
@@ -2008,14 +2033,14 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
   }
   // When the newest of its runs ended: every clock below starts there.
   const ended = Math.max(...runs.map((run) => Date.parse(run.updated_at)).filter(Number.isFinite), addedAt);
-  const jobsOf = jobLister(actions, repo);
+  const jobsOf = jobLister(actions, repo, carry);
   if (await stoppedUntrusted(jobsOf, runs)) {
     return { reason: "its lane run stopped on an outside author or untrusted provenance, which a person decides" };
   }
   // A stale stop ran no model; a failed mint in its re-fire job is no failed
   // mint of the lane's, so it skips the did-no-work clock below.
   const stale = await stoppedStale(jobsOf, runs);
-  const { stalled, run: refused, stage } = (!stale && (await didNoWork(jobsOf, refusalReader(jobLog, repo), runs))) || {};
+  const { stalled, run: refused, stage } = (!stale && (await didNoWork(jobsOf, refusalReader(jobLog, repo, carry), runs))) || {};
   if (stalled) {
     // Breaker trips since a listed human last added agent-ready or a run last
     // reported; past limits.limit-stops-per-issue of them, the stranded backoff.
@@ -2068,7 +2093,7 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
 // re-fired (after a failed run), or null with the time it has waited since.
 // Every fact is read from the API this sweep; `read` lists the issue's
 // comments or events once, shared with the recurrence check.
-async function restartRefusal({ github, actions, jobLog, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read, statusOf }) {
+async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read, statusOf }) {
   // The holds as the Work status field decides them, so a hold set only on
   // the field stops here too.
   const holds = (await fieldNamesOf(statusOf, issue)).filter((label) => HOLDS.has(label));
@@ -2096,7 +2121,7 @@ async function restartRefusal({ github, actions, jobLog, repo, issue, bot, human
   const lastAdd = events.filter((event) => isLabel(event, "labeled")).at(-1);
   const addedAt = Date.parse(lastAdd?.created_at);
   if (Number.isFinite(addedAt) && (marker === undefined || addedAt > marker.at)) {
-    return refireRefusal({ github, actions, jobLog, repo, number: issue.number, issue, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped });
+    return refireRefusal({ github, actions, jobLog, carry, repo, number: issue.number, issue, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped });
   }
   if (held) {
     return { reason: `held by ${HUMAN_LABEL}` };
@@ -2155,7 +2180,7 @@ async function restartRefusal({ github, actions, jobLog, repo, issue, bot, human
 
 // Restarts, re-fires or hands off up to `cap` issues, longest-waiting first.
 // Returns how many reads or writes failed.
-async function restartLimited({ github, actions, jobLog, repo, bot, humans, appId, now, limits, status, cap = limits["restarts-per-run"], writer = NO_WRITER, statusOf, openIssues, byStatus, field, fieldRows }) {
+async function restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, cap = limits["restarts-per-run"], writer = NO_WRITER, statusOf, openIssues, byStatus, field, fieldRows }) {
   let failed = 0;
   const ready = [];
   // Main's blob SHAs of the lane workflow files, read once per run.
@@ -2213,7 +2238,7 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, appI
     try {
       const verdict =
         (await recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, read, statusOf })) ??
-        (await restartRefusal({ github, actions, jobLog, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read, statusOf }));
+        (await restartRefusal({ github, actions, jobLog, carry, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read, statusOf }));
       const { reason, fail } = verdict;
       if (fail) {
         // The fail route: the comment first and the field write last, so the
@@ -2609,6 +2634,9 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
       jobLog ??= env.ACTIONS_TOKEN ? createJobLogReader({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch }) : null;
       actions = actions && markReads(actions);
     }
+    // The last sweep's job listings and log verdicts (verdict-carry.mjs),
+    // kept again for the next sweep when VERDICTS_OUT is set.
+    const carry = sweep && env.VERDICTS_OUT ? loadCarry(env.VERDICTS_IN, now) : null;
     const window = sweep ? await sweepSince({ actions, jobLog, repo, now, runId: env.GITHUB_RUN_ID }) : null;
     let closed = sweep ? [] : [Number(event.issue.number)];
     if (sweep) {
@@ -2665,7 +2693,14 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
           failed += await readmitReady({ github, repo, listed, names, humans, bot, gate, appId, admission, cap: limits["readmit-per-run"], now, writer: writeTo, statusOf: statusTo });
         }
       }
-      failed += await restartLimited({ github, actions, jobLog, repo, bot, humans, appId, now, limits, status, writer: writeTo, statusOf: statusTo, openIssues: listed, byStatus: listing, ...(statusField ?? (own ? {} : await workStatusField(env, github, repo))) });
+      failed += await restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, writer: writeTo, statusOf: statusTo, openIssues: listed, byStatus: listing, ...(statusField ?? (own ? {} : await workStatusField(env, github, repo))) });
+      if (carry) {
+        const { jobsHit, jobsRead, refusalsHit, refusalsRead } = carry.counts;
+        console.log(`::notice title=label-unblocked::carried verdicts: ${jobsHit} job listing(s) and ${refusalsHit} log verdict(s) reused, ${jobsRead} and ${refusalsRead} read`);
+        if (carry.save(env.VERDICTS_OUT)) {
+          markSaved(env);
+        }
+      }
     }
     if (github.held > 0) {
       console.log(HELD_LINE);
