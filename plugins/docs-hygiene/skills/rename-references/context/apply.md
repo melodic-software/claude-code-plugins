@@ -136,7 +136,8 @@ constraints on the record:
   `(start, end)`, the stored span fails to subtract, and the user is prompted for the deliberate
   skip again: the same non-terminating loop, defeated by the bookkeeping meant to close it.
   After each Edit at `(line, start, end)`, add the delta to the `start` and `end` of every stored
-  skip span on that line whose `start` is greater than the edited `start`. Spans on other lines
+  skip span, and every glossary report-only span, on that line whose `start` is greater than the
+  edited `start`. Spans on other lines
   and earlier spans on the same line are unaffected, because a rename replaces in place and adds
   no lines. Carry the matched snippet alongside the span and treat a snippet mismatch after
   remapping as a bug to report, not a skip to silently drop.

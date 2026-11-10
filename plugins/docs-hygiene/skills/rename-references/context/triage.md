@@ -156,7 +156,7 @@ two classifications override every bucket above, Certain included, and are decid
   edited. A hit matching the glossary entry's `Shown to users as:` wording is intended and left out.
 
 When a hit's context does not show which it is, it goes to Ambiguous with its context, never to
-Certain. Both lists are counted in their own rows of the report and recorded as spans
+Certain. Both lists are counted in their own rows of the report and recorded as spans, each with its matched snippet,
 `(file, line, start, end)` for apply.md Phase 6.
 
 ## Special case: Memory entries
