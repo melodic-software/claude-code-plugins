@@ -112,7 +112,7 @@ export function installCommand(target: string, platform = process.platform): str
 }
 
 function installed(dir: string): boolean {
-  const manifest = JSON.parse(readFileSync(join(SERVER_DIR, "package.json"), "utf8")) as {
+  const manifest = JSON.parse(currentManifest().toString("utf8")) as {
     dependencies?: Record<string, string>;
   };
   return Object.keys(manifest.dependencies ?? {}).every((name) =>

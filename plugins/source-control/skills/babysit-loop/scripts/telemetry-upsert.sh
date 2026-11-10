@@ -151,7 +151,8 @@ lookup() {
     --jq ".[] | select(.user.login == \"$ME\" and (.body | startswith(\"$SENT\"))) | .id"
 }
 
-canonical() { printf '%s\n' "$1" | grep -E '^[0-9]+$' | sort -n | head -n1; }
+ids() { printf '%s\n' "$1" | grep -E '^[0-9]+$' | sort -n; }
+canonical() { ids "$1" | head -n1; }
 
 ME=""
 need_identity() {
@@ -234,7 +235,7 @@ BACK="${BACK//$'\r'/}"
 [[ "$BACK" == "$SENT_BODY" ]] ||
   die 6 "comment $CANON does not hold the body this cycle sent (stale, overwritten, or mangled); do not trust its timestamp"
 
-for DUP in $(printf '%s\n' "$LIST" | grep -E '^[0-9]+$' | sort -n | tail -n +2); do
+for DUP in $(ids "$LIST" | tail -n +2); do
   gh api -X PATCH "repos/$REPO/issues/comments/$DUP" \
     -f body="Superseded duplicate - canonical telemetry comment: $CANON" >/dev/null ||
     printf 'telemetry: tombstoning duplicate comment %s failed; the next cycle retries it\n' "$DUP" >&2

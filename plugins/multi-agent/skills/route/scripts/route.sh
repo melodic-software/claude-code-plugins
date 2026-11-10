@@ -19,10 +19,7 @@ for a in "$@"; do
   session=*) [[ -n "${a#session=}" ]] && pass+=(--session-model "${a#session=}") ;;
   --workload | --session-model | --root | --home | --defaults) pass+=("$a") value=1 ;;
   -*) pass+=("$a") ;;
-  *)
-    bare=$((bare + 1))
-    if ((bare == 2)); then pass+=(--workload "$a"); else pass+=("$a"); fi
-    ;;
+  *) if ((++bare == 2)); then pass+=(--workload "$a"); else pass+=("$a"); fi ;;
   esac
 done
 exec "$RESOLVER" "${pass[@]+"${pass[@]}"}"

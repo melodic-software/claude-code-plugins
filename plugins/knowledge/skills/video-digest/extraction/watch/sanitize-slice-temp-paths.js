@@ -28,6 +28,14 @@ function withoutPath(record) {
 }
 
 /**
+ * @param {string} file
+ * @param {unknown} value
+ */
+function writeJson(file, value) {
+  fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+/**
  * @param {string} sliceDir
  */
 export function sanitizeSliceTempPaths(sliceDir) {
@@ -39,7 +47,7 @@ export function sanitizeSliceTempPaths(sliceDir) {
     const watch = readJsonFile(watchPath);
     if (watch.tempSession) {
       watch.tempSession = serializeTempSession(watch.tempSession);
-      fs.writeFileSync(watchPath, `${JSON.stringify(watch, null, 2)}\n`, "utf8");
+      writeJson(watchPath, watch);
       touched.push("run-state/watch.json");
     }
   }
@@ -61,7 +69,7 @@ export function sanitizeSliceTempPaths(sliceDir) {
         entry?.frame ? { ...entry, frame: withoutPath(entry.frame) } : entry,
       );
     }
-    fs.writeFileSync(selectionPath, `${JSON.stringify(selection, null, 2)}\n`, "utf8");
+    writeJson(selectionPath, selection);
     touched.push("key-frames/selection.json");
   }
 
@@ -84,21 +92,16 @@ export function sanitizeSliceTempPaths(sliceDir) {
         })),
       }));
     }
-    fs.writeFileSync(indexPath, `${JSON.stringify(index, null, 2)}\n`, "utf8");
+    writeJson(indexPath, index);
     touched.push("key-frames/sheet-frame-index.json");
   }
 
-  const snapshotMetaPath = lanePath(
-    absSlice,
-    LANES.keyFrames,
-    "contact-sheets",
-    "snapshot-meta.json",
-  );
+  const snapshotMetaPath = lanePath(absSlice, LANES.keyFrames, "contact-sheets", "snapshot-meta.json");
   if (fs.existsSync(snapshotMetaPath)) {
     const meta = readJsonFile(snapshotMetaPath);
     if (meta.sourceDir) {
       meta.sourceDir = normalizePortableTempPath(meta.sourceDir);
-      fs.writeFileSync(snapshotMetaPath, `${JSON.stringify(meta, null, 2)}\n`, "utf8");
+      writeJson(snapshotMetaPath, meta);
       touched.push("key-frames/contact-sheets/snapshot-meta.json");
     }
   }

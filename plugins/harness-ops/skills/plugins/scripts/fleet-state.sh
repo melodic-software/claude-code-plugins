@@ -563,27 +563,30 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
-# The selector projection, in ONE place. Pass 3 appends it to its own program so
-# a live run projects the block it just composed; `--from` runs it standalone
-# over a saved report. One code path means the CR-safe, tab-separated output
-# contract cannot drift between the two modes — the whole reason `--ids` exists
-# instead of a hand-written jq at each call site.
-# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-#
-# `version_triple` and `proven_downgrade` are the direction compare. A version
-# parses to a numeric [major, minor, patch] triple or to null; any prerelease or
-# build suffix is ignored, so `1.2.3-beta` and `1.2.3` tie and a tie is not a
-# downgrade. `capture` emits NOTHING on no match, so the `// null` is what keeps
-# an unparsable version failing open instead of dropping its record out of the
-# stream entirely. The capture reads the first three numeric components only, so
-# a fourth component is ignored: `1.2.3.4` and `1.2.3` tie, and a fleet versioned
-# that way is invisible to the guard. Extend the capture if such a fleet appears.
-PROJECTION_PROGRAM='
+# `version_triple` parses a version to a numeric [major, minor, patch] triple or
+# to null; any prerelease or build suffix is ignored, so `1.2.3-beta` and
+# `1.2.3` tie and a tie is not a downgrade. `capture` emits NOTHING on no match,
+# so the `// null` is what keeps an unparsable version failing open instead of
+# dropping its record out of the stream entirely. The capture reads the first
+# three numeric components only, so a fourth component is ignored: `1.2.3.4`
+# and `1.2.3` tie, and a fleet versioned that way is invisible to the guard.
+# Extend the capture if such a fleet appears. Every program that runs
+# PROJECTION_PROGRAM starts with this def, since the projection calls it.
+VERSION_TRIPLE_DEF='
   def version_triple:
     if type == "string" then
       ((capture("^v?(?<maj>[0-9]+)[.](?<min>[0-9]+)[.](?<pat>[0-9]+)") // null)
        | if . == null then null else [.maj, .min, .pat] | map(tonumber) end)
-    else null end;
+    else null end;'
+
+# The selector projection, in ONE place. Pass 3 appends it to its own program so
+# a live run projects the block it just composed; `--from` runs it standalone
+# over a saved report. One code path means the CR-safe, tab-separated output
+# contract cannot drift between the two modes — the whole reason `--ids` exists
+# instead of a hand-written jq at each call site. `proven_downgrade` is the
+# direction compare over two `version_triple` results.
+# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+PROJECTION_PROGRAM='
   def proven_downgrade($iv; $cv):
     ($iv | version_triple) as $i | ($cv | version_triple) as $c
     | ($i != null and $c != null and $c < $i);
@@ -692,7 +695,7 @@ if [[ -n "$FROM_REPORT" ]]; then
   # Same jq_to capture discipline as every other mode, so the CR strip is
   # identical; zero matches is success with EMPTY output, never a blank line.
   if ! jq_to FS_BLOCK -r --arg selector "$IDS_SELECTOR" \
-    ". as \$block | $PROJECTION_PROGRAM" "$FROM_REPORT"; then
+    "$VERSION_TRIPLE_DEF . as \$block | $PROJECTION_PROGRAM" "$FROM_REPORT"; then
     echo "ERROR: --from projection failed for selector '$IDS_SELECTOR': $FROM_REPORT" >&2
     exit 2
   fi
@@ -1125,12 +1128,7 @@ PASS2_PROGRAM='
     end'
 
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-PASS3_PROGRAM='
-  def triple:
-    if type == "string" then
-      ((capture("^v?(?<x>[0-9]+)[.](?<y>[0-9]+)[.](?<z>[0-9]+)") // null)
-       | if . == null then null else [.x, .y, .z] | map(tonumber) end)
-    else null end;
+PASS3_PROGRAM="$VERSION_TRIPLE_DEF"'
   (. | split("\u001d")) as $parts
   | ($parts[0] | fromjson) as $ctx
   | ($parts[1] | split("\n")
@@ -1242,14 +1240,14 @@ PASS3_PROGRAM='
   # catalog version when it parses, else the highest version any record of the id
   # holds; a version that does not parse is never labeled.
   | ($installed | group_by(.id)
-      | map({key: .[0].id, value: ([.[].version | triple | select(. != null)] | max)})
+      | map({key: .[0].id, value: ([.[].version | version_triple | select(. != null)] | max)})
       | from_entries) as $highest
   | ($installed | map(
       . as $r
-      | (($cv[$r.id] | triple) // $highest[$r.id]) as $ref
+      | (($cv[$r.id] | version_triple) // $highest[$r.id]) as $ref
       | $r + {label: (
-          if $r.linkedWorktree == true and ($r.version | triple) != null
-             and $ref != null and ($r.version | triple) < $ref
+          if $r.linkedWorktree == true and ($r.version | version_triple) != null
+             and $ref != null and ($r.version | version_triple) < $ref
           then "update ineffective, uninstall clears it" else null end)}
     )) as $installed
   | ([$catalog[0].plugins[]?.name // empty] | unique) as $catalog_names
@@ -1521,19 +1519,15 @@ emit_one() {
   # process substitution does NOT propagate its command's exit status, so a JSON
   # object left on stdout would be read as an id and handed to `claude plugin
   # update` verbatim. Under --ids stdout carries records or nothing at all.
-  if [[ "$rc" -ne 0 ]]; then
-    if [[ -n "$FS_BLOCK" ]]; then
-      if [[ -n "$IDS_SELECTOR" ]]; then
-        printf '%s\n' "$FS_BLOCK" >&2
-      else
-        printf '%s\n' "$FS_BLOCK"
-      fi
-    fi
-    return "$rc"
-  fi
   # Zero --ids matches is success with EMPTY output, never a blank line.
-  [[ -n "$FS_BLOCK" ]] && printf '%s\n' "$FS_BLOCK"
-  return 0
+  if [[ -n "$FS_BLOCK" ]]; then
+    if [[ "$rc" -ne 0 && -n "$IDS_SELECTOR" ]]; then
+      printf '%s\n' "$FS_BLOCK" >&2
+    else
+      printf '%s\n' "$FS_BLOCK"
+    fi
+  fi
+  return "$rc"
 }
 
 # --- Stage 3a: marketplace manifest walk-up ----------------------------------

@@ -204,6 +204,11 @@ def _crawl_dir(directory: str, base: str) -> str | None:
     return None if prefix is None else _join(prefix, name)
 
 
+def _cwd_base() -> str:
+    """The working directory as `module_name` takes its base."""
+    return os.path.normcase(os.path.abspath(os.getcwd()))
+
+
 def module_name(path: str, base: str) -> str:
     """The module mypy names `path` under `--explicit-package-bases` with
     `base` (an absolute, normcased directory) as the only base."""
@@ -370,7 +375,7 @@ def split_collisions(files: list[str]) -> tuple[list[str], list[tuple[str, str]]
     file of each derived module name is kept, as mypy keeps it, and every later
     one that derives the same name is held out, so mypy never meets the
     duplicate that would stop it before analysis."""
-    base = os.path.normcase(os.path.abspath(os.getcwd()))
+    base = _cwd_base()
     first: dict[str, str] = {}
     scope: list[str] = []
     held_out: list[tuple[str, str]] = []
@@ -449,7 +454,7 @@ def match_modules(modules: dict[str, Counts], files: list[str]) -> dict[str, str
     scope file whose derived name ends in `.` plus it (a base the consumer's
     config added, such as `mypy_path = src`); an ambiguous suffix matches
     nothing."""
-    base = os.path.normcase(os.path.abspath(os.getcwd()))
+    base = _cwd_base()
     derived = [(module_name(path, base), path) for path in files]
     matched: dict[str, str] = {}
     for name, path in derived:

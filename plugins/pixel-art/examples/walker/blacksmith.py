@@ -14,9 +14,11 @@ sys.path[:0] = [str(HERE), str(HERE.parent.parent / "scripts")]
 
 import kit  # noqa: E402
 
-RAMPS = dict(kit.DEFAULT_RAMPS)
-RAMPS["apron"] = ["#d8d0c4", "#b0a494", "#887868", "#3c342c"]
-RAMPS["hair"] = ["#6a6a72", "#4a4a52", "#2c2c34", "#141418"]
+RAMPS = {
+    **kit.DEFAULT_RAMPS,
+    "apron": ["#d8d0c4", "#b0a494", "#887868", "#3c342c"],
+    "hair": ["#6a6a72", "#4a4a52", "#2c2c34", "#141418"],
+}
 
 
 def apron(canvas, lay, direction, step):
@@ -28,8 +30,7 @@ def apron(canvas, lay, direction, step):
 
 
 def build():
-    walker = kit.Walker(size=48, preset="standard", ramps=RAMPS, hair="short", head="round", extra=apron)
-    return walker.spec()
+    return kit.Walker(size=48, preset="standard", ramps=RAMPS, hair="short", head="round", extra=apron).spec()
 
 
 if __name__ == "__main__":

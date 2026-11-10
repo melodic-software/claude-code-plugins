@@ -33,11 +33,11 @@ NAME = "scc"
 
 
 def probe() -> int:
-    exe = shutil.which("scc")
+    exe = shutil.which(NAME)
     if not exe:
-        print("scc not on PATH", file=sys.stderr)
+        print(f"{NAME} not on PATH", file=sys.stderr)
         return 1
-    output = version_output(exe, "scc")
+    output = version_output(exe, NAME)
     if output is None:
         return 1
     print(version_or_unknown(output))
@@ -152,11 +152,11 @@ def fill_missing(rows: list[dict], lane: str, wanted: list[str]) -> list[dict]:
 
 def collect(lane: str, measure: str, files: list[str]) -> int:
     if measure != "file_lines":
-        print(f"scc.py: cannot collect {measure}", file=sys.stderr)
+        print(f"{NAME}.py: cannot collect {measure}", file=sys.stderr)
         return 2
-    exe = shutil.which("scc")
+    exe = shutil.which(NAME)
     if not exe:
-        print("scc not on PATH", file=sys.stderr)
+        print(f"{NAME} not on PATH", file=sys.stderr)
         return 3
     rows: list[dict] = []
     for chunk in _chunks(files):
@@ -170,14 +170,14 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
             rows.extend(translate(result.stdout, lane, chunk))
         except (ValueError, TypeError) as exc:
             print(
-                f"scc.py: unparsable scc output ({exc}); stderr: {result.stderr.strip()}",
+                f"{NAME}.py: unparsable {NAME} output ({exc}); stderr: {result.stderr.strip()}",
                 file=sys.stderr,
             )
             return 3
     try:
         rows = fill_missing(rows, lane, files)
     except OSError as exc:
-        print(f"scc.py: {exc}", file=sys.stderr)
+        print(f"{NAME}.py: {exc}", file=sys.stderr)
         return 3
     for row in rows:
         print(json.dumps(row))

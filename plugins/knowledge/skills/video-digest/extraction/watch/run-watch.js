@@ -353,10 +353,10 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
     strategyOverride: strategyArg.override,
     harvestedLinks,
   });
-  const primaryTranscript =
-    written.transcripts.find((entry) => entry.entryIndex === written.primaryEntryIndex) ??
-    written.transcripts[0] ??
-    null;
+  const primaryWritten = written.transcripts.find(
+    (entry) => entry.entryIndex === written.primaryEntryIndex,
+  );
+  const primaryTranscript = primaryWritten ?? written.transcripts[0] ?? null;
   const degradationMetric = written.transcriptDegradation
     ? { transcriptDegradation: written.transcriptDegradation }
     : {};
@@ -453,11 +453,8 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
   // cues when no caption exists.
   // An explicit asr override that fails on a captioned entry writes no
   // transcript, so the caption still supplies the cues, as it always did.
-  const primaryCues = written.transcripts.find(
-    (entry) => entry.entryIndex === written.primaryEntryIndex,
-  )?.cues;
   const cues =
-    primaryCues ??
+    primaryWritten?.cues ??
     (primary.caption
       ? parseVttSegment(await fs.readFile(primary.caption.path, "utf8")).map((cue) => ({
           startSec: cue.startSec,
@@ -485,12 +482,15 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
   });
   // A killed ffmpeg yields a degraded result, not a rejection: write nothing from it.
   throwIfInterrupted();
+  const selectedCount = watching.selectedFrames.length;
+  const targetMinFrames = watching.targetMinFrames ?? 0;
+  const highVolume = watching.highVolume ?? false;
 
   state.status = "vision";
   state.frameSelection = {
-    selectedCount: watching.selectedFrames.length,
-    targetMinFrames: watching.targetMinFrames ?? 0,
-    highVolume: watching.highVolume ?? false,
+    selectedCount,
+    targetMinFrames,
+    highVolume,
     overCap: false,
     candidateCount: watching.candidateCount,
   };
@@ -508,12 +508,12 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
     contactSheetCount: manifest.contactSheetCount,
   };
   state = markPhaseComplete(state, "watching", {
-    selectedCount: watching.selectedFrames.length,
-    highVolume: watching.highVolume ?? false,
+    selectedCount,
+    highVolume,
     densificationWindows: watching.densificationWindows.length,
     frameCount: manifest.frameCount,
     contactSheetCount: manifest.contactSheetCount,
-    targetMinFrames: watching.targetMinFrames ?? 0,
+    targetMinFrames,
   });
   writeStderr("watch: watching end");
 
@@ -527,9 +527,9 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
         sliceDir,
         status: state.status,
         entryCount: entries.length,
-        highVolume: watching.highVolume ?? false,
-        selectedCount: watching.selectedFrames.length,
-        targetMinFrames: watching.targetMinFrames ?? 0,
+        highVolume,
+        selectedCount,
+        targetMinFrames,
         transcriptStrategy: primaryTranscript?.strategy ?? null,
         transcriptDegradation: written.transcriptDegradation,
         harvestedLinkCount: harvestedLinks.length,

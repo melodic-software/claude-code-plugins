@@ -3,6 +3,45 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.18.4] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [2.18.3] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [2.18.2] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [2.18.1] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [2.18.0] - 2026-11-10
+
+### Changed
+
+- `/planning:interview` hands decisions to `/architecture:record-decision` through a numbered round step, "Decision record" (step 8 of each frontier round, under `domain_docs`): each resolved decision about the system that weighed a real alternative is passed with its rationale and alternatives. The interview no longer carries its own copy of the ADR admission test; `record-decision` owns it. Without the `architecture` plugin the decision is recorded as an ADR candidate in its register row instead of a hand-written ADR.
+- `/planning:plan close-out` hands ADR decisions to `/architecture:record-decision` and drops its copy of the admission test; without that plugin it lists ADR candidates in the PR body.
+
+- `/planning:design-handoff` no longer carries its own copy of the ADR admission test. Its "ADR candidates" entry lists each resolved decision whose thread records a rejected alternative, quoting that alternative, and offers `/architecture:record-decision` for each; that skill applies the test. Without the `architecture` plugin the decisions are listed for a human to judge.
+
 ## [2.17.0] - 2026-11-10
 
 ### Added

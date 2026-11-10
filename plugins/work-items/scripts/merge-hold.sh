@@ -35,19 +35,13 @@ while (($#)); do
         err "$1 requires a value"
         exit 2
       }
-      if [[ "$1" == --repo ]]; then
-        [[ -z "$REPO" ]] || {
-          err "--repo given twice"
-          exit 2
-        }
-        REPO="$2"
-      else
-        [[ -z "$ISSUE" ]] || {
-          err "--issue given twice"
-          exit 2
-        }
-        ISSUE="$2"
-      fi
+      var=REPO
+      [[ "$1" == --repo ]] || var=ISSUE
+      [[ -z "${!var}" ]] || {
+        err "$1 given twice"
+        exit 2
+      }
+      printf -v "$var" '%s' "$2"
       shift 2
       ;;
     -h | --help)
@@ -75,7 +69,7 @@ command -v gh >/dev/null 2>&1 || {
 
 # Logins of every comment that carries the line, one per line.
 if ! authors="$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=100" \
-  --jq '.[] | select((.body // "") | contains("Hold: a human merges this")) | (.user.login // "")')"; then
+  --jq ".[] | select((.body // \"\") | contains(\"$HOLD_LINE\")) | (.user.login // \"\")")"; then
   err "comment read failed for $REPO#$ISSUE"
   exit 11
 fi

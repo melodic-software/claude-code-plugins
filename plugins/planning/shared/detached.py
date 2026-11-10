@@ -185,34 +185,51 @@ def release(proc):
         proc.returncode = 0  # Popen then neither warns about it nor waits for it at exit
 
 
+def _pid_ok(pid):
+    """True for an int pid (not a bool) above 1: never the idle or init process."""
+    return isinstance(pid, int) and not isinstance(pid, bool) and pid > 1
+
+
+def _output(cmd, timeout=5, env=None):
+    """cmd's stdout as text, or None when it cannot be run or times out."""
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=env).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+@contextlib.contextmanager
+def _handle(pid):
+    """A Windows query handle on pid, closed on exit; falsy when the process cannot be opened."""
+    h = _k32.OpenProcess(_QUERY, False, pid)
+    try:
+        yield h
+    finally:
+        if h:
+            _k32.CloseHandle(h)
+
+
 def describe(pid):
     """The pid's command line (POSIX) or executable path (Windows), or None when it cannot be read."""
     if WINDOWS:
-        h = _k32.OpenProcess(_QUERY, False, pid)
-        if not h:
-            return None
-        try:
+        with _handle(pid) as h:
+            if not h:
+                return None
             size = wintypes.DWORD(32768)
             buf = ctypes.create_unicode_buffer(size.value)
             return buf.value if _k32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(size)) else None
-        finally:
-            _k32.CloseHandle(h)
     try:
         return (Path("/proc") / str(pid) / "cmdline").read_bytes().replace(b"\0", b" ").decode("utf-8", "replace").strip()
     except OSError:
         pass
-    try:
-        out = subprocess.run(["ps", "-o", "args=", "-p", str(pid)], capture_output=True, text=True, timeout=5)
-    except (OSError, subprocess.SubprocessError):
-        return None
-    return out.stdout.strip() or None
+    return (_output(["ps", "-o", "args=", "-p", str(pid)]) or "").strip() or None
 
 
 def exe_name(pid):
     """The file name of the program pid runs, as the OS reports it, or None when pid is not running
     or that cannot be read: /proc/<pid>/exe on Linux, `ps -o comm=` elsewhere on POSIX, the image
     path on Windows. Unlike a command line, the process cannot set it."""
-    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 1 or not _running(pid):
+    if not _pid_ok(pid) or not _running(pid):
         return None
     if WINDOWS:
         seen = describe(pid)
@@ -222,18 +239,14 @@ def exe_name(pid):
     except OSError:
         if Path("/proc/self/exe").exists():
             return None  # Linux, and the link cannot be read (another user's process)
-    try:
-        out = subprocess.run(["ps", "-o", "comm=", "-p", str(pid)], capture_output=True, text=True, timeout=5)
-    except (OSError, subprocess.SubprocessError):
-        return None
-    return os.path.basename(out.stdout.strip()) or None
+    return os.path.basename((_output(["ps", "-o", "comm=", "-p", str(pid)]) or "").strip()) or None
 
 
 def command_line(pid):
     """pid's arguments as a list, or None when they cannot be read: /proc/<pid>/cmdline on Linux,
     `ps -ww -o args=` elsewhere on POSIX (split on spaces), and on Windows the CommandLine the
     Win32_Process CIM class reports (split on spaces outside double quotes)."""
-    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 1:
+    if not _pid_ok(pid):
         return None
     if WINDOWS:
         query = f"(Get-CimInstance Win32_Process -Filter 'ProcessId={pid}').CommandLine"
@@ -245,11 +258,7 @@ def command_line(pid):
         except OSError:
             pass
         cmd = ["ps", "-ww", "-o", "args=", "-p", str(pid)]
-    try:
-        out = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-    except (OSError, subprocess.SubprocessError):
-        return None
-    args = [a or b for a, b in re.findall(r'"([^"]*)"|(\S+)', out.stdout.strip())]
+    args = [a or b for a, b in re.findall(r'"([^"]*)"|(\S+)', (_output(cmd, timeout=30) or "").strip())]
     return args or None
 
 
@@ -258,42 +267,33 @@ def started(pid):
     its start names one process: a later program the OS gives the pid to starts later. Windows:
     the creation time GetProcessTimes reports; Linux: starttime in /proc/<pid>/stat; elsewhere on
     POSIX: `ps -o lstart=` in the C locale and UTC."""
-    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 1:
+    if not _pid_ok(pid):
         return None
     if WINDOWS:
-        h = _k32.OpenProcess(_QUERY, False, pid)
-        if not h:
-            return None
-        try:
+        with _handle(pid) as h:
+            if not h:
+                return None
             times = [wintypes.FILETIME() for _ in range(4)]
             if not _k32.GetProcessTimes(h, *(ctypes.byref(t) for t in times)):
                 return None
             return str(times[0].dwHighDateTime << 32 | times[0].dwLowDateTime)
-        finally:
-            _k32.CloseHandle(h)
     try:
         return (Path("/proc") / str(pid) / "stat").read_text().rsplit(")", 1)[1].split()[19]
     except (OSError, IndexError):
         if Path("/proc/self/stat").exists():
             return None  # Linux, and pid is gone or hidden
-    try:
-        out = subprocess.run(["ps", "-o", "lstart=", "-p", str(pid)], capture_output=True, text=True, timeout=5, env={**os.environ, "LC_ALL": "C", "TZ": "UTC"})
-    except (OSError, subprocess.SubprocessError):
-        return None
-    return " ".join(out.stdout.split()) or None
+    out = _output(["ps", "-o", "lstart=", "-p", str(pid)], env={**os.environ, "LC_ALL": "C", "TZ": "UTC"})
+    return " ".join((out or "").split()) or None
 
 
 def _running(pid):
     """True while the pid names a process that has not exited (a zombie counts as exited)."""
     if WINDOWS:
-        h = _k32.OpenProcess(_QUERY, False, pid)
-        if not h:
-            return False
-        try:
+        with _handle(pid) as h:
+            if not h:
+                return False
             code = wintypes.DWORD()
             return bool(_k32.GetExitCodeProcess(h, ctypes.byref(code))) and code.value == _STILL_ACTIVE
-        finally:
-            _k32.CloseHandle(h)
     with contextlib.suppress(ChildProcessError, OSError):
         if os.waitpid(pid, os.WNOHANG)[0] == pid:  # our own child that exited: reap it
             return False
@@ -308,17 +308,17 @@ def _running(pid):
         return stat.rsplit(")", 1)[1].split()[0] != "Z"
     except (OSError, IndexError):
         pass
-    try:
-        out = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True, timeout=5)
-    except (OSError, subprocess.SubprocessError):
+    out = _output(["ps", "-o", "stat=", "-p", str(pid)])
+    if out is None:
         return True
-    return bool(out.stdout.strip()) and not out.stdout.strip().startswith("Z")
+    state = out.strip()
+    return bool(state) and not state.startswith("Z")
 
 
 def alive(pid, marker, start=None):
     """True when pid runs, its command line or executable names `marker`, and, when `start` is
     given, its `started` value equals it."""
-    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 1 or not _running(pid):
+    if not _pid_ok(pid) or not _running(pid):
         return False
     seen = describe(pid)
     return seen is not None and marker.lower() in seen.lower() and (start is None or started(pid) == start)
@@ -331,18 +331,23 @@ def stop(pid, marker, start=None, wait=5.0):
         return False
     with contextlib.suppress(OSError):
         os.kill(pid, signal.SIGTERM)  # TerminateProcess on Windows
+    if _gone_within(pid, wait):
+        return True
+    if not WINDOWS:
+        with contextlib.suppress(OSError):
+            os.kill(pid, signal.SIGKILL)
+        _gone_within(pid, wait)
+    return not _running(pid)
+
+
+def _gone_within(pid, wait):
+    """True once pid has exited, checked every 50 ms for at most `wait` seconds."""
     deadline = time.monotonic() + wait
     while time.monotonic() < deadline:
         if not _running(pid):
             return True
         time.sleep(0.05)
-    if not WINDOWS:
-        with contextlib.suppress(OSError):
-            os.kill(pid, signal.SIGKILL)
-        deadline = time.monotonic() + wait
-        while time.monotonic() < deadline and _running(pid):
-            time.sleep(0.05)
-    return not _running(pid)
+    return False
 
 
 @contextlib.contextmanager

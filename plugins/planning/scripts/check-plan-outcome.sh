@@ -435,15 +435,13 @@ b_both="$(field b_both)"
 b_undelivered="$(field b_undelivered)"
 b_unknown_deliv="$(field b_unknown_deliv)"
 
+commas() { sed 's/^ //; s/ /,/g' <<<"$1"; }
+
 failed=0
+# report <name> <pass|fail> <detail>
 report() {
-  local name="$1" ok="$2" detail="$3"
-  if [[ "$ok" == pass ]]; then
-    printf 'criterion=%s status=pass %s\n' "$name" "$detail"
-  else
-    printf 'criterion=%s status=fail %s\n' "$name" "$detail"
-    failed=1
-  fi
+  printf 'criterion=%s status=%s %s\n' "$1" "$2" "$3"
+  [[ "$2" == pass ]] || failed=1
 }
 
 if [[ "$phases" -ge 1 ]]; then
@@ -470,8 +468,8 @@ if [[ "$tagged" -eq 0 ]]; then
   report decisions pass "tagged=0"
 elif [[ "$decisions_table" -eq 1 && "$decision_rows" -ge 1 ]]; then
   detail="tagged=$tagged rows=$decision_rows mapped=$mapped"
-  [[ -z "${id_without_row// /}" ]] || detail+=" id-without-row=$(sed 's/^ //; s/ /,/g' <<<"$id_without_row")"
-  [[ -z "${row_without_tag// /}" ]] || detail+=" row-without-tag=$(sed 's/^ //; s/ /,/g' <<<"$row_without_tag")"
+  [[ -z "${id_without_row// /}" ]] || detail+=" id-without-row=$(commas "$id_without_row")"
+  [[ -z "${row_without_tag// /}" ]] || detail+=" row-without-tag=$(commas "$row_without_tag")"
   if [[ "$detail" == *-without-* ]]; then
     report decisions fail "$detail"
   else
@@ -494,11 +492,9 @@ fi
 if [[ -z "${breakage_invalid// /}" ]]; then
   report planned-breakage pass "declarations=$breakages"
 else
-  invalid="${breakage_invalid# }"
-  report planned-breakage fail "invalid=${invalid// /,}"
+  report planned-breakage fail "invalid=$(commas "$breakage_invalid")"
 fi
 
-commas() { sed 's/^ //; s/ /,/g' <<<"$1"; }
 if [[ "$ac_ids" -eq 0 && "$ac_cited" -eq 0 ]]; then
   report criteria pass "ids=0"
   if [[ -n "${ac_noid// /}" ]]; then
@@ -558,9 +554,7 @@ else
   fi
 fi
 
-if [[ "$failed" -eq 0 ]]; then
-  printf 'phases=%s status=ok\n' "$phases"
-  exit 0
-fi
-printf 'phases=%s status=fail\n' "$phases"
-exit 1
+status=ok
+[[ "$failed" -eq 0 ]] || status=fail
+printf 'phases=%s status=%s\n' "$phases" "$status"
+exit "$failed"

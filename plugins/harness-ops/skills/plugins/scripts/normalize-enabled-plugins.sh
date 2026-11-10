@@ -121,31 +121,29 @@ is_sorted() {
   [[ "$cur" == "$sorted" ]]
 }
 
-report_project() {
-  local path="$1" n sorted_rc
-  if [[ ! -f "$path" ]]; then
-    echo "project-absent"
-    return 0
-  fi
-  if ! jq -e . "$path" >/dev/null 2>&1; then
-    echo "refused: unreadable-json ($path)" >&2
+require_json() {
+  if ! jq -e . "$1" >/dev/null 2>&1; then
+    echo "refused: unreadable-json ($1)" >&2
     exit 2
   fi
-  n=$(key_count "$path")
+}
+
+if [[ -n "$REPORT_PROJECT" ]]; then
+  if [[ ! -f "$REPORT_PROJECT" ]]; then
+    echo "project-absent"
+    exit 0
+  fi
+  require_json "$REPORT_PROJECT"
+  n=$(key_count "$REPORT_PROJECT")
   set +e
-  is_sorted "$path"
+  is_sorted "$REPORT_PROJECT"
   sorted_rc=$?
   set -e
   if [[ "$sorted_rc" -eq 0 ]]; then
     echo "project-sorted keys=$n"
-    return 0
+  else
+    echo "project-unsorted keys=$n"
   fi
-  echo "project-unsorted keys=$n"
-  return 0
-}
-
-if [[ -n "$REPORT_PROJECT" ]]; then
-  report_project "$REPORT_PROJECT"
   exit 0
 fi
 
@@ -156,11 +154,7 @@ if [[ ! -f "$FILE" ]]; then
   exit 0
 fi
 
-if ! jq -e . "$FILE" >/dev/null 2>&1; then
-  echo "refused: unreadable-json ($FILE)" >&2
-  exit 2
-fi
-
+require_json "$FILE"
 n=$(key_count "$FILE")
 set +e
 is_sorted "$FILE"

@@ -215,6 +215,8 @@ inside_root() {
 }
 
 arg_re='^[[:space:]]+"(.*)"[[:space:]]*\\$'
+label_re='^pin_[a-z_]* "(.*)"[[:space:]]*$'
+kind_re='^(pin_[a-z_]*) .*$'
 olds=()
 news=()
 pin_labels=()
@@ -222,9 +224,12 @@ unchanged=0
 for i in "${!call_lines[@]}"; do
   call="${call_lines[$i]}"
   old="$(sed -n "${sha_lines[$i]}p" "$test_file" | tr -d ' \t"')"
+  call_text="$(sed -n "${call}p" "$test_file")"
   # The label is the call's first argument, backslashes dropped; it ends at the line's last quote.
-  pin_label="$(sed -n "${call}p" "$test_file" | tr -d "\\\\" | sed 's/^pin_[a-z_]* "\(.*\)"[[:space:]]*$/\1/')"
-  kind="$(sed -n "${call}p" "$test_file" | sed 's/^\(pin_[a-z_]*\) .*/\1/')"
+  pin_label="${call_text//\\/}"
+  [[ "$pin_label" =~ $label_re ]] && pin_label="${BASH_REMATCH[1]}"
+  kind="$call_text"
+  [[ "$call_text" =~ $kind_re ]] && kind="${BASH_REMATCH[1]}"
   olds+=("$old")
   pin_labels+=("$pin_label")
   news+=("")

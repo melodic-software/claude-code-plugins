@@ -58,10 +58,9 @@ def _native(spec, out_dir, scale, spec_path, notice):
     if notice:
         print(notice)
     try:
-        files = render.render(spec, out_dir, scale, spec_path)
+        return render.render(spec, out_dir, scale, spec_path)
     except (ValueError, KeyError, OSError) as exc:
         raise RuntimeError(str(exc)) from exc
-    return files
 
 
 def _upscale_sheet(sheet_path, preview_path, scale):
@@ -71,11 +70,8 @@ def _upscale_sheet(sheet_path, preview_path, scale):
         return
     big = []
     for row in rows:
-        expanded = []
-        for pixel in row:
-            expanded.extend([pixel] * scale)
-        for _ in range(scale):
-            big.append(expanded)
+        expanded = [pixel for pixel in row for _ in range(scale)]
+        big.extend([expanded] * scale)
     render.write_png(preview_path, len(big[0]), len(big), big)
 
 
@@ -123,13 +119,16 @@ def _run_aseprite(spec, out_dir, scale, spec_path, env):
     executable = find_aseprite(env)
     if executable is None:
         return _native(spec, out_dir, scale, spec_path, NOTICES["aseprite-missing"])
+
+    def fallback(reason):
+        return _native(spec, out_dir, scale, spec_path, f"{reason}; rendered with the native backend")
+
     prepared = palette_mod.prepare_spec(spec, spec_path)
     plan = aseprite_backend.export_plan(prepared)
     if plan["noncontiguous"]:
-        return _native(
-            spec, out_dir, scale, spec_path,
+        return fallback(
             f"Aseprite tags need contiguous frames ({', '.join(plan['noncontiguous'])} are split in the "
-            "sheet order); rendered with the native backend")
+            "sheet order)")
     out_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         work = pathlib.Path(tmp)
@@ -148,24 +147,20 @@ def _run_aseprite(spec, out_dir, scale, spec_path, env):
             try:
                 proc = subprocess.run(argv, capture_output=True, text=True, timeout=120, env=env, check=False)
             except (OSError, subprocess.TimeoutExpired) as exc:
-                return _native(spec, out_dir, scale, spec_path, f"Aseprite failed ({exc}); rendered with the native backend")
+                return fallback(f"Aseprite failed ({exc})")
             if proc.returncode != 0:
                 detail = (proc.stderr or proc.stdout or "export failed").strip().splitlines()
                 tail = detail[-1] if detail else "export failed"
-                return _native(
-                    spec, out_dir, scale, spec_path,
-                    f"Aseprite failed ({tail}); rendered with the native backend")
+                return fallback(f"Aseprite failed ({tail})")
         if not sheet_path.is_file() or not data_path.is_file():
-            return _native(spec, out_dir, scale, spec_path, "Aseprite produced no sheet; rendered with the native backend")
+            return fallback("Aseprite produced no sheet")
         try:
             _check_sheet(sheet_path, prepared["palette"])
         except (RuntimeError, ValueError, OSError) as exc:
-            return _native(spec, out_dir, scale, spec_path, f"Aseprite sheet rejected ({exc}); rendered with the native backend")
+            return fallback(f"Aseprite sheet rejected ({exc})")
         problem = _normalize_sheet_json(data_path, plan)
         if problem:
-            return _native(
-                spec, out_dir, scale, spec_path,
-                f"Aseprite sheet rejected ({problem}); rendered with the native backend")
+            return fallback(f"Aseprite sheet rejected ({problem})")
         gif_dir = work / "gif"
         # The native render into out_dir drops GIFs of removed animations using the previous
         # sheet.json; do the same here, since this path only copies the new GIFs.
