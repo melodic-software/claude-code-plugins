@@ -5891,7 +5891,11 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     again (`_settle`). With `--idle-tick`, post-merge-dispatch's reuse of an
     earlier tick's report, which must also pass `postmerge.idle_refusal`;
     `--fresh` with it, for a report this job's check just made, skips that
-    rule's verifying runs (`idle_runs_refusal`)."""
+    rule's verifying runs (`idle_runs_refusal`).
+
+    `check-code --code-sha <sha>`: settle's first refusal alone, which reads
+    nothing from GitHub: exit 0 when the check code at this checkout is the
+    code at `<sha>`, 1 when settle would refuse the report as code-changed."""
     parser = argparse.ArgumentParser(
         prog="babysit_verify_evidence.py", allow_abbrev=False
     )
@@ -5928,6 +5932,8 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     settle.add_argument("--code-sha", required=True)
     settle.add_argument("--idle-tick", action="store_true")
     settle.add_argument("--fresh", action="store_true")
+    code = sub.add_parser("check-code", allow_abbrev=False)
+    code.add_argument("--code-sha", required=True)
     legacy = sub.add_parser("legacy-fails", allow_abbrev=False)
     legacy.add_argument("--repo", required=True)
     legacy.add_argument("--branch", default="main")
@@ -5955,6 +5961,8 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
         ):
             parser.error("head and --base-sha must be full commit SHAs")
         return _capped_close_main(args, now)
+    if args.command == "check-code":
+        return 0 if merge_policy.check_code_unchanged(args.code_sha) else 1
     if args.command == "settle":
         if args.fresh and not args.idle_tick:
             parser.error("--fresh needs --idle-tick")

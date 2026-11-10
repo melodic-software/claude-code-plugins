@@ -710,6 +710,68 @@ test("a PR-scoped run whose last report is refused as code-changed runs no fresh
   assert.match(run.stdout, /::notice::the last sweep's post-merge report predates a code change/);
 });
 
+// The code-changed refusal decided before the run cache and lane records are
+// read: the step's script, its check-code exit stubbed.
+const CODE_STEP = "Check whether the last sweep's report predates a code change";
+const codeCheck = ({ code = "0", files = true, exit = 1 } = {}) => {
+  const arm = job("enable-auto-merge");
+  const body = new RegExp(`- name: ${CODE_STEP.replace(/[.']/g, "\\$&")}\\n([\\s\\S]*?)(?=\\n {6}- name: )`).exec(arm)?.[1];
+  assert.ok(body, "a PR-scoped run checks the last report's code before its reads");
+  const script = /\n {8}run: \|\n([\s\S]*)$/.exec(body)[1].replace(/^ {10}/gm, "");
+  const dir = tempDir("pr-merge-code-check-");
+  const bin = join(dir, "bin");
+  mkdirSync(bin);
+  const args = join(dir, "args");
+  writeFileSync(args, "");
+  writeFileSync(join(bin, "python3"), `#!/bin/bash\necho "$@" >>'${args}'\nexit ${exit}\n`, { mode: 0o755 });
+  const report = join(dir, "post-merge");
+  mkdirSync(report);
+  if (files) {
+    writeFileSync(join(report, "post-merge.json"), "{}");
+    writeFileSync(join(report, "post-merge-code"), `${code}\n`);
+    writeFileSync(join(report, "post-merge-code-sha"), `${"c".repeat(40)}\n`);
+  }
+  const output = join(dir, "output");
+  writeFileSync(output, "");
+  const run = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", script], {
+    env: { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output },
+    encoding: "utf8",
+  });
+  return { body, status: run.status, output: readFileSync(output, "utf8"), calls: readFileSync(args, "utf8").trim().split("\n").filter(Boolean) };
+};
+
+test("a PR-scoped run whose passing last report ran other code reads neither the run cache nor the lane records", () => {
+  const changed = codeCheck();
+  assert.equal(changed.status, 0);
+  assert.equal(changed.output, "changed=true\n");
+  assert.deepEqual(changed.calls, [`.base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py check-code --code-sha ${"c".repeat(40)}`]);
+  assert.match(changed.body, /^ {8}id: code\n {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'workflow_dispatch' && inputs\.pr\n {8}continue-on-error: true\n/);
+  const arm = job("enable-auto-merge");
+  const at = (name) => arm.indexOf(`- name: ${name}\n`);
+  assert.ok(at("Read the post-merge report the last sweep kept") < at(CODE_STEP));
+  for (const name of ["Read the verdict reads the last run kept", "Start the run cache from them", "Read the lane records the last run kept"]) {
+    const step = new RegExp(`- name: ${name}\\n([\\s\\S]*?)(?=\\n {6}- name: )`).exec(arm)[1];
+    assert.match(step, /\n {10}&& steps\.code\.outputs\.changed != 'true'\n/, name);
+    assert.ok(at(CODE_STEP) < at(name), `${name} comes after the code check`);
+  }
+  assert.ok(at(CODE_STEP) < at(KEEP_STEP));
+});
+
+test("a last report that would not be reused, or whose code is unchanged, leaves the reads to run", () => {
+  for (const [why, options, checked] of [
+    ["unchanged code", { exit: 0 }, true],
+    ["a check-code error", { exit: 2 }, true],
+    ["a last check that failed", { code: "1" }, false],
+    ["a last check that could not judge", { code: "3" }, false],
+    ["no last report", { files: false }, false],
+  ]) {
+    const run = codeCheck(options);
+    assert.equal(run.status, 0, why);
+    assert.equal(run.output, "", why);
+    assert.equal(run.calls.length, checked ? 1 : 0, why);
+  }
+});
+
 test("the fresh check answers the last check's completed attempts with no read", () => {
   const run = keepReport({ settles: [1, 0], attempts: true });
   assert.equal(run.attempts, '{"attempts":[]}');

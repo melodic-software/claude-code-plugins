@@ -2481,13 +2481,53 @@ jobs:
           kill-switch-ok: true
           rate-limit-hold-ok: true
 
+      # A PR-scoped dispatch has no post-merge-dispatch job, so it reads the
+      # report the last sweep kept, from a trusted run on main
+      # (last-report.mjs), into the same place. The keep-report step below
+      # keeps it only under post-merge-dispatch's idle-tick rule, and
+      # otherwise runs the check fresh in its place. Read first, so a report
+      # whose check code changed ends the wake before the reads below.
+      - name: Read the post-merge report the last sweep kept
+        if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: last-report
+          ACTIONS_TOKEN: ${{ github.token }}
+          LAST_REPORT_DIR: ${{ runner.temp }}/post-merge
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
+        run: node .base/.github/scripts/pr-merge/last-report.mjs
+
+      # The keep-report step's first refusal, which reads nothing from GitHub:
+      # a passing report whose check ran other code ends the wake with no
+      # fresh check (settle's code-changed). Then neither the run cache nor
+      # the lane records below is read, as only the fresh check and the arm
+      # step use them. Any other answer, an error included, leaves changed
+      # unset, and keep-report decides as before.
+      - name: Check whether the last sweep's report predates a code change
+        id: code
+        if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr
+        continue-on-error: true
+        run: |
+          last=$RUNNER_TEMP/post-merge
+          [ -f "$last/post-merge.json" ] && [ -f "$last/post-merge-code" ] || exit 0
+          [[ $(cat "$last/post-merge-code") =~ ^[05]$ ]] || exit 0
+          sha=$(cat "$last/post-merge-code-sha" 2>/dev/null || true)
+          code=0
+          python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py \
+            check-code --code-sha "$sha" || code=$?
+          [ "$code" != 1 ] || echo "changed=true" >>"$GITHUB_OUTPUT"
+
       # The verdict reader of a scheduled or hand-started run ties untied
       # FAILs as the gate job does: the carried run cache here, and the
       # head-ref map after the post-merge report is settled. Any error leaves
       # none, and the reader reads GitHub instead. Event runs read no verdict
       # and need neither.
       - name: Read the verdict reads the last run kept
-        if: steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        if: >-
+          steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          && steps.code.outputs.changed != 'true'
         continue-on-error: true
         timeout-minutes: 2
         env:
@@ -2499,7 +2539,9 @@ jobs:
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs read
 
       - name: Start the run cache from them
-        if: steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        if: >-
+          steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          && steps.code.outputs.changed != 'true'
         continue-on-error: true
         env:
           CARRY_FROM: ${{ runner.temp }}/pr-merge-carried.json
@@ -2528,29 +2570,14 @@ jobs:
           name: pr-merge-post-merge-report
           path: ${{ runner.temp }}/post-merge
 
-      # A PR-scoped dispatch has no post-merge-dispatch job, so it reads the
-      # report the last sweep kept, from a trusted run on main
-      # (last-report.mjs), into the same place. The next step keeps it only
-      # under post-merge-dispatch's idle-tick rule, and otherwise runs the
-      # check fresh in its place.
-      - name: Read the post-merge report the last sweep kept
-        if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr
-        continue-on-error: true
-        timeout-minutes: 2
-        env:
-          API_BUDGET_TOKEN: github-token
-          API_BUDGET_SCRIPT: last-report
-          ACTIONS_TOKEN: ${{ github.token }}
-          LAST_REPORT_DIR: ${{ runner.temp }}/post-merge
-          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
-        run: node .base/.github/scripts/pr-merge/last-report.mjs
-
       # The lane records earlier checks proved, as post-merge-dispatch reads
       # them, for a room whose post-merge answer must be checked again: the
       # check answers those records with no read. Any error leaves no file,
       # and the check reads each record. Rules: lane-records.mjs.
       - name: Read the lane records the last run kept
-        if: steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        if: >-
+          steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          && steps.code.outputs.changed != 'true'
         continue-on-error: true
         timeout-minutes: 2
         env:
