@@ -45,6 +45,7 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Iterator
 
 MSYS_ROOTED = re.compile(r"^/([A-Za-z])(/.*)?$")
 DRIVE_LETTER = re.compile(r"^([A-Za-z]):[/\\](.*)$", re.DOTALL)
@@ -100,17 +101,21 @@ def cygpath_native(value: str) -> str | None:
     return result.stdout.strip() or None
 
 
-def tried(value: str) -> list[str]:
-    """Every spelling resolve_existing would attempt, in order, deduplicated."""
-    candidates = [value]
+def spellings(value: str) -> Iterator[str]:
+    """Every spelling of `value`, literal first; cygpath runs only once reached."""
+    yield value
     if ON_WINDOWS:
-        candidates.append(msys_to_native(value))
+        yield msys_to_native(value)
         converted = cygpath_native(value)
         if converted:
-            candidates.append(converted)
+            yield converted
     else:
-        candidates.append(native_to_msys(value))
-    return list(dict.fromkeys(c for c in candidates if c))
+        yield native_to_msys(value)
+
+
+def tried(value: str) -> list[str]:
+    """Every spelling resolve_existing would attempt, in order, deduplicated."""
+    return list(dict.fromkeys(c for c in spellings(value) if c))
 
 
 def resolve_existing(value: str) -> tuple[pathlib.Path, str | None]:
@@ -126,7 +131,9 @@ def resolve_existing(value: str) -> tuple[pathlib.Path, str | None]:
     literal = pathlib.Path(value)
     if literal.exists():
         return literal, None
-    for candidate in tried(value)[1:]:
+    for candidate in spellings(value):
+        if candidate == value:
+            continue
         path = pathlib.Path(candidate)
         if path.exists():
             return path, (

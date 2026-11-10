@@ -23,23 +23,7 @@
 #     which undercounts silently. Rule 2: fail, never degrade.
 #   * Accept a Windows drive-letter path without being told to. Rule 6.
 #
-# Usage:
-#   spawn-census.sh --shim-dir <dir> --label <label> [options] -- <command> [args...]
-#
-#   --shim-dir <dir>        REQUIRED. Stable directory prepended to PATH.
-#   --label <label>         REQUIRED. Report label, and the default ledger key.
-#   --tool <name>           Shim this tool. Repeatable. Replaces the default set.
-#   --ledger-key <key>      Ledger key, when the label varies but the arm does not.
-#   --ledger-reset          Forget this key's recorded PATH entry, once.
-#   --no-ledger             Skip the recorded-PATH-entry check entirely.
-#   --stdin <text>          Feed <text> to the subject on stdin.
-#   --stdin-file <path>     Feed <path> to the subject on stdin.
-#   --allow-windows-paths   Permit drive-letter paths in the subject command.
-#
-# Output, one line:
-#   <label> spawns=<n> rc=<subject exit> [<tool counts>]
-#
-# Exit: 0 the census ran; 2 a precondition failed.
+# Usage, options, output and exit codes: usage() below, printed by --help.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

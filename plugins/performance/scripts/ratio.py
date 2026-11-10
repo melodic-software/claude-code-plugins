@@ -60,6 +60,7 @@ import math
 import os
 import statistics
 import sys
+from typing import NoReturn
 
 import pathfix
 
@@ -71,7 +72,7 @@ DEFAULT_MIN_PAIRS = 20
 DISAGREEMENT_FACTOR = 2.0
 
 
-def fail(message: str) -> None:
+def fail(message: str) -> NoReturn:
     print(f"HARNESS FAIL: {message}", file=sys.stderr)
     raise SystemExit(2)
 
@@ -84,7 +85,7 @@ def env(name: str) -> str:
             f"BENCH_CONC to 1 would re-enable the paired ratio under concurrency for "
             f"any caller who forgot to pass it."
         )
-    return value or ""
+    return value
 
 
 def load(path: str) -> list[int]:
@@ -99,7 +100,6 @@ def load(path: str) -> list[int]:
             raw = handle.read()
     except OSError as error:
         fail(f"cannot read the sample file {path}: {error}")
-        raise  # unreachable
     values: list[int] = []
     for number, line in enumerate(raw.splitlines(), start=1):
         if not line.strip():
@@ -211,7 +211,6 @@ def main() -> int:
         minimum = int(minimum_raw)
     except ValueError:
         fail(f"BENCH_MIN_PAIRS must be an integer, got {minimum_raw!r}")
-        raise  # unreachable
 
     # A LOWERED floor records itself on the reported line. A gate that can be
     # quietly relaxed is not a gate: without this, BENCH_MIN_PAIRS=1 prints a
