@@ -11,8 +11,7 @@ graders:
     arm: 'with-only'
   - name: fallback-notice
     type: 'regex'
-    pattern: 'diagram_target\b[^\n]*\bexcalidraw\b[^\n]*\bauto\b'
-    flags: 'i'
+    pattern: 'diagram_target: excalidraw unavailable \([^\n]+\); using auto'
     target: 'last_message'
   - name: local-diagram
     type: 'regex'

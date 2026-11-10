@@ -4,8 +4,8 @@
       "answer": "diagram_target: excalidraw (docs/conventions/visualization.local.yaml)\ndiagram_target: excalidraw unavailable (no excalidraw server connected); using auto\n\n```mermaid\nflowchart TD\n  A[Request reset] --> B[Email token] --> C[Set password] --> D[Revoke sessions]\n```"
     },
     {
-      "answer": "Diagram_target excalidraw is not available in this terminal, so I fell back to auto.\n\n```text\nrequest -> token -> new password -> revoke sessions\n```",
-      "why": "different wording and case"
+      "answer": "- `diagram_target: excalidraw unavailable (no excalidraw server connected; Claude Code terminal); using auto`\n\n```text\nrequest -> token -> new password -> revoke sessions\n```",
+      "why": "exact line inside a list item and backticks, with a longer reason"
     }
   ],
   "fail": [
@@ -16,6 +16,10 @@
     {
       "answer": "diagram_target: excalidraw (docs/conventions/visualization.local.yaml)\n\nI drew the flow on your Excalidraw canvas.",
       "why": "resolved but never fell back to auto"
+    },
+    {
+      "answer": "Diagram_target excalidraw is not available in this terminal, so I fell back to auto.\n\n```text\nrequest -> token -> new password -> revoke sessions\n```",
+      "why": "prose explanation instead of the one-line form the skill requires"
     }
   ]
 }
