@@ -42,16 +42,13 @@ function Get-CapacityFromBatteryReport {
 
     # Match "<number> mWh" values, not the English labels (translated on localized Windows):
     # design capacity comes first, then full charge; comma or dot thousands separators.
-    $pattern = '([\d][\d.,]*)\s*mWh'
-    $mwhMatches = [regex]::Matches($html, $pattern, 'IgnoreCase')
+    $mwhMatches = [regex]::Matches($html, '([\d][\d.,]*)\s*mWh', 'IgnoreCase')
     if ($mwhMatches.Count -lt 2) {
-        Write-Verbose ('Get-CapacityFromBatteryReport: expected at least 2 mWh values, ' +
-            "found $($mwhMatches.Count).")
+        Write-Verbose "Get-CapacityFromBatteryReport: expected at least 2 mWh values, found $($mwhMatches.Count)."
         return $null
     }
-
-    $design = [int](($mwhMatches[0].Groups[1].Value -replace '[,.]', ''))
-    $full = [int](($mwhMatches[1].Groups[1].Value -replace '[,.]', ''))
+    $design = [int]($mwhMatches[0].Groups[1].Value -replace '[,.]', '')
+    $full = [int]($mwhMatches[1].Groups[1].Value -replace '[,.]', '')
     return [pscustomobject]@{ design_mwh = $design; full_mwh = $full }
 }
 
@@ -91,8 +88,7 @@ $CheckBody = {
                     $reportGenerated = $true
                     $capacity = Get-CapacityFromBatteryReport -HtmlPath $ReportPath
                     if ($capacity -and $capacity.design_mwh -gt 0 -and $capacity.full_mwh -gt 0) {
-                        $fullPct = [math]::Round(
-                            ($capacity.full_mwh / $capacity.design_mwh) * 100, 1)
+                        $fullPct = [math]::Round(($capacity.full_mwh / $capacity.design_mwh) * 100, 1)
                     }
                 }
             } catch {
@@ -125,8 +121,8 @@ $CheckBody = {
                     }
                 })
             full_capacity_pct = $fullPct
-            design_mwh        = if ($capacity) { $capacity.design_mwh } else { $null }
-            full_mwh          = if ($capacity) { $capacity.full_mwh } else { $null }
+            design_mwh        = $capacity ? $capacity.design_mwh : $null
+            full_mwh          = $capacity ? $capacity.full_mwh : $null
             report_generated  = $reportGenerated
             report_path       = $ReportPath
         }

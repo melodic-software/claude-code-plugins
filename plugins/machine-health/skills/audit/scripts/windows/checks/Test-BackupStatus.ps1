@@ -45,12 +45,10 @@ $CheckBody = {
     $needsAdmin = [System.Collections.Generic.List[string]]::new()
     $levels = foreach ($s in $sources) {
         switch ($s.State) {
-            'present' { $present.Add($s.Source); 'OK' }
-            'absent' { 'OK' }
-            'unknown' { 'OK' }
-            'needs-admin' { $needsAdmin.Add($s.Source); 'UNKNOWN' }
-            default { 'UNKNOWN' }
+            'present' { $present.Add($s.Source) }
+            'needs-admin' { $needsAdmin.Add($s.Source) }
         }
+        ($s.State -in 'present', 'absent', 'unknown') ? 'OK' : 'UNKNOWN'
     }
     $severity = Get-WorstSeverity -Levels @($levels)
     if ($severity -eq 'OK' -and $present.Count -eq 0) { $severity = 'WARN' }
