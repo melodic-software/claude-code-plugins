@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.8] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [1.0.7] - 2026-11-10
 
 ### Changed

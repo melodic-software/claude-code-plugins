@@ -3,6 +3,14 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.3] - 2026-11-10
+
+### Changed
+
+- The scan, write and setup skills point at the live docs sections for worktree isolation, the
+  file types Read handles and plugin reconfiguration instead of restating them, and the `/bug`
+  boundary no longer describes what `/bug` sends or where. No behavior change.
+
 ## [0.21.2] - 2026-11-09
 
 ### Changed
