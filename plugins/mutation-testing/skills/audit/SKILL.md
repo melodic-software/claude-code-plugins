@@ -266,8 +266,8 @@ Under `--exercised`, step 1 is the mapped-line set and steps 2 to 4 change as
 **At most one mutant per changed line.** Not every operator at every location. The marginal value of
 a second mutant on a line is near zero: if the line is unchecked, one mutant proves it.
 
-Where the configured tool supports diff-scoped generation, use it. `--since`, `--incremental`,
-`--git-diff-lines`. Where `tool: manual`, apply the single-operator protocol from the `principles`
+Where the configured tool supports diff-scoped generation, use it (each tool's flag: `tooling.md`
+"Established tools", Diff-scoping flag column). Where `tool: manual`, apply the single-operator protocol from the `principles`
 skill's `tooling.md`: prefer statement/block removal, then relational-operator inversion.
 
 ## Phase 3: Execute
@@ -431,9 +431,9 @@ the consumer surfaces such a row to a human rather than auto-applying it. The sp
   in the next (a design inference, not a sourced finding: the flaky-test gotcha from the generator
   side). During mutation runs pin the seed or derandomize the tool, and pin the killing
   counterexample as an explicit example so the kill replays whatever the generator draws.
-  Pointer: Hypothesis `derandomize` in <https://hypothesis.readthedocs.io/en/latest/reference/api.html>;
-  fast-check seed and `examples` in <https://fast-check.dev/docs/configuration/user-definable-values/>.
-  As of 2026-10-06; recheck when either tool's major release redefines those settings.
+  Pointer: Hypothesis [`settings.derandomize`](https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.settings.derandomize);
+  fast-check `examples` in [Run against custom values](https://fast-check.dev/docs/configuration/user-definable-values/#run-against-custom-values)
+  and its seed in <https://fast-check.dev/docs/configuration/user-definable-values/>. As of 2026-11-10; recheck when either tool's major release redefines those settings.
 - **Verify the new test actually kills the mutant**. Re-run this skill scoped to that file. This is
   the property that makes the loop trustworthy: the agent that wrote the test cannot grade itself
   into a pass, because the harness re-runs the mutant. A test that does not turn the mutant red has
