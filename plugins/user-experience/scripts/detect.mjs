@@ -125,12 +125,12 @@ function inside(p) {
   if (typeof p !== "string" || p === "" || isAbsolute(p) || /^[A-Za-z]:|\\/.test(p)) return null;
   const escapes = (rel) => rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel);
   const root = resolve(opts.project);
-  const abs = resolve(root, p);
-  if (escapes(relative(root, abs))) return null;
+  const rel = relative(root, resolve(root, p));
+  if (escapes(rel)) return null;
   try {
     const realRoot = realpathSync(root);
     let at = root;
-    for (const part of relative(root, abs).split(sep).filter(Boolean)) {
+    for (const part of rel.split(sep).filter(Boolean)) {
       at = join(at, part);
       let stat;
       try {
@@ -144,7 +144,7 @@ function inside(p) {
   } catch {
     return null; // a dangling symlink, or a root that cannot be resolved
   }
-  return relative(root, abs).split(sep).join("/") || ".";
+  return rel.split(sep).join("/") || ".";
 }
 
 /** Where the team file is: {path, home} or {path, cause}; {path, file, seam} for --team. The one
@@ -174,21 +174,19 @@ const notRead = (e) => (e.code === "ENOENT" ? "not found" : `unreadable (${e.cod
  * so it stands in for the one the convention home names and the other layers are not read. */
 function readTeam({ path, file, home, seam, cause }) {
   if (cause) return { path, cause };
-  let scratch = null;
+  if (!seam) return checkTeam(path, home, false);
+  let text;
   try {
-    if (seam) {
-      let text;
-      try {
-        text = readFileSync(file, "utf8");
-      } catch (e) {
-        return { path, cause: notRead(e) };
-      }
-      scratch = mkdtempSync(join(tmpdir(), "ux-home-"));
-      writeFileSync(join(scratch, TEAM_FILE), text);
-    }
-    return checkTeam(path, seam ? scratch : home, seam);
+    text = readFileSync(file, "utf8");
+  } catch (e) {
+    return { path, cause: notRead(e) };
+  }
+  const scratch = mkdtempSync(join(tmpdir(), "ux-home-"));
+  try {
+    writeFileSync(join(scratch, TEAM_FILE), text);
+    return checkTeam(path, scratch, true);
   } finally {
-    if (scratch) rmSync(scratch, { recursive: true, force: true });
+    rmSync(scratch, { recursive: true, force: true });
   }
 }
 
@@ -217,11 +215,12 @@ function checkTeam(path, home, seam) {
   const { version, routing: routingSchema } = TEAM_SCHEMA.properties;
   if (doc.version !== version.const) return { path, cause: `version ${quote(doc.version ?? null)} is not one this plugin reads (${version.const})` };
   const { routing } = doc;
-  if (routing == null) return { path, doc, notes, from };
-  if (!isMapping(routing)) return { path, cause: "malformed: routing is not a mapping" };
-  const major = typeof routing.version === "number" ? Math.trunc(routing.version) : routing.version;
-  const known = routingSchema.properties.version.const;
-  if (major !== known) return { path, cause: `routing.version ${quote(routing.version ?? null)} is not one this plugin reads (${known})` };
+  if (routing != null) {
+    if (!isMapping(routing)) return { path, cause: "malformed: routing is not a mapping" };
+    const major = typeof routing.version === "number" ? Math.trunc(routing.version) : routing.version;
+    const known = routingSchema.properties.version.const;
+    if (major !== known) return { path, cause: `routing.version ${quote(routing.version ?? null)} is not one this plugin reads (${known})` };
+  }
   return { path, doc, notes, from };
 }
 
@@ -364,30 +363,30 @@ function teamSettings(doc, warn, from) {
   // relative() gives "" for the root, so an existing path that resolves there (a symlink to the
   // root) is the root; a missing path whose nearest existing ancestor is the root is not, and
   // resolves to its tail under the root.
-  const resolvesToRoot = (rel) => {
-    const { real, exists } = resolved(rel);
-    return exists && real === "";
-  };
-  const resolvesReserved = (rel) => resolvesToRoot(rel) || reserved(resolved(rel).real);
+  const resolvesToRoot = ({ real, exists }) => exists && real === "";
   const usable = (p) => {
     const rel = inside(p);
-    return rel === null || reserved(rel) || resolvesReserved(rel) ? null : rel;
+    if (rel === null || reserved(rel)) return null;
+    const r = resolved(rel);
+    return resolvesToRoot(r) || reserved(r.real) ? null : rel;
   };
-  const ROOT_REASON = "resolves to the repository root, which holds tool config and secrets; name a subdirectory";
-  const why = (p, fallback) => {
+  // Why `p` is not usable: the repository root has its own reason.
+  const why = (p) => {
     const rel = inside(p);
-    return rel === "." || (rel !== null && resolvesToRoot(rel)) ? ROOT_REASON : fallback;
+    return rel === "." || (rel !== null && resolvesToRoot(resolved(rel)))
+      ? "resolves to the repository root, which holds tool config and secrets; name a subdirectory"
+      : "is outside the project, starts with a dot, or is not a path";
   };
   const paths = (k) =>
     listAt(doc[k], k, at(k)).flatMap((p) => {
       const rel = usable(p);
-      if (rel === null) at(k)(`${k} entry ${quote(p)} ${why(p, "is outside the project, starts with a dot, or is not a path")}; dropped`);
+      if (rel === null) at(k)(`${k} entry ${quote(p)} ${why(p)}; dropped`);
       return rel === null ? [] : [rel];
     });
   let home = DEFAULTS.output_home;
   if (doc.output_home != null) {
     home = usable(doc.output_home);
-    if (home === null) at("output_home")(`output_home ${quote(doc.output_home)} ${why(doc.output_home, "is outside the project, starts with a dot, or is not a path")}; default used`);
+    if (home === null) at("output_home")(`output_home ${quote(doc.output_home)} ${why(doc.output_home)}; default used`);
   }
   return { jtbd_school: school, research_paths: paths("research_paths"), persona_paths: paths("persona_paths"), output_home: home };
 }
