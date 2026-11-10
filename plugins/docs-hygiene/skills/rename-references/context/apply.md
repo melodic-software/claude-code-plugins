@@ -41,7 +41,7 @@ Identical to audit-mode Phase 2: run all patterns from [patterns.md](patterns.md
 
 ### Phase 3: Triage
 
-Classify per [triage.md](triage.md) into Certain / Chain-context / Ambiguous / Excluded buckets; for a glossary-driven rename, the stored-value and user-facing-copy hits of [triage.md](triage.md) "Special case: Glossary-driven renames" come out first, never enter a bucket that edits, and are recorded as spans.
+Classify per [triage.md](triage.md) into Certain / Chain-context / Ambiguous / Excluded buckets; for a glossary-driven rename, the stored-value, user-facing-copy and ADR-file-name hits of [triage.md](triage.md) "Special case: Glossary-driven renames" come out first, never enter a bucket that edits, and are recorded as spans.
 
 ### Phase 4: Confirm
 
@@ -118,8 +118,8 @@ actionable re-presents the same match at Outcome B forever, leaving only two exi
 known false positive or aborting with a partial result: the same non-terminating loop the residue
 rule closes, reached through the other door.
 
-**Glossary report-only spans are not actionable either.** The stored-value and user-facing-copy
-spans Phase 3 recorded for a glossary-driven rename are subtracted from the actionable count the
+**Glossary report-only spans are not actionable either.** The stored-value, user-facing-copy and
+ADR-file-name spans Phase 3 recorded for a glossary-driven rename are subtracted from the actionable count the
 same way, and listed in the Phase 7 summary on their own lines, apart from residue and skips.
 
 So Phase 4 must RECORD each skip as `(file, line, start, end)`, the same occurrence key
@@ -191,6 +191,9 @@ When Phase 6 reports an actionable count of 0:
    `<R>`: residue was never proposed, a skip was proposed and declined. Collapsing them hides
    that the user made a decision, and a reader checking why a surviving `<old>` was left alone
    needs to know which of the two it was.
+
+   For a glossary-driven rename, end the summary with the layer rows from
+   [triage.md](triage.md) "Reporting bucket counts".
 
 2. Suggest follow-up per `../SKILL.md` "Skill chaining":
 
