@@ -78,6 +78,15 @@ test("a work-resolve-issue run's sweep 5 minutes after a full sweep skips, namin
   assert.equal(calls.length, 2, "one run listing and one artifact listing");
 });
 
+// A skipped sweep ends green with no artifact, so each one since the last full
+// sweep costs an artifact listing before the full sweep is found.
+test("three skipped sweeps ahead of a full one in the gap: the sweep skips, in five calls", async () => {
+  const skipped = [42897900003, 42897900002, 42897900001].map((id, i) => runAt(id, `2026-11-10T20:5${4 - i}:00Z`));
+  const { github, calls } = fakeGitHub([...skipped, runAt(42897142652, "2026-11-10T20:45:00Z")], { 42897142652: [verdicts(1)] });
+  assert.equal((await run({}, github)).output, "skip=true\n");
+  assert.equal(calls.length, 5, "one run listing and four artifact listings");
+});
+
 test("the gap is sweep-gap-minutes: a sweep exactly 15 minutes ago skips, one 15 minutes and a second ago runs", async () => {
   const at = (updatedAt) => fakeGitHub([runAt(42897000001, updatedAt)], { 42897000001: [verdicts(1)] }).github;
   assert.equal((await run({}, at("2026-11-10T20:40:00Z"))).output, "skip=true\n");
