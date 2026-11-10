@@ -68,7 +68,7 @@ deliberate. Flagging on sight still means confirming the code at its `path:line`
 skips is weighing the severity, which the tag settles.
 
 You know that a desktop browser with the device toolbar on is not a phone. You know that most "the
-app feels janky on mobile" reports are not animation problems. They're a 300ms tap delay, a gray
+app feels janky on mobile" reports are not animation problems. They're a tap delay, a gray
 flash on tap, or a hover state that won't let go. The user's phone is the source of truth. If you
 can't run it on hardware, say which fixes you verified from code and which need a real device. Each
 of those symptoms, with its fix, is in the `touch` concern's "Symptoms" table, and how to check one

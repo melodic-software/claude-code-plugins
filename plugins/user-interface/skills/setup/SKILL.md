@@ -8,10 +8,10 @@ disable-model-invocation: true
 # Set up user-interface
 
 The plugin reads its settings through four layers, later wins per key: plugin defaults, the
-plugin's `css_*` userConfig options, the team file and the personal `.local` file. The order, merge rules and locations are owned by `docs/adr/0061-*` in the marketplace
-repository (ADR 0075,
-`docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md`,
-supersedes ADR 0061's layers and paths) and by the resolver header in `${CLAUDE_PLUGIN_ROOT}/scripts/lib/config-cascade.mjs`;
+plugin's `css_*` userConfig options, the team file and the personal `.local` file. The order, merge rules and locations are owned by ADR 0075 in the marketplace
+repository
+(`docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md`,
+which supersedes ADR 0061) and by the resolver header in `${CLAUDE_PLUGIN_ROOT}/scripts/lib/config-cascade.mjs`;
 keys and allowed values by `${CLAUDE_PLUGIN_ROOT}/reference/team.schema.json`. Never name a layer
 path from memory: take each one from detect's `config.layers[].path`.
 
@@ -68,10 +68,9 @@ remediation line per FAIL or WARN. Write nothing except the userConfig file abov
 - **Personal file ignored.** When the `local` layer's path is null (`home_error` is set), INFO: no
   personal path to test. Otherwise decide on the exit status of
   `git -C "<project root>" check-ignore <path>` run without `-v`; run it with `-v` only to show
-  the matching rule. Pointer: <https://git-scm.com/docs/git-check-ignore>. As of: 2026-10-11.
+  the matching rule. Pointer: [git-check-ignore § EXIT STATUS](https://git-scm.com/docs/git-check-ignore#_exit_status). As of: 2026-11-10.
   Recheck: that page changes what `-v` prints or the exit status. Exit 0: PASS. Exit 1: FAIL, since a personal
-  file must never be committed; `apply` adds the entry. Any other exit (128 outside a git
-  repository): WARN with its stderr line. None of these stops `check`.
+  file must never be committed; `apply` adds the entry. Any other exit: WARN with its stderr line. None of these stops `check`.
 - **Worktree.** Read the first `worktree` line of `git -C "<project root>" worktree list --porcelain`:
   that is the main checkout. When it differs from the project root, the main checkout has a
   `<home>/user-interface.local.yaml` or `.md` and this checkout has neither, WARN: the personal file
@@ -100,23 +99,27 @@ remediation line per FAIL or WARN. Write nothing except the userConfig file abov
 
 The userConfig layer is not a file this skill writes. To change a `css_*` option, send the user to
 Claude Code's native flow, per the marketplace's plugin-reconfiguration convention
-(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
+(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#verified-version-record>,
 which owns the verified-version record): interactive `/plugin configure user-interface@<marketplace>`
-any time. Headless, preferred (Claude Code 2.1.285 or later):
-`claude plugin configure user-interface@<marketplace> --values-stdin < values.json`, with
-`values.json` holding `{"css_important": "allow"}` (every value a string, booleans included; keys
-left out keep their saved values). Headless fallback (an older release):
+any time. Headless, preferred (a release that has `plugin configure`; the convention's routes
+name the floor): `claude plugin configure user-interface@<marketplace> --values-stdin < values.json`,
+with `values.json` holding `{"css_important": "allow"}` and every value, booleans included,
+written as a JSON string. Headless fallback (an older release):
 `claude plugin install user-interface@<marketplace> -s <scope> --config css_important=allow`
-(repeatable per key); against an already-installed plugin it prints `already installed` and still
-writes the value. Do **not** uninstall to reconfigure: that drops this plugin's stored
-`pluginConfigs` entry, resetting every option to its manifest default. Scope: the value always
-lands in user settings. Run either route from the project the plugin is installed in (`configure`
-has no scope flag). For the rerun, `-s` defaults to `user`, so pass the scope `claude plugin list`
-reports, or the rerun adds a second install record at the scope passed and enables the plugin
-there; from the home directory, where the list can label one settings file both `user` and
-`project`, pass `user`. Check each route's own failure signal: `configure` rejects a bad value with exit 1 and saves
-nothing, but stores an empty string as `""`; the rerun prints a warning for a rejected value yet
-exits 0, so read its output. The rendered `${user_config.*}` values are fixed when this skill loads,
+(repeatable per key), rerun against the installed plugin. Do **not** uninstall to reconfigure.
+Run either route from the project the plugin is installed in. For the rerun, pass the scope
+`claude plugin list` reports; from the home directory, where the list can label one settings file
+both `user` and `project`, pass `user`. Check each route's own failure signal: read both its exit
+code and its output before reporting a value saved. The convention's
+[caveats section](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries)
+records why for each of these rules; this skill does not restate it. Pointer: when what a route
+prints, rejects, stores or resets is in doubt, fetch
+[plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
+[§ plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install) and
+[§ What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps)
+live. As of: 2026-11-10. Recheck: either convention heading is renamed, or one of those sections
+changes how a route reports a rejected value, what a rerun at another scope adds, or what an
+uninstall deletes. The rendered `${user_config.*}` values are fixed when this skill loads,
 so rerun `check` in a **fresh session** and report the provenance it observes, never an unobserved
 change. The plugin README's Options section lists every option. Pointer:
 <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>. As of: 2026-11-04.

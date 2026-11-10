@@ -157,8 +157,8 @@ feature-flag panels. For each, find the mount and check it's gated.
 
 Every inspector, control panel, and devtools drawer found in recon sits behind this gate. A dynamic
 import behind the gate keeps the package out of the production bundle; a static import with a gated
-render still ships the bytes. `<Leva hidden>` hides the panel but `useControls` values still drive
-the UI, so check that the shipped defaults are the approved ones. When a control panel was used to
+render still ships the bytes. A hidden Leva panel still gets the defaults check: confirm the
+shipped `useControls` defaults are the approved ones (what `hidden` turns off: the pointer below). When a control panel was used to
 dial something in (`/prototype:explore-directions controls`, `/prototype:build-generator`), the
 approved values live in a saved config file that production imports, never in a panel default. With
 no such file to compare against, put the defaults check on the human list.

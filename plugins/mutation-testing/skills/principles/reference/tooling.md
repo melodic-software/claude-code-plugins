@@ -42,8 +42,9 @@ read the project's own config (defaults are user-changeable). `none, …` means 
 read, because the regime is a constant for that tool. Evidence classes differ per row and must not be
 collapsed across tools:
 
-- **StrykerJS `inPlace`** is a documented option with default `false`
-  (<https://stryker-mutator.io/docs/stryker-js/configuration/>). `false` is out-of-tree; `true`
+- **StrykerJS `inPlace`** is a documented option
+  ([configuration § inPlace](https://stryker-mutator.io/docs/stryker-js/configuration/#inplace-boolean),
+  as of 2026-11-10; recheck when that section changes what `true` writes). `false` is out-of-tree; `true`
   rewrites the working file once under mutant schemata (in-tree whole-file), not per-mutant
   apply/revert cycles.
 - **Stryker.NET / Stryker4s / Infection `none`** are negatives by enumerating the published options
