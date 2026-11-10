@@ -185,8 +185,7 @@ apply() {
       # Until the YAML exists, the retired team file seeds it, so the first
       # write carries those keys over.
       if [[ ! -f "$target" ]]; then
-        [[ -f "$legacy_md" ]] && refuse_symlink "$legacy_md"
-        if [[ -f "$legacy_md" ]] &&
+        if [[ -f "$legacy_md" ]] && refuse_symlink "$legacy_md" &&
           [[ "$(awk -v BLOCK=1 -f "$PARSER" "$legacy_md")" == block$'\t'* ]]; then
           seed="$legacy_md" seed_block=1
         elif [[ -f "$legacy_yaml" ]]; then
@@ -239,8 +238,7 @@ apply() {
     exit 1
   fi
 
-  printf '%s\n' "$body" >"$tmp/body"
-  cp "$tmp/body" "$tmp/new"
+  printf '%s\n' "$body" >"$tmp/new"
   : >"$tmp/old"
   old_label=/dev/null
   [[ -f "$target" ]] && cp "$target" "$tmp/old" && old_label="$target"
@@ -253,7 +251,7 @@ apply() {
     printf 'would write: %s (%s layer)\n' "$target" "$LAYER"
     grep -q '#' "$tmp/old" &&
       printf 'note: the file is rewritten whole; its comments are not kept\n'
-    grep -q '^  frontier_guard: false$' "$tmp/body" &&
+    grep -q '^  frontier_guard: false$' "$tmp/new" &&
       printf 'note: fanout.frontier_guard false lets fan-out stages run on a frontier session model\n'
     diff -u --label "$old_label" --label "$target" "$tmp/old" "$tmp/new"
     return 0

@@ -7,8 +7,7 @@
 # args.pointers; a value row's key is its full dotted key.
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RESOLVER="$SCRIPT_DIR/../../../scripts/resolve-roles.sh"
+PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../.."
 JSON=0
 if [[ "${1:-}" == --json ]]; then
   JSON=1
@@ -16,7 +15,7 @@ if [[ "${1:-}" == --json ]]; then
 fi
 OWNER="${1:-}"
 
-pointers="$("$RESOLVER" pointers)" || exit
+pointers="$("$PLUGIN_DIR/scripts/resolve-roles.sh" pointers)" || exit
 if [[ -n "$OWNER" ]] && ! awk -F '\t' -v o="$OWNER" '$1 == o { found = 1 } END { exit !found }' <<<"$pointers"; then
   printf 'list-pointers: unknown owner %s (valid: %s)\n' "$OWNER" \
     "$(cut -f1 <<<"$pointers" | sort -u | tr '\n' ' ')" >&2
@@ -24,7 +23,7 @@ if [[ -n "$OWNER" ]] && ! awk -F '\t' -v o="$OWNER" '$1 == o { found = 1 } END {
 fi
 pointer_rows="$(awk -F '\t' -v o="$OWNER" 'o == "" || $1 == o' <<<"$pointers")"
 # A role's values are roles.<role>.*; the fan-out guard's are fanout.* and frontier.
-value_rows="$(awk -f "$SCRIPT_DIR/../../../scripts/yaml-subset.awk" "$SCRIPT_DIR/../../../reference/defaults.yaml" |
+value_rows="$(awk -f "$PLUGIN_DIR/scripts/yaml-subset.awk" "$PLUGIN_DIR/reference/defaults.yaml" |
   awk -F '\t' -v o="$OWNER" '
     $1 ~ /(pointer[^.]*|basis_[^.]*|claim_[^.]*|reason_[^.]*|as_of|recheck)$/ { next }
     o == "" { print; next }
