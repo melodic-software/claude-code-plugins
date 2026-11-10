@@ -98,7 +98,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Chrome Extension | Give Claude a browser to verify frontend work |
 | Desktop Web Testing | Built-in browser for web server testing |
 | Fork Sessions | `/branch` or `--resume <id> --fork-session` |
-| --bare | 10x faster SDK startup for non-interactive usage |
+| --bare | Boris: 10x faster SDK startup for non-interactive usage (Section 57). For what bare mode skips, see [Start faster with bare mode](https://code.claude.com/docs/en/headless#start-faster-with-bare-mode) (as of 2026-11-10; recheck when that section changes what bare mode skips) |
 | --add-dir | Multi-repo access with permissions |
 | --agent | Custom agents from `.claude/agents` |
 | Routines | Scheduled / event-driven Claude Code, runs on Anthropic infra |
