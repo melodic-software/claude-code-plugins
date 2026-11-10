@@ -157,8 +157,9 @@ function Init-Paths {
     $script:DataDir = Resolve-DataDir $DataDir
     # Keyed on the resolved path, so a caller that passes the default explicitly is gated too.
     if ($Verb -notin 'selftest', 'refetch', 'discover' -and $script:DataDir -eq (Resolve-DataDir '' $docs)) { Assert-NoLegacyState $docs }
-    $script:RuntimeDllConfigured = [bool](Resolve-PathOpt $RuntimeDll)
-    $script:RuntimeDll = (Resolve-PathOpt $RuntimeDll) ?? (Join-Path $script:DataDir 'runtime\nvngx_dlssnr.dll')
+    $rd = Resolve-PathOpt $RuntimeDll
+    $script:RuntimeDllConfigured = [bool]$rd
+    $script:RuntimeDll = $rd ?? (Join-Path $script:DataDir 'runtime\nvngx_dlssnr.dll')
     # runtime_source is resolved only by provision -Runtime, so a bad value never blocks status or remove.
 }
 
@@ -167,12 +168,15 @@ function Root($d) {
     if (-not (Test-Path -LiteralPath $d -PathType Container)) { throw "not a directory: $d" }
     [IO.Path]::GetFullPath($d).TrimEnd('\')
 }
+# The first $n lowercase hex digits of the string's UTF-8 SHA-256.
+function ShortHash([string]$s, [int]$n) {
+    [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($s))).Substring(0, $n).ToLowerInvariant()
+}
 # Readable prefix (steamapps\common\<X> segment, else leaf) plus a path hash, so two exe dirs
 # both named Win64 never share state.
 function GameKey($root) {
     $prefix = if ($root -match '\\steamapps\\common\\([^\\]+)') { $Matches[1] } else { Split-Path $root -Leaf }
-    $h = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($root.ToLowerInvariant())))
-    ($prefix -replace '[^A-Za-z0-9_-]', '_') + '_' + $h.Substring(0, 8).ToLowerInvariant()
+    ($prefix -replace '[^A-Za-z0-9_-]', '_') + '_' + (ShortHash ($root.ToLowerInvariant()) 8)
 }
 function StateDir($root) { Join-Path $script:DataDir ('state\' + (GameKey $root)) }
 # Keep ISO timestamps as strings where pwsh (7.5+) allows it, so a merged cache round-trips unchanged.
@@ -221,18 +225,18 @@ function IsAntiCheatName($name) {
 # A game-tree folder the scan cannot list lands in $script:AcScanGaps, which makes the status unknown.
 function Find-AntiCheat($root) {
     $err = $null
-    $items = if ($root -match '^(.*\\steamapps\\common\\[^\\]+)') {
-        Get-ChildItem -LiteralPath $Matches[1] -Recurse -Depth 4 -Force -ErrorAction SilentlyContinue -ErrorVariable err
-    }
-    else {
-        Get-ChildItem -LiteralPath $root -Recurse -Depth 4 -Force -ErrorAction SilentlyContinue -ErrorVariable err
-        $p = $root
-        for ($i = 0; $i -lt 4; $i++) {
-            $p = Split-Path $p -Parent
-            if (-not $p -or $p.Length -le 3) { break }   # stop at the drive root
-            Get-ChildItem -LiteralPath $p -Force -ErrorAction SilentlyContinue
+    $steam = $root -match '^(.*\\steamapps\\common\\[^\\]+)'
+    $items = @(
+        Get-ChildItem -LiteralPath $(if ($steam) { $Matches[1] } else { $root }) -Recurse -Depth 4 -Force -ErrorAction SilentlyContinue -ErrorVariable err
+        if (-not $steam) {
+            $p = $root
+            for ($i = 0; $i -lt 4; $i++) {
+                $p = Split-Path $p -Parent
+                if (-not $p -or $p.Length -le 3) { break }   # stop at the drive root
+                Get-ChildItem -LiteralPath $p -Force -ErrorAction SilentlyContinue
+            }
         }
-    }
+    )
     $script:AcScanGaps = @($err | ForEach-Object { "on-disk scan: $(ErrorPath $_ '') unreadable: $($_.Exception.Message)" })
     @($items | Where-Object { IsAntiCheatName $_.Name } | ForEach-Object FullName | Sort-Object -Unique)
 }
@@ -596,6 +600,7 @@ function Get-AntiCheat($root, $launch, $appId) {
         $all = (& $script:HttpGet "https://raw.githubusercontent.com/$AwacyRepo/$sha/games.json") | ConvertFrom-Json
         if (-not @($all).Count) { throw 'games.json is empty' }
         $aw.commit = $sha
+        $awacy = "AreWeAntiCheatYet (commit $($sha.Substring(0, 7)))"
         $n = NormName $launch.name
         # AWACY's status field is Linux support, not presence; only a non-empty anticheats list counts.
         $aw.entries = @($all | Where-Object { ($appId -and "$($_.storeIds.steam)" -eq $appId) -or ($n -and (NormName $_.name) -eq $n) } |
@@ -603,9 +608,9 @@ function Get-AntiCheat($root, $launch, $appId) {
         # No entry means nobody recorded the title, not that it has no anti-cheat. A name match
         # can raise a signal, but a Steam game counts as recorded only under its own app id, so a
         # same-named re-release never stands in for it.
-        if ($appId -and -not @($aw.entries | Where-Object steam -eq $appId)) { $unchecked += "AreWeAntiCheatYet (commit $($sha.Substring(0, 7))): no entry for Steam app id $appId, so this source is unknown" }
-        elseif (-not $aw.entries) { $unchecked += "AreWeAntiCheatYet (commit $($sha.Substring(0, 7))): no entry for this title, so this source is unknown" }
-        foreach ($e in $aw.entries) { if ($e.anticheats) { $signals += "AreWeAntiCheatYet (commit $($sha.Substring(0, 7))) lists $($e.name): $($e.anticheats -join ', ')" } }
+        if ($appId -and -not @($aw.entries | Where-Object steam -eq $appId)) { $unchecked += "${awacy}: no entry for Steam app id $appId, so this source is unknown" }
+        elseif (-not $aw.entries) { $unchecked += "${awacy}: no entry for this title, so this source is unknown" }
+        foreach ($e in $aw.entries) { if ($e.anticheats) { $signals += "$awacy lists $($e.name): $($e.anticheats -join ', ')" } }
     }
     catch { $aw.error = $_.Exception.Message; $unchecked += "AreWeAntiCheatYet: fetch failed ($($aw.error)), so this source is unknown" }
     $st = $null
@@ -634,7 +639,7 @@ function Get-AntiCheat($root, $launch, $appId) {
         @($unchecked | ForEach-Object { 'unchecked ' + (($_ -replace ' \(commit [0-9a-f]{7}\)') -split ':')[0] } | Sort-Object -Unique)) -join "`n"
     [pscustomobject]@{
         status = $status; signals = $signals; unchecked = $unchecked
-        reviewId = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($fp))).Substring(0, 12).ToLowerInvariant()
+        reviewId = ShortHash $fp 12
         note = if ($status -eq 'none-disclosed') { 'Steam requires disclosure of kernel-mode anti-cheat only; user-mode and server-side anti-cheat need not be disclosed. AreWeAntiCheatYet has an entry for the title listing no anti-cheat, and nothing matched on disk. This is not proof of no anti-cheat.' }
         awacy = [pscustomobject]$aw; steam = if ($st) { [pscustomobject]$st }
     }
@@ -748,9 +753,8 @@ function Find-Preset($root) {
 
 # Section-aware ini value replace, preserving BOM and per-line CR.
 function Edit-Ini($path, $edits) {
-    $hadBom = $false
     $b = [IO.File]::ReadAllBytes($path)
-    if ($b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF) { $hadBom = $true }
+    $hadBom = $b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF
     $lines = [IO.File]::ReadAllText($path) -split "`n"
     $sec = ''; $seen = @{}
     for ($i = 0; $i -lt $lines.Count; $i++) {
@@ -989,7 +993,7 @@ function Get-GameUpdate($root, $mj, $s) {
             $f = Join-Path $root $_
             "$_ $(if (Test-Path -LiteralPath $f) { (Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash } else { 'removed' })"
         })
-    $token = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($seen -join "`n"))).Substring(0, 12).ToLowerInvariant()
+    $token = ShortHash ($seen -join "`n") 12
     [pscustomobject]@{
         Token = $token
         Text  = "game updated by $($now.launcher) (build $($was.buildId) -> $($now.buildId)) since the apply: only game files drifted, none of the mod's. The manifest is kept. To remove the mod and apply it again on a fresh snapshot with the same build, proxy and preset, run remove -ConfirmRefresh $token once the user has seen this drift and said yes"
