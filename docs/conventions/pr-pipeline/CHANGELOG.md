@@ -1,5 +1,15 @@
 # Changelog for the PR pipeline convention
 
+## [9.14.0] - 2026-11-10
+
+### Removed
+
+- `merge.verify-capture.proxy.claude-code-version`. pr-verify-capture installs the Claude Code version main's `package-lock.json` pins and hands it to both driver legs, so a version bump needs no edit to pr-pipeline.yaml. The proxy's `betas`, `body-keys` and `block-types` lists stay as measured; the proxy refuses a value they do not list and names it.
+
+### Fixed
+
+- Monitor signal 13 (lane holds) no longer goes unread for every lane when one lane has more unread runs than its cap, or the read span falls short of the window. Such a read is partly read: a lane whose read runs reach the threshold still files or keeps the incident, and only a whole read clears it.
+
 ## [9.13.0] - 2026-11-10
 
 ### Removed
