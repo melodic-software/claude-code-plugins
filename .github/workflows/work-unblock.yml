@@ -287,6 +287,10 @@ jobs:
           # A sweep's carried verdicts in, and the ones it keeps for the next.
           VERDICTS_IN: ${{ runner.temp }}/work-unblock-verdicts-in.json
           VERDICTS_OUT: ${{ runner.temp }}/work-unblock-verdicts.json
+          # Minutes after which the sweep decides no further agent-ready issue
+          # and writes what it decided: inside the job's 10-minute limit, with
+          # room for the last decision, the writes and the steps after this.
+          SWEEP_BUDGET_MINUTES: "6"
         run: node ".base/$SCRIPT"
 
       - name: Scan the upload for credentials

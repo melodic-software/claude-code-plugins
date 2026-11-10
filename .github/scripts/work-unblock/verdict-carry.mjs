@@ -13,6 +13,9 @@
 //   refusals  the refusal reason read from a completed job's log, by
 //             `<job id>|<mode>` (a job log never changes once it ends); only
 //             a log that was read is kept, never a failed read
+//   decided   when the sweep last started deciding each agent-ready issue, by
+//             issue number, so the next sweep decides the least recent first
+//             (label-unblocked.mjs restartLimited's time budget)
 //
 // `read` takes the file from the newest successful sweep of main's
 // work-unblock.yml (a scheduled run or one a finished work-resolve-issue run
@@ -57,8 +60,11 @@ export const CARRY_DAYS = 14;
 // Judgment: a sweep read about 44 runs and 31 logs on 2026-11-10.
 export const JOBS_MAX = 300;
 export const REFUSALS_MAX = 2000;
+// Judgment: about 210 issues were open on 2026-11-10.
+export const DECIDED_MAX = 1000;
 const RUN_KEY = /^[1-9][0-9]{0,14}\|[1-9][0-9]{0,3}$/;
 const REFUSAL_KEY = /^[1-9][0-9]{0,14}\|(?:check|token|stop)$/;
+const ISSUE_KEY = /^[1-9][0-9]{0,9}$/;
 // A refusal reason as label-unblocked.mjs reads it (DENIAL, BREAKER), or null.
 const REASON = /^[a-z]+(?:-[a-z]+)*$/;
 const ZONED = /(Z|[+-]\d\d:\d\d)$/;
@@ -125,6 +131,7 @@ export function loadCarry(path, now = Date.now(), code = codeDigest()) {
   if (data?.code !== code) data = null;
   const jobs = section(data, "jobs", RUN_KEY, validJobs);
   const refusals = section(data, "refusals", REFUSAL_KEY, validRefusal);
+  const decided = section(data, "decided", ISSUE_KEY, () => true);
   const at = new Date(now).toISOString();
   const counts = { jobsHit: 0, jobsRead: 0, refusalsHit: 0, refusalsRead: 0 };
   const use = (map, key, entry) => map.set(key, { ...entry, at });
@@ -160,11 +167,19 @@ export function loadCarry(path, now = Date.now(), code = codeDigest()) {
       counts.refusalsRead += 1;
       refusals.set(key, { at, value });
     },
+    // When issue `number` was last decided as the file has it (ms), else undefined.
+    decidedAt(number) {
+      const entry = decided.get(String(number));
+      return entry && Date.parse(entry.at);
+    },
+    keepDecided(number) {
+      if (ISSUE_KEY.test(String(number))) decided.set(String(number), { at });
+    },
     // Writes the file the next sweep reads; true once written.
     save(to) {
       const newest = (map, max) => Object.fromEntries([...map].sort(([, a], [, b]) => Date.parse(b.at) - Date.parse(a.at)).slice(0, max));
       try {
-        writeFileSync(`${to}.tmp`, JSON.stringify({ code, jobs: newest(jobs, JOBS_MAX), refusals: newest(refusals, REFUSALS_MAX) }));
+        writeFileSync(`${to}.tmp`, JSON.stringify({ code, jobs: newest(jobs, JOBS_MAX), refusals: newest(refusals, REFUSALS_MAX), decided: newest(decided, DECIDED_MAX) }));
         renameSync(`${to}.tmp`, to);
         return true;
       } catch (error) {

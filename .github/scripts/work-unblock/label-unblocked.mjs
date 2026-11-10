@@ -421,6 +421,13 @@ const IN_FLIGHT = ["queued", "in_progress", "waiting", "pending", "requested"];
 export const LOOKBACK_HOURS = 3;
 // The sweep reads from this long before the last good sweep started.
 export const SWEEP_MARGIN_MIN = 15;
+// Minutes from the script's start after which a sweep decides no further
+// agent-ready issue, when SWEEP_BUDGET_MINUTES (work-unblock.yml) names none.
+export const SWEEP_BUDGET_MIN = 6;
+const sweepBudgetMs = (env) => {
+  const minutes = Number(env.SWEEP_BUDGET_MINUTES);
+  return (Number.isFinite(minutes) && minutes > 0 ? minutes : SWEEP_BUDGET_MIN) * 60_000;
+};
 // The one comment per issue that says it keeps being re-fired on a backoff,
 // edited in place on each re-fire; it reads as a re-fire record timed by its
 // last edit.
@@ -1552,16 +1559,17 @@ export async function laneRuns(actions, repo, number, addedAt) {
   throw new Error("the workflow run listing has more than 10 pages");
 }
 
-// Label windows closer than this share one listing. At about 75 lane runs an
-// hour, an hour's gap adds about one page, the call a second listing costs.
-const CLUSTER_GAP_MS = 60 * 60_000;
+// Label windows starting in the same span of this length share one listing.
+// At about 75 lane runs an hour, a span's listing is about one page, the call
+// one issue's own listing costs.
+const BUCKET_MS = 60 * 60_000;
 // The listing filtered by `created` answers at most 1,000 runs.
 const LISTING_CAP = 1000;
 
-// The runs of one cluster's listing, or null when it holds more than the
-// listing answers, so each of its issues is listed on its own.
-async function clusterRuns(actions, repo, cluster) {
-  const path = laneRunsPath(repo, [cluster.from, cluster.to]);
+// The runs of one span's listing, or null when it holds more than the listing
+// answers, so each of its issues is listed on its own.
+async function spanRuns(actions, repo, span) {
+  const path = laneRunsPath(repo, span);
   const runs = [];
   for (let page = 1; page <= LISTING_CAP / 100; page += 1) {
     const answer = await actions("GET", `${path}&per_page=100&page=${page}`);
@@ -1580,42 +1588,39 @@ async function clusterRuns(actions, repo, cluster) {
   return null;
 }
 
-// laneRuns for each label time in `addedAts`, from one listing per cluster of
-// near windows, read once when an issue first asks and never reused by another
-// sweep, so status and updated_at are this sweep's. An issue whose window no
-// cluster holds, or whose cluster is too big to list, is listed on its own.
-export function sharedLaneRuns(actions, repo, addedAts) {
-  const clusters = [];
-  for (const [from, to] of addedAts.filter(Number.isFinite).map(runWindow).sort((a, b) => a[0] - b[0])) {
-    const last = clusters.at(-1);
-    if (last && from - last.to <= CLUSTER_GAP_MS) {
-      last.to = Math.max(last.to, to);
-    } else {
-      clusters.push({ from, to, runs: undefined });
-    }
-  }
+// laneRuns as `(number, addedAt)`, from one listing per BUCKET_MS span that a
+// label window starts in, read when an issue of that span first asks, so no
+// issue's history is read ahead of its own turn. Each span's listing reaches
+// RUN_WINDOW_MS past its end, so it holds the whole window of every label in
+// it. A listing is never reused by another sweep, so status and updated_at
+// are this sweep's; a span too big to list has each issue listed on its own.
+export function sharedLaneRuns(actions, repo) {
+  const spans = new Map();
   return async (number, addedAt) => {
     const [from, to] = runWindow(addedAt);
-    const cluster = clusters.find((item) => item.from <= from && to <= item.to);
-    if (cluster) {
-      // A failed listing is not kept: the next issue in the cluster reads again.
-      cluster.runs ??= clusterRuns(actions, repo, cluster).catch((error) => {
-        cluster.runs = undefined;
-        throw error;
-      });
-      const runs = await cluster.runs;
-      if (runs) {
-        const inWindow = runs.filter((run) => {
-          const at = Date.parse(run.created_at);
-          return at >= from && at <= to;
-        });
-        return {
-          mine: inWindow.filter((run) => runTitle(run).endsWith(` #${number}`)),
-          untitled: inWindow.filter((run) => !NAMES_ISSUE.test(runTitle(run))).length,
-        };
-      }
+    const start = Math.floor(from / BUCKET_MS) * BUCKET_MS;
+    if (!spans.has(start)) {
+      // A failed listing is not kept: the next issue in the span reads again.
+      spans.set(
+        start,
+        spanRuns(actions, repo, [start, start + BUCKET_MS + RUN_WINDOW_MS]).catch((error) => {
+          spans.delete(start);
+          throw error;
+        }),
+      );
     }
-    return laneRuns(actions, repo, number, addedAt);
+    const runs = await spans.get(start);
+    if (!runs) {
+      return laneRuns(actions, repo, number, addedAt);
+    }
+    const inWindow = runs.filter((run) => {
+      const at = Date.parse(run.created_at);
+      return at >= from && at <= to;
+    });
+    return {
+      mine: inWindow.filter((run) => runTitle(run).endsWith(` #${number}`)),
+      untitled: inWindow.filter((run) => !NAMES_ISSUE.test(runTitle(run))).length,
+    };
   };
 }
 
@@ -2251,9 +2256,10 @@ async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot
   return { reason: null, resets };
 }
 
-// Restarts, re-fires or hands off up to `cap` issues, longest-waiting first.
-// Returns how many reads or writes failed.
-async function restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, cap = limits["restarts-per-run"], writer = NO_WRITER, statusOf, openIssues, byStatus, field, fieldRows }) {
+// Restarts, re-fires or hands off up to `cap` issues, longest-waiting first,
+// of those it decides before `clock()` reaches `deadline`. Returns how many
+// reads or writes failed.
+async function restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, cap = limits["restarts-per-run"], writer = NO_WRITER, statusOf, openIssues, byStatus, field, fieldRows, clock = Date.now, deadline = Number.POSITIVE_INFINITY }) {
   let failed = 0;
   const ready = [];
   // Main's blob SHAs of the lane workflow files, read once per run.
@@ -2311,30 +2317,26 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
         return fieldRows ? mergeByTime(events, agentReadyEvents(await fieldRows(issue.number), { field, bot, humans })) : events;
       };
       const read = (kind) => (listed[kind] ??= kind === "events" ? history() : paginate(github, `/repos/${repo}/issues/${issue.number}/${kind}`));
-      listings.set(issue.number, Object.assign(read, { forget: (kind) => delete listed[kind] }));
+      listings.set(issue.number, read);
     }
     return listings.get(issue.number);
   };
-  // The lane runs of every agent-ready issue's newest label, from one shared
-  // listing (sharedLaneRuns) planned when an issue first asks: each issue's
-  // events are read then, in order, and an issue whose read fails is listed on
-  // its own and reads its events again when its turn comes.
-  let lanes;
-  const plan = async () => {
-    const addedAts = [];
-    for (const issue of open) {
-      const read = readsOf(issue);
-      try {
-        const lastAdd = (await read("events")).filter((event) => isLabel(event, "labeled")).at(-1);
-        addedAts.push(Date.parse(lastAdd?.created_at));
-      } catch {
-        read.forget("events");
-      }
+  // The lane runs of each agent-ready issue's newest label, from listings
+  // shared by the issues whose labels fall in the same span (sharedLaneRuns).
+  const runsOf = sharedLaneRuns(actions, repo);
+  // Least recently decided first (the carried `decided` times; one never
+  // decided goes first), so issues a sweep's budget leaves out lead the next
+  // one and none waits behind issues decided every sweep.
+  const decidedAt = (issue) => carry?.decidedAt(Number(issue.number)) ?? Number.NEGATIVE_INFINITY;
+  const order = open.map((issue, at) => ({ issue, at, decided: decidedAt(issue) })).sort((a, b) => a.decided - b.decided || a.at - b.at);
+  for (const [index, { issue }] of order.entries()) {
+    // Past the budget no further issue is decided, so the job ends inside its
+    // limit and the decided ones below are still written.
+    if (clock() >= deadline) {
+      console.log(`::notice title=label-unblocked::the sweep's time budget ran out: ${order.length - index} of ${order.length} agent-ready issue(s) left for the next sweep, which decides them first`);
+      break;
     }
-    return sharedLaneRuns(actions, repo, addedAts);
-  };
-  const runsOf = async (number, addedAt) => (await (lanes ??= plan()))(number, addedAt);
-  for (const issue of open) {
+    carry?.keepDecided(Number(issue.number));
     const read = readsOf(issue);
     try {
       const verdict =
@@ -2628,9 +2630,14 @@ const baseAdmission = (env) => {
 // none is given; resolve-config.mjs issuesByStatus over the base config's
 // models.issue-status), each `labels` its names as the field decides them
 // (read-status.mjs statusLabels); null while models.issue-status is unset.
-// resolve-config loads only on the first call, as baseAdmission does.
+// resolve-config loads only on the first call, as baseAdmission does. One
+// listing of every state serves every call of a sweep (about 9 calls and 20 s
+// at 25 issues a page); a failed one is not kept, so the next call lists
+// again. Its 10 re-reads are shared by every state. `held` (issues
+// whose Work status is mid-write) is the whole listing's, for listedNames.
 const fieldListing = (env, github, repo) => {
   let loaded;
+  let listing;
   return async (states) => {
     loaded ??= (async () => {
       const { issueStatusFromBase, issuesByStatus } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
@@ -2642,10 +2649,17 @@ const fieldListing = (env, github, repo) => {
       return null;
     }
     const { config, trustedActors, issuesByStatus } = setup;
-    const found = await issuesByStatus(github, repo, states ?? Object.keys(config.labels), { config, trustedActors });
-    // `held` (issues whose Work status is mid-write) rides along for listedNames.
+    listing ??= issuesByStatus(github, repo, Object.keys(config.labels), { config, trustedActors }).catch((error) => {
+      listing = undefined;
+      throw error;
+    });
+    const found = await listing;
+    // issuesByStatus's own match for `states`: the field's state, or with no
+    // state a label of one of them.
+    const wanted = states && new Set(states.flatMap((state) => config.labels[state] ?? []).map((label) => label.toLowerCase()));
+    const kept = wanted ? found.filter((item) => (item.state === null ? item.labels.some((label) => wanted.has(label.toLowerCase())) : states.includes(item.state))) : found;
     return Object.defineProperty(
-      found.map((item) => ({ ...item, labels: statusLabels(item.state, item.labels, config) })),
+      kept.map((item) => ({ ...item, labels: statusLabels(item.state, item.labels, config) })),
       "held",
       { value: found.held ?? [] },
     );
@@ -2688,7 +2702,8 @@ async function listedNames(byStatus) {
 
 export { budgetLatch, failedFor, fieldListing, markReads };
 
-export async function main({ env = process.env, github, actions, jobLog, now = Date.now(), rate = searchRateLimit(), admission = baseAdmission(env), writer, statusOf, byStatus, statusField } = {}) {
+export async function main({ env = process.env, github, actions, jobLog, now = Date.now(), rate = searchRateLimit(), admission = baseAdmission(env), writer, statusOf, byStatus, statusField, clock = Date.now } = {}) {
+  const deadline = clock() + sweepBudgetMs(env);
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
@@ -2794,7 +2809,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
           failed += await readmitReady({ github, repo, listed, names, humans, bot, gate, appId, admission, cap: limits["readmit-per-run"], now, writer: writeTo, statusOf: statusTo });
         }
       }
-      failed += await restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, writer: writeTo, statusOf: statusTo, openIssues: listed, byStatus: listing, ...(statusField ?? (own ? {} : await workStatusField(env, github, repo))) });
+      failed += await restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, writer: writeTo, statusOf: statusTo, openIssues: listed, byStatus: listing, clock, deadline, ...(statusField ?? (own ? {} : await workStatusField(env, github, repo))) });
       if (carry) {
         const { jobsHit, jobsRead, refusalsHit, refusalsRead } = carry.counts;
         console.log(`::notice title=label-unblocked::carried verdicts: ${jobsHit} job listing(s) and ${refusalsHit} log verdict(s) reused, ${jobsRead} and ${refusalsRead} read`);
