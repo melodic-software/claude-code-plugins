@@ -56,6 +56,20 @@ function sourceOf(entry, listed) {
   return null
 }
 
+async function ask(entry, fetchJson) {
+  const catalog = await fetchJson(`repos/${entry.repo}/contents/${CATALOG}`)
+  if (!Array.isArray(catalog?.plugins)) throw new Error('the catalog has no plugins list')
+  const listed = catalog.plugins.find(p => p?.name === entry.name)
+  if (!listed) return { listed: false }
+  const src = sourceOf(entry, listed)
+  if (!src) throw new Error('unsupported source shape')
+  const query = `${src.path ? `path=${encodeURIComponent(src.path)}&` : ''}per_page=1`
+  const commits = await fetchJson(`repos/${src.repo}/commits?${query}`)
+  const date = Array.isArray(commits) ? commits[0]?.commit?.committer?.date : undefined
+  if (!date || Number.isNaN(Date.parse(date))) throw new Error('no commit on the source path')
+  return { listed: true, repo: src.repo, path: src.path, lastCommit: date }
+}
+
 async function lookup(entry, { dataDir, now, fetchJson }) {
   const file = join(dataDir, 'offer-cache', `${entry.marketplace}--${entry.name}.json`)
   try {
@@ -72,25 +86,7 @@ async function lookup(entry, { dataDir, now, fetchJson }) {
   } catch {
     return { error: 'plugin data is not writable' }
   }
-  let rec
-  try {
-    const catalog = await fetchJson(`repos/${entry.repo}/contents/${CATALOG}`)
-    if (!Array.isArray(catalog?.plugins)) throw new Error('the catalog has no plugins list')
-    const listed = catalog.plugins.find(p => p?.name === entry.name)
-    if (!listed) {
-      rec = { listed: false }
-    } else {
-      const src = sourceOf(entry, listed)
-      if (!src) throw new Error('unsupported source shape')
-      const query = `${src.path ? `path=${encodeURIComponent(src.path)}&` : ''}per_page=1`
-      const commits = await fetchJson(`repos/${src.repo}/commits?${query}`)
-      const date = Array.isArray(commits) ? commits[0]?.commit?.committer?.date : undefined
-      if (!date || Number.isNaN(Date.parse(date))) throw new Error('no commit on the source path')
-      rec = { listed: true, repo: src.repo, path: src.path, lastCommit: date }
-    }
-  } catch (e) {
-    rec = { error: String(e?.message ?? e) }
-  }
+  const rec = await ask(entry, fetchJson).catch(e => ({ error: String(e?.message ?? e) }))
   try {
     save(rec)
   } catch {}
