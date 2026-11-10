@@ -294,9 +294,11 @@ def client_fields(body):
         raise DomainError(400, "bad-field", f"{extra[0][:40]} is not a client-log field.", field=extra[0][:40])
     for k, limit in CLIENT_FIELDS.items():
         v = body.get(k)
-        if v is not None and not isinstance(v, str):
+        if v is None:
+            continue
+        if not isinstance(v, str):
             raise DomainError(400, "bad-field", f"{k} must be a string.", field=k)
-        if v is not None and len(v) > limit:
+        if len(v) > limit:
             raise DomainError(400, "too-long", f"{k} allows at most {limit} characters.", field=k, max=limit)
     out = {k: None if body.get(k) is None else session._visible(body[k]) for k in CLIENT_FIELDS}  # what a guest's text may hold
     if out["kind"] not in CLIENT_KINDS:
@@ -403,6 +405,15 @@ class QuickTunnelStarter:
         self.retry.pop(entry["id"], None)
         self.end(entry, "stopped")
 
+    def forget(self, lid, entry, reason, *, record=True):
+        """Drop a begun entry and end it; with `record`, the session's entry ends too."""
+        app = self.app
+        with app._live_lock:
+            app._live_begun.pop(lid, None)
+        self.end(entry, reason)
+        if record and app.session.live_ended(lid, reason):
+            app.changed()
+
     def restart(self, entry, rec, server_ok):
         """Bring a running entry back behind a new quick tunnel: a new static server on its copy first when that exited,
         the port checked again for a port; its new url."""
@@ -437,18 +448,12 @@ class QuickTunnelStarter:
         for lid, entry in begun.items():
             rec = tunnel.read_live(self.path(lid)) or {}
             if rec.get("reason") == "stopped":  # ended from outside (share.sh): end the entry, never restart it
-                with app._live_lock:
-                    app._live_begun.pop(lid, None)
-                self.end(entry, "stopped")
-                if app.session.live_ended(lid, "stopped"):
-                    app.changed()
+                self.forget(lid, entry, "stopped")
                 continue
             if entry["target"]["kind"] == "port" and not self.listening(entry["target"]["port"]):
                 # The owner's server is gone: whatever binds the port next is not what they attested, so it never
                 # inherits the public address. A new server needs a new add-live and Approve.
-                with app._live_lock:
-                    app._live_begun.pop(lid, None)
-                self.end(entry, "failed")
+                self.forget(lid, entry, "failed", record=False)
                 app.log.info("live %s: nothing listens on port %d any more, so it ended", lid, entry["target"]["port"])
                 if app.session.live_ended(lid, "failed"):
                     app.changed()
@@ -475,11 +480,7 @@ class QuickTunnelStarter:
                     self.retry[lid] = (time.monotonic() + min(LIVE_BACKOFF_MAX, LIVE_BACKOFF * 2 ** (fails - 1)), fails)
                     continue
                 self.retry.pop(lid, None)
-                with app._live_lock:
-                    app._live_begun.pop(lid, None)
-                self.end(entry, "failed")
-                if app.session.live_ended(lid, "failed"):
-                    app.changed()
+                self.forget(lid, entry, "failed")
                 continue
             self.retry.pop(lid, None)
             try:
@@ -487,18 +488,12 @@ class QuickTunnelStarter:
             except DomainError:
                 moved = None
             if moved is None:
-                with app._live_lock:
-                    app._live_begun.pop(lid, None)
-                self.end(entry, "failed")
-                if app.session.live_ended(lid, "failed"):
-                    app.changed()
+                self.forget(lid, entry, "failed")
             elif moved:
                 app.log.info("live %s: restarted at a new address", lid)
                 app.changed()
             else:  # stopped while it restarted
-                with app._live_lock:
-                    app._live_begun.pop(lid, None)
-                self.end(entry, "stopped")
+                self.forget(lid, entry, "stopped", record=False)
 
     def resume(self):
         app = self.app
@@ -974,6 +969,13 @@ class GuestHandler(BaseHTTPRequestHandler):
         self.fail(error)
         return True
 
+    def content_length(self):
+        """The Content-Length header as a number; -1 when it is missing or not one."""
+        try:
+            return int(self.headers.get("Content-Length") or "-1")
+        except ValueError:
+            return -1
+
     def read_body(self, length, seconds=None):
         """Exactly `length` body bytes, all within `seconds` (session.BODY_SECONDS by default; TimeoutError
         otherwise), or None when the client closed first."""
@@ -1071,7 +1073,7 @@ class GuestHandler(BaseHTTPRequestHandler):
     def asset_cookie(self, pid):
         """The Set-Cookie that lets this browser's <img> and frame requests read /assets/ as `pid` for a while."""
         exp = int(time.time()) + ASSET_COOKIE_SECONDS
-        secure = "; Secure" if self.headers.get("Host") in {h for h in (self.app.tunnel_host, self.app.retired_host) if h} else ""
+        secure = "; Secure" if self.headers.get("Host") in self.app.public_hosts() else ""
         value = f"{pid}.{exp}.{self.app.asset_sign(pid, exp)}"
         return f"{self.app.asset_cookie}={value}; Path=/assets/; Max-Age={ASSET_COOKIE_SECONDS}; HttpOnly; SameSite=Strict{secure}"
 
@@ -1142,10 +1144,7 @@ class GuestHandler(BaseHTTPRequestHandler):
         if not self.headers.get("Content-Type", "").lower().startswith("application/json"):
             return self.fail(DomainError(415, "json-required", "Send JSON with Content-Type: application/json."))
         cap = BODY_CAPS.get(path, session.BODY_MAX)
-        try:
-            length = int(self.headers.get("Content-Length") or "-1")
-        except ValueError:
-            length = -1
+        length = self.content_length()
         if length < 0:
             return self.fail(DomainError(400, "bad-json", "The request needs a Content-Length."))
         if length > cap:
@@ -1201,10 +1200,7 @@ class GuestHandler(BaseHTTPRequestHandler):
                 raise DomainError(415, "bytes-required", "Send the piece as application/octet-stream.")
             if self.headers.get("Transfer-Encoding"):
                 raise DomainError(400, "bad-request", "Send the piece with a Content-Length.")
-            try:
-                length = int(self.headers.get("Content-Length") or "-1")
-            except ValueError:
-                length = -1
+            length = self.content_length()
             if length < 0:
                 raise DomainError(400, "bad-request", "Send the piece with a Content-Length.")
             if length > session.CHUNK_SIZE:
@@ -1484,16 +1480,20 @@ class App:
         self.secrets.update(owner=token, ownerAt=at)
         detached.write_private(self.dir / SECRETS, json.dumps(self.secrets) + "\n")
 
+    def public_hosts(self):
+        """The tunnel hosts the session answers on: the current one and, after a switch, the retired one."""
+        return {h for h in (self.tunnel_host, self.retired_host) if h}
+
     def host_ok(self, host, origin):
         if not host:
             return False
-        public = {h for h in (self.tunnel_host, self.retired_host) if h}
+        public = self.public_hosts()
         if host not in self.local_hosts and host not in public:
             now = time.monotonic()
             if now - self._last_sync > 1.0:  # a tunnel share.py just started may not be seen yet
                 self._last_sync = now
                 self.sync_tunnel(restart=False)
-            public = {h for h in (self.tunnel_host, self.retired_host) if h}
+            public = self.public_hosts()
             if host not in public:
                 return False
         if origin is None:
