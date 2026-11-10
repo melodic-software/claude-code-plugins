@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "I won't add Week: it's an everyday word used in its ordinary sense here, so it removes no ambiguity in this context.", "why": "names the everyday-word rule"},
+    {"answer": "Week has no project-specific meaning in Northwind, so it stays out of the glossary.", "why": "no project-specific meaning"},
+    {"answer": "Leaving Week out: it carries its plain English meaning and nothing to disambiguate.", "why": "plain meaning, nothing to disambiguate"}
+  ],
+  "fail": [
+    {"answer": "Added Week to docs/glossary.md.", "why": "admits it"},
+    {"answer": "", "why": "empty"},
+    {"answer": "Order is a buyer's confirmed request to purchase catalog items.", "why": "answers a different question"}
+  ]
+}

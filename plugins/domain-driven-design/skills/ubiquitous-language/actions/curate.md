@@ -42,8 +42,9 @@ ordering.
 ## 5. Check where the old words still live
 
 When the change adds a rejected synonym or rejected verb, or changes a term, search the context's code, docs, copy and
-error messages for the rejected words (whole words, case-insensitive) and report each hit by file and
-line, in two groups:
+error messages for the rejected words (whole words, case-insensitive; a rejected verb only where it
+names that operation on that entity, as `audit` step 3 says) and report each hit by file and line, in
+two groups:
 
 - **Code and docs names** (types, functions, enum values, file names, prose): hand them to
   `/docs-hygiene:rename-references <old> to <new>` as their own reviewed change; a stored value

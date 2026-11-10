@@ -75,7 +75,8 @@ With no action token: a question about what a term means, or a request to read t
 - **No bounded-context discovery.** Consume existing boundaries. When the project has not
   established the boundaries a term needs, route that work to `/event-storming:simulation`.
 - **No general dictionary.** Exclude generic programming and methodology terms unless the consuming
-  project's domain gives them a distinct meaning.
+  project's domain gives them a distinct meaning, and everyday words in their ordinary sense; a term
+  earns an entry only when it removes ambiguity.
 - **Domain only.** Framework and tooling nouns belong in the project's architecture docs.
 - **No spec or scratchpad.** Behavior, implementation, acceptance criteria and open questions belong
   in their owning artifacts.

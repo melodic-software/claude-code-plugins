@@ -25,7 +25,7 @@ Shown to users as: bill
 
 - **Header sentence:** a new glossary says once, under its title, what `Avoid:` means. The line is
   plain on purpose; a hard ban belongs in a check (a spelling or lint rule generated from the
-  `Avoid:` lines), not in emphatic wording.
+  rejected words on `Avoid:` and `Actions:` lines), not in emphatic wording.
 - **Canonical term:** one preferred name for the concept within this bounded context.
 - **Definition:** 1–2 sentences stating what the term is. Define its conceptual boundary, not its
   implementation, behavior backlog, or storage representation.
@@ -34,7 +34,8 @@ Shown to users as: bill
   and it carries rules of its own. Omit the line when the entity has no named states.
 - **Actions:** optional, under the entity like `States:`, only when one verb was chosen over another
   for an operation on it: the chosen verb, then the rejected one in parentheses, `Actions: submit
-  (Avoid: raise)`. Omit the line when no verb was contested.
+  (Avoid: raise)`; several contested operations are comma-separated pairs on one line. Omit the line
+  when no verb was contested.
 - **Rejected synonyms:** names considered and rejected for this concept. Follow the existing file's
   syntax; otherwise use the plain `Avoid:` line above. Omit the line when no synonym was rejected.
 - **Shown to users as:** optional, only when the wording on screens, emails and error messages

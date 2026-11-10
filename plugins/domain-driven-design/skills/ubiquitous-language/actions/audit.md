@@ -17,8 +17,10 @@ finding is a report line; changes go through `curate` and `/docs-hygiene:rename-
      ordinary sense that remove no ambiguity;
    - an `Actions:` line names a rejected verb for each chosen one;
    - the index lists each context's glossary and every listed path exists.
-3. Search the scope's code, docs, copy and error messages for each `Avoid:` word and each rejected
-   verb on an `Actions:` line (whole words, case-insensitive) and group the hits as `curate` step 5 does: code and docs names, then
+3. Search the scope's code, docs, copy and error messages for each `Avoid:` word (whole words,
+   case-insensitive) and each rejected verb on an `Actions:` line where it names that operation on
+   that entity (beside the entity's name, or in an identifier such as `cancelInvoice`; elsewhere the
+   verb is ordinary English) and group the hits as `curate` step 5 does: code and docs names, then
    user-facing copy and error messages. A hit matching the entry's `Shown to users as:` wording is
    not drift.
 
