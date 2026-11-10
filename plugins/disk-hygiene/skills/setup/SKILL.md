@@ -36,8 +36,8 @@ unconditionally and still scans with the toggle off, so most prerequisite absenc
 FAIL semantics regardless of the toggle. Only the execution-tier tools the audit lane never
 invokes (step 4's `lsof`-class probes) downgrade from FAIL to INFO when the toggle is
 disabled, report those informationally and note that re-enabling restores the FAIL semantics.
-A missing `git` stays FAIL either way: the audit lane itself calls it, and its absence degrades
-the VCS-tracked-content evidence the plugin's fail-closed posture depends on.
+A missing `git` keeps its step-3 semantics either way (INFO, and FAIL for a worktree-containing
+target): the audit lane itself calls it, and its absence degrades the VCS-tracked-content evidence the plugin's fail-closed posture depends on.
 
 Every step-1 and step-2 failure likewise stays FAIL with the toggle disabled.
 Audit-only mode is *enforced by* the guard, every guard surface
@@ -53,9 +53,9 @@ stubbed `python3` alongside a working `python` or `py -3`: the launcher skips th
 guard launches, and that is a WARN (see step 2), not a failure to downgrade.
 Launching the version probe proves only that something executes, not that it can run
 the guard's own source: Python 3.6, for example, rejects the guard's
-`from __future__ import annotations` and exits without a deny, the same silent fail-open through a
-different door ([Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes), as of
-2026-10-11; recheck when that section changes what a `PreToolUse` exit other than 0 or 2 does). Unproven guard execution
+`from __future__ import annotations` and exits without a deny, which this plugin treats as the
+same fail-open (what such an exit does to the call: [Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes), as of
+2026-11-10; recheck when that section changes what a `PreToolUse` exit other than 0 or 2 does). Unproven guard execution
 fails closed like every other guard-relevant unknown in this plugin.
 
 1. **Node exec-form launcher registration**. All three registrations (both wired hooks in
@@ -220,10 +220,10 @@ tool or an OS capability, so `apply` installs nothing and writes nothing, it onl
   failure signal: `--values-stdin` rejects a bad value with exit 1 and saves nothing, but stores
   an empty string as `""`; the `--config` rerun prints a warning for a rejected value yet exits 0,
   so read its output. This skill never writes user settings or
-  `pluginConfigs`. Afterwards rerun `check` in a **fresh session**, because the rendered
-  `${user_config.*}` is injected at skill load and each hook receives its
-  `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a same-session `check`
-  still reports the OLD value; report the observed effective value, never an unobserved change.
+  `pluginConfigs`. Afterwards rerun `check` in a **fresh session**: a same-session `check` can still
+  report the OLD value (when a saved value reaches skill content and hook environments:
+  [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value), as of 2026-11-10; recheck when
+  that section changes when a saved value takes effect); report the observed effective value, never an unobserved change.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 

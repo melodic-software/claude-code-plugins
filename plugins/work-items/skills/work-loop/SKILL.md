@@ -44,7 +44,7 @@ Every shared cross-lane concern is owned by the loop-lane convention,
 holds those contracts **by citation**: the three-session topology and the autonomy merge ladder
 (including seam-only rung raises), the escalation contract, order-defined capability tiers
 (frontier / strong / fast; runtime resolution by model alias only, never a hard-coded model ID),
-stop shapes including the drain-terminal state, the `/loop` seven-day expiry, the cycle-budget
+stop shapes including the drain-terminal state, the `/loop` expiry, the cycle-budget
 semantics (a budget hit restarts the session, never ends the loop, and the restart is a manual
 operator step), the telemetry comment and durable loop state, the
 no-progress detector's shared counter semantics, the headless-config floor, the subagent
@@ -55,8 +55,10 @@ document says "per the convention", that file is the contract.
 
 Launch interactively via `/loop` with the interval omitted (self-paced). At the end of every cycle
 that does not exit, schedule the next one with `ScheduleWakeup`. Short delays under queue
-pressure, backing off toward the ceiling when idle. Pacing semantics, the seven-day `/loop` expiry,
-and cycle-budget behavior are owned by the convention (§4); on a budget or expiry hit, write a
+pressure, backing off toward the ceiling when idle. Pacing semantics, the `/loop` expiry
+([Seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry), as of
+2026-11-10; recheck when that section changes the bound), and cycle-budget behavior are owned by
+the convention (§4); on a budget or expiry hit, write a
 restart-request into the telemetry state block and stop the loop cleanly. A headless launch never
 blocks on an interview (headless-config floor) and never guesses its stop mode
 ([reference/invocation-argv.md](reference/invocation-argv.md) "Headless launches"). A scheduled `claude -p` launch also passes [`--single-pass`](reference/invocation-argv.md) and ends itself.
@@ -105,7 +107,7 @@ the source of truth for these counters):
 `null`) record the resolved invocation surface for the operator, output only: each cycle resolves
 them from its invocation line, never from this block or launch-prompt prose.
 
-`loop_started_at` makes the approaching seven-day expiry visible; `restart_request` is where a
+`loop_started_at` makes the approaching `/loop` expiry visible; `restart_request` is where a
 budget/expiry hit records the relaunch ask; `guard_mode` is recorded every cycle. `latched_account`
 is the tripping account's fingerprint (see [reference/paused-wait.md](reference/paused-wait.md)).
 `effort` is the level that ran, which can differ from the launch `--effort`: at each cycle start run `printenv CLAUDE_EFFORT` through Bash and record its output, or `"unset"` when it prints nothing. Pointer: for the `CLAUDE_EFFORT` variable, see the `effort` row of [Common input fields](https://code.claude.com/docs/en/hooks#common-input-fields). As of: 2026-10-02. Recheck trigger: that row stops naming the variable.
@@ -277,9 +279,10 @@ the former default-on pause).
    not a second label, is what discriminates a worker-escalated item from an operator-parked one.
    The same step performs the contract's escalation record write, **immediately before posting
    that comment**: create `.claude/lane-escalations/<UTC-stamp>-<item>-work-loop.json` (stamp
-   `YYYYMMDDTHHMMSSZ`) with the **Write tool**. Only a Write tool call fires the `PostToolUse`
-   event a consuming repo's out-of-band notification hook keys on; a shell redirect writes the
-   same bytes but emits only a `Bash` event the seam's `Write` matcher never sees. Body
+   `YYYYMMDDTHHMMSSZ`) with the **Write tool**, never a shell redirect: a consuming repo's out-of-band notification
+   hook keys on the Write tool's `PostToolUse` event
+   ([PostToolUse](https://code.claude.com/docs/en/hooks#posttooluse), as of 2026-11-10; recheck
+   when that section changes what `tool_name` a file write reports). Body
    `{"schema":"loop-lane/escalation-record@1","lane":"work-loop","kind":"<marker kind>","repo":"<owner>/<repo>","item":"<item URL>","summary":"<the marker comment's one-line question>","written_at":"<UTC ISO-8601>"}`.
    Duplicate suppression is the marker read this step already performs before escalating: an item
    whose marker already stands while it is still held for a person per the tracker seam's
@@ -295,30 +298,24 @@ the former default-on pause).
    that directory out of the tree this lane runs its gates against.
    **Background-job launch mode.** Launch a background lane from inside an isolated linked git
    worktree of the repository (`git worktree add`, then `claude --bg -n <name> --permission-mode auto` from there, the form
-   `/harness-ops:lanes` launches) to keep the record Write: Claude Code moves a background session into a worktree before its first edit
-   and skips the move when the session already sits in a linked worktree, so the Write lands in
-   place. A live probe (`claude --bg`, Claude Code 2.1.285) from a linked worktree outside
+   `/harness-ops:lanes` launches) to keep the record Write in place. A live probe (`claude --bg`, Claude Code 2.1.285) from a linked worktree outside
    `.claude/worktrees` wrote the record file there with no refusal, as did an earlier lane
    (worktree `cc-plugins-lane-2`). A launch from a checkout that is not a linked worktree is not the
-   recommended mode: one lane's record Write there was refused with "parent bg session hasn't
-   isolated yet, so writes to the shared checkout are blocked", and otherwise the session moves into
-   an auto-created worktree under `.claude/worktrees/`; that launch was not probed here. Either way
+   recommended mode: one lane's record Write there was refused (the refusal is on #4598), and the
+   other outcome of that launch was not probed here. Either way
    the tracker marker comment is the escalation of record, and a refused record Write does not stop
    the cycle. This lane must not call `EnterWorktree` (it would end the long-lived orchestrator), so
    isolation comes from where the operator launches it. Foreground on the default-branch checkout
    remains the known-good mode.
 
-   Verification record for that paragraph. Claim: a background session launched inside a linked
-   git worktree keeps the record Write in place; one launched from a non-linked checkout is
-   blocked or moved into an auto-created worktree before its first edit. Basis: the docs, "Before
-   editing files, Claude moves the session into an isolated git worktree", skipped when "the
-   session is already inside a linked git worktree, whether Claude created it under
-   `.claude/worktrees/` or you created it with `git worktree add` somewhere else"
-   (<https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>); the `claude --bg`
-   probe, the `cc-plugins-lane-2` Writes and the refusal text, all on
-   [#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598). As of
-   2026-09-29; the non-linked launch was not reproduced. Recheck trigger: that docs section
-   changes its block or skip rules, or a release note changes background-session isolation.
+   - **Pointer**: when checking where a background session's first edit lands, fetch
+     [How file edits are isolated](https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated)
+     live; the `claude --bg` probe, the `cc-plugins-lane-2` Writes and the refusal are on
+     [#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598), and the
+     non-linked launch was not reproduced.
+   - **As of**: 2026-11-10
+   - **Recheck trigger**: that docs section changes its block or skip rules, or a release note
+     changes background-session isolation.
 6. **Report and pace.** Update the no-progress streak, and, at the threshold, raise the stall
    escalation, per the detector below; upsert the telemetry comment (cycle report + updated state
    block + guard mode + the `usage_sample` built from step 1's cycle-start reading, whose deltas
@@ -364,8 +361,8 @@ the no-progress streak. `/work-items:work`'s dispatch-time staleness pre-check d
 this: it runs only for dispatched items, never an escalated one.
 
 **Labeler precondition (after the in-flight check).** A label is admission
-evidence only when someone allowed to grant admission applied it. On GitHub the triage role can
-apply labels but holds only `read`, so the label alone does not show that. For each remaining
+evidence only when someone allowed to grant admission applied it. On GitHub a labeler need not
+hold `write` (role mapping: pointer below), so the label alone does not show that. For each remaining
 candidate, run the bound adapter's `label-provenance` operation over the autonomous-eligible role
 label only:
 `work-item-tracker.sh label-provenance "<id>" --label "<role label>"`.
@@ -384,10 +381,9 @@ the no-progress streak. The contract for the operation is in
 "Verbs (core public surface)". One refused only on its body edit time is escalated once instead: read [reference/body-edit-escalation.md](reference/body-edit-escalation.md).
 The gate admits no other way: a candidate with no admitted autonomous-eligible role label is not dispatched.
 
-Pointer: for the permission each GitHub role maps to (`admin`, `write`, `read`, `none`; maintain
-maps to `write`, triage to `read`), see
+Pointer: for the permission each GitHub role maps to, see
 [Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user).
-As of: 2026-10-04. Recheck trigger: the endpoint's role mapping changes.
+As of: 2026-11-10. Recheck trigger: the endpoint's role mapping changes.
 
 Hard gates:
 

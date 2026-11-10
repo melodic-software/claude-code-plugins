@@ -104,7 +104,7 @@ Prefer AFK. Mark HITL only when the vertical slice genuinely needs judgment (arc
 
 The human-gated label (default `needs-human`) is what keeps an item out of autonomous pickup: `list-frontier --autonomous` excludes it (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Verbs (core public surface)"). Merely omitting the autonomous-eligible label does NOT; an unlabeled HITL item would still be claimable by `/work-items:work`. An HITL item wants the human-gated label set AND the autonomous-eligible one (default `agent-ready`) omitted.
 
-**Investigation tickets, decisions, not deliverables.** When the source still carries unresolved unknowns (open design questions, unvalidated approaches, fuzzy scope), emit **investigation tickets** alongside, or ahead of. Build vertical slices. An investigation ticket resolves ONE decision and records the resolution as a closing comment; it produces no production code. Type each by the skill that resolves it:
+**Investigation tickets, decisions, not deliverables.** When the source still carries unresolved unknowns (open design questions, unvalidated approaches, fuzzy scope), emit **investigation tickets** alongside, or ahead of, the build vertical slices. An investigation ticket resolves ONE decision and records the resolution as a closing comment; it produces no production code. Type each by the skill that resolves it:
 
 | Investigation type | Resolves | Routes to |
 |--------------------|----------|-----------|
@@ -113,7 +113,7 @@ The human-gated label (default `needs-human`) is what keeps an item out of auton
 | interview | Scope/contract ambiguity only the user can settle | `/planning:interview` |
 | design | Type, contract, module-boundary, topology, or data-model unknown | `/planning:design` |
 
-A build vertical slice waiting on an unresolved decision names that investigation ticket as a blocker (its `--blocked-by` edge and its `## Depends on` body list). Investigation tickets are HITL by default (their output is a decision a human confirms). Label them `needs-human`, never `agent-ready`.
+A build vertical slice waiting on an unresolved decision names that investigation ticket as a blocker (its `--blocked-by` edge and its `## Depends on` body list). Investigation tickets are HITL by default (their output is a decision a human confirms). Label them with the human-gated role label, never the autonomous-eligible one.
 
 ### 2b. Wide refactors: expand, migrate, contract
 
@@ -145,7 +145,7 @@ runs them onto it. Do not change `/work-items:work` to target the integration br
 
 ### 3. Present for approval
 
-Show the user the draft items, numbered. **work the frontier** (unblocked items first). For each item:
+Show the user the draft items, numbered, in frontier order (unblocked items first). For each item:
 
 - **Title**: short descriptive name; read the house style ([`${CLAUDE_PLUGIN_ROOT}/reference/issue-house-style.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-house-style.md)) before drafting these titles and hold them to it
 - **Type**: HITL / AFK, with a `Basis:` for the call: `verified` with the `file:line` or source section it rests on, or `judgment` (not for a consequential call: cross-repo, shared infrastructure, irreversible, or security). A consequential call the source cannot settle is withheld: mark the item HITL and emit an investigation ticket naming the evidence that would settle it. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md#basis-label)
@@ -334,7 +334,7 @@ close-on-ship drift doctrine. A run that publishes plain items needs none of it.
 
 ### 5. Report
 
-After publishing, present summary: N items created, dependency graph, which are AFK vs HITL, each criterion id left out at Step 3 (one left out as met at base says so), each id sharpened at Step 3, each id kept though it passes at base with its reason, and the suggested execution order. **work the frontier** (unblocked items first).
+After publishing, present summary: N items created, dependency graph, which are AFK vs HITL, each criterion id left out at Step 3 (one left out as met at base says so), each id sharpened at Step 3, each id kept though it passes at base with its reason, and the suggested execution order, in frontier order (unblocked items first).
 
 ## Spoke paths
 

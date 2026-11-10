@@ -18,7 +18,7 @@ citation. This lane's specifics:
   excluded is waiting on its PR, not on this lane, so it does not count, stale or not. Otherwise the cycle is
   idle and the counter holds. A cycle in which the rate-limit guard barred this lane from claiming new work is **held**, and the
   counter likewise holds whatever the snapshot carries. For this lane the bar is the pause window
-  itself (the inlined floor above. Drain-then-pause): `rate_limit_latch` gates only adaptive-cap
+  itself (the inlined floor's Drain-then-pause rule in [`../SKILL.md`](../SKILL.md)): `rate_limit_latch` gates only adaptive-cap
   ramp-up here, so it alone never holds the counter, per the convention's held-cycle rule.
 - **Stall escalation**: the convention's escalation contract, unchanged, create a tracker item
   through the seam `create-item` verb (title `Lane stall: work-loop`, exact match) carrying the
