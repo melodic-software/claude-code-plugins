@@ -2845,19 +2845,31 @@ def _lane_reruns(
     return []
 
 
+def _dispatch_runs(ctx: _Context, floor: datetime, now: datetime) -> list[Run]:
+    """The full workflow's dispatch runs on the branch since `floor`, as listed."""
+    return _runs(
+        ctx.owner, ctx.name, FULL_RUN_WORKFLOW, "workflow_dispatch", ctx.branch, floor, now
+    )
+
+
 def _listed_runs(
-    ctx: _Context, floor: datetime, now: datetime, *, record: bool = False
+    ctx: _Context,
+    floor: datetime,
+    now: datetime,
+    *,
+    record: bool = False,
+    dispatched: list[Run] | None = None,
 ) -> tuple[list[tuple[str, Run]], list[Run] | None]:
     """The full runs (by signal) and canary runs on the branch since `floor`,
     oldest first, the canary runs None when the repository has no canary
     (`_canary_absent`); the full runs are held for `_Context.superseded`. With
     `record`, each listed run that had completed is kept in
-    `_Context.judged_runs` at the `updated_at` read."""
+    `_Context.judged_runs` at the `updated_at` read. `dispatched` is
+    `_dispatch_runs` from `floor` when the caller already listed it."""
     owner, name, branch = ctx.owner, ctx.name, ctx.branch
     schedule = _runs(owner, name, FULL_RUN_WORKFLOW, "schedule", branch, floor, now)
-    dispatched = _runs(
-        owner, name, FULL_RUN_WORKFLOW, "workflow_dispatch", branch, floor, now
-    )
+    if dispatched is None:
+        dispatched = _dispatch_runs(ctx, floor, now)
     if record:
         ctx.dispatch_listing = (floor, dispatched)
     listed = [(SIGNAL_SCHEDULE, r) for r in schedule] + [
@@ -2952,15 +2964,14 @@ def _final_by_runs(
     return frozenset(final)
 
 
-def _stop_uncovered(
-    judged: list[AutoMerge], full_runs: list[tuple[str, Run]]
-) -> None:
-    """Raise `UncoveredMergeStop` for the first judged merge no listed
-    dispatch run was created at or after. `_judge`'s `own` runs are among
-    these, so such a merge is neither verified nor `dispatch_covered`. A
-    merge with no commit or time is left to `_judge`, which reads it
-    unreadable."""
-    dispatched = [r.created_at for signal, r in full_runs if signal == SIGNAL_DISPATCH]
+def _stop_uncovered(judged: list[AutoMerge], listed: list[Run]) -> None:
+    """Raise `UncoveredMergeStop` for the first judged merge no `listed`
+    dispatch run was created at or after. The full runs `_judge` reads are
+    these less the ones off the branch or replaced, so `_judge` finds no
+    `own` run for such a merge either, and it is neither verified nor
+    `dispatch_covered`. A merge with no commit or time is left to `_judge`,
+    which reads it unreadable."""
+    dispatched = [r.created_at for r in listed]
     for merge in judged:
         if not merge.merge_commit or not merge.merged_at:
             continue
@@ -3000,9 +3011,9 @@ def check(
     `MergeState.final_by_runs` alone (`_final_by_runs`, `anchor_needs`).
     Any read failure makes the verdict unreadable, which is never ok.
 
-    `stop_uncovered` raises `UncoveredMergeStop`, once the runs are listed and
-    before any is judged, for a judged merge with no listed dispatch run
-    created at or after it: `_judge` finds no `own` run for it, so the verdict
+    `stop_uncovered` raises `UncoveredMergeStop`, once the dispatch runs are
+    listed and before any other run is, for a judged merge with no listed
+    dispatch run created at or after it: `_judge` finds no `own` run for it, so the verdict
     would be unreadable or need a dispatch."""
     if not agent_identity:
         return PostMergeVerdict(False, "agent-identity-unconfigured")
@@ -3106,9 +3117,19 @@ def check(
             if any(m.merged_at for m in judged)
             else merged_since
         )
-        full_runs, canary_runs = _listed_runs(ctx, floor, now, record=True)
+        # A merge no listed dispatch run covers stops before the schedule and
+        # canary listings and the branch reads that filter them; one only a
+        # filtered-out run covers stops once they are read.
+        dispatched = _dispatch_runs(ctx, floor, now) if stop_uncovered else None
+        if dispatched is not None:
+            _stop_uncovered(judged, dispatched)
+        full_runs, canary_runs = _listed_runs(
+            ctx, floor, now, record=True, dispatched=dispatched
+        )
         if stop_uncovered:
-            _stop_uncovered(judged, full_runs)
+            _stop_uncovered(
+                judged, [r for signal, r in full_runs if signal == SIGNAL_DISPATCH]
+            )
         states = tuple(
             _settled_state(merge)
             if merge.number in done

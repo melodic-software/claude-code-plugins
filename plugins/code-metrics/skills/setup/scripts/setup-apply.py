@@ -224,13 +224,21 @@ def known_keys() -> set[str]:
     return keys
 
 
+def _in_collectors(dotted: str, known: set[str]) -> bool:
+    """True for a per-lane `collectors` key or a key under one."""
+    return any(
+        dotted == k or dotted.startswith(k + ".")
+        for k in known
+        if k.endswith(".collectors")
+    )
+
+
 def drop_unknown(doc: dict[str, Any], known: set[str], prefix: str = "") -> list[str]:
     """Remove every key the contract does not declare; return their dotted names."""
-    collectors = [k for k in known if k.endswith(".collectors")]
     dropped: list[str] = []
     for key in list(doc):
         dotted = f"{prefix}{key}"
-        if any(dotted == k or dotted.startswith(k + ".") for k in collectors):
+        if _in_collectors(dotted, known):
             continue
         if dotted not in known:
             del doc[key]
@@ -371,9 +379,7 @@ def main(argv: list[str]) -> int:
         if not key:
             print(f"setup-apply.py: empty key in {assignment!r}", file=sys.stderr)
             return 2
-        if key not in known and not any(
-            key.startswith(k + ".") for k in known if k.endswith(".collectors")
-        ):
+        if key not in known and not _in_collectors(key, known):
             print(
                 f"setup-apply.py: warning: {key} is not a key the contract declares; written anyway (unknown keys are inert)",
                 file=sys.stderr,

@@ -1778,8 +1778,8 @@ def _chunk_imports(src: str, lo: int, hi: int) -> dict[str, str]:
         i = m.end()
         for part in (m.group(1) or "").split(","):
             exported, _, local = part.strip().partition(" as ")
-            if exported.strip():
-                out[(local or exported).strip()] = exported.strip()
+            if exported := exported.strip():
+                out[local.strip() or exported] = exported
     return out
 
 
@@ -1789,18 +1789,14 @@ def _export_index(src: str) -> dict[str, list[tuple[int, str]]]:
     local name it has there."""
     out: dict[str, list[tuple[int, str]]] = {}
     starts = _chunk_starts(src)
-    for k, lo in enumerate(starts):
-        hi = starts[k + 1] if k + 1 < len(starts) else len(src)
-        tail = max(lo, hi - 65_536)
-        m = _EXPORT_TAIL_RE.search(src[tail:hi])
+    for lo, hi in zip(starts, starts[1:] + (len(src),)):
+        m = _EXPORT_TAIL_RE.search(src[max(lo, hi - 65_536) : hi])
         if not m:
             continue
         for part in m.group(1).split(","):
             local, _, exported = part.strip().partition(" as ")
-            if local.strip():
-                out.setdefault((exported or local).strip(), []).append(
-                    (lo, local.strip())
-                )
+            if local := local.strip():
+                out.setdefault(exported.strip() or local, []).append((lo, local))
     return out
 
 
@@ -1892,6 +1888,12 @@ def _declares(src: str, pos: int) -> bool:
     return bool(re.search(r",\s*$", head)) and _statement_keyword(src, pos) is not None
 
 
+def _name_re(ident: str) -> re.Pattern[str]:
+    """`ident` as a whole name, not a property read (`.ident`) or part of a
+    longer identifier."""
+    return re.compile(r"(?<![\w$.])" + re.escape(ident) + r"(?![\w$])")
+
+
 def _redeclared_later(src: str, braces: BraceMap, ident: str, at: int) -> bool:
     """Whether the function reading `ident` at `at` declares it again after
     `at`: a `var` there hoists, and a `let` or `const` in a block holding the
@@ -1899,8 +1901,7 @@ def _redeclared_later(src: str, braces: BraceMap, ident: str, at: int) -> bool:
     reader = _function_block(src, braces, at)
     if reader is None:
         return False
-    name = re.compile(r"(?<![\w$.])" + re.escape(ident) + r"(?![\w$])")
-    for m in name.finditer(_mask_strings(src[at : reader[1]])):
+    for m in _name_re(ident).finditer(_mask_strings(src[at : reader[1]])):
         pos = at + m.start()
         if not _declares(src, pos):
             continue
@@ -1916,8 +1917,7 @@ def _unset_between(src: str, braces: BraceMap, ident: str, lo: int, at: int) -> 
     """Whether, after the binding at `lo`, the read at `at` sees a newer
     declaration of `ident` with no initializer (`let x;`, `var a,x`) or a
     `catch (x)` parameter: its value is not that binding's."""
-    name = re.compile(r"(?<![\w$.])" + re.escape(ident) + r"(?![\w$])")
-    for m in name.finditer(_mask_strings(src[lo:at]), 1):
+    for m in _name_re(ident).finditer(_mask_strings(src[lo:at]), 1):
         pos = lo + m.start()
         if re.search(r"catch\s*\(\s*$", src[max(0, pos - 12) : pos]):
             if _visible(braces, pos, at):
@@ -2159,6 +2159,9 @@ def _write_pattern(ident: str) -> re.Pattern[str]:
 
 
 def _binding_pattern(ident: str) -> re.Pattern[str]:
+    # The identifier leads and the boundary check trails it: a pattern that
+    # opens with a lookbehind loses the regex engine's literal-prefix scan and
+    # runs about thirty times slower over a 45 MB source.
     name = re.escape(ident)
     return re.compile(name + r"(?<![\w$.]" + name + r")\s*=(?![=>])\s*")
 
@@ -2235,12 +2238,9 @@ def _spread_array(src: str, braces: BraceMap, ident: str, at: int) -> int | None
         return None
     if v is None or not src.startswith("[", v):
         return None
-    head = re.search(
-        r"(?<![\w$.])" + re.escape(ident) + r"\s*=\s*$", src[max(0, v - 256) : v]
-    )
-    if head is None:
-        return None
-    if _written_elsewhere(src, braces, ident, max(0, v - 256) + head.start()):
+    head_lo = max(0, v - 256)
+    head = re.search(r"(?<![\w$.])" + re.escape(ident) + r"\s*=\s*$", src[head_lo:v])
+    if head is None or _written_elsewhere(src, braces, ident, head_lo + head.start()):
         return None
     return v
 
@@ -2295,15 +2295,13 @@ def _written_elsewhere(src: str, braces: BraceMap, ident: str, pos: int) -> bool
             return _function_block(src, braces, d) != home_fn
         return braces.enclosing(d) != home_block
 
-    name = re.compile(r"(?<![\w$.])" + re.escape(ident) + r"(?![\w$])")
+    name = _name_re(ident)
     for m in _write_pattern(ident).finditer(src, lo, hi):
-        w = name.search(src, m.start(), m.end())
-        if w is None or w.start() == pos:
+        found = name.search(src, m.start(), m.end())
+        if found is None or found.start() == pos:
             continue
-        if separate(w.start()):
-            continue
-        w = w.start()
-        if not _visible(braces, pos, w, src):
+        w = found.start()
+        if separate(w) or not _visible(braces, pos, w, src):
             continue
         scope = _function_block(src, braces, w) or braces.enclosing(w)
         if scope is None or not any(
@@ -2646,30 +2644,28 @@ def _function_body(
     declaration leaves the name unresolved rather than skipped.
     """
     lo, hi = _chunk_span(src, at)
+    pattern = _function_pattern(ident)
     head = re.compile(r"function\s+" + re.escape(ident) + r"\s*\(")
-    if len(head.findall(src, lo, hi)) != len(
-        _function_pattern(ident).findall(src, lo, hi)
-    ):
+    if len(head.findall(src, lo, hi)) != len(pattern.findall(src, lo, hi)):
         return None
+    single_module = len(_chunk_starts(src)) == 1
     if len(ident) == 1:
-        if len(_chunk_starts(src)) == 1:
+        if single_module:
             return None
-        lo, hi = _chunk_span(src, at)
         top = [
             m
-            for m in _function_pattern(ident).finditer(src, lo, hi)
+            for m in pattern.finditer(src, lo, hi)
             if braces.enclosing(m.start()) is None
         ]
         if len(top) != 1:
             return None
-        return top[0].end() - 1, _param_names(top[0].group(1)), top[0].group(1)
-    if len(_chunk_starts(src)) == 1:
-        found = _declaration(src, braces, ident, at, _function_pattern)
-        found = found or _function_pattern(ident).search(src, at)
+        found: re.Match[str] | None = top[0]
     else:
         found = _declaration(src, braces, ident, at, _function_pattern)
-    if found is None:
-        return None
+        if found is None and single_module:
+            found = pattern.search(src, at)
+        if found is None:
+            return None
     return found.end() - 1, _param_names(found.group(1)), found.group(1)
 
 
@@ -2744,15 +2740,12 @@ def _resolve_chain(
     # A bare identifier naming a function declaration is a function-valued
     # field, which the registrars read through a getter: resolve it as a call
     # when the declaration is nearer than any `ident=` binding.
-    v = (
-        _binding_value(src, braces, ident, at, deferred=deferred)
-        if len(chain) == 1
-        else None
-    )
-    fn = _function_body(src, braces, ident, at) if len(chain) == 1 else None
+    single = len(chain) == 1
+    v = _binding_value(src, braces, ident, at, deferred=deferred) if single else None
+    fn = _function_body(src, braces, ident, at) if single else None
     if fn is not None and v is not None and (fn[0] > at or fn[0] < v):
         fn = None
-    if len(chain) == 1 and fn is None:
+    if single and fn is None:
         if v is None:
             return None
         # A local binding (inside a function) reads that function's scope.
@@ -2809,7 +2802,7 @@ def _resolve_chain(
             anchor=None,
             shadow=scope,
             # A function-valued field is read through a getter: deferred.
-            deferred=deferred or len(chain) == 1,
+            deferred=deferred or single,
         )
         acc.via.add("call")
     elif len(chain) == 2 and chain[1][0] == "prop":
@@ -3073,10 +3066,7 @@ def command_invocability(rec: dict[str, Any], origin: str | None) -> dict[str, A
     not the bundle, and is not read here.
     """
     flag_driven = set(rec.get("flag_driven") or [])
-    if "user_invocable" in flag_driven:
-        user: bool | None = None
-    else:
-        user = rec.get("user_invocable", True)
+    user = None if "user_invocable" in flag_driven else rec.get("user_invocable", True)
     if rec["type"] != "prompt":
         model: bool | None = False
     elif "disable_model_invocation" in flag_driven:
@@ -3267,13 +3257,8 @@ def _nearest_binding(src: str, ident: str, at: int) -> int | None:
             return top[0].end() if len(top) == 1 and len(ident) > 1 else None
         before = [m for m, _ in sites if lo <= m.start() < at]
         return before[-1].end() if before else None
-    # The identifier leads and the boundary check trails it: a pattern that
-    # opens with a lookbehind loses the regex engine's literal-prefix scan and
-    # runs about thirty times slower over a 45 MB source.
-    name = re.escape(ident)
-    pattern = re.compile(name + r"(?<![\w$.]" + name + r")\s*=(?![=>])\s*")
     last = None
-    for m in pattern.finditer(src, lo, at):
+    for m in _binding_pattern(ident).finditer(src, lo, at):
         last = m
     return last.end() if last else None
 
@@ -3327,12 +3312,7 @@ def _argument_object(
         return False
     fn, k = head.group(1), params.index(ident)
     lo, hi = _chunk_span(src, at)
-    refs = {
-        lo + m.start()
-        for m in re.finditer(
-            r"(?<![\w$.])" + re.escape(fn) + r"(?![\w$])", _mask_strings(src[lo:hi])
-        )
-    }
+    refs = {lo + m.start() for m in _name_re(fn).finditer(_mask_strings(src[lo:hi]))}
     calls = refs - {head_lo + head.start(1)}
     call = min(calls) if len(calls) == 1 else -1
     if len(refs) != 2 or not src.startswith("(", call + len(fn)):
@@ -3702,20 +3682,22 @@ def _roster_records(
     return out
 
 
+# `flag_driven` is part of the identity: a constant-true invocation field
+# and a function-valued one read as the same boolean, and the difference
+# (decided at runtime versus fixed) is exactly the evidence a collision
+# exists to preserve.
+_REGISTRATION_IDENTITY = (
+    "description",
+    "argument_hint",
+    "aliases",
+    "gated",
+    "hidden",
+    "flag_driven",
+) + tuple(k for k, _ in _INVOCATION_FIELDS)
+
+
 def _same_registration(a: dict[str, Any], b: dict[str, Any]) -> bool:
-    # `flag_driven` is part of the identity: a constant-true invocation field
-    # and a function-valued one read as the same boolean, and the difference
-    # (decided at runtime versus fixed) is exactly the evidence a collision
-    # exists to preserve.
-    keys = (
-        "description",
-        "argument_hint",
-        "aliases",
-        "gated",
-        "hidden",
-        "flag_driven",
-    ) + tuple(k for k, _ in _INVOCATION_FIELDS)
-    return all(a.get(k) == b.get(k) for k in keys)
+    return all(a.get(k) == b.get(k) for k in _REGISTRATION_IDENTITY)
 
 
 _PLUGIN_NAME_RE = re.compile(r'(?<![\w$])pluginName:"([a-z0-9-]+)"')
@@ -3849,49 +3831,37 @@ def extract_bundled_workflows(
     for callee, target in callees.items():
         meta_i, opts_i = registrars[target]
         for m in re.finditer(r"(?<![\w$.])" + re.escape(callee) + r"\(", src):
-            if src[max(0, m.start() - 9) : m.start()].endswith("function "):
+            at = m.start()
+            if src[max(0, at - 9) : at].endswith("function "):
                 continue
             seen += 1
             try:
                 args = _split_args(src, braces, m.end())
             except (ValueError, IndexError):
-                unresolved.append(f"{callee}(...) at {m.start()}")
-                continue
-            if meta_i is None or meta_i >= len(args):
-                unresolved.append(f"{callee}(...) at {m.start()}")
-                continue
-            meta = args[meta_i]
-            if not src.startswith("{", meta):
-                obj = _resolve_object(
-                    src, braces, src[meta : _ident_end(src, meta)], m.start()
-                )
+                args = []
+            meta = args[meta_i] if meta_i is not None and meta_i < len(args) else -1
+            if meta >= 0 and not src.startswith("{", meta):
+                ident = src[meta : _ident_end(src, meta)]
+                obj = _resolve_object(src, braces, ident, at)
                 meta = obj[0] if obj else -1
-            name = (
-                resolve_field(src, braces, meta, "name", anchor=m.start())
-                if meta >= 0
-                else None
-            )
+
+            def field(key: str) -> dict[str, Any] | None:
+                return resolve_field(src, braces, meta, key, anchor=at)
+
+            name = field("name") if meta >= 0 else None
             if not name or not name["value"] or not _NAME_OK.fullmatch(name["value"]):
-                unresolved.append(f"{callee}(...) at {m.start()}")
+                unresolved.append(f"{callee}(...) at {at}")
                 continue
             rec: dict[str, Any] = {"name": name["value"], "source": "bundled-workflow"}
-            _apply_field(
-                rec,
-                "description",
-                resolve_field(src, braces, meta, "description", anchor=m.start()),
-            )
+            _apply_field(rec, "description", field("description"))
             rec["description"] = rec["description"] or ""
-            when = resolve_field(src, braces, meta, "whenToUse", anchor=m.start())
+            when = field("whenToUse")
             rec["when_to_use"] = when["value"] if when else None
-            _apply_field(
-                rec,
-                "argument_hint",
-                resolve_field(src, braces, meta, "argumentHint", anchor=m.start()),
-            )
+            _apply_field(rec, "argument_hint", field("argumentHint"))
             phases = _object_fields(src, braces, meta).get("phases")
             if phases and phases[0] == "value" and src[phases[1]] in _ID_START:
                 ident = src[phases[1] : _ident_end(src, phases[1])]
-                rec["phases"] = _array_titles(src, braces, ident, m.start())
+                rec["phases"] = _array_titles(src, braces, ident, at)
             rec.update(_workflow_invocation(src, braces, args, opts_i))
             out[rec["name"]] = rec
     notes["registrations_seen"] = seen
@@ -4347,11 +4317,9 @@ def extract_builtin_tools(
         rec["aliases_source"] = alias_source
         rec["deferred"] = _literal_flag(src, fields, "shouldDefer", False)
         rec["always_load"] = _literal_flag(src, fields, "alwaysLoad", False)
-        rec["flag_driven"] = [
-            k for k in ("deferred", "always_load") if rec[k] is None
-        ] or None
-        if rec["flag_driven"] is None:
-            del rec["flag_driven"]
+        flag_driven = [k for k in ("deferred", "always_load") if rec[k] is None]
+        if flag_driven:
+            rec["flag_driven"] = flag_driven
         rec["gated"] = "isEnabled" in fields
         # A tool is called by the model; no user types one.
         rec["user_invocable"] = False
@@ -4400,21 +4368,29 @@ _MANIFEST_RE = re.compile(r"\{(?:scan|shipped):\{")
 _TENGU_RE = re.compile(r'"(tengu_[A-Za-z0-9_]+)"')
 
 
+def _skip_nested(src: str, braces: BraceMap, i: int, hi: int) -> int | None:
+    """Index past the string, `{...}` block or `(`/`[` group opening at `i`,
+    or None when `src[i]` opens none."""
+    ch = src[i]
+    if ch in _QUOTES:
+        return _read_literal(src, i, hi)[1]
+    if ch == "{":
+        close = braces.pairs.get(i)
+        if close is None:
+            raise ValueError("unmatched brace")
+        return close + 1
+    if ch in "([":
+        return _match_close(src, braces, i, hi)
+    return None
+
+
 def _split_top(src: str, braces: BraceMap, lo: int, hi: int) -> list[tuple[int, int]]:
     """The top-level comma-separated parts of `src[lo:hi]`."""
     parts, start, i = [], lo, lo
     while i < hi:
-        ch = src[i]
-        if ch in _QUOTES:
-            i = _read_literal(src, i, hi)[1]
-        elif ch == "{":
-            close = braces.pairs.get(i)
-            if close is None:
-                raise ValueError("unmatched brace")
-            i = close + 1
-        elif ch in "([":
-            i = _match_close(src, braces, i, hi)
-        elif ch == ",":
+        if (nxt := _skip_nested(src, braces, i, hi)) is not None:
+            i = nxt
+        elif src[i] == ",":
             parts.append((start, i))
             start, i = i + 1, i + 1
         else:
@@ -4426,17 +4402,9 @@ def _split_top(src: str, braces: BraceMap, lo: int, hi: int) -> list[tuple[int, 
 def _statement_end(src: str, braces: BraceMap, i: int, hi: int) -> int:
     """The `;` that ends the statement at `i`, or `hi`."""
     while i < hi:
-        ch = src[i]
-        if ch in _QUOTES:
-            i = _read_literal(src, i, hi)[1]
-        elif ch == "{":
-            close = braces.pairs.get(i)
-            if close is None:
-                raise ValueError("unmatched brace")
-            i = close + 1
-        elif ch in "([":
-            i = _match_close(src, braces, i, hi)
-        elif ch == ";":
+        if (nxt := _skip_nested(src, braces, i, hi)) is not None:
+            i = nxt
+        elif src[i] == ";":
             return i
         else:
             i += 1
@@ -4448,17 +4416,9 @@ def _expr_end(src: str, braces: BraceMap, i: int) -> int:
     its own depth."""
     n = len(src)
     while i < n:
-        ch = src[i]
-        if ch in _QUOTES:
-            i = _read_literal(src, i, n)[1]
-        elif ch == "{":
-            close = braces.pairs.get(i)
-            if close is None:
-                raise ValueError("unmatched brace")
-            i = close + 1
-        elif ch in "([":
-            i = _match_close(src, braces, i, n)
-        elif ch in ",;)]}":
+        if (nxt := _skip_nested(src, braces, i, n)) is not None:
+            i = nxt
+        elif src[i] in ",;)]}":
             return i
         else:
             i += 1
@@ -4540,12 +4500,14 @@ def _loader_guards(
                 ca, cb = _strip_span(src, *parts[-1])
                 cond = aliases.get(src[ca:cb], src[ca:cb])
                 body = _skip_ws(src, close, b)
-                if src.startswith("{", body):
+                braced = src.startswith("{", body)
+                if braced:
                     end = braces.pairs[body]
-                    inner, nxt = (body + 1, end), end + 1
+                    inner = (body + 1, end)
                 else:
                     end = _statement_end(src, braces, body, b)
-                    inner, nxt = (body, end), end + 1
+                    inner = (body, end)
+                nxt = end + 1
                 exits = exit_re.search(src, inner[0], inner[1]) is not None
                 if _PLUGIN_LATCH in cond and not (
                     latch_re.fullmatch(cond) and always_exits(*inner)
@@ -4560,18 +4522,12 @@ def _loader_guards(
                     src, inner[0], inner[1]
                 ):
                     state["poisoned"] = True
-                elif exits:
-                    # Calls before the exit keep their guard; what follows
-                    # depends on whether the exit ran, which is not read.
-                    if src.startswith("{", body):
-                        walk(inner[0], inner[1], [*guards, cond])
-                    else:
-                        record(inner[0], inner[1], [*guards, cond])
-                    state["poisoned"] = True
-                elif src.startswith("{", body):
-                    walk(inner[0], inner[1], [*guards, cond])
                 else:
-                    record(inner[0], inner[1], [*guards, cond])
+                    (walk if braced else record)(inner[0], inner[1], [*guards, cond])
+                    if exits:
+                        # Calls before the exit keep their guard; what follows
+                        # depends on whether the exit ran, which is not read.
+                        state["poisoned"] = True
                 if src.startswith("else", _skip_ws(src, nxt, b)):
                     raise ValueError("an else branch")
                 i = nxt
@@ -4629,23 +4585,31 @@ def _combined_load(sites: list[list[str] | None]) -> dict[str, Any]:
     return {"load": "conditional", "load_guards": sites[0]}
 
 
+def _local_binding(
+    src: str, braces: BraceMap, ident: str, at: int, *, deferred: bool = False
+) -> int | None:
+    """`_binding_value` under the wider locality the name rule uses; None
+    when the binding is not found or the read fails."""
+    try:
+        return _binding_value(
+            src,
+            braces,
+            ident,
+            at,
+            deferred=deferred,
+            window=SHORT_IDENT_LOCALITY_BYTES,
+        )
+    except (ValueError, IndexError, RecursionError):
+        return None
+
+
 def _object_value(
     src: str, braces: BraceMap, ident: str, at: int, *, deferred: bool
 ) -> int | None:
     """The `{` of the object literal `ident` reads at `at`, through
     `Object.freeze(...)` and `a=b` aliases; None for anything else."""
     for _ in range(4):
-        try:
-            v = _binding_value(
-                src,
-                braces,
-                ident,
-                at,
-                deferred=deferred,
-                window=SHORT_IDENT_LOCALITY_BYTES,
-            )
-        except (ValueError, IndexError, RecursionError):
-            return None
+        v = _local_binding(src, braces, ident, at, deferred=deferred)
         if v is None:
             return None
         frozen = re.match(r"Object\.freeze\(\s*", src[v : v + 32])
@@ -4788,12 +4752,7 @@ def _merged_string(
         return resolved
     ident = re.match(_IDENT + r"(?=\s*[,}])", src[entry[2] : entry[2] + 64])
     if entry[1] == "value" and ident:
-        try:
-            v = _binding_value(
-                src, braces, ident.group(0), entry[2], window=SHORT_IDENT_LOCALITY_BYTES
-            )
-        except (ValueError, IndexError, RecursionError):
-            v = None
+        v = _local_binding(src, braces, ident.group(0), entry[2])
         m = _CONST_VALUE_RE.match(src, v) if v is not None else None
         if m:
             return {"value": _unescape(m.group(1)), "source": "constant"}
@@ -4840,17 +4799,7 @@ def _bool_of(src: str, braces: BraceMap, text: str, at: int) -> bool | None:
     ident = re.fullmatch(r"(" + _IDENT + r")(\(\))?", text)
     if not ident:
         return None
-    try:
-        v = _binding_value(
-            src,
-            braces,
-            ident.group(1),
-            at,
-            deferred=True,
-            window=SHORT_IDENT_LOCALITY_BYTES,
-        )
-    except (ValueError, IndexError, RecursionError):
-        return None
+    v = _local_binding(src, braces, ident.group(1), at, deferred=True)
     arrow = r"\(\)\s*=>\s*" if ident.group(2) else ""
     m = (
         re.match(arrow + r"!([01])(?=\s*[;,)}\n])", src[v : v + 16])
@@ -4875,17 +4824,7 @@ def _gate_flags(src: str, braces: BraceMap, pos: int) -> list[dict[str, Any]] | 
     ident = re.fullmatch(_IDENT, src[text_lo:text_hi].strip())
     fn = None
     if ident:
-        try:
-            v = _binding_value(
-                src,
-                braces,
-                ident.group(0),
-                pos,
-                deferred=True,
-                window=SHORT_IDENT_LOCALITY_BYTES,
-            )
-        except (ValueError, IndexError, RecursionError):
-            v = None
+        v = _local_binding(src, braces, ident.group(0), pos, deferred=True)
         fn = _function_body(src, braces, ident.group(0), pos) if v is None else None
         if fn is not None and fn[0] in braces.pairs:
             # `isAvailable:t` with `function t(){...}`: the gate is its body.
@@ -4941,17 +4880,7 @@ def _array_elements(
         m = re.match(_IDENT + r"(?=\s*[,}])", src[pos : pos + 64])
         if not m:
             return None
-        try:
-            v = _binding_value(
-                src,
-                braces,
-                m.group(0),
-                pos,
-                deferred=deferred,
-                window=SHORT_IDENT_LOCALITY_BYTES,
-            )
-        except (ValueError, IndexError, RecursionError):
-            return None
+        v = _local_binding(src, braces, m.group(0), pos, deferred=deferred)
         if v is None or not src.startswith("[", v):
             return None
         pos = v
@@ -5370,10 +5299,8 @@ def extract_builtin_plugins(
         named = _merged_string(src, braces, fields, "name")
         if not named or named["source"] not in ("literal", "constant"):
             text = src[name_entry[2] : name_entry[2] + 32]
-            if (
-                re.match(_IDENT + r"(?=\s*[,}])", text)
-                and len(re.match(_IDENT, text).group(0)) == 1
-            ):
+            ident = re.match(_IDENT + r"(?=\s*[,}])", text)
+            if ident and len(ident.group(0)) == 1:
                 factories += 1
             else:
                 unresolved.append(text.split(",")[0])
@@ -5426,11 +5353,9 @@ def extract_builtin_plugins(
             flag = _merged_flag(src, fields, key)
             if flag is None and (key in fields or not complete):
                 partial.append(out_key)
-            rec[out_key] = (
-                flag
-                if flag is not None
-                else (None if key in fields or not complete else False)
-            )
+            elif flag is None:
+                flag = False
+            rec[out_key] = flag
         gate = fields.get("isAvailable")
         rec["gated"] = gate is not None if (gate is not None or complete) else None
         if rec["gated"] is None:
@@ -5565,12 +5490,10 @@ def detect_cli_version(src: str) -> str | None:
     to execute the binary.
     """
     counts: dict[str, int] = {}
-    for m in re.finditer(r'"(\d+\.\d+\.\d+)"', src):
-        counts[m.group(1)] = counts.get(m.group(1), 0) + 1
-    if not counts:
-        return None
-    best = max(counts.items(), key=lambda kv: kv[1])
-    return best[0] if best[1] >= 20 else None
+    for version in re.findall(r'"(\d+\.\d+\.\d+)"', src):
+        counts[version] = counts.get(version, 0) + 1
+    best = max(counts, key=counts.__getitem__, default=None)
+    return best if best and counts[best] >= 20 else None
 
 
 def _lane_status(problems: list[str], advisories: list[str]) -> str:
@@ -5828,9 +5751,9 @@ def check_integrity(
             )
         advisories.extend(f"{lane}: {a}" for a in entry["advisories"])
 
-    status = "broken" if all_broken else ("degraded" if advisories else "ok")
+    # `problems` is filled only when every lane is broken.
     return {
-        "status": status,
+        "status": _lane_status(problems, advisories),
         "lanes": lanes,
         "cli_version": version,
         "validated_against": VALIDATED_AGAINST,
@@ -6020,8 +5943,8 @@ def scan_config_scope(root: Path) -> dict[str, Any]:
             for e in skills.iterdir()
             if e.is_dir() and (e / "SKILL.md").is_file()
         )
-    for name, sub in (("agents", "agents"), ("commands", "commands")):
-        d = root / sub
+    for name in ("agents", "commands"):
+        d = root / name
         if d.is_dir():
             out[name] = sorted(e.name for e in d.iterdir() if e.is_file())
     settings = _load_json(root / "settings.json") or {}
@@ -6595,9 +6518,8 @@ def extract_binary(src: str, meta: dict[str, Any]) -> dict[str, Any]:
                 registration["source"] = "plugin-backed-builtin"
 
     # A name registered as a bundled skill is a skill, not a command.
-    for name in list(commands):
-        if name in skills:
-            del commands[name]
+    for name in commands.keys() & skills.keys():
+        del commands[name]
 
     out: dict[str, Any] = {
         "builtin_commands": commands,

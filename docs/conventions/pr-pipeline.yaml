@@ -1202,13 +1202,29 @@ limits:
   # stranded issues wait for the next one; far above it, queued runs go stale
   # on a lane workflow change.
   restarts-per-run: 10
+  # Kill-switch re-fires keep the issue lane's unfinished runs at this many
+  # per slot (SLOTS in work-resolve-issue.yml) and no more: after the switch
+  # clears, each sweep, a finished run's included, tops the queue back up,
+  # oldest stranded first, so the lane stays full without a flood (owner
+  # decision Q109).
+  refire-queue-per-slot: 2
+  # Minutes after a full work-unblock sweep finished during which the sweep a
+  # finished work-resolve-issue run starts skips its work. Each full sweep
+  # spends about 800 lanes App calls, and on 2026-11-10 seven an hour reached
+  # the App's 5,200 an hour (run 42898100951); 15 holds those sweeps to about
+  # three an hour beside the hourly schedule, which never skips.
+  sweep-gap-minutes: 15
   # Base hours of work-unblock's re-fire backoff for a stranded agent-ready
   # issue, per cause, doubled once per re-fire already made and held at 24
   # (the schema's description says where each cause's doubling starts). The
   # transient causes, where no model ran and nothing in the issue failed (no
   # run started, no lane token, a kill-switch refusal), take 1; a run that
   # ended with no report or failed again after a re-fire may fail the same way
-  # and spend run-hours each time, so those keep 3.
+  # and spend run-hours each time, so those keep 3. kill-switch never doubles:
+  # a breaker trip is the lanes' load, not the issue's, so past
+  # limit-stops-per-issue trips each re-fire waits this flat hour, and
+  # refire-queue-per-slot paces the drain after the switch clears (owner
+  # decision Q109, 2026-11-10).
   stranded-backoff-hours:
     no-run: 1
     no-report: 3
@@ -1235,6 +1251,21 @@ limits:
   # thresholds meant for the hub's limits sampler, which nothing here enforces. Their
   # defaults live in .github/actions/log-api-budget/rate-limits.json, held
   # for a person like this file; add an `api:` entry here only to override one.
+  # The adaptive lane level L (owner decision Q111, 2026-11-10): the issue
+  # lane's concurrency .github/scripts/lib/lane-level.mjs would pick each
+  # window. Nothing reads it yet; SLOTS stays 3. L steps up 1 after
+  # clean-windows windows in a row with no limit signal, lane demand and room
+  # (peak share used x (L+1)/L at most api.<pool>.plan, no pool at or under
+  # api.<pool>.writer-pause left), and halves on any limit signal the lanes
+  # App's own calls meet, within floor and ceiling. pools are the budgets L
+  # spends: the lanes App's bursts. A breaker trip, mostly GITHUB_TOKEN spend
+  # that pacing controls, is not a signal; the breaker stays the backstop.
+  lane-level:
+    floor: 2
+    ceiling: 4
+    default: 3
+    clean-windows: 2
+    pools: [lanes-app]
 
 wip:
   # Cap = lane PRs merged per hour over the window times this target.

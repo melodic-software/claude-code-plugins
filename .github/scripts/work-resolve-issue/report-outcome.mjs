@@ -187,8 +187,8 @@
 //   GITHUB_OUTPUT       --find-prior: the step output file
 //   GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT
 //                       (the attempt whose scan-refusal markers are read)
-import { appendFileSync, lstatSync, readdirSync, readFileSync } from "node:fs";
-import { join, posix, resolve } from "node:path";
+import { appendFileSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, dirname, join, posix, resolve } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -201,6 +201,20 @@ import { OUTSIDE_ACTOR_LABEL, trackerBindingText, UNTRUSTED_LABELS, visibleLines
 import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securityWord, STOP_ROUTES, stopFault, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
 
 export { doneEvidence };
+
+// lib/lane-hold-marker.mjs markLaneHold, kept here rather than imported:
+// several jobs sparse-check out this module and its imports by name.
+export function markLaneHold(env = process.env) {
+  const path = env.LANE_HOLD_MARKER;
+  if (!path) return false;
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, `${basename(path)} ${env.GITHUB_RUN_ID ?? ""}\n`);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export const HOLD_LINE = "Hold: a human merges this";
 // The label a held PR carries from its opening. The hold line is body text the
@@ -2353,6 +2367,7 @@ async function finishStop(github, repo, plan, { bot, appId, humans, runId, limit
     const counted = { ...(await read()), outcome: plan.exit };
     if (spentOnFaults(plan, restartMarkers(counted), runId, limits)) {
       console.log(`::notice title=report-outcome::issue #${plan.issueNumber} stopped on a fault (${plan.stop}), and every retry since a person last added agent-ready was one too; it keeps agent-ready and a later run tries again`);
+      markLaneHold();
       return;
     }
     plan = capRetries(plan, countRestarts(counted), limits);

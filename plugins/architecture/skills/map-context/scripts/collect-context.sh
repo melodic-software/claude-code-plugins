@@ -83,6 +83,11 @@ json_escape() {
   JSON_ESC="$s"
 }
 
+json_field() {
+  json_escape "$2"
+  printf ',"%s":"%s"' "$1" "$JSON_ESC"
+}
+
 repo=""
 out_file=""
 focal=""
@@ -159,10 +164,8 @@ root="$(cd -P "$repo" 2>/dev/null && pwd)" || die "unreadable: $repo" 1
 
 subject="$(basename "$root")"
 origin="$(git -C "$root" remote get-url origin 2>/dev/null || true)"
-if [[ -n "$origin" ]]; then
-  if resolved="$(github_repo_name "$origin")"; then
-    subject="$resolved"
-  fi
+if [[ -n "$origin" ]] && resolved="$(github_repo_name "$origin")"; then
+  subject="$resolved"
 fi
 [[ -n "$focal" ]] || focal="$subject"
 
@@ -174,14 +177,14 @@ fi
 
 hits="$(mktemp)"
 actor_body="$(mktemp)"
-trap 'rm -f "$hits" "$actor_body"' EXIT
+ext_body="$(mktemp)"
+trap 'rm -f "$hits" "$actor_body" "$ext_body"' EXIT
 
 if ! git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   die "not a git repository: $root" 1
 fi
 
 while IFS= read -r -d '' rel; do
-  [[ -n "$rel" ]] || continue
   abs="$root/$rel"
   [[ -f "$abs" && ! -L "$abs" ]] || continue
   [[ -n "$actors_abs" && "$abs" == "$actors_abs" ]] && continue
@@ -200,7 +203,7 @@ while IFS= read -r -d '' rel; do
     mode=json
   elif [[ "$base" == *.yml || "$base" == *.yaml ]]; then
     mode=yaml
-  elif [[ "$base" == *".env" || "$base" != "${base#.env}" ]]; then
+  elif [[ "$base" == *.env || "$base" == .env* ]]; then
     mode="env"
   elif [[ "$base" == *.xml || "$base" == *.config ]]; then
     mode=xml
@@ -246,20 +249,12 @@ while IFS= read -r -d '' rel; do
     ' >>"$hits"
 done < <(git -C "$root" ls-files -z --cached)
 
-if [[ -s "$hits" ]]; then
-  sort_hits="$(mktemp)"
-  LC_ALL=C sort -u "$hits" >"$sort_hits"
-  mv "$sort_hits" "$hits"
-fi
+LC_ALL=C sort -u -o "$hits" "$hits"
 
 if [[ -n "$actors_file" ]]; then
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
-    [[ -n "$line" ]] || continue
-    case "$line" in
-    \#*) continue ;;
-    *) ;;
-    esac
+    [[ -n "$line" && "$line" != \#* ]] || continue
     if redact_is_secret "" "$line"; then
       printf 'collect-context.sh: skipped an actor line that contained connection material\n' >&2
       continue
@@ -272,16 +267,11 @@ if [[ -n "$actors_file" ]]; then
     fi
     [[ -n "$name" ]] || continue
     json_escape "$name"
-    obj="{\"name\":\"$JSON_ESC\""
-    json_escape "$desc"
-    obj="$obj,\"description\":\"$JSON_ESC\",\"origin\":\"operator\"}"
-    printf '%s\n' "$obj" >>"$actor_body"
-  done <"$actors_file"
-  if [[ -s "$actor_body" ]]; then
-    sort_actors="$(mktemp)"
-    LC_ALL=C sort -u "$actor_body" >"$sort_actors"
-    mv "$sort_actors" "$actor_body"
-  fi
+    printf '{"name":"%s"' "$JSON_ESC"
+    json_field description "$desc"
+    printf ',"origin":"operator"}\n'
+  done <"$actors_file" >"$actor_body"
+  LC_ALL=C sort -u -o "$actor_body" "$actor_body"
 fi
 
 emit_lines() {
@@ -300,23 +290,16 @@ emit_lines() {
   printf '  ]%s\n' "$comma"
 }
 
-ext_body="$(mktemp)"
-if [[ -s "$hits" ]]; then
-  while IFS=$'\034' read -r kind host port file cfgkey; do
-    [[ -n "$host" ]] || continue
-    json_escape "$host"
-    obj="{\"host\":\"$JSON_ESC\""
-    json_escape "$kind"
-    obj="$obj,\"kind\":\"$JSON_ESC\""
-    json_escape "$port"
-    obj="$obj,\"port\":\"$JSON_ESC\""
-    json_escape "$file"
-    obj="$obj,\"file\":\"$JSON_ESC\""
-    json_escape "$cfgkey"
-    obj="$obj,\"key\":\"$JSON_ESC\",\"origin\":\"derived\"}"
-    printf '%s\n' "$obj"
-  done <"$hits" >"$ext_body"
-fi
+while IFS=$'\034' read -r kind host port file cfgkey; do
+  [[ -n "$host" ]] || continue
+  json_escape "$host"
+  printf '{"host":"%s"' "$JSON_ESC"
+  json_field kind "$kind"
+  json_field port "$port"
+  json_field file "$file"
+  json_field key "$cfgkey"
+  printf ',"origin":"derived"}\n'
+done <"$hits" >"$ext_body"
 
 record_body="$(
   json_escape "$generated_on"
@@ -329,8 +312,6 @@ record_body="$(
   emit_lines externals "$ext_body" ""
   printf '}\n'
 )"
-
-rm -f "$ext_body"
 
 if [[ -n "$out_file" ]]; then
   mkdir -p "$(dirname "$out_file")" 2>/dev/null

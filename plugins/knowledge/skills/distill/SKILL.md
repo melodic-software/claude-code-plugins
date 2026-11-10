@@ -258,4 +258,4 @@ These are hard-won lessons from real distillation sessions:
 
 7. **One skill per discipline.** Testing knowledge goes in a testing skill, domain design in a domain-design skill. Don't create a mega catch-all skill. A catch-all skill's routing table has to disambiguate across unrelated disciplines, so it routes worse than a per-discipline table
 
-8. **Reference files one level deep.** SKILL.md → reference/*.md. No deeper nesting. Claude partially reads nested references, so keep the hierarchy flat
+8. **Reference files one level deep.** SKILL.md → reference/*.md. No deeper nesting; keep the hierarchy flat. Why: [Avoid deeply nested references](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#avoid-deeply-nested-references), as of 2026-11-10; recheck when that section changes

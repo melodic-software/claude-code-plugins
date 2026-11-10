@@ -1713,7 +1713,16 @@ def project_fan_out(entries: list[dict]) -> dict:
 
     Pure: it reads the flattened records and touches no filesystem and no subprocess.
     """
-    gated: list[tuple[dict, dict, bool]] = []
+
+    def hook_row(entry: dict) -> dict:
+        return {
+            "event": entry.get("event") or "unknown",
+            "matcher": entry.get("matcher"),
+            "source": entry.get("source"),
+            "if": entry.get("if"),
+        }
+
+    gated_by_event: dict[str, list[tuple[dict, dict, bool]]] = {}
     unclassified_rows: list[dict] = []
     if_on_non_tool_event: list[dict] = []
     gate_kinds: set[str] = set()
@@ -1721,12 +1730,7 @@ def project_fan_out(entries: list[dict]) -> dict:
         event = entry.get("event") or "unknown"
         gate = classify_if_gate(entry.get("if"))
         matcher_error = matcher_compile_error(entry.get("matcher"))
-        row = {
-            "event": event,
-            "matcher": entry.get("matcher"),
-            "source": entry.get("source"),
-            "if": entry.get("if"),
-        }
+        row = hook_row(entry)
         if gate["kind"] != "absent" and event not in PER_TOOL_CALL_EVENTS:
             if_on_non_tool_event.append(
                 {
@@ -1757,29 +1761,27 @@ def project_fan_out(entries: list[dict]) -> dict:
         if gate["kind"] == "extension":
             gate_kinds.add(gate["extension"])
         if event in PER_TOOL_CALL_EVENTS:
-            gated.append((entry, gate, matcher_error is not None))
+            gated_by_event.setdefault(event, []).append(
+                (entry, gate, matcher_error is not None)
+            )
 
     file_kinds = projected_file_kinds(gate_kinds)
     rows: list[dict] = []
     duplicate_ids: set[int] = set()
-    for event in sorted({(e.get("event") or "unknown") for e, _, _ in gated}):
+    for event in sorted(gated_by_event):
         for tool in PROJECTION_TOOLS:
             kinds: tuple = file_kinds if tool in FILE_WRITING_TOOLS else (None,)
             for file_kind in kinds:
                 firing: list[dict] = []
                 fire_always = 0
                 settings_seen: set[str] = set()
-                for entry, gate, matcher_unknown in gated:
-                    if (entry.get("event") or "unknown") != event:
-                        continue
+                for entry, gate, matcher_unknown in gated_by_event[event]:
                     if not matcher_matches(entry.get("matcher"), tool):
                         continue
-                    if gate["kind"] == "extension":
-                        if (
-                            tool not in FILE_WRITING_TOOLS
-                            or gate["extension"] != file_kind
-                        ):
-                            continue
+                    if gate["kind"] == "extension" and (
+                        tool not in FILE_WRITING_TOOLS or gate["extension"] != file_kind
+                    ):
+                        continue
                     if (
                         gate["kind"] == "unclassified"
                         or matcher_unknown
@@ -1787,10 +1789,11 @@ def project_fan_out(entries: list[dict]) -> dict:
                     ):
                         fire_always += 1
                     elif entry.get("source") in SETTINGS_SOURCES:
-                        if command_key(entry) in settings_seen:
+                        key = command_key(entry)
+                        if key in settings_seen:
                             fire_always += 1
                             duplicate_ids.add(id(entry))
-                        settings_seen.add(command_key(entry))
+                        settings_seen.add(key)
                     firing.append(entry)
                 rows.append(
                     {
@@ -1804,17 +1807,11 @@ def project_fan_out(entries: list[dict]) -> dict:
                         "ceiling": len(firing),
                     }
                 )
-    for entry, _, _ in gated:
-        if id(entry) in duplicate_ids:
-            unclassified_rows.append(
-                {
-                    "event": entry.get("event") or "unknown",
-                    "matcher": entry.get("matcher"),
-                    "source": entry.get("source"),
-                    "if": entry.get("if"),
-                    "reason": SETTINGS_DUPLICATE_REASON,
-                }
-            )
+    unclassified_rows.extend(
+        {**hook_row(entry), "reason": SETTINGS_DUPLICATE_REASON}
+        for entry in entries
+        if id(entry) in duplicate_ids
+    )
     return {
         "file_kinds": list(file_kinds),
         "baseline_file_kinds": list(PROJECTION_FILE_KINDS),
@@ -2067,24 +2064,25 @@ def hook_inventory(root: Path, project_dir: Path | None = None) -> dict:
     """
     entries: list[dict] = []
     errors: list[str] = []
-    settings, error = read_json(root / "settings.json")
-    if error:
-        errors.append(error)
+
+    def read(path: Path) -> dict | None:
+        parsed, error = read_json(path)
+        if error:
+            errors.append(error)
+        return parsed
+
+    settings = read(root / "settings.json")
     if settings:
         entries += flatten_hook_block(settings.get("hooks") or {}, "settings.json")
     if project_dir:
-        project_settings, error = read_json(project_dir / ".claude" / "settings.json")
-        if error:
-            errors.append(error)
+        project_settings = read(project_dir / ".claude" / "settings.json")
         if project_settings:
             entries += flatten_hook_block(
                 project_settings.get("hooks") or {}, "project settings.json"
             )
 
     enabled = (settings or {}).get("enabledPlugins") or {}
-    installed, error = read_json(root / "plugins" / "installed_plugins.json")
-    if error:
-        errors.append(error)
+    installed = read(root / "plugins" / "installed_plugins.json")
     plugins_scanned = 0
     for key, installs in ((installed or {}).get("plugins") or {}).items():
         if enabled.get(key) is not True:
@@ -2092,9 +2090,7 @@ def hook_inventory(root: Path, project_dir: Path | None = None) -> dict:
         install_path = winning_install_path(installs)
         if not install_path:
             continue
-        manifest, error = read_json(Path(install_path) / "hooks" / "hooks.json")
-        if error:
-            errors.append(error)
+        manifest = read(Path(install_path) / "hooks" / "hooks.json")
         if manifest:
             plugins_scanned += 1
             entries += flatten_hook_block(manifest.get("hooks") or {}, key)
@@ -2138,6 +2134,17 @@ def statusline_config(root: Path) -> dict:
     }
 
 
+def _configured_env(
+    name: str, settings_env: dict, env: dict
+) -> tuple[str | None, str | None]:
+    """(value, source) for `name`: settings.json `env` first, then the engine's environment."""
+    if name in settings_env:
+        return str(settings_env[name]), "settings.json env"
+    if name in env:
+        return str(env[name]), "engine process environment"
+    return None, None
+
+
 def concurrency_ceilings(root: Path, process_env: dict | None = None) -> dict:
     """Report fan-out ceilings against their documented defaults.
 
@@ -2153,12 +2160,7 @@ def concurrency_ceilings(root: Path, process_env: dict | None = None) -> dict:
     if error:
         ceilings["error"] = error
     for name, documented_default in CONCURRENCY_ENV_DEFAULTS.items():
-        if name in settings_env:
-            value, source = str(settings_env[name]), "settings.json env"
-        elif name in env:
-            value, source = str(env[name]), "engine process environment"
-        else:
-            value, source = None, None
+        value, source = _configured_env(name, settings_env, env)
         record: dict = {
             "value": value,
             "source": source,
@@ -2166,15 +2168,16 @@ def concurrency_ceilings(root: Path, process_env: dict | None = None) -> dict:
             "documented": documented_default is not None,
             "truthiness_gated": name in TRUTHINESS_GATED_ENV,
         }
-        if value is not None and documented_default is not None:
-            try:
-                record["above_documented_default"] = int(value) > documented_default
-            except ValueError:
-                record["above_documented_default"] = None
-            if record.get("above_documented_default"):
-                ceilings["findings"].append(f"{name}: above the documented default")
         if value is not None and documented_default is None:
             ceilings["findings"].append(f"{name}: set but undocumented upstream")
+        elif value is not None:
+            try:
+                above = int(value) > documented_default
+            except ValueError:
+                above = None
+            record["above_documented_default"] = above
+            if above:
+                ceilings["findings"].append(f"{name}: above the documented default")
         if value == "0" and name in TRUTHINESS_GATED_ENV:
             record["zero_is_not_a_disable"] = True
             ceilings["findings"].append(
@@ -2223,12 +2226,7 @@ def shell_resolution(root: Path, process_env: dict | None = None) -> dict:
     env = os.environ if process_env is None else process_env
     settings, error = read_json(root / "settings.json")
     settings_env = (settings or {}).get("env") or {}
-    if GIT_BASH_PATH_ENV in settings_env:
-        value, source = str(settings_env[GIT_BASH_PATH_ENV]), "settings.json env"
-    elif GIT_BASH_PATH_ENV in env:
-        value, source = str(env[GIT_BASH_PATH_ENV]), "engine process environment"
-    else:
-        value, source = None, None
+    value, source = _configured_env(GIT_BASH_PATH_ENV, settings_env, env)
     findings: list[str] = []
     record: dict = {
         "variable": GIT_BASH_PATH_ENV,

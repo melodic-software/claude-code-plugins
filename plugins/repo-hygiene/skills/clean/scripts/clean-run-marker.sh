@@ -68,13 +68,10 @@ if [[ "$ACTION" == open ]]; then
     echo "Error: open needs --tier" >&2
     exit 2
   fi
-  case "$TIER" in
-  scan | scan-batch)
+  if [[ "$TIER" == scan || "$TIER" == scan-batch ]]; then
     echo "Marker: not armed (read-only tier: $TIER)"
     exit 0
-    ;;
-  *) ;;
-  esac
+  fi
 fi
 
 MARKER=""

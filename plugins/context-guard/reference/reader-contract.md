@@ -53,13 +53,13 @@ same triggers. These stamps are probe results with a date, not standing facts.
 - **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale. Treat
   the zone as **unknown** for that decision.
 - **Default percentage bands (over `context_window.used_percentage`, uppers inclusive):**
-  `smart` ≤ **50** < `acceptable` ≤ **75** < `dumb`. These shipped defaults apply only when
+  `light` ≤ **50** < `moderate` ≤ **75** < `heavy`. These shipped defaults apply only when
   `zones.json` is absent or malformed; when the file is present and valid, its bands win (see
   Zones below).
 - **Default token bands (over occupancy = `total_input_tokens` + `total_output_tokens`, uppers
   inclusive, selected by window class as described under "Occupancy and combination rule"):**
-  window class **200000**: `smart` ≤ **100000** < `acceptable` ≤ **150000** < `dumb`;
-  window class **1000000**: `smart` ≤ **128000** < `acceptable` ≤ **500000** < `dumb`.
+  window class **200000**: `light` ≤ **100000** < `moderate` ≤ **150000** < `heavy`;
+  window class **1000000**: `light` ≤ **128000** < `moderate` ≤ **500000** < `heavy`.
 - **Token-shape version floor (fixed):** the token shape is computable only when the snapshot's
   `cli_version` is present, purely numeric dotted, and **≥ 2.1.132**, the release from which the
   token fields mean current occupancy rather than cumulative session totals.
@@ -69,7 +69,7 @@ same triggers. These stamps are probe results with a date, not standing facts.
 - **Evidence-degraded marker (fixed path, optional):**
   `~/.claude/context-guard/context/<session_id>.compacted`. Presence means the session was
   compacted; treat it as evidence-degraded regardless of zone.
-- **Zone vocabulary:** `smart` / `acceptable` / `dumb` / `unknown`. `unknown` is the conservative
+- **Zone vocabulary:** `light` / `moderate` / `heavy` / `unknown`. `unknown` is the conservative
   word; consumers treat it as "assume degraded".
 
 ## Snapshot file shape
@@ -101,13 +101,13 @@ nothing is written and readers read `unknown`, as with no file.
       "cache_read_input_tokens": 27000
     }
   },
-  "zone": "smart",
+  "zone": "light",
   "evidence_degraded": false,
   "bands": {
-    "smart_max_used_percentage": 50,
-    "acceptable_max_used_percentage": 75,
-    "smart_max_tokens": 100000,
-    "acceptable_max_tokens": 150000
+    "light_max_used_percentage": 50,
+    "moderate_max_used_percentage": 75,
+    "light_max_tokens": 100000,
+    "moderate_max_tokens": 150000
   }
 }
 ```
@@ -118,13 +118,16 @@ or importing plugin code. A reader that predates these fields, or reads a file a
 wrote, falls back to its own lookup over `context_window` and `zones.json` as this contract
 describes; the fields are additive, and a reader ignores keys it does not know.
 
-- `zone`: `smart`, `acceptable`, `dumb` or `unknown`, as the module resolved this body: the
-  combination rule over the bands below, and `dumb` once the session was compacted. It is as of
+- `zone`: `light`, `moderate`, `heavy` or `unknown`, as the module resolved this body: the
+  combination rule over the bands below, and `heavy` once the session was compacted. It is as of
   `captured_at`, so the staleness rule still applies: a stale file means `unknown`. A
-  `.compacted` marker still means degraded whatever this field says.
+  `.compacted` marker still means degraded whatever this field says. For one release a reader
+  also accepts `smart`, `acceptable` and `dumb` as `light`, `moderate` and `heavy`: a session
+  still running the earlier module writes them, with `bands` under the old key names
+  (`smart_max_*`, `acceptable_max_*`).
 - `evidence_degraded`: `true` once the module saw a compaction or the marker for this session.
-- `bands`: the edges in force after `zones.json`: `smart_max_used_percentage` and
-  `acceptable_max_used_percentage` always; `smart_max_tokens` and `acceptable_max_tokens` for
+- `bands`: the edges in force after `zones.json`: `light_max_used_percentage` and
+  `moderate_max_used_percentage` always; `light_max_tokens` and `moderate_max_tokens` for
   the session's window class, `null` when the token shape is not computable (see "Version
   floor"); and `auto_compact_window` only when the auto-compact window is smaller than
   `context_window_size`, in which case the percentage edges are already scaled to it (see "The
@@ -223,15 +226,15 @@ shape is then not computable (never borrow a larger class's looser bands).
 **Combination rule (consumers inline this sentence verbatim):** when both shapes are computable,
 the worse zone wins (conservative-min); when only one is computable, it stands alone; when
 neither is, the zone is unknown. Rationale: the two shapes disagree exactly when one measure has
-information the other lacks (a deep-but-cache-heavy window, a small window near compaction), and
+information the other lacks (a deep window made mostly of cache reads, a small window near compaction), and
 a routing hint must degrade toward caution, never toward optimism.
 
 **Version floor:** we read `total_input_tokens` / `total_output_tokens` as *current context
 occupancy* only from Claude Code **2.1.132** on (the source note below gives the basis). Before
 that they were cumulative session totals, which would misfire the token bands badly. Cumulative
 semantics are **not observable from the numbers**: a cumulative 170k in a 200k window is a
-perfectly plausible current occupancy, sits inside the window, and resolves `dumb` while the live
-context may be smart-zone. So the token shape requires
+perfectly plausible current occupancy, sits inside the window, and resolves `heavy` while the live
+context may be in the light zone. So the token shape requires
 an explicit version signal: the snapshot's `cli_version`, the Claude Code version the session
 reports to the module (Pointer: `$.session.version()` in
 <https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods>. As of: 2026-10-03,
@@ -265,12 +268,12 @@ pointer below. As observed 2026-10-09: on GraphWalks BFS, run by Google at max r
 published with Gemini 4 Argon, Opus 5.5 scored 90.6% up to 128K and 66.8% from 256K to 1M, and
 Fable 5.1 91.4% and 65.0%; on Context Arena's 8-needle MRCR (max effort), Claude Opus 5 scored
 0.913 at 128K, 0.656 at 256K and 0.425 at 512K, and Claude Sonnet 5 0.529, 0.522 and 0.320. The 1M
-row's `smart` edge, 128000, is the last length at which those current-model scores were still near
-their best when we set it. Its `acceptable` edge,
+row's `light` edge, 128000, is the last length at which those current-model scores were still near
+their best when we set it. Its `moderate` edge,
 500000, sits below 512K, the first MRCR length at which both Claude rows scored under one half.
-Between the two, scores sag without a measured cliff, so a reading there is `acceptable`, not `dumb`: an
-`acceptable` edge of 250000 read `dumb` at 26% of a 1M window on no evidence for current models
-or agentic work (#6644). The 200k row's `acceptable` edge, 150000, sits at
+Between the two, scores sag without a measured cliff, so a reading there is `moderate`, not `heavy`: an
+`moderate` edge of 250000 read `heavy` at 26% of a 1M window on no evidence for current models
+or agentic work (#6644). The 200k row's `moderate` edge, 150000, sits at
 the top of the practitioner consensus of about 125-150K. `zones.json` is the correction path, and
 the numeric agreement of the 200k row's percentage translation with the shipped 50/75 percentage
 defaults is coincidence, not validation.
@@ -311,17 +314,17 @@ skill's module check), none of the following runs except the PostCompact marker.
   into a zone worse than any this session has already reported, report the crossing on **two
   channels with two audiences**. The **model channel** (the `context` a `tool.call` or
   `prompt.submit` hook adds) carries by default the zone word and its rank of three, and past
-  `smart` one options line after the verdict lines at a carrier (below). A
+  `light` one options line after the verdict lines at a carrier (below). A
   line carries no figure unless `zone_line_data` adds one (percent, tokens, window); it never
   carries a session id. Beside the
   crossings the module sends one approach line per boundary per cycle (`approach_margin`
   percentage points before it), one line per `thresholds` entry passed, and the verdict restated
-  once, only when it is past `smart`, after a compaction (not a `precompute` one), after an
+  once, only when it is past `light`, after a compaction (not a `precompute` one), after an
   in-process resume, and on a reload or a worker respawn (a load with earlier turns). Each line
   sent is also written as sent to the debug log. Lines due
   at one carrier: a crossing or restatement recorded before a pending restatement merges into it;
   a crossing recorded after it is the newer verdict and replaces it. After
-  `/clear` it sends nothing: the new session starts in `smart`. Lines go to the main conversation
+  `/clear` it sends nothing: the new session starts in `light`. Lines go to the main conversation
   only, never to a subagent. In `operator` report mode a turn a person typed holds the lines and
   offers them as the prompt box's suggestion plus a notice row when the turn ends; headless,
   loop, schedule and notification turns get the lines either way. The **operator channel** (a
@@ -330,7 +333,7 @@ skill's module check), none of the following runs except the PostCompact marker.
   is the human's call to make (continue / `/compact` / `/clear` / `/session-flow:handoff` then
   `/clear`), at the reading that saw the crossing rather than at the carrier that takes Claude's
   line (a measurement, a tool call, a prompt, or a `/context-guard` or status-tool read), and not
-  for a first reading already past `smart`, which has no earlier zone to name. A crossing already
+  for a first reading already past `light`, which has no earlier zone to name. A crossing already
   shown in an unattended turn is not offered again as a typed turn's suggestion. The
   transcript line ends `more: /context-guard`. `/context-guard` replies with the verdict, its
   figures and the settings in force only, because a command's reply is stored as a transcript row
@@ -348,7 +351,7 @@ skill's module check), none of the following runs except the PostCompact marker.
   summarize, or hand off. The options line below is a deliberate, owner-decided exception to that
   row (2026-10-11, issue #7118): an audit that flags it records it as this known exception rather
   than a new finding. By default the module sends the
-  verdict, any operator-configured `zones.json` action, and past `smart` one options line: record
+  verdict, any operator-configured `zones.json` action, and past `light` one options line: record
   decisions and pending items in a durable file, then continue, `/compact`, or hand off as the
   model and the user choose, and a zone never calls for terser output, fewer agents, or lower
   quality. The verdict alone, with no such line, pushed the model toward handoffs and terse
@@ -359,16 +362,16 @@ skill's module check), none of the following runs except the PostCompact marker.
   channel never says the user has seen the menu. No documented hook behavior tells a hook whether an operator is present, so a delivery
   claim would be a fact the hook cannot know. Silent while the zone is unchanged, improving, or
   `unknown`. **Hysteresis**: the gate is the worst zone already *reported*, not the zone last
-  *seen*. That marker decays only when the session returns to `smart`, the bottom of the ladder.
+  *seen*. That marker decays only when the session returns to `light`, the bottom of the ladder.
   Occupancy does not climb monotonically, so a session sitting on a band edge crosses it
   repeatedly; without the rule each re-crossing reads as a fresh transition and re-injects the
   guidance block. A `/clear` needs no rule: it starts a new session id, hence a fresh baseline.
   The rule is a declared judgment default, on the same footing as the bands above and with the
   same provenance status. **The property**: within one arming cycle each
-  zone is announced at most once, and only a return to `smart` opens a new cycle. A genuine
+  zone is announced at most once, and only a return to `light` opens a new cycle. A genuine
   recovery followed by a relapse therefore re-injects exactly once for the band it relapses into,
-  from any armed band. **The residual**: at the `smart`/`acceptable` edge a flap and a full recovery are the
-  same observation, so a session oscillating there re-announces `acceptable` once per down-up cycle;
+  from any armed band. **The residual**: at the `light`/`moderate` edge a flap and a full recovery are the
+  same observation, so a session oscillating there re-announces `moderate` once per down-up cycle;
   the hook sees one word per observation, never the occupancy behind it, and separating those two
   cases needs a numeric deadband or a dwell the single-observation recovery could not survive.
 - **No gate**: the module never denies a tool call. A zone is reported, never enforced.
@@ -376,12 +379,12 @@ skill's module check), none of the following runs except the PostCompact marker.
   evidence-degraded marker file (below).
 - **The zone lines honor the marker**: when the marker exists, or the module saw the
   compaction itself, the lines treat the session's effective zone as
-  **dumb** regardless of the resolved word, including a green post-compaction reading and
+  **heavy** regardless of the resolved word, including a green post-compaction reading and
   including `unknown`. That implements this contract's own "evidence-degraded regardless of zone"
   rule, so the marker is never write-only.
 - **Status tool** `mcp__context-guard__status`: returns the session's latest figures (the last API
   response's), its zone, whether the evidence is degraded, the bands in force (the token edges of
-  the session's window class as `smart_max_tokens` and `acceptable_max_tokens`, `null` when the
+  the session's window class as `light_max_tokens` and `moderate_max_tokens`, `null` when the
   token shape is not computable), as JSON. A zone lookup for a session that has the module loaded; it has no switch.
 
 Module state (last-seen zone, armed rank) lives in the module's memory, per session
@@ -428,7 +431,7 @@ boundary-timed carve-out.
 A compacted session's `used_percentage` **resets downward** while the evidence in its
 conversational context is already gone. A consumer that knows its session was compacted (or
 summarized by the harness) must treat the session as **evidence-degraded regardless of zone**,
-including a green `smart` reading. The snapshot cannot tell you compaction happened; only the
+including a green `light` reading. The snapshot cannot tell you compaction happened; only the
 session itself can know.
 
 **The docs publish the default thresholds; we state no figure.** The default depends on the model,
@@ -445,12 +448,12 @@ changes, or a page starts publishing its default as a number. The empirical
 check (2026-07-24, execution session): no auto-compact event exists in the producing machine's
 entire transcript history; the largest session ran to 308k total input tokens uncompacted on a
 1M-class window. So the shipped bands keep the provenance stated under "Band provenance" above,
-with a declared margin: the dumb band leads the default trigger that table gives for the model in
+with a declared margin: the heavy band leads the default trigger that table gives for the model in
 use. The trigger is **model- and environment-dependent**, so no single band set is
 correct everywhere; `zones.json` is the correction path if compaction is ever observed earlier.
 
 Two adjacent decisions. We read the statusline percentage as of the last API response, not the
-next request, so it can trail `/context`. With auto-compact turned off, the dumb band is the
+next request, so it can trail `/context`. With auto-compact turned off, the heavy band is the
 *only* tripwire, so it matters strictly more, never less.
 
 - **Pointer**: for how the statusline percentage relates to `/context`, see
@@ -473,7 +476,7 @@ precedence.
 | `autoCompactWindow` | subagent frontmatter | A subagent can carry its own window. The snapshot cannot see that window, and the surface is not probed, so we never assume a subagent shares the session's trigger. | [sub-agents: Set the auto-compact window for one subagent](https://code.claude.com/docs/en/sub-agents#set-the-auto-compact-window-for-one-subagent) |
 | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | environment variable | Read as the effective window ahead of the setting, the command, and the flag, unless Claude Code ignores its value. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables); [model-config: values and warnings](https://code.claude.com/docs/en/model-config#claude_code_auto_compact_window-values) |
 | `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | environment variable | Read as able only to move the trigger earlier, never later. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
-| `autoCompactEnabled` / `DISABLE_AUTO_COMPACT` | `settings.json` key / environment variable | Either one turning auto-compact off leaves the dumb band as the only tripwire. `DISABLE_AUTO_COMPACT` leaves the manual `/compact` command available. | [settings-reference: `autoCompactEnabled`](https://code.claude.com/docs/en/settings-reference#autocompactenabled); [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
+| `autoCompactEnabled` / `DISABLE_AUTO_COMPACT` | `settings.json` key / environment variable | Either one turning auto-compact off leaves the heavy band as the only tripwire. `DISABLE_AUTO_COMPACT` leaves the manual `/compact` command available. | [settings-reference: `autoCompactEnabled`](https://code.claude.com/docs/en/settings-reference#autocompactenabled); [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
 | `DISABLE_COMPACT` | environment variable | A separate, broader switch the plugin does not read. The env-vars page documents it as: "Set to `1` to disable all compaction: both automatic compaction and the manual `/compact` command". It turns off manual `/compact` too, which `DISABLE_AUTO_COMPACT` does not. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
 
 We read a configured window above the model's context window as the model's window: it extends
@@ -548,16 +551,16 @@ will not see the trigger coming. Pointer: for the `CLAUDE_CODE_AUTO_COMPACT_WIND
 changes what the percentage is measured against.
 
 **Tune bands below the effective trigger, never above it.** Whatever the trigger resolves to on a
-machine, the `dumb` band should be reached first. A zone reading exists so the session arrives at a
+machine, the `heavy` band should be reached first. A zone reading exists so the session arrives at a
 boundary decision while that decision is still being made deliberately, through the operator menu
 above. If auto-compact fires first, the harness has already made a lossy choice
-on the session's behalf and the boundary was reached too late. We read a firing diagnostically:
-**it means the boundary was missed**, not that the window was managed. Lowering the window moves the trigger, and the module moves the percentage
+on the session's behalf and the boundary was reached too late. We read a firing diagnostically,
+as **a missed boundary**, not as a sign that the window was managed. Lowering the window moves the trigger, and the module moves the percentage
 bands with it. A 400000-token window on a 1M-class model puts the trigger at **40% of the full
 window**; with the shipped bands the module's edges become 20 and 30 points of the full window
-(50 and 75 of 400000), so the percentage shape reaches `dumb` before auto-compact fires. Without
-that scaling the percentage shape would still read smart at the trigger, inside the shipped
-`smart` band (≤ 50). The window is never compared against the token bands' occupancy edges, which
+(50 and 75 of 400000), so the percentage shape reaches `heavy` before auto-compact fires. Without
+that scaling the percentage shape would still read light at the trigger, inside the shipped
+`light` band (≤ 50). The window is never compared against the token bands' occupancy edges, which
 measure a different quantity. The shell resolver scales the same way from the published
 `bands.auto_compact_window`; pulling `zones.json` under the trigger by hand would now scale twice,
 in the module and in the shell resolver.
@@ -611,28 +614,35 @@ what the human sees and what consumers decide on. Zones say *where you are*; con
 
 ```json
 {
-  "smart_max_used_percentage": 50,
-  "acceptable_max_used_percentage": 75,
+  "light_max_used_percentage": 50,
+  "moderate_max_used_percentage": 75,
   "token_bands": {
-    "200000": { "smart_max_tokens": 100000, "acceptable_max_tokens": 150000 },
-    "1000000": { "smart_max_tokens": 128000, "acceptable_max_tokens": 500000 }
+    "200000": { "light_max_tokens": 100000, "moderate_max_tokens": 150000 },
+    "1000000": { "light_max_tokens": 128000, "moderate_max_tokens": 500000 }
   }
 }
 ```
 
 Validity is **per shape, independently**:
 
-- **Percentage keys:** both values numeric, `0 < smart_max < acceptable_max ≤ 100`. Malformed
+- **Percentage keys:** both values numeric, `0 < light_max < moderate_max ≤ 100`. Malformed
   (unparsable file, not an object, non-numeric, inverted, out of range, one key without the
   other, or both absent from an object holding a key outside `token_bands`, `actions`,
   `approach_margin` and `thresholds`) → shipped percentage defaults with a visible stderr notice
   from the resolver. An object with neither key and only those four keys keeps the shipped
   percentage defaults silently.
 - **`token_bands` (optional):** when present, an object whose every key is a decimal window-class
-  string and every value carries numeric `smart_max_tokens` and `acceptable_max_tokens` with
-  `0 < smart < acceptable ≤ class`. Malformed as a whole → shipped token bands with its own
+  string and every value carries numeric `light_max_tokens` and `moderate_max_tokens` with
+  `0 < light < moderate ≤ class`. Malformed as a whole → shipped token bands with its own
   visible stderr notice. **Absent is zero-config** (shipped token bands, silently): a
   percentage-only file is valid.
+
+**Old key names (one release).** Before validation, `smart_max_used_percentage`,
+`acceptable_max_used_percentage`, and `smart_max_tokens` and `acceptable_max_tokens` in a
+`token_bands` row, read as their `light_`/`moderate_` names, and `actions.smart`,
+`.acceptable` and `.dumb` as `actions.light`, `.moderate` and `.heavy`. Where both names are set
+the new one wins; the old key is then ignored. A consumer that re-implements the lookup applies
+the same rule.
 
 Unrecognized keys are permitted and preserved (the setup skill's `apply` seeds/refreshes this
 file idempotently; the resolver only reads it).
@@ -644,8 +654,8 @@ an absent or invalid one means its default, so a file without them keeps working
 {
   "approach_margin": 5,
   "actions": {
-    "acceptable": { "action": "none" },
-    "dumb": { "action": "save-state" }
+    "moderate": { "action": "none" },
+    "heavy": { "action": "save-state" }
   },
   "thresholds": [{ "at_percent": 60, "action": "handoff" }]
 }
@@ -742,7 +752,7 @@ take the conservative route. What changes is how a consumer *reports* it:
   format we do not treat as a stable interface, where a field can keep its name and stop meaning
   full-context occupancy with nothing to detect it; and the OpenTelemetry token metric is
   a cumulative counter, not occupancy. A wrong zone is strictly worse than `unknown`: `unknown`
-  routes to the conservative path, while a misread occupancy can read `smart` on a nearly full
+  routes to the conservative path, while a misread occupancy can read `light` on a nearly full
   window.
 - **`unknown` carries no direction.** It is not evidence of a full window and not evidence of an
   empty one. A consumer that wants a fork or handoff trigger in an environment with no instrument

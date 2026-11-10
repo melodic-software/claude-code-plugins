@@ -81,6 +81,10 @@ rendered diagram. These facts and their sources are documented in the catalog.
   equally; render when one form dominates), `always` (offer the ranked menu on any
   bare code paste), or `never` (render the recommended form without asking). A
   `/config` picker offers these three values.
+- **`hosted_canvas`** (`userConfig`, string, default `allow`; also the `hosted_canvas` key of a
+  repository's `docs/conventions/visualization.yaml` and of the gitignored personal override
+  `docs/conventions/visualization.local.yaml`). Whether diagram content may go to a canvas server
+  reached over the network: `allow` or `deny`. `deny` from any layer wins.
 
 Configure with `/plugin configure visualization@<marketplace>`, or headless with
 `claude plugin install visualization@<marketplace> -s <scope> --config
@@ -100,6 +104,13 @@ behaves as `artifact`. An unrecognized value is reported and treated as `auto`.
 **`thin_context_prompt`.** `auto` renders without asking when one form dominates. A value outside
 the three the picker offers is reported and treated as `auto`.
 
+**`hosted_canvas`.** A canvas server is an MCP server whose tools draw diagrams in an interactive
+view. The skill uses one only on a surface that renders it, never in the Claude Code terminal, and
+never for a diagram that will be committed, which stays Mermaid, and only where the resolved
+`medium` would deliver a page. With `deny`, or a `medium` that keeps delivery on the machine, it
+uses a canvas server only when you say in the session that the server runs locally. The plugin ships no canvas server; the optional official ones (Excalidraw, tldraw) install
+at user level from their repositories, listed in the visualize skill's catalog.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -111,6 +122,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | --- | --- | --- | --- |
 | `medium` | string | `"auto"` | Preferred delivery medium. auto (default) defers to the shared medium resolver, then decides by content and available surfaces; terminal always renders inline; file renders richer forms as a local HTML file, never published; artifact or hosted prefers a published Artifact, else a file. |
 | `thin_context_prompt` | string | `"auto"` | What the skill does when code is pasted with little context and no form named. auto (default) asks one ranked question only when two or more code-shape forms fit about equally; always offers the ranked menu on any bare code paste; never renders the recommended form without asking. |
+| `hosted_canvas` | string | `"allow"` | Whether diagram content may go to a canvas server reached over the network (a remote MCP server). allow (default) permits it where the surface renders a canvas; deny keeps diagrams local or on a local server. deny from any layer wins. |
 
 ### How to set these
 

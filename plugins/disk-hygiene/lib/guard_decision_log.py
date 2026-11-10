@@ -176,7 +176,7 @@ def _redact_cut_tail(text: str) -> str:
 def _clip(value: object) -> str | None:
     if value is None:
         return None
-    text = value if isinstance(value, str) else str(value)
+    text = str(value)
     if len(text) > MAX_SCAN_CHARS:
         # Scan only a bounded prefix, and narrow the kept window by what
         # redaction removed, so every kept character comes from the first
@@ -220,9 +220,8 @@ def build_record(
             record["command"] = _clip(command)
     if reason is not None:
         record["reason"] = _clip(reason)
-    if extra:
-        for key, value in extra.items():
-            record[key] = _clip(value) if isinstance(value, str) else value
+    for key, value in (extra or {}).items():
+        record[key] = _clip(value) if isinstance(value, str) else value
     return record
 
 
@@ -241,9 +240,7 @@ def _ensure_log_dir(directory: Path) -> None:
 
 
 def _open_append(path: Path) -> TextIO:
-    flags = os.O_APPEND | os.O_CREAT | os.O_WRONLY
-    if hasattr(os, "O_CLOEXEC"):
-        flags |= os.O_CLOEXEC
+    flags = os.O_APPEND | os.O_CREAT | os.O_WRONLY | getattr(os, "O_CLOEXEC", 0)
     fd = os.open(path, flags, FILE_MODE)
     try:
         return os.fdopen(fd, "a", encoding="utf-8", newline="\n")

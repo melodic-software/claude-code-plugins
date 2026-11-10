@@ -1,5 +1,5 @@
 ---
-description: "The project's ubiquitous-language glossary: locate, lookup (read terms), seed a first one, curate (canonical terms, rejected synonyms, definitions), audit. Use when: 'what does this domain term mean', 'update the domain glossary', 'define this domain term', 'standardize this vocabulary', 'these names conflict', 'we have no glossary yet', 'check our glossary', domain modeling resolves vocabulary, or a skill needs domain terms before naming something. Not for dictionary definitions or bounded-context discovery."
+description: "The project's ubiquitous-language glossary: locate, lookup (read terms), seed a first one, curate (canonical terms, rejected synonyms, definitions), audit. Use when: 'what does this domain term mean', 'update the domain glossary', 'define this domain term', 'standardize this vocabulary', 'these names conflict', 'we have no glossary yet', 'check our glossary', 'prune the glossary', 'the glossary feels bloated', domain modeling resolves vocabulary, or a skill needs domain terms before naming something. Not for dictionary definitions or bounded-context discovery."
 argument-hint: "[locate|lookup|seed|curate|audit] [term, ambiguity, or resolved vocabulary]"
 user-invocable: true
 disable-model-invocation: false
@@ -53,11 +53,12 @@ action's input.
 | `locate` | nothing | Which glossary and glossary index cover a scope | [actions/locate.md](actions/locate.md) |
 | `lookup [term...]` | nothing | A skill or a person needs the domain terms before naming, writing or explaining something | [actions/lookup.md](actions/lookup.md) |
 | `seed` | accepted terms only | The project has no glossary for the scope | [actions/seed.md](actions/seed.md) |
-| `curate` | the glossary | A term resolved, conflicts, or changed meaning | [actions/curate.md](actions/curate.md) |
-| `audit` | nothing | Check entries against the contract and find rejected words in use | [actions/audit.md](actions/audit.md) |
+| `curate` | the glossary | A term resolved, conflicts, or changed meaning; remove or merge accepted entries | [actions/curate.md](actions/curate.md) |
+| `audit` | nothing | Check entries against the contract, find rejected words in use, propose entries to prune ('prune the glossary', 'the glossary feels bloated') | [actions/audit.md](actions/audit.md) |
 
 With no action token: a question about what a term means, or a request to read the glossary, is
-`lookup`; a resolved, disputed or changed term is `curate`; anything else asks which action.
+`lookup`; a resolved, disputed or changed term is `curate`; a request to prune or slim the glossary
+is `audit`; anything else asks which action.
 
 ## Invocation by consuming workflows
 
@@ -75,7 +76,8 @@ With no action token: a question about what a term means, or a request to read t
 - **No bounded-context discovery.** Consume existing boundaries. When the project has not
   established the boundaries a term needs, route that work to `/event-storming:simulation`.
 - **No general dictionary.** Exclude generic programming and methodology terms unless the consuming
-  project's domain gives them a distinct meaning.
+  project's domain gives them a distinct meaning, and everyday words in their ordinary sense; a term
+  earns an entry only when it removes ambiguity.
 - **Domain only.** Framework and tooling nouns belong in the project's architecture docs.
 - **No spec or scratchpad.** Behavior, implementation, acceptance criteria and open questions belong
   in their owning artifacts.
@@ -83,7 +85,7 @@ With no action token: a question about what a term means, or a request to read t
   alternative, is `/architecture:record-decision`'s; this skill records only what a term means.
 - **No speculative scaffolding.** An empty glossary or index is worse than no file; create lazily.
 - **No autonomous consensus.** Ambiguous language is a question, not a write; `seed` writes only
-  terms a person accepted one by one.
+  terms a person accepted one by one, and `curate` removes or merges only entries a person accepted.
 - **Never rewrites code or copy.** Code names follow the glossary, but the rename goes through
   `/docs-hygiene:rename-references` in its own reviewed change; user-facing copy and error messages
   are reported, never rewritten.

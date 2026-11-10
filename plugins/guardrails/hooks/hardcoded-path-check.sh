@@ -142,6 +142,18 @@ hpc_labels_json_to() {
   printf -v "$1" '%s' "$__hpc_labels"
 }
 
+# hpc_send_tel <status> <file> <violation report, or "" for none>: one telemetry
+# envelope. The caller checks the start stamp and the opt-in sink first, so the
+# unwired path spawns nothing.
+hpc_send_tel() {
+  local labels_json='[]' data
+  [[ -z "$3" ]] || hpc_labels_json_to labels_json "$3"
+  data=$(jq -n --arg file "$2" --argjson violations "$labels_json" \
+    '{tool:"'"$TOOL"'",file:$file,violations:$violations}' 2>/dev/null) ||
+    data='{"tool":"","file":"","violations":[]}'
+  hook::emit_telemetry "hardcoded-path-check" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
+}
+
 if ((HOOK_JQ_FIELDS_NUL)); then
   hpc_block_nul
 fi
@@ -239,12 +251,7 @@ hpc_mcp_lane() {
   } >&2
 
   if [[ -n "$start" ]] && hook::telemetry_enabled; then
-    local labels_json data
-    hpc_labels_json_to labels_json "$violations"
-    data=$(jq -n --arg file "$first_offender" --argjson violations "$labels_json" \
-      '{tool:"'"$TOOL"'",file:$file,violations:$violations}' 2>/dev/null) ||
-      data='{"tool":"","file":"","violations":[]}'
-    hook::emit_telemetry "hardcoded-path-check" "PreToolUse" "blocked" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
+    hpc_send_tel blocked "$first_offender" "$violations"
   fi
   exit 2
 }
@@ -364,7 +371,7 @@ PROJECT_ROOT=$CLAUDE_PROJECT_DIR
 # alone: telemetry below still anchors the repo-relative path on it.
 hpp::resolve_scan_root "$PROJECT_ROOT" "$_hpc_toplevel"
 
-# Emit one telemetry envelope: $1 status, $2 labels JSON array. Gated on the
+# Emit one telemetry envelope: $1 status, $2 violation report. Gated on the
 # high-res start stamp and the opt-in sink — the unwired path spawns nothing,
 # which is also why the repo-relative path is resolved in here rather than at
 # the top level: the default unwired run never pays for it.
@@ -383,11 +390,7 @@ emit_tel() {
   # it here. The copy this replaced did the same.
   local file_rel=""
   hook::repo_relative_path_to file_rel "$FILE" "${PROJECT_ROOT%/}"
-  local data
-  data=$(jq -n --arg file "$file_rel" --argjson violations "$2" \
-    '{tool:"'"$TOOL"'",file:$file,violations:$violations}' 2>/dev/null) ||
-    data='{"tool":"","file":"","violations":[]}'
-  hook::emit_telemetry "hardcoded-path-check" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
+  hpc_send_tel "$1" "$file_rel" "$2"
 }
 
 # `$(…)` strips every trailing newline. Each violation block ends with a blank
@@ -415,10 +418,9 @@ if [[ -n "$VIOLATIONS" ]]; then
     hpc_print_violations "$VIOLATIONS"
     hpc_print_alternatives
   } >&2
-  hpc_labels_json_to labels_json "$VIOLATIONS"
-  emit_tel "blocked" "$labels_json"
+  emit_tel "blocked" "$VIOLATIONS"
   exit 2
 fi
 
-emit_tel "ok" '[]'
+emit_tel "ok" ""
 exit 0

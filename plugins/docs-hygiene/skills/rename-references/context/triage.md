@@ -145,19 +145,27 @@ Without `--include-historical`, a frozen hit never enters a bucket and is never 
 ## Special case: Glossary-driven renames
 
 When the pair comes from a domain glossary change ([SKILL.md](../SKILL.md#glossary-driven-renames)),
-two classifications override every bucket above, Certain included, and are decided before it:
+three classifications override every bucket above, Certain included, and are decided before it:
 
 - **Stored value.** The hit sits in a value that outlives the code: a quoted literal assigned to,
   compared with or listed as a persisted field, enum member value or status string; a database
   migration, seed or fixture file; a message, event or API schema (`*.proto`, `*.avsc`, OpenAPI,
-  JSON Schema). Recorded for a data migration or versioned contract change; never edited.
+  JSON Schema). Never edited; named as a decision, a phased migration or a mapping, recorded as an
+  ADR.
 - **User-facing copy.** The hit sits in text a user reads: a string passed to a UI, an email or
   notification template, a localization file, or an error or validation message. Report-only; never
   edited. A hit matching the glossary entry's `Shown to users as:` wording is intended and left out.
+- **ADR file name.** The hit is in an ADR's file name or number, or in a path or link naming that
+  file. Kept; never edited. The ADR's text stays in the buckets and is updated.
 
 When a hit's context does not show which it is, it goes to Ambiguous with its context, never to
-Certain. Both lists are counted in their own rows of the report and recorded as spans, each with its matched snippet,
-`(file, line, start, end)` for apply.md Phase 6.
+Certain. Each list is counted in its own layer row of the report and recorded as spans, each with
+its matched snippet, `(file, line, start, end)` for apply.md Phase 6.
+
+When the pair is a verb from an entity's `Actions:` line, a hit is in scope only where the verb names
+that operation on that entity: beside the entity's name, or inside an identifier with it (`sendRefund`
+for `Refund ... Actions: issue (Avoid: send)`). The verb used on anything else is ordinary English
+and goes to Excluded; a hit whose context does not show the entity goes to Ambiguous.
 
 ## Special case: Memory entries
 
@@ -178,7 +186,7 @@ Sweep results across <N> tracked files:
 | Certain         | <X>   | Auto-apply           |
 | Chain-context   | <Y>   | Review-recommended   |
 | Ambiguous       | <Z>   | Per-match confirm    |
-| Excluded        | <W>   | Skipped (plan-docs/historical/memory) |
+| Excluded        | <W>   | Skipped (plan-docs/historical/memory/off-entity verb) |
 
 Kept as history: <file>:<line>[, <file>:<line>...]  (frozen records; omit the line when none)
 
@@ -190,5 +198,15 @@ Proceed?
 ```
 
 Print the two Certain lines only when the Certain count is above 0.
+
+For a glossary-driven rename, add the layer rows after the bucket table:
+
+```text
+Layers:
+- Code and identifiers: <n> (in the buckets; renamed in this reviewed change)
+- Docs and ADR text: <n> (in the buckets; ADR file names kept: <k>)
+- User-facing copy and error messages: <n> (report only)
+- Stored values and migrations: <n> (never edited; decision: phased migration or mapping, recorded as an ADR)
+```
 
 Use `AskUserQuestion` to gate the proceed/abort decision.

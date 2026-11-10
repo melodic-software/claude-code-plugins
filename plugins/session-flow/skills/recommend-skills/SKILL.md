@@ -54,7 +54,7 @@ Two separate needs, resolved separately. Detail, formats, and failure behavior:
 [`context/candidate-ladder.md`](context/candidate-ladder.md).
 
 **Names. Completeness is a correctness property.** The in-context skill listing is *not* an
-acceptable sole source: it is budgeted and does not carry every skill, and our premise is that
+acceptable sole source: what it carries is set by an upstream budget, and our premise is that
 the skills an operator has forgotten are the ones it serves worst (pointer record and live
 sections:
 [candidate-ladder § Why the in-context listing cannot be the sole source](context/candidate-ladder.md#why-the-in-context-listing-cannot-be-the-sole-source);
@@ -192,7 +192,7 @@ progressive disclosure, not filtering: nothing was withheld, only deferred a key
   skill consumes that position rather than restating it.
 - **`/discipline:use-your-skills`** corrects the **model's** drift, a skill it should have fired and
   did not. This addresses the **human's** awareness. Different subject entirely.
-- **The handoff document's §14 "Suggested skills"** already recommends fully-qualified skills tied to
+- **The handoff document's "Suggested skills" section** already recommends fully-qualified skills tied to
   remaining work. That is a durable artifact written for a cold reader resuming later; this is a live
   ephemeral menu for the operator right now.
 

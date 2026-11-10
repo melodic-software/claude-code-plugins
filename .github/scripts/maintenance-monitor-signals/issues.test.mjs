@@ -216,6 +216,19 @@ test("a partly-read gap leaves no signal unread and marks only signal 13 partly 
   assert.equal(partlyReadSignals(["lane holds: the monitor.lane-holds rule was not read: yq failed", "audits: x"]).size, 0);
 });
 
+// A failed lane-hold marker list leaves the scan's reads, a floor on the whole.
+const MARKERS_FAILED = ["lane hold markers: GET artifacts: HTTP 502"];
+
+test("a failed marker list reads signal 13 partly: a lane at 4 holds still files, and under 4 an open incident stays open", () => {
+  assert.equal(unreadSignals(MARKERS_FAILED).size, 0, "the marker gap leaves no signal unread");
+  assert.deepEqual([...partlyReadSignals(MARKERS_FAILED)], [LANE_HOLDS]);
+  const filed = planIssues({ findings: holdFindings(4), existing: [], unread: unreadSignals(MARKERS_FAILED), partly: partlyReadSignals(MARKERS_FAILED), rules: HOLD_RULES, episodes: { [LANE_HOLDS]: { onSince: hoursAgo(2), clearSince: null } }, now });
+  assert.deepEqual(filed.file.map((f) => f.family.signal), [LANE_HOLDS], "the scan's 4 holds file the incident");
+  const kept = planIssues({ findings: holdFindings(3), existing: [holdIncident()], unread: unreadSignals(MARKERS_FAILED), partly: partlyReadSignals(MARKERS_FAILED), rules: HOLD_RULES, episodes: { [LANE_HOLDS]: { onSince: null, clearSince: hoursAgo(5) } }, now });
+  assert.deepEqual(kept.close, [], "no clear without the markers");
+  assert.deepEqual(kept.skip, [{ family: "lane-holds", number: 52, reason: "partly read" }]);
+});
+
 test("each collect source maps to the signals it feeds, and an unknown gap leaves every signal unread", () => {
   const text = readFileSync(new URL("./collect.mjs", import.meta.url), "utf8");
   const sources = [...text.matchAll(/await source\("([^"]+)"/g)].map((m) => m[1]);

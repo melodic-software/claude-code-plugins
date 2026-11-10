@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "**Order**\n\nA buyer's confirmed request to purchase one or more catalog items.\n\nAvoid: basket, cart\n\nShown to users as: configurable per tenant\n\n**Shipment**\n\nOne physical consignment handed to a carrier.\n\nAvoid: parcel, order line\n", "why": "Avoid line unchanged"}
+  ],
+  "fail": [
+    {"answer": "**Order**\n\nA buyer's confirmed request to purchase one or more catalog items.\n\nAvoid: basket, cart, purchase, requisition\n\nShown to users as: configurable per tenant\n", "why": "tenant words added to Avoid"},
+    {"answer": "**Order**\n\nA buyer's confirmed request to purchase one or more catalog items.\n\nShown to users as: configurable per tenant\n\n**Shipment**\n\nOne physical consignment handed to a carrier.\n\nAvoid: basket, cart\n", "why": "Order's Avoid line removed; Shipment's does not count"}
+  ]
+}

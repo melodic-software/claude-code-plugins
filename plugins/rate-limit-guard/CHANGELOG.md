@@ -3,6 +3,14 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.11] - 2026-11-10
+
+### Changed
+
+- The setup skill points at the reconfiguration convention and the live plugin CLI, setup and
+  mods troubleshooting sections instead of restating what each reconfiguration route prints,
+  stores and rejects, what turns mods off, and how Claude Code ships Node.js. No behavior change.
+
 ## [3.0.10] - 2026-11-09
 
 ### Changed

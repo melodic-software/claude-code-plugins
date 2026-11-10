@@ -1,0 +1,5 @@
+{
+  "name": "canvas-stub",
+  "version": "0.0.0",
+  "description": "Eval-only: declares an excalidraw canvas server whose create_view tool the viz-terminal-canvas-local case mocks, so canvas tools are in the session's tool list"
+}

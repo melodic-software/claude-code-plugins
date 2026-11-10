@@ -3,6 +3,35 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.13.0] - 2026-11-10
+
+### Added
+
+- `/source-control:pull-request create`: an unattended change names new code from the project's glossary, read before naming, and lists each domain term it coins that the glossary lacks under a `## Glossary candidates` section for a person to curate. The run never writes the glossary.
+
+## [8.12.9] - 2026-11-10
+
+### Changed
+
+- `--stop-uncovered` stops on the dispatch run listing alone, before the schedule and canary listings and the branch reads that filter them. `babysit_verify_evidence.py check-code` answers settle's code-changed refusal with no GitHub read.
+
+## [8.12.8] - 2026-11-10
+
+### Changed
+
+- The `babysit-prs` worker prompt template now carries the subagent discipline preamble the
+  loop-lane convention requires of every dispatch: the discipline plugin's sweep skill when it is
+  installed, else the three standing instructions inline.
+
+## [8.12.7] - 2026-11-10
+
+### Changed
+
+- `babysit-prs` prints nothing on an iteration where no PR materially changed. Every iteration
+  still completes its evidence checklist and writes it to `babysit-checklist.md` in the working-notes
+  location, where the next iteration reads its `Subscribed PRs` line; an iteration with a material
+  change prints the Reporting lines followed by the completed checklist.
+
 ## [8.12.6] - 2026-11-10
 
 ### Changed

@@ -8,7 +8,7 @@
   "properties": {
     "zone": {
       "type": "string",
-      "description": "The session's zone word at the fire: \"smart\" | \"acceptable\" | \"dumb\" | \"unknown\". Always present on mod records."
+      "description": "The session's zone word at the fire: \"light\" | \"moderate\" | \"heavy\" | \"unknown\"; records written before the rename carry \"smart\", \"acceptable\" and \"dumb\" for the first three. Always present on mod records."
     },
     "previous": {
       "type": "string",
@@ -16,7 +16,7 @@
     },
     "armed": {
       "type": "string",
-      "description": "The worst zone the session had reached in its current cycle before this fire: \"smart\" | \"acceptable\" | \"dumb\". A zone's line fires when the session first reaches it; only a return to smart re-arms. Absent on records written before the field existed."
+      "description": "The worst zone the session had reached in its current cycle before this fire: \"light\" | \"moderate\" | \"heavy\" (older records: \"smart\" | \"acceptable\" | \"dumb\"). A zone's line fires when the session first reaches it; only a return to light re-arms. Absent on records written before the field existed."
     },
     "injected": {
       "type": "boolean",

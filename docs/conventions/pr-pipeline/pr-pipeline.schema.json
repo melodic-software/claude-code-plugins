@@ -100,6 +100,20 @@
           "default": 5,
           "description": "Issues one work-unblock sweep restarts or re-fires."
         },
+        "refire-queue-per-slot": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 2,
+          "description": "Kill-switch re-fires' queue target per issue-lane slot (SLOTS in work-resolve-issue.yml): a work-unblock sweep re-fires breaker-stranded issues, oldest first, only until the work-resolve-issue runs not yet finished reach this times SLOTS, within restarts-per-run."
+        },
+        "sweep-gap-minutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 60,
+          "default": 15,
+          "description": "Minutes after a work-unblock full sweep (a run that uploaded work-unblock-verdicts) finished during which a sweep a finished work-resolve-issue run starts skips its work. A scheduled sweep or an issue close never skips. 0 turns the gap off."
+        },
         "readmit-per-run": {
           "type": "integer",
           "minimum": 1,
@@ -152,7 +166,7 @@
         "stranded-backoff-hours": {
           "type": "object",
           "additionalProperties": false,
-          "description": "Per cause work-unblock's sweep re-fires a stranded agent-ready issue for, the base hours of its re-fire backoff: the wait after the run ended (or the label was added) is these hours doubled once per re-fire already made on the same lane workflow files, or per trip past limit-stops-per-issue for kill-switch, up to 24 hours. no-run: no work-resolve-issue run started, and these hours are also the wait before the first re-fire; no-report: a run ended green with no report and no pull request, the same; failed-again: a re-fired run failed or was cancelled again, so the wait is at least twice these hours; failed-mint: a run got no lane token, backed off only past limit-stops-per-issue re-fires, so the wait is at least these hours doubled that many times; kill-switch: a run the lanes kill switch refused, backed off past limit-stops-per-issue trips.",
+          "description": "Per cause work-unblock's sweep re-fires a stranded agent-ready issue for, the base hours of its re-fire backoff: the wait after the run ended (or the label was added) is these hours doubled once per re-fire already made on the same lane workflow files, up to 24 hours, except kill-switch, which never doubles. no-run: no work-resolve-issue run started, and these hours are also the wait before the first re-fire; no-report: a run ended green with no report and no pull request, the same; failed-again: a re-fired run failed or was cancelled again, so the wait is at least twice these hours; failed-mint: a run got no lane token, backed off only past limit-stops-per-issue re-fires, so the wait is at least these hours doubled that many times; kill-switch: a run the lanes kill switch refused; past limit-stops-per-issue trips each re-fire waits these hours after the run ended, flat, with no doubling and no cap on trips.",
           "properties": {
             "no-run": { "type": "integer", "minimum": 1, "maximum": 24, "default": 3 },
             "no-report": { "type": "integer", "minimum": 1, "maximum": 24, "default": 3 },
@@ -216,6 +230,25 @@
             "graphql": { "$ref": "#/$defs/api-pool" },
             "owner-token": { "$ref": "#/$defs/api-pool" },
             "content-creation": { "$ref": "#/$defs/api-content-pool" }
+          }
+        },
+        "lane-level": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The adaptive lane level L, the issue lane's concurrency .github/scripts/lib/lane-level.mjs picks per window (owner decision Q111); nothing reads it yet. L steps up 1 after clean-windows windows in a row with no limit signal, lane demand (runs waiting or every slot running) and room in each pool (peak share used x (L+1)/L at most api.<pool>.plan, and more than api.<pool>.writer-pause left), halves on any limit signal the lanes App's own calls meet (a breaker trip is not one), and stays within floor and ceiling; a floor above the ceiling is rejected. Missing data holds L.",
+          "properties": {
+            "floor": { "type": "integer", "minimum": 1, "maximum": 10, "default": 2, "description": "Lowest level; a step down never goes below it." },
+            "ceiling": { "type": "integer", "minimum": 1, "maximum": 10, "default": 4, "description": "Highest level; a level above it is read as it." },
+            "default": { "type": "integer", "minimum": 1, "maximum": 10, "default": 3, "description": "The level with no previous decision or a malformed one, clamped to floor and ceiling." },
+            "clean-windows": { "type": "integer", "minimum": 1, "maximum": 24, "default": 2, "description": "Clean windows with demand in a row before a step up." },
+            "pools": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "enum": ["github-token", "lanes-app", "graphql", "owner-token"] },
+              "default": ["lanes-app"],
+              "description": "The api pools whose room a step up needs; each takes plan and writer-pause from api."
+            }
           }
         }
       }

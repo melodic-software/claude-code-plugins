@@ -3,6 +3,36 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0] - 2026-11-10
+
+### Added
+
+- Glossary contract: a term is used bare inside its own bounded context and qualified by its context wherever contexts meet (the glossary index, integration code, cross-context docs).
+- Glossary contract: a concept tenants rename on their own screens keeps one model term, recorded as `Shown to users as: configurable per tenant`; tenant words are configuration, never synonyms or `Avoid:` words.
+- `curate` weighs candidate terms in order: domain experts, then the code's existing usage, then published domain standards as inputs, never authority, researched through `/discovery:research` when none is known. Users' differing words go on `Shown to users as:`.
+
+## [0.7.0] - 2026-11-10
+
+### Added
+
+- `audit` proposes entries to prune, grouped by kind with a one-line reason: an implementation entry (a table, column, component, file or route), a term too general to carry project meaning, a canonical term no longer used, and a phrase one existing term already covers. A plain request such as "prune the glossary" or "the glossary feels bloated" routes to `audit`, which stays read-only.
+- `curate` removes or merges entries a person accepted, one group at a time and only on a yes; unattended it writes nothing.
+- Glossary contract: one counting method for every count `audit` and `curate` give (identifiers split at camelCase, PascalCase and snake_case boundaries, whole words, case-insensitive, with the number of files), and a rule that ADRs and docs use a term but never redefine it.
+
+### Changed
+
+- `curate`'s hand-off to `/docs-hygiene:rename-references` groups hits by layer: accepted ADR text takes the new term while ADR file names and numbers stay unchanged, and a stored database value is a decision, either a phased expand, migrate and contract migration or an explicit mapping, recorded with `/architecture:record-decision`.
+
+## [0.6.0] - 2026-11-10
+
+### Added
+
+- Glossary contract: an optional `Actions:` line under an entity records the verb chosen for an operation on it when another verb was contested, the rejected one in parentheses (`Actions: submit (Avoid: raise)`). `lookup` returns it, resolves a rejected verb to its entry and tells its caller the verb is rejected only for that operation on that entity; `curate` and `audit` search for rejected verbs where they name that operation on that entity.
+
+### Changed
+
+- Glossary admission: everyday words used in their ordinary sense stay out; a term earns an entry only when it removes ambiguity in its context (a project-specific meaning, a clash between meanings, or a rejected synonym). `seed` leaves such words out and `audit` flags entries that do not pass.
+
 ## [0.5.1] - 2026-11-10
 
 ### Changed

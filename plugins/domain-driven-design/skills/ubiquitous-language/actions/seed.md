@@ -11,7 +11,8 @@ where several names for one concept already exist and nobody has written them do
    `curate` instead.
 2. Collect candidates from the scope: type and module names, enum values, table and route names,
    headings and repeated nouns in its docs, and words in user-facing copy and error messages. Keep
-   project-specific domain concepts; drop framework, tooling and generic programming words.
+   project-specific domain concepts; drop framework, tooling and generic programming words, and
+   everyday words in their ordinary sense that remove no ambiguity.
 3. Group names that look like one concept (`Order`, `Purchase`, `Checkout` for the same record),
    with the count and a `file:line` example of each. Group an entity's states under the entity.
 4. Present the candidates as one numbered list, each with a proposed canonical term (the name the

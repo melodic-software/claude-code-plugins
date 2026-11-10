@@ -555,7 +555,7 @@ expect "after merging main, a line the branch adds is still judged" "1|topic.sh:
   "$(push_check refs/heads/topic "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
 expect "an awk that fails while narrowing to the branch's lines fails the push" \
   "1|reference-verify.sh: awk exited 2 while narrowing the changed lines to the branch, so this change was not fully checked; fix that failure, then push again" \
-  "$(push_failing 'NR == FNR { n++; p[n]' 1 refs/heads/topic "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
+  "$(push_failing 'NR == FNR { n++; f[n]' 1 refs/heads/topic "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
 git -C "$REPO" checkout -q main
 
 new_repo

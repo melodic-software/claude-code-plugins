@@ -16,6 +16,7 @@ Prints the spawned observer PID (or a reason it declined) to stdout and exits 0
 from __future__ import annotations
 
 import argparse
+import functools
 import importlib.util
 import json
 import os
@@ -43,19 +44,14 @@ def spawn_detached(cmd: list[str], cwd: str) -> int:
     return proc.pid
 
 
-_OBSERVER_MOD = None
-
-
+@functools.cache
 def _observer_mod():
     """Load the sibling observer.py module once (to reuse its liveness check)."""
-    global _OBSERVER_MOD
-    if _OBSERVER_MOD is None:
-        path = Path(__file__).with_name("observer.py")
-        spec = importlib.util.spec_from_file_location("observer_mod", str(path))
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        _OBSERVER_MOD = mod
-    return _OBSERVER_MOD
+    path = Path(__file__).with_name("observer.py")
+    spec = importlib.util.spec_from_file_location("observer_mod", str(path))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def live_observer_pid(work_dir: str, session_id: str) -> int | None:
@@ -70,6 +66,24 @@ def live_observer_pid(work_dir: str, session_id: str) -> int | None:
     except (OSError, ValueError, json.JSONDecodeError):
         return None
     return pid if pid > 0 and _observer_mod()._pid_alive(pid) else None
+
+
+# Passed to observer.py unchanged, in this order, after the three resolved paths.
+_FORWARDED_VALUES = (
+    "session_id",
+    "plugin_root",
+    "topic",
+    "previous_running_retro",
+    "previous_session_id",
+    "model",
+    "effort",
+    "poll_seconds",
+    "idle_seconds",
+    "idle_confirm_seconds",
+    "max_seconds",
+    "analysis_timeout_seconds",
+)
+_FORWARDED_SWITCHES = ("analysis", "bare")
 
 
 def main() -> int:
@@ -138,35 +152,10 @@ def main() -> int:
         work_dir,
         "--ledger-dir",
         ledger_dir,
-        "--session-id",
-        args.session_id,
-        "--plugin-root",
-        args.plugin_root,
-        "--topic",
-        args.topic,
-        "--previous-running-retro",
-        args.previous_running_retro,
-        "--previous-session-id",
-        args.previous_session_id,
-        "--model",
-        args.model,
-        "--effort",
-        args.effort,
-        "--poll-seconds",
-        args.poll_seconds,
-        "--idle-seconds",
-        args.idle_seconds,
-        "--idle-confirm-seconds",
-        args.idle_confirm_seconds,
-        "--max-seconds",
-        args.max_seconds,
-        "--analysis-timeout-seconds",
-        args.analysis_timeout_seconds,
     ]
-    if args.analysis:
-        cmd.append("--analysis")
-    if args.bare:
-        cmd.append("--bare")
+    for name in _FORWARDED_VALUES:
+        cmd += [f"--{name.replace('_', '-')}", getattr(args, name)]
+    cmd += [f"--{name}" for name in _FORWARDED_SWITCHES if getattr(args, name)]
 
     try:
         pid = spawn_detached(cmd, cwd=str(observer_py.parent))

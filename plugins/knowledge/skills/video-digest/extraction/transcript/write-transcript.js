@@ -100,11 +100,12 @@ function comparableRun(run) {
  * True when the cue opening the paragraph stamped `stamp` carries `run` over
  * from the cue before it: the two cues overlap in time, or the opening cue
  * starts with the previous cue's closing words verbatim (a rolling caption).
- * False whenever the opening cue cannot be identified exactly.
+ * False whenever the opening cue cannot be identified exactly, or its carried
+ * line was already dropped, which leaves only new speech.
  *
  * @param {string} stamp - the paragraph's `[M:SS]`
  * @param {string[]} run - the paragraph's leading words
- * @param {readonly { startSec: number, endSec: number, text: string }[]} cues
+ * @param {readonly { startSec: number, endSec: number, text: string, carriedLineDropped?: boolean }[]} cues
  */
 function carriesOverFromPreviousCue(stamp, run, cues) {
   // The paragraph stamp floors the opening cue's start to the second, so it
@@ -115,6 +116,7 @@ function carriesOverFromPreviousCue(stamp, run, cues) {
   );
   if (openers.length !== 1 || openers[0] === 0) return false;
   const cue = cues[openers[0]];
+  if (cue.carriedLineDropped) return false;
   const previous = cues[openers[0] - 1];
   const head = run.join(" ");
   if (words(cue.text).slice(0, run.length).join(" ") !== head) return false;
@@ -135,7 +137,7 @@ function carriesOverFromPreviousCue(stamp, run, cues) {
  * keeps at least one word.
  *
  * @param {string} transcript - paragraphs joined by a blank line, each `[M:SS] text`
- * @param {readonly { startSec: number, endSec: number, text: string }[]} cues - the
+ * @param {readonly { startSec: number, endSec: number, text: string, carriedLineDropped?: boolean }[]} cues - the
  *   cues the transcript was formatted from
  * @returns {string}
  */

@@ -16,11 +16,9 @@ invocation:
 - Current branch, `git branch --show-current`
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git. The dated record for that composition claim is the
-[gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation".
+separate body Bash calls rather than pre-compute lines. How the harness runs a skill's injected commands:
+[How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run), as
+of 2026-11-10; recheck when that section changes how injected commands run.
 
 ## Variables
 
@@ -96,9 +94,11 @@ Everything else enters the provisional set as an accepted answer for validation.
 
 Dispatch **1–3 fresh-context (non-fork) adversarial validator subagents**, **each reviewing the
 whole answer set**. More validators add independent cross-checks on every answer; never shard the
-answers between them, or "confirmed by all" becomes indistinguishable from "unseen by some". A fork
-inherits this session's reasoning and bias, so a validator MUST be a fresh-context subagent that
-never saw the interview (the marketplace's self-grade fresh-eyes rule). Where the verdict is
+answers between them, or "confirmed by all" becomes indistinguishable from "unseen by some". A
+validator MUST be a fresh-context subagent that never saw the interview, never a fork (the
+marketplace's self-grade fresh-eyes rule). What each kind of subagent starts from:
+[How forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents), as of 2026-11-10;
+recheck when that section changes what a fork or a non-fork subagent starts from. Where the verdict is
 high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is
 enabled and set up** (e.g. the OpenAI Codex plugin, when its documented surface can take this
 artifact, invoked per its own docs), with the fresh-context same-vendor subagent as the fallback,
@@ -184,8 +184,8 @@ records a one-line early exit when no design question is open.
 
 - A validator handed the recommendation's rationale validates the *pitch*, not the decision.
   Withhold the narrative.
-- Forks are not validators: a fork inherits this session's context and reproduces its blind spot.
-  Use fresh-context (non-fork) subagents.
+- Forks are not validators: one reproduces this session's blind spot (record in Step 2). Use
+  fresh-context (non-fork) subagents.
 - The never-auto floor is not validator territory: an auto-guard decision never collapses on a
   CONFIRMED verdict, and a USER-RESERVED deferral is never turned into an audit question. It
   carries forward to `/planning:plan` untouched.

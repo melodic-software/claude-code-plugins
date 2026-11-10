@@ -3,6 +3,44 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.20.0] - 2026-11-10
+
+### Changed
+
+- `/planning:plan` Files affected never names a new file, type or symbol with a verb an entity's glossary `Actions:` line rejects for that operation.
+
+## [2.19.0] - 2026-11-10
+
+### Added
+
+- `/planning:interview`: a scenario walk. When the user calls something unclear, or a question rests on a term the glossary does not define or uses two ways, the interview offers numbered concrete scenarios (`S1`, `S2`, ...) inside one question, each ending with its own recommendation and the term or rule it forces, answered per scenario ("S3: a"). Once an assumption sweep has logged `S<N>` items, scenario ids are qualified by their question (`Q17.S1`), and the bare-code gate fails a bare `S<N>:` scenario that is also a sweep id. Resolutions go on that question's register row and agreed terms to the glossary; during a walk it offers an opt-in diagram through `/visualization:visualize` when available.
+- `/planning:interview`: a closing summary before the confirmation recap groups the decisions changed since read-back, glossary terms added, renamed or removed, out-of-scope items with where each goes, and one ADR verdict line per decision naming the part of `/architecture:record-decision`'s admission test it passes or fails. Replying "Q12: record it" overrules a verdict and hands that decision to `/architecture:record-decision`.
+
+## [2.18.8] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [2.18.7] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [2.18.6] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Skill bodies that restated Claude Code behavior (how injected commands, Bash output, forks,
+  plan mode, the skill re-attach budget and plugin reconfiguration work) now state our rule and
+  point at the live docs section with an as-of date and a recheck trigger. Fixed wording that
+  called a wayfind map a "decision map", moved a misplaced gotchas pointer out of the interview
+  skill's does-NOT list, and made the plan skill's "stress-test, always" line name the exceptions
+  its own steps already allow. No behavior change.
+
 ## [2.18.5] - 2026-11-10
 
 ### Changed

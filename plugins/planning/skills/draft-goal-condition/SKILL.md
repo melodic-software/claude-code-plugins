@@ -69,20 +69,20 @@ see the result. When either is missing, prompt once instead.
 
 Two caveats on the workflow row, each of which turns a plausible recommendation into a dead one:
 
-- **Route to the right ultracode form.** The `ultracode` keyword in a prompt runs **one** task as a
-  workflow and changes nothing else, not the session's effort level. Asking in plain words,
-  `use a workflow`, is the same opt-in. `/effort ultracode` is the separate standing session
-  setting that plans a workflow for each substantive task; for what it does to the effort level,
-  see [Let Claude decide with ultracode](https://code.claude.com/docs/en/workflows#let-claude-decide-with-ultracode)
-  (as of 2026-10-02; recheck when that section changes ultracode's effort interaction). Before
+- **Route to the right ultracode form.** We tell apart the per-task opt-in (the `ultracode`
+  keyword, or asking in plain words for a workflow) and the standing `/effort ultracode` session
+  setting. For what each form does, the effort level included, see
+  [Let Claude decide with ultracode](https://code.claude.com/docs/en/workflows#let-claude-decide-with-ultracode)
+  (as of 2026-11-10; recheck when that section changes what either form does to a task or to the
+  effort level). Before
   recommending either form, apply the routing decisions in
   [reference/workflow-row.md](reference/workflow-row.md): which prompt sources the keyword fits
   (a `-p`, Agent SDK, scheduled or relayed prompt among them), which plans reach the workflow
   lever and what a plan must switch on first, and when the standing setting fits.
-- **The lever is unreachable from an ordinary subagent.** The `Workflow` tool is filtered out of
-  every non-fork subagent (the filter is in
+- **The lever is unreachable from an ordinary subagent.** We treat the `Workflow` tool as
+  missing from every non-fork subagent (which tools a subagent gets:
   [sub-agents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools), as of
-  2026-10-31; recheck when `Workflow` leaves that list or a fork stops keeping the main session's
+  2026-11-10; recheck when `Workflow` leaves that list or a fork stops keeping the main session's
   tools;
   `/discovery:research`, if enabled, selects its workflow-backed deep tier only in the main
   conversation for this reason). A lever whose work lands in dispatched non-fork subagents (the
@@ -292,8 +292,8 @@ in [reference/native-goal.md](reference/native-goal.md).
 
 ## Gotchas
 
-- **The limit is characters, not tokens.** The counter counts Unicode code points; do not
-  substitute a token estimate.
+- **Read the limit's unit live**, from the section Step 1 fetched (pointer in the length-guard
+  gotcha below). The counter counts Unicode code points; do not substitute a token estimate.
 - **Never hardcode the limit or the shape** into a draft, this file, or the script. They are read
   live each run.
 - **The pre-submission counter is the only length guard.** Do not assume the app trims an

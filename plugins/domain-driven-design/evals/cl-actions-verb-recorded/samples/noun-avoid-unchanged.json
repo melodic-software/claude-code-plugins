@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "# Northwind Trading glossary\n\n**Order**\n\nA buyer's confirmed request to purchase one or more catalog items.\n\nAvoid: basket, cart\n\n**Shipment**\n\nOne physical consignment handed to a carrier.\n\nActions: dispatch (Avoid: send)\n\nAvoid: parcel, order line\n", "why": "Actions line added, Avoid line kept as it was"},
+    {"answer": "**Shipment**\n\nOne physical consignment handed to a carrier.\n\nAvoid: parcel, order line\n\nActions: dispatch (Avoid: send)\n", "why": "Actions line after the unchanged Avoid line"}
+  ],
+  "fail": [
+    {"answer": "**Shipment**\n\nOne physical consignment handed to a carrier.\n\nActions: dispatch (Avoid: send)\n\nAvoid: parcel, order line, send\n", "why": "send folded into the noun's Avoid line beside a correct Actions line"},
+    {"answer": "**Shipment**\n\nOne physical consignment handed to a carrier.\n\nActions: dispatch (Avoid: send)\n", "why": "noun's Avoid line dropped"},
+    {"answer": "", "why": "empty file"}
+  ]
+}

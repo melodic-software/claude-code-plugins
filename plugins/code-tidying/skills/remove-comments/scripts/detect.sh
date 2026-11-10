@@ -58,28 +58,16 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --paths-file)
+  --paths-file | --exclude-from | --added-since)
     if [[ $# -lt 2 ]]; then
-      echo "detect.sh: --paths-file requires a value" >&2
+      echo "detect.sh: $1 requires a value" >&2
       exit 2
     fi
-    PATHS_FILE="$2"
-    shift 2
-    ;;
-  --exclude-from)
-    if [[ $# -lt 2 ]]; then
-      echo "detect.sh: --exclude-from requires a value" >&2
-      exit 2
-    fi
-    EXCLUDE_FILE="$2"
-    shift 2
-    ;;
-  --added-since)
-    if [[ $# -lt 2 ]]; then
-      echo "detect.sh: --added-since requires a value" >&2
-      exit 2
-    fi
-    ADDED_SINCE="$2"
+    case "$1" in
+    --paths-file) PATHS_FILE="$2" ;;
+    --exclude-from) EXCLUDE_FILE="$2" ;;
+    *) ADDED_SINCE="$2" ;;
+    esac
     shift 2
     ;;
   -h | --help)
@@ -105,11 +93,7 @@ done
 # Anchor caller-supplied paths to the invocation cwd BEFORE the cd, or they resolve against the
 # repo root instead and silently miss (git-status discovery below stays repo-relative by design).
 if [[ ${#TARGETS[@]} -gt 0 ]]; then
-  ANCHORED=()
-  for target in "${TARGETS[@]}"; do
-    ANCHORED+=("$(cr_anchor_path "$target")")
-  done
-  TARGETS=("${ANCHORED[@]}")
+  for i in "${!TARGETS[@]}"; do TARGETS[i]="$(cr_anchor_path "${TARGETS[i]}")"; done
 fi
 [[ -n "$PATHS_FILE" ]] && PATHS_FILE="$(cr_anchor_path "$PATHS_FILE")"
 if [[ -n "$EXCLUDE_FILE" ]]; then
@@ -221,17 +205,20 @@ cr_excluded_note() {
   return 0
 }
 
-# Expand directory targets to the files inside them (recursive); filter every target down to
-# code files (markdown is /audit-noise's job, so a .md target is silently skipped).
+# Keep a code file unless an --exclude-from glob matches it (markdown is /audit-noise's job,
+# so a .md target is silently skipped).
+cr_keep_target() {
+  cr_is_code_file "$1" || return 0
+  if cr_is_excluded "$1"; then excluded=$((excluded + 1)); else EXPANDED+=("$1"); fi
+}
+
+# Expand directory targets to the files inside them (recursive).
 EXPANDED=()
 for target in ${TARGETS[@]+"${TARGETS[@]}"}; do
   if [[ -d "$target" ]]; then
-    while IFS= read -r f; do
-      cr_is_code_file "$f" || continue
-      if cr_is_excluded "$f"; then excluded=$((excluded + 1)); else EXPANDED+=("$f"); fi
-    done < <(find "$target" -type f 2>/dev/null)
-  elif cr_is_code_file "$target"; then
-    if cr_is_excluded "$target"; then excluded=$((excluded + 1)); else EXPANDED+=("$target"); fi
+    while IFS= read -r f; do cr_keep_target "$f"; done < <(find "$target" -type f 2>/dev/null)
+  else
+    cr_keep_target "$target"
   fi
 done
 
@@ -263,12 +250,8 @@ total_t1=0 total_t2=0 total_t3=0 files_audited=0
 emit_finding() {
   local file="$1" shape="$2" line_num="$3" excerpt="$4" tier
   tier="$(cr_shape_tier "$shape")"
-  printf 'File: %s\n' "$file"
-  printf 'Finding tier: %s\n' "$tier"
-  printf 'Finding shape: %s\n' "$shape"
-  printf 'Finding line: %s\n' "$line_num"
-  printf 'Finding excerpt: %s\n' "$excerpt"
-  printf '%s\n' '---'
+  printf 'File: %s\nFinding tier: %s\nFinding shape: %s\nFinding line: %s\nFinding excerpt: %s\n---\n' \
+    "$file" "$tier" "$shape" "$line_num" "$excerpt"
   case "$tier" in
   1) t1=$((t1 + 1)) total_t1=$((total_t1 + 1)) ;;
   2) t2=$((t2 + 1)) total_t2=$((total_t2 + 1)) ;;
@@ -300,14 +283,10 @@ audit_file() {
   # even when the cue sits on another line of the same NOTICE block.
   local -A license_block=() justified_run=()
   local n
-  while IFS= read -r n; do
-    [[ -n "$n" ]] && license_block["$n"]=1
-  done < <(cr_license_block_lines "$file")
+  while IFS= read -r n; do [[ -n "$n" ]] && license_block["$n"]=1; done < <(cr_license_block_lines "$file")
   # Likewise a workaround comment run is justified whole by a link or removal condition on
   # any of its lines.
-  while IFS= read -r n; do
-    [[ -n "$n" ]] && justified_run["$n"]=1
-  done < <(cr_justified_run_lines "$file")
+  while IFS= read -r n; do [[ -n "$n" ]] && justified_run["$n"]=1; done < <(cr_justified_run_lines "$file")
 
   local rel=""
   [[ -n "$ADDED_SINCE" ]] && rel="$(cr_repo_rel "$file")"
@@ -317,13 +296,9 @@ audit_file() {
     line_num=$((line_num + 1))
     # Under --added-since a line is analyzed only when a finding it feeds can be in scope: its
     # own, the pair it ends, or the pair the next line ends. So cost tracks the added lines.
-    if ! in_scope $((line_num - 1)) "$line_num" $((line_num + 1)); then
-      prev_line="$line"
-      prev_ct=""
-      prev_shapes=""
-      continue
-    fi
-    if cr_line_skipped "$prev_line" "$line"; then
+    # A comment-residue-ignore marker skips its own line and the next. prev_shapes is read only
+    # while prev_ct is set, so clearing prev_ct is enough.
+    if ! in_scope $((line_num - 1)) "$line_num" $((line_num + 1)) || cr_line_skipped "$prev_line" "$line"; then
       prev_line="$line"
       prev_ct=""
       continue

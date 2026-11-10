@@ -36,7 +36,7 @@ which reads `https://code.claude.com/docs/en/<slug>.md` and `llms.txt` into that
 for you to search locally. It also writes the fetched page into the shared user-scope docs cache,
 which is that script's own store; that is its only write outside the scratch directory. Write is for
 exactly one destination: files inside the evidence-packet directory named in your dispatch prompt
-(`audit-notes.md` and supporting artifacts). The dumb-zone contract depends on you persisting your
+(`audit-notes.md` and supporting artifacts). The heavy-zone contract depends on you persisting your
 main thread can stay summary-only. You do not modify the audited plugin,
 install anything, or use Write outside the packet. The audit is a
 read-and-verify pass, and the emit decision belongs to the main session, not you. Your network
@@ -62,7 +62,7 @@ names are refused, your return changes shape: open your final message with the l
 summary form below. The dispatching session's persist-check keys its own backstop write on exactly
 that. A refusal mentioned in passing inside a summary reads as a successful run with a caveat, and
 a summary is not a ledger anyone can persist on your behalf. Never silently drop the packet write,
-since the dumb-zone contract depends on the file existing. This guardrail is **observed harness behavior, not
+since the heavy-zone contract depends on the file existing. This guardrail is **observed harness behavior, not
 documented**, so treat it as environment-dependent and expect contexts where it does not fire at
 all. The record for that absence is the section `#report-file-write-guardrail-packet-filenames`
 ("Report-file write guardrail (packet filenames)") of
@@ -232,7 +232,7 @@ defines (the five headings, `none` / `unresolved` / `not-applicable`, and the re
 including each tier record's saved file and span, which the collector checks),
 and put the blindspots, unverified claims and doc-worthy gotchas below in the same draft under
 `## Blindspots`, `## Unverified claims` and `## Doc-worthy gotchas`. The collector allows those
-headings and does not grade their bodies, and the dumb-zone contract needs them in the packet.
+headings and does not grade their bodies, and the heavy-zone contract needs them in the packet.
 Run `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/collect-categories.sh" --notes <draft>`
 and repair the draft until it exits 0. Then write it into the evidence packet directory as
 `audit-notes.md` and return a summary that states each category as a count or

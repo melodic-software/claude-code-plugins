@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "2.1.1",
+  "version": "2.2.0",
   "userConfig": {
     "medium": {
       "type": "string",
@@ -19,6 +19,13 @@
       "title": "ADR template",
       "description": "Absolute or ~/ path to your own ADR template, used by record-decision when a repository has no ADR convention. Empty: the bundled template. A repository's team or personal architecture.yaml overrides it, and a repository's own ADR convention always wins.",
       "default": ""
+    },
+    "adr_retirement": {
+      "type": "string",
+      "title": "ADR retirement",
+      "description": "How record-decision retires a record a new decision reverses, after your yes. delete (default): remove the file; its number is never reused. supersede: mark it superseded. archive: move it to the ADR folder's archive folder. A repository's team or personal architecture.yaml overrides it.",
+      "default": "delete",
+      "options": ["delete", "supersede", "archive"]
     }
   },
   "license": "MIT",

@@ -124,12 +124,8 @@ SCOPE_DIRS=()
 for d in .claude/*/; do
   d="${d%/}"
   [[ -d "$d" ]] || continue
-  if [[ "$d" == ".claude/skills" && "$INCLUDE_SKILLS" -eq 0 ]]; then
-    continue
-  fi
-  if [[ "$d" == ".claude/worktrees" ]]; then
-    continue
-  fi
+  [[ "$d" == ".claude/worktrees" ]] && continue
+  [[ "$d" == ".claude/skills" && "$INCLUDE_SKILLS" -eq 0 ]] && continue
   SCOPE_DIRS+=("$d")
 done
 for d in .github docs .lefthook plugins; do
@@ -223,12 +219,6 @@ is_private_skill_path() {
   [[ "$p" =~ ^(\.claude/skills/|plugins/[^/]+/skills/)[A-Za-z0-9_.-]+/SKILL\.md# ]] && return 0
   [[ "$p" =~ ^(\.claude/skills/|plugins/[^/]+/skills/)[A-Za-z0-9_.-]+/[^/]+\.schema\.json ]] && return 0
   return 1
-}
-
-# True when citation text is a scripts/ entry-surface carve-out (text field only).
-is_scripts_carveout() {
-  local text="$1"
-  [[ "$text" =~ $SCRIPTS_RE ]]
 }
 
 # When grep -o emitted only a bare `skills/<x>/...` suffix of a `../`-prefixed
@@ -325,11 +315,44 @@ is_cross_plugin_surface() {
   [[ -z "$rest" || "$rest" == "/SKILL.md" ]]
 }
 
+# Self-citation and worktree-path hits: the mechanically-decidable legal shapes
+# --apply-filters drops. A self-citation is a skill citing its own internals
+# (absolute, bare skills/<self>/, or ../-resolved into the same skill root).
+is_mechanically_legal() {
+  local file="$1" line_no="$2" text="$3" self self_root
+  if [[ "$file" =~ ^\.claude/skills/([^/]+)/ ]]; then
+    self="${BASH_REMATCH[1]}"
+    self_root=".claude/skills/${self}/"
+    [[ "$text" == *"$self_root"* ]] && return 0
+  elif [[ "$file" =~ ^(plugins/[^/]+)/skills/([^/]+)/ ]]; then
+    self="${BASH_REMATCH[2]}"
+    self_root="${BASH_REMATCH[1]}/skills/${self}/"
+    # Require same plugin root for absolute self-cites so a cross-plugin
+    # `.../other/skills/<same-name>/...` match cannot vacate as self-citation
+    # merely by skill leaf name (#2716 review).
+    [[ "$text" == "$self_root"* || "$text" == *"/$self_root"* ]] && return 0
+  else
+    [[ "$file" == *".worktrees/"* || "$text" == *".worktrees/"* ||
+      "$file" == *".claude/worktrees/"* || "$text" == *".claude/worktrees/"* ||
+      "$file" == *".git/worktrees/"* || "$text" == *".git/worktrees/"* ]]
+    return
+  fi
+  # A bare skills/<self>/ may be the suffix of a ../-prefixed cross-root
+  # cite, so both relative shapes go through lexical resolution.
+  [[ "$text" == "skills/${self}/"* || "$text" == ../* ]] || return 1
+  resolves_into_self "$file" "$line_no" "$text" "$self_root"
+}
+
+# Split a grep "file:line:match" hit into the globals file, line_no and text.
+split_hit() {
+  file="${1%%:*}"
+  local rest="${1#*:}"
+  line_no="${rest%%:*}"
+  text="${rest#*:}"
+}
+
 HITS_FILE="$(mktemp)"
-DOTDOT_RAW="$(mktemp)"
-RAW_HITS="$(mktemp)"
-CROSS_RAW="$(mktemp)"
-trap 'rm -f "$HITS_FILE" "$DOTDOT_RAW" "$RAW_HITS" "$CROSS_RAW"' EXIT
+trap 'rm -f "$HITS_FILE"' EXIT
 
 # Emit "file:line:match" hits for a pattern across every in-scope surface.
 # Every text file type is read (-I skips binaries). Always returns 0: a
@@ -348,41 +371,30 @@ scan_scope() {
 
 # Aggregate hits, then drop scripts/ entry-surface cites (carve-out above)
 # unless a plugin file reaches into another plugin's scripts/.
-scan_scope "$PATTERN" >"$RAW_HITS"
-
-: >"$HITS_FILE"
 while IFS= read -r line; do
   [[ -z "$line" ]] && continue
-  file="${line%%:*}"
-  rest="${line#*:}"
-  line_no="${rest%%:*}"
-  text="${rest#*:}"
-  # shellcheck disable=SC2310  # pure predicates; both branches handled
-  if is_scripts_carveout "$text" && ! is_cross_plugin_scripts "$file" "$line_no" "$text"; then
+  split_hit "$line"
+  # shellcheck disable=SC2310  # pure predicate; both branches handled
+  if [[ "$text" =~ $SCRIPTS_RE ]] && ! is_cross_plugin_scripts "$file" "$line_no" "$text"; then
     continue
   fi
   printf '%s\n' "$line" >>"$HITS_FILE"
-done <"$RAW_HITS"
+done < <(scan_scope "$PATTERN")
 
 # Cross-plugin pass: skill-root and bare-SKILL.md cites, which PATTERN misses
 # for want of a trailing subdirectory. Absolute paths (a github.com tree/blob or
 # raw.githubusercontent.com URL contains one) and ../-prefixed paths with a
 # `skills/` segment; a trailing `#` keeps an anchor cite out (PATTERN has it).
 CROSS_PATTERN='plugins/[A-Za-z0-9_.-]+/skills/[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*#?|(\.\./)+([A-Za-z0-9_.-]+/)*skills/[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*#?'
-scan_scope "$CROSS_PATTERN" >"$CROSS_RAW"
-
 while IFS= read -r line; do
   [[ -z "$line" ]] && continue
-  file="${line%%:*}"
-  rest="${line#*:}"
-  line_no="${rest%%:*}"
-  text="${rest#*:}"
+  split_hit "$line"
   # A trailing dot is sentence punctuation, not part of the name.
   text="${text%"${text##*[!.]}"}"
   # shellcheck disable=SC2310  # pure predicate; both branches handled
   is_cross_plugin_surface "$file" "$line_no" "$text" || continue
   printf '%s:%s:%s\n' "$file" "$line_no" "$text" >>"$HITS_FILE"
-done <"$CROSS_RAW"
+done < <(scan_scope "$CROSS_PATTERN")
 
 # Own-marketplace-id pass: `<plugin>@<id>` for the id this repo's marketplace
 # manifest declares, outside install-recipe lines. Third-party ids never match.
@@ -395,19 +407,15 @@ fi
 if [[ -n "$MARKETPLACE_ID" ]]; then
   ID_ESCAPED="${MARKETPLACE_ID//./\\.}"
   RECIPE_RE='plugin[[:space:]]+(install|uninstall|update|enable|disable)'
-  scan_scope "[A-Za-z0-9_.-]+@${ID_ESCAPED}\\.?([^A-Za-z0-9_.-]|\$)" >"$CROSS_RAW"
   while IFS= read -r line; do
     [[ -z "$line" ]] && continue
-    file="${line%%:*}"
-    rest="${line#*:}"
-    line_no="${rest%%:*}"
-    text="${rest#*:}"
+    split_hit "$line"
     [[ "$text" =~ [^A-Za-z0-9_.-]$ ]] && text="${text%?}"
     text="${text%"${text##*[!.]}"}"
     src="$(sed -n "${line_no}p" "$file" 2>/dev/null || true)"
     [[ "$src" =~ $RECIPE_RE ]] && continue
     printf '%s:%s:%s\n' "$file" "$line_no" "$text" >>"$HITS_FILE"
-  done <"$CROSS_RAW"
+  done < <(scan_scope "[A-Za-z0-9_.-]+@${ID_ESCAPED}\\.?([^A-Za-z0-9_.-]|\$)")
 fi
 
 # Second pass (#2716): `../`-prefixed cites whose lexical resolution lands on
@@ -417,14 +425,9 @@ fi
 # still contain a `skills/` segment after `../`) are skipped here to avoid
 # duplicate rows.
 DOTDOT_PATTERN='(\.\./)+([A-Za-z0-9_.-]+/)+([A-Za-z0-9_.-]+/|SKILL\.md#|[A-Za-z0-9_.-]+\.schema\.json)'
-scan_scope "$DOTDOT_PATTERN" >"$DOTDOT_RAW"
-
 while IFS= read -r line; do
   [[ -z "$line" ]] && continue
-  file="${line%%:*}"
-  rest="${line#*:}"
-  line_no="${rest%%:*}"
-  text="${rest#*:}"
+  split_hit "$line"
   # Already covered by the skills/-segment alternation.
   [[ "$text" == *"/skills/"* || "$text" == skills/* ]] && continue
   # shellcheck disable=SC2310  # lex_resolve returns status; continue is the handled miss
@@ -432,81 +435,35 @@ while IFS= read -r line; do
   # shellcheck disable=SC2310  # is_private_skill_path is a pure predicate; both branches handled
   is_private_skill_path "$resolved" || continue
   printf '%s:%s:%s\n' "$file" "$line_no" "$text" >>"$HITS_FILE"
-done <"$DOTDOT_RAW"
+done < <(scan_scope "$DOTDOT_PATTERN")
 
 # Convert grep "file:line:match" → "file<TAB>line<TAB>match". The `-o` scan
 # emits only the matched path text, which contains no colons, so colon
 # splitting is unambiguous. Under --apply-filters, drop the known
-# mechanically-decidable legal hit shapes: self-citation (a skill citing its
-# own internals — absolute, bare skills/<self>/, or ../-resolved into the same
-# skill root) and worktree paths (shared tree; same rules apply at the root
-# path). Plugin-cache cites that only match via the bare `skills/` suffix are
-# still candidates for in-session Plugin-cache taxonomy judgment (#2776); the
+# mechanically-decidable legal hit shapes (is_mechanically_legal); worktree
+# paths share the tracked tree, so the same rules apply at the root path.
+# Plugin-cache cites that only match via the bare `skills/` suffix are still
+# candidates for in-session Plugin-cache taxonomy judgment (#2776); the
 # mechanical cache branch stays absent.
 raw=0
 candidates=0
 while IFS= read -r line; do
   [[ -z "$line" ]] && continue
-  raw=$((raw + 1))
-  file="${line%%:*}"
-  rest="${line#*:}"
-  line_no="${rest%%:*}"
-  text="${rest#*:}"
+  split_hit "$line"
   # shellcheck disable=SC2310  # pure predicate; both branches handled
-  if is_allowlisted "$file"; then
-    raw=$((raw - 1))
+  is_allowlisted "$file" && continue
+  raw=$((raw + 1))
+  # shellcheck disable=SC2310  # pure predicate; both branches handled
+  if [[ "$APPLY_FILTERS" -eq 1 ]] && is_mechanically_legal "$file" "$line_no" "$text"; then
     continue
-  fi
-  if [[ "$APPLY_FILTERS" -eq 1 ]]; then
-    mech_filtered=0
-    if [[ "$file" =~ ^\.claude/skills/([^/]+)/ ]]; then
-      self="${BASH_REMATCH[1]}"
-      self_root=".claude/skills/${self}/"
-      if [[ "$text" == *"$self_root"* ]]; then
-        mech_filtered=1
-      # A bare skills/<self>/ may be the suffix of a ../-prefixed cross-root
-      # cite, so both relative shapes go through lexical resolution.
-      elif [[ "$text" == "skills/${self}/"* || "$text" == ../* ]]; then
-        # shellcheck disable=SC2310  # pure predicate; both branches handled
-        if resolves_into_self "$file" "$line_no" "$text" "$self_root"; then
-          mech_filtered=1
-        fi
-      fi
-    elif [[ "$file" =~ ^(plugins/[^/]+)/skills/([^/]+)/ ]]; then
-      plugin="${BASH_REMATCH[1]}"
-      self="${BASH_REMATCH[2]}"
-      self_root="${plugin}/skills/${self}/"
-      # Require same plugin root for absolute self-cites so a cross-plugin
-      # `.../other/skills/<same-name>/...` match cannot vacate as self-citation
-      # merely by skill leaf name (#2716 review).
-      if [[ "$text" == "$self_root"* || "$text" == *"/$self_root"* ]]; then
-        mech_filtered=1
-      elif [[ "$text" == "skills/${self}/"* || "$text" == ../* ]]; then
-        # shellcheck disable=SC2310  # pure predicate; both branches handled
-        if resolves_into_self "$file" "$line_no" "$text" "$self_root"; then
-          mech_filtered=1
-        fi
-      fi
-    elif [[ "$file" == *".worktrees/"* || "$text" == *".worktrees/"* ||
-      "$file" == *".claude/worktrees/"* || "$text" == *".claude/worktrees/"* ||
-      "$file" == *".git/worktrees/"* || "$text" == *".git/worktrees/"* ]]; then
-      mech_filtered=1
-    fi
-    if [[ "$mech_filtered" -eq 1 ]]; then
-      continue
-    fi
   fi
   candidates=$((candidates + 1))
   printf '%s\t%s\t%s\n' "$file" "$line_no" "$text"
 done <"$HITS_FILE"
 
 if [[ "$APPLY_FILTERS" -eq 1 ]]; then
-  mech_filtered=$((raw - candidates))
   printf 'Summary: raw=%s mech-filtered=%s candidates=%s\n' \
-    "$raw" "$mech_filtered" "$candidates" >&2
+    "$raw" "$((raw - candidates))" "$candidates" >&2
 fi
 
-if [[ "$candidates" -eq 0 ]]; then
-  exit 0
-fi
-exit 1
+exit "$((candidates > 0))"

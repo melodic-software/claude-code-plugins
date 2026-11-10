@@ -4,8 +4,10 @@
 // closed set, a job name and its result or `unwired`, so the finding's
 // fingerprint stays put.
 import { pathToFileURL } from "node:url";
+import { markLaneHold } from "../lib/lane-hold-marker.mjs";
 
 const FAILED = new Set(["failure", "cancelled"]);
+const REFINE_FAILED = "::warning title=refine-failed::";
 
 // One pass's outcome from its jobs' results ({ job: result }, in run order),
 // and its push job's pushed commit and skip reason; null results mean the
@@ -25,11 +27,11 @@ export function passOutcome({ results, pushedCommit = "", skipReason = "" }) {
 // The workflow-command lines for every planned pass, in plan order; a plan
 // job that failed planned none, and is itself the failed pass.
 export function passRecords({ planResult = "success", passes, files, seconds, wiring }) {
-  if (planResult === "failure") return ["::warning title=refine-failed::pass=plan reason=plan-failure"];
+  if (planResult === "failure") return [`${REFINE_FAILED}pass=plan reason=plan-failure`];
   return passes.flatMap((pass) => {
     const { outcome, reason } = passOutcome(wiring(pass));
     const lines = [`::notice title=refine-pass::pass=${pass} files=${files[pass] ?? 0} outcome=${outcome} seconds=${seconds}`];
-    if (reason !== null) lines.push(`::warning title=refine-failed::pass=${pass} reason=${reason}`);
+    if (reason !== null) lines.push(`${REFINE_FAILED}pass=${pass} reason=${reason}`);
     return lines;
   });
 }
@@ -53,5 +55,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   };
   for (const line of passRecords({ planResult: env.PLAN_RESULT, passes: JSON.parse(env.PASSES || "[]"), files: JSON.parse(env.FILES || "{}"), seconds, wiring })) {
     console.log(line);
+    if (line.startsWith(REFINE_FAILED)) markLaneHold(env);
   }
 }

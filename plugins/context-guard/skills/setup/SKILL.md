@@ -106,7 +106,9 @@ paths this skill names, with the `Read` tool; never Glob or Grep the plugin dire
    cannot be read, which is a defect the absent branch would hide. Report the read error and route
    the operator to the file's permissions, not to `apply`. Also report the module's keys when
    present (`approach_margin`, `actions`, `thresholds`; the reader contract's "Zones"
-   section defines them); an absent or invalid one means its default, never a defect. The module
+   section defines them); an absent or invalid one means its default, never a defect. An old key
+   name (`smart_max_*`, `acceptable_max_*`, or `smart`, `acceptable` or `dumb` under `actions`) is
+   INFO: read as its new name for one release; remediation `apply`, which renames it. The module
    resolves zones with the same bands from the live session, so a machine with no snapshot files
    still gets lines.
 6. **Cache-line copy** (INFO only). When `~/.claude/context-guard/cache-line.mjs` exists, compare
@@ -151,7 +153,7 @@ paths this skill names, with the `Read` tool; never Glob or Grep the plugin dire
 ## `apply` (writes only `~/.claude/context-guard/zones.json`, on explicit request)
 
 Seed or refresh `~/.claude/context-guard/zones.json` from the shipped defaults
-(`smart_max_used_percentage: 50`, `acceptable_max_used_percentage: 75`, and the window-class
+(`light_max_used_percentage: 50`, `moderate_max_used_percentage: 75`, and the window-class
 `token_bands`, the reader contract owns these numbers; read them from
 `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md` rather than this file if they ever disagree).
 The `defaults` argument changes only how a present file is treated:
@@ -160,11 +162,11 @@ The `defaults` argument changes only how a present file is treated:
 
    ```json
    {
-     "smart_max_used_percentage": 50,
-     "acceptable_max_used_percentage": 75,
+     "light_max_used_percentage": 50,
+     "moderate_max_used_percentage": 75,
      "token_bands": {
-       "200000": { "smart_max_tokens": 100000, "acceptable_max_tokens": 150000 },
-       "1000000": { "smart_max_tokens": 128000, "acceptable_max_tokens": 500000 }
+       "200000": { "light_max_tokens": 100000, "moderate_max_tokens": 150000 },
+       "1000000": { "light_max_tokens": 128000, "moderate_max_tokens": 500000 }
      }
    }
    ```
@@ -179,6 +181,12 @@ The `defaults` argument changes only how a present file is treated:
    - `apply defaults`: set all recognized band keys (both percentage keys and `token_bands`) to
      the shipped defaults explicitly. This converges forward to a known state; it is not teardown,
      and it never removes the file or any key it does not recognize.
+   - Both modes rename the old key names first, keeping their values: `smart_max_used_percentage`
+     → `light_max_used_percentage`, `acceptable_max_used_percentage` →
+     `moderate_max_used_percentage`, and in each `token_bands` row `smart_max_tokens` →
+     `light_max_tokens` and `acceptable_max_tokens` → `moderate_max_tokens`; under `actions`,
+     `smart` → `light`, `acceptable` → `moderate` and `dumb` → `heavy`. Where both names are set,
+     keep the new one and drop the old. Report each rename.
    - Both modes **preserve every unrecognized key semantically**: same keys, same JSON values
      (the file is a shared SSOT the operator's own tools may extend). The module's own keys
      (`approach_margin`, `actions`, `thresholds`) are kept the same way. Preservation is

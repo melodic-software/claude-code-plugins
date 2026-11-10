@@ -223,6 +223,8 @@ if [[ ${HANDOFF_EVIDENCE_LAG:-} == notice && $missing == missing:* ]]; then
 fi
 if [[ -n $hold && $missing != missing:* ]]; then
   echo "::notice title=Handoff evidence hold::handoff evidence for ${CALLS} still missing after $reads reads: $missing; no fallback starts, and the next dispatcher tick sends the PR again"
+  # A hold job's lane-hold marker (lane-hold-marker.mjs); a failed write leaves the hold as it is.
+  [[ -z ${LANE_HOLD_MARKER:-} ]] || { mkdir -p "${LANE_HOLD_MARKER%/*}" && printf '%s %s\n' "${LANE_HOLD_MARKER##*/}" "${GITHUB_RUN_ID:-}" >"$LANE_HOLD_MARKER"; } || true
   exit 0
 fi
 echo "::error::handoff evidence for ${CALLS} still missing after $reads reads: $missing"

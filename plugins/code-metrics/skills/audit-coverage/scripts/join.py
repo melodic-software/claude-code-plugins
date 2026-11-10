@@ -152,18 +152,16 @@ def resolve(
             wanted = target.split("/")
             if len(wanted) <= len(parts) and parts[-len(wanted) :] == wanted:
                 matches[target] = max(matches.get(target, 0), len(wanted))
-    unique = _unique_longest(matches)
-    if unique is not None or matches:
-        return unique
+    if matches:
+        return _unique_longest(matches)
     for candidate in candidates:
         parts = candidate.split("/")
         for target in scope:
             wanted = target.split("/")
             if len(parts) < len(wanted) and wanted[-len(parts) :] == parts:
                 matches[target] = max(matches.get(target, 0), len(parts))
-    unique = _unique_longest(matches)
-    if unique is not None or matches:
-        return unique
+    if matches:
+        return _unique_longest(matches)
     base = candidates[0].rsplit("/", 1)[-1]
     if base in (ambiguous or ()):
         return None
@@ -280,10 +278,9 @@ def merge_artifacts(
     # two spellings of the same format is not mistaken for two files either.
     paths_by_basename: dict[str, dict[str, set[str]]] = {}
     for artifact in artifacts:
-        fmt_key = artifact.get("format") or "unknown"
+        by_base = paths_by_basename.setdefault(artifact.get("format") or "unknown", {})
         for raw_path in artifact.get("files") or {}:
             candidate = normalize(raw_path)
-            by_base = paths_by_basename.setdefault(fmt_key, {})
             by_base.setdefault(_basename(candidate), set()).add(candidate)
     # Per format, never flattened into one set: a basename two `go_cover` paths
     # share says nothing about the lone lcov path that carries it, and refusing
@@ -372,28 +369,21 @@ def _fold_function(
     records is nameless, and when several candidates remain the one whose
     start line matches wins.
     """
+    name, start = incoming["name"], incoming["start_line"]
     candidates = []
     for index, existing in enumerate(functions):
         if index in claimed:
             continue
-        same_name = (
-            incoming["name"] is not None
-            and existing["name"] is not None
-            and existing["name"] == incoming["name"]
-        )
-        nameless = existing["name"] is None or incoming["name"] is None
-        same_span = (
-            incoming["start_line"] is not None
-            and existing["start_line"] == incoming["start_line"]
-        )
+        same_name = name is not None and existing["name"] == name
+        nameless = existing["name"] is None or name is None
+        same_span = start is not None and existing["start_line"] == start
         if same_name or (nameless and same_span):
             candidates.append(index)
     if candidates:
         positioned = [
             index
             for index in candidates
-            if incoming["start_line"] is not None
-            and functions[index]["start_line"] == incoming["start_line"]
+            if start is not None and functions[index]["start_line"] == start
         ]
         index = positioned[0] if positioned else candidates[0]
         existing = functions[index]
@@ -596,19 +586,20 @@ def _match_function(
                 f"{len(shared)} coverage records named `{tail}` and no line range "
                 "placing one of them in this function"
             )
-    for candidate in functions:
-        if start_line is not None and candidate.get("start_line") == start_line:
-            return candidate, None
+    if start_line is not None:
+        for candidate in functions:
+            if candidate.get("start_line") == start_line:
+                return candidate, None
     return None, None
 
 
 def _cyclomatic_rows(document: dict[str, Any]) -> list[dict[str, Any]]:
-    rows = []
-    for row in document.get("measures") or []:
-        values = row.get("values") or {}
-        if row.get("function") and values.get("cyclomatic") is not None:
-            rows.append(row)
-    return rows
+    return [
+        row
+        for row in document.get("measures") or []
+        if row.get("function")
+        and (row.get("values") or {}).get("cyclomatic") is not None
+    ]
 
 
 def _nested(rows: list[dict[str, Any]], start: int, end: int) -> set[int]:
@@ -790,11 +781,7 @@ def join(
                 unjoined.setdefault(lane_of.get(path, "*"), []).append(function_row)
             measures.append(function_row)
 
-    formats: list[str] = []
-    for artifact in artifacts:
-        name = artifact.get("format") or "unknown"
-        if name not in formats:
-            formats.append(name)
+    formats = list(dict.fromkeys(a.get("format") or "unknown" for a in artifacts))
     where = ", ".join(searched or []) or "nothing"
     run: list[dict[str, Any]] = []
     for lane in sorted(lanes):

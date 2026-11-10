@@ -1,5 +1,39 @@
 # Changelog for the PR pipeline convention
 
+## [9.17.0] - 2026-11-10
+
+### Added
+
+- `limits.sweep-gap-minutes` (default 15). A work-unblock sweep that a finished work-resolve-issue run starts skips its work, and requests no lane token, when a full sweep (a run that uploaded `work-unblock-verdicts`, whatever it concluded) finished under this many minutes ago. A scheduled sweep or an issue close never skips, and a read that fails runs the sweep. 0 turns the gap off.
+
+- `limits.lane-level` (`floor` 2, `ceiling` 4, `default` 3, `clean-windows` 2, `pools` `[lanes-app]`): the bounds and streak of the adaptive lane level L (owner decision Q111). `decide()` in `.github/scripts/lib/lane-level.mjs` picks L per window: up 1 after `clean-windows` clean windows with lane demand when every pool fits (peak share of its planned budget times (L+1)/L at most `api.<pool>.plan`), half on any limit signal the lanes App's own calls meet (a breaker trip is not one), never below `floor` or above `ceiling`; missing data holds L. A `floor` above the `ceiling` is rejected. Nothing reads L yet, so `SLOTS` stays 3.
+
+## [9.16.0] - 2026-11-10
+
+### Added
+
+- `limits.refire-queue-per-slot` (default 2). A work-unblock sweep re-fires issues the lanes kill switch stranded, oldest refused run first, only until the unfinished work-resolve-issue runs reach this value times the lane's `SLOTS` (read from `work-resolve-issue.yml`), and never more than `limits.restarts-per-run`. After the switch clears, the lane stays full with a short queue, and each finished run's sweep tops that queue back up.
+
+### Fixed
+
+- work-unblock re-fires an issue the lanes kill switch stopped on a flat wait once it is past `limits.limit-stops-per-issue` trips. The wait is the `limits.stranded-backoff-hours` `kill-switch` value (1 hour here), counted from when the refused run ended. Before, the wait doubled per trip up to 24 hours. Trips below that bound keep their waits, and kill-switch trips still never count toward a give-up. The other causes still double.
+
+## [9.15.0] - 2026-11-10
+
+### Added
+
+- Each of monitor signal 13's 17 hold jobs keeps a `lane-hold-<lane>` artifact for a day when it holds, and the monitoring lane lists them, one call per lane, so a held run past a lane's read cap still counts toward the lane-holds threshold.
+
+## [9.14.0] - 2026-11-10
+
+### Removed
+
+- `merge.verify-capture.proxy.claude-code-version`. pr-verify-capture installs the Claude Code version main's `package-lock.json` pins and hands it to both driver legs, so a version bump needs no edit to pr-pipeline.yaml. The proxy's `betas`, `body-keys` and `block-types` lists stay as measured; the proxy refuses a value they do not list and names it.
+
+### Fixed
+
+- Monitor signal 13 (lane holds) no longer goes unread for every lane when one lane has more unread runs than its cap, or the read span falls short of the window. Such a read is partly read: a lane whose read runs reach the threshold still files or keeps the incident, and only a whole read clears it.
+
 ## [9.13.0] - 2026-11-10
 
 ### Removed

@@ -214,8 +214,11 @@ without-run lost its judge to the ceiling: `scoreWithout` and `delta` were both 
 `skippedPaidGraders`, `startedAt`, `tracePath`, `turns`.
 
 - `error` is `null` or the reason the run ended abnormally, such as a timeout. A non-null `error`
-  does **not** imply score 0; the run is still graded on what it produced, which is why a rate limit
-  mid-suite reads as a regression rather than as an outage.
+  does **not** by itself imply score 0: some errored runs are still graded, while a run that ended
+  on an API error, a rate limit mid-suite included, scores 0 ungraded, which is why that limit reads
+  as a regression rather than as an outage. Which runs fall on each side:
+  [JSON result](https://code.claude.com/docs/en/plugin-evals#json-result), as of 2026-11-10; recheck when that section changes
+  which errored runs are graded.
 - `aborted` appears when a mock's `expect:` or `abort_when` stopped the run, carrying `server`,
   `tool`, and `reason`. It scores 0 while `error` stays `null`.
 - `skippedPaidGraders: true` means the cost ceiling skipped this run's judge calls. The skipped
