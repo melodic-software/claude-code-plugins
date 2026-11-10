@@ -11,23 +11,7 @@
 # cold and reported separately: a cold cache legitimately changes a spawn count,
 # and a gate that fired on that would be loosened by the next person to hit it.
 #
-# Usage:
-#   run-spawn-census.sh --shim-dir <dir> --before <command> --after <command> [options]
-#
-#   --shim-dir <dir>        REQUIRED. Passed through to spawn-census.sh.
-#   --before <command>      REQUIRED. Shell command string for the baseline arm.
-#   --after <command>       REQUIRED. Shell command string for the changed arm.
-#   --before-label <s>      Default: before
-#   --after-label <s>       Default: after
-#   --warm <n>              Warm runs per arm, all of which must agree. Default 2.
-#   --reset-command <cmd>   Run once up front, for a targeted cache reset.
-#   --tool <name>           Passed through. Repeatable.
-#   --stdin <text>          Passed through.
-#   --stdin-file <path>     Passed through.
-#   --allow-windows-paths   Passed through.
-#
-# Exit: 0 both arms were stable; 2 a precondition failed, including an arm whose
-# warm runs disagreed.
+# Usage, options and exit codes: usage() below, printed by --help.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
