@@ -89,15 +89,12 @@ process.stdin.on('end', () => {
     const userDir = slash(process.env.CLAUDE_CONFIG_DIR) || (home && `${home}/.claude`);
     const userGlobal = /^settings\.json$/i.test(name) && isDir(userDir);
 
-    let live = userGlobal;
-    if (!live && /^managed/i.test(name)) {
-      live = MANAGED_DIRS.some(isDir);
-    } else if (!live) {
-      const cwd = slash(payload.cwd);
-      const atRoot = (r) => isDir(r && `${r}/.claude`);
-      live = atRoot(slash(process.env.CLAUDE_PROJECT_DIR)) || atRoot(cwd)
-        || (/local/i.test(name) && cwd !== '' && atRoot(localSettingsRoot(cwd)));
-    }
+    const cwd = slash(payload.cwd);
+    const atRoot = (r) => isDir(r && `${r}/.claude`);
+    const live = userGlobal || (/^managed/i.test(name)
+      ? MANAGED_DIRS.some(isDir)
+      : atRoot(slash(process.env.CLAUDE_PROJECT_DIR)) || atRoot(cwd)
+        || (/local/i.test(name) && cwd !== '' && atRoot(localSettingsRoot(cwd))));
     if (!live) process.exit(0);
 
     // The permission prompt already shows the target path.
