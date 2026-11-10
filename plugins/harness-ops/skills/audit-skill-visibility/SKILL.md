@@ -442,7 +442,7 @@ conflated whenever a fleet looks unused:
 
 - **`doctor` (bundled skill)**: an in-session checkup that can offer to disable components, which
   this skill never does. What it checks is read live from
-  [skills: check your setup with /doctor](https://code.claude.com/docs/en/skills#check-your-setup-with-doctor)
+  [skills: check your setup with /doctor](https://code.claude.com/docs/en/skills#check-your-setup-with-%2Fdoctor)
   (as of 2026-11-03; recheck when that section changes what the checkup covers).
 - **`/skill-doctor` (built-in command).** Claude Code's own unused-skills report; what it shows
   and where is read live from

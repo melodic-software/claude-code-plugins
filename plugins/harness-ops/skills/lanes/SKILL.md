@@ -58,7 +58,7 @@ its own context on demand: the model cannot `/clear` itself from a loop re-run.
 
 - **Pointer**: when stating how `/loop` re-runs a prompt or what a built-in command
   issued from a loop does, fetch
-  [scheduled tasks: run a prompt repeatedly with /loop](https://code.claude.com/docs/en/scheduled-tasks#run-a-prompt-repeatedly-with-loop)
+  [scheduled tasks: run a prompt repeatedly with /loop](https://code.claude.com/docs/en/scheduled-tasks#run-a-prompt-repeatedly-with-%2Floop)
   live.
 - **As of**: 2026-11-10
 - **Recheck trigger**: that section says a loop re-run starts a fresh context or

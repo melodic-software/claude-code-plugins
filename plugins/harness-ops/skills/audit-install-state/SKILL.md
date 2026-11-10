@@ -50,7 +50,7 @@ routinely conflated:
   - **Pointer**: when stating what `doctor` checks, its aliases, or what hides or removes it,
     fetch the `/doctor` row of
     [commands: all commands](https://code.claude.com/docs/en/commands#all-commands) and
-    [skills: check your setup with /doctor](https://code.claude.com/docs/en/skills#check-your-setup-with-doctor)
+    [skills: check your setup with /doctor](https://code.claude.com/docs/en/skills#check-your-setup-with-%2Fdoctor)
     live.
   - **As of**: 2026-11-10
   - **Recheck trigger**: either section drops `/doctor` or stops describing it as fixing what it
