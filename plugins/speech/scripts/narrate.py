@@ -62,8 +62,7 @@ def plan(text, phonemize, vocab):
     `core` is the slice of `ids` the word's timing covers: its phonemes, or its punctuation when it has none."""
     words = []
     for token in text.split():
-        match = re.fullmatch(r'(\W*)(.*?)(\W*)', token)
-        lead, body, trail = match.groups()
+        lead, body, trail = re.fullmatch(r'(\W*)(.*?)(\W*)', token).groups()
         if not body:   # all punctuation, such as an em dash
             lead, trail = token, ''
         pre = [vocab[c] for c in lead if c in vocab]
@@ -71,7 +70,7 @@ def plan(text, phonemize, vocab):
         post = [vocab[c] for c in trail if c in vocab]
         ids = pre + core + post
         span = (len(pre), len(pre) + len(core)) if core else (0, len(ids))
-        words.append({'word': token, 'ids': ids, 'span': span, 'ends_sentence': bool(set(token[-1:]) & SENTENCE_END)})
+        words.append({'word': token, 'ids': ids, 'span': span, 'ends_sentence': token[-1] in SENTENCE_END})
     return words
 
 
@@ -153,11 +152,13 @@ def write_wav(path, audio):
 
 
 def narrate(text, out, data, voice=DEFAULT_VOICE, speed=1.0, phonemize=None, model_dir=None):
-    if voice not in assets.voices():
-        raise ValueError(f'unknown voice {voice!r}; choose one of {", ".join(assets.voices())}')
+    m = assets.manifest()
+    known = assets.voices(m)
+    if voice not in known:
+        raise ValueError(f'unknown voice {voice!r}; choose one of {", ".join(known)}')
     if not 0.5 <= speed <= 2.0:
         raise ValueError(f'speed must be between 0.5 and 2.0, got {speed}')
-    gaps = assets.missing(data, model_dir=model_dir)
+    gaps = assets.missing(data, m, model_dir)
     if gaps:
         raise Missing(f'the Kokoro model files are not downloaded ({len(gaps)} missing, first {gaps[0]}). '
                       'Run /speech:setup apply install-model, which downloads them from the pinned revision.')
@@ -167,7 +168,7 @@ def narrate(text, out, data, voice=DEFAULT_VOICE, speed=1.0, phonemize=None, mod
     except ImportError as e:
         raise Missing(f'the Python packages do not import ({e}); start a new session, whose SessionStart hook '
                       f'installs them, or run the repair line that python3 "{Path(__file__).with_name("check.py")}" prints.') from e
-    root = assets.assets_dir(data, model_dir=model_dir)
+    root = assets.assets_dir(data, m, model_dir)
     vocab = json.loads((root / 'tokenizer.json').read_text(encoding='utf-8'))['model']['vocab']
     phonemize = phonemize or espeak_phonemizer(LANGS[voice[0]])
     words = plan(text, phonemize, vocab)
@@ -203,17 +204,16 @@ def main(argv=None):
     ap.add_argument('--data-dir')
     ap.add_argument('--model-dir', help='the model_dir option: the folder holding the kokoro-<revision> set')
     a = ap.parse_args(argv)
+    out = a.out or a.script.parent
     try:
         data = pydeps.data_dir(a.data_dir)
-        record = narrate(a.script.read_text(encoding='utf-8'), a.out or a.script.parent, data, a.voice, a.speed,
-                         model_dir=a.model_dir)
+        record = narrate(a.script.read_text(encoding='utf-8'), out, data, a.voice, a.speed, model_dir=a.model_dir)
     except (Missing, pydeps.Broken) as e:
         sys.stderr.write(f'speech: {e}\n')
         return 2
     except (ValueError, OSError, subprocess.CalledProcessError) as e:
         sys.stderr.write(f'speech: {e}\n')
         return 1
-    out = a.out or a.script.parent
     print(f'{out / "narration.wav"}  {record["duration"]} s, {len(record["words"])} words')
     print(out / 'words.json')
     return 0

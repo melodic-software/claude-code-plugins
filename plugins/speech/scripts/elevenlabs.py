@@ -109,7 +109,7 @@ def parse_settings(pairs, model):
             value = json.loads(raw)
         except ValueError:
             value = None
-        if isinstance(value, str) or value is None or isinstance(value, (list, dict)):
+        if value is None or isinstance(value, (str, list, dict)):
             raise ValueError(f'{pair!r}: the value must be a number, true or false')
         settings[name] = value
     return settings
@@ -220,8 +220,9 @@ def statement(chars, model, voice, quota):
 
 
 def _entry_text(entry):
-    return str(entry.get('character', entry.get('char', entry.get('text', '')))) if isinstance(entry, dict) \
-        else str(entry)
+    if isinstance(entry, dict):
+        return str(entry.get('character', entry.get('char', entry.get('text', ''))))
+    return str(entry)
 
 
 def _alignment(reply):
