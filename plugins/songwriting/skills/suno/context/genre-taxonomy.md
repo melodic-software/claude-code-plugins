@@ -21,14 +21,14 @@
 - [Bonus 2: Vibe → genre mapping](#bonus-2-vibe--genre-mapping)
 - [Cross-reference](#cross-reference)
 
-Static reference catalog of ~220 genres organized by 12-family tree. Used by the `/songwriting:suno genre` action when no template matches, and as a vibe-to-genre lookup for the `prompt` and `style` actions. Cross-link: when a family has an existing genre template, prefer it for the prompt skeleton. This file supplies the descriptor vocabulary. The complete template set is listed under Cross-reference below.
+Static reference catalog of genres organized by 12-family tree. Used by the `/songwriting:suno genre` action when no template matches, and as a vibe-to-genre lookup for the `prompt` and `style` actions. Cross-link: when a family has an existing genre template, prefer it for the prompt skeleton. This file supplies the descriptor vocabulary. The complete template set is listed under Cross-reference below.
 
 **Format conventions**
 
 - Wide table per family; leaf genres are rows. Differentiator + signature instrumentation as one-line sub-bullets under each row when the table would otherwise wrap awkwardly.
 - BPM ranges are typical sweet spots, not hard bounds. Suno responds well to a single numeric value inside the range.
 - Confidence column: **H** = multiple authoritative encyclopedia/journalism sources agree (Wikipedia + AllMusic + named music journalism); **M** = community consensus across producer guides + dedicated subreddits but no single canonical encyclopedia entry; **L** = niche/regional, limited cross-source corroboration, treat instrumentation as representative not definitive.
-- "Key tendency" describes the harmonic bias (minor/major, modal). Specifying a key in Suno is HIGH confidence per `style.md`. These tendencies are descriptive defaults, not prescriptions.
+- "Key tendency" describes the harmonic bias (minor/major, modal). `style.md` rates a key in the style prompt as generally respected. These tendencies are descriptive defaults, not prescriptions.
 - "Vocal style" is acoustic-descriptor language (clean / raw / melismatic / spoken / growled / falsetto / etc.). Feed these directly into the Suno style prompt's vocal layer.
 
 **How to use this catalog with the skill**
@@ -96,7 +96,7 @@ Template: `../templates/metal.md`. Down-tuned guitars define the family; subdivi
 | Black metal (2nd wave) | 1991-1996 | Norway | 180-260 | Harmonic minor, Phrygian dominant | High-pitched shrieks, layered delay | Raw 4-track lo-fi, clicky kick, intentional hiss | Icy, hateful, nihilistic | H |
 | Atmospheric black metal | 1996-present | Norway/Cascadia | 100-180 | Modal, drone | Distant shrieks + clean chants | Long reverb tails, ambient interludes | Vast, pagan, mournful | H |
 | Blackgaze | 2010-present | France/US | 120-180 | Major-leaning | Shrieks transitioning to clean melodic | Wall-of-sound shoegaze pedals, dynamic builds | Bittersweet, transcendent, dreamy | H |
-| - *Signature instrumentation:* My Bloody Valentine-style reverb walls (Big Muff / Strymon) + tremolo-picked harmonized leads + polished double-kick + ethereal pads. *Differentiator:* Black metal aggression refracted through shoegaze melody; cleans in the chorus signal blackgaze (not BM-with-effects). |
+| - *Signature instrumentation:* shoegaze-style fuzz-and-reverb walls (Big Muff / Strymon) + tremolo-picked harmonized leads + polished double-kick + ethereal pads. *Differentiator:* Black metal aggression refracted through shoegaze melody; cleans in the chorus signal blackgaze (not BM-with-effects). |
 | Doom metal | 1978-present | UK/Sweden | 50-100 | Minor, blues-pentatonic | Mournful clean baritone, occasional wail | Down-tuned tube saturation, slow plodding kit, organ optional | Heavy, occult, mournful | H |
 | Sludge metal | 1989-present | New Orleans | 60-120 | Minor, drop tunings | Shouted, hardcore-rasp | ProCo RAT-style distortion, bass-rig guitars, dirty mix | Filthy, hostile, suffocating | H |
 | Stoner metal / desert rock | 1991-present | Palm Desert, CA | 80-130 | Modal, blues | Bluesy melodic shout | Big Muff fuzz + Fender amps, dry analog warmth | Hypnotic, fuzzy, transcendental | H |
@@ -497,7 +497,7 @@ Common AI-music fusion shorthand and how the blend typically works. Suno respond
 | **Dream-pop synth-pop** | Dream pop (chorused guitars, breathy vocal, hazy reverb) | Synth-pop (analog synths, drum machine kit) | `dreampop-synthpop, chorused Telecaster + analog supersaw pads, drum machine kit, breathy female vocal with reverb tail, 110 BPM, hazy 80s warmth` |
 | **Trap soul** | Trap drums (808 slides + half-time hi-hats) | R&B vocal phrasing + chord pads | `trap soul, 808 slides + rolling hi-hats, R&B chord pads, smooth auto-tuned falsetto, 140 BPM half-time, sensual reverb` |
 | **Indie folk + post-rock** | Indie folk (fingerpicked acoustic, breathy vocal) | Post-rock (slow build, glassy delay guitars, real drum crescendo) | `indie folk post-rock, fingerpicked acoustic intro building to delay-soaked electric guitars and crashing real drums, 85 BPM, cinematic crescendo` |
-| **Blackgaze** | Black metal (tremolo-picked guitars, shrieks, blast drums) | Shoegaze (wall-of-sound reverb, melodic leads) | `blackgaze, tremolo-picked harmonized guitars with My Bloody Valentine reverb wall, shrieked vocals transitioning to clean melodic, double-kick, 140 BPM` |
+| **Blackgaze** | Black metal (tremolo-picked guitars, shrieks, blast drums) | Shoegaze (wall-of-sound reverb, melodic leads) | `blackgaze, tremolo-picked harmonized guitars with wall-of-sound shoegaze reverb, shrieked vocals transitioning to clean melodic, double-kick, 140 BPM` |
 | **Future bass + R&B** | Future bass drops (chord stabs, supersaw, half-time trap) | R&B vocal phrasing + chord pads | `future bass R&B, chopped vocal samples + supersaw chord stabs, half-time trap drums, melodic R&B sung verses, 150 BPM` |
 | **Trap metal / rage metal** | Trap drums + 808s | Metal (down-tuned distorted guitars, screamed vocal) | `trap metal, distorted 808 kicks + drop-tuned palm-muted guitars + screamed-and-rapped vocal, 75 BPM half-time, brutal compressed mix` |
 | **Amapiano-afrobeats** | Amapiano (log drum + jazz piano + slower tempo) | Afrobeats (highlife guitar, melodic Auto-Tune vocal) | `amapiano-afrobeats, log drum bassline + Rhodes jazz chords + shaker percussion, melodic auto-tuned afrobeats vocal, 112 BPM, laid-back warm mix` |
@@ -510,7 +510,7 @@ Common AI-music fusion shorthand and how the blend typically works. Suno respond
 
 ## Bonus 2: Vibe → genre mapping
 
-For each mood/vibe, 3-5 fitting genres ordered by descriptor density (first = most reliable Suno match).
+For each mood/vibe, 6-8 fitting genres ordered by descriptor density (first = most reliable Suno match).
 
 | Vibe | Genre suggestions (most-reliable first) |
 |---|---|
@@ -519,7 +519,7 @@ For each mood/vibe, 3-5 fitting genres ordered by descriptor density (first = mo
 | **Aggressive** | thrash metal, hardcore punk, deathcore, UK drill, hardstyle, grindcore, rage rap, brostep |
 | **Intimate** | bedroom pop, neo-soul, indie folk, slowcore, vocal jazz, lo-fi hip-hop, neoclassical piano |
 | **Nostalgic** | synth-pop, city pop, vaporwave, dream pop, synthwave, chillwave, boom bap |
-| **Dreamy** | dream pop, shoegaze, dream pop, future bass, plugg, ambient pop, cloud rap |
+| **Dreamy** | dream pop, shoegaze, future bass, plugg, ambient pop, cloud rap |
 | **Dystopian** | industrial techno, dark ambient, witch house, post-punk, glitchcore, Berlin techno |
 | **Romantic** | bossa nova, bachata, quiet storm, neo-soul, classic soul, K-pop ballad, baroque pop |
 | **Triumphant** | power metal, trailer music, gospel, symphonic metal, anthemic pop rock, uplifting trance |

@@ -13,8 +13,11 @@ When the bundled `simplify` skill resolves in this session, Phase 6 step 2 invok
 group's file list as its target, in place of spawning the simplifier agent. This skill keeps the
 discovery, filtering, grouping, ordering, verification, and report around it. One mutating pass
 runs per group, never both. `docs` mode keeps the simplifier agent, since `simplify` has no
-factual-staleness pass, and records `State: skipped (docs mode)`. The skill body enters context
-once and stays there.
+factual-staleness pass, and records `State: skipped (docs mode)`. Repo mode never invokes
+`simplify` ([context/repo-mode.md](context/repo-mode.md) gives the reasons) and records
+`State: skipped (repo mode)`. Pointer for how an invoked skill's body stays in context:
+[Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle). As of:
+2026-11-10. Recheck trigger: that section changes when an invoked skill's body leaves context.
 
 **Identity check.** The name is in the skill listing; the description is advisory. A description
 that reads as a different surface is a likely user or project shadow: skip with a warning and
@@ -42,7 +45,7 @@ calling the group fully simplified.
 
 ```text
 Native step: simplify
-State: ran | resolved but degraded (<disclosure>) | did not resolve in this session (<axis>) | invocation refused (<reason>) | identity mismatch | skipped (docs mode | unattended) | mutation detected after a scoped invocation
+State: ran | resolved but degraded (<disclosure>) | did not resolve in this session (<axis>) | invocation refused (<reason>) | identity mismatch | skipped (docs mode | repo mode | unattended) | mutation detected after a scoped invocation
 Scope: <file groups the step ran over, or none>
 Outside-scope changes: none | <paths>
 ```
@@ -242,7 +245,7 @@ For each group:
 
 1. **Mark the group's entry in progress**: `TaskUpdate` when the task tools are present, else the checklist entry
 
-2. **Spawn a simplifier agent** via the `Agent` tool, or, when the Native step applies (see **Native step: simplify** above), invoke `simplify` on the group's file list instead. Pick `subagent_type` from this ladder (first match wins): `code-simplifier:code-simplifier` when the `code-simplifier` plugin is installed; else `pr-review-toolkit:code-simplifier` when `pr-review-toolkit` is installed; else any other installed agent whose leaf name is `code-simplifier`; else `general-purpose`. Ladder record: the first two ids match the `name` field of each plugin's `agents/code-simplifier.md` (`code-simplifier` 1.0.0 in `claude-plugins-official`, and `pr-review-toolkit` in the same marketplace), read in the local plugin caches and marketplace clone on 2026-09-29; upstream: [`code-simplifier`](https://github.com/anthropics/claude-plugins-official/blob/main/plugins/code-simplifier/agents/code-simplifier.md) and [`pr-review-toolkit`](https://github.com/anthropics/claude-plugins-official/blob/main/plugins/pr-review-toolkit/agents/code-simplifier.md); recheck when either plugin is renamed or a marketplace lists another simplifier. The third rung is a fallback, not a sourced fact. **Model and effort:** a named rung keeps the model and effort its own definition sets, unless that definition inherits the model and pins no effort; such a rung, and `general-purpose`, are routed. When `/multi-agent:route` resolves in this session, run `/multi-agent:route all session=<this session's model alias>` once per run and pass the `worker` role's `fanout` variant: its model unless `omit_model` is true, and its effort always. When it does not resolve, omit the model so the agent inherits the session's, except when the session model is frontier or unknown, where pass `opus`; pass effort `medium`. That fallback is this skill's stand-in for the `worker` role map and fan-out guard in `/multi-agent:route`, not an upstream default; say once in the report that enabling the multi-agent plugin makes this routing configurable. The prompt includes:
+2. **Spawn a simplifier agent** via the `Agent` tool, or, when the Native step applies (see **Native step: simplify** above), invoke `simplify` on the group's file list instead. Pick `subagent_type` from this ladder (first match wins): `code-simplifier:code-simplifier` when the `code-simplifier` plugin is installed; else `pr-review-toolkit:code-simplifier` when `pr-review-toolkit` is installed; else any other installed agent whose leaf name is `code-simplifier`; else `general-purpose`. Ladder record: the first two ids match the `name` field of each plugin's `agents/code-simplifier.md` (`code-simplifier` in `claude-plugins-official`, and `pr-review-toolkit` in the same marketplace), read in the local plugin caches and marketplace clone on 2026-09-29; upstream: [`code-simplifier`](https://github.com/anthropics/claude-plugins-official/blob/main/plugins/code-simplifier/agents/code-simplifier.md) and [`pr-review-toolkit`](https://github.com/anthropics/claude-plugins-official/blob/main/plugins/pr-review-toolkit/agents/code-simplifier.md); recheck when either plugin is renamed or a marketplace lists another simplifier. The third rung is a fallback, not a sourced fact. **Model and effort:** a named rung keeps the model and effort its own definition sets, unless that definition inherits the model and pins no effort; such a rung, and `general-purpose`, are routed. When `/multi-agent:route` resolves in this session, run `/multi-agent:route all session=<this session's model alias>` once per run and pass the `worker` role's `fanout` variant: its model unless `omit_model` is true, and its effort always. When it does not resolve, omit the model so the agent inherits the session's, except when the session model is frontier or unknown, where pass `opus`; pass effort `medium`. That fallback is this skill's stand-in for the `worker` role map and fan-out guard in `/multi-agent:route`, not an upstream default; say once in the report that enabling the multi-agent plugin makes this routing configurable. The prompt includes:
    - The complete list of files in the group (absolute paths)
    - The ecosystem and the consuming project's relevant convention files (its `CLAUDE.md` / `.claude/rules` paths), when they exist
    - Instructions to read each file and check for redundancy/inconsistency/dead code/simplification opportunities

@@ -4,11 +4,10 @@ The plugin's `scripts/scope-code-files.sh` (`../../../scripts/scope-code-files.s
 resolves the ladder deterministically and prints the rung it landed on, the base it compared
 against, the count, and the paths:
 
-> Paths in this file are written relative to the plugin, not as `${CLAUDE_PLUGIN_ROOT}`, because
-> this file arrives through the Read tool rather than as loaded skill content. Pointer for where
-> the token is substituted:
+> Paths in this file are written relative to the plugin, not as `${CLAUDE_PLUGIN_ROOT}`. Pointer
+> for where the token is substituted:
 > [Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions).
-> As of: 2026-10-11. Recheck trigger: that section changes where plugin variables are substituted.
+> As of: 2026-11-10. Recheck trigger: that section changes where plugin variables are substituted.
 
 ```text
 rung=<uncommitted|branch|repository> base=<ref|none> files=<n>

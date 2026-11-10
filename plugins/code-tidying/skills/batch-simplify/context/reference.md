@@ -32,7 +32,7 @@ Present a final report:
 ## Batch Simplify Results
 
 Native step: simplify
-State: ran | resolved but degraded (<disclosure>) | did not resolve in this session (<axis>) | invocation refused (<reason>) | identity mismatch | skipped (docs mode | unattended) | mutation detected after a scoped invocation
+State: ran | resolved but degraded (<disclosure>) | did not resolve in this session (<axis>) | invocation refused (<reason>) | identity mismatch | skipped (docs mode | repo mode | unattended) | mutation detected after a scoped invocation
 Scope: <file groups the step ran over, or none>
 Outside-scope changes: none | <paths>
 
@@ -47,7 +47,7 @@ Groups processed: {group_count}
 | # | Group | Files | Changes | Deferred | Verification |
 |---|-------|-------|---------|----------|-------------|
 | 1 | Root Config | 13 | 2 files modified | 0 | PASS |
-| 2 | Agent Hooks | 13 | 4 files modified | 2 | PASS |
+| 2 | Standalone Scripts | 13 | 4 files modified | 2 | PASS |
 | ... | ... | ... | ... | ... | ... |
 
 Final cross-ecosystem verification: PASS/FAIL

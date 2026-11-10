@@ -4,7 +4,7 @@
 
 - [Tag order](#tag-order)
 - [Genre fusion: anchor and accent](#genre-fusion-anchor-and-accent)
-- [Stem-loop refinement (Premier)](#stem-loop-refinement-premier)
+- [Stem-loop refinement](#stem-loop-refinement)
 - [Two-pass vocal isolation](#two-pass-vocal-isolation)
 - [Persona-as-draft-mode](#persona-as-draft-mode)
 - [Punctuation for vocal cadence](#punctuation-for-vocal-cadence)
@@ -78,7 +78,7 @@ Verified 2026-08-12; each web page below fetched live by `curl` (bodies arrived 
 
 **Recheck trigger:** Suno's help center or blog publishes guidance on style-prompt ordering or genre blending; **or** a second independent community source states genre-order weighting, which would meet the ladder's Reddit-consensus clause; **or** anyone publishes a repeated or seed-controlled order comparison, which would settle the position question the anecdote above cannot; **or** a read-time re-fetch finds any source above no longer carrying its quoted text. Not a date.
 
-## Stem-loop refinement (Premier)
+## Stem-loop refinement
 
 Surgical refinement of a single instrument layer without losing the rest:
 

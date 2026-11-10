@@ -76,16 +76,16 @@ Dispatch rules:
    does not simply inherit the session's model, a tier picked for the orchestrator's work, not the
    writers'. Whether the pin can still resolve to the session's own model is the Choose a model
    pointer below's to state; check it before relying on the pin.
-   The pin is not the fleet tier: every call still names the fleet default below. The environment
-   can force every subagent onto one model, overriding a per-call `model`. Stop to ask before
-   spawning when such a forcing setting is on and would put the fleet on a tier above the fleet
-   default, or on the session's model and so on the orchestrator's tier.
+   The pin is not the fleet tier: every call still names the fleet default below. Stop to ask
+   before spawning when a setting that puts every subagent on one model (pointer below) is on and
+   would put the fleet on a tier above the fleet default, or on the session's model and so on the
+   orchestrator's tier.
 
    - **Pointer**: before trusting a per-call `model` to set the fleet's tier, fetch
      [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model) and
      [Run every subagent on one model](https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model)
      live, and read the session's subagent-model environment variables against them.
-   - **As of**: 2026-10-11
+   - **As of**: 2026-11-10
    - **Recheck trigger**: either section changes the resolution order or what the forcing
      setting overrides, or a release note names subagent model resolution.
 
@@ -95,10 +95,12 @@ Dispatch rules:
    than inheriting. When a new tier appears it becomes eligible by clearing the same bar, not by
    being newer.
 
-   **Never run a fleet on a tier priced above the fleet default.** Premium tiers are priced higher per
-   token (rates: [Pricing](https://platform.claude.com/docs/en/about-claude/pricing)), and a fan-out
-   multiplies that by the agent count. A tier above the
-   default belongs at a judge or verifier stage at most, where one call reads many writes.
+   **Never run a fleet on a tier priced above the fleet default.** A fan-out multiplies a tier's
+   per-token rate by the agent count. A tier above the default belongs at a judge or verifier stage
+   at most, where one call reads many writes. Pointer for the rates:
+   [Model pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing). As of:
+   2026-11-10. Recheck trigger: that section prices a higher tier at or below the fleet default's
+   rate.
 
    **Reach for effort before reaching for a cheaper tier.** Effort scales the tokens one agent
    spends; tier scales the price of every token AND changes which model wrote the lines. Across a
