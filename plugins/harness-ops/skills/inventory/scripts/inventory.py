@@ -3682,20 +3682,22 @@ def _roster_records(
     return out
 
 
+# `flag_driven` is part of the identity: a constant-true invocation field
+# and a function-valued one read as the same boolean, and the difference
+# (decided at runtime versus fixed) is exactly the evidence a collision
+# exists to preserve.
+_REGISTRATION_IDENTITY = (
+    "description",
+    "argument_hint",
+    "aliases",
+    "gated",
+    "hidden",
+    "flag_driven",
+) + tuple(k for k, _ in _INVOCATION_FIELDS)
+
+
 def _same_registration(a: dict[str, Any], b: dict[str, Any]) -> bool:
-    # `flag_driven` is part of the identity: a constant-true invocation field
-    # and a function-valued one read as the same boolean, and the difference
-    # (decided at runtime versus fixed) is exactly the evidence a collision
-    # exists to preserve.
-    keys = (
-        "description",
-        "argument_hint",
-        "aliases",
-        "gated",
-        "hidden",
-        "flag_driven",
-    ) + tuple(k for k, _ in _INVOCATION_FIELDS)
-    return all(a.get(k) == b.get(k) for k in keys)
+    return all(a.get(k) == b.get(k) for k in _REGISTRATION_IDENTITY)
 
 
 _PLUGIN_NAME_RE = re.compile(r'(?<![\w$])pluginName:"([a-z0-9-]+)"')
@@ -3829,49 +3831,37 @@ def extract_bundled_workflows(
     for callee, target in callees.items():
         meta_i, opts_i = registrars[target]
         for m in re.finditer(r"(?<![\w$.])" + re.escape(callee) + r"\(", src):
-            if src[max(0, m.start() - 9) : m.start()].endswith("function "):
+            at = m.start()
+            if src[max(0, at - 9) : at].endswith("function "):
                 continue
             seen += 1
             try:
                 args = _split_args(src, braces, m.end())
             except (ValueError, IndexError):
-                unresolved.append(f"{callee}(...) at {m.start()}")
-                continue
-            if meta_i is None or meta_i >= len(args):
-                unresolved.append(f"{callee}(...) at {m.start()}")
-                continue
-            meta = args[meta_i]
-            if not src.startswith("{", meta):
-                obj = _resolve_object(
-                    src, braces, src[meta : _ident_end(src, meta)], m.start()
-                )
+                args = []
+            meta = args[meta_i] if meta_i is not None and meta_i < len(args) else -1
+            if meta >= 0 and not src.startswith("{", meta):
+                ident = src[meta : _ident_end(src, meta)]
+                obj = _resolve_object(src, braces, ident, at)
                 meta = obj[0] if obj else -1
-            name = (
-                resolve_field(src, braces, meta, "name", anchor=m.start())
-                if meta >= 0
-                else None
-            )
+
+            def field(key: str) -> dict[str, Any] | None:
+                return resolve_field(src, braces, meta, key, anchor=at)
+
+            name = field("name") if meta >= 0 else None
             if not name or not name["value"] or not _NAME_OK.fullmatch(name["value"]):
-                unresolved.append(f"{callee}(...) at {m.start()}")
+                unresolved.append(f"{callee}(...) at {at}")
                 continue
             rec: dict[str, Any] = {"name": name["value"], "source": "bundled-workflow"}
-            _apply_field(
-                rec,
-                "description",
-                resolve_field(src, braces, meta, "description", anchor=m.start()),
-            )
+            _apply_field(rec, "description", field("description"))
             rec["description"] = rec["description"] or ""
-            when = resolve_field(src, braces, meta, "whenToUse", anchor=m.start())
+            when = field("whenToUse")
             rec["when_to_use"] = when["value"] if when else None
-            _apply_field(
-                rec,
-                "argument_hint",
-                resolve_field(src, braces, meta, "argumentHint", anchor=m.start()),
-            )
+            _apply_field(rec, "argument_hint", field("argumentHint"))
             phases = _object_fields(src, braces, meta).get("phases")
             if phases and phases[0] == "value" and src[phases[1]] in _ID_START:
                 ident = src[phases[1] : _ident_end(src, phases[1])]
-                rec["phases"] = _array_titles(src, braces, ident, m.start())
+                rec["phases"] = _array_titles(src, braces, ident, at)
             rec.update(_workflow_invocation(src, braces, args, opts_i))
             out[rec["name"]] = rec
     notes["registrations_seen"] = seen
@@ -4327,11 +4317,9 @@ def extract_builtin_tools(
         rec["aliases_source"] = alias_source
         rec["deferred"] = _literal_flag(src, fields, "shouldDefer", False)
         rec["always_load"] = _literal_flag(src, fields, "alwaysLoad", False)
-        rec["flag_driven"] = [
-            k for k in ("deferred", "always_load") if rec[k] is None
-        ] or None
-        if rec["flag_driven"] is None:
-            del rec["flag_driven"]
+        flag_driven = [k for k in ("deferred", "always_load") if rec[k] is None]
+        if flag_driven:
+            rec["flag_driven"] = flag_driven
         rec["gated"] = "isEnabled" in fields
         # A tool is called by the model; no user types one.
         rec["user_invocable"] = False
@@ -4380,21 +4368,29 @@ _MANIFEST_RE = re.compile(r"\{(?:scan|shipped):\{")
 _TENGU_RE = re.compile(r'"(tengu_[A-Za-z0-9_]+)"')
 
 
+def _skip_nested(src: str, braces: BraceMap, i: int, hi: int) -> int | None:
+    """Index past the string, `{...}` block or `(`/`[` group opening at `i`,
+    or None when `src[i]` opens none."""
+    ch = src[i]
+    if ch in _QUOTES:
+        return _read_literal(src, i, hi)[1]
+    if ch == "{":
+        close = braces.pairs.get(i)
+        if close is None:
+            raise ValueError("unmatched brace")
+        return close + 1
+    if ch in "([":
+        return _match_close(src, braces, i, hi)
+    return None
+
+
 def _split_top(src: str, braces: BraceMap, lo: int, hi: int) -> list[tuple[int, int]]:
     """The top-level comma-separated parts of `src[lo:hi]`."""
     parts, start, i = [], lo, lo
     while i < hi:
-        ch = src[i]
-        if ch in _QUOTES:
-            i = _read_literal(src, i, hi)[1]
-        elif ch == "{":
-            close = braces.pairs.get(i)
-            if close is None:
-                raise ValueError("unmatched brace")
-            i = close + 1
-        elif ch in "([":
-            i = _match_close(src, braces, i, hi)
-        elif ch == ",":
+        if (nxt := _skip_nested(src, braces, i, hi)) is not None:
+            i = nxt
+        elif src[i] == ",":
             parts.append((start, i))
             start, i = i + 1, i + 1
         else:
@@ -4406,17 +4402,9 @@ def _split_top(src: str, braces: BraceMap, lo: int, hi: int) -> list[tuple[int, 
 def _statement_end(src: str, braces: BraceMap, i: int, hi: int) -> int:
     """The `;` that ends the statement at `i`, or `hi`."""
     while i < hi:
-        ch = src[i]
-        if ch in _QUOTES:
-            i = _read_literal(src, i, hi)[1]
-        elif ch == "{":
-            close = braces.pairs.get(i)
-            if close is None:
-                raise ValueError("unmatched brace")
-            i = close + 1
-        elif ch in "([":
-            i = _match_close(src, braces, i, hi)
-        elif ch == ";":
+        if (nxt := _skip_nested(src, braces, i, hi)) is not None:
+            i = nxt
+        elif src[i] == ";":
             return i
         else:
             i += 1
@@ -4428,17 +4416,9 @@ def _expr_end(src: str, braces: BraceMap, i: int) -> int:
     its own depth."""
     n = len(src)
     while i < n:
-        ch = src[i]
-        if ch in _QUOTES:
-            i = _read_literal(src, i, n)[1]
-        elif ch == "{":
-            close = braces.pairs.get(i)
-            if close is None:
-                raise ValueError("unmatched brace")
-            i = close + 1
-        elif ch in "([":
-            i = _match_close(src, braces, i, n)
-        elif ch in ",;)]}":
+        if (nxt := _skip_nested(src, braces, i, n)) is not None:
+            i = nxt
+        elif src[i] in ",;)]}":
             return i
         else:
             i += 1
@@ -4520,12 +4500,14 @@ def _loader_guards(
                 ca, cb = _strip_span(src, *parts[-1])
                 cond = aliases.get(src[ca:cb], src[ca:cb])
                 body = _skip_ws(src, close, b)
-                if src.startswith("{", body):
+                braced = src.startswith("{", body)
+                if braced:
                     end = braces.pairs[body]
-                    inner, nxt = (body + 1, end), end + 1
+                    inner = (body + 1, end)
                 else:
                     end = _statement_end(src, braces, body, b)
-                    inner, nxt = (body, end), end + 1
+                    inner = (body, end)
+                nxt = end + 1
                 exits = exit_re.search(src, inner[0], inner[1]) is not None
                 if _PLUGIN_LATCH in cond and not (
                     latch_re.fullmatch(cond) and always_exits(*inner)
@@ -4540,18 +4522,12 @@ def _loader_guards(
                     src, inner[0], inner[1]
                 ):
                     state["poisoned"] = True
-                elif exits:
-                    # Calls before the exit keep their guard; what follows
-                    # depends on whether the exit ran, which is not read.
-                    if src.startswith("{", body):
-                        walk(inner[0], inner[1], [*guards, cond])
-                    else:
-                        record(inner[0], inner[1], [*guards, cond])
-                    state["poisoned"] = True
-                elif src.startswith("{", body):
-                    walk(inner[0], inner[1], [*guards, cond])
                 else:
-                    record(inner[0], inner[1], [*guards, cond])
+                    (walk if braced else record)(inner[0], inner[1], [*guards, cond])
+                    if exits:
+                        # Calls before the exit keep their guard; what follows
+                        # depends on whether the exit ran, which is not read.
+                        state["poisoned"] = True
                 if src.startswith("else", _skip_ws(src, nxt, b)):
                     raise ValueError("an else branch")
                 i = nxt
@@ -4609,23 +4585,31 @@ def _combined_load(sites: list[list[str] | None]) -> dict[str, Any]:
     return {"load": "conditional", "load_guards": sites[0]}
 
 
+def _local_binding(
+    src: str, braces: BraceMap, ident: str, at: int, *, deferred: bool = False
+) -> int | None:
+    """`_binding_value` under the wider locality the name rule uses; None
+    when the binding is not found or the read fails."""
+    try:
+        return _binding_value(
+            src,
+            braces,
+            ident,
+            at,
+            deferred=deferred,
+            window=SHORT_IDENT_LOCALITY_BYTES,
+        )
+    except (ValueError, IndexError, RecursionError):
+        return None
+
+
 def _object_value(
     src: str, braces: BraceMap, ident: str, at: int, *, deferred: bool
 ) -> int | None:
     """The `{` of the object literal `ident` reads at `at`, through
     `Object.freeze(...)` and `a=b` aliases; None for anything else."""
     for _ in range(4):
-        try:
-            v = _binding_value(
-                src,
-                braces,
-                ident,
-                at,
-                deferred=deferred,
-                window=SHORT_IDENT_LOCALITY_BYTES,
-            )
-        except (ValueError, IndexError, RecursionError):
-            return None
+        v = _local_binding(src, braces, ident, at, deferred=deferred)
         if v is None:
             return None
         frozen = re.match(r"Object\.freeze\(\s*", src[v : v + 32])
@@ -4768,12 +4752,7 @@ def _merged_string(
         return resolved
     ident = re.match(_IDENT + r"(?=\s*[,}])", src[entry[2] : entry[2] + 64])
     if entry[1] == "value" and ident:
-        try:
-            v = _binding_value(
-                src, braces, ident.group(0), entry[2], window=SHORT_IDENT_LOCALITY_BYTES
-            )
-        except (ValueError, IndexError, RecursionError):
-            v = None
+        v = _local_binding(src, braces, ident.group(0), entry[2])
         m = _CONST_VALUE_RE.match(src, v) if v is not None else None
         if m:
             return {"value": _unescape(m.group(1)), "source": "constant"}
@@ -4820,17 +4799,7 @@ def _bool_of(src: str, braces: BraceMap, text: str, at: int) -> bool | None:
     ident = re.fullmatch(r"(" + _IDENT + r")(\(\))?", text)
     if not ident:
         return None
-    try:
-        v = _binding_value(
-            src,
-            braces,
-            ident.group(1),
-            at,
-            deferred=True,
-            window=SHORT_IDENT_LOCALITY_BYTES,
-        )
-    except (ValueError, IndexError, RecursionError):
-        return None
+    v = _local_binding(src, braces, ident.group(1), at, deferred=True)
     arrow = r"\(\)\s*=>\s*" if ident.group(2) else ""
     m = (
         re.match(arrow + r"!([01])(?=\s*[;,)}\n])", src[v : v + 16])
@@ -4855,17 +4824,7 @@ def _gate_flags(src: str, braces: BraceMap, pos: int) -> list[dict[str, Any]] | 
     ident = re.fullmatch(_IDENT, src[text_lo:text_hi].strip())
     fn = None
     if ident:
-        try:
-            v = _binding_value(
-                src,
-                braces,
-                ident.group(0),
-                pos,
-                deferred=True,
-                window=SHORT_IDENT_LOCALITY_BYTES,
-            )
-        except (ValueError, IndexError, RecursionError):
-            v = None
+        v = _local_binding(src, braces, ident.group(0), pos, deferred=True)
         fn = _function_body(src, braces, ident.group(0), pos) if v is None else None
         if fn is not None and fn[0] in braces.pairs:
             # `isAvailable:t` with `function t(){...}`: the gate is its body.
@@ -4921,17 +4880,7 @@ def _array_elements(
         m = re.match(_IDENT + r"(?=\s*[,}])", src[pos : pos + 64])
         if not m:
             return None
-        try:
-            v = _binding_value(
-                src,
-                braces,
-                m.group(0),
-                pos,
-                deferred=deferred,
-                window=SHORT_IDENT_LOCALITY_BYTES,
-            )
-        except (ValueError, IndexError, RecursionError):
-            return None
+        v = _local_binding(src, braces, m.group(0), pos, deferred=deferred)
         if v is None or not src.startswith("[", v):
             return None
         pos = v
