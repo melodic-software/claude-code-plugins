@@ -87,7 +87,7 @@ rendered diagram. These facts and their sources are documented in the catalog.
   reached over the network: `allow` or `deny`. `deny` from any layer wins.
 - **`diagram_target`** (`userConfig`, string, default `auto`; also the `diagram_target` key of a
   repository's `docs/conventions/visualization.yaml` and of the gitignored personal override
-  `docs/conventions/visualization.local.yaml`). Where a diagram is drawn: `auto` (pick by surface),
+  `docs/conventions/visualization.local.yaml`). Where a diagram is drawn: `auto` (pick by where the session runs),
   `terminal`, `local-page`, `excalidraw` or `tldraw`. A later layer wins: the personal override,
   then the team file, then `userConfig`.
 
