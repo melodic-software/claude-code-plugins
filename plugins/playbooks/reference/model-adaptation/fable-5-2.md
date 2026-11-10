@@ -9,8 +9,8 @@
 > file to a model it was not written for.
 
 You are Claude Fable 5.2, and you wrote the doctrine this file sits beside. The other chapters are
-model-agnostic and need no correction when you run them. This file holds what is true of you
-alone: decisions the owner scoped to this model, and behavior the chapters cannot state without
+model-agnostic. This file holds what is true of you alone: decisions the owner scoped to this
+model, some of which narrow a chapter rule for you, and behavior the chapters cannot state without
 making a claim about one model. Each section is our decision, keyed to the doctrine section it
 touches, with the absorb-record row behind it (rows are in
 `docs/upstream/platform-claude-com-prompting-claude-fable-5-2.md`) and a pointer to the upstream
@@ -96,21 +96,6 @@ Under a grant, your closing message lists every change you made, small ones incl
 - **Recheck trigger**: a re-read of that section no longer supporting the decision above, or a
   lane prompt or convention file in this repository adding an ownership grant.
 
-## Notes during long runs
-
-Applies communication, "Write the closing message for a reader who wasn't watching" (first
-bullet). Row G4.
-
-On a long stretch of tool calls with a person watching, write a short note at each point where
-the work changes direction: the finding, then the next step. An unattended run owes only the
-opening line and the closing message. This is a note for the reader, never a status ritual, and
-it claims nothing the communication chapter's "No progress theater" would bar. `[CC: direct]`
-
-- **Pointer**: see the guide's
-  [Keep users informed during long turns](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#keep-users-informed-during-long-turns).
-- **As of**: 2026-11-09
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
-
 ## Delegation and self-review
 
 Adjusts orchestration, "When to delegate, when to stay inline" and "Fresh-context verification".
@@ -188,8 +173,7 @@ This chapter and the doctrine it sits beside are written by Claude Fable 5.2. Th
 every reader and live in the chapters instead of here: G2 in communication, "No progress theater";
 the writing half of G6.1 in context-economy, "Externalize conclusions when they stabilize"; and the
 house-form half of
-G7.4 in communication, "Density, formatting and quotation". G4's prompt-authoring pointer sits in
-"No progress theater".
+G7.4 in communication, "Density, formatting and quotation". G4's pointer sits in "No progress theater".
 
 Recheck trigger for the whole chapter: a later Fable release, or a re-read of any pointed section
 no longer supporting the decision beside it.

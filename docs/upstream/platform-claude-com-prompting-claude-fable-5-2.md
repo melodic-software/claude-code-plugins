@@ -139,7 +139,7 @@ Since this record: Claude Fable 5.2 re-authored the doctrine. Rows G2, the writi
 house-form half of G7.4 now live in the chapters (communication, "No progress theater"; context-economy,
 "Externalize conclusions when they stabilize"; communication, "Density, formatting and
 quotation"), and G4's pointer sits in "No progress theater". `fable-5-2.md` keeps the rows scoped
-to Fable 5.2: G1.1, G1.2, G2.1, G3, G4's bias, G5, the reading half of G6.1, G7.3, the prompt-authoring half of G7.4, A2, A3.
+to Fable 5.2: G1.1, G1.2, G2.1, G3, G5, the reading half of G6.1, G7.3, the prompt-authoring half of G7.4, A2, A3.
 
 Recheck triggers that fired on other surfaces and remain open, for their owners:
 
