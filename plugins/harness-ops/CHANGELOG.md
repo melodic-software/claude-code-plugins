@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.10] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [8.12.9] - 2026-11-10
 
 ### Changed
