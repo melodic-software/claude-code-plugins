@@ -173,9 +173,10 @@ When the pair comes from a domain glossary change (a term renamed, or a word mov
 follow the glossary too, and the sweep runs as its own reviewed change, never folded into the
 glossary edit:
 
-- **Code names** (types, functions, variables, enum members, file names): swept like any other
-  form. A rename a language-aware refactor tool does better is listed for that tool, per "What this
-  skill does NOT do".
+- **Code names**: occurrences in docs, config, comments and string literals are swept here like
+  any other form; declarations of types, functions, variables and enum members, and the call sites a
+  symbol rename reaches, are listed for a language-aware refactor tool, per "What this skill does
+  NOT do".
 - **Stored values** (an enum value or string persisted in a database, a message schema, a public
   API field): listed separately and never edited in place; each needs a data migration or a
   versioned contract change in the same reviewed change, which the report names.
@@ -186,7 +187,7 @@ glossary edit:
 
 ## What this skill does NOT do
 
-- **Does not perform AST-level renames** (Python class names, C# type names, JS function refactors). Use IDE or language-aware refactoring tools. This skill handles documentation, configuration, and identifier-string renames in text files.
+- **Does not perform AST-level renames** (Python class names, C# type names, JS function refactors). Use IDE or language-aware refactoring tools; a glossary-driven rename lists them for that tool ([Glossary-driven renames](#glossary-driven-renames)). This skill handles documentation, configuration, and identifier-string renames in text files.
 - **Does not rename git branches**. Use `git branch -m`.
 - **Does not handle framework version migrations**. Use dedicated migration tooling: that is a behavioral upgrade, not a text rename.
 - **Does not auto-fix conversation history or memory entries**. Past mentions of the old name there are preserved as historical record. Future renames are the user's responsibility to invoke this skill for.

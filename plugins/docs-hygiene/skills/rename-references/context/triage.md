@@ -7,6 +7,7 @@
 - [Bucket 3: Ambiguous (mandatory per-match confirmation)](#bucket-3-ambiguous-mandatory-per-match-confirmation)
 - [Special case: Rename-documenting plan docs](#special-case-rename-documenting-plan-docs)
 - [Special case: Frozen historical records](#special-case-frozen-historical-records)
+- [Special case: Glossary-driven renames](#special-case-glossary-driven-renames)
 - [Special case: Memory entries](#special-case-memory-entries)
 - [Reporting bucket counts](#reporting-bucket-counts)
 
@@ -140,6 +141,23 @@ Identify these documents from conversation context and the consuming repository'
 Auto-exclude archived/completed work notes and frozen records of past work (finished plan documents, past changelog entries, retired design notes). If the consuming repository marks work-notes status in frontmatter or by directory convention, use that signal; otherwise treat clearly-archived paths as frozen. A released, dated or versioned entry in a live changelog is frozen too; only an entry drafted for this rename is not.
 
 Without `--include-historical`, a frozen hit never enters a bucket and is never a question or a suggestion: the report counts it in the Excluded row and names it on one "Kept as history: <file>:<line>" line, with no advice to edit it. With `--include-historical`, frozen records are swept and triaged like any other file.
+
+## Special case: Glossary-driven renames
+
+When the pair comes from a domain glossary change ([SKILL.md](../SKILL.md#glossary-driven-renames)),
+two classifications override every bucket above, Certain included, and are decided before it:
+
+- **Stored value.** The hit sits in a value that outlives the code: a quoted literal assigned to,
+  compared with or listed as a persisted field, enum member value or status string; a database
+  migration, seed or fixture file; a message, event or API schema (`*.proto`, `*.avsc`, OpenAPI,
+  JSON Schema). Recorded for a data migration or versioned contract change; never edited.
+- **User-facing copy.** The hit sits in text a user reads: a string passed to a UI, an email or
+  notification template, a localization file, or an error or validation message. Report-only; never
+  edited. A hit matching the glossary entry's `Shown to users as:` wording is intended and left out.
+
+When a hit's context does not show which it is, it goes to Ambiguous with its context, never to
+Certain. Both lists are counted in their own rows of the report and recorded as spans
+`(file, line, start, end)` for apply.md Phase 6.
 
 ## Special case: Memory entries
 

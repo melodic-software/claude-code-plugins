@@ -41,7 +41,7 @@ Identical to audit-mode Phase 2: run all patterns from [patterns.md](patterns.md
 
 ### Phase 3: Triage
 
-Classify per [triage.md](triage.md) into Certain / Chain-context / Ambiguous / Excluded buckets.
+Classify per [triage.md](triage.md) into Certain / Chain-context / Ambiguous / Excluded buckets; for a glossary-driven rename, the stored-value and user-facing-copy hits of [triage.md](triage.md) "Special case: Glossary-driven renames" come out first, never enter a bucket that edits, and are recorded as spans.
 
 ### Phase 4: Confirm
 
@@ -117,6 +117,10 @@ the user as a per-match prompt and the correct answer is to skip it. Counting a 
 actionable re-presents the same match at Outcome B forever, leaving only two exits, rewriting a
 known false positive or aborting with a partial result: the same non-terminating loop the residue
 rule closes, reached through the other door.
+
+**Glossary report-only spans are not actionable either.** The stored-value and user-facing-copy
+spans Phase 3 recorded for a glossary-driven rename are subtracted from the actionable count the
+same way, and listed in the Phase 7 summary on their own lines, apart from residue and skips.
 
 So Phase 4 must RECORD each skip as `(file, line, start, end)`, the same occurrence key
 precedence and dedup use, and Phase 6 subtracts those spans from the actionable count. Two
