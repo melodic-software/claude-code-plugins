@@ -16,21 +16,20 @@ function briefData(brief) {
   const data = { title: "Morning brief", notes: [], sections: [] };
   let section = null;
   let titled = false;
-  for (const raw of brief.replace(/\r\n?/g, "\n").split("\n")) {
+  for (const raw of brief.split(/\r\n?|\n/)) {
     const line = raw.trimEnd();
+    if (!line) continue;
     const heading = /^== (.+?) ==$/.exec(line);
     if (heading) {
       section = { name: heading[1], lines: [] };
       data.sections.push(section);
-    } else if (line.trim() !== "") {
-      if (section) {
-        section.lines.push(line);
-      } else if (!titled && line.startsWith("Morning brief")) {
-        data.title = line;
-        titled = true;
-      } else {
-        data.notes.push(line.trim());
-      }
+    } else if (section) {
+      section.lines.push(line);
+    } else if (!titled && line.startsWith("Morning brief")) {
+      data.title = line;
+      titled = true;
+    } else {
+      data.notes.push(line.trim());
     }
   }
   return data;
