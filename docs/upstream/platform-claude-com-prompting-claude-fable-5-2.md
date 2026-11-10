@@ -135,6 +135,12 @@ rows whose triggers fired were re-derived for Fable 5.2 in `criteria.md`: I8-c w
 I10 widened (`:958`), I35 widened with unscoping declined (`:2505`), I23 declined (`:2057`) and I37
 declined (`:2589`).
 
+Since this record: Claude Fable 5.2 re-authored the doctrine. Rows G2, the writing half of G6.1 and the
+house-form half of G7.4 now live in the chapters (communication, "No progress theater"; context-economy,
+"Externalize conclusions when they stabilize"; communication, "Density, formatting and
+quotation"), and G4's pointer sits in "No progress theater". `fable-5-2.md` keeps the rows scoped
+to Fable 5.2: G1.1, G1.2, G2.1, G3, G4's bias, G5, the reading half of G6.1, G7.3, the prompt-authoring half of G7.4, A2, A3.
+
 Recheck triggers that fired on other surfaces and remain open, for their owners:
 
 - `plugins/docs-hygiene/skills/write-for-humans/reference/sentence-rules.md:62`: a hard sentence
