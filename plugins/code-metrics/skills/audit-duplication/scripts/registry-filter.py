@@ -91,18 +91,11 @@ def read_registry(path: str) -> list[Entry]:
 
 def sanctions_plain(entry: str, paths: list[str]) -> bool:
     """True when this plain line accounts for every instance of the group."""
-    prefixes = set()
-    for path in paths:
-        if path == entry:
-            prefix = ""
-        elif path.endswith("/" + entry):
-            prefix = path[: -(len(entry) + 1)]
-        else:
-            return False
-        if prefix in prefixes:
-            return False
-        prefixes.add(prefix)
-    return True
+    suffix = "/" + entry
+    if not all(path == entry or path.endswith(suffix) for path in paths):
+        return False
+    prefixes = ["" if path == entry else path[: -len(suffix)] for path in paths]
+    return len(set(prefixes)) == len(prefixes)
 
 
 def sanctions_cluster(canonical: str, members: list[str], paths: list[str]) -> bool:

@@ -213,8 +213,12 @@ class Rejected(Exception):
     pass
 
 
+def is_natural(value):
+    return isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= MAX_COUNT
+
+
 def natural(value):
-    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= MAX_COUNT:
+    if not is_natural(value):
         raise Rejected("not an integer from 0 to MAX_COUNT")
     return value
 
@@ -256,7 +260,7 @@ def classes(doc):
                 raise Rejected("instance file is not a one-line string")
             keys.append((name, natural(instance.get("start_line"))))
         lines = mapping(row.get("values", {})).get("lines")
-        lines = lines if isinstance(lines, int) and not isinstance(lines, bool) and 0 <= lines <= MAX_COUNT else None
+        lines = lines if is_natural(lines) else None
         found.append((sorted(keys), len(keys), lines))
     return found
 
@@ -308,11 +312,12 @@ for _, name in sorted(earlier, reverse=True):
     new_classes, grown_classes = [], []
     for keys, copies, lines in now_classes:
         entry = {"file": keys[0][0], "start_line": keys[0][1], "copies": copies, "lines": lines}
-        matched = [copies_before[key] for key in keys if key in copies_before]
-        if not matched:
+        # Every class has at least one copy, so 0 means no instance was seen before.
+        previous_copies = max((copies_before[key] for key in keys if key in copies_before), default=0)
+        if not previous_copies:
             new_classes.append(entry)
-        elif max(matched) < copies:
-            entry["previous_copies"] = max(matched)
+        elif previous_copies < copies:
+            entry["previous_copies"] = previous_copies
             grown_classes.append(entry)
     current["trend"] = {
         "clone_groups": now,
