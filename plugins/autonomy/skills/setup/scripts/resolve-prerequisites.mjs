@@ -281,11 +281,7 @@ function probeCiConfig(repoRoot) {
 function probeDependencyManifests(repoRoot) {
   const manifest = firstExisting(repoRoot, DEPENDENCY_MANIFESTS);
   if (manifest !== null) return probeOutcome("present", { probe_class: "repo-file", path: manifest });
-  return probeOutcome("absent", {
-    probe_class: "repo-file",
-    path: "package.json",
-    detail: "no dependency/build manifest found",
-  });
+  return probeOutcome("absent", { probe_class: "repo-file", path: "package.json", detail: "no dependency/build manifest found" });
 }
 
 function probeEcosystems(repoRoot) {
@@ -416,7 +412,6 @@ function probeMcp(repoRoot) {
   const presence = pathExists(mcpPath);
   const enablement = {
     result: "unresolvable",
-    ran: false,
     detail:
       "enablement gate only partly resolvable from committed surfaces; compose config-audit when installed",
   };
@@ -427,11 +422,9 @@ function probeMcp(repoRoot) {
     const s = settings.value;
     if (s.enableAllProjectMcpServers === true) {
       enablement.result = "present";
-      enablement.ran = true;
       enablement.detail = "enableAllProjectMcpServers=true";
     } else if (Array.isArray(s.enabledMcpjsonServers)) {
       enablement.result = s.enabledMcpjsonServers.length > 0 ? "present" : "absent";
-      enablement.ran = true;
       enablement.detail = "enabledMcpjsonServers from committed settings";
     } else {
       enablement.detail =
@@ -439,26 +432,8 @@ function probeMcp(repoRoot) {
     }
   }
   return {
-    presence: {
-      result: presence ? "present" : "absent",
-      ran: true,
-      provenance: {
-        kind: "probe",
-        probe_class: "harness-context",
-        path: ".mcp.json",
-      },
-    },
-    enablement: {
-      result: enablement.result,
-      ran: enablement.ran,
-      provenance: {
-        kind: "probe",
-        probe_class: "harness-context",
-        seam: "config-audit",
-        path: ".claude/settings.json",
-        detail: enablement.detail,
-      },
-    },
+    presence: probeOutcome(presence ? "present" : "absent", { probe_class: "harness-context", path: ".mcp.json" }),
+    enablement: probeOutcome(enablement.result, { probe_class: "harness-context", seam: "config-audit", path: ".claude/settings.json", detail: enablement.detail }),
   };
 }
 
