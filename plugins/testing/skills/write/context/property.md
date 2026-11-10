@@ -94,16 +94,17 @@ practical (complete); a sound, mostly complete generator beats an elaborate one.
 2. **Pin the shrunk counterexample.** Once a bug is confirmed, check the minimal failing input in
    as an explicit example on the property (Hypothesis `@example`, fast-check `examples`), so the
    regression runs on every run before generation. A seed, a path or the tool's example database
-   is a replay handle for reproducing the failure now, not the durable regression: Hypothesis
-   documents its database as a cache, and seeds are not guaranteed to survive a tool upgrade
-   (shown for Hypothesis and QuickCheck; unchecked for the others, so treat this as guidance).
+   is a replay handle for reproducing the failure now, not the durable regression (shown for
+   Hypothesis, at the pointer below, and QuickCheck; unchecked for the others, so treat this as
+   guidance).
 3. **Then fix**, and keep the explicit example after the fix.
 
 Mechanics live in each tool's docs: Hypothesis
-[`@example` and `example.xfail()`](https://hypothesis.readthedocs.io/en/latest/reference/api.html)
-and [replaying failures](https://hypothesis.readthedocs.io/en/latest/tutorial/replaying-failures.html);
-fast-check [`examples`, `seed` and `path`](https://fast-check.dev/docs/configuration/user-definable-values/).
-As of 2026-10-06. Recheck trigger: a tool stops recommending explicit examples over its database
+[`@example`](https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.example),
+[`example.xfail()`](https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.example.xfail)
+and [prefer `@example` over the database](https://hypothesis.readthedocs.io/en/latest/tutorial/replaying-failures.html#prefer-example-over-the-database-for-correctness);
+fast-check [run against custom values](https://fast-check.dev/docs/configuration/user-definable-values/#run-against-custom-values).
+As of 2026-11-10. Recheck trigger: a tool stops recommending explicit examples over its database
 or seed, or renames these parameters.
 
 ## Show the property can fail
@@ -115,18 +116,17 @@ must reject as an expected-fail example (Hypothesis `@example(...).xfail()`). A 
 kills no mutant and trips on no bad input is a weak oracle; tighten it or replace it with
 examples.
 
-## Keep example tests in their own file
+## What the audit exempts
 
 `/testing:audit`'s `rule-recomputed-derived` flags expected values derived from the call's own
 arguments. A property derives its expectation from generated input on purpose, so each language
 adapter under the audit skill's `adapters/` directory lists the markers that identify a property
-(`property_markers`), and the audit skips that rule for any file containing one. The skip covers
-the whole file, so:
+(`property_markers`), and the audit skips that rule for a test whose body or decorator or
+attribute stack holds one. The skip covers only that test, so:
 
 - no automated check catches a property whose oracle repeats the algorithm; the author and the
   reviewer hold it to the rule under Patterns;
-- an example test that shares a file with a property loses the check too, so put example tests in a
-  separate file.
+- an example test in the same file as a property is still checked.
 
 ## Language references
 

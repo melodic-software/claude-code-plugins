@@ -23,7 +23,8 @@ starts. The plugin has two kinds of configuration:
   user's `userConfig` value.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check, then writes the
-repository file and nothing else. Re-running either reads the current state again. With complete
+repository file, plus, on an explicit yes to the convention-home offer, the instruction-file region
+and the `.gitignore` line (`apply` step 5). Re-running either reads the current state again. With complete
 `<key>=<value>` arguments, nothing asks a question; the one confirmation is a diff to an existing
 file (`apply` step 4).
 
@@ -102,7 +103,7 @@ Report a PASS/INFO/WARN table. Write nothing.
    values are injected at skill load and a same-session rerun still reports the OLD values. Then report
    the observed effective settings.
 
-## `apply` (writes `docs/conventions/education.yaml` only)
+## `apply` (writes `docs/conventions/education.yaml`, and the step 5 region and ignore line on a yes)
 
 1. Run `check` and show its table.
 2. **Resolve the values.** With complete `<key>=<value>` arguments, use them. Otherwise ask one key at
@@ -131,7 +132,7 @@ Report a PASS/INFO/WARN table. Write nothing.
    holds a map or list in any form (`[]`, `[peer]`, `{level: peer}` or an indented block), holds an
    empty quoted string, names a key the schema does not list twice or with a map or list, or does
    not parse. Any other unknown key is named in one warning and its line kept as written. It writes
-   only `<git toplevel>/docs/conventions/education.yaml`: it resolves a symlinked root first, then
+   the file only at `<git toplevel>/docs/conventions/education.yaml`: it resolves a symlinked root first, then
    refuses a root that is `$HOME` or an ancestor of it, a symlinked `docs`,
    `docs/conventions` or target, a `docs/conventions` that resolves outside the repository, and a
    target with more than one hard link, and checks the path again right before the write, which
@@ -185,6 +186,6 @@ rerun observes it.
 - Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform
   setup contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the
   marketplace repository).
-- Do not write any file other than `docs/conventions/education.yaml`, and do not commit it or edit
-  the consumer's `.gitignore`.
+- Write no file other than `docs/conventions/education.yaml`, except the `apply` step 5 region and
+  ignore line on an explicit yes, and never commit.
 - Do not invent an organization, repository, marketplace, or environment-variable prefix.

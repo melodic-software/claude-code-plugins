@@ -18,8 +18,9 @@ invocation:
 - Working tree status (empty = clean), `git status --porcelain | head -20`
 
 The pipe is the bound and belongs in the command: a read-time cap ("read only the first 20
-entries") bounds nothing, because the Bash tool returns the command's complete output into context
-first.
+entries") comes after the command has already returned its output inline. What a result returns
+inline, and when it arrives as a saved file instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits)
+(as of 2026-11-10; recheck when that section changes what a valid result returns inline).
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
@@ -96,5 +97,5 @@ drives the full cycle including code edits and suggests `/verification:confirm` 
 
 ## Gotchas
 
-- Framework traps. .NET examples: under the Microsoft Testing Platform runner, `--nologo` is not a platform option and an unrecognized option exits 5 (an invalid-argument exit, not a zero-test result, which is exit 8 or 9); the banner switch there is `--no-banner`, and the native xUnit v3 spelling is `-noLogo`. In that runner `dotnet test` takes `--project`, `--solution`, or `--test-modules` and no positional path, and `--project` defaults to the current directory rather than being required. The runner is selected by `global.json`, and the classic runner remains the default, so confirm which one the project uses before reading any of this as its behavior. Parallel-execution races are the third trap. Check the consuming project's own gotcha notes before diagnosing. Verified 2026-09-06 against the vendor's testing-platform CLI options, troubleshooting, and `dotnet test` reference pages; recheck when the platform option list gains `--nologo` or the runner-selection default changes
+- Framework traps. .NET: the Microsoft Testing Platform runner's `dotnet test` options, argument forms and exit codes differ from the classic runner's, so an unrecognized option can exit non-zero before any test runs; read them for the SDK the project uses before reading an exit code as a test result. Pointers: [dotnet test with MTP § Options](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-mtp#options) and [Testing platform troubleshooting § Exit codes](https://learn.microsoft.com/en-us/dotnet/core/testing/microsoft-testing-platform-troubleshooting#exit-codes), as of 2026-11-10, recheck trigger: either section is removed or retitled. `global.json` selects the runner, so confirm which one the project uses before reading any of this as its behavior. Parallel-execution races are the third trap. Check the consuming project's own gotcha notes before diagnosing
 - Process-global singleton symptoms ("frozen", "already initialized"). Usually a shared-state fixture problem; check the consuming project's fixture conventions for the named pattern before inventing a workaround
