@@ -3,6 +3,15 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.2] - 2026-11-10
+
+### Changed
+
+- Skill bodies point at the live upstream sections for plugin and MCP install scopes, the
+  reconfiguration routes, the `git check-ignore` exit status and Leva's hidden panel instead of
+  restating them, and the setup skill names ADR 0075 as the owner of the config cascade. No
+  behavior change.
+
 ## [0.27.1] - 2026-11-10
 
 ### Changed
