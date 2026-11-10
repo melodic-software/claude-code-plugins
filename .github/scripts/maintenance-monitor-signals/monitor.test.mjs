@@ -355,7 +355,7 @@ const carryActions = (runs) => {
 };
 const ENTRY = { id: 50, attempt: 1, updated_at: "2026-10-19T15:20:00Z", jobs: [] };
 const HOLD = { lane: "work-unblock", runId: 60, url: "https://github.com/o/r/actions/runs/60", item: null, reason: "closed-issue listing failed", at: "2026-10-19T15:10:00Z" };
-const HELD = { runs: [HOLD], from: "2026-10-18T09:00:00Z", through: "2026-10-19T15:20:00Z" };
+const HELD = { runs: [HOLD], from: "2026-10-18T09:00:00Z", through: "2026-10-19T15:20:00Z", scanned: [{ lane: "work-unblock", runId: 61, at: "2026-10-19T15:15:00Z" }] };
 
 test("the job reads carry is read from the newest trusted run, past a pull_request run and this run", async () => {
   const { actions, calls } = carryActions([
@@ -391,7 +391,7 @@ test("no JOBS_CARRY_PATH reads nothing, and a carry that cannot be read carries 
   }
   // A file from before the carry held runs carries none over no span; a bad held run drops only the held runs.
   const old = JSON.stringify({ version: 1, repository: "o/r", runs: [ENTRY] });
-  assert.deepEqual((await readJobsCarry({ env: { JOBS_CARRY_PATH: "/x", GITHUB_RUN_ID: "999" }, repo: "o/r", actions, download: () => old })).held, { runs: [], from: null, through: null });
+  assert.deepEqual((await readJobsCarry({ env: { JOBS_CARRY_PATH: "/x", GITHUB_RUN_ID: "999" }, repo: "o/r", actions, download: () => old })).held, { runs: [], from: null, through: null, scanned: [] });
   const bad = await readJobsCarry({ env: { JOBS_CARRY_PATH: "/x", GITHUB_RUN_ID: "999" }, repo: "o/r", actions, download: () => jobsCarryFile("o/r", [ENTRY], { ...HELD, runs: [{ ...HOLD, lane: "other" }] }) });
   assert.deepEqual([[...bad.jobs.keys()], bad.held], [["50:1"], null]);
 });
