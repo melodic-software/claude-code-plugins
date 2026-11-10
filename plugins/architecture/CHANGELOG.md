@@ -3,6 +3,12 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.16] - 2026-11-10
+
+### Changed
+
+- `/architecture:improve` reads the glossary through the `/domain-driven-design:ubiquitous-language lookup` read action, with a repository search (root, any `docs/` folder, the module folder) when that plugin is absent, and writes resolved terms through `/domain-driven-design:ubiquitous-language curate`.
+
 ## [2.0.15] - 2026-11-10
 
 ### Changed

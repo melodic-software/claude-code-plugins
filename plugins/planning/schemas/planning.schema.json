@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/planning/schemas/planning.schema.json",
   "title": "Planning team config",
-  "description": "Schema for a repository's docs/conventions/planning.yaml: the team layer of the planning plugin's settings. A value here overrides the same key in the plugin's userConfig. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md. question_pacing, answer_audit_rounds, wayfind_suggest_questions, interview_page, plan_stress_test, plan_size_bands and plan_inventory_min_files are read from <home>/planning.yaml in a bound convention home, and from <home>/planning.local.yaml above it (docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md).",
+  "description": "Schema for a repository's docs/conventions/planning.yaml: the team layer of the planning plugin's settings. A value here overrides the same key in the plugin's userConfig. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md. question_pacing, answer_audit_rounds, domain_docs, wayfind_suggest_questions, interview_page, plan_stress_test, plan_size_bands and plan_inventory_min_files are read from <home>/planning.yaml in a bound convention home, and from <home>/planning.local.yaml above it (docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md).",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -45,6 +45,12 @@
       "description": "How /planning:interview asks a frontier. round: every ready question in one message. single: the same questions, one per message, largest blast radius first. A request in the session overrides it for that session.",
       "enum": ["round", "single"],
       "default": "round"
+    },
+    "domain_docs": {
+      "description": "Whether /planning:interview writes the project glossary and proposes ADRs in an engineering session. auto writes them; ask asks before each write; off writes neither and records them in the open-question register.",
+      "type": "string",
+      "enum": ["auto", "ask", "off"],
+      "default": "auto"
     },
     "answer_audit_rounds": {
       "description": "How many rounds /planning:interview counts whose reply accepted every recommendation before it offers /planning:audit-answers, once. 0 never offers.",

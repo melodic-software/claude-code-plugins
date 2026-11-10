@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.3.3] - 2026-11-10
+
+### Changed
+
+- The code-reviewer agent flags, as advisory, a new name that uses a word the project's glossary rejects.
+
 ## [8.3.2] - 2026-11-10
 
 ### Changed
