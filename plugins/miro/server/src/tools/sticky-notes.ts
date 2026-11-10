@@ -116,19 +116,18 @@ export function registerStickyNoteTools(
     },
     { idempotentHint: true, destructiveHint: false, openWorldHint: true },
     async ({ board_id, item_id, content, color, x, y }) => {
-      const updatePayload: Record<string, unknown> = {};
-      if (content !== undefined) {
-        updatePayload["data"] = { content };
-      }
-      if (color !== undefined) {
-        updatePayload["style"] = { fillColor: color };
-      }
-      if (x !== undefined || y !== undefined) {
-        updatePayload["position"] = {
-          ...(x !== undefined ? { x } : {}),
-          ...(y !== undefined ? { y } : {}),
-        };
-      }
+      const updatePayload: Record<string, unknown> = {
+        ...(content !== undefined ? { data: { content } } : {}),
+        ...(color !== undefined ? { style: { fillColor: color } } : {}),
+        ...(x !== undefined || y !== undefined
+          ? {
+              position: {
+                ...(x !== undefined ? { x } : {}),
+                ...(y !== undefined ? { y } : {}),
+              },
+            }
+          : {}),
+      };
       await lowLevel.updateStickyNoteItem(board_id, item_id, updatePayload);
       return jsonResponse({ id: item_id, status: "updated" });
     },

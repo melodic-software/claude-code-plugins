@@ -90,11 +90,12 @@ def resolve_token(name: str, bindings: dict[str, object]) -> object:
     if name.startswith("var:"):
         variables = bindings.get("__vars__")
         assert isinstance(variables, dict)
-        if name[4:] not in variables:
+        key = name[4:]
+        if key not in variables:
             raise HarnessError(
-                f"config references {{{{{name}}}}} but `vars` has no {name[4:]!r}"
+                f"config references {{{{{name}}}}} but `vars` has no {key!r}"
             )
-        return variables[name[4:]]
+        return variables[key]
     if name not in bindings:
         raise HarnessError(
             f"config references {{{{{name}}}}}, which is neither a matrix dimension "
@@ -197,7 +198,7 @@ def path_spellings(path: pathlib.Path) -> set[str]:
 def run_one(argv: list[str], stdin: str | None, timeout: int) -> tuple[int, str, str]:
     completed = subprocess.run(  # noqa: S603 - argv is caller-declared, never a shell string
         argv,
-        input=stdin if stdin is not None else "",
+        input=stdin or "",
         capture_output=True,
         text=True,
         timeout=timeout,
@@ -287,7 +288,7 @@ def main() -> int:
     combinations = [
         dict(zip(dimensions, combo))
         for combo in itertools.product(*(matrix[name] for name in dimensions))
-    ] or [{}]
+    ]
 
     baseline_leaks = path_spellings(baseline)
     candidate_leaks = path_spellings(candidate)
@@ -327,9 +328,7 @@ def main() -> int:
                         f"An arm that never ran cannot disprove a behavior change, and two "
                         f"arms failing this way identically read as parity."
                     )
-                leaked = sorted(
-                    spelling for spelling in leaks if spelling and spelling in out
-                )
+                leaked = sorted(spelling for spelling in leaks if spelling in out)
                 if leaked:
                     disclosures.append(
                         f"  {label} arm disclosed its own location {leaked[0]!r} in stdout "

@@ -54,13 +54,9 @@ function Get-CheckSelection {
         }
 
         $lastRun = Get-CheckLastRun -CheckId $c.id -HistoryTail $HistoryTail
-        if ([string]::IsNullOrWhiteSpace($lastRun)) {
-            $due.Add($c)
-            continue
-        }
-
         $lastRunOffset = [DateTimeOffset]::MinValue
-        if (-not [DateTimeOffset]::TryParse($lastRun, [ref]$lastRunOffset)) {
+        if ([string]::IsNullOrWhiteSpace($lastRun) -or
+            -not [DateTimeOffset]::TryParse($lastRun, [ref]$lastRunOffset)) {
             $due.Add($c)
             continue
         }

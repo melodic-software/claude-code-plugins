@@ -125,17 +125,15 @@ if [[ "$subject" =~ $cc ]]; then
   type="${BASH_REMATCH[1]}" desc="${BASH_REMATCH[4]}"
   breaking="${BASH_REMATCH[3]}"
   grep -Eq '^BREAKING[ -]CHANGE:' <<<"$message" && breaking="!"
-  if [[ -z "$level" ]]; then
-    if [[ -n "$breaking" ]]; then
-      level=major
-    else
-      case "$type" in
-      feat) level="minor" ;;
-      fix | perf) level="patch" ;;
-      build | chore | ci | docs | refactor | style | test) level="none" ;;
-      *) ;;
-      esac
-    fi
+  if [[ -z "$level" && -n "$breaking" ]]; then
+    level=major
+  elif [[ -z "$level" ]]; then
+    case "$type" in
+    feat) level="minor" ;;
+    fix | perf) level="patch" ;;
+    build | chore | ci | docs | refactor | style | test) level="none" ;;
+    *) ;;
+    esac
   fi
 fi
 if [[ -z "$level" ]]; then
@@ -194,7 +192,7 @@ if [[ -z "$ref" ]]; then
   ref="$(git symbolic-ref -q --short refs/remotes/origin/HEAD)" || ref=""
   for candidate in origin/main main; do
     [[ -z "$ref" ]] || break
-    ! git rev-parse -q --verify "$candidate" >/dev/null || ref="$candidate"
+    git rev-parse -q --verify "$candidate" >/dev/null && ref="$candidate"
   done
 fi
 added="$(

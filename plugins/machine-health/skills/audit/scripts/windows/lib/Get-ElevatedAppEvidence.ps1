@@ -63,8 +63,7 @@ function Read-PrefetchEvidence {
                     LastRun = ($_.Group | Measure-Object -Property LastWriteTimeUtc -Maximum).Maximum
                 }
             })
-    $state = if ($entries.Count -gt 0) { 'ok' } else { 'absent' }
-    return [pscustomobject]@{ Source = 'prefetch'; ReadState = $state; Entries = $entries }
+    return [pscustomobject]@{ Source = 'prefetch'; ReadState = ($entries.Count -gt 0 ? 'ok' : 'absent'); Entries = $entries }
 }
 
 function Read-BamEvidence {
@@ -97,6 +96,5 @@ function Read-BamEvidence {
         }
     }
     $entries = @($entries)
-    $state = if ($entries.Count -gt 0) { 'ok' } else { 'absent' }
-    return [pscustomobject]@{ Source = 'bam'; ReadState = $state; Entries = $entries }
+    return [pscustomobject]@{ Source = 'bam'; ReadState = ($entries.Count -gt 0 ? 'ok' : 'absent'); Entries = $entries }
 }

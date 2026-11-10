@@ -66,6 +66,7 @@ def lane_of_job(name: Any) -> str:
     """The lane whose status job `name` is, else ''."""
     return next((lane for lane, (_, jobs) in LANES.items() if name in jobs), "")
 
+
 # What a pull request's own checkout can feed or forge for its own review:
 # its workflows (a pull_request event runs the head's copy of the callers, and
 # a workflow it adds or edits whose token can write posts as
@@ -225,6 +226,8 @@ def record_class(message: str) -> str | None:
 
 def _rate_limited(message: str) -> bool:
     return record_class(message) == "rate-limit" or RATE_LIMIT_FAILURE_RE.search(message) is not None
+
+
 # Or on a rejected Claude credential: this lane's publish-review failure line
 # (ci-workflows publish.cjs `fail`) with class `auth`. Like a usage limit,
 # attempt 1 then left no verdict, so a re-run cannot trade one review for
@@ -318,6 +321,11 @@ ACTIONS_LOGINS = frozenset({"github-actions", "github-actions[bot]"})
 # Every author a lane comment can have; the caller attaches each one's edit
 # record (babysit_merge._attach_edits).
 LANE_AUTHORS = ACTIONS_LOGINS | CLAUDE_APP_LOGINS
+
+
+def _marker(body: str) -> re.Match[str] | None:
+    """The reviewed-head marker on a body's first line, else None."""
+    return MARKER_RE.match(body.split("\n", 1)[0].rstrip("\r"))
 
 
 def _footer_lane(body: str) -> str | None:
@@ -430,11 +438,7 @@ def bind(
             raise Unbound("base-retargeted")
         if not isinstance(changed_paths, list | tuple):
             raise Unbound("changed-files-unread")
-        sources = [path for path in changed_paths if lane_source(path)]
-        # Paths first, so no file is read when one source can never clear.
-        if not all(_readonly_candidate(path, floor) for path in sources) or not all(
-            readonly_workflow(path, head_file, base_sha, floor) for path in sources
-        ):
+        if needs_main_review(changed_paths, head_file, base_sha, floor):
             return tuple(
                 _main_lane(
                     lane,
@@ -477,6 +481,7 @@ def needs_main_review(
     if not isinstance(changed_paths, list | tuple):
         return True
     sources = [path for path in changed_paths if lane_source(path)]
+    # Paths first, so no file is read when one source can never clear.
     return not all(_readonly_candidate(path, floor) for path in sources) or not all(
         readonly_workflow(path, head_file, base_sha, floor) for path in sources
     )
@@ -570,8 +575,8 @@ def _main_bound(
         for record in records
         if (each := _main_review_counted(lane, record, context)) is not None
     ]
-    records = context.get("head_records")
-    recorded = records.get(lane) if isinstance(records, Mapping) else None
+    head_records = context.get("head_records")
+    recorded = head_records.get(lane) if isinstance(head_records, Mapping) else None
     if not isinstance(recorded, list | tuple):
         return None
     if not any(
@@ -969,11 +974,7 @@ def _carried_blocking(
     It reads only what the caller already read."""
     try:
         lane_runs = _lane_runs(SEVERITY_LANE, runs)
-        ordered = sorted(
-            lane_runs,
-            key=lambda item: (str(item.get("created_at") or ""), item["id"]),
-            reverse=True,
-        )
+        ordered = sorted(lane_runs, key=_run_order, reverse=True)
         heads = [head, *dict.fromkeys(item["head_sha"] for item in ordered)]
     except Exception:  # noqa: BLE001 - nothing read, nothing carried
         return None
@@ -999,6 +1000,11 @@ def _carried_blocking(
             continue
         return critical
     return None
+
+
+def _run_order(item: Mapping[str, Any]) -> tuple[str, int]:
+    """A run's place in creation order, newest last."""
+    return str(item.get("created_at") or ""), item["id"]
 
 
 def _lane_runs(lane: str, runs: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
@@ -1103,9 +1109,7 @@ def _bound_record(
     at_sha = [item for item in lane_runs if item["head_sha"] == sha]
     if not at_sha:
         raise Unbound("no-run")
-    newest = max(
-        at_sha, key=lambda item: (str(item.get("created_at") or ""), item["id"])
-    )
+    newest = max(at_sha, key=_run_order)
     if newest.get("status") != "completed" or newest.get("conclusion") != "success":
         raise Unbound("run-not-success")
     latest_n = newest.get("run_attempt")
@@ -1334,7 +1338,7 @@ def lane_posted(
         user = comment.get("user")
         login = user.get("login") if isinstance(user, Mapping) else None
         body = str(comment.get("body") or "")
-        mark = MARKER_RE.match(body.split("\n", 1)[0].rstrip("\r"))
+        mark = _marker(body)
         if mark is not None:
             if login == MARKER_AUTHOR and mark[1] == lane:
                 if mark[2] == head and within(comment.get("created_at")):
@@ -1398,7 +1402,7 @@ def _marker_rewritten(
             return True
         if not within(node.get("editedAt")):
             continue
-        mark = MARKER_RE.match(node["diff"].split("\n", 1)[0].rstrip("\r"))
+        mark = _marker(node["diff"])
         if mark is None or (mark[1] == lane and mark[2] == head):
             return True
     return False
@@ -1527,8 +1531,7 @@ def _require_marker(
         # it a marker.
         if _edited_by_another(user, comment.get("edit")):
             raise Unbound("comment-edited")
-        first_line = str(comment.get("body") or "").split("\n", 1)[0].rstrip("\r")
-        match = MARKER_RE.match(first_line)
+        match = _marker(str(comment.get("body") or ""))
         if not match or match[1] != lane or not (newest_only or match[2] == head):
             continue
         key = (
@@ -1592,7 +1595,7 @@ def _marker_revisions(
     for comment in comments:
         user = comment.get("user")
         body = str(comment.get("body") or "")
-        match = MARKER_RE.match(body.split("\n", 1)[0].rstrip("\r"))
+        match = _marker(body)
         if (
             not isinstance(user, Mapping)
             or user.get("login") != MARKER_AUTHOR
@@ -1645,8 +1648,7 @@ def _require_marked_runs(
         user = comment.get("user")
         if not isinstance(user, Mapping) or user.get("login") != MARKER_AUTHOR:
             continue
-        first_line = str(comment.get("body") or "").split("\n", 1)[0].rstrip("\r")
-        match = MARKER_RE.match(first_line)
+        match = _marker(str(comment.get("body") or ""))
         if match and match[1] == lane and match[2] not in listed:
             raise Unbound("run-missing")
 
@@ -1763,28 +1765,15 @@ def _open_findings(
             if trees.setdefault(rec.sha, tree) != tree:
                 raise Unbound("evidence-error")
             head_max[tree] = max(head_max.get(tree, 0), rec.findings)
-            summary_max[tree] = max(
-                summary_max.get(tree, 0),
-                rec.findings - rec.inline,  # type: ignore[operator]
-            )
+            in_summary = rec.findings - rec.inline  # type: ignore[operator]
+            summary_max[tree] = max(summary_max.get(tree, 0), in_summary)
             started = _time(job.get("started_at"))
-            if rec.findings > rec.inline:  # type: ignore[operator]
+            if in_summary > 0:
                 summary_reviews[tree] = summary_reviews.get(tree, 0) + 1
-                reporter[tree] = (
-                    rec.sha,
-                    started,
-                    rec.completed,
-                    rec.findings - rec.inline,  # type: ignore[operator]
-                )
+                reporter[tree] = (rec.sha, started, rec.completed, in_summary)
             if rec == chain[0]:
                 span = (started, rec.completed)
-            windows.append(
-                (
-                    started,
-                    _time(job.get("completed_at")),
-                    rec.inline,  # type: ignore[arg-type]
-                )
-            )
+            windows.append((started, rec.completed, rec.inline))  # type: ignore[arg-type]
             window_trees.append(tree)
             if rec.whole or rec.findings > 0:
                 spent.add(tree)
@@ -1874,7 +1863,7 @@ def _open_findings(
             body
             for at, body in revisions
             if start <= at <= end
-            and (mark := MARKER_RE.match(body.split("\n", 1)[0].rstrip("\r")))
+            and (mark := _marker(body))
             and mark[1] == lane
             and mark[2] == sha
         ]
@@ -2010,9 +1999,7 @@ def _lane_thread(lane: str, thread: Mapping[str, Any]) -> bool:
     if not isinstance(first, Mapping):
         raise Unbound("evidence-error")
     author = first.get("author")
-    if not isinstance(author, Mapping):
-        return False
-    if author.get("__typename") != "Bot":
+    if not isinstance(author, Mapping) or author.get("__typename") != "Bot":
         return False
     # Before the body is read: an edit could drop the footer that makes it
     # the lane's.
