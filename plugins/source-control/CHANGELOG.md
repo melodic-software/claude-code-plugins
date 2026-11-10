@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.11.4] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+### Fixed
+
+- `worktree-create.sh --base-ref fresh` now fetches the default branch on every run, still capped at 5 seconds. Before, it skipped the fetch when the repository had been fetched in the last 24 hours, as Claude Code's native `fresh` does. It then reported a base hours behind the remote as `(base fresh)`. When the fetch fails or hits the cap, the final line now reads `(base <remote>/<branch>@<short-sha>, not refreshed)`.
+
 ## [8.11.3] - 2026-11-10
 
 ### Changed
