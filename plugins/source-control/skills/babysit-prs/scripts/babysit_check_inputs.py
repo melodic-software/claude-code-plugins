@@ -42,13 +42,11 @@ BRANCH_RE = re.compile(r"[A-Za-z0-9._/-]+")
 # A fetch reads one pull request's new commits; a slow remote must not hold
 # the gate past its budget.
 FETCH_TIMEOUT_SECONDS = 60.0
+REGISTRY = "scripts/shared-copies.txt"
 
 
 def _git(root: Path, *args: str) -> str | None:
     return merge_policy._git(root, *args)
-
-
-REGISTRY = "scripts/shared-copies.txt"
 
 
 def _pairs(text: str) -> set[tuple[str, str]]:
@@ -73,6 +71,18 @@ SCOPED_INPUTS: dict[str, Callable[[str], set[str]]] = {
 
 def _names(out: str) -> list[str]:
     return sorted(p for p in out.split("\0") if p)
+
+
+def _diff_names(
+    root: Path, old: str, new: str, pathspecs: Iterable[str]
+) -> list[str] | None:
+    """The paths under `pathspecs` that differ between `old` and `new`; None
+    when git cannot list them."""
+    out = _git(
+        root, "diff", "--name-only", "--no-renames", "-z", old, new, "--",
+        *pathspecs,
+    )  # fmt: skip
+    return None if out is None else _names(out)
 
 
 def _full_history_clone(roots: Iterable[Path], tip_ref: str) -> tuple[Path, str] | None:
@@ -113,11 +123,10 @@ def _matches_at(root: Path, rev: str, path: str, pathspecs: Sequence[str]) -> bo
     """Whether `path` exists at `rev` and git matches it to `pathspecs`, read
     as a diff from the empty tree so every pathspec form git takes counts."""
     empty = (_git(root, "hash-object", "-t", "tree", "/dev/null") or "").strip()
-    out = _git(
-        root, "diff", "--name-only", "--no-renames", "-z", empty, rev, "--",
-        *pathspecs,
-    )  # fmt: skip
-    return bool(empty) and out is not None and path in _names(out)
+    if not empty:
+        return False
+    names = _diff_names(root, empty, rev, pathspecs)
+    return names is not None and path in names
 
 
 def _blob(root: Path, rev: str, path: str) -> str:
@@ -137,12 +146,7 @@ def _carried_sources(
     carried = {src for src, _ in added} | {
         src for src, copy in _pairs(_blob(root, tip, REGISTRY)) if {src, copy} & touched
     }
-    if not carried:
-        return []
-    out = _git(
-        root, "diff", "--name-only", "--no-renames", "-z", base, tip, "--", *carried
-    )
-    return None if out is None else _names(out)
+    return _diff_names(root, base, tip, carried) if carried else []
 
 
 def changed_since_merge_base(
@@ -188,13 +192,7 @@ def changed_since_merge_base(
         return {"state": "unknown", "reason": "no merge base with the base tip"}
 
     def listed(pathspecs: Sequence[str]) -> list[str] | None:
-        if not pathspecs:
-            return []
-        out = _git(
-            root, "diff", "--name-only", "--no-renames", "-z", base, tip, "--",
-            *pathspecs,
-        )  # fmt: skip
-        return None if out is None else _names(out)
+        return _diff_names(root, base, tip, pathspecs) if pathspecs else []
 
     changed = listed(paths)
     if changed is None:

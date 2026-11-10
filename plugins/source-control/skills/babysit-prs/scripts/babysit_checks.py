@@ -106,12 +106,9 @@ def normalize_check(check: dict[str, Any]) -> dict[str, Any]:
 
 def summarized_state(checks: list[dict[str, Any]]) -> str:
     categories = {check["category"] for check in checks}
-    if "failing" in categories:
-        return "failing"
-    if "pending" in categories:
-        return "pending"
-    if "success" in categories:
-        return "success"
+    for category in ("failing", "pending", "success"):
+        if category in categories:
+            return category
     return "absent"
 
 
@@ -144,13 +141,12 @@ def dedupe_latest_checks(checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [latest[key] for key in sorted(latest, key=lambda k: latest[k]["_order"])]
 
 
+_IDENTITY_FIELDS = ("type", "name", "workflow_name")
+
+
 def check_identity(check: dict[str, Any]) -> dict[str, str]:
     """Return the durable identity for one normalized status-rollup entry."""
-    return {
-        "type": str(check.get("type") or ""),
-        "name": str(check.get("name") or ""),
-        "workflow_name": str(check.get("workflow_name") or ""),
-    }
+    return dict(zip(_IDENTITY_FIELDS, check_identity_key(check), strict=True))
 
 
 RERUN_ID_LENGTH = 32
@@ -168,11 +164,8 @@ def check_rerun_id(identity: dict[str, Any]) -> str:
 
 
 def check_identity_key(identity: dict[str, Any]) -> tuple[str, str, str]:
-    return (
-        str(identity.get("type") or ""),
-        str(identity.get("name") or ""),
-        str(identity.get("workflow_name") or ""),
-    )
+    kind, name, workflow = (str(identity.get(key) or "") for key in _IDENTITY_FIELDS)
+    return kind, name, workflow
 
 
 def persisted_check_identity_keys(value: Any, field: str) -> set[tuple[str, str, str]]:
@@ -182,10 +175,7 @@ def persisted_check_identity_keys(value: Any, field: str) -> set[tuple[str, str,
     for index, raw_identity in enumerate(value):
         if not is_json_object(raw_identity):
             raise ValueError(f"persisted {field}[{index}] must be an object")
-        if not all(
-            key in raw_identity and isinstance(raw_identity[key], str)
-            for key in ("type", "name", "workflow_name")
-        ):
+        if not all(isinstance(raw_identity.get(key), str) for key in _IDENTITY_FIELDS):
             raise ValueError(
                 f"persisted {field}[{index}] must contain string type, name, and workflow_name"
             )
