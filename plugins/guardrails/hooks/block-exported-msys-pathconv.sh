@@ -303,13 +303,7 @@ leaks_into_child_shell() {
       esac
       continue
     fi
-    case "$tok" in
-    MSYS_NO_PATHCONV=* | MSYS2_ARG_CONV_EXCL=*) seen=1 ;;
-    # Any other token is simply not the start of a suppressor prefix; the
-    # walk continues. This branch is a scanner step, not the guard's verdict,
-    # so falling through silently is the correct behavior, not a default-deny.
-    *) ;;
-    esac
+    [[ "$tok" == MSYS_NO_PATHCONV=* || "$tok" == MSYS2_ARG_CONV_EXCL=* ]] && seen=1
   done
   return 1
 }
