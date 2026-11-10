@@ -173,12 +173,20 @@ the `hosted_canvas` key of the repository's `docs/conventions/visualization.yaml
 of the personal override `docs/conventions/visualization.local.yaml`. Read the two files only when
 the repository root (`CLAUDE_PROJECT_DIR`, else `git rev-parse --show-toplevel`) is inside a git
 working tree and is neither `$HOME` nor an ancestor of it; a missing file or key leaves that layer
-unset. Read the team file twice, from the working tree and from the default branch's committed copy
-(`git -C <root> show origin/HEAD:docs/conventions/visualization.yaml`), so a branch cannot drop the
-team's `deny`. A value other than `allow` or `deny` is named with its option or file, the key and
+unset. Read the team file twice, from the working tree and from the default branch's committed copy,
+so a branch cannot drop the team's `deny`. For the second read, take the branch name from
+`git -C <root> ls-remote --symref origin HEAD`, fetch it with
+`git -C <root> fetch --quiet origin +refs/heads/<branch>:refs/remotes/origin/<branch>` (a failed
+fetch falls back to the last fetched copy), resolve
+`git -C <root> rev-parse --verify --quiet refs/remotes/origin/<branch>^{commit}`, then
+`git -C <root> show <sha>:docs/conventions/visualization.yaml`. A file absent at that commit leaves
+the layer unset. When the read cannot run (no origin answers, it names no default branch, or the
+ref never resolves), say so in one line naming the step that failed and count the team layer as
+`deny` for this run. A value other than `allow` or `deny` is named with its option or file, the key and
 the value, and that layer is dropped. `deny` from any layer wins, so a tracked file can never undo
 one person's `deny`; otherwise the value is `allow`, the default. Print one line with the value and the layer
-that set it, for example `hosted_canvas: deny (docs/conventions/visualization.yaml)` or
+that set it, for example `hosted_canvas: deny (docs/conventions/visualization.yaml)`,
+`hosted_canvas: deny (default-branch read failed: origin names no default branch)` or
 `hosted_canvas: allow (plugin default)`.
 
 With `deny`, send no diagram content to a hosted canvas server, one reached over the network; a

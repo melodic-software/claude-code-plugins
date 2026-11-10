@@ -14,6 +14,9 @@ bump: minor
   default, or `deny`) reads from `userConfig`,
   `docs/conventions/visualization.yaml` and the personal override;
   `deny` from any layer keeps diagram content off canvas servers reached
-  over the network, and a local server stays allowed. The plugin ships
+  over the network, and a local server stays allowed. The team file is
+  also read from the fetched default branch, so a branch cannot drop its
+  `deny`; when that read cannot run, the team layer counts as `deny`.
+  The plugin ships
   no canvas server; the catalog points at the official Excalidraw and
   tldraw servers as optional user-level installs.
