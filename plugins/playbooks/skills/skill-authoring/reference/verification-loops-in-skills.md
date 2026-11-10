@@ -57,10 +57,10 @@ the nested variant.
 Editing the producing skill's body is the simplest way to make a check fire automatically, but only
 where you own the file. Two cases where you do not, and they have different answers:
 
-- **Plugin-managed skills.** Do not edit: an update does not keep local edits to a plugin's
-  installed files. Pointer: for how an installed plugin's files change on update, fetch
+- **Plugin-managed skills.** Do not edit a plugin's installed files. Pointer: for why such an edit
+  does not last, fetch
   [Versions and updates](https://code.claude.com/docs/en/plugins/loading#versions-and-updates)
-  live. As of: 2026-10-11. Recheck trigger: that section changes where an updated version's
+  live. As of: 2026-11-10. Recheck trigger: that section changes where an updated version's
   files live.
 - **Bundled skills.** Two options, not one: chain a wrapper after the bundled skill, or shadow it
   with a same-name skill at project or personal level. Read the pointer for what shadowing does

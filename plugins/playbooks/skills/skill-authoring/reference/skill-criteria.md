@@ -69,7 +69,10 @@ except the pointer swap that **Cutting text** exempts ([Measurement](#measuremen
   `Noun phrase. Use when <branch>, <branch>.` (Pocock's shape, as of 2026-10-06; recheck when his repository's descriptions change shape).
   Enumerating
   every phrasing a user might type is the trigger-case defect the prompt audit flags. Use the
-  nouns a user would type, and lead with the main use case: the listing truncates from the end.
+  nouns a user would type, and lead with the main use case. Why:
+  [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)
+  (as of 2026-11-10; recheck when that section changes which part of a description the listing
+  keeps).
 - **Hook terms.** Models latch onto particular words, and which ones is found by trial, not
   guessed. Keep at most three, each a quoted user idiom that shares no word with the rest of the
   description (a jargon or slang name for the job) and that probes show moves triggering
@@ -143,8 +146,10 @@ except the pointer swap that **Cutting text** exempts ([Measurement](#measuremen
 - **Scope is a vertical slice.** A skill holds what changes together. Grow a well-encapsulated
   skill by progressive disclosure (reference files, scripts, a spoke per use case) instead of
   splitting it. Depth costs nothing until it's used (a file read then meets the deletion test like
-  the body), while every extra model-invoked skill adds a description to the always-loaded
-  listing (a user-invoked one stays out of it). A split is the exception: split only when the
+  the body), while every extra model-invoked skill costs listing context
+  ([Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill),
+  as of 2026-11-10; recheck when that section changes which skills' descriptions load into
+  context). A split is the exception: split only when the
   parts change independently or answer different requests.
 - **SKILL.md is a router, under 5,000 tokens.** It is the hub: it holds the standing rules and
   routes each action to its own spoke under `actions/`, one file per action, so a run loads the
@@ -152,7 +157,9 @@ except the pointer swap that **Cutting text** exempts ([Measurement](#measuremen
   characters per token and WARNs above it (check 30). Every skill carries evals
   ([Measurement](#measurement)).
 - Standing rules go in the body; bulk goes in reference files. Put a workflow or checklist first
-  after the frontmatter: compaction re-attaches only the start of an invoked skill.
+  after the frontmatter, so it survives compaction
+  ([Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle), as
+  of 2026-11-10; recheck when that section changes how much of an invoked skill compaction keeps).
 - For structured output, the framing sentence sets strictness: an exact template for
   machine-read output, a default with a release line otherwise. Give a few diverse, canonical
   examples that portray the expected behavior, not a laundry list of edge cases that tries to
@@ -401,6 +408,6 @@ Each record: pointer, as-of date, recheck trigger. Re-read the pointer before ac
 - **Context engineering post**,
   [The anatomy of effective context](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents#the-anatomy-of-effective-context).
   As of 2026-10-29. Recheck: that section moves or changes its guidance on examples.
-- **Vendored playbook**, `vendor/upstream-skill.md`, maintained by `/playbooks:update`. Drift check
-  2026-10-07: frontmatter version 1.0.0 matches upstream; content SHA256 differs (vendored copy
-  7b0923d8…, upstream 05b4e6b7…), sync pending. Recheck: the next `/playbooks:update` run.
+- **Vendored playbook**, `vendor/upstream-skill.md`, maintained by `/playbooks:update`. For its current
+  drift state, read `/playbooks:update --check` and the `SKILL.md` metadata. Recheck: the next
+  `/playbooks:update` run.
