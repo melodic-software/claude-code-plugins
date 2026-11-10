@@ -133,8 +133,7 @@ $stdout = $text.out.ToString()
 
 $runId = $null
 try {
-    $latestPath = Join-Path $stateBase 'state/latest.json'
-    $stream = [System.IO.File]::Open($latestPath, 'Open', 'Read', [System.IO.FileShare]'ReadWrite, Delete')
+    $stream = [System.IO.File]::Open((Join-Path $stateBase 'state/latest.json'), 'Open', 'Read', [System.IO.FileShare]'ReadWrite, Delete')
     try { $latestText = [System.IO.StreamReader]::new($stream).ReadToEnd() } finally { $stream.Dispose() }
     $runId = Get-JsonString ([System.Text.Json.Nodes.JsonNode]::Parse($latestText)['run_id'])
     $status.latest_newer = $null -ne $runId -and
