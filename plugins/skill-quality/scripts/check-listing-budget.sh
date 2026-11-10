@@ -242,6 +242,7 @@ FRACTION_SOURCE=""
 # Append TOKENS x CHARS_PER_TOKEN x FRACTION as one budget row.
 add_reconstructed_row() {
   local tokens="$1" chars
+  require_positive_number CHECK_SKILL_LISTING_CHARS_PER_TOKEN "$CHARS_PER_TOKEN" num
   if ! chars="$(awk -v t="$tokens" -v c="$CHARS_PER_TOKEN" -v f="$FRACTION" \
     'BEGIN { printf "%d", t * c * f }' 2>/dev/null)" || [[ -z "$chars" ]] || ((chars <= 0)); then
     printf 'Error: could not compute a budget from %s tokens x %s chars/token x %s\n' \
@@ -311,12 +312,10 @@ else
   fi
   if [[ -n "${CHECK_SKILL_LISTING_CONTEXT_TOKENS:-}" ]]; then
     require_positive_number CHECK_SKILL_LISTING_CONTEXT_TOKENS "$CHECK_SKILL_LISTING_CONTEXT_TOKENS" int
-    require_positive_number CHECK_SKILL_LISTING_CHARS_PER_TOKEN "$CHARS_PER_TOKEN" num
     [[ -n "$FRACTION" ]] || FRACTION="0.01"
     BUDGET_IS_DEFAULT=0
     add_reconstructed_row "$(to_decimal "$CHECK_SKILL_LISTING_CONTEXT_TOKENS")"
   elif [[ -n "$FRACTION" ]]; then
-    require_positive_number CHECK_SKILL_LISTING_CHARS_PER_TOKEN "$CHARS_PER_TOKEN" num
     add_reconstructed_row 200000
     add_reconstructed_row 1000000
   else
@@ -597,16 +596,16 @@ fi
 BUDGET_CHARS="${BUDGETS[0]}"
 OVER_ROWS=0
 for i in "${!BUDGETS[@]}"; do
+  verdict="OK"
+  if ((TOTAL > BUDGETS[i])); then
+    verdict="WARN, over by $((TOTAL - BUDGETS[i])) chars"
+    OVER_ROWS=$((OVER_ROWS + 1))
+  fi
   if ((BAND)); then
-    verdict="OK"
-    if ((TOTAL > BUDGETS[i])); then
-      verdict="WARN, over by $((TOTAL - BUDGETS[i])) chars"
-    fi
     printf '  budget:    %d chars (%s): %s\n' "${BUDGETS[i]}" "${SOURCES[i]}" "$verdict"
   else
     printf '  budget:    %d chars (%s)\n' "${BUDGETS[i]}" "${SOURCES[i]}"
   fi
-  ((TOTAL > BUDGETS[i])) && OVER_ROWS=$((OVER_ROWS + 1))
 done
 BASIS="configured"
 ((BUDGET_IS_DEFAULT)) && BASIS="documented default"
