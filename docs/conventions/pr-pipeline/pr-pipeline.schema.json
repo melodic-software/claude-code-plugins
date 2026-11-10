@@ -1395,14 +1395,9 @@
             "proxy": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["claude-code-version", "driven-model", "driven-small-model", "models", "token-cap", "driver-token-cap", "max-tokens-ceiling", "max-body-bytes", "max-in-flight", "max-count-tokens-requests", "max-preflight-requests", "upstream-timeout-ms", "betas", "body-keys", "block-types"],
+              "required": ["driven-model", "driven-small-model", "models", "token-cap", "driver-token-cap", "max-tokens-ceiling", "max-body-bytes", "max-in-flight", "max-count-tokens-requests", "max-preflight-requests", "upstream-timeout-ms", "betas", "body-keys", "block-types"],
               "description": "The key proxy the capture's driven Claude Code reaches the API through, and the driven session's models (README.md, Verifier verdict).",
               "properties": {
-                "claude-code-version": {
-                  "type": "string",
-                  "pattern": "^\\d+\\.\\d+\\.\\d+$",
-                  "description": "The Claude Code version the capture installs, equal to package-lock.json's pin; betas and body-keys were measured on it (README.md, Verifier verdict)."
-                },
                 "driven-model": {
                   "type": "string",
                   "pattern": "^claude-[a-z0-9-]+$",
@@ -1464,7 +1459,7 @@
                   "type": "array",
                   "uniqueItems": true,
                   "items": { "type": "string", "minLength": 1 },
-                  "description": "The anthropic-beta values a request may name, measured from the driven session on claude-code-version (README.md, Verifier verdict)."
+                  "description": "The anthropic-beta values a request may name, measured from the driven session on the Claude Code package-lock.json pins (README.md, Verifier verdict)."
                 },
                 "body-keys": {
                   "type": "array",

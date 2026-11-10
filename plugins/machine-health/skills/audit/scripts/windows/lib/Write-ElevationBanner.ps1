@@ -58,39 +58,35 @@ function Write-ElevationBanner {
     if ($Quiet -or $Elevated) { return }
 
     $sep = '=' * 78
-    $lines = [System.Collections.Generic.List[string]]::new()
-    $lines.Add('')
-    $lines.Add($sep)
-    $lines.Add(" machine-health - $HostName - NON-ELEVATED")
-    $lines.Add($sep)
-    $lines.Add(" Running as $UserName without admin.")
-    $lines.Add('')
-
-    if ($NonElevatedCoverage.Count -gt 0) {
-        $lines.Add(' Covered non-elevated:')
-        foreach ($c in $NonElevatedCoverage) {
-            $lines.Add("   - $c")
+    $lines = @(
+        ''
+        $sep
+        " machine-health - $HostName - NON-ELEVATED"
+        $sep
+        " Running as $UserName without admin."
+        ''
+        if ($NonElevatedCoverage.Count -gt 0) {
+            ' Covered non-elevated:'
+            foreach ($c in $NonElevatedCoverage) { "   - $c" }
+            ''
         }
-        $lines.Add('')
-    }
-
-    if ($Matrix -and $Matrix.Count -gt 0) {
-        $lines.Add(' Admin-only (will emit UNKNOWN with needs_admin: true):')
-        foreach ($m in $Matrix) {
-            $lines.Add("   - $($m.Feature) [$($m.CheckId)]")
-            $lines.Add("       $($m.Reason)")
+        if ($Matrix -and $Matrix.Count -gt 0) {
+            ' Admin-only (will emit UNKNOWN with needs_admin: true):'
+            foreach ($m in $Matrix) {
+                "   - $($m.Feature) [$($m.CheckId)]"
+                "       $($m.Reason)"
+            }
+            ''
         }
-        $lines.Add('')
-    }
-
-    $lines.Add(' To run elevated:')
-    $lines.Add('   Ask the session that ran this audit for the elevated pass. It shows')
-    $lines.Add('   the launcher script and its SHA-256, and launches it behind UAC')
-    $lines.Add('   only after you say yes.')
-    $lines.Add('')
-    $lines.Add(' Suppress this banner with -SkipBanner.')
-    $lines.Add($sep)
-    $lines.Add('')
+        ' To run elevated:'
+        '   Ask the session that ran this audit for the elevated pass. It shows'
+        '   the launcher script and its SHA-256, and launches it behind UAC'
+        '   only after you say yes.'
+        ''
+        ' Suppress this banner with -SkipBanner.'
+        $sep
+        ''
+    )
 
     foreach ($line in $lines) {
         [Console]::Error.WriteLine($line)
@@ -121,17 +117,16 @@ function Get-ElevationCoverageMarkdown {
         return '_Non-elevated run. No admin-gated checks registered._'
     }
 
-    $body = [System.Collections.Generic.List[string]]::new()
-    $body.Add('<details>')
-    $body.Add("<summary>Non-elevated - $($Matrix.Count) admin-gated capabilities skipped</summary>")
-    $body.Add('')
-    $body.Add('| Feature | Check | Populates when elevated | Reason |')
-    $body.Add('|---|---|---|---|')
-    foreach ($m in $Matrix) {
-        $body.Add("| $($m.Feature) | $($m.CheckId) | $($m.Fields -join ', ') | $($m.Reason) |")
-    }
-    $body.Add('')
-    $body.Add('To populate these: ask the audit session for the elevated pass. It shows the launcher script and its SHA-256, launches it behind UAC only after the owner says yes, and imports its results into a standard run.')
-    $body.Add('</details>')
+    $body = @(
+        '<details>'
+        "<summary>Non-elevated - $($Matrix.Count) admin-gated capabilities skipped</summary>"
+        ''
+        '| Feature | Check | Populates when elevated | Reason |'
+        '|---|---|---|---|'
+        foreach ($m in $Matrix) { "| $($m.Feature) | $($m.CheckId) | $($m.Fields -join ', ') | $($m.Reason) |" }
+        ''
+        'To populate these: ask the audit session for the elevated pass. It shows the launcher script and its SHA-256, launches it behind UAC only after the owner says yes, and imports its results into a standard run.'
+        '</details>'
+    )
     return ($body -join "`n")
 }

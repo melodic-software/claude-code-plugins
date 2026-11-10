@@ -19,7 +19,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { FIELD_API, statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { collect, JOBS_ARTIFACT, JOBS_FILE, jobsCarryFile, listFiled, parseEpisodeCarry, parseHeldCarry, parseJobsCarry } from "./collect.mjs";
-import { FILING, fenced, incidentRules, planIssues, readMarker, renderBody, renderRetire, unreadSignals } from "./issues.mjs";
+import { FILING, fenced, incidentRules, partlyReadSignals, planIssues, readMarker, renderBody, renderRetire, unreadSignals } from "./issues.mjs";
 import { detect, holdRule } from "./signals.mjs";
 import { budgetedClient } from "../lib/github-rest.mjs";
 import { ghDownload, newestTrustedRun } from "../pr-merge/rotation.mjs";
@@ -215,7 +215,7 @@ async function main(env = process.env) {
   const gaps = [...data.gaps];
   if (rules instanceof Error) gaps.push(`incident thresholds: ${rules.message}`);
   const existing = (await listFiled({ get, repo })).filter((i) => readMarker(i.body));
-  const plan = planIssues({ findings, existing, unread: unreadSignals(gaps), rules: rules instanceof Error ? {} : rules, episodes: carry.episodes, now });
+  const plan = planIssues({ findings, existing, unread: unreadSignals(gaps), partly: partlyReadSignals(gaps), rules: rules instanceof Error ? {} : rules, episodes: carry.episodes, now });
   if (env.JOBS_CARRY_PATH) {
     try {
       writeFileSync(env.JOBS_CARRY_PATH, jobsCarryFile(repo, data.jobsCarry, data.heldCarry, { at: now.toISOString(), signals: plan.episodes }));

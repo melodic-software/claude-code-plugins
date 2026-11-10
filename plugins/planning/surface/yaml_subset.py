@@ -48,6 +48,7 @@ class YamlSubsetError(ValueError):
 
 _INT = re.compile(r"^[-+]?\d+$")
 _FLOAT = re.compile(r"^[-+]?(\d+\.\d*|\.\d+|\d+)([eE][-+]?\d+)?$")
+_ESCAPES = {"n": "\n", "t": "\t", '"': '"', "\\": "\\", "/": "/"}
 
 
 def _is_item(content: str) -> bool:
@@ -92,13 +93,12 @@ def _unquote(text: str, line: int) -> str:
         return body.replace("''", "'")
     out = []
     i = 0
-    escapes = {"n": "\n", "t": "\t", '"': '"', "\\": "\\", "/": "/"}
     while i < len(body):
         ch = body[i]
         if ch == "\\" and i + 1 < len(body):
             nxt = body[i + 1]
-            if nxt in escapes:
-                out.append(escapes[nxt])
+            if nxt in _ESCAPES:
+                out.append(_ESCAPES[nxt])
                 i += 2
                 continue
             raise YamlSubsetError(
@@ -163,18 +163,15 @@ def _flow_sequence(text: str, line: int) -> list[Any]:
             continue
         if ch in ("'", '"'):
             quote = ch
-            current += ch
         elif ch == "[":
             depth += 1
-            current += ch
         elif ch == "]":
             depth -= 1
-            current += ch
         elif ch == "," and depth == 0:
             items.append(current)
             current = ""
-        else:
-            current += ch
+            continue
+        current += ch
     items.append(current)
     result: list[Any] = []
     for item in items:
@@ -215,7 +212,7 @@ class _Parser:
             if not stripped.strip():
                 continue
             indent = len(stripped) - len(stripped.lstrip(" "))
-            if stripped[indent : indent + 1] == "\t" or "\t" in stripped[:indent]:
+            if stripped[indent] == "\t":
                 raise YamlSubsetError(number, "tab indentation is outside the subset")
             self.lines.append((indent, number, stripped[indent:]))
         self.pos = 0
@@ -299,11 +296,11 @@ class _Parser:
                 # of its entries are indented to the item column.
                 item_indent = indent + 2
                 key, rest = split
-                first: Any
-                if rest == "":
-                    first = self._nested(item_indent, number)
-                else:
-                    first = _scalar(rest, number)
+                first = (
+                    self._nested(item_indent, number)
+                    if rest == ""
+                    else _scalar(rest, number)
+                )
                 if (
                     self.pos < len(self.lines)
                     and self.lines[self.pos][0] == item_indent

@@ -5,7 +5,7 @@
 Returns $true if the named service is configured as trigger-start.
 
 .DESCRIPTION
-Windows Service Control Manager (SCM) exposes four start types via the
+Windows Service Control Manager (SCM) exposes five start types via the
 standard .NET ServiceController (Get-Service) API: Boot, System,
 Automatic, Manual, Disabled. It does NOT expose trigger-start as a
 separate type -- a trigger-start service reports StartType=Automatic,

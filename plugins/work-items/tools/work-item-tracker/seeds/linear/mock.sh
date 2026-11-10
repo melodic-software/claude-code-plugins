@@ -101,7 +101,7 @@ lin_reset() {
   : >"$LIN_FIX/routes"
   : >"$LIN_FIX/requests"
   : >"$LIN_FIX/bodies"
-  rm -f "$LIN_FIX"/hits.* 2>/dev/null || true
+  rm -f "$LIN_FIX"/hits.*
 }
 
 # lin_comments <nodes-json>… — seed the comments query, one response per call in order.
@@ -135,13 +135,11 @@ lin_bodies() { cat "$LIN_FIX/bodies" 2>/dev/null; }
 lin_run() {
   local script="$1"
   shift
-  local rc
   WORK_ITEM_TRACKER_BINDING="$LIN_FIX/binding.json" \
     WIT_LINEAR_CURL="$LIN_MOCK/curl" \
     WIT_LINEAR_TEST_KEY="mock-key" \
     bash "$script" "$@" >"$LIN_FIX/stdout" 2>"$LIN_FIX/stderr"
-  rc=$?
-  printf '%s' "$rc"
+  printf '%s' "$?"
 }
 
 lin_out() { cat "$LIN_FIX/stdout" 2>/dev/null; }

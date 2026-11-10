@@ -148,6 +148,18 @@ def _resolve(key: str, prefixes: list[str], scan_root: str, reported: set[str]) 
     return prefixes[0] + "/" + key
 
 
+def _function(method: ElementTree.Element) -> dict:
+    region = _line_map(method)
+    declared = to_int(method.attrib.get("hits"))
+    return {
+        "name": method.attrib["name"],
+        "start_line": min(region) if region else None,
+        "end_line": max(region) if region else None,
+        "hit": declared if declared is not None else int(any(region.values())),
+        "lines": region or None,
+    }
+
+
 def parse(path: str) -> dict[str, dict]:
     """Read `path` and return the per-file coverage mapping."""
     root = ElementTree.parse(path).getroot()
@@ -163,23 +175,13 @@ def parse(path: str) -> dict[str, dict]:
         section = files.setdefault(key, {"lines": {}, "functions": None})
         for number, hits in _line_map(klass).items():
             section["lines"][number] = max(section["lines"].get(number, 0), hits)
-        for method in klass.iter("method"):
-            name = method.attrib.get("name")
-            if not name:
-                continue
-            region = _line_map(method)
-            declared = to_int(method.attrib.get("hits"))
-            hit = declared if declared is not None else int(any(region.values()))
-            entry = {
-                "name": name,
-                "start_line": min(region) if region else None,
-                "end_line": max(region) if region else None,
-                "hit": hit,
-                "lines": region or None,
-            }
-            if section["functions"] is None:
-                section["functions"] = []
-            section["functions"].append(entry)
+        functions = [
+            _function(method)
+            for method in klass.iter("method")
+            if method.attrib.get("name")
+        ]
+        if functions:
+            section["functions"] = (section["functions"] or []) + functions
     for section in files.values():
         if section["functions"]:
             section["functions"].sort(

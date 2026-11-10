@@ -6,7 +6,8 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { collect, jobsCarryFile, JOBS_VERSION, LIMITS, listFiled, parseEpisodeCarry, parseHeldCarry, parseJobsCarry } from "./collect.mjs";
-import { ceilingFindings } from "./signals.mjs";
+import { partlyReadSignals, planIssues, SIGNALS, unreadSignals } from "./issues.mjs";
+import { ceilingFindings, detect } from "./signals.mjs";
 
 const repo = "o/r";
 const now = new Date("2026-10-19T16:41:00Z");
@@ -1084,7 +1085,7 @@ const CARRIED = {
   through: "2026-10-19T15:40:00Z",
 };
 const RULE = { threshold: 4, windowHours: 24 };
-const SHORT = "lane holds: held runs read only since 2026-10-19T15:36:00Z, short of the 24-hour window";
+const SHORT = "lane holds partly read: held runs read only since 2026-10-19T15:36:00Z, short of the 24-hour window";
 
 test("lane holds: green runs in the window add their holds to the carried ones inside the rule's window", async () => {
   const api = fakeApi(holdRoutes());
@@ -1168,7 +1169,7 @@ test("lane holds: past the cap the oldest unread runs are read, a carried one ta
   const carried = { ...CARRIED, runs: [...CARRIED.runs, carriedHold("pr-refine", 908, "2026-10-19T15:38:00Z")] };
   const api = fakeApi(refineRoutes());
   const data = await collect(input(api, { holds: { rule: RULE, carried } }));
-  assert.deepEqual(data.gaps, [`lane holds: over the cap of unread green runs of pr-refine (cap 6); held runs read only through 2026-10-19T16:05:00Z`]);
+  assert.deepEqual(data.gaps, [`lane holds partly read: over the cap of unread green runs of pr-refine (cap 6); held runs read only through 2026-10-19T16:05:00Z`]);
   assert.deepEqual(data.laneHolds.filter((h) => h.lane === "pr-refine").map((h) => [h.runId, h.reason]), [
     [901, "fix-docs handoff evidence missing"],
     [900, "fix-docs handoff evidence missing"],
@@ -1186,6 +1187,21 @@ test("lane holds: past the cap the oldest unread runs are read, a carried one ta
   assert.deepEqual(next.gaps.filter((g) => g.startsWith("lane holds")), []);
   for (const id of [906, 907]) assert.ok(later.calls.some((c) => c.includes(`runs/${id}/jobs`)), id);
   assert.equal(next.heldCarry.through, "2026-10-19T17:41:00Z");
+});
+
+test("lane holds: a lane past the cap whose read runs reach the threshold still raises signal 13, and the incident files", async () => {
+  const carried = {
+    ...CARRIED,
+    runs: [...CARRIED.runs, carriedHold("pr-refine", 908, "2026-10-19T15:38:00Z"), carriedHold("pr-refine", 909, "2026-10-19T10:00:00Z")],
+  };
+  const data = await collect(input(fakeApi(refineRoutes()), { holds: { rule: RULE, carried } }));
+  assert.match(data.gaps[0], /^lane holds partly read: over the cap of unread green runs of pr-refine \(cap 6\)/);
+  assert.deepEqual(data.holdRule, RULE);
+  const findings = detect(data).filter((f) => f.signal === "13 lane holds");
+  assert.deepEqual(findings.map((f) => f.key), ["lane-hold:pr-refine"]);
+  const rules = Object.fromEntries(SIGNALS.map((s) => [s, { open: 0, close: 0 }]));
+  const plan = planIssues({ findings, existing: [], unread: unreadSignals(data.gaps), partly: partlyReadSignals(data.gaps), rules, now });
+  assert.deepEqual(plan.file.map((p) => p.family.signal), ["13 lane holds"]);
 });
 
 // A red pr-refine run, 950, whose record-passes job logged a failed pass, and
@@ -1237,7 +1253,7 @@ test("lane holds: intake-triage reads past the default cap up to its own, and it
 test("lane holds: intake-triage past its own cap of 40 is a gap that stops at the 40th run", async () => {
   const api = fakeApi(intakeRoutes({ workflow_runs: intakeRuns(41) }));
   const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
-  assert.deepEqual(data.gaps, ["lane holds: over the cap of unread green runs of intake-triage (cap 40); held runs read only through 2026-10-19T16:16:00Z"]);
+  assert.deepEqual(data.gaps, ["lane holds partly read: over the cap of unread green runs of intake-triage (cap 40); held runs read only through 2026-10-19T16:16:00Z"]);
   assert.ok(api.calls.some((c) => c.includes("runs/1039/jobs")));
   assert.ok(!api.calls.some((c) => c.includes("runs/1040/jobs")));
 });
@@ -1255,7 +1271,7 @@ test("lane holds: work-unblock reads past the default cap of 6 up to its own of 
   assert.deepEqual(data.gaps, []);
   for (let id = 2100; id < 2108; id += 1) assert.ok(eight.calls.some((c) => c.includes(`runs/${id}/jobs`)), id);
   const over = await collect(input(fakeApi(routesFor(21)), { holds: { rule: RULE, carried: CARRIED } }));
-  assert.match(over.gaps[0], /^lane holds: over the cap of unread green runs of work-unblock \(cap 20\)/);
+  assert.match(over.gaps[0], /^lane holds partly read: over the cap of unread green runs of work-unblock \(cap 20\)/);
 });
 
 // Two lanes over their caps in one window: work-resolve-issue runs 3000 to
@@ -1289,7 +1305,7 @@ const ids = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => from +
 
 test("lane holds: a run read with no hold is carried and not read again, so the span moves past it", async () => {
   const first = await collect(input(fakeApi(twoLaneRoutes()), { holds: { rule: RULE, carried: CARRIED } }));
-  assert.deepEqual(first.gaps, ["lane holds: over the cap of unread green runs of work-resolve-issue (cap 6), work-unblock (cap 20); held runs read only through 2026-10-19T15:42:00Z"]);
+  assert.deepEqual(first.gaps, ["lane holds partly read: over the cap of unread green runs of work-resolve-issue (cap 6), work-unblock (cap 20); held runs read only through 2026-10-19T15:42:00Z"]);
   const scannedIds = first.heldCarry.scanned.map((s) => s.runId);
   assert.deepEqual(scannedIds, [...ids(3000, 3005), ...ids(3100, 3119), 87]);
   assert.equal(first.heldCarry.scanned.find((s) => s.runId === 3119).at, "2026-10-19T15:57:00Z");
@@ -1419,7 +1435,7 @@ test("lane holds: pr-verify reads up to its own cap of 80 runs and 5 list pages"
   assert.deepEqual(read.gaps, []);
   const over = fakeApi([[/workflows\/pr-verify\.yml\/runs/, { workflow_runs: verifyRuns(81, 5000) }], [/runs\/5\d{3}\/jobs/, { jobs: [] }], ...holdRoutes()]);
   const cut = await collect(input(over, { holds: { rule: RULE, carried: CARRIED } }));
-  assert.match(cut.gaps[0], /^lane holds: over the cap of unread green runs of pr-verify \(cap 80\)/);
+  assert.match(cut.gaps[0], /^lane holds partly read: over the cap of unread green runs of pr-verify \(cap 80\)/);
   const old = (page) => Array.from({ length: 100 }, (_, i) => run(6000 + 100 * page + i, { event: "workflow_run", updated_at: "2026-10-19T12:00:00Z" }));
   const paging = (pages) => fakeApi([[/workflows\/pr-verify\.yml\/runs/, (path) => ({ total_count: pages * 100 + 1, workflow_runs: old(Number(/&page=(\d)$/.exec(path)?.[1] ?? 1)) })], ...holdRoutes()]);
   const four = paging(4);
