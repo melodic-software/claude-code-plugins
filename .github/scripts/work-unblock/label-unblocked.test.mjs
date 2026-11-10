@@ -3350,6 +3350,120 @@ test("restarts-per-run still caps breaker re-fires under the queue target, the o
   assert.deepEqual(restarts(fake.calls), ["RESTART 35", "RESTART 32"]);
 });
 
+// The admit job's upstream-status stop (check-upstream-status) skipped the run
+// while Actions listed an outage. The admit job is run 42860916094's, during
+// incident hnf21m9jkl3c: `Check upstream status` green after the blocker
+// gate, pick-slot and every later job skipped. No model ran, so once the
+// status pages read clear (degraded=false, reason=ok, the action's outputs)
+// the sweep re-fires it with no wait; until then it waits the hour after the
+// run ended that a blocker-gate skip waits.
+const OUTAGE_SKIPPED = [
+  {
+    name: "admit",
+    conclusion: "success",
+    steps: [
+      { name: "Check the trigger", conclusion: "success" },
+      { name: "Wait for open blockers", conclusion: "success" },
+      { name: "Check upstream status", conclusion: "success" },
+      { name: "Stop on untrusted provenance", conclusion: "skipped" },
+    ],
+  },
+  { name: "pick-slot", conclusion: "skipped", steps: [] },
+  { name: "resolve-issue", conclusion: "skipped", steps: [] },
+];
+// Ten minutes before NOW: inside the hour after it, which is 12:50.
+const JUST_ENDED = "2026-10-16T11:50:00Z";
+const HOUR_AFTER = Date.parse("2026-10-16T12:50:00Z");
+const CLEAR = { degraded: "false", reason: "ok" };
+const statusPages = (answer) => {
+  const reads = [];
+  const upstream = async () => {
+    reads.push(answer);
+    if (answer instanceof Error) throw answer;
+    return answer;
+  };
+  return { reads, upstream };
+};
+
+test("a run the upstream-status stop skipped is re-fired on the next sweep once the status pages read clear, with no hour's wait", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: OUTAGE_SKIPPED, conclusion: "success", ended: JUST_ENDED });
+  const pages = statusPages(CLEAR);
+  assert.equal(await sweep({ github, actions, upstream: pages.upstream }), 0);
+  assert.deepEqual(writes(calls), refired(30));
+  assert.equal(pages.reads.length, 1, "the status pages are read once");
+  assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
+});
+
+test("a run the upstream-status stop skipped waits its hour while the status pages list an outage, read unknown, or cannot be read", async () => {
+  for (const answer of [{ degraded: "true", reason: "Actions partial_outage" }, { degraded: "false", reason: "unknown" }, new Error("fetch failed")]) {
+    const early = stalledRun({ jobs: OUTAGE_SKIPPED, conclusion: "success", ended: JUST_ENDED });
+    assert.equal(await sweep({ github: early.github, actions: early.actions, upstream: statusPages(answer).upstream }), 0);
+    assert.deepEqual(writes(early.calls), [], `re-fired inside the hour on ${answer.message ?? answer.reason}`);
+    const due = stalledRun({ jobs: OUTAGE_SKIPPED, conclusion: "success", ended: JUST_ENDED });
+    assert.equal(await sweep({ github: due.github, actions: due.actions, now: HOUR_AFTER, upstream: statusPages(answer).upstream }), 0);
+    assert.deepEqual(writes(due.calls), refired(30), `not re-fired an hour after the run on ${answer.message ?? answer.reason}`);
+  }
+});
+
+test("a clear status page re-fires no other stop early: a blocker-gate skip and a breaker trip at a mint still wait their hour", async () => {
+  for (const [jobs, logs] of [
+    [BLOCKER_SKIPPED, {}],
+    [MINT_REFUSED, MINT_KILLED],
+  ]) {
+    const { github, actions, calls } = stalledRun({ jobs, logs, conclusion: jobs === BLOCKER_SKIPPED ? "success" : "failure", ended: JUST_ENDED });
+    const pages = statusPages(CLEAR);
+    assert.equal(await sweep({ github, actions, upstream: pages.upstream }, KILL_SWITCH_HOUR), 0);
+    assert.deepEqual(writes(calls), [], jobs === BLOCKER_SKIPPED ? "blocker-gate skip" : "breaker trip");
+    assert.equal(pages.reads.length, 0, "the status pages are read only for an upstream-status skip");
+  }
+});
+
+test("upstream-status re-fires share the kill-switch re-fire room: refire-queue-per-slot x SLOTS less the unfinished runs", async () => {
+  const numbers = [31, 32, 33, 34, 35];
+  const outageWorld = (unfinished) =>
+    world({
+      openReady: numbers.map((n) => ready(n)),
+      comments: Object.fromEntries(numbers.map((n) => [n, [note()]])),
+      events: Object.fromEntries(numbers.map((n) => [n, [added(LABELED_AT, OWNER)]])),
+      runs: [
+        ...numbers.map((n) => ({ ...laneRun({ number: n, conclusion: "success" }), updated_at: JUST_ENDED })),
+        ...Array.from({ length: unfinished }, (_, index) => laneRun({ number: 900 + index, at: "2026-10-16T11:50:00Z", status: "queued", conclusion: null })),
+      ],
+      jobs: Object.fromEntries(numbers.map((n) => [5000 + n, OUTAGE_SKIPPED])),
+      openLanePrs: 10,
+      blobs: BLOBS,
+    });
+  // Target 2 x 3 = 6; 3 unfinished leaves room for 3, lowest number first at one run end.
+  const room = outageWorld(3);
+  assert.equal(await sweep({ github: room.github, actions: room.github, upstream: statusPages(CLEAR).upstream }, clearLimits()), 0);
+  assert.deepEqual(restarts(room.calls), ["RESTART 31", "RESTART 32", "RESTART 33"]);
+  const full = outageWorld(6);
+  assert.equal(await sweep({ github: full.github, actions: full.github, upstream: statusPages(CLEAR).upstream }, clearLimits()), 0);
+  assert.deepEqual(restarts(full.calls), [], "re-fired past the queue target");
+});
+
+test("a wait on an upstream-status skip is not carried to the next sweep; a blocker-gate skip's wait is", async () => {
+  const dir = carryDir();
+  const kept = async (jobs, name) => {
+    // A wait is kept only for an issue whose listing has an updated time.
+    const fake = world({
+      openReady: [{ ...ready(30), updated_at: JUST_ENDED }],
+      comments: { 30: [note()] },
+      events: { 30: [added(LABELED_AT, OWNER)] },
+      runs: [{ ...laneRun({ number: 30, conclusion: "success" }), updated_at: JUST_ENDED }],
+      jobs: { 5030: jobs },
+      openLanePrs: 10,
+      blobs: BLOBS,
+    });
+    const to = join(dir, `${name}.json`);
+    assert.equal(await sweep({ github: fake.github, actions: fake.github, upstream: statusPages({ degraded: "true", reason: "Actions major_outage" }).upstream }, { VERDICTS_OUT: to }), 0);
+    assert.deepEqual(writes(fake.calls), [], name);
+    return JSON.parse(readFileSync(to, "utf8")).decided["30"];
+  };
+  assert.equal((await kept(OUTAGE_SKIPPED, "outage")).wait, undefined);
+  assert.equal((await kept(BLOCKER_SKIPPED, "blocker")).wait.due, HOUR_AFTER);
+});
+
 // The backoff comment is dated by its last edit, which moves it past the
 // re-adds it made earlier; a breaker record before it still claims only its
 // own re-add. Three re-fires of a failed run on these workflow files (06:00,
