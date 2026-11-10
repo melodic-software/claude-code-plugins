@@ -1182,9 +1182,10 @@ function src_scan(m, r,    p, args, low, w) {
   if (m ~ /(^|[^A-Za-z0-9_])(find|glob|readdir|readdirSync|walk|Walk|WalkDir|iglob|rglob|GetFiles|EnumerateFiles)[[:space:]]*[( ]/ ||
       tolower(m) ~ /get-childitem|mktemp/) return
   if (LEXER == "bash") { src_scan_sh(m, r); return }
-  if (LEXER == "js" && match(m, /(^|[^A-Za-z0-9_$])readFile(Sync)?[[:space:]]*\(/)) {
-    p = RSTART + RLENGTH - 1
-    if (extract_parens(r, p)) src_emit(arg_path(EXTRACT))
+  if ((LEXER == "js" && match(m, /(^|[^A-Za-z0-9_$])readFile(Sync)?[[:space:]]*\(/)) ||
+      (LEXER == "cs" && match(m, /File[[:space:]]*\.[[:space:]]*ReadAll(Text|Lines|Bytes)(Async)?[[:space:]]*\(/)) ||
+      (LEXER == "go" && match(m, /(os|ioutil)[[:space:]]*\.[[:space:]]*ReadFile[[:space:]]*\(/))) {
+    if (extract_parens(r, RSTART + RLENGTH - 1)) src_emit(arg_path(EXTRACT))
   } else if (LEXER == "python" && match(m, /(^|[^A-Za-z0-9_.])(open|Path)[[:space:]]*\(/)) {
     p = RSTART + RLENGTH - 1
     if (!extract_parens(r, p)) return
@@ -1195,12 +1196,6 @@ function src_scan(m, r,    p, args, low, w) {
       args = SPLIT1
     }
     src_emit(unquote(trim(args)))
-  } else if (LEXER == "cs" && match(m, /File[[:space:]]*\.[[:space:]]*ReadAll(Text|Lines|Bytes)(Async)?[[:space:]]*\(/)) {
-    p = RSTART + RLENGTH - 1
-    if (extract_parens(r, p)) src_emit(arg_path(EXTRACT))
-  } else if (LEXER == "go" && match(m, /(os|ioutil)[[:space:]]*\.[[:space:]]*ReadFile[[:space:]]*\(/)) {
-    p = RSTART + RLENGTH - 1
-    if (extract_parens(r, p)) src_emit(arg_path(EXTRACT))
   } else if (LEXER == "pwsh" && match(tolower(m), /(^|[^a-z0-9_-])get-content[[:space:]]/)) {
     p = RSTART + RLENGTH
     shell_words(r, p)
@@ -1246,16 +1241,12 @@ function only_calls(m, r, re,    f) {
   return !has(f, R_ANY) && !has(f, R_MOCKA)
 }
 
-function oracle_line(m, r,    s) {
+function oracle_line(m, r) {
   if (!has(m, R_ANY) && !has(m, R_MOCKA)) return
   # C#: a statement inert_scan reports as inert is no oracle, weak or strong,
   # so Assert.NotNull(typeof(T)) is not also a weak oracle. Same precondition
   # as inert_scan, or a statement could be dropped here and not reported there.
-  if (LEXER == "cs" && (SEG_I > 1 || CS_HEAD || stmt_start())) {
-    s = m
-    sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s)
-    if (has(s, R_INERT)) return
-  }
+  if (LEXER == "cs" && (SEG_I > 1 || CS_HEAD || stmt_start()) && has(trim(m), R_INERT)) return
   # An existence check waits for the block's close, when every binding of the
   # name it checks is known (exists_resolve).
   if (only_calls(m, r, R_EXISTS)) { exists_add(m, r); return }
@@ -1406,7 +1397,7 @@ function loop_kind(name) {
 function cond_brace(m,    cdb, s, k, low, pos, pre, post, e) {
   cdb = CD
   CD += brace_delta(m)
-  s = m; sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s)
+  s = trim(m)
   if (FNR == block_line || s == "") return
   while (CR_N > 0 && CR_L[CR_N] > cdb) cr_pop()
   if (COND_NEXT != "") {
@@ -1453,7 +1444,7 @@ function cond_brace(m,    cdb, s, k, low, pos, pre, post, e) {
 }
 
 function cond_indent(m,    s, ind, k, e) {
-  s = m; sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s)
+  s = trim(m)
   if (FNR == block_line || s == "") return
   if (bracket_depth > 0) { ca_class(m, ""); return }
   ind = indent_of(raw)
@@ -2013,9 +2004,14 @@ function cs_cut(m, r,    i, j, k, n) {
     CS_WRAP = substr(CUT_M, n + 1) ~ /^[[:space:]]*$/
     return
   }
-  if (brace_delta(m) > 0) return
-  for (k = length(CUT_M); k > n; k--) if (substr(CUT_M, k, 1) == "}") break
-  if (k > n) { CUT_M = substr(CUT_M, 1, k - 1) " " substr(CUT_M, k + 1); CUT_R = substr(CUT_R, 1, k - 1) " " substr(CUT_R, k + 1) }
+  if (brace_delta(m) <= 0) cut_last_brace(n)
+}
+
+# Blank the last "}" past column k in CUT_M and CUT_R: the one closing a body
+# that ends on its start line.
+function cut_last_brace(k,    i) {
+  for (i = length(CUT_M); i > k; i--) if (substr(CUT_M, i, 1) == "}") break
+  if (i > k) { CUT_M = substr(CUT_M, 1, i - 1) " " substr(CUT_M, i + 1); CUT_R = substr(CUT_R, 1, i - 1) " " substr(CUT_R, i + 1) }
 }
 
 # A Python def or Go func start line cut to its body, in CUT_M and CUT_R: the
@@ -2037,20 +2033,15 @@ function decl_cut(m, r,    i, n, c, k, d) {
   }
   CUT_M = blanks(k) substr(m, k + 1)
   CUT_R = blanks(k) substr(r, k + 1)
-  if (LEXER != "go" || brace_delta(m) > 0) return
-  for (i = n; i > k; i--) if (substr(CUT_M, i, 1) == "}") break
-  if (i > k) { CUT_M = substr(CUT_M, 1, i - 1) " " substr(CUT_M, i + 1); CUT_R = substr(CUT_R, 1, i - 1) " " substr(CUT_R, i + 1) }
+  if (LEXER == "go" && brace_delta(m) <= 0) cut_last_brace(k)
 }
 
-function cs_method_name(s,    t) {
-  t = s
-  sub(/\(.*$/, "", t)
-  if (match(t, /[A-Za-z_][A-Za-z0-9_]*[[:space:]]*$/) > 0) {
-    t = substr(t, RSTART, RLENGTH)
-    gsub(/[[:space:]]/, "", t)
-    return t
-  }
-  return "(unnamed)"
+function cs_method_name(s) {
+  sub(/\(.*$/, "", s)
+  if (!match(s, /[A-Za-z_][A-Za-z0-9_]*[[:space:]]*$/)) return "(unnamed)"
+  s = substr(s, RSTART, RLENGTH)
+  gsub(/[[:space:]]/, "", s)
+  return s
 }
 
 # ---------------------------------------------------------------------------
@@ -2144,17 +2135,13 @@ function brace_decl() {
     if (index(masked, "{")) sr_open = 1
     if (sr_open && sr_depth <= 0) sr = 0
   } else if (in_test) {
+    append_block(masked, raw)
     if (expr_body) {
-      append_block(masked, raw)
       if (masked ~ /;[[:space:]]*$/) { expr_body = 0; close_block() }
     } else if (body_open) {
-      append_block(masked, raw)
       depth += brace_delta(masked)
       if (depth <= 0) close_block()
-    } else {
-      append_block(masked, raw)
-      cs_body_start(masked)
-    }
+    } else cs_body_start(masked)
   } else if (pending_attr && masked ~ /(public|private|protected|internal|async|static|void|Task)[^=]*\(/ && masked !~ /^[[:space:]]*\[/) {
     pending_attr = 0
     if (pending_skip) pending_skip = 0
