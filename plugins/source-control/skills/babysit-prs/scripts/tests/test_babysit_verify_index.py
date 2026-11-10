@@ -138,7 +138,7 @@ class IndexGitHub(base.FakeGitHub):
         )
 
 
-class IndexMode(unittest.TestCase):
+class IndexFixture(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -179,6 +179,8 @@ class IndexMode(unittest.TestCase):
             {named(HEAD, "pass"): record()},
         )
 
+
+class IndexMode(IndexFixture):
     def test_a_pass_allows_without_the_whole_listing(self) -> None:
         fake = self.passing()
         self.assertTrue(self.reader().index_mode())
@@ -314,6 +316,134 @@ class IndexMode(unittest.TestCase):
             names = {a["name"] for a in self.reader().own_verdicts(PR, HEAD)}
         self.assertEqual(names, {named(HEAD, "pass"), named(EARLIER, "fail")})
         self.assertEqual(fake.whole(), 0)
+
+
+SEED_ETAG = 'W/"e909a084392d174b"'
+SEED_CALL = f"name={ve.EMPTY_ETAG_SEED_NAME}&"
+
+
+class Conditional:
+    """`gh_api_with_headers` answering as GitHub did a live probe on
+    2026-11-10: an empty exact-name page answers 200 with `etag` SEED_ETAG; the
+    same read sent `If-None-Match: SEED_ETAG` for another still-empty name
+    answers gh's failure for a 304 (exit 1, stderr `gh: HTTP 304`, no body);
+    a name holding artifacts answers its 200 and another ETag."""
+
+    def __init__(self, *, unasked: bool = False):
+        # `unasked`: a 304 even to a read that sent no If-None-Match.
+        self.unasked = unasked
+        self.not_modified = 0
+
+    def __call__(self, args: list[str], **kwargs: Any) -> Any:
+        proc = postmerge.gh_capture(args, **kwargs)
+        if proc.returncode or "?name=" not in " ".join(args):
+            return proc, {"date": base.DATE}
+        empty = json.loads(proc.stdout) == {"total_count": 0, "artifacts": []}
+        sent = f"If-None-Match: {SEED_ETAG}" in args
+        if empty and (sent or self.unasked):
+            self.not_modified += 1
+            return subprocess.CompletedProcess(args, 1, "", "gh: HTTP 304\n"), {
+                "etag": SEED_ETAG.removeprefix("W/")
+            }
+        return proc, {"date": base.DATE, "etag": SEED_ETAG if empty else 'W/"held"'}
+
+
+class AnEmptyNameReadIsANotModified(IndexFixture):
+    """Exact-name reads that send the job's empty-name ETag
+    (`Reader._seed_empty_etag`): a 304 is the empty page, so each verdict is
+    the one the unconditional reads give."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.listing = str(pathlib.Path(self.tmp.name, "verify-listing.json"))
+
+    def conditional(
+        self, fake: IndexGitHub, answers: Conditional, **kwargs: Any
+    ) -> ve.Evidence:
+        with mock.patch.object(ve, "gh_api_with_headers", side_effect=answers):
+            return self.judge(fake, **kwargs)
+
+    @staticmethod
+    def headed(fake: IndexGitHub) -> list[list[str]]:
+        return [c for c in fake.calls if "-H" in c and "?name=" in " ".join(c)]
+
+    def test_a_304_judges_as_the_empty_200(self) -> None:
+        for expected, scenario in (
+            (None, lambda: self.passing()),
+            (ve.FAIL, lambda: self.passing(*fail(90, HEAD, 3), runs={3: run(3)})),
+            (
+                ve.EARLIER_FAIL,
+                lambda: self.passing(
+                    *fail(PR, EARLIER, 3),
+                    runs={3: run(3, created_at="2026-10-16T00:00:00Z")},
+                ),
+            ),
+        ):
+            with self.subTest(expected=expected):
+                pathlib.Path(f"{self.listing}{ve.EMPTY_ETAG_SUFFIX}").unlink(
+                    missing_ok=True
+                )
+                self.assertEqual(self.judge(scenario()).refusal, expected)
+                answers, fake = Conditional(), scenario()
+                got = self.conditional(fake, answers, listing_path=self.listing)
+                self.assertEqual(got.refusal, expected)
+                self.assertGreater(answers.not_modified, 0, "no read answered 304")
+                seeds = [c for c in fake.calls if SEED_CALL in " ".join(c)]
+                self.assertEqual(len(seeds), 1, seeds)
+                self.assertNotIn("-H", seeds[0])
+
+    def test_the_seed_is_read_once_per_job(self) -> None:
+        fake = self.passing()
+        for _ in range(3):
+            got = self.conditional(fake, Conditional(), listing_path=self.listing)
+            self.assertIsNone(got.refusal)
+        seeds = [c for c in fake.calls if SEED_CALL in " ".join(c)]
+        self.assertEqual(len(seeds), 1, seeds)
+        self.assertNotIn("-H", seeds[0])
+
+    def test_no_listing_path_sends_no_header(self) -> None:
+        fake = self.passing()
+        answers = Conditional()
+        self.assertIsNone(self.conditional(fake, answers).refusal)
+        self.assertEqual(self.headed(fake), [])
+        self.assertEqual(answers.not_modified, 0)
+        self.assertFalse([c for c in fake.calls if SEED_CALL in " ".join(c)])
+
+    def test_a_seed_whose_body_is_not_empty_is_discarded(self) -> None:
+        fake = self.passing()
+        fake.name_total[ve.EMPTY_ETAG_SEED_NAME] = 1
+        answers = Conditional()
+        got = self.conditional(fake, answers, listing_path=self.listing)
+        self.assertIsNone(got.refusal)
+        self.assertEqual(self.headed(fake), [])
+        self.assertEqual(
+            pathlib.Path(f"{self.listing}{ve.EMPTY_ETAG_SUFFIX}").read_text(), ""
+        )
+
+    def test_a_failed_seed_reads_without_it_once(self) -> None:
+        fake = self.passing()
+        fake.fail.add(SEED_CALL)
+        for _ in range(2):
+            got = self.conditional(fake, Conditional(), listing_path=self.listing)
+            self.assertIsNone(got.refusal)
+        self.assertEqual(self.headed(fake), [])
+        seeds = [c for c in fake.calls if SEED_CALL in " ".join(c)]
+        # One seed attempt and its retries, in the first judgment only.
+        self.assertEqual(len(seeds), len(ve.LISTING_WAITS) + 1)
+
+    def test_a_malformed_seed_file_is_no_seed(self) -> None:
+        pathlib.Path(f"{self.listing}{ve.EMPTY_ETAG_SUFFIX}").write_text(
+            'W/"x"\r\nX-Injected: 1'
+        )
+        fake = self.passing()
+        got = self.conditional(fake, Conditional(), listing_path=self.listing)
+        self.assertIsNone(got.refusal)
+        self.assertEqual(self.headed(fake), [])
+
+    def test_a_304_to_an_unconditional_read_stays_unreadable(self) -> None:
+        fake = self.passing()
+        got = self.conditional(fake, Conditional(unasked=True))
+        self.assertEqual(got.refusal, ve.UNREADABLE)
 
 
 MERGE_SHA = "9" * 40
