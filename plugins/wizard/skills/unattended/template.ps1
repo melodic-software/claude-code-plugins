@@ -62,8 +62,7 @@ function Test-UnattendedElevated {
         return $principal.IsInRole(
             [Security.Principal.WindowsBuiltInRole]::Administrator)
     }
-    $id = (& id -u).Trim()
-    return $id -eq '0'
+    return (& id -u).Trim() -eq '0'
 }
 
 function Assert-Elevation {
@@ -83,12 +82,9 @@ function Assert-Elevation {
 
 function Assert-NotInside {
     param([Parameter(Mandatory = $true)][string] $Name)
-    $inside = $env:WSL_DISTRO_NAME
     # WIZARD_INSIDE_MARKER replaces WSL_DISTRO_NAME: the test seam for template.test.sh.
-    if ($env:WIZARD_INSIDE_MARKER) {
-        $inside = $env:WIZARD_INSIDE_MARKER
-    }
-    if ($inside -and $inside -eq $Name) {
+    $inside = if ($env:WIZARD_INSIDE_MARKER) { $env:WIZARD_INSIDE_MARKER } else { $env:WSL_DISTRO_NAME }
+    if ($inside -eq $Name) {
         throw "refusing to run inside $Name"
     }
 }
@@ -170,10 +166,14 @@ function Read-UnattendedSecretPrompt {
     $secure = Read-Host -Prompt "Secret $Name" -AsSecureString
     $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
     try {
-        [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer)
+        $value = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer)
     } finally {
         [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer)
     }
+    if (-not $value) {
+        throw "secret $Name was not resolved"
+    }
+    $value
 }
 
 function Add-UnattendedSecretPromptStep {
@@ -190,15 +190,12 @@ function Resolve-UnattendedSecret {
         return $script:SecretCache[$Name]
     }
     $value = Find-UnattendedSecret -Name $Name -FilePath $FilePath
-    if (-not $value -and $script:Mode -ne 'run') {
-        Add-UnattendedSecretPromptStep -Name $Name
-        return "<$Name>"
-    }
     if (-not $value) {
+        if ($script:Mode -ne 'run') {
+            Add-UnattendedSecretPromptStep -Name $Name
+            return "<$Name>"
+        }
         $value = Read-UnattendedSecretPrompt -Name $Name
-    }
-    if (-not $value) {
-        throw "secret $Name was not resolved"
     }
     $script:Secrets.Add($value) | Out-Null
     return $value
@@ -220,8 +217,7 @@ function Initialize-UnattendedSecrets {
             throw "secret $name is declared twice"
         }
         $script:DeclaredSecrets += $name
-        $filePath = if ($entry.ContainsKey('FilePath')) { [string] $entry['FilePath'] } else { '' }
-        $value = Find-UnattendedSecret -Name $name -FilePath $filePath
+        $value = Find-UnattendedSecret -Name $name -FilePath ([string] $entry['FilePath'])
         if ($value) {
             $script:SecretCache[$name] = $value
             $script:Secrets.Add($value) | Out-Null
@@ -234,9 +230,6 @@ function Initialize-UnattendedSecrets {
     }
     foreach ($name in $unresolved) {
         $value = Read-UnattendedSecretPrompt -Name $name
-        if (-not $value) {
-            throw "secret $name was not resolved"
-        }
         $script:SecretCache[$name] = $value
         $script:Secrets.Add($value) | Out-Null
     }
