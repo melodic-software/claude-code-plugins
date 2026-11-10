@@ -108,13 +108,14 @@ test("each leg starts only after the one before named it as the next leg, and a 
   assert.match(credit, /\n {8}continue-on-error: true\n {8}timeout-minutes: 2\n/);
   assert.match(credit, /\n {10}leg: start\n {10}key-job: rate-merge-risk\n/);
   assert.match(credit, /\n {10}probe-minutes: "0"\n/);
-  // The key leg decides its credential right after the kill switch, before
-  // the resolver, and only a key that runs goes on to read the pull request.
+  // The key leg decides its credential right after the resolver lets the head
+  // through, before the trigger check, and only a key that runs goes on to
+  // the trigger check and the reads after it.
   const keyOrder = [...stepsOf(LEGS.key).keys()];
-  assert.deepEqual(keyOrder.slice(keyOrder.indexOf("Check the kill switch"), keyOrder.indexOf("Resolve the pull request") + 1), ["Check the kill switch", "Read the key's credit history", "Check the credential", "Report the skipped key leg", "Resolve the pull request"]);
-  assert.match(credit, /\n {8}if: steps\.kill\.outputs\.proceed == 'true'\n/);
-  assert.match(step(LEGS.key, "Check the credential"), /\n {8}if: steps\.kill\.outputs\.proceed == 'true'\n/);
-  assert.match(step(LEGS.key, "Resolve the pull request"), /\n {8}if: steps\.kill\.outputs\.proceed == 'true' && steps\.credential\.outputs\.present == 'true'\n/);
+  assert.deepEqual(keyOrder.slice(keyOrder.indexOf("Resolve the pull request"), keyOrder.indexOf("Check the trigger") + 1), ["Resolve the pull request", "Read the key's credit history", "Check the credential", "Report the skipped key leg", "Check the trigger"]);
+  assert.match(credit, /\n {8}if: steps\.pr\.outputs\.proceed == 'true'\n/);
+  assert.match(step(LEGS.key, "Check the credential"), /\n {8}if: steps\.pr\.outputs\.proceed == 'true'\n/);
+  assert.match(step(LEGS.key, "Check the trigger"), /\n {8}if: steps\.pr\.outputs\.proceed == 'true' && steps\.credential\.outputs\.present == 'true'\n/);
   const check = step(LEGS.key, "Check the credential");
   assert.match(check, /\n {10}selected: \$\{\{ steps\.credit\.outputs\.next-leg \}\}\n/);
   assert.doesNotMatch(check, /key-job/);
@@ -132,7 +133,7 @@ test("each leg starts only after the one before named it as the next leg, and a 
 
 // Every leg is the key leg's steps but for its credential, the key's credit
 // gate and marker, the next-leg call, the lane record's fallback reason, and
-// the key resolver's wait on the credential decision.
+// the key trigger check's wait on the credential decision.
 test("the subscription and fallback legs repeat the key leg's steps exactly, step order included", () => {
   const KEY_ONLY = ["Read the key's credit history", "Report the skipped key leg", "Write the key's credit-stop marker", "Scan the key's credit-stop marker for credentials", "Upload the key's credit-stop marker"];
   const shape = (id) =>
@@ -143,7 +144,7 @@ test("the subscription and fallback legs repeat the key leg's steps exactly, ste
           ? block.replace(/\n {10}(?:api-key|subscription-token|fallback-token|fallback-ready): [^\n]+/g, "")
           : name === "Report the rating's outcome"
             ? block.replace(/\n {10}fallback-reason: [^\n]+/, "")
-            : name === "Resolve the pull request" && id === LEGS.key
+            : name === "Check the trigger" && id === LEGS.key
               ? block.replace(" && steps.credential.outputs.present == 'true'\n", "\n")
               : block,
       );
@@ -191,10 +192,11 @@ test("in every leg, no model or upload step runs unless the resolver and the tri
       for (const gate of ["pr", "gate", "agree"]) assert.ok(deps.has(gate), `${id}: ${name} requires step ${gate}`);
     }
   }
-  // The trigger check runs only on the resolver's proceed, and the agreement
-  // step only on the trigger check's.
+  // The trigger check runs only on the resolver's proceed (in the key leg,
+  // also only for a key that runs), and the agreement step only on the
+  // trigger check's.
   for (const id of Object.values(LEGS)) {
-    assert.match(step(id, "Check the trigger"), /\n {8}if: steps\.pr\.outputs\.proceed == 'true'\n/, id);
+    assert.match(step(id, "Check the trigger"), /\n {8}if: steps\.pr\.outputs\.proceed == 'true'(?: && steps\.credential\.outputs\.present == 'true')?\n/, id);
     assert.match(step(id, "Assert the gate and the resolver agree"), /\n {8}if: steps\.gate\.outputs\.proceed == 'true'\n/, id);
   }
 });

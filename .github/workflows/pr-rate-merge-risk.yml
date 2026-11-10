@@ -63,8 +63,9 @@ defaults:
 jobs:
   # The key leg, on the pr-verify role's API key alone. A credit stop, or a
   # 401 or 402, hands off to rate-merge-risk-subscription, and so does an
-  # empty key or one the credit gate skipped, decided before any pull request
-  # read; then this job rates nothing and does not fail.
+  # empty key or one the credit gate skipped, decided right after the
+  # resolver and before the trigger check; then this job rates nothing and
+  # does not fail.
   rate-merge-risk:
     if: >-
       github.ref == 'refs/heads/main'
@@ -115,64 +116,12 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # Whether the key is still out of credit (select-model-credential's
-      # start call: check-key-credit's one artifact-list read, probing off,
-      # for the `marker` this job uploads after a credit stop). It runs before
-      # the resolver, which needs nothing from it, so a held-off key skips the
-      # resolver's reads here; the subscription and fallback jobs run the
-      # resolver and the trigger check themselves. Its own step, under
-      # continue-on-error and a 2-minute limit, so a read that fails or hangs
-      # leaves next-leg empty and the key runs.
-      - name: Read the key's credit history
-        id: credit
-        if: steps.kill.outputs.proceed == 'true'
-        continue-on-error: true
-        timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
-        with:
-          leg: start
-          key-job: rate-merge-risk
-          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
-          reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
-          probe-minutes: "0"
-
-      # Whether the key runs: it is set, and the read above did not hold it
-      # off (selected). Only whether the secret is set reaches the action,
-      # never its value. `present` false skips the rest of this job, and
-      # Pick the next leg hands off to the subscription job.
-      - name: Check the credential
-        id: credential
-        if: steps.kill.outputs.proceed == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
-        with:
-          leg: key
-          role: pr-verify
-          credential-set: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}
-          selected: ${{ steps.credit.outputs.next-leg }}
-
-      # The skipped key leg's lane record: outcome skip, class credit-stop,
-      # handed off. It runs before the resolver, so while the key is held off
-      # it counts every run the kill switch lets through, not only the heads
-      # the resolver would rate.
-      - name: Report the skipped key leg
-        id: credit-skip
-        if: steps.credential.outputs.key-skipped == 'true'
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
-        with:
-          outcome: skipped
-          lane: pr-merge-risk
-          lane-id: pr-merge-risk
-          credential: PR_VERIFY_CLAUDE_API_KEY
-          known-failure-class: credit-stop
-          handoff: "true"
-
       # pr-verify's resolver with this workflow's own already-rated rule
       # (ratedBy): only an open, non-draft lanes App pull request at the run's
       # head, not yet rated by a run of this file on main.
       - name: Resolve the pull request
         id: pr
-        if: steps.kill.outputs.proceed == 'true' && steps.credential.outputs.present == 'true'
+        if: steps.kill.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
@@ -192,11 +141,62 @@ jobs:
           export LANE_IDENTITY ISSUE_LANE_WEB_HOSTS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
+      # Whether the key is still out of credit (select-model-credential's
+      # start call: check-key-credit's one artifact-list read, probing off,
+      # for the `marker` this job uploads after a credit stop). It runs once
+      # the resolver lets the head through and before every read after it, so
+      # a held-off key costs a refused head nothing and a rated head only this
+      # call; the subscription and fallback jobs run the resolver and the
+      # trigger check themselves. Its own step, under continue-on-error and a
+      # 2-minute limit, so a read that fails or hangs leaves next-leg empty and
+      # the key runs.
+      - name: Read the key's credit history
+        id: credit
+        if: steps.pr.outputs.proceed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: start
+          key-job: rate-merge-risk
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
+          reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
+          probe-minutes: "0"
+
+      # Whether the key runs: it is set, and the read above did not hold it
+      # off (selected). Only whether the secret is set reaches the action,
+      # never its value. `present` false skips the rest of this job, and
+      # Pick the next leg hands off to the subscription job.
+      - name: Check the credential
+        id: credential
+        if: steps.pr.outputs.proceed == 'true'
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: key
+          role: pr-verify
+          credential-set: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}
+          selected: ${{ steps.credit.outputs.next-leg }}
+
+      # The skipped key leg's lane record: outcome skip, class credit-stop,
+      # handed off, so leg counts before and after the gate compare.
+      - name: Report the skipped key leg
+        id: credit-skip
+        if: steps.credential.outputs.key-skipped == 'true'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: skipped
+          lane: pr-merge-risk
+          lane-id: pr-merge-risk
+          credential: PR_VERIFY_CLAUDE_API_KEY
+          known-failure-class: credit-stop
+          handoff: "true"
+
       # The upstream run's actors, the re-runner and the PR author must all be
       # on the trusted-actor list.
       - name: Check the trigger
         id: gate
-        if: steps.pr.outputs.proceed == 'true'
+        if: steps.pr.outputs.proceed == 'true' && steps.credential.outputs.present == 'true'
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
@@ -543,10 +543,10 @@ jobs:
   # from a fresh checkout but for the credential, on the pr-verify role's
   # subscription token alone (workflow.test.mjs holds them equal). It starts
   # after the key leg handed off, found its key empty or was skipped by the
-  # credit gate; the last two are decided before the key leg reads the pull
-  # request, so this job's own resolver and trigger check stop a head the key
-  # leg would not rate, its credential call never runs, and no next leg
-  # starts. With the fallback token
+  # credit gate; the last two are decided after the key leg's resolver and
+  # before its trigger check, so this job's own resolver and trigger check
+  # still judge the head, and a head they refuse runs no credential call and
+  # starts no next leg. With the fallback token
   # set, a limit stop, a credit stop, or a 401 or 402 hands off to
   # rate-merge-risk-fallback, and so does an empty token.
   rate-merge-risk-subscription:
