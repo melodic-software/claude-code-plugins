@@ -39,6 +39,14 @@ function toSeconds(value) {
 }
 
 /**
+ * @param {unknown} value
+ * @returns {string}
+ */
+function stringOrEmpty(value) {
+  return typeof value === "string" ? value : "";
+}
+
+/**
  * Map a raw yt-dlp array field through a per-entry parser, dropping non-object
  * entries and the ones the parser rejects.
  *
@@ -63,7 +71,7 @@ function parseEntries(rawEntries, parseEntry) {
  */
 export function parseChapters(rawChapters) {
   return parseEntries(rawChapters, (record) => {
-    const title = typeof record.title === "string" ? record.title.trim() : "";
+    const title = stringOrEmpty(record.title).trim();
     if (!title) return null;
     return {
       startSec: toSeconds(record.start_time ?? record.startTime),
@@ -80,7 +88,7 @@ export function parseChapters(rawChapters) {
  */
 export function parseComments(rawComments) {
   return parseEntries(rawComments, (record) => {
-    const text = typeof record.text === "string" ? record.text.trim() : "";
+    const text = stringOrEmpty(record.text).trim();
     if (!text) return null;
     return {
       text,
@@ -101,20 +109,15 @@ export function parseVideoMetadata(infoJson) {
       ? /** @type {Record<string, unknown>} */ (infoJson)
       : {};
 
-  const id = typeof record.id === "string" ? record.id : "";
-  const title = typeof record.title === "string" ? record.title : "";
-  const description = typeof record.description === "string" ? record.description : "";
-  const heatmap =
-    record.heatmap && typeof record.heatmap === "object"
-      ? /** @type {object} */ (record.heatmap)
-      : null;
-
   return {
-    id,
-    title,
-    description,
+    id: stringOrEmpty(record.id),
+    title: stringOrEmpty(record.title),
+    description: stringOrEmpty(record.description),
     chapters: parseChapters(record.chapters),
-    heatmap,
+    heatmap:
+      record.heatmap && typeof record.heatmap === "object"
+        ? /** @type {object} */ (record.heatmap)
+        : null,
     comments: parseComments(record.comments),
     durationSec: toSeconds(record.duration) || null,
   };
