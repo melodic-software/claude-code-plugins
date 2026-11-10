@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.4] - 2026-11-10
+
+### Changed
+
+- Shared `suppression-scan.py` synced where this plugin carries it: the scanner's code is simplified, and its output, exit codes and flags are unchanged.
+
 ## [1.0.3] - 2026-11-09
 
 ### Changed

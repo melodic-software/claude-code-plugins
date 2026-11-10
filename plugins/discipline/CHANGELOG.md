@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.26.1] - 2026-11-10
+
+### Changed
+
+- `/discipline:wait-what` reads the glossary through `/domain-driven-design:ubiquitous-language lookup` when that plugin is installed.
+
 ## [0.26.0] - 2026-11-09
 
 ### Added
