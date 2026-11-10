@@ -202,8 +202,6 @@ def is_bot(
         return False
     if login.endswith("[bot]"):
         return True
-    if not extra_bot_logins:
-        return False
     return login.casefold().removesuffix("[bot]") in normalize_login_set(
         extra_bot_logins
     )
@@ -266,20 +264,15 @@ def is_dependency_author(login: str, extra: Any = frozenset()) -> bool:
     normalized identically (casefold, strip `app/` prefix and `[bot]` suffix).
     """
     normalized = str(login or "").casefold().removeprefix("app/").removesuffix("[bot]")
-    if normalized in DEPENDENCY_MANAGER_LOGINS:
-        return True
-    if not extra:
-        return False
-    return normalized in normalize_dependency_login_set(extra)
+    return normalized in DEPENDENCY_MANAGER_LOGINS or normalized in (
+        normalize_dependency_login_set(extra)
+    )
 
 
 def body_text(item: dict[str, Any]) -> str:
-    parts: list[str] = []
-    for key in ("body", "bodyText", "state", "comment", "message"):
-        value = item.get(key)
-        if isinstance(value, str):
-            parts.append(value)
-    return "\n".join(parts)
+    keys = ("body", "bodyText", "state", "comment", "message")
+    values = (item.get(key) for key in keys)
+    return "\n".join(value for value in values if isinstance(value, str))
 
 
 # --- Finding heuristics -------------------------------------------------------
@@ -558,16 +551,15 @@ def count_classified(
     `count_findings`'s discount -- otherwise a stale classification could keep
     inflating the denominator against a fresh, still-unclassified finding.
     """
-    total = 0
-    for comment in comments:
-        if not is_json_object(comment) or not thread_is_open(comment):
-            continue
-        if not is_self_login(str(comment.get("author") or ""), self_logins):
-            continue
-        for line in str(comment.get("body") or "").splitlines():
-            if PIPE_ROW_RE.search(line) and CLASSIFY_TOKEN_RE.search(line):
-                total += 1
-    return total
+    return sum(
+        1
+        for comment in comments
+        if is_json_object(comment)
+        and thread_is_open(comment)
+        and is_self_login(str(comment.get("author") or ""), self_logins)
+        for line in str(comment.get("body") or "").splitlines()
+        if PIPE_ROW_RE.search(line) and CLASSIFY_TOKEN_RE.search(line)
+    )
 
 
 def count_effective_classified(
