@@ -120,11 +120,7 @@ def _interpret(value: object) -> bool | None:
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered == "true":
-            return True
-        if lowered == "false":
-            return False
+        return {"true": True, "false": False}.get(value.strip().lower())
     return None
 
 
@@ -326,16 +322,16 @@ def _is_trusted_managed_file(path: Path, file_stat: os.stat_result) -> bool:
     """
     if not sys.platform.startswith("linux"):
         return True
-    if not stat.S_ISREG(file_stat.st_mode):
-        return False
-    if file_stat.st_uid != 0:
-        return False
-    if file_stat.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+    if (
+        not stat.S_ISREG(file_stat.st_mode)
+        or file_stat.st_uid != 0
+        or file_stat.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+    ):
         return False
     effective_ids = os.access in os.supports_effective_ids
-    if os.geteuid() != 0 and os.access(path, os.W_OK, effective_ids=effective_ids):
-        return False
-    return True
+    return os.geteuid() == 0 or not os.access(
+        path, os.W_OK, effective_ids=effective_ids
+    )
 
 
 def _read_managed_file(
