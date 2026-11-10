@@ -1,9 +1,11 @@
 ---
-bump: minor
+bump: major
 ---
 
 ### Changed
 
+- **Breaking:** a reader that matches the old zone words in the resolver's output, the status tool
+  or the snapshot stops matching; update it to the new words.
 - The context zones are renamed: `smart` is now `light`, `acceptable` is `moderate` and `dumb` is
   `heavy`, in the resolver's output, the module's lines, toasts and band row, the status tool, the
   snapshot's `zone` and `bands` keys, and telemetry. Band edges and the "(N of 3)" rank are
