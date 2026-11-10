@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Print the container label a decision map carries: `tracker.config.container_label`
+# Print the container label a map carries: `tracker.config.container_label`
 # from <home>/work-items.yaml, else the shipped default `work-map`.
 #
 # The read follows the work-item tracker seam's binding rules (work-items CONTRACT.md,

@@ -329,8 +329,8 @@ For any "is it stuck / check the monitor / poke it":
   treat exit `2` as lifted.
 - The limit **message text** (e.g. `resets 3:45pm`) is a capture bound to the
   account that emitted it. Two live readings of the *current* account count:
-  the `/usage` view, which the operator relays because the model cannot open
-  it, and the session's `rate_limits` windows, which this skill reads through
+  the `/usage` view, which the operator relays (what it shows and to whom:
+  the record below), and the session's `rate_limits` windows, which this skill reads through
   rate-limit-guard's `mcp__rate-limit-guard__status` pull tool when the guard
   is installed and mods are on. For which fields the statusline `rate_limits`
   object carries and who receives it, see
@@ -340,7 +340,8 @@ For any "is it stuck / check the monitor / poke it":
   before handing back. When no
   live reading is obtainable (mods off, the guard not installed, the
   tool's registration refused by policy, or a tool answer with no windows,
-  `verdict: "unknown"`, as under API-key or enterprise auth), ask the
+  `verdict: "unknown"`; which auth types receive the windows: the record
+  below), ask the
   operator which account is active and whether it has
   headroom, as in the exit `2` path. Never invent a window and never conclude
   still-blocked.
@@ -367,7 +368,7 @@ For any "is it stuck / check the monitor / poke it":
 
   | Decision | Pointer | As of | Recheck trigger |
   |---|---|---|---|
-  | A captured usage-limit message is account-bound. Still-blocked requires a live re-check of the current account, or the operator's answer when none is obtainable. The date-bearing `Sep 8, 6pm` form is unparsed (exit 2). | For the reset time a limit message carries, see [costs: When a developer asks about a limit](https://code.claude.com/docs/en/costs#when-a-developer-asks-about-a-limit). For what `/usage` shows a subscriber, see [costs: Using the `/usage` command](https://code.claude.com/docs/en/costs#using-the-/usage-command). For the `rate_limits` field, who receives it and when, see [statusline: Available data](https://code.claude.com/docs/en/statusline#available-data). For the parsed forms, see `check-usage-limit-reset.py` `RESET_RE` (no month token). For the account-identity reading, see [CLI reference: CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) `claude auth status`. | 2026-10-18 | That costs section stops covering the reset time; `/usage` stops showing plan usage bars; the statusline page drops `rate_limits` or starts passing it to the model; `claude auth status` stops reporting an identifying field or changes its output; or `RESET_RE` starts matching a date-bearing form. |
+  | A captured usage-limit message is account-bound. Still-blocked requires a live re-check of the current account, or the operator's answer when none is obtainable. The date-bearing `Sep 8, 6pm` form is unparsed (exit 2). | For the reset time a limit message carries, see [costs: When a developer asks about a limit](https://code.claude.com/docs/en/costs#when-a-developer-asks-about-a-limit). For what `/usage` shows a subscriber, see [costs: Using the `/usage` command](https://code.claude.com/docs/en/costs#using-the-%2Fusage-command). For the `rate_limits` field, who receives it and when, see [statusline: Available data](https://code.claude.com/docs/en/statusline#available-data). For the parsed forms, see `check-usage-limit-reset.py` `RESET_RE` (no month token). For the account-identity reading, see [CLI reference: CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) `claude auth status`. | 2026-11-10 | That costs section stops covering the reset time; `/usage` stops showing plan usage bars; the statusline page drops `rate_limits` or starts passing it to the model; `claude auth status` stops reporting an identifying field or changes its output; or `RESET_RE` starts matching a date-bearing form. |
 
 ## Still blocked (limit not yet reset). Hand back, don't busy-wait
 

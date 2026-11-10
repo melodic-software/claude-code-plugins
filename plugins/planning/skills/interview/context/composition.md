@@ -23,7 +23,7 @@ otherwise do the step inline or name it to the user.
 | An option adds a non-trivial mechanism | `/overengineering:justify` (if enabled) | Planned mode on the proposal; its drop and needed verdicts feed the recommendation (SKILL.md "Before presenting an option that adds a mechanism") |
 | The current approach is assumed rather than chosen | `/planning:devils-advocate incumbent` | Attacks the status quo before the Brief locks it in |
 | A branch defers to another person's decision | `/planning:questionnaire` | Turns the question into a document that person fills in (SKILL.md Step 5) |
-| The effort is too big and still foggy | `/planning:wayfind` | Charts it as a decision map from this ledger (SKILL.md Stance), after the scope cut below when the effort is over its budget |
+| The effort is too big and still foggy | `/planning:wayfind` | Charts it as a map of decision items from this ledger (SKILL.md Stance), after the scope cut below when the effort is over its budget |
 | Design types, interface contracts, module boundaries | `/planning:design` | Reads PLAN.md Brief; its handoff writes PLAN.md `## Design` |
 | Plan the implementation | `/planning:plan` | Reads PLAN.md Brief + `## Design` + explore + research findings |
 | Stress-test the plan | `/planning:devils-advocate` | Adversarial pass on `/planning:plan` output |

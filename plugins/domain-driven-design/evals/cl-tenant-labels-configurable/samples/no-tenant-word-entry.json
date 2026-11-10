@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "**Order**\n\nA buyer's confirmed request to purchase one or more catalog items.\n\nAvoid: basket, cart\n\nShown to users as: configurable per tenant\n", "why": "no tenant-word entry"},
+    {"answer": "", "why": "empty file"}
+  ],
+  "fail": [
+    {"answer": "**Order**\n\nA buyer's confirmed request.\n\n**Requisition**\n\nAnother tenant's name for an order.\n", "why": "Requisition entry added"},
+    {"answer": "**Purchase**\n\nA tenant's name for an order.\n", "why": "Purchase entry added"}
+  ]
+}

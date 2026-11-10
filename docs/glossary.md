@@ -66,11 +66,13 @@ A description or summary standing in for a primary source: the model-visible con
 compaction, a header comment describing code beneath it, another agent's summary. Usable, but a
 claim resting on one is verified against the primary before it ships.
 
-**smart zone**
+**light zone**
 
-The healthiest of `context-guard`'s three context zones (`smart` / `acceptable` / `dumb`), naming
+The healthiest of `context-guard`'s three context zones (`light` / `moderate` / `heavy`), naming
 the band rather than any token figure. The band numbers are declared judgment defaults and tunable
 per consumer.
+
+Avoid: smart zone (and acceptable zone, dumb zone for the other two)
 
 **unknowns quadrants**
 

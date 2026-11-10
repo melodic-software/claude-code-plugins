@@ -488,10 +488,11 @@ class SessionScan:
             infos = record.get("hookInfos")
             hooks = [h for h in infos if isinstance(h, dict)] if isinstance(infos, list) else []
             durations = [_number(h.get("durationMs")) for h in hooks]
-            self.stop_hook_ms.append(sum(durations))
             # Matching hooks run in parallel, so the person waits for the slowest one.
-            self.stop_hook_wait_ms.append(max(durations, default=0))
-            if self.stop_hook_wait_ms[-1] > self.stop_hook_ms[-1]:
+            total, wait = sum(durations), max(durations, default=0)
+            self.stop_hook_ms.append(total)
+            self.stop_hook_wait_ms.append(wait)
+            if wait > total:
                 self.census[self.bucket]["invariant:stop_wait_over_sum"] += 1
             self.stop_hook_blocks += bool(record.get("preventedContinuation"))
             self.stop_hook_errors += bool(record.get("hookErrors"))
@@ -725,7 +726,6 @@ def build_record(
     edit_counts = scan.edits.values()
     stop_ms = scan.stop_hook_ms
     wait_ms = scan.stop_hook_wait_ms
-    suppressed = redactor.fail_closed
     scrub = Scrubber(redactor, excerpt_chars)
     time_block = scan.time_block()  # counts the invariant, so call it once per session
     scan.usage_regressions()  # likewise
@@ -829,7 +829,7 @@ def build_record(
             "rules_version": redactor.version,
             "rules_loaded": redactor.rule_count,
             "rules_skipped": len(redactor.skipped),
-            "excerpts_suppressed": suppressed,
+            "excerpts_suppressed": redactor.fail_closed,
             "skipped_too_long": scrub.too_long,
         },
     }

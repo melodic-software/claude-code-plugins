@@ -4,6 +4,18 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.3.14] - 2026-11-10
+
+### Fixed
+
+- video-digest auto-caption transcripts no longer repeat a one- or two-word line that a rolling caption carries into its next cue
+
+## [1.3.13] - 2026-11-10
+
+### Changed
+
+- Skill and spoke text that restated upstream behavior (where option values are kept, nested-reference reading, `${user_config.*}` substitution, the `shell: bash` failure mode, the `fable` alias, the yt-dlp refusal string, per-call effort routes) now states our decision and points at the live upstream section or the code constant instead. The map-corpus effort-tiers citation now uses the published URL, and the video-digest companion step and checklist row name the fetch-route rungs instead of WebFetch. No behavior change.
+
 ## [1.3.12] - 2026-11-10
 
 ### Changed

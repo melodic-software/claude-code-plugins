@@ -16,6 +16,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 import time
 import uuid
@@ -211,10 +213,8 @@ def isolated_session(pid: int, read=proc_entry) -> str | None:
 def move_codex_rollouts(threads: list[str], store: Path, keep: Path) -> int:
     """Move this run's Codex rollouts (named `rollout-<time>-<thread>.jsonl`) out of the
     operator's session store into `keep`; return how many moved."""
-    import shutil
-
     moved = 0
-    for thread in [t for t in threads if t]:
+    for thread in filter(None, threads):
         for path in store.rglob(f"rollout-*-{thread}.jsonl"):
             keep.mkdir(parents=True, exist_ok=True)
             shutil.move(str(path), keep / path.name)
@@ -348,8 +348,6 @@ def write_report(graded_runs: list[dict], path, arm: str) -> None:
     its own file with the same case names. A graded run is
     `{"case": <name>, "probes": {<probe id>: <passed>}, "error": <str|None>}`.
     """
-    from pathlib import Path
-
     cases: dict[str, list[dict]] = {}
     for run in graded_runs:
         graders = [
@@ -563,14 +561,14 @@ def check_matches(check: dict, ctx: GradeContext) -> bool:
             1 for target in reader_targets(ctx) if pattern.search(target)
         ) >= int(check["at_least"])
     pools = {
-        "gh_call_regex": ctx.gh_calls,
-        "tool_command_regex": reader_commands(ctx),
-        "text_regex": reader_texts(ctx),
-        "edited_path_regex": reader_edits(ctx),
+        "gh_call_regex": lambda ctx: ctx.gh_calls,
+        "tool_command_regex": reader_commands,
+        "text_regex": reader_texts,
+        "edited_path_regex": reader_edits,
     }
     if kind not in pools:
         raise ValueError(f"unknown check kind: {kind}")
-    lines = pools[kind]
+    lines = pools[kind](ctx)
     if check.get("after"):
         # Only what came after the first line matching `after` (e.g. a watch after a dispatch).
         gate = re.compile(check["after"])
@@ -666,8 +664,6 @@ class RunConfig:
 
 
 def default_call(cmd, cwd, env, stdin_text=None):
-    import subprocess
-
     done = subprocess.run(
         cmd,
         cwd=cwd,
@@ -692,8 +688,12 @@ def stream_events(text: str) -> list[dict]:
     return events
 
 
+def _result_event(events: list[dict]) -> dict | None:
+    return next((e for e in reversed(events) if e.get("type") == "result"), None)
+
+
 def final_text(events: list[dict]) -> str:
-    result = next((e for e in reversed(events) if e.get("type") == "result"), None)
+    result = _result_event(events)
     if result is not None:
         return str(result.get("result") or "")
     texts = [
@@ -713,13 +713,16 @@ def session_of(events: list[dict]) -> str | None:
 
 def model_usage_total(events: list[dict]) -> dict:
     """Cumulative `modelUsage` of a session at this call (probes.md P2: per session)."""
-    result = next((e for e in reversed(events) if e.get("type") == "result"), {})
-    totals = {"input": 0, "output": 0, "cache_read": 0, "cache_create": 0}
-    for usage in (result.get("modelUsage") or {}).values():
-        totals["input"] += int(usage.get("inputTokens") or 0)
-        totals["output"] += int(usage.get("outputTokens") or 0)
-        totals["cache_read"] += int(usage.get("cacheReadInputTokens") or 0)
-        totals["cache_create"] += int(usage.get("cacheCreationInputTokens") or 0)
+    fields = {
+        "input": "inputTokens",
+        "output": "outputTokens",
+        "cache_read": "cacheReadInputTokens",
+        "cache_create": "cacheCreationInputTokens",
+    }
+    totals = dict.fromkeys(fields, 0)
+    for usage in ((_result_event(events) or {}).get("modelUsage") or {}).values():
+        for key, field in fields.items():
+            totals[key] += int(usage.get(field) or 0)
     return totals
 
 
@@ -729,7 +732,7 @@ def exclusion_reason(
     """Why a run cannot count (PLAN.md run rule d), or None."""
     if returncode != 0 and not events:
         return f"CLI exited {returncode}: {stderr.strip()[:200]}"
-    result = next((e for e in reversed(events) if e.get("type") == "result"), None)
+    result = _result_event(events)
     # Only the CLI's own words count: stderr, an error result, or a tool error. Conversation
     # text (a seeded lane history, a case prompt) may mention limits without hitting one.
     own = [stderr]
@@ -850,10 +853,7 @@ def _claude(
         mcp_config=str(run["repo"].parent / "mcp.json"),
         resume=resume,
     )
-    if fork:
-        cmd.insert(-1, "--fork-session")
-    for flag in extra:
-        cmd.insert(-1, flag)
+    cmd[-1:-1] = [*(["--fork-session"] if fork else []), *extra]
     code, out, err = call(cmd, str(run["repo"]), run["env"])
     return code, out, err, stream_events(out)
 
@@ -871,8 +871,6 @@ def _write_hop(
     if reason := exclusion_reason(code, out, err, events):
         return {"excluded": f"interrupt: {reason}"}
     prompt = case["writer"]["prompts"][arm_base(arm)]
-    tokens = {"m1": 0, "m3": 0}
-    out_path = None
     if arm == "compact":
         before_usage = model_usage_total(events)
         code, out, err, events = _claude(
@@ -900,16 +898,15 @@ def _write_hop(
             return {"excluded": f"compact: {reason}"}
         after_usage = model_usage_total(events)
         delta = {key: after_usage[key] - before_usage[key] for key in after_usage}
-        tokens["m1"] = focus_tokens["m1"] + sum(delta.values())
-        tokens["m3"] = (
-            focus_tokens["m3"]
-            + delta["input"]
-            + delta["cache_create"]
-            + delta["output"]
-        )
         return {
             "continue_session": session,
-            "writer_tokens": tokens,
+            "writer_tokens": {
+                "m1": focus_tokens["m1"] + sum(delta.values()),
+                "m3": focus_tokens["m3"]
+                + delta["input"]
+                + delta["cache_create"]
+                + delta["output"],
+            },
             "writer_events": events,
             "focus": focus,
         }
@@ -948,6 +945,12 @@ def _write_hop(
     }
 
 
+def _lead_prompt(case: dict, arm: str, delivery: str) -> str:
+    """The reader's first prompt: the arm's delivery lead, when it has one, then `delivery`."""
+    lead = case["reader"]["delivery"][arm_base(arm)].get("lead")
+    return f"{lead}\n\n{delivery}" if lead else delivery
+
+
 def write_stage(case: dict, arm: str, run: dict, cfg: RunConfig) -> dict:
     """Carry the seeded session across the boundary, once, or once per hop for a case with
     `writer.hops` (each later hop resumes the previous hop's delivery, sends its owner
@@ -972,63 +975,35 @@ def write_stage(case: dict, arm: str, run: dict, cfg: RunConfig) -> dict:
         if written.get("excluded"):
             return written
         extra = _instruction_flags(case, arm)
+        session = written.get("continue_session")
         if hop.get("scripted"):
             # Deterministic hop: the owner and agent turns are synthetic, so no live model
             # turn can change what the hop does; only its handoff is written live.
-            if written.get("continue_session"):
-                session = written["continue_session"]
-                append_turns(run, session, hop["scripted_turns"], f"hop{hop['hop']}/")
-            else:
-                delivery = case["reader"]["delivery"][arm_base(arm)]
-                lead = delivery.get("lead")
-                first = (
-                    f"{lead}\n\n{written['delivery']}" if lead else written["delivery"]
-                )
+            turns, salt = hop["scripted_turns"], f"hop{hop['hop']}/"
+            if not session:
+                first = _lead_prompt(case, arm, written["delivery"])
                 session = str(uuid.uuid4())
-                turns = [{"role": "user", "text": first}, *hop["scripted_turns"]]
-                expanded = json.loads(
-                    json.dumps(turns).replace("{repo}", str(run["repo"]))
-                )
-                (run["keydir"] / f"{session}.jsonl").write_text(
-                    "\n".join(
-                        render_history(
-                            expanded,
-                            session,
-                            str(run["repo"]),
-                            salt=f"hop{hop['hop']}/",
-                        )
-                    )
-                    + "\n",
-                    encoding="utf-8",
-                )
-            for rel, content in (hop.get("effects") or {}).get("files", {}).items():
-                path = run["repo"] / rel
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(content, encoding="utf-8")
-            written = _write_hop(case, arm, run, cfg, session, known)
-            for key in total:
-                total[key] += (written.get("writer_tokens") or {}).get(key, 0)
-            note(written)
-            continue
-        if written.get("continue_session"):
-            session = written["continue_session"]
+                turns = [{"role": "user", "text": first}, *turns]
+                (run["keydir"] / f"{session}.jsonl").write_text("", encoding="utf-8")
+            append_turns(run, session, turns, salt)
         else:
-            delivery = case["reader"]["delivery"][arm_base(arm)]
-            lead = delivery.get("lead")
-            first = f"{lead}\n\n{written['delivery']}" if lead else written["delivery"]
-            code, out, err, events = _claude(cfg, run, first, arm=arm, extra=extra)
-            if reason := exclusion_reason(code, out, err, events):
-                return {"excluded": f"hop {hop['hop']} resume: {reason}"}
-            session = session_of(events)
-        for turn in hop.get("owner_turns", []):
-            code, out, err, events = _claude(
-                cfg, run, turn, arm=arm, resume=session, extra=extra
-            )
-            if reason := exclusion_reason(code, out, err, events):
-                return {"excluded": f"hop {hop['hop']} owner turn: {reason}"}
-            session = session_of(events) or session
-        if hop.get("scripted_agent_turns"):
-            append_turns(run, session, hop["scripted_agent_turns"], f"hop{hop['hop']}/")
+            if not session:
+                first = _lead_prompt(case, arm, written["delivery"])
+                code, out, err, events = _claude(cfg, run, first, arm=arm, extra=extra)
+                if reason := exclusion_reason(code, out, err, events):
+                    return {"excluded": f"hop {hop['hop']} resume: {reason}"}
+                session = session_of(events)
+            for turn in hop.get("owner_turns", []):
+                code, out, err, events = _claude(
+                    cfg, run, turn, arm=arm, resume=session, extra=extra
+                )
+                if reason := exclusion_reason(code, out, err, events):
+                    return {"excluded": f"hop {hop['hop']} owner turn: {reason}"}
+                session = session_of(events) or session
+            if hop.get("scripted_agent_turns"):
+                append_turns(
+                    run, session, hop["scripted_agent_turns"], f"hop{hop['hop']}/"
+                )
         for rel, content in (hop.get("effects") or {}).get("files", {}).items():
             path = run["repo"] / rel
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -1083,9 +1058,7 @@ def read_stage(
     if delivery["mode"] == "continue":
         prompt, resume = delivery["continue_turn"], written["continue_session"]
     else:
-        lead = delivery.get("lead")
-        prompt = f"{lead}\n\n{written['delivery']}" if lead else written["delivery"]
-        resume = None
+        prompt, resume = _lead_prompt(case, arm, written["delivery"]), None
     if reader == "codex":
         workdir = run["repo"]
         reply = run["repo"].parent / "codex-reply.txt"
@@ -1235,8 +1208,6 @@ def _reader_workspace(
 ) -> dict:
     """A private copy of the written workspace for a second reader, re-pointed at its own
     stub `gh` log and its own bare remote, so the two readers never see each other's acts."""
-    import shutil
-
     shutil.copytree(run_dir, copy_dir, symlinks=True)
     env = child_env(
         dict(os.environ),
@@ -1284,8 +1255,6 @@ def run_once(
     """Seed and write once, then resume each reader on its own copy of the written workspace
     and grade it. Copies traces to `out_dir`; removes run dirs and project keys. Returns one
     graded run per reader (`error` set when it must be excluded)."""
-    import shutil
-
     run_dir = cfg.root / "runs" / case["name"] / arm / str(index)
     if run_dir.exists():
         shutil.rmtree(run_dir)
@@ -1399,12 +1368,7 @@ def run_once(
                 threads, home / ".codex" / "sessions", keep_root / "codex-rollouts"
             )
             shutil.rmtree(run["keydir"], ignore_errors=True)
-            cache = (
-                Path(run["env"].get("HOME", str(Path.home())))
-                / ".cache"
-                / "claude-cli-nodejs"
-                / run["keydir"].name
-            )
+            cache = home / ".cache" / "claude-cli-nodejs" / run["keydir"].name
             shutil.rmtree(cache, ignore_errors=True)
         (keep_root / "graded.json").write_text(
             json.dumps(results, indent=2, default=str) + "\n", encoding="utf-8"
@@ -1416,8 +1380,6 @@ def run_once(
 def remove_run_dirs(run_dir: Path) -> None:
     """Remove one run's directory and its per-reader copies (`<index>-<reader>`),
     never a sibling run whose index starts with the same digits."""
-    import shutil
-
     for path in [run_dir, *run_dir.parent.glob(f"{run_dir.name}-*")]:
         shutil.rmtree(path, ignore_errors=True)
 
@@ -1657,15 +1619,14 @@ def main(argv=None) -> int:
 
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="cmd", required=True)
-    here = Path(__file__).resolve().parent
     for name in ("run", "calibrate"):
         p = sub.add_parser(name)
         p.add_argument("--root", required=True, help="eval root outside any repository")
         p.add_argument("--tmpdir", required=True, help="short TMPDIR for every child")
-        p.add_argument("--evals-dir", default=str(here.parents[1] / "evals"))
+        p.add_argument("--evals-dir", default=str(HERE.parents[1] / "evals"))
         p.add_argument("--case", action="append", default=[])
     run = sub.choices["run"]
-    run.add_argument("--repo-root", default=str(here.parents[3]))
+    run.add_argument("--repo-root", default=str(HERE.parents[3]))
     run.add_argument("--arm", action="append", required=True, choices=ARMS)
     run.add_argument(
         "--reader", action="append", required=True, choices=("claude-code", "codex")

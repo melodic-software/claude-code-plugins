@@ -25,13 +25,7 @@ const SCHEMA_VERSION = 1;
 const NEED_PATTERNS = [
   {
     id: "tracker",
-    re: /tracker binding via the work-item tracker seam/,
-    probe_class: "repo-file",
-    seam: "work-item-tracker",
-  },
-  {
-    id: "tracker",
-    re: /tracker binding when filing/,
+    re: /tracker binding (?:via the work-item tracker seam|when filing)/,
     probe_class: "repo-file",
     seam: "work-item-tracker",
   },
@@ -134,13 +128,8 @@ function parseConnectorRung(value) {
 
 function needsFromProse(prose) {
   const byId = new Map();
-  for (const pattern of NEED_PATTERNS) {
-    if (!pattern.re.test(prose)) continue;
-    if (byId.has(pattern.id)) continue;
-    const need = { id: pattern.id, probe_class: pattern.probe_class };
-    if (pattern.seam) need.seam = pattern.seam;
-    if (pattern.owner) need.owner = pattern.owner;
-    byId.set(pattern.id, need);
+  for (const { re, ...need } of NEED_PATTERNS) {
+    if (re.test(prose) && !byId.has(need.id)) byId.set(need.id, need);
   }
   return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
@@ -151,9 +140,9 @@ function extractPrerequisitesSection(markdown) {
     throw new Error("missing ## Prerequisites section");
   }
   const after = markdown.slice(start);
-  const endMatch = after.slice(after.indexOf("\n") + 1).search(/^## /m);
-  if (endMatch === -1) return after;
-  return after.slice(0, after.indexOf("\n") + 1 + endMatch);
+  const bodyStart = after.indexOf("\n") + 1;
+  const end = after.slice(bodyStart).search(/^## /m);
+  return end === -1 ? after : after.slice(0, bodyStart + end);
 }
 
 function parseAxisTable(block) {
@@ -294,14 +283,9 @@ function expandNeeds(records) {
 }
 
 function parseLeaf(markdown, leafRel) {
-  const section = extractPrerequisitesSection(markdown);
-  const blocks = splitIdentityBlocks(section);
-  const records = [];
-  for (const { identity, block } of blocks) {
-    const axes = parseAxisTable(block);
-    records.push(recordFromAxes(identity, axes, leafRel));
-  }
-  return records;
+  return splitIdentityBlocks(extractPrerequisitesSection(markdown)).map(({ identity, block }) =>
+    recordFromAxes(identity, parseAxisTable(block), leafRel),
+  );
 }
 
 function buildEmission(pluginRoot) {

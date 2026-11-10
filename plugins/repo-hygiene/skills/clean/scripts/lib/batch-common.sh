@@ -340,17 +340,14 @@ batch_take_selection_arg() {
     BATCH_ARG_SHIFT=2
     if [[ "$flag" == --skip ]]; then
       BATCH_SKIP_INPUTS+=("$1")
-    elif [[ "$flag" == --skip-from ]]; then
-      batch_read_lines_into BATCH_SKIP_INPUTS "$1" || {
-        BATCH_ARG_ERROR="file not found: $1"
-        return 1
-      }
-    else
-      batch_read_lines_into BATCH_REPO_INPUTS "$1" || {
-        BATCH_ARG_ERROR="file not found: $1"
-        return 1
-      }
+      return 0
     fi
+    local dest=BATCH_REPO_INPUTS
+    [[ "$flag" == --skip-from ]] && dest=BATCH_SKIP_INPUTS
+    batch_read_lines_into "$dest" "$1" || {
+      BATCH_ARG_ERROR="file not found: $1"
+      return 1
+    }
     ;;
   *)
     BATCH_ARG_ERROR="not a selection flag: $flag"

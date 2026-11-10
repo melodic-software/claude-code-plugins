@@ -4,7 +4,7 @@
 # Output contract (stable labels):
 #   Category: <Caches|Build artifacts>
 #   Path: <relative-path>
-#   Size: <human size | ->
+#   Size: <human size>
 #   Tier: <caches|build|git>
 #   Total reclaimable: <bytes>
 #   Git worktrees: <count>
@@ -37,37 +37,19 @@ case "${1:-}" in
 *) ;;
 esac
 
-format_size() {
-  local p="$1"
-  if [[ ! -e "$p" ]]; then
-    printf '%s' '-'
-    return
-  fi
-  du -sh "$p" 2>/dev/null | awk '{print $1}' || printf '%s' '?'
-}
-
-emit_path_line() {
-  local category="$1" tier="$2" abs="$3" rel kb
-  [[ -e "$abs" ]] || return 0
-  if clean_path_is_protected "$REPO_ROOT" "$abs"; then
-    return 0
-  fi
-  rel="${abs#"$REPO_ROOT"/}"
-  printf 'Category: %s\n' "$category"
-  printf 'Path: %s\n' "$rel"
-  printf 'Size: %s\n' "$(format_size "$abs")"
-  printf 'Tier: %s\n' "$tier"
-  kb="$(du -sk "$abs" 2>/dev/null | awk '{print $1}')"
-  TOTAL_BYTES=$((TOTAL_BYTES + ${kb:-0} * 1024))
-}
-
 # emit_tier CATEGORY TIER — one candidate path per stdin line. Redirected, never
-# piped, so emit_path_line's TOTAL_BYTES accumulation stays in this shell.
+# piped, so the TOTAL_BYTES accumulation stays in this shell.
 emit_tier() {
-  local category="$1" tier="$2" abs
+  local category="$1" tier="$2" abs kb
   while IFS= read -r abs; do
-    [[ -z "$abs" ]] && continue
-    emit_path_line "$category" "$tier" "$abs"
+    [[ -e "$abs" ]] || continue
+    clean_path_is_protected "$REPO_ROOT" "$abs" && continue
+    printf 'Category: %s\n' "$category"
+    printf 'Path: %s\n' "${abs#"$REPO_ROOT"/}"
+    printf 'Size: %s\n' "$(du -sh "$abs" 2>/dev/null | awk '{print $1}' || printf '%s' '?')"
+    printf 'Tier: %s\n' "$tier"
+    kb="$(du -sk "$abs" 2>/dev/null | awk '{print $1}')"
+    TOTAL_BYTES=$((TOTAL_BYTES + ${kb:-0} * 1024))
   done
 }
 

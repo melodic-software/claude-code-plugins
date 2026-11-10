@@ -29,7 +29,8 @@ name: Work Unblock
 # scheduled run applies the same rules to every issue a listed human or a
 # merge (a merged pull request or a commit) closed in the last three hours, so one missed run loses nothing.
 # Each work-resolve-issue run that finishes, unless it ran no job, runs the
-# same sweep at once, so a freed slot admits the next deferred issue then.
+# same sweep at once, so a freed slot admits the next deferred issue then,
+# unless a full sweep finished under limits.sweep-gap-minutes ago.
 # After an outage or a kill switch, the next of these sweeps is the probe:
 # nothing re-arms it.
 #
@@ -106,6 +107,11 @@ on:
   workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [Work Resolve Issue]
     types: [completed]
+  # A hand-started sweep, run exactly as the schedule's: after an outage ends
+  # it re-fires the runs the upstream-status stop skipped without waiting for
+  # the hour. It mints only where the token broker lists workflow_dispatch
+  # among work-unblock.yml's events, and then only for a listed human.
+  workflow_dispatch:
 
 permissions: {}
 
@@ -122,7 +128,7 @@ jobs:
     # room too; a skipped one, from a label other than agent-ready, ran no job.
     # A label event is sync-status's, never this job's.
     if: >-
-      (github.event_name == 'schedule' && github.ref == 'refs/heads/main')
+      ((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main')
       || (github.event_name == 'issues' && github.event.action == 'closed' && github.event.sender.type != 'Bot')
       || (github.event_name == 'workflow_run' && github.ref == 'refs/heads/main'
       && github.event.workflow_run.head_repository.full_name == github.repository
@@ -206,7 +212,7 @@ jobs:
         id: config
         if: >-
           steps.kill.outputs.proceed == 'true'
-          && (github.event_name == 'schedule' || github.event_name == 'workflow_run' || steps.who.outputs.proceed == 'true')
+          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_run' || steps.who.outputs.proceed == 'true')
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
@@ -226,9 +232,26 @@ jobs:
           REASON: ${{ steps.config.outputs.skip-reason }}
         run: echo "::notice::label-unblocked does not apply (${REASON:-no reason}); nothing read or labeled"
 
+      # A sweep a finished work-resolve-issue run starts skips its work when a
+      # full sweep finished under limits.sweep-gap-minutes ago: each spends
+      # about 800 lanes App calls. A schedule or a close never skips, and a
+      # read that fails runs the sweep. It reads with the job token
+      # (.github/scripts/work-unblock/sweep-gap.mjs).
+      - name: Skip a sweep right after a full sweep
+        id: gap
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
+          ACTIONS_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
+        run: node .base/.github/scripts/work-unblock/sweep-gap.mjs
+
       - name: Request the lane token
         id: lane-token
-        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true' && steps.gap.outputs.skip != 'true'
         uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
         with:
           broker-url: ${{ vars.LANES_BROKER_URL }}
@@ -287,6 +310,12 @@ jobs:
           # A sweep's carried verdicts in, and the ones it keeps for the next.
           VERDICTS_IN: ${{ runner.temp }}/work-unblock-verdicts-in.json
           VERDICTS_OUT: ${{ runner.temp }}/work-unblock-verdicts.json
+          # Minutes after which the sweep decides no further agent-ready issue
+          # and writes what it decided: inside the job's 10-minute limit, with
+          # room for the last decision, the writes and the steps after this.
+          SWEEP_BUDGET_MINUTES: "6"
+          # A held sweep's marker for monitor signal 13 (lane-hold-marker.mjs).
+          LANE_HOLD_MARKER: ${{ runner.temp }}/lane-hold/work-unblock
         run: node ".base/$SCRIPT"
 
       - name: Scan the upload for credentials
@@ -306,6 +335,19 @@ jobs:
           name: work-unblock-verdicts
           path: ${{ runner.temp }}/work-unblock-verdicts.json
           retention-days: 1
+          if-no-files-found: ignore
+
+      # On a green job only, as monitor signal 13 reads holds; no marker
+      # uploads nothing.
+      - name: Keep the lane hold marker
+        if: steps.label.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lane-hold-work-unblock
+          path: ${{ runner.temp }}/lane-hold/work-unblock
+          retention-days: 1
+          overwrite: true
           if-no-files-found: ignore
 
       # The token is cancelled as soon as the job is done; it would otherwise

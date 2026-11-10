@@ -3,16 +3,16 @@ import math
 
 
 def oscillate(wave, phase, duty):
-    if wave == "square" or wave == "pulse":
+    if wave in ("square", "pulse"):
         return 1.0 if phase < duty else -1.0
     if wave == "saw":
         return phase * 2 - 1
     if wave == "sine":
         return math.sin(2 * math.pi * phase)
-    if wave == "triangle" or wave == "wave":
+    if wave in ("triangle", "wave"):
         # A 32-step triangle stands in for chip wave and NES triangle.
         step = int(phase * 32) / 32
-        return (4 * abs(step - 0.5) - 1)
+        return 4 * abs(step - 0.5) - 1
     raise ValueError(f"unknown wave {wave!r}")
 
 

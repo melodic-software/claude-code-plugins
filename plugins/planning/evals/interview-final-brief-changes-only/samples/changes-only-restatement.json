@@ -15,6 +15,10 @@
     {
       "answer": "Intent: CSV export of the admin orders page.\nChanged since read-back: Q5, orders-export-<timestamp>.csv.\nThe other seven answers are unchanged.\nQ9: Should exports run synchronously in the request? The 50,000-row cap bounds the work, but the request timeout is unknown.\nNew assumption: the export respects row-level permissions.\n\nAnswer Q9, then confirm.",
       "why": "one unchanged value (the 50,000-row cap) cited for a new question, not re-listed"
+    },
+    {
+      "answer": "Intent: CSV export of the admin orders page.\nChanged since read-back: Q5, the file is now orders-export-<timestamp>.csv.\nThe other seven answers stand as read back.\nNew assumptions: exports run synchronously in the request; the export respects row-level permissions.\nADR verdicts:\n- Q1 which rows: no ADR, no real alternative weighed\n- Q2 columns: no ADR, no real alternative weighed\n- Q3 timestamp zone: no ADR, no real alternative weighed\n- Q4 row cap: no ADR, weighed but easy to reverse and shapes no structure or quality attribute\n- Q5 file name: no ADR, no real alternative weighed\n- Q6 button placement: no ADR, no real alternative weighed\n- Q7 compression: no ADR, no real alternative weighed\n- Q8 audit entry: no ADR, no real alternative weighed\n\nConfirm, overrule a verdict (\"Q4: record it\"), or name the items to change.",
+      "why": "an ADR-verdict section names each decision without its answer, which is not a re-listing"
     }
   ],
   "fail": [

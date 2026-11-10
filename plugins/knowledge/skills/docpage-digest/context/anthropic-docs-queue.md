@@ -52,8 +52,7 @@ Models:
   from the harness model-config doc's
   [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable)
 - <https://platform.claude.com/docs/en/models/fable-5-2/whats-new-fable-5-2>
-  The release notes for Fable 5.2, the model the `fable` alias resolves to outside gateway
-  sessions, and a first-party source for the `playbooks` Fable 5.2 model-adaptation chapter.
+  The release notes for Fable 5.2, and a first-party source for the `playbooks` Fable 5.2 model-adaptation chapter.
   `docs/upstream/platform-claude-com-prompting-claude-fable-5-2.md` records what this repository
   takes from it, with no custody record or attestation pass. Resolved to its titled page on
   2026-11-09

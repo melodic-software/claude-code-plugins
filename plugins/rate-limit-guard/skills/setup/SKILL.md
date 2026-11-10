@@ -29,27 +29,31 @@ qualify it:
 - **Native `userConfig`**: eight options whose only stored home is the `pluginConfigs` setup must
   never write. Reconfigure through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#verified-version-record>,
   which owns the verified-version record): interactive `/plugin configure
   rate-limit-guard@<marketplace>` any time. Headless, preferred: run `claude plugin configure
   rate-limit-guard@<marketplace> --values-stdin < values.json` from the project the plugin is
-  installed in, with `values.json` holding `{"<key>": "<value>"}` (every value a string, booleans
-  included; keys left out keep their saved values). Headless fallback, for a Claude
-  Code release without `plugin configure`: rerun `claude plugin install
-  rate-limit-guard@<marketplace> -s <scope> --config <key>=<value>` (repeatable per key). Against
-  an already-installed plugin it prints `already installed` and still writes the value. Do **not**
-  uninstall to reconfigure: that drops this plugin's entire stored `pluginConfigs` entry,
-  resetting every option in the README's Options reference to its manifest default. Either route
-  stores the value in user settings. `claude plugin configure` has no scope flag and finds only an
-  install visible from the working directory. For the rerun, `-s` defaults to `user`; pass the
-  scope `claude plugin list` reports, and run from that project's directory for a
-  `project`/`local` scope, or the rerun adds a second install record at the scope passed and
-  enables the plugin there; from the home directory pass `user`. Check each route's own failure
-  signal: `claude plugin configure` rejects a bad value with exit 1 and saves nothing, but stores
-  an empty string as `""`; the rerun prints a warning for a rejected value yet exits 0, so read
-  its output. Afterwards rerun `check` in a **fresh session**: a same-session `check` still
+  installed in, with `values.json` holding `{"<key>": "<value>"}` and every value, booleans
+  included, written as a JSON string. Headless fallback, for a Claude Code release without
+  `plugin configure`: rerun `claude plugin install rate-limit-guard@<marketplace> -s <scope>
+  --config <key>=<value>` (repeatable per key) against the installed plugin. Do **not** uninstall
+  to reconfigure. For the rerun, pass the scope `claude plugin list` reports and run from that
+  project's directory for a `project`/`local` scope; from the home directory pass `user`. Check
+  each route's own failure signal: read both its exit code and its output before reporting a
+  value saved. Afterwards rerun `check` in a **fresh session**: a same-session `check` still
   renders the old value (see the `check` note on rendered values below), so report the observed
-  value, never an unobserved change.
+  value, never an unobserved change. The convention's
+  [caveats section](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries)
+  records why for each of these rules; this skill does not restate it.
+  - **Pointer**: when what a route prints, rejects, stores or resets is in doubt, fetch
+    [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
+    [§ plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install) and
+    [§ What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps)
+    live.
+  - **As of**: 2026-11-10
+  - **Recheck trigger**: either convention heading is renamed, or one of those sections changes
+    how a route reports a rejected value, what a rerun at another scope adds, or what an
+    uninstall deletes.
 - **External prerequisites**: `node` and the Claude Code version, which `check` probes and whose
   install is the person's.
 
@@ -76,9 +80,12 @@ line.
    rate-limit stop is recorded; and the module writes the snapshot by running
    `node lib/write-snapshot.mjs`, so no snapshot is written either. The module's lines, band row
    and status tool do not need it. Remediation: install Node.js (<https://nodejs.org/en/download>)
-   and restart Claude Code. Verified 2026-09-29 against <https://code.claude.com/docs/en/setup>:
-   the native `claude` binary does not ship or use Node.js. Recheck when that page says the native
-   binary bundles Node or the hook row stops using `node`.
+   yourself and restart Claude Code.
+   - **Pointer**: when whether a Claude Code install supplies `node` is in doubt, fetch
+     [setup § Install with npm](https://code.claude.com/docs/en/setup#install-with-npm) live.
+   - **As of**: 2026-11-10
+   - **Recheck trigger**: that page says the native binary bundles Node, or the hook row stops
+     using `node`.
 2. **Module state.** The plugin's module (`hooks/register.tsx`) writes the snapshot file and sends
    the rate-limit lines; it loads only where mods can. Decide this session's state from inside this
    session, never from a separate process: a `claude` you launch through Bash reads neither this
@@ -90,9 +97,8 @@ line.
      listed only as a deferred tool. Do not call it.
      - Present → PASS "mod running in this session".
      - Absent → INFO "mods off in this session, or the status tool's registration was refused".
-       Say both causes and do not pick one: mods are off here (for example `disableAllHooks`,
-       `--bare`, Anthropic's remote switch, repeated hooks-worker crashes, or an organization's
-       mods policy), or the organization's policy refused the tool, in which case the module
+       Say both causes and do not pick one: mods are off here (what turns them off: the
+       doesn't-load pointer below), or the organization's policy refused the tool, in which case the module
        writes one `the status pull tool could not register` line to the debug log
        (`claude --debug`).
    - **This machine (not this session).** Optionally run `claude plugin test` from a new empty

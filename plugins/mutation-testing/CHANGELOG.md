@@ -3,6 +3,15 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.5] - 2026-11-10
+
+### Changed
+
+- Skill bodies point at the live Stryker, Hypothesis and fast-check sections and the
+  reconfiguration convention instead of restating tool defaults and flags, the diff-scoping
+  section no longer claims every major tool supports it, and the .NET filter note cites the
+  script's branches by condition. No behavior change.
+
 ## [0.16.4] - 2026-11-10
 
 ### Changed

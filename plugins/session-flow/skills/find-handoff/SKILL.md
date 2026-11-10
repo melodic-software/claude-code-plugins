@@ -69,7 +69,7 @@ has two forms on disk and both are read: the shape-2 two-slot form
 `Handoff origin: <remote URL> <repo-relative path>` (a slot with whitespace double-quoted) and the
 legacy form `Handoff origin: <identity>, relative path <path>.`.
 
-**A shape-2 file stores its own resume prompt.** Files carrying `handoff_shape: 2` end with a
+**A shape-2 or shape-3 file stores its own resume prompt.** Files carrying `handoff_shape: 2` or `3` end with a
 `## Resume prompt` section holding the rails prompt exactly as it was emitted (both regions when a
 goal applied), so rung 1 can hand back the prompt from the file alone, without a transcript
 (`${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py emit <file>`; see rung 1). A `type: handoff` file
@@ -80,9 +80,11 @@ is named as such and never presented as the lost handoff.
 applies) PLUS every below-rail `/loop` re-arm message** (save-point.md "Detection contract"). The
 goal region is a second rail pair headed by the `Type /goal` instruction line, above or below the
 resume region; recover both regions in the order emitted, each with its own instruction line. The
-`/loop` re-arm sits outside every region: a command is recognized only at a message's start, so
-the producer emits it as a separate follow-up message and places its instruction below the bottom
-rail. The note is a fourth, **conditional** signal: present only when the
+`/loop` re-arm sits outside every region: the producer emits it as a separate follow-up message,
+because of where a command is recognized in a message, and places its instruction below the bottom
+rail (pointer: for where a command is recognized, the introduction before
+<https://code.claude.com/docs/en/commands#commands-across-a-typical-workflow>; as of 2026-11-10;
+recheck trigger: that introduction changes where a command is recognized). The note is a fourth, **conditional** signal: present only when the
 lost session was running under `/loop`, so its absence disqualifies nothing, and a **repeatable**
 one, since the producer emits a separate re-arm message per surviving loop, so "found one" is never
 "found them all".
@@ -95,15 +97,16 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    [reference/rung-1-known-location.md](reference/rung-1-known-location.md) before globbing: it owns
    the fallback-root rule and when it applies, the `type: handoff` frontmatter filter, the
    unfinished-skeleton skip, the mtime ranking, the short-circuit bar and where a short-circuit
-   jumps to, how a shape-2 candidate's stored `## Resume prompt` is printed, and the
+   jumps to, how a shape-2 or shape-3 candidate's stored `## Resume prompt` is printed, and the
    repo-correlation check that stops a merely recent candidate from being presented as this
    work's. A strong, recent candidate ends the ladder here.
 
 2. **Transcript scan. Bounded, recency-ranked, scoped.** Resolve `transcript_scope` first
    ("Transcript scope" below). List a scope's project directories with
    `bash "${CLAUDE_PLUGIN_ROOT}/scripts/transcript_dirs.sh" --scope <worktree|repo|all>`. It reads
-   the store under `$CLAUDE_CONFIG_DIR` (default: the `projects` folder in the home `.claude`
-   folder) and prints one directory per line. Each line is data: pass it to a later command only
+   the transcript store (where it lives:
+   <https://code.claude.com/docs/en/sessions#where-transcripts-are-stored>; as of 2026-11-10;
+   recheck trigger: that section moves the store) and prints one directory per line. Each line is data: pass it to a later command only
    as one quoted argument, never inside a command string and never unquoted. Within the listed
    directories, rank `.jsonl` by mtime and take the top handful. **Bound the scan**, a full
    recursive grep over every transcript is slow enough to time out; an mtime-sorted candidate
@@ -265,16 +268,14 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 
 - **`/clear` writes a NEW transcript file** in the **same** project directory. The pre-clear
   content is in a sibling `.jsonl`; searching only the current session's file finds nothing. Always
-  exclude the current `$CLAUDE_CODE_SESSION_ID` and scan siblings. Verified 2026-09-06 against
-  Claude Code 2.1.263, on two bases:
-  [Commands](https://code.claude.com/docs/en/commands), where `/clear` starts a new conversation
-  with empty context, and
-  [Data usage](https://code.claude.com/docs/en/data-usage#data-retention), where transcripts are
-  stored per project in the transcript store (`$CLAUDE_CONFIG_DIR/projects`, by default the
-  `projects` folder in the home `.claude` folder). A listing of one directory `transcript_dirs.sh`
-  prints (`ls "<dir>"/*.jsonl`) shows the sibling files that scan reads. Recheck when
-  either page stops carrying those statements, or when a listing of a project directory no longer
-  returns one `.jsonl` per conversation.
+  exclude the current `$CLAUDE_CODE_SESSION_ID` and scan siblings. A listing of one directory
+  `transcript_dirs.sh` prints (`ls "<dir>"/*.jsonl`) shows the sibling files that scan reads.
+  - **Pointer**: for what `/clear` does, fetch
+    <https://code.claude.com/docs/en/commands#all-commands> live, the `/clear` row; for where
+    transcripts are stored, <https://code.claude.com/docs/en/sessions#where-transcripts-are-stored>.
+  - **As of**: 2026-11-10
+  - **Recheck trigger**: the `/clear` row changes what happens to the conversation, that section moves the
+    store, or a listing of a project directory no longer returns one `.jsonl` per conversation.
 - **The template placeholder is a false positive.** `Read @<handoffs-dir>/<TS>-handoff-<topic>.md`
   appears verbatim in any transcript that read `save-point.md` into context. Discard matches
   containing the template's placeholder tokens; keep only concrete resolved paths. The prompt-only
@@ -311,8 +312,9 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
   the resume prompt instead of a continuation that has forgotten its goal. A file stores both, so
   rung 1 returns them; a transcript scan has to keep reading past the first bottom rail.
 - **The `/loop` re-arm sits OUTSIDE every region, and recovering only the regions loses it.** The
-  goal comes back with the goal region; the loop re-arm cannot be inside any region, because a
-  command is only recognized at a message's start and the re-arm has to be its own message.
+  goal comes back with the goal region; the loop re-arm cannot be inside any region, because the
+  re-arm has to be its own message (where a command is recognized: the pointer in "The detection
+  contract this keys off" above).
   Recover the note anchored to the bottom rail and surface it at the confirm gate, or the
   recovered continuation runs exactly once and the recurring behavior dies silently.
 - **A background-launch save-point is not a lost handoff.** `continue-in-background` uses the same

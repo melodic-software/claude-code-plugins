@@ -137,7 +137,7 @@ detect_format() {
     printf 'go_cover\n'
     return 0
   fi
-  if grep -q '^SF:' < <(head -n 200 "$artifact") || grep -q '^TN:' < <(head -n 200 "$artifact"); then
+  if grep -qE '^(SF|TN):' < <(head -n 200 "$artifact"); then
     printf 'lcov\n'
     return 0
   fi

@@ -95,16 +95,7 @@ def emit(
 ) -> None:
     """Fire-and-forget one telemetry envelope. No-op when the sink is unset."""
     sink = os.environ.get(_HOOK_TELEMETRY_SINK_ENV, "")
-    if not sink:
-        return
-    resolved = _resolve_sink(sink, repo_root)
-    if not resolved:
-        return
-    envelope = _build_envelope(
-        hook_id,
-        hook_event,
-        status,
-        start,
-        data or {},
-    )
-    _dispatch_sink(resolved, envelope)
+    resolved = _resolve_sink(sink, repo_root) if sink else None
+    if resolved:
+        envelope = _build_envelope(hook_id, hook_event, status, start, data or {})
+        _dispatch_sink(resolved, envelope)

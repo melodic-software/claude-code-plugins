@@ -423,13 +423,13 @@ gets nothing from either mod and the shape below does not arise:
   with the current reading (owner decision on #6445, 2026-10-18).
 - **What.** Each line names its plugin and a verdict worded as a fact. The verdict names no action,
   claims no authority and gives no order. `context-guard`'s boundary lines add that continuing is
-  the user's call, and may be followed by the dumb-zone save note or an operator-configured
+  the user's call, and may be followed by the heavy-zone save note or an operator-configured
   `zones.json` action. `rate-limit-guard`'s lines carry the verdict only. Since 2026-10-11 (#7118)
   each mod may also follow its verdict lines with one constant options line per carrier, the only
   text this exception admits that names actions on a context channel: `rate-limit-guard`'s at an
   approach or threshold line (continue at the same model, effort and review depth, the user can
   switch accounts, or schedule after the reset; usage never calls for lowering any of the three),
-  `context-guard`'s past `smart` (record decisions in a durable file, then continue, compact or hand
+  `context-guard`'s past `light` (record decisions in a durable file, then continue, compact or hand
   off as Claude and the user choose; a zone never calls for terser output, fewer agents or lower
   quality). The owner decided this after sessions moved subagents to a smaller model, stopped
   launching agents and steered toward handoffs on the verdict alone. An earlier `Keep working.`

@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: interview-adr-verdict-overruled
+description: "The closing restatement gave a 'no ADR' verdict on a decision and the user overrules it in the reply that confirms the rest. Why hard: the reply reads as a plain confirmation, so the easy path writes the Brief and drops the overrule, or argues the verdict again instead of handing the decision over."
+tags: [interview, confirmation, adr, closing-summary]
+expected_outcome: "The overruled decision (where failed deliveries are stored) goes to /architecture:record-decision with its rationale and alternatives, or, when that skill is not available, is recorded as an ADR candidate in its register row with that said; the verdict is not argued again."
+execution:
+  prompt: "/planning:interview Add retries to the partner webhook sender.\n\nWhere we are: an engineering session, domain_docs is auto. Every question is answered and the assumption sweep added nothing. Your closing restatement listed these ADR verdicts: Q1 retry count: no ADR, no real alternative weighed. Q2 backoff schedule: no ADR, no real alternative weighed. Q3 failed-delivery storage: you recommended a Postgres table over a Redis stream and I agreed; verdict no ADR, weighed but easy to reverse. Q4 alert channel: no ADR, a process decision.\n\nMy reply: Q3: record it. The rest is confirmed."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 900
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?interview"'
+    arm: with-only
+  - name: overrule-handed-to-record-decision
+    type: llm
+    arm: both
+    criteria: "PASS only if the reply acts on the overrule of Q3 (storing failed deliveries in a Postgres table rather than a Redis stream): it hands Q3 to /architecture:record-decision (invokes it, or says it is doing so) with the decision and the Redis-stream alternative, or, saying that skill is unavailable, records Q3 as an ADR candidate in its register row. FAIL if the reply ignores the overrule, argues that Q3 needs no ADR instead of acting on it, or asks the user to confirm the overrule again."

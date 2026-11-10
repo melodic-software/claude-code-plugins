@@ -37,8 +37,8 @@ dc_trim_excerpt() {
 dc_shape_tier() {
   case "$1" in
   py-unreachable | go-unused-unexported | unreferenced-symbol) printf '1' ;;
-  ts-unused-file | ts-unused-export | ts-unused-type | ts-unused-enum-member | py-unused-symbol | ts-unreferenced-symbol | unreferenced-file) printf '2' ;;
-  cs-unreferenced-private | cs-unreferenced-symbol) printf '2' ;;
+  ts-unused-file | ts-unused-export | ts-unused-type | ts-unused-enum-member | py-unused-symbol | \
+    ts-unreferenced-symbol | unreferenced-file | cs-unreferenced-private | cs-unreferenced-symbol) printf '2' ;;
   *) printf '3' ;;
   esac
 }
@@ -245,16 +245,10 @@ dc_resolve_local_binary() {
 # Repo-local first, PATH second: a pinned devDependency is the version that
 # matches the project it is about to judge.
 dc_locate_binary() {
-  local name="$1" start_dir="$2" repo_root="$3" found
-  if found="$(dc_resolve_local_binary "$name" "$start_dir" "$repo_root")"; then
-    printf '%s' "$found"
-    return 0
-  fi
-  if found="$(command -v -- "$name" 2>/dev/null)"; then
-    printf '%s' "$found"
-    return 0
-  fi
-  return 1
+  local found
+  dc_resolve_local_binary "$@" && return 0
+  found="$(command -v -- "$1" 2>/dev/null)" || return 1
+  printf '%s' "$found"
 }
 
 # Presence proof. A locator hit is a filename; only a successful invocation is

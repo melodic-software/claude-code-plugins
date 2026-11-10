@@ -22,15 +22,15 @@ tests executed daily. Their approach is four decisions, in order of impact:
 
 ### 1. Diff-scope it
 
-Mutate only the lines changed in the current change, at review time. Never the whole repository. Every
-major tool supports this directly:
+Mutate only the lines changed in the current change, at review time. Never the whole repository. Most
+established tools support this directly; [tooling.md](tooling.md) lists which:
 
-- **Stryker.NET** uses `since`: "Use git information to test only code changes since the given target.
-  Stryker will only report on mutants within the changed code." Target defaults to `master`.
-- **StrykerJS** uses `--incremental`: "track the changes you make to your code and tests and only runs
-  mutation testing on the changed code," while still producing the full report. Cached results are
-  reused when a killed mutant's culprit test still exists unchanged, or when an unkilled mutant has
-  no new covering test and no test changed.
+- **Stryker.NET** scopes with `since`
+  ([§ since](https://stryker-mutator.io/docs/stryker-net/configuration/#since-flag-committish);
+  its target and default: [§ since.target](https://stryker-mutator.io/docs/stryker-net/configuration/#sincetarget-committish)).
+- **StrykerJS** uses `--incremental`; what it reuses from the last run:
+  [incremental § Incremental mode](https://stryker-mutator.io/docs/stryker-js/incremental/#incremental-mode).
+  Both pointers as of 2026-11-10; recheck under the Sources trigger above.
 - **Infection** uses `--git-diff-lines`.
 - **PIT** uses incremental analysis; its own front page recommends running "frequently against only the
   code that has been changed" as "the most effective way" to use it.

@@ -235,10 +235,11 @@ Steps 1 to 10 are the `team` flow. The other two layers change what is written:
   `/plugin configure mutation-testing@<marketplace>`, or headless
   `claude plugin configure mutation-testing@<marketplace> --values-stdin < values.json` with
   `values.json` holding only the keys the user settled: `{"operators": "<value>"}`, plus
-  `"max_mutants": "<value>"` only when the user chose a cap (a key left out keeps its saved
-  value, so never write an empty or invented cap), per the marketplace's
-  plugin-reconfiguration convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>).
+  `"max_mutants": "<value>"` only when the user chose a cap (never write an empty or invented
+  cap), per the marketplace's plugin-reconfiguration convention
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes>,
+  which records what a key left out does; as of 2026-11-10, recheck when that heading is renamed
+  or the record changes what an omitted key does).
   Never write `pluginConfigs` or any settings file yourself. Say that steps 7 to 10 were skipped
   because nothing in the repository was written, so `git status` is unchanged, and that a
   repository's tool, diff target, mutate paths and test command still come from its team or local

@@ -1652,7 +1652,7 @@ test("the marker upload comes after the plan and before the act step, kept longe
   assert.match(step, /retention-days: 2$/);
   // A failed upload skips the act step (no status function there), so no
   // record is written without its marker.
-  assert.match(text, /- name: Re-run lost runs\n {8}if: steps\.pace\.outputs\.paced != 'true'\n/);
+  assert.match(text, /- name: Re-run lost runs\n {8}if: steps\.pace\.outputs\.paced != 'true' && steps\.recent\.outputs\.skip != 'true'\n/);
 });
 
 test("while the kill switch is on, no stopped verdict is read or re-run", async () => {

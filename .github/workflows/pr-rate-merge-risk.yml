@@ -63,7 +63,8 @@ defaults:
 jobs:
   # The key leg, on the pr-verify role's API key alone. A credit stop, or a
   # 401 or 402, hands off to rate-merge-risk-subscription, and so does an
-  # empty key or one the credit gate skipped; then this job rates nothing and
+  # empty key or one the credit gate skipped, decided right after the
+  # resolver and before the trigger check; then this job rates nothing and
   # does not fail.
   rate-merge-risk:
     if: >-
@@ -140,11 +141,67 @@ jobs:
           export LANE_IDENTITY ISSUE_LANE_WEB_HOSTS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
+      # Whether the key is still out of credit (select-model-credential's
+      # start call: check-key-credit's one artifact-list read, probing off,
+      # for the `marker` this job uploads after a credit stop). It runs once
+      # the resolver lets the head through and before every read after it, so
+      # a held-off key costs a refused head nothing and a rated head only this
+      # call; the subscription and fallback jobs run the resolver and the
+      # trigger check themselves. Its own step, under continue-on-error and a
+      # 2-minute limit, so a read that fails or hangs leaves next-leg empty and
+      # the key runs.
+      - name: Read the key's credit history
+        id: credit
+        if: steps.pr.outputs.proceed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: start
+          key-job: rate-merge-risk
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
+          reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
+          probe-minutes: "0"
+
+      # Whether the key runs: it is set, and the read above did not hold it
+      # off (selected). Only whether the secret is set reaches the action,
+      # never its value. `present` false skips the rest of this job, and
+      # Pick the next leg hands off to the subscription job.
+      - name: Check the credential
+        id: credential
+        if: steps.pr.outputs.proceed == 'true'
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: key
+          role: pr-verify
+          credential-set: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}
+          selected: ${{ steps.credit.outputs.next-leg }}
+
+      # The skipped key leg's lane record: outcome skip, class credit-stop,
+      # handed off, so leg counts before and after the gate compare. It is
+      # written before the trigger check, so a head the resolver passes and
+      # the trigger check refuses (an untrusted re-runner) records a handoff
+      # that the subscription leg's own trigger check then refuses, with no
+      # receiving record: a known overcount, accepted so the key job saves
+      # its trigger-check reads on a held-off key.
+      - name: Report the skipped key leg
+        id: credit-skip
+        if: steps.credential.outputs.key-skipped == 'true'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: skipped
+          lane: pr-merge-risk
+          lane-id: pr-merge-risk
+          credential: PR_VERIFY_CLAUDE_API_KEY
+          known-failure-class: credit-stop
+          handoff: "true"
+
       # The upstream run's actors, the re-runner and the PR author must all be
       # on the trusted-actor list.
       - name: Check the trigger
         id: gate
-        if: steps.pr.outputs.proceed == 'true'
+        if: steps.pr.outputs.proceed == 'true' && steps.credential.outputs.present == 'true'
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
@@ -241,57 +298,10 @@ jobs:
           echo "model=$model" >>"$GITHUB_OUTPUT"
           echo "force=$([ -n "$model" ] && echo 1)" >>"$GITHUB_OUTPUT"
 
-      # Whether the key is still out of credit (select-model-credential's
-      # start call: check-key-credit's artifact-list read for the `marker`
-      # this job uploads after a credit stop). Its own step, under
-      # continue-on-error and a 2-minute limit, so a read that fails or hangs
-      # leaves next-leg empty and the key runs. It runs only where the key
-      # call below does, so a run that skips there spends no call.
-      - name: Read the key's credit history
-        id: credit
-        if: steps.checker.outcome == 'success'
-        continue-on-error: true
-        timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
-        with:
-          leg: start
-          key-job: rate-merge-risk
-          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
-          reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
-          probe-minutes: "0"
-
-      # Whether the key runs: it is set, and the read above did not hold it
-      # off (selected). Only whether the secret is set reaches the action,
-      # never its value.
-      - name: Check the credential
-        id: credential
-        if: steps.checker.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
-        with:
-          leg: key
-          role: pr-verify
-          credential-set: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}
-          selected: ${{ steps.credit.outputs.next-leg }}
-
-      # The skipped key leg's lane record: outcome skip, class credit-stop,
-      # handed off, so leg counts before and after the gate compare.
-      - name: Report the skipped key leg
-        id: credit-skip
-        if: steps.credential.outputs.key-skipped == 'true'
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
-        with:
-          outcome: skipped
-          lane: pr-merge-risk
-          lane-id: pr-merge-risk
-          credential: PR_VERIFY_CLAUDE_API_KEY
-          known-failure-class: credit-stop
-          handoff: "true"
-
       # The review plugin, read-only in the workspace: --restricted reads
       # nothing outside it, and Read(./.base/**) stays denied.
       - name: Stage the review plugin
-        if: steps.credential.outputs.present == 'true'
+        if: steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true'
         run: |
           mkdir -p .lane/plugins
           cp -R .base/plugins/review .lane/plugins/review
@@ -300,11 +310,11 @@ jobs:
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
-        if: steps.credential.outputs.present == 'true'
+        if: steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
 
       - name: Isolate the runner
-        if: steps.credential.outputs.present == 'true'
+        if: steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true'
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: true
@@ -313,7 +323,7 @@ jobs:
       # failures, and write-rating record the rating's time.
       - name: Write the prompt and schema
         id: prompt
-        if: steps.credential.outputs.present == 'true'
+        if: steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true'
         env:
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           PROMPT_FILE: ${{ runner.temp }}/merge-risk-prompt.md
@@ -529,16 +539,19 @@ jobs:
       # failures count; a handoff is no failure, since the next leg rates. The
       # arm still records `unrated` and goes on.
       - name: Fail without a rating
-        if: always() && steps.credential.outputs.present == 'true' && steps.rating.outcome != 'success' && steps.rate.outputs.handoff != 'true'
+        if: always() && steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true' && steps.rating.outcome != 'success' && steps.rate.outputs.handoff != 'true'
         run: |
           echo "::error::the rating left nothing for this head; the arm records it unrated"
           exit 1
 
   # The subscription leg, as its own job on a new VM: the key leg's steps
   # from a fresh checkout but for the credential, on the pr-verify role's
-  # subscription token alone (workflow.test.mjs holds them equal). It runs
-  # only for a head the key leg would rate, after that leg handed off, found
-  # its key empty or was skipped by the credit gate. With the fallback token
+  # subscription token alone (workflow.test.mjs holds them equal). It starts
+  # after the key leg handed off, found its key empty or was skipped by the
+  # credit gate; the last two are decided after the key leg's resolver and
+  # before its trigger check, so this job's own resolver and trigger check
+  # still judge the head, and a head they refuse runs no credential call and
+  # starts no next leg. With the fallback token
   # set, a limit stop, a credit stop, or a 401 or 402 hands off to
   # rate-merge-risk-fallback, and so does an empty token.
   rate-merge-risk-subscription:
@@ -737,7 +750,7 @@ jobs:
       # The review plugin, read-only in the workspace: --restricted reads
       # nothing outside it, and Read(./.base/**) stays denied.
       - name: Stage the review plugin
-        if: steps.credential.outputs.present == 'true'
+        if: steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true'
         run: |
           mkdir -p .lane/plugins
           cp -R .base/plugins/review .lane/plugins/review
@@ -746,11 +759,11 @@ jobs:
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
-        if: steps.credential.outputs.present == 'true'
+        if: steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
 
       - name: Isolate the runner
-        if: steps.credential.outputs.present == 'true'
+        if: steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true'
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: true
@@ -759,7 +772,7 @@ jobs:
       # failures, and write-rating record the rating's time.
       - name: Write the prompt and schema
         id: prompt
-        if: steps.credential.outputs.present == 'true'
+        if: steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true'
         env:
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           PROMPT_FILE: ${{ runner.temp }}/merge-risk-prompt.md
@@ -941,7 +954,7 @@ jobs:
       # failures count; a handoff is no failure, since the next leg rates. The
       # arm still records `unrated` and goes on.
       - name: Fail without a rating
-        if: always() && steps.credential.outputs.present == 'true' && steps.rating.outcome != 'success' && steps.rate.outputs.handoff != 'true'
+        if: always() && steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true' && steps.rating.outcome != 'success' && steps.rate.outputs.handoff != 'true'
         run: |
           echo "::error::the rating left nothing for this head; the arm records it unrated"
           exit 1
@@ -1141,7 +1154,7 @@ jobs:
       # The review plugin, read-only in the workspace: --restricted reads
       # nothing outside it, and Read(./.base/**) stays denied.
       - name: Stage the review plugin
-        if: steps.credential.outputs.present == 'true'
+        if: steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true'
         run: |
           mkdir -p .lane/plugins
           cp -R .base/plugins/review .lane/plugins/review
@@ -1150,11 +1163,11 @@ jobs:
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
-        if: steps.credential.outputs.present == 'true'
+        if: steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
 
       - name: Isolate the runner
-        if: steps.credential.outputs.present == 'true'
+        if: steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true'
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: true
@@ -1163,7 +1176,7 @@ jobs:
       # failures, and write-rating record the rating's time.
       - name: Write the prompt and schema
         id: prompt
-        if: steps.credential.outputs.present == 'true'
+        if: steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true'
         env:
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           PROMPT_FILE: ${{ runner.temp }}/merge-risk-prompt.md
@@ -1330,7 +1343,7 @@ jobs:
       # failures count; a handoff is no failure, since the next leg rates. The
       # arm still records `unrated` and goes on.
       - name: Fail without a rating
-        if: always() && steps.credential.outputs.present == 'true' && steps.rating.outcome != 'success' && steps.rate.outputs.handoff != 'true'
+        if: always() && steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true' && steps.rating.outcome != 'success' && steps.rate.outputs.handoff != 'true'
         run: |
           echo "::error::the rating left nothing for this head; the arm records it unrated"
           exit 1

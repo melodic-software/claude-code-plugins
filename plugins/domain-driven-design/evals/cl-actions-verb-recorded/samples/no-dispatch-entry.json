@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "**Shipment**\n\nOne physical consignment handed to a carrier.\n\nActions: dispatch (Avoid: send)\n", "why": "no Dispatch entry"},
+    {"answer": "", "why": "empty file"}
+  ],
+  "fail": [
+    {"answer": "**Shipment**\n\nOne physical consignment handed to a carrier.\n\n**Dispatch**\n\nHanding a shipment to the carrier.\n", "why": "Dispatch entry added"}
+  ]
+}

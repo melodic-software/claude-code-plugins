@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/visualization/schemas/visualization.schema.json",
+  "title": "visualization team config",
+  "description": "Schema for a repository's docs/conventions/visualization.yaml and its personal override docs/conventions/visualization.local.yaml. Resolution: plugins/visualization/skills/visualize/SKILL.md Step 3, the canvas server rule.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "hosted_canvas": {
+      "description": "allow lets /visualization:visualize send diagram content to a canvas server reached over the network (a remote MCP server) on a surface that renders one; deny keeps diagrams local or on a local server. deny from any layer (userConfig, this file, the personal override) wins.",
+      "type": "string",
+      "enum": ["allow", "deny"],
+      "default": "allow"
+    }
+  }
+}

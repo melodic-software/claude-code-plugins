@@ -4,6 +4,18 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.33.0] - 2026-11-10
+
+### Added
+
+- `repo-sweep` hygiene catalog: a read-only `adr-audit` step runs `/architecture:record-decision audit` where the repository has an ADR folder. Retirements go through `/architecture:record-decision` in their own change, after a yes.
+
+## [0.32.0] - 2026-11-10
+
+### Added
+
+- `repo-sweep` hygiene catalog: a read-only `glossary` step runs `/domain-driven-design:ubiquitous-language audit` where the repository has a ubiquitous-language glossary. Its fixes go through `curate` and `/docs-hygiene:rename-references` in their own change.
+
 ## [0.31.2] - 2026-11-10
 
 ### Fixed

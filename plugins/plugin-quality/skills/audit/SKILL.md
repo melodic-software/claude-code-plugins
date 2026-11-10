@@ -46,8 +46,8 @@ Every documented key is consumed, not decorative:
 
 - `sink` + `markdown_dir`. Bind step 6's ladder rung 1 (a `markdown-dir` sink writes the item to
   `markdown_dir`, not beside the packet).
-- `zone_behavior: always-conservative`, the context-gate below reports the unknown/dumb row
-  regardless of a fresh smart snapshot (tighten-only).
+- `zone_behavior: always-conservative`, the context-gate below reports the unknown/heavy row
+  regardless of a fresh light snapshot (tighten-only).
 - `repo_map`. Overrides step 6's rung-2 registration inference for the named plugins.
 
 All sources absent → every key unset → defaults apply exactly as written below.
@@ -58,7 +58,7 @@ This skill consumes the `context-guard` plugin's per-session snapshots as a **so
 No manifest dependency; fresh data informs dispatch, absence degrades conservatively.
 `zone_behavior: always-conservative` from the resolved config short-circuits this gate to the
 unknown row before the resolver runs, and wins over any word the resolver would have returned,
-including a fresh `smart` (the notice names the config, not a missing snapshot, as the reason).
+including a fresh `light` (the notice names the config, not a missing snapshot, as the reason).
 
 Resolve the zone by running this plugin's own copy of the resolver, never by re-deriving the
 bands here and never by invoking another plugin's script from the cache.
@@ -75,7 +75,7 @@ contract scopes its resolver invocation to.
    ```
 
    **Contract.** One argument, the session id. Exit code is always **0**: the single word on
-   stdout is the whole answer, one of `smart` / `acceptable` / `dumb` / `unknown`. Empty stdout,
+   stdout is the whole answer, one of `light` / `moderate` / `heavy` / `unknown`. Empty stdout,
    or any other word, is `unknown`. stderr carries band-configuration notices only and never
    changes the word. The resolver owns the snapshot read, the `zones.json` band override, the
    staleness window, the token-shape version floor, and the two-shape combination rule, whose
@@ -87,7 +87,7 @@ contract scopes its resolver invocation to.
 4. **Compaction overrides the resolved word:** if the main thread knows this session was compacted
    or summarized, including when the context-guard evidence-degraded marker
    `~/.claude/context-guard/context/<session_id>.compacted` exists. Treat it as
-   evidence-degraded: the dumb row applies regardless of a green zone (a compacted session's
+   evidence-degraded: the heavy row applies regardless of a green zone (a compacted session's
    numbers reset while its evidence is already gone). The resolver does not read that marker;
    this check is the consumer's.
 
@@ -99,10 +99,10 @@ Steps 2–3 run in the fresh `auditor` subagent in every zone, the zone modulate
 
 | Zone | Steps 3–4 packet handling (main thread) | Step 5 review seams | Evidence flush |
 |---|---|---|---|
-| smart | full candidate list re-read into main context | inline allowed | at step transitions |
-| acceptable | full candidate list | dispatch preferred, inline permitted | at step transitions |
-| dumb | summary + packet pointer only (no bulk re-read) | MUST dispatch to fresh subagents | immediate flush of all main-thread evidence to the packet at every step boundary. Each flush is a new `evidence-<n>.md`, never an append to an existing one (packet files are write-once); the flush artifact is the observable |
-| unknown (absent/stale/no-jq) | conservative = dumb row + one-line visible notice: `plugin-quality: no fresh context snapshot — running conservative dispatch` | as dumb | as dumb |
+| light | full candidate list re-read into main context | inline allowed | at step transitions |
+| moderate | full candidate list | dispatch preferred, inline permitted | at step transitions |
+| heavy | summary + packet pointer only (no bulk re-read) | MUST dispatch to fresh subagents | immediate flush of all main-thread evidence to the packet at every step boundary. Each flush is a new `evidence-<n>.md`, never an append to an existing one (packet files are write-once); the flush artifact is the observable |
+| unknown (absent/stale/no-jq) | conservative = heavy row + one-line visible notice: `plugin-quality: no fresh context snapshot — running conservative dispatch` | as heavy | as heavy |
 
 ### Effort, and why the zone outranks it
 
@@ -112,7 +112,7 @@ skill-loaded, so the substitution never ran: treat the run as `high` and run eve
 
 Two dials sit over step 5, and they answer different questions. The **zone decides where a seam
 runs**; effort decides **which seams run at all**. Where they disagree the zone wins, so `low` effort
-never buys an inline review the dumb or unknown row says MUST dispatch, and never trims an evidence
+never buys an inline review the heavy or unknown row says MUST dispatch, and never trims an evidence
 flush. Effort touches step 5, plus how far research on claims and remediations and validation of emitted-finding
 samples go. Steps 1 through 4 are the evidence and contract-lock spine and run in full at every
 level; the category ledger and the standards collector are part of that spine:
@@ -243,7 +243,7 @@ half-citation, not a grounded one.
 
 **Confirm the findings reached disk before presenting anything, once per target packet.** A
 multi-target run confirms every packet. One silently empty packet among several is exactly the loss
-this check exists to catch. The zone table's dumb/unknown row
+this check exists to catch. The zone table's heavy/unknown row
 deliberately hands the user a packet pointer *instead of* the findings, so a packet whose
 grounded-findings file never landed leaves this thread's compactable context as the only surviving
 copy, the exact exposure the packet exists to prevent. Probe the closed set of grounded-findings
@@ -305,7 +305,7 @@ an exit code, a transcript excerpt, saved in the packet and cited by file). A ca
 is `unfiled`: list it with its reason in `contract.md` and in what you present, and never emit it.
 [`reference/session-mode.md`](reference/session-mode.md) "Evidence bar" defines what counts.
 
-Then present per the zone table (dumb/unknown: summary + packet pointer, no bulk re-read, the full
+Then present per the zone table (heavy/unknown: summary + packet pointer, no bulk re-read, the full
 list lives in the packet's grounded-findings file).
 
 ### Step 4. Contract lock (main thread, interactive)

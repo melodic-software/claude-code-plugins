@@ -1,6 +1,6 @@
 # Action: `audit`
 
-Detect stale claims, orphaned recurring entries, and label hygiene issues.
+Detect stale claims, orphaned recurring entries, and label hygiene issues, and close decomposed parents whose children are done.
 
 ## Usage
 
@@ -55,6 +55,10 @@ no marker as unlinked.
 
 Items missing their **type** classification (org repos: no native Issue Type set; personal / non-org repos: no `type:*` label), missing an expected `category:*` label, or carrying conflicting labels (e.g. two `priority:*`) surface via the hygiene projections in the bound adapter's operations reference (GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md` "Aggregate / count (dashboard + hygiene)", bare reads). On org repos the type axis is a native Issue Type, so absence of a `type:*` label is **not** a defect. Read the native type field for the presence check.
 
+### 4. Decomposed parents
+
+List open and closed items with their bodies (adapter: "List items", `body` added to the fields, `--state all`), keep those whose body carries the `<!-- work-items:born-triaged -->` marker and a `## Parent` section reading `Refs #<parent>`, and collect each open parent they name. Run "Decomposed parent close" in [`reference/issue-conventions.md`](../../../reference/issue-conventions.md) for each one; it owns the close or the comment. A child a merged PR closed reaches its parent only through this pass. Present each parent it closed or left open, with the reason.
+
 ## Output
 
 ```markdown
@@ -78,7 +82,13 @@ Items missing their **type** classification (org repos: no native Issue Type set
 ### Label Conflicts
 (none found)
 
-**Summary:** X stale claims reclaimed, Y orphaned entries, Z unlabeled items
+### Decomposed Parents
+| # | Parent | Children | Result |
+|---|--------|----------|--------|
+| 1 | #60 Export refunds | 3 closed | closed (Finish line merged) |
+| 2 | #70 Ward rota | 2 closed | left open (Finish line in use, checked by the ward lead) |
+
+**Summary:** X stale claims reclaimed, Y orphaned entries, Z unlabeled items, P parents closed, Q left open
 ```
 
 ## Notes

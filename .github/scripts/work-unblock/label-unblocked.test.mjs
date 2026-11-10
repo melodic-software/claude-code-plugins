@@ -35,6 +35,7 @@ import {
   refsMergedComment,
   infraComment,
   laneRuns,
+  laneSlots,
   sharedLaneRuns,
   skipText,
   UNPARKED_MARKER,
@@ -870,7 +871,7 @@ test("a pull request in the blocking list is skipped", async () => {
 });
 
 test("an event other than an issue closing changes nothing and fails red", async () => {
-  for (const [event, name] of [[{ action: "reopened" }, "issues"], [{}, "workflow_dispatch"]]) {
+  for (const [event, name] of [[{ action: "reopened" }, "issues"], [{}, "pull_request"], [{}, "repository_dispatch"]]) {
     const { github, calls } = oneDependent();
     assert.equal(await main({ env: envFor(event, { GITHUB_EVENT_NAME: name }), github }), 1, name);
     assert.deepEqual(calls, [], name);
@@ -897,6 +898,8 @@ const sweep = (args, extra = {}) =>
     }),
     // A job's log goes through the same fake as every other read.
     jobLog: args.actions ? (repo, id, options) => args.actions("GET", `/repos/${repo}/actions/jobs/${id}/logs`, undefined, {}, options) : undefined,
+    // A fixed 3 slots, so a SLOTS change in work-resolve-issue.yml does not move these expectations.
+    slots: () => 3,
     ...args,
   });
 
@@ -2402,6 +2405,12 @@ test("a run whose lane token request failed is re-fired an hour after it ended, 
   assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
 });
 
+test("a hand-started run sweeps as the schedule does, reading no event payload", async () => {
+  const { github, actions, calls } = stalledRun();
+  assert.equal(await sweep({ github, actions }, { GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_EVENT_PATH: "/nonexistent/event.json" }), 0);
+  assert.deepEqual(writes(calls), refired(30));
+});
+
 test("a run that did no work waits until an hour after it ended, past any rate-limit reset", async () => {
   const { github, actions, calls } = stalledRun({ ended: "2026-10-16T11:30:00Z" });
   assert.equal(await sweep({ github, actions }), 0);
@@ -3207,6 +3216,260 @@ test("breaker trips past limit-stops-per-issue since a person last added agent-r
   tripped(fresh.calls);
 });
 
+// Owner decision Q109: past limit-stops-per-issue trips, a breaker trip waits
+// a flat limits.stranded-backoff-hours kill-switch after its run ended,
+// never doubled, and no trip count gives the issue up. `trips` earlier breaker
+// records, each with the App's remove and re-add, before the newest add at
+// `lastAdd`.
+const tripHistory = (trips, lastAdd = LABELED_AT) => {
+  const comments = [note()];
+  const events = [added("2026-10-16T05:00:00Z", OWNER)];
+  for (let index = 0; index < trips; index += 1) {
+    const at = `2026-10-16T05:${String(10 + index).padStart(2, "0")}:00Z`;
+    comments.push({ id: 70 + index, body: breakerComment(KEY, { repo: REPO, run: 4000 + index, ended: Date.parse(at) }), user: LANES_BOT, created_at: at });
+    events.push({ event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: at });
+    events.push(added(index === trips - 1 ? lastAdd : `2026-10-16T05:${String(10 + index).padStart(2, "0")}:01Z`));
+  }
+  return { comments, events: trips === 0 ? [added(lastAdd, OWNER)] : events };
+};
+const KILL_SWITCH_HOUR = withLimits({ "stranded-backoff-hours": { "kill-switch": 1 } });
+const ENDED = Date.parse("2026-10-16T10:05:00Z");
+const HOUR_MS = 3_600_000;
+
+test("a breaker trip waits a flat kill-switch hour after its run ended at trip 1, 4, 5 and 7, never doubled and never given up", async () => {
+  // Trip 1 at a post-model mint: limits.reset-clamp-min, one hour.
+  for (const [trip, jobs, logs] of [
+    [1, MINT_REFUSED, MINT_KILLED],
+    [4, BROKER_REFUSED, CHECK_KILLED],
+    [5, BROKER_REFUSED, CHECK_KILLED],
+    [7, BROKER_REFUSED, CHECK_KILLED],
+  ]) {
+    const early = stalledRun({ jobs, logs, ...tripHistory(trip - 1) });
+    assert.equal(await sweep({ github: early.github, actions: early.actions, now: ENDED + HOUR_MS - 1 }, KILL_SWITCH_HOUR), 0);
+    assert.deepEqual(writes(early.calls), [], `trip ${trip} re-fired before its hour`);
+    const due = stalledRun({ jobs, logs, ...tripHistory(trip - 1) });
+    assert.equal(await sweep({ github: due.github, actions: due.actions, now: ENDED + HOUR_MS }, KILL_SWITCH_HOUR), 0);
+    // Exactly the breaker record and the restart: no outcome=failed comment, no confirmed write.
+    tripped(due.calls);
+  }
+});
+
+test("other stranded causes still double with kill-switch at one flat hour", async () => {
+  // A failed mint past limit-stops-per-issue re-fires: 3 hours doubled three times, 24 after 10:05.
+  const early = stalledRun({ jobs: BROKER_REFUSED, logs: {}, ...earlierPumps(3) });
+  assert.equal(await sweep({ github: early.github, actions: early.actions, now: Date.parse("2026-10-17T10:04:59Z") }, KILL_SWITCH_HOUR), 0);
+  assert.deepEqual(writes(early.calls), [], "the failed mint re-fired before its doubled backoff");
+  const due = stalledRun({ jobs: BROKER_REFUSED, logs: {}, ...earlierPumps(3) });
+  assert.equal(await sweep({ github: due.github, actions: due.actions, now: Date.parse("2026-10-17T10:05:00Z") }, KILL_SWITCH_HOUR), 0);
+  assert.deepEqual(writes(due.calls).slice(-restarted(30).length), restarted(30), "the failed mint did not re-fire at its doubled backoff");
+});
+
+// Five breaker-stranded issues: each one's newest add, its run's end five
+// minutes later, and its trips so far. Oldest run end first: #35 07:35, #32
+// 08:05, #34 08:35, #33 09:05, #31 09:35. #36's run failed its mint at 10:05,
+// a cause the queue target does not pace. `unfinished` other issues' lane runs
+// are not yet finished, spread over the statuses the in-flight read lists.
+const BREAKER_ISSUES = [
+  [31, "2026-10-16T09:30:00Z", 0],
+  [32, "2026-10-16T08:00:00Z", 3],
+  [33, "2026-10-16T09:00:00Z", 0],
+  [34, "2026-10-16T08:30:00Z", 6],
+  [35, "2026-10-16T07:30:00Z", 1],
+];
+const afterClear = (unfinished, failOn) => {
+  const end = (at) => new Date(Date.parse(at) + 5 * 60_000).toISOString();
+  const statuses = ["queued", "in_progress", "pending", "waiting"];
+  const others = Array.from({ length: unfinished }, (_, index) => ({
+    ...laneRun({ number: 900 + index, at: "2026-10-16T11:50:00Z", status: statuses[index % statuses.length], conclusion: null }),
+  }));
+  return world({
+    openReady: [...BREAKER_ISSUES.map(([n]) => ready(n)), ready(36)],
+    comments: { ...Object.fromEntries(BREAKER_ISSUES.map(([n, at, trips]) => [n, tripHistory(trips, at).comments])), 36: [note()] },
+    events: { ...Object.fromEntries(BREAKER_ISSUES.map(([n, at, trips]) => [n, tripHistory(trips, at).events])), 36: [added(LABELED_AT, OWNER)] },
+    runs: [
+      ...BREAKER_ISSUES.map(([n, at]) => ({ ...laneRun({ number: n, at: new Date(Date.parse(at) + 3000).toISOString() }), updated_at: end(at) })),
+      { ...laneRun({ number: 36 }), updated_at: "2026-10-16T10:05:00Z" },
+      ...others,
+    ],
+    jobs: { ...Object.fromEntries(BREAKER_ISSUES.map(([n]) => [5000 + n, BROKER_REFUSED])), 5036: MINT_FAILED },
+    logs: CHECK_KILLED,
+    openLanePrs: 10,
+    blobs: BLOBS,
+    failOn,
+  });
+};
+const restarts = (calls) => writes(calls).filter((call) => call.startsWith("RESTART "));
+const clearLimits = (extra = {}) => withLimits({ "stranded-backoff-hours": { "kill-switch": 1 }, "restarts-per-run": 10, ...extra });
+
+test("the issue lane's slot count is the SLOTS work-resolve-issue.yml sets", () => {
+  const path = join(tempDir("work-unblock-slots-"), "work-resolve-issue.yml");
+  writeFileSync(path, "jobs:\n  pick-slot:\n    env:\n      SLOTS: 4\n");
+  assert.equal(laneSlots(path), 4);
+  writeFileSync(path, "jobs:\n  pick-slot:\n    env:\n      SLOT: 4\n");
+  assert.throws(() => laneSlots(path), /sets no SLOTS/);
+  // The repository's own workflow sets a whole number of slots (its value is free to change).
+  assert.ok(Number.isInteger(laneSlots()) && laneSlots() >= 1);
+});
+
+test("after the switch clears, breaker re-fires top the unfinished lane runs up to refire-queue-per-slot x SLOTS, the oldest stranded first", async () => {
+  // Target 2 x 3 = 6; 3 unfinished leaves room for 3: the three oldest run ends.
+  const room = afterClear(3);
+  assert.equal(await sweep({ github: room.github, actions: room.github }, clearLimits()), 0);
+  assert.deepEqual(restarts(room.calls), ["RESTART 35", "RESTART 32", "RESTART 34", "RESTART 36"]);
+  // At or over the target no breaker trip re-fires; the failed mint still does.
+  for (const unfinished of [6, 8]) {
+    const full = afterClear(unfinished);
+    assert.equal(await sweep({ github: full.github, actions: full.github }, clearLimits()), 0);
+    assert.deepEqual(restarts(full.calls), ["RESTART 36"], `${unfinished} unfinished`);
+    assert.ok(!writes(full.calls).some((call) => call.includes("breaker")), `${unfinished} unfinished posted a breaker record`);
+  }
+  // The per-slot leaf sets the target: 1 x 3 with 1 unfinished leaves room for 2.
+  const narrow = afterClear(1);
+  assert.equal(await sweep({ github: narrow.github, actions: narrow.github }, clearLimits({ "refire-queue-per-slot": 1 })), 0);
+  assert.deepEqual(restarts(narrow.calls), ["RESTART 35", "RESTART 32", "RESTART 36"]);
+});
+
+const QUEUE_HOLD = "::notice title=label-unblocked::the kill-switch re-fire queue listing failed";
+
+test("a failed unfinished-run listing re-fires no breaker trip this sweep, with a hold notice; a failed mint still restarts", async (t) => {
+  const fake = afterClear(0, `/repos/${REPO}/actions/workflows/work-resolve-issue.yml/runs?status=`);
+  const { code, lines } = await printedBy(t, () => sweep({ github: fake.github, actions: fake.github }, clearLimits()));
+  assert.equal(code, 0);
+  assert.deepEqual(restarts(fake.calls), ["RESTART 36"]);
+  assert.ok(!writes(fake.calls).some((call) => call.includes("breaker")), "a breaker record was posted");
+  assert.ok(lines.some((line) => line.startsWith(QUEUE_HOLD)), lines.join("\n"));
+});
+
+test("a lane workflow with no SLOTS line re-fires no breaker trip this sweep, with a hold notice; a failed mint still restarts", async (t) => {
+  const path = join(tempDir("work-unblock-slots-"), "work-resolve-issue.yml");
+  writeFileSync(path, "jobs:\n  pick-slot:\n    env:\n      ISSUE_NUMBER: 30\n");
+  const fake = afterClear(0);
+  const { code, lines } = await printedBy(t, () => sweep({ github: fake.github, actions: fake.github, slots: () => laneSlots(path) }, clearLimits()));
+  assert.equal(code, 0);
+  assert.deepEqual(restarts(fake.calls), ["RESTART 36"]);
+  assert.ok(lines.some((line) => line.startsWith(QUEUE_HOLD) && line.includes("sets no SLOTS")), lines.join("\n"));
+});
+
+test("restarts-per-run still caps breaker re-fires under the queue target, the oldest stranded first", async () => {
+  const fake = afterClear(0);
+  assert.equal(await sweep({ github: fake.github, actions: fake.github }, clearLimits({ "restarts-per-run": 2 })), 0);
+  assert.deepEqual(restarts(fake.calls), ["RESTART 35", "RESTART 32"]);
+});
+
+// The admit job's upstream-status stop (check-upstream-status) skipped the run
+// while Actions listed an outage. The admit job is run 42860916094's, during
+// incident hnf21m9jkl3c: `Check upstream status` green after the blocker
+// gate, pick-slot and every later job skipped. No model ran, so once the
+// status pages read clear (degraded=false, reason=ok, the action's outputs)
+// the sweep re-fires it with no wait; until then it waits the hour after the
+// run ended that a blocker-gate skip waits.
+const OUTAGE_SKIPPED = [
+  {
+    name: "admit",
+    conclusion: "success",
+    steps: [
+      { name: "Check the trigger", conclusion: "success" },
+      { name: "Wait for open blockers", conclusion: "success" },
+      { name: "Check upstream status", conclusion: "success" },
+      { name: "Stop on untrusted provenance", conclusion: "skipped" },
+    ],
+  },
+  { name: "pick-slot", conclusion: "skipped", steps: [] },
+  { name: "resolve-issue", conclusion: "skipped", steps: [] },
+];
+// Ten minutes before NOW: inside the hour after it, which is 12:50.
+const JUST_ENDED = "2026-10-16T11:50:00Z";
+const HOUR_AFTER = Date.parse("2026-10-16T12:50:00Z");
+const CLEAR = { degraded: "false", reason: "ok" };
+const statusPages = (answer) => {
+  const reads = [];
+  const upstream = async () => {
+    reads.push(answer);
+    if (answer instanceof Error) throw answer;
+    return answer;
+  };
+  return { reads, upstream };
+};
+
+test("a run the upstream-status stop skipped is re-fired on the next sweep once the status pages read clear, with no hour's wait", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: OUTAGE_SKIPPED, conclusion: "success", ended: JUST_ENDED });
+  const pages = statusPages(CLEAR);
+  assert.equal(await sweep({ github, actions, upstream: pages.upstream }), 0);
+  assert.deepEqual(writes(calls), refired(30));
+  assert.equal(pages.reads.length, 1, "the status pages are read once");
+  assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
+});
+
+test("a run the upstream-status stop skipped waits its hour while the status pages list an outage, read unknown, or cannot be read", async () => {
+  for (const answer of [{ degraded: "true", reason: "Actions partial_outage" }, { degraded: "false", reason: "unknown" }, new Error("fetch failed")]) {
+    const early = stalledRun({ jobs: OUTAGE_SKIPPED, conclusion: "success", ended: JUST_ENDED });
+    assert.equal(await sweep({ github: early.github, actions: early.actions, upstream: statusPages(answer).upstream }), 0);
+    assert.deepEqual(writes(early.calls), [], `re-fired inside the hour on ${answer.message ?? answer.reason}`);
+    const due = stalledRun({ jobs: OUTAGE_SKIPPED, conclusion: "success", ended: JUST_ENDED });
+    assert.equal(await sweep({ github: due.github, actions: due.actions, now: HOUR_AFTER, upstream: statusPages(answer).upstream }), 0);
+    assert.deepEqual(writes(due.calls), refired(30), `not re-fired an hour after the run on ${answer.message ?? answer.reason}`);
+  }
+});
+
+test("a clear status page re-fires no other stop early: a blocker-gate skip and a breaker trip at a mint still wait their hour", async () => {
+  for (const [jobs, logs] of [
+    [BLOCKER_SKIPPED, {}],
+    [MINT_REFUSED, MINT_KILLED],
+  ]) {
+    const { github, actions, calls } = stalledRun({ jobs, logs, conclusion: jobs === BLOCKER_SKIPPED ? "success" : "failure", ended: JUST_ENDED });
+    const pages = statusPages(CLEAR);
+    assert.equal(await sweep({ github, actions, upstream: pages.upstream }, KILL_SWITCH_HOUR), 0);
+    assert.deepEqual(writes(calls), [], jobs === BLOCKER_SKIPPED ? "blocker-gate skip" : "breaker trip");
+    assert.equal(pages.reads.length, 0, "the status pages are read only for an upstream-status skip");
+  }
+});
+
+test("upstream-status re-fires share the kill-switch re-fire room: refire-queue-per-slot x SLOTS less the unfinished runs", async () => {
+  const numbers = [31, 32, 33, 34, 35];
+  const outageWorld = (unfinished) =>
+    world({
+      openReady: numbers.map((n) => ready(n)),
+      comments: Object.fromEntries(numbers.map((n) => [n, [note()]])),
+      events: Object.fromEntries(numbers.map((n) => [n, [added(LABELED_AT, OWNER)]])),
+      runs: [
+        ...numbers.map((n) => ({ ...laneRun({ number: n, conclusion: "success" }), updated_at: JUST_ENDED })),
+        ...Array.from({ length: unfinished }, (_, index) => laneRun({ number: 900 + index, at: "2026-10-16T11:50:00Z", status: "queued", conclusion: null })),
+      ],
+      jobs: Object.fromEntries(numbers.map((n) => [5000 + n, OUTAGE_SKIPPED])),
+      openLanePrs: 10,
+      blobs: BLOBS,
+    });
+  // Target 2 x 3 = 6; 3 unfinished leaves room for 3, lowest number first at one run end.
+  const room = outageWorld(3);
+  assert.equal(await sweep({ github: room.github, actions: room.github, upstream: statusPages(CLEAR).upstream }, clearLimits()), 0);
+  assert.deepEqual(restarts(room.calls), ["RESTART 31", "RESTART 32", "RESTART 33"]);
+  const full = outageWorld(6);
+  assert.equal(await sweep({ github: full.github, actions: full.github, upstream: statusPages(CLEAR).upstream }, clearLimits()), 0);
+  assert.deepEqual(restarts(full.calls), [], "re-fired past the queue target");
+});
+
+test("a wait on an upstream-status skip is not carried to the next sweep; a blocker-gate skip's wait is", async () => {
+  const dir = carryDir();
+  const kept = async (jobs, name) => {
+    // A wait is kept only for an issue whose listing has an updated time.
+    const fake = world({
+      openReady: [{ ...ready(30), updated_at: JUST_ENDED }],
+      comments: { 30: [note()] },
+      events: { 30: [added(LABELED_AT, OWNER)] },
+      runs: [{ ...laneRun({ number: 30, conclusion: "success" }), updated_at: JUST_ENDED }],
+      jobs: { 5030: jobs },
+      openLanePrs: 10,
+      blobs: BLOBS,
+    });
+    const to = join(dir, `${name}.json`);
+    assert.equal(await sweep({ github: fake.github, actions: fake.github, upstream: statusPages({ degraded: "true", reason: "Actions major_outage" }).upstream }, { VERDICTS_OUT: to }), 0);
+    assert.deepEqual(writes(fake.calls), [], name);
+    return JSON.parse(readFileSync(to, "utf8")).decided["30"];
+  };
+  assert.equal((await kept(OUTAGE_SKIPPED, "outage")).wait, undefined);
+  assert.equal((await kept(BLOCKER_SKIPPED, "blocker")).wait.due, HOUR_AFTER);
+});
+
 // The backoff comment is dated by its last edit, which moves it past the
 // re-adds it made earlier; a breaker record before it still claims only its
 // own re-add. Three re-fires of a failed run on these workflow files (06:00,
@@ -3933,7 +4196,7 @@ const picked = ({ mine, untitled }) => ({ mine: mine.map((run) => run.id), untit
 
 test("the shared run listing gives each issue the runs its own window lists, boundary seconds included", async () => {
   const shared = runListing(WINDOW_RUNS);
-  const runsOf = sharedLaneRuns(shared.actions, REPO, Object.values(ADDED));
+  const runsOf = sharedLaneRuns(shared.actions, REPO);
   const got = {};
   for (const [number, addedAt] of Object.entries(ADDED)) {
     got[number] = picked(await runsOf(Number(number), addedAt));
@@ -3950,20 +4213,22 @@ test("the shared run listing gives each issue the runs its own window lists, bou
   for (const [number, addedAt] of Object.entries(ADDED)) {
     assert.deepEqual(picked(await laneRuns(own.actions, REPO, Number(number), addedAt)), got[number], `#${number}`);
   }
-  // One listing of 156 runs (two pages) for #30 and #31, one page for #32,
-  // where each issue on its own took 2, 2 and 1.
+  // One listing of 156 runs (two pages) for #30 and #31, whose labels fall in
+  // the 10:00 hour, and one page for #32's 13:00 hour, where each issue on its
+  // own took 2, 2 and 1.
   assert.equal(shared.calls.length, 3, shared.calls.join("\n"));
   assert.equal(own.calls.length, 5, own.calls.join("\n"));
-  assert.ok(shared.calls[0].includes(`created=${encodeURIComponent("2026-10-16T10:00:00Z..2026-10-16T10:15:00Z")}&per_page=100&page=1`), shared.calls[0]);
+  assert.ok(shared.calls[0].includes(`created=${encodeURIComponent("2026-10-16T10:00:00Z..2026-10-16T11:10:00Z")}&per_page=100&page=1`), shared.calls[0]);
+  assert.ok(shared.calls[2].includes(`created=${encodeURIComponent("2026-10-16T13:00:00Z..2026-10-16T14:10:00Z")}&per_page=100&page=1`), shared.calls[2]);
 });
 
-test("a cluster over the listing's 1,000-run cap lists each of its issues on its own", async () => {
+test("a span over the listing's 1,000-run cap lists each of its issues on its own", async () => {
   const many = Array.from({ length: 1001 }, (_, i) => runAt(10_000 + i, "Fix #999", new Date(T0 + (i % 300) * 1000).toISOString().replace(/\.\d{3}Z$/, "Z")));
   const { actions, calls } = runListing([...WINDOW_RUNS, ...many]);
-  const runsOf = sharedLaneRuns(actions, REPO, [ADDED[30], ADDED[31]]);
+  const runsOf = sharedLaneRuns(actions, REPO);
   assert.deepEqual(picked(await runsOf(31, ADDED[31])), { mine: [5], untitled: 0 });
   const range = (from, to) => `created=${encodeURIComponent(`${from}..${to}`)}`;
-  assert.equal(calls.filter((call) => call.includes(range("2026-10-16T10:00:00Z", "2026-10-16T10:15:00Z"))).length, 1, calls.join("\n"));
+  assert.equal(calls.filter((call) => call.includes(range("2026-10-16T10:00:00Z", "2026-10-16T11:10:00Z"))).length, 1, calls.join("\n"));
   assert.ok(calls.some((call) => call.includes(range("2026-10-16T10:05:00Z", "2026-10-16T10:15:00Z"))), calls.join("\n"));
 });
 
@@ -3977,7 +4242,7 @@ test("a failed shared listing fails the issue that asked and is read again for t
     }
     return listing(method, path);
   };
-  const runsOf = sharedLaneRuns(actions, REPO, [ADDED[30], ADDED[31]]);
+  const runsOf = sharedLaneRuns(actions, REPO);
   await assert.rejects(runsOf(30, ADDED[30]), /status 502/);
   assert.deepEqual(picked(await runsOf(31, ADDED[31])), { mine: [5], untitled: 0 });
 });
@@ -3993,14 +4258,18 @@ test("a sweep lists the lane runs of two failed issues with near labels once, an
   assert.equal(await sweep({ github: fake.github, actions: fake.github }), 0);
   assert.deepEqual(writes(fake.calls), [...refired(30), ...refired(31)]);
   const listings = fake.calls.filter((call) => call.includes("/work-resolve-issue.yml/runs?event=issues"));
-  assert.deepEqual(listings, [`GET /repos/${REPO}/actions/workflows/work-resolve-issue.yml/runs?event=issues&created=${encodeURIComponent("2026-10-16T10:00:00Z..2026-10-16T10:14:00Z")}&per_page=100&page=1`]);
+  assert.deepEqual(listings, [`GET /repos/${REPO}/actions/workflows/work-resolve-issue.yml/runs?event=issues&created=${encodeURIComponent("2026-10-16T10:00:00Z..2026-10-16T11:10:00Z")}&per_page=100&page=1`]);
 });
 
-test("an issue whose window no planned cluster holds is listed on its own", async () => {
-  const { actions, calls } = runListing(WINDOW_RUNS);
-  const runsOf = sharedLaneRuns(actions, REPO, [ADDED[32]]);
-  assert.deepEqual(picked(await runsOf(30, ADDED[30])), { mine: [2, 1], untitled: 1 });
-  assert.ok(calls[0].includes(`created=${encodeURIComponent("2026-10-16T10:00:00Z..2026-10-16T10:10:00Z")}`), calls[0]);
+test("a label in a span's last second has its whole window from that span's one listing", async () => {
+  const late = [runAt(8, "Fix #33", "2026-10-16T10:59:59Z"), runAt(9, "Fix #33", "2026-10-16T11:09:59Z"), runAt(10, "Fix #33", "2026-10-16T11:10:00Z")];
+  const addedAt = Date.parse("2026-10-16T10:59:59Z");
+  const shared = runListing([...WINDOW_RUNS, ...late]);
+  const got = picked(await sharedLaneRuns(shared.actions, REPO)(33, addedAt));
+  // The per-issue listing, the old path, is the expected answer.
+  assert.deepEqual(got, picked(await laneRuns(runListing([...WINDOW_RUNS, ...late]).actions, REPO, 33, addedAt)));
+  assert.deepEqual(got, { mine: [9, 8], untitled: 0 });
+  assert.ok(shared.calls.every((call) => call.includes(`created=${encodeURIComponent("2026-10-16T10:00:00Z..2026-10-16T11:10:00Z")}`)), shared.calls.join("\n"));
 });
 
 // A red-main fix issue post-merge-demotion-alert.yml reopens on a repeat
@@ -6639,4 +6908,248 @@ test("a log that could not be read is not carried, so the next sweep reads it ag
   tripped(calls);
   assert.deepEqual(jobReads(calls), []);
   assert.deepEqual(logReads(calls), [`GET /repos/${REPO}/actions/jobs/${BROKER_CHECK_ID}/logs`]);
+});
+
+// The sweep's one Work status listing (fieldListing): the deferred pass, the
+// readiness pass and the restart pass each ask for their states, and all of
+// them are answered from one listing of every state.
+test("fieldListing lists every state once a sweep and answers each caller's states from it", async () => {
+  const field = { fullDatabaseId: String(STATUS_CONFIG["field-id"]) };
+  const states = { 40: "agent-ready", 41: "deferred", 42: "ready" };
+  let listings = 0;
+  let fail = false;
+  const github = async (method, path, body) => {
+    assert.ok(method === "POST" && path === "/graphql" && /issues\(states: OPEN/.test(body.query), `unexpected ${method} ${path}`);
+    listings += 1;
+    if (fail) {
+      fail = false;
+      throw new Error("POST /graphql failed with status 502");
+    }
+    const nodes = Object.entries(states).map(([number, state]) => ({
+      number: Number(number),
+      createdAt: "2026-10-10T00:00:00Z",
+      labels: { nodes: [] },
+      issueFieldValues: { nodes: [{ name: state, field }] },
+      timelineItems: { nodes: [{ __typename: "IssueFieldChangedEvent", newValue: state, actor: { databaseId: OWNER.id }, issueField: field }] },
+    }));
+    return { data: { repository: { issues: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } } } };
+  };
+  const env = { BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), TRUSTED_ACTORS_PATH: TRUSTED };
+  const byStatus = fieldListing(env, github, REPO);
+  const numbers = (found) => found.map((item) => item.number);
+  assert.deepEqual(numbers(await byStatus(["deferred"])), [41]);
+  assert.deepEqual(numbers(await byStatus()), [40, 41, 42]);
+  assert.deepEqual(numbers(await byStatus(["agent-ready"])), [40]);
+  assert.equal(listings, 1, "three callers, one listing");
+  // A failed shared listing hands each caller its own states' listing.
+  const retried = fieldListing(env, github, REPO);
+  fail = true;
+  assert.deepEqual(numbers(await retried(["deferred"])), [41]);
+  assert.deepEqual(numbers(await retried(["agent-ready"])), [40]);
+  assert.equal(listings, 4, "the failed shared listing, then one per caller");
+});
+
+test("fieldListing: an unreadable Work status on an issue in another state never stops the agent-ready listing", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const field = { fullDatabaseId: String(STATUS_CONFIG["field-id"]) };
+  const other = { fullDatabaseId: "999999" };
+  const statusEvent = (state) => ({ __typename: "IssueFieldChangedEvent", newValue: state, actor: { databaseId: OWNER.id }, issueField: field });
+  // #42 is `ready` with 100 newer events on another field and no Work status
+  // event in view, so its setter cannot be read (resolve-config.mjs:264-265).
+  const timelines = {
+    40: [statusEvent("agent-ready")],
+    41: [statusEvent("deferred")],
+    42: Array.from({ length: 100 }, () => ({ __typename: "IssueFieldChangedEvent", newValue: "x", actor: { databaseId: OWNER.id }, issueField: other })),
+  };
+  const states = { 40: "agent-ready", 41: "deferred", 42: "ready" };
+  const github = async () => ({
+    data: {
+      repository: {
+        issues: {
+          pageInfo: { hasNextPage: false, endCursor: null },
+          nodes: Object.entries(states).map(([number, state]) => ({
+            number: Number(number),
+            createdAt: "2026-10-10T00:00:00Z",
+            labels: { nodes: [] },
+            issueFieldValues: { nodes: [{ name: state, field }] },
+            timelineItems: { nodes: timelines[number] },
+          })),
+        },
+      },
+    },
+  });
+  const env = { BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), TRUSTED_ACTORS_PATH: TRUSTED };
+  const byStatus = fieldListing(env, github, REPO);
+  assert.deepEqual((await byStatus(["agent-ready"])).map((item) => item.number), [40]);
+  assert.deepEqual((await byStatus(["deferred"])).map((item) => item.number), [41]);
+});
+
+// The restart pass's time budget (SWEEP_BUDGET_MINUTES): a sweep decides no
+// further agent-ready issue once the budget has run out, writes what it
+// decided, and the next sweep decides the ones it left first.
+const BUDGET_NUMBERS = [30, 31, 32, 33, 34, 35, 36, 37, 38, 39];
+const limitWorld = (extra = {}) =>
+  world({
+    ...extra,
+    openReady: BUDGET_NUMBERS.map((n) => ready(n)),
+    comments: Object.fromEntries(BUDGET_NUMBERS.map((n) => [n, [note(), limitedNote("2026-10-16T01:30:00Z", "2026-10-16T01:00:00Z")]])),
+    events: Object.fromEntries(BUDGET_NUMBERS.map((n) => [n, [added("2026-10-16T00:00:00Z")]])),
+  });
+// The issues whose comments a sweep read, in order: one read per decision.
+const decided = (calls) =>
+  calls
+    .map((call) => /^GET \/repos\/[^/]+\/[^/]+\/issues\/(\d+)\/comments/.exec(call)?.[1])
+    .filter(Boolean)
+    .map(Number);
+// A clock one minute on for each issue whose decision has started.
+const minutePerDecision = (fake) => {
+  let ticks = 0;
+  const github = async (method, path, ...rest) => {
+    if (method === "GET" && /\/issues\/\d+\/comments/.test(path)) {
+      ticks += 1;
+    }
+    return fake.github(method, path, ...rest);
+  };
+  return { github: Object.assign(github, { writer: fake.writer }), clock: () => NOW + ticks * 60_000 };
+};
+
+test("a sweep with every agent-ready issue visible decides them all inside its budget and re-fires up to its cap", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const fake = limitWorld();
+  assert.equal(await sweep({ github: fake.github }, { ...withLimits({ "restarts-per-run": 4 }), SWEEP_BUDGET_MINUTES: "6" }), 0);
+  assert.deepEqual(decided(fake.calls), BUDGET_NUMBERS);
+  assert.deepEqual(writes(fake.calls), [30, 31, 32, 33].flatMap(restarted));
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.equal(lines.filter((line) => line.includes("restart deferred: 4 restarts this run")).length, 6);
+  assert.ok(!lines.some((line) => line.includes("time budget ran out")), lines.join("\n"));
+});
+
+test("past its budget a sweep decides no further issue, writes the ones it decided, and names how many it left", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const fake = limitWorld();
+  const { github, clock } = minutePerDecision(fake);
+  // Six minutes at a minute a decision: the decisions started at minutes 0 to 5.
+  assert.equal(await sweep({ github, clock }, { ...withLimits({ "restarts-per-run": 10 }), SWEEP_BUDGET_MINUTES: "6" }), 0);
+  assert.deepEqual(decided(fake.calls), [30, 31, 32, 33, 34, 35]);
+  assert.deepEqual(writes(fake.calls), [30, 31, 32, 33, 34, 35].flatMap(restarted));
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.includes("::notice title=label-unblocked::the sweep's time budget ran out: 4 of 10 agent-ready issue(s) left for the next sweep, which decides them first"), lines.join("\n"));
+  // With no budget named, SWEEP_BUDGET_MIN's 6 minutes apply.
+  const unnamed = limitWorld();
+  const ticking = minutePerDecision(unnamed);
+  assert.equal(await sweep({ github: ticking.github, clock: ticking.clock }, withLimits({ "restarts-per-run": 10 })), 0);
+  assert.deepEqual(decided(unnamed.calls), [30, 31, 32, 33, 34, 35]);
+});
+
+test("the next sweep decides the issues the last one's budget left first, so none waits behind the rest", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const dir = tempDir("verdict-carry-budget-");
+  const first = limitWorld();
+  const one = minutePerDecision(first);
+  assert.equal(await sweep({ github: one.github, clock: one.clock }, { SWEEP_BUDGET_MINUTES: "6", VERDICTS_OUT: join(dir, "1.json") }), 0);
+  assert.deepEqual(decided(first.calls), [30, 31, 32, 33, 34, 35]);
+  const second = limitWorld();
+  const two = minutePerDecision(second);
+  assert.equal(await sweep({ github: two.github, clock: two.clock }, { SWEEP_BUDGET_MINUTES: "6", VERDICTS_IN: join(dir, "1.json"), VERDICTS_OUT: join(dir, "2.json") }), 0);
+  // The four never decided first, then the least recently decided, by listing order.
+  assert.deepEqual(decided(second.calls), [36, 37, 38, 39, 30, 31]);
+});
+
+test("a sweep reads each agent-ready issue's field events once, for its holds, its history and its field restarts", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { fieldEvents } = await import("../../actions/resolve-config/resolve-config.mjs");
+  const fake = withFieldHistory(limitWorld({ fieldValues: Object.fromEntries(BUDGET_NUMBERS.map((n) => [n, [workRow("agent-ready")]])) }), Object.fromEntries(BUDGET_NUMBERS.map((n) => [n, [fieldEvent(GRAPH_OWNER, "agent-ready", "ready", "2026-10-16T00:00:00Z")]])));
+  const reads = [];
+  const github = Object.assign(
+    async (method, path, body, ...rest) => {
+      if (method === "POST" && path === "/graphql" && /IssueFieldAddedEvent/.test(body?.query ?? "")) {
+        reads.push(body.variables.number);
+      }
+      return fake.github(method, path, body, ...rest);
+    },
+    { writer: fake.writer },
+  );
+  const statusOf = statusReader({ github, repository: REPO, config: STATUS_CONFIG, trustedActors: JSON.parse(readFileSync(TRUSTED, "utf8")), log: () => {} });
+  const statusField = { field: STATUS_CONFIG["field-id"], fieldRows: (n) => fieldEvents(github, REPO, n) };
+  assert.equal(await sweep({ github, statusOf, statusField }, withLimits({ "restarts-per-run": 10 })), 0);
+  assert.deepEqual(decided(fake.calls), BUDGET_NUMBERS);
+  assert.deepEqual(reads, BUDGET_NUMBERS, "one field-events read per issue");
+});
+
+// A wait carried between sweeps (verdict-carry.mjs `decided` wait): an issue
+// unchanged since a sweep decided it waits until a known time is not read
+// again before that time; a changed or due issue, or new lane workflow files,
+// are read fresh, and a carried wait never restarts or writes anything.
+const UPDATED = "2026-10-16T05:00:00Z";
+// #30 and #31 stopped on the limit at 06:00, resetting at `resets` (13:00, an
+// hour after NOW, by default), both last updated at `updated`.
+const waitWorld = ({ updated = {}, resets = "2026-10-16T13:00:00Z", blobs = BLOBS } = {}) =>
+  world({
+    openReady: [30, 31].map((n) => ({ ...ready(n), updated_at: updated[n] ?? UPDATED })),
+    comments: { 30: [note(), limitedNote(resets, "2026-10-16T06:00:00Z")], 31: [note(), limitedNote(resets, "2026-10-16T06:00:00Z")] },
+    events: { 30: [added("2026-10-16T05:00:00Z")], 31: [added("2026-10-16T05:00:00Z")] },
+    blobs,
+  });
+const issueReads = (calls) => calls.filter((call) => /^GET \/repos\/[^/]+\/[^/]+\/issues\/\d+\/(comments|events|timeline)/.test(call));
+async function waitSweeps(second, { now = NOW, from } = {}) {
+  const dir = tempDir("verdict-carry-wait-");
+  if (from) {
+    writeFileSync(join(dir, "1.json"), JSON.stringify(from));
+  } else {
+    const first = waitWorld();
+    assert.equal(await sweep({ github: first.github }, { VERDICTS_OUT: join(dir, "1.json") }), 0);
+    assert.deepEqual(decided(first.calls), [30, 31]);
+    assert.deepEqual(writes(first.calls), []);
+  }
+  assert.equal(await sweep({ github: second.github, now }, { VERDICTS_IN: join(dir, "1.json"), VERDICTS_OUT: join(dir, "2.json") }), 0);
+  return JSON.parse(readFileSync(join(dir, "2.json"), "utf8"));
+}
+
+test("an issue unchanged since a sweep decided its wait is not read again before the wait ends", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const second = waitWorld();
+  const kept = await waitSweeps(second);
+  assert.deepEqual(issueReads(second.calls), []);
+  assert.deepEqual(writes(second.calls), []);
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.includes("label-unblocked: #30 not restarted: waiting for the limit to reset at 2026-10-16T13:00:00.000Z (carried: unchanged since it was decided)"), lines.join("\n"));
+  assert.ok(lines.includes("::notice title=label-unblocked::0 agent-ready issue(s) to decide, 2 carried waiting from an earlier sweep"), lines.join("\n"));
+  // The wait is kept again for the sweep after.
+  assert.deepEqual(kept.decided[30].wait, { reason: "waiting for the limit to reset at 2026-10-16T13:00:00.000Z", due: Date.parse("2026-10-16T13:00:00Z"), updated: UPDATED, key: KEY });
+});
+
+test("a changed issue, a wait that ended, or new lane workflow files are read and decided fresh", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const changed = waitWorld({ updated: { 30: "2026-10-16T11:00:00Z" } });
+  await waitSweeps(changed);
+  assert.deepEqual(decided(changed.calls), [30], "only the changed issue is read");
+  // At 13:30 the limit has reset: both are read, and restarted.
+  const due = waitWorld();
+  await waitSweeps(due, { now: Date.parse("2026-10-16T13:30:00Z") });
+  assert.deepEqual(decided(due.calls), [30, 31]);
+  assert.deepEqual(writes(due.calls), [30, 31].flatMap(restarted));
+  const deployed = waitWorld({ blobs: { ...BLOBS, ".github/workflows/work-resolve-issue.yml": "3".repeat(40) } });
+  await waitSweeps(deployed);
+  assert.deepEqual(decided(deployed.calls), [30, 31], "a new workflow key reads both");
+});
+
+test("a carried wait only holds: a malformed or overlong one is read fresh, and one that holds an issue due a restart writes nothing", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const at = new Date(NOW - 60_000).toISOString();
+  const wait = { reason: "waiting for the limit to reset at 2026-10-16T13:00:00.000Z", due: Date.parse("2026-10-16T13:00:00Z"), updated: UPDATED, key: KEY };
+  const file = (decided) => ({ code: codeDigest(), jobs: {}, refusals: {}, decided });
+  // An empty reason and a wait past WAIT_MAX_HOURS carry nothing.
+  const forged = waitWorld();
+  await waitSweeps(forged, { from: file({ 30: { at, wait: { ...wait, reason: "" } }, 31: { at, wait: { ...wait, due: NOW + 25 * 3_600_000 } } }) });
+  assert.deepEqual(decided(forged.calls), [30, 31]);
+  // A well-formed wait on issues whose limit already reset holds them this
+  // sweep: neither is read or restarted.
+  const reset = waitWorld({ resets: "2026-10-16T11:00:00Z" });
+  await waitSweeps(reset, { from: file({ 30: { at, wait }, 31: { at, wait } }) });
+  assert.deepEqual(issueReads(reset.calls), []);
+  assert.deepEqual(writes(reset.calls), []);
+  // Without the carry, the same issues restart.
+  const fresh = waitWorld({ resets: "2026-10-16T11:00:00Z" });
+  assert.equal(await sweep({ github: fresh.github }), 0);
+  assert.deepEqual(writes(fresh.calls), [30, 31].flatMap(restarted));
 });

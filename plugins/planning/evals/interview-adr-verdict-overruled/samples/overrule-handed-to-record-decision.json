@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "You overruled the Q3 verdict, so I'm handing it to /architecture:record-decision: failed deliveries are stored in a Postgres table; the Redis stream was the alternative weighed; rationale: one store to back up and query. The rest is confirmed; writing the Brief next.",
+      "why": "hands Q3 to the ADR skill with the decision and its alternative"
+    },
+    {
+      "answer": "The architecture plugin isn't available here, so Q3 (failed deliveries in a Postgres table, chosen over a Redis stream) is recorded as an ADR candidate in its register row. The rest is confirmed.",
+      "why": "records an ADR candidate and says why"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Confirmed. Writing the Brief now.",
+      "why": "ignores the overrule"
+    },
+    {
+      "answer": "Q3 is easy to reverse, so an ADR would add little. Are you sure you want one?",
+      "why": "argues the verdict and asks again"
+    }
+  ]
+}

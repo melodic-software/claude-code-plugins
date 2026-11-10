@@ -29,12 +29,7 @@ def read_usage(session_id: str, session_data_dir: str) -> dict | None:
     """The parser's `plugin_usage` for one session, or None when it has none."""
     try:
         run = subprocess.run(
-            [
-                sys.executable,
-                str(_PARSER),
-                session_id,
-                session_data_dir,
-            ],
+            [sys.executable, str(_PARSER), session_id, session_data_dir],
             capture_output=True,
             encoding="utf-8",
             errors="replace",

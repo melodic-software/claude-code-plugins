@@ -114,11 +114,10 @@ def measure(path: Path, now: datetime) -> dict:
             assistants.append(stamp)
         elif _is_prompt(entry):
             prompts.append(stamp)
-    boundary: datetime | None = None
-    for prompt in sorted(prompts, reverse=True):
-        if any(stamp < prompt for stamp in assistants):
-            boundary = prompt
-            break
+    first_assistant = min(assistants, default=None)
+    boundary = None
+    if first_assistant is not None:
+        boundary = max((p for p in prompts if p > first_assistant), default=None)
     if boundary is not None:
         assistants = [stamp for stamp in assistants if stamp < boundary]
         errors = [stamp for stamp in errors if stamp < boundary]
@@ -128,10 +127,7 @@ def measure(path: Path, now: datetime) -> dict:
         raise ValueError(
             f"transcript {path} has no assistant entry with a usable timestamp"
         )
-    if last_error is not None and last_error >= last_assistant:
-        stop_at = last_error
-    else:
-        stop_at = last_assistant
+    stop_at = last_error if last_error is not None and last_error >= last_assistant else last_assistant
     seconds = max(0, int((now - stop_at).total_seconds()))
     return {
         "last_assistant": last_assistant.isoformat(),

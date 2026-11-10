@@ -78,7 +78,7 @@ the web container
 | What does the resolver return? | `bash scripts/context-zone.sh <session_id>` | `unknown` |
 | Does a **configured** `statusLine` run in a cloud session? | wrote a `statusLine` into the live session's `~/.claude/settings.json` with `refreshInterval: 2`, pointing at a probe that appends its stdin to a log *before* handing it to the tee, then exercised the session for ~7 minutes and restored the file | **the probe was never invoked once**: no log entry, no `<session_id>.json`. The probe itself was verified working by feeding it a payload by hand (it logged, teed a snapshot, and printed a statusline row) |
 | Does a **configured** `statusLine` run in a headless session? | the identical `statusLine` in a scratch `HOME`, exercised with `claude -p '…' --output-format json` | **same**: the probe was never invoked, and `~/.claude/context-guard/` was never created under that `HOME` |
-| Does the resolver accept an occupancy-only snapshot with no window size? | synthetic snapshots under a scratch `HOME` | **no.** With `cli_version`, `current_usage` and both token totals present but `context_window_size` absent and `used_percentage` null → `unknown`; adding a `context_window_size` to the otherwise identical file → `acceptable`. A snapshot with no `current_usage` is rejected by the trust gate outright, whatever else it carries |
+| Does the resolver accept an occupancy-only snapshot with no window size? | synthetic snapshots under a scratch `HOME` | **no.** With `cli_version`, `current_usage` and both token totals present but `context_window_size` absent and `used_percentage` null → `unknown`; adding a `context_window_size` to the otherwise identical file → `moderate`. A snapshot with no `current_usage` is rejected by the trust gate outright, whatever else it carries |
 
 `~/.claude/context-guard/` *does* exist in a cloud container, but only because a hook created it.
 The **snapshot** the reader needs is absent, and the resolver prints `unknown`.
@@ -86,7 +86,7 @@ The **snapshot** the reader needs is absent, and the resolver prints `unknown`.
 **The reader side is healthy; only the writer channel is missing.** In the same container, the
 resolver was fed one synthetic statusline payload under a scratch `HOME`: 120000 input + 3000
 output tokens in a 200000 window, `used_percentage` 60. It produced a snapshot and resolved
-`acceptable`, while the real session id resolved `unknown` moments earlier. Nothing about
+`moderate`, while the real session id resolved `unknown` moments earlier. Nothing about
 `context-zone.sh`, the tee, `jq`, or the contract path was broken there. There was simply
 nothing calling the tee, because nothing calls a statusline.
 
@@ -160,7 +160,7 @@ resolver needs one or the other: the percentage shape reads `used_percentage`, a
 selects a band row by window class from `context_window_size`. Measured under a scratch `HOME`: a
 snapshot carrying `cli_version`, a mapped `current_usage`, both token totals, a null
 `used_percentage` and **no** `context_window_size` resolves `unknown`; adding a
-`context_window_size` to the otherwise identical file resolves `acceptable`. A writer built on this
+`context_window_size` to the otherwise identical file resolves `moderate`. A writer built on this
 event would have to invent that number from a hard-coded per-model window map, which is exactly the
 fabricated denominator this contract forbids, and it would go wrong silently the first time a
 model shipped with a different window.

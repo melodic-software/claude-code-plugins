@@ -1,0 +1,79 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --format=%h -- docs/adr/0002-serve-the-public-api-over-graphql.md | head -5",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain | head -10",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls docs/adr",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git rm docs/adr/0002-serve-the-public-api-over-graphql.md",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "rm docs/adr/0002-serve-the-public-api-over-graphql.md",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git mv docs/adr/0002-serve-the-public-api-over-graphql.md docs/adr/archive/",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/accepted/superseded/' docs/adr/0002-serve-the-public-api-over-graphql.md",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}

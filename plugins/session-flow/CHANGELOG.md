@@ -1,5 +1,43 @@
 # Changelog: session-flow plugin
 
+## [7.6.9] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [7.6.8] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [7.6.7] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [7.6.6] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [7.6.5] - 2026-11-10
+
+### Changed
+
+- Skill bodies point at the live Claude Code docs sections for upstream behavior they used to
+  restate (print-mode permission prompts, nested-session listing, built-in command records, where
+  a plugin variable expands, bare-mode credentials, subagent model resolution and nesting caps),
+  and fix five internal inconsistencies: the handoff shape `continue-in-background` validates, the
+  shapes that store a resume prompt in `find-handoff`, the "Suggested skills" section reference in
+  `recommend-skills`, the workflow router's invocability wording, and the stage-skip rule's scope
+  in the workflow checklist. No behavior change.
+
 ## [7.6.4] - 2026-11-10
 
 ### Changed

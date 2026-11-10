@@ -1837,6 +1837,41 @@ test("work-resolve-issue.yml: apply-issue-patch commits the written patch from t
   assert.equal(checks("", "true", ""), false);
 });
 
+test("the write runner keeps a lane-hold marker only for a held script activity of a hold-marker caller, with fixed text", () => {
+  const { jobs } = workflow("pr-run-activity-write.yml");
+  const uploads = jobs.run.steps.filter((s) => String(s.uses ?? "").startsWith("actions/upload-artifact@"));
+  const markers = uploads.filter((s) => s.with?.name === "lane-hold-${{ inputs.lane }}");
+  assert.equal(markers.length, 1, "one lane-hold marker upload, told by its artifact name");
+  const [marker] = markers;
+  assert.equal(marker.if, "steps.hold-marker.outputs.held == 'true'");
+  assert.deepEqual([marker.with.path, marker.with["retention-days"], marker.with["if-no-files-found"]], ["${{ runner.temp }}/lane-hold/${{ inputs.lane }}", 1, "ignore"]);
+  const mark = jobs.run.steps.find((s) => s.id === "hold-marker");
+  assert.ok(jobs.run.steps.indexOf(mark) === jobs.run.steps.indexOf(marker) - 1, "the marker is rewritten right before it uploads");
+  const context = (holdMarker, kind) => ({ "inputs.hold-marker": holdMarker, "steps.config.outputs.kind": kind, "steps.act-script.outcome": kind === "script" ? "success" : "skipped" });
+  assert.equal(evaluate(mark.if, context(true, "script")), true);
+  assert.equal(evaluate(mark.if, context(true, "skill")), false, "a skill activity never marks a hold");
+  assert.equal(evaluate(mark.if, context(false, "script")), false, "a caller without hold-marker never marks one");
+  const temp = tempDir("write-marker-");
+  try {
+    const step = (lane) => {
+      const out = join(temp, "output");
+      writeFileSync(out, "");
+      const result = spawnSync("bash", ["-eo", "pipefail", "-c", mark.run], { env: { PATH: process.env.PATH, RUNNER_TEMP: temp, GITHUB_RUN_ID: "9", GITHUB_OUTPUT: out, LANE: lane }, encoding: "utf8" });
+      assert.equal(result.status, 0, result.stderr);
+      return readFileSync(out, "utf8");
+    };
+    mkdirSync(join(temp, "lane-hold"));
+    writeFileSync(join(temp, "lane-hold", "work-resolve-issue"), "planted text");
+    assert.equal(step("work-resolve-issue"), "held=true\n");
+    assert.equal(readFileSync(join(temp, "lane-hold", "work-resolve-issue"), "utf8"), "work-resolve-issue 9\n", "the upload holds only the fixed text");
+    rmSync(join(temp, "lane-hold"), { recursive: true, force: true });
+    assert.equal(step("work-resolve-issue"), "held=false\n", "no flag, no marker");
+    assert.equal(step("../x"), "", "a lane that is no plain slug marks nothing");
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
 test("no job using pr-run-activity-write.yml runs the resolve-issue model step, and the write runner refuses an issue skill", () => {
   const dir = new URL("../../workflows/", import.meta.url);
   for (const name of readdirSync(dir).filter((file) => /\.ya?ml$/.test(file))) {
@@ -3396,7 +3431,6 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
     "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot and failing lanes App PRs",
     "pr-unblock.yml resolve-conflicts-select: Check the human-gated hold",
     "pr-unblock.yml sync-shared-copies-select: Check the human-gated hold",
-    "pr-verify-capture.yml capture-subscription: Resolve the pull request",
     "pr-verify-capture.yml capture: Resolve the pull request",
     "pr-verify.yml check-intent-fallback: Resolve the pull request",
     "pr-verify.yml check-intent-subscription: Resolve the pull request",
@@ -7350,7 +7384,10 @@ function assertHandoffEvidenceJob(job) {
   const read = job.steps.find((step) => step.id === "posted");
   assert.equal(read.uses, undefined);
   assert.match(read.run, /^bash \.base\/\.github\/scripts\/lib\/handoff-evidence\.sh( posted| allowed| handed-off)+$/);
-  assert.deepEqual(Object.keys(read.env).sort(), ["CALLS", "GH_TOKEN"]);
+  // A hold lane's read also names its lane-hold marker path (lane-hold-marker.mjs).
+  const { LANE_HOLD_MARKER: marker, ...env } = read.env;
+  assert.deepEqual(Object.keys(env).sort(), ["CALLS", "GH_TOKEN"]);
+  if (marker !== undefined) assert.match(marker, /^\$\{\{ runner\.temp \}\}\/lane-hold\/[a-z]+(?:-[a-z]+)*$/);
   assertFallbackPresence(job);
 }
 
@@ -9178,6 +9215,34 @@ test("work-unblock.yml: a finished work-resolve-issue run in this repository swe
   assert.equal(resolves("issues", ""), false);
   assert.equal(resolves("issues", "true"), true);
   assert.equal(resolves("workflow_run", "", "false"), false, "the kill switch stops it");
+});
+
+// A hand-started run sweeps as the schedule does: from main only, with no
+// closer check, and sync-status never runs on it.
+test("work-unblock.yml: a hand-started run on main sweeps as the schedule does, and starts no sync-status", () => {
+  const doc = workflow("work-unblock.yml");
+  assert.ok("workflow_dispatch" in doc.on);
+  const job = doc.jobs["label-unblocked"];
+  const runs = (event, ref = "refs/heads/main") =>
+    evaluate(job.if, {
+      "github.event_name": event,
+      "github.ref": ref,
+      "github.repository": "melodic-software/claude-code-plugins",
+      "github.event.action": null,
+      "github.event.sender.type": "User",
+      "github.event.workflow_run.head_repository.full_name": null,
+      "github.event.workflow_run.conclusion": null,
+    });
+  assert.equal(runs("workflow_dispatch"), true);
+  assert.equal(runs("schedule"), true);
+  assert.equal(runs("workflow_dispatch", "refs/heads/feature"), false, "a hand-started run off main");
+  assert.equal(runs("schedule", "refs/heads/feature"), false);
+  const step = (id) => job.steps.find((s) => s.id === id);
+  const context = (event) => ({ "steps.kill.outputs.proceed": "true", "steps.who.outputs.proceed": "", "github.event_name": event });
+  assert.equal(evaluate(step("config").if, context("workflow_dispatch")), true, "a hand-started sweep has no closer to check");
+  assert.equal(evaluate(step("who").if, context("workflow_dispatch")), false);
+  assert.equal(evaluate(step("config").if, { ...context("workflow_dispatch"), "steps.kill.outputs.proceed": "false" }), false, "the kill switch stops it");
+  assert.equal(evaluate(doc.jobs["sync-status"].if, { "github.event_name": "workflow_dispatch", "github.event.action": null, "github.event.sender.type": "User", "github.event.issue.pull_request": null }), false);
 });
 
 // sync-status writes a person's status-label edit into the Work status field

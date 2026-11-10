@@ -75,8 +75,7 @@ while :; do
       printf 'list-sub-items.sh: could not normalize a child of %s\n' "$PARENT_ID" >&2
       exit "$EX_INTERNAL"
     }
-    KEEP="$(jq -r --arg s "$STATE" 'if $s == "all" or .state == $s then "yes" else "no" end' <<<"$ONE")"
-    [[ "$KEEP" == "yes" ]] || continue
+    [[ "$STATE" == all || "$(jq -r '.state' <<<"$ONE")" == "$STATE" ]] || continue
     # Every child carries the container as parent_id. The normalizer already derives it
     # from the child's own `parent`, but it is forced here so a child whose selection
     # omitted the parent cannot emit a null and break sub-map traversal.

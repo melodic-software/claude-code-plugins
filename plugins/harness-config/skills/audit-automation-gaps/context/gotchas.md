@@ -48,8 +48,9 @@ PASS, or an affirmative claim that the concern is frequent, has to pay for a sam
 ## `PostToolUse` cannot block, so no `PostToolUse` candidate is a gate
 
 A candidate phrased as "a `PostToolUse` hook that rejects the edit when the formatter finds a
-problem" cannot exist. The tool has already run by the time the event fires, and exit code 2 there
-shows the hook's stderr to Claude rather than preventing anything. Such a candidate is not a REJECT
+problem" cannot exist: the tool has already run by the time the event fires, so the hook has
+nothing left to prevent (the event's exit-code row is read live, per the record below). Such a
+candidate is not a REJECT
 at **Too slow** or **Already enforced**; it is malformed. A report-only check is never re-stated
 as an advisory per-edit hook: flag it with its check-placement home (a git `pre-commit` hook on
 changed lines, `pre-push` when its measured run is over the commit budget but within 60 s, CI
@@ -57,16 +58,17 @@ beyond), the same placement the shift-left carve-out's second conjunct requires.
 
 ## An `exit 2` gate on `PermissionRequest` is silently inert
 
-The same shape one rung worse, because it fails without any signal. `PermissionRequest` does not
-honor exit code 2 at all: the permission flow proceeds unchanged and denial goes through a JSON
-`decision` object instead. A hook written as `exit 2` there is no gate at all; it reports nothing,
+The same shape one rung worse, because it fails without any signal. A `PermissionRequest` hook
+denies through its decision control, read live per the record below, not through an exit code. A
+hook written as `exit 2` there is no gate at all; it reports nothing,
 and the repository keeps a row in its enforcement inventory for a mechanism that never fires. Any candidate whose mechanism is a per-event exit code gets its event's
 exit-code semantics confirmed against the hooks reference in the Phase 2.2 mandatory batch, before
 the verdict, not after.
 
 ## The candidate generator reaches a handful of the documented events
 
-The hooks documentation names 33 events. This skill's own candidate guidance names three of them:
+The hooks documentation names many events (count them live, per the record below). This skill's
+own candidate guidance names four of them:
 `context/gap-analysis.md` asks about formatters and report-only checks on `PostToolBatch`,
 `PostToolUse` and git hooks, and `context/hook-timing.md` prices `PreToolUse`, `PostToolUse`,
 `PostToolBatch` and `PermissionRequest`. Everything else, session lifecycle,
@@ -78,13 +80,13 @@ examined.
 
 ## Upstream records
 
-Each row restates a volatile upstream specific, so it carries the four parts the upstream-drift
-convention requires. Re-fetch the basis before acting on any row; the date is a ceiling on how
-current the claim is, not authority.
+Each row states our decision and points at the section that holds the specific, per the
+upstream-drift convention. Re-fetch the pointer before acting on any row; the date is not
+authority.
 
-| Claim | Basis | As of | Recheck trigger |
+| Decision | Pointer | As of | Recheck trigger |
 |---|---|---|---|
-| `PostToolUse` cannot block: the tool has already run, and exit code 2 only shows the hook's stderr to Claude | [Claude Code hooks reference](https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event), exit-code-2 behavior per event | 2026-11-04 | A re-fetch finds the per-event exit-code table no longer matching this row |
-| `PermissionRequest` does not honor exit code 2: "the permission flow proceeds unchanged. Deny through the `decision` object instead" | [Claude Code hooks reference](https://code.claude.com/docs/en/hooks), `PermissionRequest` exit-code behavior | 2026-09-13 | A re-fetch finds `PermissionRequest` honoring exit code 2, or the `decision` object renamed or removed |
-| The hooks reference documents 33 hook events | [Claude Code hooks reference](https://code.claude.com/docs/en/hooks), the hook-events section headings, counted 2026-09-13 | 2026-09-13 | A re-fetch returns a different number of documented events |
+| No `PostToolUse` candidate is treated as a gate | When judging whether a hook can block, fetch the event's row of [hooks: exit code 2 behavior per event](https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event) live | 2026-11-10 | That event's row changes its `Can block?` cell |
+| An `exit 2` gate on `PermissionRequest` is reported as no gate | When judging a `PermissionRequest` hook, fetch [hooks: PermissionRequest decision control](https://code.claude.com/docs/en/hooks#permissionrequest-decision-control) live | 2026-11-10 | That section changes how the event honors exit codes or names its deny field |
+| A run that reports no hook gaps names the events it examined, against the full documented list | When counting the documented events, read the headings under [hooks: hook events](https://code.claude.com/docs/en/hooks#hook-events) live | 2026-11-10 | That section adds or removes an event |
 | We leave hook enumeration to the native `/hooks` menu, which lists the resolved set with each hook's source; when you need its exact contents, read the section live | [The /hooks menu](https://code.claude.com/docs/en/hooks#the-/hooks-menu) | 2026-10-11 | That section stops showing each hook's source, or the menu stops listing the resolved set of configured hooks |

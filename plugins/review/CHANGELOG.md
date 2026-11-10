@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.4.0] - 2026-11-10
+
+### Changed
+
+- The code-reviewer agent's glossary check also flags a verb an entity's `Actions:` line rejects, when the change uses it for that operation on that entity.
+
 ## [8.3.5] - 2026-11-10
 
 ### Fixed

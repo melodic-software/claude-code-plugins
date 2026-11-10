@@ -248,18 +248,11 @@ guard_invoke() {
   local _gi_errf="${TEST_TMPDIR:?guard_invoke needs TEST_TMPDIR}/guard-invoke.err"
   GUARD_RC=0
   GUARD_ERR=""
+  # `cd .` stands in for no --chdir: the substitution's subshell is already there.
   if ((_gi_merge)); then
-    if [[ -n "$_gi_chdir" ]]; then
-      GUARD_OUT=$(cd "$_gi_chdir" && "${_gi_argv[@]}" <<<"$_gi_payload" 2>&1) || GUARD_RC=$?
-    else
-      GUARD_OUT=$("${_gi_argv[@]}" <<<"$_gi_payload" 2>&1) || GUARD_RC=$?
-    fi
+    GUARD_OUT=$(cd "${_gi_chdir:-.}" && "${_gi_argv[@]}" <<<"$_gi_payload" 2>&1) || GUARD_RC=$?
   else
-    if [[ -n "$_gi_chdir" ]]; then
-      GUARD_OUT=$(cd "$_gi_chdir" && "${_gi_argv[@]}" <<<"$_gi_payload" 2>"$_gi_errf") || GUARD_RC=$?
-    else
-      GUARD_OUT=$("${_gi_argv[@]}" <<<"$_gi_payload" 2>"$_gi_errf") || GUARD_RC=$?
-    fi
+    GUARD_OUT=$(cd "${_gi_chdir:-.}" && "${_gi_argv[@]}" <<<"$_gi_payload" 2>"$_gi_errf") || GUARD_RC=$?
     GUARD_ERR=$(<"$_gi_errf")
   fi
   return "$GUARD_RC"
@@ -362,10 +355,7 @@ make_sink() {
   local s
   # shellcheck disable=SC2154  # TEST_TMPDIR is a caller contract (set by each test file)
   s="$(mktemp "$TEST_TMPDIR/sink.XXXXXX")"
-  {
-    printf '#!/usr/bin/env bash\n'
-    printf '%s\n' "$1"
-  } >"$s"
+  printf '#!/usr/bin/env bash\n%s\n' "$1" >"$s"
   chmod +x "$s"
   printf '%s' "$s"
 }

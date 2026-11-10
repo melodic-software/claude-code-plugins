@@ -135,12 +135,8 @@ can see which element each action targets.
 
 ## Frame size (two levers, not one)
 
-**A bare `video-start <name>.webm` does not record at your viewport size.** Upstream's default is
-"the size of the recorded video will fit 800x800" (`playwright-cli video-start --help`), so the CLI's
-default 1280×720 viewport records as **800×450**. Playwright's own docs say the same thing and give
-the same fallback number ([recordVideo.size](https://playwright.dev/docs/api/class-browser#browser-new-context),
-[Videos](https://playwright.dev/docs/videos): *"You may need to set the viewport size to match your
-desired video size."*).
+**A bare `video-start <name>.webm` does not record at your viewport size.** It fits the frame to
+a default size (read it in the pointer above); the measured outcomes are below.
 
 Two independent levers control the result. A full-resolution recording needs **both**, matched:
 
@@ -158,8 +154,7 @@ line before the `open`, then clear it afterwards if later sessions should use th
 
 Measured outcomes. Claim: the sizes below are what each combination actually produces.
 Basis: ffprobe on the resulting `.webm` for each row. As of 2026-07-26, on
-`@playwright/cli` 0.1.14; on 0.1.23 (2026-11-03) only the first row was re-measured, again 800×450,
-and `video-start --help` still states the 800×800 fit default.
+`@playwright/cli` 0.1.14; on 0.1.23 (2026-11-03) only the first row was re-measured, again 800×450.
 Recheck when the frontmatter `upstream-version` moves, or when a
 recording comes back at a size this table does not predict.
 

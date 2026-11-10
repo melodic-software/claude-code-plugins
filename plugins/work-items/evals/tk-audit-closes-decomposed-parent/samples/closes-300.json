@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Finish line reads merged and #301 to #303 are closed as completed, so I close #300 as completed with a comment listing PRs #311, #312 and #313.",
+      "why": "close before the number"
+    },
+    {
+      "answer": "| 1 | #300 Export refunds for reconciliation | 3 closed | closed as completed (Finish line merged) |",
+      "why": "audit table row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#300 stays open until a person confirms it.",
+      "why": "parent left open"
+    },
+    {
+      "answer": "#300: children #301, #302 and #303 closed as completed; parent left open.",
+      "why": "children closed, parent open"
+    },
+    {
+      "answer": "",
+      "why": "empty run"
+    }
+  ]
+}

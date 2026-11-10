@@ -374,8 +374,8 @@ and we do not rely on a token being substituted on that route.
   verification contract (what a tag asserts and what evidence each tag class needs) is owned by
   the profile. See the active profile's filter section. An inferred tag that skips the
   profile's evidence rule is exactly how stale guidance enters a corpus.
-- **Know where each agent's effort comes from.** Per-task effort goes through Workflow's per-call
-  effort option or, where Workflow is unavailable, the Agent tool's per-call `effort`. Check the route live before relying on a "high effort"
+- **Know where each agent's effort comes from.** Per-task effort is set on each dispatch call.
+  Check the route live before relying on a "high effort"
   verification claim, and record the effective effort and its source in verification records.
   An arm that cannot report its own effort (a Codex verifier B is the case) is recorded as
   `requested <level>, unconfirmed`, never as the requested level; confirmed effort comes only

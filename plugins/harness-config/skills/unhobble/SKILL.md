@@ -257,8 +257,7 @@ Apply the confirmed strip plan:
   `AGENTS.md`. **What candidacy is conditional on is whether the strip could make the
   file live at all.** Removing the `CLAUDE.md` names is what makes a session read an `AGENTS.md`,
   but only in a session where `AGENTS.md` support is available and the instruction-files mode reads
-  one: where availability is known unavailable, or the mode is `claude-md` or `managed-only`, the
-  file stays unread after the strip, so stripping it changes nothing about the baseline being
+  one: where either condition is known to rule that out, the file stays unread after the strip, so stripping it changes nothing about the baseline being
   measured and only perturbs the other tools that read it. Leave it out of the candidate set only
   when a condition is known to rule it out **and** no `CLAUDE.md` imports or symlinks it; a merely
   unresolved condition keeps it, and so does a shim or import, since that import is itself a live

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Wrote docs/adr/0003-serve-the-public-api-over-rest.md; it reverses ADR 0002."
+    },
+    {
+      "answer": "The new record names ADR-2 (Serve the public API over GraphQL) under Considered options."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Wrote docs/adr/0003-serve-the-public-api-over-rest.md."
+    },
+    {
+      "answer": "Recorded the REST decision."
+    }
+  ]
+}

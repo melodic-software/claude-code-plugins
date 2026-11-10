@@ -129,18 +129,23 @@ import tempfile
 import time
 from pathlib import Path
 
-_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+_PLUGIN_ROOT = Path(__file__).resolve().parents[3]
+_LIB_DIR = _PLUGIN_ROOT / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 import guard_decision_log  # noqa: E402  (path set above; bounded local record)
 import hook_telemetry  # noqa: E402  (path set above; stdlib-only telemetry emitter)
 
-_FAILURE_NEEDLE = b"hook_non_blocking_error"
+_FAILURE_TYPE = "hook_non_blocking_error"
+_FAILURE_NEEDLE = _FAILURE_TYPE.encode()
 _CURSOR_PATTERN = re.compile(r"b([1-9][0-9]{0,14})")
 
-_GUARD_COMMAND_SUBSTRING = "destructive_guard.py"
-_GUARD_DISPLAY_NAME = "destructive_guard.py"
+_GUARD_SCRIPT = "destructive_guard.py"
+_CHECKER_HINT = (
+    f'diagnose with: node "{_PLUGIN_ROOT.as_posix()}/lib/prerequisites.mjs" check '
+    f'"{_PLUGIN_ROOT.as_posix()}"'
+)
 
 _DATA_ROOT_FLAG = "--data-root"
 _CLAUDE_PLUGIN_DATA_ENV = "CLAUDE_PLUGIN_DATA"
@@ -341,21 +346,16 @@ def _iter_guard_failures(data: bytes):
         line = raw.decode("utf-8", errors="replace").strip()
         try:
             record = json.loads(line)
-        except (json.JSONDecodeError, ValueError):
+        except ValueError:
             continue
-        if not isinstance(record, dict):
-            continue
-        if record.get("type") != "attachment":
+        if not isinstance(record, dict) or record.get("type") != "attachment":
             continue
         attachment = record.get("attachment")
-        if not isinstance(attachment, dict):
-            continue
-        if attachment.get("type") != "hook_non_blocking_error":
+        if not isinstance(attachment, dict) or attachment.get("type") != _FAILURE_TYPE:
             continue
         command = attachment.get("command")
-        if not isinstance(command, str) or _GUARD_COMMAND_SUBSTRING not in command:
-            continue
-        yield attachment
+        if isinstance(command, str) and _GUARD_SCRIPT in command:
+            yield attachment
 
 
 def _format_stderr(stderr: object) -> str:
@@ -367,38 +367,27 @@ def _format_stderr(stderr: object) -> str:
     return text
 
 
-_PLUGIN_ROOT_TEXT = Path(__file__).resolve().parents[3].as_posix()
-_CHECKER_HINT = (
-    f'diagnose with: node "{_PLUGIN_ROOT_TEXT}/lib/prerequisites.mjs" check '
-    f'"{_PLUGIN_ROOT_TEXT}"'
-)
-
-
-def _build_message(failures: list[dict]) -> str:
-    count = len(failures)
-    # Records are scanned in file order (chronological); the last match is
-    # the most recent failure.
-    latest = failures[-1]
-    exit_code = latest.get("exitCode")
-    duration_ms = latest.get("durationMs")
-    stderr_text = _format_stderr(latest.get("stderr"))
+def _build_message(audit_fields: dict) -> str:
+    count = audit_fields["failure_count"]
     plural = "s" if count != 1 else ""
     return (
-        f"disk-hygiene: {_GUARD_DISPLAY_NAME} failed to run or exited "
+        f"disk-hygiene: {_GUARD_SCRIPT} failed to run or exited "
         f"non-zero {count} time{plural} this session, so those calls may have "
-        f"run unchecked. Latest: exitCode: {exit_code}, durationMs: "
-        f"{duration_ms}, stderr: {stderr_text} {_CHECKER_HINT}"
+        f"run unchecked. Latest: exitCode: {audit_fields['exit_code']}, durationMs: "
+        f"{audit_fields['duration_ms']}, stderr: {audit_fields['stderr']} {_CHECKER_HINT}"
     )
 
 
 def _audit_fields(failures: list[dict], session_id: str) -> dict:
-    """Structured detail for the local decision record.
+    """Structured detail for the local decision record and the warning text.
 
     Deliberately separate from ``telemetry_data``: the telemetry envelope's
     contents are a published contract for a configured sink, and the local
     record is a different consumer with a different need (enough to explain one
     failure without the session's transcript), so neither shapes the other.
     """
+    # Records are scanned in file order (chronological); the last match is
+    # the most recent failure.
     latest = failures[-1]
     return {
         "failure_count": len(failures),
@@ -442,17 +431,15 @@ def _run(
     it must not be written until the warning has actually left the process.
     """
     transcript_path = hook_input.get("transcript_path")
-    session_id = hook_input.get("session_id") or "unknown-session"
-    launches = _read_launches(data_root, str(session_id))
-    marker_paths = _marker_path_candidates(data_root, str(session_id))
+    session_id = str(hook_input.get("session_id") or "unknown-session")
+    launches = _read_launches(data_root, session_id)
+    marker_paths = _marker_path_candidates(data_root, session_id)
     if _already_warned(marker_paths):
         _record_seen(launches)
         return None, None, None, {}, {}
-    if not transcript_path or not isinstance(transcript_path, str):
+    if not isinstance(transcript_path, str) or not os.path.isfile(transcript_path):
         return None, None, None, {}, {}
-    if not os.path.isfile(transcript_path):
-        return None, None, None, {}, {}
-    cursor_paths = _marker_path_candidates(data_root, str(session_id), ".cursor")
+    cursor_paths = _marker_path_candidates(data_root, session_id, ".cursor")
     data, resume_at = _read_new(
         transcript_path, _read_cursor(cursor_paths, transcript_path)
     )
@@ -462,12 +449,13 @@ def _run(
         if not data or data.endswith(b"\n"):
             _record_seen(launches)
         return None, None, "ok", {}, {}
+    audit_fields = _audit_fields(failures, session_id)
     return (
-        _build_message(failures),
+        _build_message(audit_fields),
         marker_paths,
         "error",
         {"failure_count": len(failures)},
-        _audit_fields(failures, str(session_id)),
+        audit_fields,
     )
 
 
