@@ -70,6 +70,18 @@ read_lines_into() {
   exec 3<&-
 }
 
+# add_scope <rung> <roots-array-name> <repos-array-name>: append both to the scope, tagged <rung>.
+add_scope() {
+  local -n add_roots="$2" add_repos="$3"
+  local path
+  for path in ${add_roots[@]+"${add_roots[@]}"}; do ROOTS+=("$path"); ROOT_RUNG["$path"]="$1"; done
+  for path in ${add_repos[@]+"${add_repos[@]}"}; do REPOS+=("$path"); REPO_RUNG["$path"]="$1"; done
+}
+
+scope_empty() {
+  [[ ${#REPOS[@]} -eq 0 && ${#ROOTS[@]} -eq 0 && "$REPOS_FROM_GIVEN" -eq 0 ]]
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --repo)
@@ -167,19 +179,16 @@ elif [[ -z "$CONFIG" && -f "${HOME:-}/.claude/repo-fleet-hygiene.conf" ]]; then
   CONFIG="${HOME}/.claude/repo-fleet-hygiene.conf"
 fi
 if [[ -n "$CONFIG" ]]; then
-  if [[ ${#REPOS[@]} -eq 0 && ${#ROOTS[@]} -eq 0 && "$REPOS_FROM_GIVEN" -eq 0 ]]; then
+  if scope_empty; then
     fleet_load_config_scope "$CONFIG" "$(cd "$(dirname "$CONFIG")" && pwd)"
-    ROOTS+=(${FLEET_CONFIG_ROOTS[@]+"${FLEET_CONFIG_ROOTS[@]}"})
-    REPOS+=(${FLEET_CONFIG_REPOS[@]+"${FLEET_CONFIG_REPOS[@]}"})
-    for path in ${FLEET_CONFIG_ROOTS[@]+"${FLEET_CONFIG_ROOTS[@]}"}; do ROOT_RUNG["$path"]=config; done
-    for path in ${FLEET_CONFIG_REPOS[@]+"${FLEET_CONFIG_REPOS[@]}"}; do REPO_RUNG["$path"]=config; done
+    add_scope config FLEET_CONFIG_ROOTS FLEET_CONFIG_REPOS
   fi
   fleet_load_config_skip "$CONFIG"
 fi
 fleet_finalize_skip_names
 fleet_resolve_max_depth "" "$CONFIG"
 
-if [[ ${#REPOS[@]} -eq 0 && ${#ROOTS[@]} -eq 0 && "$REPOS_FROM_GIVEN" -eq 0 ]]; then
+if scope_empty; then
   fallback="$(mktemp)"
   if ! scope_resolve_fallback "${NAMED[@]}" >"$fallback"; then
     rm -f "$fallback"
@@ -221,10 +230,7 @@ EOF
     esac
   done <"$fallback"
   rm -f "$fallback"
-  REPOS+=(${fb_repos[@]+"${fb_repos[@]}"})
-  ROOTS+=(${fb_roots[@]+"${fb_roots[@]}"})
-  for path in ${fb_repos[@]+"${fb_repos[@]}"}; do REPO_RUNG["$path"]="$fb_rung"; done
-  for path in ${fb_roots[@]+"${fb_roots[@]}"}; do ROOT_RUNG["$path"]="$fb_rung"; done
+  add_scope "$fb_rung" fb_roots fb_repos
 fi
 
 for root in "${ROOTS[@]}"; do
@@ -279,17 +285,9 @@ for repo in "${REPOS[@]}"; do
   *) ;;
   esac
   seen="$seen $canonical"
-  rc=0
-  git -C "$canonical" status --porcelain >/dev/null 2>&1 || rc=$?
-  if ((rc)); then
-    add_plan "$canonical" skip "" "dubious-or-unreadable" "$rc"
-    continue
-  fi
-  branch="$(default_branch "$canonical")" || rc=$?
-  if [[ -z "$branch" ]]; then
-    add_plan "$canonical" skip "" "ls-remote" "$rc"
-    continue
-  fi
+  git -C "$canonical" status --porcelain >/dev/null 2>&1 ||
+    { add_plan "$canonical" skip "" "dubious-or-unreadable" "$?"; continue; }
+  branch="$(default_branch "$canonical")" || { add_plan "$canonical" skip "" "ls-remote" "$?"; continue; }
   current="$(git -C "$canonical" branch --show-current 2>/dev/null || true)"
   dirty="$(git -C "$canonical" status --porcelain 2>/dev/null || true)"
   if [[ -n "$dirty" && -z "$current" ]]; then
@@ -330,8 +328,7 @@ fi
 
 # report_skip <repo> <reason> <git-exit|none> <remedy> [<extra column>]
 report_skip() {
-  local extra=""
-  [[ -n "${5:-}" ]] && extra=$'\t'"$5"
+  local extra=${5:+$'\t'"$5"}
   printf 'skipped\t%s\t%s%s\tgit-exit=%s\tremedy=%s\trung=%s\n' "$1" "$2" "$extra" "$3" "$4" "$rung"
   FAILS=$((FAILS + 1))
 }
