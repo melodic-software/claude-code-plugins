@@ -3,6 +3,12 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.13] - 2026-11-10
+
+### Changed
+
+- Shared `transcript_reader.py` synced where this plugin carries it: the reader's code is simplified, and what it returns for every transcript is unchanged.
+
 ## [0.14.12] - 2026-11-09
 
 ### Changed
