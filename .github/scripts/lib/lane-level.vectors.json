@@ -1,6 +1,6 @@
 {
   "config": {
-    "lane-level": { "floor": 2, "ceiling": 6, "default": 3, "clean-windows": 2, "pools": ["lanes-app"] },
+    "lane-level": { "floor": 2, "ceiling": 4, "default": 3, "clean-windows": 2, "pools": ["lanes-app"] },
     "api": {
       "lanes-app": { "plan": 0.7, "writer-pause": 0.4 },
       "github-token": { "plan": 0.7, "writer-pause": 0.4 }
@@ -78,21 +78,23 @@
       "expect": { "level": 3, "streak": 2, "holdUntil": 0, "reason": "no-fit" }
     },
     {
-      "name": "a breaker trip steps 4 down to 2 and holds until the reset it names",
+      "name": "a 429 steps the ceiling 4 down to 2 and holds until the reset it names",
       "previous": { "level": 4, "streak": 1, "holdUntil": 0 },
-      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 900, "limit": 5000 } }, "signals": ["breaker-trip"], "reset": 1794342600 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 900, "limit": 5000 } }, "signals": ["429"], "reset": 1794342600 },
       "demand": { "waiting": 1, "running": 4 },
       "expect": { "level": 2, "streak": 0, "holdUntil": 1794342600, "reason": "step-down" }
     },
     {
-      "name": "a limit signal steps the ceiling 6 down to 3",
+      "name": "with ceiling 6 a limit signal steps 6 down to 3",
+      "config": { "lane-level": { "ceiling": 6 } },
       "previous": { "level": 6, "streak": 0, "holdUntil": 0 },
       "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 900, "limit": 5000 } }, "signals": ["429"] },
       "demand": { "waiting": 0, "running": 6 },
       "expect": { "level": 3, "streak": 0, "holdUntil": 0, "reason": "step-down" }
     },
     {
-      "name": "a limit signal at 5 steps down to 2, half rounded down",
+      "name": "with ceiling 6 a limit signal at 5 steps down to 2, half rounded down",
+      "config": { "lane-level": { "ceiling": 6 } },
       "previous": { "level": 5, "streak": 1, "holdUntil": 0 },
       "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 900, "limit": 5000 } }, "signals": ["secondary-limit"] },
       "demand": { "waiting": 0, "running": 5 },
@@ -108,14 +110,14 @@
     {
       "name": "a limit signal at the floor stays at the floor",
       "previous": { "level": 2, "streak": 1, "holdUntil": 0 },
-      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 900, "limit": 5000 } }, "signals": ["breaker-trip"] },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 900, "limit": 5000 } }, "signals": ["app-rate-limited"] },
       "demand": { "waiting": 0, "running": 2 },
       "expect": { "level": 2, "streak": 0, "holdUntil": 0, "reason": "step-down" }
     },
     {
       "name": "a limit signal steps down even when the pool readings are missing",
       "previous": { "level": 4, "streak": 1, "holdUntil": 0 },
-      "readings": { "at": 1794340800, "pools": {}, "signals": ["breaker-trip"] },
+      "readings": { "at": 1794340800, "pools": {}, "signals": ["graphql-rate-limited"] },
       "demand": null,
       "expect": { "level": 2, "streak": 0, "holdUntil": 0, "reason": "step-down" }
     },
@@ -169,18 +171,26 @@
       "expect": { "level": 4, "streak": 0, "holdUntil": 0, "reason": "step-up" }
     },
     {
-      "name": "at the ceiling a clean busy window holds 6",
-      "previous": { "level": 6, "streak": 1, "holdUntil": 0 },
+      "name": "at the ceiling a clean busy window holds 4",
+      "previous": { "level": 4, "streak": 1, "holdUntil": 0 },
       "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 200, "limit": 5000 } }, "signals": [] },
-      "demand": { "waiting": 5, "running": 6 },
-      "expect": { "level": 6, "streak": 2, "holdUntil": 0, "reason": "ceiling" }
+      "demand": { "waiting": 5, "running": 4 },
+      "expect": { "level": 4, "streak": 2, "holdUntil": 0, "reason": "ceiling" }
     },
     {
-      "name": "a previous level above the ceiling is clamped to 6, never above",
+      "name": "a previous level above the ceiling is clamped to 4, never above",
       "previous": { "level": 9, "streak": 1, "holdUntil": 0 },
       "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 200, "limit": 5000 } }, "signals": [] },
       "demand": { "waiting": 5, "running": 9 },
-      "expect": { "level": 6, "streak": 2, "holdUntil": 0, "reason": "ceiling" }
+      "expect": { "level": 4, "streak": 2, "holdUntil": 0, "reason": "ceiling" }
+    },
+    {
+      "name": "a floor above the ceiling never steps down past the ceiling: floor 5, ceiling 3 holds 3",
+      "config": { "lane-level": { "floor": 5, "ceiling": 3 } },
+      "previous": { "level": 3, "streak": 0, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 900, "limit": 5000 } }, "signals": ["429"] },
+      "demand": null,
+      "expect": { "level": 3, "streak": 0, "holdUntil": 0, "reason": "step-down" }
     },
     {
       "name": "a previous level below the floor is clamped up to 2",
@@ -238,7 +248,7 @@
       "name": "a configured floor of 3 stops a step down from 4 at 3",
       "config": { "lane-level": { "floor": 3 } },
       "previous": { "level": 4, "streak": 0, "holdUntil": 0 },
-      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 900, "limit": 5000 } }, "signals": ["breaker-trip"] },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 900, "limit": 5000 } }, "signals": ["429"] },
       "demand": { "waiting": 0, "running": 4 },
       "expect": { "level": 3, "streak": 0, "holdUntil": 0, "reason": "step-down" }
     },

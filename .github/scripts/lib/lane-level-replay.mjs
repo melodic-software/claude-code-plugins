@@ -6,12 +6,13 @@
 //     --app app-quota.jsonl --events events.log [--slots slots.log] \
 //     [--concurrency concurrency.jsonl] [--days 14] [--app-limit 5200] \
 //     [--end 2026-11-10T22:00:00Z] [--events-end-date 2026-11-10] \
-//     [--pools lanes-app,github-token] [--signals all|app] [--actual-level 3] \
+//     [--pools lanes-app,github-token] [--signals app|all] [--actual-level 3] \
 //     [--ceiling N] [--clean-windows N] [--quiet]
 //
-// --signals app drops breaker trips, leaving the lanes App's own limit
-// signals, to compare against the rule as written. --actual-level is the
-// SLOTS the history ran at (3 throughout the default window): each hour's
+// The rule's limit signals are the lanes App's own; --signals all adds
+// breaker trips, to compare against the rule as first drafted.
+// --actual-level is the SLOTS the history ran at (3 throughout the default
+// window): each hour's
 // lanes App spend is scaled by replayed L over it, and 0 replays it as
 // recorded.
 //
@@ -20,7 +21,8 @@
 //                 min_remaining (the file records no limit); a
 //                 github-rate-limited deny or a remaining of 0 is a limit signal
 //   github-token  gh-token-windows.jsonl: the hour's highest x-ratelimit used
-//   signals       events.log BREAKER-TRIP lines, holding until the reset named
+//   signals       with --signals all, events.log BREAKER-TRIP lines too,
+//                 holding until the reset named
 //   demand        slots.log, the hub's count of work-resolve-issue runs in
 //                 progress and waiting; for an hour it lacks, the
 //                 concurrency.jsonl repository-wide queued and in-progress runs,
@@ -105,7 +107,7 @@ function resetOf(event) {
 }
 
 // One reading per UTC hour, from the parsed inputs.
-export function hourlyReadings({ windows = [], app = [], events = [], slots = [], concurrency = [], appLimit, breaker = true }) {
+export function hourlyReadings({ windows = [], app = [], events = [], slots = [], concurrency = [], appLimit, breaker = false }) {
   const hours = new Map();
   const at = (hour) => bucket(hours, hour, () => ({ signals: [], demand: {} }));
 
@@ -258,7 +260,7 @@ export function main(argv = process.argv.slice(2), log = (text) => console.log(t
       end: { type: "string" },
       "events-end-date": { type: "string" },
       pools: { type: "string" },
-      signals: { type: "string", default: "all" },
+      signals: { type: "string", default: "app" },
       "actual-level": { type: "string", default: "3" },
       ceiling: { type: "string" },
       "clean-windows": { type: "string" },
@@ -278,7 +280,7 @@ export function main(argv = process.argv.slice(2), log = (text) => console.log(t
     slots: values.slots ? parseSlots(readFileSync(values.slots, "utf8")) : [],
     concurrency: values.concurrency ? jsonl(values.concurrency) : [],
     appLimit: Number(values["app-limit"]),
-    breaker: values.signals !== "app",
+    breaker: values.signals === "all",
   });
   const end = values.end ? hourOf(epochOf(values.end)) : hourOf(Math.floor(Date.now() / 1000));
   const start = end - Number(values.days) * 24 * HOUR;

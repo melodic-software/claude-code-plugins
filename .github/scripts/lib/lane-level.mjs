@@ -7,19 +7,24 @@
 //   previous  { level, streak, holdUntil } from the last decision, or null
 //   readings  { at, pools: { <pool>: { used, limit } }, signals: [..], reset? }
 //             at and reset are epoch seconds; used and limit come from the
-//             pool's x-ratelimit headers; signals name each limit signal seen
-//             (403, 429, a secondary-limit or GraphQL rate-limit error,
-//             retry-after, a breaker trip)
+//             pool's x-ratelimit headers; signals name each limit signal the
+//             lanes App's own calls met (403, 429, a secondary-limit or
+//             GraphQL rate-limit error, retry-after). A breaker trip is not
+//             one: the breaker stays its own backstop.
 //   demand    { waiting, running }: the most lane runs waiting for a slot
 //             and the most running in the window, or null when unread
-//   config    the resolved `limits` leaf: `lane-level` and `api`
+//   config    the resolved `limits` leaf: `lane-level` and `api`, an api
+//             pool's unset fields read from rate-limits.json as the rate
+//             guard reads them
 //
 // Returns { level, streak, holdUntil, reason }, reason one of step-up,
 // step-down, streak, hot, hold, no-demand, no-fit, ceiling, missing-data.
 
+import { apiLimits } from "../../actions/log-api-budget/rate-guard.mjs";
+
 export const LANE_LEVEL_DEFAULTS = Object.freeze({
   floor: 2,
-  ceiling: 6,
+  ceiling: 4,
   default: 3,
   "clean-windows": 2,
   pools: Object.freeze(["lanes-app"]),
@@ -31,10 +36,14 @@ const EPSILON = 1e-9;
 
 const isCount = (value) => Number.isInteger(value) && value >= 0;
 
+let apiDefaults;
+
 function settings(config = {}) {
   const set = { ...LANE_LEVEL_DEFAULTS, ...(config["lane-level"] ?? {}) };
   const clamp = (level) => Math.min(set.ceiling, Math.max(set.floor, level));
-  return { ...set, start: clamp(set.default), clamp, api: config.api ?? {} };
+  apiDefaults ??= apiLimits({ resolvedPath: "" });
+  const api = Object.fromEntries(set.pools.map((pool) => [pool, { ...apiDefaults[pool], ...(config.api?.[pool] ?? {}) }]));
+  return { ...set, start: clamp(set.default), clamp, api };
 }
 
 function shares(readings, s) {
@@ -62,7 +71,7 @@ export function decide(previous, readings, demand, config) {
 
   if (Array.isArray(readings?.signals) && readings.signals.length > 0) {
     const reset = Number.isFinite(readings.reset) ? readings.reset : 0;
-    return { level: Math.max(s.floor, Math.floor(level / 2)), streak: 0, holdUntil: Math.max(holdUntil, reset), reason: "step-down" };
+    return { level: s.clamp(Math.floor(level / 2)), streak: 0, holdUntil: Math.max(holdUntil, reset), reason: "step-down" };
   }
   const pools = Number.isFinite(readings?.at) ? shares(readings, s) : null;
   if (pools === null) {

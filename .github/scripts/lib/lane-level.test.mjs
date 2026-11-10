@@ -47,7 +47,7 @@ test("an unset lane-level block takes the defaults: a first busy window starts a
   assert.deepEqual(result, { level: 3, streak: 1, holdUntil: 0, reason: "streak" });
 });
 
-test("repeated quiet busy windows climb one level per two windows and stop at the ceiling 6", () => {
+test("repeated quiet busy windows climb one level per two windows and stop at the ceiling 4", () => {
   const config = configOf();
   let state = null;
   const levels = [];
@@ -56,5 +56,17 @@ test("repeated quiet busy windows climb one level per two windows and stop at th
     state = decide(state, readings, { waiting: 5, running: 6 }, config);
     levels.push(state.level);
   }
-  assert.deepEqual(levels, [3, 4, 4, 5, 5, 6, 6, 6, 6, 6, 6, 6]);
+  assert.deepEqual(levels, [3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]);
+});
+
+test("with ceiling 6 the same windows climb to 6", () => {
+  const config = configOf({ "lane-level": { ceiling: 6 } });
+  let state = null;
+  const levels = [];
+  for (let hour = 0; hour < 8; hour += 1) {
+    const readings = { at: 1794340800 + hour * 3600, pools: { "lanes-app": { used: 100, limit: 5000 } }, signals: [] };
+    state = decide(state, readings, { waiting: 5, running: 6 }, config);
+    levels.push(state.level);
+  }
+  assert.deepEqual(levels, [3, 4, 4, 5, 5, 6, 6, 6]);
 });

@@ -235,10 +235,10 @@
         "lane-level": {
           "type": "object",
           "additionalProperties": false,
-          "description": "The adaptive lane level L, the issue lane's concurrency .github/scripts/lib/lane-level.mjs picks per window (owner decision Q111); nothing reads it yet. L steps up 1 after clean-windows windows in a row with no limit signal, lane demand (runs waiting or every slot running) and room in each pool (peak share used x (L+1)/L at most api.<pool>.plan, and more than api.<pool>.writer-pause left), halves on any limit signal, and stays within floor and ceiling. Missing data holds L.",
+          "description": "The adaptive lane level L, the issue lane's concurrency .github/scripts/lib/lane-level.mjs picks per window (owner decision Q111); nothing reads it yet. L steps up 1 after clean-windows windows in a row with no limit signal, lane demand (runs waiting or every slot running) and room in each pool (peak share used x (L+1)/L at most api.<pool>.plan, and more than api.<pool>.writer-pause left), halves on any limit signal the lanes App's own calls meet (a breaker trip is not one), and stays within floor and ceiling; a floor above the ceiling is rejected. Missing data holds L.",
           "properties": {
             "floor": { "type": "integer", "minimum": 1, "maximum": 10, "default": 2, "description": "Lowest level; a step down never goes below it." },
-            "ceiling": { "type": "integer", "minimum": 1, "maximum": 10, "default": 6, "description": "Highest level; a level above it is read as it." },
+            "ceiling": { "type": "integer", "minimum": 1, "maximum": 10, "default": 4, "description": "Highest level; a level above it is read as it." },
             "default": { "type": "integer", "minimum": 1, "maximum": 10, "default": 3, "description": "The level with no previous decision or a malformed one, clamped to floor and ceiling." },
             "clean-windows": { "type": "integer", "minimum": 1, "maximum": 24, "default": 2, "description": "Clean windows with demand in a row before a step up." },
             "pools": {

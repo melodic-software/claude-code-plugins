@@ -19,9 +19,10 @@ test("events.log times are dated back from the last line's date, one day per mid
   );
 });
 
-test("an hour's readings: lowest App remaining over duplicate rows, highest token share, a trip's reset past midnight, slot demand", () => {
+test("an hour's readings with breaker trips counted: lowest App remaining over duplicate rows, highest token share, a trip's reset past midnight, slot demand", () => {
   const byHour = hourlyReadings({
     appLimit: 5200,
+    breaker: true,
     app: [
       { hour: "2026-11-09T23:00:00Z", min_remaining: 3000, deny_by_reason: {} },
       { hour: "2026-11-09T23:00:00Z", min_remaining: 1200, deny_by_reason: { "github-rate-limited": 2 } },
@@ -43,6 +44,15 @@ test("an hour's readings: lowest App remaining over duplicate rows, highest toke
     demand: { waiting: 14, running: 3 },
     source: "slots",
   });
+});
+
+test("by default a breaker trip is not a signal: the App's own deny is the hour's only one", () => {
+  const hour = hourlyReadings({
+    appLimit: 5200,
+    app: [{ hour: "2026-11-09T23:00:00Z", min_remaining: 1200, deny_by_reason: { "github-rate-limited": 2 } }],
+    events: datedEvents("23:50Z BREAKER-TRIP kill switch ON: 12% left refused=0 reset=00:10Z", "2026-11-10"),
+  }).get(epoch("2026-11-09T23:00:00Z"));
+  assert.deepEqual([hour.readings.signals, hour.readings.reset], [["app-rate-limited"], undefined]);
 });
 
 test("an hour with no slot sample takes the concurrency proxy, labeled; partial rows are skipped", () => {

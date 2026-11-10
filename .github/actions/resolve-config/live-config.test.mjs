@@ -12,9 +12,10 @@ import { parse, stringify } from "yaml";
 
 import { OUTSIDE_ACTOR_LABEL } from "../../scripts/pr-merge/merge-holds.mjs";
 import { planPasses } from "../../scripts/pr-refine/plan-passes.mjs";
+import { decide } from "../../scripts/lib/lane-level.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
 import { configFromBase, ownedBranchesFromBase, postMergeFromBase } from "./resolve-config.mjs";
-import { laneSlots, resolve, resolveGrant, slotTargets } from "./resolve.mjs";
+import { laneSlots, resolve, resolveGrant, resolveLimits, slotTargets } from "./resolve.mjs";
 
 const read = (relative) =>
   readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -922,6 +923,17 @@ test("live config: models.issue-status field-events-since loads as the S2a cutov
 // The merge lane reads this file through the source-control YAML subset
 // (plugins/source-control/lib/yaml-subset.awk); a construct outside it turns
 // the lane off with config-parse-error.
+// resolve-config passes limits.api through as set, {} here; decide() fills it
+// from rate-limits.json the way the rate guard does.
+test("live config: decide() on the resolved limits steps a quiet busy lane from 3 to 4 after two clean windows", () => {
+  const limits = resolveLimits(FILES, { configPath: CONFIG_PATH });
+  const window = (at) => ({ at, pools: { "lanes-app": { used: 100, limit: 5000 } }, signals: [] });
+  const demand = { waiting: 5, running: 3 };
+  const first = decide(null, window(1794340800), demand, limits);
+  assert.deepEqual(first, { level: 3, streak: 1, holdUntil: 0, reason: "streak" }, "the first clean busy window counts, not missing-data");
+  assert.deepEqual(decide(first, window(1794344400), demand, limits), { level: 4, streak: 0, holdUntil: 0, reason: "step-up" });
+});
+
 test("the live pr-pipeline.yaml stays inside the merge lane's YAML subset", () => {
   const awk = fileURLToPath(new URL("../../../plugins/source-control/lib/yaml-subset.awk", import.meta.url));
   const config = fileURLToPath(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url));
