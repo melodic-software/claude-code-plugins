@@ -303,7 +303,7 @@ worker's spawn brief.
 
 ## Where the mechanism menu lives
 
-The menu of continuation mechanisms lives only in this user-invoked skill body, never in a hook or
+The menu of continuation mechanisms lives only in this skill body, never in a hook or
 any model-injected text, and the router takes only the zone WORD from `context-guard`
 (`mcp__context-guard__status` or the snapshot) and inlines no band values, so the router never
 states or reasons from a remaining-context count; the tool's other figures are not its input. The signals that license

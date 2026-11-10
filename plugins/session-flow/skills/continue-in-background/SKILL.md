@@ -65,7 +65,7 @@ choice, the mandatory redaction pass, the handoff-file write, and the rails resu
 in the shared engine doc
 [`${CLAUDE_PLUGIN_ROOT}/reference/save-point.md`](${CLAUDE_PLUGIN_ROOT}/reference/save-point.md).
 Walk it top to bottom; do not restate or improvise any of its steps. On the full path the file is
-shape 2: `save_point.py validate <file>` must exit 0 before anything launches (an unfinished
+shape 3: `save_point.py validate <file>` must exit 0 before anything launches (an unfinished
 skeleton, one still carrying `<!-- FILL` slots, fails there and cannot be launched from).
 
 The launched session has its own session id, so hand it this session's worktree claims exactly as
@@ -242,11 +242,11 @@ fallback), then:
    final hand-off only when the resumed task reports it; it never promises the final hand-off.
 
    `claude --bg` starts the session as a background agent and returns immediately; the user
-   manages it with `claude agents`. `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1` is required
-   because this launch runs from a Bash-tool subprocess, a nested session the `claude agents`
-   list would otherwise leave out (pointer: the `CLAUDE_CODE_CHILD_SESSION` and
+   manages it with `claude agents`. This launch runs from a Bash-tool subprocess, so always set
+   `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1`, which keeps the session in the `claude agents` list
+   (pointer: for how nested sessions are listed, the `CLAUDE_CODE_CHILD_SESSION` and
    `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE` rows of
-   <https://code.claude.com/docs/en/env-vars#variables>; as of 2026-10-11; recheck trigger:
+   <https://code.claude.com/docs/en/env-vars#variables>; as of 2026-11-10; recheck trigger:
    either row changes how nested sessions are listed). Awareness note: the prompt
    travels in the process argument list, so it is briefly visible to other local processes
    (`ps`), inherent to `claude --bg "<prompt>"`. The mandatory redaction pass has already
@@ -301,9 +301,8 @@ matches its remote:
 3. **Report** the session id and link it prints, plus the return paths: `claude --teleport <id>`
    or `/teleport` to continue it in a terminal (its requirements: Pointer below), which needs the
    same account; `claude -p "<message>" --cloud <id>` to queue a follow-up. Name
-   the account the CLI is signed in to now: the session draws that account's limits, teleport and
-   follow-ups fail after the CLI switches accounts, and the repo's plugins load only when that
-   account's cloud environment runs the repo's setup script.
+   the account the CLI is signed in to now: the session's limits, teleport, follow-ups and plugin
+   loading all depend on that account (Pointer below).
 
 - **Pointer**: <https://code.claude.com/docs/en/claude-code-on-the-web#start-a-cloud-session-from-your-terminal>,
   <https://code.claude.com/docs/en/claude-code-on-the-web#send-local-repositories-without-github>,
@@ -311,7 +310,7 @@ matches its remote:
   <https://code.claude.com/docs/en/claude-code-on-the-web#continue-a-cloud-session-in-your-terminal>,
   <https://code.claude.com/docs/en/claude-code-on-the-web#send-follow-ups-from-the-cli>; what the
   session lacks: <https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup>.
-- **As of**: 2026-10-11
+- **As of**: 2026-11-10
 - **Recheck trigger**: any of those sections changes what the VM clones or bundles, the `--cloud`,
   `--teleport` or follow-up syntax, or teleport's requirements.
 
@@ -412,11 +411,9 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
 Three built-in commands also keep work moving off this terminal, so "continue in the background"
 can mean any of them.
 
-- **`/subtask`, `/fork`, `/background` (built-in commands)**: `/subtask` hands a side task to a
-  subagent that reports back here, `/fork` copies the conversation into a background session,
-  and `/background` moves this session itself off the terminal. None writes a save-point. All
-  three are reserved for the person to run; the model does not invoke them. What each launches,
-  its alias and its gate: the records table in
+- **`/subtask`, `/fork`, `/background` (built-in commands)**: three ways to move work off this
+  terminal. None writes a save-point, and this skill never runs them. What each launches, its
+  alias, its gate and whether the model can invoke it: the records table in
   [native-surfaces § verification record](reference/native-surfaces.md#native-background-surfaces-verification-record)
   (as of 2026-10-11; recheck trigger: that table's rows or their recheck events change).
 - **This skill (marketplace plugin).** Writes a durable, redacted save-point, gates on a dirty
