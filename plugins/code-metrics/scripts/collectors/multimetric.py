@@ -57,12 +57,9 @@ def probe() -> int:
     output = version_output(exe, NAME)
     if output is None:
         return 1
-    found = version_in(output)
-    if found is not None:
-        print(found)
-        return 0
     print(
-        installed_version(exe)
+        version_in(output)
+        or installed_version(exe)
         or "version unavailable (multimetric has no version flag)"
     )
     return 0

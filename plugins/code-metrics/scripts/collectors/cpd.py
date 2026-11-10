@@ -146,8 +146,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     try:
         listing = os.path.join(work, "file-list.txt")
         with open(listing, "w", encoding="utf-8") as handle:
-            for path in files:
-                handle.write(path + "\n")
+            handle.writelines(f"{path}\n" for path in files)
         result = subprocess.run(
             [
                 exe,
