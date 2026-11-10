@@ -108,9 +108,7 @@ RECORD_JS = r"""
 def find_browser():
     override = os.environ.get("CAPTURE_BROWSER")
     if override:
-        if os.path.isfile(override) or shutil.which(override):
-            return override if os.path.isfile(override) else shutil.which(override)
-        return None
+        return override if os.path.isfile(override) else shutil.which(override)
     for name in BROWSERS:
         found = shutil.which(name)
         if found:
@@ -144,6 +142,10 @@ def _read_exact(sock, buf, n):
     return out
 
 
+def _masked(payload, mask):
+    return bytes(b ^ mask[i % 4] for i, b in enumerate(payload))
+
+
 class BrowserSocket:
     """Tiny WebSocket client for Chrome's DevTools socket. Text frames only."""
 
@@ -165,8 +167,7 @@ class BrowserSocket:
             header.append(0x80 | 127)
             header.extend(struct.pack(">Q", n))
         header.extend(mask)
-        masked = bytes(b ^ mask[i % 4] for i, b in enumerate(payload))
-        self.sock.sendall(header + masked)
+        self.sock.sendall(header + _masked(payload, mask))
 
     def _frame(self):
         header = _read_exact(self.sock, self.buf, 2)
@@ -181,7 +182,7 @@ class BrowserSocket:
         mask = _read_exact(self.sock, self.buf, 4) if masked else None
         payload = _read_exact(self.sock, self.buf, length)
         if mask:
-            payload = bytes(b ^ mask[i % 4] for i, b in enumerate(payload))
+            payload = _masked(payload, mask)
         return fin, opcode, payload
 
     def recv_text(self):
@@ -203,8 +204,7 @@ class BrowserSocket:
     def _pong(self, payload):
         header = bytearray([0x8A, 0x80 | len(payload)])
         mask = os.urandom(4)
-        masked = bytes(b ^ mask[i % 4] for i, b in enumerate(payload))
-        self.sock.sendall(header + mask + masked)
+        self.sock.sendall(header + mask + _masked(payload, mask))
 
 
 def _ws_connect(ws_url):
@@ -280,11 +280,11 @@ def _devtools_port(profile, proc):
 
 
 def _open_page(port, url):
-    quoted = urllib.parse.quote(url, safe="")
+    endpoint = f"http://127.0.0.1:{port}/json/new?{urllib.parse.quote(url, safe='')}"
     try:
-        return _http_json(f"http://127.0.0.1:{port}/json/new?{quoted}", method="PUT")
+        return _http_json(endpoint, method="PUT")
     except urllib.error.HTTPError:
-        return _http_json(f"http://127.0.0.1:{port}/json/new?{quoted}", method="GET")
+        return _http_json(endpoint)
 
 
 def _serve(directory):

@@ -204,11 +204,12 @@ def render(spec, out_dir, scale=8, spec_path=None):
                 (out_dir / f"{name}.gif").unlink(missing_ok=True)
     index_of = {k: i + 1 for i, k in enumerate(keys)}
     index_of[TRANSPARENT] = 0
+    gif_colors = [hex_rgb(palette[k]) for k in keys]
     for name, anim in animations.items():
         flat = [[index_of[frames[f][y // scale][x // scale]] for y in range(h * scale) for x in range(w * scale)]
                 for f in anim["frames"]]
         delays = [max(2, round(ms / 10)) for ms in frame_durations(anim)]
-        write_gif(out_dir / f"{name}.gif", w * scale, h * scale, [hex_rgb(palette[k]) for k in keys], flat, delays)
+        write_gif(out_dir / f"{name}.gif", w * scale, h * scale, gif_colors, flat, delays)
 
     frame_meta = {}
     for name, (x, y) in placed.items():
@@ -217,10 +218,11 @@ def render(spec, out_dir, scale=8, spec_path=None):
                             "duration": 100}
     tags = []
     for name, anim in animations.items():
-        for f, ms in zip(anim["frames"], frame_durations(anim)):
+        durations = frame_durations(anim)
+        for f, ms in zip(anim["frames"], durations):
             if f in frame_meta:
                 frame_meta[f]["duration"] = ms
-        tags.append({"name": name, "frames": anim["frames"], "durations_ms": frame_durations(anim),
+        tags.append({"name": name, "frames": anim["frames"], "durations_ms": durations,
                      "direction": anim.get("direction", "forward")})
     meta = {"frames": frame_meta,
             "meta": {"app": "pixel-art render.py", "image": "sheet.png", "format": "RGBA8888",

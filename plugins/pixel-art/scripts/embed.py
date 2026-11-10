@@ -19,13 +19,15 @@ def embed(template, out):
     template = pathlib.Path(template)
     text = template.read_text()
 
+    def target(match):
+        return (template.parent / match.group(1).strip()).resolve()
+
     def load_json(match):
-        path = (template.parent / match.group(1).strip()).resolve()
         # Escape "<" so a string holding "</script>" cannot close the inline script.
-        return json.dumps(json.loads(path.read_text()), separators=(",", ":")).replace("<", "\\u003c")
+        return json.dumps(json.loads(target(match).read_text()), separators=(",", ":")).replace("<", "\\u003c")
 
     def load_wav(match):
-        path = (template.parent / match.group(1).strip()).resolve()
+        path = target(match)
         data = path.read_bytes()
         if data[:4] != b"RIFF" or data[8:12] != b"WAVE":
             raise ValueError(f"{path.name} is not a WAV")
@@ -34,8 +36,9 @@ def embed(template, out):
 
     text, json_count = EMBED.subn(load_json, text)
     text, wav_count = WAV.subn(load_wav, text)
-    pathlib.Path(out).parent.mkdir(parents=True, exist_ok=True)
-    pathlib.Path(out).write_text(text)
+    out = pathlib.Path(out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text)
     return json_count + wav_count
 
 
