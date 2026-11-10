@@ -113,7 +113,7 @@ Each answer also carries the evidence it rested on: the question's Context block
 interview's kept round file (`<memory_dir>/<topic-slug>/round-<N>.md`, the question's `Context:`
 lines) or, on the page, the question's `context` field. Hand each validator that block as written,
 with its links and `file:line` references, and keep the `My recommendation:` reasoning, `Basis:`,
-`Inference:` and `Flips if:` lines withheld. A Context claim whose cited source does not say what
+any `Inference:` line (older rounds) and `Flips if:` lines withheld. A Context claim whose cited source does not say what
 the claim says, or a Context that leaves out a fact that would change the decision, is grounds for
 CHALLENGED. A question with no kept Context is validated on the answer alone, and its verdict says
 so.

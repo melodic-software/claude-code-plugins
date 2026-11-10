@@ -124,12 +124,11 @@ native_pwd() {
   printf '%s' "$p"
 }
 
-is_windows_shell() {
-  case "$(uname -s 2>/dev/null)" in
-  MINGW* | MSYS* | CYGWIN*) return 0 ;;
-  *) return 1 ;;
-  esac
-}
+windows_shell=false
+case "$(uname -s 2>/dev/null)" in
+MINGW* | MSYS* | CYGWIN*) windows_shell=true ;;
+*) ;;
+esac
 
 # norm_path <path> — comparison key: separators unified, trailing slash
 # dropped, case folded only where the filesystem is case-insensitive.
@@ -139,7 +138,7 @@ norm_path() {
   # backslash in bash, and Claude Code records every Windows projectPath with
   # backslashes, so the mistake silently matches nothing on the only platform
   # where it matters.
-  # `join("\t")` above, not `@tsv`: @tsv escapes each backslash to `\\`, which
+  # `join("\t")` in list_ids, not `@tsv`: @tsv escapes each backslash to `\\`, which
   # would survive into the key as a doubled separator. The squeeze below is the
   # second belt on that same class, applied to BOTH sides. It is not a perfect
   # injection: a UNC `//server/share/x` squeezes to `/server/share/x`, so in
@@ -150,7 +149,7 @@ norm_path() {
   # forms are a quoting minefield here.
   p="$(printf '%s' "$p" | tr -d '\r' | tr "\134" '/' | tr -s '/')"
   while [[ "$p" == */ && ${#p} -gt 1 ]]; do p="${p%/}"; done
-  if is_windows_shell; then
+  if [[ "$windows_shell" == "true" ]]; then
     p="$(printf '%s' "$p" | tr '[:upper:]' '[:lower:]')"
   fi
   printf '%s' "$p"
@@ -169,23 +168,24 @@ if [[ -z "$arg_native" ]]; then
   exit 2
 fi
 
+# refuse_main_tree <why> — name the main working tree and exit 2.
+refuse_main_tree() {
+  printf 'error: --worktree-path is a main working tree (%s) — refusing: %s\n' "$1" "$arg_native"
+  printf 'info: this script reaps the records of a worktree being torn down, never those of a main checkout.\n'
+  exit 2
+}
+
 # A main working tree keeps `.git` as a directory; a linked worktree, a husk and
 # an empty orphan do not. The refusal comes before the directory change so the
 # main checkout's records are unreachable from here.
-if [[ -d "$arg_native/.git" ]]; then
-  printf 'error: --worktree-path is a main working tree (its .git is a directory) — refusing: %s\n' "$arg_native"
-  printf 'info: this script reaps the records of a worktree being torn down, never those of a main checkout.\n'
-  exit 2
-fi
+[[ -d "$arg_native/.git" ]] && refuse_main_tree "its .git is a directory"
 # A `.git` file is a main checkout too when git reports its git dir equal to its
 # common dir (`git init --separate-git-dir`, a submodule). Skipped when git
 # cannot resolve the path, as for a husk whose gitdir is gone.
 if [[ -f "$arg_native/.git" ]] && have git; then
   git_dirs="$(git -C "$arg_native" rev-parse --path-format=absolute --git-dir --git-common-dir 2>/dev/null)" || git_dirs=""
   if [[ -n "$git_dirs" && "${git_dirs%%$'\n'*}" == "${git_dirs#*$'\n'}" ]]; then
-    printf 'error: --worktree-path is a main working tree (its git dir is its common dir) — refusing: %s\n' "$arg_native"
-    printf 'info: this script reaps the records of a worktree being torn down, never those of a main checkout.\n'
-    exit 2
+    refuse_main_tree "its git dir is its common dir"
   fi
 fi
 

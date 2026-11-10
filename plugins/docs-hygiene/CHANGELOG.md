@@ -1,5 +1,15 @@
 # Changelog: docs-hygiene plugin
 
+## [2.9.1] - 2026-11-10
+
+### Changed
+
+- `write-for-humans`: the 20-word limit on instruction sentences is a target, not a hard cap; a sentence may run over when splitting it would cut one action or its condition into fragments. The reason is recorded in `reference/sources.md` with a pointer to the Fable 5.2 prompting guide.
+
+- `/docs-hygiene:write-for-agents` routes glossary edits to `/domain-driven-design:ubiquitous-language curate`, the renamed glossary skill.
+
+- `/docs-hygiene:rename-references`: a rename that comes from a domain glossary change sweeps code names too, as its own reviewed change; stored values (persisted enum values, schema fields) are listed for a data migration and never edited in place; user-facing copy and error messages are reported, never rewritten.
+
 ## [2.9.0] - 2026-11-09
 
 ### Added
