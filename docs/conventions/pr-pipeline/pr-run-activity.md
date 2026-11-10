@@ -2054,10 +2054,29 @@ and `intake-triage.yml` (also on a `workflow_dispatch` that sends `issue_number`
 job in the caller file itself, get an issues-write grant only, and a re-run must be started by a
 listed human. The one exception is `work-unblock.yml`'s `publish-lane-level` (owner decision Q113
 (a)): only on its hourly `schedule` from this repository, it gets repository Variables write with
-contents, pull requests and issues read, and no other caller or activity may hold Variables. The
-permission covers every repository variable, the lanes kill switches among them, so
-`publish-lane-level.mjs` refuses any name but the `*_LANE_LEVEL` variable
-`limits.lane-level.variable` names before it makes a request. A dispatch `github-actions[bot]` sent (intake-reenter.yml, the triage sweep) mints
+contents, pull requests and issues read, and no other caller or activity may hold Variables.
+
+The permission covers every repository variable, and a repository variable overrides an
+organization variable of the same name. So the token could create or change any of these:
+
+- the broker endpoint, `LANES_BROKER_URL` and `LANES_BROKER_AUDIENCE`;
+- `AUTOMATION_LANES_APP_SENDER_ID`;
+- `LANE_TRANSCRIPT_PUBLIC_KEY`;
+- `CLAUDE_LANES_MERGE_RUNG_CAP`;
+- the `KEY_CREDIT_*` variables;
+- the kill switches: a repository `CLAUDE_LANES_DISABLED` shadows the organization's, and
+  `CLAUDE_LANES_REPO_DISABLED` could be set to `false`.
+
+The mitigations:
+
+- One job holds the token: `publish-lane-level`, on `work-unblock.yml`'s schedule on main only.
+  The broker binds that run to main's byte-equal workflow file. Because the activity is named in
+  the request body, any job of such a run could ask for it, and every such job is main-tip code.
+- The token is revoked at the end of the job.
+- The job mints nothing while `limits.lane-level.shadow` is set.
+- `publish-lane-level.mjs` refuses any name but a `*_LANE_LEVEL` variable, and any value but
+  `<level>@<valid-until>`, before it makes a request. The schema holds
+  `limits.lane-level.variable` to the same pattern. A dispatch `github-actions[bot]` sent (intake-reenter.yml, the triage sweep) mints
 for `intake-triage.yml` only while the issue it names is open. The broker (azure-iac's `lanes-token-broker`) still re-checks the retired ratification marker for the App, so until it drops that check an App-labeled issue without the marker gets no token and the run fails closed. A `merge` request from `pr-merge.yml` names no pull request either; its actor must be a listed human, except on a `schedule` run on `refs/heads/main`, whose actor is whoever last edited the workflow file and is not checked. A re-run of a scheduled run must be started by a listed human. `dispatcher_run_id`, a positive
 JSON integer, is the `dispatcher-run-id` input, sent only when set. The broker reads it only when
 the OIDC actor is `github-actions[bot]`: such a run mints only when the `pr-unblock-dispatch.yml`

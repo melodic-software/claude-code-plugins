@@ -1275,6 +1275,29 @@ async function postNotRunChecks(job, context) {
   return calls;
 }
 
+// The lane level publisher's token can write every repository variable, so
+// the job runs only on main's schedule, mints only when not shadowed, and
+// hands the token to nothing but the publish and revoke steps.
+test("work-unblock.yml: publish-lane-level runs on main's schedule only, mints only live, and only publish and revoke see the token", () => {
+  const { jobs } = workflow("work-unblock.yml");
+  const job = jobs["publish-lane-level"];
+  assert.equal(job.if, "${{ !cancelled() && github.event_name == 'schedule' && github.ref == 'refs/heads/main' }}");
+  assert.deepEqual(job.needs, "label-unblocked");
+  assert.deepEqual(job.permissions, { actions: "read", contents: "read", "id-token": "write" });
+  const mint = job.steps.find((step) => step.id === "lane-token");
+  assert.equal(mint.if, "steps.mode.outputs.shadow == 'false'");
+  assert.equal(mint.with.activity, "publish-lane-level");
+  assert.equal(mint.with["actions-variables"], "${{ steps.config.outputs.actions-variables }}");
+  const holders = job.steps.filter((step) => JSON.stringify({ env: step.env, with: step.with, run: step.run }).includes("steps.lane-token.outputs.token") && step !== mint);
+  assert.deepEqual(
+    holders.map((step) => step.name),
+    ["Decide and publish the lane level", "Revoke the lane token"],
+  );
+  for (const step of holders) {
+    assert.equal(step.env.GH_TOKEN, "${{ steps.lane-token.outputs.token }}", step.name);
+  }
+});
+
 // GitHub runs at most one job per concurrency group, and `queue: max` keeps
 // the rest waiting instead of cancelling them (workflow-syntax#concurrency),
 // so the number of distinct slot groups is the cap: 3, the lane level's

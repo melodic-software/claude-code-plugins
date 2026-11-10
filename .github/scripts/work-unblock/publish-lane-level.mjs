@@ -43,6 +43,8 @@ import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-
 import { decide } from "../lib/lane-level.mjs";
 import { describeLevel, effectiveLevel, encodeLevel, LEVEL_VARIABLE, levelSettings, parseLevel, variableOf } from "../lib/lane-level-value.mjs";
 import { ghDownloadArtifact, newestTrustedArtifact } from "../pr-merge/rotation.mjs";
+import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { IN_FLIGHT } from "./label-unblocked.mjs";
 
 export const STATE_ARTIFACT = "lane-level-state";
 export const STATE_FILE = "lane-level-state.json";
@@ -75,6 +77,12 @@ export function levelVariableWriter({ github, repo, name }) {
   };
 }
 
+// The lane token's client. The step's API_BUDGET_TOKEN is github-token, for
+// the job token's reads and artifact download, so this client's readings are
+// pinned to lanes-app.
+export const laneClient = (env, fetchImpl) =>
+  createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch: budgetLatch("lanes-app"), ...(fetchImpl ? { fetchImpl } : {}) });
+
 export const shadowPublisher = () => ({
   async publish(value, name) {
     return `shadow: would set ${name} to ${value}; wrote nothing`;
@@ -101,14 +109,18 @@ export function publisherFor(settings, { github, repo }) {
   return github ? livePublisher(levelVariableWriter({ github, repo, name: settings.variable })) : noTokenPublisher();
 }
 
-// { waiting, running } from the issue lane's runs in progress, which past the
-// applied level wait for a slot; null when the listing fails.
+// { waiting, running } from the issue lane's unfinished runs (every status
+// label-unblocked counts as in flight, one count each), which past the
+// applied level wait for a slot; null when a count fails.
 export async function demandOf({ actions, repo, applied }) {
   try {
-    const listing = await actions("GET", `/repos/${repo}/actions/workflows/${LANE_WORKFLOW}/runs?status=in_progress&per_page=1`);
-    const active = listing?.total_count;
-    if (!Number.isInteger(active) || active < 0) {
-      return null;
+    let active = 0;
+    for (const status of IN_FLIGHT) {
+      const count = (await actions("GET", `/repos/${repo}/actions/workflows/${LANE_WORKFLOW}/runs?status=${status}&per_page=1`))?.total_count;
+      if (!Number.isInteger(count) || count < 0) {
+        return null;
+      }
+      active += count;
     }
     return { running: Math.min(active, applied), waiting: Math.max(0, active - applied) };
   } catch (error) {
@@ -164,7 +176,7 @@ export async function run({ env = process.env, now = Date.now(), actions, github
   actions ??= createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
   download ??= ghDownloadArtifact({ repo, token: env.ACTIONS_TOKEN, dir: env.RUNNER_TEMP, name: STATE_ARTIFACT, file: STATE_FILE });
   if (github === undefined && env.GH_TOKEN) {
-    github = createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+    github = laneClient(env);
   }
 
   const kept = await previousState({ repo, runId: env.GITHUB_RUN_ID, actions, download });

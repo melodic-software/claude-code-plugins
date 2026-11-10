@@ -19,6 +19,7 @@ test("live: an unexpired value is the level, clamped to floor 2 and ceiling 4", 
     [`2@${NOW_S + 60}`, 2],
     [`9@${NOW_S + 60}`, 4],
     [`1@${NOW_S + 60}`, 2],
+    ["4@1794360600", 4],
   ]) {
     const read = effectiveLevel({ value, settings: live, now: NOW });
     assert.deepEqual(read, { level, published: level, reason: "published", shadow: false }, value);
@@ -36,6 +37,9 @@ test("live: an empty, expired or malformed value reads as the default 3", () => 
     ["4@1794360600 ", "malformed"],
     ["0@1794360600", "malformed"],
     ["-4@1794360600", "malformed"],
+    // valid-minutes (150) from now is 1794360600: one second past it was set by hand.
+    ["4@1794360601", "malformed"],
+    ["4@999999999999", "malformed"],
   ]) {
     assert.deepEqual(effectiveLevel({ value, settings: live, now: NOW }), { level: 3, published: 3, reason, shadow: false }, String(value));
   }

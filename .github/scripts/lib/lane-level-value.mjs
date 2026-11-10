@@ -6,7 +6,8 @@
 // the issue lane's concurrency (work-resolve-issue.yml's pick-slot and
 // label-unblocked.mjs's re-fire room) calls effectiveLevel and nothing else.
 //
-// An empty, expired or malformed value reads as the default; every level is
+// An empty, expired or malformed value (one valid past valid-minutes from now
+// included) reads as the default; every level is
 // clamped to floor and ceiling. With `shadow` set the consumer is handed the
 // default, and the level it would have used is only reported.
 //
@@ -49,8 +50,17 @@ export function effectiveLevel({ value, settings = levelSettings(), now = Date.n
   const clamp = (level) => Math.min(settings.ceiling, Math.max(settings.floor, level));
   const fallback = clamp(settings.default);
   const parsed = parseLevel(value);
+  // The publisher never sets a value valid past valid-minutes from now, so a
+  // later one (set by hand) is malformed, not a level that never expires.
+  const tooLate = parsed !== null && parsed.validUntil * 1000 > now + settings["valid-minutes"] * 60_000;
   const reason =
-    value === undefined || value === null || value === "" ? "empty" : parsed === null ? "malformed" : parsed.validUntil * 1000 <= now ? "expired" : "published";
+    value === undefined || value === null || value === ""
+      ? "empty"
+      : parsed === null || tooLate
+        ? "malformed"
+        : parsed.validUntil * 1000 <= now
+          ? "expired"
+          : "published";
   const published = reason === "published" ? clamp(parsed.level) : fallback;
   return { level: settings.shadow ? fallback : published, published, reason, shadow: settings.shadow === true };
 }

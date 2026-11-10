@@ -437,7 +437,7 @@ const FIX_ISSUE = /^<!-- post-merge-fix check=[^\r\n]+ -->/;
 export const RECURRENCE_PREFIX = "This check failed on main again at `";
 const RELABELED = /^<!-- work-unblock recurrence ([1-9][0-9]{0,15}) -->/;
 // A work-resolve-issue run in any of these has not finished.
-const IN_FLIGHT = ["queued", "in_progress", "waiting", "pending", "requested"];
+export const IN_FLIGHT = Object.freeze(["queued", "in_progress", "waiting", "pending", "requested"]);
 // The sweep's widest window, used when the last good sweep is unknown or
 // older: a missed run loses nothing up to this far back.
 export const LOOKBACK_HOURS = 3;

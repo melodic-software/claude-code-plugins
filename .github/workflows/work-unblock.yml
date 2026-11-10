@@ -506,7 +506,9 @@ jobs:
           # artifact. The lane token only writes the variable.
           ACTIONS_TOKEN: ${{ github.token }}
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
-          API_BUDGET_TOKEN: lanes-app
+          # The job token's readings; the script pins the lane token's client
+          # to lanes-app (publish-lane-level.mjs laneClient).
+          API_BUDGET_TOKEN: github-token
           STATE_OUT: ${{ runner.temp }}/lane-level-state.json
           SCRIPT: ${{ steps.config.outputs.script }}
         run: node ".base/$SCRIPT" run

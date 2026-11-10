@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 
-import { levelVariableWriter, run } from "./publish-lane-level.mjs";
+import { laneClient, levelVariableWriter, run } from "./publish-lane-level.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 // 2026-11-10T23:47:00Z.
@@ -29,8 +29,10 @@ function fakeActions({ active = 5, state = null } = {}) {
   const calls = [];
   const actions = async (method, path) => {
     calls.push(`${method} ${path}`);
-    if (path.startsWith(`/repos/${REPO}/actions/workflows/work-resolve-issue.yml/runs?status=in_progress`)) {
-      return { total_count: active, workflow_runs: [] };
+    const lane = /^\/repos\/[^/]+\/[^/]+\/actions\/workflows\/work-resolve-issue\.yml\/runs\?status=([a-z_]+)&per_page=1$/.exec(path);
+    if (lane) {
+      // Unfinished runs: `active` in progress and one waiting on a runner.
+      return { total_count: { in_progress: active, queued: 1 }[lane[1]] ?? 0, workflow_runs: [] };
     }
     if (path.startsWith(`/repos/${REPO}/actions/workflows/work-unblock.yml/runs?branch=main&event=schedule&`)) {
       const run = (id, event) => ({ id, path: ".github/workflows/work-unblock.yml", event, head_branch: "main", head_repository: { full_name: REPO } });
@@ -89,9 +91,9 @@ test("shadow: a quiet busy window after one clean window steps 3 to 4, writes no
     [
       `GET /repos/${REPO}/actions/workflows/work-unblock.yml/runs?branch=main&event=schedule&exclude_pull_requests=true&per_page=100&page=1`,
       `GET /repos/${REPO}/actions/runs/70/artifacts?per_page=100`,
-      `GET /repos/${REPO}/actions/workflows/work-resolve-issue.yml/runs?status=in_progress&per_page=1`,
+      ...["queued", "in_progress", "waiting", "pending", "requested"].map((status) => `GET /repos/${REPO}/actions/workflows/work-resolve-issue.yml/runs?status=${status}&per_page=1`),
     ],
-    "an hour's reads: one scheduled-run listing, one artifact listing, one run count (the download is the third job-token call)",
+    "an hour's reads: one scheduled-run listing, one artifact listing, five run counts (the download is one more job-token call)",
   );
   assert.deepEqual(lines, [
     "::notice title=lane-level::level 4 (step-up, from 3); applied now: lane level 3 (shadow; would use 3, empty); shadow: would set CLAUDE_LANE_LEVEL to 4@1794363420; wrote nothing",
@@ -125,10 +127,34 @@ test("with no kept state the published level is the previous one; with neither, 
   assert.deepEqual(none.decision, { level: 3, streak: 0, holdUntil: 0, reason: "missing-data" });
 });
 
-test("demand: runs in progress past the applied level wait for a slot; none waiting and fewer running than L is no demand", async () => {
-  const idle = await decideWith({ state: { level: 3, streak: 1, holdUntil: 0 }, active: 2 });
+test("demand: every unfinished status counts; past the applied level they wait for a slot, and none waiting with fewer running than L is no demand", async () => {
+  // 1 in progress + 1 queued = 2 unfinished, under the applied 3.
+  const idle = await decideWith({ state: { level: 3, streak: 1, holdUntil: 0 }, active: 1 });
   assert.equal(idle.decision.reason, "no-demand");
-  assert.ok(idle.calls.some((call) => call.includes("work-resolve-issue.yml/runs?status=in_progress&per_page=1")), idle.calls.join("\n"));
+  // 2 in progress + 1 queued = 3: every slot running, which is demand.
+  const full = await decideWith({ state: { level: 3, streak: 1, holdUntil: 0 }, active: 2 });
+  assert.equal(full.decision.reason, "step-up");
+  const counted = idle.calls.filter((call) => call.includes("work-resolve-issue.yml/runs?status=")).map((call) => /status=([a-z_]+)/.exec(call)[1]);
+  assert.deepEqual(counted, ["queued", "in_progress", "waiting", "pending", "requested"]);
+});
+
+test("the lane token's readings go under lanes-app while the step's API_BUDGET_TOKEN is github-token", async () => {
+  const temp = mkdtempSync(join(dir, "runner-"));
+  const saved = { RUNNER_TEMP: process.env.RUNNER_TEMP, API_BUDGET_TOKEN: process.env.API_BUDGET_TOKEN };
+  process.env.RUNNER_TEMP = temp;
+  process.env.API_BUDGET_TOKEN = "github-token";
+  try {
+    const headers = { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4990", "x-ratelimit-used": "10", "x-ratelimit-reset": String(NOW_S + 600), "x-ratelimit-resource": "core" };
+    const fetchImpl = async () => new Response(null, { status: 204, headers });
+    await laneClient({ GH_TOKEN: "ghs_lane" }, fetchImpl)("PATCH", `/repos/${REPO}/actions/variables/CLAUDE_LANE_LEVEL`, { name: "CLAUDE_LANE_LEVEL", value: "3@1" });
+    assert.match(readFileSync(join(temp, "api-budget", "lanes-app"), "utf8"), /^204 5000 4990 10 \d+ core repos\/\{repo\}\/actions\/variables\/\{x\}$/m);
+    assert.throws(() => readFileSync(join(temp, "api-budget", "github-token"), "utf8"), /ENOENT/);
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
 });
 
 test("a limit signal halves the level and holds a step up until its reset", async () => {

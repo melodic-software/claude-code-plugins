@@ -6,6 +6,7 @@ import { parse, stringify } from "yaml";
 
 import { WIP_DEFAULTS, resolveWip } from "../../scripts/work-resolve-issue/limits.mjs";
 import { LANE_LEVEL_DEFAULTS } from "../../scripts/lib/lane-level.mjs";
+import { LEVEL_VARIABLE } from "../../scripts/lib/lane-level-value.mjs";
 
 import {
   checkAppliedBySupported,
@@ -416,6 +417,10 @@ test("lane-level: the schema's defaults, resolve-config's, decide()'s and the li
   assert.deepEqual(run(fixture("valid.yaml")).limits["lane-level"], schema, "resolve-config's");
   assert.deepEqual(decides, schema, "LANE_LEVEL_DEFAULTS in lane-level.mjs");
   assert.deepEqual(live, schema, "docs/conventions/pr-pipeline.yaml");
+});
+
+test("lane-level: the schema's variable pattern is the publisher's name guard", () => {
+  assert.equal(SCHEMA.properties.limits.properties["lane-level"].properties.variable.pattern, LEVEL_VARIABLE.source);
 });
 
 test("limits: refire-queue-per-slot is a whole number from 1 to 10", () => {
