@@ -8,7 +8,7 @@
     "docs-naming:audit-file-names",
     "docs-naming:realign-file-names",
     "docs-naming:generate-file-name-gate",
-    "domain-driven-design:curate-language"
+    "domain-driven-design:ubiquitous-language"
   ],
   "queries": [
     {

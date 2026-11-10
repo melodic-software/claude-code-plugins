@@ -516,11 +516,12 @@ done
 # Phase 3 of #14733: Unattended path gains one paragraph after the ladder (a stop at the instance-question and Finish-line steps only for a contradicted recorded Intent or Vision or a critical security issue, else the default Finish line), and Stance gains one intake line pointing at problem-framing.md's instance question and unknown-field candidates; rungs 1-5, the rung-3 blocker, the auto-guard and no-silent-resolve lines are byte-identical, and the stop writes a blocked USER-RESERVED row rather than resolving one
 # Phase 3 of #14733 eval fix: the Stance intake line also says an unattended run, lock included, still writes the Brief and ends on the Stopped line only for a contradicted recorded Intent or Vision or a critical security issue, and the Unattended path paragraph limits not settled yet to an item naming a release or in-use outcome; both narrow when a run stops, resolve no row, and rungs 1-5, the lock STOP line, the auto-guard and no-silent-resolve lines are byte-identical
 # Phase 3 of #14733 retry: the Stance intake line drops its unattended sentence, and the Unattended path stop paragraph now exits the way rung 3 records a blocker (a blocked USER-RESERVED row, Finish line not settled yet, no Step 4 lock or gate) with the Stopped line limited to the two stop classes, so every other blocker keeps rung 3 and its own last line; it resolves no row, and rungs 1-5, the lock STOP line, the auto-guard and no-silent-resolve lines are byte-identical
+# Glossary skill renamed (Q61): /domain-driven-design:curate-language becomes /domain-driven-design:ubiquitous-language with its curate action for writes, and the interview reads the glossary through its lookup action (Q64) with a repository search fallback; only those tokens and the read line changed, so the no-silent-resolve rule, the constraint-ledger rows and the late-commitment next-free-id rule are byte-identical
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "6a70b9bfdec35c373fa50a7260001ccdf656b4bef77f7ce56148cd73d41a0671"
+  "1802c511bf00143aa78c6104c649344a3c4445987ec88feb2b4a0e14a4221ec9"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -758,11 +759,12 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
 # #5769: the Step 3 register gate and loop.md's gate list name the stale=<n> outcome as a halt, and Re-check covers answered rows; every existing halt is kept and none is qualified
 # #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
 # #13185: the interview's record is now named the Brief (the Step 4 heading, the register gate's wording, an inherited constraint the Brief relies on, a blocker that blocks the Brief, case 13 reports the Brief unconfirmed, audit-answers names the Brief, ledger or summary); each is a rename, resolves no row, and every gate, halt, STOP-on-gap and blocker line keeps its rule
+# Glossary skill renamed (Q61): /domain-driven-design:curate-language becomes /domain-driven-design:ubiquitous-language with its curate action for writes, and the interview reads the glossary through its lookup action (Q64) with a repository search fallback; only those tokens and the read line changed, so the no-silent-resolve rule, the constraint-ledger rows and the late-commitment next-free-id rule are byte-identical
 pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, process-change definition)" \
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "cb1ad39fcb6bf79b6822ac05eb1506b3d28196f317b534f2ee31ab5f588404c3"
+  "7f802e660cdebfa14184a5563f85de4c316d3782b2d568401ce77f6f17b83284"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
@@ -776,11 +778,12 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
 # #11858 review: the page-surface Delivery bullet names single pacing's first-question add-round and one add per later question, and the round index leaves out held questions; each changes how a frontier is shown, resolves no row, and the late-commitment next-free-id rule is untouched
 # Rendered-views medium choice (#12296): the degrade table gains a Medium bullet that resolves medium first and renders the table the No HTML way under terminal, and case 45 grades that inline render; each changes only where a round is shown, resolves no row, licenses no silent capture or fudged gap, so cases 15 and 16 hold and the late-commitment next-free-id rule is byte-identical
 # #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
+# Glossary skill renamed (Q61): /domain-driven-design:curate-language becomes /domain-driven-design:ubiquitous-language with its curate action for writes, and the interview reads the glossary through its lookup action (Q64) with a repository search fallback; only those tokens and the read line changed, so the no-silent-resolve rule, the constraint-ledger rows and the late-commitment next-free-id rule are byte-identical
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "db2194e07911789c1af0fb0dce7276488aaeb414a9bbe4e3905c5255a69db997"
+  "2daa3ec627587728314ce203d5005819852db44ec7d94e1c493a4cedce3cdf48"
 # The sweep-round labeling and the appended pre-round contradiction pass leave the scope, item shape and USER-RESERVED disposition intact; a draft conflict becomes no register row and nothing is captured as an assumption.
 # Re-pinned for #8314: adds the coined-term category, item-shape value, disposition and a glossary dispatch input; every existing category and disposition is unchanged, so the open-decision (case A) and resolved-but-one (case B) plants survive.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical

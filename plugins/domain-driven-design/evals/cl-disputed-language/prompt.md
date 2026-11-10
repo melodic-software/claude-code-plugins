@@ -1,5 +1,5 @@
 ---
-description: "Disputed language is a question, not a write. SKILL.md lines 41-42: 'If the meaning, canonical term, or context is still disputed, ask one focused question and do not write yet. Never manufacture consensus.' Line 130: 'Ambiguous language is a question, not a write.' Hard because a glossary already exists to write into and the user presses for an entry now so the team can move on. Needs --scaffold --allow-tools Write Edit."
+description: "Disputed language is a question, not a write. actions/curate.md step 1: 'If the meaning, canonical term or context is still disputed, ask one focused question and do not write yet. Never manufacture consensus.' SKILL.md Boundaries: 'Ambiguous language is a question, not a write.' Hard because a glossary already exists to write into and the user presses for an entry now so the team can move on. Needs --scaffold --allow-tools Write Edit."
 tags: [domain-driven-design, ubiquitous-language, outcome, consensus, hard]
 max_turns: 15
 timeout_seconds: 600

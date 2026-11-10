@@ -47,7 +47,7 @@ Collect the source's acceptance criteria with their ids for Step 2's criterion t
 
 When `## Plan` opens with a `### Behavior` list, extract it for Step 2's cut: each `- B<n>: <claim> (AC<i>, ...)` item with the criterion ids it cites, the list's `Process criteria:` line (criteria no behavior shows), and each phase's `**Delivers:**` line naming the B ids that phase builds.
 
-Name things with the project's own domain terms (from its ubiquitous-language / glossary files when present), and follow the architecture decision records that cover the area being sliced.
+Name things with the project's own domain terms: invoke `/domain-driven-design:ubiquitous-language lookup` via the Skill tool when that skill is available, otherwise Glob the repository for `**/{GLOSSARY,glossary,ubiquitous-language}*.md` (the root, any `docs/` folder and the module's own folder) and Read the match that covers the area, and follow the architecture decision records that cover the area being sliced.
 
 ### 2. Draft vertical slices
 

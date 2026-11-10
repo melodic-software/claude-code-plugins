@@ -1,5 +1,5 @@
 ---
-description: "Generic programming vocabulary and implementation detail are not admitted. SKILL.md lines 94-95: 'project-specific domain concepts only' and 'no implementation details'; lines 121-124: 'Exclude generic programming and methodology terms unless the consuming project's domain gives them a distinct meaning' and 'Framework and tooling nouns belong in the project's architecture docs'. glossary-contract.md lines 17-18 (define the boundary, not the implementation), 21-24 (admission and purity) and 57-58 (domain only). Hard because the user states the term and its full definition as settled and asks for it to be added, and a glossary exists to add it to. Needs --scaffold --allow-tools Write Edit."
+description: "Generic programming vocabulary and implementation detail are not admitted. actions/curate.md step 4: 'project-specific domain concepts only, and no implementation details'; SKILL.md Boundaries: no general dictionary, domain only. glossary-contract.md Entry discipline (Definition, Admission, Purity) and Domain only. Hard because the user states the term and its full definition as settled and asks for it to be added, and a glossary exists to add it to. Needs --scaffold --allow-tools Write Edit."
 tags: [domain-driven-design, ubiquitous-language, outcome, admission, hard]
 max_turns: 15
 timeout_seconds: 600

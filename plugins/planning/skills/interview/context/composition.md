@@ -16,7 +16,7 @@ otherwise do the step inline or name it to the user.
 | Need codebase grounding | `/discovery:explore` (if enabled) | Reads PLAN.md Brief as scope |
 | Need external evidence | `/discovery:research` (if enabled) | Reads PLAN.md Brief as scope; its deep tier covers a multi-source sweep |
 | A question needs something built to react to | `/prototype:explore-directions` (look and feel) or `/prototype:pressure-test` (logic, state, data shape) (if enabled) | Mid-interview detour: confirm scope and checkpoint, build the throwaway, react to it, return and answer in one line |
-| A domain term resolves, or is used two ways | `/domain-driven-design:curate-language` (if enabled) | Inline vocabulary update between questions (SKILL.md Stance, item 4) |
+| A domain term resolves, or is used two ways | `/domain-driven-design:ubiquitous-language curate` (if enabled) | Inline vocabulary update between questions (SKILL.md Stance, item 4) |
 | Domain events, processes or context boundaries are unclear | `/event-storming:methodology` or `/event-storming:simulation` (if enabled) | Detour to model the domain; resolved terms and boundaries come back as answers |
 | Who the users are, or how a flow should work, is unsettled | `/user-experience:shape` or `/user-experience:evaluate` (if enabled) | `shape` grounds users and flows before acceptance criteria; `evaluate` checks an existing flow or prototype |
 | Acceptance criteria for an LLM-based feature | `/evals:design` (if enabled) | Turns the criteria into measurable success criteria and eval cases |
