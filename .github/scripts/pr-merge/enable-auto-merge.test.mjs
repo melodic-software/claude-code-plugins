@@ -108,14 +108,20 @@ const pull = (number, overrides = {}) => ({
   ...overrides,
 });
 // One pull request's comments, reviews, inline comments and newest
-// auto-merge-disabled event, as DETAIL_QUERY returns them.
+// auto-merge event, as DETAIL_QUERY returns them: `autoMerge` is the whole
+// timeline, oldest first, cut as GitHub cuts it to the item types the query
+// names and its `last: 1`.
 const page = (nodes = []) => ({ totalCount: nodes.length, nodes });
-function detail({ comments = [], reviews = [], inline = [], disabledBy = null } = {}) {
+const AUTO_MERGE_TYPES = DETAIL_QUERY.match(/timelineItems\(itemTypes: \[([^\]]*)\], last: 1\)/)[1]
+  .split(", ")
+  .map((type) => type.toLowerCase().replaceAll(/(?:^|_)([a-z])/g, (_, letter) => letter.toUpperCase()));
+const autoMergeEvent = (__typename, login, actorType = "User") => ({ __typename, actor: { __typename: actorType, login } });
+function detail({ comments = [], reviews = [], inline = [], disabledBy = null, autoMerge = disabledBy ? [{ __typename: "AutoMergeDisabledEvent", actor: disabledBy }] : [] } = {}) {
   return {
     comments: page(comments),
     reviews: page(reviews),
     reviewThreads: page(inline.length ? [{ comments: page(inline) }] : []),
-    timelineItems: { nodes: disabledBy ? [{ actor: disabledBy }] : [] },
+    timelineItems: { nodes: autoMerge.filter(({ __typename }) => AUTO_MERGE_TYPES.includes(__typename)).slice(-1) },
     // The head's pr-unblock stops (merge-holds.unblockStops): none.
     unblockStops: [],
   };
@@ -1889,6 +1895,18 @@ test("auto-merge a person turned off stays off; one the lanes App turned off is 
     pull(2, { discussion: { disabledBy: { __typename: "Bot", login: "melodic-automation-lanes" } } }),
   ]);
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_2", head: HEAD }]);
+});
+
+test("a person's later enable or merge-queue add clears their auto-merge disable", async () => {
+  const off = autoMergeEvent("AutoMergeDisabledEvent", "kyle-sexton");
+  const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
+  const decided = (autoMerge) => decide(pull(1), options, { ...detail({ autoMerge }), files: [], verify: PASSED });
+  assert.deepEqual(AUTO_MERGE_TYPES, ["AutoMergeDisabledEvent", "AutoMergeEnabledEvent", "AddedToMergeQueueEvent"]);
+  assert.equal(decided([autoMergeEvent("AutoMergeEnabledEvent", "kyle-sexton"), off]).reason, "a person turned its auto-merge off");
+  assert.equal(decided([off, autoMergeEvent("AutoMergeEnabledEvent", "kyle-sexton")]).action, "arm");
+  // #14799: queued by a person, then removed by the queue on failed checks.
+  assert.equal(decided([off, autoMergeEvent("AddedToMergeQueueEvent", "kyle-sexton"), autoMergeEvent("RemovedFromMergeQueueEvent", "github-merge-queue", "Bot")]).action, "arm");
+  assert.equal(decided([autoMergeEvent("AutoMergeDisabledEvent", "melodic-automation-lanes", "Bot")]).action, "arm");
 });
 
 test("the comment veto agrees with the gate's HUMAN_MERGE_VETO_RE", () => {

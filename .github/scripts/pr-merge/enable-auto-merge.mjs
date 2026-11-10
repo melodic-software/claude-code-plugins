@@ -34,8 +34,9 @@
 //   nothing; the next run reads it again.
 // - Its head changes no cost path, unless its body links the owner's cost
 //   decision: merge-holds.costHold and costDecision, which ci-status runs too.
-// - No person turned its auto-merge off: the newest auto-merge-disabled event
-//   by a user account keeps it off until a person turns it on again.
+// - No person turned its auto-merge off: of its auto-merge-disabled,
+//   auto-merge-enabled and added-to-merge-queue events, the newest is not a
+//   disable by a user account, so a later enable or queue add clears it.
 // - pr-merge's gate would take its issue link and its verifier verdict at the
 //   head just read: babysit_verify_evidence.py `evidence --lane-link` refuses
 //   nothing (verifyHold). The link is the gate's own rule
@@ -321,7 +322,7 @@ export const DETAIL_QUERY = `query($owner: String!, $name: String!, $number: Int
       comments(last: 100) { totalCount nodes { ${COMMENT_FIELDS} } }
       reviews(last: 100) { totalCount nodes { ${REVIEW_FIELDS} } }
       reviewThreads(last: 100) { totalCount nodes { ${THREAD_FIELDS} } }
-      timelineItems(itemTypes: [AUTO_MERGE_DISABLED_EVENT], last: 1) { nodes { ... on AutoMergeDisabledEvent { actor { __typename login } } } }
+      timelineItems(itemTypes: [AUTO_MERGE_DISABLED_EVENT, AUTO_MERGE_ENABLED_EVENT, ADDED_TO_MERGE_QUEUE_EVENT], last: 1) { nodes { __typename ... on AutoMergeDisabledEvent { createdAt actor { __typename login } } ... on AutoMergeEnabledEvent { createdAt actor { __typename login } } ... on AddedToMergeQueueEvent { createdAt actor { __typename login } } } }
       files(first: 100) { totalCount nodes { path changeType } }
     }
   }
@@ -1614,7 +1615,8 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
   if (vetoed !== null) {
     return { action: armed ? "disarm" : "none", reason: vetoed, withdraw: true };
   }
-  if (!armed && detail.timelineItems?.nodes?.at(-1)?.actor?.__typename === "User") {
+  const autoMerge = detail.timelineItems?.nodes?.at(-1);
+  if (!armed && autoMerge?.__typename === "AutoMergeDisabledEvent" && autoMerge.actor?.__typename === "User") {
     return { action: "none", reason: "a person turned its auto-merge off", withdraw: true };
   }
   // Closed for a fresh attempt at its issue (pythonClose), the holds above
