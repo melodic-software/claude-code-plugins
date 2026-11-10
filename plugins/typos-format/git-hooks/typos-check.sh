@@ -88,8 +88,8 @@ out="$CHECKS_TMP/findings"
 # run_typos <dir> <path>...: typos on <path>... from <dir>, findings appended to
 # $out. typos exits 0 when clean and 2 on findings; any other status (a config
 # it cannot read, say) is no verdict, and no verdict blocks. typos --format
-# brief prints "<path>:<line>:<col>: error: <message>"; the contract line drops
-# the column and the severity.
+# brief prints "<path>:<line>:<col>: error: <message>"; the finding this hook
+# prints drops the column and the severity.
 run_typos() {
   local dir="$1" rc
   shift
