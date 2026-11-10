@@ -118,6 +118,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
+from types import ModuleType
 from typing import NoReturn
 
 AREAS = (
@@ -191,6 +192,14 @@ def run_date(doc: dict) -> str | None:
     return date if DATE_RE.match(date) else None
 
 
+def filled(value: object) -> bool:
+    return isinstance(value, str) and bool(value)
+
+
+def is_number(value: object) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
 def finding_errors(f: dict, run_day: str | None = None) -> list[str]:
     fid = f.get("id") or "<no id>"
     errors = []
@@ -199,57 +208,43 @@ def finding_errors(f: dict, run_day: str | None = None) -> list[str]:
         if not cond:
             errors.append(f"{fid}: {what}")
 
+    def need_in(value: object, choices: tuple[str, ...], what: str) -> None:
+        need(value in choices, f"{what} must be one of {', '.join(choices)}")
+
     for field in ("id", "key", "area", "title", "status"):
-        need(isinstance(f.get(field), str) and f[field], f"{field} required")
+        need(filled(f.get(field)), f"{field} required")
     need(
         isinstance(f.get("id"), str) and ID_RE.fullmatch(f["id"]),
         f"id must match {ID_RE.pattern}",
     )
-    need(f.get("area") in AREAS, f"area must be one of {', '.join(AREAS)}")
+    need_in(f.get("area"), AREAS, "area")
     status = f.get("status")
-    need(status in STATUSES, f"status must be one of {', '.join(STATUSES)}")
+    need_in(status, STATUSES, "status")
     if status in ("flag-only", "not-checked"):
-        need(isinstance(f.get("reason"), str) and f["reason"], "reason required")
+        need(filled(f.get("reason")), "reason required")
     if status == "not-checked":
-        need(
-            f.get("reason_code") in REASON_CODES,
-            f"reason_code must be one of {', '.join(REASON_CODES)}",
-        )
+        need_in(f.get("reason_code"), REASON_CODES, "reason_code")
     if status in ("measured", "candidate"):
-        need(f.get("tier") in TIERS, f"tier must be one of {', '.join(TIERS)}")
-        need(f.get("unit") in UNITS, f"unit must be one of {', '.join(UNITS)}")
-        need(isinstance(f.get("command"), str) and f["command"], "command required")
-        need(
-            isinstance(f.get("fix_owner"), str) and f["fix_owner"], "fix_owner required"
-        )
-        need(
-            f.get("horizon") in HORIZONS,
-            f"horizon must be one of {', '.join(HORIZONS)}",
-        )
-        need(f.get("route") in ROUTES, f"route must be one of {', '.join(ROUTES)}")
+        need_in(f.get("tier"), TIERS, "tier")
+        need_in(f.get("unit"), UNITS, "unit")
+        need(filled(f.get("command")), "command required")
+        need(filled(f.get("fix_owner")), "fix_owner required")
+        need_in(f.get("horizon"), HORIZONS, "horizon")
+        need_in(f.get("route"), ROUTES, "route")
     if status == "measured":
-        value = f.get("value")
-        need(
-            isinstance(value, (int, float)) and not isinstance(value, bool),
-            "value must be a number",
-        )
+        need(is_number(f.get("value")), "value must be a number")
         need(isinstance(f.get("conditions"), dict), "conditions required")
     if f.get("fix_owner") == "steps-for-you":
         steps = f.get("fix_steps")
         need(
-            isinstance(steps, list)
-            and steps
-            and all(isinstance(s, str) and s for s in steps),
+            isinstance(steps, list) and steps and all(map(filled, steps)),
             "fix_steps required",
         )
     effect = f.get("effect")
     if effect is not None:
-        need(effect in EFFECTS, f"effect must be one of {', '.join(EFFECTS)}")
+        need_in(effect, EFFECTS, "effect")
     if effect in ("fewer-checks", "drops-check"):
-        need(
-            isinstance(f.get("guard_metric"), str) and f["guard_metric"],
-            "guard_metric required",
-        )
+        need(filled(f.get("guard_metric")), "guard_metric required")
     if effect == "drops-check":
         need(
             f.get("fix_owner") == OVERENGINEERING,
@@ -260,20 +255,16 @@ def finding_errors(f: dict, run_day: str | None = None) -> list[str]:
     if f.get("horizon") == "now" and status != "flag-only":
         need(status == "measured", "horizon now needs a measured finding")
         need(f.get("tier") in ("E1", "E2"), "horizon now needs tier E1 or E2")
-        need(
-            isinstance(f.get("guard_metric"), str) and f["guard_metric"],
-            "horizon now needs guard_metric",
-        )
-        need(
-            isinstance(f.get("revert_if"), str) and f["revert_if"],
-            "horizon now needs revert_if",
-        )
+        need(filled(f.get("guard_metric")), "horizon now needs guard_metric")
+        need(filled(f.get("revert_if")), "horizon now needs revert_if")
         confidence = f.get("confidence")
-        if confidence is None:
-            need(False, "horizon now needs confidence HIGH")
-        else:
-            need(confidence == "HIGH", f"horizon now cannot rest on a {confidence} row")
-        need(isinstance(effect, str) and effect, "horizon now needs an effect")
+        need(
+            confidence == "HIGH",
+            "horizon now needs confidence HIGH"
+            if confidence is None
+            else f"horizon now cannot rest on a {confidence} row",
+        )
+        need(filled(effect), "horizon now needs an effect")
         need(effect not in LOWERING, f"{effect} is flag-only")
         need(
             effect != "drops-check",
@@ -284,26 +275,13 @@ def finding_errors(f: dict, run_day: str | None = None) -> list[str]:
             "a change that conflicts with a loaded instruction is flag-only",
         )
     if "confidence" in f:
-        need(
-            f["confidence"] in CONFIDENCES,
-            f"confidence must be one of {', '.join(CONFIDENCES)}",
-        )
+        need_in(f["confidence"], CONFIDENCES, "confidence")
     size = f.get("expected_size")
     if status == "candidate" and size is not None:
         size = size if isinstance(size, dict) else {}
-        count = size.get("count")
-        need(
-            isinstance(count, (int, float)) and not isinstance(count, bool),
-            "expected_size count must be a number",
-        )
-        need(
-            size.get("source_kind") in SOURCE_KINDS,
-            f"expected_size source_kind must be one of {', '.join(SOURCE_KINDS)}",
-        )
-        need(
-            isinstance(size.get("source"), str) and size["source"],
-            "expected_size source required",
-        )
+        need(is_number(size.get("count")), "expected_size count must be a number")
+        need_in(size.get("source_kind"), SOURCE_KINDS, "expected_size source_kind")
+        need(filled(size.get("source")), "expected_size source required")
     for c in f.get("citations") or []:
         c = c if isinstance(c, dict) else {}
         need(
@@ -317,10 +295,7 @@ def finding_errors(f: dict, run_day: str | None = None) -> list[str]:
             not dated or run_day is None or as_of == run_day,
             f"citation as_of {as_of} is not this run's date {run_day}",
         )
-        need(
-            isinstance(c.get("recheck"), str) and c["recheck"],
-            "citation recheck required",
-        )
+        need(filled(c.get("recheck")), "citation recheck required")
     return errors
 
 
@@ -538,9 +513,8 @@ def cmd_lock(args: argparse.Namespace) -> int:
     t = now()
     held: dict | None = read_json(path)
     if held is None and path.exists():
-        held = {
-            "session_id": "unknown"
-        }  # an unreadable lock cannot be live, so it reads stale
+        # An unreadable lock cannot be live, so it reads stale.
+        held = {"session_id": "unknown"}
     try:
         age = t - float(held["heartbeat"]) if held else None
     except (KeyError, TypeError, ValueError):
@@ -901,16 +875,20 @@ def redacted(command: str) -> str:
     return inert(command)
 
 
-def shown_command(command: str) -> str:
-    """A repeated command as reports show it: redacted, cut, and tagged when either applied.
+def tagged(command: str, clean: str) -> str:
+    """The redacted text cut, tagged whenever it differs from the command.
 
     The tag hashes the redacted text, so it cannot confirm a guess at a secret.
     """
-    clean = redacted(command)
     shown = cut(clean)
     if shown == command:
         return command
     return f"{shown} #{hashlib.sha256(clean.encode('utf-8')).hexdigest()[:8]}"
+
+
+def shown_command(command: str) -> str:
+    """A repeated command as reports show it: redacted, cut, and tagged when either applied."""
+    return tagged(command, redacted(command))
 
 
 def merged(counts: dict[str, int], show: Callable[[str], str]) -> dict[str, int]:
@@ -949,6 +927,14 @@ def peak_overlap(spans: list[tuple[float, float]]) -> int:
         depth += step
         peak = max(peak, depth)
     return max(peak, 1) if spans else 0
+
+
+def slowest_first(rows: list[dict]) -> None:
+    """Sort in place: the expressible tail, then the median, then the single worst sample."""
+    rows.sort(
+        key=lambda r: tuple(-1 if r[k] is None else r[k] for k in ("p95_ms", "p50_ms", "max_ms")),
+        reverse=True,
+    )
 
 
 def agent_calls(records: list[dict]) -> list[dict]:
@@ -1035,10 +1021,7 @@ def workflow_counts(tr, path: Path, cut_at: float | None) -> dict | None:
                 "peak": peak_overlap(entry["spans"]) if n else None,
             }
         )
-    repeated.sort(
-        key=lambda c: tuple(-1 if c[k] is None else c[k] for k in ("p95_ms", "p50_ms", "max_ms")),
-        reverse=True,
-    )
+    slowest_first(repeated)
     by_workflow = {}
     for workflow, run in runs.items():
         journal = run["dir"] / "journal.jsonl"
@@ -1061,11 +1044,16 @@ def workflow_counts(tr, path: Path, cut_at: float | None) -> dict | None:
     }
 
 
-def transcript_counts(path: Path) -> dict:
+def load_transcript_reader() -> ModuleType:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
     sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
     import transcript_reader as tr  # noqa: PLC0415  (the generated shared copy in ../lib)
 
+    return tr
+
+
+def transcript_counts(path: Path) -> dict:
+    tr = load_transcript_reader()
     stats: dict[str, int] = {}
     records = list(tr.iter_records(path, stats))
     # The latest go-faster invocation, slash or model-invoked, cuts the transcript: what comes
@@ -1078,11 +1066,8 @@ def transcript_counts(path: Path) -> dict:
         stamp = parse_ts(record.get("timestamp"))
         if record.get("type") == "user" and INVOKED in (tr.user_text(record) or ""):
             cut_record, cut_call = i, len(calls)
-        content = (
-            (record.get("message") or {}).get("content")
-            if isinstance(record.get("message"), dict)
-            else None
-        )
+        message = record.get("message")
+        content = message.get("content") if isinstance(message, dict) else None
         for block in content if isinstance(content, list) else []:
             if not isinstance(block, dict):
                 continue
@@ -1179,12 +1164,16 @@ def transcript_counts(path: Path) -> dict:
     return counts
 
 
-def cmd_transcript_counts(args: argparse.Namespace) -> int:
-    path = Path(args.file)
+def print_transcript_report(file: str, build: Callable[[Path], dict]) -> int:
+    path = Path(file)
     if not path.is_file():
         die(f"no transcript at {path}")
-    print(json.dumps(transcript_counts(path), indent=2, sort_keys=True))
+    print(json.dumps(build(path), indent=2, sort_keys=True))
     return 0
+
+
+def cmd_transcript_counts(args: argparse.Namespace) -> int:
+    return print_transcript_report(args.file, transcript_counts)
 
 
 STOP_SUMMARY = "stop_hook_summary"
@@ -1198,11 +1187,7 @@ HOOK_INPUT_MAX = 4096
 
 def hook_label(command: str) -> str:
     """shown_command's contract with URL paths also redacted: tagged whenever it differs."""
-    clean = redacted(URL_PATH.sub(r"\1/***", command[:HOOK_INPUT_MAX]))
-    shown = cut(clean)
-    if shown == command:
-        return command
-    return f"{shown} #{hashlib.sha256(clean.encode('utf-8')).hexdigest()[:8]}"
+    return tagged(command, redacted(URL_PATH.sub(r"\1/***", command[:HOOK_INPUT_MAX])))
 
 
 def percentile(ordered: list[float], p: float) -> float:
@@ -1214,10 +1199,7 @@ def percentile(ordered: list[float], p: float) -> float:
 
 
 def stop_hook_timing(path: Path) -> dict:
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
-    sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
-    import transcript_reader as tr  # noqa: PLC0415  (the generated shared copy in ../lib)
-
+    tr = load_transcript_reader()
     records = 0
     timed: dict[str, list[float]] = {}
     untimed: dict[str, int] = {}
@@ -1232,7 +1214,7 @@ def stop_hook_timing(path: Path) -> dict:
                 continue
             hook = str(info.get("command", ""))
             ms = info.get("durationMs")
-            if isinstance(ms, (int, float)) and not isinstance(ms, bool) and ms >= 0:
+            if is_number(ms) and ms >= 0:
                 timed.setdefault(hook, []).append(float(ms))
             else:
                 untimed[hook] = untimed.get(hook, 0) + 1
@@ -1249,13 +1231,7 @@ def stop_hook_timing(path: Path) -> dict:
                 "max_ms": round(ordered[-1]),
             }
         )
-    # Slowest first: the expressible tail, then the median, then the single worst sample.
-    hooks.sort(
-        key=lambda h: tuple(
-            -1 if h[k] is None else h[k] for k in ("p95_ms", "p50_ms", "max_ms")
-        ),
-        reverse=True,
-    )
+    slowest_first(hooks)
     # A hook with any recorded duration is ranked, never also reported as background.
     shown_untimed: dict[str, int] = {}
     for hook, n in untimed.items():
@@ -1266,11 +1242,7 @@ def stop_hook_timing(path: Path) -> dict:
 
 
 def cmd_stop_hook_timing(args: argparse.Namespace) -> int:
-    path = Path(args.file)
-    if not path.is_file():
-        die(f"no transcript at {path}")
-    print(json.dumps(stop_hook_timing(path), indent=2, sort_keys=True))
-    return 0
+    return print_transcript_report(args.file, stop_hook_timing)
 
 
 def cmd_run_start(args: argparse.Namespace) -> int:
@@ -1362,9 +1334,11 @@ def cmd_status_timing(args: argparse.Namespace) -> int:
     samples, version = [], ""
     for line in trace.read_text(encoding="utf-8", errors="replace").splitlines():
         cols = [c.strip() for c in line.split("|")]
-        if len(cols) > 5 and cols[3] == "version":
+        if len(cols) <= 5:
+            continue
+        if cols[3] == "version":
             version = cols[-1]
-        if len(cols) > 5 and cols[3] == "atexit" and cols[1] == "d0":
+        if cols[3] == "atexit" and cols[1] == "d0":
             samples.append(round(float(cols[5]) * 1000, 3))
     ordered = sorted(samples)
     print(
@@ -1540,13 +1514,14 @@ def workflow_timing(
                 if step.get("conclusion") == "skipped":
                     continue
                 step_name = str(step.get("name"))
+                is_test = "test" in step_name.lower()
                 took = span_ms(step.get("started_at"), step.get("completed_at"))
                 if took is None:
                     no_step += 1
-                    no_test += "test" in step_name.lower()
+                    no_test += is_test
                     continue
                 by_step.setdefault((str(job.get("name")), step_name), []).append(took)
-                if "test" in step_name.lower():
+                if is_test:
                     tests.append(took)
     jobs_cite = "; ".join(job_lines)
     length = stat(lengths, "ci-minutes", jobs_cite, no_length)
@@ -1631,24 +1606,22 @@ def pr_timing(limit: int) -> dict:
     }
 
 
-def cmd_ci_timing(args: argparse.Namespace) -> int:
+def print_gh_report(build: Callable[[], dict]) -> int:
     try:
-        result = ci_timing(args.repo, args.runs, args.job_runs)
+        result = build()
     except GhError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     print(json.dumps(result, indent=2))
     return 0
+
+
+def cmd_ci_timing(args: argparse.Namespace) -> int:
+    return print_gh_report(lambda: ci_timing(args.repo, args.runs, args.job_runs))
 
 
 def cmd_pr_timing(args: argparse.Namespace) -> int:
-    try:
-        result = pr_timing(args.limit)
-    except GhError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
-    print(json.dumps(result, indent=2))
-    return 0
+    return print_gh_report(lambda: pr_timing(args.limit))
 
 
 def permission_counts(name: str) -> dict:
