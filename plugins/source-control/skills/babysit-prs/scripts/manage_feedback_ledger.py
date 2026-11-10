@@ -50,16 +50,10 @@ def dispose(
         )
     dispositions = dict(ledger_entry.get("feedback_dispositions") or {})
     existing = dispositions.get(args.feedback_id)
-    # Scoped to the CURRENT head, mirroring `pr_queue_snapshot.py`'s own
-    # `dispositions_at_current_head` read of this same map: a disposition
-    # recorded for this id at an OLDER head does not cover a bot's reuse of
-    # that id for genuinely different content at a new head (`classify_pr`
-    # already dispatches a fresh worker for that reuse via
-    # `new_material_feedback`'s head-scoped escape valve). Rejecting a
-    # same-id-different-head dispose here would leave that reused id
-    # permanently undisposable -- re-arming `quiet_recheck_due` forever
-    # instead of letting the worker record its current-head triage. Only a
-    # disposition already recorded at this exact head blocks a duplicate.
+    # Only a disposition at this exact head blocks a duplicate, matching
+    # `dispositions_at_current_head`: a bot may reuse an id for new content at
+    # a new head, and refusing that dispose would leave the id undisposable,
+    # re-arming `quiet_recheck_due` forever.
     if is_json_object(existing) and existing.get("head_sha") == head_sha:
         raise RuntimeError(
             "feedback id already has a recorded disposition at this head"

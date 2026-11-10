@@ -1739,6 +1739,19 @@
 
     const settingsPop = E("div", "vf-pop vf-settings"); settingsPop.setAttribute("role", "dialog"); settingsPop.setAttribute("aria-label", "Session settings"); settingsPop.hidden = true;
     settingsPop.append(E("h2", "vf-pop-title", "Session settings"), E("p", "vf-pop-note", "Changes apply to everyone right away."));
+    /** A switch row: its label, with the description under it when given, then the switch. */
+    function swRow(label, desc) {
+      const b = btn("vf-sw-row"); b.setAttribute("role", "switch");
+      const txt = desc == null ? E("span", "vf-sw-txt vf-sw-label", label) : E("span", "vf-sw-txt");
+      if (desc != null) txt.append(E("span", "vf-sw-label", label), E("span", "vf-sw-desc", desc));
+      b.append(txt, E("span", "vf-switch"));
+      return b;
+    }
+    /** The keys of `rows` ([key, ...] entries), in their order, that are in `on` once `k` is toggled there. */
+    function toggledKeys(rows, on, k) {
+      const s = new Set(on); s.has(k) ? s.delete(k) : s.add(k);
+      return rows.map(([kk]) => kk).filter(kk => s.has(kk));
+    }
     const switches = {};
     for (const [k, label, desc] of [
       ["voting", "Voting", "Votes on answers; the most voted leads"],
@@ -1752,9 +1765,7 @@
       ["approveJoins", "Approve new joins", "New people wait in the queue until you let them in; while they wait they see the title and Why you're here. People already here are not affected"],
       ["reviewAnswers", "Review Claude's answers before they are shared", "Each answer to a guest's request waits for your Share; off, an answer asked for everyone is shared when it arrives"],
     ]) {
-      const b = btn("vf-sw-row"); b.setAttribute("role", "switch");
-      const txt = E("span", "vf-sw-txt"); txt.append(E("span", "vf-sw-label", label), E("span", "vf-sw-desc", desc));
-      b.append(txt, E("span", "vf-switch"));
+      const b = swRow(label, desc);
       b.onclick = () => Core.saveSettings({ [k]: !st()[k] }).catch(fail);
       settingsPop.append(b); switches[k] = b;
     }
@@ -1766,10 +1777,8 @@
     const tierRows = {};
     settingsPop.append(E("h3", "vf-pop-sub", "Prototypes"));
     for (const [k, label, desc] of TIERS) {
-      const b = btn("vf-sw-row"); b.setAttribute("role", "switch"); b.dataset.tier = k;
-      const txt = E("span", "vf-sw-txt"); txt.append(E("span", "vf-sw-label", label), E("span", "vf-sw-desc", desc));
-      b.append(txt, E("span", "vf-switch"));
-      b.onclick = () => { const on = new Set(st().prototypeTiers); on.has(k) ? on.delete(k) : on.add(k); Core.saveSettings({ prototypeTiers: TIERS.map(([kk]) => kk).filter(kk => on.has(kk)) }).catch(fail); };
+      const b = swRow(label, desc); b.dataset.tier = k;
+      b.onclick = () => Core.saveSettings({ prototypeTiers: toggledKeys(TIERS, st().prototypeTiers, k) }).catch(fail);
       settingsPop.append(b); tierRows[k] = b;
     }
     const MODES = [["system", "System"], ["light", "Light"], ["dark", "Dark"]];
@@ -2105,10 +2114,8 @@
     const revBox = ixGroup("vf-ibrev", revList), revHead = E("div", "vf-rev-head");
     const runAllBtn = lbtn("vf-btn vf-btn-primary vf-btn-sm", "play", "Run all shown");
     revHead.append(revBox._h, E("span", "vf-spacer"), runAllBtn); revBox.prepend(revHead);
-    const needQ = E("ul", "vf-plist vf-ibq");
-    const needQBox = ixGroup("vf-ibneedq", needQ);
-    const needIx = E("ul", "vf-ixlist");
-    const needIxBox = ixGroup("vf-ibneedix", needIx);
+    const needQ = E("ul", "vf-plist vf-ibq"), needQBox = ixGroup("vf-ibneedq", needQ);
+    const needIx = E("ul", "vf-ixlist"), needIxBox = ixGroup("vf-ibneedix", needIx);
     const needEmpty = E("p", "vf-empty vf-empty-sm vf-ibempty");
     const ixNeeds = E("div", "vf-ibtab vf-ibneeds"); ixNeeds.append(revBox, needQBox, needIxBox, needEmpty);
     // My requests
@@ -2123,9 +2130,7 @@
     const muteBox = E("div", "vf-mutebox");
     const muteRows = {};
     for (const [k, label] of NOTE_KINDS) {
-      const b = btn("vf-sw-row"); b.setAttribute("role", "switch");
-      b.append(E("span", "vf-sw-txt", label), E("span", "vf-switch"));
-      b.querySelector(".vf-sw-txt").classList.add("vf-sw-label");
+      const b = swRow(label);
       b.onclick = () => { const m = new Set(pref("mute", [])); m.has(k) ? m.delete(k) : m.add(k); setPrefs({ mute: [...m] }); render(); };
       muteBox.append(b); muteRows[k] = b;
     }
@@ -2146,10 +2151,8 @@
     // History: what needed someone and was handled, a page at a time
     const histRev = E("ul", "vf-plist vf-revlist vf-ibhistrev"); histRev.setAttribute("aria-label", "Requests to Claude, handled");
     const histRevBox = ixGroup("vf-ibhistreq", histRev);
-    const histQ = E("ul", "vf-plist vf-ibq");
-    const histQBox = ixGroup("vf-ibhistq", histQ);
-    const histIx = E("ul", "vf-ixlist");
-    const histIxBox = ixGroup("vf-ibhistix", histIx);
+    const histQ = E("ul", "vf-plist vf-ibq"), histQBox = ixGroup("vf-ibhistq", histQ);
+    const histIx = E("ul", "vf-ixlist"), histIxBox = ixGroup("vf-ibhistix", histIx);
     const histMore = showMore("history", 30);
     const histEmpty = E("p", "vf-empty vf-empty-sm vf-ibempty");
     const ixHist = E("div", "vf-ibtab vf-ibhist"); ixHist.append(histRevBox, histQBox, histIxBox, histMore.foot, histEmpty);
@@ -2209,21 +2212,23 @@
         at: () => (phone.matches ? tabBtns.more : keysBtn) },
     ];
     const TT = { i: 0, from: null, steps: [] };
+    /** While the tour runs, everything behind its card is inert. */
+    const tourInert = v => { for (const el of [top, body, tabs, fab, chat]) el.inert = v; };
     function startTour(from) {
       closePop(); hideCard(); if (ui.chatOpen) setChat(false);
-      setMode("focus"); if (phone.matches) setTab("answer");
+      showMode("focus");
       TT.from = from || null;
       const who = Core.me.isOwner ? "host" : "guest";
       TT.steps = TOUR.filter(s => (!s.who || s.who === who) && shown(s.at()));
       if (!TT.steps.length) return;
       TT.i = 0; tour.hidden = false; root.dataset.tour = "";
-      for (const el of [top, body, tabs, fab, chat]) el.inert = true;
+      tourInert(true);
       paintTour();
     }
     function endTour(how) {
       if (tour.hidden) return;
       tour.hidden = true; delete root.dataset.tour;
-      for (const el of [top, body, tabs, fab, chat]) el.inert = false;
+      tourInert(false);
       syncModal();
       setPrefs({ tour: how });
       const back = TT.from && shown(TT.from) ? TT.from : qText;
@@ -2291,8 +2296,7 @@
     const apLabel = E("label", "vf-asklabel"); const apTa = E("textarea", "vf-ta"); apTa.rows = 3; apTa.maxLength = 2000; apTa.id = "vf-ap-ta"; apLabel.htmlFor = apTa.id;
     const apNote = E("p", "vf-pop-note");
     // Connect your Claude (R2-12): a guest's request can run on their own Claude, never the host's.
-    const apSelf = btn("vf-sw-row vf-apself"); apSelf.setAttribute("role", "switch");
-    apSelf.append(E("span", "vf-sw-txt vf-sw-label", "Run it on my own Claude"), E("span", "vf-switch"));
+    const apSelf = swRow("Run it on my own Claude"); apSelf.classList.add("vf-apself");
     apSelf.onclick = () => { ui.askSelf = !ui.askSelf; render(); };
     const apRow = E("div", "vf-crow");
     const apAttach = ibtn("vf-btn vf-btn-ghost vf-btn-sm vf-attach", "clip", "Attach a file");
@@ -2385,6 +2389,8 @@
       render();
       if (m === "compare") requestAnimationFrame(() => { revealCol(ui.cur); edges(); });
     }
+    /** Switch the center to mode `m` and, on a phone, to the tab that holds it. */
+    function showMode(m) { setMode(m); if (phone.matches) setTab(m === "focus" ? "answer" : m); }
     function markSeen(qid) {
       if (!qid) return;
       ui.seen[qid] = Core.state.serverTime || Date.now() / 1000;
@@ -2448,7 +2454,7 @@
     // Writing anywhere in the question pane stays on the question.
     on(scroll, "input", e => { if (e.target.matches?.("textarea, input:not([type=radio], [type=checkbox])")) stopAdvance(); });
     advStay.onclick = () => { stopAdvance(); (ta.disabled ? qText : ta).focus({ preventScroll: true }); };
-    function focusQuestion(qid) { select(qid, { manual: true }); setMode("focus"); if (phone.matches) setTab("answer"); }
+    function focusQuestion(qid) { select(qid, { manual: true }); showMode("focus"); }
     function setFollow(v) { setPrefs({ follow: v }); follow.setAttribute("aria-pressed", String(v)); render(); }
     const sameCites = qid => JSON.stringify(ui.cites[qid] || []) === JSON.stringify(myRec(qid)?.cites || []);
     async function submit() {
@@ -2458,8 +2464,8 @@
       const extra = attExtra(cSlot);
       try {
         // A question that takes a pick (or a poll): the text is a comment on my pick. Without a pick (or on confirm) it is my own answer.
-        const fields = savedPick(q, rec);
-        if (!fields && commentFirst(q) && (q.format === "choice" || isFormat(q) || q.purpose === "poll")) {
+        const fields = savedPick(q, rec), takesPick = q?.format === "choice" || isFormat(q) || q?.purpose === "poll";
+        if (!fields && commentFirst(q) && takesPick) {
           // no pick yet: picks drafted on a pick-many question save with the comment; otherwise the comment waits for the
           // pick, and a phone's sheet closes so the options show
           ui.drafts[qid] = ta.value; closeSheet();
@@ -2468,11 +2474,11 @@
           else flash("Pick first. Your comment goes in with your pick.");
           return;
         }
-        if (fields && (q.format === "choice" || isFormat(q) || q.purpose === "poll")) await Core.pickWith(qid, fields, { comment: text, ...extra });
+        if (fields && takesPick) await Core.pickWith(qid, fields, { comment: text, ...extra });
         else await Core.answerCiting(qid, text, ui.cites[qid] || [], extra);
         delete ui.drafts[qid]; delete ui.attDraft[qid]; ui.dirty = false; ta.value = Core.myAnswer(qid); Kit.grow(ta);
         closeSheet();
-        announce(fields && (q.format === "choice" || isFormat(q) || q.purpose === "poll") ? "Your comment is saved." : "Your answer is saved.");
+        announce(fields && takesPick ? "Your comment is saved." : "Your answer is saved.");
         if (phone.matches) ta.blur(); // the one-line composer folds back once sent
       }
       catch (e) {
@@ -3038,7 +3044,7 @@
       const m = ui.msgMenu, c = ui.msgCmt; closePop(); if (!m) return;
       openAskPanel("ask", c ? c.qid : ui.cur, `About this ${c ? "comment" : "chat message"} from ${mmWho(m)}: "${m.text}"\n\n`);
     };
-    mmCopy.onclick = async () => {
+    mmCopy.onclick = () => {
       const m = ui.msgMenu; closePop(); if (!m) return;
       copyOut(m.text, "Copied.", ui.msgCmt ? "Comment" : "Message", ui.msgCmt ? discTa : mInput);
     };
@@ -3081,7 +3087,7 @@
     }
 
     // ---------- Q87: theme, one tap cycles System, Light, Dark ----------
-    const THEME_NEXT = { system: "light", light: "dark", dark: "system" }, THEME_LABEL = { system: "System", light: "Light", dark: "Dark" };
+    const THEME_NEXT = { system: "light", light: "dark", dark: "system" }, THEME_LABEL = Object.fromEntries(MODES);
     function cycleTheme() {
       const next = THEME_NEXT[myMode()] || "system";
       setTheme(next);
@@ -3119,7 +3125,7 @@
         return;
       }
       if (n.qid && qById(n.qid)) return focusQuestion(n.qid);
-      if ((n.kind === "queue" || n.kind === "ready") && Core.canModerate()) { setMode("host"); if (phone.matches) setTab("host"); }
+      if ((n.kind === "queue" || n.kind === "ready") && Core.canModerate()) showMode("host");
     }
     // ---------- Item 11 and spec PR 9: the Inbox page ----------
     const inbox = () => Core.state.inbox || [];
@@ -3139,15 +3145,13 @@
     /** What may pop up: a waiting item of a kind switched on, never the host's own report, and a failure only until opened. */
     const alertable = i => i.group === "waiting" && urgent().includes(i.kind) && !isMe(i.byCid) && (i.kind !== "fail" || i.unread);
     for (const [k, label] of [...POPUP_KINDS, ...GUEST_POPUPS]) {
-      const b = btn("vf-sw-row"); b.setAttribute("role", "switch"); b.dataset.k = k;
-      b.append(E("span", "vf-sw-txt vf-sw-label", label), E("span", "vf-switch"));
-      b.onclick = () => { const u = new Set(urgent()); u.has(k) ? u.delete(k) : u.add(k); setPrefs({ popups: popKinds().map(([kk]) => kk).filter(kk => u.has(kk)) }); render(); };
+      const b = swRow(label); b.dataset.k = k;
+      b.onclick = () => { setPrefs({ popups: toggledKeys(popKinds(), urgent(), k) }); render(); };
       popList.append(b); popRows[k] = b;
     }
     for (const [k, label] of GUEST_POPUPS) {
-      const b = btn("vf-sw-row"); b.setAttribute("role", "switch"); b.dataset.k = k;
-      b.append(E("span", "vf-sw-txt vf-sw-label", label), E("span", "vf-switch"));
-      b.onclick = () => { const u = new Set(guestDefault()); u.has(k) ? u.delete(k) : u.add(k); Core.saveSettings({ guestPopups: GUEST_POPUPS.map(([kk]) => kk).filter(kk => u.has(kk)) }).catch(fail); };
+      const b = swRow(label); b.dataset.k = k;
+      b.onclick = () => Core.saveSettings({ guestPopups: toggledKeys(GUEST_POPUPS, guestDefault(), k) }).catch(fail);
       gPopList.append(b); gPopRows[k] = b;
     }
     const IX_STAT = { waiting: "Waiting", running: "Running", answered: "Answered", unshared: "Answered", shared: "Shared", declined: "Declined", failed: "Failed" };
@@ -3177,8 +3181,13 @@
     function openGeneral(key) {
       if (key?.startsWith("x:")) ui.resClosed.delete(key.slice(2));
       openAskPanel(null, Core.GENERAL);
+      const answer = key.startsWith("x:");
+      ringRow(answer ? apGen : apReqs, answer ? key : key.slice(2));
+    }
+    /** After the next frame, scroll row `key` of `list` into view and ring it, when the list still has it. */
+    function ringRow(list, key) {
       requestAnimationFrame(() => {
-        const li = (key?.startsWith("x:") ? apGen : apReqs)._map?.get(key.startsWith("x:") ? key : key.slice(2)); if (!li) return;
+        const li = list._map?.get(key); if (!li) return;
         li.scrollIntoView({ block: "nearest", behavior: smooth() });
         ring(li);
       });
@@ -3187,24 +3196,16 @@
     function showRequest(qid, rid) {
       ui.clOpen.set(qid, true);
       if (ui.cur !== qid) select(qid, { manual: true });
-      setMode("focus"); if (phone.matches) setTab("answer");
+      showMode("focus");
       render();
-      requestAnimationFrame(() => {
-        const li = thList._map?.get("r:" + rid); if (!li) return;
-        li.scrollIntoView({ block: "nearest", behavior: smooth() });
-        ring(li);
-      });
+      ringRow(thList, "r:" + rid);
     }
     /** The Host view with one queue row in sight. */
     function showHostRow(id) {
       closePop();
       ui.hostFilter = "all"; ui.more["queue:all"] = Infinity;
-      setMode("host"); if (phone.matches) setTab("host");
-      requestAnimationFrame(() => {
-        const li = queueList._map?.get(id); if (!li) return;
-        li.scrollIntoView({ block: "nearest", behavior: smooth() });
-        ring(li);
-      });
+      showMode("host");
+      ringRow(queueList, id);
     }
     /** Where an Inbox item happened. What waits on the host opens its row on the Inbox page, where it is handled. */
     function openInboxItem(i) {
@@ -3217,14 +3218,14 @@
       closePop();
       if (i.unread) Core.readInbox([i.key], { [i.key]: i.status }).catch(() => {});
       if (i.kind === "ask") return focusQuestion(i.qid);
-      if (i.kind === "markready") { setMode("host"); if (phone.matches) setTab("host"); return; }
+      if (i.kind === "markready") return showMode("host");
       if (!i.qid && i.scope) { // about the whole session: a shared answer is in chat, the rest in Ask Claude
         const xid = i.result, x = xid && (Core.state.research?.[Core.GENERAL] || []).find(y => y.id === xid);
         if (x?.msg && x.published !== false && st().chat) { setChat(true); return goMsg(x.msg, () => openGeneral("x:" + xid)); } // a message chat dropped: the answer is still in Ask Claude
         return openGeneral(xid ? "x:" + xid : "r:" + i.id);
       }
       if (!qById(i.qid)) return;
-      if (i.result) { setMode("focus"); if (phone.matches) setTab("answer"); return showResult(i.qid, i.result); }
+      if (i.result) { showMode("focus"); return showResult(i.qid, i.result); }
       showRequest(i.qid, i.id);
     }
     /** One Inbox row: the question, what was asked or what waits, a status chip, when, and an unread dot. */

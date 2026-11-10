@@ -45,6 +45,10 @@ def deadline_after(seconds: float | None) -> float | None:
     return None if seconds is None else _clock() + seconds
 
 
+def _reached(at: float | None) -> bool:
+    return at is not None and _clock() >= at
+
+
 @contextmanager
 def read_deadline(at: float | None) -> Iterator[None]:
     """Bound a phase that only reads: past `at` (from `deadline_after`),
@@ -53,7 +57,7 @@ def read_deadline(at: float | None) -> Iterator[None]:
     command already running finishes under its own timeout. `None` bounds
     nothing."""
     global _read_deadline
-    if at is not None and _clock() >= at:
+    if _reached(at):
         raise DeadlineReached
     _read_deadline = at
     try:
@@ -65,12 +69,8 @@ def read_deadline(at: float | None) -> Iterator[None]:
 def is_json_object(value: Any) -> TypeGuard[dict[Any, Any]]:
     """True when a decoded JSON value is an object.
 
-    The guard narrows to `dict[Any, Any]`, which is exactly what the
-    `isinstance` test establishes. JSON grammar does guarantee string keys, but
-    this check never inspects them, so claiming `dict[str, Any]` would hand the
-    type checker a promise the runtime test has not made. Callers index these
-    dicts with string literals, which `dict[Any, Any]` already permits, so the
-    narrower claim costs them nothing.
+    Narrows to `dict[Any, Any]`, not `dict[str, Any]`: the check never
+    inspects the keys, so it cannot promise they are strings.
     """
     return isinstance(value, dict)
 
@@ -213,7 +213,7 @@ def run_command(
     """
     if not argv:
         raise ValueError("argv must name an executable")
-    if _read_deadline is not None and _clock() >= _read_deadline:
+    if _reached(_read_deadline):
         raise DeadlineReached
     name = argv[0]
     if name not in allowed_executables:

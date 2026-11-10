@@ -79,7 +79,8 @@ With no action token: a question about what a term means, or a request to read t
 - **Domain only.** Framework and tooling nouns belong in the project's architecture docs.
 - **No spec or scratchpad.** Behavior, implementation, acceptance criteria and open questions belong
   in their owning artifacts.
-- **No ADR ownership.** Surface consequential decisions to the planning workflow.
+- **No ADR ownership.** Why the system is built a certain way, a decision chosen over a weighed
+  alternative, is `/architecture:record-decision`'s; this skill records only what a term means.
 - **No speculative scaffolding.** An empty glossary or index is worse than no file; create lazily.
 - **No autonomous consensus.** Ambiguous language is a question, not a write; `seed` writes only
   terms a person accepted one by one.

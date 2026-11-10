@@ -3,6 +3,13 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.1] - 2026-11-10
+
+### Changed
+
+- The glossary contract keeps business rules out of entries: an entry says what a concept is, the rule lives in code and a test that names it, and the rule's reason goes in an ADR when it passes `/architecture:record-decision`'s admission test. `audit` reports a rule found in a definition.
+- `/domain-driven-design:ubiquitous-language` names `/architecture:record-decision` for decisions about why the system is built a certain way.
+
 ## [0.5.0] - 2026-11-10
 
 ### Changed

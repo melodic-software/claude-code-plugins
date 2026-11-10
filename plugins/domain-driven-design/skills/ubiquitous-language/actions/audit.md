@@ -9,7 +9,8 @@ finding is a report line; changes go through `curate` and `/docs-hygiene:rename-
 2. Check every entry against [../context/glossary-contract.md](../context/glossary-contract.md):
    - one entry per concept per context, no duplicate or near-duplicate terms;
    - a definition says what the concept is, in 1-2 sentences, with no implementation, behavior
-     backlog, storage detail or changing number;
+     backlog, storage detail, changing number or business rule (the finding suggests where the rule
+     goes: code and a test, its reason in an ADR);
    - an entity's states sit under the entity, unless a state has its own entry because people use it
      as a noun with rules of its own;
    - generic programming, framework or tooling words are out;

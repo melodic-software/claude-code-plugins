@@ -367,7 +367,7 @@ PLAN.md is a multi-turn shared artifact: re-read it from disk before every write
 
 Write the plan even for small changes; only the one-sentence skip (Purpose) writes none.
 
-**Close-out (PR time).** Read [context/close-out.md](context/close-out.md) when invoked with `close-out`. It holds the three-step procedure, the ADR admission test, and the spec-container ship ritual.
+**Close-out (PR time).** Read [context/close-out.md](context/close-out.md) when invoked with `close-out`. It holds the three-step procedure, the ADR handoff to `/architecture:record-decision`, and the spec-container ship ritual.
 
 **Mid-flight pivots:** when scope changes after approval, append a dated scope-change note to the affected PLAN.md section capturing the rationale, and strikethrough+link the obsolete content. PLAN.md is never committed, so these notes are its only history; re-render any derived copy ("Reader depth") and refresh the pull request body or linked issue paste so the published copy carries them (under `plan_store: tracker`, rerun `publish-plan`, which edits its comment in place). Do not silently rewrite history.
 

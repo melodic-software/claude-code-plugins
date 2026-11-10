@@ -151,7 +151,7 @@ layer.
 | Key | Values | Default | Reader |
 |---|---|---|---|
 | `question_pacing` | `round`, `single` | `round` | `/planning:interview`, first round: `round` asks the frontier as one set, `single` one question per message. A request in the session ("one at a time") overrides it for that session |
-| `domain_docs` | `auto`, `ask`, `off` | `auto` | `/planning:interview`, engineering sessions, Domain-aware behaviors: `auto` writes a resolved term through the glossary skill and proposes an ADR behind the admission test; `ask` asks before each write; `off` writes neither and records them in the register. A request in the session overrides it for that session |
+| `domain_docs` | `auto`, `ask`, `off` | `auto` | `/planning:interview`, engineering sessions, Domain-aware behaviors: `auto` writes a resolved term through the glossary skill and hands each qualifying decision to `/architecture:record-decision` at round step 8, "Decision record"; `ask` asks before each write; `off` writes neither and records them in the register. A request in the session overrides it for that session |
 | `answer_audit_rounds` | an integer, `0` or more | `2` | `/planning:interview`, after each round's read-back: offer `/planning:audit-answers` once when this many rounds were accepted whole; `0` never offers |
 | `wayfind_suggest_questions` | an integer, `0` or more | `27` | `/planning:interview`, at each round boundary: suggest `/planning:wayfind chart` once when the ledger's register holds more than this many questions; `0` never suggests |
 | `plan_stress_test` | a block map of `plan`, `proposal` and `incumbent`, each `auto`, `reviewer`, `devils-advocate` or `both` | `auto` for each | `/planning:plan` Steps 3 to 4: which stress-tests run on a draft of that mode |
