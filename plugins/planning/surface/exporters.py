@@ -1525,7 +1525,8 @@ def esc(s):
 def render_visual(v, d):
     """One visual as HTML; a file visual inside data dir d is inlined like inline content."""
     fmt = v.get("format") or v.get("kind") or ""
-    head = f"<h4>{esc(v.get('title') or v.get('id'))} <small>({esc(fmt)})</small></h4>"
+    name = esc(v.get("title") or v.get("id"))
+    head = f"<h4>{name} <small>({esc(fmt)})</small></h4>"
     content = v.get("content")
     if "file" in v:
         file = v["file"]
@@ -1548,14 +1549,10 @@ def render_visual(v, d):
         if fmt == "html" and SCRIPT_TAG.search(content):
             head += "<p class=muted>This visual needs JavaScript, which the report does not run.</p>"
         return (
-            head
-            + f'<iframe sandbox="" title="{esc(v.get("title") or v.get("id"))}" srcdoc="{esc(content)}"></iframe>'
+            head + f'<iframe sandbox="" title="{name}" srcdoc="{esc(content)}"></iframe>'
         )
     if fmt == "image" and content.startswith("data:image/"):
-        return (
-            head
-            + f'<img alt="{esc(v.get("title") or v.get("id"))}" src="{esc(content)}">'
-        )
+        return head + f'<img alt="{name}" src="{esc(content)}">'
     body = head + f"<pre>{esc(content)}</pre>"
     if fmt == "mermaid":
         body += "<p class=muted>Mermaid rendering is not available; the source is shown.</p>"
@@ -1564,15 +1561,13 @@ def render_visual(v, d):
 
 def visuals_for(doc, q):
     by_id = {v.get("id"): v for v in doc.get("visuals") or []}
-    out = []
-    for v in q.get("visuals") or []:
-        v = by_id.get(v) if isinstance(v, str) else v
-        if v:
-            out.append(v)
-    out += [
+    listed = [
+        by_id.get(v) if isinstance(v, str) else v for v in q.get("visuals") or []
+    ]
+    scoped = [
         v for v in doc.get("visuals") or [] if v.get("scope") == f"question:{q['id']}"
     ]
-    return [v for v in out if not v.get("archived")]
+    return [v for v in listed + scoped if v and not v.get("archived")]
 
 
 def thread(q, resp):
@@ -1591,12 +1586,11 @@ def thread(q, resp):
 
 
 def loose_ends(rows, doc, resp):
-    ends = []
-    for r in rows:
-        if r["status"] in (*UNSETTLED, "deferred", "blocked"):
-            ends.append(
-                f"{r['n']} ({r['q']['id']}) is {r['status']}: {clean(r['q'].get('title'))}"
-            )
+    ends = [
+        f"{r['n']} ({r['q']['id']}) is {r['status']}: {clean(r['q'].get('title'))}"
+        for r in rows
+        if r["status"] in (*UNSETTLED, "deferred", "blocked")
+    ]
     replied = {
         h.get("replyTo")
         for q in doc.get("questions") or []
@@ -1788,10 +1782,11 @@ def locate_row(lines, qid, where):
         if qid.upper() in {x.upper() for x in ids if x}:
             found.append((i, lines[i][: m.start(2)], cells[0], drop_stale(cells[3])))
     if len(found) != 1:
-        raise SystemExit(
-            f"refused: {len(found)} register rows match {qid!r} in {where}"
+        refuse(
+            f"{len(found)} register rows match {qid!r}"
             if found
-            else f"refused: no register row {qid!r} in {where}"
+            else f"no register row {qid!r}",
+            where,
         )
     return found[0]
 
@@ -1895,15 +1890,16 @@ def resolve_row(text, qid, how, note, where):
             fields = named[0]
             form = fields.pop("wasForm", None)
             if set(fields) != {"proposal", "was"} or named[1]:
-                raise SystemExit(
-                    f"refused: {qid} carries more than a plan proposal and the answer it "
-                    f"displaced; edit it by hand in {where}"
+                refuse(
+                    f"{qid} carries more than a plan proposal and the answer it "
+                    "displaced; edit it by hand",
+                    where,
                 )
             new, old = fields["proposal"], fields["was"]
         else:
             older = PROPOSES.match(rest)
             if not older:
-                raise SystemExit(f"refused: unreadable plan proposal {rest!r} in {where}")
+                refuse(f"unreadable plan proposal {rest!r}", where)
             new, old = older.groups()
         if how == "restore":
             if form is None:
@@ -1946,47 +1942,57 @@ def seeded_decision(res):
     return "own", None, res, None
 
 
-def import_hold(qid, title, rnd, hold, seeded, at, rev):
-    """The question an escaped held row restores: the hold, the answer or the set-aside decision
-    (stamped set aside as of `at` and `rev`, the rev the import writes), the confirmed
-    commitments, and for a superseded-by-plan row the seeded proposal. Any other held row gets no
-    seeded row, so it settles from this state alone once the hold is cleared."""
-    q = {
+def seeded_question(qid, title, rnd, commits):
+    """The fields every imported question starts with."""
+    return {
         "id": qid,
         "short": title if len(title) <= 60 else title[:57] + "...",
         "title": title,
         "round": rnd,
         "stage": "interview",
-        "commits": hold.get("confirmed") or [],
+        "commits": commits,
         "alternatives": [],
-        "waiting": True,
-        "waitsOn": hold["waitsOn"],
-        "waitingSince": at,
     }
+
+
+def seed_confirms(indices, at):
+    """The commitsConfirmed records an import ticks each of these commitment indexes with."""
+    return [{"index": i, "reason": SEED_NOTE, "at": at} for i in indices]
+
+
+def seed_superseded(q, seeded, rnd, new, old):
+    """Put the plan proposal `new` and the answer `old` it displaced on q, and record its
+    superseded-by-plan seeded row."""
+    q["recommendation"] = new
+    q["alternatives"] = [{"key": "was", "text": old}]
+    seeded[q["id"]] = {
+        "status": "superseded-by-plan",
+        "round": rnd,
+        "resolution": f"plan proposes: {new}; was: {old}",
+        "proposal": [new, old],
+    }
+
+
+def import_hold(qid, title, rnd, hold, seeded, at, rev):
+    """The question an escaped held row restores: the hold, the answer or the set-aside decision
+    (stamped set aside as of `at` and `rev`, the rev the import writes), the confirmed
+    commitments, and for a superseded-by-plan row the seeded proposal. Any other held row gets no
+    seeded row, so it settles from this state alone once the hold is cleared."""
+    q = seeded_question(qid, title, rnd, hold.get("confirmed") or [])
+    q.update(waiting=True, waitsOn=hold["waitsOn"], waitingSince=at)
     if hold["user"]:
         q["waitingBy"] = "user"
     status = "open"
     if "proposal" in hold:
-        new, old = hold["proposal"]
         status = "superseded-by-plan"
-        q["recommendation"] = new
-        q["alternatives"] = [{"key": "was", "text": old}]
-        seeded[qid] = {
-            "status": status,
-            "round": rnd,
-            "resolution": f"plan proposes: {new}; was: {old}",
-            "proposal": [new, old],
-        }
+        seed_superseded(q, seeded, rnd, *hold["proposal"])
     if "answer" in hold:
         q["terminal"] = held_terminal(q, hold["answer"], hold.get("note", ""), at)
     if "aside" in hold:
         q["terminal"] = held_terminal(q, hold["aside"], hold.get("note", ""), at)
         q.update(setAsideAt=at, setAsideSeq=0, setAsideRev=rev)
     if q["commits"]:
-        q["commitsConfirmed"] = [
-            {"index": i, "reason": SEED_NOTE, "at": at}
-            for i in range(len(q["commits"]))
-        ]
+        q["commitsConfirmed"] = seed_confirms(range(len(q["commits"])), at)
     q["history"] = [
         {
             "at": at,
@@ -2132,34 +2138,16 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
     )
     if note is not None and not (noted or seeded_defer or residual):
         clash("answer" if answer is not None else "hold", "note")
-    q = {
-        "id": qid,
-        "short": title if len(title) <= 60 else title[:57] + "...",
-        "title": title,
-        "round": rnd,
-        "stage": "interview",
-        "commits": [c for _, c in marked],
-        "alternatives": [],
-    }
+    q = seeded_question(qid, title, rnd, [c for _, c in marked])
     ticked = [i for i, (ok, _) in enumerate(marked) if ok]
     if ticked:
-        q["commitsConfirmed"] = [
-            {"index": i, "reason": SEED_NOTE, "at": at} for i in ticked
-        ]
+        q["commitsConfirmed"] = seed_confirms(ticked, at)
     if hold is not None:
         q.update(waiting=True, waitsOn=waits, waitingSince=at)
         if who == "user":
             q["waitingBy"] = "user"
     if "proposal" in fields:
-        new, old = fields["proposal"], fields["was"]
-        q["recommendation"] = new
-        q["alternatives"] = [{"key": "was", "text": old}]
-        seeded[qid] = {
-            "status": "superseded-by-plan",
-            "round": rnd,
-            "resolution": f"plan proposes: {new}; was: {old}",
-            "proposal": [new, old],
-        }
+        seed_superseded(q, seeded, rnd, fields["proposal"], fields["was"])
         if "wasForm" in fields:
             seeded[qid]["wasForm"] = fields["wasForm"]
     elif status == "superseded-by-plan" or (residual and note is not None):
@@ -2212,7 +2200,7 @@ def import_ledger(doc, text, ledger, at):
     """Fill an empty questions document from a ledger: settled rows keep their decision, open rows stay open."""
     rows = parse_register(text)
     if not rows:
-        raise SystemExit(f"refused: no open-question register rows in {ledger}")
+        refuse("no open-question register rows", ledger)
     seeded, seen, cells, added_in = {}, set(), {}, {}
     for n, status, rnd, title, res, cell in rows:
         lead = LEAD.match(res)
@@ -2232,7 +2220,7 @@ def import_ledger(doc, text, ledger, at):
         if added and int(added.group(1)) > rnd:
             added_in[qid] = int(added.group(1))
         if status not in (*UNSETTLED, "answered", "deferred", "withdrawn", "blocked"):
-            raise SystemExit(f"refused: unknown status {status!r} for Q{n} in {ledger}")
+            refuse(f"unknown status {status!r} for Q{n}", ledger)
         named = parse_named(res, ledger)
         if named:
             rev = doc.get("rev", 0) + 1
@@ -2271,21 +2259,11 @@ def import_ledger(doc, text, ledger, at):
                 resolution=f"plan proposes: {new}; was: {old}", proposal=[new, old]
             )
         pair = seed_proposal(seeded.get(qid))
-        q = {
-            "id": qid,
-            "short": title if len(title) <= 60 else title[:57] + "...",
-            "title": title,
-            "round": rnd,
-            "stage": "interview",
-            "commits": [],
-            "alternatives": [],
-        }
+        q = seeded_question(qid, title, rnd, [])
         if answer:
             q["terminal"] = held_terminal(q, *answer, at)
             if (q["terminal"]["decision"] == "defer") != (status == "deferred"):
-                raise SystemExit(
-                    f"refused: {status} row with answer {res!r} in {ledger}"
-                )
+                refuse(f"{status} row with answer {res!r}", ledger)
         elif status in ("answered", "deferred", "blocked"):
             decision, alt, dtext, recommendation = plain_decision(status, res)
             if recommendation:
@@ -2314,9 +2292,7 @@ def import_ledger(doc, text, ledger, at):
             )
         if commits:
             q["commits"] = commits
-            q["commitsConfirmed"] = [
-                {"index": i, "reason": SEED_NOTE, "at": at} for i in range(len(commits))
-            ]
+            q["commitsConfirmed"] = seed_confirms(range(len(commits)), at)
         if held:
             q.update(waiting=True, waitsOn=held.group(2), waitingSince=at)
             if held.group(1) == "awaiting user":
