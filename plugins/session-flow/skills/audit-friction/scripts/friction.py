@@ -98,6 +98,11 @@ def emit(schema: str, status: str, summary: str, data: dict, code: int, fmt: str
     return code
 
 
+def _cell(value: object) -> str:
+    """A markdown table cell, its pipes escaped."""
+    return str(value).replace("|", "\\|")
+
+
 def class_hint(key: str) -> str | None:
     return next((cls for prefix, cls in CLASS_HINTS if key.startswith(prefix)), None)
 
@@ -280,7 +285,7 @@ def aggregate(records: list[dict]) -> dict:
             "side": side,
             "count": c["count"],
             "sessions": c["sessions"],
-            "per_session": round(c["count"] / len(records), 3) if records else 0,
+            "per_session": round(c["count"] / len(records), 3),
             "per_active_hour": round(c["count"] / hours, 3) if hours else None,
             "class_hint": class_hint(key),
             **({"next_tool": next_tools[(side, key)]} if (side, key) in next_tools else {}),
@@ -327,9 +332,8 @@ def render_mine(data: dict) -> str:
         "|---|---|---|---|---|---|",
     ]
     for row in data["rows"][:TOP]:
-        key = row["key"].replace("|", "\\|")
         lines.append(
-            f"| {row['class_hint'] or '-'} | {row['side']} | {key} | {row['count']} | {row['sessions']} | "
+            f"| {row['class_hint'] or '-'} | {row['side']} | {_cell(row['key'])} | {row['count']} | {row['sessions']} | "
             f"{row['per_active_hour'] if row['per_active_hour'] is not None else '-'} |"
         )
     if len(data["rows"]) > TOP:
@@ -339,9 +343,9 @@ def render_mine(data: dict) -> str:
         lines += ["", "Next tool after a hook-block denial (ok/failed/unknown):", "",
                   "| Side | Key | Next tool | Count | Ok | Failed | Unknown |", "|---|---|---|---|---|---|---|"]
         for row in followed[:TOP]:
-            key = row["key"].replace("|", "\\|")
+            key = _cell(row["key"])
             for tool, t in sorted(row["next_tool"].items(), key=lambda kv: (-kv[1]["count"], kv[0])):
-                lines.append(f"| {row['side']} | {key} | {tool.replace('|', chr(92) + '|')} | {t['count']} | {t['ok']} | {t['failed']} | {t['unknown']} |")
+                lines.append(f"| {row['side']} | {key} | {_cell(tool)} | {t['count']} | {t['ok']} | {t['failed']} | {t['unknown']} |")
     lines += ["", "Shape flags: " + (", ".join(f"{k} {v}" for k, v in sorted(data["shape_flags"].items())) or "none")]
     perf = dict(data["perf"])
     wait, summed = perf.pop("stop_hook_wait_ms", 0), perf.pop("stop_hook_ms", 0)
@@ -431,11 +435,13 @@ def parse_rules(text: str) -> list[dict]:
     rules = []
     for line in text.splitlines():
         match = RULE_LINE.match(line.strip())
-        if match:
-            spec = RULE_SPEC.match(match.group(3).strip())
-            if spec:
-                rules.append({"kind": match.group(1), "scopes": match.group(2), "rule": match.group(3).strip(),
-                              "tool": spec.group(1), "spec": spec.group(2)})
+        if not match:
+            continue
+        rule = match.group(3).strip()
+        spec = RULE_SPEC.match(rule)
+        if spec:
+            rules.append({"kind": match.group(1), "scopes": match.group(2), "rule": rule,
+                          "tool": spec.group(1), "spec": spec.group(2)})
     return rules
 
 
@@ -462,10 +468,8 @@ def cause_hint(kind: str, cause: str | None, flags: set[str], matched: list[dict
         if "allow" in kinds:
             return "allow-rule-now-matches"
         return "shape-defeats-prefix-rules" if flags & SHAPE_FLAGS_MISS else "no-allow-rule"
-    if cause == "classifier":
-        return "classifier"
-    if cause == "hook":
-        return "hook"
+    if cause in ("classifier", "hook"):
+        return cause
     if cause == "user-rejected":
         return "person-declined"
     if "deny" in kinds:
@@ -513,7 +517,7 @@ def cmd_cause(args: argparse.Namespace) -> int:
     for row in rows[:TOP]:
         rules_text = "; ".join(f"{r['kind']} {r['rule']}" for r in row["rules"]) or "-"
         cells = [row["count"], row["kind"], row["cause"] or "-", row["reason_or_hook"] or "-", row["shape"] or "-", row["hint"], rules_text]
-        md.append("| " + " | ".join(str(c).replace("|", "\\|") for c in cells) + " |")
+        md.append("| " + " | ".join(_cell(c) for c in cells) + " |")
     status, code = ("pass", 0) if args.merge else ("warning", 1)
     summary = f"{len(rows)} cause groups" + ("" if args.merge else "; no --merge input, so no rule was matched")
     return emit(CAUSE_SCHEMA, status, summary, out, code, args.format, "\n".join(md))
@@ -600,7 +604,7 @@ def cmd_diff(args: argparse.Namespace) -> int:
           f"{current['window']['since']}..{current['window']['until']} ({current['sessions']} sessions), events per session.",
           "", "| Verdict | Class | Side | Key | Baseline | Current | Delta |", "|---|---|---|---|---|---|---|"]
     for r in rows[:TOP]:
-        md.append(f"| {r['verdict']} | {r['class_hint'] or '-'} | {r['side']} | {r['key'].replace('|', chr(92) + '|')} | "
+        md.append(f"| {r['verdict']} | {r['class_hint'] or '-'} | {r['side']} | {_cell(r['key'])} | "
                   f"{r['baseline_per_session']} | {r['current_per_session']} | {r['delta']:+} |")
     status, code = ("warning", 1) if worse else ("pass", 0)
     return emit(DIFF_SCHEMA, status, f"{len(rows)} keys compared, {len(worse)} new or more frequent", data, code,
