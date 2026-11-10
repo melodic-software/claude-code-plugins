@@ -15,6 +15,7 @@ import { parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
+import { codeDigest } from "./verdict-carry.mjs";
 import { ADMISSION_RECORD_MARKER } from "../lib/admission-record.mjs";
 import {
   breakerComment,
@@ -6492,17 +6493,24 @@ test("a run re-run or updated since the carry was kept has its jobs and log read
   assert.deepEqual(JSON.parse(readFileSync(join(dir, "3.json"), "utf8")).jobs, {});
 });
 
-test("a corrupt or missing carry, or an entry of the wrong shape, reads GitHub as a sweep with none does", async () => {
+test("a corrupt or missing carry, one of other code, or an entry of the wrong shape, reads GitHub as a sweep with none does", async () => {
   const dir = carryDir();
+  await carriedSweep({ to: join(dir, "kept.json") });
+  const kept = JSON.parse(readFileSync(join(dir, "kept.json"), "utf8"));
+  const code = codeDigest();
+  assert.equal(kept.code, code);
   const files = {
     garbled: "{not json",
     array: "[]",
+    otherCode: JSON.stringify({ ...kept, code: "0".repeat(64) }),
+    noCode: JSON.stringify({ jobs: kept.jobs, refusals: kept.refusals }),
     wrongShape: JSON.stringify({
+      code,
       jobs: { "5030|1": { at: new Date(NOW).toISOString(), updated_at: "2026-10-16T10:05:00Z", jobs: "none" } },
       refusals: { [`${BROKER_CHECK_ID}|check`]: { at: new Date(NOW).toISOString(), value: "Kill switch!" } },
     }),
-    future: JSON.stringify({ refusals: { [`${BROKER_CHECK_ID}|check`]: { at: "2026-10-17T00:00:00Z", value: null } } }),
-    stale: JSON.stringify({ refusals: { [`${BROKER_CHECK_ID}|check`]: { at: "2026-09-01T00:00:00Z", value: null } } }),
+    future: JSON.stringify({ code, refusals: { [`${BROKER_CHECK_ID}|check`]: { at: "2026-10-17T00:00:00Z", value: null } } }),
+    stale: JSON.stringify({ code, refusals: { [`${BROKER_CHECK_ID}|check`]: { at: "2026-09-01T00:00:00Z", value: null } } }),
   };
   for (const [name, text] of [...Object.entries(files), ["missing", undefined]]) {
     const from = join(dir, `${name}.json`);

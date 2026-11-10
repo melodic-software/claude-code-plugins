@@ -22,6 +22,11 @@
 // job in main's cache scope can write (pr-merge/carry-run-cache.mjs). `read`
 // first removes any file at VERDICTS_IN, so a file left there is never read.
 //
+// The file records `code`, the codeDigest of the modules that worked out its
+// values (label-unblocked.mjs's refusalIn and this file's slimJob among them);
+// a file of other code carries nothing, so a change to how a refusal is read
+// or which job fields are kept takes effect at the next sweep.
+//
 // Any failure, or an entry of the wrong shape, carries nothing for it and the
 // sweep reads GitHub as before. An entry unused for CARRY_DAYS is dropped, and
 // at most JOBS_MAX and REFUSALS_MAX entries are kept, the newest used first.
@@ -33,9 +38,11 @@
 //   GITHUB_RUN_ID       this run, which has no file yet
 //   RUNNER_TEMP         where the artifact is downloaded
 //   GITHUB_API_URL
-import { appendFileSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { appendFileSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import process from "node:process";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { ghDownloadArtifact, newestTrustedArtifact } from "../pr-merge/rotation.mjs";
@@ -85,10 +92,20 @@ function slimJob(job) {
 
 const runKey = (run) => (RUN_KEY.test(`${run?.id}|${run?.run_attempt}`) ? `${run.id}|${run.run_attempt}` : null);
 
-// The carry from the file at `path` (missing or unreadable: empty), with the
-// lookups and records label-unblocked.mjs makes and the file the next sweep
-// reads. `now` dates each entry used or added.
-export function loadCarry(path, now = Date.now()) {
+// The sweep's code, as this run checked it out: every module beside this one
+// (tests aside). A deploy that changes any of them drops every carried entry.
+export function codeDigest(dir = dirname(fileURLToPath(import.meta.url))) {
+  const digest = createHash("sha256");
+  for (const name of readdirSync(dir).filter((file) => file.endsWith(".mjs") && !file.endsWith(".test.mjs")).sort()) {
+    digest.update(`${name}\0`).update(readFileSync(join(dir, name))).update("\0");
+  }
+  return digest.digest("hex");
+}
+
+// The carry from the file at `path` (missing, unreadable or of other `code`:
+// empty), with the lookups and records label-unblocked.mjs makes and the file
+// the next sweep reads. `now` dates each entry used or added.
+export function loadCarry(path, now = Date.now(), code = codeDigest()) {
   const section = (data, name, keyPattern, valid) => {
     const out = new Map();
     if (!isObject(data?.[name])) return out;
@@ -105,6 +122,7 @@ export function loadCarry(path, now = Date.now()) {
       if (error?.code !== "ENOENT") warn("the carried verdicts were not read", error);
     }
   }
+  if (data?.code !== code) data = null;
   const jobs = section(data, "jobs", RUN_KEY, validJobs);
   const refusals = section(data, "refusals", REFUSAL_KEY, validRefusal);
   const at = new Date(now).toISOString();
@@ -146,7 +164,7 @@ export function loadCarry(path, now = Date.now()) {
     save(to) {
       const newest = (map, max) => Object.fromEntries([...map].sort(([, a], [, b]) => Date.parse(b.at) - Date.parse(a.at)).slice(0, max));
       try {
-        writeFileSync(`${to}.tmp`, JSON.stringify({ jobs: newest(jobs, JOBS_MAX), refusals: newest(refusals, REFUSALS_MAX) }));
+        writeFileSync(`${to}.tmp`, JSON.stringify({ code, jobs: newest(jobs, JOBS_MAX), refusals: newest(refusals, REFUSALS_MAX) }));
         renameSync(`${to}.tmp`, to);
         return true;
       } catch (error) {

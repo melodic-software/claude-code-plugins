@@ -9,7 +9,7 @@ import { test } from "node:test";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-import { CARRY_ARTIFACT, JOBS_MAX, loadCarry, read, REFUSALS_MAX } from "./verdict-carry.mjs";
+import { CARRY_ARTIFACT, codeDigest, JOBS_MAX, loadCarry, read, REFUSALS_MAX } from "./verdict-carry.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const sweepRun = (id, extra = {}) => ({
@@ -96,4 +96,39 @@ test("a saved carry keeps the newest used entries up to its caps", () => {
   assert.ok(saved.jobs["1|1"]);
   // The kept job is the fields the sweep reads, no more.
   assert.deepEqual(saved.jobs["1|1"].jobs, [{ id: 10, name: "admit", conclusion: null, runner_id: null, started_at: null, steps: [] }]);
+});
+
+test("a carry kept by the same code is used, and one kept by other code is read fresh", () => {
+  const dir = tempDir("verdict-carry-");
+  const now = Date.parse("2026-11-10T03:00:00Z");
+  const run = { id: 7, run_attempt: 1, status: "completed", updated_at: "2026-11-10T01:00:00Z" };
+  const old = loadCarry(undefined, now - 60_000, "a".repeat(64));
+  old.keepJobs(run, [{ id: 70, name: "admit", steps: [] }]);
+  old.keepRefusal(70, "check", "kill-switch");
+  old.save(join(dir, "kept.json"));
+  assert.equal(JSON.parse(readFileSync(join(dir, "kept.json"), "utf8")).code, "a".repeat(64));
+  const same = loadCarry(join(dir, "kept.json"), now, "a".repeat(64));
+  assert.ok(same.jobsOf(run));
+  assert.deepEqual(same.refusal(70, "check"), { value: "kill-switch" });
+  const other = loadCarry(join(dir, "kept.json"), now, "b".repeat(64));
+  assert.equal(other.jobsOf(run), undefined);
+  assert.equal(other.refusal(70, "check"), undefined);
+  // The file it keeps holds only what this code reads, stamped with its code.
+  other.save(join(dir, "next.json"));
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, "next.json"), "utf8")), { code: "b".repeat(64), jobs: {}, refusals: {} });
+});
+
+test("the code digest changes with a module beside verdict-carry.mjs, never with a test file", () => {
+  const dir = tempDir("verdict-carry-code-");
+  writeFileSync(join(dir, "label-unblocked.mjs"), "export const A = 1;\n");
+  writeFileSync(join(dir, "verdict-carry.mjs"), "export const B = 1;\n");
+  const first = codeDigest(dir);
+  assert.match(first, /^[0-9a-f]{64}$/);
+  writeFileSync(join(dir, "verdict-carry.test.mjs"), "// a test\n");
+  writeFileSync(join(dir, "notes.txt"), "not code\n");
+  assert.equal(codeDigest(dir), first);
+  writeFileSync(join(dir, "label-unblocked.mjs"), "export const A = 2;\n");
+  assert.notEqual(codeDigest(dir), first);
+  // The sweep's own checkout gives a digest too.
+  assert.match(codeDigest(), /^[0-9a-f]{64}$/);
 });
