@@ -98,7 +98,12 @@ closed is not a complete read: change nothing.
 The marker is no trust signal: anyone who can open an item can write both lines. Count a match as a
 child only when its author is the login the adapter's item write posts as (the account decompose
 publishes as), or, when the binding sets `config.github.status_trust`, a listed `human` or the
-`lanes_app` in its `trusted_actors` list (adapter: "Work status trust"). Report and skip any match
+`lanes_app` in its `trusted_actors` list (adapter: "Work status trust"). The item read reports a
+bot author without the `[bot]` suffix (`gh` as `app/<slug>` with `is_bot` true, GraphQL as the bare
+`<slug>`), while the write identity and `lanes_app` carry it. So compare logins case-insensitively
+with a leading `app/` and a trailing `[bot]` removed from both sides, and count the match only when
+the read reports the author as a bot exactly when the trusted login ends in `[bot]`, so a person's
+account never stands in for an App of the same name. Report and skip any match
 from another author; a parent whose only matches are skipped has no child found.
 
 1. **A child is still open:** change nothing. The open child is the remaining work, and the tracker
