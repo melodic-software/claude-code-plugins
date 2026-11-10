@@ -68,8 +68,9 @@ function durationCeiling(values) {
 /* Comments and strings become spaces, and so does everything outside <style>
    in a non-CSS file, so every line number stays where it was. */
 const blank = (text) => text.replace(/[^\n]/g, " ");
+const isCss = (path) => /\.css$/i.test(path);
 function cssOf(path, text) {
-  const css = /\.css$/i.test(path)
+  const css = isCss(path)
     ? text
     : text.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)|[^\n]/gi, (_, open, body, close) =>
         body === undefined ? " " : blank(open) + body + blank(close),
@@ -92,8 +93,9 @@ function checkDurations(path, ceiling) {
     const declaration = chunk.match(/^(\s*)(transition|transition-duration)\s*:([\s\S]*)$/i);
     if (declaration) {
       const at = line + (declaration[1].match(/\n/g)?.length ?? 0);
+      const shorthand = declaration[2].toLowerCase() === "transition";
       const times = items(declaration[3]).map((item) =>
-        declaration[2].toLowerCase() === "transition"
+        shorthand
           ? (item.split(/\s+/).map(milliseconds).find((time) => time !== null) ?? null)
           : milliseconds(item),
       );
@@ -120,7 +122,7 @@ function expand(patterns) {
 
 /* Upstream reads only a lowercase `.css` suffix as CSS, so the suffix test is
    made here and the HTML path is left to checkFile. */
-const lint = (path) => (/\.css$/i.test(path) ? check(readFileSync(path, "utf8")) : checkFile(path));
+const lint = (path) => (isCss(path) ? check(readFileSync(path, "utf8")) : checkFile(path));
 
 function main(argv) {
   const { config, patterns } = parseArgs(argv);

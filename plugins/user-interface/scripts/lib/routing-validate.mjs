@@ -13,8 +13,7 @@ const show = (value) => {
   return text.length > 60 ? `${text.slice(0, 60)}...` : text;
 };
 
-/** Errors for `value` against the schema keywords routing.schema.json uses. Object, array and string
- * keywords apply to any value of that shape, whether or not the sub-schema states `type`. */
+/** Errors for `value` against the schema keywords routing.schema.json uses. */
 export function validate(s, value, at = "$") {
   const errors = [];
   const fail = (msg) => errors.push(`${at}: ${msg}`);
