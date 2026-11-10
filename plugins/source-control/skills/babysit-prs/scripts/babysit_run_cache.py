@@ -81,22 +81,20 @@ def _read(path: Path) -> dict[str, Any] | None:
     on disk, or None when it exists but could not be read. Only a parse is
     kept, so a failed read is tried again. The result is shared: callers copy
     before changing or serving it."""
+    key = str(path)
     try:
         stamp = _stamp(path.stat())
-    except FileNotFoundError:
-        _memo.pop(str(path), None)
-        return {}
-    except OSError:
-        _memo.pop(str(path), None)
-        return None
-    memo = _memo.get(str(path))
+    except OSError as exc:
+        _memo.pop(key, None)
+        return {} if isinstance(exc, FileNotFoundError) else None
+    memo = _memo.get(key)
     if memo is not None and memo[0] == stamp:
         return memo[1]
     data = _load(path)
     if data is None:
-        _memo.pop(str(path), None)
+        _memo.pop(key, None)
     else:
-        _memo[str(path)] = (stamp, data)
+        _memo[key] = (stamp, data)
     return data
 
 
