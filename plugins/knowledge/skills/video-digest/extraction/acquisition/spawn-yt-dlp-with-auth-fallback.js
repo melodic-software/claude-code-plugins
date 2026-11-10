@@ -73,19 +73,16 @@ export async function spawnYtDlpWithAuthFallback(spawn, buildArgs, options = {})
     return result;
   }
 
-  let detail = spawnFailureDetail(result);
-  if (classifyErrorDetail(errorPatterns, detail) !== "login-required") {
+  if (classifyErrorDetail(errorPatterns, spawnFailureDetail(result)) !== "login-required") {
     return result;
   }
 
   for (const browser of browserCookieFallbackProfiles(env)) {
     result = await spawn("yt-dlp", buildArgs({ cookiesFromBrowser: browser }), spawnOptions);
-    if (result.success) {
-      return result;
-    }
-
-    detail = spawnFailureDetail(result);
-    if (!isCookieProfileRetryableError(detail, errorPatterns)) {
+    if (
+      result.success ||
+      !isCookieProfileRetryableError(spawnFailureDetail(result), errorPatterns)
+    ) {
       return result;
     }
   }

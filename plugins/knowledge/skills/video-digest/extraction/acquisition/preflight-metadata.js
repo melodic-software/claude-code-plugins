@@ -223,6 +223,42 @@ function summarizeDetail(detail) {
  */
 
 /**
+ * Build a result row; omitted text fields are empty.
+ *
+ * @param {Pick<PreflightResult, 'url' | 'videoId' | 'ok' | 'status' | 'action'> & Partial<PreflightResult>} fields
+ * @returns {PreflightResult}
+ */
+function preflightResult({
+  url,
+  videoId,
+  ok,
+  status,
+  action,
+  note = "",
+  reason = "",
+  title = "",
+  channel = "",
+  handle = "",
+  displayTitle = "",
+  displayChannel = "",
+}) {
+  return {
+    url,
+    videoId,
+    ok,
+    status,
+    action,
+    note,
+    reason,
+    title,
+    channel,
+    handle,
+    displayTitle,
+    displayChannel,
+  };
+}
+
+/**
  * @typedef {Object} PreflightDeps
  * @property {(command: string, args: string[], options?: object) => ReturnType<typeof spawnAsync>} [spawn]
  * @property {NodeJS.ProcessEnv} [env]
@@ -239,22 +275,18 @@ export async function preflightVideo(url, deps = {}) {
   const { spawn = spawnAsync, env = process.env } = deps;
 
   /** @param {string} note @param {string} reason @returns {PreflightResult} */
-  const rejectInvalid = (note, reason) => ({
-    url,
-    videoId: null,
-    ok: false,
-    status: "invalid-url",
-    action: "reject",
-    // Escaped at construction: both cells can carry URL- or stderr-derived
-    // text, which must never break the markdown queue table it lands in.
-    note: escapeTableCell(note),
-    reason: escapeTableCell(reason),
-    title: "",
-    channel: "",
-    handle: "",
-    displayTitle: "",
-    displayChannel: "",
-  });
+  const rejectInvalid = (note, reason) =>
+    preflightResult({
+      url,
+      videoId: null,
+      ok: false,
+      status: "invalid-url",
+      action: "reject",
+      // Escaped at construction: both cells can carry URL- or stderr-derived
+      // text, which must never break the markdown queue table it lands in.
+      note: escapeTableCell(note),
+      reason: escapeTableCell(reason),
+    });
 
   /** @type {import('../adapters/adapter-contract.js').SourceAdapter} */
   let adapter;
@@ -300,62 +332,48 @@ export async function preflightVideo(url, deps = {}) {
 
   if (result.success && mediaOptional && isEmptyPostShell(result.stdout)) {
     // Removed or nonexistent post: yt-dlp still exits 0 with a synthetic title.
-    return {
+    return preflightResult({
       url,
       videoId,
       ok: false,
       status: "unavailable",
       action: "reject",
-      note: "",
       reason: "post removed or nonexistent (no uploader, description or counts)",
-      title: "",
-      channel: "",
-      handle: "",
-      displayTitle: "",
-      displayChannel: "",
-    };
+    });
   }
 
   if (result.success) {
-    const parsed = parsePreflightLine(result.stdout);
-    return {
+    const { title, channel, handle } = parsePreflightLine(result.stdout);
+    return preflightResult({
       url,
       videoId,
       ok: true,
       status: "ok",
       action: "enqueue",
-      note: "",
-      reason: "",
-      title: parsed.title,
-      channel: parsed.channel,
-      handle: parsed.handle,
-      displayTitle: truncateTitle(escapeTableCell(parsed.title)),
-      displayChannel: escapeTableCell(formatChannel(parsed.channel, parsed.handle)),
-    };
+      title,
+      channel,
+      handle,
+      displayTitle: truncateTitle(escapeTableCell(title)),
+      displayChannel: escapeTableCell(formatChannel(channel, handle)),
+    });
   }
 
   const detail = spawnFailureDetail(result);
   // A link post: the allow-list refused the post's outbound URL without a
   // fetch. That is the well-formed 0-media result, so it takes the `ok` row.
   if (mediaOptional && parseDelegationRefusal(detail)) {
-    return {
+    return preflightResult({
       url,
       videoId,
       ok: true,
       status: "ok",
       action: "enqueue",
       note: "link post, no video (empty media)",
-      reason: "",
-      title: "",
-      channel: "",
-      handle: "",
-      displayTitle: "",
-      displayChannel: "",
-    };
+    });
   }
   const status = classifyPreflightFailure(detail, adapter.errorPatterns);
   const reason = escapeTableCell(summarizeDetail(detail));
-  return {
+  return preflightResult({
     url,
     videoId,
     ok: false,
@@ -363,12 +381,7 @@ export async function preflightVideo(url, deps = {}) {
     action: status === "unavailable" ? "reject" : "enqueue",
     note: status === "unavailable" ? "" : `preflight: ${reason || "needs auth/cookies"}`,
     reason,
-    title: "",
-    channel: "",
-    handle: "",
-    displayTitle: "",
-    displayChannel: "",
-  };
+  });
 }
 
 /**

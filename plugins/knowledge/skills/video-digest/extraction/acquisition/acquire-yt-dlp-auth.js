@@ -50,17 +50,25 @@ export function isCookieProfileRetryableError(detail, errorPatterns) {
 }
 
 /**
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {string|undefined}
+ */
+function envCookiesFromBrowser(env) {
+  return resolveEnvWithLegacy(
+    YT_DLP_COOKIES_FROM_BROWSER_ENV,
+    LEGACY_YT_DLP_COOKIES_FROM_BROWSER_ENV,
+    env,
+  )?.trim();
+}
+
+/**
  * @param {NodeJS.ProcessEnv} [env]
  * @returns {boolean}
  */
 export function hasExplicitYtDlpCookieConfig(env = process.env) {
   return Boolean(
     resolveEnvWithLegacy(YT_DLP_COOKIES_FILE_ENV, LEGACY_YT_DLP_COOKIES_FILE_ENV, env)?.trim() ||
-      resolveEnvWithLegacy(
-        YT_DLP_COOKIES_FROM_BROWSER_ENV,
-        LEGACY_YT_DLP_COOKIES_FROM_BROWSER_ENV,
-        env,
-      )?.trim(),
+      envCookiesFromBrowser(env),
   );
 }
 
@@ -71,15 +79,8 @@ export function hasExplicitYtDlpCookieConfig(env = process.env) {
  * @returns {readonly string[]}
  */
 export function browserCookieFallbackProfiles(env = process.env) {
-  const explicit = resolveEnvWithLegacy(
-    YT_DLP_COOKIES_FROM_BROWSER_ENV,
-    LEGACY_YT_DLP_COOKIES_FROM_BROWSER_ENV,
-    env,
-  )?.trim();
-  if (explicit) {
-    return [explicit];
-  }
-  return platformBrowserCookieOrder();
+  const explicit = envCookiesFromBrowser(env);
+  return explicit ? [explicit] : platformBrowserCookieOrder();
 }
 
 /**
