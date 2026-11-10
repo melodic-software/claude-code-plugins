@@ -219,6 +219,14 @@
 // its failed step's last line counts: a refusal for another reason, or a log
 // that cannot be read, is a failed mint.
 //
+// A run admit's upstream-status stop skipped (check-upstream-status: Actions
+// or npm installs listed an outage) ran no model either. Once the status pages
+// read clear the sweep re-fires it with no wait, paced with the breaker trips
+// by limits.refire-queue-per-slot; while they list an outage or cannot be
+// read, it waits limits.reset-clamp-min hours after the run ended, as a run
+// the blocker gate skipped does, and that wait is not carried to the next
+// sweep. The pages are read once a sweep, and only when such a run is decided.
+//
 // When that label's run opened a pull request instead, the newest one the
 // lanes App opened from the issue's lane branch in this repository decides.
 // Merged with `Refs:` (the issue stays open with nothing to run) or closed
@@ -315,6 +323,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { notBornTriaged } from "../../actions/check-born-triaged/check-born-triaged.mjs";
+import { checkUpstreamStatus } from "../../actions/check-upstream-status/check-upstream-status.mjs";
 import { createGitHub, graphqlQuery, isFault, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, listedStatusOf, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
@@ -351,6 +360,10 @@ const RESOLVE_CALLS = ["resolve-issue", "resolve-issue-subscription", "resolve-i
 // The admit job's step that skips a run while the issue has an open blocker,
 // or its blockers cannot be read (check-blockers.mjs); pick-slot then skips.
 const BLOCKER_STEP = "Wait for open blockers";
+// The admit job's step after BLOCKER_STEP, which runs only once the blockers
+// pass; green with pick-slot skipped, it found an upstream outage
+// (check-upstream-status), since admit's proceed then fails on nothing else.
+const UPSTREAM_STEP = "Check upstream status";
 // The read runner's broker-check step a run stops at, green, when its in-slot
 // re-check (check-blockers.mjs RECHECK) finds an open blocker added while it
 // waited for its slot, or cannot read them; no model ran and no marker follows.
@@ -1650,13 +1663,16 @@ export function sharedLaneRuns(actions, repo) {
 // skip its broker ask for the kill switch (`breaker`), was skipped by the WIP
 // cap (`capped`: pick-slot ran, resolve-issue did not), or was skipped by the
 // admit job's blocker gate (`blocked`: its BLOCKER_STEP ran and pick-slot did
-// not, or a call's broker-check stopped at RECHECK_STOP_STEP). A run another gate stopped before its mint (an open closing PR, a reused
+// not, or a call's broker-check stopped at RECHECK_STOP_STEP), or by admit's
+// upstream-status stop (`outage`: a green admit whose UPSTREAM_STEP ran and
+// pick-slot skipped). A run another gate stopped before its mint (an open closing PR, a reused
 // branch) is none of these, so it is never re-fired here. Returned as
 // `stalled`, with `run` the run that made it a breaker trip and `stage`
 // where: `check` at broker-check, before any model turn, or `token` at a mint.
 async function didNoWork(jobsOf, refusalOf, runs) {
   // A higher rank wins across runs; between equal ranks the first stays.
-  const rank = { capped: 1, blocked: 1, breaker: 2, "mint-failed": 3 };
+  // `outage` ranks lowest, so a run of any other class keeps that class's wait.
+  const rank = { outage: 0.5, capped: 1, blocked: 1, breaker: 2, "mint-failed": 3 };
   let stalled = null;
   let tripped = null;
   let stage = null;
@@ -1697,6 +1713,10 @@ async function didNoWork(jobsOf, refusalOf, runs) {
     const blocked =
       (named("admit").some((job) => endedAt(job, BLOCKER_STEP, "success")) && named("pick-slot").every((job) => job.conclusion === "skipped")) ||
       calls.some((job) => endedAt(job, RECHECK_STOP_STEP, "success"));
+    const outage =
+      named("admit").some((job) => job.conclusion === "success" && endedAt(job, UPSTREAM_STEP, "success")) &&
+      named("pick-slot").length > 0 &&
+      named("pick-slot").every((job) => job.conclusion === "skipped");
     // One log per run: broker-check's when it refused, failed or stopped
     // green, else the first failed mint's, else the first stopped mint's.
     const refused = killed
@@ -1717,7 +1737,7 @@ async function didNoWork(jobsOf, refusalOf, runs) {
     } else if (capped) {
       atLeast("capped");
     } else if (blocked) {
-      atLeast("blocked");
+      atLeast(outage ? "outage" : "blocked");
     }
   }
   return stalled && { stalled, run: tripped, stage };
@@ -2028,7 +2048,7 @@ function pullRefusal({ pull, number, comments, events, bot, held }) {
 
 // Why an agent-ready issue whose newest label has no marker after it is not
 // re-fired or handed off now, or null with what to do.
-async function refireRefusal({ github, actions, jobLog, carry, repo, number, issue, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped, runsOf }) {
+async function refireRefusal({ github, actions, jobLog, carry, repo, number, issue, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped, runsOf, upstreamClear }) {
   if (!trustedLabeler(lastAdd, { bot, humans })) {
     return { reason: `${LABEL} was added by neither a listed human nor the lanes App` };
   }
@@ -2154,11 +2174,21 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
     // A broker-check trip ran no model, and this sweep runs only with the
     // kill switch off, so it re-fires now; a mint trip ran the model and
     // waits like any failed mint.
-    const clamp = stalled === "breaker" && stage === "check" ? 0 : limits["reset-clamp-min"];
+    // An upstream-status stop ran no model either, so it re-fires now once
+    // the status page reads clear; while it does not (an outage, or a page it
+    // cannot read) it waits as before, and that wait is never carried to the
+    // next sweep, which reads the page again.
+    const outage = stalled === "outage";
+    const clamp = (stalled === "breaker" && stage === "check") || (outage && (await upstreamClear())) ? 0 : limits["reset-clamp-min"];
     const due = ended + (over >= 0 ? hoursFor["kill-switch"] : clamp) * HOUR_MS;
     if (now < due) {
-      const why = stalled === "breaker" ? `the broker refused its lane run for the lanes kill switch (trip ${trips + 1})` : "its lane run did no work";
-      return { reason: `${why}; it is re-fired after ${new Date(due).toISOString()}`, due };
+      const why =
+        stalled === "breaker"
+          ? `the broker refused its lane run for the lanes kill switch (trip ${trips + 1})`
+          : outage
+            ? "the upstream-status stop skipped its lane run, and the status page does not read clear"
+            : "its lane run did no work";
+      return { reason: `${why}; it is re-fired after ${new Date(due).toISOString()}`, ...(!outage && { due }) };
     }
     if (await wipCapped()) {
       return { reason: "its lane run did no work, and the issue lane is paused over its WIP cap" };
@@ -2195,7 +2225,7 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
 // re-fired (after a failed run), or null with the time it has waited since.
 // Every fact is read from the API this sweep; `read` lists the issue's
 // comments or events once, shared with the recurrence check.
-async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read, statusOf, runsOf }) {
+async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read, statusOf, runsOf, upstreamClear }) {
   // The holds as the Work status field decides them, so a hold set only on
   // the field stops here too.
   const holds = (await fieldNamesOf(statusOf, issue)).filter((label) => HOLDS.has(label));
@@ -2223,7 +2253,7 @@ async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot
   const lastAdd = events.filter((event) => isLabel(event, "labeled")).at(-1);
   const addedAt = Date.parse(lastAdd?.created_at);
   if (Number.isFinite(addedAt) && (marker === undefined || addedAt > marker.at)) {
-    return refireRefusal({ github, actions, jobLog, carry, repo, number: issue.number, issue, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped, runsOf });
+    return refireRefusal({ github, actions, jobLog, carry, repo, number: issue.number, issue, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped, runsOf, upstreamClear });
   }
   if (held) {
     return { reason: `held by ${HUMAN_LABEL}` };
@@ -2283,7 +2313,7 @@ async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot
 // Restarts, re-fires or hands off up to `cap` issues, longest-waiting first,
 // of those it decides before `clock()` reaches `deadline`. Returns how many
 // reads or writes failed.
-async function restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, cap = limits["restarts-per-run"], writer = NO_WRITER, statusOf, openIssues, byStatus, field, fieldRows, slots = laneSlots, clock = Date.now, deadline = Number.POSITIVE_INFINITY }) {
+async function restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, cap = limits["restarts-per-run"], writer = NO_WRITER, statusOf, openIssues, byStatus, field, fieldRows, slots = laneSlots, clock = Date.now, deadline = Number.POSITIVE_INFINITY, upstream = checkUpstreamStatus }) {
   let failed = 0;
   const ready = [];
   // Main's blob SHAs of the lane workflow files, read once per run.
@@ -2302,6 +2332,22 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
     })());
   // The issue lane's run pause; a read that fails never pauses.
   const wipCapped = () => status().then((s) => s.paused);
+  // Whether the status pages admit gates on read clear, read once per sweep
+  // and only for a run its upstream-status stop skipped. Only a read that
+  // found every component (`ok`) and no outage is clear; admit fails open on
+  // an unreadable page, but here that keeps the wait.
+  let upstreamRead;
+  const upstreamClear = () =>
+    (upstreamRead ??= (async () => {
+      try {
+        const { degraded, reason } = await upstream();
+        console.log(`label-unblocked: upstream status for runs its stop skipped: degraded=${degraded} reason=${escapeCommand(reason)}`);
+        return degraded === "false" && reason === "ok";
+      } catch (error) {
+        console.log(`::warning title=label-unblocked::the upstream status was not read, so a run its stop skipped waits: ${escapeCommand(error?.message ?? error)}`);
+        return false;
+      }
+    })());
   // The unfinished lane runs, read once per run and only for a reopened fix
   // issue; null with no Actions token.
   let flight;
@@ -2395,7 +2441,7 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
     try {
       const verdict =
         (await recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, read, statusOf })) ??
-        (await restartRefusal({ github, actions, jobLog, carry, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read, statusOf, runsOf }));
+        (await restartRefusal({ github, actions, jobLog, carry, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read, statusOf, runsOf, upstreamClear }));
       const { reason, fail } = verdict;
       if (carry && reason !== null && !fail) {
         await keepWait(issue, verdict);
@@ -2438,9 +2484,11 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
   console.log(`label-unblocked: ${ready.filter((item) => item.recurrence).length} reopened fix issue(s) to relabel`);
   // Kill-switch re-fires only top the lane's unfinished runs up to the queue
   // target, so a clear keeps the slots full instead of flooding their queue;
-  // a listing that fails re-fires none of them this sweep.
+  // a listing that fails re-fires none of them this sweep. Upstream-status
+  // re-fires after an outage share that room.
+  const paced = (item) => item.stall === "breaker" || item.stall === "outage";
   let room = 0;
-  if (ready.some((item) => item.stall === "breaker")) {
+  if (ready.some(paced)) {
     try {
       const target = limits["refire-queue-per-slot"] * slots();
       const queued = (await inFlight()).length;
@@ -2451,7 +2499,7 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
     }
   }
   const go = ready.filter((item) => {
-    if (item.stall !== "breaker" || room-- > 0) {
+    if (!paced(item) || room-- > 0) {
       return true;
     }
     console.log(`label-unblocked: #${item.number} re-fire deferred: the issue lane's queue is at its kill-switch re-fire target`);
@@ -2515,7 +2563,7 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
         console.log(`label-unblocked: #${number} left as is: its Work status is now ${restarted.state ?? "unset"}`);
         continue;
       }
-      const why = infra ? "re-fired on a backoff" : stall === "breaker" ? "re-fired after a kill-switch refusal" : refire ? "re-fired after its failed run" : recurrence ? "relabeled after its reopen on a repeat failure" : "restarted after its limit stop";
+      const why = infra ? "re-fired on a backoff" : stall === "breaker" ? "re-fired after a kill-switch refusal" : stall === "outage" ? "re-fired after its upstream-status skip" : refire ? "re-fired after its failed run" : recurrence ? "relabeled after its reopen on a repeat failure" : "restarted after its limit stop";
       console.log(`label-unblocked: #${number} ${why}`);
     } catch (error) {
       failed += 1;
@@ -2794,7 +2842,7 @@ async function listedNames(byStatus) {
 
 export { budgetLatch, failedFor, fieldListing, markReads };
 
-export async function main({ env = process.env, github, actions, jobLog, now = Date.now(), rate = searchRateLimit(), admission = baseAdmission(env), writer, statusOf, byStatus, statusField, slots, clock = Date.now } = {}) {
+export async function main({ env = process.env, github, actions, jobLog, now = Date.now(), rate = searchRateLimit(), admission = baseAdmission(env), writer, statusOf, byStatus, statusField, slots, clock = Date.now, upstream } = {}) {
   const deadline = clock() + sweepBudgetMs(env);
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
@@ -2901,7 +2949,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
           failed += await readmitReady({ github, repo, listed, names, humans, bot, gate, appId, admission, cap: limits["readmit-per-run"], now, writer: writeTo, statusOf: statusTo });
         }
       }
-      failed += await restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, slots, writer: writeTo, statusOf: statusTo, openIssues: listed, byStatus: listing, clock, deadline, ...(statusField ?? (own ? {} : await workStatusField(env, github, repo))) });
+      failed += await restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, slots, writer: writeTo, statusOf: statusTo, openIssues: listed, byStatus: listing, clock, deadline, upstream, ...(statusField ?? (own ? {} : await workStatusField(env, github, repo))) });
       if (carry) {
         const { jobsHit, jobsRead, refusalsHit, refusalsRead } = carry.counts;
         console.log(`::notice title=label-unblocked::carried verdicts: ${jobsHit} job listing(s) and ${refusalsHit} log verdict(s) reused, ${jobsRead} and ${refusalsRead} read`);
