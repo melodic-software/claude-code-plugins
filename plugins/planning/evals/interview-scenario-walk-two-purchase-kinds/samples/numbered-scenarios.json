@@ -5,8 +5,8 @@
       "why": "S1 and S2 each open with an id and a colon"
     },
     {
-      "answer": "Q1: Which purchase does a refund apply to?\nS1) Ana's 1 April renewal arrives damaged.\nS2) Ben's one-off bag from 2 April is returned.",
-      "why": "ids followed by a parenthesis"
+      "answer": "Q1: Which purchase does a refund apply to?\n**S1:** Ana's 1 April renewal arrives damaged.\n**S2:** Ben's one-off bag from 2 April is returned.",
+      "why": "bold ids with a colon"
     }
   ],
   "fail": [
@@ -17,6 +17,10 @@
     {
       "answer": "Q1: What does an order cover?\nScenario: Marta subscribes on 3 March for 9.50 a month.",
       "why": "one unnumbered scenario"
+    },
+    {
+      "answer": "Q1: Which purchase does a refund apply to?\nS1) Ana's 1 April renewal arrives damaged.\nS2) Ben's one-off bag from 2 April is returned.",
+      "why": "ids without the colon the rule requires"
     }
   ]
 }

@@ -18,9 +18,9 @@ graders:
     arm: with-only
   - name: numbered-scenarios
     type: regex
-    pattern: '\bS1\s*[:)][\s\S]*\bS2\s*[:)]'
+    pattern: '\bS1\**\s*:[\s\S]*\bS2\**\s*:'
     arm: both
   - name: scenario-walk-shape
     type: llm
     arm: both
-    criteria: "PASS only if all hold: (1) the scenarios S1, S2 and so on sit inside one numbered question (Q1, Q2, ...), in its context, not as a free-standing list; (2) every scenario is concrete, naming a person and giving an amount and a day or date; (3) every scenario says what outcome it tests; (4) every scenario ends with its own recommendation and the term or rule that answer forces; (5) the user is told they can answer per scenario, for example 'S2: a'. FAIL if any of the five is missing, or if the reply defines the terms in prose without scenarios."
+    criteria: "PASS only if all hold: (1) the scenarios S1, S2 and so on sit inside one numbered question (Q1, Q2, ...), in its context, not as a free-standing list; (2) every scenario is concrete: it names a person and gives an amount, a day or a date; (3) every scenario says what outcome it tests; (4) every scenario ends with its own recommendation and the term or rule that answer forces; (5) the user is told they can answer per scenario, for example 'S2: a'. FAIL if any of the five is missing, or if the reply defines the terms in prose without scenarios."

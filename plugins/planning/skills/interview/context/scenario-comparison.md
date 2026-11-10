@@ -49,7 +49,8 @@ Offer it, never force it, in one line that names the unclear term, when:
   term used with two meanings.
 
 For example: "'Booking' is used for both the held slot and the paid visit. Walk through a few
-scenarios?" A declined offer is not asked again for that term.
+scenarios?" A declined offer is not asked again for that term. When the user asks for scenarios, run
+the walk without the offer.
 
 ### Shape
 
@@ -77,7 +78,8 @@ too ("Q12 S3: a").
 
 - The resolutions go in the resolution field of that question's register row, one per scenario
   (`S1: a, reschedule; S2: b`), with no `|` in them. A scenario gets no register row of its own, and
-  its id is not the assumption sweep's `S<N>`.
+  its id is not the assumption sweep's `S<N>`. A reply that answers only some scenarios leaves the
+  row `open`; the unanswered ones are restated.
 - An agreed term goes to the glossary through SKILL.md's inline vocabulary update, under
   `domain_docs` like any resolved term.
 - When `/visualization:visualize` is available, offer once per walk an opt-in diagram of the terms
