@@ -171,19 +171,22 @@ Paths skipped from sweeps automatically:
 When the pair comes from a domain glossary change (a term renamed, or a word moved to the entry's
 `Avoid:` line, usually handed over by the domain-driven-design plugin's glossary skill), code names
 follow the glossary too, and the sweep runs as its own reviewed change, never folded into the
-glossary edit:
+glossary edit. The report groups hits by layer:
 
-- **Code names**: occurrences in docs, config, comments and string literals are swept here like
-  any other form; declarations of types, functions, variables and enum members, and the call sites a
-  symbol rename reaches, are listed for a language-aware refactor tool, per "What this skill does
-  NOT do".
-- **Stored values** (an enum value or string persisted in a database, a message schema, a public
-  API field): listed separately and never edited in place; each needs a data migration or a
-  versioned contract change in the same reviewed change, which the report names.
-- **User-facing copy and error messages** (UI strings, emails, notifications, error text): a
-  report-only bucket. Each hit is listed with `file:line` and the glossary term; none is edited,
-  because users' words may rightly differ from the model's. A hit matching the entry's
-  `Shown to users as:` wording is intended, not drift.
+- **Code and identifiers**: renamed in one reviewed change. Occurrences in config, comments and
+  string literals are swept here like any other form; declarations of types, functions, variables
+  and enum members, and the call sites a symbol rename reaches, are listed for a language-aware
+  refactor tool, per "What this skill does NOT do".
+- **Docs and ADR text**: updated like any other prose. ADR file names and numbers stay unchanged,
+  so a hit in an ADR's file name, or in a path or link naming that file, is kept, never edited.
+- **User-facing copy and error messages** (UI strings, emails, notifications, error text): report
+  only. Each hit is listed with `file:line` and the glossary term; none is edited, because users'
+  words may rightly differ from the model's. A hit matching the entry's `Shown to users as:`
+  wording is intended, not drift.
+- **Stored values and migrations** (an enum value or string persisted in a database, a migration,
+  seed or fixture, a message schema, a public API field): never edited. The report names each as a
+  decision, a phased migration or a mapping that keeps the stored name, recorded as an ADR through
+  `/architecture:record-decision`.
 
 ## What this skill does NOT do
 
