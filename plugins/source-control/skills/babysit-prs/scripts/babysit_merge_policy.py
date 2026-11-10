@@ -2157,7 +2157,9 @@ class _GreenMain:
             start = since + span * GREEN_SPAN
             if start > now:
                 return
-            yield from self._span(start, start + GREEN_SPAN)
+            # No run is created after now, so the span stops there and reads
+            # no grid cell that starts in the future.
+            yield from self._span(start, min(start + GREEN_SPAN, now))
         raise PolicyReadError(f"green runs: more than {GREEN_SPANS} spans")
 
     def _span(self, start: datetime, end: datetime) -> list[dict[str, Any]]:
