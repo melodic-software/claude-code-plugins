@@ -1739,6 +1739,22 @@ export async function main({ env = process.env, github, actions, verify, room, c
     if (!repo) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
     }
+    const reads = READER_EVENTS.includes(env.EVENT_NAME);
+    const keepSkips = (entries) => {
+      try {
+        writeFileSync(`${env.EAM_SKIP_OUT}.tmp`, JSON.stringify({ v: SKIP_VERSION, repo: repo[0], entries }));
+        renameSync(`${env.EAM_SKIP_OUT}.tmp`, env.EAM_SKIP_OUT);
+      } catch (error) {
+        console.log(`::warning title=enable-auto-merge::the skip records were not kept, so the next run reads every pull request: ${describe(error)}`);
+      }
+    };
+    // None first, before any return or throw below: the next run reads back
+    // the newest run that kept a file (verify-answers.mjs), so a reader run
+    // that ends before its records, or keeps none, leaves it no older run's
+    // records to skip on.
+    if (reads && env.EAM_SKIP_OUT) {
+      keepSkips({});
+    }
     if (env.KILL_SWITCH !== "proceed") {
       console.log("enable-auto-merge: the lanes kill switch stops this run; nothing read or armed");
       return 0;
@@ -1835,7 +1851,6 @@ export async function main({ env = process.env, github, actions, verify, room, c
     // posts none unless it injects this too.
     evidence ??= injected ? null : pythonEvidence(env);
     const riskTokens = [];
-    const reads = READER_EVENTS.includes(env.EVENT_NAME);
     const appendSummary = (text) => {
       if (!env.GITHUB_STEP_SUMMARY) {
         return;
@@ -2131,20 +2146,6 @@ export async function main({ env = process.env, github, actions, verify, room, c
     // Skip-unchanged (SKIPPABLE): a reader run that writes keeps its records
     // and reads the last run's.
     const skips = { on: reads && write && Boolean(env.EAM_SKIP_OUT), maxMinutes: skipLimit(env.SKIP_MAX_MINUTES, SKIP_MAX_MINUTES), maxSkips: skipLimit(env.SKIP_MAX_SKIPS, SKIP_MAX_SKIPS) };
-    const keepSkips = (entries) => {
-      try {
-        writeFileSync(`${env.EAM_SKIP_OUT}.tmp`, JSON.stringify({ v: SKIP_VERSION, repo: repo[0], entries }));
-        renameSync(`${env.EAM_SKIP_OUT}.tmp`, env.EAM_SKIP_OUT);
-      } catch (error) {
-        console.log(`::warning title=enable-auto-merge::the skip records were not kept, so the next run reads every pull request: ${describe(error)}`);
-      }
-    };
-    // None first: the next run reads back the newest run that kept a file
-    // (verify-answers.mjs), so a reader run that ends before its records, or
-    // keeps none, leaves it no older run's records to skip on.
-    if (reads && env.EAM_SKIP_OUT) {
-      keepSkips({});
-    }
     const rollups = new Map();
     const kept = {};
     let skipStore = {};

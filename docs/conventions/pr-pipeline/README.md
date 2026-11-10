@@ -2098,7 +2098,10 @@ nothing.
 Each verifier read is a full read. The arm step's skip records (`merge.skip-unchanged`) cross runs
 only as the `pr-merge-verify-answers` artifact of a scheduled or hand-started run on main
 (`verify-answers.mjs`, as the head-ref map is read). Every reader run keeps a file, empty when it
-keeps no records, so the next run never skips on an older run's records.
+keeps no records, so the next run never skips on an older run's records: the arm step writes it
+empty before the kill-switch check or any read, and overwrites it with its records at the end. Only
+a `GITHUB_REPOSITORY` that is not `owner/repo`, a failed write, or an arm step that never starts
+leaves no file.
 
 `merge.lane-prs` (default `native`) decides whether the merge gate still handles the lanes App's
 pull requests. Under `native` the `merge` job's candidate listing does not ask for them, so the gate

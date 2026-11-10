@@ -4004,6 +4004,30 @@ test("a reader run that keeps no records still keeps an empty file, and the run 
   assert.equal(third.details, 1);
 });
 
+test("a reader run that stops early keeps an empty file: the kill switch, a held listing, a failed listing, a bad bot login", async () => {
+  const EMPTY = { v: 1, repo: ENV.GITHUB_REPOSITORY, entries: {} };
+  for (const [name, env] of Object.entries({ killSwitch: { KILL_SWITCH: "" }, botLogin: { LANES_BOT_LOGIN: "kyle-sexton" } })) {
+    assert.deepEqual((await skipRun([riskHeld()], { env })).kept, EMPTY, name);
+  }
+  const listings = {
+    full: [0, async (method, path, body) => ({ data: { repository: { pullRequests: { pageInfo: { hasNextPage: true, endCursor: `c${body?.query?.length}` }, nodes: [pull(2)] } } } })],
+    failed: [1, async () => { throw new Error("listing 502"); }],
+  };
+  for (const [name, [code, github]] of Object.entries(listings)) {
+    const out = join(tempDir("enable-auto-merge-skip-early-"), "eam-skip.json");
+    const log = console.log;
+    console.log = () => {};
+    try {
+      assert.equal(await main({ env: { ...ENV, EAM_SKIP_OUT: out }, github, room: room(), sleep: async () => {} }), code, name);
+    } finally {
+      console.log = log;
+    }
+    assert.deepEqual(JSON.parse(readFileSync(out, "utf8")), EMPTY, name);
+  }
+  // An event run keeps none, early exit or not.
+  assert.equal((await skipRun([riskHeld()], { env: { EVENT_NAME: "pull_request_target", EVENT_PR: "1", KILL_SWITCH: "" } })).kept, null);
+});
+
 test("a skip record of another repository, from the future, or malformed skips nothing", async () => {
   const first = await skipRun([riskHeld()]);
   const kept = JSON.parse(readFileSync(first.from, "utf8"));
