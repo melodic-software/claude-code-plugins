@@ -15,3 +15,5 @@
   [plugin philosophy](../plugin-philosophy.md#configuration-ownership-and-scope).
 - A new standing instruction names its observed-stumble evidence:
   [instruction economy](../plugin-philosophy.md#instruction-economy).
+- A new taste number in a user-interface reference names a key, and a key name follows the shape
+  rules in [`reference/values.md`](../../plugins/user-interface/reference/values.md).

@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/docs/conventions/user-interface.yaml",
+            "content": "version: 1\nanimation:\n  scale:\n    press: 0.96\n"
+          }
+        }
+      ],
+      "why": "nested form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/docs/conventions/user-interface.yaml",
+            "content": "version: 1\nanimation.scale.press: 0.96\n"
+          }
+        }
+      ],
+      "why": "dotted key"
+    }
+  ]
+}

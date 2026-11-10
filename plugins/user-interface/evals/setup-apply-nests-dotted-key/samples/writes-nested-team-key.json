@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/docs/conventions/user-interface.yaml",
+            "content": "version: 1\nanimation:\n  scale:\n    press: 0.96\n"
+          }
+        }
+      ],
+      "why": "nested block YAML in the team file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "content": "version: 1\nanimation:\n  scale:\n    press: 0.96\n",
+            "file_path": "/ws/docs/conventions/user-interface.yaml"
+          }
+        }
+      ],
+      "why": "same call with the keys in the other order"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/docs/conventions/user-interface.yaml",
+            "content": "version: 1\nanimation.scale.press: 0.96\n"
+          }
+        }
+      ],
+      "why": "dotted key on one line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/docs/conventions/user-interface.local.yaml",
+            "content": "version: 1\nanimation:\n  scale:\n    press: 0.96\n"
+          }
+        }
+      ],
+      "why": "near miss: the personal file, not the team file"
+    }
+  ]
+}
