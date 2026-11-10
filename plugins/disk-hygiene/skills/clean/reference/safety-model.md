@@ -370,7 +370,7 @@ skill-frontmatter hook gets: [Where each variable resolves](https://code.claude.
 and the PR #1014 probe, as of 2026-11-10; recheck when that section changes what a skill hook
 substitutes), passed to the
 guard as `--plugin-root` and mapped to `<plugins>/data/<id>` per the documented
-[persistent-data-directory](https://code.claude.com/docs/en/plugins/components#reference-plugin-paths-and-store-data)
+[persistent-data-directory](https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data)
 layout, either from the root's `<plugins>/cache` layout or, for a plugin loaded in place from a
 local-directory marketplace, through `known_marketplaces.json` (see below). A host that can
 substitute `${CLAUDE_PLUGIN_DATA}` itself may instead pass it directly as
@@ -512,7 +512,7 @@ Verification records for the directory channel:
   hook processes receive, or a release note changes in-place loading.
 - The guard maps a plugin id to its data directory by the documented rule. **Pointer:** when
   checking the data path and how the id is sanitized, fetch
-  [Reference plugin paths and store data](https://code.claude.com/docs/en/plugins/components#reference-plugin-paths-and-store-data)
+  [Path variables and persistent data](https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data)
   live. **As of:** 2026-11-10. **Recheck trigger:** that section's id rule changes, or a release
   note names the plugin data directory.
 - The guard couples only to the documented top-level fields of a `known_marketplaces.json` entry

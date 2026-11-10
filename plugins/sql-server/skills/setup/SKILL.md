@@ -108,6 +108,6 @@ was skipped or refused, and each FAIL with its remediation.
   Claude Code changes how `claude mcp add` takes effect, or when a registration's tools appear in
   the session that added it.
 - Persistence of `${CLAUDE_PLUGIN_DATA}` across plugin updates:
-  <https://code.claude.com/docs/en/plugins/components#reference-plugin-paths-and-store-data>, as of
+  <https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data>, as of
   2026-11-10. Recheck when that section changes, or when `check` reports no server copy after an
   update that `apply` had installed.
