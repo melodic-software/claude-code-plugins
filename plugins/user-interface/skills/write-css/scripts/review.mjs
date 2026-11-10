@@ -5,14 +5,16 @@
 
      node review.mjs [--config FILE|JSON] <path|glob> [<path|glob> …]
 
-   --config takes the resolved config values ({"css":{"rules":{"disable":[…]}}})
-   or the whole resolver output ({"values":{…}}), as a JSON string or a file.
-   Exit: 0 no findings (suppressed ones do not count), 1 findings, 2 usage
-   error or crash. */
+   --config takes the resolved config values ({"css":{"rules":{"disable":[…]}},
+   "animation":{"duration_ms":{…}}}) or the whole resolver output
+   ({"values":{…}}), as a JSON string or a file. A transition longer than
+   animation.duration_ms.large, else the shipped default, is a `duration`
+   finding. Exit: 0 no findings (suppressed ones do not count), 1 findings,
+   2 usage error or crash. */
 import { existsSync, readFileSync, statSync } from "node:fs";
 
 /* Loaded inside the try at the bottom, so a failed load exits 2, not Node's 1. */
-let globSync, check, checkFile;
+let globSync, check, checkFile, parseYaml;
 
 const USAGE = "Usage: node review.mjs [--config FILE|JSON] <path|glob> [<path|glob> …]";
 
@@ -38,16 +40,70 @@ function parseArgs(argv) {
   return { config, patterns };
 }
 
-function disabledRules(arg) {
+function configValues(arg) {
   let parsed;
   try {
     parsed = JSON.parse(arg.trimStart().startsWith("{") ? arg : readFileSync(arg, "utf8"));
   } catch (error) {
     throw new UsageError(`--config is neither JSON nor a readable JSON file: ${error.message}`);
   }
-  const disable = (parsed?.values ?? parsed)?.css?.rules?.disable ?? [];
+  return parsed?.values ?? parsed;
+}
+
+function disabledRules(values) {
+  const disable = values?.css?.rules?.disable ?? [];
   if (!Array.isArray(disable)) throw new UsageError("--config css.rules.disable must be a list.");
   return new Set(disable);
+}
+
+/** animation.duration_ms.large from --config, else from the plugin's bundled defaults. */
+function durationCeiling(values) {
+  const passed = values?.animation?.duration_ms?.large;
+  const ceiling =
+    passed ?? parseYaml(readFileSync(new URL("../../../reference/defaults.yaml", import.meta.url), "utf8"))?.animation?.duration_ms?.large;
+  if (typeof ceiling !== "number" || !(ceiling > 0)) throw new UsageError(`animation.duration_ms.large must be a number above 0, got ${ceiling}.`);
+  return ceiling;
+}
+
+/* Comments and strings become spaces, and so does everything outside <style>
+   in a non-CSS file, so every line number stays where it was. */
+const blank = (text) => text.replace(/[^\n]/g, " ");
+function cssOf(path, text) {
+  const css = /\.css$/i.test(path)
+    ? text
+    : text.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)|[^\n]/gi, (_, open, body, close) =>
+        body === undefined ? " " : blank(open) + body + blank(close),
+      );
+  return css.replace(/\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'/g, blank);
+}
+
+/* Splits on commas outside parentheses. */
+const items = (value) => value.split(/,(?![^(]*\))/).map((item) => item.trim());
+const milliseconds = (word) => {
+  const time = word.match(/^(\d*\.?\d+)(ms|s)$/i);
+  return time ? Number(time[1]) * (time[2].toLowerCase() === "s" ? 1000 : 1) : null;
+};
+
+/** `{ line, rule, message }` for each transition and transition-duration longer than the ceiling. */
+function checkDurations(path, ceiling) {
+  const found = [];
+  let line = 1;
+  for (const chunk of cssOf(path, readFileSync(path, "utf8")).split(/[{};]/)) {
+    const declaration = chunk.match(/^(\s*)(transition|transition-duration)\s*:([\s\S]*)$/i);
+    if (declaration) {
+      const at = line + (declaration[1].match(/\n/g)?.length ?? 0);
+      const times = items(declaration[3]).map((item) =>
+        declaration[2].toLowerCase() === "transition"
+          ? (item.split(/\s+/).map(milliseconds).find((time) => time !== null) ?? null)
+          : milliseconds(item),
+      );
+      const slow = times.find((time) => time !== null && time > ceiling);
+      if (slow !== undefined)
+        found.push({ line: at, rule: "duration", message: `${slow}ms is over animation.duration_ms.large (${ceiling}ms). Keep a transition within its role.` });
+    }
+    line += chunk.match(/\n/g)?.length ?? 0;
+  }
+  return found;
 }
 
 function expand(patterns) {
@@ -68,7 +124,9 @@ const lint = (path) => (/\.css$/i.test(path) ? check(readFileSync(path, "utf8"))
 
 function main(argv) {
   const { config, patterns } = parseArgs(argv);
-  const disabled = disabledRules(config);
+  const values = configValues(config);
+  const disabled = disabledRules(values);
+  const ceiling = durationCeiling(values);
   const findings = [];
   const suppressed = [];
   const unchecked = [];
@@ -79,7 +137,8 @@ function main(argv) {
       unchecked.push(path);
       continue;
     }
-    for (const { line, rule, message } of violations) {
+    const own = [...violations.filter(({ rule }) => rule !== "duration"), ...checkDurations(path, ceiling)];
+    for (const { line, rule, message } of own.sort((one, other) => one.line - other.line)) {
       const entry = `${path}:${line} [${rule}] ${message}`;
       if (disabled.has(rule)) suppressed.push(`${entry} — reason (config: rules.disable)`);
       else findings.push(entry);
@@ -96,6 +155,7 @@ try {
   ({ globSync } = await import("node:fs"));
   if (typeof globSync !== "function") throw new Error("fs.globSync is missing; this Node is too old.");
   ({ check, checkFile } = await import("../vendor/check-css.mjs"));
+  ({ parse: parseYaml } = await import("../../../scripts/lib/yaml-subset.mjs"));
   process.exitCode = main(process.argv.slice(2));
 } catch (error) {
   console.error(error instanceof UsageError ? `${error.message}\n${USAGE}` : `review.mjs failed: ${error.stack ?? error}`);

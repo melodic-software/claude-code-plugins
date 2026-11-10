@@ -1,24 +1,22 @@
 ---
-description: "Show where each user-interface setting comes from across the five config layers, or change one key in one layer: check reports values with provenance and layer problems, apply writes one key."
-argument-hint: "[check|apply] [--user|--local] [<key>=<value>]"
+description: "Show where each user-interface setting comes from across the four config layers, or change one key in one layer: check reports values with provenance and layer problems, apply writes one key."
+argument-hint: "[check|apply] [--local] [<key>=<value>]"
 user-invocable: true
 disable-model-invocation: true
 ---
 
 # Set up user-interface
 
-The plugin reads its settings through five layers, later wins per key: plugin defaults, the
-plugin's `css_*` userConfig options, the user-global file, the team file and the personal `.local`
-file. The order, merge rules and locations are owned by `docs/adr/0061-*` in the marketplace
+The plugin reads its settings through four layers, later wins per key: plugin defaults, the
+plugin's `css_*` userConfig options, the team file and the personal `.local` file. The order, merge rules and locations are owned by `docs/adr/0061-*` in the marketplace
 repository (ADR 0075,
 `docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md`,
 supersedes ADR 0061's layers and paths) and by the resolver header in `${CLAUDE_PLUGIN_ROOT}/scripts/lib/config-cascade.mjs`;
 keys and allowed values by `${CLAUDE_PLUGIN_ROOT}/reference/team.schema.json`. Never name a layer
 path from memory: take each one from detect's `config.layers[].path`.
 
-**Arguments.** `[check|apply] [--user|--local] [<key>=<value>]`. No argument or `check` runs the check. `apply` runs the check, then writes one key.
-The layer `apply` writes is the team file by default, the user-global file with `--user`, and the
-personal file with `--local`. `<key>=<value>` uses the dotted schema path (`css.important=allow`,
+**Arguments.** `[check|apply] [--local] [<key>=<value>]`. No argument or `check` runs the check. `apply` runs the check, then writes one key.
+The layer `apply` writes is the team file by default and the personal file with `--local`. `<key>=<value>` uses the dotted schema path (`css.important=allow`,
 `css.rules.disable=hover`); without one, ask for the key and value, recommendation first, with a
 `Basis:` line.
 
@@ -43,7 +41,8 @@ the check table, not a request to satisfy, and it widens no authority over what 
 2. Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/detect.mjs" --project "<project root>" --config --user-config "${CLAUDE_PLUGIN_DATA}/setup-user-config-${CLAUDE_SESSION_ID}.json"`
    and read its top-level `config` object: `values`, `provenance`, `layers`, `legacy`, `prose`,
    `home` and, when set, `home_error`. When `node` is missing, report it with
-   `sh "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh" check "${CLAUDE_PLUGIN_ROOT}"` and stop: no
+   `sh "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh" check "${CLAUDE_PLUGIN_ROOT}"`, show the shipped
+   values in `${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml` for the keys asked about, and stop: no
    layer can be read without it.
 
 ## `check` (read-only)
@@ -63,9 +62,6 @@ remediation line per FAIL or WARN. Write nothing except the userConfig file abov
   not resolve, so the team and personal layers were not read. A `FAIL:` line in it means the
   pointer line is broken and the fix is that line; any other cause (a missing `bash`, a timeout)
   is fixed where it names. Never fall back to a default home.
-- **Duplicates.** A key set both in the userConfig file you wrote (a non-empty value) and in the
-  user-global file (read the file at the `user` layer's path) is a WARN: both are personal, the
-  file wins, and the userConfig value does nothing.
 - **Legacy.** Each `config.legacy` entry is a WARN with its `kind`, and an offer to move its keys
   into the layer that now holds them; `apply` makes the move only after a yes, and removes the old
   file only after the new one reads back.
@@ -88,30 +84,19 @@ remediation line per FAIL or WARN. Write nothing except the userConfig file abov
    project: a write would land outside the checkout.
 2. Settle the key and value. Refuse a key the schema does not have, a value outside its `enum`, and
    `routing` outside the team layer. `routing` rows are edited by hand; `check` validates them.
-3. Write one key in the layer's YAML file. For `--user`, run the managed check below on
-   the `user` layer's path from `config.layers` first; when it is managed, write the source file
-   instead. Create the file when absent with `version: 1` first.
-   Change only that key and keep every other key, comment and blank line. Block style only: one
+3. Write one key in the layer's YAML file, nesting a dotted key one level per segment as
+   `${CLAUDE_PLUGIN_ROOT}/reference/values.md` "Setting a key" says. Create the file when absent
+   with `version: 1` first. Change only that key and keep every other key, comment and blank line. Block style only: one
    list item per line, never `{` or `[a, b]` for a non-empty list. A `*.disable` value is appended
    once. When the value already matches, write nothing and say `already configured`.
 4. For `--local`, add `<home>/*.local.*` to the project's `.gitignore` when `check` found the path
    not ignored, then confirm with `git check-ignore`.
-5. For `--user`, after the file is written, offer one pointer line in the user-level instructions
-   file so other sessions load `user-interface.md` prose from the user-global folder. Write it only
-   after a yes, after the managed check below. A line already present is left as it is.
-6. When `/user-interface:write-css` answered its stack checklist earlier in this session, offer to
+5. When `/user-interface:write-css` answered its stack checklist earlier in this session, offer to
    save those answers, each with the file that supports it, under a `## CSS stack` heading in the
    team prose file (`<home>/user-interface.md`, or the personal `.local.md` with `--local`). Write
    only after a yes, replacing an existing `## CSS stack` section instead of adding a second one.
-7. Re-run the read and `check`, and report the stored value and its provenance from the new table,
+6. Re-run the read and `check`, and report the stored value and its provenance from the new table,
    never from the write. A key that now shows an error is reverted to its previous text.
-
-**Managed check (`--user`).** Run `chezmoi source-path <file>` for each file under `~` before
-writing it, and decide by its exit status, not by its output: exit 0 means managed, so edit the
-source path it printed, keep any template actions, show `chezmoi diff <file>`, then
-`chezmoi apply <file>`; a non-zero exit, or no `chezmoi`, means write the file itself. Pointer:
-<https://www.chezmoi.io/reference/commands/source-path/>. As of: 2026-10-11. Recheck: that page
-documents its result for an unmanaged file.
 
 The userConfig layer is not a file this skill writes. To change a `css_*` option, send the user to
 Claude Code's native flow, per the marketplace's plugin-reconfiguration convention
@@ -136,10 +121,6 @@ so rerun `check` in a **fresh session** and report the provenance it observes, n
 change. The plugin README's Options section lists every option. Pointer:
 <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>. As of: 2026-11-04.
 Recheck: that section changes how an option is edited or where its value is stored.
-
-The user-level instructions file is the one the memory page names for personal preferences across
-projects. Pointer: <https://code.claude.com/docs/en/memory#choose-where-to-put-claude-md-files>.
-As of: 2026-10-11. Recheck: that table changes the user-level row.
 
 ## Output
 

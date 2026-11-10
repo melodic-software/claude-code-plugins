@@ -338,6 +338,16 @@ def resolve_bash(
     return next((c for c in candidates if _accept_bash(c, windows, exists)), None)
 
 
+def _shared_bash(tool: str) -> str:
+    """This host's `resolve_bash`; raises `PolicyReadError` naming the shared
+    YAML `tool` when there is none."""
+    platform = "win32" if os.name == "nt" else sys.platform
+    bash = resolve_bash(os.environ, platform, os.path.isfile)
+    if bash is None:
+        raise PolicyReadError(f"no usable bash found to run the shared YAML {tool}")
+    return bash
+
+
 # The shared reader's answers by document, keys, reader script, command
 # runner and environment, of which it is a pure function: `read_config_at`
 # reads the same few config texts at hundreds of commits per gate run, and
@@ -380,10 +390,7 @@ def _read_concern_values(
     text: str, keys: list[tuple[str, bool]], run: Callable[..., Any]
 ) -> dict[str, list[str]] | None:
     """`_concern_values`, read through the shared reader every time."""
-    platform = "win32" if os.name == "nt" else sys.platform
-    bash = resolve_bash(os.environ, platform, os.path.isfile)
-    if bash is None:
-        raise PolicyReadError("no usable bash found to run the shared YAML reader")
+    bash = _shared_bash("reader")
     values: dict[str, list[str]] = {}
     with tempfile.TemporaryDirectory() as tmp:
         document = Path(tmp) / "concern.yaml"
@@ -422,15 +429,9 @@ def floor_paths_in(text: str) -> FloorRows:
     prints scalar items alone. Raises `FloorRowError` on a row the floor
     cannot use, and `PolicyReadError` when the parser cannot run or rejects
     the document."""
-    if text in _FLOOR_ROWS:
-        return _FLOOR_ROWS[text]
-    records = {
-        key[len(FLOOR_PATHS_KEY) + 1 :]: value
-        for key, value in yaml_records(text).items()
-        if key == FLOOR_PATHS_KEY or key.startswith(f"{FLOOR_PATHS_KEY}.")
-    }
-    _FLOOR_ROWS[text] = rows = floor_rows(records)
-    return rows
+    if text not in _FLOOR_ROWS:
+        _FLOOR_ROWS[text] = floor_rows(_records_below(text, FLOOR_PATHS_KEY))
+    return _FLOOR_ROWS[text]
 
 
 _ISSUE_STATUS: dict[str, IssueStatusConfig | None] = {}
@@ -445,11 +446,7 @@ def _issue_status_config(text: str) -> IssueStatusConfig | None:
         return None
     if text not in _ISSUE_STATUS:
         try:
-            rows = {
-                key[len(ISSUE_STATUS_KEY) + 1 :]: value
-                for key, value in yaml_records(text).items()
-                if key == ISSUE_STATUS_KEY or key.startswith(f"{ISSUE_STATUS_KEY}.")
-            }
+            rows = _records_below(text, ISSUE_STATUS_KEY)
             _ISSUE_STATUS[text] = _issue_status_rows(rows) if rows else None
         except PolicyReadError as exc:
             _ISSUE_STATUS[text] = IssueStatusConfig(0, (), (), (), (), str(exc))
@@ -530,10 +527,7 @@ def yaml_records(text: str) -> dict[str, str]:
     """A YAML document's `lib/yaml-subset.awk` records: each scalar's dotted
     key to its value. Raises `PolicyReadError` when the parser cannot run or
     rejects the document."""
-    platform = "win32" if os.name == "nt" else sys.platform
-    bash = resolve_bash(os.environ, platform, os.path.isfile)
-    if bash is None:
-        raise PolicyReadError("no usable bash found to run the shared YAML parser")
+    bash = _shared_bash("parser")
     with tempfile.TemporaryDirectory() as tmp:
         document = Path(tmp) / "concern.yaml"
         try:
@@ -550,6 +544,16 @@ def yaml_records(text: str) -> dict[str, str]:
         raise PolicyReadError(f"the shared YAML parser exited {proc.returncode}")
     pairs = (line.partition("\t") for line in proc.stdout.split("\n") if line)
     return {key: value for key, _, value in pairs}
+
+
+def _records_below(text: str, key: str) -> dict[str, str]:
+    """The `yaml_records` of `text` at `key` and below it, each keyed by what
+    follows `key.`."""
+    return {
+        k[len(key) + 1 :]: value
+        for k, value in yaml_records(text).items()
+        if k == key or k.startswith(f"{key}.")
+    }
 
 
 def _merge_names(text: str, key: str) -> bool:
@@ -1170,53 +1174,64 @@ def read_config_at(
             " no work class is read"
         )
 
-    report_only = scalar("merge.report-only")
-    if report_only not in (None, "true", "false"):
-        notes.append(f"merge.report-only {report_only!r} is not true or false")
-    verdict = scalar("merge.require-verifier-verdict")
-    if verdict not in (None, "true", "false"):
-        notes.append(f"merge.require-verifier-verdict {verdict!r} is not true or false")
-    dependabot_mode = scalar("merge.dependabot.mode") or "off"
-    if dependabot_mode not in DEPENDABOT_MODES:
+    def choice(key: str, allowed: tuple[str, ...], problem: str) -> str:
+        """`key`'s value when `allowed` holds it, else `allowed[0]`, with a
+        note when the value was set."""
+        value = scalar(key) or allowed[0]
+        if value not in allowed:
+            notes.append(f"{key} {value!r} {problem}")
+            return allowed[0]
+        return value
+
+    def bounded(
+        key: str, pattern: str, ceiling: int | None, problem: str
+    ) -> str | None:
+        """`key`'s value, or None with a note when it does not fullmatch
+        `pattern` or exceeds `ceiling`."""
+        value = scalar(key)
+        if value is None or (
+            re.fullmatch(pattern, value) and (ceiling is None or int(value) <= ceiling)
+        ):
+            return value
+        notes.append(f"{key} {value!r} {problem}")
+        return None
+
+    def app_ids(key: str, consequence: str) -> tuple[int, ...]:
+        """`key`'s App ids, or none with a note when an entry is not an id."""
+        ids = values[key]
+        if all(re.fullmatch(r"[1-9][0-9]*", i) for i in ids):
+            return tuple(int(i) for i in ids)
         notes.append(
-            f"merge.dependabot.mode {dependabot_mode!r} is not off, report or enforce"
+            f"{key} {ids!r} holds an entry that is not an account id; {consequence}"
         )
-        dependabot_mode = "off"
-    dependabot_majors = scalar("merge.dependabot.majors") or "hold"
-    if dependabot_majors not in DEPENDABOT_MAJORS:
-        notes.append(
-            f"merge.dependabot.majors {dependabot_majors!r} is not hold or review"
-        )
-        dependabot_majors = "hold"
-    in_flight_cap = scalar("merge.max-in-flight")
-    if in_flight_cap is not None and not (
-        re.fullmatch(r"[1-9][0-9]*", in_flight_cap)
-        and int(in_flight_cap) <= MAX_IN_FLIGHT_CEILING
-    ):
-        notes.append(
-            f"merge.max-in-flight {in_flight_cap!r} is not a count from 1 to "
-            f"{MAX_IN_FLIGHT_CEILING}"
-        )
-        in_flight_cap = None
-    ejections = scalar("merge.max-queue-ejections")
-    if ejections is not None and not (
-        re.fullmatch(r"[1-9][0-9]?", ejections)
-        and int(ejections) <= MAX_QUEUE_EJECTIONS_LIMIT
-    ):
-        notes.append(
-            f"merge.max-queue-ejections {ejections!r} is not a count from 1 to "
-            f"{MAX_QUEUE_EJECTIONS_LIMIT}"
-        )
-        ejections = None
-    escalation_minutes = scalar("merge.risk-escalation-minutes")
-    if escalation_minutes is not None and not re.fullmatch(
-        r"0|[1-9][0-9]*", escalation_minutes
-    ):
-        notes.append(
-            f"merge.risk-escalation-minutes {escalation_minutes!r} is not a whole "
-            "number of minutes"
-        )
-        escalation_minutes = None
+        return ()
+
+    report_only = switch("merge.report-only")
+    verdict = switch("merge.require-verifier-verdict")
+    dependabot_mode = choice(
+        "merge.dependabot.mode", DEPENDABOT_MODES, "is not off, report or enforce"
+    )
+    dependabot_majors = choice(
+        "merge.dependabot.majors", DEPENDABOT_MAJORS, "is not hold or review"
+    )
+    in_flight_cap = bounded(
+        "merge.max-in-flight",
+        r"[1-9][0-9]*",
+        MAX_IN_FLIGHT_CEILING,
+        f"is not a count from 1 to {MAX_IN_FLIGHT_CEILING}",
+    )
+    ejections = bounded(
+        "merge.max-queue-ejections",
+        r"[1-9][0-9]?",
+        MAX_QUEUE_EJECTIONS_LIMIT,
+        f"is not a count from 1 to {MAX_QUEUE_EJECTIONS_LIMIT}",
+    )
+    escalation_minutes = bounded(
+        "merge.risk-escalation-minutes",
+        r"0|[1-9][0-9]*",
+        None,
+        "is not a whole number of minutes",
+    )
     verify_fails = scalar("merge.max-verify-fails")
     if verify_fails is None and _merge_names(text, "max-verify-fails"):
         verify_fails = ""
@@ -1233,52 +1248,31 @@ def read_config_at(
             f"merge.verify-cap-attempts {cap_attempts!r} is not a whole number"
         )
         cap_attempts = "0"
-    idle_text = scalar("adoption.idle-hours")
-    idle_hours: int | None = None
-    if idle_text is not None:
-        idle_hours = (
-            int(idle_text) if re.fullmatch(r"[1-9][0-9]{0,2}", idle_text) else None
-        )
-        if idle_hours is None or idle_hours > MAX_ADOPTION_IDLE_HOURS:
-            notes.append(
-                f"adoption.idle-hours {idle_text!r} is not a whole number from 1 "
-                f"to {MAX_ADOPTION_IDLE_HOURS}; nothing is adopted"
-            )
-            idle_hours = None
-    body_apps = tuple(values["adoption.spec-from-body-apps"])
-    if not all(re.fullmatch(r"[1-9][0-9]*", i) for i in body_apps):
-        notes.append(
-            f"adoption.spec-from-body-apps {list(body_apps)!r} holds an entry that "
-            "is not an account id; every App needs a closing issue"
-        )
-        body_apps = ()
-    self_merging = tuple(values["adoption.self-merging-apps"])
-    if not all(re.fullmatch(r"[1-9][0-9]*", i) for i in self_merging):
-        notes.append(
-            f"adoption.self-merging-apps {list(self_merging)!r} holds an entry "
-            "that is not an account id; every App gets its reasons comment"
-        )
-        self_merging = ()
-    quarantine_days = scalar("merge.quarantine-days")
-    if quarantine_days is not None and not (
-        re.fullmatch(r"[1-9][0-9]?", quarantine_days)
-        and int(quarantine_days) <= MAX_QUARANTINE_DAYS
-    ):
-        notes.append(
-            f"merge.quarantine-days {quarantine_days!r} is not a count from 1 to "
-            f"{MAX_QUARANTINE_DAYS}"
-        )
-        quarantine_days = None
-    confirm_wait = scalar("red-main.confirm-wait-minutes")
-    if confirm_wait is not None and not (
-        re.fullmatch(r"0|[1-9][0-9]?", confirm_wait)
-        and int(confirm_wait) <= MAX_CONFIRM_WAIT_MINUTES
-    ):
-        notes.append(
-            f"red-main.confirm-wait-minutes {confirm_wait!r} is not a whole number "
-            f"from 0 to {MAX_CONFIRM_WAIT_MINUTES}"
-        )
-        confirm_wait = None
+    idle_hours = bounded(
+        "adoption.idle-hours",
+        r"[1-9][0-9]{0,2}",
+        MAX_ADOPTION_IDLE_HOURS,
+        f"is not a whole number from 1 to {MAX_ADOPTION_IDLE_HOURS}; "
+        "nothing is adopted",
+    )
+    body_apps = app_ids(
+        "adoption.spec-from-body-apps", "every App needs a closing issue"
+    )
+    self_merging = app_ids(
+        "adoption.self-merging-apps", "every App gets its reasons comment"
+    )
+    quarantine_days = bounded(
+        "merge.quarantine-days",
+        r"[1-9][0-9]?",
+        MAX_QUARANTINE_DAYS,
+        f"is not a count from 1 to {MAX_QUARANTINE_DAYS}",
+    )
+    confirm_wait = bounded(
+        "red-main.confirm-wait-minutes",
+        r"0|[1-9][0-9]?",
+        MAX_CONFIRM_WAIT_MINUTES,
+        f"is not a whole number from 0 to {MAX_CONFIRM_WAIT_MINUTES}",
+    )
     lane_prs: str | None = scalar("merge.lane-prs") or "native"
     if lane_prs not in LANE_PRS_MODES:
         notes.append(f"merge.lane-prs {lane_prs!r} is not native or gate")
@@ -1295,8 +1289,8 @@ def read_config_at(
         denied_paths=tuple(values["merge.diff-check.denied-paths"]),
         loop_merge=loop_merge,
         notes=tuple(notes),
-        report_only=report_only not in (None, "false"),
-        require_verifier_verdict=verdict not in (None, "false"),
+        report_only=report_only,
+        require_verifier_verdict=verdict,
         dependabot_mode=dependabot_mode,
         dependabot_majors=dependabot_majors,
         high_path_floor=high_path_floor,
@@ -1313,9 +1307,9 @@ def read_config_at(
         if cap_attempts is not None
         else VERIFY_CAP_ATTEMPTS,
         check_inputs=tuple(values["merge.check-inputs"]),
-        adoption_idle_hours=idle_hours,
-        spec_from_body_apps=tuple(int(i) for i in body_apps),
-        self_merging_apps=tuple(int(i) for i in self_merging),
+        adoption_idle_hours=int(idle_hours) if idle_hours else None,
+        spec_from_body_apps=body_apps,
+        self_merging_apps=self_merging,
         quarantine_days=int(quarantine_days) if quarantine_days else QUARANTINE_DAYS,
         confirm_wait_minutes=int(confirm_wait)
         if confirm_wait is not None
@@ -1598,6 +1592,8 @@ def with_default_branch(
     when it cannot be parsed or the agent identities differ."""
     main = _default_branch_config(repo, branch)
     return base if main.base_sha == base.base_sha else stricter_config(base, main)
+
+
 def lane_identity(repo: str, base_sha: str) -> tuple[str | None, str]:
     """`merge.agent-identity` when the pull request's base commit and the
     default branch head both declare the same one, with where it was read.
@@ -1622,8 +1618,6 @@ def lane_identity(repo: str, base_sha: str) -> tuple[str | None, str]:
         f"merge.agent-identity in {CONFIG_PATH} at the base {base_sha} and the "
         f"default branch head {main.base_sha}"
     )
-
-
 
 
 # --- Effective rung ---------------------------------------------------------------

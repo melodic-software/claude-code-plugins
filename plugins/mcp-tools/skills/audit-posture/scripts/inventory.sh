@@ -151,11 +151,6 @@ die_json() {
   exit 2
 }
 
-# check_json <file> <shown>: exit 2 unless the file parses as JSON.
-check_json() {
-  jq empty <"$1" >/dev/null 2>&1 || die_json "unparsable JSON" "$2"
-}
-
 # dropin_shown <path>: the path to print for a managed-settings.d drop-in; a file name holding
 # any byte outside printable ASCII (LC_ALL=C makes the match bytewise), or failing the value
 # filter, prints as redacted-file.
@@ -199,7 +194,7 @@ add_file_source() {
     exit 2
   fi
   if [[ -f "$2" ]]; then
-    check_json "$2" "$shown"
+    jq empty <"$2" >/dev/null 2>&1 || die_json "unparsable JSON" "$shown"
     add_rows "$2" "$1" "$3" "$shown"
     add_source "$1" "$shown" "$STATUS"
     return 0
@@ -219,12 +214,10 @@ if add_file_source user "$CLAUDE_JSON" '.mcpServers'; then
      enabledJson: ($v.enabledMcpjsonServers // [] | names),
      enableAll: ($v.enableAllProjectMcpServers == true)}' <"$CLAUDE_JSON" 2>/dev/null | tr -d '\r')" ||
     die_json "non-object projects map" "$CLAUDE_JSON"
-  if [[ "$META_LOCAL" == '{"matched":true'* ]]; then
-    add_rows "$CLAUDE_JSON" local "($LOCAL_FILTER).mcpServers" "$CLAUDE_JSON"
-    add_source local "$CLAUDE_JSON" "$STATUS"
-  else
-    add_source local "$CLAUDE_JSON" absent
-  fi
+fi
+if [[ "$META_LOCAL" == '{"matched":true'* ]]; then
+  add_rows "$CLAUDE_JSON" local "($LOCAL_FILTER).mcpServers" "$CLAUDE_JSON"
+  add_source local "$CLAUDE_JSON" "$STATUS"
 else
   add_source local "$CLAUDE_JSON" absent
 fi

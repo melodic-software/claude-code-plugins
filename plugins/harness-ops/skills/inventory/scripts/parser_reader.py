@@ -134,22 +134,23 @@ def install_command(target: Path, platform: str = sys.platform) -> str:
     child script block so its `$ErrorActionPreference = 'Stop'` does not stay
     set in the session the user pastes it into.
     """
-    flags = " ".join(NPM_CI_ARGS[1:])
+    verb, *rest = NPM_CI_ARGS
+    flags = " ".join(rest)
     if platform == "win32":
-        q = _ps_q
-        sources = ", ".join(q(JS_DIR / m) for m in MANIFESTS)
+        dest = _ps_q(target)
+        sources = ", ".join(_ps_q(JS_DIR / m) for m in MANIFESTS)
         return (
             "& { $ErrorActionPreference = 'Stop'; "
-            f"Remove-Item -LiteralPath {q(target)} -Recurse -Force -ErrorAction SilentlyContinue; "
-            f"New-Item -ItemType Directory -Force -Path {q(target)} | Out-Null; "
-            f"Copy-Item -LiteralPath {sources} -Destination {q(target)}; "
-            f"npm.cmd {NPM_CI_ARGS[0]} --prefix {q(target)} {flags} }}"
+            f"Remove-Item -LiteralPath {dest} -Recurse -Force -ErrorAction SilentlyContinue; "
+            f"New-Item -ItemType Directory -Force -Path {dest} | Out-Null; "
+            f"Copy-Item -LiteralPath {sources} -Destination {dest}; "
+            f"npm.cmd {verb} --prefix {dest} {flags} }}"
         )
-    q = _q
-    sources = " ".join(q(JS_DIR / m) for m in MANIFESTS)
+    dest = _q(target)
+    sources = " ".join(_q(JS_DIR / m) for m in MANIFESTS)
     return (
-        f"rm -rf {q(target)} && mkdir -p {q(target)} && cp {sources} {q(target)}/ "
-        f"&& npm {NPM_CI_ARGS[0]} --prefix {q(target)} {' '.join(NPM_CI_ARGS[1:])}"
+        f"rm -rf {dest} && mkdir -p {dest} && cp {sources} {dest}/ "
+        f"&& npm {verb} --prefix {dest} {flags}"
     )
 
 
@@ -226,6 +227,15 @@ def ensure_installed(target: Path) -> bool:
             raise ReaderBroken(f"cannot move the install into {target}", command)
         return False
     return True
+
+
+def _unsafe(res: dict[str, Any], lo: int) -> dict[str, Any]:
+    """The unsafe answer of `flow` or `namespace`, its `at` a position in `src`."""
+    if res.get("unreadable"):
+        reason, at = "the module holds a character outside the BMP", None
+    else:
+        reason, at = res["reason"], res.get("at")
+    return {"safe": False, "reason": reason, "at": None if at is None else at + lo}
 
 
 class ParserReader:
@@ -319,24 +329,13 @@ class ParserReader:
         if "offset" in fields:
             fields["offset"] -= lo
         res = self._send("flow", src, lo, hi, start=fields)
-        if res.get("unreadable"):
-            answer = {
-                "safe": False,
-                "reason": "the module holds a character outside the BMP",
-                "at": None,
-            }
-        elif res["safe"]:
+        if res.get("unreadable") or not res["safe"]:
+            answer = _unsafe(res, lo)
+        else:
             answer = {
                 "safe": True,
                 "exits": [tuple(hop) for hop in res["exits"]],
                 "trusted": res.get("trusted", []),
-            }
-        else:
-            at = res.get("at")
-            answer = {
-                "safe": False,
-                "reason": res["reason"],
-                "at": None if at is None else at + lo,
             }
         self._answers[key] = answer
         return answer
@@ -522,24 +521,13 @@ class ParserReader:
         res = self._send(
             "namespace", src, lo, hi, file=file, name=name, loaders=list(loaders)
         )
-        if res.get("unreadable"):
-            answer: dict[str, Any] = {
-                "safe": False,
-                "reason": "the module holds a character outside the BMP",
-                "at": None,
-            }
-        elif res["safe"]:
+        if res.get("unreadable") or not res["safe"]:
+            answer = _unsafe(res, lo)
+        else:
             answer = {
                 "safe": True,
                 "trusted": res["trusted"],
                 "thenable": res["thenable"],
-            }
-        else:
-            at = res.get("at")
-            answer = {
-                "safe": False,
-                "reason": res["reason"],
-                "at": None if at is None else at + lo,
             }
         self._answers[key] = answer
         return answer

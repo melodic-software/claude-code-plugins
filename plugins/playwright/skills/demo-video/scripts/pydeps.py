@@ -157,13 +157,14 @@ def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     if sys.version_info < MIN_PYTHON and (other := floor_interpreter()):
         return subprocess.run([other, str(Path(__file__).resolve()), *argv]).returncode
-    rest = argv[argv.index('--') + 1:] if '--' in argv else []
+    split = argv.index('--') if '--' in argv else len(argv)
+    rest = argv[split + 1:]
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument('action', choices=('install', 'run'))
     ap.add_argument('--data-dir')
     ap.add_argument('--requirements', type=Path, default=REQUIREMENTS)
     ap.add_argument('--probe', nargs='+', default=PROBE)
-    a = ap.parse_args(argv[:argv.index('--')] if '--' in argv else argv)
+    a = ap.parse_args(argv[:split])
     if a.action == 'run' and not rest:
         ap.error('run needs a script after --')
     try:

@@ -20,7 +20,7 @@ Spend the first turn grounding yourself. Do NOT ask anything you can answer from
 - Read the project's `CLAUDE.md` and `AGENTS.md` if not already in context
 - `Glob` and `Grep` for any keywords from `$ARGUMENTS` against the repo
 - Look at `git log --oneline -20` for recent direction
-- When the topic touches a module, read the project's domain glossary: invoke `/domain-driven-design:ubiquitous-language lookup` via the Skill tool when that skill is available; otherwise Glob the repository for `**/{GLOSSARY,glossary,ubiquitous-language}*.md` (the root, any `docs/` folder and the module's own folder) and Read the match that covers the area
+- When the topic touches a module, read the project's domain glossary: invoke `/domain-driven-design:ubiquitous-language lookup` via the Skill tool when that skill is available; otherwise Glob the repository for `**/*{glossary,Glossary,GLOSSARY,ubiquitous,UBIQUITOUS}*.md` (the root, any `docs/` folder and the module's own folder) and Read the match that covers the area; a path the project's instructions declare, or a `glossary_file` set in `docs/conventions/domain-driven-design.yaml`, wins, and a tool's own reference glossary under a plugin or package `reference/` or `context/` folder is skipped
 - List the project's own rules files that govern the area
 - Note what the topic's memory slice `<memory_dir>/<topic-slug>/` (default `.work/`) already contains (prior PLAN.md, PRD, design artifacts, exploration/research artifacts, ledgers)
 

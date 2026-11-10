@@ -91,7 +91,7 @@ Run the steps in order before writing CSS: step 3 needs what steps 1 and 2 found
 - **Lint what you changed**: unless `--no-lint`, run the review script below on files you wrote and
   fix its findings that no project convention overrides. Its `ease-in` finding fires only on the
   bare keyword: replace it with the curve the `ease-in` rule below names. Judge a `duration` finding
-  against its role as Review mode says, never against the linter's fixed limits.
+  against its role as Review mode says.
 
 | Read | Before you write |
 |---|---|
@@ -122,9 +122,9 @@ moves to its topic reference.
 - `transition-all`: a transition names its properties, never `all`.
 - `motion`: a transition that moves or scales sits inside `@media (prefers-reduced-motion: no-preference)`.
 - `duration`: a UI transition lasts no longer than its role in `animation.duration_ms`: `press` for
-  press feedback, `small` for tooltips and small popovers, `medium` for dropdowns, menus and any
-  other UI transition (hover, color, focus), `large` for modals, dialogs, drawers, sheets and toasts,
-  `page` for page-level and full-screen transitions.
+  press feedback, `hover` for hover feedback, `small` for tooltips and small popovers, `medium` for
+  dropdowns, menus and any other UI transition (color, focus), `large` for modals, dialogs, drawers,
+  sheets and toasts, `page` for page-level and full-screen transitions.
 
 Details: `hover` and `outline` in interaction.md, `logical` and `color` in foundations.md, the rest
 in motion.md.
@@ -136,18 +136,19 @@ needed: the rule lists live only in files), find the project's written CSS conve
 the bundled linter before any judgment of your own:
 
 ```bash
-node "${CLAUDE_SKILL_DIR}/scripts/review.mjs" --config '{"css":{"rules":{"disable":[<ids>]}}}' <paths>
+node "${CLAUDE_SKILL_DIR}/scripts/review.mjs" --config '{"css":{"rules":{"disable":[<ids>]}},"animation":{"duration_ms":<duration_ms>}}' <paths>
 ```
 
-The ids come from `config.values.css.rules.disable`; they are a closed set, safe on a command line.
+The ids come from `config.values.css.rules.disable`, a closed set, and `<duration_ms>` is
+`config.values.animation.duration_ms` as JSON, all numbers: both are safe on a command line.
 Exit 0 is clean, 1 has findings, 2 is a usage error or crash: report a 2, never read it as clean.
-Report every finding as `path:line [rule-id] message` under `## Findings`, then `## Suppressed`,
-then `## Judgment`. Under Suppressed, list each finding a project convention contradicts, with the
-convention's file as the reason. The linter's `duration` check uses fixed limits of its own, so
-judge each `duration` finding against the role in `config.values.animation.duration_ms`: a finding
-within its role moves to Suppressed with `animation.duration_ms` as the reason, and a duration over
-its role that the linter missed goes under Judgment. Point at the project's Stylelint or
-`@eslint/css` config when `project.lint` shows one. [reference/review.md](reference/review.md)
+Report every finding as `path:line [rule-id] message` under `## Findings`, then `## Suppressed`, then
+`## Judgment`. Under Suppressed, list each finding a project convention contradicts, with the
+convention's file as the reason. The linter's `duration` check flags only a transition over
+`large`, so judge each duration against its role in `config.values.animation.duration_ms`: a
+finding within its role (a `page` transition) moves to Suppressed with `animation.duration_ms` as
+the reason, and a duration over a shorter role goes under Judgment. Point at the project's
+Stylelint or `@eslint/css` config when `project.lint` shows one. [reference/review.md](reference/review.md)
 holds the output contract and the cases without `node`.
 
 ## Settings

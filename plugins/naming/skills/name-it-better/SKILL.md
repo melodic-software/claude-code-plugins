@@ -101,7 +101,9 @@ pre-scoring filters could not match.
      `/domain-driven-design:ubiquitous-language lookup` via the Skill tool
      when that skill is available, else find and read the glossary
      yourself. Canonical terms feed the domain-lore lens; `Avoid:` words
-     join the blocklist with the reason "rejected in the glossary".
+     join the blocklist with the reason "rejected in the glossary" and the
+     provenance glossary-stated, treated as user-stated: the team resolved
+     it, so the merge step disqualifies a candidate that uses it.
    - **Firing / usage context.** When it is reached for, and how it reads
      at the call site.
    - **Scope boundaries.** What it is NOT: the adjacent things it must not
