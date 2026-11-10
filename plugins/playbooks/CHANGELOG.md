@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.30.2] - 2026-11-10
+
+### Changed
+
+- The `boris` playbook's model row now notes that Fable 5 has been superseded and points at the Work with Fable section for which model the `fable` alias selects.
+
 ## [0.30.1] - 2026-11-10
 
 ### Changed
