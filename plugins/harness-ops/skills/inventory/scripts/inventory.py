@@ -1778,8 +1778,8 @@ def _chunk_imports(src: str, lo: int, hi: int) -> dict[str, str]:
         i = m.end()
         for part in (m.group(1) or "").split(","):
             exported, _, local = part.strip().partition(" as ")
-            if exported.strip():
-                out[(local or exported).strip()] = exported.strip()
+            if exported := exported.strip():
+                out[local.strip() or exported] = exported
     return out
 
 
@@ -1789,18 +1789,14 @@ def _export_index(src: str) -> dict[str, list[tuple[int, str]]]:
     local name it has there."""
     out: dict[str, list[tuple[int, str]]] = {}
     starts = _chunk_starts(src)
-    for k, lo in enumerate(starts):
-        hi = starts[k + 1] if k + 1 < len(starts) else len(src)
-        tail = max(lo, hi - 65_536)
-        m = _EXPORT_TAIL_RE.search(src[tail:hi])
+    for lo, hi in zip(starts, starts[1:] + (len(src),)):
+        m = _EXPORT_TAIL_RE.search(src[max(lo, hi - 65_536) : hi])
         if not m:
             continue
         for part in m.group(1).split(","):
             local, _, exported = part.strip().partition(" as ")
-            if local.strip():
-                out.setdefault((exported or local).strip(), []).append(
-                    (lo, local.strip())
-                )
+            if local := local.strip():
+                out.setdefault(exported.strip() or local, []).append((lo, local))
     return out
 
 
@@ -1892,6 +1888,12 @@ def _declares(src: str, pos: int) -> bool:
     return bool(re.search(r",\s*$", head)) and _statement_keyword(src, pos) is not None
 
 
+def _name_re(ident: str) -> re.Pattern[str]:
+    """`ident` as a whole name, not a property read (`.ident`) or part of a
+    longer identifier."""
+    return re.compile(r"(?<![\w$.])" + re.escape(ident) + r"(?![\w$])")
+
+
 def _redeclared_later(src: str, braces: BraceMap, ident: str, at: int) -> bool:
     """Whether the function reading `ident` at `at` declares it again after
     `at`: a `var` there hoists, and a `let` or `const` in a block holding the
@@ -1899,8 +1901,7 @@ def _redeclared_later(src: str, braces: BraceMap, ident: str, at: int) -> bool:
     reader = _function_block(src, braces, at)
     if reader is None:
         return False
-    name = re.compile(r"(?<![\w$.])" + re.escape(ident) + r"(?![\w$])")
-    for m in name.finditer(_mask_strings(src[at : reader[1]])):
+    for m in _name_re(ident).finditer(_mask_strings(src[at : reader[1]])):
         pos = at + m.start()
         if not _declares(src, pos):
             continue
@@ -1916,8 +1917,7 @@ def _unset_between(src: str, braces: BraceMap, ident: str, lo: int, at: int) -> 
     """Whether, after the binding at `lo`, the read at `at` sees a newer
     declaration of `ident` with no initializer (`let x;`, `var a,x`) or a
     `catch (x)` parameter: its value is not that binding's."""
-    name = re.compile(r"(?<![\w$.])" + re.escape(ident) + r"(?![\w$])")
-    for m in name.finditer(_mask_strings(src[lo:at]), 1):
+    for m in _name_re(ident).finditer(_mask_strings(src[lo:at]), 1):
         pos = lo + m.start()
         if re.search(r"catch\s*\(\s*$", src[max(0, pos - 12) : pos]):
             if _visible(braces, pos, at):
@@ -2159,6 +2159,9 @@ def _write_pattern(ident: str) -> re.Pattern[str]:
 
 
 def _binding_pattern(ident: str) -> re.Pattern[str]:
+    # The identifier leads and the boundary check trails it: a pattern that
+    # opens with a lookbehind loses the regex engine's literal-prefix scan and
+    # runs about thirty times slower over a 45 MB source.
     name = re.escape(ident)
     return re.compile(name + r"(?<![\w$.]" + name + r")\s*=(?![=>])\s*")
 
@@ -2235,12 +2238,9 @@ def _spread_array(src: str, braces: BraceMap, ident: str, at: int) -> int | None
         return None
     if v is None or not src.startswith("[", v):
         return None
-    head = re.search(
-        r"(?<![\w$.])" + re.escape(ident) + r"\s*=\s*$", src[max(0, v - 256) : v]
-    )
-    if head is None:
-        return None
-    if _written_elsewhere(src, braces, ident, max(0, v - 256) + head.start()):
+    head_lo = max(0, v - 256)
+    head = re.search(r"(?<![\w$.])" + re.escape(ident) + r"\s*=\s*$", src[head_lo:v])
+    if head is None or _written_elsewhere(src, braces, ident, head_lo + head.start()):
         return None
     return v
 
@@ -2295,15 +2295,13 @@ def _written_elsewhere(src: str, braces: BraceMap, ident: str, pos: int) -> bool
             return _function_block(src, braces, d) != home_fn
         return braces.enclosing(d) != home_block
 
-    name = re.compile(r"(?<![\w$.])" + re.escape(ident) + r"(?![\w$])")
+    name = _name_re(ident)
     for m in _write_pattern(ident).finditer(src, lo, hi):
-        w = name.search(src, m.start(), m.end())
-        if w is None or w.start() == pos:
+        found = name.search(src, m.start(), m.end())
+        if found is None or found.start() == pos:
             continue
-        if separate(w.start()):
-            continue
-        w = w.start()
-        if not _visible(braces, pos, w, src):
+        w = found.start()
+        if separate(w) or not _visible(braces, pos, w, src):
             continue
         scope = _function_block(src, braces, w) or braces.enclosing(w)
         if scope is None or not any(
@@ -2646,30 +2644,28 @@ def _function_body(
     declaration leaves the name unresolved rather than skipped.
     """
     lo, hi = _chunk_span(src, at)
+    pattern = _function_pattern(ident)
     head = re.compile(r"function\s+" + re.escape(ident) + r"\s*\(")
-    if len(head.findall(src, lo, hi)) != len(
-        _function_pattern(ident).findall(src, lo, hi)
-    ):
+    if len(head.findall(src, lo, hi)) != len(pattern.findall(src, lo, hi)):
         return None
+    single_module = len(_chunk_starts(src)) == 1
     if len(ident) == 1:
-        if len(_chunk_starts(src)) == 1:
+        if single_module:
             return None
-        lo, hi = _chunk_span(src, at)
         top = [
             m
-            for m in _function_pattern(ident).finditer(src, lo, hi)
+            for m in pattern.finditer(src, lo, hi)
             if braces.enclosing(m.start()) is None
         ]
         if len(top) != 1:
             return None
-        return top[0].end() - 1, _param_names(top[0].group(1)), top[0].group(1)
-    if len(_chunk_starts(src)) == 1:
-        found = _declaration(src, braces, ident, at, _function_pattern)
-        found = found or _function_pattern(ident).search(src, at)
+        found: re.Match[str] | None = top[0]
     else:
         found = _declaration(src, braces, ident, at, _function_pattern)
-    if found is None:
-        return None
+        if found is None and single_module:
+            found = pattern.search(src, at)
+        if found is None:
+            return None
     return found.end() - 1, _param_names(found.group(1)), found.group(1)
 
 
@@ -2744,15 +2740,12 @@ def _resolve_chain(
     # A bare identifier naming a function declaration is a function-valued
     # field, which the registrars read through a getter: resolve it as a call
     # when the declaration is nearer than any `ident=` binding.
-    v = (
-        _binding_value(src, braces, ident, at, deferred=deferred)
-        if len(chain) == 1
-        else None
-    )
-    fn = _function_body(src, braces, ident, at) if len(chain) == 1 else None
+    single = len(chain) == 1
+    v = _binding_value(src, braces, ident, at, deferred=deferred) if single else None
+    fn = _function_body(src, braces, ident, at) if single else None
     if fn is not None and v is not None and (fn[0] > at or fn[0] < v):
         fn = None
-    if len(chain) == 1 and fn is None:
+    if single and fn is None:
         if v is None:
             return None
         # A local binding (inside a function) reads that function's scope.
@@ -2809,7 +2802,7 @@ def _resolve_chain(
             anchor=None,
             shadow=scope,
             # A function-valued field is read through a getter: deferred.
-            deferred=deferred or len(chain) == 1,
+            deferred=deferred or single,
         )
         acc.via.add("call")
     elif len(chain) == 2 and chain[1][0] == "prop":
@@ -3073,10 +3066,7 @@ def command_invocability(rec: dict[str, Any], origin: str | None) -> dict[str, A
     not the bundle, and is not read here.
     """
     flag_driven = set(rec.get("flag_driven") or [])
-    if "user_invocable" in flag_driven:
-        user: bool | None = None
-    else:
-        user = rec.get("user_invocable", True)
+    user = None if "user_invocable" in flag_driven else rec.get("user_invocable", True)
     if rec["type"] != "prompt":
         model: bool | None = False
     elif "disable_model_invocation" in flag_driven:
@@ -3267,13 +3257,8 @@ def _nearest_binding(src: str, ident: str, at: int) -> int | None:
             return top[0].end() if len(top) == 1 and len(ident) > 1 else None
         before = [m for m, _ in sites if lo <= m.start() < at]
         return before[-1].end() if before else None
-    # The identifier leads and the boundary check trails it: a pattern that
-    # opens with a lookbehind loses the regex engine's literal-prefix scan and
-    # runs about thirty times slower over a 45 MB source.
-    name = re.escape(ident)
-    pattern = re.compile(name + r"(?<![\w$.]" + name + r")\s*=(?![=>])\s*")
     last = None
-    for m in pattern.finditer(src, lo, at):
+    for m in _binding_pattern(ident).finditer(src, lo, at):
         last = m
     return last.end() if last else None
 
@@ -3327,12 +3312,7 @@ def _argument_object(
         return False
     fn, k = head.group(1), params.index(ident)
     lo, hi = _chunk_span(src, at)
-    refs = {
-        lo + m.start()
-        for m in re.finditer(
-            r"(?<![\w$.])" + re.escape(fn) + r"(?![\w$])", _mask_strings(src[lo:hi])
-        )
-    }
+    refs = {lo + m.start() for m in _name_re(fn).finditer(_mask_strings(src[lo:hi]))}
     calls = refs - {head_lo + head.start(1)}
     call = min(calls) if len(calls) == 1 else -1
     if len(refs) != 2 or not src.startswith("(", call + len(fn)):
