@@ -1216,8 +1216,8 @@ test("lane hold markers: a marked listed run the scan found no hold in counts on
     "86 is added once; 81 keeps the scan's reason; 82, 999 and the expired 85 add nothing",
   );
   assert.ok(!data.heldCarry.scanned.some((s) => s.runId === 86), "a marked run is not carried as read with no hold");
-  assert.ok(!data.heldCarry.runs.some((h) => h.runId === 86), "a marker-only hold is not carried, so a later scan can read its real reason");
-  assert.ok(data.heldCarry.runs.some((h) => h.runId === 81), "a scan-found hold is still carried");
+  assert.ok(data.heldCarry.runs.some((h) => h.runId === 86), "a marker-only hold is carried, so it stays in the 24-hour count after the run listing's ~7 h reach");
+  assert.ok(data.heldCarry.runs.some((h) => h.runId === 81), "a scan-found hold is carried");
   assert.equal(api.calls.filter((c) => c.includes("artifacts?name=lane-hold-")).length, 7, "one marker list per hold lane");
 });
 
