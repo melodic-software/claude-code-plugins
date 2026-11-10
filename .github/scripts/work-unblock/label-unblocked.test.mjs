@@ -15,6 +15,7 @@ import { parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
+import { codeDigest } from "./verdict-carry.mjs";
 import { ADMISSION_RECORD_MARKER } from "../lib/admission-record.mjs";
 import {
   breakerComment,
@@ -2183,6 +2184,7 @@ const laneRun = ({ number = 30, at = "2026-10-16T10:00:03Z", status = "completed
   id: 5000 + number,
   display_title: `Fix the thing #${number}`,
   created_at: at,
+  run_attempt: 1,
   status,
   conclusion,
   updated_at: at,
@@ -6439,4 +6441,93 @@ test("two back-to-back sweeps re-fire the issue the kill switch stopped at broke
   assert.equal(await sweep({ github: second.github, actions: second.actions }), 0);
   assert.ok(second.calls.some((call) => call.startsWith(`GET /repos/${REPO}/issues?state=open&labels=agent-ready`)));
   assert.deepEqual(writes(second.calls), []);
+});
+
+// The carried verdicts (verdict-carry.mjs): a completed run's job listing and
+// a read log's refusal never change, so the next sweep takes them from the
+// file the last one kept instead of GitHub, and reads GitHub for anything the
+// file does not answer.
+const jobReads = (calls) => calls.filter((call) => /^GET \/repos\/[^ ]+\/actions\/runs\/\d+\/jobs/.test(call));
+const carryDir = () => tempDir("verdict-carry-");
+// One sweep of the broker-check breaker trip, reading the carry at `from` and
+// keeping it at `to`; `run` changes the lane run's listing.
+async function carriedSweep({ from, to, run = {}, logs = CHECK_KILLED }) {
+  const fake = stalledRun({ jobs: BROKER_REFUSED, logs });
+  const listed = fake.github;
+  const actions = async (method, path, ...rest) => {
+    const answer = await listed(method, path, ...rest);
+    return Array.isArray(answer?.workflow_runs) ? { ...answer, workflow_runs: answer.workflow_runs.map((item) => ({ ...item, ...run })) } : answer;
+  };
+  assert.equal(await sweep({ github: fake.github, actions }, { ...(from && { VERDICTS_IN: from }), VERDICTS_OUT: to }), 0);
+  return fake.calls;
+}
+
+test("a sweep keeps a completed run's job listing and its read log's refusal, and the next sweep reads neither again", async () => {
+  const dir = carryDir();
+  const first = await carriedSweep({ to: join(dir, "1.json") });
+  tripped(first);
+  assert.equal(jobReads(first).length, 1);
+  assert.deepEqual(logReads(first), [`GET /repos/${REPO}/actions/jobs/${BROKER_CHECK_ID}/logs`]);
+  const kept = JSON.parse(readFileSync(join(dir, "1.json"), "utf8"));
+  assert.deepEqual(Object.keys(kept.jobs), ["5030|1"]);
+  assert.deepEqual(kept.refusals, { [`${BROKER_CHECK_ID}|check`]: { at: new Date(NOW).toISOString(), value: "kill-switch" } });
+  // The second sweep decides the same from the file alone, and keeps it again.
+  const second = await carriedSweep({ from: join(dir, "1.json"), to: join(dir, "2.json") });
+  tripped(second);
+  assert.deepEqual(jobReads(second), []);
+  assert.deepEqual(logReads(second), []);
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, "2.json"), "utf8")), kept);
+});
+
+test("a run re-run or updated since the carry was kept has its jobs and log read again", async () => {
+  const dir = carryDir();
+  await carriedSweep({ to: join(dir, "1.json") });
+  for (const run of [{ run_attempt: 2 }, { updated_at: "2026-10-16T10:06:00Z" }]) {
+    const calls = await carriedSweep({ from: join(dir, "1.json"), to: join(dir, "2.json"), run });
+    tripped(calls);
+    assert.equal(jobReads(calls).length, 1, JSON.stringify(run));
+  }
+  // An unfinished run's listing is never carried.
+  const going = await carriedSweep({ to: join(dir, "3.json"), run: { status: "in_progress" } });
+  assert.deepEqual(writes(going), []);
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, "3.json"), "utf8")).jobs, {});
+});
+
+test("a corrupt or missing carry, one of other code, or an entry of the wrong shape, reads GitHub as a sweep with none does", async () => {
+  const dir = carryDir();
+  await carriedSweep({ to: join(dir, "kept.json") });
+  const kept = JSON.parse(readFileSync(join(dir, "kept.json"), "utf8"));
+  const code = codeDigest();
+  assert.equal(kept.code, code);
+  const files = {
+    garbled: "{not json",
+    array: "[]",
+    otherCode: JSON.stringify({ ...kept, code: "0".repeat(64) }),
+    noCode: JSON.stringify({ jobs: kept.jobs, refusals: kept.refusals }),
+    wrongShape: JSON.stringify({
+      code,
+      jobs: { "5030|1": { at: new Date(NOW).toISOString(), updated_at: "2026-10-16T10:05:00Z", jobs: "none" } },
+      refusals: { [`${BROKER_CHECK_ID}|check`]: { at: new Date(NOW).toISOString(), value: "Kill switch!" } },
+    }),
+    future: JSON.stringify({ code, refusals: { [`${BROKER_CHECK_ID}|check`]: { at: "2026-10-17T00:00:00Z", value: null } } }),
+    stale: JSON.stringify({ code, refusals: { [`${BROKER_CHECK_ID}|check`]: { at: "2026-09-01T00:00:00Z", value: null } } }),
+  };
+  for (const [name, text] of [...Object.entries(files), ["missing", undefined]]) {
+    const from = join(dir, `${name}.json`);
+    if (text !== undefined) writeFileSync(from, text);
+    const calls = await carriedSweep({ from, to: join(dir, `${name}-out.json`) });
+    tripped(calls);
+    assert.equal(jobReads(calls).length, 1, name);
+    assert.deepEqual(logReads(calls), [`GET /repos/${REPO}/actions/jobs/${BROKER_CHECK_ID}/logs`], name);
+  }
+});
+
+test("a log that could not be read is not carried, so the next sweep reads it again", async () => {
+  const dir = carryDir();
+  await carriedSweep({ to: join(dir, "1.json"), logs: {} });
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, "1.json"), "utf8")).refusals, {});
+  const calls = await carriedSweep({ from: join(dir, "1.json"), to: join(dir, "2.json") });
+  tripped(calls);
+  assert.deepEqual(jobReads(calls), []);
+  assert.deepEqual(logReads(calls), [`GET /repos/${REPO}/actions/jobs/${BROKER_CHECK_ID}/logs`]);
 });
