@@ -3,6 +3,13 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.1] - 2026-11-10
+
+### Changed
+
+- `scoped-implementer` states that a clear spec alone does not put a phase on `sonnet`: a migration or a performance optimization stays on `opus` or above. Its model-split pointer moves to choosing-a-model.
+- `implement-dispatch` treats a `best` session as frontier only where the running Claude Code resolves `best` to Fable.
+
 ## [0.38.0] - 2026-11-09
 
 ### Changed

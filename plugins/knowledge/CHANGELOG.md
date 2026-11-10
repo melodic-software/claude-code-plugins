@@ -4,6 +4,14 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.3.9] - 2026-11-10
+
+### Changed
+
+- A docpage-digest-batch comment says why `best` stays in the frontier list: it names Fable on older Claude Code releases. No behavior change.
+
+- Internal simplification, no behavior change.
+
 ## [1.3.8] - 2026-11-09
 
 ### Changed
