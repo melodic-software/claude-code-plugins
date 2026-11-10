@@ -3431,7 +3431,6 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
     "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot and failing lanes App PRs",
     "pr-unblock.yml resolve-conflicts-select: Check the human-gated hold",
     "pr-unblock.yml sync-shared-copies-select: Check the human-gated hold",
-    "pr-verify-capture.yml capture-subscription: Resolve the pull request",
     "pr-verify-capture.yml capture: Resolve the pull request",
     "pr-verify.yml check-intent-fallback: Resolve the pull request",
     "pr-verify.yml check-intent-subscription: Resolve the pull request",
