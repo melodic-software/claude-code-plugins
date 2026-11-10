@@ -213,10 +213,8 @@ repo_dirty_reason() {
     ahead="$(git -C "$top" rev-list --count '@{u}..HEAD' 2>/dev/null | tr -d ' ' || echo 0)"
     if [[ "${ahead:-0}" -gt 0 ]]; then
       printf 'unpushed (%s commit(s) ahead of upstream)' "$ahead"
-      return 0
     fi
   fi
-  printf ''
 }
 
 # child_label <child-output> <label> — the first `<label>: <value>` value in the
@@ -243,6 +241,23 @@ COUNT_SKIPPED=0
 COUNT_BLOCKED=0
 COUNT_FAILED=0
 
+# record <repo> <outcome> <reason>: emit the per-repo block and count its outcome
+# (would-reset and done both count as reset).
+record() {
+  batch_emit "$1" "$2" "$3"
+  case "$2" in
+  skipped) COUNT_SKIPPED=$((COUNT_SKIPPED + 1)) ;;
+  blocked) COUNT_BLOCKED=$((COUNT_BLOCKED + 1)) ;;
+  failed) COUNT_FAILED=$((COUNT_FAILED + 1)) ;;
+  *) COUNT_RESET=$((COUNT_RESET + 1)) ;;
+  esac
+}
+
+# add_reason <note>: append a note to $reason, replacing the `none` placeholder.
+add_reason() {
+  if [[ "$reason" == none ]]; then reason="$1"; else reason="$reason; $1"; fi
+}
+
 printf 'Repo Fleet Tree Reset\n'
 printf 'Mode: %s\n' "$([[ "$DRY_RUN" -eq 1 ]] && echo 'dry-run (no mutations)' || echo 'apply (destructive)')"
 printf 'IncludeDirty: %s\n' "$([[ "$INCLUDE_DIRTY" -eq 1 ]] && echo yes || echo no)"
@@ -255,8 +270,7 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
 
   # 1. Skip list (separator-agnostic).
   if batch_skip_match "$key"; then
-    batch_emit "$top" skipped "skip-list ($BATCH_SKIP_MATCHED)"
-    COUNT_SKIPPED=$((COUNT_SKIPPED + 1))
+    record "$top" skipped "skip-list ($BATCH_SKIP_MATCHED)"
     continue
   fi
 
@@ -264,8 +278,7 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
   if [[ "$INCLUDE_DIRTY" -eq 0 ]]; then
     dirty="$(repo_dirty_reason "$top")"
     if [[ -n "$dirty" ]]; then
-      batch_emit "$top" skipped "$dirty (pass --include-dirty to reset anyway)"
-      COUNT_SKIPPED=$((COUNT_SKIPPED + 1))
+      record "$top" skipped "$dirty (pass --include-dirty to reset anyway)"
       continue
     fi
   fi
@@ -290,46 +303,31 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
     reason=none
     if [[ "$INCLUDE_DIRTY" -eq 1 ]]; then
       verb="$([[ "$DRY_RUN" -eq 1 ]] && echo 'would be discarded' || echo 'discarded')"
-      discards=""
-      [[ "${tracked_dirty:-0}" -gt 0 ]] && discards="$tracked_dirty uncommitted/untracked change(s) $verb"
-      if [[ "${ahead:-0}" -gt 0 ]]; then
-        ahead_note="$ahead unpushed commit(s) $verb"
-        if [[ -n "$discards" ]]; then discards="$discards; $ahead_note"; else discards="$ahead_note"; fi
-      fi
-      [[ -n "$discards" ]] && reason="$discards"
+      [[ "${tracked_dirty:-0}" -gt 0 ]] && add_reason "$tracked_dirty uncommitted/untracked change(s) $verb"
+      [[ "${ahead:-0}" -gt 0 ]] && add_reason "$ahead unpushed commit(s) $verb"
     fi
     if [[ "$DRY_RUN" -eq 1 ]]; then
-      batch_emit "$top" would-reset "$reason"
+      record "$top" would-reset "$reason"
     else
       unremovable="$(child_label "$out" Unremovable)"
       if [[ "${unremovable:-0}" -gt 0 ]]; then
-        note="incomplete clean: $unremovable path(s) unremovable (locked / in use)"
-        if [[ "$reason" == none ]]; then reason="$note"; else reason="$reason; $note"; fi
+        add_reason "incomplete clean: $unremovable path(s) unremovable (locked / in use)"
         printf '%s\n' "$out" | grep -E 'could not be removed|failed to remove' >&2 || true
       fi
-      batch_emit "$top" "done" "$reason"
+      record "$top" "done" "$reason"
     fi
-    COUNT_RESET=$((COUNT_RESET + 1))
     ;;
-  2)
-    batch_emit "$top" skipped "no upstream tracking branch"
-    COUNT_SKIPPED=$((COUNT_SKIPPED + 1))
-    ;;
-  3)
-    batch_emit "$top" blocked "default-branch (pass --force-default-branch)"
-    COUNT_BLOCKED=$((COUNT_BLOCKED + 1))
-    ;;
+  2) record "$top" skipped "no upstream tracking branch" ;;
+  3) record "$top" blocked "default-branch (pass --force-default-branch)" ;;
   4)
     # Reachable only without --include-dirty (which passes --allow-unpushed): the
     # child re-gates unpushed after its fetch, so a repo that looked not-ahead at
     # the batch dirty-check can become ahead once fetch advances the upstream.
-    batch_emit "$top" blocked "unpushed commits after fetch (pass --include-dirty)"
-    COUNT_BLOCKED=$((COUNT_BLOCKED + 1))
+    record "$top" blocked "unpushed commits after fetch (pass --include-dirty)"
     ;;
   5)
-    batch_emit "$top" failed "reset --hard failed mid-apply (child output below)"
+    record "$top" failed "reset --hard failed mid-apply (child output below)"
     printf '%s\n' "$out" >&2
-    COUNT_FAILED=$((COUNT_FAILED + 1))
     ;;
   7)
     # reset --hard succeeded but git clean failed for a non-locked-file reason: a
@@ -337,25 +335,17 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
     # the child reports non-zero. Treat it as failed like exit 5 so the batch
     # summary and exit status never report a repo that was only partly realigned
     # as a completed reset.
-    batch_emit "$top" failed "clean failed after a successful reset -- partial apply, tree not fully cleaned (child output below)"
+    record "$top" failed "clean failed after a successful reset -- partial apply, tree not fully cleaned (child output below)"
     printf '%s\n' "$out" >&2
-    COUNT_FAILED=$((COUNT_FAILED + 1))
     ;;
-  6)
-    batch_emit "$top" blocked "upstream-unresolved"
-    COUNT_BLOCKED=$((COUNT_BLOCKED + 1))
-    ;;
-  *)
-    batch_emit "$top" blocked "tree-reset error (child exit $rc)"
-    COUNT_BLOCKED=$((COUNT_BLOCKED + 1))
-    ;;
+  6) record "$top" blocked "upstream-unresolved" ;;
+  *) record "$top" blocked "tree-reset error (child exit $rc)" ;;
   esac
 done
 
 # Invalid inputs reported as blocked outcomes.
 for ((i = 0; i < ${#INVALID_INPUTS[@]}; i++)); do
-  batch_emit "${INVALID_INPUTS[$i]}" blocked "${INVALID_REASONS[$i]}"
-  COUNT_BLOCKED=$((COUNT_BLOCKED + 1))
+  record "${INVALID_INPUTS[$i]}" blocked "${INVALID_REASONS[$i]}"
 done
 
 # Surface skip entries that matched nothing — the silent-skip-failure that caused

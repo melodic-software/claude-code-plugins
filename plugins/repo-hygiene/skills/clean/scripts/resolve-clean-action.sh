@@ -118,6 +118,12 @@ has_reset_intent() {
   esac
 }
 
+# fleet_tier <joined>: the tier a fleet phrase names, the destructive tree-batch
+# for a reset and the selective all-batch otherwise.
+fleet_tier() {
+  if has_reset_intent "$1"; then printf 'tree-batch'; else printf 'all-batch'; fi
+}
+
 # Selective tier + fleet intent => the selective batch form, decided BEFORE the
 # bare fleet/all -> tree-batch upgrade below. A selective sweep across a fleet
 # ("clean caches across all repos", "caches fleet", "prune git across the fleet")
@@ -157,10 +163,7 @@ note=""
 # misses ("all across the fleet") routes to the batch tier below instead of being
 # preempted into a single-repo action with the fleet words demoted to a note.
 first_action="$(resolve_token "$1")"
-second_action=""
-if [[ $# -ge 2 ]]; then
-  second_action="$(resolve_token "$2")"
-fi
+second_action="$(resolve_token "${2:-}")"
 if [[ -n "$first_action" && $# -ge 2 && -z "$second_action" ]] && ! has_fleet_indicator "$joined"; then
   canonical="$first_action"
   shift
@@ -179,7 +182,7 @@ if [[ -z "$canonical" ]]; then
     # an innocuous all-tier request. A genuine conflict with another explicit token
     # (e.g. "scan all repos") still falls to the menu via the mismatch check below.
     if [[ "$hit" == "all" ]] && is_fleet_phrase "$joined"; then
-      if has_reset_intent "$joined"; then hit=tree-batch; else hit=all-batch; fi
+      hit="$(fleet_tier "$joined")"
     fi
     if [[ -n "$hit" ]]; then
       if [[ -z "$canonical" ]]; then
@@ -192,26 +195,24 @@ if [[ -z "$canonical" ]]; then
   done
 fi
 
-if [[ -z "$canonical" ]]; then
-  if is_fleet_phrase "$joined"; then
-    if has_reset_intent "$joined"; then canonical=tree-batch; else canonical=all-batch; fi
-  else
-    case "$joined" in
-    *fresh\ pull* | *fresh\ clone* | *like\ a\ fresh* | *reset\ to\ origin* | *wipe\ ignored*)
-      canonical=tree
-      ;;
-    *disk\ space* | *taking\ up\ space* | *what*using*space* | *how\ much*)
-      canonical=scan
-      ;;
-    *node_modules* | *\.venv* | *build\ output* | *bin/*obj*)
-      canonical=build
-      ;;
-    *stale\ branch* | *merged\ branch*)
-      canonical=git
-      ;;
-    *) ;;
-    esac
-  fi
+if [[ -z "$canonical" ]] && is_fleet_phrase "$joined"; then
+  canonical="$(fleet_tier "$joined")"
+elif [[ -z "$canonical" ]]; then
+  case "$joined" in
+  *fresh\ pull* | *fresh\ clone* | *like\ a\ fresh* | *reset\ to\ origin* | *wipe\ ignored*)
+    canonical=tree
+    ;;
+  *disk\ space* | *taking\ up\ space* | *what*using*space* | *how\ much*)
+    canonical=scan
+    ;;
+  *node_modules* | *\.venv* | *build\ output* | *bin/*obj*)
+    canonical=build
+    ;;
+  *stale\ branch* | *merged\ branch*)
+    canonical=git
+    ;;
+  *) ;;
+  esac
 fi
 
 if [[ -z "$canonical" ]]; then

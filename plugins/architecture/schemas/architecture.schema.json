@@ -16,6 +16,11 @@
       "description": "Extra conditions that join the ADR admission test's 'at least one' list (for example 'touches personal data'). A real alternative must still have been weighed.",
       "type": "array",
       "items": { "type": "string", "minLength": 1 }
+    },
+    "adr_retirement": {
+      "description": "How /architecture:record-decision retires a record a new decision reverses, after the person's yes. delete: remove the file; its number is never reused. supersede: set its status to superseded by the new record. archive: move it to the ADR folder's archive folder.",
+      "enum": ["delete", "supersede", "archive"],
+      "default": "delete"
     }
   }
 }

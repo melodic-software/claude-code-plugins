@@ -162,12 +162,18 @@ layout_problem="$(record_layout_problem "$record")"
 [[ -z "$layout_problem" ]] ||
   die "record is not in the one-object-per-line layout landscape-record.sh writes ($layout_problem); regenerate it: $record" 1
 
+# The first top-level "<key>": "<string>" value in the record, else <default>.
+record_string() {
+  local value
+  value="$(sed -n "s/^[[:space:]]*\"$1\"[[:space:]]*:[[:space:]]*\"\\(.*\\)\".*\$/\\1/p" "$record" | head -1)"
+  printf '%s' "${value:-$2}"
+}
+
 # Which organization the landscape is drawn from. A checkout is internal because
 # its owner matches this one, not because someone happened to have it on disk.
 # A record that names no subject owner cannot make that call, so every checkout
 # in it stays internal and the drawing is the same as it was.
-subject_owner="$(sed -n 's/^[[:space:]]*"subject_owner"[[:space:]]*:[[:space:]]*"\(.*\)".*$/\1/p' "$record" | head -1)"
-[[ -n "$subject_owner" ]] || subject_owner="unknown"
+subject_owner="$(record_string subject_owner unknown)"
 
 # The top-level key/value split, shared with landscape-record.sh: it walks the
 # object rather than matching a pattern, so a value carrying a brace, a comma or
@@ -330,6 +336,14 @@ function primary(list,   parts) {
   split(list, parts, ",")
   return parts[1]
 }
+# The owner half of an owner/repo key, "unknown" for a bare repository name.
+function owner_of(k,   seg) {
+  split(k, seg, "/")
+  return (seg[2] == "" ? "unknown" : seg[1])
+}
+function emit_node(k, rel) {
+  printf "node\t%s\t%s\t%s\t%s\t%s\t%s\n", aliasof[k], k, safe(ndisp[k]), rel, safe(ndesc[k]), safe(owner_of(k))
+}
 /^[[:space:]]*\{"name":/ {
   name = unquote(field($0, "name"))
   owner = unquote(field($0, "owner"))
@@ -409,10 +423,7 @@ END {
   # calling out to sort(1), so the ordering here is stable and self-contained.
   # Internals sort by owner FIRST so each owner forms one contiguous run and the
   # boundary opened for it is never reopened further down the list.
-  for (i = 1; i <= ni; i++) {
-    split(ints[i], oseg, "/")
-    sortkey[ints[i]] = (oseg[2] == "" ? "unknown" : oseg[1]) "\t" ndisp[ints[i]]
-  }
+  for (i = 1; i <= ni; i++) sortkey[ints[i]] = owner_of(ints[i]) "\t" ndisp[ints[i]]
   for (i = 1; i <= ni; i++)
     for (j = i + 1; j <= ni; j++)
       if (sortkey[ints[j]] < sortkey[ints[i]]) { t = ints[i]; ints[i] = ints[j]; ints[j] = t }
@@ -436,17 +447,8 @@ END {
     drawn[exts[i]] = 1
     shown_ext++
   }
-  for (i = 1; i <= ni; i++) {
-    k = ints[i]
-    split(k, seg, "/")
-    printf "node\t%s\t%s\t%s\t%s\t%s\t%s\n", aliasof[k], k, safe(ndisp[k]), "internal", safe(ndesc[k]), safe(seg[2] == "" ? "unknown" : seg[1])
-  }
-  for (i = 1; i <= ne; i++) {
-    k = exts[i]
-    if (!(k in drawn)) continue
-    split(k, seg, "/")
-    printf "node\t%s\t%s\t%s\t%s\t%s\t%s\n", aliasof[k], k, safe(ndisp[k]), "external", safe(ndesc[k]), safe(seg[2] == "" ? "unknown" : seg[1])
-  }
+  for (i = 1; i <= ni; i++) emit_node(ints[i], "internal")
+  for (i = 1; i <= ne; i++) if (exts[i] in drawn) emit_node(exts[i], "external")
   drawn_edges = 0
   unresolved = 0
   for (i = 1; i <= en; i++) {
@@ -464,12 +466,9 @@ END {
 }
 ' "$record")"
 
-gen_on="$(sed -n 's/^[[:space:]]*"generated_on"[[:space:]]*:[[:space:]]*"\(.*\)".*$/\1/p' "$record" | head -1)"
-disco="$(sed -n 's/^[[:space:]]*"discovery_source"[[:space:]]*:[[:space:]]*"\(.*\)".*$/\1/p' "$record" | head -1)"
-remote_state="$(sed -n 's/^[[:space:]]*"remote"[[:space:]]*:[[:space:]]*"\(.*\)".*$/\1/p' "$record" | head -1)"
-[[ -n "$gen_on" ]] || gen_on="unknown"
-[[ -n "$disco" ]] || disco="unknown"
-[[ -n "$remote_state" ]] || remote_state="not used"
+gen_on="$(record_string generated_on unknown)"
+disco="$(record_string discovery_source unknown)"
+remote_state="$(record_string remote 'not used')"
 
 omit_ext="$(printf '%s\n' "$model" | awk -F'\t' '$1 == "omit" { print $2 }')"
 
@@ -487,7 +486,7 @@ if [[ "$dialect" == "mermaid" ]]; then
     printf 'contain.\n\n'
     printf '```mermaid\nC4Context\n  title System Landscape\n'
     printf '%s\n' "$model" | awk -F'\t' '
-      $1 == "node" && $5 == "internal" { owners[$7] = 1; io[++n] = $0 }
+      $1 == "node" && $5 == "internal" { io[++n] = $0 }
       $1 == "node" && $5 == "external" { eo[++m] = $0 }
       END {
         b = 0
@@ -603,16 +602,16 @@ fi
       return md(out) " (+" (n - 10) ")"
     }
     /^[[:space:]]*\{"name":/ {
+      name = unquote(field($0, "name"))
       rows[++n] = sprintf("| %s | %s | %s | %s | %s | %s | %s |", \
-        md(unquote(field($0, "name"))) \
-          (unquote(field($0, "archived")) == "true" ? " (archived)" : ""), \
+        md(name) (unquote(field($0, "archived")) == "true" ? " (archived)" : ""), \
         cell(unquote(field($0, "owner"))), \
         cell(unquote(field($0, "target_framework"))), \
         cell(gensub_commas(unquote(field($0, "runtime")))), \
         deplist(field($0, "dependencies")), \
         cell(gensub_commas(unquote(field($0, "tooling")))), \
         cell(unquote(field($0, "last_touched"))))
-      keys[n] = unquote(field($0, "name"))
+      keys[n] = name
     }
     function gensub_commas(v) { gsub(/,/, ", ", v); return v }
     END {

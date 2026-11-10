@@ -117,14 +117,9 @@ def main(argv: list[str]) -> int:
     files = {f for d in args.dir for f in d.glob("*.jsonl") if f.is_file()}
     newest_first = sorted(files, key=lambda f: f.stat().st_mtime, reverse=True)
 
-    printed = 0
-    read = 0
-    unreadable = 0
-    capped_sessions = 0
+    printed = read = unreadable = capped_sessions = 0
     stopped_early = False
     for path in newest_first:
-        if stopped_early:
-            break
         if path.stem in skip:
             continue
         read += 1
@@ -165,21 +160,19 @@ def main(argv: list[str]) -> int:
                 printed += 1
         except OSError:
             unreadable += 1
+        if stopped_early:
+            break
 
     print(
         f"scanned: {len(args.dir)} directories, {read} transcripts, {printed} matches, {unreadable} unreadable",
         file=sys.stderr,
     )
-    if capped_sessions or stopped_early:
-        notes = []
-        if capped_sessions:
-            notes.append(
-                f"{capped_sessions} sessions stopped at {PER_SESSION} matches each"
-            )
-        if stopped_early:
-            notes.append(
-                f"stopped at {MAX_MATCHES} matches; older transcripts were not read"
-            )
+    notes = []
+    if capped_sessions:
+        notes.append(f"{capped_sessions} sessions stopped at {PER_SESSION} matches each")
+    if stopped_early:
+        notes.append(f"stopped at {MAX_MATCHES} matches; older transcripts were not read")
+    if notes:
         print("capped: " + "; ".join(notes), file=sys.stderr)
     return 0
 

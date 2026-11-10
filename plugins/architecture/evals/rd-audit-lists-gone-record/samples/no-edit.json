@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git branch --show-current",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain | head -10",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --format='%h %s' -S redis -- . | head -5",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn redis src requirements.txt | head -20",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "docs/adr/0001-keep-sessions-in-redis.md",
+            "old_string": "Status: accepted",
+            "new_string": "Status: deprecated"
+          }
+        }
+      ]
+    }
+  ]
+}
