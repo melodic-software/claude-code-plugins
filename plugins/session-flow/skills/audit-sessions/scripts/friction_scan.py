@@ -140,9 +140,11 @@ def command_shape(command: str) -> tuple[str, list[str]]:
 
 def tool_shape(name: str, tool_input: dict, cwd: str | None) -> tuple[str | None, list[str], str | None]:
     """(shape, flags, target text) of one tool call; the target is what an excerpt may show."""
-    if name in SHELL_TOOLS and isinstance(tool_input.get("command"), str):
-        shape, flags = command_shape(tool_input["command"])
-        return shape, flags, tool_input["command"].strip().splitlines()[0] if tool_input["command"].strip() else None
+    command = tool_input.get("command")
+    if name in SHELL_TOOLS and isinstance(command, str):
+        shape, flags = command_shape(command)
+        lines = command.strip().splitlines()
+        return shape, flags, lines[0] if lines else None
     path = tool_input.get("file_path") or tool_input.get("notebook_path") or tool_input.get("path")
     if name in FILE_TOOLS and isinstance(path, str):
         norm = path.replace("\\", "/")
@@ -250,7 +252,8 @@ class FrictionScan:
                 )
 
     def _assistant(self, record: dict, ts: float | None) -> None:
-        content = record.get("message", {}).get("content") if isinstance(record.get("message"), dict) else None
+        message = record.get("message")
+        content = message.get("content") if isinstance(message, dict) else None
         for block in content if isinstance(content, list) else ():
             if not isinstance(block, dict):
                 continue
@@ -321,18 +324,17 @@ class FrictionScan:
         if isinstance(command, str) and CONFLICT_COMMAND_RE.search(command) and CONFLICT_RE.search(text[:20000]):
             self.perf["merge_conflicts"] += 1
         permission = transcript_reader.permission_event(record)
+        denied = permission is not None and permission["outcome"] == "denied"
         for denial in self.next_calls.pop(use_id, ()):
-            denial["next_ok"] = not (_errored(record) or (permission and permission["outcome"] == "denied"))
+            denial["next_ok"] = not (_errored(record) or denied)
         if name == "AskUserQuestion":
-            reply = "rejected" if permission and permission["outcome"] == "denied" else (
-                "approve" if "(Recommended)" in text else "other"
-            )
+            reply = "rejected" if denied else "approve" if "(Recommended)" in text else "other"
             self._event("agent-ask", ts, tool=name, reply=reply)
             return
         if permission is None:
             return
         shape, flags, target = tool_shape(name, tool_input, self.cwd)
-        if permission["outcome"] == "denied":
+        if denied:
             if not self._first(use_id, "denied"):
                 return
             self.denied_ids.add(use_id)

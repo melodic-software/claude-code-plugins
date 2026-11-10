@@ -121,6 +121,19 @@ The audit's `--fix` applies nothing: it suggests `/implementation:implement` and
 `/verification:confirm`, and tells the model not to invoke either. The bare audit stops at the
 report, and the step applies the agreed fixes itself.
 
+### glossary
+
+- skill: domain-driven-design:ubiquitous-language
+- args: audit
+- applies-when: repo has a ubiquitous-language glossary
+- checked: true
+
+#### Notes
+
+Read-only: tick `report-only <n>` or `no-findings`. Removals, merges and renames go through
+`/domain-driven-design:ubiquitous-language curate` and `/docs-hygiene:rename-references` in their
+own change, never in this step.
+
 ### overengineering
 
 - skill: overengineering:audit, overengineering:realign

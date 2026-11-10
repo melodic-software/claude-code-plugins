@@ -130,6 +130,7 @@ MINGW* | MSYS* | CYGWIN*)
 esac
 
 WINDOWS_DRIVE_LETTERS="abcdefghijklmnopqrstuvwxyz"
+WINDOWS_DRIVE_LETTERS_UPPER="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 to_native_path() {
   local text="$1" i lower_drive upper_drive
@@ -138,15 +139,15 @@ to_native_path() {
     return 0
   }
   # Convert at the value start and after a space: the report's two shapes are a bare path field and
-  # a path embedded in a handoff sentence. The case pre-filter keeps the tr fork to drives actually
-  # present, and avoids ${var^} / ${var,,} so bash 3.2 (macOS system bash) still runs this.
+  # a path embedded in a handoff sentence. The case pre-filter skips drives not present, and the
+  # paired letter tables avoid ${var^} / ${var,,} so bash 3.2 (macOS system bash) still runs this.
   for ((i = 0; i < 26; i++)); do
     lower_drive="${WINDOWS_DRIVE_LETTERS:i:1}"
     case "$text" in
     "/$lower_drive/"* | *" /$lower_drive/"*) ;;
     *) continue ;;
     esac
-    upper_drive="$(printf '%s' "$lower_drive" | tr '[:lower:]' '[:upper:]')"
+    upper_drive="${WINDOWS_DRIVE_LETTERS_UPPER:i:1}"
     [[ "$text" == "/$lower_drive/"* ]] && text="$upper_drive:/${text#"/$lower_drive/"}"
     text="${text//" /$lower_drive/"/" $upper_drive:/"}"
   done
@@ -879,6 +880,11 @@ physical_path() {
   printf '%s' "$1"
 }
 
+# Comparison key for the physical path: symlink aliases and case/separator spellings collapse.
+physical_path_key() {
+  path_key "$(physical_path "$1")"
+}
+
 # Worktree-root convention is owned by source-control (#2597 / #2606). This collector reads it and
 # reports conformance; it never invents a default root. Prefer the machine-readable git key
 # (worktreeroot.path, #2610) when present; otherwise the source-control pluginConfigs /
@@ -950,14 +956,14 @@ is_tool_owned_worktree() {
 under_configured_root() {
   local wt_key root_key
   [[ -n "$CONFIGURED_WORKTREE_ROOT" ]] || return 1
-  wt_key="$(path_key "$(physical_path "$1")")"
-  root_key="$(path_key "$(physical_path "$CONFIGURED_WORKTREE_ROOT")")"
+  wt_key="$(physical_path_key "$1")"
+  root_key="$(physical_path_key "$CONFIGURED_WORKTREE_ROOT")"
   [[ "$wt_key" == "$root_key" || "$wt_key" == "$root_key"/* ]]
 }
 
 record_fleet_worktree_root() {
   local root="$1" key i
-  key="$(path_key "$(physical_path "$root")")"
+  key="$(physical_path_key "$root")"
   for ((i = 0; i < ${#FLEET_WT_ROOT_KEYS[@]}; i++)); do
     if [[ "${FLEET_WT_ROOT_KEYS[$i]}" == "$key" ]]; then
       FLEET_WT_ROOT_REPOS[i]=$((FLEET_WT_ROOT_REPOS[i] + 1))
@@ -988,7 +994,7 @@ record_fleet_worktree_root() {
 # than retried: what could be observed was already decided by the collector.
 # shellcheck disable=SC2154  # WT_* and canonical* are the collection phase's evidence, read here
 classify_worktrees() {
-  local wt_index wt_path wt_branch is_main
+  local wt_index wt_path wt_branch wt_label is_main
   local status_handoff_targets="" status_handoff_count=0
   local wt_owner wt_repo wt_basename layout_prefix creation_slug expected_dirname
   local expected_wt_path informational_expected actual_common placement_paths=""
@@ -997,20 +1003,21 @@ classify_worktrees() {
   for ((wt_index = 0; wt_index < ${#WT_PATHS[@]}; wt_index++)); do
     wt_path="${WT_PATHS[$wt_index]}"
     wt_branch="${WT_BRANCHES[$wt_index]}"
+    wt_label="$wt_path${wt_branch:+ ($wt_branch)}"
     is_main=false
     [[ "$wt_index" -eq 0 ]] && is_main=true
     if [[ "${WT_LOCKED[$wt_index]}" == "true" && "$is_main" == "false" ]]; then
-      emit_finding locked-worktree "$wt_path${wt_branch:+ ($wt_branch)}" \
+      emit_finding locked-worktree "$wt_label" \
         "git worktree porcelain marks the registration locked" \
         "Inspect the lock reason with git worktree list --verbose in $canonical"
     fi
     if [[ "${WT_PRESENT[$wt_index]}" != "true" ]]; then
       if [[ "${WT_PRUNABLE[$wt_index]}" == "true" ]]; then
-        emit_finding prunable-worktree "$wt_path${wt_branch:+ ($wt_branch)}" \
+        emit_finding prunable-worktree "$wt_label" \
           "git worktree porcelain marks the missing registration prunable" \
           "Run /source-control:worktree cleanup --dry-run in $canonical"
       else
-        emit_finding missing-worktree "$wt_path${wt_branch:+ ($wt_branch)}" \
+        emit_finding missing-worktree "$wt_label" \
           "registered worktree path is absent but not currently marked prunable" \
           "Run /source-control:worktree cleanup --dry-run in $canonical"
       fi
@@ -1023,12 +1030,12 @@ classify_worktrees() {
     # answer it, because a leftover directory inside a repository genuinely IS inside that work
     # tree. Both branches stop here: every observation below describes the wrong repository.
     if [[ "${WT_PREFIX_STATUS[$wt_index]}" != "ok" ]]; then
-      emit_finding worktree-root-unverifiable "$wt_path${wt_branch:+ ($wt_branch)}" \
+      emit_finding worktree-root-unverifiable "$wt_label" \
         "git rev-parse --show-prefix failed at the registered path" \
         "Inspect the registered path and Git metadata, then rerun"
       continue
     elif [[ -n "${WT_PREFIX[$wt_index]}" ]]; then
-      emit_finding worktree-not-a-root "$wt_path${wt_branch:+ ($wt_branch)}" \
+      emit_finding worktree-not-a-root "$wt_label" \
         "git rev-parse --show-prefix returns ${WT_PREFIX[$wt_index]}, so the registered path is a subdirectory of a work tree rather than its root; probing it reports the containing repository's state at exit 0" \
         "Run /source-control:worktree cleanup --dry-run in $canonical"
       continue
@@ -1038,7 +1045,7 @@ classify_worktrees() {
     # sanctioned placement is an external root outside every repository.
     if [[ "$is_main" == "false" && -n "$canonical_top" ]] &&
       [[ "$(path_key "$wt_path")" == "$(path_key "$canonical_top")"/* ]]; then
-      emit_finding worktree-nested-in-repository "$wt_path${wt_branch:+ ($wt_branch)}" \
+      emit_finding worktree-nested-in-repository "$wt_label" \
         "registered worktree root is inside the canonical checkout's own working tree ($canonical_top)" \
         "Recreate it at an external root with /source-control:worktree create, then remove this one"
     fi
@@ -1048,10 +1055,7 @@ classify_worktrees() {
     if [[ "$is_main" == "false" ]]; then
       repo_wt_linked=$((repo_wt_linked + 1))
       FLEET_WT_LINKED=$((FLEET_WT_LINKED + 1))
-      if [[ -n "$placement_paths" ]]; then
-        placement_paths+=", "
-      fi
-      placement_paths+="$wt_path${wt_branch:+ ($wt_branch)}"
+      placement_paths+="${placement_paths:+, }$wt_label"
       # Match /source-control:worktree create dirname rules (#2606 review): owner/repo come from
       # `origin` only, resolved once by the collector. Without origin, owner is omitted and repo is
       # the checkout basename. Never use select_remote's sole-GitHub fallback (e.g. upstream) —
@@ -1087,23 +1091,24 @@ classify_worktrees() {
           repo_wt_tool_owned=$((repo_wt_tool_owned + 1))
           FLEET_WT_TOOL_OWNED=$((FLEET_WT_TOOL_OWNED + 1))
           informational_expected="${CONFIGURED_WORKTREE_ROOT%/}/$(expected_worktree_dirname "$wt_owner" "$wt_repo" "$wt_branch")"
-          emit_finding worktree-tool-owned "$wt_path${wt_branch:+ ($wt_branch)}" \
+          emit_finding worktree-tool-owned "$wt_label" \
             "linked worktree sits in a tool-owned location (Codex ~/.codex/worktrees or Cursor ~/.cursor/worktrees); exempt from configured-root conformance; expected fleet location would be $informational_expected (root from $CONFIGURED_WORKTREE_ROOT_SOURCE, origin $CONFIGURED_WORKTREE_ROOT_ORIGIN)" \
             "Leave to the owning tool, or recreate at the configured root with /source-control:worktree create if migrating"
-        elif under_configured_root "$wt_path" &&
-          [[ "$(path_key "$(physical_path "$wt_path")")" == "$(path_key "$(physical_path "$expected_wt_path")")" ]]; then
-          repo_wt_conforming=$((repo_wt_conforming + 1))
-          FLEET_WT_CONFORMING=$((FLEET_WT_CONFORMING + 1))
         elif under_configured_root "$wt_path"; then
-          repo_wt_nonconforming=$((repo_wt_nonconforming + 1))
-          FLEET_WT_NONCONFORMING=$((FLEET_WT_NONCONFORMING + 1))
-          emit_finding worktree-wrong-layout "$wt_path${wt_branch:+ ($wt_branch)}" \
-            "linked worktree is under the configured root ($CONFIGURED_WORKTREE_ROOT) but not at the expected layout path $expected_wt_path (<owner>-<repo>-<slug> or <repo>-<slug>); root from $CONFIGURED_WORKTREE_ROOT_SOURCE, origin $CONFIGURED_WORKTREE_ROOT_ORIGIN" \
-            "Recreate at $expected_wt_path with /source-control:worktree create, then remove this one"
+          if [[ "$(physical_path_key "$wt_path")" == "$(physical_path_key "$expected_wt_path")" ]]; then
+            repo_wt_conforming=$((repo_wt_conforming + 1))
+            FLEET_WT_CONFORMING=$((FLEET_WT_CONFORMING + 1))
+          else
+            repo_wt_nonconforming=$((repo_wt_nonconforming + 1))
+            FLEET_WT_NONCONFORMING=$((FLEET_WT_NONCONFORMING + 1))
+            emit_finding worktree-wrong-layout "$wt_label" \
+              "linked worktree is under the configured root ($CONFIGURED_WORKTREE_ROOT) but not at the expected layout path $expected_wt_path (<owner>-<repo>-<slug> or <repo>-<slug>); root from $CONFIGURED_WORKTREE_ROOT_SOURCE, origin $CONFIGURED_WORKTREE_ROOT_ORIGIN" \
+              "Recreate at $expected_wt_path with /source-control:worktree create, then remove this one"
+          fi
         else
           repo_wt_nonconforming=$((repo_wt_nonconforming + 1))
           FLEET_WT_NONCONFORMING=$((FLEET_WT_NONCONFORMING + 1))
-          emit_finding worktree-outside-configured-root "$wt_path${wt_branch:+ ($wt_branch)}" \
+          emit_finding worktree-outside-configured-root "$wt_label" \
             "linked worktree is outside the configured worktree root $CONFIGURED_WORKTREE_ROOT; expected location $expected_wt_path; root from $CONFIGURED_WORKTREE_ROOT_SOURCE, origin $CONFIGURED_WORKTREE_ROOT_ORIGIN" \
             "Recreate at $expected_wt_path with /source-control:worktree create, then remove this one"
         fi
@@ -1111,21 +1116,18 @@ classify_worktrees() {
     fi
     actual_common="${WT_COMMON_DIR[$wt_index]}"
     if [[ "${WT_COMMON_DIR_STATUS[$wt_index]}" != "ok" || -z "$actual_common" ]]; then
-      emit_finding worktree-common-dir-unavailable "$wt_path${wt_branch:+ ($wt_branch)}" \
+      emit_finding worktree-common-dir-unavailable "$wt_label" \
         "git could not resolve the registered worktree common directory" \
         "Inspect the registered path and Git metadata, then rerun"
     elif [[ "$(path_key "$actual_common")" != "$(path_key "$expected_common")" ]]; then
-      emit_finding worktree-admin-mismatch "$wt_path${wt_branch:+ ($wt_branch)}" \
+      emit_finding worktree-admin-mismatch "$wt_label" \
         "expected common dir $expected_common; actual $actual_common" \
         "Inspect both repositories; consider git worktree repair only after choosing the authority"
     elif [[ "$is_main" == "false" && "${WT_LOCKED[$wt_index]}" != "true" ]]; then
       # Disposability (stranded / unknown / safe) is owned by /source-control:worktree status.
       # Do not emit a weaker porcelain-clean reclaimability verdict here (#2605 / #2597).
       status_handoff_count=$((status_handoff_count + 1))
-      if [[ -n "$status_handoff_targets" ]]; then
-        status_handoff_targets+=", "
-      fi
-      status_handoff_targets+="$wt_path${wt_branch:+ ($wt_branch)}"
+      status_handoff_targets+="${status_handoff_targets:+, }$wt_label"
     fi
   done
   if ((status_handoff_count > 0)); then
@@ -1738,6 +1740,12 @@ resolve_fallback_worktree_root() {
   return 1
 }
 
+use_fallback_worktree_root() {
+  CONFIGURED_WORKTREE_ROOT="$FALLBACK_WORKTREE_ROOT"
+  CONFIGURED_WORKTREE_ROOT_ORIGIN="$FALLBACK_WORKTREE_ROOT_ORIGIN"
+  CONFIGURED_WORKTREE_ROOT_SOURCE="$FALLBACK_WORKTREE_ROOT_SOURCE"
+}
+
 # Header root: the first TARGET whose worktreeroot.path resolves (discovery order), else the
 # fallback. Conformance does not use it; analyze_repo resolves each canonical checkout's own root.
 resolve_configured_worktree_root() {
@@ -1751,9 +1759,7 @@ resolve_configured_worktree_root() {
     [[ -n "$probe" ]] || continue
     try_read_worktree_root "$probe" && return 0
   done
-  CONFIGURED_WORKTREE_ROOT="$FALLBACK_WORKTREE_ROOT"
-  CONFIGURED_WORKTREE_ROOT_ORIGIN="$FALLBACK_WORKTREE_ROOT_ORIGIN"
-  CONFIGURED_WORKTREE_ROOT_SOURCE="$FALLBACK_WORKTREE_ROOT_SOURCE"
+  use_fallback_worktree_root
   [[ -n "$CONFIGURED_WORKTREE_ROOT" ]]
 }
 
@@ -1763,14 +1769,10 @@ resolve_configured_worktree_root() {
 # root. A resolved root that differs from the header root is recorded for the fleet summary.
 resolve_repo_worktree_root() {
   local canonical="$1"
-  if ! try_read_worktree_root "$canonical"; then
-    CONFIGURED_WORKTREE_ROOT="$FALLBACK_WORKTREE_ROOT"
-    CONFIGURED_WORKTREE_ROOT_ORIGIN="$FALLBACK_WORKTREE_ROOT_ORIGIN"
-    CONFIGURED_WORKTREE_ROOT_SOURCE="$FALLBACK_WORKTREE_ROOT_SOURCE"
-  fi
+  try_read_worktree_root "$canonical" || use_fallback_worktree_root
   if [[ -n "$CONFIGURED_WORKTREE_ROOT" ]] &&
     { [[ -z "$FLEET_WORKTREE_ROOT" ]] ||
-      [[ "$(path_key "$(physical_path "$CONFIGURED_WORKTREE_ROOT")")" != "$(path_key "$(physical_path "$FLEET_WORKTREE_ROOT")")" ]]; }; then
+      [[ "$(physical_path_key "$CONFIGURED_WORKTREE_ROOT")" != "$(physical_path_key "$FLEET_WORKTREE_ROOT")" ]]; }; then
     [[ -n "$PER_REPOSITORY_WORKTREE_ROOTS" ]] && PER_REPOSITORY_WORKTREE_ROOTS+="; "
     PER_REPOSITORY_WORKTREE_ROOTS+="$canonical uses $CONFIGURED_WORKTREE_ROOT (origin $CONFIGURED_WORKTREE_ROOT_ORIGIN)"
   fi
@@ -1787,7 +1789,7 @@ directory_has_non_git_entries() {
   [[ -e "$dir/.git" || -L "$dir/.git" ]] || return 1
   for child in "$dir"/* "$dir"/.[!.]* "$dir"/..?*; do
     [[ -e "$child" || -L "$child" ]] || continue
-    name="$(basename "$child")"
+    name="${child##*/}"
     case "$name" in
     . | .. | .git) continue ;;
     *) return 0 ;;

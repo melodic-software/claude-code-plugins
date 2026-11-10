@@ -1208,6 +1208,12 @@ limits:
   # oldest stranded first, so the lane stays full without a flood (owner
   # decision Q109).
   refire-queue-per-slot: 2
+  # Minutes after a full work-unblock sweep finished during which the sweep a
+  # finished work-resolve-issue run starts skips its work. Each full sweep
+  # spends about 800 lanes App calls, and on 2026-11-10 seven an hour reached
+  # the App's 5,200 an hour (run 42898100951); 15 holds those sweeps to about
+  # three an hour beside the hourly schedule, which never skips.
+  sweep-gap-minutes: 15
   # Base hours of work-unblock's re-fire backoff for a stranded agent-ready
   # issue, per cause, doubled once per re-fire already made and held at 24
   # (the schema's description says where each cause's doubling starts). The

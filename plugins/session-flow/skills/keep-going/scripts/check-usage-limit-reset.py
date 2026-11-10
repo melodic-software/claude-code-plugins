@@ -65,10 +65,7 @@ def _ensure_bundled_tzdata() -> None:
     if not _VENDOR_ZIP.is_file():
         return
     try:
-        digest = hashlib.sha256()
-        with _VENDOR_ZIP.open("rb") as handle:
-            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                digest.update(chunk)
+        digest = hashlib.sha256(_VENDOR_ZIP.read_bytes())
         cache_root = Path(tempfile.gettempdir()) / (
             f"session-flow-tzdata-{digest.hexdigest()[:16]}{_cache_owner_suffix()}"
         )
@@ -91,12 +88,10 @@ def _ensure_bundled_tzdata() -> None:
                             raise
             finally:
                 shutil.rmtree(staging, ignore_errors=True)
-        if not (cache_root / "tzdata").is_dir():
-            return
         # Trust the cache only if we own it. A directory planted by another
         # user is skipped rather than imported; the run then degrades to the
         # same exit 3 as a missing bundle.
-        if not _cache_is_trusted(cache_root):
+        if not (cache_root / "tzdata").is_dir() or not _cache_is_trusted(cache_root):
             return
         cache_path = str(cache_root)
         if cache_path not in sys.path:
@@ -262,9 +257,7 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     args = parser.parse_args(argv)
-    text = args.text
-    if text is None:
-        text = sys.stdin.read()
+    text = sys.stdin.read() if args.text is None else args.text
     try:
         now = (
             datetime.fromisoformat(args.now.replace("Z", "+00:00"))

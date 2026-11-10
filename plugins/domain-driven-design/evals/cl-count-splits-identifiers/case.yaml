@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: cl-count-splits-identifiers
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: parcel-in-three-files
+    type: regex
+    pattern: 'parcel[^\n]{0,120}\b(?:3|three) files\b'
+    flags: 'i'
+    target: last_message
+  - name: states-count-method
+    type: regex
+    pattern: '\b(?:camel[- ]?case|pascal[- ]?case|snake[_ -]?case)\b|\bsplit(?:ting)? (?:at |on )?identifiers?\b|\bidentifiers? split\b'
+    flags: 'i'
+    target: last_message
+  - name: no-md-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-md-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?\.md"'
+    min: 0
+    max: 0
+    arm: 'both'

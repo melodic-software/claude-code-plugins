@@ -130,6 +130,13 @@ fi
 
 NOW=$(date +%s)
 count=0 superseded=0
+ORIGIN_DEFAULT=0
+git -C "$REPO_ROOT" rev-parse --verify --quiet "refs/remotes/origin/${DEFAULT_BRANCH}" >/dev/null 2>&1 && ORIGIN_DEFAULT=1
+
+# stash_stat <git stash show args>: the summary line of the stat, unindented.
+stash_stat() {
+  git -C "$REPO_ROOT" stash show "$@" 2>/dev/null | tail -1 | sed 's/^[[:space:]]*//'
+}
 
 while IFS=$'\t' read -r sel sha ts subject; do
   [[ -z "$sel" ]] && continue
@@ -141,8 +148,8 @@ while IFS=$'\t' read -r sel sha ts subject; do
   # Prefer the untracked-inclusive stat (a `stash -u` pre-rebase backup is often
   # all untracked, invisible to the default stat); fall back to the tracked-only
   # stat on git too old for --include-untracked, then to a plain marker.
-  diffstat="$(git -C "$REPO_ROOT" stash show --include-untracked --stat "$sel" 2>/dev/null | tail -1 | sed 's/^[[:space:]]*//')"
-  [[ -z "$diffstat" ]] && diffstat="$(git -C "$REPO_ROOT" stash show --stat "$sel" 2>/dev/null | tail -1 | sed 's/^[[:space:]]*//')"
+  diffstat="$(stash_stat --include-untracked --stat "$sel")"
+  [[ -z "$diffstat" ]] && diffstat="$(stash_stat --stat "$sel")"
   [[ -z "$diffstat" ]] && diffstat="(no tracked changes)"
 
   pr_line="none"
@@ -153,10 +160,9 @@ while IFS=$'\t' read -r sel sha ts subject; do
       advisory="likely superseded — source branch PR merged; still confirm before dropping"
       superseded=$((superseded + 1))
     fi
-  elif [[ "$src" != "unknown" && "$src" != "$DEFAULT_BRANCH" ]] &&
-    git -C "$REPO_ROOT" rev-parse --verify --quiet "refs/remotes/origin/${DEFAULT_BRANCH}" >/dev/null 2>&1 &&
+  elif [[ "$src" != "unknown" && "$src" != "$DEFAULT_BRANCH" && $ORIGIN_DEFAULT -eq 1 ]] &&
     git -C "$REPO_ROOT" show-ref --verify --quiet "refs/heads/${src}" &&
-    [[ -z "$(git -C "$REPO_ROOT" rev-list "origin/${DEFAULT_BRANCH}..refs/heads/${src}" 2>/dev/null | head -1)" ]]; then
+    [[ -z "$(git -C "$REPO_ROOT" rev-list -n 1 "origin/${DEFAULT_BRANCH}..refs/heads/${src}" 2>/dev/null)" ]]; then
     # No PR record but the source branch is fully merged into origin/<default>:
     # its committed work is on the default branch, so the stash is more likely a
     # superseded pre-merge backup. The stash's own diff may still be unique — hence

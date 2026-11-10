@@ -61,6 +61,109 @@ benchmarks, too. And then we moved on.
     );
   });
 
+  it("drops a rolling caption's carried line of one or two words", () => {
+    const autoVtt = `WEBVTT
+
+00:00:03.000 --> 00:00:05.000
+we load the data
+okay.
+
+00:00:05.000 --> 00:00:05.010
+okay.
+
+00:00:05.010 --> 00:00:07.000
+okay.
+then we sort it
+
+00:00:07.000 --> 00:00:07.010
+then we sort it
+
+00:00:07.010 --> 00:00:09.000
+then we sort it
+right, right
+
+00:00:09.000 --> 00:00:09.010
+right, right
+
+00:00:09.010 --> 00:00:11.000
+right, right
+and then we stop.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe(
+      "[0:03] we load the data okay. then we sort it right, right and then we stop.",
+    );
+  });
+
+  it("keeps a short repeat inside one rolling caption line", () => {
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+we think
+it is very, very good
+
+00:00:03.000 --> 00:00:03.010
+it is very, very good
+
+00:00:03.010 --> 00:00:05.000
+it is very, very good
+for us.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe("[0:01] we think it is very, very good for us.");
+  });
+
+  it("keeps a repeat that opens a rolling caption's new line", () => {
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+we said
+right
+
+00:00:03.000 --> 00:00:03.010
+right
+
+00:00:03.010 --> 00:00:05.000
+right
+right again.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe("[0:01] we said right right again.");
+  });
+
+  it("keeps a repeat of three or more words that opens a rolling caption's new line", () => {
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+honestly
+i don't know
+
+00:00:03.000 --> 00:00:03.010
+i don't know
+
+00:00:03.010 --> 00:00:05.000
+i don't know
+i don't know why.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe("[0:01] honestly i don't know i don't know why.");
+  });
+
+  it("leaves a manual caption's repeated line in place", () => {
+    const manualVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+We said
+thank you.
+
+00:00:04.000 --> 00:00:06.000
+thank you.
+And we left.
+`;
+    const result = buildTranscriptText(manualVtt, false);
+    expect(result.transcript).toBe("[0:01] We said thank you. thank you. And we left.");
+  });
+
   it("drops two repeated words when the opening cue overlaps the previous cue in time", () => {
     const autoVtt = `WEBVTT
 
