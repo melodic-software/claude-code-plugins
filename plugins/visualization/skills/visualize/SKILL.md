@@ -204,14 +204,16 @@ as `hosted_canvas`; a value outside the five is named with its option or file, k
 that layer is dropped. Print one line with the value and its layer, such as
 `diagram_target: excalidraw (docs/conventions/visualization.local.yaml)`. `auto` is the behavior
 above. Run layer 2 first: a medium it resolves (the person's own setting) wins over any other value,
-which then decides where the diagram goes only when layer 2 resolves none, in place of layer 3. When
+which then decides where the diagram goes only when layer 2 resolves none, in place of layer 3. A
+layer 2 that cannot run resolves none. When
 a resolved medium overrides it, say so in one line, such as
 `diagram_target: local-page overridden by medium terminal`. An explicit
 medium argument still wins, and the committed-diagram rule (Step 2), the pull-request diff exception below
 and the mermaid gate still apply. `terminal` draws an inline fence, `local-page` a local HTML file,
 and `excalidraw` or `tldraw` that canvas server, only where the canvas rule above would draw on it.
 When the chosen target is unavailable (no such server connected, a surface that does not render
-it, or `hosted_canvas` forbids it), use `auto` and say so in one line, such as
+it, or `hosted_canvas` forbids it), use `auto` and print this exact one-line form, never only a
+prose explanation:
 `diagram_target: excalidraw unavailable (no excalidraw server connected); using auto`.
 
 **Code-shape sketches take these same layers** (under auto they build no page, per
