@@ -7,6 +7,10 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"cat README.md docs/glossary.md\",\"description\":\"Read project docs\"}}]}}\n",
       "why": "cat in Bash"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"cat README.md docs/*\",\"description\":\"Read project docs\"}}]}}\n",
+      "why": "cat over a glob that covers the glossary"
     }
   ],
   "fail": [
@@ -21,6 +25,10 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/w/GLOSSARY.md\"}}]}}\n",
       "why": "looks for the root glossary, which does not exist here"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"ls docs/*\"}}]}}\n",
+      "why": "a glob in a directory listing reads nothing"
     }
   ]
 }

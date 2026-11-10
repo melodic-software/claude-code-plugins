@@ -33,4 +33,4 @@ graders:
   - name: glossary-read
     type: regex
     target: trace
-    pattern: '"name":"Read","input":\{"file_path":"[^"]*GLOSSARY\.md"|"name":"Bash","input":\{"command":"(?=(?:[^"\\]|\\.)*\b(?:cat|sed|head|tail|less|grep)\b)(?:[^"\\]|\\.)*GLOSSARY\.md'
+    pattern: '"name":"Read","input":\{"file_path":"[^"]*GLOSSARY\.md"|"name":"Bash","input":\{"command":"(?=(?:[^"\\]|\\.)*\b(?:cat|sed|head|tail|less|grep)\b)(?:[^"\\]|\\.)*(?:GLOSSARY\.md|\s(?:\./)?\*(?:\.md)?(?=[\s"\\;|&)]))'
