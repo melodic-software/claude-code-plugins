@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.6.9] - 2026-11-10
+
+### Fixed
+
+- The glossary eval cases count a Bash read through a glob that covers the glossary, and `wr-glossary-docs-path` describes what it checks.
+
 ## [3.6.8] - 2026-11-10
 
 ### Changed
