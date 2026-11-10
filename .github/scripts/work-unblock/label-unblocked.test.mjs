@@ -6821,12 +6821,47 @@ test("fieldListing lists every state once a sweep and answers each caller's stat
   assert.deepEqual(numbers(await byStatus()), [40, 41, 42]);
   assert.deepEqual(numbers(await byStatus(["agent-ready"])), [40]);
   assert.equal(listings, 1, "three callers, one listing");
-  // A failed listing is not kept: the next caller lists again.
+  // A failed shared listing hands each caller its own states' listing.
   const retried = fieldListing(env, github, REPO);
   fail = true;
-  await assert.rejects(retried(["deferred"]), /status 502/);
+  assert.deepEqual(numbers(await retried(["deferred"])), [41]);
   assert.deepEqual(numbers(await retried(["agent-ready"])), [40]);
-  assert.equal(listings, 3);
+  assert.equal(listings, 4, "the failed shared listing, then one per caller");
+});
+
+test("fieldListing: an unreadable Work status on an issue in another state never stops the agent-ready listing", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const field = { fullDatabaseId: String(STATUS_CONFIG["field-id"]) };
+  const other = { fullDatabaseId: "999999" };
+  const statusEvent = (state) => ({ __typename: "IssueFieldChangedEvent", newValue: state, actor: { databaseId: OWNER.id }, issueField: field });
+  // #42 is `ready` with 100 newer events on another field and no Work status
+  // event in view, so its setter cannot be read (resolve-config.mjs:264-265).
+  const timelines = {
+    40: [statusEvent("agent-ready")],
+    41: [statusEvent("deferred")],
+    42: Array.from({ length: 100 }, () => ({ __typename: "IssueFieldChangedEvent", newValue: "x", actor: { databaseId: OWNER.id }, issueField: other })),
+  };
+  const states = { 40: "agent-ready", 41: "deferred", 42: "ready" };
+  const github = async () => ({
+    data: {
+      repository: {
+        issues: {
+          pageInfo: { hasNextPage: false, endCursor: null },
+          nodes: Object.entries(states).map(([number, state]) => ({
+            number: Number(number),
+            createdAt: "2026-10-10T00:00:00Z",
+            labels: { nodes: [] },
+            issueFieldValues: { nodes: [{ name: state, field }] },
+            timelineItems: { nodes: timelines[number] },
+          })),
+        },
+      },
+    },
+  });
+  const env = { BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), TRUSTED_ACTORS_PATH: TRUSTED };
+  const byStatus = fieldListing(env, github, REPO);
+  assert.deepEqual((await byStatus(["agent-ready"])).map((item) => item.number), [40]);
+  assert.deepEqual((await byStatus(["deferred"])).map((item) => item.number), [41]);
 });
 
 // The restart pass's time budget (SWEEP_BUDGET_MINUTES): a sweep decides no

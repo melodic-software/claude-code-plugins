@@ -2710,11 +2710,16 @@ const baseAdmission = (env) => {
 // (read-status.mjs statusLabels); null while models.issue-status is unset.
 // resolve-config loads only on the first call, as baseAdmission does. One
 // listing of every state serves every call of a sweep (one call per page of
-// open issues); a failed one is not kept, so the next call lists again. Its 10 re-reads are shared by every state. `held` (issues
-// whose Work status is mid-write) is the whole listing's, for listedNames.
+// open issues); its 10 re-reads are shared by every state. When that listing
+// fails, this call and every later one list only their own `states`, as
+// before the shared listing: one issue whose status cannot be read then stops
+// only a listing that could match it, never one for a state it is not in.
+// `held` (issues whose Work status is mid-write) is the listing's, for
+// listedNames.
 const fieldListing = (env, github, repo) => {
   let loaded;
   let listing;
+  let sharedFailed = false;
   return async (states) => {
     loaded ??= (async () => {
       const { issueStatusFromBase, issuesByStatus } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
@@ -2726,11 +2731,21 @@ const fieldListing = (env, github, repo) => {
       return null;
     }
     const { config, trustedActors, issuesByStatus } = setup;
-    listing ??= issuesByStatus(github, repo, Object.keys(config.labels), { config, trustedActors }).catch((error) => {
-      listing = undefined;
-      throw error;
-    });
-    const found = await listing;
+    const own = () => issuesByStatus(github, repo, states ?? Object.keys(config.labels), { config, trustedActors });
+    let found;
+    if (sharedFailed) {
+      found = await own();
+    } else {
+      listing ??= issuesByStatus(github, repo, Object.keys(config.labels), { config, trustedActors });
+      try {
+        found = await listing;
+      } catch (error) {
+        sharedFailed = true;
+        listing = undefined;
+        console.log(`::warning title=label-unblocked::the shared Work status listing failed (${error?.message ?? error}); each pass lists its own states`);
+        found = await own();
+      }
+    }
     // issuesByStatus's own match for `states`: the field's state, or with no
     // state a label of one of them.
     const wanted = states && new Set(states.flatMap((state) => config.labels[state] ?? []).map((label) => label.toLowerCase()));
