@@ -7,13 +7,13 @@ graders:
     tool: 'mcp__plugin_canvas-stub_excalidraw__create_view'
     min: 0
     max: 0
-    arm: 'with-only'
+    arm: 'both'
   - name: local-diagram
     type: 'regex'
     pattern: '^(?:(?:(?!```)[\s\S])*?```[^\n]*\n(?:(?!```)[\s\S])*?```)*?(?:(?!```)[\s\S])*?```[^\n]*\n(?=(?:(?!```)[\s\S])*?\btoken)(?=(?:(?!```)[\s\S])*?\brevok)'
     flags: 'i'
     target: 'last_message'
-    arm: 'with-only'
+    arm: 'both'
   - name: no-page
     type: 'regex'
     pattern: '<!doctype\s+html|<html\b|<body\b|<head\b|<div\b|<section\b|<svg\b|<x-embed\b|<script\b|visualize\.html|claude\.ai/(?:code/)?artifact'

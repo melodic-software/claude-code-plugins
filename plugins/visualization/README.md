@@ -106,9 +106,9 @@ the three the picker offers is reported and treated as `auto`.
 
 **`hosted_canvas`.** A canvas server is an MCP server whose tools draw diagrams in an interactive
 view. The skill uses one only on a surface that renders it, never in the Claude Code terminal, and
-never for a diagram that will be committed, which stays Mermaid. With `deny` it still uses a local
-server, one started as a process on your machine, and treats a server it cannot show is local as
-hosted. The plugin ships no canvas server; the optional official ones (Excalidraw, tldraw) install
+never for a diagram that will be committed, which stays Mermaid, and only where the resolved
+`medium` would deliver a page. With `deny`, or a `medium` that keeps delivery on the machine, it
+uses a canvas server only when you say in the session that the server runs locally. The plugin ships no canvas server; the optional official ones (Excalidraw, tldraw) install
 at user level from their repositories, listed in the visualize skill's catalog.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->

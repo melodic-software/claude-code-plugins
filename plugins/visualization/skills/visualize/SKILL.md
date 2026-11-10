@@ -160,7 +160,9 @@ machine; a publishing one prefers publishing but degrades the same way.
 view, such as an Excalidraw or tldraw server; detect one by the session's MCP tool names. In the
 Claude Code terminal, never draw there: use the forms above, a Mermaid or ASCII fence inline or a
 local page. On a surface that renders MCP Apps, with a canvas server connected, you may draw there
-instead of a page, except for a diagram that will be committed (Step 2). The surface facts behind
+instead of a page, except for a diagram that will be committed (Step 2). A canvas stands in only
+for a page, so a resolved medium with no page (`page` false) draws none, and one that keeps delivery
+on the machine (`publishes` false) uses a local server only, as under `deny` below. The surface facts behind
 this rule, and the optional servers a person can install, are in
 [the catalog's canvas section](context/decision-matrix.md#mcp-app-canvas-connected-canvas-server)
 (as of 2026-11-10; recheck when that heading is renamed or its pointer moves).
@@ -171,16 +173,19 @@ the `hosted_canvas` key of the repository's `docs/conventions/visualization.yaml
 of the personal override `docs/conventions/visualization.local.yaml`. Read the two files only when
 the repository root (`CLAUDE_PROJECT_DIR`, else `git rev-parse --show-toplevel`) is inside a git
 working tree and is neither `$HOME` nor an ancestor of it; a missing file or key leaves that layer
-unset. A value other than `allow` or `deny` is named with its option or file, the key and the value,
-and that layer is dropped. `deny` from any layer wins, so a tracked file can never undo one person's
-`deny`; otherwise the value is `allow`, the default. Print one line with the value and the layer
+unset. Read the team file twice, from the working tree and from the default branch's committed copy
+(`git -C <root> show origin/HEAD:docs/conventions/visualization.yaml`), so a branch cannot drop the
+team's `deny`. A value other than `allow` or `deny` is named with its option or file, the key and
+the value, and that layer is dropped. `deny` from any layer wins, so a tracked file can never undo
+one person's `deny`; otherwise the value is `allow`, the default. Print one line with the value and the layer
 that set it, for example `hosted_canvas: deny (docs/conventions/visualization.yaml)` or
 `hosted_canvas: allow (plugin default)`.
 
 With `deny`, send no diagram content to a hosted canvas server, one reached over the network; a
-local server, one the session starts as a process on this machine, stays allowed. Tool names do not
-show where a server runs, so count a server as local only when the person or the session's MCP
-configuration shows it is; otherwise treat it as hosted and render locally.
+local server, one that draws on this machine without sending the content on, stays allowed. Neither
+tool names nor an MCP configuration prove that (a process started locally can forward to a remote
+service), so count a server as local only when the person says in this session that it is;
+otherwise treat it as hosted and render locally.
 
 **Code-shape sketches take these same layers** (under auto they build no page, per
 layer 3; an argument or resolved medium is honored for them as for any form), with
