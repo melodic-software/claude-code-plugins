@@ -37,7 +37,6 @@ cwd="$(pwd -P)" || exit 2
 # top-level class, the two flags 1 or 0.
 classes_of() {
   awk '
-  function top() { return nsn ? nsdepth[nsn] : 0 }
   function punct(c) {
     if (c == ";") {
       if (pend != "") { filens = pend; pend = "" }
@@ -112,7 +111,7 @@ classes_of() {
         sub(/[^A-Za-z0-9_].*/, "", name)
         # `where T : class where U : ...` is a constraint, not a class named where.
         if (name == "where") continue
-        if (depth == top()) emit(name, rest ~ /^[ \t]*</ ? 1 : 0)
+        if (depth == (nsn ? nsdepth[nsn] : 0)) emit(name, rest ~ /^[ \t]*</ ? 1 : 0)
         else if (cur != "") nested[cur] = 1
       }
     }
@@ -178,10 +177,13 @@ for f in "$@"; do
     terms["$proj"]=""
   fi
   while IFS=$'\t' read -r name generic nested; do
-    want=("FullyQualifiedName~$name")
-    if [[ "$generic" != 1 ]]; then
-      want=("FullyQualifiedName~$name.")
-      [[ "$nested" != 1 ]] || want+=("FullyQualifiedName~$name+")
+    filter="FullyQualifiedName~$name"
+    if [[ "$generic" == 1 ]]; then
+      want=("$filter")
+    elif [[ "$nested" == 1 ]]; then
+      want=("$filter." "$filter+")
+    else
+      want=("$filter.")
     fi
     for term in "${want[@]}"; do
       key="$proj"$'\t'"$term"
