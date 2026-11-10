@@ -2461,15 +2461,24 @@ test("oldestFirst reorders only the candidates, each in a candidate's place", ()
   assert.deepEqual(oldestFirst(pulls, () => false), pulls);
 });
 
-test("a PR-scoped dispatch leaves its pull request when as many older ones wait as there are free slots", async () => {
-  const { writes, verified, outcome } = await run([pull(1), pull(2), pull(3)], WAKE, {}, { ...ROOM, count: 4, cap: 5 });
+test("a PR-scoped dispatch leaves its pull request when as many older CLEAN ones wait as there are free slots", async () => {
+  const clean = { mergeStateStatus: "CLEAN" };
+  const { writes, verified, outcome } = await run([pull(1, clean), pull(2), pull(3)], WAKE, {}, { ...ROOM, count: 4, cap: 5 });
   assert.deepEqual(writes, []);
   assert.deepEqual(verified, []);
-  assert.equal(outcome, "refused: 1 older lanes App pull requests wait for the 1 free merge slots; the next scheduled run gives them out oldest first");
+  assert.equal(outcome, "refused: 1 older ready lanes App pull requests wait for the 1 free merge slots; the next scheduled run gives them out oldest first");
   // One free slot per waiting older pull request and one more: the wake arms its own.
-  const roomy = await run([pull(1), pull(2), pull(3)], WAKE, {}, { ...ROOM, count: 3, cap: 5 });
+  const roomy = await run([pull(1, clean), pull(2), pull(3)], WAKE, {}, { ...ROOM, count: 3, cap: 5 });
   assert.deepEqual(roomy.writes, [{ mutation: "arm", id: "PR_2", head: HEAD }]);
   assert.equal(roomy.outcome, "armed");
+});
+
+test("older pull requests still in CI or of unknown merge state do not defer a PR-scoped dispatch", async () => {
+  for (const mergeStateStatus of ["BLOCKED", "UNKNOWN", "UNSTABLE", undefined]) {
+    const { writes, outcome } = await run([pull(0, { mergeStateStatus }), pull(1, { mergeStateStatus }), pull(2), pull(3)], WAKE, {}, { ...ROOM, count: 4, cap: 5 });
+    assert.deepEqual(writes, [{ mutation: "arm", id: "PR_2", head: HEAD }], `older ${mergeStateStatus} pull requests leave the free slot to the woken #2`);
+    assert.equal(outcome, "armed", String(mergeStateStatus));
+  }
 });
 
 // pr-merge's gate merges only on a pr-verify pass at the head, FAILs at fewer

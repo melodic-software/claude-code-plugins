@@ -295,7 +295,7 @@ export const PULLS_QUERY = `query($owner: String!, $name: String!, $after: Strin
     pullRequests(states: OPEN, baseRefName: "main", first: 100, after: $after) {
       pageInfo { hasNextPage endCursor }
       nodes {
-        id number isDraft isCrossRepository headRefOid baseRefOid body updatedAt
+        id number isDraft isCrossRepository headRefOid baseRefOid body updatedAt mergeStateStatus
         author { __typename login }
         userContentEdits(first: 100) { totalCount nodes { editor { __typename login } } }
         labels(first: 100) { totalCount nodes { name } }
@@ -1936,14 +1936,15 @@ export async function main({ env = process.env, github, actions, verify, room, c
     // from the listing alone. While there are fewer free slots than these,
     // the slots go oldest first: a sweep reads them in that order, and a
     // PR-scoped run leaves its pull request to the next sweep when as many
-    // older ones wait as there are free slots.
+    // older ready ones (mergeStateStatus CLEAN; one still in CI, failing or
+    // UNKNOWN does not count) wait as there are free slots.
     const candidate = (pull) => lanes(pull) && pull.autoMergeRequest == null && pull.isDraft === false && holdReason(pull, humanGated) === null;
     const free = () => (lane === null || laneHeld !== null ? null : lane.cap - inFlight);
     const scarce = free() !== null && free() < listed.filter(candidate).length;
-    const older = (pull) => listed.filter((other) => candidate(other) && other.number < pull.number).length;
+    const older = (pull) => listed.filter((other) => candidate(other) && other.mergeStateStatus === "CLEAN" && other.number < pull.number).length;
     const waitHold = (pull) =>
       wake && scarce && candidate(pull) && free() > 0 && older(pull) >= free()
-        ? { disarm: false, reason: `${older(pull)} older lanes App pull requests wait for the ${free()} free merge slots; the next scheduled run gives them out oldest first` }
+        ? { disarm: false, reason: `${older(pull)} older ready lanes App pull requests wait for the ${free()} free merge slots; the next scheduled run gives them out oldest first` }
         : null;
     // A whole-review or verifier child stopped on a rate limit holds every
     // lanes App pull request after it.
