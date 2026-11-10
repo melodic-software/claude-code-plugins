@@ -66,7 +66,7 @@ The cap is `maxTurns: 30` and a large change set can exhaust it. Finish reading 
 - New behavioral code missing tests (business logic, validation, error handling, conditional branches)
 - Expected failures modeled with exceptions where the codebase uses result types (or vice versa). Match the project's established error-handling idiom
 - Error messages leaking internal details to users
-- A new type, function, enum value or message that names a domain concept with a word the project's glossary rejects (its `Avoid:` line), when the project keeps one: find it with Glob (`**/{GLOSSARY,glossary,ubiquitous-language}*.md`) and Read it once per review. Advisory, citing the entry
+- A new type, function, enum value or message that names a domain concept with a word the project's glossary rejects (its `Avoid:` line), when the project keeps one: find it with Glob (`**/*{glossary,Glossary,GLOSSARY,ubiquitous,UBIQUITOUS}*.md`) and Read, once per review, the match that covers the changed files, skipping a tool's own reference glossary under a plugin or package `reference/` or `context/` folder; with several plausible matches and no glossary index, skip the check. Advisory, citing the entry
 - Hardcoded machine-specific paths or environment assumptions
 - Cross-platform compatibility issues (path separators, line endings, shell assumptions)
 - Code that changes state and may run again (a retry loop, a resumed job, a redelivered message) with no reason the second run is harmless or no condition that ends the repeats; and an old and a new path for the same behavior both left callable, with nothing saying which callers use which or when the old one is removed

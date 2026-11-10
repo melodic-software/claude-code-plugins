@@ -90,7 +90,7 @@ Do not proceed unless the user explicitly overrides ("write the PRD anyway") OR 
 Spend the first turn grounding yourself, in parallel:
 
 - Take product direction and current modules from the project's always-loaded instructions (root `CLAUDE.md` / `AGENTS.md`), already in context; read a nested `AGENTS.md` under the area the topic touches, since those load only when a file they cover is read
-- When the topic touches a known module, read the domain glossary: `/domain-driven-design:ubiquitous-language lookup` via the Skill tool when available, else Glob `**/{GLOSSARY,glossary,ubiquitous-language}*.md` and Read the match
+- When the topic touches a known module, read the domain glossary: `/domain-driven-design:ubiquitous-language lookup` via the Skill tool when available, else Glob `**/*{glossary,Glossary,GLOSSARY,ubiquitous,UBIQUITOUS}*.md` and Read the match covering the area
 - `Glob` and `Grep` for keywords from `$ARGUMENTS` to spot existing surfaces
 - `git log --oneline -20` for recent product direction
 - List the project's own rules files that govern the area (architecture, modules, conventions)
