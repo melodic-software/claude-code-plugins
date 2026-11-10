@@ -2,9 +2,8 @@
 """Shared opening for the guarded-mutation CLIs.
 
 ``refresh_pr_branch.py``, ``manage_feedback_ledger.py``, and
-``request_review.py`` each used to open a mutating run with the same
-preamble. This module is that preamble. The contract below is what a caller
-is allowed to rely on. Hoisting it does not change what is permitted.
+``request_review.py`` open each mutating run here. The contract below is what
+a caller is allowed to rely on.
 
 What is checked
     When ``args.apply`` is true, the worker lease for ``owner/repo#number``
@@ -26,8 +25,8 @@ What is refused
     malformed, or does not match the pin.
 
 How the caller learns the outcome
-    Success is the returned :class:`GuardedMutation`. Refusal is the exception
-    the three scripts already raised: ``ValueError`` when the token is absent,
+    Success is the returned :class:`GuardedMutation`. Refusal is an
+    exception: ``ValueError`` when the token is absent,
     ``LeaseHeldError`` when the token is not the owner's, and ``RuntimeError``
     for every other refusal. There is no status flag. Callers do not catch the
     refusal inside this helper; they let it propagate.
@@ -102,11 +101,4 @@ def begin_guarded_mutation(
     head_sha = resolve_expected_head_sha(
         str(pr_state.get("head_sha") or ""), args.expected_head_sha
     )
-    return GuardedMutation(
-        repo=repo,
-        number=number,
-        key=key,
-        state=state,
-        pr_state=pr_state,
-        head_sha=head_sha,
-    )
+    return GuardedMutation(repo, number, key, state, pr_state, head_sha)

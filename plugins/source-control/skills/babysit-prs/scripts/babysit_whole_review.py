@@ -30,6 +30,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 from datetime import UTC, datetime, timedelta
@@ -128,9 +129,9 @@ def wanted(
     if reason is not None or not held_by:
         return False
     path = babysit_risk.REVIEW_PATH_PREFIX
-    if not all(r.code in FINDING_CODES or r.code.startswith(path) for r in held_by):
-        return False
     codes = {r.code for r in held_by}
+    if not all(code in FINDING_CODES or code.startswith(path) for code in codes):
+        return False
     review_path = any(code.startswith(path) for code in codes)
     held = [
         lane
@@ -249,9 +250,12 @@ def limits(repo: str) -> str | None:
     return None
 
 
+def _graphql_capture(query: str, node_id: str) -> subprocess.CompletedProcess[str]:
+    return gh_capture(["api", "graphql", "-f", f"query={query}", "-f", f"id={node_id}"])
+
+
 def _graphql(query: str, node_id: str) -> bool:
-    proc = gh_capture(["api", "graphql", "-f", f"query={query}", "-f", f"id={node_id}"])
-    return proc.returncode == 0
+    return _graphql_capture(query, node_id).returncode == 0
 
 
 HOLD_STATE = (
@@ -267,9 +271,7 @@ def _held(node_id: str, human_gated: str) -> str | None:
     or did not read whole."""
     import babysit_merge_policy as merge_policy  # noqa: PLC0415 - import cycle
 
-    proc = gh_capture(
-        ["api", "graphql", "-f", f"query={HOLD_STATE}", "-f", f"id={node_id}"]
-    )
+    proc = _graphql_capture(HOLD_STATE, node_id)
     try:
         node = json.loads(proc.stdout)["data"]["node"] if proc.returncode == 0 else None
         labels = node["labels"]
@@ -326,9 +328,7 @@ def _login(value: Any) -> str:
 def _conversions(node_id: str) -> list[dict[str, Any]] | None:
     """The pull request's conversions to draft, oldest first, or None when
     unread."""
-    proc = gh_capture(
-        ["api", "graphql", "-f", f"query={CONVERSIONS}", "-f", f"id={node_id}"]
-    )
+    proc = _graphql_capture(CONVERSIONS, node_id)
     if proc.returncode != 0:
         return None
     try:

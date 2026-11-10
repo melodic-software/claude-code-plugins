@@ -40,7 +40,7 @@ def run(args: argparse.Namespace) -> dict:
         if args.stale_after_seconds <= args.heartbeat_interval_seconds:
             raise ValueError(
                 "--stale-after-seconds must exceed --heartbeat-interval-seconds so a "
-                + "live heartbeat always refreshes the lease before it looks stale"
+                "live heartbeat always refreshes the lease before it looks stale"
             )
     with state_lock(path):
         if args.action == "acquire":
