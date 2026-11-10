@@ -114,7 +114,7 @@ function Read-BrowserJsonFile {
     try {
         $data = $read.Text | ConvertFrom-Json -AsHashtable -ErrorAction Stop
     } catch {
-        return [pscustomobject]@{ State = 'error'; Data = $null }
+        $data = $null
     }
     if ($data -isnot [hashtable]) { return [pscustomobject]@{ State = 'error'; Data = $null } }
     return [pscustomobject]@{ State = 'ok'; Data = $data }
