@@ -10,8 +10,8 @@ Guide root: <https://platform.claude.com/docs/en/build-with-claude/prompt-engine
 
 Rows cite the subpages of the current models first. A subpage name in a row means:
 
-- "Fable 5.1 subpage":
-  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1>
+- "Fable 5.2 subpage":
+  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2>
 - "Opus 5.5 subpage":
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5>
 - "Sonnet 5.5 subpage":
@@ -19,6 +19,9 @@ Rows cite the subpages of the current models first. A subpage name in a row mean
 - "Fable 5 subpage":
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5>
   (P5 only; see that row).
+- "Fable 5.1 subpage":
+  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1>
+  (P2 only: its section states the guardrail, and the Fable 5.2 subpage has none that does).
 - "Opus 5 subpage" and "Opus 4.8 subpage":
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5>
   and
@@ -30,7 +33,8 @@ Rows cite the subpages of the current models first. A subpage name in a row mean
 
 - **Pointer**: for which model each subpage covers, see the
   [model-specific guidance table](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#model-specific-guidance).
-- **As of**: 2026-10-01 (each subpage read as raw markdown that day).
+- **As of**: 2026-10-01 (each subpage read as raw markdown that day); the Fable 5.2 subpage read
+  whole on 2026-11-09.
 - **Recheck trigger**: a row's cited heading disappears from its subpage, or that table gains or
   drops a row.
 
@@ -63,6 +67,18 @@ carries the Sonnet 5.5 condition.
 - **As of**: 2026-10-01
 - **Recheck trigger**: a cited heading disappears from that subpage, or another model's subpage
   covers self-started review rounds, which re-opens P12's model condition.
+
+That trigger fired on 2026-11-09 and P12's condition stands. The Fable 5.2 subpage reports Fable
+5.2 starting subagents to review its own work, at the effort levels the pointer below names, and
+prescribes no remedy for that observation. The section's general delegation advice, to review the
+lines that invite delegation and, if needed, the spawn tool's description, is P1's subject, and
+nothing in the section recommends a steer on where the run ends.
+
+- **Pointer**: the Fable 5.2 subpage's
+  [set expectations for subagents](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#set-expectations-for-subagents).
+- **As of**: 2026-11-09
+- **Recheck trigger**: that section starts recommending a steer on where the run ends, which
+  extends P12's condition to Fable 5.2.
 
 ## Purpose classification vocabulary
 
@@ -106,6 +122,10 @@ Classify each component by what its body has the model DO (multiple or none):
   [Overeagerness](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#overeagerness);
   Fable 5.1 subpage,
   [Keep changes and tests to what the task asks for](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#keep-changes-and-tests-to-what-the-task-asks-for);
+  Fable 5.2 subpage,
+  [Say who owns the code](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#say-who-owns-the-code)
+  (where changes should stay minimal, and what a scope-limiting rule does beside an ownership
+  sentence);
   Sonnet 5.5 subpage,
   [Steer initiative and scope](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#steer-initiative-and-scope)
   (unrequested additions).
@@ -133,8 +153,9 @@ Classify each component by what its body has the model DO (multiple or none):
   [Ground progress claims during long runs](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#ground-progress-claims-during-long-runs).
   On 2026-10-01 that was the only docs section covering this check: we read the Fable 5.1, Opus 5.5
   and Sonnet 5.5 subpages that day (raw markdown, no artifact stored) and none of them covers tying
-  progress claims to tool-result evidence. As of: 2026-10-01. Recheck trigger: a current model's
-  subpage starts covering the check (repoint there), or that Fable 5 section disappears.
+  progress claims to tool-result evidence; the Fable 5.2 subpage, read whole on 2026-11-09, does
+  not either. As of: 2026-11-09. Recheck trigger: a current model's subpage starts covering the
+  check (repoint there), or that Fable 5 section disappears.
 
 ### P6: Autonomy or checkpoint posture
 
@@ -149,8 +170,8 @@ Classify each component by what its body has the model DO (multiple or none):
   action that is destructive, hard to undo, or reaches outside the workspace). The keep-going half
   never licenses turning permission prompts or P7's gates off. An interactive one names the gates
   worth stopping at.
-- **Pointer:** Fable 5.1 subpage,
-  [Finish the whole task](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#finish-the-whole-task)
+- **Pointer:** Fable 5.2 subpage,
+  [Finish the whole task](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#finish-the-whole-task)
   (autonomous); Sonnet 5.5 subpage,
   [Steer initiative and scope](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#steer-initiative-and-scope)
   (carrying work through); Opus 5.5 subpage,

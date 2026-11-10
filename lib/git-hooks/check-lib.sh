@@ -296,17 +296,17 @@ checks_push_ranges() {
 # core.quotePath=false keeps non-ASCII names unquoted.
 checks_diff() {
   case "$CHECKS_MODE" in
-  pre-commit) git -c core.quotePath=false diff --cached --no-color --no-ext-diff "$@" ;;
+  pre-commit) git -c core.quotePath=false diff --cached --no-color --no-ext-diff "$@" -- ;;
   worktree)
     local base=HEAD
     git rev-parse --verify --quiet HEAD >/dev/null 2>&1 || base="$CHECKS_EMPTY_TREE"
-    git -c core.quotePath=false diff "$base" --no-color --no-ext-diff "$@"
+    git -c core.quotePath=false diff "$base" --no-color --no-ext-diff "$@" --
     ;;
   pre-push)
     # The status is the first failing range's, not only the last range's.
     local b l s rc=0
     while read -r b l; do
-      git -c core.quotePath=false diff "$b" "$l" --no-color --no-ext-diff "$@"
+      git -c core.quotePath=false diff "$b" "$l" --no-color --no-ext-diff "$@" --
       s=$?
       ((rc)) || rc=$s
     done <"$CHECKS_TMP/push-ranges"

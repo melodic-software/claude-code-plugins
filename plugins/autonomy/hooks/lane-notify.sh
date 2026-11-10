@@ -25,8 +25,6 @@
 #   2. Installed plugins are cache-isolated and self-contained; there is no
 #      supported way for the autonomy plugin to locate and source another
 #      plugin's script at runtime.
-#   3. desktop-notification is under an in-flight change; coupling to its
-#      internals would add a cross-plugin drift/collision hazard.
 #
 # Config (consumer settings `env` / userConfig mirror; all channels default ON):
 #   CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false            disable entirely
@@ -47,9 +45,9 @@ readonly _LANE_NOTIFY_LOADED=1
 lane::notify() {
   [[ "${CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED:-true}" == "true" ]] || return 0
 
-  local title="$1" body="$2"
-  title=$(printf '%s' "$title" | tr -d '\000-\037')
-  body=$(printf '%s' "$body" | tr -d '\000-\037')
+  local title body
+  title=$(printf '%s' "$1" | tr -d '\000-\037')
+  body=$(printf '%s' "$2" | tr -d '\000-\037')
 
   # Terminal channel: OSC 9 desktop notification + a standalone bell, written
   # DIRECTLY to the controlling terminal. A Stop hook's stdout is captured and

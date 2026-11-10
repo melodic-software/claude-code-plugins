@@ -177,15 +177,9 @@ def setting_error(key, value):
     kind, *rule = SETTING_RULES[key]
     if kind == "bool":
         ok = isinstance(value, bool)
-    elif kind == "int":
+    elif kind in ("int", "num"):
         ok = (
-            isinstance(value, int)
-            and not isinstance(value, bool)
-            and rule[0] <= value <= rule[1]
-        )
-    elif kind == "num":
-        ok = (
-            isinstance(value, (int, float))
+            isinstance(value, int if kind == "int" else (int, float))
             and not isinstance(value, bool)
             and rule[0] <= value <= rule[1]
         )
@@ -195,13 +189,13 @@ def setting_error(key, value):
         ok = isinstance(value, str) and bool(value.strip())
     if ok:
         return None
-    want = {
-        "bool": "true or false",
-        "int": f"an integer from {rule[0]} to {rule[1]}" if kind == "int" else "",
-        "num": f"a number from {rule[0]} to {rule[1]}" if kind == "num" else "",
-        "enum": " or ".join(rule[0]) if kind == "enum" else "",
-        "str": "a non-empty string",
-    }[kind]
+    if kind in ("int", "num"):
+        noun = "an integer" if kind == "int" else "a number"
+        want = f"{noun} from {rule[0]} to {rule[1]}"
+    elif kind == "enum":
+        want = " or ".join(rule[0])
+    else:
+        want = {"bool": "true or false", "str": "a non-empty string"}[kind]
     return f"{key} must be {want}, got {json.dumps(value)}"
 
 
@@ -1022,6 +1016,21 @@ def decision_view(event, prev_text=""):
     }
 
 
+def history_line(event):
+    """The history[id] line one user event adds; an undo also names the seq it withdrew."""
+    line = {
+        "at": event["at"],
+        "by": "user",
+        "kind": event.get("kind"),
+        "alt": event.get("alt"),
+        "text": event.get("text") or "",
+        "seq": event["seq"],
+    }
+    if event.get("kind") == "undo":
+        line["undoSeq"] = event.get("undoSeq")
+    return line
+
+
 def fold_decisions(events):
     """The responses[id] entry after a run of live decision events in seq order (a reopen keeps the note)."""
     view = None
@@ -1065,17 +1074,7 @@ def rebuild_responses(events):
                 prev = responses.get(qid, {}).get("text", "")
                 responses[qid] = decision_view(e, prev)
         if qid:
-            line = {
-                "at": e["at"],
-                "by": "user",
-                "kind": kind,
-                "alt": e.get("alt"),
-                "text": e.get("text") or "",
-                "seq": e["seq"],
-            }
-            if kind == "undo":
-                line["undoSeq"] = e.get("undoSeq")
-            history.setdefault(qid, []).append(line)
+            history.setdefault(qid, []).append(history_line(e))
     for lines in history.values():
         for line in lines:
             if line["seq"] in withdrawn:
@@ -1282,6 +1281,9 @@ class Hub(LoopbackWatcher):
         log.setdefault("schemaVersion", SCHEMA_VERSION)
         save_json(self.responses, log)
 
+    def _setting(self, key):
+        return self.layers.resolve(self.dir, self.user_settings())[0][key]["value"]
+
     def settle_window(self):
         got = self.layers.resolve(self.dir, self.user_settings())[0]
         return got["settleQuiet"]["value"], got["settleBurst"]["value"]
@@ -1304,19 +1306,13 @@ class Hub(LoopbackWatcher):
         return got is not None and got[0] == vid and time.monotonic() < got[1]
 
     def lease_timeout(self):
-        return self.layers.resolve(self.dir, self.user_settings())[0]["leaseTimeout"][
-            "value"
-        ]
+        return self._setting("leaseTimeout")
 
     def reading_window(self):
-        return self.layers.resolve(self.dir, self.user_settings())[0]["readingWindow"][
-            "value"
-        ]
+        return self._setting("readingWindow")
 
     def frontier_lock(self):
-        return self.layers.resolve(self.dir, self.user_settings())[0]["frontierLock"][
-            "value"
-        ]
+        return self._setting("frontierLock")
 
     def user_settings(self):
         """The user settings file `round.py ensure-running --user-settings` recorded, if any."""
@@ -1575,15 +1571,7 @@ class Hub(LoopbackWatcher):
             r["seq"] = seq = event["seq"]
             prev = r["responses"].get(qid, {}) if qid else {}
             if kind in DECISIONS:
-                r["responses"][qid] = {
-                    "decision": None if kind == "reopen" else kind,
-                    "alt": alt if kind == "alt" else None,
-                    "text": text
-                    if text.strip() or kind != "reopen"
-                    else prev.get("text", ""),
-                    "updatedAt": now,
-                    "seq": seq,
-                }
+                r["responses"][qid] = decision_view(event, prev.get("text", ""))
             # A plain accept or confirm needs no reply, so it wakes no agent; the accept that
             # settles its round's last question stays unhandled, so the agent learns the round is done.
             if not text.strip() and (
@@ -1593,17 +1581,7 @@ class Hub(LoopbackWatcher):
                 event["autoHandled"] = True
             r["events"].append(event)
             if qid:
-                line = {
-                    "at": now,
-                    "by": "user",
-                    "kind": kind,
-                    "alt": event["alt"],
-                    "text": text,
-                    "seq": seq,
-                }
-                if kind == "undo":
-                    line["undoSeq"] = event["undoSeq"]
-                r["history"].setdefault(qid, []).append(line)
+                r["history"].setdefault(qid, []).append(history_line(event))
             for it in event["items"] if kind == "accept-audit" else []:
                 r["seq"] += 1
                 accept = {
@@ -1618,16 +1596,7 @@ class Hub(LoopbackWatcher):
                 }
                 r["events"].append(accept)
                 r["responses"][it["id"]] = decision_view(accept)
-                r["history"].setdefault(it["id"], []).append(
-                    {
-                        "at": now,
-                        "by": "user",
-                        "kind": "accept",
-                        "alt": None,
-                        "text": "",
-                        "seq": accept["seq"],
-                    }
-                )
+                r["history"].setdefault(it["id"], []).append(history_line(accept))
             save_json(self.responses, r)
             self.cond.notify_all()
             crev = content_rev(qs[qid], r["events"]) if qid in qs else None

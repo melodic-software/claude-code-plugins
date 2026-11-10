@@ -6,12 +6,8 @@
 # The FINDINGS HOME is never resolved here. The caller — the audit skill's
 # context/persist-findings.md — resolves it from the memory root
 # and runs the detector-findings fetch-and-refuse gate, then hands the resolved
-# path in as --out. That split follows the ai-slop precedent exactly, and it is
-# required rather than stylistic: resolution reads prose (a CLAUDE.md
-# declaration of a working-docs root) and is therefore model work under Brief
-# constraint C1. A bash implementation would either violate C1 or silently
-# collapse to the documented default, which is the one case that fails without
-# reporting anything. What is left here is reasoning-free composition: cell
+# path in as --out: resolution reads prose, which is model work under Brief
+# constraint C1. What is left here is reasoning-free composition: cell
 # escaping, rule-id-first Finding cells, and tier lookup.
 #
 # The RELAY BOUNDARY is enforced here, not upstream. Only fingerprint-confirmed
@@ -110,10 +106,8 @@ command -v jq >/dev/null 2>&1 || {
   exit 4
 }
 
-# Parse first, and say so. `has("findings")` fails on unparsable input too, so without
-# this gate a truncated or non-JSON sidecar is refused for having no findings key — a
-# cause the input does not have, and one that sends a reader looking for a key in a
-# file that has no keys at all.
+# Each refusal names its own cause, so parse first: `has("findings")` also
+# fails on unparsable input.
 if ! jq -e 'type == "object"' "$REPORT" >/dev/null 2>&1; then
   echo "emit-findings.sh: $REPORT is not a JSON object; not audit output" >&2
   exit 3
@@ -124,9 +118,7 @@ if ! jq -e 'has("findings")' "$REPORT" >/dev/null 2>&1; then
   exit 3
 fi
 
-# `findings` present but not a list. Checked HERE and named for what it is, because
-# the next gate iterates it: a `"findings": "none"` sidecar failed there instead and
-# was refused under the not-found message, reporting a cause the input does not have.
+# Checked before the not-found gate, which iterates `findings`.
 if ! jq -e '(.findings | type) == "array"' "$REPORT" >/dev/null 2>&1; then
   echo "emit-findings.sh: $REPORT has a findings key that is not a list; not audit output" >&2
   exit 3
@@ -136,14 +128,7 @@ fi
 #
 # ONE reader, THREE callers: the searched-surfaces gate immediately below, the
 # relay-boundary withhold predicate, and the fingerprint-confirmed eligibility test
-# beside it. A second, laxer notion of "the tier" is how the gate came to miss
-# `{"Tier": "not-found"}` and `{"tier": ["not-found"]}` — shapes the boundary itself
-# recognizes — so such a sidecar skipped the refusal and was quietly counted as
-# withheld instead. It is also how `{"Tier": "fingerprint-confirmed"}` came to be
-# read as a declaration when withholding and as no declaration at all when relaying:
-# the record was dropped, and the count called it a copy declaring no
-# fingerprint-confirmed tier, which its own reader disagrees with. Every caller
-# asking the same question of the same reader is what removes the room for both.
+# beside it.
 #
 # WHERE the tier is read is an EXPLICIT KEY ALLOWLIST: the top-level `tier`, and the
 # whole of a top-level `verdict`. Both are the record DECLARING its tier, and nothing
@@ -151,83 +136,35 @@ fi
 # but only at those two positions, so `{"xref": {"TIER": "prior: not-found"}}` stays
 # the cross-reference it reads as.
 #
-# A `verdict` is taken WHOLE rather than as `verdict.tier`, because a key named
-# `verdict` is already the declaration: `{"verdict": "not-found"}`,
-# `{"verdict": ["not-found"]}` and `{"verdict": {"result": {"tier": "llm-suspected"}}}`
-# each say the same thing `{"verdict": {"tier": "not-found"}}` does, and reading only
-# the `tier` child let all three past — into a relay row on a stamp rule, or verbatim
-# into `## Unparsed` with no rule id.
-#
-# The narrowness is the point. Reading `tier` at any depth cannot tell the declared
-# tier of a record from an unrelated nested one, and this sidecar is model-authored
-# against no schema, with `tier` already overloaded (verdict tier, and crosswalk
-# severity). So a fingerprint-confirmed copy carrying
-# `"review": {"tier": "one agent argued llm-suspected and was vetoed"}` was withheld:
-# it reached neither the relay nor `## Unparsed`. A leak is visible in the output; a
-# drop is not, and every sloppiness about WHERE the tier lives is a drop.
-#
 # WHICH VALUES NAME A TIER: the WRAPPER is read generously, the NAME exactly. Every
 # string anywhere inside the declared value is a candidate, trimmed and case-folded,
 # and it names a tier only when it EQUALS one. That keeps `"  not-found  "`,
 # `["not-found"]`, `{"name": "llm-suspected"}` and `"LLM-Suspected"` the verdicts
 # they say they are, while a future `not-found-v2` is an unknown tier rather than the
-# verdict it happens to start with. Substring matching erased such a record entirely,
-# printing no `## Unparsed` entry for it; an unknown tier now takes the ordinary path
-# for its rule id — the appendix when nothing maps it, the not-relay-eligible count
-# when a rule does map it and the declaration does not authorize the relay.
-#
-# Free text in a tier field names no tier under that rule, which is the same answer
-# this producer already gives a verdict name spelled in a `note`. It has to be: a
-# `verdict.tier` reading "the llm-suspected nomination was overruled" is a review
-# note, and withholding the fingerprint-confirmed copy carrying it is the drop above
-# wearing an allowlisted key.
-#
-# Scoped to THESE NAMES on purpose: the withheld verdicts, and the one tier a copy
-# finding may be relayed on. A tier naming none of them is a tier this
-# producer neither withheld nor can relay.
+# verdict it happens to start with.
 # shellcheck disable=SC2016  # `$name` is a jq parameter, not a shell expansion.
 TIER_DEFS='
-def tier_slot:
+def key_slot($k):
   if type == "object" then
-    to_entries[] | select(.key | ascii_downcase == "tier") | .value
+    to_entries[] | select(.key | ascii_downcase == $k) | .value
   else empty end;
-def verdict_slot:
-  if type == "object" then
-    to_entries[] | select(.key | ascii_downcase == "verdict") | .value
-  else empty end;
+def tier_slot: key_slot("tier");
+def verdict_slot: key_slot("verdict");
 # The top-level `tier` IS the declaration whenever it DECLARES one. A `verdict`
 # is the judges output, and the tier is set by fixed rule from the evidence rather
 # than from a judge — different fields by design — so a record declaring
 # `fingerprint-confirmed` and carrying `"verdict": {"prior": "llm-suspected"}` has
-# declared a confirmed copy, and reading the verdict beside it is the over-capture
-# drop one container in.
+# declared a confirmed copy.
 #
 # A record whose `tier` NAMES NO TIER falls back to its `verdict`, which is then the
-# only tier it has: the `tier` child when it has one, and otherwise the whole value,
-# because `{"verdict": "not-found"}`, `{"verdict": ["not-found"]}` and
-# `{"verdict": {"result": {"tier": "llm-suspected"}}}` each say what
-# `{"verdict": {"tier": "not-found"}}` says. Reading only the `tier` child let all
-# three past the boundary — onto a relay row on a stamp rule, and verbatim into
-# `## Unparsed` with no rule id.
+# only tier it has: the `tier` child when it has one, and otherwise the whole value.
 #
 # NARROWING TURNS ON A TIER NAMED, NEVER ON A `tier` KEY PRESENT — at BOTH steps, and
-# by the same rule, because the two steps are the same question asked twice. Keying
-# either off the key lets one unusable value disarm the whole boundary:
-# `{"tier": null, "verdict": "not-found"}` never consulted the verdict, and
-# `{"verdict": {"tier": "pending", "result": "not-found"}}` never looked past the
-# `tier` child. Each printed its verdict name and payload verbatim into `## Unparsed`
-# and skipped the searched-surfaces gate on the way.
-#
-# A tier that RENDERS as a verdict name IS a verdict name, so the two invisibilities
-# are handled differently and each by the property that DEFINES it.
+# by the same rule, because the two steps are the same question asked twice.
 #
 # Characters that render as nothing are stripped EVERYWHERE, by
 # `Default_Ignorable_Code_Point` — the Unicode property for exactly that — plus the
-# rest of `Cf`. Anything narrower is a list of the ones someone thought of: an
-# enumeration of two zero-width characters left six others through; trimming the class
-# at the ends only left an interior `"not-‍found"`; and stripping `Cf` alone left the
-# variation selectors and the combining grapheme joiner, which are `Mn`. Each spelling
-# read as `not-found` to whoever opens the findings file while comparing unequal.
+# rest of `Cf`.
 #
 # Combining marks at large are NOT stripped, because they render: `not-fóund` is a
 # different name, and this reader should say so rather than guess at a verdict.
@@ -246,13 +183,11 @@ def norm:
   | sub("^[[:space:][:cntrl:]\\p{Z}]+"; "")
   | sub("[[:space:][:cntrl:]\\p{Z}]+$"; "");
 # KEYS are candidates as well as values: `{"tier": {"not-found": true}}` says what
-# `{"tier": "not-found"}` says, and reading values alone printed it verbatim into
-# `## Unparsed`. "Every string anywhere inside" has to mean every string.
+# `{"tier": "not-found"}` says.
 def names_in:
   [ .[] | .. | (strings, (objects | keys[])) | norm ];
-# `not-found` is the one spelling every prose surface of this skill now publishes for
-# the neutral outcome, SKILL.md included. `source-not-identified` is the spelling
-# SKILL.md published before that reconciliation, and it stays recognized here: a
+# `source-not-identified` is the older spelling of `not-found` that
+# SKILL.md once published, and it stays recognized here: a
 # sidecar is model-authored against whatever description was in context, and a name
 # this reader does not know is a verdict that walks into the relay. Recognizing one
 # name too many can only withhold a record; recognizing one too few relays a judgment
@@ -286,35 +221,22 @@ def declares_confirmed:
 #
 # FIRST, in the classification chain: `withheld_verdict` is tested before any rule id
 # is looked at, so a stamp record that declares a judgment verdict is withheld there
-# and never reaches this predicate. `{"rule": "rule-stamp-expired", "verdict":
-# "not-found"}` declares no `tier` at all, yet the verdict fallback reads that name
-# and withholds the record. That is the boundary doing its job, not a hole: the record
-# declared a judgment verdict.
+# and never reaches this predicate.
 #
 # SECOND, here. When the record declares a tier in its OWN `tier` field and that field
 # names no tier this reader knows, the declaration is uninterpretable, and relaying on
 # it hands the apply relay a record whose own verdict this producer cannot read.
-# `"tier": "nоt-found"` with a Cyrillic o is the case that matters: a homoglyph past
-# the dash class, which the stated limit says takes the ordinary path rather than the
-# relay.
 #
 # This second exception is scoped to the `tier` field, NOT to the verdict fallback. A
 # stamp finding carrying `"verdict": {"reviewed_by": "alice"}` names no verdict and
-# declares no tier, so it passes both exceptions and must still relay; withholding it
-# would be this fix committing the over-capture the whole boundary exists to avoid.
+# declares no tier, so it passes both exceptions and must still relay.
 def own_tier_unreadable:
   ([ tier_slot ] | names_in) as $own
   | ($own | length) > 0 and ($own | any(is_tier_name) | not);
 # `searched` is read wherever the outcome may be DECLARED, through the same slots the
 # tier is read through and with the key case-folded the same way: the record top level,
-# and anywhere inside the `tier` or `verdict` value. A gate reading one position, or
-# one casing, while the boundary reads three refuses a sidecar for naming its surfaces
-# where it declared the outcome — the one direction this gate has no excuse for failing
-# in, and it costs every well-formed finding in the sidecar beside it.
-def searched_here:
-  if type == "object" then
-    to_entries[] | select(.key | ascii_downcase == "searched") | .value
-  else empty end;
+# and anywhere inside the `tier` or `verdict` value.
+def searched_here: key_slot("searched");
 def searched_slots:
   [ searched_here,
     (tier_slot | .. | objects | searched_here),
@@ -324,36 +246,18 @@ def searched_slots:
 # For a record with no declared tier to respect, because it is not an object at
 # all. Such a record is bound for `## Unparsed` verbatim, so a verdict name
 # ANYWHERE inside it would print into the file the boundary keeps it out of —
-# `[{"tier": "not-found", "excerpt": "..."}]` is a verdict in the wrong wrapper,
-# not a future record. Naming a verdict exactly is the test, so a note that merely
-# mentions one still takes the appendix path the contract gives it.
+# `[{"tier": "not-found", "excerpt": "..."}]` is a verdict in the wrong wrapper.
 def stray_verdict:
-  [ .. | (strings, (objects | keys[])) | norm ] | any(is_verdict_name);
+  [ . ] | names_in | any(is_verdict_name);
 '
 
 # The searched-surfaces schema check, on the same input-refusal exit code as the
 # guard above and for the same reason: refusing beats composing from a sidecar
 # whose neutral outcome asserts nothing. A `not-found` outcome is only meaningful
-# when it names the surfaces it checked, and that listing was prose-only until
-# this check.
+# when it names the surfaces it checked.
 #
 # It reads the tier through the SHARED reader above, not an exact top-level string
-# compare. A gate stricter than the boundary would refuse valid input; a gate laxer
-# than it — which an exact compare is — lets a `{"Tier": "not-found"}` sidecar past
-# the refusal and then withholds it silently, which is the failure this gate exists
-# to prevent.
-#
-# It validates the SIDECAR, not an emitted row, and it has to. The relay boundary
-# below withholds every `not-found` finding from the findings file, so there is no
-# row to check and no field to check it in — `searched` is read here and goes no
-# further. Non-empty is all this can assert: nothing here knows which surfaces the
-# run actually checked, so a complete listing and a truncated one look identical.
-#
-# `searched` is read at BOTH positions the outcome may be declared at, for the same
-# reason the tier is: a sidecar keeping the outcome and its surfaces together in the
-# `verdict` object names its surfaces, and refusing it whole would be this gate
-# failing in the one direction it has no excuse for — rejecting input that satisfies
-# the very requirement it enforces.
+# compare.
 if ! jq -e "$TIER_DEFS"'
   [ (.findings // [])[]
     | select(declares_not_found)
@@ -385,20 +289,15 @@ if [[ -e "$OUT" ]]; then
   while [[ -e "${OUT%.md}-$n.md" ]]; do n=$((n + 1)); done
   OUT="${OUT%.md}-$n.md"
 fi
-# Both writing steps are checked explicitly. `set -e` is deliberately off here,
-# so an uncreatable directory or an unwritable path would otherwise let the run
-# fall through to the success message: the audit reports its findings relayed
-# while the consumer never scans a file that does not exist. That is the worst
-# failure a persistence step can have, because nothing downstream contradicts it.
+# Both writing steps are checked explicitly, since `set -e` is off: a failed
+# write must never reach the success message.
 if ! mkdir -p "$(dirname "$OUT")" 2>/dev/null; then
   echo "emit-findings.sh: cannot create the destination directory for $OUT" >&2
   exit 5
 fi
 
-# Repo root for relativizing Location. One directory has several spellings on
-# Git Bash, and matching the wrong one leaves every Location absolute — still a
-# well-formed cell, so nothing downstream reports the miss. This producer fails
-# OPEN: a path matching no spelling is left as-is.
+# Repo root for relativizing Location, in the two spellings checked here (one
+# directory has several on Git Bash). A path matching neither is left as-is.
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 REPO_ROOT_ALT=""
 if [[ -n "$REPO_ROOT" ]]; then
@@ -417,25 +316,11 @@ RECORDS="$(jq -r "$TIER_DEFS"'
 def clean: (if . == null then "" else tostring end) | gsub("[\t\n\r]"; " ");
 
 # WITHHOLDING IS DECIDED BY THE DECLARED TIER, AHEAD OF ANY RULE LOOKUP, through
-# the shared reader defined above the searched-surfaces gate. Classify by rule
-# first and a judgment verdict carrying no rule id matches no branch below and
-# falls through to "U", which prints the record verbatim into `## Unparsed` — tier
-# name and payload landing in the one file the boundary keeps them out of.
-# Deciding on the tier first closes that route and every variant of it: a verdict
-# paired with a valid rule id, and a verdict declared inside a `verdict` object,
-# are withheld too.
+# the shared reader defined above the searched-surfaces gate.
 #
 # ONE CLASS IS DECIDED BEFORE THAT, and by no tier: a restated-fact record, by its
 # rule slug or its class. Only the fully qualified rule id can relay; a record carrying
-# the slug under another prefix is W, as the copy and stamp rows match by slug. It maps
-# to a judgment tier by fixed rule, so the tier test above would withhold every one, and
-# relaying on a tier name would relay every judgment verdict. It relays on its declared
-# outcome, and every other restated-fact
-# record is W whatever it declares (a split, a refutation, no outcome, an unreadable
-# block, no tier at all): each is a judgment finding on the human report, and none may
-# fall through to "U", which would print its rubric and review payload into the file.
-# A restated-fact class under the copy rule id is W too, never a copy row, because
-# the Action of the copy row names the fix flow this class is never eligible for.
+# the slug under another prefix is W, as the copy and stamp rows match by slug.
 #
 # Four kinds, because `## Surfaces` states what each count IS and a count that
 # lumps them together says something false about the records in it:
@@ -448,25 +333,13 @@ def clean: (if . == null then "" else tostring end) | gsub("[\t\n\r]"; " ");
 #   U  unmappable for any other reason, printed verbatim into `## Unparsed`
 #
 # EVERY FIELD READ BELOW IS TYPE-GUARDED, and a record that is not an object at all
-# is routed to "U" before anything reads a key of it. jq aborts the whole program on
-# a type error, so one malformed record — an array where an object belongs, a `span`
-# that is a string, a `rule` that is a list — would otherwise end the run at exit 3
-# and take every well-formed finding in the sidecar with it, under a message blaming
-# the JSON.
-# Refusing a sidecar is for what the input-refusal gates above examine deliberately;
-# a single bad record is what `## Unparsed` is for.
+# is routed to "U" (or "W") before anything reads a key of it.
 def opt($k): if type == "object" then .[$k] else null end;
 
-# The restated-fact relay reads a DECLARED OUTCOME, and reads it the opposite way the
-# tier reader reads a tier. A missed tier verdict is a leak, so that reader is generous
-# about the wrapper; a missed outcome here is a withheld record counted in
-# `## Surfaces`, and a generous read of it is a relay nobody authorized. So: the exact
-# top-level keys `class`, `rubric` and `review` (a differently cased key declares
-# nothing), a real boolean for `unanimous`, and a string equal to the documented name
-# for each verdict, folded by the same `norm` so a rendering-equivalent spelling still
-# reads as the name it shows. Anything else, an unreadable block included, is not an
-# outcome. The size of the panel and how it reached its verdict are not checked here:
-# this reads the declaration, and the run owns its arithmetic.
+# The declared outcome is read strictly, the opposite of the tier reader: a
+# generous read here is a relay nobody authorized. Exact top-level keys
+# `class`, `rubric` and `review`, a real boolean `unanimous`, and each verdict
+# a string equal to its documented name after `norm`.
 def says($want): type == "string" and norm == $want;
 def restated_class: opt("class") | says("restated-fact");
 def outcome_declared:
@@ -519,15 +392,13 @@ def outcome_declared:
           "stamp \(.stamp_date // "?") on a surface stating no recheck trigger"
         elif $slug == "rule-restated-upstream-fact" then
           # Only what the row needs, each read type-guarded so a stray object in
-          # `samples`, `url` or `excerpt` cannot carry a tier name in as a value. No
-          # grade, no evidence, no tier and no searched surface reaches the cell.
+          # `samples`, `url` or `excerpt` cannot carry a tier name in as a value.
           "restates a fact an external source owns with no conforming pointer or record; unanimous panel of \(.rubric | opt("samples") | if type == "number" then tostring else "?" end) samples, refutation survived"
           + (.source | opt("url") | if type == "string" then "; source \(.)" else "" end)
           + (.excerpt | if type == "string" and . != "" then "; excerpt: \(.)" else "" end)
         else "" end),
-      # Defense in depth for the boundary above: only the ONE kind that prints a
-      # raw record carries one into the composition stage, so no later edit to the
-      # awk half can print a withheld payload by accident.
+      # Only U carries its raw record to the awk stage, so awk cannot print a
+      # withheld payload.
       raw: (if $kind == "U" then (. | tojson) else "" end)
     }
     end
@@ -663,12 +534,7 @@ END {
   printf("| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n")
   printf("|------|------|------------|----------|------------|---------|--------|\n")
   for (i = 1; i <= n_relay; i++) {
-    # Confidence is `high` on the deterministic rules that fired and empty on the
-    # judged one. Confidence is confidence-of-realness, never confidence in the
-    # fix — the fix judgment is said in Tier and in the Action wording.
-    # Location is escaped like every other cell that carries input. A path is not
-    # trusted to be pipe-free — `a|b.md` split the row, and every cell after it
-    # shifted one column left, so the consumer read the Finding as a Surface.
+    # Location is escaped like every input cell: a path may contain a pipe.
     printf("| %d | %s | %s | %s | attribution:audit | %s | %s |\n",
       i, rule_tier(r_slug[i]), rule_confidence(r_slug[i]), esc(r_loc[i]), esc(r_find[i]),
       esc(rule_action(r_slug[i])))
@@ -686,10 +552,7 @@ END {
   printf("Ran: attribution:audit")
   if (corpus_files != "") printf(" over %s corpus files", corpus_files)
   printf(". Relay-eligible findings: %d.", n_relay)
-  # Each count says what its records ARE. Calling every withheld record a judgment
-  # finding was false of the copy findings in the second count, and false in the
-  # direction that matters: it asserted they were on the human report, which sends
-  # a reader looking for them where they are not.
+  # Each count says what its records are, so a reader looks in the right place.
   if (n_withheld > 0)
     printf(" Withheld from the relay: %d judgment findings, which stay on the human report by contract.", n_withheld)
   if (n_ineligible > 0)

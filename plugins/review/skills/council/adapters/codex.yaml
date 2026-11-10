@@ -1,0 +1,14 @@
+# Capability record for codex members, read by scripts/council-plan.mjs select.
+# Codex runs through the Codex plugin's own review commands only: `review`, or
+# `adversarial-review` with the brief as focus text. Both review committed
+# history from the base, take a model and no effort, and keep no resumable
+# thread; the task route is never used (ADR 0097, issue 14714 AC6).
+kind: script
+run: scripts/codex-review.sh
+sets: [model, brief]
+sees: committed
+briefs: any
+models: any
+model_default: provider
+effort_default: provider
+frontier: []

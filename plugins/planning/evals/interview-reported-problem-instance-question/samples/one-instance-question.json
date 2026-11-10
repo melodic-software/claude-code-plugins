@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Problem: customers find the order-history CSV export too slow (reported: support relays it; no log or ticket in the repo shows it). Is that the problem? yes/no\n\nQ1: What was the last time a customer hit this: which account, how big was the export, and how long did it take or what did it cost them? My recommendation: name one recent support case so the Evidence line can point at it.\n\nQ2: Should the streamed export keep the same column order? My recommendation: yes.",
+      "why": "one instance question carrying instance, cost and who, plus a detail question"
+    },
+    {
+      "answer": "The only evidence is what support reported, so one question about it:\n\nQ1: Can you point me at the most recent complaint, with the customer and how long their export ran?\n\nQ2: Which chunk size should the streamed writer flush at? My recommendation: 1,000 rows.",
+      "why": "a single instance question and a streaming detail question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Q1: Which chunk size should the streamed writer use? My recommendation: 1,000 rows.\nQ2: Should the download endpoint change? My recommendation: no.",
+      "why": "asks for no instance of the reported problem"
+    },
+    {
+      "answer": "Q1: Why is a slow export a problem for customers?\nQ2: And why do they export their order history at all?\nQ3: Why does that matter to support?",
+      "why": "a why chain"
+    },
+    {
+      "answer": "Q1: When did a customer last report the slow export?\nQ2: How long did that export take?\nQ3: Which customer was it?",
+      "why": "the instance split across three numbered questions"
+    },
+    {
+      "answer": "Problem: exports are slow (reported). Q1: When was the last slow export, and for whom? Q2: Stream the export as you asked, or rethink it, for example with a background job that emails a link?",
+      "why": "reopens the named streaming fix"
+    }
+  ]
+}

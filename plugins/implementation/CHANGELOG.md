@@ -3,6 +3,18 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.0] - 2026-11-09
+
+### Changed
+
+- `/implementation:implement-dispatch` copies the Brief Goal's `Finish line:` line into a worker brief beside the Intent, Vision and tiebreak lines.
+
+## [0.37.5] - 2026-11-09
+
+### Changed
+
+- The `implementer` and `phase-verifier` model and effort pin records are rechecked against the Claude Fable 5.2 release; no pin changes.
+
 ## [0.37.4] - 2026-11-09
 
 ### Fixed

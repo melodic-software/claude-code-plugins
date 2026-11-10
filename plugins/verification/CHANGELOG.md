@@ -3,6 +3,24 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0] - 2026-11-09
+
+### Added
+
+- `/verification:confirm` reads the Brief Goal's `Finish line:` line and reports it as its own row of the intent report: met, not met, or not checkable yet for a release or in-use line.
+
+## [0.21.1] - 2026-11-09
+
+### Changed
+
+- `/verification:confirm`'s verifier model record is rechecked against the Claude Fable 5.2 release; no change to how the verifier is chosen.
+
+## [0.21.0] - 2026-11-09
+
+### Added
+
+- **`setup --check` validates list keys.** A list key and its items are checked against the schema (type, length, required keys, allowed keys, patterns, key names) instead of being reported unchecked; a list key using a keyword the checker does not implement stays reported as unchecked. List keys are never written from the command line.
+
 ## [0.20.8] - 2026-11-09
 
 ### Changed

@@ -28,7 +28,7 @@ placement and the act-on cap. This file is the shape every slice of that eval fo
 - The X arms cannot pass as committed. Every command of `codex@openai-codex` 1.0.6,
   `/codex:review` included, sets `disable-model-invocation: true`, so the model cannot start
   Codex through those commands, and fanout runs it through
-  `skills/fanout/scripts/codex-review.sh` instead (#12495). A `claude plugin eval` run also loads
+  `scripts/codex-review.sh` instead (#12495). A `claude plugin eval` run also loads
   only the plugins under its target and gets a temporary home, so the Codex plugin and its login
   are absent
   ([How runs are isolated](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated)).
@@ -99,7 +99,7 @@ its ## Surfaces section.` (with code spans around the path, the line name and th
 - Codex sentence for `l` and `m`: `Leave out the Codex surface even when it is installed.`
 - Codex sentence for `mx` and `lx`: `Run the Codex surface as one of the orchestrators, and report
   it in ## Surfaces by the status its script prints.` The skill runs it through
-  `skills/fanout/scripts/codex-review.sh`, and lists Codex under `Ran` only when the script printed
+  `scripts/codex-review.sh`, and lists Codex under `Ran` only when the script printed
   `codex: ran`. The arm check reads the reply's `Ran` list; `codex-ran` confirms the script's status
   in the trace.
 

@@ -4,6 +4,24 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.3.8] - 2026-11-09
+
+### Changed
+
+- The Anthropic docs queue records the "What's new in Claude Fable 5.2" page beside the Fable 5 launch page.
+
+## [1.3.7] - 2026-11-09
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [1.3.6] - 2026-11-09
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [1.3.5] - 2026-11-09
 
 ### Changed

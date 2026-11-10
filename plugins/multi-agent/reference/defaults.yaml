@@ -40,7 +40,7 @@ fanout:
   model: opus
   pointer: https://code.claude.com/docs/en/workflows#cost
   pointer_cost: https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work
-  as_of: 2026-10-10
+  as_of: 2026-11-09
   recheck: a new model named on the cost page, or a workflows Cost section change to how a stage's model is chosen
 
 roles:
@@ -50,10 +50,11 @@ roles:
     basis_model: judgment
     reason_model: the orchestrator is the session itself, so it runs on the model the user chose; the cost page's orchestrator strategy puts a frontier model in the loop, which inherit follows only when the session is frontier, and no upstream statement sets the orchestrator's model for other sessions
     basis_effort: judgment
-    reason_effort: no upstream statement sets an orchestrator effort; it plans the run and merges every worker's result, so it stays a level above the worker's
+    reason_effort: no upstream statement sets this orchestrator's effort; the model guide's task table (https://claude.dev/blog/which-claude-model-should-you-build-with#pick-a-model-by-task) starts a Fable lead of many subagents at medium, then high, while this orchestrator inherits the session model and merges every worker's result, so it takes the second step, which pointer_levels' effort table gives to work where verification matters or edge cases are likely
+    pointer_levels: https://code.claude.com/docs/en/model-config#choose-an-effort-level
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
-    as_of: 2026-10-11
-    recheck: the cost page's orchestrator-strategy section changes which model holds the loop, an upstream page states an effort for an orchestrator or lead agent, or a Claude Code release edits the bundled /workflow-authoring skill
+    as_of: 2026-11-09
+    recheck: the guide's task table changes the starting effort for leading many subagents, model-config's effort table changes the row for verification-heavy work, the cost page's orchestrator-strategy section changes which model holds the loop, or a Claude Code release edits the bundled /workflow-authoring skill
   worker:
     model: inherit
     effort: medium
@@ -66,12 +67,11 @@ roles:
     pointer_effort: https://code.claude.com/docs/en/model-config#choose-an-effort-level
     claim_effort: the effort table's row for day-to-day engineering work with a clear scope
     basis_mechanical_model: judgment
-    reason_mechanical_model: mechanical work needs no Opus-level reasoning, and the costs page's general model split is the context for that choice; its subagent line names a smaller model and does not set this value
-    pointer_mechanical_model: https://code.claude.com/docs/en/costs#choose-the-right-model
+    reason_mechanical_model: mechanical work needs no Opus-level reasoning; the model guide's task table (https://claude.dev/blog/which-claude-model-should-you-build-with#pick-a-model-by-task) starts well-scoped coding, such as bug fixes, feature iteration and spec-driven work, on Sonnet, but sits on a host the drift audit does not fetch, so it is recorded as context rather than an upstream pointer
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
     pointer_spawn: https://code.claude.com/docs/en/sub-agents#choose-an-effort-level
-    as_of: 2026-10-13
-    recheck: model-config's effort table changes the row for clear-scope engineering work, the cost page's orchestrator strategy changes its worker-model advice, a new model is named on the cost page, the costs page changes its model split, the Agent tool's per-spawn effort parameter changes, or a role is proposed for haiku (see routing-rubric.md)
+    as_of: 2026-11-09
+    recheck: model-config's effort table changes the row for clear-scope engineering work, the cost page's orchestrator strategy changes its worker-model advice, a new model is named on the cost page, the guide's task table changes its row for well-scoped coding, the Agent tool's per-spawn effort parameter changes, or a role is proposed for haiku (see routing-rubric.md)
   verifier:
     model: inherit
     effort: high
@@ -82,16 +82,17 @@ roles:
     claim_effort: the effort table's row for work where verification matters or edge cases are likely
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
     pointer_spawn: https://code.claude.com/docs/en/sub-agents#choose-an-effort-level
-    as_of: 2026-10-11
+    as_of: 2026-11-09
     recheck: model-config's effort table changes the row for verification-heavy work, an upstream page states a model for a verifying or judging agent, or the Agent tool's per-spawn effort parameter changes
   retrieval:
     model: sonnet
     effort: medium
     basis_model: judgment
-    reason_model: the workflows Cost section advises a smaller model for stages that do not need the strongest one but names none; sonnet is the smaller alias chosen because no role routes to haiku until it passes the routing eval (see routing-rubric.md)
-    basis_effort: judgment
-    reason_effort: no upstream statement sets an effort for read-only lookup; it stays at the sonnet alias's default level rather than dropping to the quick-exchange level, because a lookup's result feeds other agents without a person reviewing it
+    reason_model: the model guide's task table (https://claude.dev/blog/which-claude-model-should-you-build-with#pick-a-model-by-task) starts subagents that search files, read logs or summarize on Haiku or Sonnet; Haiku is excluded by owner rule (routing-rubric.md), so sonnet; the guide sits on a host the drift audit does not fetch, so it is recorded as context rather than an upstream pointer
+    basis_effort: upstream
+    pointer_effort: https://code.claude.com/docs/en/model-config#choose-an-effort-level
+    claim_effort: the effort table's medium row names it the default on the Sonnet 5.5 model
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
     pointer_spawn: https://code.claude.com/docs/en/sub-agents#choose-an-effort-level
-    as_of: 2026-10-11
-    recheck: the workflows Cost section changes its smaller-model advice, a model-config change to the sonnet alias or its default effort, an upstream page states an effort for lookup or search agents, the Agent tool's per-spawn effort parameter changes, or a role is proposed for haiku (see routing-rubric.md)
+    as_of: 2026-11-09
+    recheck: the guide's task table changes its row for search, log and summary subagents, the workflows Cost section changes its smaller-model advice, a model-config change to the sonnet alias or its default effort, the Agent tool's per-spawn effort parameter changes, or a role is proposed for haiku (see routing-rubric.md)

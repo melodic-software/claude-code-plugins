@@ -109,8 +109,9 @@ When the user wants motion reviewed, run this (the order is the point):
 
 1. **Build it with `/user-interface:write-animation`** so the first attempt already uses sensible
    easing and duration instead of defaults.
-2. **Drop to 0.25x and watch.** Most "feels off" becomes nameable at quarter speed: the scale starts
-   too small, the opacity finishes long before the movement does, the exit is as slow as the
+2. **Drop the playback rate to `animation.inspect_playback_rate` and watch.** Most "feels off"
+   becomes nameable at that speed: the scale starts too small, the opacity finishes long before
+   the movement does, the exit is as slow as the
    entrance when it should be quicker. Worth doing before writing a single note, and worth doing
    with no agent involved at all.
 3. **Record the interaction** (scoped, if the page is busy).

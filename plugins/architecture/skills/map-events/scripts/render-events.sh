@@ -139,7 +139,7 @@ function alias(s,    a) {
   fkind[fn] = jstr($0, "kind")
   fcon[fn] = jstr($0, "contract")
   fdet[fn] = jstr($0, "detail")
-  if (fkind[fn] == "orphan-publisher" || fkind[fn] == "orphan-consumer") orphans++
+  if (fkind[fn] == "orphan-publisher" || fkind[fn] == "orphan-consumer") { orphans++; orphan[fcon[fn]] = 1 }
 }
 END {
   out = ENVIRON["OUT_FILE"]
@@ -151,15 +151,10 @@ END {
   print "```mermaid" > out
   print "flowchart LR" > out
   for (i = 1; i <= en; i++) {
-    if (unrouted == "yes" && eres[i] != "unresolved") {
-      orphan = 0
-      for (j = 1; j <= fn; j++) if ((fkind[j] == "orphan-publisher" || fkind[j] == "orphan-consumer") && fcon[j] == edge_to[i]) orphan = 1
-      if (!orphan) continue
-    }
+    if (unrouted == "yes" && eres[i] != "unresolved" && !(edge_to[i] in orphan)) continue
     a = alias(ekind[i] "_" efile[i] "_" eline[i])
     b = alias(edge_to[i] == "" ? "unresolved" : edge_to[i])
-    arrow = "-->"
-    if (ekind[i] == "publish") arrow = "-.->"
+    arrow = (ekind[i] == "publish" ? "-.->" : "-->")
     label = ekind[i] " " efile[i] ":" eline[i]
     print "  " a "[\"" safe(ekind[i]) "\"] " arrow "|\"" safe(label) "\"| " b "[\"" safe(edge_to[i]) "\"]" > out
   }

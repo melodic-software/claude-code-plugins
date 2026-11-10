@@ -21,9 +21,11 @@
   const okRect = r => !!r && typeof r === "object" && ["x", "y", "w", "h"].every(k => typeof r[k] === "number" && Number.isFinite(r[k]) && r[k] >= 0)
     && r.w > 0 && r.h > 0 && r.x + r.w <= 100 && r.y + r.h <= 100;
   const WHOLE = { x: 0, y: 0, w: 100, h: 100 };
-  const views = v => Core.viewsOf(v), hasView = v => !!(views(v).snapshot || views(v).shots.length || views(v).live);
-  const liveOnly = v => !views(v).snapshot && !views(v).shots.length && !!views(v).live;
-  const params = new URLSearchParams(location.hash.slice(1));
+  const views = v => Core.viewsOf(v);
+  const hasView = v => { const w = views(v); return !!(w.snapshot || w.shots.length || w.live); };
+  const liveOnly = v => { const w = views(v); return !w.snapshot && !w.shots.length && !!w.live; };
+  const hashParams = () => new URLSearchParams(location.hash.slice(1));
+  const params = hashParams();
   const ui = { variant: params.get("v") || "", view: "", with: params.get("with") || "", annotate: false, draft: null, active: params.get("n") || "", ready: false, pinsKey: "", listKey: "", liveErr: "" };
   Core.context = () => ({ view: "prototype" });
 
@@ -92,6 +94,14 @@
   const OFF_NAME = { screenshot: "screenshots are off", snapshot: "HTML snapshots are off", live: "live prototypes are off" };
   const LIVE_ONLY_TEXT = "This variant is a live prototype. It opens in its own tab, from Open live prototype above.";
   const send = m => frame?.contentWindow?.postMessage(m, "*"); // the sandboxed frame has no origin to name
+  /** A frame for an html view: allow-scripts plus the asset's own CSP sandbox, never allow-same-origin. */
+  const sandboxFrame = (cls, title) => {
+    const f = E("iframe", cls);
+    f.setAttribute("sandbox", "allow-scripts");
+    f.setAttribute("referrerpolicy", "no-referrer");
+    f.title = title;
+    return f;
+  };
 
   // ---------- state ----------
   const S = () => Core.state;
@@ -136,7 +146,7 @@
     if (vid === ui.variant) return;
     closeComposer(); // its spot was on the variant being left
     ui.variant = vid; ui.view = ""; ui.active = ""; ui.with = ""; // another variant has its own views and versions
-    const h = new URLSearchParams(location.hash.slice(1)); h.set("v", vid); h.delete("n"); h.delete("with");
+    const h = hashParams(); h.set("v", vid); h.delete("n"); h.delete("with");
     history.replaceState(null, "", location.pathname + "#" + h);
     render();
     if (focus) tabs.querySelector(`[data-v="${CSS.escape(vid)}"]`)?.focus();
@@ -182,10 +192,7 @@
     } else if (liveOnly(v)) {
       mainView.replaceChildren(E("p", "vp-left vp-live-only", LIVE_ONLY_TEXT));
     } else if (kind === "snapshot") {
-      const f = frame = E("iframe", "vp-frame");
-      f.setAttribute("sandbox", "allow-scripts"); // plus the asset's own CSP sandbox; never allow-same-origin
-      f.setAttribute("referrerpolicy", "no-referrer");
-      f.title = `Prototype variant ${v.label}`;
+      const f = frame = sandboxFrame("vp-frame", `Prototype variant ${v.label}`);
       // The frame's window stays the same object when the variant navigates itself away, so a second load means the
       // frame now shows some other page: drop it, and stop talking to it, before it can pass for the variant.
       let loads = 0;
@@ -228,6 +235,7 @@
 
   // ---------- versions ----------
   const vname = x => `v${x.n} · ${x.qid} · ${x.label}`;
+  const vcaption = x => vname(x) + (x.current ? " · Current" : "");
   /** A link to another question's prototype page opens a new tab, as the question's own links do; one to this page
    *  only changes the fragment. */
   const versionLink = (a, to, params) => {
@@ -265,7 +273,7 @@
   function mountCompare(other) {
     const { shots = [], snapshot = "" } = other?.views || {};
     const key = other ? `${other.qid}.${other.variant}.${snapshot}.${shots.join(",")}` : "";
-    if (other) cmpCap.firstChild.textContent = vname(other) + (other.current ? " · Current" : "");
+    if (other) cmpCap.firstChild.textContent = vcaption(other);
     if (cmpShown === key) return;
     cmpShown = key;
     stage.dataset.split = String(!!other);
@@ -274,10 +282,7 @@
     if (!snapshot && !shots.length) {  // a live version is never framed here either
       cmpView.replaceChildren(E("p", "vp-left vp-off", other.views?.live ? "This version is a live prototype, which opens in its own tab." : "This view is off in this session."));
     } else if (snapshot) {
-      const f = E("iframe", "vp-cmp-frame");
-      f.setAttribute("sandbox", "allow-scripts"); // plus the asset's own CSP sandbox; never allow-same-origin
-      f.setAttribute("referrerpolicy", "no-referrer");
-      f.title = `Version ${other.n}: ${other.label}`;
+      const f = sandboxFrame("vp-cmp-frame", `Version ${other.n}: ${other.label}`);
       let loads = 0;
       f.addEventListener("load", () => {
         if (++loads > 1 && f.isConnected) cmpView.replaceChildren(E("p", "vp-left", "This version tried to leave its page, so it is not shown."));
@@ -294,19 +299,18 @@
   }
   cmpClose.onclick = () => {
     ui.with = "";
-    const h = new URLSearchParams(location.hash.slice(1)); h.delete("with");
+    const h = hashParams(); h.delete("with");
     history.replaceState(null, "", location.pathname + (h.toString() ? "#" + h : ""));
     render();
     say("Side by side is closed.");
   };
   // A version link to this same page only changes the address's fragment.
   addEventListener("hashchange", () => {
-    const h = new URLSearchParams(location.hash.slice(1)), nv = h.get("v") || ui.variant;
+    const h = hashParams(), nv = h.get("v") || ui.variant;
     if (nv !== ui.variant) closeComposer(); // a note being written stays while only the side-by-side version changes
     ui.variant = nv; ui.with = h.get("with") || ""; ui.active = h.get("n") || "";
     render();
   });
-  /** Numbered pins for the shown variant's notes (1 is the oldest), plus the draft's while a note is being written. */
   /** The notes' pins on the shown variant (numbered across it, 1 the oldest), plus the draft's while a note is being
    *  written, each with the screenshot it sits on (`shot`, -1 for the snapshot). */
   function pinsFor(v) {
@@ -391,6 +395,11 @@
   /** A failed Approve or Stop: show its error and build the box afresh, so its button comes back even when the error
    *  reads the same as the last one (the box's key would not change). */
   const liveFailed = x => { ui.liveErr = Core.errorText(x); liveBox._key = ""; render(); };
+  const newTabLink = (cls, text, href) => {
+    const a = E("a", cls, text);
+    a.href = href; a.target = "_blank"; a.rel = "noopener noreferrer"; a.referrerPolicy = "no-referrer";
+    return a;
+  };
   /** The shown variant's live view: Open live prototype (a new tab, no opener, no referrer) only while its entry runs;
    *  else what it waits for, or that it ended. The owner also gets Approve (with the attestation a server on a port
    *  needs), Stop, and for a port a link to look at it on this machine first. */
@@ -403,8 +412,7 @@
     liveBox._key = key;
     const parts = [];
     if (link) {
-      const a = E("a", "vf-btn vf-btn-primary vf-btn-sm vp-live-open", "Open live prototype");
-      a.href = link; a.target = "_blank"; a.rel = "noopener noreferrer"; a.referrerPolicy = "no-referrer";
+      const a = newTabLink("vf-btn vf-btn-primary vf-btn-sm vp-live-open", "Open live prototype", link);
       a.setAttribute("aria-label", `Open the live prototype of ${v.label} in a new tab`);
       parts.push(a);
     } else if (kind === "ended") {
@@ -416,9 +424,7 @@
     if (owner && e && kind !== "ended") {
       const port = e.target?.kind === "port";
       if (kind === "pending" && port && /^http:\/\/127\.0\.0\.1:[0-9]{1,5}$/.test(e.url || "")) {
-        const look = E("a", "vf-btn vf-btn-ghost vf-btn-sm vp-live-local", "Look at it on this machine");
-        look.href = e.url; look.target = "_blank"; look.rel = "noopener noreferrer"; look.referrerPolicy = "no-referrer";
-        parts.push(look);
+        parts.push(newTabLink("vf-btn vf-btn-ghost vf-btn-sm vp-live-local", "Look at it on this machine", e.url));
       }
       let attest = null;
       if (kind === "pending" && port) {
@@ -488,10 +494,9 @@
     }
     const v = current(q);
     if (!v) return;
-    if (ui.variant !== v.id) ui.variant = v.id;
+    ui.variant = v.id;
     if (!hasView(v) && ui.annotate) { ui.annotate = false; closeComposer(); } // nothing to pin a note to
-    document.title = `${q.id}: ${q.short || q.text}`;
-    title.textContent = `${q.id}: ${q.short || q.text}`;
+    document.title = title.textContent = `${q.id}: ${q.short || q.text}`;
     qText.textContent = q.text;
     look.hidden = !q.lookAt && !v.lookAt;
     lookQ.replaceChildren(...(q.lookAt ? [E("span", "vp-look-h", "Where to look: "), q.lookAt] : []));
@@ -508,7 +513,7 @@
     const [wq, wv] = ui.with.split("."), other = me ? line.find(x => x !== me && x.qid === wq && x.variant === wv) || null : null;
     renderVersions(v, line, me);
     mountCompare(other);
-    if (me) mainCap.firstChild.textContent = vname(me) + (me.current ? " · Current" : "");
+    if (me) mainCap.firstChild.textContent = vcaption(me);
     annotateBtn.setAttribute("aria-pressed", String(ui.annotate));
     annotateBtn.textContent = ui.annotate ? "Annotate: on" : "Annotate";
     root.dataset.annotate = String(ui.annotate);

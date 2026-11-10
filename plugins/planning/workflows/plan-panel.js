@@ -38,6 +38,7 @@ const ANGLES = (Array.isArray(input.angles) ? input.angles : [])
   .map(a => ({ name: a.name.trim(), focus: typeof a.focus === 'string' && a.focus.trim() ? a.focus.trim() : a.name.trim() }))
   .filter((a, i, all) => all.findIndex(b => b.name === a.name) === i)
 const angles = ANGLES.length >= 2 ? ANGLES.slice(0, 6) : DEFAULT_ANGLES
+const RAN = angles.map(a => a.name)
 if (ANGLES.length === 1) log('one angle is not a panel: using the default angles')
 if (ANGLES.length > 6) log('more than 6 angles passed: drafted the first 6, dropped ' + ANGLES.slice(6).map(a => a.name).join(', '))
 
@@ -132,7 +133,7 @@ log('Draft: ' + drafts.length + '/' + angles.length + ' drafts returned' +
   (draftNulls.length ? '; no draft from ' + draftNulls.join(', ') : ''))
 
 if (!drafts.length) {
-  return { error: 'no-drafts', next: 'No planner returned a draft. Plan on the main thread.', nulls: { drafts: draftNulls, judges: [] }, ran: angles.map(a => a.name) }
+  return { error: 'no-drafts', next: 'No planner returned a draft. Plan on the main thread.', nulls: { drafts: draftNulls, judges: [] }, ran: RAN }
 }
 
 const DEFAULT_RUBRIC = [
@@ -152,7 +153,8 @@ const rubricOk = passedRubric && passedRubric.length >= 2 && passedRubric.length
 if (input.rubric != null && !rubricOk) log('args.rubric is not 2 to 6 unique { name, text } criteria: using the default rubric')
 const RUBRIC_DEF = rubricOk ? passedRubric.map(c => ({ name: c.name, text: c.text.trim() })) : DEFAULT_RUBRIC
 const RUBRIC = RUBRIC_DEF.map(c => c.name)
-const RUBRIC_TEXT = 'Score each draft from 1 (poor) to 5 (strong) on: ' + RUBRIC_DEF.map(c => c.name + ' (' + c.text + ')').join(', ') + '.'
+const RUBRIC_LIST = RUBRIC_DEF.map(c => c.name + ' (' + c.text + ')').join(', ')
+const RUBRIC_TEXT = 'Score each draft from 1 (poor) to 5 (strong) on: ' + RUBRIC_LIST + '.'
 
 const SCORE_SCHEMA = {
   type: 'object',
@@ -193,8 +195,8 @@ if (drafts.length > 1) {
 
   // A judge counts only when it scored every draft exactly once; a partial
   // score sheet would rank an unscored draft as zero.
-  const complete = r => r && Array.isArray(r.scores) && drafts.every(d =>
-    r.scores.filter(x => x && String(x.draft).trim().toUpperCase() === d.id).length === 1)
+  const scoresFor = (r, id) => r.scores.filter(x => x && String(x.draft).trim().toUpperCase() === id)
+  const complete = r => r && Array.isArray(r.scores) && drafts.every(d => scoresFor(r, d.id).length === 1)
   judgeNulls = judged.map((r, j) => (complete(r) ? null : 'judge:' + (j + 1))).filter(Boolean)
   const returned = judged.filter(complete)
   judgeDissent = returned.map(r => (typeof r.dissent === 'string' ? r.dissent.trim() : '')).filter(Boolean)
@@ -205,22 +207,21 @@ if (drafts.length > 1) {
     return {
       error: 'no-judges',
       next: 'No judge returned scores. Compare the drafts on the main thread.',
-      drafts: drafts.map(d => ({ id: d.id, angle: d.angle, plan: d.plan, key_ideas: d.key_ideas })),
+      drafts,
       nulls: { drafts: draftNulls, judges: judgeNulls },
-      ran: angles.map(a => a.name),
+      ran: RAN,
     }
   }
 
   // Each judge's own pick, so a split panel is visible and not hidden by the mean.
   judgeWinners = returned.map(r => {
-    const tot = d => { const row = r.scores.find(x => x && String(x.draft).trim().toUpperCase() === d.id); return RUBRIC.reduce((t, k) => t + (Number(row[k]) || 0), 0) }
+    const tot = d => { const [row] = scoresFor(r, d.id); return RUBRIC.reduce((t, k) => t + (Number(row[k]) || 0), 0) }
     return drafts.reduce((b, d) => (tot(d) > tot(b) ? d : b), drafts[0]).id
   })
 
   for (const s of scores) {
     for (const r of returned) {
-      const row = r.scores.find(x => x && String(x.draft).trim().toUpperCase() === s.draft)
-      if (!row) continue
+      const [row] = scoresFor(r, s.draft)
       s.judges++
       for (const k of RUBRIC) s[k] += Number(row[k]) || 0
     }
@@ -266,7 +267,7 @@ const runners = drafts.filter(d => d !== winner)
 const scoreLines = scores.map(s => s.draft + ' (' + s.angle + '): total ' + s.total + ' from ' + s.judges + ' judge(s)').join('\n')
 const synthesized = await agentRetry(
   BRIEF + '\n\nBuild one implementation plan. Start from the winning draft ' + winner.id + ' and keep its structure. ' +
-  'Graft an idea from a runner-up only where it improves ' + RUBRIC_DEF.map(c => c.name + ' (' + c.text + ')').join(', ') + ' ' +
+  'Graft an idea from a runner-up only where it improves ' + RUBRIC_LIST + ' ' +
   'without contradicting the winner, and record each graft with its draft letter. Record each runner-up idea you ' +
   'considered and did not graft as left_behind, with its draft letter and why. List as dissent every judge ' +
   'concern and runner-up objection the plan does not resolve.' + READ_ONLY +
@@ -292,8 +293,8 @@ return {
   grafted: synthOk && Array.isArray(synthesized.grafted) ? synthesized.grafted : [],
   left_behind: synthOk && Array.isArray(synthesized.left_behind) ? synthesized.left_behind : [],
   dissent: [...judgeDissent, ...(synthOk && Array.isArray(synthesized.dissent) ? synthesized.dissent : [])],
-  drafts: drafts.map(d => ({ id: d.id, angle: d.angle, plan: d.plan, key_ideas: d.key_ideas })),
+  drafts,
   nulls: { drafts: draftNulls, judges: judgeNulls },
-  ran: angles.map(a => a.name),
+  ran: RAN,
   roles: { drafters: R.worker.fanout, judges: R.verifier.fanout, synthesis: R.orchestrator.single },
 }

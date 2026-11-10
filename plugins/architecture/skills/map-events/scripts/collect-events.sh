@@ -51,6 +51,12 @@ json_escape() {
   JSON_ESC="$s"
 }
 
+# Append "key":"value" to obj, comma-separated, the value JSON-escaped.
+add_str() {
+  json_escape "$2"
+  obj="${obj:+$obj,}\"$1\":\"$JSON_ESC\""
+}
+
 repo=""
 out_file=""
 generated_on=""
@@ -77,10 +83,8 @@ git -C "$root" rev-parse --verify HEAD >/dev/null 2>&1 || die "no commit to read
 
 subject="$(basename "$root")"
 origin="$(git -C "$root" remote get-url origin 2>/dev/null || true)"
-if [[ -n "$origin" ]]; then
-  if resolved="$(github_repo_name "$origin")"; then
-    subject="$resolved"
-  fi
+if [[ -n "$origin" ]] && resolved="$(github_repo_name "$origin")"; then
+  subject="$resolved"
 fi
 
 raw="$(mktemp)"
@@ -125,7 +129,7 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
       for (n = ns; n != ""; ) { s = s n ","; if (!sub(/\.[^.]*$/, "", n)) n = "" }
       return s usings
     }
-    BEGIN { ns = ""; queue = "-"; qd = 0; cls = "-"; usings = "" }
+    BEGIN { ns = ""; queue = "-"; qd = 0; cls = "-"; usings = ""; nkeys = split("IConsumer,Publish,Send,AddConsumer,ConfigureConsumer", keys, ",") }
     {
       line = strip($0)
       sub(/\r$/, "", line)
@@ -161,8 +165,7 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
         if (match(rest, /[^"]*/)) queue = substr(rest, RSTART, RLENGTH)
         qd = depth(call)
       }
-      n = split("IConsumer,Publish,Send,AddConsumer,ConfigureConsumer", keys, ",")
-      for (k = 1; k <= n; k++) {
+      for (k = 1; k <= nkeys; k++) {
         s = line
         while ((i = index(s, keys[k] "<")) > 0) {
           arg = typearg(substr(s, i), keys[k])
@@ -235,31 +238,24 @@ awk -F'\t' '
   FILENAME == ARGV[1] { if ($2 != "-") used[$2] = 1; next }
   ($2 in used) && !($2 in seen) { seen[$2] = 1; printf "%s\t%s\t%s\t%s\n", $2, $3, $5, $6 }
 ' "$edges_tsv" "$types" | LC_ALL=C sort | while IFS=$'\t' read -r id name file line; do
-  json_escape "$id"
-  obj="{\"id\":\"$JSON_ESC\""
-  json_escape "$name"
-  obj="$obj,\"name\":\"$JSON_ESC\""
-  json_escape "$file"
-  obj="$obj,\"file\":\"$JSON_ESC\",\"line\":$line}"
-  printf '%s\n' "$obj"
+  obj=""
+  add_str id "$id"
+  add_str name "$name"
+  add_str file "$file"
+  printf '{%s,"line":%s}\n' "$obj" "$line"
 done >"$msg_body"
 
 while IFS=$'\t' read -r kind contract file line queue resolution rawarg; do
-  json_escape "$file"
-  obj="{\"from\":\"$JSON_ESC\""
-  json_escape "$contract"
-  obj="$obj,\"to\":\"$JSON_ESC\""
-  json_escape "$kind"
-  obj="$obj,\"kind\":\"$JSON_ESC\""
-  json_escape "$resolution"
-  obj="$obj,\"resolution\":\"$JSON_ESC\""
-  json_escape "$file"
-  obj="$obj,\"file\":\"$JSON_ESC\",\"line\":$line"
-  json_escape "$queue"
-  obj="$obj,\"queue\":\"$JSON_ESC\""
-  json_escape "$rawarg"
-  obj="$obj,\"raw\":\"$JSON_ESC\"}"
-  printf '%s\n' "$obj"
+  obj=""
+  add_str from "$file"
+  add_str to "$contract"
+  add_str kind "$kind"
+  add_str resolution "$resolution"
+  add_str file "$file"
+  obj="$obj,\"line\":$line"
+  add_str queue "$queue"
+  add_str raw "$rawarg"
+  printf '{%s}\n' "$obj"
 done <"$edges_tsv" >"$edge_body"
 
 # Findings. Orphans compare resolved contracts only. An unresolved edge is its
@@ -275,13 +271,11 @@ awk -F'\t' '
     for (k in q) if (q[k] > 1) { split(k, p, SUBSEP); print "competing\t" p[1] "\t" q[k] " consumers on queue " p[2] }
   }
 ' "$edges_tsv" | LC_ALL=C sort | while IFS=$'\t' read -r kind contract detail; do
-  json_escape "$kind"
-  obj="{\"kind\":\"$JSON_ESC\""
-  json_escape "$contract"
-  obj="$obj,\"contract\":\"$JSON_ESC\""
-  json_escape "$detail"
-  obj="$obj,\"detail\":\"$JSON_ESC\"}"
-  printf '%s\n' "$obj"
+  obj=""
+  add_str kind "$kind"
+  add_str contract "$contract"
+  add_str detail "$detail"
+  printf '{%s}\n' "$obj"
 done >"$find_body"
 
 emit_lines() {

@@ -2553,3 +2553,75 @@ test("copyPathsFor lists the registered copies of the canonicals a PR changes", 
   assert.ok(copies.length >= 20 && copies.every((path) => /^plugins\/[^/]+\/.+\/hook-utils\.sh$/.test(path)), copies.join(" "));
   assert.deepEqual(copyPathsFor([{ filename: "README.md" }]), []);
 });
+
+// L469 (#14539, #14637): the code-review lane's advisory asked for a test the
+// closing issue's Out of scope list excludes, the lane added it, and the same
+// lane then blocked the PR. Only an unanswered advisory the code-review lane
+// posted may take a follow-up reply, and only with a closing issue's text read.
+test("an advisory code-review thread carries may_follow_up and the closing issues' text; a blocking one, a bot's own, or no issue text does not", async () => {
+  const laneBody = (first) => `${first}\n\nThe change has no test.\n\nclaude-lane: claude-review`;
+  const api = () =>
+    fakeApi({
+      reviews: [{ id: 10, user: { id: ACTIONS_BOT }, commit_id: HEAD }, { id: 11, user: { id: REVIEWER }, commit_id: HEAD }],
+      reviewComments: [
+        comment(100, ACTIONS_BOT, { body: laneBody("**Advisory: no test covers the rewritten branch.**") }),
+        comment(200, ACTIONS_BOT, { body: laneBody("**Blocking (closing-issue scope): these tests go beyond the issue.**") }),
+        comment(300, REVIEWER, { pull_request_review_id: 11, body: "**Advisory: add a test.**" }),
+      ],
+      threads: [thread("PRRT_a", [100]), thread("PRRT_b", [200]), thread("PRRT_c", [300])],
+    });
+  const issue = { number: 7, body: "## Out of scope\n\n- Tests beyond the asserted lines a change breaks", comments: ["Decision: no new tests."] };
+  const reads = [];
+  const withIssue = await select({
+    api: api(),
+    pr: 42,
+    headSha: HEAD,
+    repository: "o/r",
+    appId: APP,
+    reviewerId: REVIEWER,
+    trustedHumans: new Set([HUMAN]),
+    readSpec: async () => {
+      reads.push(1);
+      return [issue, { number: 8, body: null, comments: [] }];
+    },
+  });
+  assert.equal(withIssue.decision, "proceed");
+  assert.deepEqual(
+    withIssue.file.threads.map((t) => [t.id, t.may_follow_up === true]),
+    [
+      ["PRRT_a", true],
+      ["PRRT_b", false],
+      ["PRRT_c", false],
+    ],
+  );
+  assert.deepEqual(withIssue.file.closing_issues, [{ number: 7, url: "https://github.com/o/r/issues/7", body: issue.body, comments: ["Decision: no new tests."] }]);
+  assert.equal(reads.length, 1);
+  assert.deepEqual(
+    JSON.parse(runRecord(withIssue.file)).threads.map((t) => t.may_follow_up ?? false),
+    [true, false, false],
+    "run.json carries the mark the reply job checks",
+  );
+
+  const noIssue = await select({ api: api(), pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]), readSpec: async () => [] });
+  assert.equal(noIssue.decision, "proceed");
+  assert.ok(!noIssue.file.threads.some((t) => "may_follow_up" in t), "no closing issue text marks nothing");
+  assert.equal("closing_issues" in noIssue.file, false);
+
+  const plain = [];
+  const noAdvisory = await select({
+    api: fakeApi(),
+    pr: 42,
+    headSha: HEAD,
+    repository: "o/r",
+    appId: APP,
+    reviewerId: REVIEWER,
+    trustedHumans: new Set([HUMAN]),
+    readSpec: async () => {
+      plain.push(1);
+      return [issue];
+    },
+  });
+  assert.equal(noAdvisory.decision, "proceed");
+  assert.equal(plain.length, 0, "no advisory thread reads no issue");
+  assert.equal("closing_issues" in noAdvisory.file, false);
+});

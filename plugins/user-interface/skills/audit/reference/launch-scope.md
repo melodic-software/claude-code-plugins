@@ -75,10 +75,10 @@ Map the surface before judging it. Ten minutes here saves an hour of false findi
 - **Entry points**: root layout, `_document` / `<head>`, global CSS, the viewport and `theme-color`
   meta tags, font loading, the manifest if it's a PWA, `robots` and `sitemap`.
 - **Surfaces**: which routes are product UI and which are marketing. The bar differs. Product UI
-  stays under 300ms and skips decoration; marketing can be richer but must not shift layout. Here
-  that product UI bar is the `motion` concern's role durations, which the resolved config sets.
-  Note every route that is neither (`/proto`, `/lab`, `/test`, `/playground`, storybook-style
-  pages).
+  keeps each motion role within its own ceiling (`animation.duration_ms.large` for a dialog or sheet,
+  `animation.duration_ms.page` for a page transition) and skips decoration; marketing can be richer
+  but must not shift layout. Note every route that is neither (`/proto`, `/lab`, `/test`,
+  `/playground`, storybook-style pages).
 - **Interactive inventory**: modals, drawers, popovers, tooltips, forms, icon buttons, long lists,
   carousels, video, anything that animates.
 - **Data-driven views**: every list, table, feed, and dashboard. Each one has four states (loading,
@@ -360,9 +360,9 @@ at that tag, and while it is open it blocks the launch whatever the tag is.
   Enter must submit"); `<div onClick>` doing a button's job, and a submit button that stays enabled
   while submitting ("7. Buttons are `<button>` elements, with a loading state"); destructive action
   with no confirmation ("12. Destructive actions require confirmation").
-- `color`: text under 4.5:1 in either theme (`contrast.md` "The bar").
+- `color`: text under its AA contrast floor in either theme (`contrast.md` "The bar").
 - `touch`: ungated `:hover`, or an action reachable only on hover ("1. Hover and press"); input font
-  size under 16px ("4. Inputs and the keyboard"); `user-scalable=no` or `maximum-scale=1`, `100vh`
+  size under the input floor ("4. Inputs and the keyboard"); `user-scalable=no` or `maximum-scale=1`, `100vh`
   for an app shell or bottom-pinned UI, and `env(safe-area-inset-*)` without `viewport-fit=cover`
   ("5. Viewport, safe areas and anchors").
 - `layout-stability`: image or video with no reserved dimensions, and fonts loaded without
@@ -372,8 +372,9 @@ at that tag, and while it is open it blocks the launch whatever the tag is.
   what is used").
 - `motion`: movement with no `prefers-reduced-motion` handling (`catalog.md` "Reduced motion:
   `reduced-motion`"); `ease-in` on an entrance (`catalog.md` "Easing: `easing`") or an entrance from
-  `scale(0)` (`catalog.md` "Physicality: `physicality`"); animation on a keyboard shortcut or a
-  100+/day action (`catalog.md` "Should it animate: `should-it-animate`"); animating `width`,
+  `scale(0)` (`catalog.md` "Physicality: `physicality`"); animation on a keyboard shortcut or an
+  action used more than `animation.skip_frequency` times a day (`catalog.md` "Should it animate:
+  `should-it-animate`"); animating `width`,
   `height`, `margin`, `padding`, `top` or `left` (`performance.md` "Swap down a tier:
   `swap-down-a-tier`"); `transition: all`, or Tailwind's bare `transition` (`performance.md` "No
   `transition: all`: `transition-all`").
@@ -382,7 +383,7 @@ at that tag, and while it is open it blocks the launch whatever the tag is.
   changelog fetched at request time ("6. Content routes are static").
 - `states`: a list that renders `null` when empty ("2. Empty states exist and teach"); a failed
   request that renders nothing, or "Something went wrong" ("3. Failed requests render something
-  useful"); a wait over 400ms with no indicator ("4. Every wait over 400ms has an indicator").
+  useful"); a wait over `states.wait_indicator_ms` with no indicator (rule 4 of `states.md`).
 - `theming`: a dark mode nobody opened ("3. Half a dark mode is worse than none").
 - `marketing-pages`: a page with no `<title>`, description, or OG image ("3. Every public page has a
   title, a description and a preview": its Blocking rule for the title and description, and the

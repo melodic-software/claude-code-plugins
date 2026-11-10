@@ -132,16 +132,12 @@ Everything above is negotiable styling; these are not. And remember that readers
 zoom, enlarged default font size, forced line spacing. A layout that only works at one size is
 already broken.
 
-**Size floors.** Body text belongs at `16px`: a good reading size, not an arbitrary tradition, and
-where it stands against the browser's default size is in the pointer below. Secondary UI text may
-step down: `14px` for controls and menus, `13px` for captions and metadata, and below `12px` lies
-territory that needs an unusually good excuse. Input text on phones keeps its own floor: the `touch`
-concern.
-
-- **Pointer**: MDN, `font-size`, the default browser font size under ems,
-  <https://developer.mozilla.org/en-US/docs/Web/CSS/font-size#ems>
-- **As of**: 2026-10-29
-- **Recheck trigger**: that section changes the default size it states.
+**Size floors.** Body text sits at the body-text floor, a good reading size, not an arbitrary
+tradition; the floor and its source are in `../typography.md` "6. Floors". Secondary UI text may
+step down: `typography.small_text_px.control` for controls and menus,
+`typography.small_text_px.caption` for captions and metadata, and below
+`typography.small_text_px.min` lies territory that needs an unusually good excuse. Input text on
+phones keeps its own floor: the `touch` concern.
 
 **Contrast floors.** The ratio each size of text needs is the `color` concern's. Check both
 themes if the product has them; gray-on-gray failures love dark mode.

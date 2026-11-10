@@ -1338,6 +1338,7 @@ jobs:
       pull-requests: read # the PR, its reviews, review comments and threads
       checks: read # the model check runs that count rounds
       actions: read # an earlier FAIL's verdict artifact and its pr-verify run (verify-earlier-fail-heads)
+      issues: read # the closing issues' spec text an advisory thread is judged against (closing_issues)
     outputs:
       # true once the context is uploaded; false on a skip or an escalation;
       # empty when the job stopped before deciding.
@@ -1482,6 +1483,8 @@ jobs:
           # The listed review bots' ids (review-threads.reviewer-ids), one per line.
           REVIEWER_IDS=$(jq -r '.["review-threads"]["reviewer-ids"] // [] | .[]' "$RESOLVED")
           export REVIEWER_IDS
+          LANE_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          export LANE_IDENTITY
           THREAD_FILE="$FEEDBACK_DIR/threads.json" RUN_FILE="$FEEDBACK_DIR/run.json" \
             node .base/.github/scripts/pr-unblock/address-feedback.mjs select
           if [ -f "$FEEDBACK_DIR/threads.json" ]; then

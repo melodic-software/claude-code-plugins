@@ -29,13 +29,16 @@ msys* | cygwin*) type -P jq >/dev/null && jq() { command jq -b "$@"; } ;;
 esac
 
 usage() {
-  printf 'usage: tick.sh <id> in-progress\n       tick.sh <id> [--partial <detail>] committed <sha> <skill@version>...\n' >&2
-  printf '       tick.sh <id> no-findings <skill@version>...\n' >&2
-  printf '       tick.sh <id> partial <detail> <skill@version>...\n' >&2
-  printf '       tick.sh <id> not-applicable <evidence>\n' >&2
-  printf '       tick.sh <id> [--partial <detail>] report-only <n> <skill@version>...\n' >&2
-  printf '       tick.sh <id> [--partial <detail>] declined <n> <skill@version>...\n' >&2
-  printf '       tick.sh <id> [--partial <detail>] filed <issue-url> <skill@version>...\n' >&2
+  cat >&2 <<'EOF'
+usage: tick.sh <id> in-progress
+       tick.sh <id> [--partial <detail>] committed <sha> <skill@version>...
+       tick.sh <id> no-findings <skill@version>...
+       tick.sh <id> partial <detail> <skill@version>...
+       tick.sh <id> not-applicable <evidence>
+       tick.sh <id> [--partial <detail>] report-only <n> <skill@version>...
+       tick.sh <id> [--partial <detail>] declined <n> <skill@version>...
+       tick.sh <id> [--partial <detail>] filed <issue-url> <skill@version>...
+EOF
   exit 2
 }
 (($# >= 2)) || usage

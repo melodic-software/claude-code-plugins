@@ -216,7 +216,16 @@ machines; neither on the attended box.
 > lines: a verdict token and an identifier or path. Everything else goes
 > to a file in your worktree or a comment on the item. Do not summarize
 > your work back to me. Speak to me only when fully blocked and unable to
-> escalate through the tracker.
+> escalate through the tracker. Never end a turn on a status summary or an
+> offer to continue: status goes in the same message as the next action.
+> Recovering is part of the work: retry after an error, and go find the
+> information you are missing, rather than ending the turn to report either
+> one. Recovering stops at anything put in your way on purpose. A protected
+> path, a refused permission, or a safety control is a boundary, not an
+> obstacle: never route around it. Stop at it, record what blocked you on
+> the item, and reach the goal by another path you are allowed to take. A
+> long session or a long context is not a reason to stop: keep working until
+> the goal is met, or until a mechanism the lane owns tells you to hand off.
 >
 > **One exception: a skill that defines its own return shape wins.** Where a
 > skill's contract specifies what its subagents return, that contract governs
@@ -366,7 +375,17 @@ the partition and the evidence predicate is met.
 > so that run escalates instead of dispatching, as the reference requires.
 >
 > **Return contract.** Subagents return at most two lines: verdict plus
-> identifier. Speak to me only when fully blocked. **A skill that defines its
+> identifier. Speak to me only when fully blocked. Never end a turn on a
+> status summary or an offer to continue: status goes in the same message as
+> the next action. Recovering is part of the work: retry after an error, and
+> go find the information you are missing, rather than ending the turn to
+> report either one. Recovering stops at anything put in your way on purpose.
+> A protected path, a refused permission, or a safety
+> control is a boundary, not an obstacle: never route around it. Stop at it,
+> record what blocked you on the PR, and reach the goal by another path you
+> are allowed to take. A long session or a long context is not a reason to
+> stop: keep working until the goal is met, or until a mechanism the lane
+> owns tells you to hand off. **A skill that defines its
 > own return shape wins over this rule.** `/discipline:sweep-all`'s audit
 > forks owe a full findings ledger and may write nothing, so truncating them
 > to two lines would discard exactly what the parent acts on.

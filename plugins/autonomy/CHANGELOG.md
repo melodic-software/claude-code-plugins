@@ -3,6 +3,18 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.1.15] - 2026-11-09
+
+### Changed
+
+- The autonomous-pipeline reminder now says the repository's Worker and Merge lane prompts carry its recovery clause, deliberate-block sentence included, alongside the end-of-turn clause.
+
+## [4.1.14] - 2026-11-09
+
+### Changed
+
+- The autonomous-pipeline reminder adds a clause that stops recovery at anything put in the run's way on purpose (a protected path, a refused permission, a safety control): the run does not route around it, reports what blocked it, and reaches the goal by another permitted path. The README cites the Claude Fable 5.2 guide section it rests on.
+
 ## [4.1.13] - 2026-11-09
 
 ### Changed

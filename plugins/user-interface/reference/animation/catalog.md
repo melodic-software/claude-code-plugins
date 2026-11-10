@@ -15,7 +15,8 @@ defaults you inherit from a snippet.
 The rules name what the eye and hand experience, not an API. For how the project's stack expresses
 a rule, look up the stack's own current documentation. An example anywhere in this folder is
 labeled an illustration of one stack, to adapt to whatever the project uses, never a template to
-copy. CSS authoring itself belongs to `/user-interface:write-css` and the names for effects to
+copy; a `{{key}}` placeholder in one is filled as [`../values.md`](../values.md) says. CSS
+authoring itself belongs to `/user-interface:write-css` and the names for effects to
 `/user-interface:glossary`. Per-component specs are in `behaviors.md`, touch and drag in
 `gestures.md`, frame cost in `performance.md`, all in this folder.
 
@@ -31,7 +32,8 @@ reduced motion in `reduced-motion` below.
 
 Other concerns own the neighbors, one home each: scroll-triggered reveals, scroll hijacking,
 parallax, auto-advancing carousels and an intro animation that plays once per session are the
-`marketing-pages` concern; a wait over 400ms that needs an indicator is the `states` concern; a
+`marketing-pages` concern; a wait over `states.wait_indicator_ms` that needs an indicator is the
+`states` concern; a
 theme switch that animates every color is the `theming` concern; looping animation, video and
 polling that keep running off-screen, and state updates that re-render a component every frame,
 are the `web-performance` concern; hover styles gated to a precise pointer and enlarged hit areas
@@ -54,9 +56,8 @@ how often the user will trigger it:
   animate.** Keyboard users are moving fast; animation makes the UI feel disconnected from their
   input.
 - **Tens of times a day** (hover effects, list navigation) → near-imperceptible motion, or nothing.
-- **Occasional interaction** (opening a modal, a dropdown, a drawer) → Standard animation, under
-  300ms. The limit each one takes is its resolved role in `duration`; 300ms is the default of the
-  longest element-scale role, `large`.
+- **Occasional interaction** (opening a modal, a dropdown, a drawer) → Standard animation, within
+  its role in `duration`, at most `animation.duration_ms.large`, the longest element-scale role.
 - **Rare or first-time moment** (onboarding, empty state, success celebration) → Can be more
   elaborate.
 - **Marketing page vs. product**: marketing pages may use longer, showier motion; product UI must
@@ -152,12 +153,13 @@ project's existing stack does the job.
 ## Physicality: `physicality`
 
 - **Never enter from `scale(0)`.** Elements should always have a visible shape: start at
-  `scale(0.95)` (or `0.97` for small elements) with `opacity: 0`, and settle to `scale(1)`,
-  `opacity: 1`. Any start between 0.9 and 0.97 keeps a shape; nothing in the physical world appears
-  from nothing.
+  `animation.scale.enter` (or `animation.scale.enter_small` for small elements) with `opacity: 0`,
+  and settle to full scale and opacity. A start near `animation.scale.enter` keeps a shape, and so
+  does one as low as 0.9; nothing in the physical world appears from nothing.
 - An element scaling up from nothing reads as a glitch; real objects always have a visible shape.
   The same goes for a toast that travels the full viewport height to arrive. Travel distances stay
-  small (8-16px) unless the element really is coming from off-screen, like a drawer.
+  small (`animation.travel_px.medium` to `animation.travel_px.large`) unless the element really is
+  coming from off-screen, like a drawer.
 - **Make scaling origin-aware.** Popovers, dropdowns, and tooltips must scale from their trigger,
   not from center. Set `transform-origin` to the trigger side. The popover recipe in
   `/user-interface:write-css` shows the CSS, and `behaviors.md` `popover` the behavior.
@@ -197,7 +199,7 @@ curve it entered with, even when the framework unmounts it on close.
    item 5.
 2. **Element already on screen moving or resizing** (reordering, layout shift, slider) →
    `ease-in-out`. Natural accelerate-then-brake motion.
-3. **Hover / color / shadow change** → `ease` (or a soft ease-out), 150ms.
+3. **Hover change** (a color or shadow change on hover) → `ease` (or a soft ease-out), `animation.duration_ms.hover`; the same change from another trigger takes `animation.duration_ms.medium`.
 4. **Constant-speed motion only** (marquee, spinner, progress-as-time) → `linear`.
 5. **`ease-in` alone → almost never.** The slow start delays feedback and feels sluggish. A
    permanent exit (a modal closing, a toast dismissed) accelerates away on an accelerate curve from
@@ -248,22 +250,22 @@ allows, not a target.
 |---|---|
 | `press` | press feedback |
 | `small` | tooltips, small popovers |
-| `medium` | dropdowns, menus, selects, and any other UI transition (hover, color, focus) |
+| `hover` | hover feedback |
+| `medium` | dropdowns, menus, selects, and any other UI transition (focus, a color change not triggered by hover) |
 | `large` | modals, dialogs, drawers, sheets, toasts |
 | `page` | page-level and full-screen transitions |
 
-- **UI animations stay under 300ms.** If it feels slow, it is slow: cut duration before anything
-  else. Past 300ms the user is waiting for the interface to finish performing before they can act.
-  The resolved roles govern, not the literal: 300ms is only the default of `large`, the longest
-  element-scale role, so a project that sets `large` longer or shorter is held to its own value.
-  Each animation stays within its own role, and page and full-screen transitions take `page`.
-- **Exits run ~20–30% faster than enters** (e.g. enter 250ms, exit 180ms). The user has already
-  decided to leave; don't make them wait. An exit takes at most
-  `animation.duration_ms.exit_factor` of its entrance.
+- **UI animations stay within `animation.duration_ms.large`.** If it feels slow, it is slow: cut
+  duration before anything else. Past `animation.duration_ms.large` the user is waiting for the
+  interface to finish performing before they can act. `large` is the longest element-scale role, so
+  a project that sets it longer or shorter is held to its own value. Each animation stays within its
+  own role, and page and full-screen transitions take `page`.
+- **Exits run faster than enters**, at most `animation.duration_ms.exit_factor` of the entrance.
+  The user has already decided to leave; don't make them wait.
 - **Bigger elements and longer travel get more time**; a full-screen sheet or a very steep curve
   can justify more than a tooltip. A 500ms fade on a dropdown can't. Duration and easing move
   together.
-- Hover transitions: 150ms feels native; 400ms feels like the UI is thinking.
+- Hover transitions: `animation.duration_ms.hover` feels native; 400ms feels like the UI is thinking.
 - Small, frequent interface motion sits near the short end of its role; a shorter dropdown feels
   more responsive than a longer one.
 - Explanatory and marketing motion may run longer than any role.
@@ -368,15 +370,16 @@ tab or icon swap that animates in on load, or a shared-layout indicator that ani
 ## Stagger: `stagger`
 
 Stagger the entrance of a group the user sees occasionally. Eight items entering at once read as a
-flash; staggered at 30–50ms they read as arrival. A 150ms stagger across twelve items makes the user
-wait two seconds for a list. Cap the total: stagger × count stays under ~400ms. When the project
-sets no stagger of its own, write the resolved `animation.stagger_ms.interval`, and the cap is the
-resolved `animation.stagger_ms.max_total`. Stagger is decoration: it never blocks interaction while
+flash; staggered at `animation.stagger_ms.interval` they read as arrival. A 150ms stagger across
+twelve items makes the user wait two seconds for a list. Cap the total: stagger × count stays
+under `animation.stagger_ms.max_total`. When the project sets no stagger of its own, write
+`animation.stagger_ms.interval`. Stagger is decoration: it never blocks interaction while
 it plays, and a list the user scrolls past all day does not stagger.
 
 How a stagger fits with the other elements moving on the same event is `choreography` below.
 
-**Audit: Suggestion.** A list or grid stagger interval over 50ms (or over the project's own
+**Audit: Suggestion.** A list or grid stagger interval over `animation.stagger_ms.interval` (or over
+the project's own
 stagger), or interval × count over `animation.stagger_ms.max_total`; a group entering all at once
 where a short stagger belongs. The larger offsets of a section entrance (behaviors.md
 `section-entrance`) are not this finding.
@@ -534,10 +537,11 @@ Hover motion doesn't make the target run away. An element that translates or sca
 its own hit area. At the edge, the cursor falls off, hover ends, the element returns, hover starts
 again: a flicker loop. Keep the hovered element still and animate a child, so the hit area never
 moves. A hover scale on something that isn't clickable is a false affordance; remove it. Hover
-scale stays at 1-2%.
+scale stays at or under `animation.scale.hover_max`.
 
-**Audit: Important.** `:hover { transform: translateY(…) }` or a hover `scale` above ~1.02 applied
-to the hovered element itself, or a hover scale on an element that isn't clickable.
+**Audit: Important.** `:hover { transform: translateY(…) }` or a hover `scale` above
+`animation.scale.hover_max` applied to the hovered element itself, or a hover scale on an element
+that isn't clickable.
 
 ## Personality: `personality`
 
@@ -562,7 +566,8 @@ entering list), say so and name the check instead of guessing a value:
   off in an animation someone else built. To hand that frame to an agent, capture its state with
   `/app-control:drive capture --kind animation`.
 - Put on the human list: "open each animated surface on a mid-range phone and watch the first
-  frame", and "in the browser's animation panel, slow playback to 10% and watch each enter and exit
+  frame", and "in the browser's animation panel, slow playback to `animation.inspect_playback_rate`
+  and watch each enter and exit
   for a jump at the start or the end". Report these as checks to run, never as verified.
 - Test gestures on a real device, not an emulator or a laptop trackpad.
 - Don't ship an animation in the same sitting you wrote it. Come back with fresh eyes: the best
@@ -575,7 +580,7 @@ entering list), say so and name the check instead of guessing a value:
 | Never | Instead |
 |---|---|
 | Animating every property at once | Name the exact properties |
-| An entrance from scale zero | Scale near 0.95 with zero opacity |
+| An entrance from scale zero | Scale near `animation.scale.enter` with zero opacity |
 | Ease-in on an entrance or on-screen motion | `out`, or `in_out` on screen; `in` for a permanent exit |
 | Motion on a keyboard shortcut or a many-times-an-hour action | No animation |
 | A duration over its role with no stated reason | Within the role in `animation.duration_ms` |
@@ -588,6 +593,5 @@ entering list), say so and name the check instead of guessing a value:
 
 When reviewing existing animation code, check in order: (1) should this animate at all
 (frequency)? (2) transform/opacity only? (3) easing matches the enter/move/hover rule? (4) duration
-under 300ms with faster exit? (5) interruptible? (6) origin-aware? (7) reduced-motion path exists?
-Report findings as a Before/After markdown table. In item 4, read 300ms as the animation's own resolved
-role in `duration`.
+within its own role, at most `animation.duration_ms.large`, with a faster exit? (5) interruptible?
+(6) origin-aware? (7) reduced-motion path exists? Report findings as a Before/After markdown table.

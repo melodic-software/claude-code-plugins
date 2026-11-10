@@ -21,7 +21,7 @@ it, and what that finding looks like.
 Other concerns own the neighbors, one home each: a `<div onClick>` "button", a label wired to its
 input, a placeholder used as the label, an error message colocated with its field and copy that
 names the fix are the `forms` concern; tap target size, hover gating, a control or feedback that
-only appears on hover, and the 16px input floor are the `touch` concern; text and control contrast
+only appears on hover, and the input floor are the `touch` concern; text and control contrast
 in both themes, and the focus ring's color (the `--focus-ring` token), are the `color` concern;
 reduced motion, and how a tooltip delays and warms, are the `motion` concern; how a code-built
 illustration is exposed to assistive tech and a header submenu that keeps its content in the DOM

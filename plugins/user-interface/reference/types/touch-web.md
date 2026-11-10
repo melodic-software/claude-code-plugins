@@ -56,9 +56,9 @@ exact code.
 | Hover state stuck after tap | Wrap in `@media (hover: hover) and (pointer: fine)` | 1 |
 | Gray/blue flash on tap | Kill `-webkit-tap-highlight-color` | 1 |
 | Layout has the wrong height | `100dvh` (app) or `100svh` (hero) | 5 |
-| Page zooms into input | Input font size 16px at the minimum | 4 |
+| Page zooms into input | Input text at the input floor | 4 |
 | Tap feels laggy | Feedback on pointer-down + `touch-action: manipulation` | 1 |
-| Taps miss small buttons | 44px hit area through a pseudo-element | 2 |
+| Taps miss small buttons | Hit area at the target floor through a pseudo-element | 2 |
 | Pull-to-refresh hijacks scroll | `overscroll-behavior-y: none` on `html, body` | 6 |
 | Content stops at the notch | `viewport-fit=cover` + `env(safe-area-inset-*)` | 5 |
 | Keyboard covers the input or the CTA | `interactive-widget=resizes-content` + `dvh` | 4 |
@@ -147,29 +147,39 @@ feedback driven by `click` instead of `:active` or `pointerdown`.
 
 ## 2. Targets
 
-A finger pad covers about 44px. A 24px icon button with a 24px hit area gets mistapped, and the
-user blames themselves, then the app. The visual can stay small; the hit area can't. Interactive
-elements need `44×44px` hit areas for touch/mobile, at least `40×40px` on desktop. Extend small
-controls with a pseudo-element, or give the control a minimum width and height. Recipe:
-`hit-area-larger-than-the-visual`.
+A 24px icon button with a 24px hit area gets mistapped, and the user blames themselves, then the
+app. The visual can stay small; the hit area can't. This section is the home of the target floors:
+
+- **44 by 44 CSS px** on touch or mobile, and everywhere for a project claiming AAA: WCAG 2.2
+  success criterion 2.5.5 Target Size (Enhanced), level AAA.
+- **24 by 24 CSS px** everywhere: success criterion 2.5.8 Target Size (Minimum), level AA, with
+  the spacing and other exceptions its Understanding page lists.
+- On a fine-pointer desktop, at least `touch.target_desktop_px` square, a taste key the schema keeps
+  at or above the 24 floor.
+
+Extend small controls with a pseudo-element, or give the control a minimum width and height.
+Recipe: `hit-area-larger-than-the-visual`.
 
 Two hit areas must never overlap. If an extended area collides with a neighbor, shrink both to the
 largest non-colliding size, or add spacing.
 
-The 44px is the touch target. WCAG 2.2's 2.5.8 Target Size (Minimum) sets a smaller conformance
-floor with a spacing exception; a target under that floor is also an accessibility failure.
+- **Pointer**: when judging a target against a floor or an exception, fetch WCAG 2.2 Understanding
+  2.5.8 Target Size (Minimum), "Intent",
+  <https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html#intent>, and 2.5.5 Target
+  Size (Enhanced), "Intent",
+  <https://www.w3.org/WAI/WCAG22/Understanding/target-size-enhanced.html#intent>
+- **As of**: 2026-11-09
+- **Recheck trigger**: either Understanding page changes its size or its exceptions, or WCAG 2.x is
+  superseded as the referenced standard.
 
-- **Pointer**: WCAG 2.2 Understanding 2.5.8 Target Size (Minimum), "Intent",
-  <https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html#intent>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the Understanding page changes the minimum or the spacing exception, or the
-  project targets 2.5.5 (Enhanced).
+Hunt for: icon buttons whose `width` / `height` sit under the touch floor (`size-6`, `h-8 w-8`) and
+no padding or pseudo-element extending the hit area; toast dismiss buttons; table row actions;
+pagination.
 
-Hunt for: icon buttons with `width` / `height` under 44px (`size-6`, `h-8 w-8`) and no padding or
-pseudo-element extending the hit area; toast dismiss buttons; table row actions; pagination.
+**Audit: Blocking.** A target under the AA floor that none of 2.5.8's exceptions covers.
 
-**Audit: Important.** A touch target under 44px with nothing extending its hit area (a 24px icon
-with a 24px hit area), or two extended hit areas that overlap.
+**Audit: Important.** A touch target under the touch floor with nothing extending its hit area (a
+24px icon with a 24px hit area), or two extended hit areas that overlap.
 
 ## 3. Long press
 
@@ -186,8 +196,8 @@ selected or copied.
 
 ## 4. Inputs and the keyboard
 
-**Inputs are 16px on touch.** iOS Safari zooms the page when focus lands on an input whose font
-size is under 16px, and it does not zoom back out on blur. The user is left looking at a cropped,
+**Inputs are 16px on touch.** This is the home of the input floor: iOS Safari zooms the page when
+focus lands on an input whose font size is under 16px, and it does not zoom back out on blur. The user is left looking at a cropped,
 drifted layout. This is the reason people reach for `maximum-scale=1`, which is the wrong fix
 (section 5).
 
@@ -204,14 +214,24 @@ touch tablet wider than the breakpoint gets the small size and zooms. Recipe: `t
   or the project's installed version predates them.
 
 The threshold is the computed size: a `1rem` input still zooms when the root font size is set below
-16px. No first-party browser page documents the threshold; confirm it on a phone (section 7).
+16px. The 16 is WebKit's standard font size, which its iOS focus zoom divides by the input's font
+size. No first-party browser page documents it, and no device test here has confirmed it; confirm
+it on a phone (section 7).
+
+- **Pointer**: when the input floor is in question, fetch WebKit `WKWebViewIOS.mm`, the focus zoom
+  scale,
+  <https://github.com/WebKit/WebKit/blob/9958587d2512c2f53c722c8f2e2a25fb27e337ad/Source/WebKit/UIProcess/API/ios/WKWebViewIOS.mm#L1843>,
+  and compare it with the same file on `main`
+- **As of**: 2026-11-09
+- **Recheck trigger**: the constant or its use changes on WebKit `main`, or a device test shows a
+  different threshold.
 
 Hunt for: `font-size` under 16px on `input`, `textarea`, `select`; `text-sm` / `text-xs` on them or
 on a shared `Input` component, alone or behind a width breakpoint (`md:text-sm`); a contenteditable
 editor with small text.
 
-**Audit: Blocking.** Text in an input, textarea, select or editable field under 16px on touch, so
-the page zooms in on focus.
+**Audit: Important.** Text in an input, textarea, select or editable field under the input floor on
+touch, so the page zooms in on focus.
 
 **Ask for the right keyboard.** While you're in the inputs, set the keyboard: `inputmode="numeric"`
 for codes, `inputmode="decimal"` for amounts, `type="email"` and `type="tel"` for their fields,
@@ -258,10 +278,10 @@ meta tag has no `interactive-widget=resizes-content`.
 field and over the home indicator. Pad the scroll container by the CTA's height plus the safe area,
 so the final input can scroll clear of it, and pad the CTA itself with
 `env(safe-area-inset-bottom)` (section 5). The same goes for cookie banners and chat widgets: check
-what they sit on top of at 375px wide. Recipe: `content-clear-of-the-notch`.
+what they sit on top of at `touch.check_width_px` wide. Recipe: `content-clear-of-the-notch`.
 
 **Audit: Important.** A fixed bottom CTA, cookie banner or chat widget that covers the last form
-field or the home indicator at 375px wide.
+field or the home indicator at `touch.check_width_px` wide.
 
 ## 5. Viewport, safe areas and anchors
 
@@ -427,11 +447,24 @@ scrollbar. Fix the element that overflows. `overflow-x: hidden` on `body` hides 
 breaks `position: sticky`. Recipe: `nothing-wider-than-the-viewport`; long text in a card is the
 `layout-stability` concern's recipe `long-text-that-wraps-truncates-or-clamps`.
 
-Hunt for: `width: 100vw` / `w-screen`; fixed pixel widths over ~340px; `<table>` and `<pre>` with no
-scrolling wrapper; user-generated strings with no `overflow-wrap`.
+Hunt for: `width: 100vw` / `w-screen`; fixed pixel widths over `touch.fixed_width_hunt_px`;
+`<table>` and `<pre>` with no scrolling wrapper; user-generated strings with no `overflow-wrap`.
 
-**Audit: Important.** A page that scrolls sideways at 375px wide, or `overflow-x: hidden` on `body`
-covering an element that overflows.
+Reflow is also a WCAG 2.2 AA requirement: at the width success criterion 1.4.10 names, content
+reads without scrolling in two dimensions, outside the exceptions it lists. `touch.check_width_px`
+is a check width above it, not the floor.
+
+- **Pointer**: when judging sideways scroll against the floor, fetch WCAG 2.2 Understanding 1.4.10
+  Reflow, "Intent", <https://www.w3.org/WAI/WCAG22/Understanding/reflow.html#intent>
+- **As of**: 2026-11-09
+- **Recheck trigger**: the Understanding page changes the width or its exceptions, or WCAG 2.x is
+  superseded as the referenced standard.
+
+**Audit: Blocking.** Content that scrolls in two dimensions at the width 1.4.10 names, outside its
+exceptions.
+
+**Audit: Important.** A page that scrolls sideways at `touch.check_width_px` wide, or
+`overflow-x: hidden` on `body` covering an element that overflows.
 
 **Fades on scrollers.** A fade on content that scrolls is allowed only on the four terms of recipe
 `styles-that-apply-only-when-a-scroller-overflows`, which holds the rule and its code.

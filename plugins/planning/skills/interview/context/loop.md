@@ -426,6 +426,8 @@ The ladder, in order:
 
 **The problem confirmation takes rung 3.** Unattended, `### Problem` opens `- Status: unconfirmed`, and the confirmation, with any rethink-or-accept question, is a `blocked` row, **arbiter: USER-RESERVED**; the Brief still locks and the run names the blocker. A pre-confirmed item instead writes no status and an `answered` row citing the label, per [`problem-framing.md`](../../../context/problem-framing.md) "Pre-confirmed".
 
+**The instance question and the Finish line stop only for a human's call.** At these two steps the run stops when the item contradicts a recorded Intent or Vision (the Goal lines of a confirmed Brief or PRD, or of the item itself) or raises a critical security issue. It exits the way rung 3 records a blocker: it writes the Brief with a `blocked` row, **arbiter: USER-RESERVED**, naming the reason, and the Goal line `- Finish line: not settled yet`; it runs neither the Step 4 lock nor the Step 4 gate; and its last line reads `Stopped: needs a human: <reason>`. Only these two classes write a `Stopped:` line; every other blocker keeps rung 3 and its own last line. An intent nobody recorded is no contradiction; it takes rung 3. Any other item skips the instance question ([`problem-framing.md`](../../../context/problem-framing.md) "Unattended") and its Goal reads `- Finish line: merged — checked by <check> via the pull request's checks (filled automatically: unattended)`, `<check>` being the resolved `unattended_finish_check` ([`config.md`](../../../reference/config.md)). Only an item that names a release or use in production as its outcome reads `- Finish line: not settled yet` instead, with a rung 3 `blocked` USER-RESERVED row asking for it, and exits the same way as a stop: no Step 4 lock or gate, ending on its `Blocked:` line. Basis for the two stop classes: judgment.
+
 ### Gate before locking
 
 The register is bookkeeping, so it gets a mechanical check rather than a promise. It runs **twice**, because the two things it proves become checkable at different moments. Both runs carry `--procedure`, which checks what the ledger file can show about the procedure (contiguous rounds, a resolution on every retired row) and, with `--brief`, that the Brief has its nine template headings, Problem and Work size among them:
@@ -531,6 +533,7 @@ Write this into `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`; the topic
 - Intent (why, in the user's words): <the user's reason, quoted, or none stated>
 - Vision (where this heads): <where the user wants this to go, or none stated>
 - When goals conflict, prefer: <the user's tiebreak, or none stated>
+- Finish line: <merged | released | in use> — checked by <who> via <observable check>
 
 ### Work size
 <appetite, size, uncertainty, split signals, one line each, per ../../../context/problem-framing.md "Work size">
@@ -562,6 +565,8 @@ Write this into `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`; the topic
 **The Brief is the spec.** This template owns the Goal, the acceptance criteria and the deferred questions; `/planning:plan` points at these sections and writes no copy of them into PLAN.md.
 
 **The Intent line keeps the user's own words.** Quote the user's stated reason, never a paraphrase, and write `none stated` on any of the three Goal lines the user gave nothing for.
+
+**The Finish line says when the whole effort is done and who checks it.** Propose it with a `Basis:` in the restatement's goal section; the Confirm covers it, with no register row. An `in use` checker is a person or an existing scheduled check, never the session that did the work. A Goal with no settled Finish line reads `- Finish line: not settled yet`, which the `--procedure --brief` gate rejects.
 
 **The Intent section is the user's words, unedited.** Before the confirmation restate, ask the user for the goal in one paragraph in their own words and write their reply as the section's paragraph (`none stated` when they give none). Then list, in the order they were said, each question the user asked, each note (other than the reply that gave the paragraph), each own answer and each note typed on an accepted, alternative or hedged choice, verbatim, the question-tied ones under their `Q<N>`; leave out anything they withdrew. The Goal paragraph is Claude's outcome statement and its Intent line the user's reason; neither repeats this section. A page export writes this section itself.
 

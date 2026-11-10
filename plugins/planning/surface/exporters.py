@@ -108,6 +108,7 @@ import html
 import json
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 from interview_server import (
@@ -381,8 +382,7 @@ def parse_hold(res, where):
         if not f or (f.group(1) in hold and f.group(1) != "confirmed"):
             raise SystemExit(f"refused: unreadable held row field {field!r} in {where}")
         if f.group(1) == "confirmed":
-            hold["confirmed"] = [unesc_field(f.group(2))]
-            hold["confirmed"] += [unesc_field(x) for x in rest[i + 1 :]]
+            hold["confirmed"] = list(map(unesc_field, [f.group(2), *rest[i + 1 :]]))
             break
         hold[f.group(1)] = unesc_field(f.group(2))
     if "answer" in hold and "aside" in hold:
@@ -636,10 +636,8 @@ def settle(q, responses, events, seed_rows):
         fields["note"] = note or None
         return "open", fields, "", False
     fields["note"] = seed_text(seed)
-    if status == "superseded-by-plan":
-        # A set-aside decision leaves the plan's proposal waiting on the user again.
-        return status, fields, "", False
-    return "open", fields, "", False
+    # A set-aside decision leaves the plan's proposal waiting on the user again.
+    return status if status == "superseded-by-plan" else "open", fields, "", False
 
 
 def numbering(ids, gaps=False):
@@ -679,25 +677,23 @@ def register(doc, resp, extra=(), gaps=False):
             stale = f"stale:: {', '.join(unchecked[q['id']])}"
             res = f"{res}; {stale}" if res else stale
         res = lead + res
-        confirmed, unconfirmed = commitments(q, events)
         decided = latest_decision(q, responses) or {}
         # An own answer replaces the recommendation, so the Brief and the report drop its
         # commitments; the ledger row keeps their ticks, so an import restores them.
-        briefed = marked
-        if decided.get("decision") == "own":
-            confirmed, unconfirmed, briefed = [], [], []
+        briefed = [] if decided.get("decision") == "own" else marked
+        shown = readable(status, fields, briefed)
         rows.append(
             {
                 "n": f"Q{pos[q['id']]}",
                 "q": q,
                 "status": status,
                 "resolution": res.rstrip(),
-                "display": clean(lead + readable(status, fields, briefed)),
-                "readable": clean(readable(status, fields, briefed)),
+                "display": clean(lead + shown),
+                "readable": shown,
                 "note": note,
                 "reserved": reserved,
-                "confirmed": confirmed,
-                "unconfirmed": unconfirmed,
+                "confirmed": [c for ok, c in briefed if ok],
+                "unconfirmed": [c for ok, c in briefed if not ok],
                 # Accept and hedged carry the recommendation's commitments; an own answer or an
                 # alternative withdraws them and a defer's open row covers them.
                 "carries": decided.get("decision") in CARRIES,
@@ -907,9 +903,7 @@ def confirmation_recap(d, cap, text=None, since=None):
     shown = [r for r in rows if r["n"] not in kept]
     live = [r for r in shown if r["status"] != "withdrawn"]
     gone = [r["n"] for r in shown if r["status"] == "withdrawn"]
-    counts = {}
-    for r in same:
-        counts[r["status"]] = counts.get(r["status"], 0) + 1
+    counts = Counter(r["status"] for r in same)
     out = ""
     for n in RECAP_ANSWER_STEPS:
         lines = [
@@ -1017,15 +1011,29 @@ def bullets(text):
 
 
 LIST_ITEM = re.compile(r"^\s*[-*+]\s")
+FINISH_LINE_ITEM = re.compile(r"^[-*+]\s+Finish line:", re.IGNORECASE)
 
 
 def goal_lines(text):
     """The restated goal: its other lines as one paragraph, then its list items as bullets, so
-    the Goal's Intent, Vision and tiebreak lines stay separate bullets under the outcome."""
+    the Goal's Intent, Vision, tiebreak and Finish line lines stay separate bullets under the
+    outcome."""
     lines = str(text or "").splitlines()
     prose = para(" ".join(x for x in lines if not LIST_ITEM.match(x)))
     items = bullets("\n".join(x for x in lines if LIST_ITEM.match(x)))
     return ([prose] if prose else []) + items
+
+
+def goal_block(lines):
+    """The Goal lines with `- Finish line: not settled yet` added when none is a Finish line item,
+    and a blank line between the outcome paragraph and its list."""
+    lines = list(lines)
+    if not any(FINISH_LINE_ITEM.match(x) for x in lines):
+        lines.append("- Finish line: not settled yet")
+    first = next(i for i, x in enumerate(lines) if LIST_ITEM.match(x))
+    if first:
+        lines.insert(first, "")
+    return lines
 
 
 LEAD_QN = re.compile(r"^[\\\[(*_]*[Qq]([1-9][0-9]*)\b")
@@ -1368,7 +1376,7 @@ def export_brief(d, text=None):
     out += ["", "### Intent", "", para(sections.get("intent")) or "none stated"]
     words = user_words(rows, resp.get("events") or [], sections.get("intent"))
     out += ["", *words] if words else []
-    out += ["", "### Goal", "", *(goal_lines(sections.get("goal")) or [para(title)]), ""]
+    out += ["", "### Goal", "", *goal_block(goal_lines(sections.get("goal")) or [para(title)]), ""]
     out += [
         "### Work size",
         "",

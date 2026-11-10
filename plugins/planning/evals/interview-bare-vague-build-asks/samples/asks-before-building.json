@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Before I build this, a few questions so the notifications fit what you need.\n\nQ1: Which events should notify someone: order placed, order shipped, or both? My recommendation: both.\nQ2: Which channel: email, in-app, or push? My recommendation: email, since User already has an email field.",
+      "why": "asks about the events and channel before building"
+    },
+    {
+      "answer": "What problem are the notifications solving? For example, are customers asking where their order is, or do staff miss new orders? That decides who gets notified and when.",
+      "why": "asks about the problem and who receives them"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I added email notifications: src/app/notify.py sends an email when an order is placed or shipped, and orders.py calls it. Tests pass.",
+      "why": "reports notifications as built without asking"
+    },
+    {
+      "answer": "I'll add email notifications on order placed and shipped. Shall I proceed?",
+      "why": "only a permission question, no question about the problem or scope"
+    }
+  ]
+}

@@ -3,6 +3,49 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0] - 2026-11-09
+
+### Added
+
+- Config key `icon.label_gap_em` (default 0.5): the gap between an icon and its label when it scales with the text. The icon-beside-text recipes write it.
+
+### Changed
+
+- `/user-interface:write-css` layout, spacing, scroll, text and media recipes write each configurable value as a `{{key}}` placeholder (spacing steps, content and breakout widths, grid track, sidebar, panel height, edge fade, scrollbar, flow, section padding, color mixes, fluid type and scale inputs, media box, border width, icon size), so a team key or project token sets it. Three recipes now follow their key's default: the content width is `layout.content_width` (was `64rem`), the prose flow base is `spacing.flow` (was `1em`), and the code-block scrollbar width is `spacing.xs`.
+- The fluid type rules name `typography.fluid_max_ratio` as the limit on a font size's maximum, and the key refuses a value above 2.5, the WCAG 1.4.4 ceiling.
+- The content grid's breakout width is never less than the content plus two gutters, so its tracks no longer collapse when the content and breakout widths are in different units.
+- `/user-interface:audit` launch scope holds each product-UI motion role to its own duration ceiling, and names `animation.skip_frequency` and `states.wait_indicator_ms` in place of their numbers.
+
+- The animation references, the web performance reference, the audit frame-capture loop and the `write-css` motion, interaction and show-and-hide recipes name their config keys instead of stating durations, scales, travel, blur, springs, gesture constants, stagger, focus ring and performance thresholds. Recipes carry `{{key}}` placeholders filled from the resolved config, so a team's value or a project token reaches every recipe; where a reference stated a number that differed from its key's default (a 125ms tooltip, a 0.25x inspection speed), the key's default now applies. Hover recipes take `animation.duration_ms.hover`, and the focus ring recipe keeps its 2px floor, sourced to WCAG 2.4.13, whatever `css.focus_ring.width` resolves to. The spring damping column stays as examples.
+
+## [0.24.2] - 2026-11-09
+
+### Changed
+
+- The layout, type, touch, icon, shape and state references (`reference/types/terminal.md`, `touch-web.md` and the `web/` files for icons, layout, marketing pages, shape and depth, states and typography) name their taste keys instead of stating numbers: icon sizes and gaps, optical nudges, content width, check widths, border widths and image outline opacity, wait and copy timings, line heights, measure and small text sizes. A team's value for a key now reaches that guidance; accessibility floors stay stated as numbers.
+- Reading-column caps are written as `{{typography.measure_ch}}` placeholders, filled as `reference/values.md` says.
+
+## [0.24.1] - 2026-11-09
+
+### Changed
+
+- The color references (`color.md`, `color/building-scales.md` and `color/contrast.md`) name the `color.` keys instead of stating their numbers: the light and dark surface triage thresholds, the ramp's lightness endpoints, chroma curve and hue-drift limit, the hover mix, the light and dark border values and the dark-mode brand desaturation. A team value for any of them now reaches the guidance; contrast ratios stay stated as numbers.
+
+## [0.24.0] - 2026-11-09
+
+### Added
+
+- The full set of user-interface taste keys in `reference/defaults.yaml`, `reference/team.schema.json` and the README key table: 101 roles across `animation`, `color`, `css`, `icon`, `layout`, `performance`, `radius`, `spacing`, `states`, `touch` and `typography`, among them hover duration, show delays, enter and hover scales, travel, springs, gesture constants, color ramp and triage thresholds, border widths, focus ring, icon sizes, layout widths, the spacing steps, fluid type inputs, line heights, measure and small text sizes. A team sets any of them in its config file; a project's own tokens still win. Skills start reading them as their references are rewritten to name the keys.
+- `animation.scale.press_min` (default `0.95`): the lower limit `/user-interface:audit` will report a project press scale below; it never rewrites the value.
+- `touch.target_desktop_px` refuses a value under the 24px target-size floor, and `typography.fluid_body.min_rem` and `typography.fluid_scale.size_narrow_rem` refuse one under `1` (the 16px body floor); a refused value leaves the default and is named in the config report.
+- Each default's source is recorded: course and Emil Kowalski keys in their upstream records, independent sources in the new `docs/upstream/user-interface-default-sources.md`, and heuristics labeled in the defaults file.
+
+### Changed
+
+- `animation.easing.out` is now `0.32, 0.72, 0, 1` (was `0.23, 1, 0.32, 1`), the curve the course names as its default for entering elements.
+- Hover feedback has its own `animation.duration_ms.hover` (`150`) and is no longer under `medium`; each duration key is stated as both the value a recipe writes and the role's ceiling.
+- `animation.blur_max_px` is no longer described as a heuristic: its `20` now has a recorded source.
+
 ## [0.23.0] - 2026-11-09
 
 ### Added

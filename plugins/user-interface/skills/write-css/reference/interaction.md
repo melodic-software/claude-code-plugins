@@ -1,8 +1,8 @@
 # Interaction
 
-The project's design system, tokens and conventions override everything in this file. Literal
-values in the examples are this skill's defaults: use one only where the project has no token for
-it, and name each default you used.
+The project's design system, tokens and conventions override everything in this file. A
+configurable value in an example is a `{{key}}` placeholder; fill each as
+[`values.md`](../../../reference/values.md) says.
 
 Each `Baseline:` line links the live compat entry; never copy version numbers from it. As of
 2026-10-11; recheck when that entry's Baseline status changes or the project's browser target moves.
@@ -24,13 +24,18 @@ Use it as the focus style for every interactive element. Never write `outline: n
 
 ```css
 :focus-visible {
-  outline: max(2px, 0.08em) solid var(--focus-ring, currentColor);
-  outline-offset: 2px;
+  outline: max(2px, {{css.focus_ring.width}}) solid var(--focus-ring, currentColor);
+  outline-offset: {{css.focus_ring.offset_px}}px;
 }
 ```
 
 Rules:
 
+- The ring is never thinner than 2px, the perimeter thickness WCAG 2.2 success criterion 2.4.13
+  Focus Appearance (AAA) names
+  (<https://www.w3.org/WAI/WCAG22/Understanding/focus-appearance.html#success-criterion>). The
+  `max()` keeps that floor whatever `css.focus_ring.width` resolves to; report a resolved width
+  below it with this source.
 - The ring's color is the `--focus-ring` token; the contrast it must keep in both themes is the
   `color` concern's rule. Use the project's focus token where it has one.
 - Without the token the ring falls back to `currentColor`, which can fail contrast on a filled
@@ -81,7 +86,7 @@ Baseline: [`:active`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference
 widely available. As of 2026-10-11, recheck on a status change.
 
 Use it on pressable controls. Which controls take the scale and which skip it are the `motion`
-concern's (`press`); this recipe is how to write it. Fill each `{{key}}` placeholder as [`values.md`](../../../reference/values.md) says.
+concern's (`press`); this recipe is how to write it.
 
 ```css
 .button:active { transform: scale({{animation.scale.press}}); }
@@ -98,12 +103,13 @@ Rules:
 
 ## Hit area larger than the visual: `hit-area-larger-than-the-visual`
 
-Why: a pseudo-element grows the target to at least 44px without changing what the user sees.
+Why: a pseudo-element grows the target to the touch floor without changing what the user sees.
 
 Baseline: [`inset`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/inset#browser_compatibility).
 As of 2026-10-11, recheck on a status change.
 
-Use it on icon buttons, close buttons and any target that looks smaller than 44px.
+Use it on icon buttons, close buttons and any target that looks smaller than the touch floor. The
+code below uses its 44px; the floors and their sources are the `touch` concern's "2. Targets".
 
 ```css
 .icon-button { position: relative; }
@@ -264,7 +270,7 @@ copy its height onto the wrapper, which transitions.
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .field { transition: height 0.2s var(--ease-out, ease-out); }
+  .field { transition: height {{animation.duration_ms.medium}}ms var(--ease-out, ease-out); }
 }
 ```
 

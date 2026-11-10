@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.8.0] - 2026-11-09
+
+### Changed
+
+- `/work-items:decompose` copies the Brief Goal's `Finish line:` line into each item body and into a spec container's Brief, beside the Intent, Vision and tiebreak lines.
+
 ## [12.7.5] - 2026-11-09
 
 ### Changed
