@@ -180,7 +180,7 @@ wit_help_if_requested() {
 # pass on its string length; jq's `and` short-circuits, so `length` never runs on a
 # non-array.
 wit_linear_nonempty_array() {
-  [[ "$(jq -r 'if (type == "array" and length > 0) then "yes" else "no" end' <<<"$1")" == "yes" ]]
+  jq -e 'type == "array" and length > 0' <<<"$1" >/dev/null
 }
 
 # wit_linear_bad_elements <anchored-regex> <json-array> — the array's
@@ -324,7 +324,7 @@ wit_need_linear_config() {
 # declare, even when the token can see them. Each verb enforces it BEFORE any request,
 # mapping a miss to its own usage error (exit 2) so the diagnostic names the verb.
 wit_linear_scope_in_scope() {
-  [[ "$(jq -r --arg k "$1" 'if (index($k) != null) then "in" else "out" end' <<<"$WIT_LINEAR_SCOPES")" == "in" ]]
+  jq -e --arg k "$1" 'index($k) != null' <<<"$WIT_LINEAR_SCOPES" >/dev/null
 }
 
 # wit_linear_token — echo the credential from the env var NAMED BY
@@ -617,12 +617,9 @@ wit_linear_now_iso() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 # would corrupt the whole-second form instead.
 wit_linear_epoch() {
   local ts="$1"
-  case "$ts" in
-  *.*) ts="${ts%%.*}Z" ;;
-  *) ;;
-  esac
+  [[ "$ts" != *.* ]] || ts="${ts%%.*}Z"
   # portability-ok: GNU-first rung of a dual-dialect ladder — the BSD `-j -f` spelling follows,
-  # and an empty `printf` is the third rung. The `case` above normalizes the fractional form off
+  # and an empty `printf` is the third rung. The line above normalizes the fractional form off
   # the timestamp precisely so the BSD rung's exact-match `-f` format can parse it.
   date -u -d "$ts" +%s 2>/dev/null || date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$ts" +%s 2>/dev/null || printf ''
 }
@@ -674,15 +671,12 @@ wit_linear_handle() {
     return 0
   }
   # createdAt is ISO-8601 with optional fractional seconds (2026-08-20T05:40:57.123Z).
-  case "$1" in
-  *.*)
+  frac="000"
+  if [[ "$1" == *.* ]]; then
     frac="${1#*.}"
-    frac="${frac%Z}"
-    frac="$(printf '%s000' "$frac" | cut -c1-3)"
-    ;;
-  *) frac="000" ;;
-  esac
-  printf '%s%s' "$secs" "$frac"
+    frac="${frac%Z}000"
+  fi
+  printf '%s%s' "$secs" "${frac:0:3}"
 }
 
 # wit_linear_resolve_viewer — set WIT_LINEAR_VIEWER (the display name, matching what the

@@ -101,8 +101,7 @@ while :; do
       printf 'list-items.sh: could not normalize a linear issue\n' >&2
       exit "$EX_INTERNAL"
     }
-    KEEP="$(jq -r --arg s "$STATE" 'if $s == "all" or .state == $s then "yes" else "no" end' <<<"$ONE")"
-    [[ "$KEEP" == "yes" ]] || continue
+    [[ "$STATE" == all || "$(jq -r '.state' <<<"$ONE")" == "$STATE" ]] || continue
     # Accumulator on stdin, one item in argv. The reverse puts an unboundedly growing array
     # on jq's command line; past ARG_MAX the exec fails and the unchecked assignment would
     # leave ITEMS empty — a large team silently listing as zero issues while exiting 0.
