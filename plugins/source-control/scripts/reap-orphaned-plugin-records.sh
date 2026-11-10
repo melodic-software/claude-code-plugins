@@ -74,19 +74,22 @@ if [[ ${#paths[@]} -eq 0 ]]; then
   exit 2
 fi
 
+windows_shell=false
+case "$(uname -s 2>/dev/null)" in
+MINGW* | MSYS* | CYGWIN*) windows_shell=true ;;
+*) ;;
+esac
+
 # strip_trailing_separators <path> — every trailing separator the platform
 # recognizes. Off Windows a trailing backslash is a legal filename byte and must
 # survive, or the chain would act on a different sibling path.
 strip_trailing_separators() {
   local p="$1"
-  case "$(uname -s 2>/dev/null)" in
-  MINGW* | MSYS* | CYGWIN*)
+  if [[ "$windows_shell" == "true" ]]; then
     while [[ "$p" == */ || "$p" == *\\ ]] && [[ ${#p} -gt 1 ]]; do p="${p%?}"; done
-    ;;
-  *)
+  else
     while [[ "$p" == */ && ${#p} -gt 1 ]]; do p="${p%?}"; done
-    ;;
-  esac
+  fi
   printf '%s' "$p"
 }
 
@@ -102,6 +105,25 @@ fail_path() {
 
 # indent — prefix the helper's output so it reads as part of its step.
 indent() { sed 's/^/    /'; }
+
+# one_line <text> — the text with its line breaks turned into spaces.
+one_line() { printf '%s' "$1" | tr '\r\n' '  '; }
+
+# run_helper <step> [<flag>...] — run the helper on $path, its output indented
+# under the step; on failure name the step and stop, leaving the directory.
+run_helper() {
+  local step="$1" out rc
+  shift
+  out="$(bash "$HELPER" --worktree-path "$path" "$@" 2>&1)"
+  rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    printf '%s\n' "$out" | indent
+    fail_path "$path" "$step" "helper exited $rc; the directory is left in place"
+    exit 1
+  fi
+  printf '  %s: ok\n' "$step"
+  printf '%s\n' "$out" | indent
+}
 
 for raw in "${paths[@]}"; do
   index=$((index + 1))
@@ -120,7 +142,7 @@ for raw in "${paths[@]}"; do
 
   # Plain mkdir, never `mkdir -p`: it fails on an existing directory.
   if ! mkerr="$(mkdir -- "$path" 2>&1)"; then
-    detail="$(printf '%s' "$mkerr" | tr '\r\n' '  ')"
+    detail="$(one_line "$mkerr")"
     if [[ ! -e "$path" && ! -L "$path" ]]; then
       parent="$(dirname -- "$path")"
       if [[ ! -d "$parent" ]]; then
@@ -141,25 +163,8 @@ for raw in "${paths[@]}"; do
     exit 1
   fi
 
-  out="$(bash "$HELPER" --worktree-path "$path" --dry-run 2>&1)"
-  rc=$?
-  if [[ "$rc" -ne 0 ]]; then
-    printf '%s\n' "$out" | indent
-    fail_path "$path" "reap --dry-run" "helper exited $rc; the directory is left in place"
-    exit 1
-  fi
-  printf '  reap --dry-run: ok\n'
-  printf '%s\n' "$out" | indent
-
-  out="$(bash "$HELPER" --worktree-path "$path" 2>&1)"
-  rc=$?
-  if [[ "$rc" -ne 0 ]]; then
-    printf '%s\n' "$out" | indent
-    fail_path "$path" "reap" "helper exited $rc; the directory is left in place"
-    exit 1
-  fi
-  printf '  reap: ok\n'
-  printf '%s\n' "$out" | indent
+  run_helper "reap --dry-run" --dry-run
+  run_helper "reap"
 
   if ! rm -rf -- "$path/.claude"; then
     fail_path "$path" "rm .claude" "could not remove $path/.claude; the directory is left in place"
@@ -171,7 +176,7 @@ for raw in "${paths[@]}"; do
     exit 1
   fi
   if ! rmerr="$(rmdir -- "$path" 2>&1)"; then
-    fail_path "$path" "rmdir" "$(printf '%s' "$rmerr" | tr '\r\n' '  ')"
+    fail_path "$path" "rmdir" "$(one_line "$rmerr")"
     exit 1
   fi
   printf '  rmdir: removed\n'
