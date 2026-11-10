@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Q1: What does an order cover once a subscription renews?\nContext:\nS1: Marta subscribes on 3 March for 9.50 a month. Tests: is each renewal its own order?\n(a) Each renewal is an order. (b) The subscription is one order.\nRecommend (a): forces \"order\" as one shipment and its charge.\nS2: Tom buys one bag for 11.00 on 5 March. Tests: does a one-off purchase use the same term?\n(a) Yes, an order. (b) A separate term.\nRecommend (a): forces one term for both.",
+      "why": "S1 and S2 each open with an id and a colon"
+    },
+    {
+      "answer": "Q1: Which purchase does a refund apply to?\nS1) Ana's 1 April renewal arrives damaged.\nS2) Ben's one-off bag from 2 April is returned.",
+      "why": "ids followed by a parenthesis"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Q1: What is an order? An order is one checkout. A subscription creates an order each month.",
+      "why": "no numbered scenarios"
+    },
+    {
+      "answer": "Q1: What does an order cover?\nScenario: Marta subscribes on 3 March for 9.50 a month.",
+      "why": "one unnumbered scenario"
+    }
+  ]
+}

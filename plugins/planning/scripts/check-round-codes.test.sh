@@ -147,6 +147,38 @@ round paren-heading.md '**Q15)** Should a failed retry page the on-call?' 'Q16) 
 run "a question opened with Q<N>) names its own id" 1 paren-heading.md '^bare=2:Q15$'
 run "only the later bare use of a Q<N>) id fails" 1 paren-heading.md 'bare=1 status=fail'
 
+# A scenario walk numbers its scenarios S1, S2 inside one question. Once an assumption sweep has
+# logged `- S<N> |` rows, those ids are ledger codes, so each scenario must open with `S<N>:`.
+cat >"$TMP/sweep-ledger.md" <<'MD'
+## Assumption sweep log
+
+- sweep 1 | register through Q14
+- S1 | sweep 1 | undecided | decision | Q14 recommendation, retry window | Q15
+- S2 | sweep 1 | hidden-default | decision | Q14 recommendation, alert channel | Q16
+MD
+round walk.md \
+  'Q17: What is a booking once it moves?' \
+  'Context:' \
+  'S1: Priya holds Tuesday 10:00 and pays 40.00; on Monday she moves it to Thursday.' \
+  '(a) Same booking. (b) A new booking. Recommend (a): forces "reschedule".' \
+  '**S2:** Omar cancels on Wednesday. Recommend (b), S1 still stands: forces "cancel".'
+if out="$(bash "$SUT" --ledger "$TMP/sweep-ledger.md" "$TMP/walk.md" 2>&1)" &&
+  grep -q 'codes=3 bare=0 status=ok' <<<"$out"; then
+  pass "a scenario walk whose scenarios open with S<N>: passes"
+else
+  fail "a scenario walk whose scenarios open with S<N>: passes ($out)"
+fi
+round walk-bare.md \
+  'Q17: What is a booking once it moves?' \
+  'Context: S1 and S2 decide it.'
+out="$(bash "$SUT" --ledger "$TMP/sweep-ledger.md" "$TMP/walk-bare.md" 2>&1)"
+got=$?
+if [[ "$got" -eq 1 ]] && grep -q '^bare=2:S1$' <<<"$out"; then
+  pass "a scenario id shown with nothing beside it is bare"
+else
+  fail "a scenario id shown with nothing beside it is bare ($out)"
+fi
+
 if [[ "$fails" -gt 0 ]]; then
   printf '%d failure(s)\n' "$fails" >&2
   exit 1

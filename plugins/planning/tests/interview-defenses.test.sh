@@ -520,11 +520,12 @@ done
 # Owner decisions Q70, Q72, Q74, Q75: the question template folds the Inference line into the recommendation reason and shows Checked against and Flips if only when they carry something; "grilling" wording becomes interview wording; a domain_docs setting (auto, ask, off) gates the glossary and ADR writes; a scenario comparison is offered when candidates compete. None of these resolves a row or touches the no-silent-resolve rule, the constraint-ledger rows or their re-check, which are byte-identical
 # Only the ADR handoff changed: the Domain-aware ADR bullet now points at round step 8, loop.md adds item 8 Decision record (sweep becomes 9), and eval 18 is renamed to the ADR-candidate fallback. No line about silent resolution, gaps, constraint rows or process changes was touched, and cases 15 and 16 are unchanged.
 # Re-audit: the wayfind pointer says map of decision items instead of decision map (wayfind's own vocabulary rule); the no-silent-resolve rule is untouched.
+# Stance gains only a scenario-walk bullet among the domain-aware behaviors, which offers scenarios and never resolves a question on its own; Step 3 gains a closing summary placed before the recap, and the confirmation gate, register gate and procedure check are untouched, so the restatement still waits for an explicit confirm
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "9c3088b036bb705964f43e66afd4d8d411726487a0253f4c050893bf6f087ee2"
+  "a00dda2efde22f6c23df82cb71aaf4b074ddb24acab2d8c816d410daaf9f8906"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -713,11 +714,13 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
 # #12660: the page-only clauses (the --surface flag on the Brief cross-check and its Gates twin, where the confirmation gate is shown, the facts-field citation, the full recap, the procedure-check exception's tick rows, and the terminal-lane wording) move to context/lane-page.md and SKILL.md names no surface value; the exception now applies only on a lane whose spoke says its restatement box offers commitment ticks, any other defect still halts, the register gate still holds those rows, and the lock row, STOP-on-gap, no-silent-resolve and fudge-prohibition lines are byte-identical
 # #13185: the interview's record is now named the Brief (the Step 4 heading, the register gate's wording, an inherited constraint the Brief relies on, a blocker that blocks the Brief, case 13 reports the Brief unconfirmed, audit-answers names the Brief, ledger or summary); each is a rename, resolves no row, and every gate, halt, STOP-on-gap and blocker line keeps its rule
 # #13185 review: the register gate now names the Brief or summary, so a general session's summary stays gated; Step 4 names PLAN.md as the Brief and case 13's expectation reports the Brief unconfirmed; each is a rename and every gate, halt and blocker rule is unchanged
+# Stance gains only a scenario-walk bullet among the domain-aware behaviors, which offers scenarios and never resolves a question on its own; Step 3 gains a closing summary placed before the recap, and the confirmation gate, register gate and procedure check are untouched, so the restatement still waits for an explicit confirm
+# Step 3 gains a closing summary placed before the recap, whose ADR verdicts come from the round's Decision record step and never from the interview applying the test; the confirmation gate, register gate and procedure check are untouched, so the restatement still waits for an explicit confirm
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the Brief" \
-  "4d5330fb98ba5f5f5b8d5b37e1f79e40063fc02a5cd9b9523990cd2dc27a03b5"
+  "e0a8172fa2e889baaa3a91276882b446674bb28284cb3e7893f351ac59896f36"
 # The not-adversarial bullet names the product action as its one exception, pointing at context/product.md; the fudge-prohibition bullet is byte-identical
 # #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
 # #12476: the no-tests bullet names the read-only Run it to settle it step as its one exception; the fudge prohibition line is byte-identical

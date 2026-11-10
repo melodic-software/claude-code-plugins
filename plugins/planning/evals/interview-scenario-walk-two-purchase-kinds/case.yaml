@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: interview-scenario-walk-two-purchase-kinds
+description: "One product sold two ways (a one-off bag and a monthly subscription of the same bag) leaves 'order' and 'refund' unsettled, and the user calls it confusing and asks for scenarios. Why hard: the easy reply defines the terms in prose or asks 'what is an order?', where the walk puts numbered, concrete scenarios inside one question, each with its own recommendation and the term or rule it forces."
+tags: [interview, scenario-walk, domain-language, scaffold]
+expected_outcome: "The round holds a numbered question whose Context carries S1, S2, ... scenarios, each concrete (a named person, an amount, a day or date), stating what it tests and ending with its own recommendation and the term or rule that answer forces, and the user is told to answer per scenario (for example 'S2: a')."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/planning:interview me We sell the same coffee bag two ways: a one-off purchase and a monthly subscription. I find it confusing what an 'order' is once a subscription renews, and what a refund applies to. Walk me through some scenarios to settle it. I'm here and will answer."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 900
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?interview"'
+    arm: with-only
+  - name: numbered-scenarios
+    type: regex
+    pattern: '\bS1\s*[:)][\s\S]*\bS2\s*[:)]'
+    arm: both
+  - name: scenario-walk-shape
+    type: llm
+    arm: both
+    criteria: "PASS only if all hold: (1) the scenarios S1, S2 and so on sit inside one numbered question (Q1, Q2, ...), in its context, not as a free-standing list; (2) every scenario is concrete, naming a person and giving an amount and a day or date; (3) every scenario says what outcome it tests; (4) every scenario ends with its own recommendation and the term or rule that answer forces; (5) the user is told they can answer per scenario, for example 'S2: a'. FAIL if any of the five is missing, or if the reply defines the terms in prose without scenarios."
