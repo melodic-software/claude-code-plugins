@@ -45,6 +45,14 @@ document written to this layer is not thereby STE-conformant.
 - **Recheck trigger**: a new Issue of the specification is published, or STEMG revises its paper on
   AI.
 
+The instruction-length rule is a target, not a hard cap, because a model that applies a fixed word
+limit literally splits sentences that read better whole.
+
+- **Pointer**: [Prompting Claude Fable 5.2: review instructions written for earlier models](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#review-instructions-written-for-earlier-models).
+- **As of**: 2026-11-09
+- **Recheck trigger**: that section changes its advice on hard style limits, or a new model's
+  prompting guide addresses sentence-length rules.
+
 Claiming STE conformance for a document needs the specification; sentences that load one idea at a
 time need only the principles.
 
