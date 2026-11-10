@@ -47,7 +47,7 @@ cm_registry_paths() {
 }
 
 cm_collapse_replicas() {
-  local config="$1" input="$2" output="$3" paths args=() registry collapsed
+  local config="$1" input="$2" output="$3" paths args=() registry collapsed rc=0
   paths="$(cm_registry_paths "$config")" || return 2
   if [[ -z "$paths" ]]; then
     cp "$input" "$output"
@@ -58,13 +58,8 @@ cm_collapse_replicas() {
     [[ -n "$registry" ]] && args+=(--registry "$registry")
   done <<<"$paths"
   collapsed="$(mktemp)"
-  if ! "${PY[@]}" "$CM_REPLICA_LIB_DIR/replica-collapse.py" "${args[@]}" <"$input" >"$collapsed"; then
-    rm -f "$collapsed"
-    return 2
-  fi
-  if ! "${PY[@]}" "$CM_REPLICA_LIB_DIR/report.py" resummarize <"$collapsed" >"$output"; then
-    rm -f "$collapsed"
-    return 2
-  fi
+  "${PY[@]}" "$CM_REPLICA_LIB_DIR/replica-collapse.py" "${args[@]}" <"$input" >"$collapsed" &&
+    "${PY[@]}" "$CM_REPLICA_LIB_DIR/report.py" resummarize <"$collapsed" >"$output" || rc=2
   rm -f "$collapsed"
+  return "$rc"
 }

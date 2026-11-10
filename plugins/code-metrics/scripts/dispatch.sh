@@ -570,10 +570,7 @@ fi
 # is otherwise the sum of their run times. The ladder walk and the probes stay
 # sequential: they are cheap and decide which process to launch. JOBS caps the
 # concurrency (CODE_METRICS_JOBS, else the CPU count).
-JOBS="${CODE_METRICS_JOBS:-}"
-if [[ -z "$JOBS" ]]; then
-  JOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
-fi
+JOBS="${CODE_METRICS_JOBS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)}"
 [[ "$JOBS" =~ ^[0-9]+$ && "$JOBS" -ge 1 ]] || JOBS=4
 RUNNING=0
 PIDS=()
@@ -635,24 +632,18 @@ for lane in "${LANES[@]}"; do
     first_hint=""
     while IFS=$'\t' read -r tool note; do
       [[ -n "$tool" ]] || continue
+      status=""
       case "$tool" in
-      none)
-        run_row "$slot" "$lane" "$measure" '' unavailable "${note:-no collector}"
-        resolved=1
-        break
-        ;;
-      n/a)
-        run_row "$slot" "$lane" "$measure" '' not-applicable "${note:-not applicable}"
-        resolved=1
-        break
-        ;;
-      deferred)
-        run_row "$slot" "$lane" "$measure" '' deferred "${note:-deferred}"
-        resolved=1
-        break
-        ;;
+      none) status=unavailable fallback="no collector" ;;
+      n/a) status=not-applicable fallback="not applicable" ;;
+      deferred) status=deferred fallback=deferred ;;
       *) ;;
       esac
+      if [[ -n "$status" ]]; then
+        run_row "$slot" "$lane" "$measure" '' "$status" "${note:-$fallback}"
+        resolved=1
+        break
+      fi
       adapter="$COLLECTORS/$tool.py"
       if [[ ! -f "$adapter" ]]; then
         reasons+="${reasons:+; }$tool: adapter not shipped"
@@ -742,8 +733,11 @@ THRESHOLDS="$WORK/thresholds.json"
 # difficulty, which is the threshold entry's name.
 threshold_measures=""
 for measure in "${MEASURE_LIST[@]}"; do
-  [[ "$measure" == "halstead" ]] && measure="halstead_difficulty"
-  [[ "$measure" == "function_lines" ]] && measure="function_lines_pct"
+  case "$measure" in
+  halstead) measure="halstead_difficulty" ;;
+  function_lines) measure="function_lines_pct" ;;
+  *) ;;
+  esac
   threshold_measures+="${threshold_measures:+,}$measure"
 done
 "${PY[@]}" "$REPORT" thresholds --config "$CONFIG" --measures "$threshold_measures" >"$THRESHOLDS" || exit 2
