@@ -172,10 +172,10 @@ function settersOf(events) {
   return setters;
 }
 
-// Open issues per issuesByStatus page. On pages of 50 and 100 GitHub answered
-// stale nested field events (one issue's page of 100 held 5 of its 21 Work
-// status events, none of the newest; its page of 30 held all 21); on pages of
-// 30 every issue's value matched its newest event.
+// Open issues per issuesByStatus page. On pages of 100 GitHub answered stale
+// nested field events: for 162 of 210 open issues the newest listed Work
+// status event disagreed with the value or none was listed. On pages of 25
+// every issue's value matched its newest event, at the same GraphQL points.
 export const ISSUE_PAGE_SIZE = 25;
 // Pages issuesByStatus reads before it throws: 2,000 open issues.
 export const MAX_ISSUE_PAGES = 80;

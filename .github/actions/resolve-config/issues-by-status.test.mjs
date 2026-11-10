@@ -56,7 +56,8 @@ test("issuesByStatus reads every page, passing the cursor and since on", async (
   assert.match(calls[0].query, /issues\(states: OPEN, first: \d+, after: \$cursor, filterBy: \{ since: \$since \}\)/);
 });
 
-// Pages of 50 and 100 answered stale nested field events; pages of 30 did not.
+// Pages of 50 and 100 answered stale nested field events; pages of 25 and 30
+// did not.
 const STALE_FREE_PAGE = 30;
 // The open issues a listing must reach: 210 were open when the page size was
 // measured, so this leaves room to more than double.
