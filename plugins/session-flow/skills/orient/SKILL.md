@@ -218,10 +218,9 @@ instead of asking.
 
 Both answer "where were we", so a request to catch up can land on either.
 
-- **`/recap` (built-in command)**: generates a one-line summary of the current conversation on
-  demand, alongside the automatic recap shown when you return to an idle terminal. It writes nothing
-  to disk and reads nothing outside the conversation. It is reserved for the person to run; the
-  model does not invoke it.
+- **`/recap` (built-in command)**: a short summary of the current conversation; this skill never
+  runs it. What it produces, where it reads, and who may invoke it: the records in
+  [reference/native-recap.md](reference/native-recap.md).
 - **This skill (marketplace plugin).** A four-part briefing that adds what the conversation
   does not hold: handoff save-points, workflow checklists, running-retro ledgers, open PRs and
   work items, git state, and off-thread work at a glance.
@@ -254,8 +253,8 @@ when the person can run it, never that it is present. The four-part records live
   `/session-flow:keep-going`.
 - **Does not prescribe the next stage**; that is `/session-flow:workflow`.
 - **Does not score or codify**; that is `/session-flow:retro`.
-- **Does not invoke the built-in `/recap`**. Built-ins are not
-  Skill-invocable; it synthesizes the conversation summary inline instead.
+- **Does not invoke the built-in `/recap`**; it synthesizes the conversation
+  summary inline instead.
 
 ## Gotchas
 

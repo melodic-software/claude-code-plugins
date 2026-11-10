@@ -62,9 +62,10 @@ told:
    multi-agent post lists. Pointer: [Give the reason, not only the request](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#give-the-reason-not-only-the-request);
    correlate with <https://www.anthropic.com/engineering/multi-agent-research-system> for the
    brief elements, which no docs page covers as of 2026-10-01. Recheck trigger: a docs page
-   starts covering brief contents. Absent a consumer-level subagent-model override,
-   an unspecified model silently inherits the parent session's, often its most expensive, model
-   (pointer: <https://code.claude.com/docs/en/sub-agents#choose-a-model>, as of 2026-10-18; recheck
+   starts covering brief contents. Name the model tier deliberately rather than leaving it
+   unspecified: what an omitted `model` resolves to, with or without a consumer-level
+   subagent-model override, is upstream behavior
+   (pointer: <https://code.claude.com/docs/en/sub-agents#choose-a-model>, as of 2026-11-10; recheck
    when that section changes the resolution order or what an omitted `model` resolves to).
    Holding only an objective, a worker resolves each ambiguity toward the sentence you wrote rather
    than the outcome you wanted, and returns something well-formed and wrong.
@@ -109,7 +110,7 @@ told:
    chosen per work item by the execution-target contract
    (`docs/contracts/execution-target/README.md` in the marketplace repository).
 5. NESTED SUBAGENTS, a worker may spawn its own workers when a delegated task itself subdivides
-   AND the depth is non-load-bearing. This is a shipped feature, not experimental, but reliability
+   AND the depth is non-load-bearing. Reliability
    degrades with depth and platforms cap it (for the cap, see
    <https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents>, as of 2026-10-31; recheck when
    that section changes the default or the setting), so never author a tree that needs a specific or deep
@@ -285,8 +286,8 @@ benefits from naming its sources. Provenance is the field that makes a wrong-tar
 detectable from above.
 
 **Never author a tree that needs a specific depth.** The platform's nesting default is
-configurable and changes. Agent-tool subagents carry a depth cap and a concurrency cap
-(`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`); workflow agents
+configurable and changes. Agent-tool subagents carry a depth cap and a concurrency cap (their
+settings: the pointers below); workflow agents
 and agent-team teammates carry their own, and workflow concurrency has its own override, so "read
 the current values" includes the workflows page whenever the run will use the Workflow tool. Read the current values rather than assuming
 them, and design the tree so it degrades to a shallower one instead of failing. Never design a

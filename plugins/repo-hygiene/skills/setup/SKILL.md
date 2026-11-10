@@ -65,21 +65,24 @@ Install nothing, and run no mutating tier.
    `node`, and `${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs` (Read it to confirm) finds bash (on Windows `CLAUDE_CODE_GIT_BASH_PATH`, then
    `Git\bin\bash.exe`, then `PATH`, never `System32\bash.exe`; <!-- portability-ok: Windows path, not a shell regex -->
    elsewhere `PATH`, then `/bin/bash` and `/usr/bin/bash`).
-   Claim: exec form spawns `command` with `args` and no shell. `shell` is ignored when `args` is set.
-   Basis: https://code.claude.com/docs/en/hooks "Exec form and shell form".
-   As of: 2026-09-28.
-   Recheck: that page stops ignoring `shell` when `args` is set.
+   - **Pointer**: for how an exec-form hook launches its command, fetch
+     <https://code.claude.com/docs/en/hooks#exec-form-and-shell-form> live.
+   - **As of**: 2026-11-10
+   - **Recheck trigger**: that section changes whether exec form uses a shell, or how `shell` and
+     `args` interact.
+
    Report the shell as INFO on Unix; FAIL on Windows when no Git Bash resolves, since the
    scripts and the guard alike cannot launch.
 4. **`node` on `PATH`**. `command -v node`, and report the resolved path and version. Probe it
    through Bash, so it works without the launcher. FAIL when absent: every hook row runs
-   `node hooks/exec-bash.mjs`, and Claude Code's native binary neither ships nor uses Node, so
-   without it the guard does not launch and is not enforced.
-   Claim: Claude Code's native binary neither ships nor uses Node.
-   Basis: https://code.claude.com/docs/en/setup.
-   As of: 2026-09-29.
-   Recheck: that page says the native binary bundles Node, or stops saying the native install needs
-   no Node.
+   `node hooks/exec-bash.mjs`, and Claude Code itself does not supply a Node for it, so without it
+   the guard does not launch and is not enforced.
+
+   - **Pointer**: for whether Claude Code's install uses Node at runtime, fetch
+     <https://code.claude.com/docs/en/setup#install-with-npm> live.
+   - **As of**: 2026-11-10
+   - **Recheck trigger**: that section says the native binary bundles or uses Node.
+
 5. **Destructive-guard registration and toggle**. INFO, and be precise about *where* the guard
    lives, because the answer is the reason it is session-scoped:
    - It registers from the frontmatter `hooks:` block in `${CLAUDE_PLUGIN_ROOT}/skills/clean/SKILL.md`,

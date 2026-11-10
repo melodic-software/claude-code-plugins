@@ -127,11 +127,11 @@ tasks.
 The mechanism the priming addendum names for reusing and steering workers, in Claude Code
 specifically.
 
-- Resume a worker with `SendMessage` addressed by its agent ID, never with a new `Agent` call,
-  which starts a second, independent worker. Continuation does not need agent teams enabled.
-- A completed worker, or one Claude stopped with `TaskStop`, is resumable by message. A worker the
-  user stopped is not: read a refused send as that case. So never retire a worker with `TaskStop`
-  when the goal is to keep it from resuming.
+- Resume a worker with `SendMessage` addressed by its agent ID, never with a new `Agent` call.
+  What each call does, and whether continuation needs agent teams, is in the first pointer below.
+- Which workers a message can resume, by how they ended (completed, stopped with `TaskStop`, or
+  stopped by the user), is in the same pointer; read a refused send against it. Never retire a
+  worker with `TaskStop` when the goal is to keep it from resuming.
 - Prefer the agent ID over the name, because a newer agent can take a name.
 - Empirical probe (Tier 0): in this repository's own cloud session on 2026-08-24, two completed
   background subagents (a researcher and a verifier) were each resumed by agent ID via
@@ -139,7 +139,7 @@ specifically.
   dispatch.
 - A permission deny rule naming `SendMessage` also forfeits worker continuation, since resume runs
   through that tool. A session that wants no cross-session messaging but keeps continuation uses
-  the narrower inbound control (`crossSessionInbound`) instead of the deny rule.
+  the narrower inbound control the second pointer below names, instead of the deny rule.
 
 - **Pointer**: for resuming subagents, see
   <https://code.claude.com/docs/en/sub-agents#resume-subagents>; for turning off cross-session
@@ -151,9 +151,9 @@ specifically.
 
 ## Imperative 5: NESTED SUBAGENTS
 
-Nesting is a shipped feature, not experimental, and the brief never authors a tree that needs a
-specific or deep nesting level. The reason is volatility: the nesting default changed three times
-between v2.1.172 and v2.1.219, and the surfaces agreeing again does not weaken that argument.
+The brief never authors a tree that needs a specific or deep nesting level. The reason is
+volatility: the nesting default has changed across releases (the changelog entries in the pointer
+below), and the surfaces agreeing again does not weaken that argument.
 Reliability also degrades with depth.
 
 - Listing `Agent` in a subagent's tools is necessary but not sufficient for a nested spawn, and the

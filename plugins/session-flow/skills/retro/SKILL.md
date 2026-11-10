@@ -156,8 +156,9 @@ If /export is available in your session (gate basis: **Verification record: `/ex
 
 Both look back at how sessions went, so "how did I do" can land on either.
 
-- **`/insights` (built-in command)**: a cross-session usage report on this machine. It is reserved
-  for the person to run; the model does not invoke it.
+- **`/insights` (built-in command)**: a cross-session usage report; this skill never runs it. What
+  it reports and who may invoke it: the records in
+  [reference/native-insights.md](reference/native-insights.md).
 - **This skill (marketplace plugin).** A structured retrospective of one session or handoff chain:
   transcript metrics, five quality dimensions, feedback-memory regressions, and codification into
   rules or memory behind approval.

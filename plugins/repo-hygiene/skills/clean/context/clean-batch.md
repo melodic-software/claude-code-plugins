@@ -10,9 +10,14 @@ sibling of `tree-batch` ([git-tree-reset-batch.md](git-tree-reset-batch.md)).
 
 Batch mode lives in the skill as a sanctioned script. Without a fleet path, a
 session cleaning a large `ghq` fleet from a non-repo cwd has to hand-roll batch
-dry-run/apply scripts around the per-repo tiers, and a hand-rolled bulk `rm`
-pipeline is blocked by the auto-mode classifier even after explicit confirmation,
-while the sanctioned skill-script apply passes.
+dry-run/apply scripts around the per-repo tiers. On the audited machine the auto-mode
+classifier denied hand-rolled bulk removals even after explicit confirmation, while the
+sanctioned skill-script apply passed.
+
+- **Pointer**: for what the classifier blocks, fetch
+  <https://code.claude.com/docs/en/permission-modes#what-the-classifier-blocks-by-default> live.
+- **As of**: 2026-11-10
+- **Recheck trigger**: that section stops covering bulk removals, or the section is renamed.
 
 ## Scope
 

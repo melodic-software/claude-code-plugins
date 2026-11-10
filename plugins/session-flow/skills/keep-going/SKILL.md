@@ -329,8 +329,8 @@ For any "is it stuck / check the monitor / poke it":
   treat exit `2` as lifted.
 - The limit **message text** (e.g. `resets 3:45pm`) is a capture bound to the
   account that emitted it. Two live readings of the *current* account count:
-  the `/usage` view, which the operator relays because the model cannot open
-  it, and the session's `rate_limits` windows, which this skill reads through
+  the `/usage` view, which the operator relays (what it shows and to whom:
+  the record below), and the session's `rate_limits` windows, which this skill reads through
   rate-limit-guard's `mcp__rate-limit-guard__status` pull tool when the guard
   is installed and mods are on. For which fields the statusline `rate_limits`
   object carries and who receives it, see
@@ -340,7 +340,8 @@ For any "is it stuck / check the monitor / poke it":
   before handing back. When no
   live reading is obtainable (mods off, the guard not installed, the
   tool's registration refused by policy, or a tool answer with no windows,
-  `verdict: "unknown"`, as under API-key or enterprise auth), ask the
+  `verdict: "unknown"`; which auth types receive the windows: the record
+  below), ask the
   operator which account is active and whether it has
   headroom, as in the exit `2` path. Never invent a window and never conclude
   still-blocked.
