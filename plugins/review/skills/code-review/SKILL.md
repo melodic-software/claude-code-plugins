@@ -21,12 +21,16 @@ skill owns **what to look for**; the wrapper owns **how to post**.
 Two native Claude Code review surfaces share this lane's name, and the three get conflated on any
 open pull request:
 
-- **`code-review` (bundled skill, alias `/review`)**: a developer runs it in their session against
-  the current diff, a PR number, a branch, or a path; bare, it reports into the session. `--fix`
-  edits the working tree, `--comment` posts inline comments on the PR as that developer, and `ultra`
-  launches a cloud review. Claude may start it on its own where the session allows.
-- **Managed Code Review (GitHub App service).** An org-level research preview on Team and
-  Enterprise plans that reviews pull requests on its own triggers and posts inline findings.
+- **`code-review` (bundled skill)**: a review a developer runs in their own session; this lane
+  never invokes it or its mutating arguments. Pointer: when judging which arguments edit or post,
+  or whether Claude may start it unasked, fetch [what the review reads and edits](https://code.claude.com/docs/en/code-review-local#what-the-review-reads-and-edits)
+  and [let Claude start the review](https://code.claude.com/docs/en/code-review-local#let-claude-start-the-review)
+  live. As of: 2026-11-10. Recheck trigger: it starts posting through a path this lane's wrapper owns.
+- **Managed Code Review (GitHub App service).** An org-level service that reviews pull requests on
+  its own triggers. Pointer: before telling anyone it is available or how it is enabled, fetch
+  [availability](https://code.claude.com/docs/en/code-review#availability) and
+  [set up](https://code.claude.com/docs/en/code-review#set-up-and-use-code-review) live.
+  As of: 2026-11-10. Recheck trigger: it starts running in this lane's CI workflow.
 - **This skill (marketplace plugin).** The review logic the `claude-review` reusable workflow runs
   in CI. The wrapper supplies the target and owns posting; this skill owns what to look for.
 

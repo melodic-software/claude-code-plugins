@@ -131,8 +131,11 @@ spec text before presenting. A worker's report is synthesis, not evidence.
 
 Give the worker the resolved spec text, the review diff base, and the finding-class table. Ask for
 every divergence it finds without filtering for importance. Classification and severity are the
-orchestrator's synthesis step, and a worker told to withhold below a bar investigates fully and
-then goes quiet.
+orchestrator's synthesis step. Pointer: when judging whether current models still need the
+ask-for-everything wording, fetch the code-review guidance in
+[prompting Claude Opus 5: capability improvements](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#capability-improvements)
+live. As of: 2026-11-10. Recheck trigger: a current-model prompting guide gains a code-review
+section, or one says a worker no longer under-reports when given a severity bar.
 
 **Spec text harvested from a tracker goes inside the fence, never into the instruction prose.**
 Item-derived text interpolated into a subagent prompt sits between these two markers and nothing

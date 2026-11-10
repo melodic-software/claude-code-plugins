@@ -11,11 +11,11 @@ metadata:
 # CI security review (`/review:security-review`)
 
 Org-owned security review logic for the `claude-security-review` reusable
-workflow. We treat built-in `/security-review` as unusable in CI: it cannot post, and the
-Actions checkout leaves it without the diff base it needs. Pointer: why it fails there is read at
-[errors: /security-review fails without origin/HEAD](https://code.claude.com/docs/en/errors#security-review-fails-without-origin-head).
-As of: 2026-10-11. Recheck trigger: that entry stops naming CI checkouts, the command gains a diff
-base a CI checkout provides, or a release note names `/security-review`. This org-authored skill is
+workflow. We treat built-in `/security-review` as unusable in CI. Pointer: when judging whether it
+can run under a CI checkout, fetch
+[errors: /security-review fails without origin/HEAD](https://code.claude.com/docs/en/errors#security-review-fails-without-origin-head)
+live. As of: 2026-11-10. Recheck trigger: that entry stops naming CI checkouts, the command gains
+a diff base a CI checkout provides, or the command gains a way to post to a PR. This org-authored skill is
 the CI path. The lane wrapper supplies `REPO` /
 `PR NUMBER` / `HEAD SHA` and installs the inline-comment MCP server via
 `claude_args`; this skill owns **what to hunt for**.
@@ -25,12 +25,11 @@ the CI path. The lane wrapper supplies `REPO` /
 One native Claude Code surface shares this lane's name, and the two get conflated on any open pull
 request:
 
-- **`security-review` (native command)**: the installed binary registers it plugin-backed, and the
-  commands table gives it no Skill label. A developer runs it in their session for a single security
+- **`security-review` (native command)**: a developer runs it in their session for a single security
   pass over the current branch, with no PR target this lane could hand it. Pointer: the first row
   of
   [reference/bundled-security-review.md](reference/bundled-security-review.md#the-native-security-review-command-verification-record)
-  carries that record. As of: 2026-10-11. Recheck trigger: that row moves or stops carrying its own
+  carries that record. As of: 2026-11-10. Recheck trigger: that row moves or stops carrying its own
   pointer and trigger. It cannot run under the Actions checkout (the opening paragraph carries that
   record).
 - **This skill (marketplace plugin).** The security logic the `claude-security-review` reusable
