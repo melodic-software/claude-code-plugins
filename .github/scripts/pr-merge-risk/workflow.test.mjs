@@ -97,7 +97,7 @@ test("each leg starts only after the one before named it as the next leg, and a 
   assert.match(job(LEGS.fallback), /&& needs\.rate-merge-risk-subscription\.result == 'success'\n {6}&& needs\.rate-merge-risk-subscription\.outputs\.next-leg == 'fallback'\n {4}runs-on:/);
   for (const id of [LEGS.subscription, LEGS.fallback]) assert.match(job(id), /\n {4}if: >-\n {6}!cancelled\(\)\n {6}&& github\.ref == 'refs\/heads\/main'\n/, id);
   for (const id of Object.values(LEGS)) {
-    assert.match(step(id, "Fail without a rating"), /if: always\(\) && steps\.credential\.outputs\.present == 'true' && steps\.rating\.outcome != 'success' && steps\.rate\.outputs\.handoff != 'true'\n/, id);
+    assert.match(step(id, "Fail without a rating"), /if: always\(\) && steps\.checker\.outcome == 'success' && steps\.credential\.outputs\.present == 'true' && steps\.rating\.outcome != 'success' && steps\.rate\.outputs\.handoff != 'true'\n/, id);
   }
   // The key leg reads its credit history in its own step, under
   // continue-on-error and a 2-minute limit, so a read that fails or hangs runs
@@ -108,6 +108,13 @@ test("each leg starts only after the one before named it as the next leg, and a 
   assert.match(credit, /\n {8}continue-on-error: true\n {8}timeout-minutes: 2\n/);
   assert.match(credit, /\n {10}leg: start\n {10}key-job: rate-merge-risk\n/);
   assert.match(credit, /\n {10}probe-minutes: "0"\n/);
+  // The key leg decides its credential right after the kill switch, before
+  // the resolver, and only a key that runs goes on to read the pull request.
+  const keyOrder = [...stepsOf(LEGS.key).keys()];
+  assert.deepEqual(keyOrder.slice(keyOrder.indexOf("Check the kill switch"), keyOrder.indexOf("Resolve the pull request") + 1), ["Check the kill switch", "Read the key's credit history", "Check the credential", "Report the skipped key leg", "Resolve the pull request"]);
+  assert.match(credit, /\n {8}if: steps\.kill\.outputs\.proceed == 'true'\n/);
+  assert.match(step(LEGS.key, "Check the credential"), /\n {8}if: steps\.kill\.outputs\.proceed == 'true'\n/);
+  assert.match(step(LEGS.key, "Resolve the pull request"), /\n {8}if: steps\.kill\.outputs\.proceed == 'true' && steps\.credential\.outputs\.present == 'true'\n/);
   const check = step(LEGS.key, "Check the credential");
   assert.match(check, /\n {10}selected: \$\{\{ steps\.credit\.outputs\.next-leg \}\}\n/);
   assert.doesNotMatch(check, /key-job/);
@@ -124,7 +131,8 @@ test("each leg starts only after the one before named it as the next leg, and a 
 });
 
 // Every leg is the key leg's steps but for its credential, the key's credit
-// gate and marker, the next-leg call, and the lane record's fallback reason.
+// gate and marker, the next-leg call, the lane record's fallback reason, and
+// the key resolver's wait on the credential decision.
 test("the subscription and fallback legs repeat the key leg's steps exactly, step order included", () => {
   const KEY_ONLY = ["Read the key's credit history", "Report the skipped key leg", "Write the key's credit-stop marker", "Scan the key's credit-stop marker for credentials", "Upload the key's credit-stop marker"];
   const shape = (id) =>
@@ -135,12 +143,60 @@ test("the subscription and fallback legs repeat the key leg's steps exactly, ste
           ? block.replace(/\n {10}(?:api-key|subscription-token|fallback-token|fallback-ready): [^\n]+/g, "")
           : name === "Report the rating's outcome"
             ? block.replace(/\n {10}fallback-reason: [^\n]+/, "")
-            : block,
+            : name === "Resolve the pull request" && id === LEGS.key
+              ? block.replace(" && steps.credential.outputs.present == 'true'\n", "\n")
+              : block,
       );
   const key = shape(LEGS.key);
   assert.ok(key.length >= 20, `the key leg has ${key.length} shared steps`);
   assert.deepEqual(shape(LEGS.subscription), key);
   assert.deepEqual(shape(LEGS.fallback), key);
+});
+
+// A step runs only when every step its if: requires ran: a conjunction (no
+// `||`) of terms, where `steps.X.outcome == 'success'`, `steps.X.outputs.Y ==
+// '<value>'` and `steps.X.outputs.Y != ''` each need X to have run.
+const requires = (id) => {
+  const ifs = new Map();
+  for (const block of stepsOf(id).values()) {
+    const sid = /^ {8}id: (\S+)$/m.exec(block)?.[1];
+    if (sid) ifs.set(sid, /^ {8}if: (.*)$/m.exec(block)?.[1] ?? "");
+  }
+  // The steps a condition requires, transitively.
+  return (start) => {
+    const seen = new Set();
+    const walk = (cond, at) => {
+      assert.doesNotMatch(cond, /\|\|/, `${id} ${at}'s if is a conjunction`);
+      for (const [, dep] of cond.matchAll(/steps\.([a-z-]+)\.(?:outcome == 'success'|outputs\.[a-z-]+ (?:== '[^']+'|!= ''))/g)) {
+        if (!seen.has(dep)) {
+          seen.add(dep);
+          walk(ifs.get(dep) ?? "", `step ${dep}`);
+        }
+      }
+    };
+    walk(start, "the step");
+    return seen;
+  };
+};
+
+test("in every leg, no model or upload step runs unless the resolver and the trigger check let the head through", () => {
+  const GUARDED = ["Stage the review plugin", "Apply the Claude managed settings", "Isolate the runner", "Write the prompt and schema", "Rate the pull request", "Write the rating", "Upload the rating", "Upload the sealed transcript"];
+  for (const id of Object.values(LEGS)) {
+    const needs = requires(id);
+    const names = [...stepsOf(id).keys()];
+    const guarded = id === LEGS.key ? [...GUARDED, "Upload the key's credit-stop marker"] : GUARDED;
+    for (const name of guarded) {
+      assert.ok(names.includes(name), `${id} has ${name}`);
+      const deps = needs(/^ {8}if: (.*)$/m.exec(step(id, name))?.[1] ?? "");
+      for (const gate of ["pr", "gate", "agree"]) assert.ok(deps.has(gate), `${id}: ${name} requires step ${gate}`);
+    }
+  }
+  // The trigger check runs only on the resolver's proceed, and the agreement
+  // step only on the trigger check's.
+  for (const id of Object.values(LEGS)) {
+    assert.match(step(id, "Check the trigger"), /\n {8}if: steps\.pr\.outputs\.proceed == 'true'\n/, id);
+    assert.match(step(id, "Assert the gate and the resolver agree"), /\n {8}if: steps\.gate\.outputs\.proceed == 'true'\n/, id);
+  }
 });
 
 test("the rating runs under dontAsk on the data directory and the review plugin's copy alone", () => {
