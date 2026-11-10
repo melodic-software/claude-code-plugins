@@ -6,18 +6,34 @@ The consuming project's existing shape wins. A new Markdown glossary may use thi
 fallback when the repository provides no entry convention:
 
 ```markdown
+# Billing glossary
+
+Terms the billing team uses. Avoid lists names we rejected; use the term above instead.
+
 **Invoice**
 
 A request for payment issued to a customer after delivery.
 
+States: Draft, then Sent, then Paid or Void.
+
 Avoid: bill, payment request
+
+Shown to users as: bill
 ```
 
+- **Header sentence:** a new glossary says once, under its title, what `Avoid:` means. The line is
+  plain on purpose; a hard ban belongs in a check (a spelling or lint rule generated from the
+  `Avoid:` lines), not in emphatic wording.
 - **Canonical term:** one preferred name for the concept within this bounded context.
 - **Definition:** 1–2 sentences stating what the term is. Define its conceptual boundary, not its
   implementation, behavior backlog, or storage representation.
+- **States:** one entry per entity, with its states listed under it and what moves it into each when
+  that is part of the meaning. A state gets its own entry only when people use it as a noun on its own
+  and it carries rules of its own. Omit the line when the entity has no named states.
 - **Rejected synonyms:** names considered and rejected for this concept. Follow the existing file's
   syntax; otherwise use the plain `Avoid:` line above. Omit the line when no synonym was rejected.
+- **Shown to users as:** optional, only when the wording on screens, emails and error messages
+  deliberately differs from the term. Checks for rejected words treat this wording as intended.
 - **Admission:** project-context terms only. Generic programming or methodology vocabulary stays out
   unless it has a distinct project-domain meaning.
 - **Purity:** the glossary contains vocabulary, not specifications, decisions, tasks, examples of
@@ -34,14 +50,16 @@ because it is already written.
 Resolve both format and location in this order:
 
 1. Explicit consumer configuration or repository rules.
-2. The nearest applicable existing glossary and context-map convention.
+2. An existing glossary and glossary index that cover the scope, found by `locate`'s repository
+   search (a `docs/glossary.md` counts as much as a root `GLOSSARY.md`).
 3. A single clear convention inferred from the repository's documentation layout and accepted domain
    artifacts; persist the inference by creating the first real entry in that shape.
 4. Ask when two or more plausible choices remain. When the repository has no convention at all,
    propose the settings' file names, never impose them: one `glossary_file` (default `GLOSSARY.md`)
-   per bounded context, beside that context's code or docs and opening with a short description of
-   the context, and one `glossary_map_file` (default `GLOSSARY-MAP.md`) at the repository root once
-   more than one context exists. Ask the user to confirm the proposal before writing.
+   per bounded context, at the root of that context's code and opening with a short description of
+   the context, and one glossary index, `glossary_map_file` (default `GLOSSARY-MAP.md`), at the
+   repository root once more than one context exists. Ask the user to confirm the proposal before
+   writing.
 5. If interaction is unavailable, defer creation and report the missing convention rather than baking
    in a universal filename or path. The report names the proposal; nothing is written.
 
@@ -64,11 +82,11 @@ project's architecture docs, not the glossary, unless the domain gives them a di
 Each established bounded context owns its own internally consistent language. A shared spelling may
 therefore have separate definitions in separate context glossaries.
 
-- Use an existing context map and per-context glossary placement when present.
-- Create a map only after multiple contexts are already established and actually own distinct
+- Use an existing glossary index and per-context glossary placement when present.
+- Create a glossary index only after multiple contexts are already established and actually own distinct
   languages. Infer its filename and shape from the consumer; ask when that is not unambiguous. With
   no convention, the question proposes `glossary_map_file` at the repository root.
-- A minimal new map records each known context, its glossary path, and only relationships already
+- A minimal new glossary index records each known context, its glossary path, and only relationships already
   established by accepted project artifacts or the user.
 - Route each entry to one context. If context is ambiguous, ask. Do not duplicate the entry as a hedge.
 - Do not infer new boundaries or relationships. Context discovery belongs to a separate modeling or

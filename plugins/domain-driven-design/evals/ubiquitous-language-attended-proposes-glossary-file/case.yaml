@@ -1,5 +1,5 @@
 schema_version: "1.1"
-name: 'curate-language-attended-proposes-glossary-file'
+name: 'ubiquitous-language-attended-proposes-glossary-file'
 graders:
   - name: 'expectation-1'
     type: 'llm'
