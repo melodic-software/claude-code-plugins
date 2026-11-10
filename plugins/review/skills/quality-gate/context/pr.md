@@ -12,8 +12,7 @@ routinely conflated; they are distinct:
   `claude-plugins-official` marketplace like any other plugin. Run without `--comment`, it reports
   its findings to the terminal and posts nothing to GitHub; only the `--comment` form posts to the
   PR (Mutation gate below). We rely on the command's instructions for that default, not on its
-  tool grants. A default run can return no findings even on a PR with real defects, and an earlier
-  CI review comment on the PR can be the cause.
+  tool grants. A default run can return no findings.
   - **Pointer**: for what the plugin targets, where its findings go, which tools it is granted
     and when it stops early, fetch
     [code-review plugin: Commands](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/code-review#commands)

@@ -29,7 +29,7 @@ request:
   pass over the current branch, with no PR target this lane could hand it. Pointer: the first row
   of
   [reference/bundled-security-review.md](reference/bundled-security-review.md#the-native-security-review-command-verification-record)
-  carries that record. As of: 2026-10-11. Recheck trigger: that row moves or stops carrying its own
+  carries that record. As of: 2026-11-10. Recheck trigger: that row moves or stops carrying its own
   pointer and trigger. It cannot run under the Actions checkout (the opening paragraph carries that
   record).
 - **This skill (marketplace plugin).** The security logic the `claude-security-review` reusable
