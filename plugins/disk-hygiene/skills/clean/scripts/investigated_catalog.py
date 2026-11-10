@@ -94,6 +94,10 @@ def _below(path: str, descendants: list[str]) -> list[str]:
     return [item.removeprefix(prefix) for item in descendants]
 
 
+def _identity_key(identity: dict[str, Any]) -> tuple[Any, Any, Any]:
+    return identity["device"], identity["inode"], identity["kind"]
+
+
 def _human_by_identity(
     records: dict[tuple[str, str], dict[str, Any]],
 ) -> dict[tuple[Any, Any, Any], list[dict[str, Any]]]:
@@ -106,8 +110,7 @@ def _human_by_identity(
     for record in records.values():
         identity = record["identity"]
         if record["source"] == "human" and identity["device"] and identity["inode"]:
-            key = (identity["device"], identity["inode"], identity["kind"])
-            index.setdefault(key, []).append(record)
+            index.setdefault(_identity_key(identity), []).append(record)
     return index
 
 
@@ -148,13 +151,23 @@ def _other_target_answer(
     """
     if local is not None and not local["question"]:
         return None
-    identity = identity_of(entry)
-    for record in index.get(
-        (identity["device"], identity["inode"], identity["kind"]), []
-    ):
+    for record in index.get(_identity_key(identity_of(entry)), []):
         if record["target"] != target and identity_holds(record, entry, entries):
             return record
     return None
+
+
+def _scan_target_answer(
+    snapshot: dict[str, Any],
+    index: dict[tuple[Any, Any, Any], list[dict[str, Any]]],
+    target: str,
+    entries: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """An operator answer from another scan target for this scan target itself."""
+    identity = snapshot.get("target_identity")
+    if not isinstance(identity, dict):
+        return None
+    return _other_target_answer(index, target, {**identity, "path": "."}, entries)
 
 
 def catalog_scope(snapshot: dict[str, Any], positional: bool) -> dict[str, list[str]]:
@@ -432,14 +445,7 @@ def sync_catalog(
         "version": CATALOG_VERSION,
         "records": [records[key] for key in sorted(records)],
     }
-    identity = snapshot.get("target_identity")
-    target_answer = (
-        _other_target_answer(
-            answers_elsewhere, target, {**identity, "path": "."}, entries
-        )
-        if isinstance(identity, dict)
-        else None
-    )
+    target_answer = _scan_target_answer(snapshot, answers_elsewhere, target, entries)
     uncataloged = _uncataloged(
         target,
         catalog_scope(snapshot, positional),
@@ -448,6 +454,10 @@ def sync_catalog(
         bool(target_answer and target_answer.get(OWNER_LEVEL_KEY)),
     )
     return catalog, _report(target, records, state, reused, unmatched, uncataloged)
+
+
+def _summary_line(path: str, record: dict[str, Any]) -> str:
+    return f"{path} | {record['disposition']} | {record['owner'] or 'unknown'}"
 
 
 def _report(
@@ -470,8 +480,7 @@ def _report(
     for path in sorted(state):
         record = records[(target, path)]
         if state[path] == "unchanged":
-            owner = record["owner"] or "unknown"
-            unchanged.append((path, f"{path} | {record['disposition']} | {owner}"))
+            unchanged.append((path, _summary_line(path, record)))
         else:
             new_or_changed.append(
                 {
@@ -487,14 +496,8 @@ def _report(
             questions.append({"path": path, "question": record["question"]})
     for path, answer in reused.items():
         if path not in state:
-            owner = answer["owner"] or "unknown"
-            unchanged.append(
-                (
-                    path,
-                    f"{path} | {answer['disposition']} | {owner}"
-                    f" | answered under {answer['target']}",
-                )
-            )
+            line = f"{_summary_line(path, answer)} | answered under {answer['target']}"
+            unchanged.append((path, line))
     return {
         "new_or_changed": new_or_changed,
         "unchanged": [line for _, line in sorted(unchanged)],
@@ -536,13 +539,9 @@ def annotate_entries(snapshot: dict[str, Any], catalog: dict[str, Any]) -> None:
         if record.get("question"):
             entry["prior_unresolved"] = True
     snapshot.pop("target_prior_disposition", None)
-    identity = snapshot.get("target_identity")
-    if isinstance(identity, dict):
-        answer = _other_target_answer(
-            answers_elsewhere, target, {**identity, "path": "."}, entries
-        )
-        if answer is not None:
-            snapshot["target_prior_disposition"] = answer["disposition"]
+    answer = _scan_target_answer(snapshot, answers_elsewhere, target, entries)
+    if answer is not None:
+        snapshot["target_prior_disposition"] = answer["disposition"]
 
 
 def render_markdown(catalog: dict[str, Any], report: dict[str, Any]) -> str:
