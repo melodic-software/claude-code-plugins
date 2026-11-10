@@ -746,12 +746,15 @@ async function readiness({ github, repo, number, humans, closes, bot = DEFAULT_B
 // successful scheduled run of this workflow (not the current one, and the one
 // before it when that run was paced, PACED_STEP), no further back than
 // LOOKBACK_HOURS (PACED_LOOKBACK_HOURS after a paced run), and only when that
-// run's SWEEP_STEP succeeded and
-// its log shows it read the closed-issue listing (LISTED). Anything else (an
-// unreadable listing or log, no steps, a skipped step, a held sweep) gives the
-// full window, so a failed read re-processes and never skips.
+// run's SWEEP_STEP succeeded and its log shows it read the closed-issue
+// listing (LISTED). A run that is not such a sweep (no steps, a skipped step, a
+// held sweep), or a read that fails, gives PACED_LOOKBACK_HOURS: a held run may
+// follow a paced one whose clean sweep is past LOOKBACK_HOURS, so the fallback
+// re-reads that far and never skips, at the cost of a longer closed listing on
+// those runs only.
 async function sweepSince({ actions, jobLog, repo, now, runId }) {
   let widest = now - LOOKBACK_HOURS * HOUR_MS;
+  const fullest = now - PACED_LOOKBACK_HOURS * HOUR_MS;
   if (!actions) {
     return { since: widest, why: "no Actions token to read the last sweep" };
   }
@@ -795,7 +798,7 @@ async function sweepSince({ actions, jobLog, repo, now, runId }) {
       (job?.steps ?? []).some((step) => step?.name === SWEEP_STEP && step.conclusion === "success"),
     );
     if (!swept) {
-      return { since: widest, why: `the last successful run, started ${at}, shows no completed \`${SWEEP_STEP}\` step${after}` };
+      return { since: fullest, why: `the last successful run, started ${at}, shows no completed \`${SWEEP_STEP}\` step${after}` };
     }
     if (!RUN_ID.test(String(swept.id))) {
       throw new Error("the last sweep's job has no usable id");
@@ -804,9 +807,9 @@ async function sweepSince({ actions, jobLog, repo, now, runId }) {
     const lines = String(log ?? "").split("\n");
     return lines.some((line) => LISTED.test(line)) && !lines.some((line) => HELD.test(line))
       ? { since: from, why: `the last sweep started ${at}${after}` }
-      : { since: widest, why: `the last sweep, started ${at}, held or shows no read of its listing${after}` };
+      : { since: fullest, why: `the last sweep, started ${at}, held or shows no read of its listing${after}` };
   } catch (error) {
-    return { since: widest, why: `the last sweep could not be read (${escapeCommand(error?.message ?? error)})${after}` };
+    return { since: fullest, why: `the last sweep could not be read (${escapeCommand(error?.message ?? error)})${after}` };
   }
 }
 
