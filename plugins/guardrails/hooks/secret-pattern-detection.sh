@@ -178,6 +178,15 @@ secret_scan() {
   done < <(printf '%s' "$scan_out")
 }
 
+# spd_send_tel <status> <file> <labels JSON array>: the envelope both lanes emit.
+spd_send_tel() {
+  local data
+  data=$(jq -n --arg file "$2" --argjson violations "$3" \
+    '{tool:"'"$TOOL"'",file:$file,violations:$violations}' 2>/dev/null) ||
+    data='{"tool":"","file":"","violations":[]}'
+  hook::emit_telemetry "secret-pattern-detection" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
+}
+
 # Scan every file a GitHub MCP write carries, and block the whole tool call if
 # any of them holds a secret. Exits 2 on a violation; returns for a clean call.
 #
@@ -251,21 +260,18 @@ mcp_lane() {
   } >&2
 
   if [[ -n "$start" ]] && hook::telemetry_enabled; then
-    local labels_json data
+    local labels_json
     labels_json=$(printf '%s\n' "${labels[@]}" | jq -Rn '[inputs]' 2>/dev/null) || labels_json='[]'
     # `file` carries the repo-relative path the MCP call named. It is authored
     # content, not a local filesystem path, so it embeds no username and needs
     # none of hook::repo_relative_path_to's redaction.
-    data=$(jq -n --arg file "$first_offender" --argjson violations "$labels_json" \
-      '{tool:"'"$TOOL"'",file:$file,violations:$violations}' 2>/dev/null) ||
-      data='{"tool":"","file":"","violations":[]}'
-    hook::emit_telemetry "secret-pattern-detection" "PreToolUse" "blocked" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
+    spd_send_tel "blocked" "$first_offender" "$labels_json"
   fi
   exit 2
 }
 
 case "$TOOL" in
-Write | Edit | NotebookEdit) IS_MCP=0 ;;
+Write | Edit | NotebookEdit) ;;
 # --- The GitHub MCP write lane (#3719) --------------------------------------
 # A Write|Edit matcher does not see a write issued through an MCP tool, so a
 # secret this session authored could reach a repository by a route this guard
@@ -278,17 +284,15 @@ Write | Edit | NotebookEdit) IS_MCP=0 ;;
 # A GitHub server bundled by a plugin names its tools
 # mcp__plugin_<plugin>_github__<tool> rather than mcp__github__<tool>.
 mcp__github__push_files | mcp__github__create_or_update_file | \
-  mcp__plugin_*_github__push_files | mcp__plugin_*_github__create_or_update_file) IS_MCP=1 ;;
-*) exit 0 ;;
-esac
-
-# The MCP lane resolves its own paths and content per file and never touches the
-# local filesystem, so it runs before the local-write handling below and exits
-# on its own. See mcp_lane for what it deliberately does not reuse.
-if ((IS_MCP)); then
+  mcp__plugin_*_github__push_files | mcp__plugin_*_github__create_or_update_file)
+  # The MCP lane resolves its own paths and content per file and never touches
+  # the local filesystem, so it runs before the local-write handling below. See
+  # mcp_lane for what it deliberately does not reuse.
   mcp_lane
   exit 0
-fi
+  ;;
+*) exit 0 ;;
+esac
 
 # NotebookEdit sends its target as notebook_path; file_path is read only when
 # notebook_path is empty.
@@ -458,6 +462,16 @@ spd_nearest_existing() {
   return 1
 }
 
+# spd_one_link <path>: 1 when <path> is an existing file with a second hard link
+# or a link count that cannot be read. A hard link resolves to itself, so its
+# name says nothing about where the bytes are stored.
+spd_one_link() {
+  local links
+  [[ -f "$1" ]] || return 0
+  links=$(stat -L -c %h -- "$1" 2>/dev/null) || links=$(stat -L -f %l -- "$1" 2>/dev/null) || return 1
+  [[ "$links" == 1 ]]
+}
+
 # spd_short_spelling <path>: 0 when every component of <path> that carries `~`
 # has the 8.3 short-name shape block-hook-bypass's _bbh_short_component accepts
 # (`NAME~N` or `NAME~N.EXT`, base at most eight characters, extension at most
@@ -478,7 +492,7 @@ spd_short_spelling() {
 
 # spd_temp_declines <file_path>: 0 when the write is declined.
 spd_temp_declines() {
-  local t="$1" r="${CLAUDE_PROJECT_DIR:-}" cand norm hit=0 nocase=0 ranc="" rsfx phys links
+  local t="$1" r="${CLAUDE_PROJECT_DIR:-}" cand norm hit=0 nocase=0 ranc="" rsfx phys
   local short=0 chars full custom
   # 1. Target spelling. On Windows the Write tool is Node, which resolves `/tmp/x`
   # and `/c/x` to other places than Git Bash does, so only a drive spelling may
@@ -576,13 +590,9 @@ spd_temp_declines() {
   # 6. Target under temp as spelled. For a short-name spelling that is the
   # candidate match in step 2: the resolved temp roots carry long names only.
   ((short)) || spd_under_temp "$t" || return 1
-  # A hard link resolves to itself, so a temp-tree name for a file stored
-  # elsewhere passes every path test: an existing file with a second link, or
-  # whose link count cannot be read, is scanned.
-  if [[ -f "$t" ]]; then
-    links=$(stat -L -c %h -- "$t" 2>/dev/null) || links=$(stat -L -f %l -- "$t" 2>/dev/null) || return 1
-    [[ "$links" == 1 ]] || return 1
-  fi
+  # A temp-tree name for a hard link to a file stored elsewhere passes every
+  # path test, so such a file is scanned.
+  spd_one_link "$t" || return 1
   # 7. Target under temp physically, resolved without the cache so the file's
   # own path never enters it.
   spd_nearest_existing "$t" || return 1
@@ -640,11 +650,7 @@ emit_tel() {
   root="${root%/}"
   file_rel=""
   hook::repo_relative_path_to file_rel "$FILE" "$root"
-  local data
-  data=$(jq -n --arg file "$file_rel" --argjson violations "$2" \
-    '{tool:"'"$TOOL"'",file:$file,violations:$violations}' 2>/dev/null) ||
-    data='{"tool":"","file":"","violations":[]}'
-  hook::emit_telemetry "secret-pattern-detection" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
+  spd_send_tel "$1" "$file_rel" "$2"
 }
 
 # --- High-confidence secret patterns (shared lib) ---------------------------
@@ -679,7 +685,7 @@ fi
 # its bytes are stored.
 spd_et=""
 spd_exempt_target() {
-  local t="$1" links
+  local t="$1"
   spd_et=""
   if ((spd_win)); then
     t="${t//\\//}"
@@ -691,10 +697,7 @@ spd_exempt_target() {
   *//* | */./* | */../* | */. | */.. | *[$'\n\r']*) return 1 ;;
   *) ;; # a normalized spelling
   esac
-  if [[ -f "$t" ]]; then
-    links=$(stat -L -c %h -- "$t" 2>/dev/null) || links=$(stat -L -f %l -- "$t" 2>/dev/null) || return 1
-    [[ "$links" == 1 ]] || return 1
-  fi
+  spd_one_link "$t" || return 1
   spd_et="$t"
 }
 
