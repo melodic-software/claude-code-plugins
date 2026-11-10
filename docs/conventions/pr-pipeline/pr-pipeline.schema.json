@@ -107,6 +107,13 @@
           "default": 2,
           "description": "Kill-switch re-fires' queue target per issue-lane slot (SLOTS in work-resolve-issue.yml): a work-unblock sweep re-fires breaker-stranded issues, oldest first, only until the work-resolve-issue runs not yet finished reach this times SLOTS, within restarts-per-run."
         },
+        "sweep-gap-minutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 60,
+          "default": 15,
+          "description": "Minutes after a work-unblock full sweep (a run that uploaded work-unblock-verdicts) finished during which a sweep a finished work-resolve-issue run starts skips its work. A scheduled sweep or an issue close never skips. 0 turns the gap off."
+        },
         "readmit-per-run": {
           "type": "integer",
           "minimum": 1,

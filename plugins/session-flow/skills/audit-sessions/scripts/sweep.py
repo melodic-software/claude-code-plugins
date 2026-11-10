@@ -94,7 +94,8 @@ def _get(record: dict, *path: str) -> float | None:
 
 
 def _denials(record: dict) -> int | None:
-    kinds = record.get("tools", {}).get("denials") if isinstance(record.get("tools"), dict) else None
+    tools = record.get("tools")
+    kinds = tools.get("denials") if isinstance(tools, dict) else None
     return sum(n for n in kinds.values() if isinstance(n, int)) if isinstance(kinds, dict) else None
 
 
@@ -207,7 +208,8 @@ def baseline_stale(store_p90: float | None, threshold: float | None, factor: flo
 def in_window(record: dict, since: date | None, until: date | None) -> bool:
     if since is None and until is None:
         return True
-    start = record.get("time", {}).get("start") if isinstance(record.get("time"), dict) else None
+    times = record.get("time")
+    start = times.get("start") if isinstance(times, dict) else None
     try:
         day = date.fromisoformat(start[:10])
     except (TypeError, ValueError):
@@ -313,14 +315,8 @@ def markdown_code(text: str) -> str:
     the text, with a space of padding when that run is non-zero, which is the
     code-span rule. Pointer: https://spec.commonmark.org/0.31.2/#code-spans
     """
-    flat = " ".join(text.replace("\r", " ").replace("\n", " ").split())
-    run = longest = 0
-    for char in flat:
-        if char == "`":
-            run += 1
-            longest = max(longest, run)
-        else:
-            run = 0
+    flat = " ".join(text.split())
+    longest = max(map(len, re.findall("`+", flat)), default=0)
     fence = "`" * (longest + 1)
     if longest:
         return f"{fence} {flat} {fence}"
@@ -773,9 +769,9 @@ def main(argv: list[str] | None = None) -> int:
         # Typed turns come from people: an automated session's turns are a script's.
         keys = CANDIDATE_KEYS if args.correction_candidates else EXCERPT_KEYS
         return print_turns([r for r in scoped if census.session_class(r) != "automated"], keys)
+    window = {"since": args.since and args.since.isoformat(), "until": args.until and args.until.isoformat()}
     if args.tickets is not None:
         data = ticket_data(population, args.tickets, args.branch)
-        window = {"since": args.since and args.since.isoformat(), "until": args.until and args.until.isoformat()}
         data.update(scope=scope, window={**window, "sessions": len(population), "automated_set_aside": len(scoped) - len(population)})
         if args.format == "md":
             sys.stdout.write(tickets_md(data))
@@ -794,12 +790,7 @@ def main(argv: list[str] | None = None) -> int:
         classes["automated"] = 0
     else:
         records = [r for r in records if census.session_class(r) != "automated"]
-    window = {
-        "since": args.since and args.since.isoformat(),
-        "until": args.until and args.until.isoformat(),
-        "automated_set_aside": classes["automated"],
-        "unclassified": classes["unknown"],
-    }
+    window.update(automated_set_aside=classes["automated"], unclassified=classes["unknown"])
     if named:
         window["session_ids"] = sorted(named)
         window["sessions_not_found"] = sorted(named - stored)

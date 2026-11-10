@@ -218,13 +218,16 @@ export function loadCarry(path, now = Date.now(), code = codeDigest()) {
   };
 }
 
-// A successful sweep of main's work-unblock.yml: only a sweep uploads the file.
-export const sweepRun = (repo) => (run) =>
+// A sweep of main's work-unblock.yml, whatever it concluded: only a sweep
+// uploads the file.
+export const anySweepRun = (repo) => (run) =>
   run?.path === WORKFLOW_PATH &&
   (run.event === "schedule" || run.event === "workflow_run") &&
   run.head_branch === "main" &&
-  run.conclusion === "success" &&
   run.head_repository?.full_name === repo;
+
+// A successful sweep, the only one whose file is carried.
+export const sweepRun = (repo) => (run) => anySweepRun(repo)(run) && run.conclusion === "success";
 
 // `read`: the newest successful sweep's file, written to VERDICTS_IN.
 export async function read({ env = process.env, actions, download } = {}) {
