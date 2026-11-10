@@ -3268,7 +3268,7 @@ const BREAKER_ISSUES = [
   [34, "2026-10-16T08:30:00Z", 6],
   [35, "2026-10-16T07:30:00Z", 1],
 ];
-const afterClear = (unfinished) => {
+const afterClear = (unfinished, failOn) => {
   const end = (at) => new Date(Date.parse(at) + 5 * 60_000).toISOString();
   const statuses = ["queued", "in_progress", "pending", "waiting"];
   const others = Array.from({ length: unfinished }, (_, index) => ({
@@ -3287,6 +3287,7 @@ const afterClear = (unfinished) => {
     logs: CHECK_KILLED,
     openLanePrs: 10,
     blobs: BLOBS,
+    failOn,
   });
 };
 const restarts = (calls) => writes(calls).filter((call) => call.startsWith("RESTART "));
@@ -3318,6 +3319,27 @@ test("after the switch clears, breaker re-fires top the unfinished lane runs up 
   const narrow = afterClear(1);
   assert.equal(await sweep({ github: narrow.github, actions: narrow.github }, clearLimits({ "refire-queue-per-slot": 1 })), 0);
   assert.deepEqual(restarts(narrow.calls), ["RESTART 35", "RESTART 32", "RESTART 36"]);
+});
+
+const QUEUE_HOLD = "::notice title=label-unblocked::the kill-switch re-fire queue listing failed";
+
+test("a failed unfinished-run listing re-fires no breaker trip this sweep, with a hold notice; a failed mint still restarts", async (t) => {
+  const fake = afterClear(0, `/repos/${REPO}/actions/workflows/work-resolve-issue.yml/runs?status=`);
+  const { code, lines } = await printedBy(t, () => sweep({ github: fake.github, actions: fake.github }, clearLimits()));
+  assert.equal(code, 0);
+  assert.deepEqual(restarts(fake.calls), ["RESTART 36"]);
+  assert.ok(!writes(fake.calls).some((call) => call.includes("breaker")), "a breaker record was posted");
+  assert.ok(lines.some((line) => line.startsWith(QUEUE_HOLD)), lines.join("\n"));
+});
+
+test("a lane workflow with no SLOTS line re-fires no breaker trip this sweep, with a hold notice; a failed mint still restarts", async (t) => {
+  const path = join(tempDir("work-unblock-slots-"), "work-resolve-issue.yml");
+  writeFileSync(path, "jobs:\n  pick-slot:\n    env:\n      ISSUE_NUMBER: 30\n");
+  const fake = afterClear(0);
+  const { code, lines } = await printedBy(t, () => sweep({ github: fake.github, actions: fake.github, slots: () => laneSlots(path) }, clearLimits()));
+  assert.equal(code, 0);
+  assert.deepEqual(restarts(fake.calls), ["RESTART 36"]);
+  assert.ok(lines.some((line) => line.startsWith(QUEUE_HOLD) && line.includes("sets no SLOTS")), lines.join("\n"));
 });
 
 test("restarts-per-run still caps breaker re-fires under the queue target, the oldest stranded first", async () => {
