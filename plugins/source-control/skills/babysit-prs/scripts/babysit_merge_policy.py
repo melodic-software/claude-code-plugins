@@ -2121,8 +2121,9 @@ class _GreenMain:
         created from `since` to `until`, cut from the cells that cover them.
         A run on the line between two cells is listed by both and kept once.
         `GREEN_PAGES` full pages of either event in the window raises, as
-        listing the window itself would, so a cell overflowing is the only
-        new way to raise."""
+        listing the window itself would. The new ways to raise are a cell
+        past `GREEN_CELL_PAGES` and a listed run with no readable
+        `created_at`."""
         low, high = _time(since), _time(until)
         first = (low - GREEN_GRID) // GREEN_SPAN
         last = max(first, -((GREEN_GRID - high) // GREEN_SPAN) - 1)
