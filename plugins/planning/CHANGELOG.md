@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.18.5] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [2.18.4] - 2026-11-10
 
 ### Changed

@@ -3,6 +3,12 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.4] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [0.16.3] - 2026-11-09
 
 ### Changed
