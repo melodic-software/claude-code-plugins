@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.8.1] - 2026-11-10
+
+### Changed
+
+- `/work-items:triage` and `/work-items:decompose` read the glossary through the `/domain-driven-design:ubiquitous-language lookup` read action, with a repository search (root, any `docs/` folder, the module folder) when that plugin is absent.
+
 ## [12.8.0] - 2026-11-09
 
 ### Changed
