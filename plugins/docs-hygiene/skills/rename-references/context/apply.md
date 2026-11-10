@@ -41,7 +41,7 @@ Identical to audit-mode Phase 2: run all patterns from [patterns.md](patterns.md
 
 ### Phase 3: Triage
 
-Classify per [triage.md](triage.md) into Certain / Chain-context / Ambiguous / Excluded buckets.
+Classify per [triage.md](triage.md) into Certain / Chain-context / Ambiguous / Excluded buckets; for a glossary-driven rename, the stored-value and user-facing-copy hits of [triage.md](triage.md) "Special case: Glossary-driven renames" come out first, never enter a bucket that edits, and are recorded as spans.
 
 ### Phase 4: Confirm
 
@@ -118,6 +118,10 @@ actionable re-presents the same match at Outcome B forever, leaving only two exi
 known false positive or aborting with a partial result: the same non-terminating loop the residue
 rule closes, reached through the other door.
 
+**Glossary report-only spans are not actionable either.** The stored-value and user-facing-copy
+spans Phase 3 recorded for a glossary-driven rename are subtracted from the actionable count the
+same way, and listed in the Phase 7 summary on their own lines, apart from residue and skips.
+
 So Phase 4 must RECORD each skip as `(file, line, start, end)`, the same occurrence key
 precedence and dedup use, and Phase 6 subtracts those spans from the actionable count. Two
 constraints on the record:
@@ -132,7 +136,8 @@ constraints on the record:
   `(start, end)`, the stored span fails to subtract, and the user is prompted for the deliberate
   skip again: the same non-terminating loop, defeated by the bookkeeping meant to close it.
   After each Edit at `(line, start, end)`, add the delta to the `start` and `end` of every stored
-  skip span on that line whose `start` is greater than the edited `start`. Spans on other lines
+  skip span, and every glossary report-only span, on that line whose `start` is greater than the
+  edited `start`. Spans on other lines
   and earlier spans on the same line are unaffected, because a rename replaces in place and adds
   no lines. Carry the matched snippet alongside the span and treat a snippet mismatch after
   remapping as a bug to report, not a skip to silently drop.
