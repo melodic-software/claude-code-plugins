@@ -292,14 +292,15 @@ def _send(
     limits_pool = _limits_pool(args, env_overrides)
     if guarded:
         _refuse_if_exhausted(pool, limits_pool)
-    if guarded and _is_write(args) and writes_paused(limits_pool):
+    write = guarded and _is_write(args)
+    if write and writes_paused(limits_pool):
         raise WritesPaused(
             f"{' '.join(['gh', *args[:2]])} not sent: the {limits_pool} pool "
             "is below its writer-pause share"
         )
     if (
         guarded
-        and not _is_write(args)
+        and not write
         and os.environ.get(READ_FLOOR_STOP_ENV) == "1"
         and low_headroom(limits_pool)
     ):
@@ -420,7 +421,6 @@ class RateLimitExhausted(BaseException):
         self.reason = reason
 
     def error_line(self) -> str:
-        pool = "every" if self.pool == ALL_POOLS else f"the {self.pool}"
         try:
             reset = (
                 "unknown"
@@ -433,7 +433,8 @@ class RateLimitExhausted(BaseException):
             # MAX_RESET is past the year 9999 datetime can show.
             reset = f"epoch second {int(self.reset)}"
         return (
-            f"::error title=GitHub rate limit::{pool} pool is exhausted "
+            "::error title=GitHub rate limit::"
+            f"{_pool_label(self.pool)} pool is exhausted "
             f"({self.reason}); no GitHub call is sent before {reset}"
         )
 
@@ -530,6 +531,11 @@ def stopped_until(pool: str, *, now: float | None = None) -> int | None:
     return at if at > (time.time() if now is None else now) else None
 
 
+def _pool_label(pool: str) -> str:
+    """`every` for `ALL_POOLS`, else `the <pool>`, as an `::error` names it."""
+    return "every" if pool == ALL_POOLS else f"the {pool}"
+
+
 def _record_stop(pool: str, reset: float) -> None:
     """Append a stop to the job's stop file, as rate-guard.mjs writes one.
     Never raises: the in-process trip still holds, and a stop the file cannot
@@ -542,9 +548,9 @@ def _record_stop(pool: str, reset: float) -> None:
         with open(path, "a", encoding="utf-8") as handle:
             handle.write(f"{pool} {int(reset)}\n")
     except OSError as exc:
-        name = "every" if pool == ALL_POOLS else f"the {pool}"
         print(
-            f"::error title=GitHub rate limit::{name} pool's stop could not be "
+            "::error title=GitHub rate limit::"
+            f"{_pool_label(pool)} pool's stop could not be "
             f"recorded in the job's stop file ({exc.strerror or exc}), so later "
             "steps do not see it",
             file=sys.stderr,
@@ -665,12 +671,20 @@ def _limits_pool(args: list[str], env_overrides: Mapping[str, str] | None) -> st
     `github-token` in Actions and `owner-token` anywhere else."""
     if _call_pool(args) == "graphql":
         return "graphql"
-    own = bool(env_overrides and "GH_TOKEN" in env_overrides)
-    name = os.environ.get("API_BUDGET_OVERRIDE_TOKEN" if own else "API_BUDGET_TOKEN")
+    name = _budget_token_name(env_overrides)
     if name in TOKEN_POOLS:
-        return str(name)
+        return name
     return (
         "github-token" if os.environ.get("GITHUB_ACTIONS") == "true" else "owner-token"
+    )
+
+
+def _budget_token_name(env_overrides: Mapping[str, str] | None) -> str:
+    """The token name the job gives for a call: API_BUDGET_OVERRIDE_TOKEN for a
+    call carrying its own GH_TOKEN, else API_BUDGET_TOKEN; empty when unset."""
+    own = bool(env_overrides and "GH_TOKEN" in env_overrides)
+    return os.environ.get(
+        "API_BUDGET_OVERRIDE_TOKEN" if own else "API_BUDGET_TOKEN", ""
     )
 
 
@@ -803,16 +817,8 @@ def _guard_response(
     limit = _int_header(headers, "x-ratelimit-limit")
     # `limits.api` shares a token's core and GraphQL pools; a smaller pool
     # (search, code search) is no reading of either.
-    if (
-        remaining is not None
-        and limit
-        and headers.get("x-ratelimit-resource")
-        in (
-            None,
-            "core",
-            "graphql",
-        )
-    ):
+    resource = headers.get("x-ratelimit-resource")
+    if remaining is not None and limit and resource in (None, "core", "graphql"):
         _headroom[limits_pool] = (remaining, limit)
     if not reading["latched"]:
         return
@@ -945,10 +951,7 @@ def _includes_headers(args: list[str]) -> bool:
 
 
 def _api_budget_token(env_overrides: Mapping[str, str] | None) -> str | None:
-    own = bool(env_overrides and "GH_TOKEN" in env_overrides)
-    name = os.environ.get(
-        "API_BUDGET_OVERRIDE_TOKEN" if own else "API_BUDGET_TOKEN", ""
-    )
+    name = _budget_token_name(env_overrides)
     if not os.environ.get("RUNNER_TEMP") or not _API_BUDGET_NAME.fullmatch(name):
         return None
     return name
@@ -984,11 +987,17 @@ def _api_budget_write(
         for key, value in headers.items()
         if key.startswith("x-ratelimit-")
     }
+    _api_budget_append(token, [_api_budget_line(str(status), readings, route)])
+
+
+def _api_budget_append(token: str, lines: Iterable[str]) -> None:
+    """Append lines to the token's file under $RUNNER_TEMP/api-budget. Never
+    raises: lines that cannot be written are dropped."""
     try:
         path = os.path.join(os.environ["RUNNER_TEMP"], "api-budget")
         os.makedirs(path, exist_ok=True)
         with open(os.path.join(path, token), "a", encoding="utf-8") as handle:
-            handle.write(_api_budget_line(str(status), readings, route))
+            handle.writelines(lines)
     except OSError:
         pass
 
@@ -1037,13 +1046,7 @@ def _api_budget_trace(token: str, stderr: str) -> str:
             kept.append(line)
             last = line
     if routes:
-        try:
-            path = os.path.join(os.environ["RUNNER_TEMP"], "api-budget")
-            os.makedirs(path, exist_ok=True)
-            with open(os.path.join(path, token), "a", encoding="utf-8") as handle:
-                handle.writelines(f"request {route}\n" for route in routes)
-        except OSError:
-            pass
+        _api_budget_append(token, [f"request {route}\n" for route in routes])
     text = "\n".join(kept)
     return text + "\n" if text and stderr.endswith("\n") else text
 
@@ -1308,9 +1311,7 @@ def is_owner_repo_pair(owner: str, repo: str) -> bool:
 
 def parse_repo_number(value: str) -> tuple[str, int]:
     value = value.strip()
-    owner = ""
-    repo = ""
-    number = ""
+    owner = repo = number = ""
     parsed = urlparse(value)
     if parsed.scheme or parsed.netloc:
         parts = [unquote(part) for part in parsed.path.strip("/").split("/")]
@@ -1368,12 +1369,8 @@ def rest_list_repos_for_owner(owner: str) -> list[str]:
         rows = fetch_paginated_api(
             f"users/{owner}/repos?per_page=100", f"{owner} repositories"
         )
-    repos: list[str] = []
-    for row in rows:
-        name = str(row.get("full_name") or "").strip().casefold()
-        if name:
-            repos.append(name)
-    return repos
+    names = (str(row.get("full_name") or "").strip().casefold() for row in rows)
+    return [name for name in names if name]
 
 
 def list_repos_for_owner(owner: str) -> list[str]:
