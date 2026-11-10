@@ -151,11 +151,7 @@ class LexState:
 def _quotes(kind: str) -> tuple[str, ...]:
     if kind == "python":
         return ('"""', "'''", '"', "'")
-    if kind == "clike-js":
-        return ("`", '"', "'")
-    if kind in ("csharp", "java"):
-        return ('"', "'")
-    if kind == "go":
+    if kind in ("clike-js", "go"):
         return ("`", '"', "'")
     if kind == "markdown":
         return ()
@@ -177,7 +173,7 @@ SLASH_KINDS = ("clike-js", "csharp", "go", "java")
 
 
 def _no_escape(kind: str, quote: str) -> bool:
-    return (kind == "shell" and quote == "'") or quote == "`" and kind == "go"
+    return (kind, quote) in (("shell", "'"), ("go", "`"))
 
 
 def _close_string(line: str, i: int, quote: str, kind: str, out: list[str]) -> int:
@@ -186,9 +182,11 @@ def _close_string(line: str, i: int, quote: str, kind: str, out: list[str]) -> i
     The string's contents reach `out` as spaces, so the code keeps the line's
     column positions.
     """
-    closer = re.escape(quote) if _no_escape(kind, quote) else r"\\|" + re.escape(quote)
+    closer = re.compile(
+        re.escape(quote) if _no_escape(kind, quote) else r"\\|" + re.escape(quote)
+    )
     while True:
-        found = re.compile(closer).search(line, i)
+        found = closer.search(line, i)
         if not found:
             out.append(" " * (len(line) - i))
             return -1
@@ -509,6 +507,11 @@ PRAGMA = re.compile(r"^\s*#\s*pragma\s+warning\s+disable\b")
 CS_ATTRIBUTE = re.compile(r"\b(?:Unconditional)?SuppressMessage(?:Attribute)?\s*\(")
 PS_ATTRIBUTE = re.compile(r"\bSuppressMessage(?:Attribute)?\s*\(", re.IGNORECASE)
 JAVA_ANNOTATION = re.compile(r"@(?:java\.lang\.)?SuppressWarnings\s*\(")
+CODE_MARKERS = {
+    "csharp": CS_ATTRIBUTE,
+    "powershell": PS_ATTRIBUTE,
+    "java": JAVA_ANNOTATION,
+}
 STRING_LITERAL = re.compile(r'"((?:[^"\\]|\\.)*)"|\'((?:[^\'\\]|\\.)*)\'')
 JUSTIFICATION = re.compile(
     r"\bJustification\s*=\s*(?:\"((?:[^\"\\]|\\.)*)\"|'([^']*)')", re.IGNORECASE
@@ -547,13 +550,13 @@ class Record:
 def _comment_records(lineno: int, kind: str, segments: list[Segment]) -> list[Record]:
     records: list[Record] = []
     trailing: list[str] = []
+    # A marker found anywhere in a comment (Gitleaks) is a record of its own;
+    # its text is taken out before the comment's first marker is read, so it
+    # is never that marker's reason. Reason text the comment states for the
+    # first marker also justifies the marker found anywhere in it.
+    anywhere = [m for m in COMMENT_MARKERS if kind in m.kinds and m.token]
     for segment in segments:
         text = segment.text
-        # A marker found anywhere in a comment (Gitleaks) is a record of its own;
-        # its text is taken out before the comment's first marker is read, so it
-        # is never that marker's reason. Reason text the comment states for the
-        # first marker also justifies the marker found anywhere in it.
-        anywhere = [m for m in COMMENT_MARKERS if kind in m.kinds and m.token]
         found_anywhere = [m for m in anywhere if m.token.search(text)]
         scrubbed = text
         for m in found_anywhere:
@@ -614,15 +617,10 @@ def _code_records(
     comment_reason = (
         "; ".join(r for r in (_reason(s.text) for s in lexed.segments) if r) or None
     )
-    if kind == "csharp" and PRAGMA.match(lexed.code):
-        rest = lexed.code[PRAGMA.match(lexed.code).end() :]
+    if kind == "csharp" and (pragma := PRAGMA.match(lexed.code)):
+        rest = lexed.code[pragma.end() :]
         return [Record(lineno, "csharp", _split_rules(rest), True, comment_reason)]
-    patterns = {
-        "csharp": CS_ATTRIBUTE,
-        "powershell": PS_ATTRIBUTE,
-        "java": JAVA_ANNOTATION,
-    }
-    pattern = patterns.get(kind)
+    pattern = CODE_MARKERS.get(kind)
     found = pattern.search(lexed.code) if pattern else None
     if not found:
         return []
@@ -653,7 +651,7 @@ def scan_text(path: str, text: str) -> list[Record]:
     for index, line in enumerate(lines):
         lexed = lex(line, kind, state)
         records.extend(_comment_records(index + 1, kind, lexed.segments))
-        if kind in ("csharp", "powershell", "java"):
+        if kind in CODE_MARKERS:
             records.extend(_code_records(index + 1, kind, lexed, lines))
     return records
 
@@ -829,13 +827,9 @@ def added_lines(base: str, paths: tuple[str, ...], top: str) -> set[int]:
     lines: set[int] = set()
     for raw in out.split(b"\n"):
         hunk = HUNK.match(raw)
-        if not hunk:
-            continue
-        start = hunk.group(1).decode()
-        count = (hunk.group(2) or b"1").decode()
-        if not (start.isdigit() and count.isdigit()):
-            continue
-        lines.update(range(int(start), int(start) + int(count)))
+        if hunk:
+            start, count = int(hunk.group(1)), int(hunk.group(2) or b"1")
+            lines.update(range(start, start + count))
     return lines
 
 

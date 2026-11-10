@@ -221,6 +221,10 @@ def _obj(value: object) -> dict:
     return value if isinstance(value, dict) else {}
 
 
+def _str(value: object) -> str | None:
+    return value if isinstance(value, str) else None
+
+
 def _count(value: object) -> int:
     return value if isinstance(value, int) and not isinstance(value, bool) else 0
 
@@ -325,14 +329,14 @@ def permission_event(record: dict) -> dict | None:
     if record.get("type") != "user":
         return None
     decision = _obj(record.get("permissionDecision"))
-    kind = record.get("toolDenialKind") if isinstance(record.get("toolDenialKind"), str) else None
+    kind = _str(record.get("toolDenialKind"))
     if not decision and kind is None:
         return None
-    reason_type = decision.get("reasonType") if isinstance(decision.get("reasonType"), str) else None
+    reason_type = _str(decision.get("reasonType"))
     event = {
         "tool_use_id": tool_result_id(record),
         "outcome": "denied" if kind is not None or decision.get("decision") == "reject" else "allowed",
-        "source": decision.get("source") if isinstance(decision.get("source"), str) else None,
+        "source": _str(decision.get("source")),
         "reason_type": reason_type,
         "denial_kind": kind,
     }
@@ -356,17 +360,13 @@ def permission_event(record: dict) -> dict | None:
 def permission_denials(record: dict) -> list[dict]:
     if record.get("type") != "result" or not isinstance(record.get("permission_denials"), list):
         return []
-    out = []
-    for denial in record["permission_denials"]:
-        if not isinstance(denial, dict):
-            continue
-        reason_type = denial.get("decision_reason_type")
-        out.append(
-            {
-                "tool_name": denial.get("tool_name") if isinstance(denial.get("tool_name"), str) else None,
-                "tool_use_id": denial.get("tool_use_id") if isinstance(denial.get("tool_use_id"), str) else None,
-                "tool_input": _obj(denial.get("tool_input")),
-                "reason_type": reason_type if isinstance(reason_type, str) else None,
-            }
-        )
-    return out
+    return [
+        {
+            "tool_name": _str(denial.get("tool_name")),
+            "tool_use_id": _str(denial.get("tool_use_id")),
+            "tool_input": _obj(denial.get("tool_input")),
+            "reason_type": _str(denial.get("decision_reason_type")),
+        }
+        for denial in record["permission_denials"]
+        if isinstance(denial, dict)
+    ]
