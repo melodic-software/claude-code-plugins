@@ -15,7 +15,13 @@
 //             a log that was read is kept, never a failed read
 //   decided   when the sweep last started deciding each agent-ready issue, by
 //             issue number, so the next sweep decides the least recent first
-//             (label-unblocked.mjs restartLimited's time budget)
+//             (label-unblocked.mjs restartLimited's time budget); with `wait`
+//             when that decision was a refusal with an end (`due`, ms): its
+//             `reason`, the issue's listed `updated` time and the lane
+//             workflow files' `key`, which the next sweep reuses instead of
+//             reading the issue again while all three still hold. A wait only
+//             keeps an issue waiting; one of the wrong shape, or ending more
+//             than WAIT_MAX_HOURS after the file is read, is dropped
 //
 // `read` takes the file from the newest successful sweep of main's
 // work-unblock.yml (a scheduled run or one a finished work-resolve-issue run
@@ -62,6 +68,9 @@ export const JOBS_MAX = 300;
 export const REFUSALS_MAX = 2000;
 // Judgment: about 210 issues were open on 2026-11-10.
 export const DECIDED_MAX = 1000;
+// The longest wait the sweep sets (limits.mjs STRANDED_BACKOFF_MAX).
+export const WAIT_MAX_HOURS = 24;
+const WAIT_KEY = /^[0-9a-f]{40}-[0-9a-f]{40}$/;
 const RUN_KEY = /^[1-9][0-9]{0,14}\|[1-9][0-9]{0,3}$/;
 const REFUSAL_KEY = /^[1-9][0-9]{0,14}\|(?:check|token|stop)$/;
 const ISSUE_KEY = /^[1-9][0-9]{0,9}$/;
@@ -131,7 +140,20 @@ export function loadCarry(path, now = Date.now(), code = codeDigest()) {
   if (data?.code !== code) data = null;
   const jobs = section(data, "jobs", RUN_KEY, validJobs);
   const refusals = section(data, "refusals", REFUSAL_KEY, validRefusal);
+  const validWait = (wait) =>
+    isObject(wait) &&
+    typeof wait.reason === "string" &&
+    wait.reason.length > 0 &&
+    typeof wait.updated === "string" &&
+    ZONED.test(wait.updated) &&
+    typeof wait.key === "string" &&
+    WAIT_KEY.test(wait.key) &&
+    Number.isFinite(wait.due) &&
+    wait.due <= now + WAIT_MAX_HOURS * 3_600_000;
   const decided = section(data, "decided", ISSUE_KEY, () => true);
+  for (const [key, entry] of decided) {
+    if (entry.wait !== undefined && !validWait(entry.wait)) decided.set(key, { at: entry.at });
+  }
   const at = new Date(now).toISOString();
   const counts = { jobsHit: 0, jobsRead: 0, refusalsHit: 0, refusalsRead: 0 };
   const use = (map, key, entry) => map.set(key, { ...entry, at });
@@ -172,8 +194,14 @@ export function loadCarry(path, now = Date.now(), code = codeDigest()) {
       const entry = decided.get(String(number));
       return entry && Date.parse(entry.at);
     },
-    keepDecided(number) {
-      if (ISSUE_KEY.test(String(number))) decided.set(String(number), { at });
+    // The carried wait of issue `number`, else undefined.
+    carriedWait(number) {
+      return decided.get(String(number))?.wait;
+    },
+    // Records this sweep's decision of issue `number`, with `wait` when it is one.
+    keepDecided(number, wait) {
+      if (!ISSUE_KEY.test(String(number))) return;
+      decided.set(String(number), wait && validWait(wait) ? { at, wait: { reason: wait.reason, due: wait.due, updated: wait.updated, key: wait.key } } : { at });
     },
     // Writes the file the next sweep reads; true once written.
     save(to) {

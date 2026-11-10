@@ -6777,3 +6777,81 @@ test("a sweep reads each agent-ready issue's field events once, for its holds, i
   assert.deepEqual(decided(fake.calls), BUDGET_NUMBERS);
   assert.deepEqual(reads, BUDGET_NUMBERS, "one field-events read per issue");
 });
+
+// A wait carried between sweeps (verdict-carry.mjs `decided` wait): an issue
+// unchanged since a sweep decided it waits until a known time is not read
+// again before that time; a changed or due issue, or new lane workflow files,
+// are read fresh, and a carried wait never restarts or writes anything.
+const UPDATED = "2026-10-16T05:00:00Z";
+// #30 and #31 stopped on the limit at 06:00, resetting at `resets` (13:00, an
+// hour after NOW, by default), both last updated at `updated`.
+const waitWorld = ({ updated = {}, resets = "2026-10-16T13:00:00Z", blobs = BLOBS } = {}) =>
+  world({
+    openReady: [30, 31].map((n) => ({ ...ready(n), updated_at: updated[n] ?? UPDATED })),
+    comments: { 30: [note(), limitedNote(resets, "2026-10-16T06:00:00Z")], 31: [note(), limitedNote(resets, "2026-10-16T06:00:00Z")] },
+    events: { 30: [added("2026-10-16T05:00:00Z")], 31: [added("2026-10-16T05:00:00Z")] },
+    blobs,
+  });
+const issueReads = (calls) => calls.filter((call) => /^GET \/repos\/[^/]+\/[^/]+\/issues\/\d+\/(comments|events|timeline)/.test(call));
+async function waitSweeps(second, { now = NOW, from } = {}) {
+  const dir = tempDir("verdict-carry-wait-");
+  if (from) {
+    writeFileSync(join(dir, "1.json"), JSON.stringify(from));
+  } else {
+    const first = waitWorld();
+    assert.equal(await sweep({ github: first.github }, { VERDICTS_OUT: join(dir, "1.json") }), 0);
+    assert.deepEqual(decided(first.calls), [30, 31]);
+    assert.deepEqual(writes(first.calls), []);
+  }
+  assert.equal(await sweep({ github: second.github, now }, { VERDICTS_IN: join(dir, "1.json"), VERDICTS_OUT: join(dir, "2.json") }), 0);
+  return JSON.parse(readFileSync(join(dir, "2.json"), "utf8"));
+}
+
+test("an issue unchanged since a sweep decided its wait is not read again before the wait ends", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const second = waitWorld();
+  const kept = await waitSweeps(second);
+  assert.deepEqual(issueReads(second.calls), []);
+  assert.deepEqual(writes(second.calls), []);
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.includes("label-unblocked: #30 not restarted: waiting for the limit to reset at 2026-10-16T13:00:00.000Z (carried: unchanged since it was decided)"), lines.join("\n"));
+  assert.ok(lines.includes("::notice title=label-unblocked::0 agent-ready issue(s) to decide, 2 carried waiting from an earlier sweep"), lines.join("\n"));
+  // The wait is kept again for the sweep after.
+  assert.deepEqual(kept.decided[30].wait, { reason: "waiting for the limit to reset at 2026-10-16T13:00:00.000Z", due: Date.parse("2026-10-16T13:00:00Z"), updated: UPDATED, key: KEY });
+});
+
+test("a changed issue, a wait that ended, or new lane workflow files are read and decided fresh", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const changed = waitWorld({ updated: { 30: "2026-10-16T11:00:00Z" } });
+  await waitSweeps(changed);
+  assert.deepEqual(decided(changed.calls), [30], "only the changed issue is read");
+  // At 13:30 the limit has reset: both are read, and restarted.
+  const due = waitWorld();
+  await waitSweeps(due, { now: Date.parse("2026-10-16T13:30:00Z") });
+  assert.deepEqual(decided(due.calls), [30, 31]);
+  assert.deepEqual(writes(due.calls), [30, 31].flatMap(restarted));
+  const deployed = waitWorld({ blobs: { ...BLOBS, ".github/workflows/work-resolve-issue.yml": "3".repeat(40) } });
+  await waitSweeps(deployed);
+  assert.deepEqual(decided(deployed.calls), [30, 31], "a new workflow key reads both");
+});
+
+test("a carried wait only holds: a malformed or overlong one is read fresh, and one that holds an issue due a restart writes nothing", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const at = new Date(NOW - 60_000).toISOString();
+  const wait = { reason: "waiting for the limit to reset at 2026-10-16T13:00:00.000Z", due: Date.parse("2026-10-16T13:00:00Z"), updated: UPDATED, key: KEY };
+  const file = (decided) => ({ code: codeDigest(), jobs: {}, refusals: {}, decided });
+  // An empty reason and a wait past WAIT_MAX_HOURS carry nothing.
+  const forged = waitWorld();
+  await waitSweeps(forged, { from: file({ 30: { at, wait: { ...wait, reason: "" } }, 31: { at, wait: { ...wait, due: NOW + 25 * 3_600_000 } } }) });
+  assert.deepEqual(decided(forged.calls), [30, 31]);
+  // A well-formed wait on issues whose limit already reset holds them this
+  // sweep: neither is read or restarted.
+  const reset = waitWorld({ resets: "2026-10-16T11:00:00Z" });
+  await waitSweeps(reset, { from: file({ 30: { at, wait }, 31: { at, wait } }) });
+  assert.deepEqual(issueReads(reset.calls), []);
+  assert.deepEqual(writes(reset.calls), []);
+  // Without the carry, the same issues restart.
+  const fresh = waitWorld({ resets: "2026-10-16T11:00:00Z" });
+  assert.equal(await sweep({ github: fresh.github }), 0);
+  assert.deepEqual(writes(fresh.calls), [30, 31].flatMap(restarted));
+});

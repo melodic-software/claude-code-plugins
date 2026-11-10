@@ -2069,7 +2069,7 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
     const refires = adds.filter((event) => Date.parse(event.created_at) >= first && !trips.has(event)).length;
     const due = backoffDue(since, refires, hours);
     if (now < due) {
-      return { reason: `re-fired ${refires} time(s) on workflow files ${key}; it is re-fired again after ${new Date(due).toISOString()}` };
+      return { reason: `re-fired ${refires} time(s) on workflow files ${key}; it is re-fired again after ${new Date(due).toISOString()}`, due };
     }
     const own = comments.filter((comment) => comment.user?.login === bot && INFRA.test(String(comment.body ?? ""))).at(-1);
     return { reason: null, resets: due, refire: key, recorded: true, infra: { id: own?.id, body: infraComment(key, cause, refires + 1) } };
@@ -2081,7 +2081,7 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
   const stranded = async (since, why, cause) => {
     const hours = hoursFor[cause];
     if (now - since < hours * HOUR_MS) {
-      return { reason: why };
+      return { reason: why, due: since + hours * HOUR_MS };
     }
     const open = (await lanePulls({ github, repo, number, bot })).find((item) => item.state === "open");
     if (open) {
@@ -2136,7 +2136,7 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
     const due = over >= 0 ? backoffDue(ended, over, hoursFor["kill-switch"]) : ended + clamp * HOUR_MS;
     if (now < due) {
       const why = stalled === "breaker" ? `the broker refused its lane run for the lanes kill switch (trip ${trips + 1})` : "its lane run did no work";
-      return { reason: `${why}; it is re-fired after ${new Date(due).toISOString()}` };
+      return { reason: `${why}; it is re-fired after ${new Date(due).toISOString()}`, due };
     }
     if (await wipCapped()) {
       return { reason: "its lane run did no work, and the issue lane is paused over its WIP cap" };
@@ -2251,7 +2251,7 @@ async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot
   // limit stop with no reset does (clampReset).
   const resets = clampReset(marker.resets, marker.at, limits);
   if (now < resets) {
-    return { reason: `waiting for the limit to reset at ${new Date(resets).toISOString()}` };
+    return { reason: `waiting for the limit to reset at ${new Date(resets).toISOString()}`, due: resets };
   }
   return { reason: null, resets };
 }
@@ -2330,8 +2330,36 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
   // decided goes first), so issues a sweep's budget leaves out lead the next
   // one and none waits behind issues decided every sweep.
   const decidedAt = (issue) => carry?.decidedAt(Number(issue.number)) ?? Number.NEGATIVE_INFINITY;
-  const order = open.map((issue, at) => ({ issue, at, decided: decidedAt(issue) })).sort((a, b) => a.decided - b.decided || a.at - b.at);
-  for (const [index, { issue }] of order.entries()) {
+  const sorted = open.map((issue, at) => ({ issue, at, decided: decidedAt(issue) })).sort((a, b) => a.decided - b.decided || a.at - b.at);
+  // A wait carried from an earlier sweep (verdict-carry.mjs `decided`) stands
+  // while the issue is unchanged since (its listed updated_at), the wait has
+  // not ended and the lane workflow files are the same; it only ever keeps
+  // an issue waiting, and every other issue is read and decided fresh.
+  const carriedOf = (issue) => carry?.carriedWait(Number(issue.number));
+  const current = sorted.some(({ issue }) => carriedOf(issue)) ? await workflowKey().catch(() => null) : null;
+  const stands = (issue) => {
+    const wait = carriedOf(issue);
+    return Boolean(wait && current && wait.key === current && wait.updated === issue.updated_at && now < wait.due);
+  };
+  const order = [];
+  for (const { issue } of sorted) {
+    if (stands(issue)) {
+      carry.keepDecided(Number(issue.number), carriedOf(issue));
+      console.log(`label-unblocked: #${issue.number} not restarted: ${carriedOf(issue).reason} (carried: unchanged since it was decided)`);
+    } else {
+      order.push(issue);
+    }
+  }
+  console.log(`::notice title=label-unblocked::${order.length} agent-ready issue(s) to decide, ${sorted.length - order.length} carried waiting from an earlier sweep`);
+  // A wait this sweep decided, kept for the next one when it has an end and
+  // the lane workflow files' key reads; anything else keeps no wait.
+  const keepWait = async (issue, verdict) => {
+    const number = Number(issue.number);
+    const due = verdict?.reason ? verdict.due : undefined;
+    const key = Number.isFinite(due) && typeof issue.updated_at === "string" ? await workflowKey().catch(() => null) : null;
+    carry?.keepDecided(number, key ? { reason: verdict.reason, due, updated: issue.updated_at, key } : undefined);
+  };
+  for (const [index, issue] of order.entries()) {
     // Past the budget no further issue is decided, so the job ends inside its
     // limit and the decided ones below are still written.
     if (clock() >= deadline) {
@@ -2345,6 +2373,9 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
         (await recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, read, statusOf })) ??
         (await restartRefusal({ github, actions, jobLog, carry, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read, statusOf, runsOf }));
       const { reason, fail } = verdict;
+      if (carry && reason !== null && !fail) {
+        await keepWait(issue, verdict);
+      }
       if (fail) {
         // The fail route: the comment first and the field write last, so the
         // stop is never invisible. A failed write is retried by the next sweep,
