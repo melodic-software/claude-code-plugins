@@ -4,7 +4,7 @@ bump: minor
 
 ### Added
 
-- Glossary contract: an optional `Actions:` line under an entity records the verb chosen for an operation on it when another verb was contested, the rejected one in parentheses (`Actions: submit (Avoid: raise)`). `lookup` returns it and resolves a rejected verb to its entry; `curate` and `audit` search for rejected verbs where they name that operation on that entity.
+- Glossary contract: an optional `Actions:` line under an entity records the verb chosen for an operation on it when another verb was contested, the rejected one in parentheses (`Actions: submit (Avoid: raise)`). `lookup` returns it, resolves a rejected verb to its entry and tells its caller the verb is rejected only for that operation on that entity; `curate` and `audit` search for rejected verbs where they name that operation on that entity.
 
 ### Changed
 

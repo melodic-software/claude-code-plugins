@@ -22,3 +22,8 @@ graders:
     flags: 'im'
     match: not_contains
     target: { source: file, path: docs/glossary.md }
+  - name: noun-avoid-unchanged
+    type: regex
+    pattern: '\*\*Shipment\*\*[\s\S]*^Avoid: parcel, order line[ \t]*$'
+    flags: 'm'
+    target: { source: file, path: docs/glossary.md }

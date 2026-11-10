@@ -27,8 +27,11 @@ Glossary: <path | none>
 ```
 
 Then one line for the caller: use the canonical terms and chosen verbs in names, tests, prose and
-messages, and never a rejected word or verb, even when the request itself uses it. A word the
-request uses that the glossary rejects is named, with the term or verb that replaces it.
+messages, and never a rejected word, even when the request itself uses it. A rejected verb is
+rejected only for that operation on that entity (`Refund ... (Avoid: send)` rules out "send a
+refund" and `sendRefund`, not "send a notification"). A word the request uses that the glossary
+rejects, or a rejected verb it uses for that operation, is named, with the term or verb that
+replaces it.
 
 With no glossary: `Glossary: none` and nothing else; a missing glossary is not an error and asks
 nothing. A term the glossary does not hold is reported as absent; `lookup` never invents a definition.
