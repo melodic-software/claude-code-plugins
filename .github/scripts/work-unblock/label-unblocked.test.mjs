@@ -34,6 +34,8 @@ import {
   refsClosedComment,
   refsMergedComment,
   infraComment,
+  laneRuns,
+  sharedLaneRuns,
   skipText,
   UNPARKED_MARKER,
 } from "./label-unblocked.mjs";
@@ -3892,6 +3894,113 @@ test("a run in the label's window whose title names no issue makes the sweep say
   const plain = failedRun({ runs: [laneRun({ number: 300 })] });
   assert.equal(await sweep({ github: plain.github, actions: plain.actions }), 0);
   assert.ok(other.mock.calls.some((call) => String(call.arguments[0]).includes("#30 not restarted: no lane run since agent-ready was added")));
+});
+
+// The workflow run listing as GitHub documents it: `created=a..b` keeps runs
+// created from a through b, both ends included (search syntax: `n..*` is
+// `>=n`), newest first in pages of `per_page`, with `total_count`.
+function runListing(runs) {
+  const calls = [];
+  const actions = async (method, path) => {
+    calls.push(path);
+    const params = new URL(path, "https://x").searchParams;
+    const [from, to] = params.get("created").split("..").map(Date.parse);
+    const page = Number(params.get("page"));
+    const size = Number(params.get("per_page"));
+    const kept = runs
+      .filter((run) => Date.parse(run.created_at) >= from && Date.parse(run.created_at) <= to)
+      .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id);
+    return { total_count: kept.length, workflow_runs: kept.slice((page - 1) * size, page * size) };
+  };
+  return { actions, calls };
+}
+const runAt = (id, title, at) => ({ id, display_title: title, created_at: at, status: "completed", updated_at: at });
+const T0 = Date.parse("2026-10-16T10:00:00Z");
+// #30's window is 10:00:00..10:10:00 (its label at 10:00:00.500 cut to the
+// second), #31's 10:05:00..10:15:00, overlapping it, and #32's three hours on.
+const ADDED = { 30: T0 + 500, 31: T0 + 5 * 60_000, 32: T0 + 3 * 3_600_000 };
+const WINDOW_RUNS = [
+  runAt(1, "Fix #30", "2026-10-16T10:00:00Z"),
+  runAt(2, "Fix #30", "2026-10-16T10:10:00Z"),
+  runAt(3, "Fix #30", "2026-10-16T10:10:01Z"),
+  runAt(4, "fix(review): explain-change artifact medium", "2026-10-16T10:02:00Z"),
+  runAt(5, "Fix #31", "2026-10-16T10:15:00Z"),
+  runAt(6, "Fix #31", "2026-10-16T10:04:59Z"),
+  runAt(7, "Fix #32", "2026-10-16T13:00:30Z"),
+  ...Array.from({ length: 150 }, (_, i) => runAt(100 + i, "Fix #999", new Date(T0 + 5 * 60_000 + i * 1000).toISOString().replace(/\.\d{3}Z$/, "Z"))),
+];
+const picked = ({ mine, untitled }) => ({ mine: mine.map((run) => run.id), untitled });
+
+test("the shared run listing gives each issue the runs its own window lists, boundary seconds included", async () => {
+  const shared = runListing(WINDOW_RUNS);
+  const runsOf = sharedLaneRuns(shared.actions, REPO, Object.values(ADDED));
+  const got = {};
+  for (const [number, addedAt] of Object.entries(ADDED)) {
+    got[number] = picked(await runsOf(Number(number), addedAt));
+  }
+  // #30 keeps its runs at the window's first and last second and not the one
+  // a second past it; the untitled run counts for #30's window only.
+  assert.deepEqual(got, {
+    30: { mine: [2, 1], untitled: 1 },
+    31: { mine: [5], untitled: 0 },
+    32: { mine: [7], untitled: 0 },
+  });
+  // The per-issue listing, the old path, answers the same for each issue.
+  const own = runListing(WINDOW_RUNS);
+  for (const [number, addedAt] of Object.entries(ADDED)) {
+    assert.deepEqual(picked(await laneRuns(own.actions, REPO, Number(number), addedAt)), got[number], `#${number}`);
+  }
+  // One listing of 156 runs (two pages) for #30 and #31, one page for #32,
+  // where each issue on its own took 2, 2 and 1.
+  assert.equal(shared.calls.length, 3, shared.calls.join("\n"));
+  assert.equal(own.calls.length, 5, own.calls.join("\n"));
+  assert.ok(shared.calls[0].includes(`created=${encodeURIComponent("2026-10-16T10:00:00Z..2026-10-16T10:15:00Z")}&per_page=100&page=1`), shared.calls[0]);
+});
+
+test("a cluster over the listing's 1,000-run cap lists each of its issues on its own", async () => {
+  const many = Array.from({ length: 1001 }, (_, i) => runAt(10_000 + i, "Fix #999", new Date(T0 + (i % 300) * 1000).toISOString().replace(/\.\d{3}Z$/, "Z")));
+  const { actions, calls } = runListing([...WINDOW_RUNS, ...many]);
+  const runsOf = sharedLaneRuns(actions, REPO, [ADDED[30], ADDED[31]]);
+  assert.deepEqual(picked(await runsOf(31, ADDED[31])), { mine: [5], untitled: 0 });
+  const range = (from, to) => `created=${encodeURIComponent(`${from}..${to}`)}`;
+  assert.equal(calls.filter((call) => call.includes(range("2026-10-16T10:00:00Z", "2026-10-16T10:15:00Z"))).length, 1, calls.join("\n"));
+  assert.ok(calls.some((call) => call.includes(range("2026-10-16T10:05:00Z", "2026-10-16T10:15:00Z"))), calls.join("\n"));
+});
+
+test("a failed shared listing fails the issue that asked and is read again for the next", async () => {
+  const { actions: listing } = runListing(WINDOW_RUNS);
+  let fail = true;
+  const actions = async (method, path) => {
+    if (fail) {
+      fail = false;
+      throw new Error(`${method} ${path} failed with status 502`);
+    }
+    return listing(method, path);
+  };
+  const runsOf = sharedLaneRuns(actions, REPO, [ADDED[30], ADDED[31]]);
+  await assert.rejects(runsOf(30, ADDED[30]), /status 502/);
+  assert.deepEqual(picked(await runsOf(31, ADDED[31])), { mine: [5], untitled: 0 });
+});
+
+test("a sweep lists the lane runs of two failed issues with near labels once, and re-fires both", async () => {
+  const fake = world({
+    openReady: [ready(30), ready(31)],
+    comments: { 30: [note()], 31: [note()] },
+    events: { 30: [added(LABELED_AT, OWNER)], 31: [added("2026-10-16T10:04:00Z", OWNER)] },
+    runs: [laneRun(), laneRun({ number: 31, at: "2026-10-16T10:04:05Z" })],
+    blobs: BLOBS,
+  });
+  assert.equal(await sweep({ github: fake.github, actions: fake.github }), 0);
+  assert.deepEqual(writes(fake.calls), [...refired(30), ...refired(31)]);
+  const listings = fake.calls.filter((call) => call.includes("/work-resolve-issue.yml/runs?event=issues"));
+  assert.deepEqual(listings, [`GET /repos/${REPO}/actions/workflows/work-resolve-issue.yml/runs?event=issues&created=${encodeURIComponent("2026-10-16T10:00:00Z..2026-10-16T10:14:00Z")}&per_page=100&page=1`]);
+});
+
+test("an issue whose window no planned cluster holds is listed on its own", async () => {
+  const { actions, calls } = runListing(WINDOW_RUNS);
+  const runsOf = sharedLaneRuns(actions, REPO, [ADDED[32]]);
+  assert.deepEqual(picked(await runsOf(30, ADDED[30])), { mine: [2, 1], untitled: 1 });
+  assert.ok(calls[0].includes(`created=${encodeURIComponent("2026-10-16T10:00:00Z..2026-10-16T10:10:00Z")}`), calls[0]);
 });
 
 // A red-main fix issue post-merge-demotion-alert.yml reopens on a repeat
