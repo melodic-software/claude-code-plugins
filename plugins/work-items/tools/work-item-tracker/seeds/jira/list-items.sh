@@ -101,11 +101,11 @@ fields_json="$(jq -cn --arg f "$WIT_JIRA_FIELDS" '$f | split(",")')"
 # Page via nextPageToken until the store is exhausted or the ceiling is reached
 # (documented truncation, not an error). Each page's issues are normalized and
 # accumulated; the ceiling caps total emitted rows across pages. The loop runs in this
-# shell, not a piped group, so `last` survives it: the envelope's `truncated` is true
-# when the ceiling ended the walk before Jira reported its last page.
+# shell, not a piped group, so `truncated` survives it: it stays true when the ceiling
+# ended the walk before Jira reported its last page.
 next_token=""
 emitted=0
-last=false
+truncated=true
 rows=""
 while ((emitted < limit)); do
   page_size=$((limit - emitted))
@@ -145,12 +145,10 @@ while ((emitted < limit)); do
   next_token="$(jq -r '.nextPageToken // ""' <<<"$WIT_JIRA_BODY")"
   # Last page: isLast true, or no continuation token, or the API returned nothing.
   if [[ "$(jq -r '.isLast // false' <<<"$WIT_JIRA_BODY")" == "true" || -z "$next_token" || "$page_count" == "0" ]]; then
-    last=true
+    truncated=false
     break
   fi
 done
-truncated=true
-[[ "$last" == true ]] && truncated=false
 printf '%s' "$rows" |
   jq -c -s --arg sv "$WIT_SCHEMA_VERSION" --argjson truncated "$truncated" \
     '{schema_version: $sv, items: ., truncated: $truncated}'
