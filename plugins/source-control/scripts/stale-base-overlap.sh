@@ -55,9 +55,8 @@ if ! mb=$(git -C "$wd" merge-base HEAD "$ref") || ! tip=$(git -C "$wd" rev-parse
   ! paths_head=$(git -C "$wd" diff --name-only --no-renames "$mb" HEAD); then
   unknown "the paths changed since the merge-base of HEAD and $ref could not be read"
 fi
-if [[ "$mb" == "$tip" ]]; then
+if [[ -n "$(LC_ALL=C comm -12 <(LC_ALL=C sort -u <<<"$paths_base") <(LC_ALL=C sort -u <<<"$paths_head"))" ]]; then
+  echo yes
+else
   echo no
-  exit 0
 fi
-overlap=$(LC_ALL=C comm -12 <(LC_ALL=C sort -u <<<"$paths_base") <(LC_ALL=C sort -u <<<"$paths_head"))
-if [[ -n "${overlap//$'\n'/}" ]]; then echo yes; else echo no; fi
