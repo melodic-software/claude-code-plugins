@@ -142,7 +142,7 @@ Each maps to the term or doctrine that owns the concept.
 
 ## Provenance
 
-Terms through "light zone" (adopted as "smart zone") were graded and adopted in lane 6 of the AI Hero course vetting
+Terms through "smart zone" were graded and adopted in lane 6 of the AI Hero course vetting
 (2026-08-18). The decision rows, including the basis for each verdict and the rejected-term
 mappings, are in [`upstream/aihero-course.md`](upstream/aihero-course.md) under "Term adoption".
 Materialization of this file was tracked as
