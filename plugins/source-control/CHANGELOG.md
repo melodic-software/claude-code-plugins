@@ -3,6 +3,28 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.3] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- answer empty exact-name artifact reads with a 304
+
+  In a job that names `BABYSIT_VERIFY_LISTING`, the verdict reader makes
+  one read of an artifact name nothing uploads and keeps that empty
+  answer's ETag beside the listing, but only when the body is exactly
+  empty. Each first page of an exact-name read then sends it as
+  `If-None-Match`, and a 304 reads as the empty page, so the verdict is
+  the one a 200 gives. A failed or non-empty seed sends no header, and a
+  304 to a read that sent none stays unreadable.
+
 ## [8.12.2] - 2026-11-10
 
 ### Changed
