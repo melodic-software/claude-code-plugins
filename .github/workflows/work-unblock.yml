@@ -180,6 +180,32 @@ jobs:
           REASON: ${{ steps.kill.outputs.reason }}
         run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing read or labeled"
 
+      # The base config's limits.api, in resolve-config's output shape, for
+      # the pacer; a failed read leaves rate-limits.json's defaults.
+      - name: Read the pace override from the base config
+        if: steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        run: |
+          yq -o=json '{"limits": {"api": (.limits.api // {})}}' .base/docs/conventions/pr-pipeline.yaml >"$RUNNER_TEMP/pace-config.json"
+
+      # A schedule tick skips its work while the GITHUB_TOKEN pool's remaining
+      # at reset, projected at this window's burn rate, is under limits.api
+      # github-token pace (pr-pipeline.yaml over rate-limits.json; 0 is off),
+      # on even run numbers only; the next sweep's three-hour window covers
+      # the closes this one would read. A close or a finished
+      # work-resolve-issue run, or a read that fails, runs as before
+      # (.github/actions/log-api-budget/pace.mjs).
+      - name: Pace the tick on the GITHUB_TOKEN burn rate
+        id: pace
+        if: steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        env:
+          RESOLVED_CONFIG: ${{ runner.temp }}/pace-config.json
+          GITHUB_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: node .base/.github/actions/log-api-budget/pace.mjs
+
       # The broker mints only when the person who closed the issue and the one
       # who started this run (a re-runner may be someone else) are each a
       # listed human (trusted-actors.json on main), matched by id: the
@@ -207,6 +233,7 @@ jobs:
         if: >-
           steps.kill.outputs.proceed == 'true'
           && (github.event_name == 'schedule' || github.event_name == 'workflow_run' || steps.who.outputs.proceed == 'true')
+          && steps.pace.outputs.paced != 'true'
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]

@@ -9209,12 +9209,17 @@ test("work-unblock.yml: a finished work-resolve-issue run in this repository swe
   assert.equal(runs({ event: "issues", sender: "User" }), true);
   for (const action of ["labeled", "unlabeled"]) assert.equal(runs({ event: "issues", sender: "User", action }), false, `a ${action} event is sync-status's`);
   const config = job.steps.find((step) => step.id === "config");
-  const resolves = (event, who, kill = "true") =>
-    evaluate(config.if, { "steps.kill.outputs.proceed": kill, "steps.who.outputs.proceed": who, "github.event_name": event });
+  const resolves = (event, who, kill = "true", paced = "false") =>
+    evaluate(config.if, { "steps.kill.outputs.proceed": kill, "steps.who.outputs.proceed": who, "github.event_name": event, "steps.pace.outputs.paced": paced });
   assert.equal(resolves("workflow_run", ""), true, "the sweep has no closer to check");
   assert.equal(resolves("issues", ""), false);
   assert.equal(resolves("issues", "true"), true);
   assert.equal(resolves("workflow_run", "", "false"), false, "the kill switch stops it");
+  // The burn-rate pacer (log-api-budget/pace.mjs) writes paced=true only on a
+  // schedule tick; a pacer that wrote nothing resolves as before.
+  assert.equal(resolves("schedule", "", "true", "true"), false, "a paced tick resolves nothing");
+  assert.equal(resolves("schedule", "", "true", "false"), true, "an unpaced tick");
+  assert.equal(resolves("schedule", "", "true", ""), true, "a pacer that wrote nothing");
 });
 
 // sync-status writes a person's status-label edit into the Work status field

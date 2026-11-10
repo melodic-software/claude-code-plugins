@@ -50,6 +50,8 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
       "Check out the default branch tip",
       "Set up Node",
       "Check the kill switch",
+      "Read the pace override from the base config",
+      "Pace the tick on the GITHUB_TOKEN burn rate",
       "Read report-only",
       "Read the lane records the last run kept",
       "Read the post-merge report the last run kept",

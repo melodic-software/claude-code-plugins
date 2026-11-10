@@ -105,8 +105,9 @@ test("any other event, an unreadable answer or a failed read is never paced", as
     calls += 1;
     return new Response("{}", { status: 200 });
   };
-  assert.equal((await run({ EVENT_NAME: "workflow_dispatch" }, counting)).output, "paced=false\n");
-  assert.equal((await run({ EVENT_NAME: "push" }, counting)).output, "paced=false\n");
+  for (const event of ["workflow_dispatch", "push", "pull_request", "pull_request_target", "merge_group", "issues", "workflow_run", ""]) {
+    assert.equal((await run({ EVENT_NAME: event }, counting)).output, "paced=false\n", `event ${JSON.stringify(event)}`);
+  }
   assert.equal(calls, 0, "no read off a schedule tick");
   assert.equal((await run({}, counting)).output, "paced=false\n", "no headers");
   assert.equal((await run({}, answer({}, 502))).output, "paced=false\n");
@@ -144,35 +145,73 @@ test("pace: 0 in the base config turns the pacer off", async () => {
   assert.equal(apiLimits({ resolvedPath: read("lanes: {}\n") })["github-token"].pace, 0.2, "no limits section");
 });
 
+const PACE_STEP = "Pace the tick on the GITHUB_TOKEN burn rate";
+const workflow = (file) => readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
+// A job's text, from `  <job>:` to the next job, and its steps, each less the
+// blank and comment lines that lead into the next step.
+const jobOf = (file, job) => new RegExp(`\\n  ${job}:\\n([\\s\\S]*?)(?=\\n  [a-z0-9-]+:\\n|$)`).exec(workflow(file))?.[1] ?? "";
+const stepsOf = (file, job) =>
+  jobOf(file, job)
+    .split(/\n(?= {6}- name: )/)
+    .slice(1)
+    .map((s) => ({ name: /^ {6}- name: (.*)$/m.exec(s)[1], s: s.replace(/(\n *(#[^\n]*)?)+$/, "") }));
+
+// The pacer step and the override read before it, in the one shape every
+// paced lane uses.
+function assertPaceSteps(file, steps) {
+  const at = (name) => steps.findIndex((step) => step.name === name);
+  const pace = steps[at(PACE_STEP)]?.s ?? "";
+  // The base config's limits.api reaches the pacer, so its pace (0 for off)
+  // overrides rate-limits.json.
+  assert.ok(at(READ_STEP) >= 0 && at(READ_STEP) < at(PACE_STEP), `${file}: the override is read before the pacer`);
+  assert.equal(steps[at(READ_STEP)].s.replace(/^[\s\S]*?\n {8}run: \|\n {10}/, ""), READ_RUN, file);
+  assert.match(steps[at(READ_STEP)].s, /\n {8}continue-on-error: true\n/, file);
+  assert.equal(/\n {8}if: (.*)\n/.exec(steps[at(READ_STEP)].s)?.[1], /\n {8}if: (.*)\n/.exec(pace)?.[1], `${file}: the read runs when the pacer does`);
+  assert.match(pace, /\n {10}RESOLVED_CONFIG: \$\{\{ runner\.temp \}\}\/pace-config\.json\n/, file);
+  assert.match(pace, /\n {8}id: pace\n/, file);
+  assert.match(pace, /\n {8}continue-on-error: true\n/, file);
+  assert.match(pace, /\n {10}EVENT_NAME: \$\{\{ github\.event_name \}\}\n/, file);
+  assert.match(pace, /\n {10}RUN_NUMBER: \$\{\{ github\.run_number \}\}\n/, file);
+  assert.match(pace, /\n {8}run: node \.base\/\.github\/actions\/log-api-budget\/pace\.mjs\n?$/, file);
+  return at;
+}
+
 // The timer-driven lanes that read the pacer: each reads it once on the
 // event, never fails on it, and gates every step that spends the pool.
 test("each paced timer lane reads the pacer before its work and gates every spending step on it", () => {
   const lanes = {
     "maintenance-reconcile-lost-runs.yml": { job: "reconcile", gated: ["Find lost runs", "Re-run lost runs"] },
     "pr-unblock-dispatch.yml": { job: "dispatch", gated: ["Install resolve-config's dependencies", "Restore the dispatch record", "Dispatch pr-unblock for conflicting, review-tier Dependabot and failing lanes App PRs"] },
+    // Every later spending step waits on the config step's lane token.
+    "work-unblock.yml": { job: "label-unblocked", gated: ["Resolve the config"] },
+    // The carry upload waits on the scan's clean output.
+    "maintenance-monitor-signals.yml": { job: "monitor", gated: ["Install resolve-config's packages", "Read the signals and file their issues", "Scan the upload for credentials"] },
   };
   for (const [file, { job, gated }] of Object.entries(lanes)) {
-    const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
-    const block = new RegExp(`\\n  ${job}:\\n([\\s\\S]*?)(?=\\n  [a-z0-9-]+:\\n|$)`).exec(text)?.[1] ?? "";
-    // Less the blank and comment lines that lead into the next step.
-    const steps = block.split(/\n(?= {6}- name: )/).slice(1).map((s) => ({ name: /^ {6}- name: (.*)$/m.exec(s)[1], s: s.replace(/(\n *(#[^\n]*)?)+$/, "") }));
-    const at = (name) => steps.findIndex((step) => step.name === name);
-    const pace = steps[at("Pace the tick on the GITHUB_TOKEN burn rate")]?.s ?? "";
-    // The base config's limits.api reaches the pacer, so its pace (0 for off)
-    // overrides rate-limits.json.
-    assert.ok(at(READ_STEP) >= 0 && at(READ_STEP) < at("Pace the tick on the GITHUB_TOKEN burn rate"), `${file}: the override is read before the pacer`);
-    assert.equal(steps[at(READ_STEP)].s.replace(/^[\s\S]*?\n {8}run: \|\n {10}/, ""), READ_RUN, file);
-    assert.match(steps[at(READ_STEP)].s, /\n {8}continue-on-error: true\n/, file);
-    assert.equal(/\n {8}if: (.*)\n/.exec(steps[at(READ_STEP)].s)?.[1], /\n {8}if: (.*)\n/.exec(pace)?.[1], `${file}: the read runs when the pacer does`);
-    assert.match(pace, /\n {10}RESOLVED_CONFIG: \$\{\{ runner\.temp \}\}\/pace-config\.json\n/, file);
-    assert.match(pace, /\n {8}id: pace\n/, file);
-    assert.match(pace, /\n {8}continue-on-error: true\n/, file);
-    assert.match(pace, /\n {10}EVENT_NAME: \$\{\{ github\.event_name \}\}\n/, file);
-    assert.match(pace, /\n {10}RUN_NUMBER: \$\{\{ github\.run_number \}\}\n/, file);
-    assert.match(pace, /\n {8}run: node \.base\/\.github\/actions\/log-api-budget\/pace\.mjs\n?$/, file);
+    const steps = stepsOf(file, job);
+    const at = assertPaceSteps(file, steps);
     for (const name of gated) {
-      assert.ok(at(name) > at("Pace the tick on the GITHUB_TOKEN burn rate"), `${file}: ${name} follows the pacer`);
+      assert.ok(at(name) > at(PACE_STEP), `${file}: ${name} follows the pacer`);
       assert.match(steps[at(name)].s, /steps\.pace\.outputs\.paced != 'true'/, `${file}: ${name}`);
     }
+  }
+});
+
+// pr-merge's sweep jobs skip at job level: a step-level skip would leave a
+// paced run's job waiting in its group, and superseded.mjs would let an
+// earlier run hand its work to it. post-merge-dispatch reads the pacer and
+// never waits on it, so the post-merge check and cover dispatch run on every
+// tick.
+test("pr-merge reads the pacer in post-merge-dispatch and skips only the sweep jobs on it", () => {
+  const file = "pr-merge.yml";
+  const steps = stepsOf(file, "post-merge-dispatch");
+  assertPaceSteps(file, steps);
+  assert.match(jobOf(file, "post-merge-dispatch"), /\n {4}outputs:\n(?: {6}.*\n)*? {6}paced: \$\{\{ steps\.pace\.outputs\.paced \}\}\n/);
+  const waiting = steps.filter((step) => /steps\.pace\.outputs/.test(step.s)).map((step) => step.name);
+  assert.deepEqual(waiting, [], "no post-merge-dispatch step waits on the pacer");
+  for (const job of ["merge", "enable-auto-merge"]) {
+    const gate = /\n {4}if: >-\n((?: {6}.*\n)+)/.exec(jobOf(file, job))?.[1] ?? "";
+    assert.match(gate, /\n {6}&& needs\.post-merge-dispatch\.outputs\.paced != 'true'\n/, job);
+    assert.doesNotMatch(jobOf(file, job), /steps\.pace\./, `${job} reads no pacer of its own`);
   }
 });
