@@ -1206,8 +1206,8 @@ function Do-Assess($root) {
         return [pscustomobject]@{ gameDir = $root; launcher = 'Xbox app'; launcherSource = 'WindowsApps path'; gameName = (Split-Path $root -Leaf); verdict = 'refused'; refusals = @($WindowsApps) } | ConvertTo-Json
     }
     $gameRoot = Get-GameRoot $root
-    $hasExe = [bool](Get-ChildItem -LiteralPath $root -Filter *.exe -File)
     $exes = @(Get-ExeFacts $root); $bitness = Get-Bitness $exes
+    $hasExe = $exes.Count -gt 0
     $collisions = @($ProxyNames | Where-Object { Test-Path -LiteralPath (Join-Path $root $_) })
     $free = @($ProxyNames | Where-Object { $_ -notin $collisions })
     $ups = @(Find-Upscalers $root)
@@ -1253,7 +1253,6 @@ function Install-Build($build, $zip, $pin) {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $a = [IO.Compression.ZipFile]::OpenRead($zip)
     try {
-        try {
         foreach ($e in $a.Entries) {
             $rel = $e.FullName -replace '/', '\'
             if (-not $e.Name -or ($rel -split '\\')[0] -notin $allow) { continue }   # dirs, and anything off the allow-list
@@ -1262,9 +1261,8 @@ function Install-Build($build, $zip, $pin) {
             New-Item -ItemType Directory -Force -Path (Split-Path $to -Parent) | Out-Null
             [IO.Compression.ZipFileExtensions]::ExtractToFile($e, $to)
         }
-        }
-        catch { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue; throw }
     }
+    catch { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue; throw }
     finally { $a.Dispose() }
     $missing = @($allow | Where-Object { -not (Test-Path -LiteralPath (Join-Path $stage $_)) })
     if ($missing) { Remove-Item -LiteralPath $stage -Recurse -Force; throw "zip lacks allow-listed entries: $($missing -join ', ')" }
@@ -1275,12 +1273,13 @@ function Install-Build($build, $zip, $pin) {
     Move-Item -LiteralPath $stage -Destination $dest
     "provisioned $build ($($pin.Tag)) -> $dest"
 }
+function TempFile($ext) { Join-Path ([IO.Path]::GetTempPath()) ('dlss5-' + [guid]::NewGuid().ToString('N') + $ext) }
 function Do-ProvisionBuild($build) {
     $pin = $BuildPins[$build]
     if (-not $pin) { throw "unknown build '$build' (have: $($BuildPins.Keys -join ', '))" }
     $marker = LoadJson (Join-Path $script:DataDir "builds\$build\.provisioned.json")
     if ($marker -and $marker.sha256 -eq $pin.Sha256) { return "already provisioned: $build ($($pin.Tag))" }
-    $zip = Join-Path ([IO.Path]::GetTempPath()) ("dlss5-" + [guid]::NewGuid().ToString('N') + '.zip')
+    $zip = TempFile '.zip'
     try {
         Invoke-WebRequest -Uri $pin.Url -OutFile $zip
         Install-Build $build $zip $pin
@@ -1334,9 +1333,8 @@ function Do-ProvisionRuntime {
     $rt = Test-Runtime $script:RuntimeDll
     if ($rt.Ok) { return "runtime ok: $($script:RuntimeDll)" }
     if ($script:RuntimeDllConfigured) { throw "configured runtime_dll refused: $($rt.Reason). Fix or unset runtime_dll." }
-    $notes = @()
     $cands = Find-RuntimeCandidates
-    $notes += $script:ScanGaps
+    $notes = @($script:ScanGaps)
     $ok = @()
     foreach ($c in $cands) {
         $t = try { Test-Runtime $c.FullName } catch { @{ Ok = $false; Reason = "unreadable: $($_.Exception.Message)" } }
@@ -1353,15 +1351,14 @@ function Do-ProvisionRuntime {
             $notes += "runtime_source refused: $($t.Reason)"
         }
         else {
-            $tmp = Join-Path ([IO.Path]::GetTempPath()) ("dlss5-" + [guid]::NewGuid().ToString('N') + '.dll')
-            $shown = $src
+            $tmp = TempFile '.dll'
             try {
                 Invoke-WebRequest -Uri $src -OutFile $tmp
                 $t = Test-Runtime $tmp
-                if ($t.Ok) { return Place-Runtime $tmp 'runtime_source' $shown }
+                if ($t.Ok) { return Place-Runtime $tmp 'runtime_source' $src }
                 $notes += "runtime_source refused: $($t.Reason)"
             }
-            catch { $notes += "runtime_source download failed ($shown): $($_.Exception.Message)" }
+            catch { $notes += "runtime_source download failed ($src): $($_.Exception.Message)" }
             finally { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
         }
     }
@@ -1415,8 +1412,7 @@ function Do-Refetch {
     $fmt = '"\(.tag_name)\(if .prerelease then " (prerelease)" else "" end)"'
     $rel = ".[] | $fmt"
     $items = @(
-        Probe 'Dagherbou/OptiScaler_DLSSNR' 'gh api releases' { GhApi 'repos/Dagherbou/OptiScaler_DLSSNR/releases' $rel }
-        Probe 'wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass' 'gh api releases' { GhApi 'repos/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/releases' $rel }
+        foreach ($r in $ForkRepos.dagherbou, $ForkRepos.wilsjo2) { Probe $r 'gh api releases' { GhApi "repos/$r/releases" $rel } }
         # The repo also publishes renodx-dlss-SF and other tags; only renodx-dlss5- tags belong here.
         Probe 'renodx-dlss5' 'gh api releases' { GhApi 'repos/RankFTW/rhi-repo/releases?per_page=100' ('.[] | select(.tag_name | startswith("renodx-dlss5-")) | ' + $fmt) }
         Probe 'optiscaler/OptiScaler' 'gh api releases/latest' { GhApi 'repos/optiscaler/OptiScaler/releases/latest' '.tag_name' }
