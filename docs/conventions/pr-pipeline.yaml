@@ -634,6 +634,26 @@ activities:
     reads-untrusted: false
     # The labeled issue; the hourly sweep takes none and lists open issues.
     inputs: [issue]
+  publish-lane-level:
+    # Hourly, after the label-unblocked sweep: decides the issue lane's next
+    # concurrency level from the sweep's lanes App rate-limit readings, the
+    # lane's runs in progress and the last decision
+    # (.github/scripts/lib/lane-level.mjs), and publishes it as
+    # `<level>@<valid-until>` in the repository variable
+    # limits.lane-level.variable names, which pick-slot and label-unblocked
+    # read (.github/scripts/lib/lane-level-value.mjs). With
+    # limits.lane-level.shadow set it logs the level and writes nothing. A
+    # script, no model. .github/workflows/work-unblock.yml runs it.
+    script: .github/scripts/work-unblock/publish-lane-level.mjs
+    # Writes that one variable, never another (the script refuses any other
+    # name), with the Variables write lane-rules.json adds; it reads nothing
+    # else with the token.
+    effect: mutate-variable
+    gating: advisory
+    # Reads only rate-limit headers and run counts, no free text.
+    reads-untrusted: false
+    # The hourly sweep's readings; no issue or pull request.
+    inputs: []
   apply-verdict:
     # After intake triage, writes its verdict as the lanes App: the Size,
     # Complexity and Uncertainty issue fields (never a work-class label), and
@@ -869,6 +889,8 @@ lanes:
       # Started by a status label added or removed, and by the hourly sweep,
       # in its own job of work-unblock.yml.
       - activity: sync-status
+      # Hourly only, in its own job of work-unblock.yml after label-unblocked.
+      - activity: publish-lane-level
   # Started by intake triage on an opened issue or its dispatch
   # (.github/workflows/intake-triage.yml).
   intake-triage:
@@ -1203,7 +1225,7 @@ limits:
   # on a lane workflow change.
   restarts-per-run: 10
   # Kill-switch re-fires keep the issue lane's unfinished runs at this many
-  # per slot (SLOTS in work-resolve-issue.yml) and no more: after the switch
+  # per slot (SLOTS, the effective lane level: lane-level below) and no more: after the switch
   # clears, each sweep, a finished run's included, tops the queue back up,
   # oldest stranded first, so the lane stays full without a flood (owner
   # decision Q109).

@@ -624,26 +624,28 @@ export function changedPathTargets({
 const GRANT_SCOPES = ["contents", "issues", "pull-requests"];
 const GRANT_LEVELS = new Set(["read", "write"]);
 
-// A lane-rules.json row may add `actions: read`, and nothing else, to named
-// activities of its lane through `activity-grants`; the effect row stays the
+// A lane-rules.json row may add one scope beyond the effect row to named
+// activities of its lane through `activity-grants`, each at its one level:
+// `actions: read`, or `actions-variables: write`, which the token broker
+// grants only to work-unblock's publish-lane-level. The effect row stays the
 // base. The row serves every config that runs the lane, so a name the lane
 // does not hold adds nothing.
+const ACTIVITY_GRANTS = Object.freeze({ actions: "read", "actions-variables": "write" });
+
 function checkActivityGrants(laneName, activityGrants) {
   if (activityGrants === undefined) {
     return;
   }
   const valid =
     isObject(activityGrants) &&
-    Object.entries(activityGrants).every(
-      ([, extra]) =>
-        isObject(extra) &&
-        Object.keys(extra).join() === "actions" &&
-        extra.actions === "read",
-    );
+    Object.entries(activityGrants).every(([, extra]) => {
+      const keys = isObject(extra) ? Object.keys(extra) : [];
+      return keys.length === 1 && Object.hasOwn(ACTIVITY_GRANTS, keys[0]) && extra[keys[0]] === ACTIVITY_GRANTS[keys[0]];
+    });
   if (!valid) {
     throw new Rejection(
       "lane-grant",
-      `lane-rules.json row \`${laneName}\` activity-grants must map each activity to exactly { "actions": "read" }`,
+      `lane-rules.json row \`${laneName}\` activity-grants must map each activity to exactly { "actions": "read" } or { "actions-variables": "write" }`,
     );
   }
 }

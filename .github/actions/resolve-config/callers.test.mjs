@@ -23,6 +23,7 @@ import { loadRules, rowFor, select as selectPatch } from "../../scripts/apply-pa
 import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 import { stopSkip } from "../../scripts/pr-unblock/escalation-routes.mjs";
+import { levelSettings } from "../../scripts/lib/lane-level-value.mjs";
 import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
 import { decide } from "../report-check-run/decide.mjs";
@@ -1276,19 +1277,27 @@ async function postNotRunChecks(job, context) {
 
 // GitHub runs at most one job per concurrency group, and `queue: max` keeps
 // the rest waiting instead of cancelling them (workflow-syntax#concurrency),
-// so the number of distinct slot groups is the cap: 3.
+// so the number of distinct slot groups is the cap: 3, the lane level's
+// default, which the slot step falls back to when the level read fails.
 test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest queued", () => {
   const { concurrency, jobs } = workflow("work-resolve-issue.yml");
   const pick = jobs["pick-slot"];
   const resolve = jobs["resolve-issue"];
   const step = pick.steps.find((s) => s.id === "slot");
+  assert.equal(step.env.SLOTS, "${{ steps.level.outputs.slots || '3' }}");
+  assert.equal(levelSettings().default, 3, "the fallback is the lane level's default");
+  const read = pick.steps.find((s) => s.id === "level");
+  assert.equal(read.run, "node .base/.github/scripts/lib/lane-level-value.mjs slots");
+  assert.equal(read["continue-on-error"], true, "a failed read falls back, never fails the pick");
+  assert.equal(read.env.LANE_VARS, "${{ toJSON(vars) }}");
+  assert.ok(pick.steps.indexOf(read) < pick.steps.indexOf(step));
   const dir = tempDir("slot-");
   after(() => rmSync(dir, { recursive: true, force: true }));
   const output = join(dir, "output");
   const slotOf = (issue) => {
     writeFileSync(output, "");
     const run = spawnSync("bash", ["-c", step.run], {
-      env: { ...process.env, SLOTS: String(pick.env.SLOTS), ISSUE_NUMBER: issue, GITHUB_OUTPUT: output },
+      env: { ...process.env, SLOTS: String(levelSettings().default), ISSUE_NUMBER: issue, GITHUB_OUTPUT: output },
     });
     return run.status === 0 ? readFileSync(output, "utf8").trim().replace(/^slot=/, "") : null;
   };

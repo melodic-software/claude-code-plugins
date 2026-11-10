@@ -898,12 +898,27 @@ test("a lane-rules.json activity grant adds actions read to that activity alone"
   assert.deepEqual(EFFECT_GRANTS.read, READ_GRANT);
 });
 
-test("an activity grant other than exactly actions read is rejected", () => {
+test("a lane-rules.json activity grant adds actions-variables write to that activity alone", () => {
+  const overrides = withActivityGrants({ "run-tests": { "actions-variables": "write" } });
+  assert.deepEqual(
+    grantOf(fixture("valid.yaml"), { activity: "run-tests" }, overrides),
+    { effect: "read", grant: { ...READ_GRANT, "actions-variables": "write" } },
+  );
+  assert.deepEqual(
+    grantOf(fixture("valid.yaml"), { activity: "measure-coverage" }, overrides),
+    { effect: "read", grant: READ_GRANT },
+  );
+});
+
+test("an activity grant other than exactly actions read or actions-variables write is rejected", () => {
   const grants = [
     null,
     [],
     "actions",
     { "run-tests": { actions: "write" } },
+    { "run-tests": { "actions-variables": "read" } },
+    { "run-tests": { actions_variables: "write" } },
+    { "run-tests": { actions: "read", "actions-variables": "write" } },
     { "run-tests": { contents: "write" } },
     { "run-tests": { actions: "read", contents: "write" } },
     { "run-tests": {} },
