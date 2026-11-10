@@ -14,19 +14,20 @@ covers the scope.
 2. Read each glossary it found with the Read tool (and the glossary index when terms may span
    contexts). Read the whole file; entries are short.
 3. For each requested term, or for every entry when none was requested, take the canonical term, its
-   definition, its states, its `Avoid:` list and its `Shown to users as:` line. A requested word that
-   appears only on an `Avoid:` line resolves to the entry that rejected it.
+   definition, its states, its `Actions:` line, its `Avoid:` list and its `Shown to users as:` line.
+   A requested word that appears only as a rejected word (on an `Avoid:` line or in an `Actions:`
+   line's parentheses) resolves to the entry that rejected it.
 
 ## Output
 
 ```text
 Glossary: <path | none>
 - Loan: one tool in a member's hands for a fixed period. Avoid: checkout, rental, booking
-- Refund: ... States: Pending, then Issued or Failed. Shown to users as: refund
+- Refund: ... States: Pending, then Issued or Failed. Actions: issue (Avoid: send). Shown to users as: refund
 ```
 
-Then one line for the caller: use the canonical terms in names, tests, prose and messages, and never
-an `Avoid:` word, even when the request itself uses it. A word the request uses that the glossary
+Then one line for the caller: use the canonical terms and chosen verbs in names, tests, prose and
+messages, and never a rejected word or verb, even when the request itself uses it. A word the request uses that the glossary
 rejects is named, with the term that replaces it.
 
 With no glossary: `Glossary: none` and nothing else; a missing glossary is not an error and asks
