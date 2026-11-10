@@ -9217,6 +9217,34 @@ test("work-unblock.yml: a finished work-resolve-issue run in this repository swe
   assert.equal(resolves("workflow_run", "", "false"), false, "the kill switch stops it");
 });
 
+// A hand-started run sweeps as the schedule does: from main only, with no
+// closer check, and sync-status never runs on it.
+test("work-unblock.yml: a hand-started run on main sweeps as the schedule does, and starts no sync-status", () => {
+  const doc = workflow("work-unblock.yml");
+  assert.ok("workflow_dispatch" in doc.on);
+  const job = doc.jobs["label-unblocked"];
+  const runs = (event, ref = "refs/heads/main") =>
+    evaluate(job.if, {
+      "github.event_name": event,
+      "github.ref": ref,
+      "github.repository": "melodic-software/claude-code-plugins",
+      "github.event.action": null,
+      "github.event.sender.type": "User",
+      "github.event.workflow_run.head_repository.full_name": null,
+      "github.event.workflow_run.conclusion": null,
+    });
+  assert.equal(runs("workflow_dispatch"), true);
+  assert.equal(runs("schedule"), true);
+  assert.equal(runs("workflow_dispatch", "refs/heads/feature"), false, "a hand-started run off main");
+  assert.equal(runs("schedule", "refs/heads/feature"), false);
+  const step = (id) => job.steps.find((s) => s.id === id);
+  const context = (event) => ({ "steps.kill.outputs.proceed": "true", "steps.who.outputs.proceed": "", "github.event_name": event });
+  assert.equal(evaluate(step("config").if, context("workflow_dispatch")), true, "a hand-started sweep has no closer to check");
+  assert.equal(evaluate(step("who").if, context("workflow_dispatch")), false);
+  assert.equal(evaluate(step("config").if, { ...context("workflow_dispatch"), "steps.kill.outputs.proceed": "false" }), false, "the kill switch stops it");
+  assert.equal(evaluate(doc.jobs["sync-status"].if, { "github.event_name": "workflow_dispatch", "github.event.action": null, "github.event.sender.type": "User", "github.event.issue.pull_request": null }), false);
+});
+
 // sync-status writes a person's status-label edit into the Work status field
 // with the lanes App token, on a person's label event on an issue only. A
 // close, a bot's label change, a pull request, the schedule and a finished
