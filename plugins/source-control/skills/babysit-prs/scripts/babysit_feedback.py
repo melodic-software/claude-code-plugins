@@ -91,10 +91,7 @@ def item_id(prefix: str, item: dict[str, Any]) -> str:
 
 
 def review_commit_oid(review: dict[str, Any]) -> str:
-    commit = review.get("commit")
-    if is_json_object(commit):
-        return str(commit.get("oid") or "")
-    return ""
+    return str(json_object(review.get("commit")).get("oid") or "")
 
 
 def latest_reviews_by_author(
@@ -146,6 +143,8 @@ def collect_feedback(
 ) -> dict[str, list[dict[str, str]]]:
     approval_downgrade_logins = normalize_login_set(config.approval_downgrade_logins)
     skip_downgrade_logins = normalize_login_set(config.skip_downgrade_logins)
+    dispositions = dispositions or {}
+    current_head = str(pr.get("headRefOid") or "")
     blocking: list[dict[str, str]] = []
     material: list[dict[str, str]] = []
     human_blocking: list[dict[str, str]] = []
@@ -205,8 +204,7 @@ def collect_feedback(
         elif state in {"APPROVED", "DISMISSED"}:
             ignored.append(record)
         elif has_blocking_text(text) or has_blocking_severity(text):
-            disposition = json_object((dispositions or {}).get(fid))
-            current_head = str(pr.get("headRefOid") or "")
+            disposition = json_object(dispositions.get(fid))
             # Only honor a disposition recorded at the current head. If the PR has
             # advanced, the same feedback id must be re-evaluated (a new P1 posted
             # under a sticky id at a new head must not inherit an old downgrade).
@@ -296,10 +294,7 @@ def human_stop_state(
     self_logins: frozenset[str] | None = None,
 ) -> dict[str, Any]:
     feedback = collect_feedback(pr, inline_comments, config=config)
-    normalized_self = (
-        normalize_self_logins(self_logins) if self_logins is not None else frozenset()
-    )
-    return human_stop_from_feedback(feedback, normalized_self)
+    return human_stop_from_feedback(feedback, normalize_self_logins(self_logins))
 
 
 def fetch_current_human_stop(
