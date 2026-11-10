@@ -6,7 +6,7 @@ words carry the same meaning in conversation, skill bodies, docs, and commit mes
 This file records **vocabulary only**: what a term is, and which names were considered and
 rejected for it. The reasoning behind a decision lives in the artifact that made it; entries cite
 that artifact rather than restating it. New terms are curated through
-`/domain-driven-design:curate-language` rather than hand-written, so the entry discipline stays
+`/domain-driven-design:ubiquitous-language curate` rather than hand-written, so the entry discipline stays
 uniform.
 
 This marketplace is a single language context, so there is no context map: every entry below

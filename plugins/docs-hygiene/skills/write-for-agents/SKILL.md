@@ -191,7 +191,7 @@ stronger word: a more precise one, and a firm one only for a hard limit
   already exists? Invoke `/docs-hygiene:extract-ssot` via the Skill tool. A new shared home still
   waits for the third occurrence; below that it remedies the repetition in place.
 - Resolved or coined a term in the **consuming project's** domain? Invoke
-  `/domain-driven-design:curate-language` via the Skill tool (if that plugin is enabled) rather
+  `/domain-driven-design:ubiquitous-language curate` via the Skill tool (if that plugin is enabled) rather
   than hand-writing the entry. A skill defining its own working vocabulary is out of that skill's
   scope and stays where it is.
 - Editing exposed pre-existing problems in the surrounding doc? Invoke the fitting audit

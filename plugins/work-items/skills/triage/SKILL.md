@@ -372,7 +372,7 @@ Read the item body, comments, and any linked PRs, plus the diff when the item is
 touches, and before any check below, read three things the repository may keep, so the evaluation
 uses its terms and respects its decisions:
 
-- its **glossary** or ubiquitous-language file (such as `docs/glossary.md`);
+- its **glossary** or ubiquitous-language file: invoke `/domain-driven-design:ubiquitous-language lookup` via the Skill tool when that skill is available, otherwise search for it (such as `docs/glossary.md`);
 - the **ADRs** covering the item's area (such as those under `docs/adr/` whose subject is the
   plugin, module or concept the item touches);
 - its **scope statement**: what the project is for and what it leaves out (a README section or a

@@ -1,5 +1,5 @@
 schema_version: "1.1"
-name: 'curate-language-passive-lookup-does-not-mutate'
+name: 'ubiquitous-language-passive-lookup-does-not-mutate'
 context:
   scaffold_script: scaffold.sh
 graders:
@@ -9,7 +9,7 @@ graders:
     focus: 'trace'
   - name: 'expectation-4'
     type: 'llm'
-    criteria: 'Distinguishes passive lookup from the skill''s active-maintenance workflow'
+    criteria: 'Treats the request as the read-only lookup action: it answers from the entry and changes nothing, rather than running the curate workflow'
     focus: 'trace'
   - name: 'no-md-write'
     type: 'tool_used'

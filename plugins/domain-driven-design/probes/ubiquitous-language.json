@@ -1,7 +1,7 @@
 {
-  "skill": "domain-driven-design:curate-language",
+  "skill": "domain-driven-design:ubiquitous-language",
   "plugin": "domain-driven-design",
-  "skill_dir": "plugins/domain-driven-design/skills/curate-language",
+  "skill_dir": "plugins/domain-driven-design/skills/ubiquitous-language",
   "ranking_note": "Authored from the before description at commit c6a1185b2b, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. The plugin has one skill, so every competitor lives in another plugin; emit-plugin-eval loads their plugins beside it, so near-miss negatives test competitor wins as well as quietness.",
   "competitors": [
     "planning:design",
@@ -67,9 +67,9 @@
       "request": "'Account' is overloaded in billing: sometimes the paying customer, sometimes the ledger. Resolve it and update our domain terms accordingly."
     },
     {
-      "id": "neg-train-01",
+      "id": "pos-train-06",
       "split": "train",
-      "expect_trigger": false,
+      "expect_trigger": true,
       "request": "What does 'subrogation' mean according to our project glossary? Just read me the entry."
     },
     {
