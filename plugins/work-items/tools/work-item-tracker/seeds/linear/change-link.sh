@@ -17,7 +17,7 @@ if [[ -n "$WIT_CL_REF" ]]; then
   team="${BASH_REMATCH[1]}" number="${BASH_REMATCH[2]}"
   # The workspace comes from the binding, and its scopes are the declared boundary.
   wit_need_linear_config
-  workspace="$(jq -r '.[0] | split("/")[0]' <<<"$WIT_LINEAR_SCOPES")"
+  workspace="$(wit_linear_workspace)"
   wit_linear_scope_in_scope "$workspace/$team" ||
     wit_change_link_no_item "team '$team' is not in the binding's config.linear.scopes"
   WIT_CL_ID="linear:$workspace/$team#$number"
