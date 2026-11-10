@@ -53,22 +53,17 @@ derive_server() {
   printf '%s' "$out"
 }
 
+# lines_after <file> <line_num> — the up to 12 lines that follow line_num.
+lines_after() {
+  sed -n "$(($2 + 1)),$(($2 + 12))p" "$1" 2>/dev/null
+}
+
 # report_not_a_directory <path>: the empty-manifest answer for a scan root that
 # is not a directory. Exit 0, because nothing to scan is not an argument error.
 report_not_a_directory() {
   echo "Server count: 0"
   echo "Error: scan path is not a directory: $1"
   exit 0
-}
-
-# emit_tool <server> <runtime> <file> <tool_name> <line_num> — print one tool manifest record.
-emit_tool() {
-  printf 'Server: %s\n' "$1"
-  printf 'Runtime: %s\n' "$2"
-  printf 'Tool file: %s\n' "$3"
-  printf 'Tool: %s\n' "$4"
-  printf 'Tool line: %s\n' "$5"
-  printf '%s\n' '---'
 }
 
 while [[ $# -gt 0 ]]; do
@@ -92,9 +87,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-root=""
-project_root=""
-scan_prefix=""
 if [[ -n "$SCAN_PATH" ]]; then
   if [[ ! -d "$SCAN_PATH" ]]; then
     report_not_a_directory "$SCAN_PATH"
@@ -120,11 +112,8 @@ else
   root="$project_root"
 fi
 
-if [[ "$root" == "$project_root" ]]; then
-  scan_prefix=""
-else
-  scan_prefix="${root#"$project_root"/}"
-fi
+scan_prefix=""
+[[ "$root" != "$project_root" ]] && scan_prefix="${root#"$project_root"/}"
 
 if [[ ! -d "$root" ]]; then
   report_not_a_directory "$root"
@@ -144,8 +133,11 @@ to_project_rel() {
 records=""
 servers_seen=""
 
+# add_record <server> <runtime> <file> <tool_name> <line_num> — append one tool manifest record.
 add_record() {
-  records+="$(emit_tool "$1" "$2" "$3" "$4" "$5")"$'\n'
+  local record
+  printf -v record 'Server: %s\nRuntime: %s\nTool file: %s\nTool: %s\nTool line: %s\n---\n' "$@"
+  records+="$record"
   case " $servers_seen " in
   *" $1 "*) ;;
   *) servers_seen+="$1 " ;;
@@ -178,20 +170,15 @@ while IFS= read -r file; do
     [[ -z "$hit" ]] && continue
     line_num="${hit%%:*}"
     tool_name=""
-    offset=1
-    while [[ $offset -le 12 ]]; do
-      candidate="$(sed -n "$((line_num + offset))p" "$file" 2>/dev/null)"
+    while IFS= read -r candidate || [[ -n "$candidate" ]]; do
       [[ -z "$candidate" ]] && break
       # Both shapes in one pass: the `def` expression rewrites the pattern space
       # to the bare name, so the `async def` expression cannot also match it.
       tool_name="$(printf '%s' "$candidate" |
         sed -n -e 's/^[[:space:]]*def[[:space:]]\+\([a-zA-Z0-9_]*\).*/\1/p' \
           -e 's/^[[:space:]]*async[[:space:]]\+def[[:space:]]\+\([a-zA-Z0-9_]*\).*/\1/p')"
-      if [[ -n "$tool_name" ]]; then
-        break
-      fi
-      offset=$((offset + 1))
-    done
+      [[ -n "$tool_name" ]] && break
+    done < <(lines_after "$file" "$line_num")
     [[ -z "$tool_name" ]] && continue
     add_record "$server" python "$rel" "$tool_name" "$line_num"
   done < <(grep -nE '^[[:space:]]*@mcp\.tool' "$file" 2>/dev/null | tr -d '\r' || true)
@@ -208,16 +195,13 @@ while IFS= read -r file; do
     [[ -z "$hit" ]] && continue
     line_num="${hit%%:*}"
     method_line=""
-    offset=1
-    while [[ $offset -le 12 ]]; do
-      candidate="$(sed -n "$((line_num + offset))p" "$file" 2>/dev/null)"
+    while IFS= read -r candidate || [[ -n "$candidate" ]]; do
       [[ -z "$candidate" ]] && break
       if grep -qE '^[[:space:]]*(public|private|internal|protected).*[[:alnum:]_][[:alnum:]_]*[[:space:]]*\(' <<<"$candidate"; then
         method_line="$candidate"
         break
       fi
-      offset=$((offset + 1))
-    done
+    done < <(lines_after "$file" "$line_num")
     [[ -z "$method_line" ]] && continue
     # A client-facing name on the attribute wins over the method name:
     # [McpServerTool(Name = "inventory_list_items")] is what clients see.
