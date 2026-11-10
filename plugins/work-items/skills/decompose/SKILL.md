@@ -323,7 +323,7 @@ Classify per taxonomy: the **issue type** from the item's nature. `Bug` (fixing 
 
 Items published here are **born triaged**: they enter the tracker classified, role-labeled, and briefed at creation, so `/work-items:triage` never re-processes them. Keep the body's last line, `<!-- work-items:born-triaged -->`, verbatim: a repository's intake automation may key on it, together with the author, the Issue Type and the role label, to skip items born triaged.
 
-**Leave the parent item untouched**: no close, no edit. The new items sit under it; they do not stand in for it.
+**Leave the parent item untouched at publish**: no close, no edit. The new items sit under it; they do not stand in for it. Once they close, "Decomposed parent close" in [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md) owns the parent's close, run by `/work-items:track done` and `/work-items:track audit`.
 
 ### Container lifecycle (spec-on-tracker). Opt-in
 

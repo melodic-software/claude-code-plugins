@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Leave #400 open and post one marked comment naming the support lead.",
+      "why": "left open"
+    },
+    {
+      "answer": "#400: children #401 and #402 closed as completed; parent left open.",
+      "why": "children closed, parent open"
+    },
+    {
+      "answer": "Do not close #400: its Finish line is in use, which the tracker cannot show.",
+      "why": "negated close"
+    },
+    {
+      "answer": "The support lead closes #400 once the weekly ticket report shows it in use.",
+      "why": "the checker's later close"
+    },
+    {
+      "answer": "The support lead will close #400 once the weekly ticket report confirms it.",
+      "why": "the checker's future close, modal form"
+    },
+    {
+      "answer": "#400 stays open; the support lead can close #400 after the check.",
+      "why": "the checker's permitted close, modal form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Every child is closed, so close #400 as completed.",
+      "why": "closes the in use parent"
+    },
+    {
+      "answer": "Closing parent #400 with a comment listing PRs #411 and #412.",
+      "why": "closing form"
+    }
+  ]
+}

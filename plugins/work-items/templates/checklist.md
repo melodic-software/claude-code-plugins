@@ -31,10 +31,15 @@ Copy into `<memory_dir>/<slug>/work-items-checklist.md` (default `.work/`). Per-
 - [ ] Verify PR merged
 - [ ] `/work-items:track done <N>` (or rely on the PR's closing-line auto-close, when the adapter has one)
 - [ ] Comment with merge SHA + retro pointer if applicable
+- [ ] Decomposed parent: run "Decomposed parent close" in `${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md` for the closed item's open parent
 
-## Action: stats / list / search / scan-todos / audit
+## Action: stats / list / search / scan-todos
 
 - [ ] Single-action read-only, no checkbox chain (run once, report)
+
+## Action: audit
+
+- [ ] Single action, no checkbox chain: it reclaims stale leases and closes or comments on decomposed parents, then reports
 
 ## Action: recheck
 
