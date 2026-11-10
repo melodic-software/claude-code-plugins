@@ -22,13 +22,17 @@ const INVITE_LEVEL_MAP: Record<SharingAccess, string> = {
   edit: "editor",
 };
 
-function buildSharingPolicy(access: SharingAccess) {
-  return {
-    sharingPolicy: {
-      access,
-      inviteToAccountAndBoardLinkAccess: INVITE_LEVEL_MAP[access],
-    },
-  };
+function sharingPolicyField(access: SharingAccess | undefined) {
+  return access
+    ? {
+        policy: {
+          sharingPolicy: {
+            access,
+            inviteToAccountAndBoardLinkAccess: INVITE_LEVEL_MAP[access],
+          },
+        },
+      }
+    : {};
 }
 
 export function registerBoardTools(
@@ -49,7 +53,7 @@ export function registerBoardTools(
       const { body: board } = await lowLevel.createBoard({
         name,
         description: description ?? "",
-        ...(sharing_access ? { policy: buildSharingPolicy(sharing_access) } : {}),
+        ...sharingPolicyField(sharing_access),
       });
       return jsonResponse({
         id: board.id,
@@ -123,7 +127,7 @@ export function registerBoardTools(
       const { body: board } = await lowLevel.updateBoard(board_id, {
         ...(name !== undefined ? { name } : {}),
         ...(description !== undefined ? { description } : {}),
-        ...(sharing_access ? { policy: buildSharingPolicy(sharing_access) } : {}),
+        ...sharingPolicyField(sharing_access),
       });
       return jsonResponse({
         id: board.id,

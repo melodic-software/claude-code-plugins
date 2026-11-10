@@ -29,16 +29,8 @@ interface OverlapPair {
 
 export function detectOverlaps(items: OverlapItem[], threshold: number): OverlapPair[] {
   const overlaps: OverlapPair[] = [];
-  for (let i = 0; i < items.length; i++) {
-    const a = items[i];
-    if (a === undefined) {
-      continue;
-    }
-    for (let j = i + 1; j < items.length; j++) {
-      const b = items[j];
-      if (b === undefined) {
-        continue;
-      }
+  for (const [i, a] of items.entries()) {
+    for (const b of items.slice(i + 1)) {
       const dx = Math.abs(a.x - b.x);
       const dy = Math.abs(a.y - b.y);
       if (dx < threshold && dy < threshold) {
@@ -55,12 +47,7 @@ function truncate(s: string): string {
 }
 
 function formatItem(item: OverlapItem) {
-  return {
-    id: item.id,
-    content: truncate(item.content),
-    x: item.x,
-    y: item.y,
-  };
+  return { ...item, content: truncate(item.content) };
 }
 
 export function registerOverlapTools(server: McpServer, api: MiroApi): void {
