@@ -192,19 +192,22 @@ for repo in plan.get("repositories") or []:
             m = oid_re.search(evidence)
             oid = m.group(1).lower() if m else ""
             key = (canonical, target)
-            if key not in finding_index:
-                finding_index[key] = (kind, oid, evidence)
-            elif not finding_index[key][1] and oid:
+            if key not in finding_index or (oid and not finding_index[key][1]):
                 finding_index[key] = (kind, oid, evidence)
 
+PHASES = {
+    "delete-merged-local-branches": 1,
+    "cleanup-worktrees": 2,
+    "delete-remote-branches": 3,
+}
+ALLOWED_KINDS = {
+    "delete-merged-local-branches": BRANCH_KINDS,
+    "cleanup-worktrees": WORKTREE_KINDS,
+    "delete-remote-branches": REMOTE_KINDS,
+}
+
 def phase(op: str) -> int:
-    if op == "delete-merged-local-branches":
-        return 1
-    if op == "cleanup-worktrees":
-        return 2
-    if op == "delete-remote-branches":
-        return 3
-    return 9
+    return PHASES.get(op, 9)
 
 def split_target(target: str) -> str:
     # Targets are "canonical :: branch" or a worktree path. Prefer the branch form.
@@ -243,13 +246,8 @@ for _idx, action in ordered:
             file=sys.stderr,
         )
         sys.exit(2)
-    if op == "delete-merged-local-branches":
-        allowed_kinds = BRANCH_KINDS
-    elif op == "cleanup-worktrees":
-        allowed_kinds = WORKTREE_KINDS
-    elif op == "delete-remote-branches":
-        allowed_kinds = REMOTE_KINDS
-    else:
+    allowed_kinds = ALLOWED_KINDS.get(op)
+    if allowed_kinds is None:
         print(f"Error: unsupported action operation: {op or '(empty)'}", file=sys.stderr)
         sys.exit(2)
     targets = action.get("targets") or []
@@ -323,23 +321,8 @@ for _idx, action in ordered:
                 sys.exit(2)
         else:
             ref_name = split_target(target_s)
-        print(
-            FS.join(
-                [
-                    str(phase(op)),
-                    clean(op),
-                    clean(canonical),
-                    clean(ref_name),
-                    clean(oid),
-                    clean(kind),
-                    clean(target_s),
-                    clean(remote),
-                    clean(rclass),
-                    clean(rkey),
-                    clean(rrepo),
-                ]
-            )
-        )
+        fields = [op, canonical, ref_name, oid, kind, target_s, remote, rclass, rkey, rrepo]
+        print(FS.join([str(phase(op))] + [clean(f) for f in fields]))
 PY
 )" || exit 2
 
@@ -528,65 +511,62 @@ append_decision() {
   D_REPO+=("${15:-}")
 }
 
+# decide <action> <reason> [<live oid> [<worktree>]]: append_decision for the unit held in the
+# caller's phase, op, canonical, ref, kind, target and expected.
+decide() {
+  append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "${3:-}" \
+    "$1" "$2" "${4:-}"
+}
+
 refresh_branch_delete() {
   local phase=$1 op=$2 canonical=$3 ref=$4 expected=$5 kind=$6 target=$7
   local tip default current wt_path
 
   if [[ ! -d "$canonical" ]]; then
-    append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "" \
-      skip "canonical path missing" ""
+    decide skip "canonical path missing"
     return 0
   fi
   if ! git_probe -C "$canonical" rev-parse --git-dir >/dev/null 2>&1; then
-    append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "" \
-      skip "not a git repository" ""
+    decide skip "not a git repository"
     return 0
   fi
   if [[ -z "$ref" ]]; then
-    append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "" \
-      skip "target has no branch name" ""
+    decide skip "target has no branch name"
     return 0
   fi
   if [[ -z "$expected" ]]; then
-    append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "" "" \
-      skip "plan evidence missing headRefOid (fail-closed)" ""
+    decide skip "plan evidence missing headRefOid (fail-closed)"
     return 0
   fi
 
   tip="$(branch_tip "$canonical" "$ref")"
   if [[ -z "$tip" ]]; then
-    append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "" \
-      skip "branch already absent" ""
+    decide skip "branch already absent"
     return 0
   fi
   if ! oids_match "$expected" "$tip"; then
-    append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "$tip" \
-      skip "OID drift (plan tip != current tip)" ""
+    decide skip "OID drift (plan tip != current tip)" "$tip"
     return 0
   fi
 
   default="$(default_branch_of "$canonical")"
   current="$(current_branch_of "$canonical")"
   if [[ -n "$default" && "$ref" == "$default" ]]; then
-    append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "$tip" \
-      skip "protected default branch" ""
+    decide skip "protected default branch" "$tip"
     return 0
   fi
   if [[ -n "$current" && "$ref" == "$current" ]]; then
-    append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "$tip" \
-      skip "current branch" ""
+    decide skip "current branch" "$tip"
     return 0
   fi
 
   wt_path="$(worktree_path_for_branch "$canonical" "$ref")"
   if [[ -n "$wt_path" ]]; then
-    append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "$tip" \
-      skip "worktree-attached (use cleanup-worktrees phase)" "$wt_path"
+    decide skip "worktree-attached (use cleanup-worktrees phase)" "$tip" "$wt_path"
     return 0
   fi
 
-  append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "$tip" \
-    delete-branch "merged local branch tip still matches plan OID" ""
+  decide delete-branch "merged local branch tip still matches plan OID" "$tip"
 }
 
 refresh_worktree_cleanup() {
@@ -594,25 +574,21 @@ refresh_worktree_cleanup() {
   local tip wt_path head
 
   if [[ ! -d "$canonical" ]]; then
-    append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "" \
-      skip "canonical path missing" ""
+    decide skip "canonical path missing"
     return 0
   fi
   if ! git_probe -C "$canonical" rev-parse --git-dir >/dev/null 2>&1; then
-    append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "" \
-      skip "not a git repository" ""
+    decide skip "not a git repository"
     return 0
   fi
 
   case "$kind" in
   prunable-worktree | missing-worktree)
-    append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "" \
-      prune-worktrees "prune stale/missing worktree registrations" ""
+    decide prune-worktrees "prune stale/missing worktree registrations"
     return 0
     ;;
   reclaimable-worktree)
-    append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "" \
-      skip "reclaimable-worktree retired; delegate to source-control:worktree status" ""
+    decide skip "reclaimable-worktree retired; delegate to source-control:worktree status"
     return 0
     ;;
   *) ;;
@@ -620,13 +596,11 @@ refresh_worktree_cleanup() {
 
   # Default / merged-worktree path.
   if [[ -z "$ref" ]]; then
-    append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "" \
-      skip "target has no branch name" ""
+    decide skip "target has no branch name"
     return 0
   fi
   if [[ -z "$expected" ]]; then
-    append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "" "" \
-      skip "plan evidence missing headRefOid (fail-closed)" ""
+    decide skip "plan evidence missing headRefOid (fail-closed)"
     return 0
   fi
 
@@ -635,44 +609,28 @@ refresh_worktree_cleanup() {
   if [[ -z "$wt_path" ]]; then
     # Worktree already gone; still may need branch delete if tip matches.
     if [[ -n "$tip" ]] && oids_match "$expected" "$tip"; then
-      append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "$tip" \
-        delete-branch "worktree already gone; branch tip still matches plan OID" ""
+      decide delete-branch "worktree already gone; branch tip still matches plan OID" "$tip"
     else
-      append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "$tip" \
-        skip "worktree already absent; branch tip missing or drifted" ""
+      decide skip "worktree already absent; branch tip missing or drifted" "$tip"
     fi
     return 0
   fi
 
   head="$(worktree_head "$wt_path")"
   if [[ -z "$head" ]]; then
-    append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "" \
-      skip "worktree HEAD unreadable" "$wt_path"
-    return 0
+    decide skip "worktree HEAD unreadable" "" "$wt_path"
+  elif ! oids_match "$expected" "$head"; then
+    decide skip "OID drift (plan tip != worktree HEAD)" "$head" "$wt_path"
+  elif [[ -n "$tip" ]] && ! oids_match "$expected" "$tip"; then
+    decide skip "OID drift (plan tip != branch tip)" "$tip" "$wt_path"
+  elif worktree_locked "$canonical" "$wt_path"; then
+    decide skip "worktree locked" "$head" "$wt_path"
+  elif worktree_is_unsafe_to_remove "$wt_path"; then
+    decide skip "dirty or unpushed worktree (fail-closed)" "$head" "$wt_path"
+  else
+    decide remove-worktree-then-branch "merged worktree HEAD still matches plan OID; tree clean" \
+      "$head" "$wt_path"
   fi
-  if ! oids_match "$expected" "$head"; then
-    append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "$head" \
-      skip "OID drift (plan tip != worktree HEAD)" "$wt_path"
-    return 0
-  fi
-  if [[ -n "$tip" ]] && ! oids_match "$expected" "$tip"; then
-    append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "$tip" \
-      skip "OID drift (plan tip != branch tip)" "$wt_path"
-    return 0
-  fi
-  if worktree_locked "$canonical" "$wt_path"; then
-    append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "$head" \
-      skip "worktree locked" "$wt_path"
-    return 0
-  fi
-  if worktree_is_unsafe_to_remove "$wt_path"; then
-    append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "$head" \
-      skip "dirty or unpushed worktree (fail-closed)" "$wt_path"
-    return 0
-  fi
-
-  append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "$head" \
-    remove-worktree-then-branch "merged worktree HEAD still matches plan OID; tree clean" "$wt_path"
 }
 
 # Remote-branch deletion. The gated path runs exactly the argv the plan listing prints.
@@ -839,8 +797,7 @@ for line in "${UNITS[@]:-}"; do
     refresh_worktree_cleanup "$phase" "$op" "$canonical" "$ref" "$expected" "$kind" "$target"
     ;;
   *)
-    append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "" \
-      skip "unknown operation" ""
+    decide skip "unknown operation"
     ;;
   esac
 done
