@@ -504,7 +504,7 @@ check_marketplace() {
   to_slashes_to install_loc_native "$install_loc"
 
   local checked=0 n_match=0 n_stale=0 n_unverifiable=0 n_not_checked=0 n_skipped=0
-  local records_json="" first="yes"
+  local records_json=""
   local stale_ids=""
 
   # Marketplace-wide precondition, resolved ONCE rather than per install: the
@@ -612,19 +612,14 @@ check_marketplace() {
   # BEFORE the source lookup, and must: the source path is read out of the
   # commit itself, so there is nothing to read until the commit is known to be
   # present locally. A sha that equals HEAD is.
-  local pending="" clone_head=""
-  for ((k = 0; k < n; k++)); do
-    if [[ -z "${i_verdict[k]}" ]]; then
-      pending="yes"
-      break
-    fi
-  done
-  if [[ -n "$pending" ]]; then
-    git_to clone_head -C "$install_loc_native" rev-parse --verify -q 'HEAD^{commit}' 2>/dev/null ||
-      clone_head=""
-  fi
+  local head_read="" clone_head=""
   for ((k = 0; k < n; k++)); do
     [[ -z "${i_verdict[k]}" ]] || continue
+    if [[ -z "$head_read" ]]; then
+      head_read="yes"
+      git_to clone_head -C "$install_loc_native" rev-parse --verify -q 'HEAD^{commit}' 2>/dev/null ||
+        clone_head=""
+    fi
     if [[ -z "$clone_head" ]]; then
       i_verdict[k]="no-clone-head"
     elif [[ "${i_sha[k]}" != "$clone_head" ]]; then
@@ -656,9 +651,9 @@ check_marketplace() {
   done
 
   # --- Pass 3: one ls-tree per DISTINCT sha, every source dir at once ---------
-  local -a g_sha=() g_dir=()
-  local -A g_seen=()
-  local gkey
+  local -a g_sha=() g_dir=() uniq_shas=()
+  local -A g_seen=() uniq_seen=()
+  local gkey gi
   for ((k = 0; k < n; k++)); do
     [[ -z "${i_verdict[k]}" ]] || continue
     gkey="${i_sha[k]}"$'\x1f'"${i_srcdir[k]}"
@@ -666,15 +661,10 @@ check_marketplace() {
     g_seen["$gkey"]=1
     g_sha+=("${i_sha[k]}")
     g_dir+=("${i_srcdir[k]}")
-  done
-
-  local -a uniq_shas=()
-  local -A uniq_seen=()
-  local gi
-  for ((gi = 0; gi < ${#g_sha[@]}; gi++)); do
-    [[ -z "${uniq_seen[${g_sha[gi]}]+set}" ]] || continue
-    uniq_seen["${g_sha[gi]}"]=1
-    uniq_shas+=("${g_sha[gi]}")
+    [[ -n "${uniq_seen[${i_sha[k]}]+set}" ]] || {
+      uniq_seen["${i_sha[k]}"]=1
+      uniq_shas+=("${i_sha[k]}")
+    }
   done
 
   # Flat, in ls-tree order; owner_idx["<sha><US><source dir>"] is the ordered
@@ -720,8 +710,8 @@ check_marketplace() {
       esac
       # Which source directories this entry belongs to. Attach it to EVERY
       # matching source, not only the longest: two marketplace entries can nest
-      # (`plugins/alpha` and `plugins/alpha/nested`), and the previous
-      # per-source `ls-tree` included the blob in both expected trees. The path
+      # (`plugins/alpha` and `plugins/alpha/nested`), and the blob belongs in
+      # both expected trees, as a per-source `ls-tree` would list it. The path
       # itself is tried first so a `source` naming a single file still resolves
       # the way a single-pathspec call resolved it.
       #
@@ -988,7 +978,7 @@ check_marketplace() {
   # --- Pass 7: the per-install verdict and its JSON record --------------------
   local verdict n_differ n_missing n_extra ti filtered
   local j_id j_scope j_version j_sha j_path j_verdict
-  local paths_json p np pfirst jp
+  local paths_json p np jp
   for ((k = 0; k < n; k++)); do
     verdict="${i_verdict[k]}"
     local -a paths=()
@@ -1011,9 +1001,7 @@ check_marketplace() {
           paths+=("missing-from-cache: $rel")
           continue
         fi
-        if [[ "${cache_hash[$src_key]}" == "${tree_blob[ti]}" ]]; then
-          continue
-        fi
+        [[ "${cache_hash[$src_key]}" != "${tree_blob[ti]}" ]] || continue
         # Raw hashes disagree. Re-hash THIS file with the repo-relative path so
         # `.gitattributes` (an `eol=crlf` pin, a clean filter) applies, and only
         # report a difference the filtered hash also sees. This is the per-file
@@ -1065,25 +1053,16 @@ check_marketplace() {
 
     paths_json=""
     np=0
-    pfirst="yes"
     for p in "${paths[@]:-}"; do
       [[ -n "$p" ]] || continue
       np=$((np + 1))
       [[ $np -le $MAX_REPORTED_PATHS ]] || break
       json_string_to jp "$p"
-      if [[ "$pfirst" == "yes" ]]; then
-        pfirst="no"
-      else
-        paths_json+=","
-      fi
+      [[ $np -eq 1 ]] || paths_json+=","
       paths_json+="$jp"
     done
 
-    if [[ "$first" == "yes" ]]; then
-      first="no"
-    else
-      records_json+=","
-    fi
+    [[ -z "$records_json" ]] || records_json+=","
     records_json+="{\"id\":$j_id,\"scope\":$j_scope,\"version\":$j_version,\"gitCommitSha\":$j_sha"
     records_json+=",\"installPath\":$j_path,\"verdict\":$j_verdict"
     records_json+=",\"differing\":$n_differ,\"missing_from_cache\":$n_missing,\"extra_in_cache\":$n_extra"
@@ -1158,7 +1137,7 @@ jq_to mp_pairs -r '
 ' "$MARKETPLACES_JSON" 2>/dev/null || marketplaces_bad
 [[ "$mp_pairs" != "$SENTINEL_SHAPE" ]] || marketplaces_bad
 
-envelope="" env_first="yes"
+envelope=""
 while IFS=$'\x1f' read -r mp mp_loc; do
   [[ -n "$mp" ]] || continue
   block=""
@@ -1167,11 +1146,7 @@ while IFS=$'\x1f' read -r mp mp_loc; do
     block="{\"error\":$j_err}"
   fi
   json_string_to j_name "$mp"
-  if [[ "$env_first" == "yes" ]]; then
-    env_first="no"
-  else
-    envelope+=","
-  fi
+  [[ -z "$envelope" ]] || envelope+=","
   envelope+="$j_name:$block"
 done <<<"$mp_pairs"
 printf '{"marketplaces":{%s}}\n' "$envelope"
