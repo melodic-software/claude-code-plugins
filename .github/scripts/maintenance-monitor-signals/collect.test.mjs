@@ -1230,11 +1230,12 @@ test("lane hold markers: a marker reaches a run past the scan's cap", async () =
   ]);
 });
 
-test("lane hold markers: a failed marker list is a gap that leaves only signal 13 unread", async () => {
+test("lane hold markers: a failed marker list is a gap that reads only signal 13 partly, and the markers read before it still count", async () => {
   const api = fakeApi([[/artifacts\?name=lane-hold-pr-verify&/, new Error("GET artifacts: HTTP 502")], ...markerRoutes()]);
   const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
   assert.deepEqual(data.gaps, ["lane hold markers: GET artifacts: HTTP 502"]);
-  assert.deepEqual([...unreadSignals(data.gaps)], ["13 lane holds"]);
+  assert.deepEqual([[...unreadSignals(data.gaps)], [...partlyReadSignals(data.gaps)]], [[], ["13 lane holds"]]);
+  assert.ok(data.laneHolds.some((h) => h.runId === 86 && h.reason === "hold marker"), "work-resolve-issue's marker, listed first, stands");
   const off = fakeApi(routes());
   await collect(input(off));
   assert.ok(!off.calls.some((c) => c.includes("lane-hold-")), "no hold rule input, no marker read");

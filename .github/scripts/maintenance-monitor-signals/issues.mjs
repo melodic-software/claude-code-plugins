@@ -134,7 +134,7 @@ const SOURCES = {
   "stalled stops": ["10 stalled lane stop"],
   "post-merge reports": ["11 post-merge unreadable"],
   "lane holds": ["13 lane holds"],
-  "lane hold markers": ["13 lane holds"],
+  "lane hold markers": [],
   "lane holds partly read": [],
   audits: ["6 report-only audit"],
   "githubstatus.com": [],
@@ -142,7 +142,8 @@ const SOURCES = {
 
 // The signals each partly-read gap feeds: what was read is a floor on the
 // whole, so a finding stands, but no finding is no proof the signal is clear.
-const PARTLY_READ = { "lane holds partly read": ["13 lane holds"] };
+// A failed marker list leaves the scan's reads, a floor too.
+const PARTLY_READ = { "lane holds partly read": ["13 lane holds"], "lane hold markers": ["13 lane holds"] };
 
 const sourceOf = (gap, names) => names.find((name) => String(gap).startsWith(`${name}:`));
 
