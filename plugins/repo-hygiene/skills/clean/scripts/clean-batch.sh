@@ -310,9 +310,13 @@ plan_gitdir_record_wellformed() { [[ -n "$1" ]]; }
 # Child `Summary: …` parsing, shared by the apply and dry-run loops so both read a
 # child's tallies the same way. summary_line <child-output> extracts the first
 # Summary line; summary_field <name> <summary-line> pulls one numeric `<name>=<n>`
-# field out of it, or nothing when the field is absent (callers default to 0).
+# field out of it, or 0 when the field is absent.
 summary_line() { sed -n 's/^Summary: //p' <<<"$1" | head -1; }
-summary_field() { sed -n "s/.*$1=\([0-9]*\).*/\1/p" <<<"$2"; }
+summary_field() {
+  local v
+  v="$(sed -n "s/.*$1=\([0-9]*\).*/\1/p" <<<"$2")"
+  printf '%s\n' "${v:-0}"
+}
 
 # ---------------------------------------------------------------------------
 # SCAN: read-only inventory per repo; no plan, nothing to gate.
@@ -464,9 +468,6 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
       removed="$(summary_field removed "$r")"
       failed="$(summary_field failed "$r")"
       bytes="$(summary_field bytes "$r")"
-      removed="${removed:-0}"
-      failed="${failed:-0}"
-      bytes="${bytes:-0}"
       # Fail closed on a non-zero child that printed no parseable Summary (e.g. the
       # repo lost its .git between dry-run and apply — the child refuses with "not a
       # git repository" and exits before any Summary line). Without this the parsed
@@ -514,11 +515,9 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
     esac
   done <"$BATCH_PLAN_ARG"
 
-  if tier_has_git; then
-    printf 'Summary: removed=%s failed=%s bytes=%s gitdirs=%s\n' "$REMOVED" "$FAILED" "$BYTES" "$GITDIRS"
-  else
-    printf 'Summary: removed=%s failed=%s bytes=%s\n' "$REMOVED" "$FAILED" "$BYTES"
-  fi
+  printf 'Summary: removed=%s failed=%s bytes=%s' "$REMOVED" "$FAILED" "$BYTES"
+  if tier_has_git; then printf ' gitdirs=%s' "$GITDIRS"; fi
+  printf '\n'
   [[ "$FAILED" -eq 0 ]] || exit 1
   exit 0
 fi
@@ -693,8 +692,6 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
     r="$(summary_line "$out")"
     planned="$(summary_field planned "$r")"
     bytes="$(summary_field bytes "$r")"
-    planned="${planned:-0}"
-    bytes="${bytes:-0}"
     PLANNED=$((PLANNED + planned))
     PLAN_BYTES=$((PLAN_BYTES + bytes))
     # Split by manifest class (`<class>\t<bytes>\t<rel>`): a build manifest folds caches in.
@@ -731,11 +728,8 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
     fi
   fi
 
-  reason=""
-  for rp in "${reason_parts[@]}"; do
-    [[ -n "$reason" ]] && reason+="; "
-    reason+="$rp"
-  done
+  printf -v reason '%s; ' "${reason_parts[@]}"
+  reason="${reason%; }"
   # A manifest-tier repo with nothing planned that adds no new object store has
   # nothing for apply to remove. A new store is a real prune/gc plan.
   outcome=would-clean
@@ -782,16 +776,12 @@ if [[ "$LIST_MAX" -gt 0 ]]; then
 fi
 
 printf 'BatchPlan: %s\n' "$PLAN"
+printf 'Summary: repos=%s planned=%s bytes=%s skipped=%s blocked=%s' \
+  "$REPOS" "$PLANNED" "$PLAN_BYTES" "$SKIPPED" "$BLOCKED"
 if tier_has_git; then
-  printf 'Summary: repos=%s planned=%s bytes=%s skipped=%s blocked=%s gitdirs=%s' \
-    "$REPOS" "$PLANNED" "$PLAN_BYTES" "$SKIPPED" "$BLOCKED" "${#BATCH_GITDIR_KEYS[@]}"
-  if [[ "$TIER" == all ]]; then
-    printf ' caches_bytes=%s build_bytes=%s git_bytes=%s\n' "$CACHES_BYTES" "$BUILD_BYTES" "$GIT_BYTES"
-  else
-    printf ' git_bytes=%s\n' "$GIT_BYTES"
-  fi
-else
-  printf 'Summary: repos=%s planned=%s bytes=%s skipped=%s blocked=%s\n' \
-    "$REPOS" "$PLANNED" "$PLAN_BYTES" "$SKIPPED" "$BLOCKED"
+  printf ' gitdirs=%s' "${#BATCH_GITDIR_KEYS[@]}"
+  if [[ "$TIER" == all ]]; then printf ' caches_bytes=%s build_bytes=%s' "$CACHES_BYTES" "$BUILD_BYTES"; fi
+  printf ' git_bytes=%s' "$GIT_BYTES"
 fi
+printf '\n'
 exit 0
