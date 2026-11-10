@@ -5,8 +5,7 @@
 // read from the API when the run starts, never from the event payload. The
 // kill switch and a close by any bot sender stop the run before any API call.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -6448,7 +6447,7 @@ test("two back-to-back sweeps re-fire the issue the kill switch stopped at broke
 // file the last one kept instead of GitHub, and reads GitHub for anything the
 // file does not answer.
 const jobReads = (calls) => calls.filter((call) => /^GET \/repos\/[^ ]+\/actions\/runs\/\d+\/jobs/.test(call));
-const carryDir = () => mkdtempSync(join(tmpdir(), "verdict-carry-"));
+const carryDir = () => tempDir("verdict-carry-");
 // One sweep of the broker-check breaker trip, reading the carry at `from` and
 // keeping it at `to`; `run` changes the lane run's listing.
 async function carriedSweep({ from, to, run = {}, logs = CHECK_KILLED }) {

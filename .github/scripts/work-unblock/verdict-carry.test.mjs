@@ -3,10 +3,11 @@
 // work-unblock.yml in this repository, and any failure leaves no file; a
 // saved carry keeps at most JOBS_MAX and REFUSALS_MAX entries, newest used first.
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
+
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 import { CARRY_ARTIFACT, JOBS_MAX, loadCarry, read, REFUSALS_MAX } from "./verdict-carry.mjs";
 
@@ -40,7 +41,7 @@ function fakeActions(runs, withFile) {
 const envFor = (dir) => ({ VERDICTS_IN: join(dir, "in.json"), GITHUB_REPOSITORY: REPO, GITHUB_RUN_ID: "900" });
 
 test("read takes the file of the newest successful sweep of main's work-unblock.yml, and of no other run", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "verdict-carry-"));
+  const dir = tempDir("verdict-carry-");
   const runs = [
     sweepRun(900),
     sweepRun(899, { event: "issues" }),
@@ -60,7 +61,7 @@ test("read takes the file of the newest successful sweep of main's work-unblock.
 });
 
 test("read leaves no file when no sweep kept one, the download is not a JSON object, or the listing fails", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "verdict-carry-"));
+  const dir = tempDir("verdict-carry-");
   const env = envFor(dir);
   const cases = [
     [fakeActions([sweepRun(895)], []).actions, () => "{}"],
@@ -77,7 +78,7 @@ test("read leaves no file when no sweep kept one, the download is not a JSON obj
 });
 
 test("a saved carry keeps the newest used entries up to its caps", () => {
-  const dir = mkdtempSync(join(tmpdir(), "verdict-carry-"));
+  const dir = tempDir("verdict-carry-");
   const now = Date.parse("2026-11-10T03:00:00Z");
   const old = loadCarry(undefined, now - 60_000);
   for (let id = 1; id <= JOBS_MAX + 5; id += 1) {
