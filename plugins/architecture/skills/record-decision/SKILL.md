@@ -148,7 +148,8 @@ as carrying its own license, and names the license when it declines to paste.
 
 Rule beside it: catalog templates are cited for the human to read, never pasted into this skill, into
 the reference file, or into a record. When asked to paste one, decline, name the URL and the license,
-and offer the repository's own observed shape instead.
+and offer the repository's own observed shape, or the bundled template, instead. The bundled
+`templates/adr.md` is this plugin's own text, not taken from the catalog.
 
 ## What this skill does NOT do
 
@@ -156,7 +157,8 @@ and offer the repository's own observed shape instead.
 - **Index generation.** README tables, `index.md`, or any catalog of records
 - **Status lifecycle** beyond what the convention already defines
 - **Migrating existing records** to a different template or numbering scheme
-- **Prescribing a convention** to a repository that has none
+- **Imposing a convention** on a repository that has none: the default template is recommended,
+  and nothing is written until the human chooses
 - **Reading planning artifacts.** Callers pass the decision in; this skill does not open them
 
 ## Composition

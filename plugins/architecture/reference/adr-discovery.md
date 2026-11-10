@@ -34,7 +34,7 @@ code they describe rather than in a directory of their own.
 ## Rung 3. None
 
 No convention. The caller decides what that means: `/architecture:improve` reads nothing and moves
-on; `/architecture:record-decision` names the rungs it searched, offers shapes, and defers.
+on; `/architecture:record-decision` names the rungs it searched, recommends its default template beside other shapes, and defers.
 
 ## Inference: numbering
 

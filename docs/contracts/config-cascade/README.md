@@ -592,8 +592,8 @@ conformance.
 | `testing` (`verification`) | the team file at the default branch; a skill entry over the plugin value; an invalid value resolves `standard` | per-key |
 | `plugin-quality` | team via pointer line | convention doc |
 | `architecture` | team via pointer line | convention doc |
-| `architecture` (`record-decision`) | later layer | per-key |
 | `harness-config` (`audit-pass`) | team on conflict (policy-floor) | per-key |
+| `architecture` (`record-decision`) | later layer | per-key |
 | `authoring-formats` | team via pointer line | convention doc |
 | `instruction-placement` | team on conflict (policy-floor) | per-key |
 | `overengineering` | team on conflict for protected keys | per-key |
