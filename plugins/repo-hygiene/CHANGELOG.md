@@ -3,6 +3,12 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.14] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [0.21.13] - 2026-11-10
 
 ### Changed
