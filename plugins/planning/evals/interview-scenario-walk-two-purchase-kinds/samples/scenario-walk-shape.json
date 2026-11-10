@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Q1: What is an order, once one bag is sold both ways?\nContext (src/shop/models.py has Purchase and Subscription, no Order):\nS1: Marta subscribes on 3 March at 9.50 a month; it renews on 3 April. Tests: is the April renewal its own order?\n(a) Each renewal is an order. (b) The subscription is one order for its whole life.\nRecommend (a): forces \"order\" as one shipment and the charge for it.\nS2: Tom buys one bag for 11.00 on 5 March. Tests: is a one-off purchase an order in the same sense?\n(a) Yes. (b) It gets its own term.\nRecommend (a): forces one term for both ways of buying.\nS3: Marta's 3 April bag arrives split and she asks for 9.50 back on 6 April. Tests: what does the refund apply to?\n(a) The April order. (b) The subscription.\nRecommend (a): forces the rule that a refund applies to one order, never to a subscription.\nMy recommendation: (a) for each. Basis: verified, src/shop/models.py.\n\nAnswer per scenario, for example \"S2: b\", or accept all.",
+      "why": "scenarios inside one question, concrete, each with its test, recommendation and forced term, per-scenario answers offered"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here are the terms I suggest:\n- Order: one shipment and its charge.\n- Subscription: a standing agreement that creates an order each month.\n- Refund: money returned for one order.\nDoes that work?",
+      "why": "defines terms in prose with no scenarios"
+    },
+    {
+      "answer": "Q1: What is an order?\nS1: A customer subscribes and the subscription renews. Is the renewal an order?\nS2: A customer buys once. Is that an order?\nMy recommendation: yes to both.",
+      "why": "scenarios are not concrete and carry no per-scenario recommendation or forced term"
+    }
+  ]
+}
