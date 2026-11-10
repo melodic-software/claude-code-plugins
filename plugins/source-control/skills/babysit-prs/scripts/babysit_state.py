@@ -128,14 +128,7 @@ def state_lock(path: Path, timeout_seconds: float = 90.0) -> Any:
     while True:
         try:
             handle.seek(0)
-            if os.name == "nt":
-                import msvcrt
-
-                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-            else:
-                import fcntl
-
-                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            _lock_first_byte(handle.fileno(), unlock=False)
             break
         except (BlockingIOError, OSError) as exc:
             if time.monotonic() >= deadline:
@@ -149,15 +142,20 @@ def state_lock(path: Path, timeout_seconds: float = 90.0) -> Any:
         yield
     finally:
         handle.seek(0)
-        if os.name == "nt":
-            import msvcrt
-
-            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
-        else:
-            import fcntl
-
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        _lock_first_byte(handle.fileno(), unlock=True)
         handle.close()
+
+
+def _lock_first_byte(fileno: int, *, unlock: bool) -> None:
+    """Take the lock without blocking, or release it, on this platform."""
+    if os.name == "nt":
+        import msvcrt
+
+        msvcrt.locking(fileno, msvcrt.LK_UNLCK if unlock else msvcrt.LK_NBLCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(fileno, fcntl.LOCK_UN if unlock else fcntl.LOCK_EX | fcntl.LOCK_NB)
 
 
 def write_state(path: Path, state: dict[str, Any]) -> None:
@@ -351,9 +349,8 @@ def record_rerun(
     entry["check_reruns"] = {head_sha: by_check}
     by_check[_check_rerun_key(check)] = {
         "check": {
-            "type": str(check.get("type") or ""),
-            "name": str(check.get("name") or ""),
-            "workflow_name": str(check.get("workflow_name") or ""),
+            field: str(check.get(field) or "")
+            for field in ("type", "name", "workflow_name")
         },
         "count": count + 1,
         "last_rerun_at": recorded_at,
@@ -382,12 +379,8 @@ def previous_with_ledger(
     merged["advisory_fix_rounds"] = dict(entry.get("advisory_fix_rounds") or {})
     checkin_fields = ("last_worker_checkin_at", "last_worker_checkin_head_sha")
     if any(field in entry for field in checkin_fields):
-        merged["last_worker_checkin_at"] = str(
-            entry.get("last_worker_checkin_at") or ""
-        )
-        merged["last_worker_checkin_head_sha"] = str(
-            entry.get("last_worker_checkin_head_sha") or ""
-        )
+        for field in checkin_fields:
+            merged[field] = str(entry.get(field) or "")
     merged["human_feedback_ids"] = sorted(
         {
             *merged.get("human_feedback_ids", []),
@@ -529,7 +522,8 @@ def save_state(
         complete_queue = mode == "queue" and snapshot.get(
             "complete", not snapshot["errors"]
         )
-        if complete_queue and unscoped_queue_run:
+        full_sweep = complete_queue and unscoped_queue_run
+        if full_sweep:
             prs: dict[str, Any] = {}
         elif complete_queue:
             prs = {
@@ -559,7 +553,7 @@ def save_state(
                 ]
             )
         )
-        if complete_queue and unscoped_queue_run:
+        if full_sweep:
             last_full_sweep_generated_at = str(snapshot["generated_at"])
             cycles_since_full_sweep = 0
         else:
