@@ -51,17 +51,15 @@ fi
 wit_lease_ttl_within_cap "$ttl" "$ttl_minutes" || wit_usage_error "--ttl-hours plus --ttl-minutes must not exceed the ${WIT_LEASE_MAX_TTL_HOURS} h lease cap; a longer lease is never live"
 
 wit_need_storage
-number="$WIT_ID_NUMBER"
-file="$(wit_item_file "$number")"
+file="$(wit_item_file "$WIT_ID_NUMBER")"
 [[ -f "$file" ]] || {
   printf 'claim: no item %s\n' "$id" >&2
   exit "$EX_NOT_FOUND"
 }
 
 # Pre-write race check: a live lease already present means an established claim.
-now_epoch="$(date -u +%s)"
 active="$(wit_active_lease_json "$file")"
-if [[ -n "$active" ]] && wit_lease_is_live "$active" "$now_epoch"; then
+if [[ -n "$active" ]] && wit_lease_is_live "$active" "$(date -u +%s)"; then
   printf 'claim: item already claimed by %s\n' "$(jq -r '.holder // "unknown"' <<<"$active")" >&2
   exit "$EX_CONFLICT"
 fi
