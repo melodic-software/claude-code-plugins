@@ -162,8 +162,12 @@ report goes, comes from the shared medium resolver, which reads the plugin's `me
 already uses (the directory, the numbering scheme, and the record shape) and
 writes one record that follows it, reporting what it found before it writes.
 Where nothing is declared and nothing exists, it names the rungs it searched,
-offers two or three common shapes, and writes nothing at all until you pick one:
-this plugin never prescribes a convention to a repository that has none. The
+recommends its short default template (title, status, context, decision and why,
+considered options, optional consequences) beside one or two other shapes, and
+writes nothing at all until you pick one: this plugin never imposes a convention
+on a repository that has none. A team can set its own template and extra
+admission triggers in `architecture.yaml` (`reference/config.md`, "Decision-record
+keys"). The
 upstream template catalog is cited by URL for you to read, under its own
 CC BY-NC-SA 4.0 license; no template prose is copied into this plugin or into
 your records.
@@ -252,6 +256,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `medium` | string | `"auto"` | Where the map-* views and the improve report go. auto (default): a local file; terminal: no page; file: a local file; artifact: a private Artifact (the improve report stays a local file); hosted is read as artifact. A team rendered-views file never publishes. |
+| `adr_template` | string | *(none)* | Absolute or ~/ path to your own ADR template, used by record-decision when a repository has no ADR convention. Empty: the bundled template. A repository's team or personal architecture.yaml overrides it, and a repository's own ADR convention always wins. |
 
 ### How to set these
 
