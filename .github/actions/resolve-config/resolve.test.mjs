@@ -358,7 +358,7 @@ const LIMITS = {
   // Passed through as set; rate-guard.mjs fills it from the schema's defaults.
   api: {},
   // The adaptive lane level's bounds and streak (owner decision Q111, 2026-11-10).
-  "lane-level": { floor: 2, ceiling: 4, default: 3, "clean-windows": 2, pools: ["lanes-app"] },
+  "lane-level": { floor: 2, ceiling: 4, default: 3, "clean-windows": 2, pools: ["lanes-app"], shadow: true, variable: "CLAUDE_LANE_LEVEL", "valid-minutes": 150 },
 };
 
 test("limits: a config with no limits leaf resolves today's thirteen values", () => {
@@ -376,8 +376,19 @@ test("limits: a set lane-level key overrides its default and keeps the others; a
   const set = edited((doc) => {
     doc.limits = { "lane-level": { ceiling: 5, pools: ["lanes-app", "github-token"] } };
   });
-  assert.deepEqual(run(set).limits["lane-level"], { floor: 2, ceiling: 5, default: 3, "clean-windows": 2, pools: ["lanes-app", "github-token"] });
-  for (const bad of [{ ceiling: 11 }, { floor: 0 }, { "clean-windows": 1.5 }, { pools: ["content-creation"] }, { pools: [] }, { step: 1 }]) {
+  assert.deepEqual(run(set).limits["lane-level"], { ...LIMITS["lane-level"], ceiling: 5, pools: ["lanes-app", "github-token"] });
+  for (const bad of [
+    { ceiling: 11 },
+    { floor: 0 },
+    { "clean-windows": 1.5 },
+    { pools: ["content-creation"] },
+    { pools: [] },
+    { step: 1 },
+    { shadow: "false" },
+    { variable: "CLAUDE_LANES_REPO_DISABLED" },
+    { variable: "CLAUDE_LANES_DISABLED" },
+    { "valid-minutes": 59 },
+  ]) {
     const rejected = edited((doc) => {
       doc.limits = { "lane-level": bad };
     });

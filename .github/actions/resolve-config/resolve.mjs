@@ -952,7 +952,17 @@ function resolveMerge(merge = {}) {
 
 // LANE_LEVEL_DEFAULTS in .github/scripts/lib/lane-level.mjs holds the same;
 // resolve.test.mjs holds the two, the schema and the yaml equal.
-const laneLevelOf = (limits = {}) => ({ floor: 2, ceiling: 4, default: 3, "clean-windows": 2, pools: ["lanes-app"], ...limits["lane-level"] });
+const laneLevelOf = (limits = {}) => ({
+  floor: 2,
+  ceiling: 4,
+  default: 3,
+  "clean-windows": 2,
+  pools: ["lanes-app"],
+  shadow: true,
+  variable: "CLAUDE_LANE_LEVEL",
+  "valid-minutes": 150,
+  ...limits["lane-level"],
+});
 
 // What the schema cannot check about limits: the lane level's floor, as set
 // or defaulted, is at most its ceiling.

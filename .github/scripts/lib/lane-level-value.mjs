@@ -10,9 +10,10 @@
 // clamped to floor and ceiling. With `shadow` set the consumer is handed the
 // default, and the level it would have used is only reported.
 //
-// Settings are limits.lane-level in pr-pipeline.yaml: floor, ceiling and
-// default as decide() reads them, plus the keys below, whose defaults
-// resolve.mjs's laneLevelOf repeats for resolve-config.
+// Settings are limits.lane-level in pr-pipeline.yaml, defaulted from
+// LANE_LEVEL_DEFAULTS: floor, ceiling and default as decide() reads them,
+// shadow, variable (the level variable's name) and valid-minutes (how long a
+// published value holds).
 //
 // CLI: `node lane-level-value.mjs slots` writes `slots=<level>` to
 // GITHUB_OUTPUT and a notice naming the level it would use, from LANE_VARS
@@ -23,12 +24,6 @@ import { pathToFileURL } from "node:url";
 
 import { LANE_LEVEL_DEFAULTS } from "./lane-level.mjs";
 
-export const LEVEL_VALUE_DEFAULTS = Object.freeze({
-  shadow: true,
-  variable: "CLAUDE_LANE_LEVEL",
-  "valid-minutes": 150,
-});
-
 // The only names the level may be published under. It cannot name a lanes
 // kill switch (CLAUDE_LANES_DISABLED, CLAUDE_LANES_REPO_DISABLED) or any other
 // variable; the schema's pattern for limits.lane-level.variable is the same.
@@ -36,7 +31,7 @@ export const LEVEL_VARIABLE = /^[A-Z][A-Z0-9_]*_LANE_LEVEL$/;
 const VALUE = /^([1-9][0-9]?)@([1-9][0-9]{0,11})$/;
 
 export function levelSettings(laneLevel = {}) {
-  return { ...LANE_LEVEL_DEFAULTS, ...LEVEL_VALUE_DEFAULTS, ...laneLevel };
+  return { ...LANE_LEVEL_DEFAULTS, ...laneLevel };
 }
 
 export const encodeLevel = (level, validUntil) => `${level}@${validUntil}`;
