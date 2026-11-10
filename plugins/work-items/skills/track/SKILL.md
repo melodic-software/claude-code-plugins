@@ -56,8 +56,8 @@ For the multi-step actions (`add`, `start`, `done`, `recheck`), copy the matchin
 `<memory_dir>/<slug>/work-items-checklist.md` (default `.work/`), a memory-tier write
 ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
 "Memory-tier writes" owns the slug and the self-ignore guard).
-Tick each step as completed. Single-action reads (`stats`, `list`, `search`, `audit`, `due`, `view`, `changes`,
-`labels`) and `edit` don't need a checklist.
+Tick each step as completed. Single-action reads (`stats`, `list`, `search`, `due`, `view`, `changes`,
+`labels`), `audit` and `edit` don't need a checklist.
 
 ## Next
 
@@ -78,7 +78,7 @@ Parse `$ARGUMENTS` to extract the action (first token) and remaining arguments.
 | `due` | Show recurring items past their `next_due` date | [actions/due.md](actions/due.md) |
 | `recheck` | Update `last_checked`/`next_due` in recurring schedule after a periodic check | [actions/recheck.md](actions/recheck.md) |
 | `search` | Full-text search across items (open + closed) | [actions/search.md](actions/search.md) |
-| `audit` | Detect stale claims, orphaned recurring entries, label hygiene | [actions/audit.md](actions/audit.md) |
+| `audit` | Detect stale claims, orphaned recurring entries, label hygiene; close decomposed parents whose children are done | [actions/audit.md](actions/audit.md) |
 | `publish-plan` | Post an approved PLAN.md to an item as one marked comment, edited in place on re-publish | [actions/publish-plan.md](actions/publish-plan.md) |
 | `link` | The adapter's text linking a change to an item, from an id or a branch name | [actions/link.md](actions/link.md) |
 | `view` | One item's title, state, labels and body | [actions/view.md](actions/view.md) |
