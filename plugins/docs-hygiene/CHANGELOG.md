@@ -1,5 +1,13 @@
 # Changelog: docs-hygiene plugin
 
+## [2.10.0] - 2026-11-10
+
+### Changed
+
+- `rename-references`: a glossary-driven rename reports hits by layer. Code and identifiers are renamed in one reviewed change; docs and ADR text are updated while ADR file names and numbers stay unchanged; user-facing copy is report only; stored values and migrations are never edited and are named as a decision, a phased migration or a mapping recorded as an ADR.
+
+- `/docs-hygiene:rename-references` glossary-driven renames cover a verb moved into an entity's `Actions:` line: a hit is in scope only where the verb names that operation on that entity, the verb used on anything else is Excluded, and a hit that does not show the entity is Ambiguous.
+
 ## [2.9.2] - 2026-11-10
 
 ### Changed

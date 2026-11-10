@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.7.0] - 2026-11-10
+
+### Changed
+
+- `/testing:write` names tests and code with the glossary's chosen verbs and never a verb an entity's `Actions:` line rejects for that operation, on both the `lookup` path and the direct-read fallback.
+
 ## [3.6.14] - 2026-11-10
 
 ### Changed
