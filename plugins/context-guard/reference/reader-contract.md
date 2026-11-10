@@ -554,8 +554,8 @@ changes what the percentage is measured against.
 machine, the `heavy` band should be reached first. A zone reading exists so the session arrives at a
 boundary decision while that decision is still being made deliberately, through the operator menu
 above. If auto-compact fires first, the harness has already made a lossy choice
-on the session's behalf and the boundary was reached too late. We read a firing diagnostically:
-**it means the boundary was missed**, not that the window was managed. Lowering the window moves the trigger, and the module moves the percentage
+on the session's behalf and the boundary was reached too late. We read a firing diagnostically,
+as **a missed boundary**, not as a sign that the window was managed. Lowering the window moves the trigger, and the module moves the percentage
 bands with it. A 400000-token window on a 1M-class model puts the trigger at **40% of the full
 window**; with the shipped bands the module's edges become 20 and 30 points of the full window
 (50 and 75 of 400000), so the percentage shape reaches `heavy` before auto-compact fires. Without

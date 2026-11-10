@@ -80,9 +80,9 @@ Every externally-visible emit, whatever rung resolved the target, passes the unc
 draft+confirm egress gate (full draft + destination + ACTING identity), owned by the audit
 skill. This file documents the ladder; the gate lives in the skill.
 
-When the `work-items` plugin is installed, the audit offers its seam (`create-item` via the
-tracker CLI) as the emit vehicle for rungs 1–3, never by hand-writing files into another
-plugin's storage format (see reconciliation below). The seam emit sits behind the SAME confirm
+When the `work-items` plugin is installed, the audit offers its tracker CLI (`create-item`) as
+the emit vehicle for rungs 1–3, never by hand-writing files into another
+plugin's storage format (see reconciliation below). An emit through that CLI sits behind the SAME confirm
 surface as `gh issue create`: the tracker performs provider writes, and invoking the audit is
 not itself authorization to create an external item.
 
@@ -128,5 +128,5 @@ Two adjacent shapes were diffed against this schema before it was fixed:
   It has a different id grammar (`local-markdown:<owner>/<repo>#<n>` vs timestamp-slug), a different state
   key and vocabulary (`state: open` vs `status: unclaimed…`), JSON-valued frontmatter, and
   adapter-owned numbering. The delta is irreconcilable in one file, so the rule is: emit INTO
-  `work-items` only through its own seam CLI (rung offer above), never by writing its files by
+  `work-items` only through its own CLI (rung offer above), never by writing its files by
   hand. The markdown-dir sink and the adapter never share a directory.
