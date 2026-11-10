@@ -32,7 +32,7 @@ function fakeActions({ active = 5, state = null } = {}) {
     if (path.startsWith(`/repos/${REPO}/actions/workflows/work-resolve-issue.yml/runs?status=in_progress`)) {
       return { total_count: active, workflow_runs: [] };
     }
-    if (path.startsWith(`/repos/${REPO}/actions/workflows/work-unblock.yml/runs?`)) {
+    if (path.startsWith(`/repos/${REPO}/actions/workflows/work-unblock.yml/runs?branch=main&event=schedule&`)) {
       const run = (id, event) => ({ id, path: ".github/workflows/work-unblock.yml", event, head_branch: "main", head_repository: { full_name: REPO } });
       return { workflow_runs: [run(71, "workflow_run"), run(70, "schedule")] };
     }
@@ -80,10 +80,19 @@ async function decideWith({ laneLevel = {}, readings = QUIET, vars = {}, state =
 
 test("shadow: a quiet busy window after one clean window steps 3 to 4, writes no variable, and logs it", async () => {
   const lane = fakeLaneToken();
-  const { decision, lines, state } = await decideWith({ state: { level: 3, streak: 1, holdUntil: 0 }, lane });
+  const { decision, lines, state, calls } = await decideWith({ state: { level: 3, streak: 1, holdUntil: 0 }, lane });
   assert.deepEqual(decision, { level: 4, streak: 0, holdUntil: 0, reason: "step-up" });
   assert.deepEqual(lane.writes, [], "shadow mode wrote to GitHub");
   assert.deepEqual(state, { level: 4, streak: 0, holdUntil: 0, reason: "step-up", at: NOW_S });
+  assert.deepEqual(
+    calls,
+    [
+      `GET /repos/${REPO}/actions/workflows/work-unblock.yml/runs?branch=main&event=schedule&exclude_pull_requests=true&per_page=100&page=1`,
+      `GET /repos/${REPO}/actions/runs/70/artifacts?per_page=100`,
+      `GET /repos/${REPO}/actions/workflows/work-resolve-issue.yml/runs?status=in_progress&per_page=1`,
+    ],
+    "an hour's reads: one scheduled-run listing, one artifact listing, one run count (the download is the third job-token call)",
+  );
   assert.deepEqual(lines, [
     "::notice title=lane-level::level 4 (step-up, from 3); applied now: lane level 3 (shadow; would use 3, empty); shadow: would set CLAUDE_LANE_LEVEL to 4@1794363420; wrote nothing",
   ]);

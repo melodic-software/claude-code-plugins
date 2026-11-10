@@ -123,7 +123,7 @@ const scheduledSweep = (repo) => (run) =>
 // The last scheduled run's decision state, or null.
 export async function previousState({ repo, runId, actions, download }) {
   try {
-    const found = await newestTrustedArtifact({ repo, runId: String(runId), actions, name: STATE_ARTIFACT, workflow: WORKFLOW_PATH, trusted: scheduledSweep(repo) });
+    const found = await newestTrustedArtifact({ repo, runId: String(runId), actions, name: STATE_ARTIFACT, workflow: WORKFLOW_PATH, trusted: scheduledSweep(repo), event: "schedule" });
     if (found?.artifactId === undefined) {
       return null;
     }

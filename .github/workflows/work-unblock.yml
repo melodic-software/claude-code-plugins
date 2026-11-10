@@ -398,7 +398,7 @@ jobs:
   # hour leaves the last value, which expires to the default.
   publish-lane-level:
     needs: label-unblocked
-    if: always() && github.event_name == 'schedule' && github.ref == 'refs/heads/main'
+    if: ${{ !cancelled() && github.event_name == 'schedule' && github.ref == 'refs/heads/main' }}
     concurrency:
       group: work-unblock-publish-lane-level
       cancel-in-progress: false
@@ -465,7 +465,8 @@ jobs:
         if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
         env:
           RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
-        run: node .base/.github/scripts/work-unblock/publish-lane-level.mjs mode
+          SCRIPT: ${{ steps.config.outputs.script }}
+        run: node ".base/$SCRIPT" mode
 
       # The resolved grant: Variables write, with contents, pull-requests and
       # issues read. A refused or failed mint leaves no token; the next step
@@ -502,7 +503,8 @@ jobs:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           API_BUDGET_TOKEN: lanes-app
           STATE_OUT: ${{ runner.temp }}/lane-level-state.json
-        run: node .base/.github/scripts/work-unblock/publish-lane-level.mjs run
+          SCRIPT: ${{ steps.config.outputs.script }}
+        run: node ".base/$SCRIPT" run
 
       - name: Scan the upload for credentials
         id: scan-state
