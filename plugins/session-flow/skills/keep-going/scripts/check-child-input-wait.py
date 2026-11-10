@@ -40,12 +40,8 @@ import sys
 
 READ_SYSCALL = {"x86_64": 0, "amd64": 0, "aarch64": 63, "arm64": 63}
 # nanosleep, clock_nanosleep, wait4, waitid: sleeping or waiting on a child.
-NO_INPUT_SYSCALLS = {
-    "x86_64": (35, 230, 61, 247),
-    "amd64": (35, 230, 61, 247),
-    "aarch64": (101, 115, 260, 95),
-    "arm64": (101, 115, 260, 95),
-}
+_X86_NO_INPUT, _ARM_NO_INPUT = (35, 230, 61, 247), (101, 115, 260, 95)
+NO_INPUT_SYSCALLS = {"x86_64": _X86_NO_INPUT, "amd64": _X86_NO_INPUT, "aarch64": _ARM_NO_INPUT, "arm64": _ARM_NO_INPUT}
 # wchan cannot see the fd, so only a tty read is a prompt; a pipe read or a
 # generic wake wait (a pipeline consumer, a socket) stays "unknown".
 TTY_READ_WCHAN = "n_tty_read"
@@ -83,7 +79,8 @@ def _linux_verdict(pid: int) -> str:
         return "unknown"
     if state in ("Z", "X"):
         return "no"
-    want = READ_SYSCALL.get(platform.machine().lower())
+    machine = platform.machine().lower()
+    want = READ_SYSCALL.get(machine)
     try:
         with open(f"/proc/{pid}/syscall", "r") as fh:
             parts = fh.read().split()
@@ -101,7 +98,7 @@ def _linux_verdict(pid: int) -> str:
             return "yes"
         # Only a known non-input wait is "no": a poll, epoll or futex wait may
         # be a prompt read on another thread or through an event loop.
-        return "no" if nr in NO_INPUT_SYSCALLS.get(platform.machine().lower(), ()) else "unknown"
+        return "no" if nr in NO_INPUT_SYSCALLS.get(machine, ()) else "unknown"
     try:
         with open(f"/proc/{pid}/wchan", "r") as fh:
             wchan = fh.read().strip()
