@@ -309,7 +309,7 @@ test("the monitoring lane reads no pacer", () => {
 // step. A close is lost only when two full sweeps are more than that window
 // apart. With pacing that gap is at most the previous sweep's age when the
 // paced tick starts (PACE_MAX_GAP_MINUTES, which pace.mjs enforces) plus one
-// cron period and the next tick's start delay.
+// cron period, the next tick's start delay and its wait in the group.
 test("work-unblock's paced gap between full sweeps stays inside its close window", () => {
   // The latest start delay of 60 scheduled work-unblock runs, 2026-11-08 to
   // 2026-11-10: the 00:47 tick created at 00:54:37.
@@ -327,7 +327,12 @@ test("work-unblock's paced gap between full sweeps stays inside its close window
   const { work } = assertPaceSteps("work-unblock.yml", stepsOf("work-unblock.yml", "label-unblocked"));
   assert.equal(work, "Upload the verdicts for the next sweep");
   const maxGap = Number(/\n {10}PACE_MAX_GAP_MINUTES: "([0-9]+)"\n/.exec(text)?.[1]);
-  assert.ok(maxGap + period + MAX_DELAY_MINUTES <= LOOKBACK_HOURS * 60, `${maxGap} + ${period} + ${MAX_DELAY_MINUTES} minutes inside ${LOOKBACK_HOURS} h`);
+  // The next tick can also wait in the job's concurrency group behind a
+  // running sweep, at most that job's timeout.
+  const wait = Number(/\n {4}timeout-minutes: ([0-9]+)\n/.exec(jobOf("work-unblock.yml", "label-unblocked"))?.[1]);
+  assert.equal(wait, 10);
+  const gap = maxGap + period + MAX_DELAY_MINUTES + wait;
+  assert.ok(gap <= LOOKBACK_HOURS * 60, `${maxGap} + ${period} + ${MAX_DELAY_MINUTES} + ${wait} minutes inside ${LOOKBACK_HOURS} h`);
   // And an on-time previous sweep still lets a tick pace, so the saving holds.
   assert.ok(maxGap >= period + MAX_DELAY_MINUTES, `${maxGap} >= ${period} + ${MAX_DELAY_MINUTES}`);
 });
