@@ -2686,16 +2686,16 @@ credential pattern records `blocked`, so a capture never fails the verdict. `mer
 no capture runs), and `retention-days` (default 30, at most 30, the `pr-capture-*` row in
 `.github/artifact-retention.json`), how long each capture artifact lasts. `proxy` configures the
 key proxy, the only route the driven Claude Code in the capture's sibling sandbox has to the API:
-`claude-code-version` (the version `package-lock.json` pins, which the capture installs),
 `driven-model` and `driven-small-model`, `models` (the model ids it forwards), `token-cap` (the
 tokens the driven session of one capture job may spend, cache tokens counted in full),
 `driver-token-cap` (the same for the job's trusted driver legs), `max-tokens-ceiling` (the largest
 `max_tokens` it forwards, also the driven session's `CLAUDE_CODE_MAX_OUTPUT_TOKENS`),
 `max-body-bytes`, `max-in-flight` (at least 2), `max-count-tokens-requests`,
 `max-preflight-requests` (the messages requests that may reach its count_tokens preflight),
-`upstream-timeout-ms`, and the `betas`, `body-keys` and `block-types` it allows. `betas` and
-`body-keys` were measured from the driven session's requests on `claude-code-version`, so the pull
-request that bumps that version measures them again with it. When the key cannot capture (the
+`upstream-timeout-ms`, and the `betas`, `body-keys` and `block-types` it allows. The capture
+installs the Claude Code version `package-lock.json` pins, the one source of that version. The three
+lists were measured from the driven session's requests; the proxy refuses a value they do not list
+and names it, so the first capture after a version bump says what to add. When the key cannot capture (the
 credit gate skipped it, its probe handed off, or it is empty), `capture-subscription` uploads a
 capture recorded `blocked`: a subscription token cannot go behind the key proxy, so that job runs no
 model, and no fallback job follows it. A model error, an output that fails the schema, or a `pass` or `pass-notes` with any
