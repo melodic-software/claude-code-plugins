@@ -235,6 +235,14 @@
       "reason": "Read by the next run; 1 day is the minimum.",
       "scan": "upload"
     },
+    "work-unblock-verdicts": {
+      "retention-days": 1,
+      "readers": [
+        ".github/scripts/work-unblock/verdict-carry.mjs CARRY_ARTIFACT, from the newest successful sweep"
+      ],
+      "reason": "Read by the next sweep; 1 day is the minimum.",
+      "scan": "upload"
+    },
     "pr-merge-summary": {
       "retention-days": 1,
       "readers": [

@@ -1358,12 +1358,6 @@
           "default": 1,
           "description": "Fresh attempts one issue gets after the pr-merge lane closes its pull request at `max-verify-fails` or as `verify:too-old`: the issue goes back to agent-ready with the FAIL findings, and the closed pull request's FAILs leave the cap's count. Past this many the issue is parked at `status: confirmed` (README.md, Verifier verdict). The lower of the base's and main's applies; any other value is 0, so no attempt starts."
         },
-        "verify-cache": {
-          "type": "string",
-          "enum": ["shadow", "serve"],
-          "default": "shadow",
-          "description": "How enable-auto-merge uses the verifier refusals the last run kept (babysit_verify_evidence.py --answers-in/--answers-out). shadow: every pull request is still read in full, and each read logs whether the kept answer's key matched and whether it decides as the fresh read does. serve: an unarmed pull request whose kept refusal's key still matches is answered from it with no further read. Only refusals are kept, an armed pull request is always read in full, and a kept answer never arms."
-        },
         "risk-escalation-minutes": {
           "type": "integer",
           "minimum": 0,

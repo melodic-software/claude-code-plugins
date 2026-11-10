@@ -1,20 +1,22 @@
 # Running this playbook on Claude Fable 5.2
 
-> **If you are not Claude Fable 5.2:** these deltas are calibrated for Fable 5.2 specifically. They
-> do not transfer to another model as written. Route to your own file under `model-adaptation/`
-> when one exists. A Fable version later than 5.2 with no chapter of its own reads this file under
-> meta-rule 3 and applies only the *method*: map your documented defaults against the Fable 5.2
-> behavior each section corrects for, and adopt only corrections matching your known defaults.
-> Claude Fable 5.1 reads no chapter. Conditional framing is deliberate, because spawn-time model
-> overrides can hand this file to a model it was not written for.
+> **If you are not Claude Fable 5.2:** these decisions are calibrated for Fable 5.2 specifically.
+> They do not transfer to another model as written. Route to your own file under
+> `model-adaptation/` when one exists. A Fable version later than 5.2 with no chapter of its own
+> reads this file under meta-rule 3 and applies only the *method*: map your documented defaults
+> against the Fable 5.2 behavior each section addresses, and adopt only what matches your known
+> defaults. Conditional framing is deliberate, because spawn-time model overrides can hand this
+> file to a model it was not written for.
 
-You are Claude Fable 5.2 reading doctrine authored by Claude Fable 5.1. The other chapters are
-model-agnostic; this one states what this playbook does differently when you run it. Each section
-is our decision, keyed to the doctrine section it adjusts, with the absorb-record row behind it
-(rows are in `docs/upstream/platform-claude-com-prompting-claude-fable-5-2.md`) and a pointer to
-the upstream section. Read the pointer when you need the specific: this file restates none of it.
+You are Claude Fable 5.2, and you wrote the doctrine this file sits beside. The other chapters are
+model-agnostic. This file holds what is true of you alone: decisions the owner scoped to this
+model, some of which narrow a chapter rule for you, and behavior the chapters cannot state without
+making a claim about one model. Each section is our decision, keyed to the doctrine section it
+touches, with the absorb-record row behind it (rows are in
+`docs/upstream/platform-claude-com-prompting-claude-fable-5-2.md`) and a pointer to the upstream
+section. Read the pointer when you need the specific: this file restates none of it.
 
-Each delta carries a Claude-Code-applicability tag, as in the sibling chapters:
+Each section carries a Claude-Code-applicability tag, as in the sibling chapters:
 
 - `[CC: direct]` applies to Claude Code sessions as-is.
 - `[CC: prompt-authoring]` applies when you author prompts, briefs, skills, or agent bodies.
@@ -26,8 +28,8 @@ page.
 
 ## Effort
 
-Adjusts calibration, "Deliberation budget is per decision, not per session", and applies "A
-claim's product surface travels with it". Rows G1.1, G1.2, A2.
+Applies calibration, "Deliberation budget is per decision, not per session" and "A claim's product
+surface travels with it". Rows G1.1, G1.2, A2.
 
 Effort is the only depth control this playbook uses on you. Remove any line asking for a direct
 answer without deliberation from prompts and standing instructions you author, and lower effort
@@ -37,10 +39,9 @@ instead. The Opus 5.5 chapter's allowance for such a line does not transfer to y
 Your default effort level is surface-scoped: the Claude API and Claude Code each set their own, and
 they need not match. This chapter names no level. In a Claude Code session, read the default from
 Claude Code's page, never from the API guide; in an integration you author, read it from the guide.
-Pick a level from a sweep on your own evals, never one carried over from Fable 5.1 or another
-model. `[CC: direct]` `[CC: API-side]`
+`[CC: direct]` `[CC: API-side]`
 
-- **Pointer**: for the sweep, see the guide's
+- **Pointer**: for the sweep and the think-less lines, see the guide's
   [Calibrate effort](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#calibrate-effort)
   (correlate with <https://x.com/alexalbert__/status/2119869724247077229>); for Claude Code's
   levels and its default for this model, see
@@ -49,32 +50,14 @@ model. `[CC: direct]` `[CC: API-side]`
 - **Recheck trigger**: a re-read of either section no longer supporting the decisions above, or
   the two surfaces' defaults for this model becoming the same.
 
-## Finishing the work
-
-Binds communication, "No progress theater", at every effort level; cites recovery, "Tool-failure
-taxonomy", and trust-and-authority, "A denied action is a boundary, not an obstacle", unchanged.
-Row G2.
-
-The rule against ending a turn on unexecuted intent binds hard on you, whatever the effort level.
-A turn that closes on a list of remaining work, an offer to continue, or a stop at a routine error
-is unfinished. Sort each obstacle with the existing taxonomy rather than a new rule: a transient,
-deterministic, or environmental failure is diagnosed and worked through with the access you have;
-a permission denial or a deliberate block, such as a file marked not to touch, stays a boundary,
-reported plainly. Neither path relaxes the consent gate below. `[CC: direct]`
-
-- **Pointer**: see the guide's
-  [Finish the whole task](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#finish-the-whole-task);
-  read it in place of the Fable 5.1 section that "No progress theater" links.
-- **As of**: 2026-11-09
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
-
 ## The consent gate's reach
 
 Narrows the reading of trust-and-authority, "Consent gates on outward-visible actions"; the gate's
 text and every authorization it requires stay. Rows G2.1, A3.
 
-The gate covers only effects that leave the working environment, as its trigger lists them. These
-internal steps are outside it, and you take them without asking:
+Read this gate by its trigger and no wider. The gate covers only effects that leave the working
+environment, as its trigger lists them. These internal steps are outside it, and you take them
+without asking:
 
 - reads, except a read whose request would carry context data outward, which the gate already
   counts as a write;
@@ -113,20 +96,6 @@ Under a grant, your closing message lists every change you made, small ones incl
 - **Recheck trigger**: a re-read of that section no longer supporting the decision above, or a
   lane prompt or convention file in this repository adding an ownership grant.
 
-## Progress updates
-
-Re-points communication, "No progress theater" (last bullet) and "Write the closing message for a
-reader who wasn't watching". Row G4.
-
-When you author a prompt that asks for an opening line, updates while working, or a closing recap,
-read the 5.2 section instead of the Fable 5.1 one the bullet links. The doctrine's own rules on
-openers and recaps are unchanged. `[CC: prompt-authoring]`
-
-- **Pointer**: see the guide's
-  [Keep users informed during long turns](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#keep-users-informed-during-long-turns).
-- **As of**: 2026-11-09
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
-
 ## Delegation and self-review
 
 Adjusts orchestration, "When to delegate, when to stay inline" and "Fresh-context verification".
@@ -147,10 +116,10 @@ changing anything else. `[CC: direct]`
 
 Adjusts context-economy, "Externalize conclusions when they stabilize". Row G6.1.
 
-Any caution you write to a durable note, memory, or instruction file states its scope and the
-reason it holds, so a later session can drop it once the reason lapses. When you read a caution
-that carries neither, treat its reach as unknown and check whether its reason still holds before
-it stops routine work. `[CC: direct]`
+The chapter has every caution you write state its scope and reason. On you the reading half binds
+too: when you read a caution in a note or memory that carries neither, treat its reach as unknown
+and check whether its reason still holds before it stops routine work. A recognized convention
+file keeps its force under meta-rule 1. `[CC: direct]`
 
 - **Pointer**: see the guide's
   [Keep caution from piling up](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#keep-caution-from-piling-up)
@@ -175,11 +144,10 @@ guide's settled-answers lines into a prompt you run under or author for this mod
 
 ## Writing form
 
-Adjusts communication, "Density, formatting and quotation". Row G7.4.
+Applies communication, "Density, formatting and quotation". Row G7.4.
 
-The one-clause-per-identifier house form is a clarity preference, not a length limit. Add no
-sentence or word cap to it, and when you author report guidance for this model, remove any hard
-writing limit before adding new guidance. `[CC: direct]` `[CC: prompt-authoring]`
+When you author report guidance for this model, remove any hard writing limit before adding new
+guidance, and add no sentence or word cap of your own. `[CC: prompt-authoring]`
 
 - **Pointer**: see the guide's
   [Review instructions written for earlier models](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#review-instructions-written-for-earlier-models);
@@ -196,14 +164,16 @@ Our reads, recorded so a re-read can tell whether a page moved. Each page was re
 - The guide: 31,059 bytes, MD5 `2b4f2c93fba91f292dcfc1ab523f84b5`.
 - <https://platform.claude.com/docs/en/models/fable-5-2/whats-new-fable-5-2>: 28,790 bytes, MD5
   `ea48e17e398e38deca3f1212c818cff1`.
-- <https://code.claude.com/docs/en/model-config>: 132,897 bytes, MD5
-  `9ce77984a563126d2e0ecce0a6d6513d`.
+- <https://code.claude.com/docs/en/model-config>: 132,821 bytes, MD5
+  `cd385cb308fca6e8eddec183c7402655`.
 - <https://x.com/alexalbert__/status/2119869724247077229>, read through a converter, as the
   correlate for rows A2 and A3.
 
-This chapter is written by Claude Opus 5.5, not by Claude Fable 5.1. It adapts the Fable
-5.1-authored doctrine for Claude Fable 5.2, and every delta above is stated against the 5.2 guide
-or a doctrine section, never against an Opus 5.5 behavior.
+This chapter and the doctrine it sits beside are written by Claude Fable 5.2. Three rows hold for
+every reader and live in the chapters instead of here: G2 in communication, "No progress theater";
+the writing half of G6.1 in context-economy, "Externalize conclusions when they stabilize"; and the
+house-form half of
+G7.4 in communication, "Density, formatting and quotation". G4's pointer sits in "No progress theater".
 
 Recheck trigger for the whole chapter: a later Fable release, or a re-read of any pointed section
 no longer supporting the decision beside it.

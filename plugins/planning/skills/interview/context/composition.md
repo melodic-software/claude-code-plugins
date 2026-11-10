@@ -28,7 +28,7 @@ otherwise do the step inline or name it to the user.
 | Plan the implementation | `/planning:plan` | Reads PLAN.md Brief + `## Design` + explore + research findings |
 | Stress-test the plan | `/planning:devils-advocate` | Adversarial pass on `/planning:plan` output |
 | Validate the interview's answers via agents | `/planning:audit-answers` | Fresh validators challenge each answer in the filled ledger (hand-answered or auto-accepted); only the doubtful ones return as human questions. The Step 3 recap and `--procedure` check show the Q&A and that the procedure ran; this re-validates the answers, and neither duplicates the other |
-| Record a decision that earns an ADR | `/architecture:record-decision` (if enabled) | Owns ADR convention discovery, the no-convention offer-and-defer, and the write; without it the interview writes to the declared convention or defers |
+| A round resolves a decision about the system over a weighed alternative | `/architecture:record-decision` (if enabled) | Round step 8, "Decision record" ([`loop.md`](loop.md)); that skill owns the admission test, convention discovery, the no-convention offer and the write; without it the decision is recorded as an ADR candidate in its register row |
 | Pause and resume later | `/session-flow:workflow` (if enabled) | Routes the continuation; the ledger and Brief carry the state (SKILL.md Step 5) |
 
 ## Scope cut before wayfind

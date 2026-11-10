@@ -98,13 +98,17 @@ function load_adapter(    line, f, key, n, i, w, nw, wi) {
   SHELL_LEX = LEXER == "bash" || LEXER == "pwsh"
   MODEL = V["block_model"]
   if (MODEL == "") MODEL = LEXER == "python" ? "indent" : "brace"
-  R_ANY = V["assertion.calls"]
-  if (V["snapshot"] != "") R_ANY = R_ANY (R_ANY != "" ? "|" : "") V["snapshot"]
+  R_ANY = alt(V["assertion.calls"], V["snapshot"])
   # Matched against raw text over a three-line window (append_block).
-  R_RAW = V["assertion.idioms"]
-  if (V["delegation"] != "") R_RAW = R_RAW (R_RAW != "" ? "|" : "") V["delegation"]
+  R_RAW = alt(V["assertion.idioms"], V["delegation"])
   R_BODY_SKIP = V["body_skip"]
-  N_PIPE = (V["equality.pipeline"] == "") ? 0 : split(V["equality.pipeline"], PIPE, "|")
+  # The pipeline matcher's regex, built once: dots literal, spaces any run.
+  N_PIPE = split(V["equality.pipeline"], PIPE, "|")
+  for (i = 1; i <= N_PIPE; i++) {
+    PIPE_RE[i] = PIPE[i]
+    gsub(/[.]/, "\\.", PIPE_RE[i])
+    gsub(/ /, "[[:space:]]+", PIPE_RE[i])
+  }
   R_MOCKA = V["mock.verify"]
   R_MOCKC = V["mock.create"]
   R_STRIP = V["mock.strip"]
@@ -151,19 +155,25 @@ function load_adapter(    line, f, key, n, i, w, nw, wi) {
   # Inequality asserts are never listed: Assert.NotEqual(f(2), f(2)) is an
   # always-fail defect, not this rule.
   R_CALL2 = V["equality.call2"]
-  N_CALL2 = (R_CALL2 == "") ? 0 : split(R_CALL2, CALL2, "|")
+  N_CALL2 = split(R_CALL2, CALL2, "|")
 
   # Receiver form <wrapper>.<matcher>: wrapper(A).matcher(B). Grouped by
-  # wrapper into one matcher alternation each.
+  # wrapper into one matcher alternation each; RW_RE is the wrapper's regex.
   NRW = 0
-  n = (V["equality.receiver"] == "") ? 0 : split(V["equality.receiver"], w, "|")
+  n = split(V["equality.receiver"], w, "|")
   for (i = 1; i <= n; i++) {
     nw = index(w[i], ".")
     for (wi = 1; wi <= NRW && RW_NAME[wi] != substr(w[i], 1, nw - 1); wi++) ;
-    if (wi > NRW) { NRW = wi; RW_NAME[wi] = substr(w[i], 1, nw - 1); RW_MATCH[wi] = "" }
+    if (wi > NRW) {
+      NRW = wi; RW_NAME[wi] = RW_RE[wi] = substr(w[i], 1, nw - 1); RW_MATCH[wi] = ""
+      gsub(/\./, "\\.", RW_RE[wi])
+    }
     RW_MATCH[wi] = RW_MATCH[wi] (RW_MATCH[wi] != "" ? "|" : "") substr(w[i], nw + 1)
   }
 }
+
+# Two alternations joined into one; an empty side adds nothing.
+function alt(a, b) { return a == "" ? b : b == "" ? a : a "|" b }
 
 function has(s, re) { return re != "" && s ~ re }
 
@@ -189,7 +199,7 @@ function mask_py(s,    out, i, c, c3, n) {
       if (c == S_q) S_str = 0
       out = out " "; i++; continue
     }
-    if (c == "#") { while (i <= n) { out = out " "; i++ }; continue }
+    if (c == "#") { out = out blanks(n - i + 1); break }
     if (c3 == "'''" || c3 == "\"\"\"") { S_triple = 1; S_tq = c3; out = out "   "; i += 3; continue }
     if (c == "'" || c == "\"") { S_str = 1; S_q = c; out = out " "; i++; continue }
     out = out c; i++
@@ -213,7 +223,7 @@ function mask_cs(s,    out, i, c, c2, c3, n) {
       if (c == S_q) S_str = 0
       out = out " "; i++; continue
     }
-    if (c2 == "//") { while (i <= n) { out = out " "; i++ }; continue }
+    if (c2 == "//") { out = out blanks(n - i + 1); break }
     if (c2 == "/*") { S_bc = 1; out = out "  "; i += 2; continue }
     if (c3 == "$@\"" || c3 == "@$\"") { S_verb = 1; out = out "   "; i += 3; continue }
     if (c2 == "@\"") { S_verb = 1; out = out "  "; i += 2; continue }
@@ -340,15 +350,7 @@ function mask_open() {
 # Small helpers
 # ---------------------------------------------------------------------------
 
-function brace_delta(s,    i, n, c, d) {
-  d = 0; n = length(s)
-  for (i = 1; i <= n; i++) {
-    c = substr(s, i, 1)
-    if (c == "{") d++
-    else if (c == "}") d--
-  }
-  return d
-}
+function brace_delta(s) { return delta(s, "{", "}") }
 
 # Net opens over closes in s, for the given opening and closing characters.
 function delta(s, opens, closes,    i, n, c, d) {
@@ -552,16 +554,16 @@ function inv_line(    t, n) {
 # A comparison statement with exactly one comparison operator and no && || ;
 # the Go `if got != 3 {` and the bash `[ "$output" = "3" ]` forms. The masked
 # line gates, the raw line gives the sides; inv_eq keeps only a literal side.
-function inv_cmp(    m, n, l, r) {
+function inv_cmp(    m, l, r) {
   m = masked
   if (LEXER == "go") {
     if (m !~ /^[[:space:]]*if[[:space:]].*\{[[:space:]]*$/ || m ~ /&&|\|\||;/) return
-    if ((n = gsub(/[!=]=/, "&", m)) != 1 || !match(m, /[!=]=/)) return
+    if (gsub(/[!=]=/, "&", m) != 1 || !match(m, /[!=]=/)) return
     l = substr(raw, 1, RSTART - 1); r = substr(raw, RSTART + RLENGTH)
     sub(/^[[:space:]]*if[[:space:]]+/, "", l); sub(/\{[[:space:]]*$/, "", r)
   } else if (LEXER == "bash") {
     if (m !~ /^[[:space:]]*\[\[?[[:space:]].*[[:space:]]\]\]?[[:space:]]*$/ || m ~ /&&|\|\||;/) return
-    if ((n = gsub(/[[:space:]](==?|!=|-eq|-ne)[[:space:]]/, "&", m)) != 1 || !match(m, /[[:space:]](==?|!=|-eq|-ne)[[:space:]]/)) return
+    if (gsub(/[[:space:]](==?|!=|-eq|-ne)[[:space:]]/, "&", m) != 1 || !match(m, /[[:space:]](==?|!=|-eq|-ne)[[:space:]]/)) return
     l = substr(raw, 1, RSTART - 1); r = substr(raw, RSTART + RLENGTH)
     sub(/^[[:space:]]*\[\[?[[:space:]]+/, "", l); sub(/[[:space:]]+\]\]?[[:space:]]*$/, "", r)
   } else return
@@ -595,15 +597,13 @@ function py_code_len(s,    i, n, c, q) {
   return n
 }
 
-function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, expr, wrap_re) {
-  tkind = (raw_line ~ R_EXEMPT || prev_raw ~ R_EXEMPT) ? "X" : "F"
+function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, expr) {
+  tkind = line_kind()
   # Receiver form, e.g. expect(A).toBe(A). The masked match position indexes
   # into the RAW line — masking is length-preserving, so the columns align,
   # and an earlier "expect" inside a string cannot shadow the real call site.
   for (i = 1; i <= NRW; i++) {
-    wrap_re = RW_NAME[i]
-    gsub(/\./, "\\.", wrap_re)
-    if (match(masked_line, wrap_re "[[:space:]]*\\(") == 0) continue
+    if (match(masked_line, RW_RE[i] "[[:space:]]*\\(") == 0) continue
     m = RSTART + length(RW_NAME[i])
     while (substr(raw_line, m, 1) ~ /[[:space:]]/) m++
     if (!extract_parens(raw_line, m)) continue
@@ -657,10 +657,7 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
   # pipeline form, e.g. A | Should -Be A: A runs from the statement start to
   # the last pipe before the matcher; the other side is the matcher's first word.
   for (i = 1; i <= N_PIPE; i++) {
-    wrap_re = PIPE[i]
-    gsub(/[.]/, "\\.", wrap_re)
-    gsub(/ /, "[[:space:]]+", wrap_re)
-    if (match(masked_line, "\\|[[:space:]]*" wrap_re "([[:space:]]|$)") == 0) continue
+    if (match(masked_line, "\\|[[:space:]]*" PIPE_RE[i] "([[:space:]]|$)") == 0) continue
     rest = substr(masked_line, 1, RSTART - 1)
     m = RSTART + RLENGTH
     for (p = length(rest); p > 0 && substr(rest, p, 1) !~ /[;{]/; p--) ;
@@ -824,8 +821,7 @@ function sh_assign(m,    s, name) {
 # substitution, [ ] tests, assertions, block keywords and the bodies of
 # functions the test defines run nothing under test.
 function sh_act_scan(m,    s, n, seg, i) {
-  s = m
-  sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s)
+  s = trim(m)
   if (SH_FN) { SH_FN += brace_delta(m); return }
   if (s == "" || FNR == block_line) return
   if (s ~ /^(function[[:space:]]+)?[A-Za-z_][A-Za-z0-9_:]*[[:space:]]*\([[:space:]]*\)[[:space:]]*\{?/ || s ~ /^function[[:space:]]/) {
@@ -882,7 +878,7 @@ function sh_file_facts(    name, rhs, v) {
 # ---------------------------------------------------------------------------
 
 function snippet(r) {
-  sub(/^[[:space:]]+/, "", r); sub(/[[:space:]]+$/, "", r)
+  r = trim(r)
   return length(r) > 60 ? substr(r, 1, 57) "..." : r
 }
 
@@ -939,13 +935,14 @@ function sh_inert(s, r) {
     emit(BANG_KIND, "inert-assertion", BANG_PEND, "a ! command that is not the test's last line never fails it: " BANG_SNIP)
     BANG_PEND = 0
   }
-  if (s ~ /^run[[:space:]]/ && s !~ /^run[[:space:]]+(--?[A-Za-z-]+[[:space:]]+)*(!|-[0-9])/) {
-    if (RUN_PEND) emit(RUN_KIND, "inert-assertion", RUN_PEND, "run result never checked: " RUN_SNIP)
-    RUN_PEND = FNR; RUN_KIND = line_kind(); RUN_SNIP = snippet(r)
-    r = substr(r, index(r, "run") + 3)
-  } else if (s ~ /^run[[:space:]]/) {
+  if (s ~ /^run[[:space:]]/) {
     if (RUN_PEND) emit(RUN_KIND, "inert-assertion", RUN_PEND, "run result never checked: " RUN_SNIP)
     RUN_PEND = 0
+    # run ! cmd and run -N cmd check the status themselves.
+    if (s !~ /^run[[:space:]]+(--?[A-Za-z-]+[[:space:]]+)*(!|-[0-9])/) {
+      RUN_PEND = FNR; RUN_KIND = line_kind(); RUN_SNIP = snippet(r)
+      r = substr(r, index(r, "run") + 3)
+    }
   }
   if (RUN_PEND && r ~ /\$\{?(status|output|lines|stderr|stderr_lines)([^A-Za-z0-9_]|$)|(^|[^A-Za-z0-9_])(assert|refute)[A-Za-z_]*/) RUN_PEND = 0
   if (s ~ /^![[:space:]]/) { BANG_PEND = FNR; BANG_KIND = line_kind(); BANG_SNIP = snippet(r); BANG_SOLO = s !~ /\|\||&&|;/ }
@@ -992,8 +989,7 @@ function go_inert(s, m) {
 }
 
 function inert_scan(m, r,    s, d) {
-  s = m
-  sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s)
+  s = trim(m)
   if (LEXER == "bash") { sh_inert(s, r); return }
   if (LEXER == "go") { if (GO_IF || stmt_start()) go_inert(s, m); return }
   # A PowerShell 7 line opening with a pipe continues the one before it.
@@ -1060,7 +1056,7 @@ function unquote(s) {
 function arg_path(args,    first, p) {
   first = split_top_comma(args) ? trim(SPLIT1) : trim(args)
   if (first in SRC_CONST) return SRC_CONST[first]
-  if (unquote(first) != "") return unquote(first)
+  if ((p = unquote(first)) != "") return p
   # new URL('lit', import.meta.url)
   if (first ~ /^new[[:space:]]+URL[[:space:]]*\(/ && index(first, "import.meta.url")) {
     p = index(first, "(")

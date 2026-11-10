@@ -70,12 +70,11 @@ export function rebuildVisualFrames(sliceDir) {
     const source = resolveSourceFile(file, promotionMap);
     const frame = source ? byFile[source] : undefined;
     const timestampSec = frame?.timestampSec ?? null;
-    const label = source ?? file.replace(/\.png$/, "");
     return {
       timestampSec,
       time: frameMinuteLabel(timestampSec, frame?.timestampSource, Math.floor),
       file,
-      label,
+      label: source ?? file.replace(/\.png$/, ""),
     };
   });
   rows.sort(compareTimesUntimedLast);
@@ -91,11 +90,9 @@ export function rebuildVisualFrames(sliceDir) {
     "",
     "| Timestamp | File | Content |",
     "| --- | --- | --- |",
+    ...rows.map((row) => `| ${row.time} | \`frames/${row.file}\` | ${row.label} |`),
+    "",
   ];
-  for (const row of rows) {
-    lines.push(`| ${row.time} | \`frames/${row.file}\` | ${row.label} |`);
-  }
-  lines.push("");
 
   const outPath = lanePath(absSlice, LANES.keyFrames, "visual-frames.md");
   fs.writeFileSync(outPath, `${lines.join("\n")}\n`, "utf8");

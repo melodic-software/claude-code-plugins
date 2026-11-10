@@ -33,11 +33,19 @@ export function resolveEpicDir(workRoot = resolveWorkRoot()) {
 
 /**
  * @param {string} epicDir
+ * @returns {string}
+ */
+function claimsDirPath(epicDir) {
+  return path.join(epicDir, "claims");
+}
+
+/**
+ * @param {string} epicDir
  * @param {number} row
  * @returns {string}
  */
 export function claimFilePath(epicDir, row) {
-  return path.join(epicDir, "claims", `${row}.json`);
+  return path.join(claimsDirPath(epicDir), `${row}.json`);
 }
 
 /**
@@ -73,17 +81,11 @@ export function claimRow(epicDir, row, { videoId = null, claimedBy = defaultClai
     throw new Error(`Invalid row: ${row}`);
   }
 
-  const claimsDir = path.join(epicDir, "claims");
-  fs.mkdirSync(claimsDir, { recursive: true });
+  fs.mkdirSync(claimsDirPath(epicDir), { recursive: true });
 
   const filePath = claimFilePath(epicDir, row);
   /** @type {QueueClaim} */
-  const payload = {
-    row,
-    videoId,
-    claimedAt: new Date().toISOString(),
-    claimedBy,
-  };
+  const payload = { row, videoId, claimedAt: new Date().toISOString(), claimedBy };
 
   let handle;
   try {
@@ -135,7 +137,7 @@ export function releaseRow(epicDir, row) {
  * @returns {QueueClaim[]}
  */
 export function listClaims(epicDir) {
-  const claimsDir = path.join(epicDir, "claims");
+  const claimsDir = claimsDirPath(epicDir);
   if (!fs.existsSync(claimsDir)) {
     return [];
   }

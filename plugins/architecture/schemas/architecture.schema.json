@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/architecture/schemas/architecture.schema.json",
+  "title": "Architecture team config",
+  "description": "Schema for <home>/architecture.yaml and <home>/architecture.local.yaml: the decision-record keys /architecture:record-decision reads through the four layers of docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md. The map-* keys stay in the topic doc <home>/architecture/README.md (plugins/architecture/reference/config.md).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "adr_template": {
+      "description": "Repo-relative path to the Markdown template /architecture:record-decision recommends when the repository has no ADR convention. A repository's own convention always wins. Default: the bundled skills/record-decision/templates/adr.md.",
+      "type": "string",
+      "minLength": 1
+    },
+    "adr_extra_triggers": {
+      "description": "Extra conditions that join the ADR admission test's 'at least one' list (for example 'touches personal data'). A real alternative must still have been weighed.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

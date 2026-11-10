@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "2.0.15",
+  "version": "2.1.0",
   "userConfig": {
     "medium": {
       "type": "string",
@@ -13,6 +13,12 @@
       "description": "Where the map-* views and the improve report go. auto (default): a local file; terminal: no page; file: a local file; artifact: a private Artifact (the improve report stays a local file); hosted is read as artifact. A team rendered-views file never publishes.",
       "default": "auto",
       "options": ["auto", "terminal", "file", "artifact", "hosted"]
+    },
+    "adr_template": {
+      "type": "string",
+      "title": "ADR template",
+      "description": "Absolute or ~/ path to your own ADR template, used by record-decision when a repository has no ADR convention. Empty: the bundled template. A repository's team or personal architecture.yaml overrides it, and a repository's own ADR convention always wins.",
+      "default": ""
     }
   },
   "license": "MIT",

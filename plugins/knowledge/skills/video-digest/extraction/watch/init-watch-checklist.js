@@ -80,7 +80,7 @@ export function buildFloorsLine(contentClass, durationHours, sessionCount, durat
     durationSec,
     typeof sessionCount === "number" ? sessionCount : 1,
   );
-  const sheetTriagePct = floorSheetTriagePct(contentClass, durationSec, sessionCount);
+  const sheetTriagePct = Math.round(floors.minSheetTriageRatio * 100);
   const densificationPct = Math.round(floors.minDensificationRatio * 100);
   return (
     `**Floors for this slice** (from \`vision-plan\` class \`${contentClass}\`, ${durationHours}h, ` +
@@ -304,6 +304,14 @@ export function generatedTicks({
 }
 
 /**
+ * @param {string} filePath
+ * @returns {string} the file's text, or "" when it does not exist
+ */
+function readTextIfExists(filePath) {
+  return fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : "";
+}
+
+/**
  * Write the checklist. With `force`, an existing checklist is regenerated (floors,
  * signals, per-sheet rows) and keeps its ticks and Resume notes, except ticks on rows
  * whose criteria changed: those are dropped and listed on stdout. Each run then ticks the
@@ -337,34 +345,27 @@ export function initWatchChecklist(sliceDir, { force = false } = {}) {
 
   const watch = readJsonFile(watchPath);
   const selection = fs.existsSync(selectionPath) ? readJsonFile(selectionPath) : null;
+  const metrics = watch.phases?.watching?.metrics ?? {};
 
-  const durationSec = selection?.durationSec ?? watch.phases?.watching?.metrics?.durationSec ?? 0;
+  const durationSec = selection?.durationSec ?? metrics.durationSec ?? 0;
   const contactSheetCount =
     selection?.contactSheets?.length ??
     watch.artifactPaths?.contactSheetCount ??
-    watch.phases?.watching?.metrics?.contactSheetCount ??
+    metrics.contactSheetCount ??
     0;
   const densificationWindowCount =
-    selection?.densificationWindows?.length ??
-    watch.phases?.watching?.metrics?.densificationWindows ??
-    0;
+    selection?.densificationWindows?.length ?? metrics.densificationWindows ?? 0;
   const recordedHighVolume =
-    selection?.highVolume ??
-    selection?.frameSelection?.highVolume ??
-    watch.phases?.watching?.metrics?.highVolume;
+    selection?.highVolume ?? selection?.frameSelection?.highVolume ?? metrics.highVolume;
   const highVolume = recordedHighVolume ?? false;
 
-  const visionPlanBody = fs.existsSync(visionPlanPath)
-    ? fs.readFileSync(visionPlanPath, "utf8")
-    : "";
+  const visionPlanBody = readTextIfExists(visionPlanPath);
   const visionPlanPresent = visionPlanBody.length > 0;
   const contentClass = visionPlanPresent ? detectContentClass(visionPlanBody) : "pending";
 
-  const claimBody = fs.existsSync(claimInventoryPath)
-    ? fs.readFileSync(claimInventoryPath, "utf8")
-    : "";
-  const sessions = claimBody ? parseSessionsFromClaimInventory(claimBody) : [];
-  const sessionCount = sessions.length || "TBD";
+  const claimBody = readTextIfExists(claimInventoryPath);
+  const sessionCount =
+    (claimBody ? parseSessionsFromClaimInventory(claimBody) : []).length || "TBD";
 
   const videoSlug = path.basename(absSlice);
   const durationHours = (durationSec / 3600).toFixed(1);

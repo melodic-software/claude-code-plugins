@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [7.6.3] - 2026-11-10
+
+### Changed
+
+- Shared `transcript_reader.py` synced where this plugin carries it: the reader's code is simplified, and what it returns for every transcript is unchanged.
+
 ## [7.6.2] - 2026-11-10
 
 ### Changed

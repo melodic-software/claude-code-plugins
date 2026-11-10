@@ -22,7 +22,8 @@ import { CELL_IDS, validateTriageSheet } from "../lib/watch-vision-validation.js
  */
 export function mergeTriageJson(sliceDir, batchPaths) {
   const absSlice = path.resolve(sliceDir);
-  const batchesDir = lanePath(absSlice, LANES.keyFrames, "triage", "batches");
+  const triageDir = lanePath(absSlice, LANES.keyFrames, "triage");
+  const batchesDir = path.join(triageDir, "batches");
   let paths = [];
   if (batchPaths && batchPaths.length > 0) {
     paths = batchPaths.map((p) => path.resolve(p));
@@ -68,9 +69,8 @@ export function mergeTriageJson(sliceDir, batchPaths) {
     sheets,
   };
 
-  const outDir = lanePath(absSlice, LANES.keyFrames, "triage");
-  fs.mkdirSync(outDir, { recursive: true });
-  const outPath = path.join(outDir, "manifest.json");
+  fs.mkdirSync(triageDir, { recursive: true });
+  const outPath = path.join(triageDir, "manifest.json");
   fs.writeFileSync(outPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   return outPath;
 }
