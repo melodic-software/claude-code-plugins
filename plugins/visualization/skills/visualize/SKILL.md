@@ -203,8 +203,11 @@ layer winning, else `auto`. Read the two files from the working tree only, under
 as `hosted_canvas`; a value outside the five is named with its option or file, key and value, and
 that layer is dropped. Print one line with the value and its layer, such as
 `diagram_target: excalidraw (docs/conventions/visualization.local.yaml)`. `auto` is the behavior
-above. Any other value decides where the diagram goes in place of layers 2 and 3; an explicit medium
-argument still wins, and the committed-diagram rule (Step 2), the pull-request diff exception below
+above. Run layer 2 first: a medium it resolves (the person's own setting) wins over any other value,
+which then decides where the diagram goes only when layer 2 resolves none, in place of layer 3. When
+a resolved medium overrides it, say so in one line, such as
+`diagram_target: local-page overridden by medium terminal`. An explicit
+medium argument still wins, and the committed-diagram rule (Step 2), the pull-request diff exception below
 and the mermaid gate still apply. `terminal` draws an inline fence, `local-page` a local HTML file,
 and `excalidraw` or `tldraw` that canvas server, only where the canvas rule above would draw on it.
 When the chosen target is unavailable (no such server connected, a surface that does not render

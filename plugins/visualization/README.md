@@ -124,8 +124,9 @@ takes the `mcp__plugin_<plugin>_<server>__*` form). The
 server, and a tool denied at any settings level cannot be allowed at another
 ([Settings precedence](https://code.claude.com/docs/en/permissions#settings-precedence)).
 
-**`diagram_target`.** Applies only when the form is a diagram, and an explicit medium argument
-still wins. `terminal` draws an inline Mermaid or ASCII fence, `local-page` a local HTML file, and
+**`diagram_target`.** Applies only when the form is a diagram. An explicit medium argument still
+wins, and so does a person's own resolved `medium` setting; the skill names that override in one
+line. `terminal` draws an inline Mermaid or ASCII fence, `local-page` a local HTML file, and
 `excalidraw` or `tldraw` that canvas server, under the `hosted_canvas` rules above. A diagram that
 will be committed stays Mermaid source whatever the target. When the chosen target is unavailable
 (no such server connected, a surface that does not render it, or `hosted_canvas` forbids it), the
