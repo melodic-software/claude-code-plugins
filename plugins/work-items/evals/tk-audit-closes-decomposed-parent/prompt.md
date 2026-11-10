@@ -11,7 +11,7 @@ expected_outcome: 'The audit finds no stale claim, orphan or label defect, then 
 
 The repository is on GitHub. No item is assigned, the repository has no recurring schedule, and every open item has an Issue Type and no conflicting labels.
 
-Two open issues were split by /work-items:decompose into plain issues with no spec container; neither carries the container label. Each child's body opens with a `## Parent` section reading `Refs #<parent>` and ends with `<!-- work-items:born-triaged -->`.
+Two open issues were split by /work-items:decompose into plain issues with no spec container; neither carries the container label. Each child's body opens with a `## Parent` section reading `Refs #<parent>` and ends with `<!-- work-items:born-triaged -->`. Every child was opened by the login this session's item writes post as, the account decompose published them from.
 
 - #300 "Export refunds for reconciliation". Its Goal has `- Finish line: merged — checked by ci-status via the pull request's checks`. Children #301, #302 and #303 are closed as completed, by merged PRs #311, #312 and #313. No open item is blocked by #300.
 - #400 "Ward rota in the scheduling app". Its Goal has `- Finish line: in use — checked by the support lead via the weekly ticket report`. Children #401 and #402 are closed as completed, by merged PRs #411 and #412. No open item is blocked by #400.

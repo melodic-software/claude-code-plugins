@@ -86,10 +86,20 @@ and `/work-items:track audit` runs it for every parent, which catches children a
 
 A **child** is an item, open or closed, whose body has a `## Parent` section reading
 `Refs #<parent>` and the `<!-- work-items:born-triaged -->` marker decompose writes, on its own
-line. Find every child by listing open and closed items with their bodies (adapter: "List items",
-`body` added to the fields, `--state all`) and matching both lines. Only an open parent runs this
-ritual. A failed read, a result count that reaches the `--limit` (read again with a larger one), no child found, or a found set
-missing the item `/work-items:track done` just closed is not a complete read: change nothing.
+line. Find every child by listing open and closed items with their bodies and authors (adapter:
+"List items", `body` and `author` added to the fields, `--state all`), narrowed by search, and
+matching both lines locally. The search only narrows the read; the two-line match decides. For one
+parent, as `/work-items:track done` runs it, search `"Refs #<parent>" in:body`; for the audit pass
+over every parent, search `"work-items:born-triaged" in:body`. Only an open parent runs this
+ritual. A failed read, a result count that reaches the `--limit` on the narrowed read (read again
+with a larger one), no child found, or a found set missing the item `/work-items:track done` just
+closed is not a complete read: change nothing.
+
+The marker is no trust signal: anyone who can open an item can write both lines. Count a match as a
+child only when its author is the login the adapter's item write posts as (the account decompose
+publishes as), or, when the binding sets `config.github.status_trust`, a listed `human` or the
+`lanes_app` in its `trusted_actors` list (adapter: "Work status trust"). Report and skip any match
+from another author; a parent whose only matches are skipped has no child found.
 
 1. **A child is still open:** change nothing. The open child is the remaining work, and the tracker
    shows it.

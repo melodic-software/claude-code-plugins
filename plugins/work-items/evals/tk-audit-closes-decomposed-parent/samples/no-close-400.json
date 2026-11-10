@@ -15,6 +15,14 @@
     {
       "answer": "The support lead closes #400 once the weekly ticket report shows it in use.",
       "why": "the checker's later close"
+    },
+    {
+      "answer": "The support lead will close #400 once the weekly ticket report confirms it.",
+      "why": "the checker's future close, modal form"
+    },
+    {
+      "answer": "#400 stays open; the support lead can close #400 after the check.",
+      "why": "the checker's permitted close, modal form"
     }
   ],
   "fail": [

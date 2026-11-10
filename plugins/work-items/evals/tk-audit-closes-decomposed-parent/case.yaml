@@ -13,7 +13,7 @@ graders:
     target: 'last_message'
   - name: 'no-close-400'
     type: 'regex'
-    pattern: '(?<!not )(?<!n''t )(?<!never )(?<!lead )(?<!who )(?<!checker )\bclos(?:e|es|ing)\s+(?:the\s+)?(?:parent\s+)?#400\b'
+    pattern: '(?<!not )(?<!n''t )(?<!never )(?<!lead )(?<!who )(?<!checker )(?<!will )(?<!can )(?<!may )(?<!would )(?<!should )(?<!to )\bclos(?:e|es|ing)\s+(?:the\s+)?(?:parent\s+)?#400\b'
     flags: 'i'
     match: 'not_contains'
     target: 'last_message'
