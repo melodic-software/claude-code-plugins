@@ -178,7 +178,12 @@ jobs:
           selected: ${{ steps.credit.outputs.next-leg }}
 
       # The skipped key leg's lane record: outcome skip, class credit-stop,
-      # handed off, so leg counts before and after the gate compare.
+      # handed off, so leg counts before and after the gate compare. It is
+      # written before the trigger check, so a head the resolver passes and
+      # the trigger check refuses (an untrusted re-runner) records a handoff
+      # that the subscription leg's own trigger check then refuses, with no
+      # receiving record: a known overcount, accepted so the key job saves
+      # its trigger-check reads on a held-off key.
       - name: Report the skipped key leg
         id: credit-skip
         if: steps.credential.outputs.key-skipped == 'true'
