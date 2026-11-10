@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.20.0] - 2026-11-10
+
+### Changed
+
+- `/planning:plan` Files affected never names a new file, type or symbol with a verb an entity's glossary `Actions:` line rejects for that operation.
+
 ## [2.19.0] - 2026-11-10
 
 ### Added
