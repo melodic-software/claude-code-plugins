@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.3.2] - 2026-11-10
+
+### Changed
+
+- The fanout run-everything mode and the fanout-sweep workflow say why `best` stays out of model diversity: it names Fable on older Claude Code releases. No behavior change.
+
 ## [8.3.1] - 2026-11-09
 
 ### Changed

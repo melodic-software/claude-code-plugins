@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.16.1] - 2026-11-10
+
+### Changed
+
+- The plan template's `Model` column no longer puts a row on `sonnet` for a clear spec alone (migrations and performance work stay on `opus` or above), and the `frontier` tier adds major refactors and migrations and architecture planning. Its model-split pointer moves to choosing-a-model.
+
 ## [2.16.0] - 2026-11-09
 
 ### Added
