@@ -151,7 +151,7 @@ jobs:
       # A schedule tick skips its work while the GITHUB_TOKEN pool's remaining
       # at reset, projected at this window's burn rate, is under limits.api
       # github-token pace (pr-pipeline.yaml over rate-limits.json; 0 is off),
-      # and only when the previous scheduled run found lost runs, so the timer
+      # and only when the previous scheduled run marked a clean pass, so the timer
       # lanes slow to half cadence before the breaker stops every lane. Any
       # other event, or a read that fails, runs as before
       # (.github/actions/log-api-budget/pace.mjs).
@@ -162,7 +162,7 @@ jobs:
           RESOLVED_CONFIG: ${{ runner.temp }}/pace-config.json
           GITHUB_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
-          PACE_WORK_STEP: Find lost runs
+          PACE_WORK_STEP: Mark this tick's work done
         run: node .base/.github/actions/log-api-budget/pace.mjs
 
       # A dispatch skips its work when a full pass finished under
@@ -306,6 +306,14 @@ jobs:
           path: ${{ runner.temp }}/reconcile-settled/settled.json
           if-no-files-found: ignore
           retention-days: 1
+
+      # A green pass whose plan read every listing (reconcile.mjs writes
+      # clean; a failed listing, the kill switch or an Actions outage does
+      # not). The pacer paces the next scheduled tick only after this step
+      # (.github/actions/log-api-budget/pace.mjs).
+      - name: Mark this tick's work done
+        if: steps.plan.outputs.clean == 'true'
+        run: echo "the reconciler read every listing"
 
       - name: Log the API budget at the end
         if: always()

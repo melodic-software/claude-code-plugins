@@ -974,7 +974,7 @@ test("an event other than an issue close, the schedule or a work-resolve-issue r
 // work-unblock.yml whose label-unblocked job ran its sweep step and logged that
 // it read the closed-issue listing, at most 3 hours back; anything else, or any
 // failed read, gives the 3 hours.
-const SWEEP_RUNS = `/repos/${REPO}/actions/workflows/work-unblock.yml/runs?event=schedule&status=success&per_page=2`;
+const SWEEP_RUNS = `/repos/${REPO}/actions/workflows/work-unblock.yml/runs?event=schedule&status=success&per_page=3`;
 const ago = (minutes) => new Date(NOW - minutes * 60_000).toISOString();
 const SWEEP_JOB_ID = 9001;
 const SWEEP_LOG_PATH = `/repos/${REPO}/actions/jobs/${SWEEP_JOB_ID}/logs`;
@@ -1331,10 +1331,62 @@ test("a sweep that held an issue on a faulted read does not advance the window",
   assert.deepEqual(writes(next.calls), [labeled(20)]);
 });
 
-test("a last sweep older than the 3-hour window is capped at 3 hours without reading its jobs", async () => {
+test("a last sweep older than the 3-hour window is capped at 3 hours", async () => {
+  // Under 6 hours old its jobs are read once, to see whether it was paced.
   const { minutes, actionCalls } = await windowOf({ workflow_runs: [{ id: 5, run_started_at: ago(300) }] });
   assert.equal(minutes, 180);
-  assert.ok(!actionCalls.some((call) => call.includes("/actions/runs/5/jobs")));
+  assert.equal(actionCalls.filter((call) => call.includes("/actions/runs/5/jobs")).length, 1);
+  // Past 6 hours no paced run can widen the window, so nothing more is read.
+  const old = await windowOf({ workflow_runs: [{ id: 5, run_started_at: ago(400) }] });
+  assert.equal(old.minutes, 180);
+  assert.ok(!old.actionCalls.some((call) => call.includes("/actions/runs/5/jobs")));
+});
+
+// A paced run (work-unblock.yml's `Mark this tick paced` step) swept nothing,
+// so the next sweep starts from the clean sweep before it, up to 6 hours back.
+// The drop case: sweep at -200 min, paced at -140, the -80 tick dropped, this
+// one now: 215 minutes back, past the 3-hour window.
+test("the sweep after a paced run reads back past it to the sweep before, up to 6 hours", async () => {
+  const pacedJobs = { jobs: [{ id: 9002, name: "label-unblocked", conclusion: "success", steps: [{ name: "Mark this tick paced", conclusion: "success" }, { name: "Label the unblocked issues", conclusion: "skipped" }] }] };
+  const windowAfterPaced = async (runs) => {
+    const { github, calls } = sweptDependent();
+    const actions = async (method, path) => {
+      if (path.startsWith(`/repos/${REPO}/actions/workflows/work-unblock.yml/runs`)) return { workflow_runs: runs };
+      if (path.startsWith(`/repos/${REPO}/actions/runs/6/jobs`)) return pacedJobs;
+      if (path.startsWith(`/repos/${REPO}/actions/runs/5/jobs`)) return sweptJobs();
+      return path === SWEEP_LOG_PATH ? LISTED_LOG : { workflow_runs: [], jobs: [] };
+    };
+    assert.equal(await sweep({ github, actions }), 0);
+    const listing = calls.find((call) => call.startsWith(`GET /repos/${REPO}/issues?state=closed&since=`));
+    return (NOW - Date.parse(decodeURIComponent(/since=([^&]+)/.exec(listing)[1]))) / 60_000;
+  };
+  // Listed out of id order, as a run stamped an hour ahead lists.
+  assert.equal(await windowAfterPaced([{ id: 5, run_started_at: ago(200) }, { id: 6, run_started_at: ago(140) }]), 215);
+  assert.equal(await windowAfterPaced([{ id: 6, run_started_at: ago(60) }, { id: 5, run_started_at: ago(120) }]), 135);
+  // A sweep before the paced run older than 6 hours is capped there.
+  assert.equal(await windowAfterPaced([{ id: 6, run_started_at: ago(140) }, { id: 5, run_started_at: ago(400) }]), 360);
+  assert.equal(await windowAfterPaced([{ id: 6, run_started_at: ago(140) }]), 360, "no sweep before the paced run");
+});
+
+// The pacer paces the next tick only after work-unblock.yml's `Mark this
+// tick's work done`, which waits on this output: a run sweepSince would start
+// the next window from.
+test("only a green sweep that read its listing and held nothing writes clean-sweep", async (t) => {
+  const outputOf = async (args) => {
+    const dir = tempDir("clean-sweep-");
+    const output = join(dir, "output");
+    writeFileSync(output, "");
+    const { code } = await printedBy(t, () => sweep(args, { GITHUB_OUTPUT: output }));
+    return { code, clean: readFileSync(output, "utf8").includes("clean-sweep=true\n") };
+  };
+  assert.deepEqual(await outputOf({ github: sweptDependent().github }), { code: 0, clean: true });
+  const closedDown = world({ closedList: [closedAt(10, "2026-10-16T11:30:00Z")], failOn: CLOSED_LISTING });
+  assert.deepEqual(await outputOf({ github: closedDown.github }), { code: 0, clean: false }, "a held closed listing");
+  const heldIssue = twoDependents(readOf20(new GitHubError(502, `GET ${ISSUE_20}`)));
+  assert.deepEqual(await outputOf({ github: heldIssue.github }), { code: 0, clean: false }, "an issue held on a faulted read");
+  const broken = twoDependents(readOf20(new GitHubError(404, `GET ${ISSUE_20}`)));
+  const red = await outputOf({ github: broken.github });
+  assert.equal(red.clean, false, "a red run");
 });
 
 test("a failed or empty read of the last sweep falls back to 3 hours", async () => {

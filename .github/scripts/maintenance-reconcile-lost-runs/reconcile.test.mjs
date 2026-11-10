@@ -1642,6 +1642,16 @@ test("a plan that re-runs a stopped verdict asks for the deferral marker, and on
   assert.equal((await reconcile({ pulls: [pr(1)], runs: [run(101, sha(1))] })).outputs.deferral, "");
 });
 
+// The burn-rate pacer paces the next scheduled tick only after the workflow's
+// `Mark this tick's work done`, which waits on clean (log-api-budget/pace.mjs).
+test("only a plan that read every listing writes clean", async (t) => {
+  t.mock.method(console, "log", () => {});
+  assert.equal((await reconcile({ pulls: [pr(1)], runs: [run(101, sha(1))] })).outputs.clean, "true");
+  assert.equal((await reconcile({ pulls: [], runs: lostDay(501) })).outputs.clean, "", "a listing past the page cap");
+  assert.equal((await reconcile({ pulls: [pr(1)], runs: [run(101, sha(1))], env: { KILL_SWITCH: "" } })).outputs.clean, "", "the kill switch");
+  assert.equal((await reconcile({ pulls: [], runs: [verifyRun(201)], status: statusWith("major_outage") })).outputs.clean, "", "an Actions outage");
+});
+
 test("the marker upload comes after the plan and before the act step, kept longer than the record", () => {
   const text = readFileSync(new URL("../../workflows/maintenance-reconcile-lost-runs.yml", import.meta.url), "utf8");
   const mark = text.indexOf("      - name: Mark the deferred verdicts\n");

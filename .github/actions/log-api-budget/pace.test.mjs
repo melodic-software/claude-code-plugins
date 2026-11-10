@@ -9,9 +9,9 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { main, paceDecision } from "./pace.mjs";
+import { main, paceDecision, previousRun } from "./pace.mjs";
 import { apiLimits } from "./rate-guard.mjs";
-import { LOOKBACK_HOURS } from "../../scripts/work-unblock/label-unblocked.mjs";
+import { PACED_LOOKBACK_HOURS, PACED_STEP, SWEEP_MARGIN_MIN } from "../../scripts/work-unblock/label-unblocked.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const NOW = 1_800_000_000;
@@ -74,7 +74,7 @@ function github({ headers = HOT, runs = [], steps = {}, listStatus = 200, jobsSt
       const body = { jobs: [{ name: "sweep", steps: [{ name: "Set up job", conclusion: "success" }, ...(conclusion === undefined ? [] : [{ name: WORK_STEP, conclusion }])] }] };
       return new Response(JSON.stringify(body), { status: jobsStatus });
     }
-    assert.equal(url, "https://api.github.com/repos/o/r/actions/workflows/lane.yml/runs?event=schedule&per_page=3");
+    assert.equal(url, "https://api.github.com/repos/o/r/actions/workflows/lane.yml/runs?event=schedule&per_page=5");
     return new Response(JSON.stringify({ workflow_runs: runs }), { status: listStatus, headers });
   };
   return { fetchImpl, urls };
@@ -160,12 +160,23 @@ test("a previous scheduled run that did not finish its work, or none, keeps the 
   assert.match(unnamed.lines[0], /this tick runs: no PACE_WORK_STEP names this lane's work$/);
 });
 
-test("PACE_MAX_GAP_MINUTES keeps the tick running after a scheduled run created longer ago", async () => {
-  const gh = github({ runs: PAIR, steps: { 8: "success" } });
-  assert.equal((await run({ PACE_MAX_GAP_MINUTES: "61" }, gh.fetchImpl)).output, "paced=true\n", "61 minutes ago, at the limit");
-  const late = await run({ PACE_MAX_GAP_MINUTES: "60" }, gh.fetchImpl);
-  assert.equal(late.output, "paced=false\n");
-  assert.match(late.lines[0], /this tick runs: run 8, the last scheduled one, was created over 60 minutes ago$/);
+// The previous run is the highest id below this one, whatever created_at
+// says: on 2026-11-01 runs were stamped an hour ahead (rotation.mjs runOrder).
+test("the previous scheduled run is found by run id, not by its creation time", async () => {
+  // Run 8 is stamped later than this run; run 7, stamped between, came before 8.
+  const skewed = [
+    { id: 8, created_at: minutesAgo(-60) },
+    { id: 9, created_at: minutesAgo(1) },
+    { id: 7, created_at: minutesAgo(30) },
+  ];
+  const gh = github({ runs: skewed, steps: { 8: "success", 7: "skipped" } });
+  assert.equal((await run({}, gh.fetchImpl)).output, "paced=true\n");
+  assert.match(gh.urls[1], /\/actions\/runs\/8\/jobs\?/);
+  assert.equal((await run({}, github({ runs: skewed, steps: { 8: "skipped", 7: "success" } }).fetchImpl)).output, "paced=false\n");
+  assert.equal(previousRun(skewed, "9")?.id, 8);
+  assert.equal(previousRun(skewed, "7"), undefined, "no run below the lowest");
+  assert.equal(previousRun([{ id: "8" }, { id: 7 }], "9")?.id, 7, "an id that is no number is left out");
+  assert.equal(previousRun(skewed, ""), undefined, "no run id of its own");
 });
 
 test("any other event, an unreadable answer or a failed read is never paced", async () => {
@@ -220,6 +231,7 @@ test("pace: 0 in the base config turns the pacer off", async () => {
 });
 
 const PACE_STEP = "Pace the tick on the GITHUB_TOKEN burn rate";
+const WORK_DONE = "Mark this tick's work done";
 const workflow = (file) => readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
 // A job's text, from `  <job>:` to the next job, and its steps, each less the
 // blank and comment lines that lead into the next step.
@@ -250,18 +262,25 @@ function assertPaceSteps(file, steps) {
   return { at, work: /\n {10}PACE_WORK_STEP: (.*)\n/.exec(pace)?.[1] };
 }
 
-// The step whose success in the previous scheduled run lets a tick pace, and
-// the chain that skips it on a paced tick: each link's `if:` reads the one
-// before it, the first reads the pacer. Named once in the workflow, so no
-// other step can stand in for it.
-function assertWorkStep(file, steps, work, chain) {
+// Each lane's marker, the step whose success in the previous scheduled run
+// lets a tick pace: named once in the workflow, so no other step stands in
+// for it; run only on the lane's clean outcome (`clean`), with no status
+// function, so any earlier failed step skips it; and the step that writes
+// that outcome waits on the pacer, through `chain` (each link's `if:` reads
+// the one before it, the first reads the pacer), so a paced tick skips it.
+function assertMarker(file, steps, work, clean, chain) {
   const at = (name) => steps.findIndex((step) => step.name === name);
+  assert.equal(work, WORK_DONE, file);
   assert.equal(workflow(file).split(`\n      - name: ${work}\n`).length, 2, `${file}: \`${work}\` is named once`);
-  assert.equal(chain.at(-1)[0], work, file);
+  const marker = /\n {8}if: (.*)\n/.exec(steps[at(work)]?.s ?? "")?.[1];
+  assert.equal(marker, clean, `${file}: the marker waits on the clean outcome`);
+  assert.doesNotMatch(marker, /always\(\)|cancelled\(\)|failure\(\)/, file);
+  if (chain.length === 0) return;
   assert.match(steps[at(chain[0][0])]?.s ?? "", /\n {8}if: .*steps\.pace\.outputs\.paced != 'true'/s, `${file}: ${chain[0][0]} waits on the pacer`);
   for (const [name, reads] of chain.slice(1)) {
     assert.match(/\n {8}if: (.*)\n/.exec(steps[at(name)]?.s ?? "")?.[1] ?? "", reads, `${file}: ${name}`);
   }
+  assert.ok(at(work) > at(chain.at(-1)[0]), `${file}: the marker follows ${chain.at(-1)[0]}`);
 }
 
 // The timer-driven lanes that read the pacer: each reads it once on the
@@ -269,29 +288,38 @@ function assertWorkStep(file, steps, work, chain) {
 test("each paced timer lane reads the pacer before its work and gates every spending step on it", () => {
   const dispatch = "Dispatch pr-unblock for conflicting, review-tier Dependabot and failing lanes App PRs";
   const lanes = {
-    "maintenance-reconcile-lost-runs.yml": { job: "reconcile", gated: ["Find lost runs", "Re-run lost runs"], chain: [["Find lost runs"]] },
-    "pr-unblock-dispatch.yml": { job: "dispatch", gated: ["Install resolve-config's dependencies", "Restore the dispatch record", dispatch], chain: [[dispatch]] },
-    // Every later spending step waits on the config step's lane token. Only
-    // a full sweep uploads its verdicts.
+    "maintenance-reconcile-lost-runs.yml": {
+      job: "reconcile",
+      gated: ["Find lost runs", "Re-run lost runs"],
+      clean: "steps.plan.outputs.clean == 'true'",
+      chain: [["Find lost runs"]],
+    },
+    "pr-unblock-dispatch.yml": {
+      job: "dispatch",
+      gated: ["Install resolve-config's dependencies", "Restore the dispatch record", dispatch],
+      clean: "steps.dispatch.outputs.listed == 'true'",
+      chain: [[dispatch]],
+    },
+    // Every later spending step waits on the config step's lane token.
     "work-unblock.yml": {
       job: "label-unblocked",
       gated: ["Resolve the config"],
+      clean: "steps.label.outputs.clean-sweep == 'true'",
       chain: [
         ["Resolve the config"],
         ["Request the lane token", /steps\.config\.outcome == 'success'/],
         ["Label the unblocked issues", /^steps\.lane-token\.outputs\.token != ''$/],
-        ["Upload the verdicts for the next sweep", /steps\.label\.outputs\.verdicts == 'true'/],
       ],
     },
   };
-  for (const [file, { job, gated, chain }] of Object.entries(lanes)) {
+  for (const [file, { job, gated, clean, chain }] of Object.entries(lanes)) {
     const steps = stepsOf(file, job);
     const { at, work } = assertPaceSteps(file, steps);
     for (const name of gated) {
       assert.ok(at(name) > at(PACE_STEP), `${file}: ${name} follows the pacer`);
       assert.match(steps[at(name)].s, /steps\.pace\.outputs\.paced != 'true'/, `${file}: ${name}`);
     }
-    assertWorkStep(file, steps, work, chain);
+    assertMarker(file, steps, work, clean, chain);
   }
 });
 
@@ -303,18 +331,18 @@ test("the monitoring lane reads no pacer", () => {
   assert.doesNotMatch(workflow("maintenance-monitor-signals.yml"), /pace\.mjs|steps\.pace\./);
 });
 
-// After a paced tick the next scheduled tick always sweeps (the alternation
-// test above), and sweepSince reads its full LOOKBACK_HOURS window, since the
-// last successful scheduled run, the paced one, shows no completed sweep
-// step. A close is lost only when two full sweeps are more than that window
-// apart. With pacing that gap is at most the previous sweep's age when the
-// paced tick starts (PACE_MAX_GAP_MINUTES, which pace.mjs enforces) plus one
-// cron period, the next tick's start delay and its wait in the group.
-test("work-unblock's paced gap between full sweeps stays inside its close window", () => {
-  // The latest start delay of 60 scheduled work-unblock runs, 2026-11-08 to
-  // 2026-11-10: the 00:47 tick created at 00:54:37.
-  const MAX_DELAY_MINUTES = 8;
+// A paced work-unblock run marks itself (PACED_STEP), and the sweep after it
+// reads back from the clean sweep before it, up to PACED_LOOKBACK_HOURS
+// (label-unblocked.test.mjs drives that window). With the clean sweep S, the
+// paced tick one cron period later and the tick after it dropped, the next
+// sweep starts three periods after S, plus its wait in the job's concurrency
+// group, and reads from SWEEP_MARGIN_MIN before S: that must fit.
+test("work-unblock marks a paced run, and the sweep after it reaches back past a dropped tick", () => {
   const text = workflow("work-unblock.yml");
+  const steps = stepsOf("work-unblock.yml", "label-unblocked");
+  const at = (name) => steps.findIndex((step) => step.name === name);
+  assert.ok(at(PACED_STEP) > at(PACE_STEP), "after the pacer");
+  assert.equal(/\n {8}if: (.*)\n/.exec(steps[at(PACED_STEP)].s)?.[1], "steps.pace.outputs.paced == 'true'");
   const crons = [...text.matchAll(/\n {4}- cron: "([0-9]+) ([0-9,-]+) \* \* \*"(?=\n)/g)];
   assert.ok(crons.length > 0, "the schedule is read");
   const hours = (field) => field.split(",").flatMap((part) => {
@@ -324,17 +352,10 @@ test("work-unblock's paced gap between full sweeps stays inside its close window
   const fires = crons.flatMap(([, minute, hour]) => hours(hour).map((h) => h * 60 + Number(minute))).sort((a, b) => a - b);
   const period = Math.max(...fires.map((at, i) => (i === 0 ? at + 1440 : at) - fires.at(i - 1)));
   assert.equal(period, 60, "hourly");
-  const { work } = assertPaceSteps("work-unblock.yml", stepsOf("work-unblock.yml", "label-unblocked"));
-  assert.equal(work, "Upload the verdicts for the next sweep");
-  const maxGap = Number(/\n {10}PACE_MAX_GAP_MINUTES: "([0-9]+)"\n/.exec(text)?.[1]);
-  // The next tick can also wait in the job's concurrency group behind a
-  // running sweep, at most that job's timeout.
   const wait = Number(/\n {4}timeout-minutes: ([0-9]+)\n/.exec(jobOf("work-unblock.yml", "label-unblocked"))?.[1]);
   assert.equal(wait, 10);
-  const gap = maxGap + period + MAX_DELAY_MINUTES + wait;
-  assert.ok(gap <= LOOKBACK_HOURS * 60, `${maxGap} + ${period} + ${MAX_DELAY_MINUTES} + ${wait} minutes inside ${LOOKBACK_HOURS} h`);
-  // And an on-time previous sweep still lets a tick pace, so the saving holds.
-  assert.ok(maxGap >= period + MAX_DELAY_MINUTES, `${maxGap} >= ${period} + ${MAX_DELAY_MINUTES}`);
+  const reach = 3 * period + wait + SWEEP_MARGIN_MIN;
+  assert.ok(reach <= PACED_LOOKBACK_HOURS * 60, `${reach} minutes inside ${PACED_LOOKBACK_HOURS} h`);
 });
 
 // pr-merge's sweep jobs skip at job level: a step-level skip would leave a
@@ -346,10 +367,12 @@ test("pr-merge reads the pacer in post-merge-dispatch and skips only the sweep j
   const file = "pr-merge.yml";
   const steps = stepsOf(file, "post-merge-dispatch");
   const { work } = assertPaceSteps(file, steps);
-  // The merge job, which a paced tick skips whole, lists the candidates.
-  assert.equal(work, "List the candidate PRs");
-  assert.equal(workflow(file).split(`\n      - name: ${work}\n`).length, 2, `\`${work}\` is named once`);
-  assert.ok(stepsOf(file, "merge").some((step) => step.name === work), "in the merge job");
+  // The merge job, which a paced tick skips whole, marks a sweep that listed
+  // (a held listing writes held, never listed) and gated.
+  assertMarker(file, stepsOf(file, "merge"), work, "steps.candidates.outputs.listed == 'true' && steps.gate.outcome == 'success'", []);
+  const merge = stepsOf(file, "merge");
+  const index = (name) => merge.findIndex((step) => step.name === name);
+  assert.ok(index(work) > index("Run the merge gate on each candidate"), "the marker follows the gate");
   assert.match(jobOf(file, "post-merge-dispatch"), /\n {4}outputs:\n(?: {6}.*\n)*? {6}paced: \$\{\{ steps\.pace\.outputs\.paced \}\}\n/);
   const waiting = steps.filter((step) => /steps\.pace\.outputs/.test(step.s)).map((step) => step.name);
   assert.deepEqual(waiting, [], "no post-merge-dispatch step waits on the pacer");

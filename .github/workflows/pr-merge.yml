@@ -221,7 +221,7 @@ jobs:
       # while the GITHUB_TOKEN pool's remaining at reset, projected at this
       # window's burn rate, is under limits.api github-token pace
       # (pr-pipeline.yaml over rate-limits.json; 0 is off), and only when the
-      # previous scheduled run's merge job listed its candidates, so the next
+      # previous scheduled run's merge job marked a clean sweep, so the next
       # tick always sweeps. This job's own steps never wait on it: the post-merge
       # check, cover dispatch, re-run and alert run on every tick. The skip is
       # at job level, so a paced tick's jobs read completed, never waiting, to
@@ -236,7 +236,7 @@ jobs:
           RESOLVED_CONFIG: ${{ runner.temp }}/pace-config.json
           GITHUB_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
-          PACE_WORK_STEP: List the candidate PRs
+          PACE_WORK_STEP: Mark this tick's work done
         run: node .base/.github/actions/log-api-budget/pace.mjs
 
       # Live as the merge job reads it: the lane's own PRs not report-only,
@@ -2235,6 +2235,13 @@ jobs:
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/pr-merge/release-eval-hold.mjs
+
+      # A green sweep that listed the open pull requests (a held listing
+      # writes held, never listed) and ran the gate. The pacer paces the next
+      # scheduled tick only after this step (.github/actions/log-api-budget/pace.mjs).
+      - name: Mark this tick's work done
+        if: steps.candidates.outputs.listed == 'true' && steps.gate.outcome == 'success'
+        run: echo "the merge sweep listed and gated its candidates"
 
       # A lane token held on a rate limit (rate-limit-hold-ok), kept as the
       # lane-hold-pr-merge artifact for monitor signal 13

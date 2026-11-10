@@ -192,12 +192,11 @@ jobs:
       # A schedule tick skips its work while the GITHUB_TOKEN pool's remaining
       # at reset, projected at this window's burn rate, is under limits.api
       # github-token pace (pr-pipeline.yaml over rate-limits.json; 0 is off),
-      # and only when the previous scheduled run uploaded its verdicts (a
-      # full sweep) and was created at most PACE_MAX_GAP_MINUTES ago. The
-      # next tick then always sweeps, and sweepSince gives it the full
-      # LOOKBACK_HOURS window after a paced run, so full sweeps stay under
-      # that window apart (pace.test.mjs checks the bound). A close or a
-      # finished work-resolve-issue run, or a read that fails, runs as before
+      # and only when the previous scheduled run marked a clean sweep, so the
+      # next tick always sweeps. That sweep reads back from the last clean
+      # sweep before the paced run (label-unblocked.mjs sweepSince), so no
+      # close falls between them. A close or a finished work-resolve-issue
+      # run, or a read that fails, runs as before
       # (.github/actions/log-api-budget/pace.mjs).
       - name: Pace the tick on the GITHUB_TOKEN burn rate
         id: pace
@@ -207,9 +206,14 @@ jobs:
           RESOLVED_CONFIG: ${{ runner.temp }}/pace-config.json
           GITHUB_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
-          PACE_WORK_STEP: Upload the verdicts for the next sweep
-          PACE_MAX_GAP_MINUTES: "75"
+          PACE_WORK_STEP: Mark this tick's work done
         run: node .base/.github/actions/log-api-budget/pace.mjs
+
+      # The next sweep's window reads this step to look past this run
+      # (label-unblocked.mjs PACED_STEP).
+      - name: Mark this tick paced
+        if: steps.pace.outputs.paced == 'true'
+        run: echo "::notice::the pacer paced this tick; the next scheduled sweep reads back past it"
 
       # The broker mints only when the person who closed the issue and the one
       # who started this run (a re-runner may be someone else) are each a
@@ -375,6 +379,14 @@ jobs:
           retention-days: 1
           overwrite: true
           if-no-files-found: ignore
+
+      # A green sweep that read its closed listing and held nothing, the run
+      # the next sweep's window can start from (label-unblocked.mjs
+      # sweepSince). The pacer paces the next tick only after this step
+      # (.github/actions/log-api-budget/pace.mjs).
+      - name: Mark this tick's work done
+        if: steps.label.outputs.clean-sweep == 'true'
+        run: echo "label-unblocked swept cleanly"
 
       # The token is cancelled as soon as the job is done; it would otherwise
       # expire within the hour. This never fails the job.

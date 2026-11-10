@@ -318,7 +318,7 @@
 //                          $RUNNER_TEMP/resolved-config.json), for the limits
 //   BASE_PATH              the default branch checkout (default .base), for
 //                          the admission rules and models.issue-dimensions
-import { readFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -442,6 +442,12 @@ const IN_FLIGHT = ["queued", "in_progress", "waiting", "pending", "requested"];
 export const LOOKBACK_HOURS = 3;
 // The sweep reads from this long before the last good sweep started.
 export const SWEEP_MARGIN_MIN = 15;
+// work-unblock.yml's step a scheduled run the burn-rate pacer paced runs
+// (log-api-budget/pace.mjs), and how far back the sweep after it may read:
+// it starts from the sweep before the paced run, which a dropped or late
+// tick can push past LOOKBACK_HOURS.
+export const PACED_STEP = "Mark this tick paced";
+export const PACED_LOOKBACK_HOURS = 2 * LOOKBACK_HOURS;
 // Minutes from the script's start after which a sweep decides no further
 // agent-ready issue, when SWEEP_BUDGET_MINUTES (work-unblock.yml) names none.
 export const SWEEP_BUDGET_MIN = 6;
@@ -737,41 +743,59 @@ async function readiness({ github, repo, number, humans, closes, bot = DEFAULT_B
 }
 
 // Where the sweep's window starts and why: SWEEP_MARGIN_MIN before the last
-// successful scheduled run of this workflow (not the current one), no further
-// back than LOOKBACK_HOURS, and only when that run's SWEEP_STEP succeeded and
+// successful scheduled run of this workflow (not the current one, and the one
+// before it when that run was paced, PACED_STEP), no further back than
+// LOOKBACK_HOURS (PACED_LOOKBACK_HOURS after a paced run), and only when that
+// run's SWEEP_STEP succeeded and
 // its log shows it read the closed-issue listing (LISTED). Anything else (an
 // unreadable listing or log, no steps, a skipped step, a held sweep) gives the
 // full window, so a failed read re-processes and never skips.
 async function sweepSince({ actions, jobLog, repo, now, runId }) {
-  const widest = now - LOOKBACK_HOURS * HOUR_MS;
+  let widest = now - LOOKBACK_HOURS * HOUR_MS;
   if (!actions) {
     return { since: widest, why: "no Actions token to read the last sweep" };
   }
+  let after = "";
   try {
-    const path = `/repos/${repo}/actions/workflows/work-unblock.yml/runs?event=schedule&status=success&per_page=2`;
+    const path = `/repos/${repo}/actions/workflows/work-unblock.yml/runs?event=schedule&status=success&per_page=3`;
     const runs = (await actions("GET", path))?.workflow_runs;
     if (!Array.isArray(runs)) {
       throw new Error("the workflow run listing has an unexpected shape");
     }
-    const last = runs.find((run) => String(run.id) !== String(runId ?? ""));
+    // Newest first by id, which grows with each run; created_at can be
+    // stamped out of order (rotation.mjs runOrder).
+    const order = (run) => (RUN_ID.test(String(run?.id)) ? Number(run.id) : -1);
+    const older = runs.filter((run) => String(run?.id) !== String(runId ?? "")).sort((a, b) => order(b) - order(a));
+    const listJobs = jobLister(actions, repo);
+    let last = older[0];
+    // A paced run swept nothing: start from the sweep before it, as far back
+    // as PACED_LOOKBACK_HOURS, so a tick dropped or late after it loses no close.
+    if (last && RUN_ID.test(String(last.id)) && !(Date.parse(last.run_started_at ?? last.created_at) <= now - PACED_LOOKBACK_HOURS * HOUR_MS)) {
+      const paced = namedJobs(await listJobs(last), SWEEP_JOB).some((job) => (job?.steps ?? []).some((step) => step?.name === PACED_STEP && step.conclusion === "success"));
+      if (paced) {
+        widest = now - PACED_LOOKBACK_HOURS * HOUR_MS;
+        after = ` (run ${last.id} was paced)`;
+        last = older[1];
+      }
+    }
     const started = Date.parse(last?.run_started_at ?? last?.created_at);
     if (!Number.isFinite(started) || started > now) {
-      return { since: widest, why: "no earlier successful sweep was found" };
+      return { since: widest, why: `no earlier successful sweep was found${after}` };
     }
     const at = new Date(started).toISOString();
     const from = started - SWEEP_MARGIN_MIN * 60_000;
     if (from <= widest) {
-      return { since: widest, why: `the last successful run started ${at}, past the widest window` };
+      return { since: widest, why: `the last successful run started ${at}, past the widest window${after}` };
     }
     if (!RUN_ID.test(String(last.id))) {
       throw new Error("the last successful run has no usable id");
     }
-    const jobs = await jobLister(actions, repo)(last);
+    const jobs = await listJobs(last);
     const swept = namedJobs(jobs, SWEEP_JOB).find((job) =>
       (job?.steps ?? []).some((step) => step?.name === SWEEP_STEP && step.conclusion === "success"),
     );
     if (!swept) {
-      return { since: widest, why: `the last successful run, started ${at}, shows no completed \`${SWEEP_STEP}\` step` };
+      return { since: widest, why: `the last successful run, started ${at}, shows no completed \`${SWEEP_STEP}\` step${after}` };
     }
     if (!RUN_ID.test(String(swept.id))) {
       throw new Error("the last sweep's job has no usable id");
@@ -779,10 +803,10 @@ async function sweepSince({ actions, jobLog, repo, now, runId }) {
     const log = await jobLog(repo, swept.id, { maxBytes: LOG_CAP_BYTES });
     const lines = String(log ?? "").split("\n");
     return lines.some((line) => LISTED.test(line)) && !lines.some((line) => HELD.test(line))
-      ? { since: from, why: `the last sweep started ${at}` }
-      : { since: widest, why: `the last sweep, started ${at}, held or shows no read of its listing` };
+      ? { since: from, why: `the last sweep started ${at}${after}` }
+      : { since: widest, why: `the last sweep, started ${at}, held or shows no read of its listing${after}` };
   } catch (error) {
-    return { since: widest, why: `the last sweep could not be read (${escapeCommand(error?.message ?? error)})` };
+    return { since: widest, why: `the last sweep could not be read (${escapeCommand(error?.message ?? error)})${after}` };
   }
 }
 
@@ -2960,6 +2984,11 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     }
     if (github.held > 0) {
       console.log(HELD_LINE);
+    }
+    // The run sweepSince takes as the next window's start: green, its closed
+    // listing read, nothing held. The workflow marks it for the pacer.
+    if (sweep && failed === 0 && !(github.held > 0) && env.GITHUB_OUTPUT) {
+      appendFileSync(env.GITHUB_OUTPUT, "clean-sweep=true\n");
     }
     return failed === 0 ? 0 : 1;
   } catch (error) {
