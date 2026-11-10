@@ -19,28 +19,7 @@
 # samples that never shared conditions. ratio.py enforces that refusal itself,
 # so a caller who invokes it directly cannot lose the suppression.
 #
-# Usage:
-#   ab.sh --a <command> --b <command> --iterations <n> [options]
-#
-#   --a <command>           REQUIRED. Baseline arm, a shell command string.
-#   --b <command>           REQUIRED. Comparison arm, a shell command string.
-#   --iterations <n>        REQUIRED. Paired iterations, at least 1.
-#   --concurrency <c>       Parallel writers. Default 1. Above 1 suppresses the ratio.
-#   --label-a <s>           Default: A (baseline)
-#   --label-b <s>           Default: B (candidate)
-#   --warmup <n>            Discard this many runs per arm first. Default 1.
-#   --min-pairs <n>         Pairs required before a ratio is reported. Default 20.
-#   --percentiles <list>    Per-arm percentiles, comma-separated. Default 50,95.
-#   --stdin <text>          Feed <text> to both arms on stdin.
-#   --allow-windows-paths   Permit drive-letter paths in the arm commands.
-#
-#   PERF_AB_ORDER_SOURCE    File the serial run reads its arm order from, one
-#                           byte per iteration: even runs A first, odd runs B
-#                           first. Default /dev/urandom; the same file gives
-#                           the same order.
-#
-# Exit: 0 the run completed; 1 a sample-count assertion failed; 2 a precondition
-# failed.
+# Usage, options and exit codes: see usage() below, or run with --help.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
