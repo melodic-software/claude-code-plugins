@@ -823,7 +823,7 @@ test("main writes run-ids to GITHUB_OUTPUT in ascending PR order", async () => {
     ]),
   });
   assert.equal(code, 0);
-  assert.equal(output, "run-ids=38255833396 38255833401 38255833399\n");
+  assert.equal(output, "listed=true\nrun-ids=38255833396 38255833401 38255833399\n");
 });
 
 test("main writes the recorded ids and exits 1 when another dispatch failed", async () => {
@@ -836,7 +836,7 @@ test("main writes the recorded ids and exits 1 when another dispatch failed", as
     ]),
   });
   assert.equal(code, 1);
-  assert.equal(output, "run-ids=500\n");
+  assert.equal(output, "listed=true\nrun-ids=500\n");
 });
 
 test("main records a review-dependency dispatch beside the conflict dispatches", async () => {
@@ -851,7 +851,7 @@ test("main records a review-dependency dispatch beside the conflict dispatches",
   });
   const { code, output } = await runMain({ pages: [[pr(130), dependabot]] });
   assert.equal(code, 0);
-  assert.equal(output, "run-ids=9130 9131\n");
+  assert.equal(output, "listed=true\nrun-ids=9130 9131\n");
 });
 
 // review-dependency holds a limit-stopped head by the base's resolved limits and
@@ -876,11 +876,11 @@ test("main holds a limit-stopped review-dependency head until its reset, by the 
   };
   const options = { pages: [[dependabot]], checked: new Map([[dependabot.headRefOid, [stop]]]) };
   const before = await runMain(options, LIMIT_DEFAULTS, Date.parse("2026-10-17T10:30:00Z"));
-  assert.deepEqual(before, { code: 0, output: "" }, "held before the reset");
+  assert.deepEqual(before, { code: 0, output: "listed=true\n" }, "held before the reset");
   const after = await runMain(options, LIMIT_DEFAULTS, Date.parse("2026-10-17T12:00:00Z"));
-  assert.deepEqual(after, { code: 0, output: "run-ids=9135\n" }, "dispatched after the reset");
+  assert.deepEqual(after, { code: 0, output: "listed=true\nrun-ids=9135\n" }, "dispatched after the reset");
   const capped = await runMain(options, { ...LIMIT_DEFAULTS, "limit-stops-per-head": 1 }, Date.parse("2026-10-17T12:00:00Z"));
-  assert.deepEqual(capped, { code: 0, output: "" }, "one stop reaches a cap of 1");
+  assert.deepEqual(capped, { code: 0, output: "listed=true\n" }, "one stop reaches a cap of 1");
 });
 
 // A lanes App PR whose head's lanes failed, as fix-ci-dispatch.mjs lists it.
@@ -917,9 +917,9 @@ const ciFixPull = (number) => {
 test("main records fix-ci dispatches beside the others, capped by limits.fix-ci-per-run", async () => {
   const pulls = [ciFixPull(141), ciFixPull(142), ciFixPull(143)];
   const capped = await runMain({ pages: [[pr(140)]], ciFixPulls: pulls }, { ...LIMIT_DEFAULTS, "fix-ci-per-run": 1, "fix-ci-restarts": 1 });
-  assert.deepEqual(capped, { code: 0, output: "run-ids=9140 9141\n" });
+  assert.deepEqual(capped, { code: 0, output: "listed=true\nrun-ids=9140 9141\n" });
   const fallback = await runMain({ pages: [[]], ciFixPulls: pulls });
-  assert.deepEqual(fallback, { code: 0, output: "run-ids=9141 9142\n" }, "with no fix-ci limit the default of 2 holds");
+  assert.deepEqual(fallback, { code: 0, output: "listed=true\nrun-ids=9141 9142\n" }, "with no fix-ci limit the default of 2 holds");
 });
 
 // A ready PR a person opened that changes Markdown, as fix-docs-dispatch.mjs lists it.
@@ -951,7 +951,7 @@ test("a push, tick or hand run starts no fix-docs, with fix-docs candidates list
         { api, sleep: async () => {}, log: () => {}, loadLimits: async () => limits, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
       );
       assert.equal(code, 0);
-      assert.equal(readFileSync(out, "utf8"), "run-ids=9170\n", "only the conflicting PR's resolve-conflicts run");
+      assert.equal(readFileSync(out, "utf8"), "listed=true\nrun-ids=9170\n", "only the conflicting PR's resolve-conflicts run");
       assert.deepEqual(api.calls.dispatch.filter((call) => call.workflow === "pr-refine.yml"), [], "no pr-refine.yml dispatch");
       assert.deepEqual(api.calls.docs, [], "no fix-docs listing or history read");
     } finally {
@@ -1008,7 +1008,8 @@ test("main ends green, dispatching and recording nothing, on an open pull reques
     );
     assert.equal(code, 0);
     assert.deepEqual(api.calls.dispatch, []);
-    assert.equal(existsSync(out), false, "no run-ids and no record-changed output");
+    // No listed either, so the next scheduled tick is never paced after it.
+    assert.equal(existsSync(out), false, "no run-ids, record-changed or listed output");
     assert.deepEqual(lines, ["::warning::the open pull request listing could not be read (POST https://api.example/graphql returned 401); nothing dispatched, a later run retries"]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -1106,7 +1107,7 @@ test("without the lanes App sender id main still dispatches conflicts, dispatche
       { api: fakeApi({ pages: [[pr(150)]], ciFixPulls: [ciFixPull(151)] }), log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
     );
     assert.equal(code, 1);
-    assert.equal(readFileSync(output, "utf8"), "run-ids=9150\n");
+    assert.equal(readFileSync(output, "utf8"), "listed=true\nrun-ids=9150\n");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -1134,14 +1135,14 @@ test("main appends each run id to RUN_IDS_FILE as soon as its dispatch returns",
   }
 });
 
-test("main writes nothing to GITHUB_OUTPUT when no run was dispatched", async () => {
+test("main writes only listed to GITHUB_OUTPUT when no run was dispatched", async () => {
   const noPulls = await runMain({ pages: [[pr(121, { mergeable: "MERGEABLE" })]] });
-  assert.deepEqual(noPulls, { code: 0, output: "" });
+  assert.deepEqual(noPulls, { code: 0, output: "listed=true\n" });
   const noRunId = await runMain({
     pages: [[pr(122)]],
     runIds: new Map([["122", undefined]]),
   });
-  assert.deepEqual(noRunId, { code: 1, output: "" });
+  assert.deepEqual(noRunId, { code: 1, output: "listed=true\n" });
 });
 
 // The REST contract (docs.github.com rest/actions/workflows "Create a workflow
@@ -1468,11 +1469,11 @@ test("main carries the record in DISPATCH_RECORD and writes it only when it chan
   try {
     writeFileSync(output, "");
     assert.equal(await main(env, options()), 0);
-    assert.equal(readFileSync(output, "utf8"), "record-changed=true\n");
+    assert.equal(readFileSync(output, "utf8"), "listed=true\nrecord-changed=true\n");
     assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { version: 6, handled: { [CHECK_NAME]: [pr(1).headRefOid] }, bases: {}, dispatched: {}, docsRuns: {} });
     writeFileSync(output, "");
     assert.equal(await main(env, options()), 0);
-    assert.equal(readFileSync(output, "utf8"), "");
+    assert.equal(readFileSync(output, "utf8"), "listed=true\n");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

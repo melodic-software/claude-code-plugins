@@ -974,7 +974,7 @@ test("an event other than an issue close, the schedule or a work-resolve-issue r
 // work-unblock.yml whose label-unblocked job ran its sweep step and logged that
 // it read the closed-issue listing, at most 3 hours back; anything else, or any
 // failed read, gives the 3 hours.
-const SWEEP_RUNS = `/repos/${REPO}/actions/workflows/work-unblock.yml/runs?event=schedule&status=success&per_page=2`;
+const SWEEP_RUNS = `/repos/${REPO}/actions/workflows/work-unblock.yml/runs?event=schedule&status=success&per_page=3`;
 const ago = (minutes) => new Date(NOW - minutes * 60_000).toISOString();
 const SWEEP_JOB_ID = 9001;
 const SWEEP_LOG_PATH = `/repos/${REPO}/actions/jobs/${SWEEP_JOB_ID}/logs`;
@@ -1031,35 +1031,37 @@ test("the sweep reads back to 15 minutes before the last sweep that ran its labe
 });
 
 // A hold ends green with its labeling step a success, so only the log tells a
-// sweep that read its closes from one that held.
-test("a last sweep whose log does not show the closed listing read falls back to 3 hours", async () => {
+// sweep that read its closes from one that held. Any run that is not a clean
+// sweep, or a read that fails, falls back to 6 hours (PACED_LOOKBACK_HOURS):
+// it may follow a paced run whose clean sweep is past 3 hours.
+test("a last sweep whose log does not show the closed listing read falls back to 6 hours", async () => {
   const runs = { workflow_runs: [{ id: 5, run_started_at: ago(60) }] };
   const held = `${LOG_STAMP}##[notice]the closed-issue listing failed\n`;
   const inside = `${LOG_STAMP}said label-unblocked: read the closed-issue listing\n`;
   const unstamped = "label-unblocked: read the closed-issue listing\n";
   for (const log of [held, inside, unstamped, "", new Error("GET failed with status 410")]) {
-    assert.equal((await windowOf(runs, {}, sweptJobs(), log)).minutes, 180, String(log));
+    assert.equal((await windowOf(runs, {}, sweptJobs(), log)).minutes, 360, String(log));
   }
 });
 
-test("a last sweep whose job has no usable id falls back to 3 hours without asking for a log", async () => {
+test("a last sweep whose job has no usable id falls back to 6 hours without asking for a log", async () => {
   const runs = { workflow_runs: [{ id: 5, run_started_at: ago(60) }] };
   const steps = [{ name: "Label the unblocked issues", conclusion: "success" }];
   for (const id of [undefined, "../9001"]) {
     const { minutes, actionCalls } = await windowOf(runs, {}, { jobs: [{ id, name: "label-unblocked", conclusion: "success", steps }] });
-    assert.equal(minutes, 180);
+    assert.equal(minutes, 360);
     assert.deepEqual(actionCalls.filter((call) => call.includes("/actions/jobs/")), []);
   }
 });
 
-test("a sweep with an Actions client but no log reader reads the full 3 hours", async () => {
+test("a sweep with an Actions client but no log reader reads the full 6 hours", async () => {
   const { github, calls } = sweptDependent();
   const actions = async (method, path) => (path.includes("/work-unblock.yml/") ? { workflow_runs: [{ id: 5, run_started_at: ago(60) }] } : sweptJobs());
   assert.equal(await sweep({ github, actions, jobLog: null }), 0);
-  assert.ok(calls.some((call) => call.includes(`since=${encodeURIComponent(SINCE)}`)));
+  assert.ok(calls.some((call) => call.includes(`since=${encodeURIComponent("2026-10-16T06:00:00.000Z")}`)));
 });
 
-test("a last sweep's log past the 1 MiB read cap is left unread and gives the full 3 hours", async () => {
+test("a last sweep's log past the 1 MiB read cap is left unread and gives the full 6 hours", async () => {
   // Real reader: one byte over the cap, the listed line inside it.
   const readerOf = (filler) => {
     const fetchImpl = async () => new Response(LISTED_LOG + "x".repeat(filler - LISTED_LOG.length), { status: 200 });
@@ -1071,7 +1073,7 @@ test("a last sweep's log past the 1 MiB read cap is left unread and gives the fu
     return Date.parse(decodeURIComponent(/since=([^&]+)/.exec(calls.find((call) => call.includes("issues?state=closed&since=")))[1]));
   };
   assert.equal(await since(readerOf(1_048_576)), NOW - 75 * 60_000);
-  assert.equal(await since(readerOf(1_048_577)), NOW - 180 * 60_000);
+  assert.equal(await since(readerOf(1_048_577)), NOW - 360 * 60_000);
 });
 
 // What one sweep printed, as its raw job log shows it: the runner turns a
@@ -1150,7 +1152,7 @@ test("a held sweep does not advance the window: the next sweep reads the close i
   const next = sweptDependent();
   const after = await sweepAfter(lines, next);
   assert.equal(after.code, 0);
-  assert.equal(after.minutes, 180);
+  assert.equal(after.minutes, 360);
   assert.deepEqual(writes(next.calls), [labeled(20)]);
 });
 
@@ -1165,17 +1167,17 @@ test("a sweep that read its listing does advance the window: the next one reads 
   assert.deepEqual(writes(next.calls), []);
 });
 
-// Held at 12:00 and 13:00: the sweep at 14:00 still reads back 3 hours, to
-// 11:00, which covers the close at 11:30 neither held sweep read.
-test("sweeps held in a row keep the window back, up to the 3-hour limit", async (t) => {
+// Held at 12:00 and 13:00: the sweep at 14:00 still reads back 6 hours, to
+// 08:00, which covers the close at 11:30 neither held sweep read.
+test("sweeps held in a row keep the window back, up to the 6-hour limit", async (t) => {
   const first = await printedBy(t, () => sweep({ github: world({ failOn: CLOSED_LISTING }).github, actions: lastSweepActions }));
   const heldAgain = world({ failOn: CLOSED_LISTING });
   const second = await printedBy(t, () => sweepAfter(first.lines, heldAgain));
   assert.equal(second.code.code, 0);
-  assert.equal(second.code.minutes, 180);
+  assert.equal(second.code.minutes, 360);
   const next = sweptDependent();
   const after = await sweepAfter(second.lines, next, NOW + HOUR);
-  assert.equal(after.minutes, 180);
+  assert.equal(after.minutes, 360);
   assert.deepEqual(writes(next.calls), [labeled(20)]);
 });
 
@@ -1327,25 +1329,118 @@ test("a sweep that held an issue on a faulted read does not advance the window",
   assert.equal(code, 0);
   const next = sweptDependent();
   const after = await sweepAfter(lines, next);
-  assert.equal(after.minutes, 180);
+  assert.equal(after.minutes, 360);
   assert.deepEqual(writes(next.calls), [labeled(20)]);
 });
 
-test("a last sweep older than the 3-hour window is capped at 3 hours without reading its jobs", async () => {
+test("a last sweep older than the 3-hour window is capped at 3 hours", async () => {
+  // Under 6 hours old its jobs are read once, to see whether it was paced.
   const { minutes, actionCalls } = await windowOf({ workflow_runs: [{ id: 5, run_started_at: ago(300) }] });
   assert.equal(minutes, 180);
-  assert.ok(!actionCalls.some((call) => call.includes("/actions/runs/5/jobs")));
+  assert.equal(actionCalls.filter((call) => call.includes("/actions/runs/5/jobs")).length, 1);
+  // Past 6 hours no paced run can widen the window, so nothing more is read.
+  const old = await windowOf({ workflow_runs: [{ id: 5, run_started_at: ago(400) }] });
+  assert.equal(old.minutes, 180);
+  assert.ok(!old.actionCalls.some((call) => call.includes("/actions/runs/5/jobs")));
 });
 
-test("a failed or empty read of the last sweep falls back to 3 hours", async () => {
-  for (const answer of [new Error("GET failed with status 403"), { workflow_runs: [] }, { nope: true }, { workflow_runs: [{ id: "x", run_started_at: ago(60) }] }]) {
-    assert.equal((await windowOf(answer)).minutes, 180);
+// A paced run (work-unblock.yml's `Mark this tick paced` step) swept nothing,
+// so the next sweep starts from the clean sweep before it, up to 6 hours back.
+// The drop case: sweep at -200 min, paced at -140, the -80 tick dropped, this
+// one now: 215 minutes back, past the 3-hour window.
+test("the sweep after a paced run reads back past it to the sweep before, up to 6 hours", async () => {
+  const pacedJobs = { jobs: [{ id: 9002, name: "label-unblocked", conclusion: "success", steps: [{ name: "Mark this tick paced", conclusion: "success" }, { name: "Label the unblocked issues", conclusion: "skipped" }] }] };
+  const windowAfterPaced = async (runs) => {
+    const { github, calls } = sweptDependent();
+    const actions = async (method, path) => {
+      if (path.startsWith(`/repos/${REPO}/actions/workflows/work-unblock.yml/runs`)) return { workflow_runs: runs };
+      if (path.startsWith(`/repos/${REPO}/actions/runs/6/jobs`)) return pacedJobs;
+      if (path.startsWith(`/repos/${REPO}/actions/runs/5/jobs`)) return sweptJobs();
+      return path === SWEEP_LOG_PATH ? LISTED_LOG : { workflow_runs: [], jobs: [] };
+    };
+    assert.equal(await sweep({ github, actions }), 0);
+    const listing = calls.find((call) => call.startsWith(`GET /repos/${REPO}/issues?state=closed&since=`));
+    return (NOW - Date.parse(decodeURIComponent(/since=([^&]+)/.exec(listing)[1]))) / 60_000;
+  };
+  // Listed out of id order, as a run stamped an hour ahead lists.
+  assert.equal(await windowAfterPaced([{ id: 5, run_started_at: ago(200) }, { id: 6, run_started_at: ago(140) }]), 215);
+  assert.equal(await windowAfterPaced([{ id: 6, run_started_at: ago(60) }, { id: 5, run_started_at: ago(120) }]), 135);
+  // A sweep before the paced run older than 6 hours is capped there.
+  assert.equal(await windowAfterPaced([{ id: 6, run_started_at: ago(140) }, { id: 5, run_started_at: ago(400) }]), 360);
+  assert.equal(await windowAfterPaced([{ id: 6, run_started_at: ago(140) }]), 360, "no sweep before the paced run");
+});
+
+// PRRT_kwDOTCGFQM618h6b: a held run after the paced one is the newest
+// successful run, and is neither clean nor paced. The window must still reach
+// the clean sweep at -200 (215 minutes back with the margin), which the
+// 3-hour fallback missed.
+test("a held run after a paced run still reaches back to the clean sweep before it", async () => {
+  const jobsOf = {
+    5: sweptJobs(),
+    6: { jobs: [{ id: 9002, name: "label-unblocked", conclusion: "success", steps: [{ name: "Mark this tick paced", conclusion: "success" }, { name: "Label the unblocked issues", conclusion: "skipped" }] }] },
+    7: sweptJobs(),
+  };
+  const windowAfter = async (held, jobsAnswer = (id) => jobsOf[id]) => {
+    const { github, calls } = sweptDependent();
+    const actions = async (method, path) => {
+      if (path.startsWith(`/repos/${REPO}/actions/workflows/work-unblock.yml/runs`)) {
+        return { workflow_runs: [{ id: 7, run_started_at: ago(60) }, { id: 6, run_started_at: ago(140) }, { id: 5, run_started_at: ago(200) }] };
+      }
+      const jobs = /\/actions\/runs\/([0-9]+)\/jobs/.exec(path);
+      if (jobs) {
+        const answer = jobsAnswer(Number(jobs[1]));
+        if (answer instanceof Error) throw answer;
+        return answer;
+      }
+      return path === SWEEP_LOG_PATH ? held : { workflow_runs: [], jobs: [] };
+    };
+    assert.equal(await sweep({ github, actions }), 0);
+    const listing = calls.find((call) => call.startsWith(`GET /repos/${REPO}/issues?state=closed&since=`));
+    return (NOW - Date.parse(decodeURIComponent(/since=([^&]+)/.exec(listing)[1]))) / 60_000;
+  };
+  const heldListing = `${LOG_STAMP}##[notice]the closed-issue listing failed\n`;
+  const heldIssue = `${LISTED_LOG}${LOG_STAMP}label-unblocked: held an issue on a failed read\n`;
+  for (const log of [heldListing, heldIssue]) {
+    assert.ok((await windowAfter(log)) >= 215, JSON.stringify(log));
   }
+  // The label step never ran (a held lane token): no sweep step to judge.
+  const noLabel = { jobs: [{ id: 9003, name: "label-unblocked", conclusion: "success", steps: [{ name: "Request the lane token", conclusion: "success" }] }] };
+  assert.ok((await windowAfter(LISTED_LOG, (id) => (id === 7 ? noLabel : jobsOf[id]))) >= 215, "no label step");
+  // The paced check's own jobs read throws: the fallback is the full 6 hours.
+  assert.equal(await windowAfter(LISTED_LOG, () => new Error("GET failed with status 502")), 360);
+});
+
+// The pacer paces the next tick only after work-unblock.yml's `Mark this
+// tick's work done`, which waits on this output: a run sweepSince would start
+// the next window from.
+test("only a green sweep that read its listing and held nothing writes clean-sweep", async (t) => {
+  const outputOf = async (args) => {
+    const dir = tempDir("clean-sweep-");
+    const output = join(dir, "output");
+    writeFileSync(output, "");
+    const { code } = await printedBy(t, () => sweep(args, { GITHUB_OUTPUT: output }));
+    return { code, clean: readFileSync(output, "utf8").includes("clean-sweep=true\n") };
+  };
+  assert.deepEqual(await outputOf({ github: sweptDependent().github }), { code: 0, clean: true });
+  const closedDown = world({ closedList: [closedAt(10, "2026-10-16T11:30:00Z")], failOn: CLOSED_LISTING });
+  assert.deepEqual(await outputOf({ github: closedDown.github }), { code: 0, clean: false }, "a held closed listing");
+  const heldIssue = twoDependents(readOf20(new GitHubError(502, `GET ${ISSUE_20}`)));
+  assert.deepEqual(await outputOf({ github: heldIssue.github }), { code: 0, clean: false }, "an issue held on a faulted read");
+  const broken = twoDependents(readOf20(new GitHubError(404, `GET ${ISSUE_20}`)));
+  const red = await outputOf({ github: broken.github });
+  assert.equal(red.clean, false, "a red run");
+});
+
+test("a failed read of the last sweep falls back to 6 hours, and no earlier run to 3", async () => {
+  for (const answer of [new Error("GET failed with status 403"), { nope: true }, { workflow_runs: [{ id: "x", run_started_at: ago(60) }] }]) {
+    assert.equal((await windowOf(answer)).minutes, 360);
+  }
+  assert.equal((await windowOf({ workflow_runs: [] })).minutes, 180, "no earlier successful run");
 });
 
 // A green run proves nothing by itself: the kill switch and a lane the config
 // turns off each skip the labeling step and still end the job green.
-test("a last successful run that did not sweep falls back to 3 hours", async () => {
+test("a last successful run that did not sweep falls back to 6 hours", async () => {
   const runs = { workflow_runs: [{ id: 5, run_started_at: ago(60) }] };
   const killed = sweptJobs("skipped", [{ name: "Report the kill switch", conclusion: "success" }]);
   const offByConfig = sweptJobs("skipped", [
@@ -1355,7 +1450,7 @@ test("a last successful run that did not sweep falls back to 3 hours", async () 
   const noSteps = { jobs: [{ name: "label-unblocked", conclusion: "success", steps: [] }] };
   const noJob = { jobs: [{ name: "save-wip-state", conclusion: "success", steps: [] }] };
   for (const jobs of [killed, offByConfig, noSteps, noJob, { jobs: [] }, { nope: true }, new Error("GET failed with status 502")]) {
-    assert.equal((await windowOf(runs, {}, jobs)).minutes, 180);
+    assert.equal((await windowOf(runs, {}, jobs)).minutes, 360);
   }
 });
 

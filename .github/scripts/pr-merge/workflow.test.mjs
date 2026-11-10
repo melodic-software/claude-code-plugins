@@ -503,17 +503,42 @@ test("a pull request event wakes enable-auto-merge only for a lanes App pull req
 // who.mjs (a bot is never a listed human), so the job's condition skips it
 // first. The condition's syntax is the subset JavaScript reads the same way,
 // so the test evaluates it against hand-written events.
-const evalIf = (id, event, inputs = {}) => {
-  const text = /\n {4}if: >-\n([\s\S]*?)\n {4}(?:[a-z-]+:|#)/.exec(`\n${job(id)}`)[1].replaceAll("\n", " ");
+// A job another job skipped has no outputs, so `needs` defaults to none.
+const evalIf = (id, event, inputs = {}, needs = {}) => {
+  const text = /\n {4}if: >-\n([\s\S]*?)\n {4}(?:[a-z-]+:|#)/.exec(`\n${job(id)}`)[1].replaceAll("\n", " ").replace(/\.([a-z]+(?:-[a-z0-9]+)+)/g, '["$1"]');
   const format = (template, value) => template.replace("{0}", value);
-  return new Function("github", "vars", "cancelled", "format", "inputs", `return (${text});`)(
+  return new Function("github", "vars", "cancelled", "format", "inputs", "needs", `return (${text});`)(
     { ref: "refs/heads/main", repository: "o/r", ...event },
     { AUTOMATION_LANES_APP_SENDER_ID: "99" },
     () => false,
     format,
     inputs,
+    { "post-merge-dispatch": { outputs: {} }, ...needs },
   );
 };
+
+// The burn-rate pacer (log-api-budget/pace.mjs) writes paced=true only on a
+// schedule tick, in post-merge-dispatch, which runs only on the schedule and
+// a hand-started sweep. Every other run reaches the sweep jobs with no paced
+// output and runs them as before.
+test("only a paced schedule tick skips the merge and enable-auto-merge sweeps", () => {
+  const paced = (value) => ({ "post-merge-dispatch": { outputs: { paced: value } } });
+  const schedule = { event_name: "schedule", event: {} };
+  const handSweep = { event_name: "workflow_dispatch", event: { sender: { type: "User" } } };
+  const wake = { event_name: "workflow_dispatch", event: { sender: { type: "Bot" } } };
+  const unlabeled = { event_name: "pull_request_target", event: { sender: { type: "User" }, pull_request: { head: { repo: { full_name: "o/r" } }, user: { id: 99 } } } };
+  for (const id of ["merge", "enable-auto-merge"]) {
+    assert.equal(evalIf(id, schedule, {}, paced("true")), false, `${id}: a paced tick skips`);
+    assert.equal(evalIf(id, schedule, {}, paced("false")), true, `${id}: an unpaced tick sweeps`);
+    assert.equal(evalIf(id, schedule, {}, paced("")), true, `${id}: a pacer that wrote nothing`);
+    assert.equal(evalIf(id, handSweep, { pr: "" }, paced("false")), true, `${id}: a hand-started sweep`);
+    assert.equal(evalIf(id, unlabeled), true, `${id}: a pull_request_target wake`);
+    assert.equal(evalIf(id, { event_name: "push", event: {} }), false, `${id}: a push`);
+  }
+  // A PR-scoped wake skips post-merge-dispatch, so nothing can pace its arm.
+  assert.equal(evalIf("post-merge-dispatch", wake, { pr: "12" }), false);
+  assert.equal(evalIf("enable-auto-merge", wake, { pr: "12" }), true);
+});
 
 // A PR-scoped dispatch (inputs.pr) only arms: enable-auto-merge runs, and
 // post-merge-dispatch and merge skip, so dispatch-full-run and gate-check,
