@@ -3,6 +3,12 @@
 All notable changes to the `naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.5] - 2026-11-10
+
+### Changed
+
+- `/naming:name-it-better` puts the project's glossary entries in the generators' brief, through `/domain-driven-design:ubiquitous-language lookup` when that plugin is installed; rejected glossary words join the blocklist.
+
 ## [0.6.4] - 2026-11-05
 
 ### Changed

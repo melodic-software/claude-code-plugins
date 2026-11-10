@@ -1137,10 +1137,11 @@ def suite_failures(log: str, kind: str) -> frozenset[str] | None:
                 started.add(m[1])
             elif m := _BASH_PASS.fullmatch(line):
                 passed.add(m[1])
-            elif m := _BASH_FAIL.fullmatch(line) or _BASH_NO_RESULT.fullmatch(line):
+            elif m := _BASH_FAIL.fullmatch(line):
                 failed.add(m[1])
-                if _BASH_NO_RESULT.fullmatch(line):
-                    started.add(m[1])
+            elif m := _BASH_NO_RESULT.fullmatch(line):
+                failed.add(m[1])
+                started.add(m[1])
             elif (m := _BASH_ADVISORY.match(line)) and m[2] == nonce:
                 advisory.add(m[1])
         if started - passed - failed:
@@ -1247,8 +1248,10 @@ def _sender_fields(record: dict[str, Any]) -> dict[str, Any]:
     """The fields of an uploading run `_Context._lane_sender` reads, and its
     status."""
     return {
-        **{k: record.get(k) for k in ("id", "path", "event", "status")},
-        **{k: record.get(k) for k in ("head_branch", "head_sha")},
+        **{
+            k: record.get(k)
+            for k in ("id", "path", "event", "status", "head_branch", "head_sha")
+        },
         **{
             k: {"full_name": json_object(record.get(k)).get("full_name")}
             for k in ("repository", "head_repository")
@@ -1286,8 +1289,7 @@ def load_lane_records(
             raise ValueError(f"{name!r}: {exc}") from exc
         if not (
             _LANE_RECORD_NAME.fullmatch(name)
-            and isinstance(artifact, int)
-            and not isinstance(artifact, bool)
+            and type(artifact) is int
             and artifact > 0
             and isinstance(sender.get("id"), int)
             and sender.get("status") == "completed"
@@ -1423,7 +1425,7 @@ class _Context:
         `contains` answers from it without an API call for every commit the
         checkout already has."""
         window = "&".join(
-            f"{key}={quote(t.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ'), safe='')}"
+            f"{key}={quote(_stamp(t), safe='')}"
             for key, t in (("since", merged_at), ("until", deadline))
         )
         listed = _paginated(
@@ -1449,19 +1451,28 @@ class _Context:
         SHA with no created filter: a check independent of the dated
         listing. A failed or short read raises."""
         if commit not in self.dispatch_at_cache:
-            rows = _paginated(
-                f"repos/{self.owner}/{self.name}/actions/workflows/{FULL_RUN_WORKFLOW}"
-                f"/runs?event=workflow_dispatch&branch={quote(self.branch, safe='')}"
-                f"&head_sha={commit}&per_page=100",
-                f"{FULL_RUN_WORKFLOW} dispatch runs at {commit[:12]}",
-                "workflow_runs",
-            )
             self.dispatch_at_cache[commit] = {
                 r.id: r
-                for r in _run_rows(rows, "workflow_dispatch", self.owner, self.name)
-                if r.head_branch == self.branch and self.on_branch(r)
+                for r in self._full_run_rows_at("workflow_dispatch", "dispatch", commit)
+                if self.on_branch(r)
             }
         return self.dispatch_at_cache[commit]
+
+    def _full_run_rows_at(self, event: str, label: str, commit: str) -> list[Run]:
+        """The branch's full runs of `event` at `commit`, read by head SHA
+        with no created filter. A failed or short read raises."""
+        rows = _paginated(
+            f"repos/{self.owner}/{self.name}/actions/workflows/{FULL_RUN_WORKFLOW}"
+            f"/runs?event={event}&branch={quote(self.branch, safe='')}"
+            f"&head_sha={commit}&per_page=100",
+            f"{FULL_RUN_WORKFLOW} {label} runs at {commit[:12]}",
+            "workflow_runs",
+        )
+        return [
+            r
+            for r in _run_rows(rows, event, self.owner, self.name)
+            if r.head_branch == self.branch
+        ]
 
     def regressions(self, signal: str, run: Run, merged_at: datetime) -> frozenset[str]:
         """The checks failing on red full run `run` that were not failing on
@@ -1484,8 +1495,11 @@ class _Context:
         issue older than `merge.quarantine-days`. A gate suite has no
         quarantine, and a check whose suites cannot be named stays excused as
         a pre-existing failure."""
-        named = {c: self.failing_suites(run.id, attempt, c) for c in checks}
-        named = {c: suites for c, suites in named.items() if suites}
+        named = {
+            c: suites
+            for c in checks
+            if (suites := self.failing_suites(run.id, attempt, c))
+        }
         if not named:
             return frozenset()
         issues = self._quarantine_issues()
@@ -1578,19 +1592,7 @@ class _Context:
             self.full_runs_cache[commit] = [
                 r
                 for event in FULL_RUN_EVENTS.values()
-                for r in _run_rows(
-                    _paginated(
-                        f"repos/{self.owner}/{self.name}/actions/workflows/{FULL_RUN_WORKFLOW}"
-                        f"/runs?event={event}&branch={quote(self.branch, safe='')}"
-                        f"&head_sha={commit}&per_page=100",
-                        f"{FULL_RUN_WORKFLOW} {event} runs at {commit[:12]}",
-                        "workflow_runs",
-                    ),
-                    event,
-                    self.owner,
-                    self.name,
-                )
-                if r.head_branch == self.branch
+                for r in self._full_run_rows_at(event, event, commit)
             ]
         return self.full_runs_cache[commit]
 
@@ -1661,10 +1663,7 @@ class _Context:
     def _last_green(self, run: Run) -> Run | None:
         """The branch's newest green full run before `run`, on another commit."""
         if run.id not in self.green_cache:
-            created = quote(
-                f"<{run.created_at.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}",
-                safe="",
-            )
+            created = quote(f"<{_stamp(run.created_at)}", safe="")
             greens: list[Run] = []
             for event in FULL_RUN_EVENTS.values():
                 listing = _read(

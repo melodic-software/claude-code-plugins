@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.16.2] - 2026-11-10
+
+### Changed
+
+- `/planning:interview`, `/planning:prd` and `/planning:plan` read the glossary through the `/domain-driven-design:ubiquitous-language lookup` read action, with a repository search (root, any `docs/` folder, the module folder) when that plugin is absent; `/planning:interview` and `/planning:design` write resolved terms through `/domain-driven-design:ubiquitous-language curate`.
+
 ## [2.16.1] - 2026-11-10
 
 ### Changed
