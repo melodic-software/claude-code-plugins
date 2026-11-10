@@ -463,6 +463,9 @@ def main(argv=None):
                 c = load_clip(a.audio_dir, name)
                 if c:
                     clips[(stp['id'], kind)] = c
+    audio = []
+    total = retime()
+    captions = caption_spans(total)
     for _ in range(40):
         total = retime()
         captions = caption_spans(total)
@@ -831,7 +834,7 @@ def main(argv=None):
     edl = {
         'version': 1,
         'capture': str(cap),
-        'width': W, 'height': H, 'fps': fps, 'dsf': dsf,
+        'width': W, 'height': H, 'fps': 30, 'dsf': dsf,
         'total': round(total, 4),
         'style': a.style,
         'layers': layers,

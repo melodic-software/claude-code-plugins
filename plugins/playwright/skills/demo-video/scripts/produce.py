@@ -175,7 +175,7 @@ class Renderer:
         d.rounded_rectangle(rect, radius=rad, outline=(255, 255, 255, alpha), width=int(stroke * HALO * S))
         d.rounded_rectangle(rect, radius=rad, outline=ACCENT + (alpha,), width=int(stroke * S))
         layer = layer.resize((w, h), Image.LANCZOS)
-        img.paste(layer, (ox0, oy0), layer)
+        img.paste(layer, (int(ox0), int(oy0)), layer)
         return g.bbox
 
     def caption_layer(self, ci):
@@ -298,7 +298,7 @@ def main(argv=None):
     off = set(filter(None, a.off.split(',')))
     W, H, fps = edl['width'], edl['height'], edl['fps']
     nframes = int(round(edl['total'] * fps))
-    enc = {**edl['encode'], 'preset': a.preset or edl['encode']['preset']}
+    enc = {**edl['encode'], **({'preset': a.preset} if a.preset else {})}
     out = Path(a.out)
     video_only = out.with_suffix('.video.mp4')
     vf = 'scale=out_color_matrix=bt709:out_range=tv:flags=lanczos+accurate_rnd+full_chroma_int+full_chroma_inp,format=' + enc['pix_fmt']
