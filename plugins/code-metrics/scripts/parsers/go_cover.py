@@ -87,6 +87,18 @@ BLOCK = re.compile(
 )
 
 
+def _statements(per_file: dict[tuple[int, int, int, int], list[int]]) -> dict:
+    """One file's statement totals and its blocks keyed `start.col,end.col`."""
+    return {
+        "total": sum(weight for weight, _ in per_file.values()),
+        "hit": sum(weight for weight, count in per_file.values() if count > 0),
+        "blocks": {
+            "%d.%d,%d.%d" % key: {"statements": weight, "count": count}
+            for key, (weight, count) in sorted(per_file.items())
+        },
+    }
+
+
 def parse(path: str) -> dict[str, dict]:
     """Read `path` and return the per-file coverage mapping."""
     blocks: dict[str, dict[tuple[int, int, int, int], list[int]]] = {}
@@ -102,12 +114,7 @@ def parse(path: str) -> dict[str, dict]:
             match = BLOCK.match(line)
             if not match:
                 continue
-            key = (
-                int(match.group("start")),
-                int(match.group("start_col")),
-                int(match.group("end")),
-                int(match.group("end_col")),
-            )
+            key = tuple(map(int, match.group("start", "start_col", "end", "end_col")))
             statements = int(match.group("statements"))
             count = int(match.group("count"))
             per_file = blocks.setdefault(_norm(match.group("file")), {})
@@ -117,24 +124,7 @@ def parse(path: str) -> dict[str, dict]:
     if not seen_mode:
         raise ValueError("not a Go cover profile (no `mode:` header)")
     return {
-        name: {
-            "lines": {},
-            "functions": None,
-            "statements": {
-                "total": sum(weight for weight, _ in per_file.values()),
-                "hit": sum(weight for weight, count in per_file.values() if count > 0),
-                "blocks": {
-                    f"{start}.{start_col},{end}.{end_col}": {
-                        "statements": weight,
-                        "count": count,
-                    }
-                    for (start, start_col, end, end_col), (
-                        weight,
-                        count,
-                    ) in sorted(per_file.items())
-                },
-            },
-        }
+        name: {"lines": {}, "functions": None, "statements": _statements(per_file)}
         for name, per_file in blocks.items()
     }
 
