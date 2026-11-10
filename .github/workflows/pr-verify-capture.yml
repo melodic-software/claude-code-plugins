@@ -381,21 +381,21 @@ jobs:
 
       # The driven Claude Code: the version package-lock.json pins, from a lock
       # pruned to it and its platform packages, so npm ci checks the reviewed
-      # sha512s, then the registry signatures. The proxy's betas were measured
-      # on the version pr-pipeline.yaml names, so a lock that pins another
-      # stops here.
+      # sha512s, then the registry signatures. The lock is the one source of
+      # the version: both driver legs take it from this step. A version that
+      # sends a beta, body key or block type pr-pipeline.yaml's proxy lists
+      # do not allow is refused by the proxy, which names the value to add.
       - name: Install the driven Claude Code
+        id: claude
         if: steps.credential.outputs.present == 'true'
         timeout-minutes: 5
-        env:
-          CONFIG: .base/docs/conventions/pr-pipeline.yaml
         run: |
           version=$(jq -r '.packages["node_modules/@anthropic-ai/claude-code"].version' .base/package-lock.json)
-          want=$(yq '.merge."verify-capture".proxy."claude-code-version"' "$CONFIG")
-          if ! [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || [ "$version" != "$want" ]; then
-            echo "::error::the key proxy's betas were measured on Claude Code $want, but package-lock.json pins $version"
+          if ! [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::package-lock.json's @anthropic-ai/claude-code version is malformed: $version"
             exit 1
           fi
+          echo "version=$version" >>"$GITHUB_OUTPUT"
           dir=/opt/ccd/claude
           sudo install -d -m 0755 -o "$(id -u)" -g "$(id -g)" "$dir"
           jq '.packages |= with_entries(select(.key == "" or (.key | startswith("node_modules/@anthropic-ai/claude-code")))) | .packages[""].devDependencies |= {"@anthropic-ai/claude-code"}' .base/package-lock.json >"$dir/package-lock.json"
@@ -467,7 +467,7 @@ jobs:
       # apiKeyHelper, since the broker hands the driver a dummy key. No scrub:
       # its nested bwrap cannot start in the sibling sandbox, and the sandbox
       # holds only the dummy key. The driver legs' managed settings read the
-      # same version, small model and ceiling from its outputs.
+      # same small model and ceiling from its outputs.
       - name: Write the driven settings and the proxy config
         id: driven
         if: steps.credential.outputs.present == 'true'
@@ -483,13 +483,11 @@ jobs:
           ceiling=$(yq '.merge."verify-capture".proxy."max-tokens-ceiling"' "$CONFIG")
           jq -n --arg main "$main" --arg small "$small" --arg ceiling "$ceiling" '{model: $main, env: {ANTHROPIC_BASE_URL: "http://127.0.0.1:47100", ANTHROPIC_DEFAULT_HAIKU_MODEL: $small, CLAUDE_CODE_MAX_OUTPUT_TOKENS: $ceiling, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"}, permissions: {disableBypassPermissionsMode: "disable", defaultMode: "default", allow: ["Bash"]}}' |
             sudo tee /opt/ccd/driven-etc/managed-settings.json >/dev/null
-          version=$(yq '.merge."verify-capture".proxy."claude-code-version"' "$CONFIG")
-          if ! [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && $small =~ ^[a-z0-9.-]+$ && $ceiling =~ ^[1-9][0-9]*$ ]]; then
-            echo "::error::pr-pipeline.yaml's claude-code-version, driven-small-model or max-tokens-ceiling is malformed"
+          if ! [[ $small =~ ^[a-z0-9.-]+$ && $ceiling =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::pr-pipeline.yaml's driven-small-model or max-tokens-ceiling is malformed"
             exit 1
           fi
           {
-            echo "claude-code-version=$version"
             echo "small-model=$small"
             echo "ceiling=$ceiling"
           } >>"$GITHUB_OUTPUT"
@@ -862,7 +860,7 @@ jobs:
           preamble: You run unattended; do only what you are told.
           api-key: ${{ steps.proxy.outputs.client-key }}
           loopback-base-url: http://127.0.0.1:47101
-          cli-version: ${{ steps.driven.outputs.claude-code-version }}
+          cli-version: ${{ steps.claude.outputs.version }}
           model: ${{ steps.models.outputs.model }}
           max-turns: "10"
           permission-mode: dontAsk
@@ -1170,7 +1168,7 @@ jobs:
             credential.
           api-key: ${{ steps.proxy.outputs.client-key }}
           loopback-base-url: http://127.0.0.1:47101
-          cli-version: ${{ steps.driven.outputs.claude-code-version }}
+          cli-version: ${{ steps.claude.outputs.version }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
