@@ -955,6 +955,7 @@ const limitsOf = (limits = {}) => ({
   "reset-clamp-min": limits["reset-clamp-min"] ?? 1,
   "reset-clamp-max": limits["reset-clamp-max"] ?? 168,
   "restarts-per-run": limits["restarts-per-run"] ?? 5,
+  "refire-queue-per-slot": limits["refire-queue-per-slot"] ?? 2,
   "readmit-per-run": limits["readmit-per-run"] ?? 20,
   "parent-rescan-per-run": limits["parent-rescan-per-run"] ?? 5,
   "limit-stops-per-head": limits["limit-stops-per-head"] ?? 3,

@@ -332,6 +332,8 @@ const LIMITS = {
   "reset-clamp-min": 1,
   "reset-clamp-max": 168,
   "restarts-per-run": 5,
+  // Kill-switch re-fires fill the issue lane to two runs per slot (owner decision Q109).
+  "refire-queue-per-slot": 2,
   "readmit-per-run": 20,
   "parent-rescan-per-run": 5,
   "limit-stops-per-head": 3,
@@ -362,6 +364,19 @@ test("limits: a set leaf overrides its default and leaves the others", () => {
     doc.limits = { "fallback-reset": 2, "limit-stops-per-issue": 4, "turn-cap-restarts": 1, "admission-factor": 0.5 };
   });
   assert.deepEqual(run(config).limits, { ...LIMITS, "fallback-reset": 2, "limit-stops-per-issue": 4, "turn-cap-restarts": 1, "admission-factor": 0.5 });
+});
+
+test("limits: refire-queue-per-slot is a whole number from 1 to 10", () => {
+  const set = edited((doc) => {
+    doc.limits = { "refire-queue-per-slot": 3 };
+  });
+  assert.equal(run(set).limits["refire-queue-per-slot"], 3);
+  for (const bad of [0, 11, 1.5]) {
+    const rejected = edited((doc) => {
+      doc.limits = { "refire-queue-per-slot": bad };
+    });
+    assertRejected(() => run(rejected), "invalid-config");
+  }
 });
 
 test("limits: fix-docs-per-run 0 is accepted, turning CI fix-docs off", () => {

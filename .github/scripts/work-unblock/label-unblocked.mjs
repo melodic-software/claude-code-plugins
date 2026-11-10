@@ -205,7 +205,14 @@
 // report-outcome mint alone stopped, after another mint took its token, is a
 // trip at a mint too. Each gets a breaker record of its own, and after
 // limits.limit-stops-per-issue trips since a listed human last added
-// agent-ready or a run last reported, on the stranded backoff. A breaker
+// agent-ready or a run last reported, waits the kill-switch
+// limits.stranded-backoff-hours after the run ended, flat, never doubled,
+// with no cap on trips and no fail route. A sweep re-fires breaker trips,
+// oldest run end first, only while the work-resolve-issue runs not yet
+// finished (five status listings, read once a sweep that has one) are under
+// limits.refire-queue-per-slot times the lane's SLOTS, within
+// limits.restarts-per-run, so after a clear the lane stays full with a short
+// queue that each finished run's sweep tops up. A breaker
 // record never spends the once-per-version re-fire, never counts toward the
 // failed-mint bound and never raises another cause's backoff. Each run's log
 // is read once, from its one refused job and at most LOG_CAP_BYTES, and only
@@ -1502,7 +1509,7 @@ const MINT_CAUSE = `The work-resolve-issue run that \`${LABEL}\` started could n
 // label moves, once per re-fire. It names the refused run and when it ended,
 // since the re-fire can come hours after the refusal.
 export const breakerComment = (key, { repo, run, ended }) =>
-  `<!-- work-unblock refired ${key} breaker -->\nThis records a re-fire of an earlier refusal, not a new refusal. The lanes kill switch stopped [run ${run}](https://github.com/${repo}/actions/runs/${run}), the work-resolve-issue run that \`${LABEL}\` started, before it finished; that run ended at ${new Date(ended).toISOString().replace(/\.\d{3}Z$/, "Z")}. work-unblock has now removed and added \`${LABEL}\` back to start a fresh run. A kill-switch refusal is no fault in this issue or the lanes, so it never counts against later re-fires; after limits.limit-stops-per-issue of them since a person last added \`${LABEL}\` or a run last reported, work-unblock waits longer before each one, up to ${BACKOFF_CAP_HOURS} hours.`;
+  `<!-- work-unblock refired ${key} breaker -->\nThis records a re-fire of an earlier refusal, not a new refusal. The lanes kill switch stopped [run ${run}](https://github.com/${repo}/actions/runs/${run}), the work-resolve-issue run that \`${LABEL}\` started, before it finished; that run ended at ${new Date(ended).toISOString().replace(/\.\d{3}Z$/, "Z")}. work-unblock has now removed and added \`${LABEL}\` back to start a fresh run. A kill-switch refusal is no fault in this issue or the lanes, so it never counts against later re-fires; after limits.limit-stops-per-issue of them since a person last added \`${LABEL}\` or a run last reported, work-unblock waits the same limits.stranded-backoff-hours \`kill-switch\` hours after each refused run before re-firing it, never longer.`;
 
 // The backoff record of an issue whose re-fires on these workflow files keep
 // ending the same way: one comment per issue, edited on each re-fire.
@@ -1896,6 +1903,15 @@ async function lastLanePull({ github, repo, number, addedAt, bot }) {
   return last;
 }
 
+// The issue lane's slot count, from the one line work-resolve-issue.yml sets it on.
+export function laneSlots(path = new URL("../../workflows/work-resolve-issue.yml", import.meta.url)) {
+  const slots = /^ +SLOTS: ([1-9][0-9]*)$/m.exec(readFileSync(path, "utf8"))?.[1];
+  if (slots === undefined) {
+    throw new Error("work-resolve-issue.yml sets no SLOTS");
+  }
+  return Number(slots);
+}
+
 // The titles of every work-resolve-issue run that has not finished.
 async function runsInFlight(actions, repo) {
   const titles = [];
@@ -2120,7 +2136,9 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
   const { stalled, run: refused, stage } = (!stale && (await didNoWork(jobsOf, refusalReader(jobLog, repo, carry), runs))) || {};
   if (stalled) {
     // Breaker trips since a listed human last added agent-ready or a run last
-    // reported; past limits.limit-stops-per-issue of them, the stranded backoff.
+    // reported; past limits.limit-stops-per-issue of them, a flat wait of the
+    // kill-switch hours that never doubles: a trip is the lanes' load, not the
+    // issue's fault (owner decision Q109).
     const from = Math.max(
       Number.NEGATIVE_INFINITY,
       ...events.filter((event) => isLabel(event, "labeled") && humans.has(event.actor?.id)).map((event) => Date.parse(event.created_at)),
@@ -2132,7 +2150,7 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
     // kill switch off, so it re-fires now; a mint trip ran the model and
     // waits like any failed mint.
     const clamp = stalled === "breaker" && stage === "check" ? 0 : limits["reset-clamp-min"];
-    const due = over >= 0 ? backoffDue(ended, over, hoursFor["kill-switch"]) : ended + clamp * HOUR_MS;
+    const due = ended + (over >= 0 ? hoursFor["kill-switch"] : clamp) * HOUR_MS;
     if (now < due) {
       const why = stalled === "breaker" ? `the broker refused its lane run for the lanes kill switch (trip ${trips + 1})` : "its lane run did no work";
       return { reason: `${why}; it is re-fired after ${new Date(due).toISOString()}` };
@@ -2153,7 +2171,9 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
       return backoff(key, ended, MINT_CAUSE, hoursFor["failed-mint"]);
     }
     const trip = stalled === "breaker" ? { run: refused.id, ended: Date.parse(refused.updated_at) || ended } : undefined;
-    return { reason: null, resets: due, refire: key, recorded, stall: stalled, trip };
+    // Trips sort by when their run ended, not when they fell due, so the sweeps
+    // after the switch clears drain them oldest first whatever their waits.
+    return { reason: null, resets: trip ? ended : due, refire: key, recorded, stall: stalled, trip };
   }
   if (!stale && !runs.some((run) => FAILED.has(run.conclusion)) && !(await stoppedMint(jobsOf, runs)) && !(await cancelledBeforeWork(jobsOf, runs))) {
     return stranded(ended, "its lane run did not fail", "no-report");
@@ -2257,7 +2277,7 @@ async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot
 
 // Restarts, re-fires or hands off up to `cap` issues, longest-waiting first.
 // Returns how many reads or writes failed.
-async function restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, cap = limits["restarts-per-run"], writer = NO_WRITER, statusOf, openIssues, byStatus, field, fieldRows }) {
+async function restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, cap = limits["restarts-per-run"], writer = NO_WRITER, statusOf, openIssues, byStatus, field, fieldRows, slots = laneSlots }) {
   let failed = 0;
   const ready = [];
   // Main's blob SHAs of the lane workflow files, read once per run.
@@ -2381,10 +2401,31 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
   }
   ready.sort((a, b) => a.resets - b.resets || a.number - b.number);
   console.log(`label-unblocked: ${ready.filter((item) => item.recurrence).length} reopened fix issue(s) to relabel`);
-  for (const { number } of ready.slice(cap)) {
+  // Kill-switch re-fires only top the lane's unfinished runs up to the queue
+  // target, so a clear keeps the slots full instead of flooding their queue;
+  // a listing that fails re-fires none of them this sweep.
+  let room = 0;
+  if (ready.some((item) => item.stall === "breaker")) {
+    try {
+      const target = limits["refire-queue-per-slot"] * slots();
+      const queued = (await inFlight()).length;
+      room = Math.max(0, target - queued);
+      console.log(`label-unblocked: ${queued} work-resolve-issue run(s) unfinished, kill-switch re-fire room ${room} of ${target}`);
+    } catch (error) {
+      reportHold("kill-switch re-fire queue", error);
+    }
+  }
+  const go = ready.filter((item) => {
+    if (item.stall !== "breaker" || room-- > 0) {
+      return true;
+    }
+    console.log(`label-unblocked: #${item.number} re-fire deferred: the issue lane's queue is at its kill-switch re-fire target`);
+    return false;
+  });
+  for (const { number } of go.slice(cap)) {
     console.log(`label-unblocked: #${number} restart deferred: ${cap} restarts this run`);
   }
-  for (const { number, refire, cause, stall, trip, recurrence, recorded, handOff, pr, explained, release, infra, had } of ready.slice(0, cap)) {
+  for (const { number, refire, cause, stall, trip, recurrence, recorded, handOff, pr, explained, release, infra, had } of go.slice(0, cap)) {
     const base = `/repos/${repo}/issues/${number}`;
     if (handOff) {
       // The comment first, then the Work status, set to needs-triage, which
@@ -2692,7 +2733,7 @@ async function listedNames(byStatus) {
 
 export { budgetLatch, failedFor, fieldListing, markReads };
 
-export async function main({ env = process.env, github, actions, jobLog, now = Date.now(), rate = searchRateLimit(), admission = baseAdmission(env), writer, statusOf, byStatus, statusField } = {}) {
+export async function main({ env = process.env, github, actions, jobLog, now = Date.now(), rate = searchRateLimit(), admission = baseAdmission(env), writer, statusOf, byStatus, statusField, slots } = {}) {
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
@@ -2798,7 +2839,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
           failed += await readmitReady({ github, repo, listed, names, humans, bot, gate, appId, admission, cap: limits["readmit-per-run"], now, writer: writeTo, statusOf: statusTo });
         }
       }
-      failed += await restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, writer: writeTo, statusOf: statusTo, openIssues: listed, byStatus: listing, ...(statusField ?? (own ? {} : await workStatusField(env, github, repo))) });
+      failed += await restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, slots, writer: writeTo, statusOf: statusTo, openIssues: listed, byStatus: listing, ...(statusField ?? (own ? {} : await workStatusField(env, github, repo))) });
       if (carry) {
         const { jobsHit, jobsRead, refusalsHit, refusalsRead } = carry.counts;
         console.log(`::notice title=label-unblocked::carried verdicts: ${jobsHit} job listing(s) and ${refusalsHit} log verdict(s) reused, ${jobsRead} and ${refusalsRead} read`);
