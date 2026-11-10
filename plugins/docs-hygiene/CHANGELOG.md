@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [2.9.2] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [2.9.1] - 2026-11-10
 
 ### Changed
