@@ -541,9 +541,12 @@ jobs:
 
   # The subscription leg, as its own job on a new VM: the key leg's steps
   # from a fresh checkout but for the credential, on the pr-verify role's
-  # subscription token alone (workflow.test.mjs holds them equal). It runs
-  # only for a head the key leg would rate, after that leg handed off, found
-  # its key empty or was skipped by the credit gate. With the fallback token
+  # subscription token alone (workflow.test.mjs holds them equal). It starts
+  # after the key leg handed off, found its key empty or was skipped by the
+  # credit gate; the last two are decided before the key leg reads the pull
+  # request, so this job's own resolver and trigger check stop a head the key
+  # leg would not rate, its credential call never runs, and no next leg
+  # starts. With the fallback token
   # set, a limit stop, a credit stop, or a 401 or 402 hands off to
   # rate-merge-risk-fallback, and so does an empty token.
   rate-merge-risk-subscription:
