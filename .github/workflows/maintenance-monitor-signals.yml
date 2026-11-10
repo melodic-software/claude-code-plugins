@@ -81,41 +81,16 @@ jobs:
           REASON: ${{ steps.kill.outputs.reason }}
         run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing read or filed"
 
-      # The base config's limits.api, in resolve-config's output shape, for
-      # the pacer; a failed read leaves rate-limits.json's defaults.
-      - name: Read the pace override from the base config
-        if: steps.kill.outputs.proceed == 'true'
-        continue-on-error: true
-        run: |
-          yq -o=json '{"limits": {"api": (.limits.api // {})}}' .base/docs/conventions/pr-pipeline.yaml >"$RUNNER_TEMP/pace-config.json"
-
-      # A schedule tick skips its work while the GITHUB_TOKEN pool's remaining
-      # at reset, projected at this window's burn rate, is under limits.api
-      # github-token pace (pr-pipeline.yaml over rate-limits.json; 0 is off),
-      # on even run numbers only. A paced tick uploads no carry, so the next
-      # run reads the newest run that kept one. A hand run, or a read that
-      # fails, runs as before (.github/actions/log-api-budget/pace.mjs).
-      - name: Pace the tick on the GITHUB_TOKEN burn rate
-        id: pace
-        if: steps.kill.outputs.proceed == 'true'
-        continue-on-error: true
-        env:
-          RESOLVED_CONFIG: ${{ runner.temp }}/pace-config.json
-          GITHUB_TOKEN: ${{ github.token }}
-          EVENT_NAME: ${{ github.event_name }}
-          RUN_NUMBER: ${{ github.run_number }}
-        run: node .base/.github/actions/log-api-budget/pace.mjs
-
       # The Work status writer (write-status.mjs) reads models.issue-status
       # through resolve-config.mjs, whose packages only the resolve-config
       # action installs; this job does not run it.
       - name: Install resolve-config's packages
         timeout-minutes: 5
-        if: steps.kill.outputs.proceed == 'true' && steps.pace.outputs.paced != 'true'
+        if: steps.kill.outputs.proceed == 'true'
         run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
 
       - name: Read the signals and file their issues
-        if: steps.kill.outputs.proceed == 'true' && steps.pace.outputs.paced != 'true'
+        if: steps.kill.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -134,7 +109,7 @@ jobs:
       - name: Scan the upload for credentials
         id: scan-upload
         if: >-
-          ${{ !cancelled() && steps.kill.outputs.proceed == 'true' && steps.pace.outputs.paced != 'true' }}
+          ${{ !cancelled() && steps.kill.outputs.proceed == 'true' }}
         # A hit withholds only the carry: the next run reads every run's jobs.
         continue-on-error: true
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]

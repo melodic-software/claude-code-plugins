@@ -220,8 +220,9 @@ jobs:
       # A schedule tick's sweep (the merge and enable-auto-merge jobs) skips
       # while the GITHUB_TOKEN pool's remaining at reset, projected at this
       # window's burn rate, is under limits.api github-token pace
-      # (pr-pipeline.yaml over rate-limits.json; 0 is off), on even run
-      # numbers only. This job's own steps never wait on it: the post-merge
+      # (pr-pipeline.yaml over rate-limits.json; 0 is off), and only when the
+      # previous scheduled run's merge job listed its candidates, so the next
+      # tick always sweeps. This job's own steps never wait on it: the post-merge
       # check, cover dispatch, re-run and alert run on every tick. The skip is
       # at job level, so a paced tick's jobs read completed, never waiting, to
       # an earlier run's superseded check, which then does its own work. Any
@@ -235,7 +236,7 @@ jobs:
           RESOLVED_CONFIG: ${{ runner.temp }}/pace-config.json
           GITHUB_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
-          RUN_NUMBER: ${{ github.run_number }}
+          PACE_WORK_STEP: List the candidate PRs
         run: node .base/.github/actions/log-api-budget/pace.mjs
 
       # Live as the merge job reads it: the lane's own PRs not report-only,

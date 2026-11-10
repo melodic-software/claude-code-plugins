@@ -192,9 +192,12 @@ jobs:
       # A schedule tick skips its work while the GITHUB_TOKEN pool's remaining
       # at reset, projected at this window's burn rate, is under limits.api
       # github-token pace (pr-pipeline.yaml over rate-limits.json; 0 is off),
-      # on even run numbers only; the next sweep's three-hour window covers
-      # the closes this one would read. A close or a finished
-      # work-resolve-issue run, or a read that fails, runs as before
+      # and only when the previous scheduled run uploaded its verdicts (a
+      # full sweep) and was created at most PACE_MAX_GAP_MINUTES ago. The
+      # next tick then always sweeps, and sweepSince gives it the full
+      # LOOKBACK_HOURS window after a paced run, so full sweeps stay under
+      # that window apart (pace.test.mjs checks the bound). A close or a
+      # finished work-resolve-issue run, or a read that fails, runs as before
       # (.github/actions/log-api-budget/pace.mjs).
       - name: Pace the tick on the GITHUB_TOKEN burn rate
         id: pace
@@ -204,7 +207,8 @@ jobs:
           RESOLVED_CONFIG: ${{ runner.temp }}/pace-config.json
           GITHUB_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
-          RUN_NUMBER: ${{ github.run_number }}
+          PACE_WORK_STEP: Upload the verdicts for the next sweep
+          PACE_MAX_GAP_MINUTES: "75"
         run: node .base/.github/actions/log-api-budget/pace.mjs
 
       # The broker mints only when the person who closed the issue and the one

@@ -44,8 +44,7 @@ test("the kill switch is checked before the script reads anything", () => {
   const kill = text.indexOf("check-kill-switch");
   const work = text.indexOf("node .base/.github/scripts/maintenance-monitor-signals/monitor.mjs");
   assert.ok(kill > 0 && work > kill);
-  // The signals step also waits on the burn-rate pacer (log-api-budget/pace.mjs).
-  assert.match(text, /\n {8}if: steps\.kill\.outputs\.proceed == 'true' && steps\.pace\.outputs\.paced != 'true'\n {8}env:\n {10}GITHUB_TOKEN/);
+  assert.match(text, /\n {8}if: steps\.kill\.outputs\.proceed == 'true'\n {8}env:\n {10}GITHUB_TOKEN/);
 });
 
 test("every action is pinned to a full commit", () => {
