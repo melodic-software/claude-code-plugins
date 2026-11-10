@@ -69,11 +69,8 @@ def main(argv: list[str] | None = None) -> int:
         help="the tracker's human-gated role label (default %(default)s)",
     )
     args = parser.parse_args(argv)
-    print(
-        json.dumps(
-            split(json.load(sys.stdin), args.human_gated.strip() or DEFAULT_ROLE_LABEL)
-        )
-    )
+    human_gated = args.human_gated.strip() or DEFAULT_ROLE_LABEL
+    print(json.dumps(split(json.load(sys.stdin), human_gated)))
     return 0
 
 
