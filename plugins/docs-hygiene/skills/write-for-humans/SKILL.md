@@ -104,7 +104,7 @@ another way or keep the earlier wording.
 
 The address, load, and ambiguity layers apply to every sentence at once, so they share one file:
 [`reference/sentence-rules.md`](reference/sentence-rules.md). Read it while drafting, not after.
-It holds the load rules in full: the hard 20-word cap on instruction sentences, simple verb forms,
+It holds the load rules in full: the 20-word target for instruction sentences, simple verb forms,
 and the paragraph limits.
 
 ## A worked example
