@@ -32,7 +32,7 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 **Mitigation.**
 
 1. Cite by EXACT heading text (markdown), exact identifier (code), exact anchor (config), never by line number or section number
-2. After ANY heading/identifier/anchor edit in an SSOT, invoke `/docs-hygiene:rename-references` via the Skill tool immediately. It sweeps all 10 syntactic forms, not just pure-token grep
+2. After ANY heading/identifier/anchor edit in an SSOT, invoke `/docs-hygiene:rename-references` via the Skill tool immediately. It sweeps every form in its pattern library, not just pure-token grep
 3. The SSOT file should include a `## Recheck triggers` section, where a rename row triggers the sweep
 4. For code: prefer language-aware refactor (IDE / Roslyn / ts-morph) over text grep; combine with `/docs-hygiene:rename-references` for non-source references (docs, configs)
 
@@ -130,7 +130,7 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 
 ## 8. Self-generated SSOT
 
-**Pattern.** The model authors a skill or rule that the model itself cannot reliably consume. SkillsBench negative finding: self-generated skills provide NO benefit on average; human curation is the only reliable path. The dated record for that finding is `context/decision-framework.md`, "The SkillsBench record".
+**Pattern.** The model authors a skill or rule that the model itself cannot reliably consume. Human curation is the only reliable path. The benchmark this rests on is recorded in `context/decision-framework.md`, "The SkillsBench record".
 
 **Symptom.** The SSOT was written end-to-end by an agent without human review at any phase boundary. Eval cases (if any) were also model-authored. Failure rate higher than ad-hoc inline.
 
@@ -253,4 +253,4 @@ the premature abstraction Rule of Three guards against.
 - `lessons.md`: empirical batch-derived patterns; #11 ↔ Lesson 8, #12 ↔ Lesson 6, #13 ↔ Lesson 9
 - `actions/verify.md`: refuse-fast gates implementing anti-patterns #11 (Gate 4), #12 (Gate 3), #13 (Gate 2 entry-point); Gates 1/5/6 implement Lessons 1/3+4/5 (informational, not refuse-anti-patterns)
 - SKILL.md "Evidence discipline": verify-before-acting for citation resolution (#5); Tier 0 evidence requirement for the #11/#12/#13 detection greps
-- `/docs-hygiene:rename-references`: the 10-pattern sweep that catches #1, #4, #5
+- `/docs-hygiene:rename-references`: the pattern-library sweep that catches #1, #4, #5

@@ -85,20 +85,24 @@ which owns the verified-version record): `/plugin configure docs-hygiene@<market
 interactively. Headless, preferred on Claude Code 2.1.285 or later:
 `claude plugin configure docs-hygiene@<marketplace> --values-stdin < values.json`, where
 `values.json` holds `{"compress_articles": "<value>"}`. Headless fallback, before 2.1.285: rerun
-`claude plugin install docs-hygiene@<marketplace> -s <scope> --config compress_articles=<value>`;
-against an already-installed plugin it prints `already installed` and still writes the value.
+`claude plugin install docs-hygiene@<marketplace> -s <scope> --config compress_articles=<value>`.
 
-- Never uninstall to reconfigure: that drops the plugin's stored `pluginConfigs` entry, resetting
-  every option to its manifest default.
-- Scope: the value lands in user settings whichever route writes it. `claude plugin configure`
-  has no scope flag, so run it from the project the plugin is installed in. For the rerun, pass
-  the scope `claude plugin list` reports (from the home directory pass `user`); a rerun at another
-  scope adds an install record there and enables the plugin.
+- Never uninstall to reconfigure.
+- Scope: `claude plugin configure` has no scope flag, so run it from the project the plugin is
+  installed in. For the rerun, pass the scope `claude plugin list` reports (from the home directory
+  pass `user`); a rerun at another scope adds an install record there and enables the plugin.
 - Rendered values are injected at skill load, so rerun `check` in a fresh session after a change
   and report the observed value, never an unobserved change.
-- `--values-stdin` rejects a bad value with exit 1 and saves nothing, but stores an empty string
-  as `""`; the `--config` rerun prints a warning for a rejected value yet exits 0, so read its
-  output.
+- Whichever route ran, read both its exit code and its output before reporting the value saved:
+  the two routes signal a rejected value differently.
+- **Pointer**: when checking how a route reports a rejected value, what the rerun prints, where the
+  value is stored, or what an uninstall deletes, fetch
+  [§ plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
+  [§ plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install),
+  [§ Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
+  and [§ What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps)
+  live. **As of**: 2026-11-10. **Recheck trigger**: one of those sections changes how a route
+  reports a rejection, the rerun's output, where a value is stored, or what an uninstall deletes.
 
 To set the value for the whole repository instead, use `apply`.
 

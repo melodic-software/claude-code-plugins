@@ -17,7 +17,12 @@ invocation:
 - Uncommitted .md files (empty = none matched or the probe returned nothing), `git status --porcelain | grep -E '\.md"?$' | head -10`
 
 The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
-bounds nothing: the Bash tool returns the complete output into context first.
+limits only what is read after the command returns, never what it returns.
+
+- **Pointer**: when deciding how much command output reaches context, fetch
+  [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits) live. **As of**:
+  2026-11-10. **Recheck trigger**: that section changes how much output arrives inline or what
+  arrives in place of output past the inline limit.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls, not pre-compute lines: the harness runs a skill's whole pre-compute
@@ -48,7 +53,7 @@ A layer holding anything other than `keep` or `cut` is named in the output (the 
 
 | Value | Backend | What may be cut |
 |---|---|---|
-| `keep` | in-session Edit, even when caveman is installed (`/caveman:caveman-compress` always removes articles: [source](${CLAUDE_PLUGIN_ROOT}/reference/config.md#caveman-removes-articles)) | the batch path's word-level set without articles: filler, hedging, pleasantries, verbose verb phrases, passive to active, nominalization collapse. No sentence or restatement deletion, on a single file as in a batch. An article dropped anyway is restored in the revert pass |
+| `keep` | in-session Edit, even when caveman is installed ([why `keep` skips caveman](${CLAUDE_PLUGIN_ROOT}/reference/config.md#caveman-removes-articles)) | the batch path's word-level set without articles: filler, hedging, pleasantries, verbose verb phrases, passive to active, nominalization collapse. No sentence or restatement deletion, on a single file as in a batch. An article dropped anyway is restored in the revert pass |
 | `cut` | caveman when available, otherwise in-session Edit (Step A onward, unchanged) | articles too; a single-file Edit run may use the full matrix, restatement deletion included |
 
 Report the result once per run, as the last line of the summary: `compress_articles: keep (default)`, `compress_articles: cut (docs/conventions/docs-hygiene.yaml)`, or `compress_articles: cut (userConfig)`.
@@ -72,7 +77,7 @@ Tri-state: `available` → prefer caveman; `absent` OR `unknown` → treat as ab
    printf '%s\n' "$tempdir/$(basename "$target")"
    ```
 
-2. **Skill call**. `Skill(caveman:caveman-compress, args="<absolute-path-from-step-1>")` on that temp copy. Caveman may write `<file>.original.md` beside the copy inside the tempdir.
+2. **Skill call**. `Skill(caveman:caveman-compress, args="<absolute-path-from-step-1>")` on that temp copy.
 3. **Bash call 2**. On caveman success, copy the compressed file back and remove the tempdir explicitly:
 
    ```bash
@@ -82,7 +87,11 @@ Tri-state: `available` → prefer caveman; `absent` OR `unknown` → treat as ab
 
    On caveman failure, skip the `cp` and still `rm -rf` the tempdir so the real target is untouched.
 
-The tempdir contains caveman's hardcoded `<file>.original.md` backup write; the real file is replaced only on success. Consumers may add a defensive `**/*.original.md` entry to their `.gitignore` against cleanup races or future caveman backup-path changes.
+The real file is replaced only on success. Consumers may add a defensive `**/*.original.md` entry to their `.gitignore` in case caveman's backup ever lands in the tree.
+
+- **Pointer**: when checking where caveman writes its backup, fetch
+  [caveman-compress, Purpose](https://github.com/JuliusBrussee/caveman/blob/main/skills/caveman-compress/SKILL.md#purpose)
+  live. **As of**: 2026-11-10. **Recheck trigger**: that section changes where the backup is written.
 
 **Step B fallback. In-session Edit (`compress_articles: keep`, or caveman absent, unknown, or unwanted):**
 
@@ -167,9 +176,14 @@ Audit action output: table with `target`, `expected_yield_pct`, `classify` (SKIP
 
 ## Gotchas
 
-- **Self-audit drifts toward EXPANSION.** Run the semantic-diff dispatch as a SEPARATE fresh-context audit, never a self-audit by the model that produced the edits: self-audit re-adds words just removed ("preserve clarity"; an observed failure, see ## Sources). Prefer a cross-vendor advisor for that audit **when one is installed and set up**, e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the stated fallback, never a route to a command that may not resolve (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository). Subagents cannot reliably spawn the verifier themselves (nested subagent support is version-dependent), so for batch fan-out follow `context/fan-out-orchestration.md`: the main session dispatches separate compress + audit subagents, reconciling per finding.
+- **Self-audit drifts toward EXPANSION.** Run the semantic-diff dispatch as a SEPARATE fresh-context audit, never a self-audit by the model that produced the edits: self-audit re-adds words just removed ("preserve clarity"; an observed failure, see ## Sources). Prefer a cross-vendor advisor for that audit **when one is installed and set up**, e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the stated fallback, never a route to a command that may not resolve (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository). For batch fan-out follow `context/fan-out-orchestration.md`: the main session dispatches separate compress + audit subagents and reconciles per finding, so every audit stays under its control rather than inside a compressor's context.
+
+  - **Pointer**: when a design question turns on whether a subagent can spawn its own, fetch
+    [Let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)
+    live. **As of**: 2026-11-10. **Recheck trigger**: that section changes whether or how deep
+    subagents nest by default.
 - **Sub-N% diffs auto-revert unless `--force`.** Pass `--force` only when a targeted sub-N% diff is intentional; the user owns the result.
-- **Caveman writes a `<file>.original.md` backup beside the target.** Run against the real file, it litters the repo; Step B's `mktemp -d` wrapper keeps the backup in the tempdir, which Bash call 2 removes.
+- **Run caveman on a temp copy, never the real file.** Step B's `mktemp -d` wrapper keeps caveman's edit on the copy, so the real file changes only when caveman succeeds. Where caveman keeps its backup: the Step B pointer.
 
 ## When NOT to use
 

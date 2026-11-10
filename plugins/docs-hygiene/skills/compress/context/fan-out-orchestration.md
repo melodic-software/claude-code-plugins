@@ -1,6 +1,11 @@
 # Compress fan-out orchestration
 
-Read this when batch-compressing N markdown files via parallel subagents. The multi-phase split keeps the mandatory semantic-diff in a SEPARATE fresh-context auditor, dispatched by the main session: a fresh-context verifier beats self-critique, and a subagent cannot be relied on to spawn its own verifier.
+Read this when batch-compressing N markdown files via parallel subagents. The multi-phase split keeps the mandatory semantic-diff in a SEPARATE fresh-context auditor, dispatched by the main session: a fresh-context verifier beats self-critique, and dispatching every audit from the main session keeps it under the session's control.
+
+- **Pointer**: when a design question turns on whether a subagent can spawn its own, fetch
+  [Let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)
+  live. **As of**: 2026-11-10. **Recheck trigger**: that section changes whether or how deep
+  subagents nest by default.
 
 **Why this exists:** `/docs-hygiene:compress` "Hard rules" mandate semantic-diff dispatch. A subagent that invokes `/docs-hygiene:compress` must NOT run that dispatch as a self-audit in its own context: self-audit by the model that produced the edits drifts toward EXPANSION ("preserve clarity" re-adds words just removed; an observed failure, see ## History).
 

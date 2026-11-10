@@ -20,8 +20,13 @@ invocation:
 - Rename pairs (git), staged, `git diff --cached --name-status -M | grep '^R' | head -15`
 - Current branch, `git branch --show-current`
 
-The pipe is the bound and belongs in the command: the Bash tool returns the complete output into
-context, so a read-time cap ("read only the first 20 entries") bounds nothing.
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
+limits only what is read after the command returns, never what it returns.
+
+- **Pointer**: when deciding how much command output reaches context, fetch
+  [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits) live. **As of**:
+  2026-11-10. **Recheck trigger**: that section changes how much output arrives inline or what
+  arrives in place of output past the inline limit.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines.

@@ -26,7 +26,7 @@ Typical markdown extraction shapes the workflow handles:
 - A constraint or guardrail repeated across multiple skills (e.g. "always run X before Y"). Promoted to a single always-loaded rule
 - A workflow primitive appearing across several skills. Extracted to a shared primitive doc that skills cite by name
 
-Extraction is dangerous: on SkillsBench, 16 of 84 tasks come out worse with a curated skill than without one, about 19 percent. The dated record for that figure is in context/decision-framework.md. This skill encodes the guardrails (Rule of Three, categorical-shape test, the size bound and one-level depth rule `/playbooks:skill-authoring` `## Body` and `## Reference files` record, Metz unwind procedure) so each invocation is reversible and reviewable.
+Extraction is dangerous, for the reason the dated record in context/decision-framework.md, "The SkillsBench record", points at. This skill encodes the guardrails (Rule of Three, categorical-shape test, the size bound and one-level depth rule `/playbooks:skill-authoring` `## Body` and `## Reference files` record, Metz unwind procedure) so each invocation is reversible and reviewable.
 
 **Code / config escape-hatch.** Repeated string literals, magic constants, helper functions in source code, or repeated CI / settings / MCP stanzas in config files are also extractable in principle (Rule of Three applies). This skill flags such clusters during `identify` but does NOT ship a citation contract for them, the caller uses the language-idiomatic form (`import` / `using` / `source`, YAML anchor, JSON `$ref`, build-tool include) and language-aware refactoring tools (IDE rename, Roslyn / ts-morph). Markdown is the only file class with no language-level rename safety net. That is where the contract here adds value.
 
@@ -172,7 +172,7 @@ For markdown call sites, cite by exact H3 heading text + 1-line inline summary. 
 
 For code call sites, use the language's native import syntax. For config call sites, use the tooling's native include / anchor / `$ref` mechanism.
 
-One level deep, never chain `A.md` → `B.md` → `C.md`. A heading rename triggers a sweep: invoke `/docs-hygiene:rename-references` via the Skill tool across all 10 syntactic forms.
+One level deep, never chain `A.md` → `B.md` → `C.md`. A heading rename triggers a sweep: invoke `/docs-hygiene:rename-references` via the Skill tool across every form in its pattern library.
 
 Full contract incl. line-wrap edge case: `context/citation-form.md`.
 
@@ -211,7 +211,7 @@ Per-phase checklist: `context/execution-checklist.md`.
 | Pre-extraction | Cluster has stable identity that can be named; instances change together | Decision-framework checklist marked in the plan |
 | Pre-extraction | File-class scope identified (markdown / code / config / mixed) | Listed in the plan; citation form chosen per class |
 | Per-callsite | Citation/import in the form native to the call site's file class | Diff review |
-| Post-extraction | All 10 `/docs-hygiene:rename-references` patterns swept (markdown call sites) | Skill output |
+| Post-extraction | Every `/docs-hygiene:rename-references` pattern swept (markdown call sites) | Skill output |
 | Post-extraction | SSOT reads sensibly in isolation (leaky-abstraction self-test) | Manual read |
 | Post-extraction | Lint clean across affected file classes; cross-references and imports resolve | Linter/build output |
 
@@ -251,6 +251,6 @@ writing it into a brief; never hand a `${…}` token from those files to the Bas
 | Condition | Action |
 |-----------|--------|
 | External tool/CLI/API documented inside an SSOT rule ships a major version bump | Re-verify the Tier 0 flag/verb set in the affected rule file; cited entries may have moved or renamed |
-| `/docs-hygiene:rename-references` adds a new syntactic form to its 10-pattern sweep | Update the sweep step in `context/execution-checklist.md` |
+| `/docs-hygiene:rename-references` adds a new syntactic form to its pattern library | Update the sweep step in `context/execution-checklist.md` |
 | Anthropic ships a first-class native rule/skill linker (heading-rename auto-sweep) | Demote the `/docs-hygiene:rename-references` step to advisory; reduce sweep scope |
-| Practitioner-authored skill failure rate drops below 20% (SkillsBench refresh) | Reduce gate strictness; consider relaxing the artifact-creation gate from Rule of Three to Two for low-risk vocabulary (the reporting buckets are unaffected. They already roster at one) |
+| A SkillsBench revision lowers its negative-delta count, or a later benchmark supersedes it with a lower one | Reduce gate strictness; consider relaxing the artifact-creation gate from Rule of Three to Two for low-risk vocabulary (the reporting buckets are unaffected. They already roster at one) |

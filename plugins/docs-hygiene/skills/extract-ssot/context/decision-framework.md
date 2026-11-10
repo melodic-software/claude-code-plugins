@@ -28,13 +28,17 @@ Rule of Three gates the second question only. The evidence it rests on is eviden
 *creating* a shared artifact too early. It is not evidence that a maintainer should be kept from
 seeing a drifting pair of files.
 
-**The SkillsBench record.** SkillsBench comprises 84 tasks across 11 domains, and 16 of those 84
-come out worse with a curated skill than without one, about 19 percent. The same paper reports that
-self-generated skills provide no benefit on average, which is the basis for anti-pattern #8. Basis:
-[SkillsBench: Benchmarking How Well Agent Skills Work Across Diverse Tasks](https://arxiv.org/abs/2602.12670),
-read 2026-09-06. Recheck when a revision of that paper moves the task count or the negative-delta
-count, or when a later benchmark supersedes it. No comparable figure for practitioner-authored
-skills is stated here, because no reachable publication establishes one.
+**The SkillsBench record.** We treat extraction as risky, and self-generated skills as
+anti-pattern #8, on the strength of a benchmark that measures tasks with and without curated and
+self-generated skills. No comparable figure for practitioner-authored skills is stated here,
+because no reachable publication establishes one.
+
+- **Pointer**: when the size of that risk matters, fetch
+  [SkillsBench: Benchmarking How Well Agent Skills Work Across Diverse Tasks](https://arxiv.org/abs/2602.12670)
+  live.
+- **As of**: 2026-11-10
+- **Recheck trigger**: a revision of that paper moves the task count or the negative-delta count,
+  or a later benchmark supersedes it.
 
 | Bucket | Rostered? | Permitted remedies | Creates a new artifact? |
 |---|---|---|---|
