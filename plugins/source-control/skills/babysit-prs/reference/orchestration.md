@@ -256,13 +256,12 @@ hit every open PR at once regardless of queue size.
 
 The default of 10 is sized against two real constraints, not habit:
 
-- **GitHub's documented concurrency ceiling.** GitHub allows "no more than 100 concurrent
-  requests," shared across the REST and GraphQL APIs, per user/token
-  (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api). Each worker
+- **GitHub's documented concurrency ceiling.** Each worker
   issues several bursty `gh` calls (PR view, checks, comments, push) under the same authenticated
   identity. A cap in the 8-12 range leaves comfortable headroom under that ceiling without having
   to reason precisely about per-worker call counts; a cap near or above 25 starts eating into that
   headroom during a genuine burst.
+  - **Pointer**: when re-sizing the cap, fetch [About secondary rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#about-secondary-rate-limits) live. **As of**: 2026-11-10. **Recheck trigger**: that section changes its concurrent-request limit.
 - **Human reviewability.** One human reads the results. Roughly ten concurrent lines of activity
   is something a person can sanity-check as results land; well past that, real findings still
   arrive but can no longer be tracked live. That is tolerable as a deliberate one-off under an explicit

@@ -49,15 +49,19 @@ When a security scanner or reviewer is added, replaced, or removed:
 
 ## Reading GitHub list APIs
 
-Every gate below reads a GitHub list endpoint; each returns **30 items per page** by default and reports nothing when it truncates, so a truncated read is a confidently wrong answer, not a visibly short one. Three rules, all absolute:
+Every gate below reads a GitHub list endpoint; each returns **one default-sized page** unless asked for more and reports nothing when it truncates, so a truncated read is a confidently wrong answer, not a visibly short one.
 
-**1. Paginate every list read.** `--paginate` with `per_page=100`. Without it, "is X present?" answers a silent *no* for anything on an unfetched page: on a PR head with more than 30 check runs, a reader concludes a required context never attached when it attached and was green.
+- **Pointer**: when the default page size matters, fetch [Using pagination in the REST API, About pagination](https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api#about-pagination) live. **As of**: 2026-11-10. **Recheck trigger**: that section changes the default page size it shows.
 
-**2. Never pair a positional index with a list.** `.[-1]` on a truncated list is the 30th-oldest item, not the newest: a real, plausible, wrong record. Select by the property you care about (an id, a SHA, an author, a timestamp) so the wrong record cannot satisfy the query. **Where the query is a control gate you will act on, such as "did my write land?", one property is usually not enough.** Constrain whatever else could satisfy the selector: a SHA in a comment body proves the SHA was mentioned, not that *you* posted it, so a reviewer quoting it passes the gate while your failed write goes unnoticed. Pin the identity as well.
+Three rules, all absolute:
+
+**1. Paginate every list read.** `--paginate` with `per_page=100`. Without it, "is X present?" answers a silent *no* for anything on an unfetched page: on a PR head with more check runs than one page holds, a reader concludes a required context never attached when it attached and was green.
+
+**2. Never pair a positional index with a list.** `.[-1]` on a truncated list is the last item of the first page, not the newest: a real, plausible, wrong record. Select by the property you care about (an id, a SHA, an author, a timestamp) so the wrong record cannot satisfy the query. **Where the query is a control gate you will act on, such as "did my write land?", one property is usually not enough.** Constrain whatever else could satisfy the selector: a SHA in a comment body proves the SHA was mentioned, not that *you* posted it, so a reviewer quoting it passes the gate while your failed write goes unnoticed. Pin the identity as well.
 
 **3. Never reduce across pages inside `--jq`.** With `--paginate`, `gh` applies `--jq` to **each page separately**, so anything that folds a whole list (`length`, `sort_by`, `add`, `max`, `group_by`) silently answers per page: a count over four pages prints four numbers, none the total; a `sort_by` emits four separately-sorted arrays. Element-wise filters (`.[] | select(f)`, `.[] | f`) are safe because their results concatenate; bare `map(f)` builds an array per page, so use `map(f) | .[]` or `.[] | f`. When the operation folds, drop `--jq` and slurp the page stream with `jq -s`, indexing pages with `.[][]`.
 
-Pagination alone only moves the cliff from 30 to 100, so where an endpoint reports a total, assert against it, slurping per rule 3: read the commit's check runs and print the endpoint's `total_count` beside the number of runs returned ([GitHub](../../../reference/providers/github/pull-request/readiness.md#assert-the-check-run-total)).
+Pagination alone only moves the cliff from the default page size to 100, so where an endpoint reports a total, assert against it, slurping per rule 3: read the commit's check runs and print the endpoint's `total_count` beside the number of runs returned ([GitHub](../../../reference/providers/github/pull-request/readiness.md#assert-the-check-run-total)).
 
 The two numbers must be equal; when they are not, re-fetch before drawing any conclusion from the response. The comments and reviews endpoints report no total, so rule 1 plus a property-based selector is the whole discipline there.
 
