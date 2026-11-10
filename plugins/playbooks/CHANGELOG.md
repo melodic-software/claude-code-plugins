@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.30.1] - 2026-11-10
+
+### Changed
+
+- The Haiku 5.5 adaptation chapter states the owner's rule that no role routes to Haiku, matching the multi-agent routing rubric.
+
 ## [0.30.0] - 2026-11-09
 
 ### Added
