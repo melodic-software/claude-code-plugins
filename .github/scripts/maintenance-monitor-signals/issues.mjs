@@ -134,19 +134,30 @@ const SOURCES = {
   "stalled stops": ["10 stalled lane stop"],
   "post-merge reports": ["11 post-merge unreadable"],
   "lane holds": ["13 lane holds"],
+  "lane holds partly read": [],
   audits: ["6 report-only audit"],
   "githubstatus.com": [],
 };
 
-// The signals a run's gaps leave partly unread. A gap from a source not
-// named above leaves every signal unread.
+// The signals each partly-read gap feeds: what was read is a floor on the
+// whole, so a finding stands, but no finding is no proof the signal is clear.
+const PARTLY_READ = { "lane holds partly read": ["13 lane holds"] };
+
+const sourceOf = (gap, names) => names.find((name) => String(gap).startsWith(`${name}:`));
+
+// The signals a run's gaps leave unread. A gap from a source not named above
+// leaves every signal unread.
 export function unreadSignals(gaps = []) {
   const unread = new Set();
   for (const gap of gaps) {
-    const source = Object.keys(SOURCES).find((name) => String(gap).startsWith(`${name}:`));
+    const source = sourceOf(gap, Object.keys(SOURCES));
     for (const signal of source ? SOURCES[source] : SIGNALS) unread.add(signal);
   }
   return unread;
+}
+
+export function partlyReadSignals(gaps = []) {
+  return new Set(gaps.flatMap((gap) => PARTLY_READ[sourceOf(gap, Object.keys(PARTLY_READ))] ?? []));
 }
 
 const hoursSince = (iso, now) => (now.getTime() - Date.parse(iso)) / 3600_000;
@@ -156,9 +167,11 @@ const inHours = (hours) => `${Math.round(hours * 10) / 10}h`;
 // a marker. episodes: the last run's {signal: {onSince, clearSince}}, empty
 // when no carry was read, so a timer restarts: an issue opens later, never
 // earlier. unread: signals a source failed for, whose timers and issue stay as
-// they are. rules: incidentRules. The result's `episodes` is what the next
-// run carries; `status` is one line of state per signal for the job summary.
-export function planIssues({ findings, existing, unread = new Set(), rules, episodes = {}, now = new Date() }) {
+// they are. partly: signals read in part (partlyReadSignals), handled as read
+// while on and as unread while clear, so only a whole read clears one.
+// rules: incidentRules. The result's `episodes` is what the next run carries;
+// `status` is one line of state per signal for the job summary.
+export function planIssues({ findings, existing, unread = new Set(), partly = new Set(), rules, episodes = {}, now = new Date() }) {
   const bySignal = new Map(SIGNALS.map((s) => [s, []]));
   const logged = [];
   const unknown = [];
@@ -185,7 +198,7 @@ export function planIssues({ findings, existing, unread = new Set(), rules, epis
   for (const [signal, list] of bySignal) {
     const family = { signal, findings: [...list].sort((a, b) => a.key.localeCompare(b.key)) };
     const on = family.findings.length > 0;
-    const read = !unread.has(signal);
+    const read = !unread.has(signal) && (on || !partly.has(signal));
     const match = incidents.get(incidentKey(signal));
     const open = match?.issue.state === "open";
     const prior = episodes[signal] ?? {};
@@ -208,7 +221,8 @@ export function planIssues({ findings, existing, unread = new Set(), rules, epis
       report(state);
     };
     if (!read) {
-      skip("not read", `not read${number ? `, #${number} left as it is` : ""}`);
+      const how = unread.has(signal) ? "not read" : "partly read";
+      skip(how, `${how}${number ? `, #${number} left as it is` : ""}`);
     } else if (open) {
       if (on) {
         if (unchanged) skip("unchanged", `on, incident #${number} unchanged`);

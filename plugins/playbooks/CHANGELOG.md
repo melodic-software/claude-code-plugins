@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.31.2] - 2026-11-10
+
+### Fixed
+
+- Links to Claude Code's docs that pointed at moved section anchors now resolve: the permissions page's wrapper list, the permission-modes auto-mode section, and Code Review's setup and review-request sections.
+
 ## [0.31.1] - 2026-11-10
 
 ### Changed
