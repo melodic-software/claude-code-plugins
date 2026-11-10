@@ -52,9 +52,9 @@ function New-HealthResult {
     # arrays into $null or a scalar string, producing schema-invalid JSON.
     $commandsNormalized = [System.Collections.Generic.List[string]]::new()
     if ($null -ne $Commands) { $commandsNormalized.AddRange($Commands) }
-    $detailNormalized = if ($null -ne $Detail) { $Detail } else { @{} }
+    $detailNormalized = $Detail ?? @{}
 
-    if ($AdminFields -and $AdminFields.Count -gt 0) {
+    if ($AdminFields) {
         # Admin-gated detail keys the check populates only when elevated; read by the
         # report's elevation-coverage block and the admin_fields contract tests.
         $detailNormalized['admin_fields'] = @($AdminFields)
@@ -144,8 +144,7 @@ function Write-HealthResult {
         [void](Assert-CheckResult $Result -Because 'Write-HealthResult emit')
 
         if ($Human) {
-            $line = "[$($Result.severity)] $($Result.id) - $($Result.summary)"
-            Write-Output $line
+            Write-Output "[$($Result.severity)] $($Result.id) - $($Result.summary)"
             if ($Result.notes) { Write-Output "  note: $($Result.notes)" }
             if ($Result.error) { Write-Output "  error: $($Result.error)" }
         } else {

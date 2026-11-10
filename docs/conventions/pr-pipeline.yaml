@@ -1587,10 +1587,11 @@ merge:
   # .claude/skills/control-claude-code-plugins, which drives each changed
   # plugin through harness-ops' control-claude-code.
   # `proxy` is the key proxy, the driven Claude Code's only route to the
-  # API (pr-verify-capture.yml). claude-code-version must equal the version
-  # package-lock.json pins (workflow.test.mjs checks it), and the change that
-  # bumps it re-measures `betas` and `body-keys` from the driven session's
-  # requests in the same pull request. token-cap bounds the driven session,
+  # API (pr-verify-capture.yml). The capture installs the Claude Code version
+  # package-lock.json pins; `betas`, `body-keys` and `block-types` are
+  # measured from the driven session's requests, and the proxy refuses any
+  # value they do not list and names it, so a capture after a version bump
+  # says what to add. token-cap bounds the driven session,
   # which runs pull request code; driver-token-cap bounds the trusted driver
   # legs. Both are provisional until a full measured capture sets them, at
   # measured use × 1.5 rounded up to the next 100,000 (#13724).
@@ -1605,7 +1606,6 @@ merge:
     app: claude-code-plugins
     retention-days: 30
     proxy:
-      claude-code-version: 2.1.322
       driven-model: claude-opus-5-5
       driven-small-model: claude-haiku-5-5
       models: [claude-opus-5-5, claude-haiku-5-5]

@@ -127,12 +127,6 @@ need shellcheck "see https://github.com/koalaman/shellcheck#installing" || exit 
 
 checks_changed_lines
 
-# ShellCheck's gcc format is "<path>:<line>:<col>: <level>: <message>"; the
-# contract line drops the column.
-to_contract() {
-  sed -n -e 's/^\(.*\):\([0-9][0-9]*\):[0-9][0-9]*: \(.*\)$/\1:\2: \3/p'
-}
-
 out="$CHECKS_TMP/shellcheck"
 : >"$out"
 rc=0
@@ -149,7 +143,9 @@ for f in ${indexed[@]+"${indexed[@]}"}; do
   escaped="$(printf '%s' "$f" | sed 's/[#&\\]/\\&/g')"
   sed "s#^-:#$escaped:#" "$CHECKS_TMP/one" >>"$out"
 done
-to_contract <"$out" | checks_filter_findings >"$CHECKS_TMP/blocking"
+# ShellCheck's gcc format is "<path>:<line>:<col>: <level>: <message>"; the
+# contract line drops the column.
+sed -n -e 's/^\(.*\):\([0-9][0-9]*\):[0-9][0-9]*: \(.*\)$/\1:\2: \3/p' <"$out" | checks_filter_findings >"$CHECKS_TMP/blocking"
 # A failed sed leaves findings out, so it fails the hook; 141 means the filter
 # stopped first, and the filter reports.
 contract=${PIPESTATUS[0]}

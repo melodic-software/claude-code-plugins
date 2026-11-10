@@ -56,18 +56,7 @@ RENEWED_AT="$(jq -r '.lease.renewed_at // ""' <<<"$ACTIVE")"
 
 wit_linear_lease_live "$LEASE" && emit false "lease is still live"
 
-# Activity: any comment newer than renewed_at that is NOT itself a lease marker. A lease
-# marker would count its own renewal as activity and keep the lease alive forever.
-RENEWED_EPOCH="$(wit_linear_epoch "$RENEWED_AT")"
-ACTIVITY="no"
-# Paginating helper, not an inline first-page read: comments come back oldest-first,
-# so on a long-running item the activity that proves the holder is alive sits on the
-# LAST page. See wit_linear_activity_since in common.sh.
-if [[ -n "$RENEWED_EPOCH" ]] && wit_linear_activity_since "$ISSUE_UUID" "$RENEWED_EPOCH"; then
-  ACTIVITY="yes"
-fi
-
-# Revalidate before EITHER mutation: the activity read above round-tripped, and a
+# Revalidate before EITHER mutation: the activity read below round-trips, and a
 # concurrent claimer may have renewed or superseded this lease meanwhile.
 revalidate() {
   local now active other
@@ -91,7 +80,13 @@ revalidate() {
   return 0
 }
 
-if [[ "$ACTIVITY" == "yes" ]]; then
+# Activity: any comment newer than renewed_at that is NOT itself a lease marker. A lease
+# marker would count its own renewal as activity and keep the lease alive forever.
+RENEWED_EPOCH="$(wit_linear_epoch "$RENEWED_AT")"
+# Paginating helper, not an inline first-page read: comments come back oldest-first,
+# so on a long-running item the activity that proves the holder is alive sits on the
+# LAST page. See wit_linear_activity_since in common.sh.
+if [[ -n "$RENEWED_EPOCH" ]] && wit_linear_activity_since "$ISSUE_UUID" "$RENEWED_EPOCH"; then
   revalidate || emit false "lease changed while checking activity"
   RENEWED="$(jq -c --arg t "$(wit_linear_now_iso)" '. + {renewed_at: $t}' <<<"$LEASE")"
   wit_linear_update_comment "$COMMENT_UUID" "$(wit_linear_lease_marker "$RENEWED")"
