@@ -16,6 +16,7 @@ from html.parser import HTMLParser
 VOID = {"area", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
 HEADINGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
 FLUSH_ON_START = HEADINGS | {"p", "figcaption", "blockquote"}
+INLINE_MARKS = {"code": "`", "strong": "**", "b": "**", "em": "_", "i": "_"}
 
 
 def classes(attrs: dict) -> list:
@@ -96,12 +97,8 @@ class BodyExtractor(HTMLParser):
             self.flush()
             self.pre = []
             self.fence_lang = (a.get("data-lang") or self.fence_lang).lower()
-        if tag == "code":
-            self.buf.append("`")
-        if tag in ("strong", "b"):
-            self.buf.append("**")
-        if tag in ("em", "i"):
-            self.buf.append("_")
+        if tag in INLINE_MARKS:
+            self.buf.append(INLINE_MARKS[tag])
         if tag == "a":
             self.href = a.get("href")
             self.buf.append("[")
@@ -140,12 +137,8 @@ class BodyExtractor(HTMLParser):
             return
         if tag == "a":
             self.buf.append(f"]({self.href})")
-        if tag == "code":
-            self.buf.append("`")
-        if tag in ("strong", "b"):
-            self.buf.append("**")
-        if tag in ("em", "i"):
-            self.buf.append("_")
+        if tag in INLINE_MARKS:
+            self.buf.append(INLINE_MARKS[tag])
         if tag in ("td", "th") and self.cells is not None:
             self.cells.append(" ".join("".join(self.buf).split()))
             self.buf = []
