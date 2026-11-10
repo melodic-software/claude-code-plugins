@@ -130,8 +130,7 @@ def markdown_boundaries(data: bytes):
     fence_run = b""
     consumed = set()  # line indexes already used as heading/underline/fence
 
-    i = idx
-    while i < len(lines):
+    for i in range(idx, len(lines)):
         line = lines[i]
         text = line.text
 
@@ -140,43 +139,32 @@ def markdown_boundaries(data: bytes):
             if headings.closes_fence(m, fence_run):
                 in_fence = False
             consumed.add(i)
-            i += 1
             continue
 
         if m:
             in_fence = True
             fence_run = m.group(1)
             consumed.add(i)
-            i += 1
             continue
 
         m = ATX_RE.match(text)
         if m:
-            level = len(m.group(1))
-            title_raw = m.group(2) or b""
-            title_raw = ATX_TRAIL_RE.sub(b"", title_raw)
-            boundaries.append((line.start, level, decode_title(title_raw)))
+            title_raw = ATX_TRAIL_RE.sub(b"", m.group(2) or b"")
+            boundaries.append((line.start, len(m.group(1)), decode_title(title_raw)))
             consumed.add(i)
-            i += 1
             continue
 
         m = SETEXT_RE.match(text)
         if m and i > idx:
             prev = lines[i - 1]
-            prev_usable = (
-                prev.text.strip() != b""
+            if (
+                prev.text.strip()
                 and (i - 1) not in consumed
                 and prev.start >= frontmatter_end
-            )
-            if prev_usable:
+            ):
                 level = 1 if m.group(1)[0:1] == b"=" else 2
                 boundaries.append((prev.start, level, decode_title(prev.text)))
-                consumed.add(i - 1)
-                consumed.add(i)
-                i += 1
-                continue
-
-        i += 1
+                consumed.update((i - 1, i))
 
     # A fence left open runs to EOF; everything after its opener was consumed
     # as fence interior — that is deterministic, so no error.
@@ -205,11 +193,11 @@ def html_boundaries(data: bytes):
     """
     masked = data
     for rx in HTML_MASK_RES:
-        masked = rx.sub(lambda m: b" " * (m.end() - m.start()), masked)
+        masked = rx.sub(lambda m: b" " * len(m.group()), masked)
     # unclosed comment: mask opener..EOF (closed ones were masked above)
-    m = masked.find(b"<!--")
-    if m != -1 and masked.find(b"-->", m) == -1:
-        masked = masked[:m] + b" " * (len(masked) - m)
+    comment_start = masked.find(b"<!--")
+    if comment_start != -1 and masked.find(b"-->", comment_start) == -1:
+        masked = masked[:comment_start] + b" " * (len(masked) - comment_start)
     # unclosed script/style/pre/textarea: mask opener..EOF
     for name in (b"script", b"style", b"pre", b"textarea"):
         rx = re.compile(rb"<" + name + rb"\b", re.IGNORECASE)

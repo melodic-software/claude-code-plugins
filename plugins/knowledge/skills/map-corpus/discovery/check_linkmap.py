@@ -48,6 +48,14 @@ def fail(code: int, message: str) -> NoReturn:
     sys.exit(code)
 
 
+def is_nonempty_string_list(value) -> bool:
+    return (
+        isinstance(value, list)
+        and bool(value)
+        and all(isinstance(item, str) and item for item in value)
+    )
+
+
 def load_json(path: str, what: str):
     try:
         with open(path, "rb") as fh:
@@ -108,11 +116,7 @@ def check_discovery_output(path: str, doc, seeds: list) -> tuple:
     if rung == "repo-tree":
         check_repository(path, doc["repository"], seeds)
     urls = doc["urls"]
-    if (
-        not isinstance(urls, list)
-        or not urls
-        or not all(isinstance(u, str) and u for u in urls)
-    ):
+    if not is_nonempty_string_list(urls):
         fail(2, f"discovery output {path!r} 'urls' is not a non-empty list of strings.")
     if doc["url_count"] != len(urls):
         fail(
@@ -168,11 +172,7 @@ def main(argv=None) -> int:
         )
 
     seeds = linkmap["seeds"]
-    if (
-        not isinstance(seeds, list)
-        or not seeds
-        or not all(isinstance(s, str) and s for s in seeds)
-    ):
+    if not is_nonempty_string_list(seeds):
         fail(2, "link map 'seeds' is not a non-empty list of strings.")
     for seed in seeds:
         normalized_seed = normalize_url(seed)
@@ -205,9 +205,7 @@ def main(argv=None) -> int:
     if not isinstance(rows, list) or not rows:
         fail(2, "link map 'rows' is not a non-empty list.")
 
-    rungs_by_url = {}
-    for seed in seeds:
-        rungs_by_url.setdefault(seed, set()).add("seed")
+    rungs_by_url = {seed: {"seed"} for seed in seeds}
     discovery_counts = {}
     for path in args.discovery:
         rung, urls = check_discovery_output(
@@ -219,7 +217,7 @@ def main(argv=None) -> int:
 
     failures = Failures("check_linkmap")
     seen = {}
-    tally = {c: 0 for c in CLASSIFICATIONS}
+    tally = dict.fromkeys(CLASSIFICATIONS, 0)
     for index, row in enumerate(rows):
         label = f"row[{index}]"
         if not isinstance(row, dict):
@@ -235,7 +233,7 @@ def main(argv=None) -> int:
             continue
         url = row["url"]
         if not isinstance(url, str) or not url:
-            failures.add(f"row[{index}]: url is not a non-empty string.")
+            failures.add(f"{label}: url is not a non-empty string.")
             continue
         label = f"row[{index}] ({url!r})"
         normalized = normalize_url(url)
@@ -334,8 +332,6 @@ def main(argv=None) -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except SystemExit:
-        raise
     except Exception as exc:  # residual bug: documented exit 3, never a traceback
         sys.stderr.write(
             f"check_linkmap: ERROR: internal failure {type(exc).__name__}: "
