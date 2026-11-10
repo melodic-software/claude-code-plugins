@@ -1605,7 +1605,7 @@ merge:
     app: claude-code-plugins
     retention-days: 30
     proxy:
-      claude-code-version: 2.1.319
+      claude-code-version: 2.1.322
       driven-model: claude-opus-5-5
       driven-small-model: claude-haiku-5-5
       models: [claude-opus-5-5, claude-haiku-5-5]
