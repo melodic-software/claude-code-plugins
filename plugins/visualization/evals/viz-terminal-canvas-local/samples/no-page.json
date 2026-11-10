@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "```mermaid\nflowchart TD\n  A[Request reset] --> B[Email token]\n  B --> C[Set password]\n  C --> D[Revoke sessions]\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Wrote the page to /tmp/visualize-k2p9/visualize.html and opened it.",
+      "why": "a local page instead of a terminal fence"
+    },
+    {
+      "answer": "```html\n<!doctype html><html><body><svg></svg></body></html>\n```",
+      "why": "page markup"
+    }
+  ]
+}
