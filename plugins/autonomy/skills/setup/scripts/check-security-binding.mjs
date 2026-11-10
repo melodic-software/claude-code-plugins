@@ -2021,16 +2021,9 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
   // promotion_state entry: promotion is a human-ratified knob flip recorded
   // on the governance surface, and an earned value without its ratification
   // record bypasses that discipline.
-  const ratifiedPromoted = (cell) =>
-    isPlainObject(binding.promotion_state) &&
-    isPlainObject(binding.promotion_state[cell]) &&
-    binding.promotion_state[cell].state === "promoted";
+  const ratifiedPromoted = (cell) => binding.promotion_state?.[cell]?.state === "promoted";
   for (const [workClass, cell] of Object.entries(AUTO_MERGE_PROMOTION_CELL)) {
-    if (
-      isPlainObject(binding.merge_policy) &&
-      binding.merge_policy[workClass] === "auto" &&
-      !ratifiedPromoted(cell)
-    ) {
+    if (binding.merge_policy?.[workClass] === "auto" && !ratifiedPromoted(cell)) {
       findings.push(
         `merge_policy.${workClass}: "auto" without a ratified promotion_state.${cell} entry (state "promoted") — promotion is a human-ratified knob flip recorded on the governance surface; an earned value without its ratification record bypasses the promotion discipline`,
       );
@@ -2040,9 +2033,7 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
   // (advisory -> blocking per the security-review leaf) — a deliberate
   // carve-out from the floors-may-tighten rule for this one cell: stronger
   // than the advisory floor here is a promotion, not mere tightening.
-  const aiReview = isPlainObject(binding.verification_blocking)
-    ? binding.verification_blocking["ai-review"]
-    : null;
+  const aiReview = binding.verification_blocking?.["ai-review"];
   if (isPlainObject(aiReview) && aiReview.C3 === "blocking" && !ratifiedPromoted("C3-ai-review-blocking")) {
     findings.push(
       'verification_blocking.ai-review.C3: "blocking" without a ratified promotion_state.C3-ai-review-blocking entry (state "promoted") — advisory -> blocking is the earned promotion flip for this cell; an earned value without its ratification record bypasses the promotion discipline',
@@ -2094,11 +2085,8 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
           `merge_policy.${workClass}: "auto" with verification_blocking.${layer}.${workClass} "advisory" — an automatic transition requires unanimous agreement among every checker the class declares, and an advisory layer records a checker's dissent without withholding the transition; set verification_blocking.${layer}.${workClass} to "blocking" (ratifying its promotion_state cell where the cell is promotable) or bind merge_policy.${workClass} to "human"`,
         );
       }
-      const aiReviewLayer = binding.verification_blocking["ai-review"];
-      if (!isPlainObject(aiReviewLayer) || aiReviewLayer[workClass] !== "not-required") continue;
-      const topology = isPlainObject(binding.verification_topology)
-        ? binding.verification_topology[workClass]
-        : null;
+      if (!isPlainObject(aiReview) || aiReview[workClass] !== "not-required") continue;
+      const topology = binding.verification_topology?.[workClass];
       if (!isPlainObject(topology) || !Array.isArray(topology.roles)) continue;
       const declaredModelCheckers = topology.roles
         .filter(
@@ -2227,18 +2215,12 @@ function topologyConstraintTargets(entry, constraint) {
 function checkTopologySemantics(topology, workClass) {
   const where = `verification_topology.${workClass}`;
   const floor = TOPOLOGY_FLOORS[workClass];
-  if (Number.isInteger(topology.min_checkers) && topology.min_checkers < floor.min_checkers) {
-    findings.push(
-      `${where}.min_checkers: ${topology.min_checkers} weakens the shipped floor ${floor.min_checkers} — floors may be tightened, never weakened (override_justification applies to admission rules only)`,
-    );
-  }
-  if (
-    Number.isInteger(topology.min_model_checkers) &&
-    topology.min_model_checkers < floor.min_model_checkers
-  ) {
-    findings.push(
-      `${where}.min_model_checkers: ${topology.min_model_checkers} weakens the shipped floor ${floor.min_model_checkers} — floors may be tightened, never weakened (override_justification applies to admission rules only)`,
-    );
+  for (const knob of ["min_checkers", "min_model_checkers"]) {
+    if (Number.isInteger(topology[knob]) && topology[knob] < floor[knob]) {
+      findings.push(
+        `${where}.${knob}: ${topology[knob]} weakens the shipped floor ${floor[knob]} — floors may be tightened, never weakened (override_justification applies to admission rules only)`,
+      );
+    }
   }
   if (topology.cross_vendor_required === false && floor.cross_vendor_required) {
     findings.push(
@@ -2365,8 +2347,8 @@ function checkTopologySemantics(topology, workClass) {
   // be held distinct by a relational constraint in at least one direction
   // (distinct_vendor_from implies distinct model: disjoint vendors never
   // share an instance).
-  const holdsDistinct = (a, b) =>
-    RELATIONAL_CONSTRAINTS.some(
+  const relatedBy = (a, b, constraints) =>
+    constraints.some(
       (constraint) =>
         topologyConstraintTargets(a, constraint).includes(b.name) ||
         topologyConstraintTargets(b, constraint).includes(a.name),
@@ -2378,7 +2360,7 @@ function checkTopologySemantics(topology, workClass) {
   // other by scanner class above.
   for (let i = 0; i < modelCheckers.length; i += 1) {
     for (let j = i + 1; j < modelCheckers.length; j += 1) {
-      if (!holdsDistinct(modelCheckers[i], modelCheckers[j])) {
+      if (!relatedBy(modelCheckers[i], modelCheckers[j], RELATIONAL_CONSTRAINTS)) {
         findings.push(
           `${where}.roles: checker roles ${JSON.stringify(modelCheckers[i].name)} and ${JSON.stringify(modelCheckers[j].name)} carry no distinct_model_from/distinct_vendor_from relation between them — nothing keeps both from resolving to one instance, and N runs of a single instance count as ONE checker toward min_checkers; constrain the pair distinct in at least one direction`,
         );
@@ -2421,10 +2403,7 @@ function checkTopologySemantics(topology, workClass) {
       for (let j = i + 1; j < modelCheckers.length; j += 1) {
         const a = modelCheckers[i];
         const b = modelCheckers[j];
-        const disjoint =
-          topologyConstraintTargets(a, "distinct_vendor_from").includes(b.name) ||
-          topologyConstraintTargets(b, "distinct_vendor_from").includes(a.name);
-        if (!disjoint) {
+        if (!relatedBy(a, b, ["distinct_vendor_from"])) {
           findings.push(
             `${where}.roles: model-adjudicated checkers ${JSON.stringify(a.name)} and ${JSON.stringify(b.name)} carry no distinct_vendor_from relation between them while cross_vendor_required is true — vendor disjointness is required AMONG the model slots, not only against the generator, because same-vendor checkers share failure modes and their agreement is weaker evidence than its count suggests`,
           );
@@ -2439,7 +2418,6 @@ function checkTopologySemantics(topology, workClass) {
 function resolveEffectivePromotion(binding, evidencePath) {
   const lines = [];
   let events = null;
-  let evidenceUnavailable = false;
   try {
     const parsed = JSON.parse(readFileSync(evidencePath === "-" ? 0 : evidencePath, "utf8"));
     if (!Array.isArray(parsed)) throw new Error("evidence document must be a JSON array of events");
@@ -2447,7 +2425,6 @@ function resolveEffectivePromotion(binding, evidencePath) {
   } catch (error) {
     // Unavailable evidence telemetry fail-closes to the unpromoted default —
     // a report, never a crash.
-    evidenceUnavailable = true;
     lines.push(
       `evidence source ${evidencePath} unavailable (${error.message}) — fail-closed: every cell resolves to effective state unpromoted`,
     );
@@ -2464,7 +2441,7 @@ function resolveEffectivePromotion(binding, evidencePath) {
   for (const [cell, entry] of Object.entries(promotionState)) {
     if (!isPlainObject(entry)) continue;
     const bound = entry.state;
-    if (evidenceUnavailable) {
+    if (events === null) {
       resolved.set(cell, {
         bound,
         effective: "unpromoted",
@@ -2587,23 +2564,16 @@ function resolveEffectivePromotion(binding, evidencePath) {
 // --- Entry point ---
 
 const args = process.argv.slice(2);
+const options = {
+  "--evidence": null,
+  "--probe-evidence-root": null,
+  "--egress-hosts": null,
+  "--credential-roots": null,
+};
 let bindingPath = null;
-let evidencePath = null;
-let probeRoot = null;
-let egressHostsArg = null;
-let credentialRootsArg = null;
 for (let i = 0; i < args.length; i += 1) {
-  if (args[i] === "--evidence") {
-    evidencePath = args[i + 1];
-    i += 1;
-  } else if (args[i] === "--probe-evidence-root") {
-    probeRoot = args[i + 1];
-    i += 1;
-  } else if (args[i] === "--egress-hosts") {
-    egressHostsArg = args[i + 1];
-    i += 1;
-  } else if (args[i] === "--credential-roots") {
-    credentialRootsArg = args[i + 1];
+  if (Object.hasOwn(options, args[i])) {
+    options[args[i]] = args[i + 1];
     i += 1;
   } else if (bindingPath === null) {
     bindingPath = args[i];
@@ -2612,12 +2582,15 @@ for (let i = 0; i < args.length; i += 1) {
     break;
   }
 }
+const {
+  "--evidence": evidencePath,
+  "--probe-evidence-root": probeRoot,
+  "--egress-hosts": egressHostsArg,
+  "--credential-roots": credentialRootsArg,
+} = options;
 if (
   !isNonEmptyString(bindingPath) ||
-  (evidencePath !== null && !isNonEmptyString(evidencePath)) ||
-  (probeRoot !== null && !isNonEmptyString(probeRoot)) ||
-  (egressHostsArg !== null && !isNonEmptyString(egressHostsArg)) ||
-  (credentialRootsArg !== null && !isNonEmptyString(credentialRootsArg))
+  Object.values(options).some((value) => value !== null && !isNonEmptyString(value))
 ) {
   console.error(
     "usage: check-security-binding.mjs <binding.json> [--evidence <evidence.json>] [--probe-evidence-root <dir>] [--egress-hosts <host,host,...>] [--credential-roots <path,path,...>]",
@@ -2635,11 +2608,8 @@ const egressAllowList =
 // --credential-roots configured" guidance rather than a confusing empty-allowlist
 // rejection — fail-closed either way.
 const credentialRootsParsed =
-  credentialRootsArg === null
-    ? null
-    : credentialRootsArg.split(",").map((root) => root.trim()).filter((root) => root.length > 0);
-const credentialRoots =
-  credentialRootsParsed !== null && credentialRootsParsed.length === 0 ? null : credentialRootsParsed;
+  credentialRootsArg?.split(",").map((root) => root.trim()).filter((root) => root.length > 0) ?? [];
+const credentialRoots = credentialRootsParsed.length > 0 ? credentialRootsParsed : null;
 
 let raw;
 try {
