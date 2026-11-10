@@ -137,7 +137,7 @@ function main(argv, env = process.env) {
     const record = readFileSync(flags["--record"] ?? 0, "utf8");
     if (has("--option")) {
       const argument = flags["--argument"] === NO_PREFERENCE ? null : (flags["--argument"] ?? null);
-      const interactive = !(Boolean(env.CI) && env.CI !== "false");
+      const interactive = !env.CI || env.CI === "false";
       const resolution = resolveMedium(
         { lane: LANE, argument, userConfig: flags["--option"], projectRoot: findRoot() },
         { dataDir: env.CLAUDE_PLUGIN_DATA || null, interactive },
@@ -148,17 +148,16 @@ function main(argv, env = process.env) {
       return 0;
     }
     const page = render(LANE, kind, record, { connect: flags["--connect"] ?? null });
-    if (!has("--out")) {
+    const out = flags["--out"];
+    if (!out) {
       console.log(writePrivate(page, kind));
       return 0;
     }
     // Replace a planted link or file rather than write through it.
-    if (existsSync(flags["--out"]) && lstatSync(flags["--out"]).isDirectory()) {
-      throw new Error(`build-view: refused: ${flags["--out"]} is a directory`);
-    }
-    rmSync(flags["--out"], { force: true });
-    writeFileSync(flags["--out"], page, { flag: "wx", mode: 0o600 });
-    console.log(flags["--out"]);
+    if (existsSync(out) && lstatSync(out).isDirectory()) throw new Error(`build-view: refused: ${out} is a directory`);
+    rmSync(out, { force: true });
+    writeFileSync(out, page, { flag: "wx", mode: 0o600 });
+    console.log(out);
     return 0;
   } catch (err) {
     console.error(err instanceof SyntaxError ? `build-view: the ${kind} record is not JSON` : err.message);
