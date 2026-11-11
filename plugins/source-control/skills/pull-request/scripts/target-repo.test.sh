@@ -2,8 +2,11 @@
 # Tests for target-repo.sh. Each case builds a throwaway git repo with a given
 # set of remotes and runs the resolver against a stub gh whose
 # `repo set-default --view` and `api` output come from the STUB_* variables.
-# STUB_PARENTS lists `<repo>=<parent>` pairs, space-separated, that the stub's
-# `api repos/<repo>` answers with; any other repository has no parent.
+# The stub's `api repos/<repo>` builds the repository's JSON and runs the
+# caller's --jq filter over it with jq. STUB_PARENTS lists `<repo>=<parent>`
+# pairs, space-separated; any other repository has no parent. STUB_NOPUSH lists
+# repositories the caller cannot push to. STUB_API_FAIL makes the call fail with
+# that message.
 # Non-zero exit on any FAIL.
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GH_REPO
@@ -27,10 +30,17 @@ case "$1 $2" in
   ;;
 "api repos/{owner}/{repo}") printf '%s\n' "${STUB_API_OUT:-}" ;;
 "api repos/"*)
+  if [[ -n "${STUB_API_FAIL:-}" ]]; then
+    printf '%s\n' "$STUB_API_FAIL" >&2
+    exit 1
+  fi
+  repo=${2#repos/} parent=null push=true
   for pair in ${STUB_PARENTS:-}; do
-    [[ "repos/${pair%%=*}" == "$2" ]] && printf '%s\n' "${pair#*=}"
+    [[ "${pair%%=*}" == "$repo" ]] && parent="{\"full_name\":\"${pair#*=}\"}"
   done
-  exit 0
+  [[ " ${STUB_NOPUSH:-} " == *" $repo "* ]] && push=false
+  [[ "$3" == --jq ]] || { echo "stub gh: expected --jq" >&2; exit 99; }
+  printf '{"full_name":"%s","parent":%s,"permissions":{"push":%s}}\n' "$repo" "$parent" "$push" | jq -r "$4"
   ;;
 *) echo "stub gh: unexpected call: $*" >&2; exit 99 ;;
 esac
@@ -81,6 +91,10 @@ check "no default with a fork and its upstream pins the fork" "$FORK" \
   "me/tool" 0 "target repository: me/tool" "STUB_VIEW_ERR=$NO_DEFAULT" STUB_PARENTS=me/tool=acme/tool
 check "a fork under a remote other than origin is still found" "$NO_ORIGIN" \
   "me/tool" 0 "target repository: me/tool" "STUB_VIEW_ERR=$NO_DEFAULT" STUB_PARENTS=me/tool=acme/tool
+check "a fork the caller cannot push to loses to the recorded default" "$FORK" \
+  "acme/tool" 0 "target repository: acme/tool" STUB_VIEW_OUT=acme/tool STUB_PARENTS=me/tool=acme/tool STUB_NOPUSH=me/tool
+check "a failed repository read stops and names the repository" "$FORK" \
+  "" 1 "could not read repository me/tool" STUB_VIEW_OUT=acme/tool "STUB_API_FAIL=HTTP 503: Service Unavailable"
 check "two unrelated repositories with no default are refused with the set-default fix" "$UNRELATED" \
   "" 1 "gh repo set-default <owner>/<repo>" "STUB_VIEW_ERR=$NO_DEFAULT"
 check "two unrelated repositories follow a recorded default" "$UNRELATED" \

@@ -41,15 +41,17 @@ as [merge](pull-request/merge.md#merge-command) already does. The script resolve
 
 1. `GH_REPO`, when set: the caller's explicit choice, which the phase's unpinned reads also follow.
 2. When the remotes name two or more github.com repositories, the fork among them: a remote's
-   repository whose parent (`gh api repos/<owner>/<repo> --jq .parent.full_name`) is the recorded
-   default or another remote's repository, `origin` checked first. A fork checkout works on the
-   fork, even when a stock fork clone recorded upstream as gh's default.
+   repository the caller can push to (`.permissions.push`) whose parent (`.parent.full_name`,
+   both from `gh api repos/<owner>/<repo>`) is the recorded default or another remote's
+   repository, `origin` checked first. A fork checkout works on the fork, even when a stock fork
+   clone recorded upstream as gh's default; a contributor's fork added as a remote does not
+   capture a maintainer's writes. A failed read of a repository stops the script with exit 1.
 3. The recorded default.
 4. The one github.com repository the remotes name.
 5. With no github.com remote, gh's own resolution.
 
-It refuses only when the remotes cannot decide: two or more github.com repositories, none a fork
-of another, and no default recorded. It then prints the `gh repo set-default <owner>/<repo>` fix,
+It refuses when the remotes cannot decide: two or more github.com repositories, none a fork of
+another that the caller can push to, and no default recorded. It then prints the `gh repo set-default <owner>/<repo>` fix,
 and the refusal stops the phase: which repository is the target is the user's choice, not the
 script's. A pull request meant for upstream from a fork names its base repository explicitly
 ([out-of-tree create](pull-request/create.md#open-the-pr-from-an-out-of-tree-orchestrator),

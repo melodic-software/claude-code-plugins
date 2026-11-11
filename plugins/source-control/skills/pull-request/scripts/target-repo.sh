@@ -6,15 +6,16 @@
 # Resolution order:
 #   0. GH_REPO, when set (a HOST/ prefix is dropped);
 #   1. when the remotes name two or more github.com repositories, the fork among
-#      them: a remote's repository whose parent is the recorded gh default or
-#      another remote's repository, `origin` checked first. A checkout of a fork
+#      them: a remote's repository the caller can push to whose parent is the
+#      recorded gh default or another remote's repository, `origin` checked
+#      first; a failed repository read stops with exit 1. A checkout of a fork
 #      works on the fork, even after a stock fork clone recorded upstream as gh's
 #      default; a pull request meant for upstream names its base explicitly;
 #   2. the default `gh repo set-default` recorded for this checkout;
 #   3. with none recorded, the one github.com repository the remotes name;
 #   4. with no github.com remote at all, gh's own resolution (an Enterprise host).
-# Two or more github.com repositories, none a fork of another, with no recorded
-# default is refused: gh would then pick one by remote name.
+# Two or more github.com repositories, none a pushable fork of another, with no
+# recorded default is refused: gh would then pick one by remote name.
 #
 # Usage: target-repo.sh [--dir <checkout>]
 # Exit 0: owner/repo on stdout, "target repository: owner/repo" on stderr.
@@ -83,7 +84,10 @@ done
 
 if ((${#REPOS[@]} > 1)); then
   for repo in "${REPOS[@]}"; do
-    parent=$(gh api "repos/$repo" --jq '.parent.full_name // empty' 2>/dev/null | tr -d '\r') || parent=""
+    parent=$(gh api "repos/$repo" --jq 'select(.permissions.push == true) | .parent.full_name // empty' | tr -d '\r') || {
+      echo "target-repo: could not read repository $repo from GitHub; see gh's error above." >&2
+      exit 1
+    }
     [[ -n "$parent" ]] || continue
     if [[ "${parent,,}" == "${VIEW,,}" || -n "${SEEN[${parent,,}]:-}" ]]; then
       found "$repo"
@@ -101,7 +105,7 @@ case ${#REPOS[@]} in
   ;;
 *)
   {
-    echo "target-repo: the remotes name ${#REPOS[@]} GitHub repositories (${REPOS[*]}), none a fork of another, and no gh default is set, so gh would pick one by remote name."
+    echo "target-repo: the remotes name ${#REPOS[@]} GitHub repositories (${REPOS[*]}), none a fork of another that you can push to, and no gh default is set, so gh would pick one by remote name."
     echo "Choose the repository this checkout's issues and pull requests belong to, then run:"
     echo "  gh repo set-default <owner>/<repo>"
   } >&2

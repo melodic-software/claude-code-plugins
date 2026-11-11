@@ -112,9 +112,9 @@ later): captures go to the PR through the pull-request skill's `evidence` action
 REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>") || exit 1
 ```
 
-A non-zero exit opens no PR: report the script's stderr, which names the `gh repo set-default`
-fix when the remotes name more than one repository, none a fork of another, and no default is
-recorded ([target repository](../README.md#target-repository)).
+A non-zero exit opens no PR: report the script's stderr, which names the failed repository read,
+or the `gh repo set-default` fix when the remotes name more than one repository, none a pushable
+fork of another, and no default is recorded ([target repository](../README.md#target-repository)).
 
 ## Open the draft PR
 

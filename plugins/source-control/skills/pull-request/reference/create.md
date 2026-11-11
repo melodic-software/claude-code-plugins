@@ -617,9 +617,9 @@ bash "<skill-dir>/scripts/push-branch.sh" --check --dir "<checkout>" "$BRANCH" |
 Then resolve the repository the PR opens on, once, from `<checkout>` with
 `scripts/target-repo.sh`, and report the `target repository:` line it prints
 ([GitHub](../../../reference/providers/github/pull-request/create.md#resolve-the-target-repository)).
-In a fork checkout it resolves to the fork. A non-zero exit opens no PR: report its stderr, which
-names the fix when the remotes name more than one repository, none a fork of another, and none is
-recorded as the default. On a triangular flow (§2.7) the base
+In a fork checkout it resolves to the fork, when the caller can push to it. A non-zero exit opens
+no PR: report its stderr, which names the failed repository read, or the fix when the remotes name
+more than one repository, none a pushable fork of another, and none is recorded as the default. On a triangular flow (§2.7) the base
 repository, named explicitly, stands in for the script's result. Open the PR as a draft on that repository from
 head `$BRANCH`, with the title and the body file, and capture `PR_URL` and `PR_NUMBER`
 ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-draft-pr)). That
