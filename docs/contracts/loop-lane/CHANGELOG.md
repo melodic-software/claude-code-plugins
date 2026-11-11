@@ -5,6 +5,15 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [19.6.0] - 2026-11-11
+
+Minor: additive guidance.
+
+- **Permission modes gains a launch-options table.** It holds the set an unattended launch passes,
+  as the lanes launcher builds it: permission mode by lane kind, model and effort per lane, `-n` on
+  `--bg`, and `--permission-prompts none` on `-p` launches from Claude Code 2.1.259. Flags whose
+  effect is unproven stay out (owner decision).
+
 ## [19.5.0] - 2026-11-09
 
 Minor: additive guidance.
