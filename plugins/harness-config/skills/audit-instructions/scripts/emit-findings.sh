@@ -751,8 +751,8 @@ LC_ALL=C awk \
     report_declined(declined_outofrepo, "outside-repo-root (Location must be repo-relative; human report only)")
     report_declined(declined_unreadable, "source-line-unreadable")
     report_declined(declined_unparsable, "unparsable-row")
-    # The model lane drops carve-out candidates (a
-    # stated hard precondition, document about the pattern) before this script
+    # The model lane drops carve-out candidates (a document about the
+    # pattern; a marker on a hard precondition is still kept) before this script
     # sees them, so it reports their count here rather than letting the
     # exclusion go unrecorded — a decline this file promises is never silent.
     if (carveout != "")

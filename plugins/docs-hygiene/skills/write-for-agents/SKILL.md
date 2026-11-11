@@ -164,7 +164,7 @@ it stick. A plain firm word (never, always) stays when the sentence gives the ru
 reason. A rule that must hold every time belongs in a hook, deny rule or CI check; a line that
 keeps getting missed means the file needs to be shorter. Bold is structure only: a list-item label
 or a defined term at its first use, never a whole sentence or a rule
-([ADR 0098](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0098-state-instruction-rules-in-plain-words-without-emphasis-markers.md)).
+([ADR 0098](../../../../docs/adr/0098-state-instruction-rules-in-plain-words-without-emphasis-markers.md)).
 
 - **Pointer**: skill-creator,
   [How to think about improvements](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md#how-to-think-about-improvements).

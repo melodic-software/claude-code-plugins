@@ -2277,10 +2277,10 @@ guide reverses it; the Sonnet 5 and Opus 4.8 literalism sections corroborate the
   irreversible action, a security or permission boundary, or an external contract keeps its
   directive in plain words with its scope and reason; the marker is downgraded like any other. A
   rule there that must hold every time belongs in a hook, deny rule or CI check, not a louder line
-  ([ADR 0098](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0098-state-instruction-rules-in-plain-words-without-emphasis-markers.md)).
-  **Must NOT flag: a stated hard precondition.** An ordering an API genuinely requires ("resolve
+  ([ADR 0098](../../../../../docs/adr/0098-state-instruction-rules-in-plain-words-without-emphasis-markers.md)).
+  Not flagged: a stated hard precondition. An ordering an API genuinely requires ("resolve
   the ID first; the call fails without it") is a fact and stays; emphasis set on it is still
-  downgraded. **Must NOT flag: a document *about* the pattern**, on the same audience test I8-b
+  downgraded. Not flagged: a document *about* the pattern, on the same audience test I8-b
   applies. This row is the canonical instance.
 - **Remediate:** for arm 1, normal conditional phrasing: "Use this tool when …". For arm 2, replace
   the blanket default with the condition it was standing in for: "Use [tool] when <the condition
