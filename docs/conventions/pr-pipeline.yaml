@@ -1266,9 +1266,10 @@ limits:
   # graphql, owner-token, content-creation). limit-cap sets each pool's planned
   # budget, the header's x-ratelimit-limit at most the cap (github-token:
   # GitHub's documented GITHUB_TOKEN limit); plan and read-floor are shares of
-  # it, writer-pause and breaker shares of the header's limit; content-creation
-  # adds per-minute and per-hour. The rate guard reads only read-floor and
-  # limit-cap, to warn; github-token's pace (projected share left at reset)
+  # it, writer-pause, breaker and stop-floor shares of the header's limit;
+  # content-creation adds per-minute and per-hour. The rate guard reads
+  # read-floor and limit-cap, to warn, and stop-floor, to stop a pool until its
+  # reset at or under that share left; github-token's pace (projected share left at reset)
   # paces timer-driven lanes (log-api-budget/pace.mjs); the others are
   # thresholds meant for the hub's limits sampler, which nothing here enforces. Their
   # defaults live in .github/actions/log-api-budget/rate-limits.json, held

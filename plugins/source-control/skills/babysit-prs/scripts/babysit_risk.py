@@ -6,11 +6,9 @@ The caller reads the PR, the base-SHA config and the review-lane evidence, and
 hands them in; this module only judges them. No work class is read. A LOW
 score merges unattended, and so does a MED one whose every reason is a size,
 reported review-finding or cost-finding reason (`holds`); every other reason
-holds.
-So every doubtful
-input rates a holding reason: missing or unrecognized data is a miss, never a
-pass, and it never raises: input it cannot read at all rates HIGH as
-`high-path:**`. Inputs are plain built-in
+holds. So every doubtful input rates a holding reason: missing or
+unrecognized data is a miss, never a pass, and it never raises: input it
+cannot read at all rates HIGH as `high-path:**`. Inputs are plain built-in
 types (str, int, bool, None, list, tuple) built from parsed JSON; subclasses
 that override their own behavior are out of scope. A count outside
 0..10**9 is malformed. Each reason code appears once.
@@ -25,9 +23,9 @@ and submodules, and it holds whatever the floor switch says. Its
 instead, which a clean security review bound to the head clears
 (`security_review_clean`, owner decision Q26 option B), and so do the
 `gate` entries in `RiskInput.author_reviewed` (owner direction 2026-10-27).
-No other path rates
-HIGH for being trusted alone, and the two review lanes, which are the gate,
-judge it, except the cost and trusted-actor holds below. The configured
+No other path rates HIGH for being trusted alone, and the two review lanes,
+which are the gate, judge it, except the cost and trusted-actor holds below.
+The configured
 `merge.diff-check.denied-paths` are joined to the floor. Every glob matches
 case-insensitively, because a lane host on a case-insensitive filesystem
 treats `Codeowners` as `CODEOWNERS`.
@@ -480,31 +478,34 @@ class Floor:
     all: tuple[str, ...]
 
 
+def _unique(items: Iterable[Any]) -> tuple[Any, ...]:
+    """`items` in first-seen order, each once."""
+    return tuple(dict.fromkeys(items))
+
+
 @lru_cache(maxsize=32)
 def floor_for(rows: FloorRows = ()) -> Floor:
     """`FLOOR_CLASSES` joined to the repository's rows. The strictest row of a
     glob wins, so a row can add to the floor and never loosen it: a glob any
     row calls `trust` or refuses the lift never takes it."""
     joined = (*((g, c, True) for g, c in FLOOR_CLASSES), *rows)
-    classes = tuple(dict.fromkeys((g, c) for g, c, _ in joined))
+    classes = _unique((g, c) for g, c, _ in joined)
     no_lift = {
         *_NO_AUTHOR_LIFT,
         *(g for g, c, lift in joined if c == "trust" or not lift),
     }
     return Floor(
         classes=classes,
-        high=tuple(dict.fromkeys(g for g, c in classes if c in PERSON_CLASSES)),
-        review=tuple(dict.fromkeys(g for g, c in classes if c == "enforcement")),
-        author_review=tuple(
-            dict.fromkeys(
-                g
-                for g, c in classes
-                if c in AUTHOR_REVIEW_CLASSES
-                and g not in no_lift
-                and not g.startswith(".github/workflows/")
-            )
+        high=_unique(g for g, c in classes if c in PERSON_CLASSES),
+        review=_unique(g for g, c in classes if c == "enforcement"),
+        author_review=_unique(
+            g
+            for g, c in classes
+            if c in AUTHOR_REVIEW_CLASSES
+            and g not in no_lift
+            and not g.startswith(".github/workflows/")
         ),
-        all=tuple(dict.fromkeys(g for g, _ in classes)),
+        all=_unique(g for g, _ in classes),
     )
 
 
@@ -543,9 +544,8 @@ _SAFE_SEGMENT = re.compile(r"[A-Za-z0-9._-]+")
 _SAFE_GLOB_SEGMENT = re.compile(r"[A-Za-z0-9._*-]+")
 
 _ABSENT_MODE = "000000"
-_TWO_SIDED = frozenset(
-    {"modified", "changed", "renamed", "copied"}
-)  # need a previous mode
+# The statuses that need a previous mode.
+_TWO_SIDED = frozenset({"modified", "changed", "renamed", "copied"})
 # Git file modes by type. Only regular files may stay below HIGH.
 _MODE_TYPES = {
     "100644": "regular",
@@ -781,6 +781,18 @@ def _manifest(text: Any) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+def _pair(contents: Any) -> tuple[Any, Any] | None:
+    """`ChangedFile.contents` when it is a (base, head) pair, else None."""
+    return contents if isinstance(contents, tuple) and len(contents) == 2 else None
+
+
+def _read_pair(raw: Any) -> tuple[Any, Any] | None:
+    """The (base, head) text the caller read, None when it could not."""
+    if getattr(raw, "contents_error", None) is not None:
+        return None
+    return _pair(getattr(raw, "contents", None))
+
+
 def _canonical(data: Any, key: str) -> str | None:
     """A key's value as sorted JSON, so `false` and `0` differ; None when
     absent or `data` is no object."""
@@ -830,12 +842,10 @@ def _marketplace_changes(base: dict[str, Any], head: dict[str, Any]) -> list[str
 
 def _manifest_changes(f: _File, raw: Any) -> list[str]:
     """What in a manifest change needs review (`_MANIFEST_CODE`)."""
-    contents = getattr(raw, "contents", None)
     if f.status not in ("modified", "added") or f.paths != (f.path,):
         return [f"{f.status} manifest"]
-    if getattr(raw, "contents_error", None) is not None or not (
-        isinstance(contents, tuple) and len(contents) == 2
-    ):
+    contents = _read_pair(raw)
+    if contents is None:
         return ["contents unreadable"]
     before = "{}" if f.status == "added" else contents[0]
     base, head = _manifest(before), _manifest(contents[1])
@@ -922,10 +932,8 @@ def _actors_widened(f: _File, raw: Any) -> str | None:
     removes entries."""
     if f.status != "modified" or len(f.paths) != 1:
         return f"{f.status} trusted-actor list"
-    contents = getattr(raw, "contents", None)
-    if getattr(raw, "contents_error", None) is not None or not (
-        isinstance(contents, tuple) and len(contents) == 2
-    ):
+    contents = _read_pair(raw)
+    if contents is None:
         return "contents unreadable"
     base, head = _manifest(contents[0]), _manifest(contents[1])
     if base is None or head is None:
@@ -1113,9 +1121,7 @@ def _yaml_entries(text: str) -> list[tuple[tuple[str, ...], str]]:
         path = tuple(s for _, s in stack)
         m = _ENTRY.match(stripped)
         if not m and stripped.startswith("{"):
-            entries += [
-                (path + (k,), _scalar(v)) for _, k, v in _FLOW_PAIR.findall(stripped)
-            ]
+            entries += _flow_pairs(path, stripped)
             continue
         if not m:
             entries.append((path, _scalar(stripped)))
@@ -1127,10 +1133,13 @@ def _yaml_entries(text: str) -> list[tuple[tuple[str, ...], str]]:
             if value:
                 scalar_at = indent
         elif value.startswith("{"):
-            entries += [
-                (path + (key, k), _scalar(v)) for _, k, v in _FLOW_PAIR.findall(value)
-            ]
+            entries += _flow_pairs(path + (key,), value)
     return entries
+
+
+def _flow_pairs(path: tuple[str, ...], text: str) -> list[tuple[tuple[str, ...], str]]:
+    """Each `key: value` pair of a flow mapping, its key appended to `path`."""
+    return [(path + (k,), _scalar(v)) for _, k, v in _FLOW_PAIR.findall(text)]
 
 
 # A runs-on value that is one matrix key or input, as is or through fromJSON.
@@ -1150,9 +1159,9 @@ def _referenced_runners(text: str) -> list[str]:
         for value in _runner_values(text)
         if (m := _RUNNER_REF.fullmatch(value))
     }
-    values: list[str] = []
     if not refs:
-        return values
+        return []
+    values: list[str] = []
     for path, value in _yaml_entries(text):
         names = [p.casefold() for p in path]
         if not value or not names or "{" in value:
@@ -1187,9 +1196,7 @@ def _new_runners(raw: Any, added: list[str], public: bool) -> list[str]:
     against the base text when both were read, with the matrix values and
     input defaults a runs-on expression names, and from added inline runs-on
     lines. Unread text and an added block holds."""
-    contents = getattr(raw, "contents", None)
-    pair = contents if isinstance(contents, tuple) and len(contents) == 2 else None
-    base, head = pair if pair else (None, None)
+    base, head = _pair(getattr(raw, "contents", None)) or (None, None)
     gained: Counter[str] = Counter()
     if isinstance(head, str):
         before = base if isinstance(base, str) else ""
@@ -1430,17 +1437,15 @@ def _net_added(
 ) -> list[str]:
     """Each match `added` gains over `removed`, so a moved or repinned line
     is not new."""
-    gained = Counter(
-        re.sub(r"\s+", "", m).casefold()
-        for line in _logical_lines(added)
-        for m in find(line)
-    )
-    gained.subtract(
-        re.sub(r"\s+", "", m).casefold()
-        for line in _logical_lines(removed)
-        for m in find(line)
-    )
-    return sorted(m for m, n in gained.items() if n > 0)
+
+    def matches(lines: list[str]) -> Counter[str]:
+        return Counter(
+            re.sub(r"\s+", "", m).casefold()
+            for line in _logical_lines(lines)
+            for m in find(line)
+        )
+
+    return sorted(matches(added) - matches(removed))
 
 
 def _new_model_legs(added: list[str], removed: list[str]) -> list[str]:
@@ -1599,9 +1604,7 @@ def _billed_timeouts(raw: Any, added: list[str], removed: list[str]) -> list[str
     workflow that starts a model leg or calls a local workflow or action that
     may, the head text against the base text too: each timeout raised, set to
     an expression or removed at its own key path."""
-    contents = getattr(raw, "contents", None)
-    pair = contents if isinstance(contents, tuple) and len(contents) == 2 else None
-    base, head = pair if pair else (None, None)
+    base, head = _pair(getattr(raw, "contents", None)) or (None, None)
     if not isinstance(head, str):
         return _raises(_timeout_values(added), _timeout_values(removed))
     found: list[str] = []
@@ -1897,9 +1900,7 @@ def _workflow_privileges(text: str | None) -> tuple[set[str], set[str]] | None:
         triggers: set[str] = set()
     elif isinstance(on, str):
         triggers = {on}
-    elif isinstance(on, list):
-        triggers = {str(t) for t in on}
-    elif isinstance(on, dict):
+    elif isinstance(on, (list, dict)):
         triggers = {str(t) for t in on}
     else:
         return None
@@ -1936,20 +1937,16 @@ def _workflow_privilege_gains(
     workflow: its base text against its head text (an added file against
     none), and its patch's net-added lines as a backstop. Unreadable text
     holds as a widening."""
-    contents = getattr(raw, "contents", None)
-    if getattr(raw, "contents_error", None) is not None or not (
-        isinstance(contents, tuple) and len(contents) == 2
-    ):
-        return ["contents unreadable"], []
-    if not isinstance(contents[1], str) or not (
-        contents[0] is None or isinstance(contents[0], str)
+    base_text, head_text = _read_pair(raw) or (None, None)
+    if not isinstance(head_text, str) or not (
+        base_text is None or isinstance(base_text, str)
     ):
         return ["contents unreadable"], []
     if _yaml() is None:
-        widened, triggers = _text_gains(contents[0], contents[1])
+        widened, triggers = _text_gains(base_text, head_text)
     else:
-        base = _workflow_privileges(contents[0])
-        head = _workflow_privileges(contents[1])
+        base = _workflow_privileges(base_text)
+        head = _workflow_privileges(head_text)
         if base is None or head is None:
             return ["unreadable, malformed, a repeated key or an alias"], []
         widened = sorted(head[0] - base[0])
@@ -1971,10 +1968,7 @@ def _text_secret_gains(raw: Any) -> list[str]:
     (comment-stripped), so a change with no patch, or one a cost branch
     skips, is still read. Unread text gains nothing here: the patch check
     and `_workflow_privilege_gains` hold it."""
-    contents = getattr(raw, "contents", None)
-    if not (isinstance(contents, tuple) and len(contents) == 2):
-        return []
-    base, head = contents
+    base, head = _pair(getattr(raw, "contents", None)) or (None, None)
     if not isinstance(head, str):
         return []
     before = _code_lines(base.split("\n")) if isinstance(base, str) else []
@@ -1999,12 +1993,12 @@ def _cost_reasons(
     privileged: list[str] = []
     secret_files: set[str] = set()
     for f, raw in zip(files, raw_files):
+        patch = getattr(raw, "patch", None)
+        workflow = any(is_workflow_path(p) for p in f.paths)
         # Before any branch below can skip the file: no cost decision clears
         # a widening.
-        if f.status != "removed" and any(is_workflow_path(p) for p in f.paths):
-            widened, triggers = _workflow_privilege_gains(
-                f, raw, getattr(raw, "patch", None)
-            )
+        if f.status != "removed" and workflow:
+            widened, triggers = _workflow_privilege_gains(f, raw, patch)
             if widened:
                 widenings.append(f"{f.path}: {'; '.join(widened)}")
             if triggers:
@@ -2028,7 +2022,6 @@ def _cost_reasons(
         ):
             charges.append(f"{f.path}: in a Pulumi project")
             continue
-        workflow = any(is_workflow_path(p) for p in f.paths)
         pipeline = any(glob_match(_PIPELINE_CONFIG, p) for p in f.paths)
         if not (workflow or pipeline):
             model_legs = _composite_model_legs(f, raw)
@@ -2041,7 +2034,7 @@ def _cost_reasons(
         ):
             charges.append(f"{f.path}: renamed or copied from {old}")
             continue
-        lines = _patch_lines(getattr(raw, "patch", None))
+        lines = _patch_lines(patch)
         if lines is None:
             charges.append(f"{f.path}: no patch to read")
             continue
@@ -2050,9 +2043,8 @@ def _cost_reasons(
         charge: list[str] = []
         spend: list[str] = []
         if workflow:
-            for s in added:
-                if not public and _COST_PRIVATE_LINE.search(s):
-                    charge.append(s.strip())
+            if not public:
+                charge += [s.strip() for s in added if _COST_PRIVATE_LINE.search(s)]
             secret = _net_added(_secret_refs, _if_blocks(added), _if_blocks(removed))
             if secret and f.path not in secret_files:
                 secrets.append(f"{f.path}: new secrets reference {', '.join(secret)}")
@@ -2066,7 +2058,7 @@ def _cost_reasons(
                 charge += _raised_retention(added, removed)
             charge += [f"runner {v}" for v in _new_runners(raw, added, public)]
         else:
-            spend = _unsafe_pipeline_lines(getattr(raw, "patch", ""))
+            spend = _unsafe_pipeline_lines(patch)
         if charge:
             charges.append(f"{f.path}: {'; '.join(charge)}")
         if spend:
@@ -2081,18 +2073,14 @@ def _cost_reasons(
     if spends:
         detail = "; ".join(spends) + "; subscription or prepaid spend, reported only"
         reasons.append(Reason(COST_FINDING_CODE, Risk.MED, detail))
-    if secrets:
-        reasons.append(Reason(SECRET_EXPOSURE_CODE, Risk.HIGH, "; ".join(secrets)))
-    if agents:
-        reasons.append(Reason(AGENT_SURFACE_CODE, Risk.HIGH, "; ".join(agents)))
-    if widenings:
-        reasons.append(
-            Reason(PERMISSION_WIDENING_CODE, Risk.HIGH, "; ".join(widenings))
-        )
-    if privileged:
-        reasons.append(
-            Reason(PRIVILEGED_TRIGGER_CODE, Risk.HIGH, "; ".join(privileged))
-        )
+    for code, found in (
+        (SECRET_EXPOSURE_CODE, secrets),
+        (AGENT_SURFACE_CODE, agents),
+        (PERMISSION_WIDENING_CODE, widenings),
+        (PRIVILEGED_TRIGGER_CODE, privileged),
+    ):
+        if found:
+            reasons.append(Reason(code, Risk.HIGH, "; ".join(found)))
     return reasons
 
 
@@ -2274,18 +2262,19 @@ def _lane_reasons(raw_lanes: Any) -> list[Reason]:
 def _score(inp: RiskInput) -> RiskResult:
     raw_files = _sequence(inp.files)
     files = None if raw_files is None else [_check_file(f) for f in raw_files]
+    checked, raws = files or [], list(raw_files or ())
     # Each producer emits a code at most once, and the only code two of them
     # could share (high-path:**) is refused as a configured glob.
-    paths = _high_path_reasons(inp, files or [], list(raw_files or ()))
+    paths = _high_path_reasons(inp, checked, raws)
     skipped = (
         [] if inp.path_holds is not False else [r for r in paths if is_path_hold(r)]
     )
     reasons = [
-        *_size_reasons(inp, files, list(raw_files or ())),
+        *_size_reasons(inp, files, raws),
         *_lane_reasons(inp.lanes),
         *(r for r in paths if r not in skipped),
-        *_cost_reasons(inp, files or [], list(raw_files or ())),
-        *_trust_gate_reasons(files or [], list(raw_files or ())),
+        *_cost_reasons(inp, checked, raws),
+        *_trust_gate_reasons(checked, raws),
     ]
     reasons.sort(key=lambda reason: (-reason.severity, reason.code))
     worst = max((reason.severity for reason in reasons), default=Risk.LOW)

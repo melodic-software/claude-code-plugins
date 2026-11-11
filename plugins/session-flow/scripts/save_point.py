@@ -1440,12 +1440,10 @@ def _next_id(pred: Doc | None, spec: IdSpec) -> int:
     predecessor's text names; rule floors predate that seeding."""
     if pred is None:
         return 1
-    floor = _fm_int(pred, spec.floor_key) if pred.shape == 3 else None
-    ids = (
-        [n for n, _, _ in _id_entries(pred, spec) if n is not None]
-        if pred.shape == 3
-        else []
-    )
+    floor, ids = None, []
+    if pred.shape == 3:
+        floor = _fm_int(pred, spec.floor_key)
+        ids = [n for n, _, _ in _id_entries(pred, spec) if n is not None]
     if floor is None and spec is not RULES:
         text = "\n".join(pred.lines)
         ids += [int(n) for n in re.findall(rf"\b{spec.prefix}(\d+)\b", text)]
@@ -1475,18 +1473,14 @@ def _amendment_spans(
     return [(a, b) for a, b in spans], plain
 
 
-def _amendment_units(lines: list[str]) -> tuple[list[tuple[str, ...]], list[str]]:
-    spans, plain = _amendment_spans(lines)
-    return [tuple(lines[a:b]) for a, b in spans], plain
-
-
 def _entry_units(doc: Doc, title: str) -> tuple[list[tuple[str, ...]], list[str]]:
     """The retirable units of a RETIRED_ENTRY_SECTIONS section and its other
     non-blank lines: amendment units for Original goal, one unit per line for
     Direction changes."""
     lines = doc.section(title) or []
     if title == "Original goal":
-        return _amendment_units(lines)
+        spans, plain = _amendment_spans(lines)
+        return [tuple(lines[a:b]) for a, b in spans], plain
     return [(line,) for line in lines if line.strip()], []
 
 
@@ -2115,10 +2109,12 @@ def _print_verdict(doc: Doc, findings: Findings, code: int) -> None:
         print(f"{level}: {message}")
     if code == 3:
         label = "UNSUPPORTED-SHAPE"
+    elif code != 0:
+        label = "FAIL"
+    elif findings.unvalidated:
+        label = "UNVALIDATED"
     else:
-        label = "FAIL" if code != 0 else ("WARN" if findings.items else "PASS")
-        if code == 0 and findings.unvalidated:
-            label = "UNVALIDATED"
+        label = "WARN" if findings.items else "PASS"
     count = f" ({len(findings.items)})" if findings.items else ""
     print(f"validate: {label}{count} {_posix(doc.path)}")
 
@@ -2147,11 +2143,18 @@ def cmd_emit(args: argparse.Namespace) -> int:
     if doc.shape == 3:
         # The prompt is never withheld (save-point.md, "Three failed attempts
         # do not withhold the rails"); the notice says validate fails it.
+        # An UNVALIDATED verdict is always under the Read cap, so only a FAIL
+        # needs the size read.
         verdict = _size_finding(doc, "this hop's file")
-        over_read = _cap_state(doc)[0] > READ_CAP_BYTES
-        if verdict and (verdict[0] == "UNVALIDATED" or over_read):
+        if verdict and (
+            verdict[0] == "UNVALIDATED" or _cap_state(doc)[0] > READ_CAP_BYTES
+        ):
             level, message = verdict
-            tail = "`validate` fails it" if over_read else "the file was not validated"
+            tail = (
+                "the file was not validated"
+                if level == "UNVALIDATED"
+                else "`validate` fails it"
+            )
             print(f"{level}: {message}; {tail}; the prompt is emitted", file=sys.stderr)
     real = _posix(path)
     out: list[str] = []
@@ -2262,9 +2265,9 @@ def _apply_retire(
             del out[a]
     term = (_line_parts(out[0])[1] if out else "") or "\n"
     review = "Review before you continue"
+    name = rel.rsplit("/", 1)[-1]
     for heading in listings:
         doc = _content_doc(out)
-        name = rel.rsplit("/", 1)[-1]
         if any(name in line and heading in line for line in doc.section(review) or []):
             continue
         end = _section_end(doc, review)
@@ -2332,19 +2335,19 @@ def cmd_fill(args: argparse.Namespace) -> int:
     slot line, which is the only shape `validate` accepts as closed.
 
     The write path reuses neither `_read_lines` nor `parse_doc`: both apply
-    universal-newline translation and would rewrite a CRLF target to LF.
-    `parse_doc` serves the `type: handoff` and shape guards alone, read-only,
-    mirroring `cmd_validate` and `cmd_emit`. Every refusal happens before the
-    write, so a refused target is byte-identical.
+    universal-newline translation and would rewrite a CRLF target to LF. A
+    translated copy of the same bytes serves the `type: handoff` and shape
+    guards alone, read-only, mirroring `cmd_validate` and `cmd_emit`. Every
+    refusal happens before the write, so a refused target is byte-identical.
     """
     path = Path(args.file)
     if not path.is_file():
         return _die(2, f"not a file: {path}")
     try:
         text = path.read_bytes().decode("utf-8")
-        doc = parse_doc(path)
     except (OSError, UnicodeDecodeError) as exc:
         return _die(2, f"cannot read {path}: {exc}")
+    doc = _doc_from_lines(path, _text_lines(text))
     if not doc.has_frontmatter or doc.frontmatter.get("type") != "handoff":
         return _die(2, f"not a handoff file (no 'type: handoff' frontmatter): {path}")
     # `validate_doc`'s shape ladder, in its order and for its reason: a newer
@@ -2921,7 +2924,7 @@ def cmd_amend(args: argparse.Namespace) -> int:
         )
 
     writes = [
-        (target, payload.encode("utf-8"), original)
+        (target, payload.encode("utf-8"))
         for target, payload, original in (
             (own, new_hop, hop_text),
             (path, new_hot, text),
@@ -2930,7 +2933,7 @@ def cmd_amend(args: argparse.Namespace) -> int:
     ]
     staged: list[tuple[Path, str]] = []
     try:
-        for target, payload, _ in writes:
+        for target, payload in writes:
             handle, tmp = tempfile.mkstemp(
                 dir=target.parent, prefix=".amend-", suffix=".tmp"
             )
@@ -2968,22 +2971,29 @@ def _unstage(staged: list[tuple[Path, str]]) -> None:
 # --- new --------------------------------------------------------------------------
 
 
-def _git_toplevel(start: Path) -> Path | None:
-    probe = start
-    while not probe.exists() and probe.parent != probe:
-        probe = probe.parent
+def _git_stdout(directory: Path, *args: str) -> str | None:
+    """`git -C <directory> <args>`'s stripped stdout, or None when git is
+    missing, fails, or prints nothing."""
     try:
         result = subprocess.run(
-            ["git", "-C", str(probe), "rev-parse", "--show-toplevel"],
+            ["git", "-C", str(directory), *args],
             capture_output=True,
             text=True,
             check=False,
         )
     except OSError:
         return None
-    if result.returncode != 0 or not result.stdout.strip():
+    if result.returncode != 0:
         return None
-    return Path(result.stdout.strip()).resolve()
+    return result.stdout.strip() or None
+
+
+def _git_toplevel(start: Path) -> Path | None:
+    probe = start
+    while not probe.exists() and probe.parent != probe:
+        probe = probe.parent
+    top = _git_stdout(probe, "rev-parse", "--show-toplevel")
+    return Path(top).resolve() if top else None
 
 
 def _plugin_data_root() -> Path | None:
@@ -3026,18 +3036,7 @@ def _default_memory_dir() -> Path | None:
 
 
 def _git_origin(repo_root: Path) -> str | None:
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(repo_root), "remote", "get-url", "origin"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except OSError:
-        return None
-    if result.returncode != 0:
-        return None
-    return result.stdout.strip() or None
+    return _git_stdout(repo_root, "remote", "get-url", "origin")
 
 
 def origin_identity(remote_url: str | None, fallback: str) -> str:
@@ -3080,7 +3079,7 @@ def _tag_carried(body: list[str], default_hop: int, unverified: bool) -> list[st
     """Carry a predecessor's cumulative section forward verbatim, tagging
     untagged entries `[h<default_hop>]` and, for a predecessor that failed
     validation, marking every entry UNVERIFIED."""
-    lines = list(_trim_blank(body))
+    lines = _trim_blank(body)
     for entry in parse_entries(body):
         if entry.exempt:
             continue
@@ -3092,9 +3091,10 @@ def _tag_carried(body: list[str], default_hop: int, unverified: bool) -> list[st
             continue
         marker = entry.marker
         rest = line[len(marker) :]
-        m = TAG_RE.match(rest)
-        tag = m.group(0).rstrip() if m else f"[h{default_hop}]"
-        rest = rest[len(m.group(0)) :] if m else rest
+        if m := TAG_RE.match(rest):
+            tag, rest = m.group(0).rstrip(), rest[m.end() :]
+        else:
+            tag = f"[h{default_hop}]"
         if unverified and not UNVERIFIED_PRED_RE.match(rest):
             rest = "UNVERIFIED (predecessor failed validation): " + rest
         lines[idx] = f"{marker}{tag} {rest}"
@@ -3150,6 +3150,21 @@ def _pred_row(pred: Doc, pred_transcript: str) -> str:
         f"| {pred.frontmatter.get('date', 'unknown')} | {pred.frontmatter.get('session_id', 'unknown')} "
         f"| {pred_transcript} | {did_left} | {pred.basename} |"
     )
+
+
+def _this_session_lines() -> list[str]:
+    """The `## This session` skeleton lines, shape 2 and shape 3 alike."""
+    return [
+        "did: "
+        + _fill("did", "what landed this session, past tense, no '|'")
+        + " · left: "
+        + _fill("left", "what is still open, past tense, no 'next', no '|'"),
+        RESCAN_PREFIX
+        + _fill(
+            "rescan",
+            "one line: the constraints re-scan read the lossless on-disk transcript, or 'visible conversation only; a compaction occurred this session, so pre-compaction turns were NOT re-scanned for buried constraints'",
+        ),
+    ]
 
 
 def _resume_prompt(
@@ -3235,14 +3250,15 @@ def build_skeleton(
     body: list[str] = []
 
     def section(title: str, lines: list[str]) -> None:
-        body.append("")
-        body.append(f"## {title}")
-        body.append("")
-        body.extend(_trim_blank(lines))
+        body.extend(["", f"## {title}", "", *_trim_blank(lines)])
 
     # 1. Original goal
     goal: list[str] = []
     pred_goal = pred.section("Original goal") if pred is not None else None
+    amended = "**Amended:** " + _fill(
+        "amended",
+        "'None.' until the goal changes; otherwise a new dated verbatim quote with the prior goal kept above it",
+    )
     if pred_goal is None:
         if pred is None:
             goal += [
@@ -3252,11 +3268,7 @@ def build_skeleton(
                     "the user's goal statement quoted as they wrote it, with the date they stated it; RECONSTRUCTED (and settled with the user) when it was never put in one sentence",
                 ),
                 "",
-                "**Amended:** "
-                + _fill(
-                    "amended",
-                    "'None.' until the goal changes; otherwise a new dated verbatim quote with the prior goal kept above it",
-                ),
+                amended,
                 "",
                 "Opening ask:",
                 _fill(
@@ -3271,11 +3283,7 @@ def build_skeleton(
                     "RECONSTRUCTED from the transcript; settle with the user (the shape-1 predecessor recorded no Original goal)",
                 ),
                 "",
-                "**Amended:** "
-                + _fill(
-                    "amended",
-                    "'None.' until the goal changes; otherwise a new dated verbatim quote with the prior goal kept above it",
-                ),
+                amended,
                 "",
                 f"Opening ask: see {chain[0]} § Original goal (shape-1 root, no verbatim ask recorded)",
             ]
@@ -3344,21 +3352,7 @@ def build_skeleton(
                 instruction += PURPOSE_SKILLS
             section(title, [_fill(name, instruction)])
 
-    # This session
-    section(
-        "This session",
-        [
-            "did: "
-            + _fill("did", "what landed this session, past tense, no '|'")
-            + " · left: "
-            + _fill("left", "what is still open, past tense, no 'next', no '|'"),
-            RESCAN_PREFIX
-            + _fill(
-                "rescan",
-                "one line: the constraints re-scan read the lossless on-disk transcript, or 'visible conversation only; a compaction occurred this session, so pre-compaction turns were NOT re-scanned for buried constraints'",
-            ),
-        ],
-    )
+    section("This session", _this_session_lines())
 
     # Prior sessions
     if pred is None:
@@ -3442,21 +3436,18 @@ def build_skeleton_3(
     def section(title: str, lines: list[str]) -> None:
         body.extend(["", f"## {title}", "", *_trim_blank(lines)])
 
-    def slot(name: str, instruction: str) -> str:
-        return _fill(name, instruction)
-
-    amended = slot(
+    amended = _fill(
         "amended",
         "'None.' until the owner amends the goal; otherwise the dated verbatim amendment",
     )
-    goal_new = slot(
+    goal_new = _fill(
         "goal-new",
         f"optional: a new dated verbatim owner amendment, or the owner's intent and vision lines when this section lacks them, appended below; the lines above are copied off disk and never rewritten here: an amendment that no longer binds leaves only through the slots' 'retire' list as {{'ref': 'amendment#<i>', 'reason': ...}} (i counts amendment units from the top), which lists it in {hop_rel} under '## {RETIRED_ENTRY_SECTIONS['Original goal']}'; a unit with any clause still binding stays whole, or that clause is first written as an [R<n>] rule and the unit retired 'codified in [R<n>]'; delete this line when nothing changes",
     )
     if pred is None or pred.section("Original goal") is None:
         goal = [
             "**Goal (verbatim):**",
-            slot(
+            _fill(
                 "goal",
                 "the user's goal statement quoted as they wrote it, with the date they stated it"
                 if pred is None
@@ -3464,13 +3455,13 @@ def build_skeleton_3(
             ),
             "",
             "**Intent (verbatim):** "
-            + slot(
+            + _fill(
                 "intent",
                 "why the work exists, in the owner's words; 'None stated.' when they gave none",
             ),
             "",
             "**Vision (verbatim):** "
-            + slot(
+            + _fill(
                 "vision",
                 "where the work heads, in the owner's words; 'None stated.' when they gave none",
             ),
@@ -3481,7 +3472,7 @@ def build_skeleton_3(
         if pred is None:
             goal += [
                 "Opening ask:",
-                slot(
+                _fill(
                     "opening-ask",
                     f"the user's opening message this session, verbatim and redacted, at most {OPENING_ASK_CAP} lines, no bullets; the transcript is the full source",
                 ),
@@ -3500,7 +3491,7 @@ def build_skeleton_3(
         "Review before you continue",
         [
             *(_retire_pointers(pred) if carried else []),
-            slot(
+            _fill(
                 "review",
                 f"what to read before the next action, tailored to it: each archive section by file and heading (this hop's moved sections are in {hop_rel}), each instruction file a preference points at, and each command that re-reads live state; 'None.' plus a reason when this file suffices",
             ),
@@ -3513,21 +3504,21 @@ def build_skeleton_3(
         trail = [
             *_section_lines(pred, "Direction changes"),
             "",
-            slot(
+            _fill(
                 "trail-new",
                 f"optional: this hop's lines below the carried ones, {trail_line}{trail_retire}; delete this line when the direction did not change",
             ),
         ]
     elif pred is None:
         trail = [
-            slot(
+            _fill(
                 "trail",
                 f"'- [h1] start: <where the work starts> (<cause>)', then {trail_line}",
             )
         ]
     else:
         trail = [
-            slot(
+            _fill(
                 "trail",
                 f"the chain's direction so far, read from the predecessor and {hop_rel}: {trail_line}",
             )
@@ -3558,14 +3549,14 @@ def build_skeleton_3(
             f"one per line, '- [Q<n>] <question>' with its options, a recommendation and what it unblocks, new ids from Q{floors['next_question_id']}; a carried question keeps its id; one that is answered or no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '[Q<n>]', 'reason': ...}}, which lists it in {hop_rel} under '## {ID_SPECS[1].retired_heading}'; 'None.' plus a reason when there are none",
         ),
     ):
-        section(title, [slot(name, instruction)])
+        section(title, [_fill(name, instruction)])
 
     rule_line = f"one per line, '- [R<n>] <the rule's current text, verbatim>', new ids from R{next_id}; a rule binding beyond this chain's goal goes under Standing preferences"
     if carried:
         rules = [
             *_section_lines(pred, "Current rules"),
             "",
-            slot(
+            _fill(
                 "rules-new",
                 f"optional: new rules, {rule_line}; a changed rule is rewritten in place under its id, its prior text staying in {hop_rel}; a retired one is deleted here and listed in {hop_rel} under '## {RETIRED_RULES}' as '- [R<n>] <why it no longer binds>'; no rule leaves to meet the size cap; delete this line when nothing changes",
             ),
@@ -3577,7 +3568,7 @@ def build_skeleton_3(
             else f" (the predecessor's constraints are in {hop_rel} § Constraints that must hold)"
         )
         rules = [
-            slot(
+            _fill(
                 "rules",
                 f"every goal-scoped rule in force{source}, {rule_line}; 'None.' plus a reason when none applies",
             )
@@ -3611,22 +3602,9 @@ def build_skeleton_3(
             REWRITTEN["Suggested skills"][1] + (PURPOSE_SKILLS if purpose else ""),
         ),
     ):
-        section(title, [slot(name, instruction)])
+        section(title, [_fill(name, instruction)])
 
-    section(
-        "This session",
-        [
-            "did: "
-            + slot("did", "what landed this session, past tense, no '|'")
-            + " · left: "
-            + slot("left", "what is still open, past tense, no 'next', no '|'"),
-            RESCAN_PREFIX
-            + slot(
-                "rescan",
-                "one line: the constraints re-scan read the lossless on-disk transcript, or 'visible conversation only; a compaction occurred this session, so pre-compaction turns were NOT re-scanned for buried constraints'",
-            ),
-        ],
-    )
+    section("This session", _this_session_lines())
 
     if pred is None:
         section("Prior sessions", [FIRST_HOP_PRIOR])
@@ -3644,14 +3622,14 @@ def build_skeleton_3(
         prefs = [
             *_section_lines(pred, "Standing preferences"),
             "",
-            slot(
+            _fill(
                 "preferences-new",
                 f"optional: new standing preferences, {pref_line}; delete this line when nothing changes",
             ),
         ]
     else:
         prefs = [
-            slot(
+            _fill(
                 "preferences",
                 f"each standing preference not yet in its instruction file, {pref_line}; 'None.' plus a reason when none is pending",
             )
@@ -3662,13 +3640,13 @@ def build_skeleton_3(
     return "\n".join(fm + body) + "\n"
 
 
+NO_MEMORY_ROOT = "no project root (cwd has no git top level) and no plugin data dir: CLAUDE_PLUGIN_DATA is unset and this script is not running from an installed plugin cache"
+
+
 def cmd_memory_root(args: argparse.Namespace) -> int:
     root = _default_memory_dir()
     if root is None:
-        return _die(
-            1,
-            "no project root (cwd has no git top level) and no plugin data dir: CLAUDE_PLUGIN_DATA is unset and this script is not running from an installed plugin cache",
-        )
+        return _die(1, NO_MEMORY_ROOT)
     print(root.expanduser().resolve().as_posix())
     return 0
 
@@ -3702,10 +3680,7 @@ def cmd_new(args: argparse.Namespace) -> int:
     else:
         default = _default_memory_dir()
         if default is None:
-            return _die(
-                1,
-                "no project root (cwd has no git top level) and no plugin data dir: CLAUDE_PLUGIN_DATA is unset and this script is not running from an installed plugin cache; pass --memory-dir <root> explicitly",
-            )
+            return _die(1, f"{NO_MEMORY_ROOT}; pass --memory-dir <root> explicitly")
         memory_dir = default.expanduser().resolve()
     repo_root = (
         Path(args.repo_root).expanduser().resolve()
@@ -3767,9 +3742,7 @@ def cmd_new(args: argparse.Namespace) -> int:
                 1,
                 f"predecessor is not a handoff file (no 'type: handoff' frontmatter): {pred_path}",
             )
-        if os.path.normcase(os.path.realpath(pred_path.parent)) != os.path.normcase(
-            os.path.realpath(handoffs)
-        ):
+        if not _same_file(str(pred_path.parent), handoffs):
             return _die(
                 1,
                 f"predecessor must live in the handoffs dir the new file is written to ({handoffs.as_posix()}); got {_posix(pred_path)}",
@@ -3844,15 +3817,16 @@ def cmd_new(args: argparse.Namespace) -> int:
             # A retry of the same session rewrites its own hop file; any other
             # session's file, a fork's sibling included, is never touched.
             try:
-                owner = parse_doc(hop_path).frontmatter.get("session_id", "")
+                existing = parse_doc(hop_path)
             except (OSError, UnicodeDecodeError):
-                owner = ""
-            if owner.lower() != session_id:
+                existing = None
+            owner = existing.frontmatter.get("session_id", "") if existing else ""
+            if existing is None or owner.lower() != session_id:
                 return _die(
                     1,
                     f"hop file {_posix(hop_path)} belongs to session {owner or 'unknown'}, not {session_id}; never overwritten",
                 )
-            held = _held_heading(parse_doc(hop_path))
+            held = _held_heading(existing)
             if held:
                 return _die(
                     1,

@@ -101,8 +101,9 @@ Rechecks a default that looks wrong for the current models.
 ## Gotchas
 
 - Only aliases are accepted. A full model id in a layer is rejected and the
-  layer below supplies the key, because an alias resolves per provider and an
-  id does not.
+  layer below supplies the key. Why aliases: [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases);
+  as of 2026-11-10; recheck when that section changes how an alias resolves per
+  provider.
 - `fanout` and `single` differ only under a frontier or unknown session. Under
   an Opus session both say `inherit`, and `opus` would name the same model.
 - The map never routes a named agent (`agentType`, or an Agent dispatch by

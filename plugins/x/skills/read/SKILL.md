@@ -160,9 +160,9 @@ curl -q -sS --proto '=https' --max-time 30 --max-filesize 5000000 \
   -w '%{http_code}'
 ```
 
-**`-q` must stay first.** curl reads a default `.curlrc` "even when `--config` is used", skipping it
-only when `--disable` "is used as the first parameter on the command line" (curl's manual). Without
-it, an ambient `.curlrc` setting `location` silently re-enables redirect following and the bounds
+**`-q` must stay first.** It is what keeps curl from reading a default `.curlrc`, and only in the
+first position (pointer: curl's manual, [`-q, --disable`](https://curl.se/docs/manpage.html#-q); as
+of 2026-11-10; recheck when that entry changes where the option must appear). Without it, an ambient `.curlrc` setting `location` silently re-enables redirect following and the bounds
 below stop holding. `--proto '=https'` refuses non-HTTPS and no `-L` means the request cannot be
 steered to another host. `--max-filesize` is best-effort. `--max-time` is the bound that always
 holds; see [`context/failure-modes.md`](context/failure-modes.md).

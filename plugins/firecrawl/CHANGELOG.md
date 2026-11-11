@@ -3,6 +3,12 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.6] - 2026-11-11
+
+### Changed
+
+- The firecrawl and update skills point at the CLI README and Claude Code docs sections for WebFetch and WebSearch behavior, CLI defaults and limits, the default endpoint, what `init` installs, self-update and the `shell` frontmatter field, instead of restating them. The `agent` reference drops its stale model list and default and points at the README's agent options. No behavior change.
+
 ## [0.8.5] - 2026-11-09
 
 ### Changed

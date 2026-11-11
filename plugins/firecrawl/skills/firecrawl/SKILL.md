@@ -58,11 +58,12 @@ Escalation order when WebFetch fails:
 
 Both fetch and search the web, so "search the web" or "read this page" can route to either.
 
-- **`WebFetch` (built-in tool)**: fetches one URL, converts it to Markdown, and returns a small
-  model's answer to an extraction prompt, not the raw page; no JS rendering, no anti-bot handling.
+- **`WebFetch` (built-in tool)**: reads one URL. What it returns and which hosts it refuses:
+  [WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior).
   It writes nothing to disk. It is called by name.
-- **`WebSearch` (built-in tool)**: returns result titles and URLs inline; it does not fetch the
-  result pages. It writes nothing to disk. It is called by name.
+- **`WebSearch` (built-in tool)**: searches the web. What it returns:
+  [WebSearch tool behavior](https://code.claude.com/docs/en/tools-reference#websearch-tool-behavior).
+  It writes nothing to disk. It is called by name.
 - **This skill (marketplace plugin)**: scrape, search-and-scrape, crawl, map, and interact through
   a paid API, with full content written to disk.
 
@@ -138,7 +139,7 @@ Fourteen subcommands. One-line purpose below; **full flag detail + examples in `
 
 ## Configuration & defaults
 
-The CLI takes three env vars worth setting (`FIRECRAWL_API_KEY` / `FIRECRAWL_API_URL` / `FIRECRAWL_NO_TELEMETRY`), a set of global flags (`-o`, `--json`, `--status`, …), and built-in non-env defaults (5-job concurrency, 60s search timeout, automatic retry/backoff, `.firecrawl/` local cache). Full tables in `context/configuration.md`. **Prefer env-var auth over `firecrawl config` / `firecrawl login`**. Those persist to a user-level config dir that becomes a second source of truth alongside the env var.
+The CLI takes three env vars worth setting (`FIRECRAWL_API_KEY` / `FIRECRAWL_API_URL` / `FIRECRAWL_NO_TELEMETRY`), a set of global flags (`-o`, `--json`, `--status`, …), and built-in defaults that no env var sets, including a `.firecrawl/` local cache to keep out of git. Full tables in `context/configuration.md`. **Prefer env-var auth over `firecrawl config` / `firecrawl login`**. Those persist to a user-level config dir that becomes a second source of truth alongside the env var.
 
 ## Prerequisites
 
@@ -153,7 +154,7 @@ The second line turns off the CLI's background self-update, so the CLI changes o
 
 Authenticate via the `FIRECRAWL_API_KEY` environment variable (OS user scope); the CLI reads it automatically. Avoid `firecrawl login`. It writes a separate user-level config that diverges from the env-var flow.
 
-Do not run `firecrawl init --all --browser`. That command installs upstream's CLI skills globally for every detected agent, and its workflow skills too when selected, a parallel install that shadows nothing but duplicates this plugin's capability and drifts from it. What `init` installs is in the [firecrawl-cli README](https://www.npmjs.com/package/firecrawl-cli) (as of 2026-11-07, CLI 1.29.0; recheck when `/firecrawl:update` reports a CLI release). This plugin is the maintained integration; updates arrive through `/plugin marketplace update`.
+Do not run `firecrawl init --all --browser`. It sets up upstream's own skills as a parallel install that shadows nothing but duplicates this plugin's capability and drifts from it. What `init` installs: the README's [Setup Skills, Workflows, and MCP](https://github.com/firecrawl/cli#setup-skills-workflows-and-mcp) section (as of 2026-11-10; recheck when `/firecrawl:update` reports a CLI release). This plugin is the maintained integration; updates arrive through `/plugin marketplace update`.
 
 ## Updating the skill and CLI
 
@@ -166,11 +167,11 @@ Keeping in sync is a **maintainer-facing** concern, split into its own sibling s
 - **`-o` is mandatory for anything larger than a paragraph.** Streaming to stdout wastes the whole token-efficiency advantage. If a command lacks `-o` in this skill's examples, it's because the output is truly small (e.g., `credit-usage`). Everything else, scrape, search, crawl, interact, agent, writes to disk.
 - **Credits are a shared resource.** Every call charges the account. Use `map` before `crawl`, use `--limit` aggressively on search, and skip Firecrawl entirely when a plain fetch would do.
 - **`firecrawl login` creates a second source of truth.** Auth via the `FIRECRAWL_API_KEY` env var; the login command writes to a user-level config dir. Mixing them leaves two sources of truth.
-- **A global install updates itself unless turned off.** An npm, pnpm, bun or yarn global install checks for a new release in the background and switches to it; `npx` runs and other externally managed installs keep their release. Run `firecrawl update --disable-auto` after installing (Prerequisites above; `/firecrawl:update` does it on every upgrade), so CLI upgrades happen only through `/firecrawl:update`. Don't run a bare `firecrawl update`. The update controls are in the README's [CLI updates](https://github.com/firecrawl/cli#cli-updates) section (as of 2026-11-07, CLI 1.29.0; recheck when `/firecrawl:update` reports a CLI release).
+- **A global install updates itself unless turned off.** Run `firecrawl update --disable-auto` after installing (Prerequisites above; `/firecrawl:update` does it on every upgrade), so CLI upgrades happen only through `/firecrawl:update`. Don't run a bare `firecrawl update`. The update controls are in the README's [CLI updates](https://github.com/firecrawl/cli#cli-updates) section, including which install methods update themselves (as of 2026-11-10; recheck when `/firecrawl:update` reports a CLI release).
 - **A failed job: run `firecrawl doctor <job-id>` before guessing.** It asks Firecrawl's support endpoint why that run failed and suggests the parameters to fix, instead of retrying with flags changed by trial and error.
 - **Transient DNS 503 on `api.firecrawl.dev` from sandboxed sessions.** Some cloud egress proxies intermittently return "DNS cache overflow". Retry after ~30s. This affects both the CLI and direct curl; it's an egress issue, not a Firecrawl outage.
-- **Windows tmp paths depend on which shell the Bash tool is.** Where it is Git Bash, `${TMPDIR:-/tmp}` resolves through the `/tmp` mount to the user's Windows temp directory (`%TEMP%`, by default under `%LOCALAPPDATA%\Temp`), and both path forms work for `Read` with no normalization on the agent side. On a Windows host **without** Git Bash the PowerShell tool runs instead and `mktemp` does not exist. Fall back to a user-scoped temp under `%LOCALAPPDATA%\Temp`. The skill's `shell: bash` frontmatter does **not** cover this: that field governs only the `!` dynamic-context injection run at skill-load time, not the Bash tool calls this skill's body issues.
-- **Self-hosted Firecrawl.** Set `FIRECRAWL_API_URL` as an OS user environment variable to switch the CLI to a local instance. Default is `https://api.firecrawl.dev`. Only override when running against a self-hosted stack.
+- **Windows tmp paths depend on which shell the Bash tool is.** Where it is Git Bash, `${TMPDIR:-/tmp}` resolves through the `/tmp` mount to the user's Windows temp directory (`%TEMP%`, by default under `%LOCALAPPDATA%\Temp`), and both path forms work for `Read` with no normalization on the agent side. On a Windows host **without** Git Bash the PowerShell tool runs instead and `mktemp` does not exist. Fall back to a user-scoped temp under `%LOCALAPPDATA%\Temp`. The skill's `shell: bash` frontmatter does **not** cover the Bash tool calls this skill's body issues (what that field governs: the `shell` row of [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference), as of 2026-11-10; recheck when that row changes what the field applies to).
+- **Self-hosted Firecrawl.** Set `FIRECRAWL_API_URL` as an OS user environment variable to switch the CLI to a local instance (the default endpoint: [Self-hosted / Local Development](https://github.com/firecrawl/cli#self-hosted--local-development), as of 2026-11-10; recheck when `/firecrawl:update` reports a CLI release). Only override when running against a self-hosted stack.
 - **CLI and `mcp__firecrawl__*` MCP tools overlap**. Running both wastes context and splits configuration. If the consuming project also has the Firecrawl MCP registered, pick one surface.
 
 ## Related

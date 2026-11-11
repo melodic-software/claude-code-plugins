@@ -3,6 +3,15 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.12] - 2026-11-11
+
+### Changed
+
+- The `setup` skill's `apply install-git-hooks` step now lists every result the installer's `copy` prints (`installed`, `refreshed`, `unchanged`, `refused`, `blocked`, `unsafe-path`, `stage-failed`) and what each means.
+- `setup`'s two `--config` gotchas point at the `plugin install` section of the CLI reference instead of quoting it.
+
+No behavior change.
+
 ## [1.0.11] - 2026-11-09
 
 ### Changed

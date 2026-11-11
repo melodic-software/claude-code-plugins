@@ -131,7 +131,7 @@ style conflicts route to the consuming ecosystem, not a house verdict.
   - **Pointer**: when naming a skill, fetch
     <https://code.claude.com/docs/en/skills#frontmatter-reference> live for
     how the name and description fields are used.
-  - **As of**: 2026-10-11
+  - **As of**: 2026-11-10
   - **Recheck trigger**: that section changes which field drives skill
     loading, or the listing cap it states.
 - Documented, unresolved style conflicts. Route these to the consuming

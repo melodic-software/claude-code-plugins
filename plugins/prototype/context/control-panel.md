@@ -17,7 +17,8 @@ an interaction just by dragging it, which shortens the feedback loop and speeds 
   400ms is too slow. Bracket the plausible answer on both sides.
 - **Easing as a curve, not a text field.** A bezier or spring editor if the tooling has one,
   otherwise a select of the project's named easing curves (the motion tokens
-  `/user-interface:write-animation` builds from).
+  `/user-interface:write-animation` builds from), or user-interface's `animation.easing.*` curves
+  when the project names none.
 - **A speed multiplier on anything that moves**: 1x, 0.5x, 0.25x. Most motion problems are
   invisible at full speed and obvious at a quarter of it. Implement it as a multiplier on the
   duration so the curve is the same shape, just stretched.

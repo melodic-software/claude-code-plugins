@@ -1829,6 +1829,27 @@ fleet_read() {
   return "$rc"
 }
 
+# A withheld-downgrade row: id, scope, installed version, catalog version.
+withheld_add() {
+  WITHHELD+=("$(jq -c -n --arg id "$1" --arg sc "$2" --arg o "$3" --arg n "$4" \
+    '{id: $id, scope: $sc, installed: $o, catalog: $n}')")
+}
+
+# A user-scope failure row for id $1, from the last CLI call.
+us_failed_add() {
+  local reason out
+  reason=$(cli_outcome_line "$CLI_OUT")
+  trunc out "$CLI_OUT"
+  US_FAILED+=("$(jq -c -n --arg id "$1" --argjson rc "$CLI_RC" --arg out "$out" \
+    --arg reason "$reason" '{id: $id, rc: $rc, output: $out, reason: $reason}')")
+}
+
+# An in-repo row for id $1 at scope $2 that Step 2 stopped on in path $3, with reason $4.
+ir_stopped_add() {
+  IR_FAILED+=("$(jq -c -n --arg id "$1" --arg sc "$2" --arg path "$3" --arg reason "$4" \
+    '{id: $id, scope: $sc, rc: 0, output: "", path: $path, stopped: true, reason: $reason}')")
+}
+
 # --- the per-marketplace loop body (Steps 2-5b, plus Step 1's own refresh) -------
 run_marketplace() {
   local mp="$1"
@@ -1840,17 +1861,7 @@ run_marketplace() {
   # that updated plugins.
   ((ONLY_INSTALL_MODE == 1)) || : >"$RUN_DIR/moves.$mp.tsv"
 
-  local rc
-  local dg_rc
-  local id
-  local scope
-  local old
-  local new
-  local result
-  local row
-  local out
-  local reason
-
+  local rc dg_rc id scope old new result row out reason
   local pre_refresh="$RUN_DIR/pre-refresh.$mp.json"
 
   # ---- Step 1 — marketplace refresh -------------------------------------------
@@ -1914,9 +1925,7 @@ run_marketplace() {
       while IFS=$'\t' read -r id scope old new; do
         id="${id//$'\r'/}"
         [[ -n "$id" ]] || continue
-        WITHHELD+=("$(jq -c -n --arg id "$id" --arg sc "${scope//$'\r'/}" \
-          --arg o "${old//$'\r'/}" --arg n "${new//$'\r'/}" \
-          '{id: $id, scope: $sc, installed: $o, catalog: $n}')")
+        withheld_add "$id" "${scope//$'\r'/}" "${old//$'\r'/}" "${new//$'\r'/}"
       done <"$RUN_DIR/downgrades.$mp.txt"
     fi
     restore_first_pass_rows "$mp"
@@ -1978,9 +1987,8 @@ run_marketplace() {
         scope="${scope//$'\r'/}"
         [[ -n "$id" ]] || continue
         if ((ir_stopped == 1)); then
-          IR_FAILED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg path "$ir_root" \
-            '{id: $id, scope: $sc, rc: 0, output: "", path: $path, stopped: true,
-              reason: "not tried: the .claude/ settings in this path changed after an earlier call"}')")
+          ir_stopped_add "$id" "$scope" "$ir_root" \
+            "not tried: the .claude/ settings in this path changed after an earlier call"
           continue
         fi
         version_at old "$RUN_DIR/pre.$mp.json" "$id" "$scope"
@@ -2000,9 +2008,8 @@ run_marketplace() {
           settings_state ir_after "$ir_root"
           if [[ "$ir_after" != "$ir_before" ]]; then
             ir_stopped=1
-            IR_FAILED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg path "$ir_root" \
-              '{id: $id, scope: $sc, rc: 0, output: "", path: $path, stopped: true,
-                reason: "the .claude/ settings in this path changed after this call, so the path was stopped"}')")
+            ir_stopped_add "$id" "$scope" "$ir_root" \
+              "the .claude/ settings in this path changed after this call, so the path was stopped"
             continue
           fi
         fi
@@ -2071,10 +2078,7 @@ run_marketplace() {
         fi
         run_cli "claude plugin update $id -s user --json" plugin update "$id" -s user --json
         if ((CLI_RC != 0)); then
-          reason=$(cli_outcome_line "$CLI_OUT")
-          trunc out "$CLI_OUT"
-          US_FAILED+=("$(jq -c -n --arg id "$id" --argjson rc "$CLI_RC" --arg out "$out" \
-            --arg reason "$reason" '{id: $id, rc: $rc, output: $out, reason: $reason}')")
+          us_failed_add "$id"
           continue
         fi
         cli_update_result result new "$CLI_OUT"
@@ -2095,10 +2099,7 @@ run_marketplace() {
         run_cli "claude plugin update $id -s $scope --json   # downgrade $old -> $new" \
           plugin update "$id" -s "$scope" --json
         if ((CLI_RC != 0)); then
-          reason=$(cli_outcome_line "$CLI_OUT")
-          trunc out "$CLI_OUT"
-          US_FAILED+=("$(jq -c -n --arg id "$id" --argjson rc "$CLI_RC" --arg out "$out" \
-            --arg reason "$reason" '{id: $id, rc: $rc, output: $out, reason: $reason}')")
+          us_failed_add "$id"
           continue
         fi
         # Through the move ledger like every other mutation, so the direction
@@ -2114,8 +2115,7 @@ run_marketplace() {
         printf 'user_sweep\t%s\t%s\t%s\t%s\t%s\n' "$id" "$scope" "${old:--}" "${applied:--}" updated \
           >>"$RUN_DIR/moves.$mp.tsv"
       else
-        WITHHELD+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg o "$old" --arg n "$new" \
-          '{id: $id, scope: $sc, installed: $o, catalog: $n}')")
+        withheld_add "$id" "$scope" "$old" "$new"
       fi
     done <"$RUN_DIR/downgrades.$mp.txt"
     clock_into T_US_E
@@ -2175,9 +2175,7 @@ run_marketplace() {
   # a check here would miss them and the re-entry would reuse that verdict. Skip
   # it; the re-entry runs this step once the installs have landed. A pass that
   # did not stop writes the report, and a later re-entry reuses that file.
-  if [[ "$STOPPED_BEFORE_INSTALL" == "true" ]]; then
-    :
-  else
+  if [[ "$STOPPED_BEFORE_INSTALL" != "true" ]]; then
     clock_into T_CC_S
     cache_content_block "$mp"
     if ((CACHE_CHECK_RAN == 1)); then
@@ -2264,9 +2262,7 @@ pending_remove() {
 # its install, and one already enabled needs nothing. Each clears its record
 # entry, except a failed enable, which stays for the next run and is reported.
 recover_pending() {
-  local mp="$1"
-  local id
-  local state
+  local mp="$1" id state
   [[ -n "$PENDING_FILE" && -f "$PENDING_FILE" && "$MODE" == "sync" ]] || return 0
   [[ -f "$RUN_DIR/pre-install.$mp.json" ]] || return 0
   while IFS= read -r id; do
@@ -2299,18 +2295,12 @@ recover_pending() {
 # caller's success test, so the row shape lives in one place across both entry
 # paths below.
 install_one() {
-  local id="$1"
-  local out
-  local unset_cfg="null"
-  local reason=""
-  local disabled="false"
+  local id="$1" out reason unset_cfg="null" disabled="false"
   run_cli "claude plugin install $id -s user --json" plugin install "$id" -s user --json
   # Classify before truncation: the digest row keeps 400 characters, and both
   # the failure reason and the disabled-by-default notice can sit past that.
   reason=$(cli_outcome_line "$CLI_OUT")
-  if install_disabled_notice "$CLI_OUT"; then
-    disabled="true"
-  fi
+  install_disabled_notice "$CLI_OUT" && disabled="true"
   INSTALLED_DISABLED="$disabled"
   trunc out "$CLI_OUT"
   unset_user_config_of unset_cfg "$CLI_OUT"
@@ -2321,11 +2311,7 @@ install_one() {
 
 # --- Step 4 — install new catalog plugins, per the caller's rendered policy -------
 run_install_step() {
-  local mp="$1"
-  local gap_count="$2"
-  local id
-  local installed_any=0
-  local wanted=""
+  local mp="$1" gap_count="$2" id installed_any=0 wanted=""
 
   if ((ONLY_INSTALL_MODE == 1)); then
     # The narrow re-entry installs exactly the ids the caller's prompt returned,
@@ -2400,14 +2386,7 @@ run_install_step() {
 # user-scope map), so the pre-install report no longer describes the state this step
 # acts on.
 run_enable_step() {
-  local mp="$1"
-  local rc
-  local id
-  local row
-  local has_user
-  local has_local
-  local has_project
-  local ppath
+  local mp="$1" rc id row has_user has_local has_project ppath
 
   fleet_snapshot "$mp" "$RUN_DIR/pre-enable.$mp.json" pre-enable
   rc=$?
@@ -2457,10 +2436,7 @@ run_enable_step() {
 }
 
 enable_one() {
-  local id="$1"
-  local scope="$2"
-  local out
-  local reason=""
+  local id="$1" scope="$2" out reason
   if [[ "$MODE" == "audit" ]]; then
     predict_cli "claude plugin enable $id -s $scope"
     ENABLED_ROWS+=("$(jq -c -n --arg id "$id" --arg sc "$scope" \
@@ -2480,10 +2456,8 @@ enable_one() {
 # wrote, extracted CR-safe; the `--ids` form is reached only when the JSON could not
 # be produced, never in addition to it.
 cache_content_block() {
-  local mp="$1"
+  local mp="$1" rc=0 ids
   local report="$RUN_DIR/cache-content.$mp.json"
-  local rc=0
-  local ids
 
   if [[ ! -f "$report" ]]; then
     CACHE_CHECK_RAN=1
@@ -2538,20 +2512,7 @@ cache_content_block() {
 # `unknown` rather than rendering `<old> → <old>`, which would claim nothing changed
 # for a plugin that did.
 finalize_moves() {
-  local mp="$1"
-  local kind
-  local id
-  local scope
-  local old
-  local new
-  local result
-  local dir
-  local row
-  local line
-  local post_v
-  local ncat
-  local nlabel
-  local joined=""
+  local mp="$1" kind id scope old new result dir row line post_v ncat nlabel joined=""
   local post="$RUN_DIR/post.$mp.json"
   [[ -f "$RUN_DIR/moves.$mp.tsv" ]] || return 0
   # Every ledger line joined, in one read of the post snapshot, with what the
@@ -2597,8 +2558,7 @@ finalize_moves() {
         dir=""
         [[ -n "$post_v" && -n "$ncat" ]] && version_direction_to dir "$post_v" "$ncat"
         if [[ "$dir" == "forward" ]]; then
-          local ncur="$post_v"
-          IR_FAILED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg cur "$ncur" --arg cat "$ncat" --arg label "$nlabel" \
+          IR_FAILED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg cur "$post_v" --arg cat "$ncat" --arg label "$nlabel" \
             '{id: $id, scope: $sc, rc: 0, output: "",
               reason: ("the CLI said already at the latest version, but this project'"'"'s record is still at \($cur) and the catalog reads \($cat): the update did not take"
                 + (if $label == "" then "" else " (" + $label + ")" end))}')")
@@ -2910,19 +2870,9 @@ monitor_count_at() {
 }
 
 monitor_rows() {
-  local __var="$1"
-  local mp="$2"
+  local __var="$1" mp="$2" row id scope path n paths="" j_id j_sc
   local post="$RUN_DIR/post.$mp.json"
-  local row
-  local id
-  local scope
-  local path
-  local n
-  local rows=()
-  local moved=()
-  local paths=""
-  local j_id
-  local j_sc
+  local rows=() moved=()
   printf -v "$__var" '%s' "[]"
   [[ -f "$post" ]] || return 0
   for row in ${IR_UPDATED[@]+"${IR_UPDATED[@]}"} ${US_UPDATED[@]+"${US_UPDATED[@]}"} \
@@ -2977,25 +2927,8 @@ source_pull_field() {
 
 # --- one marketplace block --------------------------------------------------------
 emit_marketplace_block() {
-  local mp="$1"
-  local ir_u
-  local ir_f
-  local ir_w
-  local ir_l
-  local us_u
-  local us_f
-  local us_w
-  local wh
-  local dg
-  local moved
-  local inst
-  local en
-  local pr
-  local rec
-  local errs
-  local unset_cfg
-  local installed_disabled
-  local monitors
+  local mp="$1" ir_u ir_f ir_w ir_l us_u us_f us_w wh dg moved inst en pr rec errs
+  local unset_cfg installed_disabled monitors
   # A marketplace abandoned on a failed read reaches here without finalize_moves.
   [[ -n "$T_FN_S" ]] || clock_into T_FN_S
   # Written on the first pass only. The re-entry reads this sidecar; overwriting
@@ -3003,13 +2936,7 @@ emit_marketplace_block() {
   if ((ONLY_INSTALL_MODE == 0)); then
     persist_first_pass_rows "$mp"
   fi
-  local reg_interval
-  local reg_rows
-  local div
-  local extras
-  local block
-  local checkout
-  local pull
+  local reg_interval reg_rows div extras block checkout pull
 
   json_array_of ir_u ${IR_UPDATED[@]+"${IR_UPDATED[@]}"}
   json_array_of ir_f ${IR_FAILED[@]+"${IR_FAILED[@]}"}
