@@ -95,8 +95,11 @@ one worker row in its own worktree and branch, cut from `<base>`: worker-side pr
 default, or an assigned worktree under commit authority `orchestrator`. After each wave settles,
 re-read readiness for the items still waiting and dispatch the next ready set.
 
-An item that depends on one dispatched in this run waits until that item lands on `<base>`.
-Landing belongs to the caller. In a direct run on the default base, each accepted item goes through
+An item that depends on one dispatched in this run waits until that item lands on `<base>`. To
+start it sooner, the caller can open it as a stacked PR on that item's branch, deciding by the
+source-control plugin's
+[stacked-prs.md "When to stack"](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/reference/stacked-prs.md#when-to-stack);
+this skill never cuts a worker from another worker's branch. Landing belongs to the caller. In a direct run on the default base, each accepted item goes through
 `/implementation:implement` Step 5 (the review and verification hand-off before its PR). With a
 non-default `<base>` no PR is opened, because that route targets the default branch: the run
 returns the accepted branches for the caller to land on `<base>`. A runner

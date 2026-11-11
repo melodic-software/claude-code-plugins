@@ -69,6 +69,15 @@ genuinely serial and single-agent. Anything with independent lanes wants the def
 provisioning note under `per-item PRs`, **not** a third shape value. The shape line stays
 two-valued, and readers, `ship`, and the close-out basis are unchanged by it.
 
+**Stacked per-item PRs.** When each item builds on the one before (a blocked-by chain, or a
+"part N of M" series over the same files), a native stack removes the wait: item N+1's PR targets
+item N's branch and opens while item N is still in review, keeping per-item granularity and
+closing lines. Whether to stack, and whether the repository's pipeline accepts a layer whose base
+is not the default branch, is the source-control plugin's `reference/stacked-prs.md`, "When to
+stack" ([stacked-prs.md](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/reference/stacked-prs.md#when-to-stack)).
+Independent items stay separate PRs off the default branch. Like the serial variant, this is
+provisioning under `per-item PRs`, not a shape value.
+
 ### `integration branch → single PR`
 
 Sequential checkpoints on one shared branch; the journey ships as one PR at the end.
