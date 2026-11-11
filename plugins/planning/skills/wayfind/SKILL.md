@@ -235,8 +235,9 @@ that charting needs an interactive session. Do not fabricate a map.
    | `wayfind: task` | per item | Direct decision-unblocking work. No feature code, no PR tie. Its resolution records what was done and the facts later items need |
 
 6. **Graduate on every resolution.** Every edit to the map body, here or anywhere in this skill,
-   applies its change to a copy of the body read right before the write, so another session's
-   edit survives.
+   applies its change to a copy of the body read right before the write, then reads the body back:
+   if the change is missing (another session wrote in between), apply it to that copy and write
+   again.
    Resolved **in scope**: post the resolution as a comment on
    the item, add its one-line pointer (title linked by URL) to *Decisions-so-far*, then close
    the item (comment → index → close, as one atomic sequence). **Wrongly scoped** (on the tracker
