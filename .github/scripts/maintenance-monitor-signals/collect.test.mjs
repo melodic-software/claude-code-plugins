@@ -1148,7 +1148,7 @@ test("lane holds: no carry, a stale one or an unread rule is a gap, and the carr
   assert.equal(unruled.holdRule, undefined);
   // A failed read keeps the carried runs and marks the span unknown, so the next run starts it again.
   const failed = await collect(
-    input(fakeApi([[/work-unblock\.yml\/runs\?event=schedule&branch=main&status=failure/, { workflow_runs: [] }], [/workflows\/work-unblock\.yml\/runs/, new Error("GET runs: HTTP 502")], ...holdRoutes()]), { holds: { rule: RULE, carried: CARRIED } }),
+    input(fakeApi([[/work-unblock\.yml\/runs\?event=schedule&branch=main&status=(failure|timed_out)/, { workflow_runs: [] }], [/workflows\/work-unblock\.yml\/runs/, new Error("GET runs: HTTP 502")], ...holdRoutes()]), { holds: { rule: RULE, carried: CARRIED } }),
   );
   assert.deepEqual(failed.gaps, ["lane holds: GET runs: HTTP 502"]);
   assert.deepEqual([failed.heldCarry.runs.map((h) => h.runId), failed.heldCarry.from, failed.heldCarry.through], [[85, 84, 70, 71], null, null]);
@@ -1629,6 +1629,19 @@ test("lane variable runs: only main's scheduled runs of this repository's head c
   const data = await collect(input(api));
   assert.deepEqual(data.laneVariableRuns, []);
   assert.ok(!api.calls.some((p) => /runs\/8[123]\/jobs/.test(p)));
+});
+
+test("lane variable runs: a run that timed out is read too", async () => {
+  const timedOut = unblockRun(85, { conclusion: "timed_out" });
+  const api = fakeApi([
+    [/workflows\/work-unblock\.yml\/runs\?event=schedule&branch=main&status=timed_out/, { workflow_runs: [timedOut] }],
+    [/workflows\/work-unblock\.yml\/runs/, { workflow_runs: [] }],
+    [/runs\/85\/jobs/, { jobs: [{ ...publishJob(851, [{ name: "Check no other repository variable changed", conclusion: "cancelled" }]), conclusion: "timed_out" }] }],
+    [/check-runs\/851\/annotations/, []],
+    ...routes(),
+  ]);
+  const data = await collect(input(api));
+  assert.deepEqual(data.laneVariableRuns.map((r) => [r.id, r.failedSteps]), [[85, ["Check no other repository variable changed: cancelled"]]]);
 });
 
 test("lane variable runs: a failed listing or one over the cap is a gap, so signal 14 reads unread", async () => {

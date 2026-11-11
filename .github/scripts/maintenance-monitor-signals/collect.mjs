@@ -361,11 +361,14 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
   // window and their publish-lane-level job. A failure annotation names a
   // variable check result; a variable step that failed with none (a timeout)
   // is kept as a failed step. More runs than the cap is a gap, so the signal
-  // reads unread rather than clear.
+  // reads unread rather than clear. A run that hit its timeout concludes
+  // timed_out, so both conclusions are listed.
   await source("lane variable runs", async () => {
-    const listed = (
-      await get(`/repos/${repo}/actions/workflows/work-unblock.yml/runs?event=schedule&branch=main&status=failure&created=${created}&per_page=${LIMITS.laneVariableRuns + 1}`)
-    ).workflow_runs.filter((r) => r.conclusion === "failure");
+    const listed = [];
+    for (const status of ["failure", "timed_out"]) {
+      const page = await get(`/repos/${repo}/actions/workflows/work-unblock.yml/runs?event=schedule&branch=main&status=${status}&created=${created}&per_page=${LIMITS.laneVariableRuns + 1}`);
+      listed.push(...page.workflow_runs.filter((r) => r.conclusion === status));
+    }
     const runs = listed.filter((r) => r.path === WORK_UNBLOCK_PATH && r.event === "schedule" && r.head_branch === "main" && ownHead(r) && completedInWindow(r));
     if (listed.length > LIMITS.laneVariableRuns) {
       throw new Error(`over ${LIMITS.laneVariableRuns} failed scheduled work-unblock runs; the rest were not read`);
