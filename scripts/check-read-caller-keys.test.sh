@@ -404,6 +404,14 @@ run_case "the carrier environment by bare name, which records a deployment, fail
   "append_scan_job pr-pipeline-scan-carrier" \
   "$READ:16: names an environment other than pr-pipeline-scan-carrier with deployment: false"
 
+run_case "another environment in the mapping form on the scan job fails" 1 \
+  "append_scan_job '{ name: other-env, deployment: false }'" \
+  "$READ:16: names an environment other than pr-pipeline-scan-carrier with deployment: false"
+
+run_case "the carrier environment with a quoted deployment value fails" 1 \
+  "append_scan_job '{ name: pr-pipeline-scan-carrier, deployment: \"false\" }'" \
+  "$READ:16: names an environment other than pr-pipeline-scan-carrier with deployment: false"
+
 run_case "the carrier environment with deployment: true fails" 1 \
   "append_scan_job '{ name: pr-pipeline-scan-carrier, deployment: true }'" \
   "$READ:16: names an environment other than pr-pipeline-scan-carrier with deployment: false"

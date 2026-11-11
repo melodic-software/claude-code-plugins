@@ -5542,6 +5542,21 @@ test("pr-run-activity-read.yml: the scan-carrier key is passed by name by each r
   }
 });
 
+test("every job naming an environment uses it for its secrets alone, with deployment: false", () => {
+  const named = [];
+  for (const file of workflowFiles()) {
+    for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
+      if (job.environment === undefined) continue;
+      named.push(`${file} ${id}`);
+      assert.deepEqual(Object.keys(job.environment).sort(), ["deployment", "name"], `${file} ${id}`);
+      assert.equal(job.environment.deployment, false, `${file} ${id}`);
+    }
+  }
+  assert.ok(named.includes("release-publish-plugins.yml merge"), named.join(", "));
+  assert.ok(named.includes("release-publish-plugins.yml build"), named.join(", "));
+  assert.ok(named.includes("dependabot-fragments.yml write"), named.join(", "));
+});
+
 test("scan job: the verdict is built from the run job's checked outputs, never from a file a model job wrote", (t) => {
   const steps = scanSteps();
   const write = steps.find((s) => s.name === "Write the verdict");
