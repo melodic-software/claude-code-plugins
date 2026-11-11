@@ -71,7 +71,7 @@ count_or_zero() {
 }
 
 branch() {
-  git rev-parse --abbrev-ref HEAD 2>/dev/null | tr -d '\r' || true
+  git rev-parse --abbrev-ref HEAD 2>/dev/null | tr -d '\r'
 }
 
 present_or_absent() {
