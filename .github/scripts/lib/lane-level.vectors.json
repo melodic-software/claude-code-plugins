@@ -1,6 +1,6 @@
 {
   "config": {
-    "lane-level": { "floor": 2, "ceiling": 4, "default": 3, "clean-windows": 2, "pools": ["lanes-app"] },
+    "lane-level": { "floor": 2, "ceiling": 4, "default": 3, "clean-windows": 2, "pools": ["lanes-app"], "shadow": true, "variable": "CLAUDE_LANE_LEVEL", "valid-minutes": 150 },
     "api": {
       "lanes-app": { "plan": 0.7, "writer-pause": 0.4 },
       "github-token": { "plan": 0.7, "writer-pause": 0.4 }
