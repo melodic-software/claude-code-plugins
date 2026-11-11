@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Create changelog fragments for plugins in fragment mode (ADR 0048).
 #
-#   scripts/new-changelog-fragment.sh [-C <dir>]... [--stdin] [--carriers-of <canonical>]... [<plugin>...] <major|minor|patch|none>
+#   scripts/new-changelog-fragment.sh [-C <dir>] [--stdin] [--carriers-of <canonical>]... [<plugin>...] <major|minor|patch|none>
 #
 # Writes, in the git work tree the caller stands in (with -C <dir>, as with
 # git's -C, the one it would stand in if started in <dir>; for a caller that
@@ -27,30 +27,39 @@
 # `### <Section>` blocks (Added, Changed, Deprecated, Removed, Fixed, Security),
 # or for `none` one line saying why no release is needed.
 #
-# -C must come first and may repeat; a relative <dir> follows the previous -C.
-# The printed paths stay relative to the work tree root.
+# -C must come first and may be given once; a relative <dir> is taken from the
+# caller's directory, never through CDPATH, and `-` is refused. The printed
+# paths stay relative to the work tree root.
 #
-# Exit: 0 written; 2 usage, a -C directory that is missing, an unknown plugin or canonical, no plugin in
-# fragment mode, an invalid --stdin body, or no branch (or a malformed
-# CHANGELOG_FRAGMENT_BRANCH on a detached HEAD).
+# Exit: 0 written; 2 usage, a second -C, a -C directory that is missing or
+# `-`, an unknown plugin or canonical, no plugin in fragment mode, an invalid
+# --stdin body, or no branch (or a malformed CHANGELOG_FRAGMENT_BRANCH on a
+# detached HEAD).
 set -uo pipefail
 
 self="$(basename "$0")"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 
 usage() {
-  echo "usage: $self [-C <dir>]... [--stdin] [--carriers-of <canonical>]... [<plugin>...] <major|minor|patch|none>" >&2
+  echo "usage: $self [-C <dir>] [--stdin] [--carriers-of <canonical>]... [<plugin>...] <major|minor|patch|none>" >&2
   exit 2
 }
 
-while [[ "${1:-}" == -C ]]; do
+if [[ "${1:-}" == -C ]]; then
   (($# >= 2)) || usage
-  if ! cd -- "$2"; then
-    echo "$self: -C: cannot change to '$2'." >&2
+  dir="$2"
+  shift 2
+  if [[ "${1:-}" == -C ]]; then
+    echo "$self: -C may be given only once." >&2
     exit 2
   fi
-  shift 2
-done
+  # An empty CDPATH keeps a relative <dir> relative to the caller and keeps cd
+  # from printing the directory ahead of the fragment paths; `-` would mean $OLDPWD.
+  if [[ "$dir" == - ]] || ! CDPATH='' cd -P -- "$dir" >/dev/null; then
+    echo "$self: -C: cannot change to '$dir'." >&2
+    exit 2
+  fi
+fi
 # The fragment goes into the work tree the caller stands in, so a copy of
 # scripts/ kept outside it (the issue lane's read-only copy) writes into the
 # checkout; outside any work tree there is nowhere to write.

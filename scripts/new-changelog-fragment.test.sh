@@ -325,11 +325,28 @@ if [[ $? -eq 0 && -f "$f/$out" && ! -e "$other/.changes" ]]; then
 else
   fail "expected the fragment under $f/.changes and none under $other, got: $out"
 fi
-out="$(bash "$SCRIPT" -C "$elsewhere" -C "$f" alpha patch)"
-if [[ $? -eq 0 && -f "$f/$out" ]]; then
-  ok "-C may repeat, the last naming the directory"
+rm -rf "$f/.changes"
+out="$(cd "$elsewhere" && bash "$SCRIPT" -C "$f" -C "$f" alpha patch 2>&1)"
+if [[ $? -eq 2 && "$out" == *"only once"* && ! -e "$f/.changes" ]]; then
+  ok "a second -C exits 2 and writes nothing"
 else
-  fail "expected a fragment under $f with two -C options, got: $out"
+  fail "expected exit 2 and no fragment for two -C options, got: $out"
+fi
+# A same-named directory on CDPATH must not win over the caller's, and cd must
+# print nothing ahead of the fragment path.
+mkdir -p "$elsewhere/cdpath/${f##*/}"
+out="$(cd "${f%/*}" && CDPATH="$elsewhere/cdpath" bash "$SCRIPT" -C "${f##*/}" alpha patch)"
+if [[ $? -eq 0 && "$out" =~ ^\.changes/alpha/feat-some_thing-[0-9a-f]{8}\.md$ && -f "$f/$out" ]]; then
+  ok "-C a relative directory ignores CDPATH and prints only the fragment path"
+else
+  fail "expected one fragment path under $f with CDPATH set, got: $out"
+fi
+rm -rf "$f/.changes" "$other/.changes"
+out="$(cd "$other" && cd "$f" && bash "$SCRIPT" -C - alpha patch 2>&1)"
+if [[ $? -eq 2 && "$out" == *"cannot change to '-'"* && ! -e "$f/.changes" && ! -e "$other/.changes" ]]; then
+  ok "-C - exits 2 instead of going to \$OLDPWD"
+else
+  fail "expected exit 2 and no fragment for -C -, got: $out"
 fi
 out="$(bash "$SCRIPT" -C "$f" --stdin alpha minor <<<$'### Added\n\n- Via -C.')"
 rc=$?
@@ -350,11 +367,13 @@ if [[ $? -eq 2 && "$out" == *"usage:"* ]]; then
 else
   fail "expected usage and exit 2 for a bare -C, got: $out"
 fi
-out="$(cd "$elsewhere" && bash "$SCRIPT" -C "$elsewhere" alpha patch 2>&1)"
-if [[ $? -eq 2 && "$out" == *"work tree"* ]]; then
-  ok "-C a directory outside any work tree exits 2"
+# Run from inside a work tree, so an ignored -C would write there.
+rm -rf "$f/.changes"
+out="$(cd "$f" && bash "$SCRIPT" -C "$elsewhere" alpha patch 2>&1)"
+if [[ $? -eq 2 && "$out" == *"work tree"* && ! -e "$f/.changes" ]]; then
+  ok "-C a directory outside any work tree exits 2, even from inside one"
 else
-  fail "expected exit 2 for -C outside a work tree, got: $out"
+  fail "expected exit 2 and nothing under $f for -C outside a work tree, got: $out"
 fi
 rm -rf "$f" "$other" "$elsewhere"
 
