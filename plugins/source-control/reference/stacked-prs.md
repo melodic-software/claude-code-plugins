@@ -32,11 +32,14 @@ fix a lower layer before the upper layers collect review.
 default branch: a trust gate that fails it, a lane that skips it, an auto-merge sweep that reads
 only PRs into the default branch, or done-evidence that counts only merges into it. Where any of
 those gates a required check, an upper layer cannot go green, so use sequential PRs off the trunk
-until the pipeline accepts layers. Read the consuming project's PR pipeline docs before stacking;
-in this marketplace, a stacked PR gets a failure check from the run activity
-([pr-run-activity: The run job](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#the-run-job),
-`check-trusted-trigger` stops it with `untrusted-base`).
-An unattended lane does not stack unless its pipeline accepts layers.
+until the pipeline accepts layers. Read the consuming project's PR pipeline docs before stacking.
+In this marketplace the review and run lanes accept a native stack layer whose stack base is the
+default branch, and still fail any other non-default base
+([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md),
+"The run job"; [#15400](https://github.com/melodic-software/claude-code-plugins/pull/15400)). The
+merge and issue lanes do not handle layers yet
+([#15410](https://github.com/melodic-software/claude-code-plugins/issues/15410)), so an attended
+session may stack, and an unattended lane does not stack until that work lands.
 
 - **Pointer**: for why and when GitHub recommends a stack, fetch
   [About stacked pull requests](https://docs.github.com/en/pull-requests/get-started/about-stacked-prs#why-use-github-stacked-pull-requests)
@@ -46,7 +49,7 @@ An unattended lane does not stack unless its pipeline accepts layers.
   [#7664](https://github.com/melodic-software/claude-code-plugins/issues/7664).
 - **As of**: 2026-11-11
 - **Recheck trigger**: either page changes when it recommends a stack or which base a workflow
-  sees, or this marketplace's PR pipeline starts accepting PRs into a non-default base.
+  sees, or [#15410](https://github.com/melodic-software/claude-code-plugins/issues/15410) closes.
 
 ## Create
 

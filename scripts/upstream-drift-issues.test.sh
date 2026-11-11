@@ -430,10 +430,10 @@ for bad_token in "pin=UNKNOWN head=unknown" "pin=unknown head=none" "pin=zz12 he
 done
 # The sweep leaves an untracked <plugin>/<skill> id alone.
 LIST_VENDORED_SWEEP="$TMP/list-vendored-sweep.json"
-printf '[{"number":16,"title":"Upstream drift: dometrain/sync",%s,%s}]\n' "$OPEN" "$BOT_AUTHOR" >"$LIST_VENDORED_SWEEP"
+printf '[{"number":16,"title":"Upstream drift: dometrain/update",%s,%s}]\n' "$OPEN" "$BOT_AUTHOR" >"$LIST_VENDORED_SWEEP"
 GH_STUB_LIST="$LIST_VENDORED_SWEEP"
 printf '%s\n' \
-  "page repo=dometrain/sync pin=unknown head=unknown status=untracked path=plugins/dometrain/skills/sync/scripts/update.sh" >"$TMP/vendored-untracked.txt"
+  "page repo=dometrain/update pin=unknown head=unknown status=untracked path=plugins/dometrain/skills/update/scripts/update.sh" >"$TMP/vendored-untracked.txt"
 run_sut "$TMP/vendored-untracked.txt"
 expect_code "untracked vendored id: exit 0" 0
 expect_has "untracked vendored id: the sweep leaves its issue alone" "[$(calls)]" "[$LIST_API]"

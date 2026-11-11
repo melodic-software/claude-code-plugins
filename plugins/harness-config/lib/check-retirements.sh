@@ -182,9 +182,7 @@ done
 
 [[ -n "$MANIFEST" ]] || die "--manifest is required (see --help)"
 [[ -f "$MANIFEST" && -r "$MANIFEST" ]] || die "manifest is not a readable file: $MANIFEST"
-if [[ $I_MIGRATED -eq 1 && -z "$CLEAN_ID" ]]; then
-  die "--i-migrated only makes sense with --clean <id>"
-fi
+[[ $I_MIGRATED -eq 0 || -n "$CLEAN_ID" ]] || die "--i-migrated only makes sense with --clean <id>"
 
 if [[ -n "$ROOT_ARG" ]]; then
   ROOT="$ROOT_ARG"
@@ -266,11 +264,13 @@ record_label() {
   fi
 }
 
-invalid() {
-  # invalid <field> <message>
-  echo "ERROR: $MANIFEST: $(record_label): field '$1' $2" >&2
+bad_record() {
+  echo "ERROR: $MANIFEST: $(record_label): $1" >&2
   exit 2
 }
+
+# invalid <field> <message>
+invalid() { bad_record "field '$1' $2"; }
 
 # strip_quotes <value> — remove one layer of matching single or double quotes.
 # Each pattern needs both quote characters, so a value that matches is always
@@ -367,10 +367,7 @@ $r_id
   esac
 
   [[ -n "$r_note" ]] || invalid note "is required"
-  case "$r_note" in
-  *"$TAB"*) invalid note "must not contain a tab" ;;
-  *) ;;
-  esac
+  [[ "$r_note" != *"$TAB"* ]] || invalid note "must not contain a tab"
 
   case "$r_status" in
   "") r_status="active" ;;
@@ -396,43 +393,25 @@ reset_record 1
 while IFS= read -r line || [[ -n "$line" ]]; do
   lineno=$((lineno + 1))
   line="${line%$'\r'}"
-  case "$line" in
-  ---)
+  if [[ "$line" == --- ]]; then
     finish_record
     reset_record $((lineno + 1))
     continue
-    ;;
+  fi
+  # Leading whitespace only ever precedes a comment or nothing in a flat
+  # manifest; anything else is a nesting attempt and is rejected below.
+  case "${line#"${line%%[![:space:]]*}"}" in
   "" | \#*) continue ;;
   *) ;;
   esac
-  # Leading whitespace only ever precedes a comment or nothing in a flat
-  # manifest; anything else is a nesting attempt and is rejected below.
-  case "$line" in
-  [[:space:]]*)
-    trimmed="${line#"${line%%[![:space:]]*}"}"
-    case "$trimmed" in
-    "" | \#*) continue ;;
-    *) ;;
-    esac
-    ;;
-  *) ;;
-  esac
-  if [[ ! "$line" =~ ^([a-z_]+):[[:space:]]*(.*)$ ]]; then
-    echo "ERROR: $MANIFEST: $(record_label): line $lineno is not 'key: value': $line" >&2
-    exit 2
-  fi
+  [[ "$line" =~ ^([a-z_]+):[[:space:]]*(.*)$ ]] ||
+    bad_record "line $lineno is not 'key: value': $line"
   key="${BASH_REMATCH[1]}"
   value="${BASH_REMATCH[2]}"
   value="${value%"${value##*[![:space:]]}"}"
   value="$(strip_quotes "$value")"
   r_nonempty=1
-  case "$r_keys" in
-  *" $key "*)
-    echo "ERROR: $MANIFEST: $(record_label): field '$key' is set twice (line $lineno)" >&2
-    exit 2
-    ;;
-  *) ;;
-  esac
+  [[ "$r_keys" != *" $key "* ]] || invalid "$key" "is set twice (line $lineno)"
   r_keys="${r_keys}${key} "
   case "$key" in
   id) r_id="$value" ;;
@@ -447,10 +426,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   successor) r_successor="$value" ;;
   note) r_note="$value" ;;
   status) r_status="$value" ;;
-  *)
-    echo "ERROR: $MANIFEST: $(record_label): field '$key' is not part of the schema (line $lineno)" >&2
-    exit 2
-    ;;
+  *) invalid "$key" "is not part of the schema (line $lineno)" ;;
   esac
 done <"$MANIFEST"
 finish_record
@@ -644,9 +620,8 @@ action="${REC_ACTION[$idx]}"
 target=$(target_of "$path")
 base=$(target_base "$path")
 
-if [[ $ROOT_IS_REPO -eq 0 && "$kind" == "file" ]]; then
+[[ $ROOT_IS_REPO -eq 1 || "$kind" != "file" ]] ||
   die "$CLEAN_ID: refusing to clean $path — $NOT_REPO_REASON ($ROOT); there it can be a live user-global file"
-fi
 
 if [[ "$action" == "migrate" && $I_MIGRATED -eq 0 ]]; then
   echo "ERROR: $CLEAN_ID is a migrate record: its content must be carried over before the artifact goes." >&2
@@ -682,9 +657,7 @@ fi
 case "$kind" in
 file)
   assert_target_inside_root
-  if ! rm -f "$target"; then
-    die "could not remove $path — $locked_hint"
-  fi
+  rm -f "$target" || die "could not remove $path — $locked_hint"
   echo "check-retirements: $CLEAN_ID: removed $path." >&2
   exit 0
   ;;
@@ -699,9 +672,7 @@ dir)
   "$real_root"/*) ;;
   *) die "refusing to remove $path — it resolves outside the repository root ($real_target)" ;;
   esac
-  if ! rm -rf "$target"; then
-    die "could not remove directory $path — $locked_hint"
-  fi
+  rm -rf "$target" || die "could not remove directory $path — $locked_hint"
   echo "check-retirements: $CLEAN_ID: removed directory $path." >&2
   exit 0
   ;;
@@ -722,11 +693,8 @@ line | block)
   # Whether the original's last line carries a newline: `tail -c 1` prints the
   # final byte and command substitution eats a trailing newline, so an empty
   # result means the file ended with one.
-  if [[ -z "$(tail -c 1 "$target")" ]]; then
-    ends_with_newline=1
-  else
-    ends_with_newline=0
-  fi
+  ends_with_newline=1
+  [[ -z "$(tail -c 1 "$target")" ]] || ends_with_newline=0
   dir=$(dirname "$target")
   tmp=$(mktemp "$dir/.check-retirements.XXXXXX") || die "could not create a temp file beside $path"
   # cp -p so the rewritten file keeps the original's mode; the content is

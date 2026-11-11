@@ -35,7 +35,8 @@
 #     job that calls the read workflow may pass
 #     `scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}`,
 #     exactly, in its `secrets` map; that secret anywhere else fails;
-#   - no `environment` key, except `environment: pr-pipeline-scan-carrier` on
+#   - no `environment` key, except exactly
+#     `environment: { name: pr-pipeline-scan-carrier, deployment: false }` on
 #     the read workflow's `scan` job.
 # No file of such a run sets `permissions: write-all`. The read workflow
 # itself must set top-level `permissions: {}` and a permissions map on every

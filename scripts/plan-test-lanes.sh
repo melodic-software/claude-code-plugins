@@ -222,6 +222,7 @@ declare -A OUTSIDE_TRIGGERS=(
   [.github/actions/check-signed-commits]=".github/workflows/"
   [.github/actions/check-wip-cap]=".github/workflows/"
   [.github/actions/log-api-budget]=".github/workflows/"
+  [.github/actions/setup-runner-isolation]=".github/workflows/"
   [.github/scripts/lib]=".github/workflows/"
   [.github/scripts/pr-merge]=".github/workflows/"
   [.github/scripts/pr-verify]=".github/workflows/pr-verify.yml .github/workflows/pr-verify-capture.yml .github/scripts/lib/"
