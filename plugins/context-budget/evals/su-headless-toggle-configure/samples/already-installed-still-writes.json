@@ -3,6 +3,12 @@
     {
       "answer": "Against the installed plugin it prints `already installed` and still writes the value.",
       "why": "both"
+    },
+    {
+      "answer": "The rerun is the fallback because it saves the value on an already-installed plugin."
+    },
+    {
+      "answer": "Already installed: the rerun still saves the value."
     }
   ],
   "fail": [
@@ -13,6 +19,10 @@
     {
       "answer": "It still writes the value.",
       "why": "no already installed"
+    },
+    {
+      "answer": "Fallback: claude plugin install <plugin>@<marketplace> -s <scope> --config KEY=VALUE.",
+      "why": "gives the fallback but omits that it saves on an already-installed plugin"
     }
   ]
 }
