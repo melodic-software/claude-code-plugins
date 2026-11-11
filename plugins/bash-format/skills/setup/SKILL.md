@@ -28,6 +28,12 @@ tool's path when present, or `absent` when missing:
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
 `command -v` probe via Bash instead.
 
+- **Pointer**: for the placeholder a skipped load-time command leaves, fetch
+  [skills § Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: the placeholder text changes.
+
 ## Purpose
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
@@ -193,34 +199,29 @@ skill installs nothing:
   repo in. A bare `[*]` is not enough, but this skill does not write it. `.editorconfig` is
   cross-cutting (it governs every editor and tool in the repo), so the choice and the edit
   belong to the consumer.
-- toggle off, gitignored files wanted, or the end-of-turn check wanted: reconfigure through Claude Code's native flow, per the marketplace's
-  plugin-reconfiguration convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
-  which owns the verified-version record): interactive
-  `/plugin configure bash-format@<marketplace>` any time. Headless, preferred on Claude Code
-  2.1.285 or later: `claude plugin configure bash-format@<marketplace> --values-stdin < values.json`,
-  where `values.json` holds `{"bash_format_enabled": "true"}` (or `bash_format_lint_gitignored`
-  or `bash_format_end_of_turn`; every value a string, booleans included; keys left out keep their
-  saved values). Headless fallback, before 2.1.285:
-  `claude plugin install bash-format@<marketplace> -s <scope> --config bash_format_enabled=true`
-  (or `--config bash_format_lint_gitignored=true` or `--config bash_format_end_of_turn=true`;
-  repeatable per key); against an already-installed plugin it prints `already installed`
-  **and still writes the value**. Do **not** uninstall to reconfigure: that drops this plugin's
-  entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
-  to its manifest default. The value lands in user settings whichever route writes it.
-  `claude plugin configure` has no scope flag, so run it from the project the plugin is installed
-  in. For the rerun, `-s` defaults to `user`; pass the scope `claude plugin list` reports for
-  this plugin, and run from that project's directory for a `project`/`local` scope, or the rerun
-  adds a second install record at the scope passed and enables the plugin there; from the home
-  directory pass `user`. Check each
-  route's own failure signal: `--values-stdin` rejects a bad value with exit 1 and saves nothing,
-  but stores an empty string as `""`; the `--config` rerun prints a warning for a rejected value
-  yet exits 0, so read its output. This skill never writes user settings or
-  `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered
-  `${user_config.*}` is injected at skill load and each hook receives its
-  `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a same-session
-  `check` still reports the OLD value; report the observed effective value, never an
-  unobserved change.
+- toggle off, gitignored files wanted, or the end-of-turn check wanted: set
+  `bash_format_enabled`, `bash_format_lint_gitignored` or `bash_format_end_of_turn` to `true`
+  through Claude Code's native flow, interactively with
+  `/plugin configure bash-format@<marketplace>` or by a headless route, as the marketplace's
+  plugin-reconfiguration convention gives them in
+  [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
+  (it owns the verified-version record). Apply the scope and failure-signal caveats in its
+  [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
+  Read both sections and print what they give, the fallback route, its behavior on an
+  already-installed plugin and the scope to pass included, rather than only naming them, and
+  leave out the verified-version record.
+  Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
+  writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**, since a
+  same-session `check` can still show the old value, and report the observed effective value,
+  never an unobserved change.
+
+  - **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+    when a saved value applies, fetch
+    [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+    live.
+  - **As of**: 2026-11-11
+  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+    refused value, or when a saved value applies.
 
 After pointing at a remediation, re-run the relevant `check` probe live via Bash (a pre-computed row
 predates the remediation, so never re-read it) and report its actual result. Never claim resolved on

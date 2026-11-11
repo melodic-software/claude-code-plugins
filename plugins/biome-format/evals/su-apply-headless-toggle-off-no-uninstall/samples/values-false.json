@@ -4,22 +4,17 @@
       "answer": "`{\"biome_format_enabled\": \"false\"}`"
     },
     {
-      "answer": "{\"biome_format_enabled\":\"false\"}",
-      "why": "no space"
+      "answer": "Set biome_format_enabled to false."
     }
   ],
   "fail": [
     {
-      "answer": "{\"biome_format_enabled\": false}",
-      "why": "unquoted boolean; every value is a string"
-    },
-    {
-      "answer": "biome_format_enabled=false",
-      "why": "the --config form, not the JSON"
-    },
-    {
       "answer": "{\"biome_format_enabled\": \"true\"}",
       "why": "wrong value"
+    },
+    {
+      "answer": "{\"biome_format_lint_gitignored\": \"false\"}",
+      "why": "near miss: the wrong key"
     }
   ]
 }

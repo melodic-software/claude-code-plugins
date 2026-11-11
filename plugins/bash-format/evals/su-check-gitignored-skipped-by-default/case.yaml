@@ -19,7 +19,7 @@ graders:
     focus: 'last_message'
   - name: 'opt-in-routes'
     type: 'llm'
-    criteria: 'The reply names the opt-in, setting bash_format_lint_gitignored to true, through /plugin configure, headless claude plugin configure --values-stdin or a claude plugin install --config rerun as the fallback, and says it takes effect in a fresh session.'
+    criteria: 'The reply names the opt-in, setting bash_format_lint_gitignored to true, through the native configure flow (/plugin configure, or for a headless session a route it takes from or points at in the plugin-reconfiguration convention), and says to confirm the new value in a fresh session.'
     focus: 'last_message'
   - name: 'tracked-and-undecidable'
     type: 'llm'
