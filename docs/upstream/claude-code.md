@@ -99,9 +99,9 @@ with "Deferred" names the issue that tracks it.
 | With the Bash sandbox on, nested `.claude/skills` load only from the start folder or after `/cd`; they stay audited as live grants | 319-114 | harness-config audit-permission-grants `reference/criteria.md` | [#14040](https://github.com/melodic-software/claude-code-plugins/pull/14040) |
 | The cloud-session note also points at `/permissions`, which now says where the session's rules live | 319-072 | harness-config audit-permission-state `scripts/permission-state.sh` | [#14040](https://github.com/melodic-software/claude-code-plugins/pull/14040) |
 | Model ladder: `fable` resolves to Fable 5.2; gateway sessions still resolve to Fable 5. Supersedes the 257-001 row ([model-config, Model aliases](https://code.claude.com/docs/en/model-config#model-aliases), as of 2026-11-11) | 321-001, 321-096 | this file | this file |
-| Nested `.claude/skills` folders inside `~/.claude/plugins` no longer load; the detector counts them as non-loadable | 321-098 | harness-config audit-permission-grants `scripts/permission-rule-check.sh`, `reference/criteria.md` | harness-config `CHANGELOG.md`, next release |
+| Nested `.claude/skills` folders inside `~/.claude/plugins` no longer load; the detector counts them as non-loadable | 321-098 | harness-config audit-permission-grants `scripts/permission-rule-check.sh`, `reference/criteria.md` | [#15413](https://github.com/melodic-software/claude-code-plugins/pull/15413) |
 | Fast mode also covers Fable 5.2; the fast-tier note points at the fast mode page instead of naming Opus | 321-001, 322-001 | `docs/contracts/loop-lane/README.md` | this file |
-| The Sonnet 5.5 chapter's fast mode pointer still holds after Fable 5.2 fast mode; only its as-of date moved | 321-001 | playbooks model-adaptation `sonnet-5-5.md` | playbooks `CHANGELOG.md`, next release |
+| The Sonnet 5.5 chapter's fast mode pointer still holds after Fable 5.2 fast mode; only its as-of date moved | 321-001 | playbooks model-adaptation `sonnet-5-5.md` | [#15414](https://github.com/melodic-software/claude-code-plugins/pull/15414) |
 
 ## Nominated
 
