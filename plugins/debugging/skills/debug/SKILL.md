@@ -341,9 +341,10 @@ If the answer is a check (a lint or analyzer rule, a test, a hook) that would ha
 
 The names collide outright, so "debug this" can land on either, but the two debug different things.
 
-- **`debug` (bundled skill)**: turns on debug logging for the current Claude Code session and
-  troubleshoots Claude Code itself by reading that session's debug log. It is reserved for the
-  person to run; the model does not invoke it.
+- **`debug` (bundled skill)**: troubleshoots Claude Code itself (what it enables and when: the
+  `/debug` row of [Commands, "All commands"](https://code.claude.com/docs/en/commands#all-commands),
+  as of 2026-11-10; recheck when that row changes what the skill turns on or reads). It is reserved
+  for the person to run; the model does not invoke it.
 - **This skill (marketplace plugin).** Debugs the user's application: build a reproduction loop,
   confirm it fails, rank causes, probe them, fix with a regression test, remove what the run added.
 
@@ -355,8 +356,8 @@ it instead of or alongside this skill. Make the offer at Phase 1, before buildin
 application. When the caller passes `--unattended`, the run records the offer
 in its output instead of asking; without that flag it asks.
 
-**Mutation gate.** `debug` starts debug logging for the session from the moment it runs. This
-skill never runs it on the person's behalf.
+**Mutation gate.** `debug` changes the session's logging (row above). This skill never runs it
+on the person's behalf.
 
 **Availability is never assumed.** Bundled skills are gated on settings, environment, plan, and
 host; this section states what to do when the person can run it, never that it is present. The

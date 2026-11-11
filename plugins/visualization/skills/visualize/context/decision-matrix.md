@@ -24,10 +24,9 @@ against those sources before relying on a time-sensitive detail; the platform mo
 - Renders a self-contained **HTML** or **Markdown** page.
 - **Mermaid renders natively** in both a ` ```mermaid ` markdown fence and an HTML
   `<pre class="mermaid">` block.
-- **Bundled mermaid runtime: 11.16.1** (probed behavior; no docs page names the
-  runtime). Our read of the installed Claude Code 2.1.260 binary found the publish
-  path injecting `/_runtime/mermaid-11.16.1.min.js` into the page. Re-read the installed
-  binary before relying on the number.
+- **Bundled mermaid runtime** (probed behavior; no docs page names the runtime):
+  the publish path injects its own mermaid build into the page. Read its version
+  from the installed binary with the probe below before relying on one.
   - **Pointer**: probe: `grep -a '/_runtime/mermaid-'` over the installed Claude Code
     binary, recorded in
     <https://github.com/melodic-software/claude-code-plugins/pull/3729#issuecomment-5546567555>.
@@ -138,7 +137,7 @@ per-family support as presumed-safe rather than guaranteed:
 | `journey` | User-journey steps with satisfaction scores |
 
 The newest "fire-icon" families (for example `sankey`, `xychart`, `kanban`,
-`radar`, `treemap`) are present upstream in mermaid 11.16.1; their rendering in
+`radar`, `treemap`) are present upstream in the bundled mermaid version; their rendering in
 the artifact viewer is **UNVERIFIED**. Prefer a stable family, or verify a newer
 one empirically on a throwaway artifact before relying on it.
 
@@ -280,17 +279,22 @@ what terminal Markdown rendering covers.
   - **As of**: 2026-10-18
   - **Recheck trigger**: the page adds a section that enumerates the Markdown constructs the
     terminal renders, or changes either section above.
-- Mermaid emitted as source, not terminal-rendered (verified 2026-09-04): no
-  official page documents terminal mermaid rendering. Absence checked in
-  `https://code.claude.com/docs/en/interactive-mode.md` and
-  `https://code.claude.com/docs/en/fullscreen.md` (both fetched whole, zero
-  occurrences) and in the `llms-full.txt` docs corpus (one hit, an output-style
-  example, not a rendering statement). The shipped binary carries no terminal-side
-  renderer (every mermaid string is on the artifact publish path). Open issues:
-  anthropics/claude-code#14375 requests terminal rendering; #52517 reports Claude
-  Desktop's Claude Code tab showing a mermaid fence as raw source. Recheck when a
-  changelog entry or either page names terminal diagram rendering, or when #14375
-  closes.
+- Mermaid emitted as source, not terminal-rendered: no official page documents
+  terminal mermaid rendering, and the shipped binary showed no terminal-side
+  renderer.
+  - **Pointer**: absence checked in
+    `https://code.claude.com/docs/en/interactive-mode.md` and
+    `https://code.claude.com/docs/en/fullscreen.md` (both fetched whole, zero
+    occurrences) and in the `llms-full.txt` docs corpus (one hit, an output-style
+    example, not a rendering statement); probe: a string search for `mermaid` over
+    the installed Claude Code binary, every hit on the artifact publish path,
+    recorded in
+    <https://github.com/melodic-software/claude-code-plugins/pull/3729#issuecomment-5546567555>.
+    Open issues: anthropics/claude-code#14375 requests terminal rendering; #52517
+    reports Claude Desktop's Claude Code tab showing a mermaid fence as raw source.
+  - **As of**: 2026-09-04
+  - **Recheck trigger**: a changelog entry or either page names terminal diagram
+    rendering, or #14375 closes.
 - Artifact CSP, page size, source file types, availability gating and
   connector-backed live data: each is read live from the pointer in its own entry
   under [Published Artifact](#published-artifact) and
@@ -324,7 +328,7 @@ UNVERIFIED / low-confidence (flagged, not asserted):
   text; treated as source, never as an inline picture.
 - Inline terminal raster images: undocumented.
 - Rendering of the newest "fire-icon" mermaid families in the artifact viewer
-  (present upstream in 11.16.1; see the Published Artifact record): verify
+  (present upstream in the bundled version; see the Published Artifact record): verify
   empirically before use.
 - Public sharing of an artifact is reported to fail for pages containing mermaid
   blocks, SVG `data:` URIs, or AVIF images (anthropics/claude-code#79824 open,
