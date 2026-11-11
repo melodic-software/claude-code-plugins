@@ -97,8 +97,13 @@ Install nothing, and run no mutating tier.
    - Report the effective `${user_config.clean_destructive_guard_enabled}` (an unexpanded token or
      an empty value means the manifest default `true`). Read it from this text as rendered; never
      echo it through Bash, where an unexpanded token is invalid shell syntax and the call is
-     refused. The rendered value is injected when this
-     skill loads, so a change made now is observed only in a **fresh session**.
+     refused. A change made now is observed only in a **fresh session**.
+
+     - **Pointer**: for when a saved value reaches skill content, fetch
+       [plugins manifest reference § Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
+       live.
+     - **As of**: 2026-11-11
+     - **Recheck trigger**: that section changes where or when a saved value is substituted.
    - The option is **user-scoped**: plugin option values are read from user, `--settings`, and
      managed settings only, never from a project's `.claude/settings.json`. So there is no
      per-repository value of this toggle. To vary the behavior for one repository, enable or disable
