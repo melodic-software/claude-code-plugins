@@ -3,14 +3,17 @@
 #
 #   check-changed-links-online.sh [--list] <base-ref>
 #
-# Reads the added lines of `git diff <base-ref>...HEAD` in tracked .md files,
-# takes every http(s) URL on them, and runs lychee with the network on over
-# just those, through lychee.toml (its accept list keeps a 429, a 5xx or a
-# timeout from failing; its excludes and remaps apply). The offline lane checks
-# local files and anchors; the weekly online run catches drift after merge.
-# --list prints the URLs and runs nothing. LYCHEE names the binary (default
-# lychee); LYCHEE_CONFIG the ruleset (default lychee.toml).
+# lychee extracts the links of each markdown file the diff `<base-ref>...HEAD`
+# adds or modifies, with the same parser and lychee.toml the offline lane and the
+# weekly online run use, so code spans, fenced blocks and excluded URLs are left
+# out as they are there. A link is kept when it appears on an added line. lychee
+# then checks just those with the network on; lychee.toml's accept list keeps a
+# 429, a 5xx or a timeout from failing. --list prints the kept links and checks
+# nothing. LYCHEE names the binary (default lychee), LYCHEE_CONFIG the ruleset
+# (default lychee.toml). Exit status follows scripts/README.md, "The
+# check-script contract".
 set -euo pipefail
+me=check-changed-links-online
 
 list=0
 if [[ ${1:-} == --list ]]; then
@@ -22,34 +25,56 @@ if [[ $# -ne 1 || -z $1 ]]; then
   exit 2
 fi
 base=$1
+lychee=${LYCHEE:-lychee}
+config=${LYCHEE_CONFIG:-lychee.toml}
+if ! command -v "$lychee" >/dev/null 2>&1; then
+  echo "$me: lychee not found ($lychee)" >&2
+  exit 2
+fi
 
-# A diff that cannot be read fails the check rather than reading as "no links".
 # The excludes are test data whose links are meant not to resolve, as the
-# offline lane excludes them.
-diff=$(git diff -U0 --no-color --no-ext-diff --dst-prefix=b/ "$base...HEAD" -- '*.md' \
-  ':(exclude)plugins/attribution/skills/audit/evals/fixtures/golden/**' \
+# offline lane excludes them. A diff git cannot read is exit 2, never "no links".
+paths=(-- '*.md'
+  ':(exclude)plugins/attribution/skills/audit/evals/fixtures/golden/**'
   ':(exclude)scripts/fixtures/hooks-lifecycle-table.md')
-# A URL may hold balanced parentheses, as a Wikipedia title does; a closing
-# parenthesis outside a pair ends a markdown link destination.
-mapfile -t urls < <(
-  printf '%s\n' "$diff" |
-    grep -vE '^\+\+\+ (b/|/dev/null)' | sed -n 's/^+//p' |
-    grep -oE 'https?://([^][[:space:]<>()"`'"'"']|\([^()[:space:]]*\))+' |
-    sed -E 's/[.,;:!?*_]+$//' |
-    LC_ALL=C sort -u || true
-)
+if ! files_out=$(git diff --name-only --diff-filter=AM "$base...HEAD" "${paths[@]}") ||
+  ! added=$(git diff -U0 --no-color --no-ext-diff --dst-prefix=b/ "$base...HEAD" "${paths[@]}"); then
+  echo "$me: could not read the diff against $base" >&2
+  exit 2
+fi
+added=$(grep -vE '^\+\+\+ (b/|/dev/null)' <<<"$added" | sed -n 's/^+//p' || true)
+mapfile -t files <<<"$files_out"
+[[ -n $files_out ]] || files=()
+
+urls=()
+if ((${#files[@]})); then
+  if ! dump=$("$lychee" --dump --no-progress --config "$config" "${files[@]}" 2>/dev/null); then
+    echo "$me: lychee could not extract the links of the changed files" >&2
+    exit 2
+  fi
+  # lychee may add a trailing slash to a bare host; match without it.
+  while IFS= read -r url; do
+    [[ $url == http://* || $url == https://* ]] || continue
+    if grep -qF -- "${url%/}" <<<"$added"; then urls+=("$url"); fi
+  done < <(LC_ALL=C sort -u <<<"$dump")
+fi
 
 if ((list)); then
-  ((${#urls[@]})) && printf '%s\n' "${urls[@]}"
+  ((${#urls[@]} == 0)) || printf '%s\n' "${urls[@]}"
   exit 0
 fi
 if ((${#urls[@]} == 0)); then
-  echo "No external links added or changed in markdown."
+  echo "$me: no external links added or changed in markdown"
   exit 0
 fi
 
-echo "Checking ${#urls[@]} added or changed external link(s) online."
 input=$(mktemp --suffix=.md)
 trap 'rm -f "$input"' EXIT
 printf '<%s>\n' "${urls[@]}" >"$input"
-"${LYCHEE:-lychee}" --no-progress --config "${LYCHEE_CONFIG:-lychee.toml}" "$input"
+rc=0
+report=$("$lychee" --no-progress --config "$config" "$input" 2>&1) || rc=$?
+case $rc in
+  0) echo "$me: ${#urls[@]} added or changed external link(s) resolve" ;;
+  2) printf '%s\n' "$report" >&2; exit 1 ;;
+  *) printf '%s\n' "$report" >&2; echo "$me: lychee failed (exit $rc)" >&2; exit 2 ;;
+esac
