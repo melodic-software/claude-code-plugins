@@ -76,6 +76,7 @@ const LOCAL_BIN_DEPTH = 8;
 const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const isText = (v) => typeof v === "string" && v.trim() !== "";
 const isTextList = (v) => Array.isArray(v) && v.length > 0 && v.every(isText);
+const matches = (v, re) => typeof v === "string" && re.test(v);
 
 function keysErrors(obj, allowed, where) {
   return Object.keys(obj)
@@ -124,12 +125,11 @@ function detectErrors(kind, detect, where) {
         errors.push(`${vw}.args must be a list of strings`);
       }
       errors.push(...patternErrors(v.pattern, vw, true));
-      if (typeof v.min !== "string" || !MIN_RE.test(v.min))
-        errors.push(`${vw}.min must be a dotted number such as 2.94.0`);
+      if (!matches(v.min, MIN_RE)) errors.push(`${vw}.min must be a dotted number such as 2.94.0`);
       if ("below" in v) {
-        if (typeof v.below !== "string" || !MIN_RE.test(v.below)) {
+        if (!matches(v.below, MIN_RE)) {
           errors.push(`${vw}.below must be a dotted number such as 3.0.0`);
-        } else if (typeof v.min === "string" && MIN_RE.test(v.min) && compareVersions(v.below, v.min) <= 0) {
+        } else if (matches(v.min, MIN_RE) && compareVersions(v.below, v.min) <= 0) {
           errors.push(`${vw}.below must be greater than ${vw}.min`);
         }
       }
@@ -146,12 +146,8 @@ function detectErrors(kind, detect, where) {
       errors.push(...patternErrors(p.pattern, pw, false));
     }
   }
-  if ("import" in detect && !(typeof detect.import === "string" && MODULE_RE.test(detect.import))) {
-    errors.push(`${where}.import must be a Python module name`);
-  }
-  if ("module" in detect && !(typeof detect.module === "string" && NPM_RE.test(detect.module))) {
-    errors.push(`${where}.module must be an npm package name`);
-  }
+  if ("import" in detect && !matches(detect.import, MODULE_RE)) errors.push(`${where}.import must be a Python module name`);
+  if ("module" in detect && !matches(detect.module, NPM_RE)) errors.push(`${where}.module must be an npm package name`);
   if ("paths" in detect) {
     // A path is relative to the plugin root, or starts with ${CLAUDE_PLUGIN_ROOT} or ${CLAUDE_PLUGIN_DATA}.
     const strip = (p) => (typeof p === "string" ? p.replace(/^\$\{CLAUDE_PLUGIN_(DATA|ROOT)\}\/?/, "") || "." : p);
@@ -159,12 +155,8 @@ function detectErrors(kind, detect, where) {
       ...relativePathErrors(Array.isArray(detect.paths) ? detect.paths.map(strip) : detect.paths, `${where}.paths`),
     );
   }
-  if ("name" in detect && !(typeof detect.name === "string" && ENV_RE.test(detect.name))) {
-    errors.push(`${where}.name must be an environment variable name`);
-  }
-  if ("server" in detect && !(typeof detect.server === "string" && SERVER_RE.test(detect.server))) {
-    errors.push(`${where}.server must be an MCP server name`);
-  }
+  if ("name" in detect && !matches(detect.name, ENV_RE)) errors.push(`${where}.name must be an environment variable name`);
+  if ("server" in detect && !matches(detect.server, SERVER_RE)) errors.push(`${where}.server must be an MCP server name`);
   return errors;
 }
 
@@ -174,9 +166,7 @@ function entryErrors(entry, where) {
   for (const key of ENTRY_KEYS) {
     if (!(key in entry) && key !== "check") errors.push(`${where}.${key} is required`);
   }
-  if ("id" in entry && !(typeof entry.id === "string" && ID_RE.test(entry.id))) {
-    errors.push(`${where}.id must match ${ID_RE.source}`);
-  }
+  if ("id" in entry && !matches(entry.id, ID_RE)) errors.push(`${where}.id must match ${ID_RE.source}`);
   if ("kind" in entry && !KINDS.includes(entry.kind)) errors.push(`${where}.kind must be one of ${KINDS.join(", ")}`);
   if ("need" in entry && !NEEDS.includes(entry.need)) errors.push(`${where}.need must be one of ${NEEDS.join(", ")}`);
   if ("for" in entry) {
@@ -185,7 +175,7 @@ function entryErrors(entry, where) {
       errors.push(`${where}.for must be a non-empty list`);
     } else {
       for (const s of scopes) {
-        if (typeof s !== "string" || !FOR_RE.test(s)) {
+        if (!matches(s, FOR_RE)) {
           errors.push(`${where}.for: "${s}" must be plugin, skill:<name>, hook:<script> or mcp:<server>`);
         }
       }
@@ -206,9 +196,7 @@ function entryErrors(entry, where) {
       }
     }
   }
-  if ("check" in entry && !(typeof entry.check === "string" && CHECK_RE.test(entry.check))) {
-    errors.push(`${where}.check must name a skill, such as /<plugin>:check`);
-  }
+  if ("check" in entry && !matches(entry.check, CHECK_RE)) errors.push(`${where}.check must name a skill, such as /<plugin>:check`);
   return errors;
 }
 
@@ -223,7 +211,7 @@ export function validateManifest(manifest) {
       errors.push("manifest.session_probe must be an object");
     } else {
       errors.push(...keysErrors(sp, ["run_if_unset_or_true"], "session_probe"));
-      if ("run_if_unset_or_true" in sp && !(typeof sp.run_if_unset_or_true === "string" && OPTION_RE.test(sp.run_if_unset_or_true))) {
+      if ("run_if_unset_or_true" in sp && !matches(sp.run_if_unset_or_true, OPTION_RE)) {
         errors.push("session_probe.run_if_unset_or_true must be an option name in capitals, such as BIOME_FORMAT_ENABLED");
       }
     }
@@ -526,6 +514,8 @@ function inScope(entry, scope) {
   return !scope || entry.for.includes("plugin") || entry.for.includes(scope);
 }
 
+const schemaFailure = (plugin, errors) => `${plugin}: prerequisites.json fails the schema:\n  ${errors.join("\n  ")}`;
+
 const USAGE = [
   "usage: prerequisites.mjs report --plugin-root <dir> [--plugin-root <dir>...]",
   "       prerequisites.mjs check <plugin-root> [--for <scope>] [--data-dir <dir>]",
@@ -602,7 +592,7 @@ function cmdCheck(opts, ctx, out) {
     return 0;
   }
   if (errors.length) {
-    out.stderr(`${plugin}: prerequisites.json fails the schema:\n  ${errors.join("\n  ")}`);
+    out.stderr(schemaFailure(plugin, errors));
     return 2;
   }
   const local = { ...ctx, root, dataDir: opts.dataDir };
@@ -643,7 +633,7 @@ export function report(roots, ctx, out) {
     if (absent) continue;
     if (errors.length) {
       invalid = true;
-      out.stderr(`${plugin}: prerequisites.json fails the schema:\n  ${errors.join("\n  ")}`);
+      out.stderr(schemaFailure(plugin, errors));
       continue;
     }
     for (const entry of manifest.requires) {
@@ -662,10 +652,6 @@ export function report(roots, ctx, out) {
   return requiredMissing ? 1 : 0;
 }
 
-function cmdReport(opts, ctx, out) {
-  return report(opts.roots, ctx, out);
-}
-
 function cmdProbe(opts, ctx, out) {
   if (opts.gate) {
     const value = ctx.env[`CLAUDE_PLUGIN_OPTION_${opts.gate}`];
@@ -675,7 +661,7 @@ function cmdProbe(opts, ctx, out) {
   const { plugin, manifest, errors, absent } = loadManifest(root);
   if (absent) return 0;
   if (errors.length) {
-    out.stderr(`${plugin}: prerequisites.json fails the schema:\n  ${errors.join("\n  ")}`);
+    out.stderr(schemaFailure(plugin, errors));
     return 2;
   }
   const session = readHookInput(ctx.stdin);
@@ -740,7 +726,7 @@ export function main(argv, ctx = {}, out = {}) {
     io.stderr(`prerequisites.mjs: ${err.message}\n${USAGE}`);
     return 2;
   }
-  if (opts.mode === "report") return cmdReport(opts, context, io);
+  if (opts.mode === "report") return report(opts.roots, context, io);
   if (opts.mode === "check") return cmdCheck(opts, context, io);
   return cmdProbe(opts, context, io);
 }
