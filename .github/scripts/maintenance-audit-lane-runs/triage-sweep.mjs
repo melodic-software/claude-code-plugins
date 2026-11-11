@@ -104,7 +104,9 @@ const ADMISSION_HOLDS = new Set(["agent-ready", "admission-deferred", "needs-hum
 // own (as its Work status field decides them, statusListing).
 const names = (i, labels) => (labels ?? (i.labels ?? []).map((l) => l.name)).map((n) => String(n ?? "").toLowerCase());
 // An open sub-issue makes admission wait (admit.mjs openSubIssues), so it
-// would only send the issue back at status: ready.
+// would only send the issue back at status: ready. Admission's own wait
+// comment is not consulted: admission edits it in place, so it can outlive
+// the wait it describes and would park a cleared issue for good.
 const bornReady = (i, labels) =>
   String(i.body ?? "")
     .trimEnd()
