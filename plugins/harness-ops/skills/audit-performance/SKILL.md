@@ -9,7 +9,7 @@ metadata:
   cadence: continuous
 ---
 
-**Arguments.** `[--unattended] [--root <path>] [--session-id <id>] [--note <fact>]`. `--root` defaults to `$CLAUDE_CONFIG_DIR`, else `~/.claude`; pass the current session id via `--session-id` when known, and each operator fact via a repeated `--note`. `--unattended`, anywhere in the arguments, is the caller declaring that nobody is present. The skill takes it out before reading the rest: never pass it to the engine, whose parser does not accept it, and never read it as a root or a `--note` value; under it, record the suggestion in the report instead of asking. The bare word `unattended` is not this flag: stop and name `--unattended`.
+**Arguments.** `[--unattended] [--root <path>] [--session-id <id>] [--note <fact>]`. `--root` defaults to `$CLAUDE_CONFIG_DIR`, else `~/.claude`; pass the current session id via `--session-id` when known, and each operator fact via a repeated `--note`. `--unattended`, anywhere in the arguments, is the caller declaring that nobody is present. The skill takes it out before reading the rest: never pass it to the engine, whose parser does not accept it, and never read it as a root or a `--note` value; under it, make no `/doctor` suggestion and do not run it. The bare word `unattended` is not this flag: stop and name `--unattended`.
 
 ## Purpose
 
@@ -312,7 +312,7 @@ Relay the sentence below to the user and do not run `/doctor` yourself: it is re
 
 If /doctor is available in your session (gate basis: **Boundary, the bundled `doctor` skill** above), run it for the quick health-and-fix pass this timed capture does not perform.
 
-**`--unattended`:** record the suggestion in the report's final section; do not ask.
+**`--unattended`:** omit the suggestion and do not run `/doctor`.
 
 ## Gotchas
 
