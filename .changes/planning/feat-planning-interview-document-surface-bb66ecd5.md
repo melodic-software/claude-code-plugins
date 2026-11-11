@@ -8,4 +8,4 @@ bump: major
 
 ### Removed
 
-- `/planning:questionnaire` is removed. Its behavior lives in `/planning:interview`'s document surface, and the interview's and `/planning:prd`'s handoffs now recommend `/planning:interview document <topic>` for a question only another person can answer.
+- The `questionnaire` skill and its eval cases. Its behavior lives in `/planning:interview`'s document surface, and the interview's and `/planning:prd`'s handoffs now recommend `/planning:interview document <topic>` for a question only another person can answer.
