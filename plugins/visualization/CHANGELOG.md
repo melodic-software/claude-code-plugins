@@ -3,6 +3,13 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.0] - 2026-11-11
+
+### Added
+
+- `diagram_target` setting for `/visualization:visualize`: `auto` (default, pick by surface), `terminal`, `local-page`, `excalidraw` or `tldraw`. It is read from the `userConfig` option, the team file `docs/conventions/visualization.yaml` and the personal override `docs/conventions/visualization.local.yaml`, a later layer winning, and applies only when the form is a diagram. A target that is unavailable (no such server connected, a surface that does not render it, or `hosted_canvas` forbids it) falls back to `auto` with a one-line notice. New eval case `viz-diagram-target-fallback`.
+- README: `hosted_canvas` steers only this skill; a Claude Code permission deny rule on the server's tools, such as `mcp__tldraw__*`, blocks the server for every tool.
+
 ## [1.1.0] - 2026-11-10
 
 ### Added
