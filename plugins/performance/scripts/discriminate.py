@@ -301,11 +301,9 @@ def main() -> int:
             "how a harness reports a confident verdict about a check it never varied."
         )
 
-    if config.get("backup_dir"):
-        backup_dir = resolve(str(config["backup_dir"]))
-    else:
-        backup_dir = target.parent
-    backup = backup_dir / (target.name + BACKUP_SUFFIX)
+    backup_dir = config.get("backup_dir")
+    backup_parent = resolve(str(backup_dir)) if backup_dir else target.parent
+    backup = backup_parent / (target.name + BACKUP_SUFFIX)
     backup.parent.mkdir(parents=True, exist_ok=True)
     backup.write_bytes(original)
     if backup.read_bytes() != original:
@@ -365,12 +363,12 @@ def main() -> int:
     )
     print(f"restore verified byte-identical: {target.read_bytes() == original}")
 
-    if 127 in (negative.returncode, positive.returncode):
-        arms = [
-            name
-            for name, result in (("negative", negative), ("positive", positive))
-            if result.returncode == 127
-        ]
+    arms = [
+        name
+        for name, result in (("negative", negative), ("positive", positive))
+        if result.returncode == 127
+    ]
+    if arms:
         return verdict(
             2,
             "HARNESS BROKEN",

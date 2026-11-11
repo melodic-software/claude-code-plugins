@@ -89,6 +89,7 @@ Basis: LLM-written test oracles were measured to assert what the code does rathe
 
 ### Assessment
 - Intent source: <rung> (<PLAN.md slug, pull request, issue, or conversation>); intent drift: <none | each contradiction>
+- Finish line: <met (evidence) | not met (what is missing) | not checkable yet (event pending; the check that decides it) | none in the Brief ([intent.md](intent.md))>
 - Assumptions: <none stated | each load-bearing or captured assumption: holds / falsified (evidence) / unchecked>
 - Plan items: X/Y complete (Z%)
 - Deviations: N (all justified / N unjustified)

@@ -3,6 +3,136 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.22] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+Internal simplification, no behavior change.
+
+## [8.12.21] - 2026-11-11
+
+### Changed
+
+- Skill and reference docs now point at the live Claude Code docs section for upstream behavior (`doctor` gating, WebFetch output, plugin variables, settings precedence, `/loop` and its expiry, hook scheduling, CLI flags) instead of restating it, with an as-of date and a recheck trigger on each record.
+- Corrected statements about this plugin's own files: the platform-specific functions in the install-state engine, the test that pins the observer-flag text, an extraction-table example, the Windows process check in `refresh`, the `sync-run.sh` synopsis, CLI write serialization, the OTEL store path, the privacy filter's write-time gate and token length, and several dangling citations.
+- Replaced machine host names with placeholders and qualified bare upstream issue numbers. No behavior change.
+
+## [8.12.20] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.19] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.18] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.17] - 2026-11-10
+
+### Changed
+
+Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [8.12.16] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [8.12.15] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [8.12.14] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.13] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.12] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.11] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [8.12.10] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.9] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.8] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [8.12.7] - 2026-11-09
+
+### Changed
+
+- `/harness-ops:known-issues`' flag-fallback pointer is rechecked against the Claude Fable 5.2 release; no change.
+
+## [8.12.6] - 2026-11-09
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.5] - 2026-11-09
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
 ## [8.12.4] - 2026-11-09
 
 ### Changed

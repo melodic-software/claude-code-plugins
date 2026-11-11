@@ -154,10 +154,10 @@ the lane-telemetry contract below. Seam keys and defaults in the config referenc
 ## Stop modes
 
 **Standing (default).** The lane keeps watching indefinitely; idle cycles back the wakeup delay off
-toward the one-hour `ScheduleWakeup` ceiling. The `/loop` seven-day expiry bounds a standing lane per
+toward the `ScheduleWakeup` ceiling. The `/loop` seven-day expiry bounds a standing lane per
 the convention: `loop_started_at` in durable state makes the approaching expiry visible, and an expiry hit is handled exactly like a budget hit (restart-request + clean stop).
 
-Both harness bounds are verified 2026-09-06 against Claude Code 2.1.263. The one-hour ceiling comes from the [tools reference](https://code.claude.com/docs/en/tools-reference), where `ScheduleWakeup` picks the next self-paced iteration "between one minute and one hour out". The seven-day expiry comes from [Run prompts on a schedule](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry): "Recurring tasks automatically expire 7 days after creation. The task fires one final time, then deletes itself." Recheck when either page names a different bound, or when a release note names `ScheduleWakeup` or scheduled-task expiry.
+- **Pointer**: when the wakeup ceiling or the loop expiry matters, fetch [Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval) and [Seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry) live. **As of**: 2026-11-10. **Recheck trigger**: either section changes its bound, or a release note names `ScheduleWakeup` or scheduled-task expiry.
 
 **Drain (`--drain`).** The lane stops when the cycle-start snapshot shows **0 open PRs AND 0 open
 issues** in the target repository. This deliberately outlives the worker lane's exit (all issues
@@ -252,14 +252,10 @@ the record; the convention's
 [Background-job launch mode](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/loop-lane/README.md)
 paragraph owns why. Telemetry is the report surface, never the escalation channel.
 
-Verification record for the launch advice. Claim: a background session launched inside a linked git
-worktree keeps the record Write in place. Basis: Claude Code skips its pre-edit move into an
-isolated worktree when "the session is already inside a linked git worktree, whether Claude created
-it under `.claude/worktrees/` or you created it with `git worktree add` somewhere else"
-(<https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>), and a `claude --bg`
-probe from such a worktree wrote the record there (the work-loop skill's "Background-job launch
-mode" verification record carries the probe). As of 2026-09-29. Recheck trigger: that docs section
-changes its skip rules, or a Claude Code release note changes background-session isolation.
+A `claude --bg` probe from such a worktree wrote the record there; the work-loop skill's
+"Background-job launch mode" verification record carries the probe.
+
+- **Pointer**: when deciding where a background lane may launch, fetch [How file edits are isolated](https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated) live. **As of**: 2026-11-10. **Recheck trigger**: that section changes when a background session skips its worktree move, or a Claude Code release note changes background-session isolation.
 
 A non-convergence, round-cap, or pause-the-loop escalation has one extra precondition: first read
 the actual content of every unresolved review thread

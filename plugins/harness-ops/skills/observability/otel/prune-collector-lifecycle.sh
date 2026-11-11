@@ -106,25 +106,16 @@ require_windows_service() {
   fi
 }
 
-default_stop() {
+# Run one PowerShell statement against the Collector service, stdout discarded.
+service_ps() {
   require_windows_service || return 1
-  powershell.exe -NoProfile -NonInteractive -Command \
-    "\$ErrorActionPreference='Stop'; Stop-Service -Name '$COLLECTOR_SERVICE_NAME' -ErrorAction Stop" \
-    >/dev/null
+  powershell.exe -NoProfile -NonInteractive -Command "\$ErrorActionPreference='Stop'; $1" >/dev/null
 }
 
-default_start() {
-  require_windows_service || return 1
-  powershell.exe -NoProfile -NonInteractive -Command \
-    "\$ErrorActionPreference='Stop'; Start-Service -Name '$COLLECTOR_SERVICE_NAME' -ErrorAction Stop" \
-    >/dev/null
-}
-
+default_stop() { service_ps "Stop-Service -Name '$COLLECTOR_SERVICE_NAME' -ErrorAction Stop"; }
+default_start() { service_ps "Start-Service -Name '$COLLECTOR_SERVICE_NAME' -ErrorAction Stop"; }
 default_running() {
-  require_windows_service || return 1
-  powershell.exe -NoProfile -NonInteractive -Command \
-    "\$ErrorActionPreference='Stop'; try { if ((Get-Service -Name '$COLLECTOR_SERVICE_NAME' -ErrorAction Stop).Status -eq 'Stopped') { exit 1 }; exit 0 } catch { Write-Error \$_; exit 2 }" \
-    >/dev/null
+  service_ps "try { if ((Get-Service -Name '$COLLECTOR_SERVICE_NAME' -ErrorAction Stop).Status -eq 'Stopped') { exit 1 }; exit 0 } catch { Write-Error \$_; exit 2 }"
 }
 
 stop_collector() {
@@ -163,18 +154,18 @@ collector_running() {
 # Poll until the service reaches Stopped. Returns 1 if still running after POLL_MAX_TRIES and
 # 2 when service state cannot be queried. A query error is not evidence that the service stopped.
 wait_collector_gone() {
-  local tries=0 query_rc
+  local tries=0 rc
   while true; do
-    if collector_running; then
-      ((tries += 1)) || true
-      if ((tries >= POLL_MAX_TRIES)); then return 1; fi
-      sleep "$POLL_INTERVAL_SECONDS"
-      continue
-    else
-      query_rc=$?
-    fi
-    if ((query_rc == 1)); then return 0; fi
-    return 2
+    rc=0
+    collector_running || rc=$?
+    case "$rc" in
+      0) ;;
+      1) return 0 ;;
+      *) return 2 ;;
+    esac
+    tries=$((tries + 1))
+    ((tries < POLL_MAX_TRIES)) || return 1
+    sleep "$POLL_INTERVAL_SECONDS"
   done
 }
 

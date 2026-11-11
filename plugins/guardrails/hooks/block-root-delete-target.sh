@@ -931,10 +931,8 @@ if [[ "$TOOL_NAME" == "PowerShell" && ("$INPUT" == *'\r'* || "$INPUT" == *'\u000
   rdt_bs=$'\\'
   rdt_cr="${rdt_bs}r" rdt_lf="${rdt_bs}n"
   rdt_in="${INPUT//"$rdt_bs$rdt_bs"/$'\001'}"
-  rdt_in="${rdt_in//"${rdt_bs}u000d"/"$rdt_cr"}"
-  rdt_in="${rdt_in//"${rdt_bs}u000D"/"$rdt_cr"}"
-  rdt_in="${rdt_in//"${rdt_bs}u000a"/"$rdt_lf"}"
-  rdt_in="${rdt_in//"${rdt_bs}u000A"/"$rdt_lf"}"
+  rdt_in="${rdt_in//"${rdt_bs}u000"[dD]/"$rdt_cr"}"
+  rdt_in="${rdt_in//"${rdt_bs}u000"[aA]/"$rdt_lf"}"
   rdt_in="${rdt_in//"$rdt_cr$rdt_lf"/"$rdt_lf"}"
   rdt_in="${rdt_in//"$rdt_cr"/"$rdt_lf"}"
   rdt_in="${rdt_in//$'\001'/"$rdt_bs$rdt_bs"}"
@@ -1195,18 +1193,13 @@ fi
 # on purpose; the tokenizer decides.
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   rdt_ps_pre="${COMMAND,,}"
-  rdt_ps_hit=0
   case "$rdt_ps_pre" in
   *rm* | *remove-item* | *erase* | *cmd* | *rd* | *del* | *robocopy* | *frombase64* | *pwsh* | *powershell* | \
-    *move* | *mv* | *clear-content* | *set-content*) rdt_ps_hit=1 ;;
+    *move* | *mv* | *clear-content* | *set-content*) ;;
   # The Bash lane's words, for the program a bash -c or wsl runs.
-  *unlink* | *rsync* | *worktree* | *truncate* | *shred* | *of=* | *base64* | *base32* | *basenc* | *xxd*) rdt_ps_hit=1 ;;
-  *) ;;
+  *unlink* | *rsync* | *worktree* | *truncate* | *shred* | *of=* | *base64* | *base32* | *basenc* | *xxd*) ;;
+  *) [[ "$rdt_ps_pre" =~ (^|[^[:alnum:]_])(ri|mi|clc)([^[:alnum:]_]|$) ]] || exit 0 ;;
   esac
-  if ((rdt_ps_hit == 0)) && [[ "$rdt_ps_pre" =~ (^|[^[:alnum:]_])(ri|mi|clc)([^[:alnum:]_]|$) ]]; then
-    rdt_ps_hit=1
-  fi
-  ((rdt_ps_hit)) || exit 0
 else
   case "${COMMAND,,}" in
   *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove* | *mv* | *truncate* | \
@@ -1333,11 +1326,8 @@ rdt_is_root() {
   [[ "$s" =~ ^/+$ ]] && return 0
   # A UNC share root: exactly two leading slashes, a host, a share, nothing more.
   [[ "$s" =~ ^//[^/]+/[^/]+$ ]] && return 0
-  [[ "$s" =~ ^[a-z]:$ ]] && return 0
-  [[ "$s" =~ ^/[a-z]$ ]] && return 0
-  [[ "$s" =~ ^/cygdrive/[a-z]$ ]] && return 0
-  [[ "$s" =~ ^/mnt/[a-z]$ ]] && return 0
-  return 1
+  # A drive root, in its Windows, MSYS, Cygwin and WSL spellings.
+  [[ "$s" =~ ^([a-z]:|/[a-z]|/cygdrive/[a-z]|/mnt/[a-z])$ ]]
 }
 
 # rdt_runuser_argv <offset> <words after runuser>: read runuser's argv the way
@@ -1426,9 +1416,11 @@ rdt_runuser_argv() {
           val="${a[k]-}"
           ((k < n)) && k=$((k + 1))
         fi
-        [[ "$hit" == "command" || "$hit" == "session-command" ]] && RDT_RU_CMDS+=("$val")
-        # su builds `sh -c -- CMD` from an operand of `--`, so CMD is the next word.
-        [[ ("$hit" == "command" || "$hit" == "session-command") && "$val" == "--" ]] && ((k < n)) && RDT_RU_CMDS+=("${a[k]}")
+        if [[ "$hit" == "command" || "$hit" == "session-command" ]]; then
+          RDT_RU_CMDS+=("$val")
+          # su builds `sh -c -- CMD` from an operand of `--`, so CMD is the next word.
+          [[ "$val" == "--" ]] && ((k < n)) && RDT_RU_CMDS+=("${a[k]}")
+        fi
         [[ "$hit" == "user" ]] && RDT_RU_U=1
         [[ "$hit" == "shell" ]] && RDT_RU_SHELL="$val"
         ;;
@@ -2020,7 +2012,7 @@ rdt_nearest_to() {
     if [[ "$2" == -d ]]; then [[ -d "$__rn_a" ]] && break; else [[ -e "$__rn_a" ]] && break; fi
     rdt_parent_to __rn_a "$__rn_a"
   done
-  if [[ "$2" == -d ]]; then [[ -d "$__rn_a" ]] || __rn_a=""; fi
+  [[ "$2" == -d && ! -d "$__rn_a" ]] && __rn_a=""
   printf -v "$1" '%s' "$__rn_a"
 }
 
@@ -2440,9 +2432,7 @@ rdt_resolve_all() {
   done
   ((${#todo[@]})) || return 0
   local ok=0
-  if [[ "${todo[*]}" != *$'\n'* ]] && rdt_lines_to lines "${#todo[@]}" realpath -m -- "${todo[@]}"; then
-    ok=1
-  fi
+  [[ "${todo[*]}" != *$'\n'* ]] && rdt_lines_to lines "${#todo[@]}" realpath -m -- "${todo[@]}" && ok=1
   for ((i = 0; i < ${#todo[@]}; i++)); do
     if ((ok)) && [[ -n "${lines[i]}" ]]; then
       res[i]="${lines[i]}"
@@ -2548,14 +2538,12 @@ rdt_split_existing() {
 # gives no tree, so the failure lands on the refusal side.
 declare -A RDT_TREE=()
 rdt_tree_to() {
-  local o="$2" d out rc=0
+  local o="$2" d="" out="" rc=0
   if [[ -n "${RDT_TREE[$o]+x}" ]]; then
     printf -v "$1" '%s' "${RDT_TREE[$o]}"
     return 0
   fi
-  d=""
   rdt_is_unc "$o" || rdt_nearest_to d -d "$o"
-  out=""
   if [[ -n "$d" ]]; then
     # Bounded like the batch resolvers: a git that stalls (a slow network
     # mount, a locked repository) would otherwise carry the hook past the
@@ -2960,6 +2948,23 @@ rdt_add_literal() {
   rdt_add_pair "$t" "$RDT_PL_MODE" "" "$2"
 }
 
+# rdt_compared_to <var> <path>: <path> as rdt_resolve_all resolved it and
+# rdt_winmap_all mapped it, in the spelling two paths are compared in.
+rdt_compared_to() {
+  rdt_canon_to "$1" "${RDT_WMAP[${RDT_RES[$2]}]}"
+}
+
+# rdt_allowed_root_to <var> <path>: rdt_compared_to for an allowed root or a
+# name-prefix or segment entry's directory. Returns 1 for one that grants
+# nothing: `/` before the mapping, or a filesystem root or HOME after it.
+rdt_allowed_root_to() {
+  local __ar_t
+  [[ "${RDT_RES[$2]}" != / ]] || return 1
+  rdt_compared_to __ar_t "$2"
+  { rdt_root_like "$__ar_t" || rdt_is_root "${__ar_t,,}" || [[ "$__ar_t" == "$RDT_HOMEC" ]]; } && return 1
+  printf -v "$1" '%s' "$__ar_t"
+}
+
 # rdt_judge_pending: the outside-tree judgment, once, after both passes.
 rdt_judge_pending() {
   local np=${#RDT_P_TEXT[@]}
@@ -3210,21 +3215,21 @@ rdt_judge_pending() {
   rdt_deadline
   RDT_TEMPC=()
   for c in ${temps[@]+"${temps[@]}"}; do
-    rdt_canon_to t "${RDT_WMAP[${RDT_RES[$c]}]}"
+    rdt_compared_to t "$c"
     rdt_root_like "$t" || RDT_TEMPC+=("$t")
   done
   # The scratchpad counts only strictly under a temp root, where a harness
   # puts it; a payload naming anywhere else as its scratchpad is ignored.
   RDT_SPC=""
   if [[ -n "$sp" ]]; then
-    rdt_canon_to c "${RDT_WMAP[${RDT_RES[$sp]}]}"
+    rdt_compared_to c "$sp"
     for t in ${RDT_TEMPC[@]+"${RDT_TEMPC[@]}"}; do
       [[ "$c" == "$t"/* ]] && RDT_SPC="$c" && break
     done
   fi
   RDT_TREEC=""
   if [[ -n "$tree" ]]; then
-    rdt_canon_to t "${RDT_WMAP[${RDT_RES[$tree]}]}"
+    rdt_compared_to t "$tree"
     rdt_root_like "$t" || RDT_TREEC="$t"
   fi
   # An allowed root, or a name-prefix or segment entry's directory, that is a
@@ -3238,23 +3243,17 @@ rdt_judge_pending() {
   RDT_SNAME=()
   RDT_HOMEC=""
   if [[ -n "$home" ]]; then
-    rdt_canon_to RDT_HOMEC "${RDT_WMAP[${RDT_RES[$home]}]}"
+    rdt_compared_to RDT_HOMEC "$home"
     for c in ${allow[@]+"${allow[@]}"}; do
-      [[ "${RDT_RES[$c]}" == / ]] && continue
-      rdt_canon_to t "${RDT_WMAP[${RDT_RES[$c]}]}"
-      rdt_root_like "$t" || rdt_is_root "${t,,}" || [[ "$t" == "$RDT_HOMEC" ]] || RDT_ALLOWC+=("$t")
+      rdt_allowed_root_to t "$c" && RDT_ALLOWC+=("$t")
     done
     for ((k = 0; k < ${#pdir[@]}; k++)); do
-      [[ "${RDT_RES[${pdir[k]}]}" == / ]] && continue
-      rdt_canon_to t "${RDT_WMAP[${RDT_RES[${pdir[k]}]}]}"
-      { rdt_root_like "$t" || rdt_is_root "${t,,}" || [[ "$t" == "$RDT_HOMEC" ]]; } && continue
+      rdt_allowed_root_to t "${pdir[k]}" || continue
       RDT_PDIRC+=("$t")
       RDT_PNAME+=("${pname[k]}")
     done
     for ((k = 0; k < ${#sdir[@]}; k++)); do
-      [[ "${RDT_RES[${sdir[k]}]}" == / ]] && continue
-      rdt_canon_to t "${RDT_WMAP[${RDT_RES[${sdir[k]}]}]}"
-      { rdt_root_like "$t" || rdt_is_root "${t,,}" || [[ "$t" == "$RDT_HOMEC" ]]; } && continue
+      rdt_allowed_root_to t "${sdir[k]}" || continue
       RDT_SDIRC+=("$t")
       RDT_SNAME+=("${sname[k]}")
     done
@@ -3268,7 +3267,7 @@ rdt_judge_pending() {
     RDT_PROT_BW+=("the git toplevel of the working directory")
   fi
   for c in ${wts[@]+"${wts[@]}"}; do
-    rdt_canon_to t "${RDT_WMAP[${RDT_RES[$c]}]}"
+    rdt_compared_to t "$c"
     rdt_root_like "$t" && continue
     RDT_PROT_B+=("$t")
     RDT_PROT_BW+=("a worktree root git has registered")
@@ -3276,14 +3275,14 @@ rdt_judge_pending() {
   RDT_PROT_A=()
   RDT_PROT_AW=()
   if [[ -n "$hcl" ]]; then
-    rdt_canon_to t "${RDT_WMAP[${RDT_RES[$hcl]}]}"
+    rdt_compared_to t "$hcl"
     RDT_PROT_A+=("$t")
     # shellcheck disable=SC2088  # the label names the directory, nothing expands it
     RDT_PROT_AW+=("~/.claude")
   fi
   # A listed tree that is a filesystem root is dropped, as an allowed root is.
   for c in ${prot[@]+"${prot[@]}"}; do
-    rdt_canon_to t "${RDT_WMAP[${RDT_RES[$c]}]}"
+    rdt_compared_to t "$c"
     { rdt_root_like "$t" || rdt_is_root "${t,,}"; } && continue
     RDT_PROT_A+=("$t")
     RDT_PROT_AW+=("a tree in block_root_delete_target_protected_trees")
@@ -3343,7 +3342,7 @@ rdt_judge_pending() {
 # rdt_check_segment through bash's dynamic scope.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_sink_check() {
-  local k=$(($1 + 1)) b w c=0 s=0 stdin=0 last=$((n - 1)) split=0 open=0
+  local k=$(($1 + 1)) b w c=0 s=0 last=$((n - 1)) split=0 open=0
   local -a herestr=() q0=()
   ((${rdt_flat:-1})) || open=1
   [[ "${words[last]}" == *'$' && "${HOOK_SEG_WORD_QUOTED[last]:-0}" == 0 ]] && split=$open
@@ -3359,9 +3358,7 @@ rdt_sink_check() {
     ((open && (k >= n || split))) && rdt_sink=1
     return 0
     ;;
-  source | .)
-    ((k >= n)) || [[ "${words[k]}" == /dev/stdin || "${words[k]}" == /dev/fd/0 || "${words[k]}" == /proc/self/fd/0 ]] && stdin=1
-    ;;
+  source | .) ;;
   bash | sh | zsh | dash | ksh | mksh)
     while ((k < n)); do
       w="${words[k]}"
@@ -3385,26 +3382,21 @@ rdt_sink_check() {
       ((open && (k >= n || (split && k == last)))) && rdt_sink=1
       return 0
     fi
-    ((s || k >= n)) || [[ "${words[k]}" == /dev/stdin || "${words[k]}" == /dev/fd/0 || "${words[k]}" == /proc/self/fd/0 ]] && stdin=1
     ;;
   *) return 0 ;;
   esac
-  ((stdin)) || return 0
+  ((s || k >= n)) || [[ "${words[k]}" == /dev/stdin || "${words[k]}" == /dev/fd/0 || "${words[k]}" == /proc/self/fd/0 ]] || return 0
   ((${rdt_dec_feed:-0})) && rdt_block "decoder-sink"
   ((open && k >= n)) && rdt_sink=1
   # The program it reads (SHELLS AND LAUNCHERS FROM BASH in the header): the
   # last redirection of fd 0, else the text the command before writes into the
   # pipe. A heredoc body is judged once the parse has it (rdt_ix_heredocs).
-  local r=-1 nh=0 hd=0 prog="" has=0 dec=0
-  for ((c = 0; c < ${#HOOK_SEG_REDIR_OP[@]}; c++)); do
-    [[ "${HOOK_SEG_REDIR_OP[c]}" == '<<' || "${HOOK_SEG_REDIR_OP[c]}" == '<<-' ]] && nh=$((nh + 1))
-    [[ "${HOOK_SEG_REDIR_OP[c]}" == '<'* && "${HOOK_SEG_REDIR_FD[c]:-0}" == 0 ]] || continue
-    r=$c
-    hd=$((nh - 1))
-  done
+  local r hd prog="" has=0 dec=0
+  rdt_stdin_redir
+  r=$RDT_IN_R hd=$RDT_IN_HD
   if ((r >= 0)); then
     case "${HOOK_SEG_REDIR_OP[r]}" in
-    '<<' | '<<-') [[ -n "${rdt_hd_at-}" ]] && rdt_hd_shell "$((rdt_hd_at + hd))" "${HOOK_SEG_REDIR_TARGET[r]-}" ;;
+    '<<' | '<<-') [[ -n "${rdt_hd_at-}" ]] && rdt_hd_prog "$((rdt_hd_at + hd))" "${HOOK_SEG_REDIR_TARGET[r]-}" sh ;;
     '<<<')
       prog="${HOOK_SEG_REDIR_TARGET[r]-}"
       has=1
@@ -3420,7 +3412,7 @@ rdt_sink_check() {
       ;;
     h*)
       w="${rdt_text_feed:1}"
-      rdt_hd_shell "${w%%:*}" "${w#*:}"
+      rdt_hd_prog "${w%%:*}" "${w#*:}" sh
       ;;
     x) rdt_block "eval-too-long" ;;
     *) ;;
@@ -3447,12 +3439,29 @@ rdt_sink_check() {
   return 0
 }
 
-# rdt_hd_shell <heredoc index> <delimiter>: the heredoc a shell reads as its
-# program, judged as shell text once the parse has its body, under the
-# directory-change state of the shell that reads it (rdt_ix_heredocs).
-# shellcheck disable=SC2329  # invoked from rdt_sink_check
-rdt_hd_shell() {
-  rdt_hd_lang[$1]='sh'
+# rdt_stdin_redir: the last redirection of fd 0 among HOOK_SEG_REDIR_*, into
+# RDT_IN_R (its index, -1 for none) and RDT_IN_HD (when it is a heredoc, its
+# index among the segment's heredocs).
+# shellcheck disable=SC2329  # invoked from rdt_sink_check and rdt_interp_check
+rdt_stdin_redir() {
+  local c nh=0
+  RDT_IN_R=-1 RDT_IN_HD=-1
+  for ((c = 0; c < ${#HOOK_SEG_REDIR_OP[@]}; c++)); do
+    [[ "${HOOK_SEG_REDIR_OP[c]}" == '<<' || "${HOOK_SEG_REDIR_OP[c]}" == '<<-' ]] && nh=$((nh + 1))
+    [[ "${HOOK_SEG_REDIR_OP[c]}" == '<'* && "${HOOK_SEG_REDIR_FD[c]:-0}" == 0 ]] || continue
+    RDT_IN_R=$c
+    RDT_IN_HD=$((nh - 1))
+  done
+  return 0
+}
+
+# rdt_hd_prog <heredoc index> <delimiter> <lang>: the heredoc a shell (sh) or
+# an interpreter reads as its program, judged in <lang> once the parse has its
+# body, under the directory-change state of the command that reads it
+# (rdt_ix_heredocs).
+# shellcheck disable=SC2329  # invoked from rdt_sink_check and rdt_interp_check
+rdt_hd_prog() {
+  rdt_hd_lang[$1]="$3"
   rdt_hd_st[$1]="${#RDT_ORIGINS[@]} $rdt_cd_unknown $rdt_cd_refuse $2"
 }
 
@@ -3473,6 +3482,48 @@ rdt_shell_prog() {
     [[ "$d" == "$t" ]] || rdt_shell_prog "$d" 0
   fi
   return 0
+}
+
+# rdt_env_split_check <operand> <index of the first word after it>: GNU env's
+# -S splits <operand> and runs the result, so the split words, spliced ahead of
+# the words that follow, are judged as a segment of their own. The provenance
+# array is cleared because it belongs to the OUTER parse and its indices do
+# not describe these words; a stale 1 would read an empty word as a dropped
+# backslash. Reads words from rdt_check_segment through bash's dynamic scope.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment
+rdt_env_split_check() {
+  hook::env_s_split "$1"
+  HOOK_SEG_WORD_QUOTED=()
+  rdt_check_segment ${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} \
+    ${words[@]+"${words[@]:$2}"}
+}
+
+# rdt_parse_words <first index>: the words from <first index> on, joined with
+# a space as eval and `sh -c` join them, parsed as shell text and charged to
+# the eval budget. An operand a trailing backslash produced arrives EMPTY (the
+# tokenizer has no character left to emit), so a join by text would drop it
+# and `eval rm -rf \` would pass: an empty word of provenance 1 is restored to
+# its literal `\` first. Reads words, n and HOOK_SEG_WORD_QUOTED from
+# rdt_check_segment through bash's dynamic scope, before the re-parse
+# rebuilds the last.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment and rdt_watch_check
+rdt_parse_words() {
+  local j text
+  local -a ev=()
+  for ((j = $1; j < n; j++)); do
+    if [[ -z "${words[j]}" ]] && ((${HOOK_SEG_WORD_QUOTED[j]:-0} == 1)); then
+      # shellcheck disable=SC1003  # a literal backslash character, not a quote escape
+      ev+=('\')
+    else
+      ev+=("${words[j]}")
+    fi
+  done
+  # Nested evals re-tokenize nearly the whole command at every level, the same
+  # multiplication the substitution budget exists to stop.
+  text="${ev[*]}"
+  rdt_scanned=$((rdt_scanned + ${#text}))
+  ((rdt_scanned > MAX_COMMAND_LEN)) && rdt_block "eval-too-long"
+  rdt_parse "$text"
 }
 
 # rdt_check_segment <argv word>...: one simple command, as the shell would build
@@ -3730,24 +3781,12 @@ rdt_check_segment() {
         if [[ "$base" == "env" ]]; then
           case "$w" in
           -S | --split-string)
-            sval=""
-            ((i + 1 < n)) && sval="${words[i + 1]}"
-            hook::env_s_split "$sval"
-            # Cleared because the provenance array belongs to the OUTER parse
-            # and its indices do not describe these words; a stale 1 here would
-            # read an empty word as a dropped backslash.
-            HOOK_SEG_WORD_QUOTED=()
-            rdt_check_segment ${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} \
-              ${words[@]+"${words[@]:i+2}"}
+            rdt_env_split_check "${words[i + 1]-}" "$((i + 2))"
             return 0
             ;;
           -S* | --split-string=*)
             sval="${w#-S}"
-            sval="${sval#--split-string=}"
-            hook::env_s_split "$sval"
-            HOOK_SEG_WORD_QUOTED=()
-            rdt_check_segment ${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} \
-              ${words[@]+"${words[@]:i+1}"}
+            rdt_env_split_check "${sval#--split-string=}" "$((i + 1))"
             return 0
             ;;
           --s*)
@@ -3759,15 +3798,9 @@ rdt_check_segment() {
             if [[ "split-string" == "${sval%%=*}"* ]]; then
               local -a env_q=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
               if [[ "$w" == *=* ]]; then
-                hook::env_s_split "${w#*=}"
-                HOOK_SEG_WORD_QUOTED=()
-                rdt_check_segment ${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} \
-                  ${words[@]+"${words[@]:i+1}"}
+                rdt_env_split_check "${w#*=}" "$((i + 1))"
               elif ((i + 1 < n)); then
-                hook::env_s_split "${words[i + 1]}"
-                HOOK_SEG_WORD_QUOTED=()
-                rdt_check_segment ${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} \
-                  ${words[@]+"${words[@]:i+2}"}
+                rdt_env_split_check "${words[i + 1]}" "$((i + 2))"
               fi
               HOOK_SEG_WORD_QUOTED=(${env_q[@]+"${env_q[@]}"})
             fi
@@ -3941,30 +3974,8 @@ rdt_check_segment() {
   # unwrap above never applies to it: there is no `-c` and no new process. Its
   # arguments are joined with a space, exactly as eval joins them, and parsed.
   # Bounded because each level drops at least the `eval` word itself.
-  #
-  # An operand a trailing backslash produced arrives EMPTY (the tokenizer has
-  # no character left to emit), so a join by text would hand the re-parse
-  # `rm -rf ` with no operand at all and `eval rm -rf \` would pass. The
-  # literal `\` is restored first, by the same provenance test the operand loop
-  # below uses, and `HOOK_SEG_WORD_QUOTED` is read HERE because the re-parse
-  # rebuilds it.
   if [[ "$base" == "eval" ]] && ((i + 1 < n)); then
-    local -a ev=()
-    for ((j = i + 1; j < n; j++)); do
-      if [[ -z "${words[j]}" ]] && ((${HOOK_SEG_WORD_QUOTED[j]:-0} == 1)); then
-        # shellcheck disable=SC1003  # a literal backslash character, not a quote escape
-        ev+=('\')
-      else
-        ev+=("${words[j]}")
-      fi
-    done
-    # The joined text is charged to the same tokenizing budget as a
-    # substitution body: nested evals re-tokenize nearly the whole command at
-    # every level, which is the same multiplication the budget exists to stop.
-    local evtext="${ev[*]}"
-    rdt_scanned=$((rdt_scanned + ${#evtext}))
-    ((rdt_scanned > MAX_COMMAND_LEN)) && rdt_block "eval-too-long"
-    rdt_parse "$evtext"
+    rdt_parse_words "$((i + 1))"
     return 0
   fi
 
@@ -4148,8 +4159,8 @@ rdt_delete_operand() {
 # through bash's dynamic scope.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_watch_check() {
-  local k=$(($1 + 1)) x=0 w j c l hit text
-  local -a q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"}) ev=()
+  local k=$(($1 + 1)) x=0 w j c l hit
+  local -a q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
   while ((k < n)); do
     w="${words[k]}"
     case "$w" in
@@ -4199,18 +4210,7 @@ rdt_watch_check() {
     HOOK_SEG_WORD_QUOTED=(${q0[@]+"${q0[@]:k}"})
     rdt_check_segment "${words[@]:k}"
   else
-    for ((j = k; j < n; j++)); do
-      if [[ -z "${words[j]}" ]] && ((${q0[j]:-0} == 1)); then
-        # shellcheck disable=SC1003  # a literal backslash character, not a quote escape
-        ev+=('\')
-      else
-        ev+=("${words[j]}")
-      fi
-    done
-    text="${ev[*]}"
-    rdt_scanned=$((rdt_scanned + ${#text}))
-    ((rdt_scanned > MAX_COMMAND_LEN)) && rdt_block "eval-too-long"
-    rdt_parse "$text"
+    rdt_parse_words "$k"
   fi
   HOOK_SEG_WORD_QUOTED=(${q0[@]+"${q0[@]}"})
   return 0
@@ -4297,7 +4297,7 @@ rdt_cmd_check() {
 # dynamic scope.
 # shellcheck disable=SC2329  # invoked from rdt_cmd_check
 rdt_cmd_rd_bash() {
-  local j b lw p sw='^(/[sq?]+)+$' rec=0 dl=0
+  local j b lw p q sw='^(/[sq?]+)+$' rec=0 dl=0
   local -a pi=()
   b="${words[$1]##*[\\/]}"
   b="${b,,}"
@@ -4321,11 +4321,9 @@ rdt_cmd_rd_bash() {
   ((${#pi[@]} || dl)) || rdt_block "empty-operand"
   for j in ${pi[@]+"${pi[@]}"}; do
     rdt_cmd_pct_to p "${words[j]}"
-    if [[ "$p" == "${words[j]}" ]]; then
-      rdt_delete_operand "$p" "${q0[j]:-0}"
-    else
-      rdt_delete_operand "$p" 0
-    fi
+    q=0
+    [[ "$p" == "${words[j]}" ]] && q="${q0[j]:-0}"
+    rdt_delete_operand "$p" "$q"
   done
   return 0
 }
@@ -4509,6 +4507,16 @@ rdt_robocopy_scan() {
   return 0
 }
 
+# rdt_may_split <index>: status 0 when that word may become more words or
+# none: a brace, a glob or an unquoted expansion, or a quoted "$@" or
+# "${a[@]}". Reads words and HOOK_SEG_WORD_QUOTED from rdt_check_segment
+# through bash's dynamic scope.
+# shellcheck disable=SC2329  # invoked from rdt_robocopy_check and rdt_content_check
+rdt_may_split() {
+  [[ "${words[$1]}" == *'$@'* || "${words[$1]}" == *'[@]}'* ]] ||
+    { ((${HOOK_SEG_WORD_QUOTED[$1]:-0} != 2)) && [[ "${words[$1]}" == *['{*?[$`']* ]]; }
+}
+
 # rdt_robocopy_check <index of the robocopy word>: a robocopy carrying /MIR,
 # /PURGE, /MOVE or /MOV has the destination or the source it deletes from
 # judged as an operand of a recursive rm (ROBOCOPY DELETES in the header).
@@ -4563,8 +4571,7 @@ rdt_robocopy_check() {
   # conversion state is unknown.
   ((unknown)) && tg=(${op[@]+"${op[@]}"})
   for k in ${op[@]+"${op[@]}"}; do
-    if [[ "${words[k]}" == *'$@'* || "${words[k]}" == *'[@]}'* ]] ||
-      { ((${HOOK_SEG_WORD_QUOTED[k]:-0} != 2)) && [[ "${words[k]}" == *['{*?[$`']* ]]; }; then
+    if rdt_may_split "$k"; then
       tg=("${op[@]}")
       break
     fi
@@ -4720,7 +4727,7 @@ rdt_gnu_scan() {
 # rdt_check_segment through bash's dynamic scope.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_content_check() {
-  local k w every=0 of=0
+  local k w of=0
   local -a tg=()
   # Under xargs or parallel the items read are appended as operands, so they
   # are judged as this command's targets whatever it names itself. A dd whose
@@ -4757,13 +4764,7 @@ rdt_content_check() {
   # do the items xargs or parallel may append after it, so with either every
   # operand is judged.
   if [[ "$2" == mv && "$RDT_GNU_SEEN" != *t* ]] && ((${#tg[@]} > 1 && rdt_fed == 0)); then
-    k="${tg[${#tg[@]} - 1]}"
-    w="${words[k]}"
-    if [[ "$w" == *'$@'* || "$w" == *'[@]}'* ]] ||
-      { ((${HOOK_SEG_WORD_QUOTED[k]:-0} != 2)) && [[ "$w" == *['{*?[$`']* ]]; }; then
-      every=1
-    fi
-    ((every)) || unset "tg[$((${#tg[@]} - 1))]"
+    rdt_may_split "${tg[${#tg[@]} - 1]}" || unset "tg[$((${#tg[@]} - 1))]"
   fi
   for k in ${tg[@]+"${tg[@]}"}; do
     rdt_delete_operand "${words[k]}" "${HOOK_SEG_WORD_QUOTED[k]:-0}"
@@ -4797,7 +4798,7 @@ RDT_IX_KWARG_RE=$'^([A-Za-z_][A-Za-z0-9_]*:([^:]|$)|:[A-Za-z_][A-Za-z0-9_]*[[:sp
 # scope.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_interp_check() {
-  local lang k j w c rest stdin=1 stop=0 last=-1 hd=-1 nh=0 rop
+  local lang k j w c rest stdin=1 stop=0 last
   local -a code=() q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
   case "$2" in
   py | python* | pypy*) lang=py ;;
@@ -4893,24 +4894,14 @@ rdt_interp_check() {
   # With no code option and no script, the program is stdin: the last
   # redirection of fd 0 says what that is.
   if ((stdin && ${#code[@]} == 0)); then
-    for ((j = 0; j < ${#HOOK_SEG_REDIR_OP[@]}; j++)); do
-      rop="${HOOK_SEG_REDIR_OP[j]}"
-      [[ "$rop" == '<<' || "$rop" == '<<-' ]] && nh=$((nh + 1))
-      [[ "$rop" == '<'* && "${HOOK_SEG_REDIR_FD[j]:-0}" == 0 ]] || continue
-      last=$j
-      hd=$((nh - 1))
-    done
+    rdt_stdin_redir
+    last=$RDT_IN_R
     if ((last >= 0)); then
       case "${HOOK_SEG_REDIR_OP[last]}" in
       '<<<') code+=("${HOOK_SEG_REDIR_TARGET[last]-}") ;;
-      '<<' | '<<-')
-        # The body is read once the parse has it, as if from here: its
-        # delimiter, to check the index, and the directory-change state.
-        if [[ -n "${rdt_hd_at-}" ]]; then
-          rdt_hd_lang[rdt_hd_at + hd]="$lang"
-          rdt_hd_st[rdt_hd_at + hd]="${#RDT_ORIGINS[@]} $rdt_cd_unknown $rdt_cd_refuse ${HOOK_SEG_REDIR_TARGET[last]-}"
-        fi
-        ;;
+      # The body is read once the parse has it, as if from here: its
+      # delimiter, to check the index, and the directory-change state.
+      '<<' | '<<-') [[ -n "${rdt_hd_at-}" ]] && rdt_hd_prog "$((rdt_hd_at + RDT_IN_HD))" "${HOOK_SEG_REDIR_TARGET[last]-}" "$lang" ;;
       *) ;;
       esac
     fi
@@ -5329,7 +5320,6 @@ rdt_ix_calls() {
   local re="$2" m="$ix_m" name t pl imp
   local re_open='^[[:space:]]*\(' re_bare='^[[:blank:]]+[^][:space:]=,.;)}|&?+*/<>!~{-]'
   local re_end=$'^[[:blank:]]*([;}\n]|$)'
-  local -a cargs=()
   while [[ "$m" =~ $re ]]; do
     rdt_deadline
     name="${BASH_REMATCH[2]}"
@@ -5349,13 +5339,12 @@ rdt_ix_calls() {
       continue
     fi
     rdt_ix_split "$t" "$pl"
-    cargs=(${RDT_IX_ARGS[@]+"${RDT_IX_ARGS[@]}"})
-    if ((imp && ${#cargs[@]} == 0)); then
+    if ((imp && ${#RDT_IX_ARGS[@]} == 0)); then
       rdt_ix_unplaceable '$_'
     elif [[ "$1" == del ]]; then
-      rdt_ix_del ${cargs[@]+"${cargs[@]}"}
+      rdt_ix_del ${RDT_IX_ARGS[@]+"${RDT_IX_ARGS[@]}"}
     else
-      rdt_ix_run "$name" ${cargs[@]+"${cargs[@]}"}
+      rdt_ix_run "$name" ${RDT_IX_ARGS[@]+"${RDT_IX_ARGS[@]}"}
     fi
   done
   return 0
@@ -5446,28 +5435,19 @@ rdt_ix_del() {
 # shellcheck disable=SC2329  # invoked from rdt_ix_del
 rdt_ix_target() {
   local e
-  local -a el=()
-  if [[ "$1" =~ $RDT_IX_PH_RE ]]; then
-    if [[ "${BASH_REMATCH[1]}" == s ]]; then
-      rdt_ix_path "${ix_v[BASH_REMATCH[2]]}"
-    else
-      rdt_ix_unplaceable "$1"
-    fi
-    return 0
-  fi
+  local -a el=("$1")
   if [[ "$1" == '['*']' ]]; then
     rdt_ix_split "${1:1:${#1}-2}" 0
     el=(${RDT_IX_ARGS[@]+"${RDT_IX_ARGS[@]}"})
-    for e in ${el[@]+"${el[@]}"}; do
-      if [[ "$e" =~ $RDT_IX_PH_RE ]] && [[ "${BASH_REMATCH[1]}" == s ]]; then
-        rdt_ix_path "${ix_v[BASH_REMATCH[2]]}"
-      else
-        rdt_ix_unplaceable "$e"
-      fi
-    done
-    return 0
   fi
-  rdt_ix_unplaceable "$1"
+  for e in ${el[@]+"${el[@]}"}; do
+    if [[ "$e" =~ $RDT_IX_PH_RE ]] && [[ "${BASH_REMATCH[1]}" == s ]]; then
+      rdt_ix_path "${ix_v[BASH_REMATCH[2]]}"
+    else
+      rdt_ix_unplaceable "$e"
+    fi
+  done
+  return 0
 }
 
 # rdt_ix_path <value>: a literal path a deleter is given, judged as an
@@ -5590,11 +5570,9 @@ rdt_ix_word_to() {
 # shellcheck disable=SC2329  # invoked from rdt_ix_run
 rdt_ix_list() {
   local e w
-  local -a el=()
   rdt_ix_split "${1:1:${#1}-2}" 0
-  el=(${RDT_IX_ARGS[@]+"${RDT_IX_ARGS[@]}"})
   RDT_IX_L=()
-  for e in ${el[@]+"${el[@]}"}; do
+  for e in ${RDT_IX_ARGS[@]+"${RDT_IX_ARGS[@]}"}; do
     if rdt_ix_word_to w "$e"; then RDT_IX_L+=("$w"); else RDT_IX_L+=("$RDT_IX_HOLE"); fi
   done
 }
@@ -5632,7 +5610,7 @@ rdt_ix_shell() {
 # HOOK_SEG_WORD_QUOTED from its caller through bash's dynamic scope.
 # shellcheck disable=SC2329  # invoked from rdt_find_check and rdt_feed_class
 rdt_find_scan() {
-  local k w c key del=0 files0=0 gnu=0 follow=0
+  local k w c key del=0 files0=0 follow=0
   local -a sw=() sq=()
   local -A seen=()
   RDT_FIND_OUT=1
@@ -5682,10 +5660,9 @@ rdt_find_scan() {
     [[ "$w" == -* || "$w" == '(' || "$w" == '!' ]] && break
     sw+=("$w")
     sq+=("${HOOK_SEG_WORD_QUOTED[k]:-0}")
-    gnu=1
     k=$((k + 1))
   done
-  if ((gnu == 0 && files0 == 0)); then
+  if ((${#sw[@]} == 0 && files0 == 0)); then
     sw+=(.)
     sq+=(0)
   fi
@@ -6128,7 +6105,7 @@ rdt_feed_judge() {
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_xargs_check() {
   local k=$(($1 + 1)) c w x name hit src="$rdt_seg_feed" rdt_deleter=0 rdt_fed=1
-  local -a q0=()
+  local -a q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
   while ((k < n)); do
     w="${words[k]}"
     case "$w" in
@@ -6179,7 +6156,6 @@ rdt_xargs_check() {
     k=$((k + 1))
   done
   ((k < n)) || return 0
-  q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
   HOOK_SEG_WORD_QUOTED=(${q0[@]+"${q0[@]:k}"})
   rdt_check_segment "${words[@]:k}"
   HOOK_SEG_WORD_QUOTED=(${q0[@]+"${q0[@]}"})
@@ -6915,34 +6891,6 @@ rdt_ps_quote_gap() {
 }
 hook::_c_locale rdt_ps_quote_gap && rdt_ps_lit_kept=0
 
-# rdt_ps_param_to <var> <token>: canonical Remove-Item parameter name, empty
-# when the token is not a unique prefix of one. Token includes the leading
-# dash; a :value suffix is ignored for the name.
-rdt_ps_param_to() {
-  local __name="${2#-}"
-  __name="${__name%%:*}"
-  __name="${__name,,}"
-  local __hit="" __hits=0 __p
-  for __p in confirm credential debug erroraction errorvariable exclude filter \
-    force include informationaction informationvariable literalpath outbuffer \
-    outvariable pipelinevariable path recurse stream usetransaction verbose \
-    warningaction warningvariable whatif; do
-    if [[ "$__p" == "$__name" ]]; then
-      printf -v "$1" '%s' "$__p"
-      return 0
-    fi
-    if [[ -n "$__name" && "$__p" == "$__name"* ]]; then
-      __hit="$__p"
-      __hits=$((__hits + 1))
-    fi
-  done
-  if ((__hits == 1)); then
-    printf -v "$1" '%s' "$__hit"
-  else
-    printf -v "$1" '%s' ""
-  fi
-}
-
 # rdt_ps_cmd_split_to <nameref> <text>: cmd.exe-ish whitespace split of one /c
 # operand. Double quotes group; a backslash is literal; an empty quoted span
 # is an empty word.
@@ -7110,14 +7058,10 @@ rdt_ps_cmd_rd() {
   done
   ((__rec)) || return 0
   ((__del && ${#__paths[@]} == 0)) && return 0
-  if ((${#__paths[@]} == 0)); then
-    rdt_block "empty-operand"
-  fi
+  ((${#__paths[@]})) || rdt_block "empty-operand"
   local __p
   for __p in "${__paths[@]}"; do
-    if [[ -z "$__p" ]]; then
-      rdt_block "empty-operand"
-    fi
+    [[ -n "$__p" ]] || rdt_block "empty-operand"
     rdt_ps_operand "$__p"
   done
 }
@@ -7224,23 +7168,23 @@ rdt_ps_cmd_from() {
   done
 }
 
-# rdt_ps_ri_args <start-index>: argv after a Remove-Item family command word,
-# passed as the remainder of the statement array in "$@".
+# rdt_ps_ri_check <word>...: the words after a Remove-Item family command word.
 # shellcheck disable=SC2016,SC2329  # literal `$(` grouping; invoked from rdt_ps_statement
 rdt_ps_ri_check() {
   local -a __w=("$@")
-  local __i=0 __rec=0 __param __raw __att __vm
+  local __i=0 __rec=0 __param __att __vm
   local -a __paths=()
   while ((__i < ${#__w[@]})); do
     local __v="${__w[__i]}"
     if [[ "$__v" == -* && "$__v" != - ]]; then
-      rdt_ps_param_to __param "$__v"
-      __raw="${__v#-}"
-      __raw="${__raw%%:*}"
-      __raw="${__raw,,}"
-      if [[ "$__raw" == "rf" || "$__raw" == "fr" ]]; then
-        __rec=1
-      fi
+      rdt_ps_pick_to __param "$__v" confirm credential debug erroraction errorvariable \
+        exclude filter force include informationaction informationvariable literalpath \
+        outbuffer outvariable pipelinevariable path recurse stream usetransaction verbose \
+        warningaction warningvariable whatif
+      case "${__v,,}" in
+      -rf | -fr | -rf:* | -fr:*) __rec=1 ;;
+      *) ;;
+      esac
       case "$__param" in
       recurse)
         if [[ "$__v" == *:* ]]; then
@@ -7304,29 +7248,14 @@ rdt_ps_ri_check() {
     return 0
   fi
   ((__rec)) || return 0
-  if ((${#__paths[@]} == 0)); then
-    rdt_block "empty-operand"
-  fi
+  ((${#__paths[@]})) || rdt_block "empty-operand"
   for __p in "${__paths[@]}"; do
-    if [[ -z "$__p" ]]; then
-      rdt_block "empty-operand"
-    fi
+    [[ -n "$__p" ]] || rdt_block "empty-operand"
     # The walker's placeholder for a `( )` grouping or a `{ }` scriptblock
     # named as a target: what it evaluates to is not known.
     [[ "$__p" == "(" || "$__p" == "{" ]] && rdt_block "pipeline-target" "$__p"
     rdt_ps_operand "$__p"
   done
-}
-
-# rdt_ps_rest <i>: remaining words of "$@" from index <i>, possibly empty.
-rdt_ps_rest() {
-  local __off="$1"
-  shift
-  if ((__off < $#)); then
-    rdt_ps_ri_check "${@:__off+1}"
-  else
-    rdt_ps_ri_check
-  fi
 }
 
 # rdt_ps_take: the argument that starts at __w[__i] in the caller, joined
@@ -7898,22 +7827,12 @@ rdt_ps_statement() {
   __cmd="${__cmd%.exe}"
   __i=$((__i + 1))
   case "$__cmd" in
-  remove-item | ri | rm | del | erase)
-    rdt_ps_rest "$__i" ${__w[@]+"${__w[@]}"}
-    ;;
+  remove-item | ri | rm | del | erase) rdt_ps_ri_check "${__w[@]:__i}" ;;
   rd | rmdir)
-    rdt_ps_rest "$__i" ${__w[@]+"${__w[@]}"}
-    if ((__i < ${#__w[@]})); then
-      rdt_ps_cmd_rd "$__cmd" "${__w[@]:__i}"
-    else
-      rdt_ps_cmd_rd "$__cmd"
-    fi
+    rdt_ps_ri_check "${__w[@]:__i}"
+    rdt_ps_cmd_rd "$__cmd" "${__w[@]:__i}"
     ;;
-  cmd)
-    if ((__i < ${#__w[@]})); then
-      rdt_ps_cmd_from "${__w[@]:__i}"
-    fi
-    ;;
+  cmd) rdt_ps_cmd_from "${__w[@]:__i}" ;;
   robocopy)
     if ((__i < ${#__w[@]})); then
       rdt_ps_robocopy_check "${__w[@]:__i}"

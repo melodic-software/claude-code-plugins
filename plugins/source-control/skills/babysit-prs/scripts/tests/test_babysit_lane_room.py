@@ -1594,6 +1594,17 @@ class CheckCodeUnchanged(unittest.TestCase):
         ).stdout.strip()
         self.assertTrue(policy.check_code_unchanged(here))
 
+    def test_the_check_code_command_exits_0_only_for_unchanged_code(self) -> None:
+        here = subprocess.run(
+            ["git", "-C", str(policy.CHECK_CODE_ROOT), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        for kept, exit_code in ((here, 0), ("f" * 40, 1), ("", 1)):
+            with self.subTest(kept):
+                self.assertEqual(ve.main(["check-code", "--code-sha", kept]), exit_code)
+
     def test_a_git_failure_refuses(self) -> None:
         kept = self.commits["config"]
         self.git("checkout", "-q", "--detach", kept)

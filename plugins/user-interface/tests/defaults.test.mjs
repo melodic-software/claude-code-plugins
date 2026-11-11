@@ -63,7 +63,7 @@ const CONTRACT = {
     triage: { light_surface_min_l: 0.6, near_black_l: [0.25, 0.75, 0.3], near_white_l: [0.85, 0.45] },
   },
   components: { primitives_default: "base-ui" },
-  icon: { filled_below_px: 12, label_gap_px: [6, 8], size_em: 1, size_px: [12, 16, 20, 24, 48] },
+  icon: { filled_below_px: 12, label_gap_em: 0.5, label_gap_px: [6, 8], size_em: 1, size_px: [12, 16, 20, 24, 48] },
   layout: {
     breakout_width: "80rem",
     content_width: "1200px",

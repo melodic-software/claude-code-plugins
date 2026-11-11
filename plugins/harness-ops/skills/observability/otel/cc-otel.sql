@@ -102,7 +102,14 @@ records AS (
   SELECT unnest(sl.logRecords) AS r FROM scope_logs
 ),
 attrs AS (
-  SELECT r, cc_attr_map(cc_attr_entries(r.attributes)) AS a FROM records
+  -- traceId/spanId via a by-name struct cast, NOT native r.traceId: read_json_auto infers only
+  -- the keys present, and records emitted without tracing carry neither, so such a slice (a
+  -- prune's dropped temp, or a whole store) binder-errors on a native reference. The cast
+  -- yields NULL for an absent member and, unlike to_json(r), never serializes the body.
+  -- timeUnixNano is in the target because the cast needs at least one matching member.
+  SELECT r, cc_attr_map(cc_attr_entries(r.attributes)) AS a,
+    r::STRUCT(timeUnixNano VARCHAR, traceId VARCHAR, spanId VARCHAR) AS ids
+  FROM records
 )
 SELECT
   make_timestamp(TRY_CAST(r.timeUnixNano AS BIGINT) // 1000)    AS event_time,
@@ -119,13 +126,8 @@ SELECT
   cc_attr(a, 'tool_use_id')                                      AS tool_use_id,
   cc_attr(a, 'terminal.type')                                    AS terminal_type,
   cc_attr_bigint(a, 'event.sequence')                            AS event_sequence,
-  -- traceId/spanId via a by-name struct cast, NOT native r.traceId: read_json_auto infers only
-  -- the keys present, and records emitted without tracing carry neither, so such a slice (a
-  -- prune's dropped temp, or a whole store) binder-errors on a native reference. The cast
-  -- yields NULL for an absent member and, unlike to_json(r), never serializes the body.
-  -- timeUnixNano is in the target because the cast needs at least one matching member.
-  (r::STRUCT(timeUnixNano VARCHAR, traceId VARCHAR, spanId VARCHAR)).traceId AS trace_id,
-  (r::STRUCT(timeUnixNano VARCHAR, traceId VARCHAR, spanId VARCHAR)).spanId  AS span_id,
+  ids.traceId                                                    AS trace_id,
+  ids.spanId                                                     AS span_id,
   r.body.stringValue                                             AS body,
   cc_attr(a, 'ccr.session.id')                                   AS ccr_session_id,
   cc_attr(a, 'app.version')                                      AS app_version,

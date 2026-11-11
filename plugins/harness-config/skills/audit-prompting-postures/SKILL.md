@@ -193,9 +193,12 @@ evidence in #12039. As of: 2026-11-01. Recheck trigger: that section changes whi
 receive `${CLAUDE_PLUGIN_DATA}`, or a later eval trace shows an inline command against the data
 directory running undenied.)
 
-`${CLAUDE_PLUGIN_DATA}` is machine-global, not per-project, so a fixed `last-audit.md` is silently
-overwritten by the next run from any other root, this skill's only durable deliverable, destroyed by
-ordinary use of it. The scheme is `<repo-identity>/<worktree-discriminator>`, defined by the
+We key the report per project because one data directory serves every project on the machine, so
+a fixed `last-audit.md` would be silently overwritten by the next run from any other root, this
+skill's only durable deliverable, destroyed by ordinary use of it (Pointer: when deciding the data
+directory's scope, fetch
+[plugins manifest reference: environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
+live. As of: 2026-11-10. Recheck trigger: that section makes the data directory per project). The scheme is `<repo-identity>/<worktree-discriminator>`, defined by the
 marketplace's `plugin-data-report-keying` convention and reused rather than reinvented, and it
 lives in one executable rather than being restated per skill,
 [`lib/state-key.sh`](../../lib/state-key.sh), with `lib/state-key.test.sh` beside it, which the
@@ -209,9 +212,8 @@ live. As of: 2026-10-11. Recheck trigger: that section or a release note changes
 does with `${CLAUDE_PLUGIN_DATA}`).
 
 Let the script derive the key. Do **not** express the path as a condition over `${CLAUDE_PROJECT_DIR}`
-"when set": that placeholder is substituted in this skill's markdown before it reaches you, so the
-literal token is never visible and the condition is not yours to evaluate. Derive the key from a
-command you run.
+"when set": where that placeholder is substituted (pointer below) makes the condition not yours
+to evaluate. Derive the key from a command you run.
 
 - **Pointer**: when deciding where a skill placeholder is substituted, fetch
   [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions)

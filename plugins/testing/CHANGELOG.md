@@ -3,6 +3,76 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.7.1] - 2026-11-11
+
+### Changed
+
+- Skill bodies point at the live upstream sections for facts they used to restate (Playwright
+  retries and release-note version floors, .NET test-runner options and default compile items,
+  Hypothesis and fast-check example APIs, EF Core mocking guidance, lint rule pages, Claude Code
+  output limits, bundled skills and memory loading). The `write` skill no longer says every test
+  scores well on all four pillars, and the property-test pages no longer say the audit's property
+  exemption covers a whole file: it covers only the property test. No behavior change.
+
+## [3.7.0] - 2026-11-10
+
+### Changed
+
+- `/testing:write` names tests and code with the glossary's chosen verbs and never a verb an entity's `Actions:` line rejects for that operation, on both the `lookup` path and the direct-read fallback.
+
+## [3.6.14] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [3.6.13] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [3.6.12] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [3.6.11] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [3.6.10] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [3.6.9] - 2026-11-10
+
+### Fixed
+
+- The glossary eval cases count a Bash read through a glob that covers the glossary, and `wr-glossary-docs-path` describes what it checks.
+
+## [3.6.8] - 2026-11-10
+
+### Changed
+
+- `/testing:write` reads the project's glossary as an explicit prerequisite, through the `/domain-driven-design:ubiquitous-language lookup` read action, with a repository search (root, any `docs/` folder, the module folder) when that plugin is absent, prints a `Glossary:` line, and names tests and code with its canonical terms rather than a rejected word the request uses.
+
+## [3.6.7] - 2026-11-09
+
+### Added
+
+- Three eval cases measure whether a project glossary changes the names `testing:write` gives new tests. They share one prompt and one invented tool-library workspace, `evals/fixtures/tool-library.sh`:
+  - `wr-glossary-root` puts the glossary at the root, as `GLOSSARY.md`.
+  - `wr-glossary-absent` has no glossary and is the control.
+  - `wr-glossary-docs-path` puts the glossary at `docs/glossary.md`. It is expected to fail today, because the skill's walk-up lookup never reaches a sibling `docs/` directory.
+  - Each case is graded on three things: whether the tests use the canonical term, whether they avoid the glossary's rejected synonyms, and whether the run read the glossary. The control case has no glossary, so it skips the read check.
+  - The measurement is the difference in pass rates between cases. It is not the CLI's with-versus-without-plugin delta.
+
 ## [3.6.6] - 2026-11-09
 
 ### Changed

@@ -56,11 +56,10 @@ brief from it.
 Print the script's output verbatim; do not re-query the sections by hand. When the first word of
 `$ARGUMENTS` is `precision`, run the precision series below instead of the brief.
 
-Pass the data dir on the command line: the script cannot read it from its
-environment under the Bash tool.
+Pass the data dir on the command line, never through the script's environment.
 
 - **Pointer**: <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>
-- **As of**: 2026-10-11
+- **As of**: 2026-11-10
 - **Recheck trigger**: that section starts exporting the plugin path variables to commands run
   through the Bash tool.
 
@@ -112,7 +111,7 @@ The skill has the three legs of the lethal trifecta, and names which one it cuts
 |---|---|---|
 | Private data | The repo's private issues, pull requests, review threads and run annotations that `gh` reads with the operator's credentials, the org's billing usage and budgets, repo collaborators and workflow files, the Azure subscription's budgets, plans, activity log and recommendations that `az` reads, and the stranded-findings bookmark and `landed_at` under the plugin data dir. | Not cut |
 | Untrusted text | The titles, bodies, comments, telemetry notes and annotations listed above, written by anyone who can open an issue or a PR or comment on one. | Not cut: reading them is the purpose |
-| An outbound channel | Any `gh` or `az` write, comment, label, merge, close or setting change, and any network call that carries text out. | **Cut**: the skill runs only `gh` and `az` read queries (its `allowed-tools` admit only `morning-brief.sh`), never writes to GitHub or Azure, and its local writes are two cutoff stamps it computes itself. No URL in ingested text is fetched, and no ingested text is placed in a request. |
+| An outbound channel | Any `gh` or `az` write, comment, label, merge, close or setting change, and any network call that carries text out. | **Cut**: the skill runs only `gh` and `az` read queries, through its two bundled scripts (`morning-brief.sh` and `review-precision.mjs`, the two its `allowed-tools` pre-approve), never writes to GitHub or Azure, and its local writes are two cutoff stamps it computes itself. No URL in ingested text is fetched, and no ingested text is placed in a request. |
 
 ## Time zone
 
@@ -208,15 +207,12 @@ Upstream facts the script restates, each with its verification record:
   switch is runtime detection, so a host that never sends this shape never switches.
   Recheck trigger: that section changes its GraphQL entry, or a cloud session refuses
   a GraphQL query with a different message.
-- **The REST pull schema carries no review-decision field, so the REST path reports
-  `n/a`.** Basis: the "Get a pull request" response schema at
-  <https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request>, which lists
-  `requested_reviewers` and `review_comments` and no `review_decision`. `reviewDecision`
-  and `mergeStateStatus` are `gh pr list --json` fields (gh 2.98.0 lists them
-  client-side). **Pointer**: when the REST path reports a review decision, fetch
-  <https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request> live. **As of**:
-  2026-09-10. **Recheck trigger**: the REST pull schema gains a review-decision field,
-  or gh drops either `--json` field.
+- **The REST path reports the review decision as `n/a`; the `gh pr list --json`
+  path reads `reviewDecision` and `mergeStateStatus`.** **Pointer**: when
+  the REST path reports a review decision, fetch the response schema at
+  <https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request> live, and
+  `gh pr list --help` for the `--json` fields. **As of**: 2026-11-10. **Recheck trigger**:
+  the REST pull schema gains a review-decision field, or gh drops either `--json` field.
 - **The REST path retries a null `mergeable` read instead of treating null as the
   final answer.** **Pointer**: when that retry runs, fetch
   <https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request> live. **As of**:
@@ -397,7 +393,7 @@ Each pointer below is as of 2026-10-21; its recheck trigger follows it.
   and <https://docs.github.com/en/billing/concepts/product-billing/github-actions#how-storage-billing-works>.
   Recheck: either section changes what is free or how storage is measured.
 - The amounts each plan includes:
-  <https://docs.github.com/en/billing/concepts/product-billing/github-actions#free-use-of-github-actions>.
+  <https://docs.github.com/en/billing/concepts/product-billing/github-actions#included-compute-usage-and-storage>.
   Recheck: that table changes, or a multiplier applies to minutes.
 - The org repo list and its `visibility`:
   <https://docs.github.com/en/rest/repos/repos#list-organization-repositories>. Recheck: the field

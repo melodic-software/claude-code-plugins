@@ -350,9 +350,9 @@ def _command(
         "--absolute",
         "--silent",
     ]
-    ignore = os.environ.get("CODE_METRICS_DUP_IGNORE") or ""
-    if ignore.strip():
-        command += ["--ignore", ignore.strip()]
+    ignore = (os.environ.get("CODE_METRICS_DUP_IGNORE") or "").strip()
+    if ignore:
+        command += ["--ignore", ignore]
     return command
 
 

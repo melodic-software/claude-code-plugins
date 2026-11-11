@@ -3,6 +3,19 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.24] - 2026-11-11
+
+### Changed
+
+- The `reach` skill's auto mode link uses the section id the permission-modes page renders now.
+  No behavior change.
+
+## [0.2.23] - 2026-11-10
+
+### Fixed
+
+- Links to Claude Code's docs that pointed at moved section anchors now resolve: the permissions page's wrapper list, the permission-modes auto-mode section, and Code Review's setup and review-request sections.
+
 ## [0.2.22] - 2026-11-07
 
 ### Fixed

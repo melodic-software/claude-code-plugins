@@ -56,8 +56,11 @@ from parser_paths import to_int as _int
 FORMAT = "lcov"
 
 
-def _section() -> dict[str, Any]:
-    return {"lines": {}, "functions": None}
+def _declare(key: tuple, order: list[tuple], declared: dict[str, list[tuple]]) -> None:
+    """Record a function identity the first time the section names it."""
+    if key not in order:
+        order.append(key)
+        declared.setdefault(key[0], []).append(key)
 
 
 def _finish(
@@ -94,7 +97,7 @@ def _finish(
         if previous["end_line"] is None:
             previous["end_line"] = function["end_line"]
         counts = [h for h in (previous["hit"], function["hit"]) if h is not None]
-        previous["hit"] = max(counts) if counts else None
+        previous["hit"] = max(counts, default=None)
     section["functions"] = sorted(
         existing.values(), key=lambda f: (f["start_line"] is None, f["start_line"] or 0)
     )
@@ -132,8 +135,7 @@ def parse(path: str) -> dict[str, dict]:
             if record == "SF":
                 if section is not None:
                     _finish(section, starts, ends, hits, order)
-                path_key = _norm(rest)
-                section = files.setdefault(path_key, _section())
+                section = files.setdefault(_norm(rest), {"lines": {}, "functions": None})
                 starts, ends, hits, order, leaders = {}, {}, {}, [], {}
                 declared, counted = {}, {}
                 continue
@@ -153,14 +155,11 @@ def parse(path: str) -> dict[str, dict]:
                     continue
                 start = _int(fields[0])
                 end = _int(fields[1]) if len(fields) >= 3 else None
-                name = ",".join(fields[2:]) if end is not None else ",".join(fields[1:])
-                name = name.strip()
+                name = ",".join(fields[1 if end is None else 2 :]).strip()
                 if not name:
                     continue
                 key = (name, start)
-                if key not in order:
-                    order.append(key)
-                    declared.setdefault(name, []).append(key)
+                _declare(key, order, declared)
                 starts[key] = start
                 ends[key] = end
             elif record == "FNDA":
@@ -168,16 +167,14 @@ def parse(path: str) -> dict[str, dict]:
                 name = name.strip()
                 value = _int(count)
                 if name and value is not None:
-                    seen = declared.get(name) or []
+                    seen = declared.get(name)
                     if seen:
                         index = min(counted.get(name, 0), len(seen) - 1)
                         counted[name] = counted.get(name, 0) + 1
                         key = seen[index]
                     else:
                         key = (name, None)
-                        if key not in order:
-                            order.append(key)
-                            declared.setdefault(name, []).append(key)
+                        _declare(key, order, declared)
                     hits[key] = max(hits.get(key, 0), value)
             elif record == "FNL":
                 fields = rest.split(",")
@@ -203,9 +200,7 @@ def parse(path: str) -> dict[str, dict]:
                 # `FNA` carries its own count, so the leader it points at is
                 # the start line: no positional pairing is needed here.
                 key = (name, leader[0] if leader else None)
-                if key not in order:
-                    order.append(key)
-                    declared.setdefault(name, []).append(key)
+                _declare(key, order, declared)
                 if count is not None:
                     hits[key] = max(hits.get(key, 0), count)
                 if leader:

@@ -409,12 +409,13 @@ export function main(argv, { stdout = process.stdout, stderr = process.stderr, r
   const usage = "Usage: node repo-visibility.mjs <dir> [--commit <sha>] | --repo <owner>/<repo>\n";
   let result;
   if (argv.length === 2 && argv[0] === "--repo") {
-    const [owner, repo, extra] = argv[1].split("/");
-    if (extra !== undefined || !owner || !repo || !isValidName(owner) || !isValidName(repo.replace(/\.git$/i, ""))) {
+    const [owner, rawRepo = "", extra] = argv[1].split("/");
+    const repo = rawRepo.replace(/\.git$/i, "");
+    if (extra !== undefined || !isValidName(owner) || !isValidName(repo)) {
       stderr.write(`not a valid <owner>/<repo>: ${argv[1]}\n${usage}`);
       return 2;
     }
-    result = githubVisibility(owner, repo.replace(/\.git$/i, ""), runGh ? { runGh } : {});
+    result = githubVisibility(owner, repo, runGh ? { runGh } : {});
   } else if ((argv.length === 1 || (argv.length === 3 && argv[1] === "--commit")) && !argv[0].startsWith("-")) {
     const commit = argv[2];
     if (commit !== undefined && !SHA.test(commit)) {

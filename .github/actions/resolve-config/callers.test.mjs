@@ -23,6 +23,7 @@ import { loadRules, rowFor, select as selectPatch } from "../../scripts/apply-pa
 import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 import { stopSkip } from "../../scripts/pr-unblock/escalation-routes.mjs";
+import { levelSettings } from "../../scripts/lib/lane-level-value.mjs";
 import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
 import { decide } from "../report-check-run/decide.mjs";
@@ -1274,21 +1275,73 @@ async function postNotRunChecks(job, context) {
   return calls;
 }
 
+// The lane level publisher's token can write every repository variable, so
+// the job runs only on main's schedule, mints only when not shadowed, and
+// hands the token to nothing but the publish and revoke steps.
+test("work-unblock.yml: publish-lane-level runs on main's schedule only, mints only live, and only publish and revoke see the token", () => {
+  const { jobs } = workflow("work-unblock.yml");
+  const job = jobs["publish-lane-level"];
+  assert.equal(job.if, "${{ !cancelled() && github.event_name == 'schedule' && github.ref == 'refs/heads/main' }}");
+  assert.deepEqual(job.needs, "label-unblocked");
+  assert.deepEqual(job.permissions, { actions: "read", contents: "read", "id-token": "write" });
+  const mint = job.steps.find((step) => step.id === "lane-token");
+  assert.equal(mint.if, "steps.mode.outputs.shadow == 'false'");
+  assert.equal(mint.with.activity, "publish-lane-level");
+  assert.equal(mint.with["actions-variables"], "${{ steps.config.outputs.actions-variables }}");
+  const holders = job.steps.filter((step) => JSON.stringify({ env: step.env, with: step.with, run: step.run }).includes("steps.lane-token.outputs.token") && step !== mint);
+  assert.deepEqual(
+    holders.map((step) => step.name),
+    ["List the repository variables before the publish", "Decide and publish the lane level", "Check no other repository variable changed", "Revoke the lane token"],
+  );
+  for (const step of holders) {
+    assert.equal(step.env.GH_TOKEN, "${{ steps.lane-token.outputs.token }}", step.name);
+  }
+});
+
+// The variable check brackets the publish: listed after the mint and before
+// the publish, which a failed listing skips, and checked after it whenever a
+// token was minted, failing the job (owner decisions Q113 (a) and Q115 (a)).
+test("work-unblock.yml: publish-lane-level lists every variable before the publish and fails red on a change after it", () => {
+  const steps = workflow("work-unblock.yml").jobs["publish-lane-level"].steps;
+  const at = (name) => steps.findIndex((step) => step.name === name);
+  const before = steps[at("List the repository variables before the publish")];
+  const publish = steps[at("Decide and publish the lane level")];
+  const verify = steps[at("Check no other repository variable changed")];
+  assert.ok(at("Request the lane token") < at(before.name) && at(before.name) < at(publish.name), "listed between the mint and the publish");
+  assert.ok(at(publish.name) < at(verify.name) && at(verify.name) < at("Revoke the lane token"), "checked between the publish and the revoke");
+  assert.equal(before.if, "steps.mode.outputs.shadow == 'false' && steps.lane-token.outputs.token != ''");
+  assert.equal(before.run, 'node ".base/$SCRIPT" snapshot');
+  assert.equal(before["continue-on-error"], undefined, "a failed listing must skip the publish");
+  assert.equal(publish.if, "steps.mode.outcome == 'success'", "no status function, so the implicit success() skips the publish after a failed listing");
+  assert.equal(verify.if, "always() && steps.lane-token.outputs.token != ''");
+  assert.equal(verify.run, 'node ".base/$SCRIPT" check');
+  assert.equal(verify["continue-on-error"], undefined, "the check fails the job");
+  assert.equal(verify.env.VARIABLES_STATE, before.env.VARIABLES_STATE, "the check reads the listing the snapshot wrote");
+});
+
 // GitHub runs at most one job per concurrency group, and `queue: max` keeps
 // the rest waiting instead of cancelling them (workflow-syntax#concurrency),
-// so the number of distinct slot groups is the cap: 3.
+// so the number of distinct slot groups is the cap: 3, the lane level's
+// default, which the slot step falls back to when the level read fails.
 test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest queued", () => {
   const { concurrency, jobs } = workflow("work-resolve-issue.yml");
   const pick = jobs["pick-slot"];
   const resolve = jobs["resolve-issue"];
   const step = pick.steps.find((s) => s.id === "slot");
+  assert.equal(step.env.SLOTS, "${{ steps.level.outputs.slots || '3' }}");
+  assert.equal(levelSettings().default, 3, "the fallback is the lane level's default");
+  const read = pick.steps.find((s) => s.id === "level");
+  assert.equal(read.run, "node .base/.github/scripts/lib/lane-level-value.mjs slots");
+  assert.equal(read["continue-on-error"], true, "a failed read falls back, never fails the pick");
+  assert.equal(read.env.LANE_VARS, "${{ toJSON(vars) }}");
+  assert.ok(pick.steps.indexOf(read) < pick.steps.indexOf(step));
   const dir = tempDir("slot-");
   after(() => rmSync(dir, { recursive: true, force: true }));
   const output = join(dir, "output");
   const slotOf = (issue) => {
     writeFileSync(output, "");
     const run = spawnSync("bash", ["-c", step.run], {
-      env: { ...process.env, SLOTS: String(pick.env.SLOTS), ISSUE_NUMBER: issue, GITHUB_OUTPUT: output },
+      env: { ...process.env, SLOTS: String(levelSettings().default), ISSUE_NUMBER: issue, GITHUB_OUTPUT: output },
     });
     return run.status === 0 ? readFileSync(output, "utf8").trim().replace(/^slot=/, "") : null;
   };
@@ -1315,6 +1368,7 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
       "github.event.issue_field_value.option.id": option,
       "needs.admit.outputs.proceed": "true",
       "needs.pick-slot.outputs.capped": "false",
+      "needs.pick-slot.outputs.skip-key": "",
     };
     assert.equal(evaluate(pick.if, context), runs, name);
     assert.equal(evaluate(resolve.if, context), runs, name);
@@ -1324,7 +1378,7 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
   // starts it, in each call that takes a slot.
   assert.equal(pick.outputs.capped, "${{ steps.wip.outputs.capped }}");
   for (const [capped, runs] of [["true", false], ["false", true], ["", false], ["null", false]]) {
-    const context = { ...AGENT_READY_FIELD, "needs.admit.outputs.proceed": "true", "needs.pick-slot.outputs.capped": capped };
+    const context = { ...AGENT_READY_FIELD, "needs.admit.outputs.proceed": "true", "needs.pick-slot.outputs.capped": capped, "needs.pick-slot.outputs.skip-key": "" };
     assert.equal(evaluate(resolve.if, context), runs, `capped ${JSON.stringify(capped)}`);
   }
   for (const id of ["resolve-issue-subscription", "resolve-issue-fallback"]) {
@@ -1585,21 +1639,33 @@ test("pr-run-activity-read.yml: an issue run re-checks its blockers inside the s
   // actions: read is the key-credit gate's, listing the credit-stop markers.
   assert.deepEqual(check.permissions, { actions: "read", contents: "read", "id-token": "write", issues: "write" });
   assert.deepEqual(jobs.run.permissions, { contents: "read", "pull-requests": "read" });
-  // Only the first call of an issue run re-checks, and only once it holds its lease;
-  // the subscription and fallback legs, PR mode and a backed-off run do not.
+  // Only the first call in the slot of an issue run re-checks, and only once it
+  // holds its lease: the key call, or the subscription call the caller's
+  // key-credit gate made first (credit-stop). A subscription leg after a
+  // handoff, the fallback leg, PR mode and a backed-off run do not.
   const first = { "inputs.issue-number": "7", "inputs.fallback": "", "steps.lease.outputs.lease": "held" };
   assert.equal(evaluate(recheck.if, first), true);
+  assert.equal(evaluate(recheck.if, { ...first, "inputs.fallback": "credit-stop" }), true, "the subscription call the gate made first");
   for (const [name, change] of [
-    ["the subscription leg", { "inputs.fallback": "handoff" }],
+    ["the subscription leg after a handoff", { "inputs.fallback": "handoff" }],
     ["the fallback leg", { "inputs.fallback": "fallback" }],
     ["PR mode", { "inputs.issue-number": "" }],
+    ["PR mode's credit-stop subscription leg", { "inputs.issue-number": "", "inputs.fallback": "credit-stop" }],
     ["another session's lease", { "steps.lease.outputs.lease": "already-leased" }],
     ["no lease", { "steps.lease.outputs.lease": "" }],
   ]) {
     assert.equal(evaluate(recheck.if, { ...first, ...change }), false, name);
   }
+  // The packages the re-check needs install on exactly the same calls.
+  const install = steps.find((step) => step.name === "Install resolve-config's packages");
+  for (const issue of ["7", ""]) {
+    for (const fallback of ["", "credit-stop", "no-key", "handoff", "fallback"]) {
+      const context = { "inputs.issue-number": issue, "inputs.fallback": fallback, "steps.lease.outputs.lease": "held" };
+      assert.equal(evaluate(install.if, context), evaluate(recheck.if, context), `install with ${JSON.stringify(context)}`);
+    }
+  }
+  assert.ok(steps.indexOf(install) < steps.indexOf(recheck));
   assert.equal(caller["resolve-issue"].with.fallback, undefined);
-  assert.equal(caller["resolve-issue-subscription"].with.fallback, "handoff");
   assert.equal(caller["resolve-issue-fallback"].with.fallback, "fallback");
   // An open blocker, or an unread one (proceed false), stops the run at the named stop step.
   const stop = steps.find((step) => step.name === "Stop on an open blocker");
@@ -1837,6 +1903,41 @@ test("work-resolve-issue.yml: apply-issue-patch commits the written patch from t
   assert.equal(checks("", "true", ""), false);
 });
 
+test("the write runner keeps a lane-hold marker only for a held script activity of a hold-marker caller, with fixed text", () => {
+  const { jobs } = workflow("pr-run-activity-write.yml");
+  const uploads = jobs.run.steps.filter((s) => String(s.uses ?? "").startsWith("actions/upload-artifact@"));
+  const markers = uploads.filter((s) => s.with?.name === "lane-hold-${{ inputs.lane }}");
+  assert.equal(markers.length, 1, "one lane-hold marker upload, told by its artifact name");
+  const [marker] = markers;
+  assert.equal(marker.if, "steps.hold-marker.outputs.held == 'true'");
+  assert.deepEqual([marker.with.path, marker.with["retention-days"], marker.with["if-no-files-found"]], ["${{ runner.temp }}/lane-hold/${{ inputs.lane }}", 1, "ignore"]);
+  const mark = jobs.run.steps.find((s) => s.id === "hold-marker");
+  assert.ok(jobs.run.steps.indexOf(mark) === jobs.run.steps.indexOf(marker) - 1, "the marker is rewritten right before it uploads");
+  const context = (holdMarker, kind) => ({ "inputs.hold-marker": holdMarker, "steps.config.outputs.kind": kind, "steps.act-script.outcome": kind === "script" ? "success" : "skipped" });
+  assert.equal(evaluate(mark.if, context(true, "script")), true);
+  assert.equal(evaluate(mark.if, context(true, "skill")), false, "a skill activity never marks a hold");
+  assert.equal(evaluate(mark.if, context(false, "script")), false, "a caller without hold-marker never marks one");
+  const temp = tempDir("write-marker-");
+  try {
+    const step = (lane) => {
+      const out = join(temp, "output");
+      writeFileSync(out, "");
+      const result = spawnSync("bash", ["-eo", "pipefail", "-c", mark.run], { env: { PATH: process.env.PATH, RUNNER_TEMP: temp, GITHUB_RUN_ID: "9", GITHUB_OUTPUT: out, LANE: lane }, encoding: "utf8" });
+      assert.equal(result.status, 0, result.stderr);
+      return readFileSync(out, "utf8");
+    };
+    mkdirSync(join(temp, "lane-hold"));
+    writeFileSync(join(temp, "lane-hold", "work-resolve-issue"), "planted text");
+    assert.equal(step("work-resolve-issue"), "held=true\n");
+    assert.equal(readFileSync(join(temp, "lane-hold", "work-resolve-issue"), "utf8"), "work-resolve-issue 9\n", "the upload holds only the fixed text");
+    rmSync(join(temp, "lane-hold"), { recursive: true, force: true });
+    assert.equal(step("work-resolve-issue"), "held=false\n", "no flag, no marker");
+    assert.equal(step("../x"), "", "a lane that is no plain slug marks nothing");
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
 test("no job using pr-run-activity-write.yml runs the resolve-issue model step, and the write runner refuses an issue skill", () => {
   const dir = new URL("../../workflows/", import.meta.url);
   for (const name of readdirSync(dir).filter((file) => /\.ya?ml$/.test(file))) {
@@ -1963,6 +2064,8 @@ test("work-resolve-issue.yml: every job that gets the issue lane's credential or
       ...AGENT_READY_FIELD,
       "needs.admit.outputs.proceed": "true",
       "needs.pick-slot.outputs.capped": "false",
+      "needs.pick-slot.result": "success", "needs.pick-slot.outputs.skip-key": "",
+      "needs.resolve-issue.result": "success",
       "needs.resolve-issue-handoff.outputs.handed-off": "true",
       "needs.resolve-issue-handoff.outputs.fallback-ready": "true",
       "needs.resolve-issue-subscription-handoff.outputs.handed-off": "true",
@@ -2039,6 +2142,7 @@ async function admitOn(sender, rerunner = sender) {
         ...AGENT_READY_FIELD,
         "needs.admit.outputs.proceed": proceed,
         "needs.pick-slot.outputs.capped": "false",
+        "needs.pick-slot.outputs.skip-key": "",
       }),
     };
   } finally {
@@ -3396,7 +3500,6 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
     "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot and failing lanes App PRs",
     "pr-unblock.yml resolve-conflicts-select: Check the human-gated hold",
     "pr-unblock.yml sync-shared-copies-select: Check the human-gated hold",
-    "pr-verify-capture.yml capture-subscription: Resolve the pull request",
     "pr-verify-capture.yml capture: Resolve the pull request",
     "pr-verify.yml check-intent-fallback: Resolve the pull request",
     "pr-verify.yml check-intent-subscription: Resolve the pull request",
@@ -7350,7 +7453,10 @@ function assertHandoffEvidenceJob(job) {
   const read = job.steps.find((step) => step.id === "posted");
   assert.equal(read.uses, undefined);
   assert.match(read.run, /^bash \.base\/\.github\/scripts\/lib\/handoff-evidence\.sh( posted| allowed| handed-off)+$/);
-  assert.deepEqual(Object.keys(read.env).sort(), ["CALLS", "GH_TOKEN"]);
+  // A hold lane's read also names its lane-hold marker path (lane-hold-marker.mjs).
+  const { LANE_HOLD_MARKER: marker, ...env } = read.env;
+  assert.deepEqual(Object.keys(env).sort(), ["CALLS", "GH_TOKEN"]);
+  if (marker !== undefined) assert.match(marker, /^\$\{\{ runner\.temp \}\}\/lane-hold\/[a-z]+(?:-[a-z]+)*$/);
   assertFallbackPresence(job);
 }
 
@@ -8068,6 +8174,8 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
       ...AGENT_READY_FIELD,
       "needs.admit.outputs.proceed": "true",
       "needs.pick-slot.outputs.capped": "false",
+      "needs.pick-slot.result": "success", "needs.pick-slot.outputs.skip-key": "",
+      "needs.resolve-issue.result": "success",
       "needs.resolve-issue-handoff.outputs.handed-off": handedOff,
       ...overrides,
     });
@@ -8076,7 +8184,8 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
   assert.equal(starts(""), false, "a failed read starts no second call");
   assert.equal(starts("true", { "needs.admit.outputs.proceed": "false" }), false, "an unadmitted label");
   assert.equal(starts("true", { "needs.pick-slot.outputs.capped": "true" }), false, "at the WIP cap");
-  assert.equal(sub.with.fallback, "handoff");
+  const fallbackOf = (result) => evaluate(sub.with.fallback, { "needs.resolve-issue.result": result });
+  for (const result of ["success", "failure"]) assert.equal(fallbackOf(result), "handoff", `after a resolve-issue ${result}`);
   assert.equal(sub.with["fallback-ready"], "${{ needs.resolve-issue-handoff.outputs.fallback-ready }}");
   const { "key-credit-job": keyCreditJob, ...firstSame } = jobs["resolve-issue"].with;
   assert.equal(keyCreditJob, "resolve-issue", "the first call names its own key job");
@@ -8093,11 +8202,14 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
   // read-only tokens, no secret, as every pr-unblock handoff job runs it.
   // It reads whether the fallback token is set, so it needs the admission
   // gate as every job that touches a Claude secret does.
-  assert.deepEqual(handoff.needs, ["admit", "resolve-issue"]);
+  assert.deepEqual(handoff.needs, ["admit", "pick-slot", "resolve-issue"]);
   for (const [result, runs] of [["success", true], ["failure", true], ["skipped", false]]) {
-    assert.equal(evaluate(handoff.if, { "needs.admit.outputs.proceed": "true", "needs.resolve-issue.result": result }), runs, result);
+    assert.equal(evaluate(handoff.if, { "needs.admit.outputs.proceed": "true", "needs.pick-slot.result": "success", "needs.pick-slot.outputs.skip-key": "", "needs.resolve-issue.result": result }), runs, result);
   }
-  assert.equal(evaluate(handoff.if, { "needs.admit.outputs.proceed": "false", "needs.resolve-issue.result": "success" }), false, "unadmitted");
+  assert.equal(evaluate(handoff.if, { "needs.admit.outputs.proceed": "false", "needs.pick-slot.result": "success", "needs.pick-slot.outputs.skip-key": "", "needs.resolve-issue.result": "success" }), false, "unadmitted");
+  // A key the gate skipped: the job still runs, for the fallback token alone.
+  assert.equal(evaluate(handoff.if, { "needs.admit.outputs.proceed": "true", "needs.pick-slot.result": "success", "needs.pick-slot.outputs.skip-key": "true", "needs.resolve-issue.result": "skipped" }), true, "a gate-skipped key");
+  assert.equal(evaluate(handoff.if, { "needs.admit.outputs.proceed": "false", "needs.pick-slot.result": "success", "needs.pick-slot.outputs.skip-key": "true", "needs.resolve-issue.result": "skipped" }), false, "a gate-skipped key, unadmitted");
   assert.deepEqual(handoff.permissions, { actions: "read", contents: "read" });
   assert.deepEqual(handoff.outputs, { "handed-off": "${{ steps.handoff.outputs.handed-off }}", "fallback-ready": "${{ steps.fallback.outputs.ready }}" });
   assert.equal(handoff.steps.length, 5);
@@ -8148,6 +8260,128 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
   const failed = readPosted(t, step, issueListing(), { fail: true });
   assert.notEqual(failed.status, 0);
   assert.deepEqual(failed.outputs, {});
+});
+
+// The key-credit gate, read in pick-slot before the slot queue. Both calls
+// queue on one slot group, so a key call that only hands off sends the
+// subscription call to the back of the queue: runs 42736241309 and
+// 42771287549 waited about 25 minutes a second time. A key held off now starts
+// no resolve-issue job, and the subscription call is the first in the slot.
+test("work-resolve-issue.yml: a key the key-credit gate holds off starts no resolve-issue job, and the subscription call re-checks the blockers and records the skip once", () => {
+  const caller = workflow("work-resolve-issue.yml").jobs;
+  const brokerSteps = workflow("pr-run-activity-read.yml").jobs["broker-check"].steps;
+  const pick = caller["pick-slot"];
+  const credit = pick.steps.find((s) => s.id === "credit");
+  // The read runner's own start call, at the same pin, for the key job it names.
+  const inner = brokerSteps.find((s) => s.id === "credit");
+  assert.equal(credit.uses, inner.uses);
+  assert.deepEqual(credit.with, { ...inner.with, "key-job": "resolve-issue" });
+  assert.equal(caller["resolve-issue"].with["key-credit-job"], "resolve-issue", "the marker the key call reads");
+  assert.equal(credit["continue-on-error"], true, "a failed read runs the key");
+  assert.equal(pick.permissions.actions, "read");
+  // Only a read that succeeded skips the key: one that set skip-key and then failed runs it.
+  for (const [outcome, set, skips] of [["success", "true", "true"], ["success", "false", "false"], ["failure", "true", ""], ["failure", "", ""], ["skipped", "", ""]]) {
+    assert.equal(evaluate(pick.outputs["skip-key"], { "steps.credit.outcome": outcome, "steps.credit.outputs.skip-key": set }), skips, `${outcome} with skip-key ${JSON.stringify(set)}`);
+  }
+  for (const [capped, reads] of [["false", true], ["true", false], ["", false]]) {
+    assert.equal(evaluate(credit.if, { "steps.wip.outputs.capped": capped }), reads, `reads at capped ${JSON.stringify(capped)}`);
+  }
+
+  const recheck = brokerSteps.find((s) => s.id === "recheck-blockers");
+  const record = brokerSteps.find((s) => s.id === "skipped-key");
+  const handoffRead = caller["resolve-issue-handoff"].steps.find((s) => s.id === "handoff");
+  const sub = caller["resolve-issue-subscription"];
+  // One run: `gate` is pick-slot's skip-key ("" when its read failed),
+  // `innerSkip` the key call's own credit read in its broker-check, and
+  // `handsOff` whether the key call handed off. Returns each call started,
+  // with its fallback input, and the handoff read's state.
+  // `pick` is pick-slot's result: a job with no status function in its if
+  // runs only when every job it needs succeeded.
+  const runOf = ({ gate, innerSkip = "", handsOff = false, pick = "success" }) => {
+    const ctx = { ...AGENT_READY_FIELD, "needs.admit.outputs.proceed": "true", "needs.pick-slot.result": pick, "needs.pick-slot.outputs.capped": "false", "needs.pick-slot.outputs.skip-key": gate };
+    const calls = [];
+    const keyRuns = pick === "success" && evaluate(caller["resolve-issue"].if, ctx);
+    ctx["needs.resolve-issue.result"] = keyRuns ? "success" : "skipped";
+    if (keyRuns) calls.push({ id: "resolve-issue", fallback: "", innerSkip });
+    const handoffRuns = evaluate(caller["resolve-issue-handoff"].if, ctx);
+    const reads = handoffRuns && evaluate(handoffRead.if, ctx);
+    ctx["needs.resolve-issue-handoff.outputs.handed-off"] = reads ? String(handsOff || innerSkip === "true") : "";
+    if (evaluate(sub.if, ctx)) calls.push({ id: "resolve-issue-subscription", fallback: evaluate(sub.with.fallback, ctx), innerSkip: "" });
+    const at = (step, call) =>
+      atStep(step.if, {
+        "inputs.issue-number": "7",
+        "inputs.fallback": call.fallback,
+        "steps.lease.outputs.lease": "held",
+        "steps.broker.outcome": "success",
+        "steps.broker.outputs.allowed": "true",
+        "steps.credit.outputs.skip-key": call.innerSkip,
+      });
+    return {
+      calls: calls.map((call) => `${call.id}:${call.fallback}`),
+      rechecks: calls.filter((call) => at(recheck, call)).length,
+      records: calls.filter((call) => at(record, call)).length,
+      handoffRuns,
+      reads,
+    };
+  };
+  assert.deepEqual(runOf({ gate: "true" }), { calls: ["resolve-issue-subscription:credit-stop"], rechecks: 1, records: 1, handoffRuns: true, reads: false }, "a key held off");
+  // A pick-slot that set skip-key and then failed (a later step, or its
+  // timeout) picked no slot: no call may start on an empty slot group.
+  for (const pick of ["failure", "cancelled"]) {
+    assert.deepEqual(runOf({ gate: "true", pick }), { calls: [], rechecks: 0, records: 0, handoffRuns: false, reads: false }, `a held-off key with pick-slot ${pick}`);
+  }
+  for (const gate of ["false", ""]) {
+    const name = gate === "" ? "a failed gate read" : "a key the gate passed";
+    assert.deepEqual(runOf({ gate }), { calls: ["resolve-issue:"], rechecks: 1, records: 0, handoffRuns: true, reads: true }, `${name}, the key did the work`);
+    assert.deepEqual(runOf({ gate, handsOff: true }), { calls: ["resolve-issue:", "resolve-issue-subscription:handoff"], rechecks: 1, records: 0, handoffRuns: true, reads: true }, `${name}, the key failed on credit and handed off`);
+    assert.deepEqual(runOf({ gate, innerSkip: "true" }), { calls: ["resolve-issue:", "resolve-issue-subscription:handoff"], rechecks: 1, records: 1, handoffRuns: true, reads: true }, `${name}, the key call's own gate held it off`);
+  }
+
+  // The fallback token's presence still comes from resolve-issue-handoff, so
+  // a subscription call the gate started can hand off to the third call.
+  assert.equal(sub.with["fallback-ready"], "${{ needs.resolve-issue-handoff.outputs.fallback-ready }}");
+  assert.equal(evaluate(caller["resolve-issue-subscription-handoff"].if, { "needs.resolve-issue-subscription.result": "success", "needs.resolve-issue-handoff.outputs.fallback-ready": "true" }), true);
+  // The stale-workflow read runs once any call ran, the subscription call alone included.
+  const stale = (key, subscription) => {
+    const ctx = { "needs.admit.outputs.proceed": "true", "needs.resolve-issue.result": key, "needs.resolve-issue-subscription.result": subscription, "needs.resolve-issue-fallback.result": "skipped" };
+    for (const call of ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"]) {
+      ctx[`needs.${call}.outputs.scan-issue-run-started`] = "";
+      ctx[`needs.${call}.outputs.scan-reuse-branch`] = "";
+    }
+    return evaluate(caller["resolve-issue-stale"].if, ctx);
+  };
+  assert.equal(stale("skipped", "success"), true, "the subscription call alone");
+  assert.equal(stale("success", "skipped"), true, "the key call alone");
+  assert.equal(stale("skipped", "skipped"), false, "no call");
+  // A held-off key writes no credit-stop marker: the markers job reads only a key call that ran.
+  assert.equal(evaluate(caller["key-credit-markers"].if, { "needs.resolve-issue.result": "skipped" }), false);
+});
+
+// The read runner's issue-mode credit-stop branches run only for an issue
+// call, so no PR-mode caller reaches them: only work-resolve-issue.yml passes
+// an issue number, and only its subscription call passes credit-stop, and
+// only when resolve-issue was skipped.
+test("pr-run-activity-read.yml: only work-resolve-issue.yml's subscription call can pass credit-stop in issue mode", () => {
+  const callers = {};
+  for (const file of workflowFiles()) {
+    for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
+      if (job?.uses !== READ_RUNNER) continue;
+      (callers[file] ??= []).push(id);
+      const fallback = job.with?.fallback;
+      if (file === "work-resolve-issue.yml") {
+        assert.equal(job.with["issue-number"], "${{ format('{0}', github.event.issue.number) }}", id);
+      } else {
+        assert.equal(job.with?.["issue-number"], undefined, `${file} ${id} is a PR-mode call`);
+      }
+      if (file === "work-resolve-issue.yml" && id === "resolve-issue-subscription") {
+        assert.equal(evaluate(fallback, { "needs.resolve-issue.result": "skipped" }), "credit-stop");
+        for (const result of ["success", "failure", "cancelled"]) assert.equal(evaluate(fallback, { "needs.resolve-issue.result": result }), "handoff", result);
+      } else {
+        assert.ok([undefined, "handoff", "fallback"].includes(fallback), `${file} ${id} passes fallback ${JSON.stringify(fallback)}`);
+      }
+    }
+  }
+  assert.deepEqual(Object.keys(callers).sort(), ["pr-refine.yml", "pr-unblock.yml", "work-resolve-issue.yml"]);
 });
 
 // The brief's rule: every job references exactly one Claude secret.
@@ -8282,8 +8516,10 @@ test("pr-run-activity-read.yml: the launcher step and leg timeouts derive from t
 // Owner decision 2026-10-24: the issue lane runs in dontAsk with an explicit
 // allow list, as fix-ci and fix-docs do; the launcher forces default mode, so
 // auto is unreachable. Issue mode takes the launcher's inputs check, the
-// staging for run-claude-cli, and a fallback only as handoff.
-test("pr-run-activity-read.yml: an issue run takes the launcher in dontAsk, and only handoff as its fallback", () => {
+// staging for run-claude-cli, and a fallback only as handoff, credit-stop
+// (the subscription call work-resolve-issue's own key-credit gate made first)
+// or fallback.
+test("pr-run-activity-read.yml: an issue run takes the launcher in dontAsk, and only handoff, credit-stop or fallback as its fallback", () => {
   const steps = workflow("pr-run-activity-read.yml").jobs.run.steps;
   const launch = steps.find((s) => s.id === "launch");
   assert.equal(evaluate(launch.if, { "steps.config.outcome": "success", "steps.config.outputs.kind": "skill" }), true, "issue and PR mode alike");
@@ -8312,7 +8548,8 @@ test("pr-run-activity-read.yml: an issue run takes the launcher in dontAsk, and 
   assert.equal(status(""), 0);
   assert.equal(status("handoff"), 0);
   assert.equal(status("fallback"), 0, "the third call");
-  for (const fallback of ["credit-stop", "no-key"]) assert.equal(status(fallback), 1, fallback);
+  assert.equal(status("credit-stop"), 0, "a subscription call the caller's key-credit gate made first");
+  for (const fallback of ["no-key", "other"]) assert.equal(status(fallback), 1, fallback);
 });
 
 // --- npm's fetch bound: one file, read by every hosted-runner npm ci ---
@@ -9172,12 +9409,46 @@ test("work-unblock.yml: a finished work-resolve-issue run in this repository swe
   assert.equal(runs({ event: "issues", sender: "User" }), true);
   for (const action of ["labeled", "unlabeled"]) assert.equal(runs({ event: "issues", sender: "User", action }), false, `a ${action} event is sync-status's`);
   const config = job.steps.find((step) => step.id === "config");
-  const resolves = (event, who, kill = "true") =>
-    evaluate(config.if, { "steps.kill.outputs.proceed": kill, "steps.who.outputs.proceed": who, "github.event_name": event });
+  const resolves = (event, who, kill = "true", paced = "false") =>
+    evaluate(config.if, { "steps.kill.outputs.proceed": kill, "steps.who.outputs.proceed": who, "github.event_name": event, "steps.pace.outputs.paced": paced });
   assert.equal(resolves("workflow_run", ""), true, "the sweep has no closer to check");
   assert.equal(resolves("issues", ""), false);
   assert.equal(resolves("issues", "true"), true);
   assert.equal(resolves("workflow_run", "", "false"), false, "the kill switch stops it");
+  // The burn-rate pacer (log-api-budget/pace.mjs) writes paced=true only on a
+  // schedule tick; a pacer that wrote nothing resolves as before.
+  assert.equal(resolves("schedule", "", "true", "true"), false, "a paced tick resolves nothing");
+  assert.equal(resolves("schedule", "", "true", "false"), true, "an unpaced tick");
+  assert.equal(resolves("schedule", "", "true", ""), true, "a pacer that wrote nothing");
+});
+
+// A hand-started run sweeps as the schedule does: from main only, with no
+// closer check, and sync-status never runs on it.
+test("work-unblock.yml: a hand-started run on main sweeps as the schedule does, and starts no sync-status", () => {
+  const doc = workflow("work-unblock.yml");
+  assert.ok("workflow_dispatch" in doc.on);
+  const job = doc.jobs["label-unblocked"];
+  const runs = (event, ref = "refs/heads/main") =>
+    evaluate(job.if, {
+      "github.event_name": event,
+      "github.ref": ref,
+      "github.repository": "melodic-software/claude-code-plugins",
+      "github.event.action": null,
+      "github.event.sender.type": "User",
+      "github.event.workflow_run.head_repository.full_name": null,
+      "github.event.workflow_run.conclusion": null,
+    });
+  assert.equal(runs("workflow_dispatch"), true);
+  assert.equal(runs("schedule"), true);
+  assert.equal(runs("workflow_dispatch", "refs/heads/feature"), false, "a hand-started run off main");
+  assert.equal(runs("schedule", "refs/heads/feature"), false);
+  const step = (id) => job.steps.find((s) => s.id === id);
+  // The burn-rate pacer writes paced=false off a schedule tick (log-api-budget/pace.mjs).
+  const context = (event) => ({ "steps.kill.outputs.proceed": "true", "steps.who.outputs.proceed": "", "steps.pace.outputs.paced": "false", "github.event_name": event });
+  assert.equal(evaluate(step("config").if, context("workflow_dispatch")), true, "a hand-started sweep has no closer to check");
+  assert.equal(evaluate(step("who").if, context("workflow_dispatch")), false);
+  assert.equal(evaluate(step("config").if, { ...context("workflow_dispatch"), "steps.kill.outputs.proceed": "false" }), false, "the kill switch stops it");
+  assert.equal(evaluate(doc.jobs["sync-status"].if, { "github.event_name": "workflow_dispatch", "github.event.action": null, "github.event.sender.type": "User", "github.event.issue.pull_request": null }), false);
 });
 
 // sync-status writes a person's status-label edit into the Work status field
@@ -9666,7 +9937,28 @@ test("pr-run-activity-read.yml: broker-check skips a credit-stopped key on the f
   assert.equal(present.with.selected, "${{ needs.broker-check.outputs.skip-key == 'true' && 'subscription' || '' }}");
   // The skipped key leg's lane record comes from broker-check, not the run job.
   const record = jobs["broker-check"].steps.find((s) => s.name === "Report the skipped key leg");
-  assert.equal(record.if, "steps.credit.outputs.skip-key == 'true'");
+  assert.equal(record.if, "steps.skipped-key.outcome == 'success'", "it records the key the step before it named");
+  const namesSkippedKey = (context) =>
+    atStep(jobs["broker-check"].steps.find((s) => s.id === "skipped-key").if, {
+      "steps.credit.outputs.skip-key": "",
+      "inputs.issue-number": "",
+      "inputs.fallback": "",
+      "steps.broker.outcome": "success",
+      "steps.broker.outputs.allowed": "true",
+      ...context,
+    });
+  assert.equal(namesSkippedKey({ "steps.credit.outputs.skip-key": "true" }), true, "the first call's own gate skipped the key");
+  assert.equal(namesSkippedKey({}), false, "a key the gate passed");
+  assert.equal(namesSkippedKey({ "inputs.issue-number": "7", "inputs.fallback": "credit-stop" }), true, "an issue call the caller's gate made first");
+  for (const [name, change] of [
+    ["PR mode keeps its record on the first call", { "inputs.fallback": "credit-stop" }],
+    ["an issue handoff, after a key call that ran", { "inputs.issue-number": "7", "inputs.fallback": "handoff" }],
+    ["the fallback leg", { "inputs.issue-number": "7", "inputs.fallback": "fallback" }],
+    ["a broker refusal", { "inputs.issue-number": "7", "inputs.fallback": "credit-stop", "steps.broker.outputs.allowed": "false" }],
+    ["a failed broker ask", { "inputs.issue-number": "7", "inputs.fallback": "credit-stop", "steps.broker.outcome": "failure" }],
+  ]) {
+    assert.equal(namesSkippedKey(change), false, name);
+  }
   assert.equal(record.with["known-failure-class"], "credit-stop");
   assert.equal(record.with.handoff, "true");
   // The fixed-name step the caller reads for the marker, right after the key leg's mode check.

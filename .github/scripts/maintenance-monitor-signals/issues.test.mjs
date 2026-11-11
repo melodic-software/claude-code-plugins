@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { FILING, LOG_ONLY, SIGNALS, familyOf, incidentRules, planIssues, readMarker, renderBody, renderRetire, stateFingerprint, unreadSignals } from "./issues.mjs";
+import { FILING, LOG_ONLY, SIGNALS, familyOf, incidentRules, partlyReadSignals, planIssues, readMarker, renderBody, renderRetire, stateFingerprint, unreadSignals } from "./issues.mjs";
 import { detect } from "./signals.mjs";
 
 const now = new Date("2026-10-19T16:41:00Z");
@@ -166,11 +166,69 @@ test("an unread signal keeps its timers and leaves its incident as it is", () =>
   const quiet = planIssues({ findings: [], existing, rules: THRESHOLDS, episodes: carried, unread, now });
   assert.deepEqual([quiet.close, quiet.update], [[], []]);
   assert.deepEqual(quiet.skip, [{ family: "throttling", number: 41, reason: "not read" }]);
+  const variables = planIssues({ findings: [], existing: [], rules: THRESHOLDS, unread: unreadSignals(["lane variable runs: HTTP 502"]), now });
+  assert.deepEqual(variables.skip, [{ family: "lane-variables", number: null, reason: "not read" }], "signal 14's own source failing leaves it unread, not clear");
   assert.deepEqual(quiet.episodes[THROTTLING], carried[THROTTLING]);
   const other = planIssues({ findings: [], existing, rules: THRESHOLDS, episodes: carried, unread: unreadSignals(["audits: HTTP 502"]), now });
   assert.deepEqual(other.close.map((c) => c.number), [41]);
   const firing = planIssues({ findings: [findingFor([1])], existing: [], rules: { ...THRESHOLDS, [THROTTLING]: { open: 0, close: 3 } }, unread, now });
   assert.deepEqual(firing.file, []);
+});
+
+// Signal 13 at its default threshold of 4 held runs in 24 hours: 4 held
+// work-unblock runs fire it, 3 do not.
+const LANE_HOLDS = "13 lane holds";
+const heldRuns = (n) =>
+  Array.from({ length: n }, (_, i) => ({ lane: "work-unblock", runId: 70 + i, url: `https://github.com/o/r/actions/runs/${70 + i}`, item: null, reason: "open listing failed", at: hoursAgo(i + 1) }));
+const holdFindings = (n) => detect({ now, windowStart, laneHolds: heldRuns(n), holdRule: { threshold: 4, windowHours: 24 } });
+const HOLD_RULES = { ...RULES, [LANE_HOLDS]: { open: 1, close: 2 } };
+const PARTLY = ["lane holds partly read: over the cap of unread green runs of work-resolve-issue (cap 6); held runs read only through 2026-10-19T16:00:00Z"];
+const holdIncident = () => ({ number: 52, state: "open", state_reason: null, body: renderBody({ signal: LANE_HOLDS, findings: holdFindings(4) }, runUrl) });
+
+test("a partly read signal 13 with a lane at 4 holds opens its incident", () => {
+  assert.equal(holdFindings(3).length, 0, "3 holds are under the threshold");
+  const findings = holdFindings(4);
+  assert.deepEqual(findings.map((f) => f.key), ["lane-hold:work-unblock"]);
+  const p = planIssues({ findings, existing: [], unread: unreadSignals(PARTLY), partly: partlyReadSignals(PARTLY), rules: HOLD_RULES, episodes: { [LANE_HOLDS]: { onSince: hoursAgo(2), clearSince: null } }, now });
+  assert.deepEqual(p.file.map((f) => f.family.signal), [LANE_HOLDS]);
+  assert.deepEqual(p.episodes[LANE_HOLDS], { onSince: hoursAgo(2), clearSince: null });
+  const fresh = planIssues({ findings, existing: [], partly: partlyReadSignals(PARTLY), rules: HOLD_RULES, now });
+  assert.deepEqual(fresh.episodes[LANE_HOLDS], { onSince: now.toISOString(), clearSince: null }, "a partial read with a finding starts the open timer");
+});
+
+test("a partly read signal 13 under 4 holds leaves its open incident open and its timers as they are", () => {
+  const carried = { [LANE_HOLDS]: { onSince: null, clearSince: hoursAgo(5) } };
+  const p = planIssues({ findings: holdFindings(3), existing: [holdIncident()], partly: partlyReadSignals(PARTLY), rules: HOLD_RULES, episodes: carried, now });
+  assert.deepEqual([p.close, p.update, p.file], [[], [], []]);
+  assert.deepEqual(p.skip, [{ family: "lane-holds", number: 52, reason: "partly read" }]);
+  assert.deepEqual(p.episodes[LANE_HOLDS], carried[LANE_HOLDS]);
+  assert.equal(p.status.find((s) => s.signal === LANE_HOLDS).state, "partly read, #52 left as it is");
+});
+
+test("a whole read of signal 13 under 4 holds clears its incident as before", () => {
+  const p = planIssues({ findings: holdFindings(3), existing: [holdIncident()], rules: HOLD_RULES, episodes: { [LANE_HOLDS]: { onSince: null, clearSince: hoursAgo(5) } }, now });
+  assert.deepEqual(p.close.map((c) => c.number), [52]);
+  const starting = planIssues({ findings: holdFindings(3), existing: [holdIncident()], rules: HOLD_RULES, now });
+  assert.deepEqual([starting.close, starting.episodes[LANE_HOLDS]], [[], { onSince: null, clearSince: now.toISOString() }]);
+});
+
+test("a partly-read gap leaves no signal unread and marks only signal 13 partly read", () => {
+  assert.equal(unreadSignals(PARTLY).size, 0);
+  assert.deepEqual([...partlyReadSignals(PARTLY)], [LANE_HOLDS]);
+  assert.equal(partlyReadSignals(["lane holds: the monitor.lane-holds rule was not read: yq failed", "audits: x"]).size, 0);
+});
+
+// A failed lane-hold marker list leaves the scan's reads, a floor on the whole.
+const MARKERS_FAILED = ["lane hold markers: GET artifacts: HTTP 502"];
+
+test("a failed marker list reads signal 13 partly: a lane at 4 holds still files, and under 4 an open incident stays open", () => {
+  assert.equal(unreadSignals(MARKERS_FAILED).size, 0, "the marker gap leaves no signal unread");
+  assert.deepEqual([...partlyReadSignals(MARKERS_FAILED)], [LANE_HOLDS]);
+  const filed = planIssues({ findings: holdFindings(4), existing: [], unread: unreadSignals(MARKERS_FAILED), partly: partlyReadSignals(MARKERS_FAILED), rules: HOLD_RULES, episodes: { [LANE_HOLDS]: { onSince: hoursAgo(2), clearSince: null } }, now });
+  assert.deepEqual(filed.file.map((f) => f.family.signal), [LANE_HOLDS], "the scan's 4 holds file the incident");
+  const kept = planIssues({ findings: holdFindings(3), existing: [holdIncident()], unread: unreadSignals(MARKERS_FAILED), partly: partlyReadSignals(MARKERS_FAILED), rules: HOLD_RULES, episodes: { [LANE_HOLDS]: { onSince: null, clearSince: hoursAgo(5) } }, now });
+  assert.deepEqual(kept.close, [], "no clear without the markers");
+  assert.deepEqual(kept.skip, [{ family: "lane-holds", number: 52, reason: "partly read" }]);
 });
 
 test("each collect source maps to the signals it feeds, and an unknown gap leaves every signal unread", () => {
@@ -276,6 +334,7 @@ test("every detector's signal is an incident signal or logged only, and an unkno
     now,
     windowStart,
     failedRuns: [denied(1)],
+    laneVariableRuns: [{ id: 2, url: "u", name: "work-unblock", event: "schedule", annotations: [{ level: "failure", message: "lane-variables-changed: created X" }], failedSteps: [] }],
     mainRun: { id: 1, url: "u", sha: "a", event: "schedule", conclusion: "failure", failedJobs: [{ name: "j", annotations: [{ level: "failure", message: "m" }] }] },
     budgetReadings: [{ phase: "end", name: "lane", used: 99, limit: 100, remaining: 1 }],
     mergeGroupFailures: [1, 2, 3].map((id) => ({ id, url: "u", workflow: "w", createdAt: "t" })),

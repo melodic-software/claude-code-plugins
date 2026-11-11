@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "8.2.0",
+  "version": "8.4.1",
   "license": "MIT",
   "keywords": [
     "review",
@@ -57,6 +57,41 @@
       "description": "How many rows under each By axis heading (Spec, Standards) of a /review:fanout report are marked act on; default 2, a whole number of at least 1. The other rows stay in the report, marked no. A repository's docs/conventions/review.yaml fanout_act_on_cap wins over this option.",
       "default": 2,
       "min": 1
+    },
+    "council_max_rounds": {
+      "type": "number",
+      "title": "Council max rounds",
+      "description": "How many review rounds /review:council runs at most; default 1, a whole number of at least 1. Above 1, /review:fanout fix runs between rounds. A repository's docs/conventions/review.yaml council_max_rounds wins over this option.",
+      "default": 1,
+      "min": 1
+    },
+    "council_scores": {
+      "type": "string",
+      "title": "Council scores",
+      "description": "on: the /review:council report carries a mark table by member and round; off (default): none. A repository's docs/conventions/review.yaml council_scores wins over this option.",
+      "default": "off",
+      "options": [
+        "on",
+        "off"
+      ]
+    },
+    "council_members": {
+      "type": "string",
+      "title": "Council members (JSON)",
+      "description": "Your /review:council member catalog as JSON, the shape of council_members in docs/conventions/review.yaml, e.g. {\"codex-adv\":{\"provider\":\"codex\",\"brief\":\"adversarial\"}}. Empty (default): the repository's value or three Opus members. The repository's value wins; invalid JSON is reported and ignored.",
+      "default": ""
+    },
+    "council_panel": {
+      "type": "string",
+      "title": "Council panel (JSON)",
+      "description": "Your /review:council fallback panel as a JSON list of member ids. Empty (default): the repository's value or every catalog member. A repository's value wins; invalid JSON is reported and ignored.",
+      "default": ""
+    },
+    "council_rules": {
+      "type": "string",
+      "title": "Council rules (JSON)",
+      "description": "Your /review:council selection rules as a JSON list, the same shape as council_rules in docs/conventions/review.yaml. Empty (default): the repository's rules or none. A repository's value wins; invalid JSON is reported and ignored.",
+      "default": ""
     },
     "medium": {
       "type": "string",

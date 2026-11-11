@@ -34,7 +34,6 @@
 set -u
 
 msg_file="${1:-}"
-[ -n "$msg_file" ] || exit 0
 [ -f "$msg_file" ] || exit 0
 
 case "$0" in

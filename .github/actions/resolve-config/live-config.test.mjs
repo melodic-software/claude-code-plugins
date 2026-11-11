@@ -12,9 +12,10 @@ import { parse, stringify } from "yaml";
 
 import { OUTSIDE_ACTOR_LABEL } from "../../scripts/pr-merge/merge-holds.mjs";
 import { planPasses } from "../../scripts/pr-refine/plan-passes.mjs";
+import { decide } from "../../scripts/lib/lane-level.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
 import { configFromBase, ownedBranchesFromBase, postMergeFromBase } from "./resolve-config.mjs";
-import { laneSlots, resolve, resolveGrant, slotTargets } from "./resolve.mjs";
+import { laneSlots, resolve, resolveGrant, resolveLimits, slotTargets } from "./resolve.mjs";
 
 const read = (relative) =>
   readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -874,6 +875,24 @@ test("live config: no live slot resolves an actions permission", () => {
   );
 });
 
+// Owner decision Q113 (a): the lane level publisher is the one grant that may
+// write repository Variables, beside every other scope read.
+test("live config: only work-unblock's publish-lane-level resolves Variables write, with every other scope read", () => {
+  const doc = parse(FILES.config);
+  const holders = [];
+  for (const lane of Object.keys(doc.lanes)) {
+    const { lane: resolved } = resolve(FILES, { lane, configPath: CONFIG_PATH, basePath: ".base", facts: FACTS });
+    for (const slot of resolved.slots) {
+      if (slot.grant["actions-variables"] !== undefined) holders.push(`${lane}/${slot.name}`);
+    }
+  }
+  assert.deepEqual(holders, ["work-unblock/publish-lane-level"]);
+  assert.deepEqual(resolveGrant(FILES, { lane: "work-unblock", activity: "publish-lane-level", configPath: CONFIG_PATH }), {
+    effect: "mutate-variable",
+    grant: { contents: "read", "pull-requests": "read", issues: "read", "actions-variables": "write" },
+  });
+});
+
 // release-publish-plugins.yml owns and rebuilds release/plugins; run
 // 41065454536's re-fire push there answered 422 and failed the merge job.
 test("live config: pr-merge's re-fire step skips the release branch release-publish-plugins.yml rebuilds", () => {
@@ -922,6 +941,17 @@ test("live config: models.issue-status field-events-since loads as the S2a cutov
 // The merge lane reads this file through the source-control YAML subset
 // (plugins/source-control/lib/yaml-subset.awk); a construct outside it turns
 // the lane off with config-parse-error.
+// resolve-config passes limits.api through as set, {} here; decide() fills it
+// from rate-limits.json the way the rate guard does.
+test("live config: decide() on the resolved limits steps a quiet busy lane from 3 to 4 after two clean windows", () => {
+  const limits = resolveLimits(FILES, { configPath: CONFIG_PATH });
+  const window = (at) => ({ at, pools: { "lanes-app": { used: 100, limit: 5000 } }, signals: [] });
+  const demand = { waiting: 5, running: 3 };
+  const first = decide(null, window(1794340800), demand, limits);
+  assert.deepEqual(first, { level: 3, streak: 1, holdUntil: 0, reason: "streak" }, "the first clean busy window counts, not missing-data");
+  assert.deepEqual(decide(first, window(1794344400), demand, limits), { level: 4, streak: 0, holdUntil: 0, reason: "step-up" });
+});
+
 test("the live pr-pipeline.yaml stays inside the merge lane's YAML subset", () => {
   const awk = fileURLToPath(new URL("../../../plugins/source-control/lib/yaml-subset.awk", import.meta.url));
   const config = fileURLToPath(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url));

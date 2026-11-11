@@ -210,14 +210,18 @@ export async function newestTrustedRun(options) {
 
 // newestTrustedRun's run as {runId, artifactId}: artifactId is the newest
 // (highest id) unexpired artifact named `name` from the listing already read,
-// undefined when that listing gives it no id.
-export async function newestTrustedArtifact({ repo, runId, actions, name, accept = async () => true, workflow = WORKFLOW_PATH }) {
+// undefined when that listing gives it no id. `trusted` picks the runs asked
+// (trustedRun by default).
+// `event`, when set, lists only that event's runs, so a reader that trusts one
+// event does not page past the others.
+export async function newestTrustedArtifact({ repo, runId, actions, name, accept = async () => true, workflow = WORKFLOW_PATH, trusted = (run) => trustedRun(run, workflow), event }) {
   const file = workflow.slice(workflow.lastIndexOf("/") + 1);
+  const only = event === undefined ? "" : `&event=${event}`;
   let asked = 0;
   for (let page = 1; page <= MAX_PAGES; page += 1) {
     const listing = await actions(
       "GET",
-      `/repos/${repo}/actions/workflows/${file}/runs?branch=main&exclude_pull_requests=true&per_page=100&page=${page}`,
+      `/repos/${repo}/actions/workflows/${file}/runs?branch=main${only}&exclude_pull_requests=true&per_page=100&page=${page}`,
     );
     if (!Array.isArray(listing?.workflow_runs)) {
       throw new Error(`the ${file.replace(/\.yml$/, "")} run listing has an unexpected shape`);
@@ -227,7 +231,7 @@ export async function newestTrustedArtifact({ repo, runId, actions, name, accept
     // listed above later runs, so a carry came from a run an hour older.
     const runs = [...listing.workflow_runs].sort((a, b) => runOrder(b) - runOrder(a));
     for (const run of runs) {
-      if (!trustedRun(run, workflow) || String(run.id) === runId) {
+      if (!trusted(run) || String(run.id) === runId) {
         continue;
       }
       if (asked === MAX_RUNS) {

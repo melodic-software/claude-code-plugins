@@ -15,11 +15,9 @@ invocation:
 - Current branch, `git branch --show-current`
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git. The dated record for that composition claim is the
-[gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation".
+separate body Bash calls rather than pre-compute lines. How the harness runs a skill's injected commands:
+[How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run), as
+of 2026-11-10; recheck when that section changes how injected commands run.
 
 ## Purpose
 
@@ -140,24 +138,15 @@ complete. Write no other section.
 Hand off by invoking `/planning:plan` via the Skill tool. Sourced from the artifacts, not recalled from memory:
 
 - Resolved decisions with their recorded rationale (from `design-threads.md`)
-- **ADR candidates.** A test each resolved decision must pass, shown per decision, not a
-  description of what a candidate looks like. For every resolved decision, record pass or fail on
-  each of three criteria with one line of evidence apiece:
-  - *Costly to undo*: what makes reversing it expensive (migration, public contract, security
-    boundary, policy)
-  - *Not obvious from the code*: why someone reading the code would not recover the decision or its
-    reason
-  - *Chosen over a live alternative*: the rejected option, quoted from `design-threads.md`
-
-  List only decisions that pass all three. "None" is a valid and expected outcome; say "None"
-  rather than listing a decision that fails a criterion. Name each decision that fails on a
-  separate "Not candidates" line (near-misses first), each with the criterion it fails and its
-  one line of evidence. When the `architecture` plugin is
-  enabled, offer to invoke `/architecture:record-decision` via the Skill tool for each listed
-  candidate (never for a near-miss), passing the decision and its recorded rationale from
-  `design-threads.md`; that skill owns convention discovery, the no-convention offer-and-defer,
-  and the write. Otherwise list them under an "ADR candidates" heading for the human to record by
-  hand. The offer never blocks the handoff: it runs beside the next step, not in place of it
+- **ADR candidates.** List each resolved decision whose thread records a rejected alternative,
+  with that alternative quoted from `design-threads.md`; a decision with none is not listed.
+  "None" is the entry when no decision qualifies. When the `architecture` plugin is enabled, offer
+  to invoke `/architecture:record-decision` via the Skill tool for each listed decision, passing
+  the decision, its recorded rationale and the rejected alternative. That skill owns and applies
+  the admission test, the template and convention discovery; this step carries no copy of the test
+  and judges none. Without the `architecture` plugin, list the
+  decisions under an "ADR candidates" heading for a human to judge. The offer never blocks the
+  handoff: it runs beside the next step, not in place of it
 - Deferred research items with tags
 - Design artifacts produced, and that PLAN.md's `## Design` section now holds them
 - Dependency order for implementation (which decisions block others)

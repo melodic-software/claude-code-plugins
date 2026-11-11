@@ -41,14 +41,14 @@ checks_init pre-commit "$@" || exit 0
 
 # A .venv the repository commits is its code, not the user's install, and a
 # commit hook never runs it.
-venv_dirs=()
-[[ -z "$(git ls-files -- ':(literal).venv' 2>/dev/null)" ]] && venv_dirs=(.venv/bin .venv/Scripts)
-for venv_bin in ${venv_dirs[@]+"${venv_dirs[@]}"}; do
-  if [[ -x "$venv_bin/ruff" || -x "$venv_bin/ruff.exe" ]]; then
-    PATH="$PWD/$venv_bin:$PATH"
-    break
-  fi
-done
+if [[ -z "$(git ls-files -- ':(literal).venv' 2>/dev/null)" ]]; then
+  for venv_bin in .venv/bin .venv/Scripts; do
+    if [[ -x "$venv_bin/ruff" || -x "$venv_bin/ruff.exe" ]]; then
+      PATH="$PWD/$venv_bin:$PATH"
+      break
+    fi
+  done
+fi
 checks_require_tool ruff "pip install ruff, or another method at https://docs.astral.sh/ruff/installation/"
 
 ruff_section='^[[:space:]]*\[tool\.ruff(\]|[.])'
@@ -71,9 +71,7 @@ governed() {
     for name in .ruff.toml ruff.toml; do
       [[ -f "$dir/$name" ]] && return 0
     done
-    if [[ -f "$dir/pyproject.toml" ]] && grep -qE "$ruff_section" "$dir/pyproject.toml" 2>/dev/null; then
-      return 0
-    fi
+    [[ -f "$dir/pyproject.toml" ]] && grep -qE "$ruff_section" "$dir/pyproject.toml" 2>/dev/null && return 0
     [[ "$dir" == . ]] && return 1
     case "$dir" in
     */*) dir="${dir%/*}" ;;
@@ -149,27 +147,25 @@ to_contract() {
 
 out="$CHECKS_TMP/ruff"
 : >"$CHECKS_TMP/contract"
-if ((${#files[@]})); then
-  ruff check --no-fix --output-format concise "${common[@]}" -- "${files[@]}" >"$out" 2>&1
-  rc=$?
-  if ((rc > 1)); then
-    printf 'ruff-format: ruff failed:\n' >&2
+# collect <ruff exit status> [path]: exit 1 on a Ruff failure, else append its
+# findings to the contract file.
+collect() {
+  if (($1 > 1)); then
+    printf 'ruff-format: ruff failed%s:\n' "${2:+ on $2}" >&2
     cat "$out" >&2
     exit 1
   fi
   to_contract <"$out" >>"$CHECKS_TMP/contract"
+}
+if ((${#files[@]})); then
+  ruff check --no-fix --output-format concise "${common[@]}" -- "${files[@]}" >"$out" 2>&1
+  collect $?
 fi
 # --stdin-filename names the path, so the config and its excludes hold for it.
 for f in ${gone[@]+"${gone[@]}"}; do
   git show ":$f" 2>/dev/null |
     ruff check --no-fix --output-format concise "${common[@]}" --stdin-filename "$f" - >"$out" 2>&1
-  rc=${PIPESTATUS[1]}
-  if ((rc > 1)); then
-    printf 'ruff-format: ruff failed on %s:\n' "$f" >&2
-    cat "$out" >&2
-    exit 1
-  fi
-  to_contract <"$out" >>"$CHECKS_TMP/contract"
+  collect "${PIPESTATUS[1]}" "$f"
 done
 checks_filter_findings <"$CHECKS_TMP/contract" >"$CHECKS_TMP/blocking"
 [[ -s "$CHECKS_TMP/blocking" ]] || exit 0

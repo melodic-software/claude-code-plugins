@@ -5,7 +5,7 @@
       "id": 1,
       "name": "trigger-arm-session-doctrine",
       "prompt": "load the playbook",
-      "expected_output": "Arms the current session with Fable 5.1's standing doctrine from this skill body and proceeds. Does not fetch an upstream pack or run /playbooks:update.",
+      "expected_output": "Arms the current session with Fable 5.2's standing doctrine from this skill body and proceeds. Does not fetch an upstream pack or run /playbooks:update.",
       "files": [],
       "narration": true,
       "expectations": [
@@ -44,25 +44,13 @@
       "id": 4,
       "name": "trigger-fable-5-1-adaptation-no-chapter",
       "prompt": "fable 5.1 adaptation",
-      "expected_output": "States that Claude Fable 5.1 is the doctrine's author and reads no adaptation chapter under meta-rule 3, so there is nothing to load beyond the skill body; reads no file under reference/model-adaptation/.",
+      "expected_output": "States that, under meta-rule 3's general rule, Claude Fable 5.1 reads no adaptation chapter: the Fable family has no chapter for Fable 5.1 or any earlier Fable version, and fable-5-2.md belongs to a later version, so there is nothing to load beyond the skill body; reads no file under reference/model-adaptation/.",
       "files": [],
       "narration": true,
       "expectations": [
-        "States that Fable 5.1 is the author of the doctrine and reads no adaptation chapter",
+        "States that Fable 5.1 has no chapter of its own or of an earlier Fable version and reads no adaptation chapter",
+        "Does not read fable-5-2.md, since a later version's chapter is never a substitute",
         "Reads no file under reference/model-adaptation/, in particular no Opus, Sonnet, or Haiku chapter",
-        "Does not treat the request as a /playbooks:update drift check"
-      ]
-    },
-    {
-      "id": 5,
-      "name": "trigger-fable-5-adaptation-no-chapter",
-      "prompt": "fable 5 adaptation",
-      "expected_output": "States that under meta-rule 3 Claude Fable 5 reads no adaptation chapter and the doctrine applies to it as written, with no fable-5.md to load; reads no sibling model's chapter.",
-      "files": [],
-      "narration": true,
-      "expectations": [
-        "States that Fable 5 reads no adaptation chapter and applies the doctrine as written",
-        "Reads no Opus, Sonnet, or Haiku chapter in its place",
         "Does not treat the request as a /playbooks:update drift check"
       ]
     },
@@ -70,7 +58,7 @@
       "id": 6,
       "name": "route-fable-5-1-session-at-arm-time",
       "prompt": "You are running as Claude Fable 5.1. Load the playbook before we start on this refactor.",
-      "expected_output": "Arms the session from the skill body and, per meta-rule 3, reads no chapter under reference/model-adaptation/, because Fable 5.1 is the doctrine's author.",
+      "expected_output": "Arms the session from the skill body and, per meta-rule 3, reads no chapter under reference/model-adaptation/, because the Fable family has no chapter for Fable 5.1 or any earlier Fable version.",
       "files": [],
       "narration": true,
       "expectations": [
@@ -81,15 +69,15 @@
     },
     {
       "id": 7,
-      "name": "route-later-fable-version-reads-no-chapter",
-      "prompt": "You are running as Claude Fable 5.2; no adaptation chapter exists for it. Load the playbook.",
-      "expected_output": "Arms the session and, per meta-rule 3's rule for a Fable version later than the author, reads no adaptation chapter and applies the doctrine as written; it does not fall back to an older Fable file or to another family's chapter.",
+      "name": "route-fable-5-2-session-reads-its-chapter",
+      "prompt": "You are running as Claude Fable 5.2. Load the playbook before we start on this refactor.",
+      "expected_output": "Arms the session and, per meta-rule 3, reads the Fable 5.2 model-adaptation chapter, fable-5-2.md, at arm time, although Fable 5.2 is the doctrine's author. It does not read an Opus, Sonnet, or Haiku chapter in its place or beside it.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Reads no file under reference/model-adaptation/",
-        "States that a Fable version later than 5.1 applies the doctrine as written",
-        "Does not read an Opus, Sonnet, or Haiku chapter as a substitute"
+        "Reads fable-5-2.md from the model-adaptation directory before continuing work",
+        "Does not skip the adaptation chapter on the grounds that Fable 5.2 authored the doctrine",
+        "Does not read an Opus, Sonnet, or Haiku chapter as a substitute or in addition"
       ]
     },
     {
@@ -368,6 +356,58 @@
         "Does not plan to delegate the read to a worker that returns a summary",
         "Does not plan parallel workers to cover the 15 files",
         "Reads no file and dispatches no worker"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "route-later-fable-version-reads-nearest-prior-chapter",
+      "prompt": "You are running as Claude Fable 5.3; no adaptation chapter exists for it. Load the playbook.",
+      "expected_output": "Arms the session and, per meta-rule 3's nearest-prior rule, reads fable-5-2.md as the nearest prior Fable chapter and follows its preamble, applying it method-only; it does not read another family's chapter as a substitute.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads fable-5-2.md as the nearest prior Fable chapter",
+        "Applies that chapter method-only, as its preamble directs, rather than adopting its deltas as written",
+        "Does not read an Opus, Sonnet, or Haiku chapter as a substitute"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "route-fable-5-reads-no-chapter",
+      "prompt": "You are running as Claude Fable 5. Load the playbook.",
+      "expected_output": "Arms the session and, per meta-rule 3's general rule, reads no adaptation chapter: the Fable family has no chapter for Fable 5 or any earlier Fable version, so it applies the playbook's chapters as written. It does not read fable-5-2.md, a later version's chapter, as a substitute, and reads no other family's chapter.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads no adaptation chapter and applies the playbook's chapters as written",
+        "Does not read fable-5-2.md, since a later version's chapter is never a substitute",
+        "Does not read an Opus, Sonnet, or Haiku chapter as a substitute"
+      ]
+    },
+    {
+      "id": 31,
+      "name": "fallback-fable-5-2-to-opus-5-rereads-chapter",
+      "prompt": "You armed the playbook as Claude Fable 5.2 and read fable-5-2.md. A notice now says a biology safeguard declined your last request and Claude Code switched this session to Claude Opus 5, which is now answering. Continue the task.",
+      "expected_output": "Treats the notice as evidence of a switch and re-resolves meta-rule 3 against Claude Opus 5: it stops applying fable-5-2.md and reads opus-5.md, the fallback-only chapter for Opus 5, before continuing the work.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Treats the switch notice as the trigger to re-resolve meta-rule 3",
+        "Stops applying fable-5-2.md once Opus 5 is answering",
+        "Reads opus-5.md before continuing the work"
+      ]
+    },
+    {
+      "id": 32,
+      "name": "fallback-fable-5-2-to-opus-4-8-rereads-chapter",
+      "prompt": "You armed the playbook as Claude Fable 5.2 and read fable-5-2.md. A notice now says a cybersecurity safeguard declined your last request and Claude Code switched this session to Claude Opus 4.8, which is now answering. Continue the task.",
+      "expected_output": "Treats the notice as evidence of a switch and re-resolves meta-rule 3 against Claude Opus 4.8: it stops applying fable-5-2.md and reads opus-4-8.md, the fallback-only chapter for Opus 4.8, before continuing the work.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Treats the switch notice as the trigger to re-resolve meta-rule 3",
+        "Stops applying fable-5-2.md once Opus 4.8 is answering",
+        "Reads opus-4-8.md before continuing the work"
       ]
     }
   ]

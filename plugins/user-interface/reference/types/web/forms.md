@@ -20,7 +20,7 @@ checkout, invite, settings. Every check here is a rough edge someone hits in the
 Sweep the forms in order of what they cost when broken: auth and checkout first, then creation
 flows, then settings.
 
-Three form rules belong to other concerns, one home each: the 16px floor on input text is the
+Three form rules belong to other concerns, one home each: the input floor on input text is the
 `touch` concern; a visible `:focus-visible` state on every input and control is the `accessibility`
 concern, and so is an error that is not signaled by color alone. A field's focus ring takes its
 color from the `--focus-ring` token, whose rule is the `color` concern's.

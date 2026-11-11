@@ -1,8 +1,11 @@
 # Remove: the workflow
 
 The default action and `report`. Scripts below are in the skill's `scripts/` directory, cited here
-as `<skill-dir>/scripts/<name>`: this file arrives through the Read tool, so no substitution
-variable resolves in it. Postures, the floor and the hard rules are in `SKILL.md`.
+as `<skill-dir>/scripts/<name>`, never through a substitution variable. Pointer for where those
+variables resolve:
+[Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions).
+As of: 2026-11-10. Recheck trigger: that section changes where plugin variables are substituted.
+Postures, the floor and the hard rules are in `SKILL.md`.
 
 With a subagent tool available, and unless you are `comment-reviewer` yourself, you run steps 1 and
 2 and then dispatch `code-tidying:comment-reviewer` for steps 3 to 7 ("The comment-reviewer agent"
@@ -141,6 +144,11 @@ absent, and no move dissolves a *why* ("Apply capacity" in dissolving-moves.md).
    layer, never `+0`. Then these lists, each "none" when empty:
    - **Reshape flags**: each deleted our-code surprise or undissolved class-B comment, by file, line
      and symbol, with the move that would make it unnecessary.
+   - **ADR candidates**: each deleted rationale for one of the repository's own decisions that names
+     the alternative it beat, by file, line and symbol, with whether `/architecture:record-decision`
+     recorded it, skipped it, or was not invoked (unattended, `report` mode, or no `architecture`
+     plugin), per SKILL.md "ADR candidates". Running as `comment-reviewer`, list each candidate
+     only; the orchestrator invokes `record-decision` and fills in the outcome.
    - **Open root-cause work**: each workaround comment removed or proposed for removal, and each
      correctness or safety suppression kept, by file and line with the comment's text. Deleting the
      comment leaves the workaround in the code. When `/corrections:codify` is among the available

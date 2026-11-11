@@ -86,8 +86,7 @@ function scrapeCurriculumInBrowser({ sources, instructorFragment }) {
   /** @type {ScrapedModule | null} */
   let currentModule = null;
   let modulePosition = 0;
-  const headingEl = document.querySelector("h2");
-  const courseTitle = headingEl?.textContent?.trim() ?? "";
+  const courseTitle = document.querySelector("h2")?.textContent?.trim() ?? "";
 
   for (const el of allElements) {
     if (el.tagName === "H2") {
@@ -114,20 +113,13 @@ function scrapeCurriculumInBrowser({ sources, instructorFragment }) {
       const lectureId = /** @type {HTMLAnchorElement} */ (el).href?.match(lectureIdPattern)?.[1];
       const h3 = el.querySelector("h3");
       if (lectureId && h3 && !currentModule.lessons.some((l) => l.lectureId === lectureId)) {
-        const fullText = el.textContent.trim();
-        const rawDuration = fullText.match(durationPattern)?.[1] ?? "";
-        const title = h3.textContent.trim();
-
-        let duration = "";
-        if (rawDuration) {
-          const parts = rawDuration.split(":");
-          duration = `${parts[0]}m ${parts[1]}s`;
-        }
+        const rawDuration = el.textContent.trim().match(durationPattern)?.[1] ?? "";
+        const [mins, secs] = rawDuration.split(":");
 
         currentModule.lessons.push({
           position: currentModule.lessons.length + 1,
-          title,
-          duration,
+          title: h3.textContent.trim(),
+          duration: rawDuration ? `${mins}m ${secs}s` : "",
           lectureId,
           slug: lectureId,
           status: "pending",

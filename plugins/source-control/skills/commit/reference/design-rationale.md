@@ -6,10 +6,14 @@ it changes a step; read it when a rule here is questioned.
 
 ## Where the 11 types come from
 
-The 11 types. `build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test`. Come from
-the Conventional Commits spec, the Angular convention, commitlint's `@commitlint/config-conventional`
-source, and `amannn/action-semantic-pull-request`'s default `types` list; all four agree on this exact
-set. `security` is **not** a Conventional Commits type in any of them, never add it.
+The 11 types, `build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test`, are this
+skill's default vocabulary. `security` is not one of them; never add it.
+
+- **Pointer**: when the default type set is questioned, fetch commitlint's
+  [config-conventional `type-enum`](https://github.com/conventional-changelog/commitlint/tree/master/%40commitlint/config-conventional#type-enum)
+  live. It and Angular's [commit message Type](https://github.com/angular/angular/blob/main/contributing-docs/commit-message-guidelines.md#type)
+  disagree on the type set, so cite `type-enum`, never a consensus of sources. **As of**:
+  2026-11-10. **Recheck trigger**: `type-enum`'s value changes, or the two sections agree.
 
 ## A mod can change the injected commit guidance
 

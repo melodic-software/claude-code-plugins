@@ -3,6 +3,24 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.7] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [1.1.6] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [1.1.5] - 2026-11-10
+
+### Changed
+
+- Shared `suppression-scan.py` synced where this plugin carries it: the scanner's code is simplified, and its output, exit codes and flags are unchanged.
+
 ## [1.1.4] - 2026-11-07
 
 ### Changed

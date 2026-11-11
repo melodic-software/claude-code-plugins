@@ -283,7 +283,7 @@ out="$(run plain all --session-model opus)"
 assert_lacks "no haiku anywhere: no haiku note" "$out" 'resolves to haiku'
 
 out="$("$SUT" pointers)"
-assert_contains "pointers lists each role's as_of" "$out" $'worker\tas_of\t2026-10-13'
+assert_contains "pointers lists each role's as_of" "$out" $'worker\tas_of\t2026-11-09'
 assert_contains "pointers lists the fan-out guard basis" "$out" $'fanout\tpointer\thttps://code.claude.com/docs/en/workflows#cost'
 assert_contains "pointers lists a role's per-value basis" "$out" $'verifier\tbasis_effort\tupstream'
 

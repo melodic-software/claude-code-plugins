@@ -22,7 +22,7 @@ export function renderQualityAudit(sliceDir) {
   const absSlice = path.resolve(sliceDir);
   const doc = readLaneJson(absSlice, LANES.keyFrames, "key-frame-quality-audit.json");
 
-  const failures = doc.files.filter((f) => !f.pass);
+  const rejected = doc.files.filter((f) => !f.pass).map((f) => f.name);
   const lines = [
     "# Key frame quality audit",
     "",
@@ -36,12 +36,13 @@ export function renderQualityAudit(sliceDir) {
     lines.push(`| ${file.name} | ${file.pass ? "yes" : "no"} | ${file.note ?? ""} |`);
   }
 
-  lines.push("");
-  if (failures.length > 0) {
-    lines.push(`**Rejected / pending delete:** ${failures.map((f) => f.name).join(", ")}`, "");
-  } else {
-    lines.push("**Rejected / deleted:** none", "");
-  }
+  lines.push(
+    "",
+    rejected.length > 0
+      ? `**Rejected / pending delete:** ${rejected.join(", ")}`
+      : "**Rejected / deleted:** none",
+    "",
+  );
 
   const outPath = lanePath(absSlice, LANES.keyFrames, "key-frame-quality-audit.md");
   fs.writeFileSync(outPath, `${lines.join("\n")}\n`, "utf8");

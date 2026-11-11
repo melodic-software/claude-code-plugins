@@ -37,7 +37,7 @@ and `/session-flow:retro` analysis.
 
 A stage may be SKIPPED with explicit justification recorded next to its box. Typical skips: stage 1
 when intent is already crisp; stages 2, 3, 4 and 7 when their triggers do not hold; stage 9 for
-doc-only changes with no behavior delta. Never skip stages 5, 6, 10, or 11 for code changes; stage
+doc-only changes with no behavior delta. On the full path, never skip stages 5, 6, 10, or 11 for code changes; stage
 5 on work with no design question is its recorded early exit, not a skip.
 
 ## How to use

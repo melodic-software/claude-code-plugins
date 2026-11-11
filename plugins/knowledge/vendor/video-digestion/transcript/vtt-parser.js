@@ -24,6 +24,11 @@ const MAX_CUE_JOIN_OVERLAP_WORDS = 24;
  * @property {number} startSec - start time in seconds
  * @property {number} endSec - end time in seconds
  * @property {string} text - cue text (may span multiple lines, joined with space)
+ * @property {string[]} [lines] - the cue's text lines, present only when
+ *   {@link parseVttSegment} was asked to keep them
+ * @property {boolean} [carriedLineDropped] - set when the line a rolling
+ *   caption carried over was already removed from `text`, so the rest is new
+ *   speech that no word-overlap rule may trim
  */
 
 /**
@@ -95,9 +100,11 @@ export function stripVttInlineTags(text) {
  * Skips the WEBVTT header, X-TIMESTAMP-MAP, and NOTE blocks.
  *
  * @param {string} vttText - raw WebVTT segment content
+ * @param {{ keepLines?: boolean }} [options] - `keepLines` adds each cue's
+ *   text lines as `lines`, for callers that need the line structure
  * @returns {VttCue[]}
  */
-export function parseVttSegment(vttText) {
+export function parseVttSegment(vttText, { keepLines = false } = {}) {
   const cues = [];
   const lines = vttText.split("\n");
   let i = 0;
@@ -126,7 +133,8 @@ export function parseVttSegment(vttText) {
         i++;
       }
       if (textLines.length > 0) {
-        cues.push({ startSec, endSec, text: textLines.join(" ") });
+        const cue = { startSec, endSec, text: textLines.join(" ") };
+        cues.push(keepLines ? { ...cue, lines: textLines } : cue);
       }
     } else {
       i++;
@@ -273,19 +281,17 @@ export function formatTranscript(cues) {
     previousCueText = cue.text;
 
     if (!currentParagraphText) {
-      const openingText = dropLeadingWords(
-        cue.text,
-        overlapWordCount(previousText, cue.text),
-      );
+      const openingText = cue.carriedLineDropped
+        ? cue.text
+        : dropLeadingWords(cue.text, overlapWordCount(previousText, cue.text));
       if (!openingText) continue;
       paragraphStart = cue.startSec;
       currentParagraphText = openingText;
       cuesInParagraph = 1;
     } else {
-      currentParagraphText = mergeAdjacentCueText(
-        currentParagraphText,
-        cue.text,
-      );
+      currentParagraphText = cue.carriedLineDropped
+        ? `${currentParagraphText} ${cue.text}`
+        : mergeAdjacentCueText(currentParagraphText, cue.text);
       cuesInParagraph++;
     }
 
@@ -324,7 +330,7 @@ export function parseSubtitleManifest(manifestBody) {
  * @returns {{ transcript: string, cueCount: number, paragraphCount: number }}
  */
 export function processSubtitleSegments(segmentBodies) {
-  const allCues = segmentBodies.flatMap(parseVttSegment);
+  const allCues = segmentBodies.flatMap((body) => parseVttSegment(body));
   const unique = deduplicateCues(allCues);
   const transcript = formatTranscript(unique);
   const paragraphCount = transcript ? transcript.split("\n\n").length : 0;

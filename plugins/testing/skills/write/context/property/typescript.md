@@ -7,8 +7,9 @@ different property library, apply the same page with that library's docs.
   `fc.assert(fc.property(arbA, arbB, (a, b) => ...))`. For promises use `fc.asyncProperty` and
   write `await fc.assert(...)`: an assert that is not awaited never reports its failure, which is
   the `rule-inert-assertion` shape `/testing:test-value` describes. The predicate fails the case by returning `false` or throwing. The audit's JavaScript adapter treats
-  `fc.assert`, `fc.property` and `fc.asyncProperty` as property markers and skips the whole file
-  for `rule-recomputed-derived`, so put example tests in another file.
+  `fc.assert`, `fc.property` and `fc.asyncProperty` as property markers and skips
+  `rule-recomputed-derived` for the test that holds one; an example test in the same file is still
+  checked.
 - **Constraining inputs.** Arbitrary options carry the input rules:
   `fc.integer({ min: 0, max: 10_000_000 })` for an amount in cents, `fc.string({ minLength: 1, maxLength: 40 })`
   for a name, `fc.record({...})` for an object. For a value that depends on another, use `.chain`.

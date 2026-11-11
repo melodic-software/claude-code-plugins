@@ -50,7 +50,7 @@ user as questions.
 - **Push on the answer before moving on.** "Everyone" is not a user. "It's better" is not a reason to switch. "They said it was too expensive" is a story; ask for the literal words. A feature list in answer to a question about a person is a dodge; ask about the person again.
 - **A fatal answer stops the phase.** No named person with the problem (principle 4), or no reason to switch that would survive great distribution (principle 2), means nothing downstream matters yet. Say so plainly, and ask only about that gap. When it is filled, resume phase order. When the user decides to go find out, or the gap is still open at the fifteen-question cap, end the interview and write the verdict, with the gap as item 3 and its cheapest test.
 - **Length**: at least two questions per phase, at most fifteen questions total. Then write the verdict. A fatal answer overrides the per-phase minimum for the phases it leaves unreached.
-- Be blunt. No compliments on the idea, no softening. The user asked to be grilled.
+- Be blunt. No compliments on the idea, no softening. The user asked for a hard interview.
 
 ## Question shape
 
@@ -61,7 +61,7 @@ Basis: reference/product-principles.md, principle <n> (<its name from the index 
 ```
 
 `Q<N>` numbers run on across turns and match the register rows. The `Basis:` line cites the
-principle by number and name in place of the `Basis: verified` fact list and `Inference:` line: a
+principle by number and name in place of the `Basis: verified` fact list and the fact-based reason: a
 strong answer is a standard for the user's answer, not a claim about their situation, so it has no
 fact to verify. A fact the question itself states, from the pitch, the repository or a lookup,
 still carries its source.

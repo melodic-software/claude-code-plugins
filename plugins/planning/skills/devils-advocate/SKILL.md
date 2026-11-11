@@ -19,10 +19,9 @@ Collect these with **individual** Bash calls, one command per call, never combin
 - Recent commits, `git log --oneline -5`
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-body Bash calls, not pre-compute lines: a worktree-isolated session refuses a compound command that
-contains git, and the pre-compute block runs as one. Record: the
-[gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation".
+body Bash calls, not pre-compute lines. How the harness runs a skill's injected commands:
+[How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run), as
+of 2026-11-10; recheck when that section changes how injected commands run.
 
 ## Variables
 

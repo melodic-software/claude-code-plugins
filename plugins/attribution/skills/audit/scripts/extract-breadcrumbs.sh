@@ -57,23 +57,24 @@ stamp_lines, quote_lines}]}], counts}. Diagnostics go to stderr.
 EOF
 }
 
+require_no_mode() {
+  if [[ -n "$MODE" ]]; then
+    echo "extract-breadcrumbs.sh: --dir and --files are exclusive" >&2
+    exit 2
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --dir)
-    if [[ -n "$MODE" ]]; then
-      echo "extract-breadcrumbs.sh: --dir and --files are exclusive" >&2
-      exit 2
-    fi
+    require_no_mode
     require_opt_value "extract-breadcrumbs.sh" "$@"
     MODE="dir"
     DIR="$2"
     shift 2
     ;;
   --files)
-    if [[ -n "$MODE" ]]; then
-      echo "extract-breadcrumbs.sh: --dir and --files are exclusive" >&2
-      exit 2
-    fi
+    require_no_mode
     MODE="files"
     shift
     while [[ $# -gt 0 && "$1" != -* ]]; do
@@ -187,19 +188,11 @@ function first_iso(s) {
 # not; or a capital M on the original line, since edited prose capitalizes the
 # month and not the modal, and the lowered copy this scan works from throws that
 # signal away. The capital is what keeps a digitless "Verified this May" in this
-# inventory. check-stamps.sh carries the same two tests, and uses them at both
-# of its sites; its copy records the corpus measurements and the two known
-# costs, a capitalized sentence-initial modal and an ALL-CAPS date.
+# inventory.
 #
 # The two signals share one RSTART, which is_stamp() reads against wlen, so both
-# are evaluated and the LEFTMOST wins. Returning on whichever branch is tested
-# first under-reports: a digit-adjacent "may" out in the 9 characters of slack
-# returns its own RSTART, is_stamp() rejects it, and a capital "May" inside the
-# window is never consulted, so appending a stray "7 may" to "Verified this May"
-# drops the line from this inventory. Testing the capital first only mirrors
-# that. A false return leaves RSTART = 0 and RLENGTH = -1, the values awk
-# itself sets after a failed match. check-stamps.sh carries the same body and the
-# full account.
+# are evaluated and the LEFTMOST wins. A false return leaves RSTART = 0 and
+# RLENGTH = -1. check-stamps.sh carries the same body and its known costs.
 function may_form(w, worig,   ds, dl, cs, cl) {
   ds = 0; dl = 0
   if (match(w, /(may[^a-z]*[0-9]|[0-9][^a-z]*may)/)) { ds = RSTART; dl = RLENGTH }
@@ -241,11 +234,6 @@ function year_form(w,   off, s, pre, post) {
 # shipped build" became a candidate purely because a year appeared later in the
 # sentence. check-stamps.sh carries the same two windows — one definition of
 # what looks like a stamp, so the inventory and the check agree.
-# "may" is split out of the month list for the same reason: it is also an
-# ordinary English modal, so may_form() above decides which one a window holds
-# and leaves RSTART on the leftmost of its two signals, so a signal out in the
-# slack cannot hide one the wlen guard below would have taken.
-# check-stamps.sh carries that split at both of its sites.
 function is_stamp(line,   low, pos, rest, rest_orig, off, kw, wlen, s) {
   low = tolower(line)
   off = 0
@@ -271,11 +259,7 @@ function is_stamp(line,   low, pos, rest, rest_orig, off, kw, wlen, s) {
     # more characters, one short of the longest FIXED-LENGTH form matched below
     # (the 10-character ISO date; the "may" rule is unbounded and can outrun the
     # slack, as check-stamps.sh notes at the same rule), and require
-    # each match to BEGIN at or before wlen. Slicing at exactly wlen dropped
-    # docs/cloud-sessions.md:320 from this inventory while check-stamps.sh
-    # counted it a candidate: its date starts at offset 60 of 60, so the cut
-    # left a bare "2" and no form matched. These two scripts promise the same
-    # candidate definition, so the boundary has to be the same in both.
+    # each match to BEGIN at or before wlen.
     # rest_orig is the same span of the ORIGINAL line, cut at the same offsets:
     # tolower() preserves length, so the two stay aligned character for
     # character and may_form() can read the capital that separates the month

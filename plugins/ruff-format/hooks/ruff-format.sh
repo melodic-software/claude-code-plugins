@@ -69,7 +69,6 @@ ruff_config_here() {
     grep -qE '^[[:space:]]*\[tool\.ruff(\]|[.])' "$dir/pyproject.toml" 2>/dev/null
 }
 
-RUFF_BIN=""
 # shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
 ruff_venv_bin_here() {
   local cand
@@ -119,12 +118,15 @@ for i in "${!ROOTS[@]}"; do
   hook::dirname_to dir "${group[0]}"
   hook::walk_up_to venv_dir "$dir" "$root" ruff_venv_bin_here || :
   if [[ -z "$RUFF_BIN" ]]; then
-    command -v ruff >/dev/null 2>&1 && RUFF_BIN=ruff
+    command -v ruff >/dev/null 2>&1 || continue
+    RUFF_BIN=ruff
   fi
-  [[ -n "$RUFF_BIN" ]] || continue
   # --force-exclude honors the config's excludes for explicit paths; --no-cache
   # keeps a .ruff_cache out of the consumer's repo.
-  (cd "$root" && "$RUFF_BIN" check --fix --no-unsafe-fixes --unfixable F401 --force-exclude --no-cache --quiet -- "${group[@]}") >/dev/null 2>&1 || :
-  (cd "$root" && "$RUFF_BIN" format --force-exclude --no-cache --quiet -- "${group[@]}") >/dev/null 2>&1 || :
+  (
+    cd "$root" || exit
+    "$RUFF_BIN" check --fix --no-unsafe-fixes --unfixable F401 --force-exclude --no-cache --quiet -- "${group[@]}"
+    "$RUFF_BIN" format --force-exclude --no-cache --quiet -- "${group[@]}"
+  ) >/dev/null 2>&1 || :
 done
 exit 0

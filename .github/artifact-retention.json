@@ -1,6 +1,54 @@
 {
   "$schema": "./artifact-retention.schema.json",
   "families": {
+    "lane-hold-*": {
+      "retention-days": 1,
+      "readers": [".github/scripts/maintenance-monitor-signals/collect.mjs lists lane-hold-<lane> by exact name each hourly run"],
+      "reason": "A hold marker only feeds monitor signal 13's 24-hour hold count, re-read every hour; 1 day is the minimum. It holds the lane name and run id, written by the step itself, no model text.",
+      "scan": "none"
+    },
+    "lane-hold-intake-triage": {
+      "retention-days": 1,
+      "readers": [".github/scripts/maintenance-monitor-signals/collect.mjs lists it by exact name each hourly run"],
+      "reason": "Same as lane-hold-*: feeds monitor signal 13's 24-hour hold count; lane name and run id only.",
+      "scan": "none"
+    },
+    "lane-hold-pr-merge": {
+      "retention-days": 1,
+      "readers": [".github/scripts/maintenance-monitor-signals/collect.mjs lists it by exact name each hourly run"],
+      "reason": "Same as lane-hold-*: feeds monitor signal 13's 24-hour hold count; lane name and run id only.",
+      "scan": "none"
+    },
+    "lane-hold-pr-refine": {
+      "retention-days": 1,
+      "readers": [".github/scripts/maintenance-monitor-signals/collect.mjs lists it by exact name each hourly run"],
+      "reason": "Same as lane-hold-*: feeds monitor signal 13's 24-hour hold count; lane name and run id only.",
+      "scan": "none"
+    },
+    "lane-hold-pr-review-main": {
+      "retention-days": 1,
+      "readers": [".github/scripts/maintenance-monitor-signals/collect.mjs lists it by exact name each hourly run"],
+      "reason": "Same as lane-hold-*: feeds monitor signal 13's 24-hour hold count; lane name and run id only.",
+      "scan": "none"
+    },
+    "lane-hold-pr-verify": {
+      "retention-days": 1,
+      "readers": [".github/scripts/maintenance-monitor-signals/collect.mjs lists it by exact name each hourly run"],
+      "reason": "Same as lane-hold-*: feeds monitor signal 13's 24-hour hold count; lane name and run id only.",
+      "scan": "none"
+    },
+    "lane-hold-work-resolve-issue": {
+      "retention-days": 1,
+      "readers": [".github/scripts/maintenance-monitor-signals/collect.mjs lists it by exact name each hourly run"],
+      "reason": "Same as lane-hold-*: feeds monitor signal 13's 24-hour hold count; lane name and run id only.",
+      "scan": "none"
+    },
+    "lane-hold-work-unblock": {
+      "retention-days": 1,
+      "readers": [".github/scripts/maintenance-monitor-signals/collect.mjs lists it by exact name each hourly run"],
+      "reason": "Same as lane-hold-*: feeds monitor signal 13's 24-hour hold count; lane name and run id only.",
+      "scan": "none"
+    },
     "pr-verify-index-*": {
       "retention-days": "max",
       "readers": [
@@ -233,6 +281,22 @@
         ".github/scripts/pr-merge/carry-run-cache.mjs CARRY_ARTIFACT, from the newest trusted run"
       ],
       "reason": "Read by the next run; 1 day is the minimum.",
+      "scan": "upload"
+    },
+    "lane-level-state": {
+      "retention-days": 1,
+      "readers": [
+        ".github/scripts/work-unblock/publish-lane-level.mjs STATE_ARTIFACT, from the newest scheduled sweep"
+      ],
+      "reason": "Read by the next hour's publish-lane-level job; 1 day is the minimum, and with none the published level or the default stands in.",
+      "scan": "upload"
+    },
+    "work-unblock-verdicts": {
+      "retention-days": 1,
+      "readers": [
+        ".github/scripts/work-unblock/verdict-carry.mjs CARRY_ARTIFACT, from the newest successful sweep"
+      ],
+      "reason": "Read by the next sweep; 1 day is the minimum.",
       "scan": "upload"
     },
     "pr-merge-summary": {

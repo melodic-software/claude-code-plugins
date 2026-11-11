@@ -181,12 +181,15 @@ function answer(conn, { driver, roots, depsDir, key, inSandbox }) {
       send({ stderr: `launch broker: refused: ${err.message}\n` });
       return finish(2);
     }
+    const notStarted = (err) => {
+      send({ stderr: `launch broker: the driver did not start (${err.message})\n` });
+      finish(1);
+    };
     let child;
     try {
       child = spawn(process.execPath, [driver, ...args], { env: childEnv(process.env, key), stdio: ['ignore', 'pipe', 'pipe'] });
     } catch (err) {
-      send({ stderr: `launch broker: the driver did not start (${err.message})\n` });
-      return finish(1);
+      return notStarted(err);
     }
     for (const stream of ['stdout', 'stderr']) {
       const decoder = new StringDecoder('utf8');
@@ -194,10 +197,7 @@ function answer(conn, { driver, roots, depsDir, key, inSandbox }) {
       child[stream].on('data', (chunk) => relay(decoder.write(chunk)));
       child[stream].on('end', () => relay(decoder.end()));
     }
-    child.on('error', (err) => {
-      send({ stderr: `launch broker: the driver did not start (${err.message})\n` });
-      finish(1);
-    });
+    child.on('error', notStarted);
     child.on('close', (code) => finish(Number.isInteger(code) ? code : 1));
   });
 }

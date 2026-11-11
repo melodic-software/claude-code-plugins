@@ -314,9 +314,6 @@ require_file() {
   }
 }
 
-# Same shape as require_value above, for the numeric flags. Callers then
-# assign with `$((10#$2))`, which forces base-10 so a leading-zero value is not
-# misread as octal (08 errors outright, 010 would evaluate as 8).
 # A money or size amount: digits with an optional decimal part.
 require_amount() {
   [[ "$2" =~ ^[0-9]+(\.[0-9]+)?$ ]] || {
@@ -344,72 +341,46 @@ require_percent() {
 # A GitHub owner name: letters, digits and inner hyphens, at most 39 characters.
 is_owner() { [[ "$1" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,37}[A-Za-z0-9])?$ ]]; }
 
+# take KIND VAR FLAG [VALUE]: checks the flag's VALUE as KIND (text, file, uint,
+# percent or amount) and stores it in VAR. A uint or percent is stored as
+# `$((10#VALUE))`, which forces base-10 so a leading-zero value is not misread
+# as octal (08 errors outright, 010 would evaluate as 8).
+take() {
+  local kind="$1" var="$2" flag="$3" value="${4:-}"
+  require_value "$flag" "$value"
+  case "$kind" in
+  file) require_file "$flag" "$value" ;;
+  uint)
+    require_uint "$flag" "$value"
+    value="$((10#$value))"
+    ;;
+  percent)
+    require_percent "$flag" "$value"
+    value="$((10#$value))"
+    ;;
+  amount) require_amount "$flag" "$value" ;;
+  *) ;; # text: any value require_value accepts
+  esac
+  printf -v "$var" '%s' "$value"
+}
+
+# Every flag but --help takes a value, so each arm leaves the shift to the loop.
 while (($# > 0)); do
   case "$1" in
   -h | --help) usage ;;
   --repo)
-    require_value "$1" "${2:-}"
-    REPO="$2"
+    take text REPO "$@"
     REPO_SOURCE="--repo"
-    shift 2
     ;;
-  --telemetry-issue)
-    require_value "$1" "${2:-}"
-    TELEMETRY_ISSUE="$2"
-    shift 2
-    ;;
-  --queue-labels)
-    require_value "$1" "${2:-}"
-    QUEUE_LABELS_ARG="$2"
-    shift 2
-    ;;
-  --decision-label)
-    require_value "$1" "${2:-}"
-    DECISION_LABEL_ARG="$2"
-    shift 2
-    ;;
-  --repo-labels-json)
-    require_value "$1" "${2:-}"
-    require_file "$1" "$2"
-    REPO_LABELS_JSON="$2"
-    shift 2
-    ;;
-  --stale-hours)
-    require_value "$1" "${2:-}"
-    require_uint "$1" "$2"
-    STALE_HOURS="$((10#$2))"
-    shift 2
-    ;;
-  --rec-maxlen)
-    require_value "$1" "${2:-}"
-    require_uint "$1" "$2"
-    REC_MAXLEN="$((10#$2))"
-    shift 2
-    ;;
-  --stranded-days)
-    require_value "$1" "${2:-}"
-    require_uint "$1" "$2"
-    STRANDED_DAYS="$((10#$2))"
-    shift 2
-    ;;
-  --stuck-days)
-    require_value "$1" "${2:-}"
-    require_uint "$1" "$2"
-    STUCK_DAYS="$((10#$2))"
-    shift 2
-    ;;
-  --landed-sample)
-    require_value "$1" "${2:-}"
-    require_uint "$1" "$2"
-    LANDED_SAMPLE="$((10#$2))"
-    shift 2
-    ;;
-  --stuck-limit)
-    require_value "$1" "${2:-}"
-    require_uint "$1" "$2"
-    STUCK_LIMIT="$((10#$2))"
-    shift 2
-    ;;
+  --telemetry-issue) take text TELEMETRY_ISSUE "$@" ;;
+  --queue-labels) take text QUEUE_LABELS_ARG "$@" ;;
+  --decision-label) take text DECISION_LABEL_ARG "$@" ;;
+  --stale-hours) take uint STALE_HOURS "$@" ;;
+  --rec-maxlen) take uint REC_MAXLEN "$@" ;;
+  --stranded-days) take uint STRANDED_DAYS "$@" ;;
+  --stuck-days) take uint STUCK_DAYS "$@" ;;
+  --landed-sample) take uint LANDED_SAMPLE "$@" ;;
+  --stuck-limit) take uint STUCK_LIMIT "$@" ;;
   --data-dir)
     require_value "$1" "${2:-}"
     # The skill pre-approves this script with any arguments, so the one path it
@@ -420,43 +391,11 @@ while (($# > 0)); do
       exit 3
     }
     DATA_DIR_ARG="$2"
-    shift 2
     ;;
-  --pr-limit)
-    require_value "$1" "${2:-}"
-    require_uint "$1" "$2"
-    PR_LIMIT="$((10#$2))"
-    shift 2
-    ;;
-  --lane-workflows)
-    require_value "$1" "${2:-}"
-    LANE_WORKFLOWS_ARG="$2"
-    shift 2
-    ;;
-  --lane-read-limit)
-    require_value "$1" "${2:-}"
-    require_uint "$1" "$2"
-    LANE_READ_LIMIT="$((10#$2))"
-    shift 2
-    ;;
-  --max-turns-hits)
-    require_value "$1" "${2:-}"
-    require_uint "$1" "$2"
-    MAX_TURNS_HITS="$((10#$2))"
-    shift 2
-    ;;
-  --lane-runs-json)
-    require_value "$1" "${2:-}"
-    require_file "$1" "$2"
-    LANE_RUNS_JSON="$2"
-    shift 2
-    ;;
-  --lane-annotations-json)
-    require_value "$1" "${2:-}"
-    require_file "$1" "$2"
-    LANE_ANNOTATIONS_JSON="$2"
-    shift 2
-    ;;
+  --pr-limit) take uint PR_LIMIT "$@" ;;
+  --lane-workflows) take text LANE_WORKFLOWS_ARG "$@" ;;
+  --lane-read-limit) take uint LANE_READ_LIMIT "$@" ;;
+  --max-turns-hits) take uint MAX_TURNS_HITS "$@" ;;
   --org)
     require_value "$1" "${2:-}"
     is_owner "$2" || {
@@ -465,184 +404,49 @@ while (($# > 0)); do
     }
     ORG_ARG="$2"
     ORG_FLAG=1
-    shift 2
     ;;
   --subscription)
-    require_value "$1" "${2:-}"
-    SUBSCRIPTION_ARG="$2"
+    take text SUBSCRIPTION_ARG "$@"
     SUBSCRIPTION_FLAG=1
-    shift 2
     ;;
-  --billing-usage-json)
-    require_value "$1" "${2:-}"
-    require_file "$1" "$2"
-    BILLING_USAGE_JSON="$2"
-    shift 2
-    ;;
-  --billing-budgets-json)
-    require_value "$1" "${2:-}"
-    require_file "$1" "$2"
-    BILLING_BUDGETS_JSON="$2"
-    shift 2
-    ;;
-  --config-home)
-    require_value "$1" "${2:-}"
-    CONFIG_HOME_ARG="$2"
-    shift 2
-    ;;
-  --org-scan-json)
-    require_value "$1" "${2:-}"
-    require_file "$1" "$2"
-    ORG_SCAN_JSON="$2"
-    shift 2
-    ;;
-  --actions-included-minutes)
-    require_value "$1" "${2:-}"
-    require_amount "$1" "$2"
-    ACTIONS_INCLUDED_MINUTES="$2"
-    shift 2
-    ;;
-  --actions-included-storage-gb)
-    require_value "$1" "${2:-}"
-    require_amount "$1" "$2"
-    ACTIONS_INCLUDED_STORAGE_GB="$2"
-    shift 2
-    ;;
-  --usage-alert-percent)
-    require_value "$1" "${2:-}"
-    require_percent "$1" "$2"
-    USAGE_ALERT_PERCENT="$((10#$2))"
-    shift 2
-    ;;
-  --log-cap-alert-percent)
-    require_value "$1" "${2:-}"
-    require_percent "$1" "$2"
-    LOG_CAP_ALERT_PERCENT="$((10#$2))"
-    shift 2
-    ;;
-  --forecast-alert)
-    require_value "$1" "${2:-}"
-    require_amount "$1" "$2"
-    FORECAST_ALERT="$2"
-    shift 2
-    ;;
-  --required-budgets)
-    require_value "$1" "${2:-}"
-    REQUIRED_BUDGETS_ARG="$2"
-    shift 2
-    ;;
-  --anomaly-alert)
-    require_value "$1" "${2:-}"
-    ANOMALY_ALERT="$2"
-    shift 2
-    ;;
-  --expiry-days)
-    require_value "$1" "${2:-}"
-    require_uint "$1" "$2"
-    EXPIRY_DAYS="$((10#$2))"
-    shift 2
-    ;;
-  --allowed-collaborators)
-    require_value "$1" "${2:-}"
-    ALLOWED_COLLABORATORS_ARG="$2"
-    shift 2
-    ;;
-  --workflow-read-limit)
-    require_value "$1" "${2:-}"
-    require_uint "$1" "$2"
-    WORKFLOW_READ_LIMIT="$((10#$2))"
-    shift 2
-    ;;
-  --azure-json)
-    require_value "$1" "${2:-}"
-    require_file "$1" "$2"
-    AZURE_JSON="$2"
-    shift 2
-    ;;
-  --now)
-    require_value "$1" "${2:-}"
-    NOW_ISO="$2"
-    shift 2
-    ;;
-  --counts-json)
-    require_value "$1" "${2:-}"
-    require_file "$1" "$2"
-    COUNTS_JSON="$2"
-    shift 2
-    ;;
-  --pr-json)
-    require_value "$1" "${2:-}"
-    require_file "$1" "$2"
-    PR_JSON="$2"
-    shift 2
-    ;;
-  --behind-json)
-    require_value "$1" "${2:-}"
-    require_file "$1" "$2"
-    BEHIND_JSON="$2"
-    shift 2
-    ;;
-  --decisions-json)
-    require_value "$1" "${2:-}"
-    require_file "$1" "$2"
-    DECISIONS_JSON="$2"
-    shift 2
-    ;;
-  --telemetry-json)
-    require_value "$1" "${2:-}"
-    require_file "$1" "$2"
-    TELEMETRY_JSON="$2"
-    shift 2
-    ;;
-  --merged-json)
-    require_value "$1" "${2:-}"
-    require_file "$1" "$2"
-    MERGED_JSON="$2"
-    shift 2
-    ;;
-  --stuck-json)
-    require_value "$1" "${2:-}"
-    require_file "$1" "$2"
-    STUCK_JSON="$2"
-    shift 2
-    ;;
+  --config-home) take text CONFIG_HOME_ARG "$@" ;;
+  --actions-included-minutes) take amount ACTIONS_INCLUDED_MINUTES "$@" ;;
+  --actions-included-storage-gb) take amount ACTIONS_INCLUDED_STORAGE_GB "$@" ;;
+  --usage-alert-percent) take percent USAGE_ALERT_PERCENT "$@" ;;
+  --log-cap-alert-percent) take percent LOG_CAP_ALERT_PERCENT "$@" ;;
+  --forecast-alert) take amount FORECAST_ALERT "$@" ;;
+  --required-budgets) take text REQUIRED_BUDGETS_ARG "$@" ;;
+  --anomaly-alert) take text ANOMALY_ALERT "$@" ;;
+  --expiry-days) take uint EXPIRY_DAYS "$@" ;;
+  --allowed-collaborators) take text ALLOWED_COLLABORATORS_ARG "$@" ;;
+  --workflow-read-limit) take uint WORKFLOW_READ_LIMIT "$@" ;;
+  --now) take text NOW_ISO "$@" ;;
   --touch-days)
-    require_value "$1" "${2:-}"
-    require_uint "$1" "$2"
-    ((10#$2 >= 1)) || {
+    take uint TOUCH_DAYS "$@"
+    ((TOUCH_DAYS >= 1)) || {
       printf 'morning-brief: --touch-days must be 1 or more\n' >&2
       exit 3
     }
-    TOUCH_DAYS="$((10#$2))"
-    shift 2
     ;;
-  --owner-login)
-    require_value "$1" "${2:-}"
-    OWNER_LOGIN_ARG="$2"
-    shift 2
-    ;;
-  --lane-identity)
-    require_value "$1" "${2:-}"
-    LANE_IDENTITY_ARG="$2"
-    shift 2
-    ;;
-  --hold-label)
-    require_value "$1" "${2:-}"
-    HOLD_LABEL="$2"
-    shift 2
-    ;;
-  --touch-json)
-    require_value "$1" "${2:-}"
-    require_file "$1" "$2"
-    TOUCH_JSON="$2"
-    shift 2
-    ;;
-  --status-json)
-    require_value "$1" "${2:-}"
-    require_file "$1" "$2"
-    STATUS_JSON="$2"
-    shift 2
-    ;;
+  --owner-login) take text OWNER_LOGIN_ARG "$@" ;;
+  --lane-identity) take text LANE_IDENTITY_ARG "$@" ;;
+  --hold-label) take text HOLD_LABEL "$@" ;;
+  --repo-labels-json) take file REPO_LABELS_JSON "$@" ;;
+  --counts-json) take file COUNTS_JSON "$@" ;;
+  --pr-json) take file PR_JSON "$@" ;;
+  --behind-json) take file BEHIND_JSON "$@" ;;
+  --decisions-json) take file DECISIONS_JSON "$@" ;;
+  --telemetry-json) take file TELEMETRY_JSON "$@" ;;
+  --merged-json) take file MERGED_JSON "$@" ;;
+  --stuck-json) take file STUCK_JSON "$@" ;;
+  --touch-json) take file TOUCH_JSON "$@" ;;
+  --status-json) take file STATUS_JSON "$@" ;;
+  --lane-runs-json) take file LANE_RUNS_JSON "$@" ;;
+  --lane-annotations-json) take file LANE_ANNOTATIONS_JSON "$@" ;;
+  --billing-usage-json) take file BILLING_USAGE_JSON "$@" ;;
+  --billing-budgets-json) take file BILLING_BUDGETS_JSON "$@" ;;
+  --org-scan-json) take file ORG_SCAN_JSON "$@" ;;
+  --azure-json) take file AZURE_JSON "$@" ;;
   -*)
     printf 'morning-brief: unknown flag %q (use --help)\n' "$1" >&2
     exit 3
@@ -652,6 +456,7 @@ while (($# > 0)); do
     exit 3
     ;;
   esac
+  shift 2
 done
 
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -716,6 +521,9 @@ if CONFIG_HOME="$(config_home)"; then
   CONFIG_LOCAL="$(config_layer "$CONFIG_HOME/work-items.local.yaml")"
   CONFIG_DECISION_LABEL="$(binding_decision_label "$CONFIG_HOME/work-items.yaml")"
 fi
+# The decision label: the flag, else the binding's owner-decision role label, else
+# the default.
+DECISION_LABEL="${DECISION_LABEL_ARG:-${CONFIG_DECISION_LABEL:-$DEFAULT_DECISION_LABEL}}"
 COST_SETTING_LAYERS=()
 # config_value VAR KEY KIND DEFAULT: sets VAR to the value KEY resolves to. KIND
 # is text, owner, uint, percent, amount or list. VAR already holds the flag's
@@ -940,9 +748,8 @@ label_exists_in_repo() {
 # Parked-decisions can short-circuit on a fixture label inventory when the
 # decision label is absent — no gh issue list needed for that probe.
 if ((NEEDS_LIVE_DECISIONS)) && [[ -n "$REPO_LABELS_JSON" ]]; then
-  _probe_decision_label="${DECISION_LABEL_ARG:-${CONFIG_DECISION_LABEL:-$DEFAULT_DECISION_LABEL}}"
   if fetch_repo_label_names "$WORK/probe-labels.json"; then
-    label_exists_in_repo "$_probe_decision_label" "$WORK/probe-labels.json" || NEEDS_LIVE_DECISIONS=0
+    label_exists_in_repo "$DECISION_LABEL" "$WORK/probe-labels.json" || NEEDS_LIVE_DECISIONS=0
   fi
 fi
 # The stranded, stuck and owner-touch sections alone never force a repo resolution: every
@@ -992,10 +799,11 @@ if [[ -z "$REPO" ]] && ((ANY_LIVE)); then
   fi
 fi
 REPO_ARGS=()
-[[ -n "$REPO" ]] && REPO_ARGS=(--repo "$REPO")
-[[ -n "$REPO" ]] || NEEDS_LIVE_MERGED=0
-[[ -n "$REPO" ]] || NEEDS_LIVE_STUCK=0
-[[ -n "$REPO" ]] || NEEDS_LIVE_TOUCH=0
+if [[ -n "$REPO" ]]; then
+  REPO_ARGS=(--repo "$REPO")
+else
+  NEEDS_LIVE_MERGED=0 NEEDS_LIVE_STUCK=0 NEEDS_LIVE_TOUCH=0
+fi
 
 # --- Portable date handling ---------------------------------------------------
 # GNU `date -d` and BSD/macOS `date -j -f` are mutually exclusive dialects, and
@@ -1099,14 +907,7 @@ resolve_queue_labels() {
   fi
 }
 
-# The decision label: the flag, else the binding's owner-decision role label, else
-# the default.
-resolve_decision_label() {
-  DECISION_LABEL="${DECISION_LABEL_ARG:-${CONFIG_DECISION_LABEL:-$DEFAULT_DECISION_LABEL}}"
-}
-
 resolve_queue_labels
-resolve_decision_label
 
 # The labels the Queues section settled on (after its live filter), which the
 # Stuck section reads too. print_queues narrows it; until then, or when the
@@ -1126,6 +927,13 @@ unreadable() {
   UNREADABLE_NAMES+=("$1")
   echo "  UNREADABLE: ${2:-data source failed}"
   echo
+}
+
+# partial_labels NOTE LABEL...: one PARTIAL line naming the LABELs, comma-separated.
+partial_labels() {
+  local list
+  printf -v list '%s, ' "${@:2}"
+  echo "  PARTIAL: ${list%, }: $1"
 }
 
 # =============================================================================
@@ -1447,14 +1255,8 @@ print_queues() {
   done
   printf '%s\n' "${rows[@]}"
   ((LABELS_CAPPED)) && echo "  PARTIAL: the label inventory reached its $LABEL_LIMIT-label cap; rows are not filtered to labels that exist"
-  if ((${#capped[@]} > 0)); then
-    label="$(printf '%s, ' "${capped[@]}")"
-    echo "  PARTIAL: ${label%, }: count reached the $COUNT_LIMIT-issue read cap; the true count may be higher"
-  fi
-  if ((${#unavailable[@]} > 0)); then
-    label="$(printf '%s, ' "${unavailable[@]}")"
-    echo "  PARTIAL: ${label%, }: count unavailable: $SEARCH_ZERO_NOTE"
-  fi
+  ((${#capped[@]})) && partial_labels "count reached the $COUNT_LIMIT-issue read cap; the true count may be higher" "${capped[@]}"
+  ((${#unavailable[@]})) && partial_labels "count unavailable: $SEARCH_ZERO_NOTE" "${unavailable[@]}"
   [[ "$STATUS_STATE" == rest ]] && echo "  PARTIAL: $STATUS_PARTIAL_NOTE; counts are by label alone"
   ((STATUS_CAPPED)) && echo "  PARTIAL: the open-issue read reached its $((STATUS_PAGE_LIMIT * 50))-issue cap; counts may be low"
   echo
@@ -1655,14 +1457,8 @@ print_stuck() {
   elif ((${#unavailable[@]} == 0)); then
     echo "  (none — no open item has held a queue label for more than ${STUCK_DAYS}d)"
   fi
-  if ((${#unavailable[@]})); then
-    label="$(printf '%s, ' "${unavailable[@]}")"
-    echo "  PARTIAL: ${label%, }: count unavailable: $SEARCH_ZERO_NOTE"
-  fi
-  if ((${#ceiling[@]})); then
-    label="$(printf '%s, ' "${ceiling[@]}")"
-    echo "  PARTIAL: ${label%, }: the search reached its 1,000-result ceiling; the list may be missing items"
-  fi
+  ((${#unavailable[@]})) && partial_labels "count unavailable: $SEARCH_ZERO_NOTE" "${unavailable[@]}"
+  ((${#ceiling[@]})) && partial_labels "the search reached its 1,000-result ceiling; the list may be missing items" "${ceiling[@]}"
   [[ "$by_status" == true ]] && ((STATUS_CAPPED)) &&
     echo "  PARTIAL: the open-issue read reached its $((STATUS_PAGE_LIMIT * 50))-issue cap; a stuck issue past it is not shown"
   echo
@@ -2066,10 +1862,10 @@ print_telemetry() {
         if ((delta > STALE_HOURS * 3600)); then
           age_note="$age_note  STALE (>${STALE_HOURS}h)"
         fi
+        last="$last UTC"
       else
         age_note="unparsable timestamp"
       fi
-      [[ -n "$then_epoch" ]] && last="$last UTC"
     else
       last="(none)"
       age_note="no last-cycle recorded"
@@ -2724,32 +2520,29 @@ print_lanes() {
     }
     fetch_lane_annotations "$runs" "$ann"
   fi
-  local rows
-  rows="$(jq -n -r --argjson since "$since" --slurpfile runs "$runs" --slurpfile ann "$ann" \
-    --argjson lanes "$(printf '%s\n' "${LANE_WORKFLOWS[@]}" | jq -R . | jq -s .)" "$LANES_JQ" 2>&1)" || {
+  local rows lane_args
+  lane_args=(-n -r --argjson since "$since" --slurpfile runs "$runs" --slurpfile ann "$ann"
+    --argjson lanes "$(printf '%s\n' "${LANE_WORKFLOWS[@]}" | jq -R . | jq -s .)")
+  rows="$(jq "${lane_args[@]}" "$LANES_JQ" 2>&1)" || {
     unreadable lanes "could not parse the lane runs: ${rows%%$'\n'*}"
     return
   }
   echo "$rows"
   ((LANE_RUNS_SHORT)) && echo "  PARTIAL: $LANE_RUNS_SHORT runs not listed: a lane passed the runs search's result cap in one day"
   ((LANES_PARTIAL)) && echo "  PARTIAL: annotations read for $LANE_READ_LIMIT runs, the newest 3 of each lane and then failed runs first; $LANES_PARTIAL more were not read (raise --lane-read-limit)"
-  rows="$(jq -n -r --argjson since "$since" --slurpfile runs "$runs" --slurpfile ann "$ann" \
-    --argjson lanes "$(printf '%s\n' "${LANE_WORKFLOWS[@]}" | jq -R . | jq -s .)" "$KEYS_JQ" 2>&1)" || {
+  rows="$(jq "${lane_args[@]}" "$KEYS_JQ" 2>&1)" || {
     UNREADABLE=$((UNREADABLE + 1))
     UNREADABLE_NAMES+=(lanes)
     rows="  UNREADABLE: could not parse the lane-outcome records: ${rows%%$'\n'*}"
   }
   [[ -n "$rows" ]] && echo "$rows"
-  rows="$(jq -n -r --argjson since "$since" --argjson days "$LANE_DAYS" --slurpfile runs "$runs" --slurpfile ann "$ann" \
-    --argjson lanes "$(printf '%s\n' "${LANE_WORKFLOWS[@]}" | jq -R . | jq -s .)" "$SPEND_JQ" 2>&1)" || {
+  rows="$(jq "${lane_args[@]}" --argjson days "$LANE_DAYS" "$SPEND_JQ" 2>&1)" || {
     UNREADABLE=$((UNREADABLE + 1))
     UNREADABLE_NAMES+=(lanes)
     rows="  UNREADABLE: could not read the lane spend: ${rows%%$'\n'*}"
   }
   [[ -n "$rows" ]] && echo "$rows"
-  rows="$(jq -n -r --argjson since "$since" --slurpfile runs "$runs" --slurpfile ann "$ann" \
-    --argjson threshold "${MAX_TURNS_HITS:-null}" \
-    --argjson lanes "$(printf '%s\n' "${LANE_WORKFLOWS[@]}" | jq -R . | jq -s .)" "$MODELS_JQ" 2>&1)" || {
+  rows="$(jq "${lane_args[@]}" --argjson threshold "${MAX_TURNS_HITS:-null}" "$MODELS_JQ" 2>&1)" || {
     unreadable lanes "could not parse the lane records: ${rows%%$'\n'*}"
     return
   }
@@ -2821,6 +2614,9 @@ TOUCH_QUERY='
       }
     }'
 
+# gql_stamp EPOCH SECONDS: from_epoch's minute stamp with a seconds field.
+gql_stamp() { local s; s="$(from_epoch "$1")" && printf '%s:%sZ' "${s%Z}" "$2"; }
+
 # fetch_touch_pages OUTFILE START_EPOCH: one GraphQL page document per page,
 # every UTC day from START_EPOCH to now. With a Work status model an issue also
 # carries its newest 100 field events.
@@ -2829,14 +2625,14 @@ fetch_touch_pages() {
   [[ "${STATUS_MODEL:-null}" == null ]] || fields="fields: timelineItems(itemTypes:$STATUS_EVENT_TYPES, last:100) { $STATUS_FIELD_EVENTS }"
   query="${TOUCH_QUERY/@FIELDS@/$fields}"
   [[ -z "$fields" ]] || query+=$'\n'"$STATUS_FRAGMENT"
-  since="$(from_epoch "$start" | sed 's/Z$/:00Z/')"
+  since="$(gql_stamp "$start" 00)"
   : >"$out"
   for ((day_start = start; day_start <= NOW_EPOCH; day_start += 86400)); do
     day_end=$((day_start + 86399))
     cursor="" pages=0
     while :; do
       args=(api graphql -f query="$query" -f since="$since"
-        -f search="repo:$REPO updated:$(from_epoch "$day_start" | sed 's/Z$/:00Z/')..$(from_epoch "$day_end" | sed 's/Z$/:59Z/')")
+        -f search="repo:$REPO updated:$(gql_stamp "$day_start" 00)..$(gql_stamp "$day_end" 59)")
       [[ -n "$cursor" ]] && args+=(-f endCursor="$cursor")
       gh_read "$WORK/touch.page" "${args[@]}" || return 1
       cat "$WORK/touch.page" >>"$out"
@@ -3063,6 +2859,8 @@ COST_HOURS=$((($(to_epoch "${COST_NEXT}-01T00:00Z") - $(to_epoch "${COST_MONTH}-
 csv_json() { jq -cn --arg s "$1" '$s | split(",") | map(gsub("^[[:space:]]+|[[:space:]]+$"; "")) | map(select(length > 0))'; }
 REQUIRED_BUDGETS_JSON="$(csv_json "$REQUIRED_BUDGETS_ARG")"
 ALLOWED_COLLABORATORS_JSON="$(csv_json "$ALLOWED_COLLABORATORS_ARG")"
+ANOMALY_ALERT_JSON="$(jq -cn --arg a "$ANOMALY_ALERT" 'if $a == "" then null else $a end')"
+COST_READ_AT="$(utc_stamp "$NOW_EPOCH")"
 # The GitHub billing usage lines, and the Azure lines, so a read that fails
 # before any of them renders each of them UNREADABLE.
 USAGE_LABELS=("usage $COST_MONTH" "Actions minutes $COST_MONTH, private repos" "Actions storage $COST_MONTH, private repos")
@@ -3271,8 +3069,8 @@ cost_jq() {
     --argjson pct_alert "$USAGE_ALERT_PERCENT" --argjson log_pct_alert "$LOG_CAP_ALERT_PERCENT" \
     --argjson inc_minutes "${ACTIONS_INCLUDED_MINUTES:-null}" --argjson inc_gb "${ACTIONS_INCLUDED_STORAGE_GB:-null}" \
     --argjson hours "$COST_HOURS" --argjson forecast_alert "${FORECAST_ALERT:-null}" \
-    --arg read_at "$(utc_stamp "$NOW_EPOCH")" --argjson now "$NOW_EPOCH" --argjson days "$EXPIRY_DAYS" \
-    --argjson required "$REQUIRED_BUDGETS_JSON" --argjson anomaly "$(jq -cn --arg a "$ANOMALY_ALERT" 'if $a == "" then null else $a end')" \
+    --arg read_at "$COST_READ_AT" --argjson now "$NOW_EPOCH" --argjson days "$EXPIRY_DAYS" \
+    --argjson required "$REQUIRED_BUDGETS_JSON" --argjson anomaly "$ANOMALY_ALERT_JSON" \
     --argjson allowed "$ALLOWED_COLLABORATORS_JSON" --arg data_date "$COST_DATA_DATE" \
     "$COST_DEFS $2"' | map(tostring | gsub("[[:cntrl:]]"; " ")) | join("\u001f")' "$1" 2>/dev/null)" || return 1
   [[ -n "$rows" ]] || return 1
@@ -3520,7 +3318,7 @@ cost_query() {
 }
 
 cost_azure() {
-  local acct="$WORK/az-account.json" sub arm ws_file id
+  local acct="$WORK/az-account.json" ws_file="$WORK/az-workspaces.json" sub arm id
   if [[ -z "$AZURE_JSON" ]] && ((!AZ_COST_LIVE)); then
     az_unreadable "not read live in a fixture run; pass --subscription or --azure-json"
     return
@@ -3555,10 +3353,8 @@ cost_azure() {
   az_check budgets "budgets" "$AZ_BUDGETS_JQ" rest --method get --url "$arm/Microsoft.Consumption/budgets?api-version=2024-08-01"
   if az_read "$WORK/az-actions.json" scheduledActions rest --method get \
     --url "$arm/Microsoft.CostManagement/scheduledActions?api-version=2023-11-01"; then
-    if jq -n --slurpfile b "$WORK/az-budgets.json" --slurpfile a "$WORK/az-actions.json" '{budgets: $b[0], actions: $a[0]}' \
-      >"$WORK/az-alerts.json" 2>/dev/null && cost_jq "$WORK/az-alerts.json" "$ALERTS_JQ" ""; then
-      :
-    else
+    if ! jq -n --slurpfile b "$WORK/az-budgets.json" --slurpfile a "$WORK/az-actions.json" '{budgets: $b[0], actions: $a[0]}' \
+      >"$WORK/az-alerts.json" 2>/dev/null || ! cost_jq "$WORK/az-alerts.json" "$ALERTS_JQ" ""; then
       cost_row UNREADABLE Azure "budget and anomaly alerts" "could not parse the budgets or scheduled actions"
     fi
   else
@@ -3572,7 +3368,6 @@ cost_azure() {
   elif ! cost_jq "$WORK/az-defenderCost.json" "$CHARGES_JQ" "Defender charges, month to date"; then
     cost_row UNREADABLE Azure "Defender charges, month to date" "could not parse the defenderCost response"
   fi
-  ws_file="$WORK/az-workspaces.json"
   if ! az_read "$ws_file" workspaces monitor log-analytics workspace list; then
     cost_row UNREADABLE Azure "Log Analytics" "$LAST_ERR"
   elif ! jq -e 'type == "array"' "$ws_file" >/dev/null 2>&1; then
@@ -3581,12 +3376,10 @@ cost_azure() {
     cost_row INFO Azure "Log Analytics" "no workspaces on this subscription"
   else
     while IFS= read -r id; do
-      if az_read "$WORK/az-la.json" "laUsage/$id" monitor log-analytics query --workspace "$id" --analytics-query "$LA_PEAK_QUERY" &&
-        jq -n --slurpfile w "$ws_file" --slurpfile r "$WORK/az-la.json" --arg id "$id" \
-          '{ws: ($w[0][] | select(.customerId == $id)), rows: $r[0]}' >"$WORK/az-la-one.json" 2>/dev/null &&
-        cost_jq "$WORK/az-la-one.json" "$LA_JQ" ""; then
-        :
-      else
+      if ! az_read "$WORK/az-la.json" "laUsage/$id" monitor log-analytics query --workspace "$id" --analytics-query "$LA_PEAK_QUERY" ||
+        ! jq -n --slurpfile w "$ws_file" --slurpfile r "$WORK/az-la.json" --arg id "$id" \
+          '{ws: ($w[0][] | select(.customerId == $id)), rows: $r[0]}' >"$WORK/az-la-one.json" 2>/dev/null ||
+        ! cost_jq "$WORK/az-la-one.json" "$LA_JQ" ""; then
         [[ -n "$LAST_ERR" ]] || LAST_ERR="could not parse the Log Analytics response"
         cost_row UNREADABLE Azure "Log Analytics $(jq -r --arg id "$id" '.[] | select(.customerId == $id) | .name' "$ws_file")" "$LAST_ERR"
       fi
@@ -3615,8 +3408,7 @@ print_cost() {
   for row in "${COST_ROWS[@]}"; do
     IFS=$'\x1f' read -r status source label detail <<<"$row"
     if [[ "$status" == UNREADABLE ]]; then unread=$((unread + 1)); else COST_HAS_DATA=1; fi
-    line="$source${label:+ $label}: $detail"
-    printf '  %-10s %s\n' "$status" "$line"
+    printf '  %-10s %s\n' "$status" "$source${label:+ $label}: $detail"
   done
   for line in "${COST_PARTIAL[@]}"; do
     echo "  PARTIAL: $line"

@@ -48,6 +48,8 @@ ID = re.compile(r"[0-9a-f]{32}")  # zone and account ids
 UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")  # tunnel ids
 PER_PAGE = 100  # judgment: records per list request
 MAX_PAGES = 100  # judgment: a zone this tool lists stays well under PER_PAGE * MAX_PAGES records
+RECORD_FIELDS = ("id", "type", "name", "content", "proxied")  # what the output shows of a DNS record
+TUNNEL_ID = "--tunnel-id must be the tunnel's id, a UUID"
 
 
 class Refused(Exception):
@@ -85,6 +87,10 @@ def request(token, method, path, query=None, body=None):
     url = api_base() + path + ("?" + urllib.parse.urlencode(query) if query else "")
     data = json.dumps(body).encode("utf-8") if body is not None else None
     req = urllib.request.Request(url, data=data, method=method, headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+
+    def refused(message):
+        return Refused(1, f"{method} {path}: {message}".replace(token, "[token]"))
+
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             doc = json.loads(resp.read())
@@ -93,11 +99,11 @@ def request(token, method, path, query=None, body=None):
             doc = json.loads(exc.read())
         except ValueError:
             doc = {}
-        raise Refused(1, f"{method} {path}: HTTP {exc.code} {errors(doc)}".replace(token, "[token]")) from None
+        raise refused(f"HTTP {exc.code} {errors(doc)}") from None
     except (OSError, ValueError) as exc:
-        raise Refused(1, f"{method} {path}: {exc}".replace(token, "[token]")) from None
+        raise refused(exc) from None
     if not doc.get("success"):
-        raise Refused(1, f"{method} {path}: {errors(doc)}".replace(token, "[token]"))
+        raise refused(errors(doc))
     return doc.get("result"), doc.get("result_info") or {}
 
 
@@ -138,20 +144,24 @@ def plan(token, zone, hostname, tunnel_id):
     in_zone(token, zone, hostname)
     want = planned(hostname, tunnel_id)
     records = zone_records(token, zone)
-    named = [{k: r.get(k) for k in ("id", "type", "name", "content", "proxied")} for r in records if str(r.get("name", "")).lower() == hostname]
+    named = [{k: r.get(k) for k in RECORD_FIELDS} for r in records if str(r.get("name", "")).lower() == hostname]
     done = len(named) == 1 and same(named[0], want)
     out = {"ok": True, "zoneRecords": len(records), "planned": want, "named": named, "inPlace": done, "clash": bool(named) and not done}
     return out, 4 if out["clash"] else 0
 
 
+def matching(pattern, value, message):
+    """Refuse with `message` unless `value` is all `pattern`."""
+    if not pattern.fullmatch(value or ""):
+        raise Refused(1, message)
+
+
 def checked(a):
-    if not ID.fullmatch(a.zone_id or ""):
-        raise Refused(1, "--zone-id must be the zone's 32-character id (the zone's Overview page shows it)")
+    matching(ID, a.zone_id, "--zone-id must be the zone's 32-character id (the zone's Overview page shows it)")
     problem = tunnel.hostname_problem(a.hostname)
     if problem:
         raise Refused(1, problem)
-    if not UUID.fullmatch(a.tunnel_id or ""):
-        raise Refused(1, "--tunnel-id must be the tunnel's id, a UUID")
+    matching(UUID, a.tunnel_id, TUNNEL_ID)
 
 
 def cmd_plan(a):
@@ -168,14 +178,12 @@ def cmd_write(a):
     if code or out["inPlace"]:
         return {**out, "written": False}, code
     result, _ = request(token, "POST", f"/zones/{a.zone_id}/dns_records", body=out["planned"])
-    return {**out, "written": True, "record": {k: (result or {}).get(k) for k in ("id", "type", "name", "content", "proxied")}}, 0
+    return {**out, "written": True, "record": {k: (result or {}).get(k) for k in RECORD_FIELDS}}, 0
 
 
 def cmd_connectors(a):
-    if not ID.fullmatch(a.account_id or ""):
-        raise Refused(1, "--account-id must be the account's 32-character id")
-    if not UUID.fullmatch(a.tunnel_id or ""):
-        raise Refused(1, "--tunnel-id must be the tunnel's id, a UUID")
+    matching(ID, a.account_id, "--account-id must be the account's 32-character id")
+    matching(UUID, a.tunnel_id, TUNNEL_ID)
     result, _ = request(api_token(a.api_token_file), "GET", f"/accounts/{a.account_id}/cfd_tunnel/{a.tunnel_id}/connections")
     connectors = [
         {"id": c.get("id"), "version": c.get("version"), "runAt": c.get("run_at"), "originIps": sorted({x.get("origin_ip") for x in c.get("conns") or [] if x.get("origin_ip")})}

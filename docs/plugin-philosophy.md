@@ -1047,8 +1047,8 @@ is its sibling constraint, and the write-time doctrine budgeting both lives in
 - **Evidence-gated additions.** A new standing instruction requires observed, repeated stumble
   evidence against the current model, the same failure seen more than once, never anticipation
   of a failure a past model had. Name the evidence where the instruction is added (PR body or an
-  adjacent comment). Anticipatory instructions keep guarding against an earlier model's weaknesses,
-  which limits what the next model does.
+  adjacent comment). Anticipatory instructions keep guarding against an earlier model's weaknesses
+  and limit what the next model does.
 - **Generation-triggered ablation.** Instructions are disposable per model generation. At each
   Claude model release, re-audit standing instruction surfaces against the new model
   (`harness-config:audit-instructions` for the static text-vs-doctrine pass, on any release;
@@ -1309,8 +1309,8 @@ actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
 
 Four rules decide a lane's model, applied in this order:
 
-1. **Tune effort on the current model before adding a second model.** A lane that falls short moves
-   its effort level first; a second model enters only when effort cannot close the gap.
+1. **Self-check, then effort, then a second model.** A lane that falls short first gets a check of
+   its own output (a test, build or script), then a higher effort; a second model enters last.
 2. **Use one model at lower effort unless the work is bulk and independent.** A dependent chain, or
    work that fits one context, stays on the coordinating model. Only a fan-out of independent items
    delegates to a cheaper worker model.
@@ -1321,14 +1321,17 @@ Four rules decide a lane's model, applied in this order:
 
 - **Pointer:** for rule 1, see
   [optimizing for cost and intelligence: compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task)
-  and [tune effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort);
+  and [tune effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort),
+  with the self-check step first from
+  [which Claude model should you build with: latency against accuracy](https://claude.dev/blog/which-claude-model-should-you-build-with#latency-against-accuracy)
+  (as of 2026-11-09);
   for rule 2,
   [orchestrator strategy: delegate bulk work](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work);
   for rule 3, the advisor capability rule in
   [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility);
   for rule 4,
   [re-run failures at higher effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#re-run-failures-at-higher-effort).
-- **As of:** 2026-10-10.
+- **As of:** 2026-11-09.
 - **Recheck trigger:** next model release, or any cited section changes.
 - **Judgment:** the advisor rule constrains an API advisor and executor pairing; applying it to a
   subagent verdict and the work it checks is our reading, not a source statement. What counts as an
@@ -1398,14 +1401,14 @@ when a role may route to it and the effort it then runs at. The release evidence
   and [model config: available models](https://code.claude.com/docs/en/model-config#available-models)
   (correlate with <https://claude.dev/blog/building-with-claude-sonnet-5-5>;
   recheck when those docs pages cover what the post adds).
-- **As of:** 2026-10-10.
+- **As of:** 2026-11-09.
 - **Recheck trigger:** any new model on Claude Code's model page.
 
 Row 1 is relative to the checked work by construction: a verdict on work done at the top tier runs
 at that tier, since there is no rung above it. The cost ordering behind the rows is
 upstream-owned and is not restated here (Pointer:
 [pricing: model pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing).
-As of: 2026-10-10. Recheck
+As of: 2026-11-09. Recheck
 trigger: any new model on Claude Code's model page). No row binds a model that is not generally
 available to the fleet.
 
@@ -1434,7 +1437,7 @@ from the live roster, never from this file.
   [thinking: interleaved thinking](https://platform.claude.com/docs/en/build-with-claude/thinking#interleaved-thinking);
   for how Claude Code records the capability for a pinned model, see
   [model config: customize pinned model display and capabilities](https://code.claude.com/docs/en/model-config#customize-pinned-model-display-and-capabilities).
-- **As of:** 2026-10-10.
+- **As of:** 2026-11-09.
 - **Recheck trigger:** any new model on Claude Code's model page, or that section's per-model
   statement changes.
 
@@ -1461,7 +1464,7 @@ well-scoped phases, dispatched with an explicit per-invocation `model`.
 
 A consumer can lose that floor. An enterprise `availableModels` allowlist reaches frontmatter
 pins too, and Claude Code handles a blocked pin differently for a subagent than for a skill or
-command. Our conclusion, with the per-surface rules left at the pointer: a subagent lane's tier is
+command. Our conclusion, with the per-surface rules left at the pointer, is that a subagent lane's tier is
 not self-enforcing, because a blocked pin can land below the session (an `opus` pin under an
 allowlist that permits only an older Opus) or on the inherited session model (a blocked cheap pin,
 which is then not cheap), with no error either way. A skill or command lane with a blocked pin stays
@@ -1490,7 +1493,7 @@ upstream-owned: resolve it from the model page at decision time, never from this
   [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level);
   for the field itself, see
   [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference).
-- **As of:** 2026-10-10.
+- **As of:** 2026-11-09.
 - **Recheck trigger:** any new model on Claude Code's model page, or the effort section changes how
   a frontmatter pin ranks.
 
@@ -1537,7 +1540,7 @@ same depth on two models):
   [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) live;
   for what a lower level trades away, see
   [effort: how effort works](https://platform.claude.com/docs/en/build-with-claude/effort#how-effort-works).
-  As of: 2026-10-10. Recheck trigger: Haiku 4.5 retires, or a provider maps `haiku` to Haiku 5.5).
+  As of: 2026-11-09. Recheck trigger: Haiku 4.5 retires, or a provider maps `haiku` to Haiku 5.5).
 - **Every other named agent pins the level its work's task row gives it**, never below `medium`
   for code-changing or verifying work (the [effort floor](#effort-floor); the per-pin rows under
   pinned agents name each row). Only a skill with no consequential output omits the pin and
@@ -1624,7 +1627,7 @@ executor stops detecting that it is stuck (the upstream pointers are under the
   [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level)
   and the `effort` field in
   [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
-- **As of:** 2026-10-17.
+- **As of:** 2026-11-09.
 - **Recheck trigger:** any new model on Claude Code's model page, or a pinned agent's `model`
   changes, since a level name means a different depth on each model; the task rows change; a
   checker pinned `medium` misses a defect a `high` pin caught; or a maintainer changes or drops a
@@ -1636,7 +1639,7 @@ executor stops detecting that it is stuck (the upstream pointers are under the
   implementer `medium` and its verifier `high`, the rows we read model config as giving each. Model
   config is the source we follow, because a docs section outranks a blog post under the
   [upstream-drift convention](contracts/upstream-drift/README.md#required-parts). As of:
-  2026-10-10. Recheck trigger: next model release, or either page is revised on that point.
+  2026-11-09. Recheck trigger: next model release, or either page is revised on that point.
 
 **Per-pin rows.** Each pinned agent outside `plugins/implementation` follows one row of model
 config's effort-level table, read for the model its `model` alias resolves to. Review, verification
@@ -1787,7 +1790,7 @@ session level or saved level (Pointer: for how a level is set and saved, see
 [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level);
 for the ultracode setting, see
 [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level).
-As of: 2026-10-10. Recheck trigger: any new model on Claude Code's model page, or a new way to set
+As of: 2026-11-09. Recheck trigger: any new model on Claude Code's model page, or a new way to set
 or save a level).
 
 One exception, scoped to frontmatter: a skill or agent may pin `effort`, because the pin holds only
@@ -1816,7 +1819,7 @@ and the release.
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
   for what each alias resolves to per provider, see
   [model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases).
-- **As of:** 2026-10-10.
+- **As of:** 2026-11-09.
 - **Recheck trigger:** any new model on Claude Code's model page, or the effort section changes
   which models support effort.
 

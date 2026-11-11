@@ -234,9 +234,13 @@ in the global config's `cachedGrowthBookFeatures` (`~/.claude.json`, or `.claude
 custom config dir); `cached_present: false` means the key is absent and the binary default applies;
 `null` means no cache was read. `enabled_overrides` lists each user, project and local
 `enabledPlugins` entry for the plugin's id, and `enabled_setting` is the winning one (local, then
-project, then user), or null when none names it and `default_enabled` decides. A scope listed in
-`enabled_plugins_rejected` holds a non-Boolean value, so Claude Code ignores that file's whole map
-and it contributes no override; name the offending keys. `mods_flag` carries
+project, then user), or null when none names it and `default_enabled` decides. The scope order is
+read live from
+[settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence)
+(as of 2026-11-10; recheck when that section reorders the scopes). A scope listed in
+`enabled_plugins_rejected` holds a non-Boolean value, so the script lets that file's whole map
+contribute no override, per the `audit-skill-visibility` probe record for that rule; name the
+offending keys. `mods_flag` carries
 `tengu_plugin_hooks_modules`, the rollout flag for mods in installed plugins. A gate read through
 the per-process pin is fixed at session start, so a cached value read later can differ from what a
 running session uses: say "cached", never "live".
@@ -355,9 +359,10 @@ Any claim about what Claude Code itself ships must come from the raw markdown en
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --cache --max-age 0 --out <dir> plugins/manifest-reference`,
 then search `<dir>/plugins/manifest-reference.md` locally. The fetcher confirms the slug against the docs
 index (`llms.txt`), and `--max-age 0` asks the server every time, so the claim rests on fresh bytes;
-treat a page `<dir>/manifest.json` reports `unread` as no evidence. A
-summarizing fetch returns a small model's answer *about* the page, so absence from that answer is
-not evidence of absence.
+treat a page `<dir>/manifest.json` reports `unread` as no evidence. Never rest an absence claim on
+a summarizing fetch; what one returns is read live from
+[tools reference: WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)
+(as of 2026-11-10; recheck when that section stops describing WebFetch output as an extraction).
 
 Upstream facts this skill depends on, each with the trigger that obliges re-deriving it:
 
@@ -438,13 +443,12 @@ skills duplicate a native surface.
   `inventory.py --binary-only` on this machine: neither name appears under `builtin_commands`.
   Recheck when the extractor's `type:` requirement changes or a release adds a command by either
   name.
-- **An alias is not a separate command.** `/cost` and `/stats` are aliases of `/usage`, not three
-  commands. Count commands once and list aliases beside them, or your total will drift from `/help`.
-  Basis: <https://code.claude.com/docs/en/commands> carries the rows "`/cost` | Alias for `/usage`"
-  and "`/stats` | Alias for `/usage`", and a run of `inventory.py --binary-only` on this machine
-  reports `usage` with aliases `cost` and `stats`. Verified 2026-09-29 against Claude Code 2.1.284
-  and that page as fetched that day. Recheck when the commands page changes either row or the
-  extraction reports a different alias set for `usage`.
+- **An alias is not a separate command.** Count commands once and list aliases beside them, or
+  your total will drift from `/help`. Pointer: when stating which commands are aliases, fetch
+  [commands: all commands](https://code.claude.com/docs/en/commands#all-commands) live; our probe,
+  a run of `inventory.py --binary-only` on Claude Code 2.1.284 (2026-09-29), reported `usage` with
+  aliases `cost` and `stats`. As of: 2026-11-10. Recheck trigger: the commands page changes the
+  alias rows for `/usage` or the extraction reports a different alias set for `usage`.
 - **A command in the docs can be a skill in the binary.** The commands page lists `/schedule` as a
   command; the binary registers it as a bundled skill, so `docs_crosscheck` flags `kind_mismatch`.
   Report the binary's kind, since it decides namespacing and model invocability. Verified

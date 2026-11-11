@@ -1,8 +1,8 @@
 # Show and hide
 
-The project's design system, tokens and conventions override everything in this file. Literal
-values in the examples are this skill's defaults: use one only where the project has no token for
-it, and name each default you used.
+The project's design system, tokens and conventions override everything in this file. A
+configurable value in an example is a `{{key}}` placeholder; fill each as
+[`values.md`](../../../reference/values.md) says.
 
 Each `Baseline:` line links the live compat entry; never copy version numbers from it. As of
 2026-10-11; recheck when that entry's Baseline status changes or the project's browser target moves.
@@ -32,23 +32,26 @@ dialog::backdrop,
   opacity: 0;
   transition-property: opacity, display, overlay;
   transition-behavior: allow-discrete;
-  transition-duration: 0.16s;
+  transition-duration: calc({{animation.duration_ms.medium}}ms * {{animation.duration_ms.exit_factor}});
   transition-timing-function: var(--ease-out, ease-out);
 }
 
 dialog,
-dialog::backdrop { transition-timing-function: var(--ease-in, cubic-bezier(0.3, 0, 1, 1)); }
+dialog::backdrop {
+  transition-duration: calc({{animation.duration_ms.large}}ms * {{animation.duration_ms.exit_factor}});
+  transition-timing-function: var(--ease-in, cubic-bezier({{animation.easing.in}}));
+}
 
 dialog[open],
 dialog[open]::backdrop {
   opacity: 1;
-  transition-duration: 0.2s;
+  transition-duration: {{animation.duration_ms.large}}ms;
   transition-timing-function: var(--ease-out, ease-out);
 }
 
 [popover]:popover-open {
   opacity: 1;
-  transition-duration: 0.2s;
+  transition-duration: {{animation.duration_ms.medium}}ms;
 }
 
 @starting-style {
@@ -60,7 +63,7 @@ dialog[open]::backdrop {
 @media (prefers-reduced-motion: no-preference) {
   dialog,
   [popover] {
-    translate: 0 0.5rem;
+    translate: 0 {{animation.travel_px.medium}}px;
     transition-property: opacity, translate, display, overlay;
   }
 
@@ -70,7 +73,7 @@ dialog[open]::backdrop {
 
   @starting-style {
     dialog[open],
-    [popover]:popover-open { translate: 0 0.5rem; }
+    [popover]:popover-open { translate: 0 {{animation.travel_px.medium}}px; }
   }
 }
 ```
@@ -78,15 +81,16 @@ dialog[open]::backdrop {
 Rules:
 
 - Put `@starting-style` after the open-state rule. It has no extra weight in the cascade.
-- Never start from `scale(0)`. If the element scales in, start at `scale(0.95)` with `opacity: 0`.
+- Never start from `scale(0)`. If the element scales in, start at `animation.scale.enter` with
+  `opacity: 0`.
 - The `::backdrop` needs the same three states and its own transition, or it snaps while the dialog
   fades. Give it the dialog's duration and easing: they move as one unit.
 - A transition runs on the timing of the state it moves to, so the closed rules carry the exit and
   the open rules the entrance. Closing a dialog is a permanent exit (the `motion` concern): it runs
   shorter on the `in` curve. A popover is toggled by its trigger: it closes shorter on `out`. The
   `var()` fallback is the `in` default, never the bare `ease-in` keyword.
-- A dialog may scale in instead of rising: it starts at a scale between `0.95` and `0.97` with
-  `opacity: 0` and ends at `scale(1)`, inside the same motion query, and it stays centered. The
+- A dialog may scale in instead of rising: it starts at `animation.scale.enter` with `opacity: 0`
+  and ends at full scale, inside the same motion query, and it stays centered. The
   exit is the same but faster.
 - Write no fallback: where the exit is unsupported the element closes at once, which is acceptable.
   Which engines animate the exit is read live from the `transition-behavior` and `@starting-style`
@@ -119,7 +123,7 @@ Use it for dropdown menus and other popovers opened by a click.
 @supports (position-area: block-end) {
   [popover] {
     margin: 0;
-    margin-block-start: 0.5rem;
+    margin-block-start: {{spacing.xs}};
     position-area: block-end span-inline-end;
     position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
   }
@@ -163,15 +167,15 @@ concern's; many component libraries expose the trigger side as a CSS variable (p
 
 @media (prefers-reduced-motion: no-preference) {
   .dropdown {
-    transform: scale(0.95);
+    transform: scale({{animation.scale.enter}});
     transition:
-      opacity 120ms var(--ease-out, ease-out),
-      transform 120ms var(--ease-out, ease-out);
+      opacity calc({{animation.duration_ms.medium}}ms * {{animation.duration_ms.exit_factor}}) var(--ease-out, ease-out),
+      transform calc({{animation.duration_ms.medium}}ms * {{animation.duration_ms.exit_factor}}) var(--ease-out, ease-out);
   }
 
   .dropdown[data-open] {
     transform: scale(1);
-    transition-duration: 150ms;
+    transition-duration: {{animation.duration_ms.medium}}ms;
   }
 }
 ```
@@ -182,25 +186,27 @@ with no animation (the `motion` concern's instant group); `data-instant` below i
 ```css
 .tooltip {
   transform-origin: var(--transform-origin);
-  transition: opacity 125ms var(--ease-out, ease-out);
+  transition: opacity {{animation.duration_ms.small}}ms var(--ease-out, ease-out);
 }
 
 .tooltip[data-starting-style],
 .tooltip[data-ending-style] { opacity: 0; }
 
-.tooltip[data-ending-style] { transition-duration: 100ms; }
+.tooltip[data-ending-style] {
+  transition-duration: calc({{animation.duration_ms.small}}ms * {{animation.duration_ms.exit_factor}});
+}
 
 .tooltip[data-instant] { transition-duration: 0ms; }
 
 @media (prefers-reduced-motion: no-preference) {
   .tooltip {
     transition:
-      transform 125ms var(--ease-out, ease-out),
-      opacity 125ms var(--ease-out, ease-out);
+      transform {{animation.duration_ms.small}}ms var(--ease-out, ease-out),
+      opacity {{animation.duration_ms.small}}ms var(--ease-out, ease-out);
   }
 
   .tooltip[data-starting-style],
-  .tooltip[data-ending-style] { transform: scale(0.97); }
+  .tooltip[data-ending-style] { transform: scale({{animation.scale.enter_small}}); }
 }
 ```
 
@@ -268,8 +274,8 @@ details[open]::details-content { height: auto; }
 @media (prefers-reduced-motion: no-preference) {
   details::details-content {
     transition:
-      height 0.25s var(--ease-out, ease-out),
-      content-visibility 0.25s allow-discrete;
+      height {{animation.duration_ms.medium}}ms var(--ease-out, ease-out),
+      content-visibility {{animation.duration_ms.medium}}ms allow-discrete;
   }
 }
 ```
@@ -308,8 +314,8 @@ Use it for dropdowns, menus and panels that open over the page.
 @media (prefers-reduced-motion: no-preference) {
   .menu {
     transition:
-      clip-path 0.25s var(--ease-out, ease-out),
-      visibility 0.25s;
+      clip-path {{animation.duration_ms.medium}}ms var(--ease-out, ease-out),
+      visibility {{animation.duration_ms.medium}}ms;
   }
 }
 ```

@@ -3,6 +3,18 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.12] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [1.0.11] - 2026-11-09
+
+### Changed
+
+- Shared `check-lib.sh` synced where this plugin carries it ([#14868](https://github.com/melodic-software/claude-code-plugins/pull/14868)); no other change to this plugin.
+
 ## [1.0.10] - 2026-11-09
 
 ### Changed

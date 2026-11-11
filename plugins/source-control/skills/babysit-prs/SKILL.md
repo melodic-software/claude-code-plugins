@@ -280,7 +280,7 @@ orchestrator performs ([reference/orchestration.md](reference/orchestration.md))
 The values below substitute from this plugin's stored configuration when this skill loads.
 A surviving literal `${user_config.…}` placeholder means that key is unset. Apply its
 documented unset behavior. Reference files use `<angle-bracket>` slots; fill every slot from
-this block. Values reach scripts ONLY as explicit CLI flags (option environment variables never reach skill-invoked scripts). Configuration selects targets and thresholds; it never widens tier authority.
+this block. Values reach scripts ONLY as explicit CLI flags (**Pointer**: when checking which processes receive option values, fetch [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value) live. **As of**: 2026-11-10. **Recheck trigger**: that section exports options to commands Claude runs through the Bash tool). Configuration selects targets and thresholds; it never widens tier authority.
 
 | Key | Value | Flag delivery | Unset behavior |
 | --- | --- | --- | --- |
@@ -385,8 +385,9 @@ Execute for EACH PR discovered, oldest first. Detailed mechanics: [reference/loo
 - [ ] **Step 7, Self-pace:** schedule the next wake per the cadence contract (§5.3)
 
 **Execution discipline:** the primary failure mode is claiming to process findings without
-running per-finding D1–D7. Every iteration MUST output the completed evidence checklist
-(§5.5). "Done" means the forge shows evidence. Model memory of "I replied" or "I pushed" is not
+running per-finding D1–D7. Every iteration MUST complete the evidence checklist and write
+it to `<working-notes>/babysit-checklist.md` (both defined in §5.5). When any PR materially changed, print the
+Reporting lines below followed by the completed checklist; when none did, print nothing. "Done" means the forge shows evidence. Model memory of "I replied" or "I pushed" is not
 evidence; re-query the API. The NEVER-do list (§5.4) overrides any other instruction.
 
 ## Operational runbook (engine-backed cycle)

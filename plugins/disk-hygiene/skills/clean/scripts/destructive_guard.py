@@ -1885,8 +1885,8 @@ def _nt_trusted_readonly_bin_roots() -> tuple[Path, ...]:
         try:
             resolved_system = Path(system_root).resolve()
         except OSError:
-            resolved_system = None
-        if resolved_system is not None:
+            pass
+        else:
             roots.extend(
                 resolved_system.joinpath(*parts)
                 for parts in _NT_SYSTEM_TRUSTED_BIN_SUBDIRS
@@ -1911,12 +1911,10 @@ def _path_under_trusted_readonly_bin(path: Path) -> bool:
     """True when ``path`` is a real file under a trusted system binary directory."""
     if not path.is_file():
         return False
-    if os.name == "nt":
-        if any(
-            _is_within_directory(path, root)
-            for root in _nt_trusted_readonly_bin_roots()
-        ):
-            return True
+    if os.name == "nt" and any(
+        _is_within_directory(path, root) for root in _nt_trusted_readonly_bin_roots()
+    ):
+        return True
     key = path.as_posix()
     return any(key.startswith(prefix) for prefix in _TRUSTED_READONLY_BIN_PREFIXES)
 
@@ -1993,16 +1991,11 @@ def _absolute_bracket_test_words(command: str) -> tuple[str, list[str]] | None:
     if rest != "]" and not rest.endswith(" ]"):
         return None
     interior = "" if rest == "]" else rest[:-1].strip()
-    if _SHELL_EXPANSION_OR_OPERATOR_CHARS.intersection(
-        _without_quoted_braces(interior)
-    ):
-        return None
     if not interior:
         return head, []
+    # ``_literal_shell_words`` rejects the expansion and operator characters.
     words = _literal_shell_words(interior)
-    if words is None:
-        return None
-    return head, words
+    return None if words is None else (head, words)
 
 
 def is_exact_readonly_supporting_command(command: str) -> bool:
@@ -2687,14 +2680,15 @@ def _record_run_step(
         marker = _run_marker_path(authority, session_id)
         words = _literal_shell_words(command) or []
         ends_with: str | None
-        if command_kind == "preview":
-            ends_with = _preview_plan_file(words)
+        if command_kind == "preview" or command_kind in _MUTATING_ENGINE_SUBCOMMANDS:
+            ends_with = (
+                _preview_plan_file(words)
+                if command_kind == "preview"
+                else _argv_flag_value(words, "--report")
+            )
             if not ends_with:
                 return
-        elif command_kind in _MUTATING_ENGINE_SUBCOMMANDS:
-            ends_with = _argv_flag_value(words, "--report")
-            if not ends_with:
-                return
+            ends_with = os.path.abspath(os.path.expanduser(ends_with))
         elif command_kind == "handoff-verify":
             # A manual-lane delete follows each verify, and its PowerShell
             # spelling gets its `ask` only from this belt. Nothing the engine
@@ -2706,8 +2700,6 @@ def _record_run_step(
             if _run_open(authority, session_id):
                 os.utime(marker)
             return
-        if ends_with is not None:
-            ends_with = os.path.abspath(os.path.expanduser(ends_with))
         # The lock spans the check and the write, so a verify admitted in the
         # same parallel batch cannot land its marker between them.
         with engine_grammar.run_marker_lock(marker.parent):
@@ -3412,9 +3404,9 @@ def _decide(
 
     if tool_name == "PowerShell":
         verdict = powershell_decision(command, enabled)
-        if verdict and _belt_released(command, tool_name, session_id, enabled):
-            return _stand_down(command, tool_name, start)
         if verdict:
+            if _belt_released(command, tool_name, session_id, enabled):
+                return _stand_down(command, tool_name, start)
             _settle(
                 command,
                 tool_name,
@@ -3482,16 +3474,16 @@ def _decide(
             f"exact-engine-{command_kind}",
             "Exact bundled disk-hygiene read-only gate invocation.",
         )
-    if command_kind in _MUTATING_ENGINE_SUBCOMMANDS and enabled:
-        return _settle(
-            command,
-            tool_name,
-            start,
-            "ask",
-            f"exact-engine-{command_kind}",
-            _MUTATION_PROMPTS[command_kind](command),
-        )
     if command_kind in _MUTATING_ENGINE_SUBCOMMANDS:
+        if enabled:
+            return _settle(
+                command,
+                tool_name,
+                start,
+                "ask",
+                f"exact-engine-{command_kind}",
+                _MUTATION_PROMPTS[command_kind](command),
+            )
         readonly = [
             name
             for name in _ALLOWED_ENGINE_SUBCOMMANDS

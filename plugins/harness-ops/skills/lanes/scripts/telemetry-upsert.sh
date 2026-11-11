@@ -195,60 +195,26 @@ BODY_DIR=""
 REPO=""
 APP_SLUG=""
 DRY_RUN=0
+# set_opt FLAG VALUE: store a value-taking option, whichever form it came in.
+set_opt() {
+  case "$1" in
+  --issue) ISSUE="$2" ;;
+  --marker) MARKER="$2" ;;
+  --body-file) BODY_FILE="$2" ;;
+  --body-dir) BODY_DIR="$2" ;;
+  --repo) REPO="$2" ;;
+  *) APP_SLUG="$2" ;;
+  esac
+}
 while (($#)); do
   case "$1" in
-  --issue)
+  --issue | --marker | --body-file | --body-dir | --repo | --app-slug)
     require_value "$@"
-    ISSUE="$2"
+    set_opt "$1" "$2"
     shift 2
     ;;
-  --issue=*)
-    ISSUE="${1#*=}"
-    shift
-    ;;
-  --marker)
-    require_value "$@"
-    MARKER="$2"
-    shift 2
-    ;;
-  --marker=*)
-    MARKER="${1#*=}"
-    shift
-    ;;
-  --body-file)
-    require_value "$@"
-    BODY_FILE="$2"
-    shift 2
-    ;;
-  --body-file=*)
-    BODY_FILE="${1#*=}"
-    shift
-    ;;
-  --body-dir)
-    require_value "$@"
-    BODY_DIR="$2"
-    shift 2
-    ;;
-  --body-dir=*)
-    BODY_DIR="${1#*=}"
-    shift
-    ;;
-  --repo)
-    require_value "$@"
-    REPO="$2"
-    shift 2
-    ;;
-  --repo=*)
-    REPO="${1#*=}"
-    shift
-    ;;
-  --app-slug)
-    require_value "$@"
-    APP_SLUG="$2"
-    shift 2
-    ;;
-  --app-slug=*)
-    APP_SLUG="${1#*=}"
+  --issue=* | --marker=* | --body-file=* | --body-dir=* | --repo=* | --app-slug=*)
+    set_opt "${1%%=*}" "${1#*=}"
     shift
     ;;
   --dry-run)
@@ -516,7 +482,7 @@ unconfirmed="the body cleared the pre-write gate, so the comment is probably int
 
 # On the update path the id is already known — fall back to it rather than
 # calling a successful PATCH unverifiable over a missing field in its response.
-[[ -n "$new_id" ]] || new_id="${target_id:-}"
+new_id="${new_id:-$target_id}"
 [[ -n "$new_id" ]] || verify_fail "the ${action} response carried no comment id, so the write cannot be read back" "$unconfirmed"
 
 # Same rule the $REPO validation states above: nothing reaches a gh api URL path

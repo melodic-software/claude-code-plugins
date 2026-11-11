@@ -1,5 +1,45 @@
 # Changelog: docs-hygiene plugin
 
+## [2.10.1] - 2026-11-11
+
+### Changed
+
+- Skill bodies point at the live upstream sections for command output limits, subagent nesting,
+  caveman's backup location, compaction, the SkillsBench benchmark and plugin reconfiguration
+  instead of restating them. The negation-rule source and the table-of-contents anchors now
+  resolve, the rename sweep is no longer counted as 10 forms, and the extraction trigger matches
+  its record. No behavior change.
+
+## [2.10.0] - 2026-11-10
+
+### Changed
+
+- `rename-references`: a glossary-driven rename reports hits by layer. Code and identifiers are renamed in one reviewed change; docs and ADR text are updated while ADR file names and numbers stay unchanged; user-facing copy is report only; stored values and migrations are never edited and are named as a decision, a phased migration or a mapping recorded as an ADR.
+
+- `/docs-hygiene:rename-references` glossary-driven renames cover a verb moved into an entity's `Actions:` line: a hit is in scope only where the verb names that operation on that entity, the verb used on anything else is Excluded, and a hit that does not show the entity is Ambiguous.
+
+## [2.9.2] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [2.9.1] - 2026-11-10
+
+### Changed
+
+- `write-for-humans`: the 20-word limit on instruction sentences is a target, not a hard cap; a sentence may run over when splitting it would cut one action or its condition into fragments. The reason is recorded in `reference/sources.md` with a pointer to the Fable 5.2 prompting guide.
+
+- `/docs-hygiene:write-for-agents` routes glossary edits to `/domain-driven-design:ubiquitous-language curate`, the renamed glossary skill.
+
+- `/docs-hygiene:rename-references`: a rename that comes from a domain glossary change sweeps code names too, as its own reviewed change; stored values (persisted enum values, schema fields) are listed for a data migration and never edited in place; user-facing copy and error messages are reported, never rewritten.
+
+## [2.9.0] - 2026-11-09
+
+### Added
+
+- **`setup --check` validates list keys.** A list key and its items are checked against the schema (type, length, required keys, allowed keys, patterns, key names) instead of being reported unchecked; a list key using a keyword the checker does not implement stays reported as unchecked. List keys are never written from the command line.
+
 ## [2.8.5] - 2026-11-09
 
 ### Changed

@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [], "why": "no call"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "/ws/.claude/plugin-data/ubiquitous-language-user-config-abc.json", "content": "{}"}}], "why": "plugin-data settings file"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "/ws/docs/glossary.md", "content": "# Northwind Trading glossary\n\n**Week**\n\nSeven days, Monday to Sunday.\n"}}], "why": "rewrites the glossary with Week"}
+  ]
+}

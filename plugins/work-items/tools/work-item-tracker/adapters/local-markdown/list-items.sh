@@ -42,11 +42,11 @@ limit="$(jq -r '.limits.list_items_max' "$WIT_LOCAL_ADAPTER_DIR/capabilities.jso
 # holding exactly `limit` matches still reads as complete.
 emitted=0 truncated=false rows=""
 for n in $(wit_item_numbers); do
-  item_state="$(wit_fm_field "$(wit_item_file "$n")" state)"
-  wit_state_matches "$state" "$item_state" || continue
+  file="$(wit_item_file "$n")"
+  wit_state_matches "$state" "$(wit_fm_field "$file" state)" || continue
   # Filtered before the ceiling check, so the ceiling counts only labeled matches.
   if [[ -n "$label" ]] &&
-    ! jq -e --arg l "$label" 'index($l) != null' <<<"$(wit_fm_field "$(wit_item_file "$n")" labels)" >/dev/null; then
+    ! jq -e --arg l "$label" 'index($l) != null' <<<"$(wit_fm_field "$file" labels)" >/dev/null; then
     continue
   fi
   if ((emitted >= limit)); then

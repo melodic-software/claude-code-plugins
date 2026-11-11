@@ -83,7 +83,8 @@ A 4000px PNG decoded to show a 64px avatar costs bandwidth, decode time, and mem
 devices that have the least of each.
 
 Hunt for: raw `<img>` in a project that has an image component; `.png` / `.jpg` photos in `public/`
-over ~300KB; avatars and thumbnails pointing at the original upload; `unoptimized` on `next/image`.
+over `performance.image_max_kb`; avatars and thumbnails pointing at the original upload;
+`unoptimized` on `next/image`.
 
 Fix: the framework's image component with `sizes`, or `srcset` by hand; WebP or AVIF for photos;
 SVG for anything drawn. A raster image scaled *up* is the mirror-image finding: it ships blurry on
@@ -100,8 +101,8 @@ every retina screen.
   `sizes` shapes the generated `srcset`.
 
 **Audit: Important.** An image decoded far larger than it is shown (an avatar or thumbnail served
-the original upload, a photo over ~300KB, `unoptimized` on `next/image`, a raw `<img>` where the
-project has an image component), or a raster image scaled up past its own size.
+the original upload, a photo over `performance.image_max_kb`, `unoptimized` on `next/image`, a raw
+`<img>` where the project has an image component), or a raster image scaled up past its own size.
 
 ## 3. Virtualize long lists
 
@@ -145,8 +146,8 @@ The inner element carries `position: 'relative'`, as the TanStack Virtual exampl
 scroller.
 
 Rendering 2,000 rows renders 2,000 rows. Only what's visible should exist in the DOM. The dev
-database had forty rows; the first real customer imports ten thousand. Lists over ~50 items are
-virtualized.
+database had forty rows; the first real customer imports ten thousand. Lists over
+`performance.virtualize_min_items` items are virtualized.
 
 Hunt for: `.map()` over data with no cap, no pagination, and no virtualizer, in tables, feeds, logs,
 comboboxes, and pickers.
@@ -169,7 +170,8 @@ dependency the person approves.
 **Audit: Blocking.** A list, table, feed, log, combobox or picker that renders every item of data
 with no upper bound (user content, imports, logs) and has no cap, pagination or virtualizer.
 
-**Audit: Important.** A bounded list of more than ~50 items rendered whole with no virtualizer.
+**Audit: Important.** A bounded list of more than `performance.virtualize_min_items` items rendered
+whole with no virtualizer.
 
 ## 4. Stop work that's off-screen
 
@@ -306,7 +308,7 @@ or `cookies()` or `headers()` read in its layout for no per-visitor decision.
 ## 7. Search and resize handlers are debounced
 
 A request per keystroke hammers the server and creates race conditions where an older response
-overwrites a newer one. Debounce at ~300ms and discard stale responses.
+overwrites a newer one. Debounce at `performance.search_debounce_ms` and discard stale responses.
 
 Hunt for: `onChange` that calls `fetch` directly; `resize` / `scroll` listeners doing layout reads
 (`getBoundingClientRect`, `offsetHeight`) with no throttle; scroll listeners not marked `{ passive:

@@ -29,9 +29,10 @@ bash "<skill-dir>/scripts/reset-refresh.sh" clean [--journal-root <dir>]
 
 - **Refusals.** `refresh` exits 2 before it touches anything in these cases:
   - `CLAUDE_CODE_REMOTE` is set.
-  - `pgrep -x claude` finds a process named `claude`. A session started under a different process
-    name (for example `node`) is not seen, so close every session first.
-  - `pgrep` is missing or fails, since a session then cannot be ruled out.
+  - `pgrep -x claude` (on Git Bash, MSYS and Cygwin, `tasklist.exe` filtered to `claude.exe`) finds
+    a running `claude` process. A session started under a different process name (for example
+    `node`) is not seen, so close every session first.
+  - `pgrep` (or `tasklist.exe`) is missing or fails, since a session then cannot be ruled out.
   - `installed_plugins.json`, `known_marketplaces.json` or user `settings.json` is not valid JSON.
     An unreadable file would snapshot as empty before and after and compare equal.
 - **Run directory outside the plugins tree.** The journal root defaults to
@@ -137,8 +138,11 @@ The script's behavior rests on a probe run against an isolated `HOME`.
 - **Recheck trigger**: a Claude Code release that changes what `plugin install` writes to
   `enabledPlugins` for a recorded id, or how `marketplace update` treats a missing clone.
 
-The documented CLI behavior the script relies on is in the
-[Plugin commands reference](https://code.claude.com/docs/en/plugins/cli-reference.md): `install`
-and `disable` take `--scope user`, an already-installed id prints `already installed` and exits 0,
-`enable` and `disable` on a plugin already in that state exit 1, and `marketplace update [name]`
-refreshes one marketplace or every one. Read 2026-10-30.
+The documented CLI behavior the script relies on (scope flags, the already-installed and
+already-in-state exits, and which marketplaces an update refreshes) is read live from
+[plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install),
+[plugin enable](https://code.claude.com/docs/en/plugins/cli-reference#plugin-enable),
+[plugin disable](https://code.claude.com/docs/en/plugins/cli-reference#plugin-disable),
+[accept a displayed install command](https://code.claude.com/docs/en/plugins/cli-reference#accept-a-displayed-install-command)
+and [plugin marketplace update](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-update).
+As of 2026-11-10. Recheck when any of those sections changes a flag or an exit the script relies on.

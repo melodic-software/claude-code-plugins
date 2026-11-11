@@ -4,11 +4,7 @@ The skill's default action: read the git facts, classify the change into a lifec
 
 ## Clean-tree short-circuit + untracked-only diagnostic
 
-Decide whether there is anything *diffable* to review, BEFORE tier classification:
-
-1. **Truly clean**: `git status --porcelain` empty AND the branch is not ahead of its base (the pre-computed committed shortstat is empty) AND no open PR → report "no changes to review", spawn nothing, write no findings file. A clean committed branch with no PR yet is the *reviewable* case below, not this one.
-2. **Untracked-only**: porcelain shows ONLY `??` entries AND the branch is not ahead of its base AND no open PR → report: ``Only untracked files present. `git diff` cannot show them; `git add` them to include in review.`` Spawn nothing. **Do NOT stage the files.** Review modes mutate nothing but the findings file.
-3. **Reviewable**: tracked uncommitted changes OR ahead of base OR an open PR → proceed against the review diff base.
+[`reference/change-set.md`](../../../reference/change-set.md) "Pre-flight gate", "Nothing to review", BEFORE tier classification; "not ahead of its base" reads the pre-computed committed shortstat. Review modes mutate nothing but the findings file.
 
 ## Leaf diff target
 
@@ -16,13 +12,13 @@ Dispatched surfaces diff the **review diff base** (SKILL.md "Shared inputs") in 
 
 ## Tier classification
 
-Deterministic diff-size thresholds, refined by a judgment layer. A 30-line change touching auth or crossing a module boundary is NOT "small" in risk even if small in size; promote it. Size = the SUM of the two pre-computed shortstats (committed-vs-merge-base + uncommitted) so dirty tracked edits count; when an open PR targets a non-default base, recompute the committed side against that `baseRefName` first.
+The tier, its size triggers and its promotion rule: [`reference/change-set.md`](../../../reference/change-set.md) "Size tier", read from the two pre-computed shortstats. What each tier dispatches here:
 
-| Tier | Size trigger | Promote when | Surfaces |
-|---|---|---|---|
-| **small** | <50 changed lines | never | `code-reviewer`; + `security-reviewer` when auth/input/secrets paths are touched |
-| **medium** | 50–300 | small diff but security-sensitive, boundary-crossing, or high blast radius | small set + orchestrator plugin(s) (SKILL.md "Orchestrator plugins") + `architecture-guardian` when module/layer structure is touched |
-| **large** | >300 OR cross-cutting (many dirs / many ecosystems) | medium diff that is cross-cutting | medium set + the project's ownerless review-criteria docs as slice-subagents, each a `brief-reviewer` agent (`leaf-roster.md`) |
+| Tier | Surfaces |
+|---|---|
+| **small** | `code-reviewer`; + `security-reviewer` when auth/input/secrets paths are touched |
+| **medium** | small set + orchestrator plugin(s) (SKILL.md "Orchestrator plugins") + `architecture-guardian` when module/layer structure is touched |
+| **large** | medium set + the project's ownerless review-criteria docs as slice-subagents, each a `brief-reviewer` agent (`leaf-roster.md`) |
 
 ## Paved-path brief
 

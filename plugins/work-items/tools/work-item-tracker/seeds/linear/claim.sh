@@ -40,19 +40,13 @@ TTL_MINUTES=""
 SESSION_ID=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --ttl-hours)
-    [[ $# -ge 2 ]] || wit_usage_error "--ttl-hours needs a value"
-    TTL_HOURS="$2"
-    shift 2
-    ;;
-  --ttl-minutes)
-    [[ $# -ge 2 ]] || wit_usage_error "--ttl-minutes needs a value"
-    TTL_MINUTES="$2"
-    shift 2
-    ;;
-  --session-id)
-    [[ $# -ge 2 ]] || wit_usage_error "--session-id needs a value"
-    SESSION_ID="$2"
+  --ttl-hours | --ttl-minutes | --session-id)
+    [[ $# -ge 2 ]] || wit_usage_error "$1 needs a value"
+    case "$1" in
+    --ttl-hours) TTL_HOURS="$2" ;;
+    --ttl-minutes) TTL_MINUTES="$2" ;;
+    *) SESSION_ID="$2" ;; # --session-id, the one option left
+    esac
     shift 2
     ;;
   *) wit_usage_error "unexpected argument: $1" ;;
@@ -133,6 +127,19 @@ wit_linear_set_assignee "$ISSUE_UUID" "$WIT_LINEAR_VIEWER_ID"
 # before step 3 has assigned it, which `set -u` would otherwise turn into an aborted
 # rollback that quietly cleans nothing.
 COMMENT_UUID=""
+
+# _wit_linear_other_live_lease <lease-comments-json>: 0 when a lease other than our own
+# comment (COMMENT_UUID) is live.
+_wit_linear_other_live_lease() {
+  local entry
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] || continue
+    [[ "$(jq -r '.comment_id' <<<"$entry")" != "$COMMENT_UUID" ]] || continue
+    wit_linear_lease_live "$(jq -c '.lease' <<<"$entry")" && return 0
+  done < <(jq -c '.[]' <<<"$1")
+  return 1
+}
+
 _wit_linear_claim_rollback() {
   (
     # BOTH guards must hold before clearing, because each one alone lets a different
@@ -140,11 +147,7 @@ _wit_linear_claim_rollback() {
     # lease has lapsed; the name test alone cannot tell our own write from another session
     # of the same login. Their conjunction is strictly safer than either.
     _rb="$(wit_linear_lease_comments "$ISSUE_UUID")" || exit 0
-    while IFS= read -r _e; do
-      [[ -n "$_e" ]] || continue
-      [[ "$(jq -r '.comment_id' <<<"$_e")" != "$COMMENT_UUID" ]] || continue
-      wit_linear_lease_live "$(jq -c '.lease' <<<"$_e")" && exit 0
-    done < <(jq -c '.[]' <<<"$_rb")
+    _wit_linear_other_live_lease "$_rb" && exit 0
     wit_linear_fetch_issue "$WIT_LINEAR_TEAM" "$WIT_ID_NUMBER"
     [[ "$(jq -r '.assignee.displayName // .assignee.email // ""' <<<"$WIT_LINEAR_ISSUE")" == "$HOLDER" ]] || exit 0
     wit_linear_set_assignee "$ISSUE_UUID" ""
@@ -216,14 +219,7 @@ if [[ -n "$LOSER" ]]; then
   LOSER_LIVE=""
   wit_linear_fetch_issue "$WIT_LINEAR_TEAM" "$WIT_ID_NUMBER"
   if AFTER2="$(wit_linear_lease_comments "$ISSUE_UUID")"; then
-    while IFS= read -r entry; do
-      [[ -n "$entry" ]] || continue
-      [[ "$(jq -r '.comment_id' <<<"$entry")" != "$COMMENT_UUID" ]] || continue
-      wit_linear_lease_live "$(jq -c '.lease' <<<"$entry")" && {
-        LOSER_LIVE="yes"
-        break
-      }
-    done < <(jq -c '.[]' <<<"$AFTER2")
+    _wit_linear_other_live_lease "$AFTER2" && LOSER_LIVE="yes"
   else
     LOSER_LIVE="unknown"
     printf 'linear: could not re-read lease state on %s — leaving the assignee alone rather than risking a live claim\n' "$ID" >&2

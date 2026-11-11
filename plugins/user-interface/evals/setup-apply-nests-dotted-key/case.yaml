@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: setup-apply-nests-dotted-key
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'writes-nested-team-key'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '^(?=[\s\S]*"file_path":"(?:[^"\\]|\\.)*docs/conventions/user-interface\.yaml")(?=[\s\S]*"content":"(?:[^"\\]|\\.)*animation:\\n  scale:\\n    press: 0\.96)'
+    min: 1
+    arm: 'both'
+  - name: 'no-dotted-key-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: 'animation\.scale\.press:'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-user-global-write'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'chezmoi|(?:~|\$HOME|/home/[^/"\\]+)/docs/conventions'
+    min: 0
+    max: 0
+    arm: 'both'

@@ -1,0 +1,280 @@
+{
+  "config": {
+    "lane-level": { "floor": 2, "ceiling": 4, "default": 3, "clean-windows": 2, "pools": ["lanes-app"], "shadow": true, "variable": "CLAUDE_LANE_LEVEL", "valid-minutes": 150 },
+    "api": {
+      "lanes-app": { "plan": 0.7, "writer-pause": 0.4 },
+      "github-token": { "plan": 0.7, "writer-pause": 0.4 }
+    }
+  },
+  "vectors": [
+    {
+      "name": "no previous state starts at the default level 3 and counts the first clean busy window",
+      "previous": null,
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 1000, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 2, "running": 3 },
+      "expect": { "level": 3, "streak": 1, "holdUntil": 0, "reason": "streak" }
+    },
+    {
+      "name": "one clean window is not enough: the streak needs two before a step up",
+      "previous": { "level": 3, "streak": 0, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 500, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 4, "running": 3 },
+      "expect": { "level": 3, "streak": 1, "holdUntil": 0, "reason": "streak" }
+    },
+    {
+      "name": "the second clean busy window that fits steps 3 up to 4 and restarts the streak",
+      "previous": { "level": 3, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 1000, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 2, "running": 3 },
+      "expect": { "level": 4, "streak": 0, "holdUntil": 0, "reason": "step-up" }
+    },
+    {
+      "name": "fit boundary at L=3: 2625 of 5000 used times 4/3 is exactly the 0.7 plan, so it steps up",
+      "previous": { "level": 3, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 2625, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 1, "running": 3 },
+      "expect": { "level": 4, "streak": 0, "holdUntil": 0, "reason": "step-up" }
+    },
+    {
+      "name": "fit boundary at L=3: 2626 used times 4/3 is over the 0.7 plan, so L holds with the streak kept",
+      "previous": { "level": 3, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 2626, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 1, "running": 3 },
+      "expect": { "level": 3, "streak": 2, "holdUntil": 0, "reason": "no-fit" }
+    },
+    {
+      "name": "fit boundary at L=2: 2333 used times 3/2 is under the 0.7 plan, so it steps up",
+      "previous": { "level": 2, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 2333, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 1, "running": 2 },
+      "expect": { "level": 3, "streak": 0, "holdUntil": 0, "reason": "step-up" }
+    },
+    {
+      "name": "fit boundary at L=2: 2334 used times 3/2 is over the 0.7 plan, a reading that would fit at L=3",
+      "previous": { "level": 2, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 2334, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 1, "running": 2 },
+      "expect": { "level": 2, "streak": 2, "holdUntil": 0, "reason": "no-fit" }
+    },
+    {
+      "name": "a held no-fit streak steps up on the next window that fits",
+      "previous": { "level": 3, "streak": 2, "holdUntil": 0 },
+      "readings": { "at": 1794344400, "pools": { "lanes-app": { "used": 1200, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 3, "running": 3 },
+      "expect": { "level": 4, "streak": 0, "holdUntil": 0, "reason": "step-up" }
+    },
+    {
+      "name": "writer-pause boundary: 2000 of 5000 left is the 0.4 pause share, so the window is hot and the streak resets",
+      "previous": { "level": 3, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 3000, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 1, "running": 3 },
+      "expect": { "level": 3, "streak": 0, "holdUntil": 0, "reason": "hot" }
+    },
+    {
+      "name": "writer-pause boundary: 2001 left is clean, but 2999 used does not fit at L=3",
+      "previous": { "level": 3, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 2999, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 1, "running": 3 },
+      "expect": { "level": 3, "streak": 2, "holdUntil": 0, "reason": "no-fit" }
+    },
+    {
+      "name": "a 429 steps the ceiling 4 down to 2 and holds until the reset it names",
+      "previous": { "level": 4, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 900, "limit": 5000 } }, "signals": ["429"], "reset": 1794342600 },
+      "demand": { "waiting": 1, "running": 4 },
+      "expect": { "level": 2, "streak": 0, "holdUntil": 1794342600, "reason": "step-down" }
+    },
+    {
+      "name": "with ceiling 6 a limit signal steps 6 down to 3",
+      "config": { "lane-level": { "ceiling": 6 } },
+      "previous": { "level": 6, "streak": 0, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 900, "limit": 5000 } }, "signals": ["429"] },
+      "demand": { "waiting": 0, "running": 6 },
+      "expect": { "level": 3, "streak": 0, "holdUntil": 0, "reason": "step-down" }
+    },
+    {
+      "name": "with ceiling 6 a limit signal at 5 steps down to 2, half rounded down",
+      "config": { "lane-level": { "ceiling": 6 } },
+      "previous": { "level": 5, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 900, "limit": 5000 } }, "signals": ["secondary-limit"] },
+      "demand": { "waiting": 0, "running": 5 },
+      "expect": { "level": 2, "streak": 0, "holdUntil": 0, "reason": "step-down" }
+    },
+    {
+      "name": "a limit signal at 3 stops at the floor 2, not 1",
+      "previous": { "level": 3, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 900, "limit": 5000 } }, "signals": ["403"] },
+      "demand": { "waiting": 0, "running": 3 },
+      "expect": { "level": 2, "streak": 0, "holdUntil": 0, "reason": "step-down" }
+    },
+    {
+      "name": "a limit signal at the floor stays at the floor",
+      "previous": { "level": 2, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 900, "limit": 5000 } }, "signals": ["app-rate-limited"] },
+      "demand": { "waiting": 0, "running": 2 },
+      "expect": { "level": 2, "streak": 0, "holdUntil": 0, "reason": "step-down" }
+    },
+    {
+      "name": "a limit signal steps down even when the pool readings are missing",
+      "previous": { "level": 4, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": {}, "signals": ["graphql-rate-limited"] },
+      "demand": null,
+      "expect": { "level": 2, "streak": 0, "holdUntil": 0, "reason": "step-down" }
+    },
+    {
+      "name": "a later signal keeps the later of the two hold times",
+      "previous": { "level": 4, "streak": 0, "holdUntil": 1794344400 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 900, "limit": 5000 } }, "signals": ["retry-after"], "reset": 1794341000 },
+      "demand": { "waiting": 0, "running": 4 },
+      "expect": { "level": 2, "streak": 0, "holdUntil": 1794344400, "reason": "step-down" }
+    },
+    {
+      "name": "no readings at all hold the level and the streak",
+      "previous": { "level": 4, "streak": 1, "holdUntil": 0 },
+      "readings": null,
+      "demand": { "waiting": 1, "running": 4 },
+      "expect": { "level": 4, "streak": 1, "holdUntil": 0, "reason": "missing-data" }
+    },
+    {
+      "name": "a missing pool reading holds the level and the streak",
+      "previous": { "level": 4, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "github-token": { "used": 100, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 1, "running": 4 },
+      "expect": { "level": 4, "streak": 1, "holdUntil": 0, "reason": "missing-data" }
+    },
+    {
+      "name": "a pool reading with no limit holds the level and the streak",
+      "previous": { "level": 4, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 100, "limit": 0 } }, "signals": [] },
+      "demand": { "waiting": 1, "running": 4 },
+      "expect": { "level": 4, "streak": 1, "holdUntil": 0, "reason": "missing-data" }
+    },
+    {
+      "name": "missing demand holds the level and the streak in a clean window",
+      "previous": { "level": 3, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 500, "limit": 5000 } }, "signals": [] },
+      "demand": null,
+      "expect": { "level": 3, "streak": 1, "holdUntil": 0, "reason": "missing-data" }
+    },
+    {
+      "name": "no runs waiting and a free slot is no demand: L holds and the idle window does not count",
+      "previous": { "level": 3, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 500, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 0, "running": 2 },
+      "expect": { "level": 3, "streak": 1, "holdUntil": 0, "reason": "no-demand" }
+    },
+    {
+      "name": "every slot occupied is demand even with nothing waiting",
+      "previous": { "level": 3, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 500, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 0, "running": 3 },
+      "expect": { "level": 4, "streak": 0, "holdUntil": 0, "reason": "step-up" }
+    },
+    {
+      "name": "at the ceiling a clean busy window holds 4",
+      "previous": { "level": 4, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 200, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 5, "running": 4 },
+      "expect": { "level": 4, "streak": 2, "holdUntil": 0, "reason": "ceiling" }
+    },
+    {
+      "name": "a previous level above the ceiling is clamped to 4, never above",
+      "previous": { "level": 9, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 200, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 5, "running": 9 },
+      "expect": { "level": 4, "streak": 2, "holdUntil": 0, "reason": "ceiling" }
+    },
+    {
+      "name": "a floor above the ceiling never steps down past the ceiling: floor 5, ceiling 3 holds 3",
+      "config": { "lane-level": { "floor": 5, "ceiling": 3 } },
+      "previous": { "level": 3, "streak": 0, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 900, "limit": 5000 } }, "signals": ["429"] },
+      "demand": null,
+      "expect": { "level": 3, "streak": 0, "holdUntil": 0, "reason": "step-down" }
+    },
+    {
+      "name": "a previous level below the floor is clamped up to 2",
+      "previous": { "level": 1, "streak": 0, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 200, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 0, "running": 1 },
+      "expect": { "level": 2, "streak": 0, "holdUntil": 0, "reason": "no-demand" }
+    },
+    {
+      "name": "a malformed previous level falls back to the default 3",
+      "previous": { "level": "4@1794340800", "streak": "x", "holdUntil": null },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 200, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 2, "running": 3 },
+      "expect": { "level": 3, "streak": 1, "holdUntil": 0, "reason": "streak" }
+    },
+    {
+      "name": "before the hold time a clean busy window does not count toward a step up",
+      "previous": { "level": 2, "streak": 1, "holdUntil": 1794341400 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 200, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 2, "running": 2 },
+      "expect": { "level": 2, "streak": 0, "holdUntil": 1794341400, "reason": "hold" }
+    },
+    {
+      "name": "at the hold time the window counts again",
+      "previous": { "level": 2, "streak": 1, "holdUntil": 1794340800 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 200, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 2, "running": 2 },
+      "expect": { "level": 3, "streak": 0, "holdUntil": 1794340800, "reason": "step-up" }
+    },
+    {
+      "name": "with clean-windows 3 a second clean window only counts",
+      "config": { "lane-level": { "clean-windows": 3 } },
+      "previous": { "level": 3, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 500, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 2, "running": 3 },
+      "expect": { "level": 3, "streak": 2, "holdUntil": 0, "reason": "streak" }
+    },
+    {
+      "name": "with clean-windows 3 the third clean window steps up",
+      "config": { "lane-level": { "clean-windows": 3 } },
+      "previous": { "level": 3, "streak": 2, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 500, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 2, "running": 3 },
+      "expect": { "level": 4, "streak": 0, "holdUntil": 0, "reason": "step-up" }
+    },
+    {
+      "name": "a configured plan share moves the fit line: 0.5 at L=3 fits 1875 used and not 1876",
+      "config": { "api": { "lanes-app": { "plan": 0.5 } } },
+      "previous": { "level": 3, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 1876, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 2, "running": 3 },
+      "expect": { "level": 3, "streak": 2, "holdUntil": 0, "reason": "no-fit" }
+    },
+    {
+      "name": "a configured floor of 3 stops a step down from 4 at 3",
+      "config": { "lane-level": { "floor": 3 } },
+      "previous": { "level": 4, "streak": 0, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 900, "limit": 5000 } }, "signals": ["429"] },
+      "demand": { "waiting": 0, "running": 4 },
+      "expect": { "level": 3, "streak": 0, "holdUntil": 0, "reason": "step-down" }
+    },
+    {
+      "name": "with two pools steered, a hot github-token window resets the streak",
+      "config": { "lane-level": { "pools": ["lanes-app", "github-token"] } },
+      "previous": { "level": 3, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 500, "limit": 5000 }, "github-token": { "used": 4200, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 2, "running": 3 },
+      "expect": { "level": 3, "streak": 0, "holdUntil": 0, "reason": "hot" }
+    },
+    {
+      "name": "a pool's limit-cap is its planned budget: 600 used of a 1000 cap times 4/3 is over the 0.7 plan, though 600 of 5000 is not",
+      "config": { "lane-level": { "pools": ["lanes-app", "github-token"] }, "api": { "github-token": { "limit-cap": 1000 } } },
+      "previous": { "level": 3, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 500, "limit": 5000 }, "github-token": { "used": 600, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 2, "running": 3 },
+      "expect": { "level": 3, "streak": 2, "holdUntil": 0, "reason": "no-fit" }
+    },
+    {
+      "name": "under its limit-cap a capped pool fits: 500 of a 1000 cap times 4/3 is under the 0.7 plan",
+      "config": { "lane-level": { "pools": ["lanes-app", "github-token"] }, "api": { "github-token": { "limit-cap": 1000 } } },
+      "previous": { "level": 3, "streak": 1, "holdUntil": 0 },
+      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 500, "limit": 5000 }, "github-token": { "used": 500, "limit": 5000 } }, "signals": [] },
+      "demand": { "waiting": 2, "running": 3 },
+      "expect": { "level": 4, "streak": 0, "holdUntil": 0, "reason": "step-up" }
+    }
+  ]
+}

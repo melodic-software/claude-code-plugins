@@ -45,9 +45,11 @@ while IFS=$'\t' read -r pat status body headers; do
   [[ -n "$pat" ]] || continue
   if [[ "$url" == *"$pat"* ]]; then
     if [[ -n "$dumpfile" ]]; then
-      printf 'HTTP/1.1 %s\r\n' "$status" >"$dumpfile"
-      [[ -z "$headers" ]] || printf '%s\r\n' "$headers" >>"$dumpfile"
-      printf '\r\n' >>"$dumpfile"
+      {
+        printf 'HTTP/1.1 %s\r\n' "$status"
+        [[ -z "$headers" ]] || printf '%s\r\n' "$headers"
+        printf '\r\n'
+      } >"$dumpfile"
     fi
     printf '%s\n%s' "$body" "$status"
     exit 0
@@ -104,15 +106,11 @@ gitea_requests() { cat "$GITEA_FIX/requests"; }
 # captured streams go to FILES rather than to variables: an assignment here would not
 # survive back to the caller. Read them with gitea_out / gitea_err.
 gitea_run() {
-  local script="$1"
-  shift
-  local rc
   WORK_ITEM_TRACKER_BINDING="$GITEA_FIX/binding.json" \
     WIT_GITEA_CURL="$GITEA_MOCK/curl" \
     WIT_GITEA_TEST_TOKEN="mock-token" \
-    bash "$script" "$@" >"$GITEA_FIX/stdout" 2>"$GITEA_FIX/stderr"
-  rc=$?
-  printf '%s' "$rc"
+    bash "$@" >"$GITEA_FIX/stdout" 2>"$GITEA_FIX/stderr"
+  printf '%s' "$?"
 }
 
 # gitea_out / gitea_err — the streams the most recent gitea_run captured.

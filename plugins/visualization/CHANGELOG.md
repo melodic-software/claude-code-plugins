@@ -3,6 +3,40 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.0] - 2026-11-11
+
+### Added
+
+- `diagram_target` setting for `/visualization:visualize`: `auto` (default, pick by surface), `terminal`, `local-page`, `excalidraw` or `tldraw`. It is read from the `userConfig` option, the team file `docs/conventions/visualization.yaml` and the personal override `docs/conventions/visualization.local.yaml`, a later layer winning, and applies only when the form is a diagram. A target that is unavailable (no such server connected, a surface that does not render it, or `hosted_canvas` forbids it) falls back to `auto` with a one-line notice. New eval case `viz-diagram-target-fallback`.
+- README: `hosted_canvas` steers only this skill; a Claude Code permission deny rule on the server's tools, such as `mcp__tldraw__*`, blocks the server for every tool.
+
+## [1.1.0] - 2026-11-10
+
+### Added
+
+- pick the diagram target by surface, and add the `hosted_canvas` setting
+
+  `/visualization:visualize` draws locally in the Claude Code terminal
+  (a Mermaid or ASCII fence, or a local page) even when a canvas server
+  such as Excalidraw or tldraw is connected, and may draw on a connected
+  canvas only on a surface that renders MCP Apps. A diagram that will be
+  committed stays Mermaid. The new `hosted_canvas` setting (`allow`, the
+  default, or `deny`) reads from `userConfig`,
+  `docs/conventions/visualization.yaml` and the personal override;
+  `deny` from any layer keeps diagram content off canvas servers reached
+  over the network, and a local server stays allowed. The team file is
+  also read from the fetched default branch, so a branch cannot drop its
+  `deny`; when that read cannot run, the team layer counts as `deny`.
+  The plugin ships
+  no canvas server; the catalog points at the official Excalidraw and
+  tldraw servers as optional user-level installs.
+
+## [1.0.20] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [1.0.19] - 2026-11-09
 
 ### Changed

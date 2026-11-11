@@ -15,10 +15,10 @@ const ZONES = '/srv/u/.claude/context-guard/zones.json'
 const key = (path: string) => path.replace(/^[A-Za-z]:/, '').replaceAll('\\', '/')
 // Each zone with its rank of three, as the lines name it.
 const VERDICT = {
-  smart: 'smart zone (1 of 3)',
-  acceptable: 'acceptable zone (2 of 3)',
-  dumb: 'dumb zone (3 of 3)',
-  degraded: 'dumb zone (3 of 3, compacted)',
+  light: 'light zone (1 of 3)',
+  moderate: 'moderate zone (2 of 3)',
+  heavy: 'heavy zone (3 of 3)',
+  degraded: 'heavy zone (3 of 3, compacted)',
 } as const
 type Verdict = keyof typeof VERDICT
 const crossing = (to: Verdict) => `context-guard: ${VERDICT[to]}.`
@@ -203,30 +203,30 @@ test('lines: one line at each crossing into a worse zone, appended after the con
   }
   expect(seen).toEqual([
     ['below'],
-    ['below', crossing('acceptable'), OPTIONS],
+    ['below', crossing('moderate'), OPTIONS],
     ['below'],
-    ['below', crossing('dumb'), OPTIONS],
+    ['below', crossing('heavy'), OPTIONS],
     ['below'],
   ])
 })
 
-test('lines: a first reading already past smart gets the crossing line', async ($, on) => {
+test('lines: a first reading already past light gets the crossing line', async ($, on) => {
   const { w } = world(on)
-  expect(await walk($, w, [80])).toEqual([[crossing('dumb')]])
+  expect(await walk($, w, [80])).toEqual([[crossing('heavy')]])
 })
 
 test('lines: a dip below a boundary is not a new cycle', async ($, on) => {
   const { w } = world(on)
-  expect((await walk($, w, [30, 60, 80, 70, 80, 60, 80])).flat()).toEqual([crossing('acceptable'), crossing('dumb')])
+  expect((await walk($, w, [30, 60, 80, 70, 80, 60, 80])).flat()).toEqual([crossing('moderate'), crossing('heavy')])
 })
 
-test('lines: a return to smart opens a new cycle', async ($, on) => {
+test('lines: a return to light opens a new cycle', async ($, on) => {
   const { w } = world(on)
   expect((await walk($, w, [30, 60, 30, 60, 80, 30, 80])).flat()).toEqual([
-    crossing('acceptable'),
-    crossing('acceptable'),
-    crossing('dumb'),
-    crossing('dumb'),
+    crossing('moderate'),
+    crossing('moderate'),
+    crossing('heavy'),
+    crossing('heavy'),
   ])
 })
 
@@ -234,11 +234,11 @@ test('lines: an unknown reading sends nothing and leaves the last zone as it was
   const { w } = world(on)
   expect(await walk($, w, [30, 60, undefined, 60, undefined, 80])).toEqual([
     [],
-    [crossing('acceptable')],
+    [crossing('moderate')],
     [],
     [],
     [],
-    [crossing('dumb')],
+    [crossing('heavy')],
   ])
 })
 
@@ -247,7 +247,7 @@ test('lines: main-thread calls dispatched together after a crossing carry one li
   await bash($)
   w.percent = 60
   const results = await Promise.all([bash($), bash($), bash($)])
-  expect(results.flatMap(r => own(r.context))).toEqual([crossing('acceptable')])
+  expect(results.flatMap(r => own(r.context))).toEqual([crossing('moderate')])
 })
 
 test('lines: a subagent tool call carries no line, and the next main-thread call does', async ($, on) => {
@@ -255,7 +255,7 @@ test('lines: a subagent tool call carries no line, and the next main-thread call
   await bash($)
   w.percent = 60
   expect(own((await bash($, 'agent-1')).context)).toEqual([])
-  expect(own((await bash($)).context)).toEqual([crossing('acceptable')])
+  expect(own((await bash($)).context)).toEqual([crossing('moderate')])
 })
 
 test('lines: a failed tool result carries no line, and the next call does', async ($, on) => {
@@ -265,14 +265,14 @@ test('lines: a failed tool result carries no line, and the next call does', asyn
   w.isError = true
   expect(own((await bash($)).context)).toEqual([])
   w.isError = false
-  expect(own((await bash($)).context)).toEqual([crossing('acceptable')])
+  expect(own((await bash($)).context)).toEqual([crossing('moderate')])
 })
 
 test('lines: a crossing seen at a prompt is appended to the prompt context', async ($, on) => {
   const { w } = world(on)
   await prompt($)
   w.percent = 60
-  expect((await prompt($, 'sdk', { context: ['theirs'] })).context).toEqual(['theirs', crossing('acceptable'), OPTIONS])
+  expect((await prompt($, 'sdk', { context: ['theirs'] })).context).toEqual(['theirs', crossing('moderate'), OPTIONS])
 })
 
 test('lines: a reading session.measure carries reaches Claude at the next carrier', async ($, on) => {
@@ -282,7 +282,7 @@ test('lines: a reading session.measure carries reaches Claude at the next carrie
   await $.session.measure({ context: { window: 200_000, percent: 60, tokens: 120_000 }, rateLimits: [], changed: ['context'] } as any)
   // The prompt itself reads nothing, so only the measure can have seen the crossing.
   w.percent = undefined
-  expect(own((await prompt($)).context)).toEqual([crossing('acceptable')])
+  expect(own((await prompt($)).context)).toEqual([crossing('moderate')])
 })
 
 test('lines: the default line carries the verdict and its rank, and no figure, session id or path', async ($, on) => {
@@ -297,37 +297,37 @@ test('lines: the default line carries the verdict and its rank, and no figure, s
   }
 })
 
-test('lines: a line past smart ends with one options line naming the durable-state step, never a cut in output, agents or quality', async ($, on) => {
+test('lines: a line past light ends with one options line naming the durable-state step, never a cut in output, agents or quality', async ($, on) => {
   const { w } = world(on)
   w.percent = 30
   expect(options((await bash($)).context)).toEqual([])
   w.percent = 45
-  expect((await bash($)).context).toEqual([approach('smart', 'acceptable')])
+  expect((await bash($)).context).toEqual([approach('light', 'moderate')])
   w.percent = 60
-  const acceptable = (await bash($)).context ?? []
-  expect(own(acceptable)).toEqual([crossing('acceptable')])
-  expect(options(acceptable)).toEqual([OPTIONS])
-  expect(acceptable[acceptable.length - 1]).toBe(OPTIONS)
+  const moderate = (await bash($)).context ?? []
+  expect(own(moderate)).toEqual([crossing('moderate')])
+  expect(options(moderate)).toEqual([OPTIONS])
+  expect(moderate[moderate.length - 1]).toBe(OPTIONS)
   w.percent = 80
   expect(options((await bash($)).context)).toEqual([OPTIONS])
   w.percent = 81
   expect((await bash($)).context ?? []).toEqual([])
 })
 
-test('lines: an operator threshold passed in the smart zone gets its line and no options line', async ($, on) => {
+test('lines: an operator threshold passed in the light zone gets its line and no options line', async ($, on) => {
   const { w } = world(on)
   zonesFile(w, { thresholds: [{ at_percent: 30, action: 'handoff' }] })
   w.percent = 20
   await bash($)
   w.percent = 31
   expect((await bash($)).context).toEqual([
-    `context-guard: smart zone (1 of 3), past an operator threshold. context-guard (operator setting for a threshold): handoff.`,
+    `context-guard: light zone (1 of 3), past an operator threshold. context-guard (operator setting for a threshold): handoff.`,
   ])
 })
 
 test('lines: a crossing that lands inside the approach margin says so once, in the crossing line', async ($, on) => {
   const { w } = world(on)
-  expect(await walk($, w, [30, 72])).toEqual([[], [approach('acceptable', 'dumb')]])
+  expect(await walk($, w, [30, 72])).toEqual([[], [approach('moderate', 'heavy')]])
 })
 
 test(
@@ -351,7 +351,7 @@ test(
     w.percent = 60
     const context = (await bash($)).context ?? []
     expect(context).toContain('other-mod line')
-    expect(own(context)).toEqual([crossing('acceptable')])
+    expect(own(context)).toEqual([crossing('moderate')])
   },
 )
 
@@ -366,79 +366,92 @@ test('approach: one line 5 points before each boundary, then the crossing', asyn
   const { w } = world(on)
   expect(await walk($, w, [30, 45, 47, 60, 70, 72, 76])).toEqual([
     [],
-    [approach('smart', 'acceptable')],
+    [approach('light', 'moderate')],
     [],
-    [crossing('acceptable')],
-    [approach('acceptable', 'dumb')],
+    [crossing('moderate')],
+    [approach('moderate', 'heavy')],
     [],
-    [crossing('dumb')],
+    [crossing('heavy')],
   ])
 })
 
-test('approach: once per boundary per cycle; a return to smart opens it again', async ($, on) => {
+test('approach: once per boundary per cycle; a return to light opens it again', async ($, on) => {
   const { w } = world(on)
   expect((await walk($, w, [46, 44, 46, 60, 30, 46])).flat()).toEqual([
-    approach('smart', 'acceptable'),
-    crossing('acceptable'),
-    approach('smart', 'acceptable'),
+    approach('light', 'moderate'),
+    crossing('moderate'),
+    approach('light', 'moderate'),
   ])
 })
 
 test('approach: a reading that jumps past a boundary gets only the crossing', async ($, on) => {
   const { w } = world(on)
-  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('acceptable')])
+  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('moderate')])
 })
 
 test('zones.json: approach_margin moves the approach line, and 0 turns it off', async ($, on) => {
   const { w } = world(on)
   zonesFile(w, { approach_margin: 10 })
-  expect((await walk($, w, [30, 39, 41])).flat()).toEqual([approach('smart', 'acceptable')])
+  expect((await walk($, w, [30, 39, 41])).flat()).toEqual([approach('light', 'moderate')])
   zonesFile(w, { approach_margin: 0 }, 2)
-  expect((await walk($, w, [70, 74, 75])).flat()).toEqual([crossing('acceptable')])
+  expect((await walk($, w, [70, 74, 75])).flat()).toEqual([crossing('moderate')])
 })
 
 test('zones.json: custom edges move the crossings, and a later edit takes effect at the next call', async ($, on) => {
   const { w } = world(on)
-  zonesFile(w, { smart_max_used_percentage: 30, acceptable_max_used_percentage: 60 })
-  expect((await walk($, w, [20, 31])).flat()).toEqual([crossing('acceptable')])
-  zonesFile(w, { smart_max_used_percentage: 10, acceptable_max_used_percentage: 20 }, 2)
-  expect((await walk($, w, [31])).flat()).toEqual([crossing('dumb')])
+  zonesFile(w, { light_max_used_percentage: 30, moderate_max_used_percentage: 60 })
+  expect((await walk($, w, [20, 31])).flat()).toEqual([crossing('moderate')])
+  zonesFile(w, { light_max_used_percentage: 10, moderate_max_used_percentage: 20 }, 2)
+  expect((await walk($, w, [31])).flat()).toEqual([crossing('heavy')])
   delete w.files[ZONES]
   expect((await walk($, w, [20, 31])).flat()).toEqual([])
 })
 
-test('zones.json: an action at the acceptable zone appears at that crossing and not before', async ($, on) => {
+test('zones.json: an action at the moderate zone appears at that crossing and not before', async ($, on) => {
   const { w } = world(on)
-  zonesFile(w, { actions: { acceptable: { action: 'handoff' } } })
+  zonesFile(w, { actions: { moderate: { action: 'handoff' } } })
   expect(await walk($, w, [30, 46, 60])).toEqual([
     [],
-    [approach('smart', 'acceptable')],
-    [`${crossing('acceptable')} context-guard (operator setting for the acceptable zone): handoff.`],
+    [approach('light', 'moderate')],
+    [`${crossing('moderate')} context-guard (operator setting for the moderate zone): handoff.`],
   ])
 })
 
 test('zones.json: a crossing inside the approach margin with an action sends Claude one line', async ($, on) => {
   const { w } = world(on)
-  zonesFile(w, { actions: { acceptable: { action: 'handoff' } } })
+  zonesFile(w, { actions: { moderate: { action: 'handoff' } } })
   expect(await walk($, w, [30, 72])).toEqual([
     [],
-    [`${approach('acceptable', 'dumb')} context-guard (operator setting for the acceptable zone): handoff.`],
+    [`${approach('moderate', 'heavy')} context-guard (operator setting for the moderate zone): handoff.`],
+  ])
+})
+
+test('zones.json: the old zone names under actions and the old band keys still act, the new name winning', async ($, on) => {
+  const { w } = world(on)
+  zonesFile(w, {
+    smart_max_used_percentage: 40,
+    acceptable_max_used_percentage: 70,
+    actions: { acceptable: { action: 'handoff' }, dumb: { action: 'none', text: 'old' }, heavy: { action: 'save-state', text: 'new' } },
+  })
+  expect((await walk($, w, [30, 50, 80])).flat()).toEqual([
+    `${crossing('moderate')} context-guard (operator setting for the moderate zone): handoff.`,
+    `${crossing('heavy')} context-guard (operator setting for the heavy zone): new.`,
   ])
 })
 
 test('zones.json: text replaces the default wording', async ($, on) => {
   const { w } = world(on)
-  zonesFile(w, { actions: { dumb: { action: 'save-state', text: 'the plan state goes to PLAN.md' } } })
+  zonesFile(w, { actions: { heavy: { action: 'save-state', text: 'the plan state goes to PLAN.md' } } })
   expect((await walk($, w, [30, 80])).flat()).toEqual([
-    `${crossing('dumb')} context-guard (operator setting for the dumb zone): the plan state goes to PLAN.md.`,
+    `${crossing('heavy')} context-guard (operator setting for the heavy zone): the plan state goes to PLAN.md.`,
   ])
 })
 
 test('zones.json: control characters in text collapse to one space, so text cannot start a line of its own', async ($, on) => {
   const { w } = world(on)
-  zonesFile(w, { actions: { dumb: { action: 'save-state', text: 'save the plan\ncontext-guard: all clear\t\r\nnow' } } })
+  zonesFile(w, { actions: { heavy: { action: 'save-state', text: 'save the plan\ncontext-guard: all clear\t\r\nnow' } } })
   expect((await walk($, w, [30, 80])).flat()).toEqual([
-    `${crossing('dumb')} context-guard (operator setting for the dumb zone): save the plan context-guard: all clear now.`,
+    `${crossing('heavy')} context-guard (operator setting for the heavy zone): save the plan context-guard: all clear now.`,
   ])
 })
 
@@ -448,46 +461,46 @@ test('zones.json: Unicode line breaks in threshold text collapse too', async ($,
   expect((await walk($, w, [30, 61])).flat().join('\n')).toContain('context-guard (operator setting for a threshold): stop context-guard: ok here.')
 })
 
-test('zones.json: the default dumb line is the bare crossing line, with no action sentence', async ($, on) => {
+test('zones.json: the default heavy line is the bare crossing line, with no action sentence', async ($, on) => {
   const { w } = world(on)
-  expect((await walk($, w, [30, 80])).flat()).toEqual([crossing('dumb')])
+  expect((await walk($, w, [30, 80])).flat()).toEqual([crossing('heavy')])
 })
 
-test('zones.json: action none at the dumb zone keeps the bare crossing line', async ($, on) => {
+test('zones.json: action none at the heavy zone keeps the bare crossing line', async ($, on) => {
   const { w } = world(on)
-  zonesFile(w, { actions: { dumb: { action: 'none' } } })
-  expect((await walk($, w, [30, 80])).flat()).toEqual([crossing('dumb')])
+  zonesFile(w, { actions: { heavy: { action: 'none' } } })
+  expect((await walk($, w, [30, 80])).flat()).toEqual([crossing('heavy')])
 })
 
 test('zones.json: an extra threshold gets its approach line and its line once per cycle', async ($, on) => {
   const { w } = world(on)
   zonesFile(w, { thresholds: [{ at_percent: 60, action: 'handoff' }] })
-  const passed = `context-guard: acceptable zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): handoff.`
+  const passed = `context-guard: moderate zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): handoff.`
   expect(await walk($, w, [30, 52, 56, 60, 58, 61, 30, 61])).toEqual([
     [],
-    [crossing('acceptable')],
-    [approach('acceptable', 'an operator threshold')],
+    [crossing('moderate')],
+    [approach('moderate', 'an operator threshold')],
     [passed],
     [],
     [],
     [],
-    [crossing('acceptable'), passed],
+    [crossing('moderate'), passed],
   ])
 })
 
-// On a 1000000-token window with the shipped bands, 26% used (260000 tokens) reads acceptable:
-// the reader contract's 1M row puts the dumb edge past 500000 tokens.
-test('shipped bands, 1000000 window: 26% used announces acceptable, never dumb; 51% announces dumb', async ($, on) => {
+// On a 1000000-token window with the shipped bands, 26% used (260000 tokens) reads moderate:
+// the reader contract's 1M row puts the heavy edge past 500000 tokens.
+test('shipped bands, 1000000 window: 26% used announces moderate, never heavy; 51% announces heavy', async ($, on) => {
   const { w } = world(on, { window: 1_000_000 })
-  expect(await walk($, w, [5, 26, 51])).toEqual([[], [crossing('acceptable')], [crossing('dumb')]])
+  expect(await walk($, w, [5, 26, 51])).toEqual([[], [crossing('moderate')], [crossing('heavy')]])
 })
 
 // A lowered auto-compact window: the breakdown's rawMaxTokens. On a 200000 window
 // with a 100000 compaction window the percentage edges sit at 25 and 37.5 points of the window
-// (50 and 75 of 100000), while 30% and 40% (60000 and 80000 tokens) stay smart in the token shape.
+// (50 and 75 of 100000), while 30% and 40% (60000 and 80000 tokens) stay light in the token shape.
 test('compaction window: a lowered window pulls the percentage edges toward it', async ($, on) => {
   const { w } = world(on, { compactWindow: 100_000 })
-  expect(await walk($, w, [10, 30, 40])).toEqual([[], [crossing('acceptable')], [crossing('dumb')]])
+  expect(await walk($, w, [10, 30, 40])).toEqual([[], [crossing('moderate')], [crossing('heavy')]])
 })
 
 test('compaction window: one equal to the model window, or above it, leaves the edges as they are', async ($, on) => {
@@ -500,17 +513,17 @@ test('compaction window: one equal to the model window, or above it, leaves the 
 test('compaction window: a zones.json threshold follows it too', async ($, on) => {
   const { w } = world(on, { compactWindow: 100_000 })
   zonesFile(w, { thresholds: [{ at_percent: 60, action: 'handoff' }] })
-  const passed = `context-guard: acceptable zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): handoff.`
-  expect(await walk($, w, [10, 31])).toEqual([[], [crossing('acceptable'), passed]])
+  const passed = `context-guard: moderate zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): handoff.`
+  expect(await walk($, w, [10, 31])).toEqual([[], [crossing('moderate'), passed]])
 })
 
 // The threshold fired at 30 points (60 of 100000); the window then grows to the model's, which
-// moves the edge to 60 points. 61% is past it, still acceptable, still the same cycle.
+// moves the edge to 60 points. 61% is past it, still moderate, still the same cycle.
 test('compaction window: a threshold that fired stays fired when the window changes mid-cycle', async ($, on) => {
   const { w } = world(on, { compactWindow: 100_000 })
   zonesFile(w, { thresholds: [{ at_percent: 60, action: 'handoff' }] })
-  const passed = `context-guard: acceptable zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): handoff.`
-  expect(await walk($, w, [10, 31])).toEqual([[], [crossing('acceptable'), passed]])
+  const passed = `context-guard: moderate zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): handoff.`
+  expect(await walk($, w, [10, 31])).toEqual([[], [crossing('moderate'), passed]])
   w.compactWindow = 200_000
   expect(await walk($, w, [61])).toEqual([[]])
 })
@@ -520,16 +533,16 @@ test('compaction window: the status tool publishes the edges in force and the wi
   world(on, { window: 1_000_000, compactWindow: 400_000, percent: 9 })
   const answer = JSON.parse(String((await $.tool.call({ tool: 'mcp__context-guard__status' } as any)).result))
   expect([answer.zone, answer.used_percentage, answer.bands, answer.approach_margin]).toEqual([
-    'smart',
+    'light',
     9,
-    { smart_max_used_percentage: 20, acceptable_max_used_percentage: 30, smart_max_tokens: 128_000, acceptable_max_tokens: 500_000, auto_compact_window: 400_000 },
+    { light_max_used_percentage: 20, moderate_max_used_percentage: 30, light_max_tokens: 128_000, moderate_max_tokens: 500_000, auto_compact_window: 400_000 },
     2,
   ])
 })
 
 // The token edges of a 1000000-token window at 210000 and 410000; the percentage edges there
 // (50% and 75%) sit at 500000 and 750000 tokens, so the token shape decides both crossings.
-const TOKEN_EDGES = { token_bands: { '1000000': { smart_max_tokens: 210_000, acceptable_max_tokens: 410_000 } } }
+const TOKEN_EDGES = { token_bands: { '1000000': { light_max_tokens: 210_000, moderate_max_tokens: 410_000 } } }
 
 test('approach, token shape: one line 50000 tokens before each token edge on a 1000000 window', async ($, on) => {
   const { w } = world(on, { window: 1_000_000 })
@@ -537,25 +550,25 @@ test('approach, token shape: one line 50000 tokens before each token edge on a 1
   expect(await walk($, w, [10, 15.9, 16, 18, 22, 35.9, 36, 38, 42])).toEqual([
     [],
     [],
-    [approach('smart', 'acceptable')],
+    [approach('light', 'moderate')],
     [],
-    [crossing('acceptable')],
+    [crossing('moderate')],
     [],
-    [approach('acceptable', 'dumb')],
+    [approach('moderate', 'heavy')],
     [],
-    [crossing('dumb')],
+    [crossing('heavy')],
   ])
 })
 
-test('approach, token shape: once per boundary per cycle; a dip and re-climb sends nothing, a return to smart opens it again', async ($, on) => {
+test('approach, token shape: once per boundary per cycle; a dip and re-climb sends nothing, a return to light opens it again', async ($, on) => {
   const { w } = world(on, { window: 1_000_000 })
   zonesFile(w, TOKEN_EDGES)
   expect((await walk($, w, [16, 12, 16, 22, 36, 30, 36, 42, 10, 16])).flat()).toEqual([
-    approach('smart', 'acceptable'),
-    crossing('acceptable'),
-    approach('acceptable', 'dumb'),
-    crossing('dumb'),
-    approach('smart', 'acceptable'),
+    approach('light', 'moderate'),
+    crossing('moderate'),
+    approach('moderate', 'heavy'),
+    crossing('heavy'),
+    approach('light', 'moderate'),
   ])
 })
 
@@ -565,30 +578,30 @@ test('approach, token shape: approach_margin moves the lines, in points of the w
   expect(await walk($, w, [10, 10.9, 11, 22, 30.9, 31])).toEqual([
     [],
     [],
-    [approach('smart', 'acceptable')],
-    [crossing('acceptable')],
+    [approach('light', 'moderate')],
+    [crossing('moderate')],
     [],
-    [approach('acceptable', 'dumb')],
+    [approach('moderate', 'heavy')],
   ])
 })
 
 test('approach, token shape: the margin scales with the window (5 points of 2000000 is 100000 tokens)', async ($, on) => {
   const { w } = world(on, { window: 2_000_000 })
   zonesFile(w, TOKEN_EDGES)
-  expect(await walk($, w, [5, 5.4, 5.5])).toEqual([[], [], [approach('smart', 'acceptable')]])
+  expect(await walk($, w, [5, 5.4, 5.5])).toEqual([[], [], [approach('light', 'moderate')]])
 })
 
 test('approach, token shape: a 200000 window keeps the percentage-shape lines', async ($, on) => {
   const { w } = world(on)
-  zonesFile(w, { token_bands: { '200000': { smart_max_tokens: 100_000, acceptable_max_tokens: 160_000 }, ...TOKEN_EDGES.token_bands } })
+  zonesFile(w, { token_bands: { '200000': { light_max_tokens: 100_000, moderate_max_tokens: 160_000 }, ...TOKEN_EDGES.token_bands } })
   expect(await walk($, w, [30, 45, 47, 60, 70, 72, 76])).toEqual([
     [],
-    [approach('smart', 'acceptable')],
+    [approach('light', 'moderate')],
     [],
-    [crossing('acceptable')],
-    [approach('acceptable', 'dumb')],
+    [crossing('moderate')],
+    [approach('moderate', 'heavy')],
     [],
-    [crossing('dumb')],
+    [crossing('heavy')],
   ])
 })
 
@@ -605,27 +618,27 @@ test('approach, token shape: an unknown window size sends no token-shape approac
 
 test('zones.json: invalid additions fall back to the defaults', async ($, on) => {
   const { w } = world(on)
-  zonesFile(w, { approach_margin: -3, actions: { dumb: { action: 'explode' } }, thresholds: [{ at_percent: 'x', action: 'handoff' }, { at_percent: 40 }] })
-  expect((await walk($, w, [30, 45, 80])).flat()).toEqual([approach('smart', 'acceptable'), crossing('dumb')])
+  zonesFile(w, { approach_margin: -3, actions: { heavy: { action: 'explode' } }, thresholds: [{ at_percent: 'x', action: 'handoff' }, { at_percent: 40 }] })
+  expect((await walk($, w, [30, 45, 80])).flat()).toEqual([approach('light', 'moderate'), crossing('heavy')])
 })
 
 // ---- Malformed zones.json: one toast to the person per distinct content ----------------------
 
 const ZONES_TOAST = (notices: string) => `${ZONES}: shipped defaults replace malformed ${notices} · /context-guard:setup check`
-const INVERTED = { smart_max_used_percentage: 80, acceptable_max_used_percentage: 60 }
+const INVERTED = { light_max_used_percentage: 80, moderate_max_used_percentage: 60 }
 
 test('malformed zones.json: a file that does not parse toasts the file and its notices once, Claude gets no line, and the shipped bands apply', async ($, on) => {
   const { w } = world(on)
   zonesFile(w, '{ not json')
-  expect((await walk($, w, [30, 40, 60])).flat()).toEqual([crossing('acceptable')])
-  expect(w.toasts).toEqual([ZONES_TOAST('percent and token_bands'), TOAST('smart', 'acceptable')])
+  expect((await walk($, w, [30, 40, 60])).flat()).toEqual([crossing('moderate')])
+  expect(w.toasts).toEqual([ZONES_TOAST('percent and token_bands'), TOAST('light', 'moderate')])
 })
 
 test('malformed zones.json: a band shape that fails validation toasts its notice, and the shipped edge decides the crossing', async ($, on) => {
   const { w } = world(on)
   zonesFile(w, INVERTED)
-  expect((await walk($, w, [30, 55])).flat()).toEqual([crossing('acceptable')])
-  expect(w.toasts).toEqual([ZONES_TOAST('percent'), TOAST('smart', 'acceptable')])
+  expect((await walk($, w, [30, 55])).flat()).toEqual([crossing('moderate')])
+  expect(w.toasts).toEqual([ZONES_TOAST('percent'), TOAST('light', 'moderate')])
 })
 
 test('malformed zones.json: the same text again gives no second toast, and a new malformed edit gives one more', async ($, on) => {
@@ -642,29 +655,29 @@ test('malformed zones.json: the same text again gives no second toast, and a new
 
 test('malformed zones.json: a valid file gives no zones toast, and its own edges apply', async ($, on) => {
   const { w } = world(on)
-  zonesFile(w, { smart_max_used_percentage: 30, acceptable_max_used_percentage: 60, approach_margin: 0 })
-  expect((await walk($, w, [10, 20, 31])).flat()).toEqual([crossing('acceptable')])
-  expect(w.toasts).toEqual([TOAST('smart', 'acceptable')])
+  zonesFile(w, { light_max_used_percentage: 30, moderate_max_used_percentage: 60, approach_margin: 0 })
+  expect((await walk($, w, [10, 20, 31])).flat()).toEqual([crossing('moderate')])
+  expect(w.toasts).toEqual([TOAST('light', 'moderate')])
 })
 
 test('malformed zones.json: context_guard_toast false gives no toast, and the shipped bands still apply', { options: { context_guard_toast: false } }, async ($, on) => {
   const { w } = world(on)
   zonesFile(w, '{ not json')
-  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('acceptable')])
+  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('moderate')])
   expect(w.toasts).toEqual([])
 })
 
 test('line data: percent, tokens and window are carried when configured', { options: { zone_line_data: 'zone, percent, tokens, window' } }, async ($, on) => {
   const { w } = world(on)
   expect((await walk($, w, [30, 60])).flat()).toEqual([
-    `context-guard: acceptable zone (2 of 3), 60% of the window used, 120000 tokens in context, a 200000-token window.`,
+    `context-guard: moderate zone (2 of 3), 60% of the window used, 120000 tokens in context, a 200000-token window.`,
   ])
 })
 
 for (const data of ['', 'bogus', 'zone']) {
   test(`line data: "${data}" carries the verdict alone`, { options: { zone_line_data: data } }, async ($, on) => {
     const { w } = world(on)
-    expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('acceptable')])
+    expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('moderate')])
   })
 }
 
@@ -690,7 +703,7 @@ kitTest('defaults: nothing reaches Claude at a crossing, an approach, a threshol
   await compact($, 'manual')
   seen.push(...mine((await prompt($, 'sdk')).context))
   expect(seen).toEqual([])
-  expect(w.toasts).toEqual([TOAST('smart', 'acceptable'), TOAST('acceptable', 'dumb')])
+  expect(w.toasts).toEqual([TOAST('light', 'moderate'), TOAST('moderate', 'heavy')])
 })
 
 test('switch: context_guard_hooks_enabled false sends no line',{ options: { context_guard_hooks_enabled: false } }, async ($, on) => {
@@ -719,7 +732,7 @@ test('compaction: with no figures the line says the reading is unavailable, once
   expect(own((await bash($)).context)).toEqual([UNAVAILABLE])
 })
 
-test('compaction: once figures arrive the compacted dumb zone line is sent', async ($, on) => {
+test('compaction: once figures arrive the compacted heavy zone line is sent', async ($, on) => {
   const { w } = world(on)
   await walk($, w, [30, 60])
   await compact($, 'manual')
@@ -732,7 +745,7 @@ test('compaction: once figures arrive the compacted dumb zone line is sent', asy
   expect(own((await bash($)).context)).toEqual([])
 })
 
-test('compaction: figures at the first reading restate the compacted dumb zone', async ($, on) => {
+test('compaction: figures at the first reading restate the compacted heavy zone', async ($, on) => {
   const { w } = world(on)
   await walk($, w, [30, 60])
   await compact($, 'manual')
@@ -745,7 +758,7 @@ test('compaction: a precompute dispatch restates nothing and degrades nothing', 
   await walk($, w, [30])
   await compact($, 'precompute')
   expect(own((await prompt($)).context)).toEqual([])
-  expect((await walk($, w, [60])).flat()).toEqual([crossing('acceptable')])
+  expect((await walk($, w, [60])).flat()).toEqual([crossing('moderate')])
 })
 
 test('compaction: a subagent compaction restates nothing', async ($, on) => {
@@ -763,14 +776,14 @@ test('compaction: a compaction a hook skipped restates nothing', async ($, on) =
   expect(own((await prompt($)).context)).toEqual([])
 })
 
-test('compaction: the settings hook marker alone forces the degraded dumb zone, reported once', async ($, on) => {
+test('compaction: the settings hook marker alone forces the degraded heavy zone, reported once', async ($, on) => {
   const { w } = world(on)
   await walk($, w, [30])
   w.files[`${CTX}/sess-1.compacted`] = { text: '{}', mtimeMs: 1 }
   expect((await walk($, w, [10, 12])).flat()).toEqual([crossing('degraded')])
 })
 
-test('resume: a smart verdict is not restated after an in-process resume', async ($, on) => {
+test('resume: a light verdict is not restated after an in-process resume', async ($, on) => {
   const { w } = world(on)
   await walk($, w, [30])
   await $.session.end({ reason: 'resume', sessionId: 'sess-1', resume: { id: 'sess-1' } } as any)
@@ -779,36 +792,36 @@ test('resume: a smart verdict is not restated after an in-process resume', async
   expect(own((await bash($)).context)).toEqual([])
 })
 
-test('resume: a verdict past smart is restated once after an in-process resume', async ($, on) => {
+test('resume: a verdict past light is restated once after an in-process resume', async ($, on) => {
   const { w } = world(on)
   await walk($, w, [30, 60])
   await $.session.end({ reason: 'resume', sessionId: 'sess-1', resume: { id: 'sess-1' } } as any)
   w.sid = 'sess-2'
-  expect(own((await prompt($)).context)).toEqual([restated('acceptable')])
+  expect(own((await prompt($)).context)).toEqual([restated('moderate')])
   expect(own((await prompt($)).context)).toEqual([])
 })
 
 // session.start with earlier turns is a fresh load in a running session: a reload, a worker respawn,
 // an enable, or a --resume launch, which session.start cannot tell apart.
-test('reload: a load with earlier turns in the smart zone sends nothing', async ($, on) => {
+test('reload: a load with earlier turns in the light zone sends nothing', async ($, on) => {
   world(on, { turns: 3 })
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
   expect(own((await prompt($)).context)).toEqual([])
   expect(own((await bash($)).context)).toEqual([])
 })
 
-test('reload: a load with earlier turns past smart restates the verdict once, with no crossing line', async ($, on) => {
+test('reload: a load with earlier turns past light restates the verdict once, with no crossing line', async ($, on) => {
   const { w } = world(on, { turns: 3, percent: 60 })
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
-  expect(own((await prompt($)).context)).toEqual([restated('acceptable')])
+  expect(own((await prompt($)).context)).toEqual([restated('moderate')])
   expect((await walk($, w, [62])).flat()).toEqual([])
-  expect((await walk($, w, [80])).flat()).toEqual([crossing('dumb')])
+  expect((await walk($, w, [80])).flat()).toEqual([crossing('heavy')])
 })
 
 test('reload: the first load of a session sends nothing', async ($, on) => {
   world(on, { turns: 0, percent: 60 })
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
-  expect(own((await prompt($)).context)).toEqual([crossing('acceptable')])
+  expect(own((await prompt($)).context)).toEqual([crossing('moderate')])
 })
 
 test('/clear: nothing on the first prompt, and the new session starts a fresh cycle', async ($, on) => {
@@ -818,18 +831,18 @@ test('/clear: nothing on the first prompt, and the new session starts a fresh cy
   w.sid = 'sess-2'
   w.percent = 2
   expect(own((await prompt($, 'composer')).context)).toEqual([])
-  expect((await walk($, w, [60])).flat()).toEqual([crossing('acceptable')])
+  expect((await walk($, w, [60])).flat()).toEqual([crossing('moderate')])
 })
 
 // ---- No gate: a zone never denies a tool call (#7135) -----------------------------------------
 
 // The settings that armed the removed blocking gate: they are ignored, every call runs, and the
-// dumb line carries no gate sentence.
+// heavy line carries no gate sentence.
 const FORMER_BLOCKING = { options: { zone_hook_mode: 'blocking', zone_gate_grace_calls: 0, zone_block_unattended: 'same-as-typed' } }
 
-test('no gate: the former blocking settings deny nothing in the dumb zone, typed or unattended, before or after a compaction', FORMER_BLOCKING, async ($, on) => {
+test('no gate: the former blocking settings deny nothing in the heavy zone, typed or unattended, before or after a compaction', FORMER_BLOCKING, async ($, on) => {
   const { w } = world(on, { percent: 80 })
-  zonesFile(w, { actions: { dumb: { action: 'block' } }, thresholds: [{ at_percent: 70, action: 'block' }] })
+  zonesFile(w, { actions: { heavy: { action: 'block' } }, thresholds: [{ at_percent: 70, action: 'block' }] })
   const tools = ['Write', 'Edit', 'NotebookEdit', 'Agent', 'Workflow']
   for (const kind of ['composer', 'sdk']) {
     await prompt($, kind)
@@ -840,17 +853,17 @@ test('no gate: the former blocking settings deny nothing in the dumb zone, typed
   expect(w.ran).toEqual([...tools, ...tools, 'Write'])
 })
 
-test('no gate: a block action in zones.json is ignored, so the dumb line is the bare crossing line', FORMER_BLOCKING, async ($, on) => {
+test('no gate: a block action in zones.json is ignored, so the heavy line is the bare crossing line', FORMER_BLOCKING, async ($, on) => {
   const { w } = world(on)
-  zonesFile(w, { actions: { dumb: { action: 'block' } } })
-  expect((await walk($, w, [30, 80])).flat()).toEqual([crossing('dumb')])
+  zonesFile(w, { actions: { heavy: { action: 'block' } } })
+  expect((await walk($, w, [30, 80])).flat()).toEqual([crossing('heavy')])
 })
 
 test('no gate: a block threshold reads as none and keeps its boundary line, with no sentence', async ($, on) => {
   const { w } = world(on)
   zonesFile(w, { thresholds: [{ at_percent: 60, action: 'block', text: 'stop delegating' }] })
   const lines = (await walk($, w, [30, 61])).flat()
-  expect(lines).toContain(`context-guard: ${VERDICT.acceptable}, past an operator threshold.`)
+  expect(lines).toContain(`context-guard: ${VERDICT.moderate}, past an operator threshold.`)
   expect(lines.join(' ')).not.toContain('stop delegating')
 })
 
@@ -865,7 +878,7 @@ const dataLine = (items: string) =>
 test('options: zone_line_data with an unknown item loads, carries the verdict alone and logs one line', { options: { zone_line_data: 'zone, percent, bogus' } }, async ($, on) => {
   const { w } = world(on)
   await load($)
-  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('acceptable')])
+  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('moderate')])
   expect(optionLines(w)).toEqual([dataLine('"bogus"')])
 })
 
@@ -888,7 +901,7 @@ test('options: zone_report_mode outside its list loads as automatic', { options:
   const { w } = world(on)
   await load($)
   await prompt($, 'composer')
-  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('acceptable')])
+  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('moderate')])
   expect(w.suggested).toEqual([])
   expect(optionLines(w)).toEqual([])
 })
@@ -924,8 +937,8 @@ test('debug mirror: each line sent to Claude at a tool call or a prompt is writt
   const atTool = own((await bash($)).context)
   w.percent = 80
   const atPrompt = own((await prompt($)).context)
-  expect(atTool).toEqual([crossing('acceptable')])
-  expect(atPrompt).toEqual([crossing('dumb')])
+  expect(atTool).toEqual([crossing('moderate')])
+  expect(atPrompt).toEqual([crossing('heavy')])
   expect(debug.filter(l => l.startsWith('context-guard: ') && l.includes('zone ('))).toEqual([...atTool, ...atPrompt])
 })
 
@@ -958,8 +971,8 @@ test('operator mode: a typed turn holds the line and offers it at turn end with 
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   // Written out once in full, so the offer helper's join is pinned against a literal.
   const offered =
-    'FYI, context-guard: acceptable zone (2 of 3). options: record decisions and pending items in a durable file, then continue, /compact, or hand off with /session-flow:handoff, as you and the user choose. A zone never calls for terser output, fewer agents, or lower quality.'
-  expect(offer(crossing('acceptable'))).toBe(offered)
+    'FYI, context-guard: moderate zone (2 of 3). options: record decisions and pending items in a durable file, then continue, /compact, or hand off with /session-flow:handoff, as you and the user choose. A zone never calls for terser output, fewer agents, or lower quality.'
+  expect(offer(crossing('moderate'))).toBe(offered)
   expect(w.suggested).toEqual([offered])
   expect(await notice($)).toBe(offered)
   expect(own((await prompt($, 'composer')).context)).toEqual([])
@@ -974,7 +987,7 @@ test('operator mode: the held line shows as one row with one prefix on every sur
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   for (const surface of ['terminal', 'desktop', 'vscode'] as const) {
     const row = await notice($, surface)
-    expect(row).toBe(offer(crossing('acceptable')))
+    expect(row).toBe(offer(crossing('moderate')))
     expect(prefixes(row)).toBe(1)
   }
   expect(w.toasts).toEqual([])
@@ -987,11 +1000,11 @@ test('operator mode: two held lines show as one row with one prefix, and reach C
   w.percent = 61
   await bash($)
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  const passed = `context-guard: acceptable zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): handoff.`
+  const passed = `context-guard: moderate zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): handoff.`
   const row = await notice($)
-  expect(row).toBe(`FYI, ${crossing('acceptable')} acceptable zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): handoff. ${OPTIONS.replace('context-guard: ', '')}`)
+  expect(row).toBe(`FYI, ${crossing('moderate')} moderate zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): handoff. ${OPTIONS.replace('context-guard: ', '')}`)
   expect(prefixes(row)).toBe(1)
-  expect(own((await prompt($, 'scheduled-trigger')).context)).toEqual([crossing('acceptable'), passed])
+  expect(own((await prompt($, 'scheduled-trigger')).context)).toEqual([crossing('moderate'), passed])
 })
 
 test('operator mode: with text in the box no suggestion is offered and only the notice shows; the offer comes once the box empties', OPERATOR, async ($, on) => {
@@ -1001,7 +1014,7 @@ test('operator mode: with text in the box no suggestion is offered and only the 
   await bash($)
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   expect(w.suggestCalls).toBe(0)
-  expect(await notice($)).toBe(offer(crossing('acceptable')))
+  expect(await notice($)).toBe(offer(crossing('moderate')))
   w.box = ''
   await clock.advance(5_000)
   expect(w.suggested).toHaveLength(1)
@@ -1039,7 +1052,7 @@ test('operator mode: a typed turn with no drawing surface gets the automatic lin
   const { w } = world(on, { surfaces: [] })
   await prompt($, 'composer')
   w.percent = 60
-  expect(own((await bash($)).context)).toEqual([crossing('acceptable')])
+  expect(own((await bash($)).context)).toEqual([crossing('moderate')])
 })
 
 // A shown suggestion nobody took (a --bg launch turn reads as typed) is handed to Claude at the next
@@ -1056,7 +1069,7 @@ for (const kind of ['scheduled-trigger', 'task-notification', 'sdk']) {
   test(`hand-off: a shown suggestion not taken reaches Claude at the next ${kind} turn, once, and clears the notice`, OPERATOR, async ($, on) => {
     const { w } = world(on)
     await shownThenUntaken($, w)
-    expect((await prompt($, kind, { context: ['theirs'] })).context).toEqual(['theirs', crossing('acceptable'), OPTIONS])
+    expect((await prompt($, kind, { context: ['theirs'] })).context).toEqual(['theirs', crossing('moderate'), OPTIONS])
     expect(await notice($)).toBeUndefined()
     expect(own((await prompt($, kind)).context)).toEqual([])
     expect(own((await bash($)).context)).toEqual([])
@@ -1076,7 +1089,7 @@ test('hand-off: a prompt delivered into a running turn changes nothing', OPERATO
   await shownThenUntaken($, w)
   expect(own((await prompt($, 'task-notification', { turnId: 'turn-1' })).context)).toEqual([])
   expect(await notice($)).toBeDefined()
-  expect(own((await prompt($, 'scheduled-trigger')).context)).toEqual([crossing('acceptable')])
+  expect(own((await prompt($, 'scheduled-trigger')).context)).toEqual([crossing('moderate')])
 })
 
 test('hand-off: a restatement due at the same prompt merges with the held line into one', OPERATOR, async ($, on) => {
@@ -1092,7 +1105,7 @@ test('operator mode: a suggestion that cannot show goes to Claude at the next pr
   w.percent = 60
   await bash($)
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  expect(own((await prompt($, 'composer')).context)).toEqual([crossing('acceptable')])
+  expect(own((await prompt($, 'composer')).context)).toEqual([crossing('moderate')])
 })
 
 const measure = ($: any, percent: number) =>
@@ -1104,10 +1117,10 @@ test('menu: a crossing read with the turn\'s final answer reaches the person bef
   w.percent = 60
   await measure($, 60)
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  expect(w.toasts).toEqual([TOAST('smart', 'acceptable')])
-  expect(w.logs).toEqual([MENU('smart', 'acceptable')])
-  expect(await notice($, 'desktop')).toBe(MENU('smart', 'acceptable'))
-  expect(own((await prompt($, 'sdk')).context)).toEqual([crossing('acceptable')])
+  expect(w.toasts).toEqual([TOAST('light', 'moderate')])
+  expect(w.logs).toEqual([MENU('light', 'moderate')])
+  expect(await notice($, 'desktop')).toBe(MENU('light', 'moderate'))
+  expect(own((await prompt($, 'sdk')).context)).toEqual([crossing('moderate')])
   expect(w.toasts).toHaveLength(1)
   expect(w.logs).toHaveLength(1)
 })
@@ -1130,7 +1143,7 @@ test('menu: a slow snapshot write does not delay the crossing toast, and the wri
   } finally {
     clearTimeout(timer)
   }
-  expect(w.toasts).toEqual([TOAST('smart', 'acceptable')])
+  expect(w.toasts).toEqual([TOAST('light', 'moderate')])
   release()
   await done
   expect(w.runs.length).toBe(before + 1)
@@ -1153,9 +1166,9 @@ test('menu: a crossing read after a pending restatement reaches the person at on
   await measure($, 60)
   w.percent = 80
   await measure($, 80)
-  expect(w.toasts).toEqual([TOAST('acceptable', 'dumb')])
-  expect(w.logs).toEqual([MENU('acceptable', 'dumb')])
-  expect(own((await prompt($, 'sdk')).context)).toEqual([crossing('dumb')])
+  expect(w.toasts).toEqual([TOAST('moderate', 'heavy')])
+  expect(w.logs).toEqual([MENU('moderate', 'heavy')])
+  expect(own((await prompt($, 'sdk')).context)).toEqual([crossing('heavy')])
   expect(w.toasts).toHaveLength(1)
 })
 
@@ -1166,12 +1179,12 @@ test('operator mode: a crossing shown at the end of an unattended turn is not of
   w.percent = 60
   await measure($, 60)
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  expect(own((await prompt($, 'composer')).context)).toEqual([crossing('acceptable')])
+  expect(own((await prompt($, 'composer')).context)).toEqual([crossing('moderate')])
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   expect(w.suggested).toEqual([])
   expect(await notice($)).toBeUndefined()
-  expect(w.toasts).toEqual([TOAST('smart', 'acceptable')])
-  expect(w.logs).toEqual([MENU('smart', 'acceptable')])
+  expect(w.toasts).toEqual([TOAST('light', 'moderate')])
+  expect(w.logs).toEqual([MENU('light', 'moderate')])
 })
 
 test('operator mode: a shown crossing recorded before a pending restatement merges into it, and the restatement is offered, not the stale crossing', OPERATOR, async ($, on) => {
@@ -1232,9 +1245,9 @@ for (const [via, read] of [
     await bash($)
     w.percent = 60
     await read($)
-    expect(w.toasts).toEqual([TOAST('smart', 'acceptable')])
-    expect(w.logs.filter(l => l.includes(' → '))).toEqual([MENU('smart', 'acceptable')])
-    expect(own((await bash($)).context)).toEqual([crossing('acceptable')])
+    expect(w.toasts).toEqual([TOAST('light', 'moderate')])
+    expect(w.logs.filter(l => l.includes(' → '))).toEqual([MENU('light', 'moderate')])
+    expect(own((await bash($)).context)).toEqual([crossing('moderate')])
     expect(w.toasts).toHaveLength(1)
   })
 }
@@ -1248,12 +1261,12 @@ test('menu: a crossing read with the final answer of a turn operator mode holds 
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   expect(w.toasts).toEqual([])
   expect(w.logs).toEqual([])
-  expect(w.suggested).toEqual([offer(crossing('acceptable'))])
+  expect(w.suggested).toEqual([offer(crossing('moderate'))])
 })
 
-test('menu: a first reading already past smart gives the person no toast and no transcript line, and Claude its line', async ($, on) => {
+test('menu: a first reading already past light gives the person no toast and no transcript line, and Claude its line', async ($, on) => {
   const { w } = world(on)
-  expect((await walk($, w, [80])).flat()).toEqual([crossing('dumb')])
+  expect((await walk($, w, [80])).flat()).toEqual([crossing('heavy')])
   expect(w.toasts).toEqual([])
   expect(w.logs).toEqual([])
   expect(await notice($, 'desktop')).toBeUndefined()
@@ -1262,8 +1275,8 @@ test('menu: a first reading already past smart gives the person no toast and no 
 test('menu: a crossing in automatic mode gives the person one transcript line and one toast, never Claude', async ($, on) => {
   const { w } = world(on)
   const lines = (await walk($, w, [30, 47, 60])).flat()
-  expect(w.logs).toEqual([MENU('smart', 'acceptable')])
-  expect(w.toasts).toEqual([TOAST('smart', 'acceptable')])
+  expect(w.logs).toEqual([MENU('light', 'moderate')])
+  expect(w.toasts).toEqual([TOAST('light', 'moderate')])
   expect(w.toasts[0]).not.toContain('context-guard')
   expect(lines.join(' ')).not.toContain('/compact')
 })
@@ -1282,7 +1295,7 @@ test('menu: on desktop and vscode a crossing draws one notice row with one prefi
   await walk($, w, [30, 60])
   for (const surface of ['desktop', 'vscode'] as const) {
     const row = await notice($, surface)
-    expect(row).toBe(MENU('smart', 'acceptable'))
+    expect(row).toBe(MENU('light', 'moderate'))
     expect(prefixes(row)).toBe(1)
   }
   await prompt($, 'composer')
@@ -1291,8 +1304,8 @@ test('menu: on desktop and vscode a crossing draws one notice row with one prefi
 
 test('menu: the toast option off keeps the transcript line and drops only the toast', { options: { context_guard_toast: false } }, async ($, on) => {
   const { w } = world(on)
-  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('acceptable')])
-  expect(w.logs).toEqual([MENU('smart', 'acceptable')])
+  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('moderate')])
+  expect(w.logs).toEqual([MENU('light', 'moderate')])
   expect(w.toasts).toEqual([])
 })
 
@@ -1304,16 +1317,16 @@ test('menu: a toast that fails drops neither Claude\'s line nor the transcript l
     tried += 1
     throw new Error('toast unavailable')
   })
-  expect((await walk($, w, [30, 60, 30, 60])).flat()).toEqual([crossing('acceptable'), crossing('acceptable')])
+  expect((await walk($, w, [30, 60, 30, 60])).flat()).toEqual([crossing('moderate'), crossing('moderate')])
   expect(tried).toBe(2)
-  expect(w.logs).toEqual([MENU('smart', 'acceptable'), MENU('smart', 'acceptable')])
+  expect(w.logs).toEqual([MENU('light', 'moderate'), MENU('light', 'moderate')])
 })
 
 test('menu: shown with zone lines off, not with the hooks switch off', { options: { model_notices: false } }, async ($, on) => {
   const { w } = world(on)
   await walk($, w, [30, 80])
-  expect(w.logs).toEqual([MENU('smart', 'dumb')])
-  expect(w.toasts).toEqual([TOAST('smart', 'dumb')])
+  expect(w.logs).toEqual([MENU('light', 'heavy')])
+  expect(w.toasts).toEqual([TOAST('light', 'heavy')])
 })
 
 test('menu: the hooks switch off shows nothing', { options: { context_guard_hooks_enabled: false } }, async ($, on) => {
@@ -1324,12 +1337,12 @@ test('menu: the hooks switch off shows nothing', { options: { context_guard_hook
   expect(await notice($, 'desktop')).toBeUndefined()
 })
 
-test('menu: a crossing into the compacted dumb zone names it so in the toast', async ($, on) => {
+test('menu: a crossing into the compacted heavy zone names it so in the toast', async ($, on) => {
   const { w } = world(on)
   await walk($, w, [30])
   w.files[`${CTX}/sess-1.compacted`] = { text: '{}', mtimeMs: 1 }
   await walk($, w, [10])
-  expect(w.toasts).toEqual([TOAST('smart', 'dumb (compacted)')])
+  expect(w.toasts).toEqual([TOAST('light', 'heavy (compacted)')])
 })
 
 const bandRow = async ($: any, surface: 'terminal' | 'desktop' = 'terminal') => {
@@ -1347,10 +1360,10 @@ test('band: the plugin name, a dash before a reading, the zone then the figure a
   for (const surface of ['terminal', 'desktop'] as const) expect(await bandRow($, surface)).toEqual({ row: 'context-guard: -', beneath: true })
   w.percent = 23
   await bash($)
-  for (const surface of ['terminal', 'desktop'] as const) expect(await bandRow($, surface)).toEqual({ row: 'context-guard: smart 23%', beneath: true })
+  for (const surface of ['terminal', 'desktop'] as const) expect(await bandRow($, surface)).toEqual({ row: 'context-guard: light 23%', beneath: true })
   w.files[`${CTX}/sess-1.compacted`] = { text: '{}', mtimeMs: 1 }
   await bash($)
-  expect((await bandRow($)).row).toBe('context-guard: dumb, compacted 23%')
+  expect((await bandRow($)).row).toBe('context-guard: heavy, compacted 23%')
 })
 
 test('band: off by default, so a terminal mount returns only what is drawn beneath', async ($, on) => {
@@ -1369,7 +1382,7 @@ test('command: band on, band off and a bare band toggle the row for the session'
   await bash($)
   expect((await bandRow($)).row).toBeUndefined()
   expect((await cmd($, 'band on')).text).toBe('band row on for this session')
-  expect((await bandRow($)).row).toBe('context-guard: smart 30%')
+  expect((await bandRow($)).row).toBe('context-guard: light 30%')
   expect((await cmd($, 'band on')).text).toBe('band row on for this session')
   expect((await cmd($, 'band off')).text).toBe('band row off for this session')
   expect((await bandRow($)).row).toBeUndefined()
@@ -1390,13 +1403,13 @@ test('command: no argument prints the status and details', async ($, on) => {
   zonesFile(w, { approach_margin: 4 })
   const text = String((await cmd($)).text)
   // Claude Code puts the plugin's name before a command's reply, so the reply carries none of its own.
-  expect(text.startsWith('acceptable zone (2 of 3), ')).toBe(true)
+  expect(text.startsWith('moderate zone (2 of 3), ')).toBe(true)
   expect(text).not.toContain('context-guard: ')
   for (const part of [
     '60% of a 200000-token window used (120000 tokens)',
     // The token band of the session's window class is shown beside the percent band, since the
     // worse of the two decides the zone.
-    'Bands (the worse decides): smart up to 50% and 100000 tokens, acceptable up to 75% and 150000 tokens',
+    'Bands (the worse decides): light up to 50% and 100000 tokens, moderate up to 75% and 150000 tokens',
     'approach margin 4 points',
     'band row off',
     'zone-change toast on',
@@ -1445,9 +1458,9 @@ test('status tool: a refused registration is logged once, and lines, band and wr
   await prompt($, 'composer')
   expect(debug.filter(l => l.includes('status tool'))).toHaveLength(1)
   expect(debug.filter(l => l.includes('status tool'))[0]).toMatch(/^context-guard: the status tool could not register: /)
-  expect((await walk($, w, [30, 80])).flat()).toEqual([crossing('dumb')])
+  expect((await walk($, w, [30, 80])).flat()).toEqual([crossing('heavy')])
   expect(w.runs.length).toBeGreaterThan(0)
-  expect((await bandRow($)).row).toBe('context-guard: dumb 80%')
+  expect((await bandRow($)).row).toBe('context-guard: heavy 80%')
 })
 
 test('session.start registers the status tool and one command named after the plugin', async ($, on) => {
@@ -1484,23 +1497,23 @@ test('pull tool: the latest figures and zone, with no line attached, whatever th
   expect(answer.context).toBeUndefined()
   expect(JSON.parse(String(answer.result))).toEqual({
     source: 'the last API response',
-    zone: 'acceptable',
+    zone: 'moderate',
     evidence_degraded: false,
     used_percentage: 60,
     total_input_tokens: 120_000,
     total_output_tokens: 900,
     context_window_size: 200_000,
-    bands: { smart_max_used_percentage: 50, acceptable_max_used_percentage: 75, smart_max_tokens: 100_000, acceptable_max_tokens: 150_000 },
+    bands: { light_max_used_percentage: 50, moderate_max_used_percentage: 75, light_max_tokens: 100_000, moderate_max_tokens: 150_000 },
     approach_margin: 5,
   })
 })
 
-test('pull tool: unknown before the first response, and the degraded dumb zone after a compaction', async ($, on) => {
+test('pull tool: unknown before the first response, and the degraded heavy zone after a compaction', async ($, on) => {
   const { w } = world(on, { percent: undefined })
   expect(JSON.parse(String((await $.tool.call({ tool: 'mcp__context-guard__status' } as any)).result)).zone).toBe('unknown')
   await compact($, 'manual')
   const after = JSON.parse(String((await $.tool.call({ tool: 'mcp__context-guard__status' } as any)).result))
-  expect([after.zone, after.evidence_degraded]).toEqual(['dumb', true])
+  expect([after.zone, after.evidence_degraded]).toEqual(['heavy', true])
   void w
 })
 
@@ -1532,8 +1545,8 @@ test('telemetry: one zone-crossing-inject envelope per fire that sends lines, no
   const sent = envelopes(w)
   for (const e of sent) checkEnvelope(e)
   expect(sent.map(e => [e.hook, e.hook_event, e.status, e.session_id, e.data])).toEqual([
-    ['zone-crossing-inject', 'tool.call', 'ok', 'sess-1', { zone: 'acceptable', previous: 'smart', armed: 'smart', injected: true }],
-    ['zone-crossing-inject', 'tool.call', 'ok', 'sess-1', { zone: 'dumb', previous: 'acceptable', armed: 'acceptable', injected: true }],
+    ['zone-crossing-inject', 'tool.call', 'ok', 'sess-1', { zone: 'moderate', previous: 'light', armed: 'light', injected: true }],
+    ['zone-crossing-inject', 'tool.call', 'ok', 'sess-1', { zone: 'heavy', previous: 'moderate', armed: 'moderate', injected: true }],
   ])
   expect(sent[1].tool_use_id).toBe('toolu_2')
 })
@@ -1554,7 +1567,7 @@ test('telemetry: a line sent at a prompt is recorded with that event', async ($,
   await prompt($)
   w.percent = 60
   await prompt($)
-  expect(envelopes(w).map(e => [e.hook_event, e.data.zone])).toEqual([['prompt.submit', 'acceptable']])
+  expect(envelopes(w).map(e => [e.hook_event, e.data.zone])).toEqual([['prompt.submit', 'moderate']])
 })
 
 test('telemetry: a relative sink path resolves against the session project root', async ($, on) => {
@@ -1620,7 +1633,7 @@ test('telemetry: an operator-mode suggestion offered is recorded once', OPERATOR
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   const sent = envelopes(w)
   for (const e of sent) checkEnvelope(e)
-  expect(sent.map(e => [e.hook_event, e.data])).toEqual([['turn.complete', { zone: 'acceptable', previous: 'smart', armed: 'smart', injected: false, suggested: true }]])
+  expect(sent.map(e => [e.hook_event, e.data])).toEqual([['turn.complete', { zone: 'moderate', previous: 'light', armed: 'light', injected: false, suggested: true }]])
 })
 
 test('telemetry: no sink set, nothing dispatched', async ($, on) => {
@@ -1652,37 +1665,37 @@ test('snapshot: the snapshot body the helper reads on stdin, the per-session tar
         remaining_percentage: 70,
         current_usage: { input_tokens: 5, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
       },
-      zone: 'smart',
+      zone: 'light',
       evidence_degraded: false,
-      bands: { smart_max_used_percentage: 50, acceptable_max_used_percentage: 75, smart_max_tokens: 100_000, acceptable_max_tokens: 150_000 },
+      bands: { light_max_used_percentage: 50, moderate_max_used_percentage: 75, light_max_tokens: 100_000, moderate_max_tokens: 150_000 },
     }),
   )
 })
 
 // The published zone contract a status line reads: the zone this body resolves to and the edges
 // after zones.json, written whatever model_notices says.
-kitTest('snapshot: publishes the zone and the bands in force from zones.json, and a compaction as degraded dumb', async ($, on) => {
+kitTest('snapshot: publishes the zone and the bands in force from zones.json, and a compaction as degraded heavy', async ($, on) => {
   const { w } = world(on, { percent: 65 })
-  zonesFile(w, { smart_max_used_percentage: 40, acceptable_max_used_percentage: 60 })
+  zonesFile(w, { light_max_used_percentage: 40, moderate_max_used_percentage: 60 })
   await bash($)
   const first = bodies(w).at(-1)
-  expect([first.zone, first.evidence_degraded, first.bands.smart_max_used_percentage, first.bands.acceptable_max_used_percentage]).toEqual(['dumb', false, 40, 60])
+  expect([first.zone, first.evidence_degraded, first.bands.light_max_used_percentage, first.bands.moderate_max_used_percentage]).toEqual(['heavy', false, 40, 60])
   w.percent = 20
   await compact($, 'manual')
   await bash($)
   const after = bodies(w).at(-1)
-  expect([after.zone, after.evidence_degraded]).toEqual(['dumb', true])
+  expect([after.zone, after.evidence_degraded]).toEqual(['heavy', true])
 })
 
-kitTest('snapshot: a compaction whose reading has no figures still publishes degraded dumb over the kept figures', async ($, on) => {
+kitTest('snapshot: a compaction whose reading has no figures still publishes degraded heavy over the kept figures', async ($, on) => {
   const { w } = world(on, { percent: 30 })
   await bash($)
-  expect([bodies(w).at(-1).zone, bodies(w).at(-1).evidence_degraded]).toEqual(['smart', false])
+  expect([bodies(w).at(-1).zone, bodies(w).at(-1).evidence_degraded]).toEqual(['light', false])
   w.percent = undefined
   await compact($, 'manual')
   await bash($)
   const kept = bodies(w).at(-1)
-  expect([kept.context_window.used_percentage, kept.zone, kept.evidence_degraded]).toEqual([30, 'dumb', true])
+  expect([kept.context_window.used_percentage, kept.zone, kept.evidence_degraded]).toEqual([30, 'heavy', true])
 })
 
 test('snapshot: before the first response the body carries the nulls the status line does', async ($, on) => {
@@ -1886,7 +1899,7 @@ test('snapshot: falls back to USERPROFILE when HOME is unset, and writes nothing
 
 test('snapshot: no home directory, no write, and the lines still arrive', async ($, on) => {
   const { w } = world(on, {}, {})
-  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('acceptable')])
+  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('moderate')])
   expect(w.runs).toEqual([])
 })
 
@@ -1904,7 +1917,7 @@ test('fallback: where $.process.run is unavailable, nothing is written, it is lo
   w.percent = 60
   const called = await bash($)
   expect(called.text).toBe('ok')
-  expect(own(called.context)).toEqual([crossing('acceptable')])
+  expect(own(called.context)).toEqual([crossing('moderate')])
   // A stub that throws is skipped, so the engine answers that nothing implements process.run.
   expect(debug.filter(l => l.includes('snapshot'))).toHaveLength(1)
   expect(debug.find(l => l.includes('snapshot'))).toMatch(/^context-guard: snapshot write did not run: /)

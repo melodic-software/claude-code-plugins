@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -72,4 +75,22 @@ test("the script reads each pass's wiring from its env prefix", () => {
   assert.match(run.stdout, /^::notice title=refine-pass::pass=fix-docs files=2 outcome=superseded seconds=\d+$/m);
   assert.match(run.stdout, /^::notice title=refine-pass::pass=lint-code files=0 outcome=failed seconds=\d+$/m);
   assert.match(run.stdout, /^::warning title=refine-failed::pass=lint-code reason=unwired$/m);
+});
+
+test("a failed pass writes the lane-hold marker; a run with no failed pass writes none", () => {
+  const dir = mkdtempSync(join(tmpdir(), "refine-marker-"));
+  try {
+    const script = fileURLToPath(new URL("./log-pass-records.mjs", import.meta.url));
+    const record = (results, lane) =>
+      spawnSync(process.execPath, [script], {
+        env: { PATH: process.env.PATH, GITHUB_RUN_ID: "42", PASSES: '["fix-docs"]', FIX_DOCS_RESULTS: JSON.stringify(results), LANE_HOLD_MARKER: join(dir, lane, "pr-refine") },
+        encoding: "utf8",
+      });
+    assert.equal(record(OK, "clean").status, 0);
+    assert.equal(existsSync(join(dir, "clean", "pr-refine")), false, "no failed pass, no marker");
+    assert.equal(record({ ...OK, "fix-docs": "failure" }, "failed").status, 0);
+    assert.equal(readFileSync(join(dir, "failed", "pr-refine"), "utf8"), "pr-refine 42\n");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -2,17 +2,18 @@
 
 Owner document for whether a role in [`defaults.yaml`](defaults.yaml), or any
 routing guidance in this repository, may name `haiku`. Accuracy comes before
-cost: a cheaper model that answers worse is not a saving.
+cost. A cheaper model that answers worse is not a saving.
 
 ## The rule
 
-- **No role routes to Haiku until it passes this repository's routing eval**
+- **No role routes to Haiku.** The owner decided this on 2026-11-09 (Evidence
+  so far). Only the owner reopens it, and the evidence for doing so is a pass
+  on this repository's routing eval
   ([#6901](https://github.com/melodic-software/claude-code-plugins/issues/6901))
-  for that role. Passing means matching the role's current default on
-  accuracy at no higher tokens per completed task and no longer wall time. A
-  retry or a re-run counts against the task it completes.
-- **Haiku runs at effort `high` when a role does use it, never `xhigh` or
-  `max`.**
+  for that role: matching the role's current default on accuracy at no higher
+  tokens per completed task and no longer wall time, with a retry or a re-run
+  counted against the task it completes.
+- **Haiku runs at effort `high` wherever it runs, never `xhigh` or `max`.**
 - **No advisor is required.** A Haiku role is judged on its own output, not on
   an advisor model escalating for it.
 - **A judge model the user selects is outside the rule.** The rubric governs
@@ -43,6 +44,16 @@ cases barely separate the models on accuracy. The advisor arm did not run:
 `claude plugin eval` loads no user settings, and no advisor tool appeared in a
 probe run's tools.
 
+On 2026-11-09 the owner decided that no role routes to Haiku: accuracy and
+the rework a wrong answer causes come before token price. The source that
+disagrees is the task table in
+[which Claude model should you build with: pick a model by task](https://claude.dev/blog/which-claude-model-should-you-build-with#pick-a-model-by-task),
+whose rows start classification and routing work on Haiku and offer it for
+subagents that search files, read logs or summarize; that work stays on
+`sonnet` or above, kept per owner rule. That table starts Haiku at its default effort, while
+[#10022](https://github.com/melodic-software/claude-code-plugins/issues/10022)
+ran it at `high`, so the eval did not measure the guide's starting point.
+
 ## Where to read the specifics
 
 - **Pointer**: when choosing an effort level for a role, fetch
@@ -63,7 +74,7 @@ probe run's tools.
   model, fetch
   [choosing a model: decide whether to upgrade or change models](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model#decide-whether-to-upgrade-or-change-models)
   live.
-- **As of**: 2026-10-10
+- **As of**: 2026-11-09
 - **Recheck trigger**: a new model row in that page's selection matrix.
 
 - **Pointer**: when an advisor pairing is proposed for a Haiku role, read

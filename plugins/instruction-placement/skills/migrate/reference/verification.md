@@ -5,8 +5,8 @@ point of this file: **nothing here is assumed, and `UNKNOWN` is never a pass.**
 
 ## `verify-load.sh`, per surface
 
-Every invocation carries `--root`, for the same reason the plan command does: a shell's working
-directory does not survive between tool calls.
+Every invocation carries `--root`, for the same reason the plan command does: the call's working
+directory may not be the repository root (see the migrate skill's "Plan first" for the pointer).
 
 ```bash
 # The root file, through its shim. <trigger> is any tracked file that exists.

@@ -338,6 +338,16 @@ def resolve_bash(
     return next((c for c in candidates if _accept_bash(c, windows, exists)), None)
 
 
+def _shared_bash(tool: str) -> str:
+    """This host's `resolve_bash`; raises `PolicyReadError` naming the shared
+    YAML `tool` when there is none."""
+    platform = "win32" if os.name == "nt" else sys.platform
+    bash = resolve_bash(os.environ, platform, os.path.isfile)
+    if bash is None:
+        raise PolicyReadError(f"no usable bash found to run the shared YAML {tool}")
+    return bash
+
+
 # The shared reader's answers by document, keys, reader script, command
 # runner and environment, of which it is a pure function: `read_config_at`
 # reads the same few config texts at hundreds of commits per gate run, and
@@ -380,10 +390,7 @@ def _read_concern_values(
     text: str, keys: list[tuple[str, bool]], run: Callable[..., Any]
 ) -> dict[str, list[str]] | None:
     """`_concern_values`, read through the shared reader every time."""
-    platform = "win32" if os.name == "nt" else sys.platform
-    bash = resolve_bash(os.environ, platform, os.path.isfile)
-    if bash is None:
-        raise PolicyReadError("no usable bash found to run the shared YAML reader")
+    bash = _shared_bash("reader")
     values: dict[str, list[str]] = {}
     with tempfile.TemporaryDirectory() as tmp:
         document = Path(tmp) / "concern.yaml"
@@ -422,15 +429,9 @@ def floor_paths_in(text: str) -> FloorRows:
     prints scalar items alone. Raises `FloorRowError` on a row the floor
     cannot use, and `PolicyReadError` when the parser cannot run or rejects
     the document."""
-    if text in _FLOOR_ROWS:
-        return _FLOOR_ROWS[text]
-    records = {
-        key[len(FLOOR_PATHS_KEY) + 1 :]: value
-        for key, value in yaml_records(text).items()
-        if key == FLOOR_PATHS_KEY or key.startswith(f"{FLOOR_PATHS_KEY}.")
-    }
-    _FLOOR_ROWS[text] = rows = floor_rows(records)
-    return rows
+    if text not in _FLOOR_ROWS:
+        _FLOOR_ROWS[text] = floor_rows(_records_below(text, FLOOR_PATHS_KEY))
+    return _FLOOR_ROWS[text]
 
 
 _ISSUE_STATUS: dict[str, IssueStatusConfig | None] = {}
@@ -445,11 +446,7 @@ def _issue_status_config(text: str) -> IssueStatusConfig | None:
         return None
     if text not in _ISSUE_STATUS:
         try:
-            rows = {
-                key[len(ISSUE_STATUS_KEY) + 1 :]: value
-                for key, value in yaml_records(text).items()
-                if key == ISSUE_STATUS_KEY or key.startswith(f"{ISSUE_STATUS_KEY}.")
-            }
+            rows = _records_below(text, ISSUE_STATUS_KEY)
             _ISSUE_STATUS[text] = _issue_status_rows(rows) if rows else None
         except PolicyReadError as exc:
             _ISSUE_STATUS[text] = IssueStatusConfig(0, (), (), (), (), str(exc))
@@ -530,10 +527,7 @@ def yaml_records(text: str) -> dict[str, str]:
     """A YAML document's `lib/yaml-subset.awk` records: each scalar's dotted
     key to its value. Raises `PolicyReadError` when the parser cannot run or
     rejects the document."""
-    platform = "win32" if os.name == "nt" else sys.platform
-    bash = resolve_bash(os.environ, platform, os.path.isfile)
-    if bash is None:
-        raise PolicyReadError("no usable bash found to run the shared YAML parser")
+    bash = _shared_bash("parser")
     with tempfile.TemporaryDirectory() as tmp:
         document = Path(tmp) / "concern.yaml"
         try:
@@ -550,6 +544,16 @@ def yaml_records(text: str) -> dict[str, str]:
         raise PolicyReadError(f"the shared YAML parser exited {proc.returncode}")
     pairs = (line.partition("\t") for line in proc.stdout.split("\n") if line)
     return {key: value for key, _, value in pairs}
+
+
+def _records_below(text: str, key: str) -> dict[str, str]:
+    """The `yaml_records` of `text` at `key` and below it, each keyed by what
+    follows `key.`."""
+    return {
+        k[len(key) + 1 :]: value
+        for k, value in yaml_records(text).items()
+        if k == key or k.startswith(f"{key}.")
+    }
 
 
 def _merge_names(text: str, key: str) -> bool:
@@ -754,6 +758,11 @@ def _time(value: Any) -> datetime:
     if parsed.utcoffset() is None:
         raise PolicyReadError(f"a timestamp without an offset: {value!r}")
     return parsed
+
+
+def _stamp(moment: datetime) -> str:
+    """`moment` to the second in UTC, as a `created=` qualifier names it."""
+    return moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _has_next_page(info: dict[str, Any], label: str) -> bool:
@@ -1170,53 +1179,64 @@ def read_config_at(
             " no work class is read"
         )
 
-    report_only = scalar("merge.report-only")
-    if report_only not in (None, "true", "false"):
-        notes.append(f"merge.report-only {report_only!r} is not true or false")
-    verdict = scalar("merge.require-verifier-verdict")
-    if verdict not in (None, "true", "false"):
-        notes.append(f"merge.require-verifier-verdict {verdict!r} is not true or false")
-    dependabot_mode = scalar("merge.dependabot.mode") or "off"
-    if dependabot_mode not in DEPENDABOT_MODES:
+    def choice(key: str, allowed: tuple[str, ...], problem: str) -> str:
+        """`key`'s value when `allowed` holds it, else `allowed[0]`, with a
+        note when the value was set."""
+        value = scalar(key) or allowed[0]
+        if value not in allowed:
+            notes.append(f"{key} {value!r} {problem}")
+            return allowed[0]
+        return value
+
+    def bounded(
+        key: str, pattern: str, ceiling: int | None, problem: str
+    ) -> str | None:
+        """`key`'s value, or None with a note when it does not fullmatch
+        `pattern` or exceeds `ceiling`."""
+        value = scalar(key)
+        if value is None or (
+            re.fullmatch(pattern, value) and (ceiling is None or int(value) <= ceiling)
+        ):
+            return value
+        notes.append(f"{key} {value!r} {problem}")
+        return None
+
+    def app_ids(key: str, consequence: str) -> tuple[int, ...]:
+        """`key`'s App ids, or none with a note when an entry is not an id."""
+        ids = values[key]
+        if all(re.fullmatch(r"[1-9][0-9]*", i) for i in ids):
+            return tuple(int(i) for i in ids)
         notes.append(
-            f"merge.dependabot.mode {dependabot_mode!r} is not off, report or enforce"
+            f"{key} {ids!r} holds an entry that is not an account id; {consequence}"
         )
-        dependabot_mode = "off"
-    dependabot_majors = scalar("merge.dependabot.majors") or "hold"
-    if dependabot_majors not in DEPENDABOT_MAJORS:
-        notes.append(
-            f"merge.dependabot.majors {dependabot_majors!r} is not hold or review"
-        )
-        dependabot_majors = "hold"
-    in_flight_cap = scalar("merge.max-in-flight")
-    if in_flight_cap is not None and not (
-        re.fullmatch(r"[1-9][0-9]*", in_flight_cap)
-        and int(in_flight_cap) <= MAX_IN_FLIGHT_CEILING
-    ):
-        notes.append(
-            f"merge.max-in-flight {in_flight_cap!r} is not a count from 1 to "
-            f"{MAX_IN_FLIGHT_CEILING}"
-        )
-        in_flight_cap = None
-    ejections = scalar("merge.max-queue-ejections")
-    if ejections is not None and not (
-        re.fullmatch(r"[1-9][0-9]?", ejections)
-        and int(ejections) <= MAX_QUEUE_EJECTIONS_LIMIT
-    ):
-        notes.append(
-            f"merge.max-queue-ejections {ejections!r} is not a count from 1 to "
-            f"{MAX_QUEUE_EJECTIONS_LIMIT}"
-        )
-        ejections = None
-    escalation_minutes = scalar("merge.risk-escalation-minutes")
-    if escalation_minutes is not None and not re.fullmatch(
-        r"0|[1-9][0-9]*", escalation_minutes
-    ):
-        notes.append(
-            f"merge.risk-escalation-minutes {escalation_minutes!r} is not a whole "
-            "number of minutes"
-        )
-        escalation_minutes = None
+        return ()
+
+    report_only = switch("merge.report-only")
+    verdict = switch("merge.require-verifier-verdict")
+    dependabot_mode = choice(
+        "merge.dependabot.mode", DEPENDABOT_MODES, "is not off, report or enforce"
+    )
+    dependabot_majors = choice(
+        "merge.dependabot.majors", DEPENDABOT_MAJORS, "is not hold or review"
+    )
+    in_flight_cap = bounded(
+        "merge.max-in-flight",
+        r"[1-9][0-9]*",
+        MAX_IN_FLIGHT_CEILING,
+        f"is not a count from 1 to {MAX_IN_FLIGHT_CEILING}",
+    )
+    ejections = bounded(
+        "merge.max-queue-ejections",
+        r"[1-9][0-9]?",
+        MAX_QUEUE_EJECTIONS_LIMIT,
+        f"is not a count from 1 to {MAX_QUEUE_EJECTIONS_LIMIT}",
+    )
+    escalation_minutes = bounded(
+        "merge.risk-escalation-minutes",
+        r"0|[1-9][0-9]*",
+        None,
+        "is not a whole number of minutes",
+    )
     verify_fails = scalar("merge.max-verify-fails")
     if verify_fails is None and _merge_names(text, "max-verify-fails"):
         verify_fails = ""
@@ -1233,52 +1253,31 @@ def read_config_at(
             f"merge.verify-cap-attempts {cap_attempts!r} is not a whole number"
         )
         cap_attempts = "0"
-    idle_text = scalar("adoption.idle-hours")
-    idle_hours: int | None = None
-    if idle_text is not None:
-        idle_hours = (
-            int(idle_text) if re.fullmatch(r"[1-9][0-9]{0,2}", idle_text) else None
-        )
-        if idle_hours is None or idle_hours > MAX_ADOPTION_IDLE_HOURS:
-            notes.append(
-                f"adoption.idle-hours {idle_text!r} is not a whole number from 1 "
-                f"to {MAX_ADOPTION_IDLE_HOURS}; nothing is adopted"
-            )
-            idle_hours = None
-    body_apps = tuple(values["adoption.spec-from-body-apps"])
-    if not all(re.fullmatch(r"[1-9][0-9]*", i) for i in body_apps):
-        notes.append(
-            f"adoption.spec-from-body-apps {list(body_apps)!r} holds an entry that "
-            "is not an account id; every App needs a closing issue"
-        )
-        body_apps = ()
-    self_merging = tuple(values["adoption.self-merging-apps"])
-    if not all(re.fullmatch(r"[1-9][0-9]*", i) for i in self_merging):
-        notes.append(
-            f"adoption.self-merging-apps {list(self_merging)!r} holds an entry "
-            "that is not an account id; every App gets its reasons comment"
-        )
-        self_merging = ()
-    quarantine_days = scalar("merge.quarantine-days")
-    if quarantine_days is not None and not (
-        re.fullmatch(r"[1-9][0-9]?", quarantine_days)
-        and int(quarantine_days) <= MAX_QUARANTINE_DAYS
-    ):
-        notes.append(
-            f"merge.quarantine-days {quarantine_days!r} is not a count from 1 to "
-            f"{MAX_QUARANTINE_DAYS}"
-        )
-        quarantine_days = None
-    confirm_wait = scalar("red-main.confirm-wait-minutes")
-    if confirm_wait is not None and not (
-        re.fullmatch(r"0|[1-9][0-9]?", confirm_wait)
-        and int(confirm_wait) <= MAX_CONFIRM_WAIT_MINUTES
-    ):
-        notes.append(
-            f"red-main.confirm-wait-minutes {confirm_wait!r} is not a whole number "
-            f"from 0 to {MAX_CONFIRM_WAIT_MINUTES}"
-        )
-        confirm_wait = None
+    idle_hours = bounded(
+        "adoption.idle-hours",
+        r"[1-9][0-9]{0,2}",
+        MAX_ADOPTION_IDLE_HOURS,
+        f"is not a whole number from 1 to {MAX_ADOPTION_IDLE_HOURS}; "
+        "nothing is adopted",
+    )
+    body_apps = app_ids(
+        "adoption.spec-from-body-apps", "every App needs a closing issue"
+    )
+    self_merging = app_ids(
+        "adoption.self-merging-apps", "every App gets its reasons comment"
+    )
+    quarantine_days = bounded(
+        "merge.quarantine-days",
+        r"[1-9][0-9]?",
+        MAX_QUARANTINE_DAYS,
+        f"is not a count from 1 to {MAX_QUARANTINE_DAYS}",
+    )
+    confirm_wait = bounded(
+        "red-main.confirm-wait-minutes",
+        r"0|[1-9][0-9]?",
+        MAX_CONFIRM_WAIT_MINUTES,
+        f"is not a whole number from 0 to {MAX_CONFIRM_WAIT_MINUTES}",
+    )
     lane_prs: str | None = scalar("merge.lane-prs") or "native"
     if lane_prs not in LANE_PRS_MODES:
         notes.append(f"merge.lane-prs {lane_prs!r} is not native or gate")
@@ -1295,8 +1294,8 @@ def read_config_at(
         denied_paths=tuple(values["merge.diff-check.denied-paths"]),
         loop_merge=loop_merge,
         notes=tuple(notes),
-        report_only=report_only not in (None, "false"),
-        require_verifier_verdict=verdict not in (None, "false"),
+        report_only=report_only,
+        require_verifier_verdict=verdict,
         dependabot_mode=dependabot_mode,
         dependabot_majors=dependabot_majors,
         high_path_floor=high_path_floor,
@@ -1313,9 +1312,9 @@ def read_config_at(
         if cap_attempts is not None
         else VERIFY_CAP_ATTEMPTS,
         check_inputs=tuple(values["merge.check-inputs"]),
-        adoption_idle_hours=idle_hours,
-        spec_from_body_apps=tuple(int(i) for i in body_apps),
-        self_merging_apps=tuple(int(i) for i in self_merging),
+        adoption_idle_hours=int(idle_hours) if idle_hours else None,
+        spec_from_body_apps=body_apps,
+        self_merging_apps=self_merging,
         quarantine_days=int(quarantine_days) if quarantine_days else QUARANTINE_DAYS,
         confirm_wait_minutes=int(confirm_wait)
         if confirm_wait is not None
@@ -1598,6 +1597,8 @@ def with_default_branch(
     when it cannot be parsed or the agent identities differ."""
     main = _default_branch_config(repo, branch)
     return base if main.base_sha == base.base_sha else stricter_config(base, main)
+
+
 def lane_identity(repo: str, base_sha: str) -> tuple[str | None, str]:
     """`merge.agent-identity` when the pull request's base commit and the
     default branch head both declare the same one, with where it was read.
@@ -1622,8 +1623,6 @@ def lane_identity(repo: str, base_sha: str) -> tuple[str | None, str]:
         f"merge.agent-identity in {CONFIG_PATH} at the base {base_sha} and the "
         f"default branch head {main.base_sha}"
     )
-
-
 
 
 # --- Effective rung ---------------------------------------------------------------
@@ -1885,6 +1884,15 @@ GREEN_PAGES = 5
 GREEN_SPAN = timedelta(days=7)
 # Spans read before giving up (holding the record), about a year.
 GREEN_SPANS = 53
+# Listings are read as fixed `GREEN_SPAN` cells counted from this instant, so
+# records filed close together read the same pages; each record's span is
+# cut from the one or two cells that cover it.
+GREEN_GRID = datetime(2026, 1, 5, 10, tzinfo=UTC)
+# Pages one cell may take. A record's span is still bound by `GREEN_PAGES`;
+# a cell holds the busy days before the record too, and a cell it cannot read
+# whole holds the record where its own span would not have. Main listed 582
+# green dispatch runs in the week from 2026-10-19T10:00:00Z.
+GREEN_CELL_PAGES = 2 * GREEN_PAGES
 # A canary, revert or read-back record, which `_lift` lifts. A canary record
 # may be a post-merge-failure one, which holds nothing but is closed the same
 # way (babysit_lift.py close).
@@ -2061,11 +2069,13 @@ def _edits_refusal(issue: dict[str, Any], human: Callable[[Any], bool]) -> str |
 
 class _GreenMain:
     """`_recovered_at`'s reads, shared by the records of one `read_demotion`:
-    each record time's listing, one read of main's tip, and each compare once."""
+    each `GREEN_GRID` cell's listing, one read of main's tip, and each compare
+    once. Nothing outlives the instance, so every `read_demotion` reads fresh."""
 
     def __init__(self, owner: str, name: str) -> None:
         self.owner, self.name = owner, name
         self.runs: dict[str, list[dict[str, Any]]] = {}
+        self.cells: dict[tuple[str, int], list[dict[str, Any]]] = {}
         self.tip: str | None = None
         self.compares: dict[tuple[str, str], str | None] = {}
         # babysit_postmerge's `_Context` for local ancestry; False: unavailable.
@@ -2081,14 +2091,16 @@ class _GreenMain:
             raise PolicyReadError(f"{endpoint}: {status}")
         return answer
 
-    def _window(self, since: str, until: str) -> list[dict[str, Any]]:
-        """Every green schedule and workflow_dispatch full run on main
-        created from `since` to `until`; more than `GREEN_PAGES` pages of
-        either raises, so the earliest is never a guess."""
-        found: list[dict[str, Any]] = []
-        created = quote(f"{since}..{until}", safe=":")
-        for event in GREEN_EVENTS:
-            for page in range(1, GREEN_PAGES + 1):
+    def _cell(self, event: str, cell: int) -> list[dict[str, Any]]:
+        """Every green `event` full run on main created in `GREEN_GRID` cell
+        `cell`, both ends included as `created=a..b` includes them, read
+        once; more than `GREEN_CELL_PAGES` pages raises, so the earliest is
+        never a guess."""
+        if (event, cell) not in self.cells:
+            start = GREEN_GRID + cell * GREEN_SPAN
+            created = quote(f"{_stamp(start)}..{_stamp(start + GREEN_SPAN)}", safe=":")
+            found: list[dict[str, Any]] = []
+            for page in range(1, GREEN_CELL_PAGES + 1):
                 answer = self._read(
                     GREEN_RUNS.format(self.owner, self.name, event, created, page)
                 )
@@ -2098,8 +2110,40 @@ class _GreenMain:
                     break
             else:
                 raise PolicyReadError(
+                    f"{event} green runs: more than {GREEN_CELL_PAGES} pages"
+                    f" in the week from {_stamp(start)}"
+                )
+            self.cells[event, cell] = found
+        return self.cells[event, cell]
+
+    def _window(self, since: str, until: str) -> list[dict[str, Any]]:
+        """Every green schedule and workflow_dispatch full run on main
+        created from `since` to `until`, cut from the cells that cover them.
+        A run on the line between two cells is listed by both and kept once.
+        `GREEN_PAGES` full pages of either event in the window raises, as
+        listing the window itself would. The new ways to raise are a cell
+        past `GREEN_CELL_PAGES` and a listed run with no readable
+        `created_at`."""
+        low, high = _time(since), _time(until)
+        first = (low - GREEN_GRID) // GREEN_SPAN
+        last = max(first, -((GREEN_GRID - high) // GREEN_SPAN) - 1)
+        found: list[dict[str, Any]] = []
+        for event in GREEN_EVENTS:
+            runs = [
+                run
+                for cell in range(first, last + 1)
+                for run in self._cell(event, cell)
+                if low <= _time(run.get("created_at")) <= high
+                and (
+                    cell == first
+                    or _time(run.get("created_at")) > GREEN_GRID + cell * GREEN_SPAN
+                )
+            ]
+            if len(runs) >= GREEN_PAGES * 100:
+                raise PolicyReadError(
                     f"{event} green runs: more than {GREEN_PAGES} pages"
                 )
+            found += runs
         return found
 
     def listed(self, since: datetime, now: datetime) -> Iterator[dict[str, Any]]:
@@ -2113,13 +2157,14 @@ class _GreenMain:
             start = since + span * GREEN_SPAN
             if start > now:
                 return
-            yield from self._span(start, start + GREEN_SPAN)
+            # No run is created after now, so the span stops there and reads
+            # no grid cell that starts in the future.
+            yield from self._span(start, min(start + GREEN_SPAN, now))
         raise PolicyReadError(f"green runs: more than {GREEN_SPANS} spans")
 
     def _span(self, start: datetime, end: datetime) -> list[dict[str, Any]]:
         """`listed`'s runs created from `start` to `end`, read once."""
-        stamp = start.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-        until = end.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        stamp, until = _stamp(start), _stamp(end)
         if stamp not in self.runs:
             repo = f"{self.owner}/{self.name}"
             self.runs[stamp] = sorted(
@@ -2228,17 +2273,17 @@ def _read_back_holds(pull: dict[str, Any], identity: str | None) -> bool:
     ):
         return False
     pins = [
-        c
+        (c, pinned)
         for c in map(json_object, json_array(comments.get("nodes")))
         # The judge's author test (`babysit_postmerge._identity_marks`): a
         # User who owns the bare slug is never the App.
         if actor_key(c.get("author")) == str(identity).strip().casefold()
-        and PIN_LINE.match(str(c.get("body") or "").split("\n", 1)[0].rstrip())
+        and (pinned := PIN_LINE.match(str(c.get("body") or "").split("\n", 1)[0].rstrip()))
     ]
     if not pins or not pull.get("merged"):
         return False
-    pin = pins[-1]
-    sha = PIN_LINE.match(str(pin.get("body")).split("\n", 1)[0].rstrip())[1]
+    pin, pinned = pins[-1]
+    sha = pinned[1]
     return (
         not pin.get("lastEditedAt")
         and _time(pin.get("createdAt")) <= _time(pull.get("mergedAt"))
@@ -2442,8 +2487,8 @@ def _lift(
             block = next(
                 (p for n in notes if (p := read_lift_block(n)) is not None), None
             )
-        if block is None and signal == "canary":
-            return None
+            if block is None:
+                return None
     own = json_object(data.get("pullRequest"))
     if (
         number is not None
@@ -2546,13 +2591,12 @@ def read_demotion(
     """
     owner, name = _split_repo(repo)
     filers = [DEMOTION_FILER, *([agent_identity.strip()] if agent_identity else [])]
-    permission = permission or permission_reader(repo)
-    human = lambda actor: is_human(  # noqa: E731
-        actor,
+    human = partial(
+        is_human,
         repo=repo,
         agent_identity=agent_identity,
         self_logins=self_logins,
-        permission=permission,
+        permission=permission or permission_reader(repo),
     )
     records: list[int] = []
     created: list[datetime] = []
@@ -2583,16 +2627,11 @@ def read_demotion(
                 issue = json_object(json_object(data.get("repository")).get("issue"))
             if not issue:
                 raise PolicyReadError(f"issue #{number} returned nothing")
-            revisions = [
-                json_object(e).get("diff")
-                for e in json_array(
-                    json_object(issue.get("userContentEdits")).get("nodes")
-                )
-            ]
-            texts = [issue.get("body"), *revisions]
             edits = json_object(issue.get("userContentEdits"))
+            revisions = json_array(edits.get("nodes"))
+            texts = [issue.get("body"), *(json_object(e).get("diff") for e in revisions)]
             # A truncated history may hide the marker in an older revision.
-            truncated = edits.get("totalCount") != len(json_array(edits.get("nodes")))
+            truncated = edits.get("totalCount") != len(revisions)
             if not truncated and not any(
                 t is None or DEMOTION_MARKER in str(t) for t in texts
             ):
@@ -2611,7 +2650,6 @@ def read_demotion(
                         f"::warning::demotion #{number}: recovery read failed: {exc}",
                         file=sys.stderr,
                     )
-                    recovered = None
             if hold and recovered is None:
                 if held is None:
                     held = Demotion(True, f"#{number} {hold}", tuple(records))
@@ -3339,13 +3377,12 @@ def recheck_opt_in(
     enqueue: a removal (or a removal and a non-human re-add) after the
     eligibility read refuses. None when it stands or is not needed."""
     owner, name = _split_repo(repo)
-    permission = permission or permission_reader(repo)
-    human = lambda actor: is_human(  # noqa: E731
-        actor,
+    human = partial(
+        is_human,
         repo=repo,
         agent_identity=agent_identity,
         self_logins=self_logins,
-        permission=permission,
+        permission=permission or permission_reader(repo),
     )
     try:
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
@@ -3381,13 +3418,12 @@ def eligibility(
     pull request's base branch).
     """
     owner, name = _split_repo(repo)
-    permission = permission or permission_reader(repo)
-    human = lambda actor: is_human(  # noqa: E731
-        actor,
+    human = partial(
+        is_human,
         repo=repo,
         agent_identity=agent_identity,
         self_logins=self_logins,
-        permission=permission,
+        permission=permission or permission_reader(repo),
     )
     try:
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
@@ -3683,7 +3719,7 @@ def unran_head(activity: Any, ran: Any, decided: str, at: Any) -> str | None:
     moves: list[tuple[str, datetime]] = []
     for move in activity:
         after = str(json_object(move).get("after") or "")
-        if re.fullmatch(r"[0-9a-f]{40}", after) and after != "0" * 40:
+        if SHA_RE.fullmatch(after) and after != "0" * 40:
             made = parse_timestamp(json_object(move).get("timestamp"))
             if made is None:
                 return "the branch's push history is unreadable"
@@ -3745,7 +3781,7 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
             if head_repo != f"{owner}/{name}" or started is None or started >= cutoff:
                 continue
             head = str(run.get("head_sha") or "")
-            if not re.fullmatch(r"[0-9a-f]{40}", head):
+            if not SHA_RE.fullmatch(head):
                 return None
             heads.append(head)
             if head not in vetted:
@@ -3877,11 +3913,7 @@ def merged_parents(then: Any, now: Any) -> list[str]:
     found: list[str] = []
     for commit in _new_commits(then, now) or ():
         for sha in (_parent_shas(commit) or [])[1:]:
-            if (
-                isinstance(sha, str)
-                and re.fullmatch(r"[0-9a-f]{40}", sha)
-                and sha not in found
-            ):
+            if isinstance(sha, str) and SHA_RE.fullmatch(sha) and sha not in found:
                 found.append(sha)
     return found
 

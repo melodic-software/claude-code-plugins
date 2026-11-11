@@ -3,6 +3,99 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.9.1] - 2026-11-11
+
+### Changed
+
+- Skill text that restated GitHub, `gh`, git and Claude Code behavior now points at the live
+  docs section, with an as-of date and a recheck trigger. Fixed broken sentences, wrong step and
+  section references, a stale warning that the shipped seam ignores a human-gated label remap,
+  a missing exit-18 row and a wrong verification limit in the attend-queue telemetry reference,
+  and an adapter-spec example that disagreed with the Gitea seed. No behavior change.
+
+## [12.9.0] - 2026-11-10
+
+### Added
+
+- `/work-items:work`: the dispatch brief tells the implementation worker to look up the project's glossary before naming new code and to return each domain term it coins for the PR body's `## Glossary candidates` section.
+
+- A parent issue that `/work-items:decompose` split into plain issues, with no spec container, now
+  gets closed. Once every child is closed, the new "Decomposed parent close" ritual in the issue
+  conventions reads the parent's Finish line. A `merged` Finish line closes the parent as
+  completed. Otherwise the parent stays open with one marked comment that says what is still open:
+  a child closed as not planned with no carrier among the other children, a missing Finish line,
+  or a `released` or `in use` check and the person who runs it. `/work-items:track done` runs the ritual for the parent of each item it
+  closes. `/work-items:track audit` runs it for every parent, which covers children a merged pull
+  request closed. Decompose's "leave the parent untouched" rule now points at the ritual.
+
+## [12.8.8] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [12.8.7] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [12.8.6] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [12.8.5] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [12.8.4] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [12.8.3] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [12.8.2] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [12.8.1] - 2026-11-10
+
+### Changed
+
+- `/work-items:triage` and `/work-items:decompose` read the glossary through the `/domain-driven-design:ubiquitous-language lookup` read action, with a repository search (root, any `docs/` folder, the module folder) when that plugin is absent.
+
+## [12.8.0] - 2026-11-09
+
+### Changed
+
+- `/work-items:decompose` copies the Brief Goal's `Finish line:` line into each item body and into a spec container's Brief, beside the Intent, Vision and tiebreak lines.
+
 ## [12.7.5] - 2026-11-09
 
 ### Changed

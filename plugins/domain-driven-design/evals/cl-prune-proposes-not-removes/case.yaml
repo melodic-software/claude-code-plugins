@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: cl-prune-proposes-not-removes
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: names-implementation-reason
+    type: regex
+    pattern: 'orders table[^\n]{0,200}\b(?:implementation|database|tables?|schema|storage|columns?|persistence|postgres)\b'
+    flags: 'i'
+    target: last_message
+  - name: entry-kept
+    type: regex
+    pattern: '^\**Orders table\**\s*$'
+    flags: 'mi'
+    target: { source: file, path: docs/glossary.md }
+  - name: no-md-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-md-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?\.md"'
+    min: 0
+    max: 0
+    arm: 'both'

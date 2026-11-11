@@ -356,6 +356,7 @@ export function loadConfig(files, { configPath }) {
     );
   }
   validateSchema(doc, files.schema, configPath);
+  checkLimits(doc.limits, configPath);
 
   for (const name of Object.keys(doc.activities)) {
     if (RESERVED_ACTIVITIES.has(name)) {
@@ -624,26 +625,28 @@ export function changedPathTargets({
 const GRANT_SCOPES = ["contents", "issues", "pull-requests"];
 const GRANT_LEVELS = new Set(["read", "write"]);
 
-// A lane-rules.json row may add `actions: read`, and nothing else, to named
-// activities of its lane through `activity-grants`; the effect row stays the
+// A lane-rules.json row may add one scope beyond the effect row to named
+// activities of its lane through `activity-grants`, each at its one level:
+// `actions: read`, or `actions-variables: write`, which the token broker
+// grants only to work-unblock's publish-lane-level. The effect row stays the
 // base. The row serves every config that runs the lane, so a name the lane
 // does not hold adds nothing.
+const ACTIVITY_GRANTS = Object.freeze({ actions: "read", "actions-variables": "write" });
+
 function checkActivityGrants(laneName, activityGrants) {
   if (activityGrants === undefined) {
     return;
   }
   const valid =
     isObject(activityGrants) &&
-    Object.entries(activityGrants).every(
-      ([, extra]) =>
-        isObject(extra) &&
-        Object.keys(extra).join() === "actions" &&
-        extra.actions === "read",
-    );
+    Object.entries(activityGrants).every(([, extra]) => {
+      const keys = isObject(extra) ? Object.keys(extra) : [];
+      return keys.length === 1 && Object.hasOwn(ACTIVITY_GRANTS, keys[0]) && extra[keys[0]] === ACTIVITY_GRANTS[keys[0]];
+    });
   if (!valid) {
     throw new Rejection(
       "lane-grant",
-      `lane-rules.json row \`${laneName}\` activity-grants must map each activity to exactly { "actions": "read" }`,
+      `lane-rules.json row \`${laneName}\` activity-grants must map each activity to exactly { "actions": "read" } or { "actions-variables": "write" }`,
     );
   }
 }
@@ -947,6 +950,32 @@ function resolveMerge(merge = {}) {
   };
 }
 
+// LANE_LEVEL_DEFAULTS in .github/scripts/lib/lane-level.mjs holds the same;
+// resolve.test.mjs holds the two, the schema and the yaml equal.
+const laneLevelOf = (limits = {}) => ({
+  floor: 2,
+  ceiling: 4,
+  default: 3,
+  "clean-windows": 2,
+  pools: ["lanes-app"],
+  shadow: true,
+  variable: "CLAUDE_LANE_LEVEL",
+  "valid-minutes": 150,
+  ...limits["lane-level"],
+});
+
+// What the schema cannot check about limits: the lane level's floor, as set
+// or defaulted, is at most its ceiling.
+function checkLimits(limits, configPath) {
+  const { floor, ceiling } = laneLevelOf(limits);
+  if (floor > ceiling) {
+    throw new Rejection(
+      "invalid-config",
+      `${configPath}: limits.lane-level floor ${floor} is above its ceiling ${ceiling}`,
+    );
+  }
+}
+
 // The `limits` leaf with every default applied, in hours and counts; the lane
 // scripts' copy of these defaults is
 // .github/scripts/work-resolve-issue/limits.mjs.
@@ -955,6 +984,8 @@ const limitsOf = (limits = {}) => ({
   "reset-clamp-min": limits["reset-clamp-min"] ?? 1,
   "reset-clamp-max": limits["reset-clamp-max"] ?? 168,
   "restarts-per-run": limits["restarts-per-run"] ?? 5,
+  "refire-queue-per-slot": limits["refire-queue-per-slot"] ?? 2,
+  "sweep-gap-minutes": limits["sweep-gap-minutes"] ?? 15,
   "readmit-per-run": limits["readmit-per-run"] ?? 20,
   "parent-rescan-per-run": limits["parent-rescan-per-run"] ?? 5,
   "limit-stops-per-head": limits["limit-stops-per-head"] ?? 3,
@@ -977,6 +1008,7 @@ const limitsOf = (limits = {}) => ({
   },
   // As set: rate-guard.mjs fills it from rate-limits.json beside it.
   api: limits.api ?? {},
+  "lane-level": laneLevelOf(limits),
 });
 
 const loopOf = (loop = {}) => ({

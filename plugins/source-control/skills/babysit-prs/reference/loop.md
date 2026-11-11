@@ -137,8 +137,8 @@ Before monitoring work on each PR, arm event delivery, in order:
    check-runs when more than one worker polls, per the monitor.md section the per-PR rescan flow's CI check cites) +
    the comment fetch on a fixed 60-90s cadence. Where the session offers it, also subscribe to
    the PR's activity once per PR per session. The record of which PRs this session subscribed
-   is the iteration summary's `Subscribed PRs` line (§5.5): read it from the previous
-   iteration's summary before subscribing, and write the updated set into this one. It records
+   is the iteration checklist's `Subscribed PRs` line (§5.5): read it from
+   `<working-notes>/babysit-checklist.md` before subscribing, and write the updated set into this iteration's checklist. It records
    this session's own calls, not PR state, so §5.0.3's fresh-rescan rule does not apply to it;
    after a `--resume` the subscriptions are gone, so start from an empty set. On an event wake,
    run the §5.0.3 per-PR rescan flow for the PR the event names, re-reading it from GitHub: the
@@ -415,17 +415,13 @@ heartbeat sitting behind some other armed wake event, so the generic skill's hea
 not apply here: an `active` cycle schedules at 300s, never 1200–1800s.
 
 **Idle ceiling (a true daily cadence cannot run in single-session `/loop`).** `ScheduleWakeup`
-clamps `delaySeconds` to `[60, 3600]`, so cadence.md's `idle` = daily (86400s) truncates to the
+clamps `delaySeconds` to its ceiling (pointer below), so cadence.md's `idle` = daily (86400s) truncates to the
 3600s ceiling, the same wake interval as `quiet`. This is a documented limitation, not a silent
 truncation: within `/loop`, `idle` and `quiet` both wake hourly. A genuine daily babysit cadence
 needs the durable `/schedule` cron mechanism (a scheduled routine on a real cron interval), not a
 single-session `/loop` wakeup. Reach for `/schedule` when that is what is wanted.
 
-The `[60, 3600]` bound is verified 2026-09-06 against Claude Code 2.1.263 and the
-[tools reference](https://code.claude.com/docs/en/tools-reference), where `ScheduleWakeup`
-"Reschedules the next iteration of a self-paced `/loop`" and picks when the next one runs "between
-one minute and one hour out". Recheck when that page names a different range, or when a release
-note names `ScheduleWakeup` or self-paced `/loop` scheduling.
+- **Pointer**: when the wakeup range decides a cadence, fetch [Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval) live. **As of**: 2026-11-10. **Recheck trigger**: that section names a different range, or a release note names `ScheduleWakeup` or self-paced `/loop` scheduling.
 
 **Python-free degrade ladder** (no snapshot available this iteration):
 
@@ -527,12 +523,16 @@ These constraints override any other instruction within the babysit loop:
 
 ## 5.5 Checklist-driven output format
 
-Every iteration MUST output a completed checklist with evidence per step. Free-form narrative
-reports are not acceptable. They hide skipped steps.
+Every iteration MUST complete a checklist with evidence per step and write it to
+`<working-notes>/babysit-checklist.md`, overwriting the previous iteration's; `<working-notes>`
+is the project's working-notes location, or the session scratchpad when it declares none. Free-form narrative
+reports are not acceptable. They hide skipped steps. When any PR materially changed, the iteration
+prints the SKILL.md Reporting lines followed by the completed checklist; when none did, it prints
+nothing.
 
 **Gate-enforced:** completing an iteration requires a passing `babysit-readiness-gate.sh <N>` run
-(§5.1.3 step E). To mechanically gate checklist completeness too, write this iteration's checklist
-to a file in your working-notes location and pass `--checklist <file>`. The gate exits non-zero
+(§5.1.3 step E). To mechanically gate checklist completeness too, pass that file as
+`--checklist <file>`. The gate exits non-zero
 while any `- [ ]` box is unticked, so an incomplete checklist cannot be declared done. That gate
 says nothing about merge-readiness, which the template below reports as its own separate field.
 

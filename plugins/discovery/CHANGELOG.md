@@ -1,5 +1,34 @@
 # Changelog: discovery plugin
 
+## [1.7.3] - 2026-11-11
+
+### Changed
+
+- Skill bodies point at the live upstream sections for facts they used to restate (subagent
+  resume, the concurrent subagent limit, curl's `--globoff`) and drop restated detail beside the
+  parent-contract records (the preload-miss debug log, a WebFetch error string). The `setup` skill
+  and README no longer say `apply` writes only `docs/conventions/discovery.yaml`: on an explicit
+  yes it also writes the convention-home region and the `.gitignore` line, as its step 5 and the
+  script already did. No behavior change.
+
+## [1.7.2] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [1.7.1] - 2026-11-10
+
+### Changed
+
+- `/discovery:explore` reads the glossary through `/domain-driven-design:ubiquitous-language lookup` when that plugin is installed.
+
+## [1.7.0] - 2026-11-09
+
+### Added
+
+- **`setup --check` validates list keys.** A list key and its items are checked against the schema (type, length, required keys, allowed keys, patterns, key names) instead of being reported unchecked; a list key using a keyword the checker does not implement stays reported as unchecked. List keys are never written from the command line.
+
 ## [1.6.9] - 2026-11-09
 
 ### Changed

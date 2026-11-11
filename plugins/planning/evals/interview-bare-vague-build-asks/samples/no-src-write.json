@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": "src/app/orders.py"}}], "why": "reads source, writes nothing"},
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/notifications/interview-checklist.md", "content": "- Q1 | open |\n"}}], "why": "writes the interview ledger, not source"},
+    {"answer": [], "why": "no tool call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "src/app/notify.py", "content": "def notify(user, message):\n    pass\n"}}], "why": "writes source before asking"}
+  ]
+}

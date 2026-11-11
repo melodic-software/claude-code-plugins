@@ -62,11 +62,10 @@ class Canvas:
             for x in range(W):
                 mat = m[y][x]
                 if mat is None:
-                    nb = [get(x + dx, y + dy) for dx, dy in ((0, -1), (-1, 0), (1, 0), (0, 1))]
-                    nb = [n for n in nb if n]
+                    # bottom-heavy: prefer the material above (we are below it) for its line color
+                    nb = next(filter(None, (get(x + dx, y + dy) for dx, dy in ((0, -1), (-1, 0), (1, 0), (0, 1)))), None)
                     if nb:
-                        # bottom-heavy: prefer the material above (we are below it) for its line color
-                        out[y][x] = char_of[(nb[0], 3)]
+                        out[y][x] = char_of[(nb, 3)]
                     continue
                 if mat in ("eye", "white"):
                     out[y][x] = char_of[(mat, 1)]
@@ -83,7 +82,7 @@ class Canvas:
 def draw(direction, step):
     """direction: down/left/up; step: -1, 0, 1 (MZ patterns 0, 1, 2)."""
     c = Canvas()
-    bob = 0 if step == 0 else 1
+    bob = abs(step)
     top = 6 + bob
     side = direction == "left"
     # cape behind body (visible from back and side)
@@ -103,9 +102,9 @@ def draw(direction, step):
             c.rect(lx, top + 31, 5, 6 - 2 * lift, "pants")
             c.rect(lx, top + 37 - 2 * lift - bob, 5, 3, "boot")
     # torso
-    tx = 18 if side else 16
-    c.rect(tx, top + 21, 12 if side else 16, 11, "tunic")
-    c.rect(tx, top + 28, 12 if side else 16, 2, "belt")
+    tx, tw = (18, 12) if side else (16, 16)
+    c.rect(tx, top + 21, tw, 11, "tunic")
+    c.rect(tx, top + 28, tw, 2, "belt")
     # arms
     if side:
         ax = 22 + 2 * step
@@ -137,25 +136,24 @@ def draw(direction, step):
 
 
 def build():
-    palette, char_of = {}, {}
+    key_of, char_of = {}, {}
     letters = iter("abcdefghijmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
     for mat in MATS:
         for i, color in enumerate(RAMPS[mat]):
-            if color not in palette.values():
-                palette[next(letters)] = color
-            char_of[(mat, i)] = next(k for k, v in palette.items() if v == color)
+            if color not in key_of:
+                key_of[color] = next(letters)
+            char_of[(mat, i)] = key_of[color]
+    palette = {key: color for color, key in key_of.items()}
+    directions = ("down", "left", "right", "up")
     frames, order = {}, []
-    for direction in ("down", "left", "right", "up"):
+    for direction in directions:
         for pattern, step in enumerate((-1, 0, 1)):
-            src = "left" if direction == "right" else direction
-            canvas = draw(src, step)
-            if direction == "right":
-                canvas = canvas.mirrored()
+            canvas = draw("left", step).mirrored() if direction == "right" else draw(direction, step)
             name = f"{direction}{pattern}"
             frames[name] = canvas.to_rows(char_of)
             order.append(name)
     anims = {f"walk_{d}": {"frames": [f"{d}0", f"{d}1", f"{d}2", f"{d}1"], "durations_ms": [150] * 4}
-             for d in ("down", "left", "right", "up")}
+             for d in directions}
     return {"palette": palette, "frames": frames, "animations": anims, "sheet": {"columns": 3, "order": order}}
 
 

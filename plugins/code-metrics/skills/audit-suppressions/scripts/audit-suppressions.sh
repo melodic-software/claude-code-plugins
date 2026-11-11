@@ -311,10 +311,9 @@ def action_no_reason(r, rel):
             "if it is not, fix the code and delete the suppression." % (name, SLOTS.get(tool, DEFAULT_SLOT)))
 
 
-def action_no_rule_id(r):
-    return ("The directive silences every rule the tool checks on its span. Name the rule id the stated "
-            "reason is about in the directive; if the reason covers no single rule, fix the code and "
-            "delete the suppression.")
+ACTION_NO_RULE_ID = ("The directive silences every rule the tool checks on its span. Name the rule id the stated "
+                     "reason is about in the directive; if the reason covers no single rule, fix the code and "
+                     "delete the suppression.")
 
 
 # The scanner prints paths relative to the repository root; one outside it
@@ -333,7 +332,7 @@ for r in doc["suppressions"]:
         continue
     declined["reason-on-line"] += 1
     if not r["justified"]:
-        rows.append((rel, r["line"], where, "%s: %s, reason \"%s\"" % (NO_RULE_ID, subject(r), r["reason"]), action_no_rule_id(r)))
+        rows.append((rel, r["line"], where, "%s: %s, reason \"%s\"" % (NO_RULE_ID, subject(r), r["reason"]), ACTION_NO_RULE_ID))
     elif r["rules"]:
         declined["rule-id-on-line"] += 1
     else:

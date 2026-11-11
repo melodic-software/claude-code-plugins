@@ -13,8 +13,9 @@ I lost track of your last reply. Go back to the last point I clearly
 followed and explain again from there, adding the context I was missing.
 Write it in ASD-STE100 Simplified Technical English (short sentences, one
 meaning per word, technical terms exact) and use the terms the project
-itself uses for its domain. Read the nearest domain glossary or context map,
-per the project's own convention, when one exists; with none, plain technical
+itself uses for its domain. Read its domain glossary with
+`/domain-driven-design:ubiquitous-language lookup` when that skill is available, or
+find the glossary yourself, when one exists; with none, plain technical
 English alone.
 
 ## Boundaries

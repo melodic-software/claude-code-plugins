@@ -208,6 +208,9 @@ Pattern-form breakdown:
 Next: invoke `/docs-hygiene:rename-references <old> to <new>` to apply, or `/docs-hygiene:rename-references preview <old> to <new>` to dry-run.
 ```
 
+For a glossary-driven rename, add the layer rows from [triage.md](triage.md) "Reporting bucket
+counts" after the bucket table.
+
 If `<new>` is undetermined (single-token reverse mode), omit the `→ <new>` and the "Next" line. Instead suggest the user pick a target via `AskUserQuestion`.
 
 ## Output discipline

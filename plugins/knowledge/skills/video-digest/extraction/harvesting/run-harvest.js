@@ -50,7 +50,7 @@ export async function runHarvestCli(argv) {
   const metadata = parseVideoMetadata(rawInfo);
 
   const sourceUrl =
-    urlFlag ?? (rawInfo && typeof rawInfo.webpage_url === "string" ? rawInfo.webpage_url : null);
+    urlFlag ?? (typeof rawInfo?.webpage_url === "string" ? rawInfo.webpage_url : null);
   if (!sourceUrl) {
     writeStderr(
       `Cannot resolve the source adapter: the info JSON has no webpage_url — pass --url <source-url>. Supported sources: ${supportedHosts().join(", ")}`,
@@ -74,16 +74,7 @@ export async function runHarvestCli(argv) {
   const heatmap = summarizeHeatmap(metadata.heatmap);
 
   writeStdout(
-    JSON.stringify(
-      {
-        videoId: metadata.id,
-        linkCount: links.length,
-        heatmap,
-        links,
-      },
-      null,
-      2,
-    ),
+    JSON.stringify({ videoId: metadata.id, linkCount: links.length, heatmap, links }, null, 2),
   );
 
   return 0;

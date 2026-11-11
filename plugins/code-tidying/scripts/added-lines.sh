@@ -50,12 +50,11 @@ wait "$!" || {
   exit 2
 }
 
-for field in ${records[@]+"${records[@]}"}; do
-  if [[ "$field" =~ [[:cntrl:]] ]]; then
-    echo "added-lines.sh: a changed path holds a control character; no rows printed" >&2
-    exit 2
-  fi
-done
+# The join separator is a space, so only a control character inside a field matches.
+if [[ "${records[*]-}" =~ [[:cntrl:]] ]]; then
+  echo "added-lines.sh: a changed path holds a control character; no rows printed" >&2
+  exit 2
+fi
 
 # Print the added hunks of one diff, labeled with the path given.
 hunks() {

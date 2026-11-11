@@ -20,8 +20,13 @@ invocation:
 - Rename pairs (git), staged, `git diff --cached --name-status -M | grep '^R' | head -15`
 - Current branch, `git branch --show-current`
 
-The pipe is the bound and belongs in the command: the Bash tool returns the complete output into
-context, so a read-time cap ("read only the first 20 entries") bounds nothing.
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
+limits only what is read after the command returns, never what it returns.
+
+- **Pointer**: when deciding how much command output reaches context, fetch
+  [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits) live. **As of**:
+  2026-11-10. **Recheck trigger**: that section changes how much output arrives inline or what
+  arrives in place of output past the inline limit.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines.
@@ -166,9 +171,32 @@ Paths skipped from sweeps automatically:
 - **Frontmatter trailing newline**. YAML frontmatter description strings can span lines. Patterns must handle multi-line. Use `multiline: true` on the Grep tool.
 - **Renames with overlap**. `test` → `test e2e` is a substring expansion. Apply most-specific match first, mark already-edited regions to prevent double-edit.
 
+## Glossary-driven renames
+
+When the pair comes from a domain glossary change (a term renamed, a word moved to the entry's
+`Avoid:` line, or a verb moved into the parentheses of an entity's `Actions:` line, usually handed
+over by `/domain-driven-design:ubiquitous-language`), code names
+follow the glossary too, and the sweep runs as its own reviewed change, never folded into the
+glossary edit. The report groups hits by layer:
+
+- **Code and identifiers**: renamed in one reviewed change. Occurrences in config, comments and
+  string literals are swept here like any other form; declarations of types, functions, variables
+  and enum members, and the call sites a symbol rename reaches, are listed for a language-aware
+  refactor tool, per "What this skill does NOT do".
+- **Docs and ADR text**: updated like any other prose. ADR file names and numbers stay unchanged,
+  so a hit in an ADR's file name, or in a path or link naming that file, is kept, never edited.
+- **User-facing copy and error messages** (UI strings, emails, notifications, error text): report
+  only. Each hit is listed with `file:line` and the glossary term; none is edited, because users'
+  words may rightly differ from the model's. A hit matching the entry's `Shown to users as:`
+  wording is intended, not drift.
+- **Stored values and migrations** (an enum value or string persisted in a database, a migration,
+  seed or fixture, a message schema, a public API field): never edited. The report names each as a
+  decision, a phased migration or a mapping that keeps the stored name, recorded as an ADR through
+  `/architecture:record-decision`.
+
 ## What this skill does NOT do
 
-- **Does not perform AST-level renames** (Python class names, C# type names, JS function refactors). Use IDE or language-aware refactoring tools. This skill handles documentation, configuration, and identifier-string renames in text files.
+- **Does not perform AST-level renames** (Python class names, C# type names, JS function refactors). Use IDE or language-aware refactoring tools; a glossary-driven rename lists them for that tool ([Glossary-driven renames](#glossary-driven-renames)). This skill handles documentation, configuration, and identifier-string renames in text files.
 - **Does not rename git branches**. Use `git branch -m`.
 - **Does not handle framework version migrations**. Use dedicated migration tooling: that is a behavioral upgrade, not a text rename.
 - **Does not auto-fix conversation history or memory entries**. Past mentions of the old name there are preserved as historical record. Future renames are the user's responsibility to invoke this skill for.

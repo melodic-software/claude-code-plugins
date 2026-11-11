@@ -29,11 +29,11 @@ f="$d/zones.json"
 mkdir -p "$d"
 cat >"$f" <<'JSON'
 {
-  "smart_max_used_percentage": 40,
-  "acceptable_max_used_percentage": 70,
+  "light_max_used_percentage": 40,
+  "moderate_max_used_percentage": 70,
   "token_bands": {
-    "200000": { "smart_max_tokens": 90000, "acceptable_max_tokens": 140000 },
-    "1000000": { "smart_max_tokens": 120000, "acceptable_max_tokens": 450000 }
+    "200000": { "light_max_tokens": 90000, "moderate_max_tokens": 140000 },
+    "1000000": { "light_max_tokens": 120000, "moderate_max_tokens": 450000 }
   },
   "display_color": "teal"
 }

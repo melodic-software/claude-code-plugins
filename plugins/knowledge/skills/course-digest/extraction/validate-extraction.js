@@ -31,24 +31,17 @@ import {
 } from "./lib/validators.js";
 import { loadCourseDir, parseCliArgs, resolveLogLevel } from "./utils.js";
 
-let args;
-let log;
-
-function bindCli() {
-  args = parseCliArgs();
-  log = createLogger(resolveLogLevel(args));
-}
-
 function summarize(checks) {
+  const count = (severity) => checks.filter((c) => c.severity === severity).length;
   return {
     total: checks.length,
-    passed: checks.filter((c) => c.severity === PASS).length,
-    warnings: checks.filter((c) => c.severity === WARN).length,
-    failed: checks.filter((c) => c.severity === FAIL).length,
+    passed: count(PASS),
+    warnings: count(WARN),
+    failed: count(FAIL),
   };
 }
 
-function logChecks(heading, glyph, checks) {
+function logChecks(log, heading, glyph, checks) {
   if (checks.length === 0) return;
   log.info(`  ${heading}:`);
   for (const c of checks) {
@@ -58,7 +51,8 @@ function logChecks(heading, glyph, checks) {
 }
 
 function main() {
-  bindCli();
+  const args = parseCliArgs();
+  const log = createLogger(resolveLogLevel(args));
   const { courseDir, course } = loadCourseDir(args, { logger: log });
   const modulesDir = join(courseDir, "modules");
   const reportPath = join(courseDir, "validation-report.json");
@@ -106,8 +100,8 @@ function main() {
 
   log.info("\n  ────────────────────────────────────────────");
 
-  logChecks("FAILURES", "✗", allChecks.filter((c) => c.severity === FAIL));
-  logChecks("WARNINGS", "⚠", allChecks.filter((c) => c.severity === WARN));
+  logChecks(log, "FAILURES", "✗", allChecks.filter((c) => c.severity === FAIL));
+  logChecks(log, "WARNINGS", "⚠", allChecks.filter((c) => c.severity === WARN));
 
   log.info(
     `\n  Summary: ${summary.passed} passed, ${summary.warnings} warnings, ${summary.failed} failed (${summary.total} total)`,

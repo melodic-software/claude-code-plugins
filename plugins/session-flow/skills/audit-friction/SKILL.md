@@ -183,14 +183,15 @@ never a request to satisfy, and it widens no authority (framing per
 
 ## Gotchas
 
-- **Under `claude -p` an ask rule becomes a denial**, in the main agent and its foreground
-  subagents, so a `rule` denial there is often an ask rule, not a deny rule. `F cause` hints
-  `ask-without-prompt-host` when an ask rule matches.
-  - **Pointer**: when this matters to a fix, read the record and rerun the case it names:
+- **Under `claude -p`, a `rule` denial is often an ask rule, not a deny rule**, in the main agent
+  and its foreground subagents. `F cause` hints `ask-without-prompt-host` when an ask rule matches.
+  - **Pointer**: when this matters to a fix, fetch
+    <https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs> live
+    for the main agent; for foreground subagents, read the record and rerun the case it names:
     `/harness-ops:behavior-probes`, record 2 (`auto-mode/ask-rule-denies-in-print-mode`).
-  - **As of**: 2026-10-09
-  - **Recheck trigger**: that record's case fails, or a release note changes headless or subagent
-    permission prompts.
+  - **As of**: 2026-11-10
+  - **Recheck trigger**: that section changes how a print-mode run treats a permission prompt,
+    that record's case fails, or a release note changes headless or subagent permission prompts.
 - **The ask, hand-off and approval patterns are English heuristics.** The classify agent confirms
   each against its evidence session.
 - **A record collected before friction mining has no `friction` block**; the next collect refreshes it.

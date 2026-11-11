@@ -2,8 +2,10 @@
 # Shared helpers for the /attribution:audit scripts (sourceable; not invoked
 # directly).
 
+_CFG_LIB="${BASH_SOURCE[0]%/*}/../../../lib"
+
 # shellcheck source=../../../lib/config-root.sh
-source "${BASH_SOURCE[0]%/*}/../../../lib/config-root.sh"
+source "$_CFG_LIB/config-root.sh"
 
 # require_opt_value <script> <option> [value ...]: refuse an option whose value
 # is missing, empty, or another option. The script name is a parameter because
@@ -28,8 +30,6 @@ json_str() {
   s="${s//$'\n'/\\n}"
   printf '"%s"' "$s"
 }
-
-_CFG_LIB="${BASH_SOURCE[0]%/*}/../../../lib"
 
 # cfg_layers_init <config-root>: fill CFG_LAYERS with the config cascade in
 # refinement order, user-global then team then personal override, skipping a layer that is

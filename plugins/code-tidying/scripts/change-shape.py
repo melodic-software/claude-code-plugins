@@ -235,27 +235,20 @@ def leaves(src: bytes, lang) -> tuple[list[tuple[str, str]], bool]:
         node = stack.pop()
         if node.type in ("ERROR", "MISSING") or node.is_missing:
             broken = True
-        if "comment" in node.type:
-            is_shebang = (
-                node.start_point[0] == 0
-                and src[node.start_byte : node.start_byte + 2] == b"#!"
-            )
-            if not is_shebang:
-                continue
-            out.append(
-                (
-                    "shebang",
-                    src[node.start_byte : node.end_byte].decode(errors="replace"),
-                )
-            )
-            continue
-        if node.child_count == 0:
-            text = src[node.start_byte : node.end_byte].decode(errors="replace")
-            if text.strip():
-                out.append((node.type, text))
-        else:
+        if node.child_count and "comment" not in node.type:
             stack.extend(reversed(node.children))
+            continue
+        text = src[node.start_byte : node.end_byte].decode(errors="replace")
+        if "comment" in node.type:
+            if node.start_point[0] == 0 and text.startswith("#!"):
+                out.append(("shebang", text))
+        elif text.strip():
+            out.append((node.type, text))
     return out, broken
+
+
+def code_changed(**detail) -> tuple[str, int, dict]:
+    return "CODE-CHANGED", EXIT_CODE_CHANGED, detail
 
 
 def classify(before: bytes, after: bytes, lang) -> tuple[str, int, dict]:
@@ -285,11 +278,7 @@ def classify_leaves(
     if a == b:
         return "COMMENT-ONLY", EXIT_COMMENT_ONLY, {"tokens": len(a)}
     if len(a) != len(b):
-        return (
-            "CODE-CHANGED",
-            EXIT_CODE_CHANGED,
-            {"tokens_before": len(a), "tokens_after": len(b)},
-        )
+        return code_changed(tokens_before=len(a), tokens_after=len(b))
     diffs = [(x, y) for x, y in zip(a, b) if x != y]
     if all(x[0] in IDENTIFIER_KINDS and y[0] in IDENTIFIER_KINDS for x, y in diffs):
         mapping: dict[str, str] = {}
@@ -299,24 +288,14 @@ def classify_leaves(
             if key(old) == key(new):
                 # The same name respelled. Nothing was renamed, and under a
                 # case-insensitive fold the mapping would be an identity.
-                return (
-                    "CODE-CHANGED",
-                    EXIT_CODE_CHANGED,
-                    {"reason": "one name respelled, not renamed", "at": old},
-                )
+                return code_changed(reason="one name respelled, not renamed", at=old)
             if folded.setdefault(key(old), key(new)) != key(new):
-                return (
-                    "CODE-CHANGED",
-                    EXIT_CODE_CHANGED,
-                    {"reason": "inconsistent identifier mapping", "at": old},
-                )
+                return code_changed(reason="inconsistent identifier mapping", at=old)
             if reverse.setdefault(key(new), key(old)) != key(old):
                 # Two renamed identifiers collapsing onto one name is a merge,
                 # not a rename: the mapping must be injective as well as consistent.
-                return (
-                    "CODE-CHANGED",
-                    EXIT_CODE_CHANGED,
-                    {"reason": "two identifiers collapse to one name", "at": new},
+                return code_changed(
+                    reason="two identifiers collapse to one name", at=new
                 )
             mapping[old] = new
         # The diff only sees positions that changed. An old name still present
@@ -329,31 +308,17 @@ def classify_leaves(
         }
         stale = sorted(old for old in mapping if key(old) in unchanged)
         if stale:
-            return (
-                "CODE-CHANGED",
-                EXIT_CODE_CHANGED,
-                {
-                    "reason": "incomplete rename: old name still referenced",
-                    "at": stale[0],
-                },
+            return code_changed(
+                reason="incomplete rename: old name still referenced", at=stale[0]
             )
         collision = sorted(new for new in mapping.values() if key(new) in unchanged)
         if collision:
-            return (
-                "CODE-CHANGED",
-                EXIT_CODE_CHANGED,
-                {
-                    "reason": "rename collides with an existing identifier",
-                    "at": collision[0],
-                },
+            return code_changed(
+                reason="rename collides with an existing identifier", at=collision[0]
             )
         return "RENAME-ONLY", EXIT_RENAME_ONLY, {"mapping": mapping}
     kinds = sorted({x[0] for x, _ in diffs})
-    return (
-        "CODE-CHANGED",
-        EXIT_CODE_CHANGED,
-        {"differing_leaves": len(diffs), "kinds": kinds},
-    )
+    return code_changed(differing_leaves=len(diffs), kinds=kinds)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -406,11 +371,7 @@ def main(argv: list[str] | None = None) -> int:
             reserved = {n.lower() for n in records[1]["reserved"]}
             defect = powershell_rename_defect(detail["mapping"], reserved)
             if defect:
-                verdict, code, detail = (
-                    "CODE-CHANGED",
-                    EXIT_CODE_CHANGED,
-                    {"reason": defect},
-                )
+                verdict, code, detail = code_changed(reason=defect)
     else:
         lang, source = language_for(*entry)
         if lang is None:

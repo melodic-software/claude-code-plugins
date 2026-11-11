@@ -59,7 +59,7 @@ Check from the largest unit down to the smallest. Each row is one check.
 | Unit | Rule | Example |
 |---|---|---|
 | Paragraph | One topic, and no more than six sentences. Break a longer paragraph where its topic shifts. | A paragraph about export flags ends before the first sentence about restoring. |
-| Sentence | An instruction sentence, warnings and cautions included, has a hard cap of 20 words: count them and split any sentence over it. Split other sentences once they pass about 25 words. | A 26-word step that names the flag, the date and the copy target becomes two steps. |
+| Sentence | An instruction sentence, warnings and cautions included, targets 20 words or fewer: split one that runs over, unless the split would cut one action or its condition into fragments. Split other sentences once they pass about 25 words. | A 26-word step that names the flag, the date and the copy target becomes two steps. |
 | Sentence | An instruction sentence asks for one action. Any other sentence makes one statement. | "Run the export and check the archive size" becomes two sentences, one per action. |
 | Sentence | A warning or condition comes before the step it protects, so the reader reads it before acting. | "The purge deletes every archive. Copy the archives you need, then run `stash purge`." |
 | Verb | Simple verb forms only. | "The archive has been written" becomes "the export wrote the archive"; "stash will be running" becomes "stash runs". |

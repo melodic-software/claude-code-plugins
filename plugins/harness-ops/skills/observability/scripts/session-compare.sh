@@ -20,7 +20,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OTEL_DIR="$SCRIPT_DIR/../otel"
 
-usage() { sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,17{s/^# \{0,1\}//;p;}' "${BASH_SOURCE[0]}"; }
 die() {
   printf 'session-compare: %s\n' "$1" >&2
   exit 2

@@ -3,6 +3,44 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.17] - 2026-11-11
+
+### Changed
+
+- `climb` no longer restates what `git reset --keep` and `git worktree remove` refuse, leaving it
+  to its pointers, and the `go-faster` git and GitHub REST pointers now link their exact sections.
+  No behavior change.
+
+## [0.14.16] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [0.14.15] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [0.14.14] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [0.14.13] - 2026-11-10
+
+### Changed
+
+- Shared `transcript_reader.py` synced where this plugin carries it: the reader's code is simplified, and what it returns for every transcript is unchanged.
+
+## [0.14.12] - 2026-11-09
+
+### Changed
+
+- `/performance:go-faster`'s model-effort-mismatch catalog row is rechecked against the Claude Fable 5.2 release; its remedy is unchanged.
+
 ## [0.14.11] - 2026-11-09
 
 ### Changed

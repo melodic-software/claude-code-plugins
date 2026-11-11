@@ -72,6 +72,7 @@ function Set-ApprovalState {
         ServiceName = $ServiceName; Label = $Label; Notes = $Notes; RunId = $RunId
     }
     $catalogRoot = Join-Path $PSScriptRoot '..\..\..\catalog'
+    $shippedCatalog = Join-Path $catalogRoot 'checks.jsonc'
     $remediationIds = @(Get-RemediationId)
     $orNull = { param($Value) if ([string]::IsNullOrEmpty($Value)) { $null } else { [System.Text.Json.Nodes.JsonValue]::Create([string]$Value) } }
 
@@ -80,10 +81,11 @@ function Set-ApprovalState {
             throw "Set-ApprovalState: '$($request.RemediationId)' is not a shipped remediation ($($remediationIds -join ', '))."
         }
     }
-    $remediationsOf = {
-        param($Doc)
-        if ($null -eq $Doc['remediations']) { $Doc['remediations'] = [System.Text.Json.Nodes.JsonObject]::new() }
-        return , $Doc['remediations']
+    # $Doc[$Key], created as an empty object when absent.
+    $objectOf = {
+        param($Doc, [string] $Key)
+        if ($null -eq $Doc[$Key]) { $Doc[$Key] = [System.Text.Json.Nodes.JsonObject]::new() }
+        return , $Doc[$Key]
     }
     $assertServiceName = {
         $name = $request.ServiceName
@@ -125,11 +127,6 @@ function Set-ApprovalState {
             throw "Set-ApprovalState: -CheckId '$($request.CheckId)' is not one check id; name each check on its own."
         }
     }
-    $reviewedOf = {
-        param($Doc)
-        if ($null -eq $Doc['reviewed_checks']) { $Doc['reviewed_checks'] = [System.Text.Json.Nodes.JsonObject]::new() }
-        return , $Doc['reviewed_checks']
-    }
 
     $mutesFile = @{ Name = 'mutes.json'; Schema = 'mutes.schema.json'; Root = 'checks' }
     $approvalsFile = @{ Name = 'approvals.json'; Schema = 'approvals.schema.json'; Root = 'remediations' }
@@ -137,7 +134,7 @@ function Set-ApprovalState {
         mute    = @{
             File     = $mutesFile
             Validate = {
-                $shipped = @(& $idsOf (Join-Path $catalogRoot 'checks.jsonc'))
+                $shipped = @(& $idsOf $shippedCatalog)
                 if ($request.CheckId -notin $shipped) { throw "Set-ApprovalState: '$($request.CheckId)' is not a shipped check id." }
             }
             Apply    = {
@@ -187,7 +184,7 @@ function Set-ApprovalState {
                 $entry['approved_at'] = $now
                 $entry['approved_by'] = if ($request.RunId) { "setup picks $($request.RunId)" } else { 'setup apply' }
                 $entry['notes'] = & $orNull $request.Notes
-                (& $remediationsOf $Doc)[$request.RemediationId] = $entry
+                (& $objectOf $Doc 'remediations')[$request.RemediationId] = $entry
                 return $true
             }
         }
@@ -196,7 +193,7 @@ function Set-ApprovalState {
             Validate = $assertRemediation
             Apply    = {
                 param($Doc)
-                $remediations = & $remediationsOf $Doc
+                $remediations = & $objectOf $Doc 'remediations'
                 $id = $request.RemediationId
                 if ($null -eq $remediations[$id]) { $remediations[$id] = [System.Text.Json.Nodes.JsonObject]::new() }
                 $remediations[$id]['approved'] = $false
@@ -211,7 +208,7 @@ function Set-ApprovalState {
                 $overlayPath = Join-Path $StateBase 'catalog\checks.local.jsonc'
                 $custom = @()
                 if (Test-Path -LiteralPath $overlayPath) {
-                    $shipped = @(& $idsOf (Join-Path $catalogRoot 'checks.jsonc'))
+                    $shipped = @(& $idsOf $shippedCatalog)
                     $custom = @(& $idsOf $overlayPath | Where-Object { $_ -notin $shipped })
                 }
                 if ($request.CheckId -cnotin $custom) {
@@ -226,7 +223,7 @@ function Set-ApprovalState {
                 $entry['reviewed_at'] = $now
                 $entry['reviewed_by'] = 'setup apply'
                 $entry['notes'] = & $orNull $request.Notes
-                (& $reviewedOf $Doc)[$request.CheckId] = $entry
+                (& $objectOf $Doc 'reviewed_checks')[$request.CheckId] = $entry
                 return $true
             }
         }

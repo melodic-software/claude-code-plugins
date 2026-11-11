@@ -281,6 +281,9 @@ REPORT="$(
     --arg callee "$CALLEE" \
     --argjson floor_days "$FLOOR_DAYS" \
     --argjson floor_groups "$FLOOR_GROUPS" '
+    def count($o): map(select(. == $o)) | length;
+    # earliest timestamp of skill $s in a group; null when it never fired there
+    def first_ts($s): map(select(.skill == $s) | .ts) | min;
     # Raw input plus `fromjson?` is what makes a bad row cost only itself.
     # `jq -s` would fail the ENTIRE file on the first unparsable line, which is
     # the opposite of the stated posture.
@@ -293,25 +296,22 @@ REPORT="$(
           ts: .ts,
           group: ((.project_id // "unknown") + " " + (.branch // "unknown")) }
     ] as $events
-    | ($events | map(.ts) | sort) as $stamps
-    | ($stamps | first) as $first
-    | ($stamps | last) as $last
+    | ($events | map(.ts) | min) as $first
+    | ($events | map(.ts) | max) as $last
     | (if $first == null then 0
        else (($last | fromdateiso8601) - ($first | fromdateiso8601)) / 86400
        end) as $span_days
     | ($events | group_by(.group)) as $groups
-    | [ $groups[] | select(any(.[]; .skill == $caller)) ] as $with_caller
-    | [ $with_caller[]
-        | (map(select(.skill == $caller)) | map(.ts) | sort | first) as $caller_first
-        | (map(select(.skill == $callee)) | map(.ts) | sort | first) as $callee_first
-        | { has_callee: ($callee_first != null),
-            order: (if $callee_first == null then "absent"
-                    elif $callee_first < $caller_first then "callee-first"
-                    elif $callee_first > $caller_first then "caller-first"
-                    else "same-timestamp" end) }
-      ] as $rows
-    | ($with_caller | length) as $denominator
-    | ([ $rows[] | select(.has_callee) ] | length) as $numerator
+    # one entry per group where CALLER fired: where CALLEE stands relative to it
+    | [ $groups[]
+        | first_ts($caller) as $caller_first
+        | select($caller_first != null)
+        | first_ts($callee) as $callee_first
+        | if $callee_first == null then "absent"
+          elif $callee_first < $caller_first then "callee-first"
+          elif $callee_first > $caller_first then "caller-first"
+          else "same-timestamp" end
+      ] as $orders
     | { caller: $caller,
         callee: $callee,
         events_read: ($events | length),
@@ -319,11 +319,11 @@ REPORT="$(
         horizon_end: $last,
         span_days: ($span_days | floor),
         groups_total: ($groups | length),
-        denominator: $denominator,
-        numerator: $numerator,
-        order_callee_first: ([ $rows[] | select(.order == "callee-first") ] | length),
-        order_caller_first: ([ $rows[] | select(.order == "caller-first") ] | length),
-        order_same_timestamp: ([ $rows[] | select(.order == "same-timestamp") ] | length),
+        denominator: ($orders | length),
+        numerator: (($orders | length) - ($orders | count("absent"))),
+        order_callee_first: ($orders | count("callee-first")),
+        order_caller_first: ($orders | count("caller-first")),
+        order_same_timestamp: ($orders | count("same-timestamp")),
         floor_days: $floor_days,
         floor_groups: $floor_groups }
     | . + (

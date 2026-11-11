@@ -44,7 +44,7 @@ And then... I realized
 The world was... different now
 ```
 
-Reliable, low-risk. HIGH confidence among community sources.
+Reliable, low-risk. MEDIUM confidence among community sources.
 
 ### Hyphenation for staccato
 
@@ -72,7 +72,7 @@ She's looking at me (softly)
 Building, building (building)
 ```
 
-Reliable. HIGH confidence, close to documented behavior.
+Reliable. MEDIUM confidence, close to documented behavior.
 
 ### Line breaks for melodic separation
 
@@ -150,7 +150,7 @@ This guidance is **community-empirical, not officially documented by Suno**:
 
 ### Front-load the highest-priority tag
 
-Order matters. Whatever you put first carries most weight. Genre first; mood second; everything else after.
+Genre first; mood second; everything else after. That the first tag carries the most weight is rated LOW-MEDIUM, for terse comma-separated prompts only ([power-tips.md](power-tips.md)).
 
 ### Use sound descriptors instead of artist names
 

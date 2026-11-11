@@ -422,8 +422,12 @@ claude --model opus --effort medium   # merge lane
 claude --model opus --effort high     # attended queue
 ```
 
-Swap `opus` for `best` on a lane root where the organization runs its
-orchestrator at the frontier tier. Do not drive the headless text form
+The frontier tier stays `opus` on every lane root until the owner decides the
+Fable rung; binding it to Fable then means `fable`, since `best` names the same
+model as `opus` from Claude Code v2.1.321
+([model config: version history](https://code.claude.com/docs/en/model-config#version-history),
+as of 2026-11-09; recheck when that table changes what `best` resolves to).
+Do not drive the headless text form
 `/advisor`, `/advisor <model>`, or `/advisor off` from a lane prompt: any
 advisor pairing is a settings value fixed at launch.
 
@@ -605,6 +609,14 @@ variable that sets it).
 > your work back to me. Speak to me only when fully blocked and unable to
 > escalate through the tracker. Never end a turn on a status summary or an
 > offer to continue: status goes in the same message as the next action.
+> Recovering is part of the work: retry after an error, and go find the
+> information you are missing, rather than ending the turn to report either
+> one. Recovering stops at anything put in your way on purpose. A protected
+> path, a refused permission, or a safety control is a boundary, not an
+> obstacle: never route around it. Stop at it, record what blocked you on
+> the item, and reach the goal by another path you are allowed to take. A
+> long session or a long context is not a reason to stop: keep working until
+> the goal is met, or until a mechanism the lane owns tells you to hand off.
 > Your cycle report leads with escalated items.
 >
 > **One exception: a skill that defines its own return shape wins.** Where a
@@ -753,8 +765,16 @@ wakeup ceiling for days rather than finishing.
 > **Return contract.** Subagents return at most two lines: verdict plus
 > identifier. Speak to me only when fully blocked. Never end a turn on a
 > status summary or an offer to continue: status goes in the same message as
-> the next action. Your cycle report leads with escalated items and PRs
-> waiting on me. **A skill that defines its
+> the next action. Recovering is part of the work: retry after an error, and
+> go find the information you are missing, rather than ending the turn to
+> report either one. Recovering stops at anything put in your way on purpose.
+> A protected path, a refused permission, or a safety
+> control is a boundary, not an obstacle: never route around it. Stop at it,
+> record what blocked you on the PR, and reach the goal by another path you
+> are allowed to take. A long session or a long context is not a reason to
+> stop: keep working until the goal is met, or until a mechanism the lane
+> owns tells you to hand off. Your cycle report leads with escalated items
+> and PRs waiting on me. **A skill that defines its
 > own return shape wins over this rule.** `/discipline:sweep-all`'s audit
 > forks owe a full findings ledger and may write nothing, so truncating them
 > to two lines would discard exactly what the parent acts on.

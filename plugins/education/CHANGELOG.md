@@ -3,6 +3,21 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.1] - 2026-11-11
+
+### Changed
+
+- The `setup` skill no longer says `apply` writes only `docs/conventions/education.yaml`: on an
+  explicit yes it also writes the convention-home region and the `.gitignore` line, as its step 5
+  and the script already did. `quiz-me` points at the setup routes and the plugin-reconfiguration
+  convention instead of restating a CLI form. No behavior change.
+
+## [1.2.0] - 2026-11-09
+
+### Added
+
+- **`setup --check` validates list keys.** A list key and its items are checked against the schema (type, length, required keys, allowed keys, patterns, key names) instead of being reported unchecked; a list key using a keyword the checker does not implement stays reported as unchecked. List keys are never written from the command line.
+
 ## [1.1.4] - 2026-11-09
 
 ### Changed

@@ -3,6 +3,26 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.21] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [0.28.20] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [0.28.19] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
 ## [0.28.18] - 2026-11-04
 
 ### Changed

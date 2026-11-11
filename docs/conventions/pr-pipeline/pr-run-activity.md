@@ -2052,7 +2052,38 @@ other two. From `work-resolve-issue.yml` its actor, the labeler, must be a liste
 lanes App; from the other two a listed human. `work-unblock.yml` (also on its hourly `schedule`)
 and `intake-triage.yml` (also on a `workflow_dispatch` that sends `issue_number`) run their minting
 job in the caller file itself, get an issues-write grant only, and a re-run must be started by a
-listed human. A dispatch `github-actions[bot]` sent (intake-reenter.yml, the triage sweep) mints
+listed human. The one exception is `work-unblock.yml`'s `publish-lane-level` (owner decision Q113
+(a)): only on its hourly `schedule` from this repository, it gets repository Variables write with
+contents, pull requests and issues read, and no other caller or activity may hold Variables.
+
+The permission covers every repository variable, and a repository variable overrides an
+organization variable of the same name. So the token could create or change any of these:
+
+- the broker endpoint, `LANES_BROKER_URL` and `LANES_BROKER_AUDIENCE`;
+- `AUTOMATION_LANES_APP_SENDER_ID`;
+- `LANE_TRANSCRIPT_PUBLIC_KEY`;
+- `CLAUDE_LANES_MERGE_RUNG_CAP`;
+- the `KEY_CREDIT_*` variables;
+- the kill switches: a repository `CLAUDE_LANES_DISABLED` shadows the organization's, and
+  `CLAUDE_LANES_REPO_DISABLED` could be set to `false`.
+
+The mitigations:
+
+- One job holds the token: `publish-lane-level`, on `work-unblock.yml`'s schedule on main only.
+  The broker binds that run to main's byte-equal workflow file. Because the activity is named in
+  the request body, any job of such a run could ask for it, and every such job is main-tip code.
+- The token is revoked at the end of the job.
+- The job mints nothing while `limits.lane-level.shadow` is set.
+- `publish-lane-level.mjs` refuses any name but a `*_LANE_LEVEL` variable, and any value but
+  `<level>@<valid-until>`, before it makes a request. The schema holds
+  `limits.lane-level.variable` to the same pattern.
+- The job lists every repository variable with the token before the publish and again after
+  it, and fails red on any variable created, changed (value or `updated_at`) or deleted other
+  than the configured level variable, or when either listing is missing or incomplete; a failed
+  first listing skips the publish. This checks what the token did, not what the code says. The
+  monitoring lane's signal 14 files a critical incident from the failure annotation.
+
+A dispatch `github-actions[bot]` sent (intake-reenter.yml, the triage sweep) mints
 for `intake-triage.yml` only while the issue it names is open. The broker (azure-iac's `lanes-token-broker`) still re-checks the retired ratification marker for the App, so until it drops that check an App-labeled issue without the marker gets no token and the run fails closed. A `merge` request from `pr-merge.yml` names no pull request either; its actor must be a listed human, except on a `schedule` run on `refs/heads/main`, whose actor is whoever last edited the workflow file and is not checked. A re-run of a scheduled run must be started by a listed human. `dispatcher_run_id`, a positive
 JSON integer, is the `dispatcher-run-id` input, sent only when set. The broker reads it only when
 the OIDC actor is `github-actions[bot]`: such a run mints only when the `pr-unblock-dispatch.yml`
@@ -2199,8 +2230,10 @@ gets the lane's Claude credential, the caller's `admit` job runs `check-trusted-
 default branch tip, with `contents: read` and no secret (`require-pr: false`, `require-kind:
 human`, `app-label: agent-ready`, the lanes App id): `pick-slot` and `resolve-issue` need it and
 run only on its `proceed` output `true`, so an unlisted account's label on an issue anyone can
-open starts no credentialed job. The read file's own trigger gate checks the same again. At most three `resolve-issue` jobs run at once:
-a `pick-slot` job takes the issue number modulo `SLOTS` (3), and `resolve-issue` joins the
+open starts no credentialed job. The read file's own trigger gate checks the same again. At most `SLOTS` `resolve-issue` jobs run at once:
+a `pick-slot` job takes the issue number modulo `SLOTS`, the effective lane level
+(`.github/scripts/lib/lane-level-value.mjs`: the published `limits.lane-level.variable`, else
+`limits.lane-level.default`, 3, which it also stays while `limits.lane-level.shadow` is set), and `resolve-issue` joins the
 `work-resolve-issue-slot-<n>` concurrency group with `queue: max`, so a burst of admissions waits
 in line, holding no runner, instead of spending the lanes App's hourly API quota at once.
 `report-outcome` takes no slot; `apply-issue-patch` joins `work-resolve-issue-write-<n>` with

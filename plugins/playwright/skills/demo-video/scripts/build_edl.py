@@ -176,11 +176,10 @@ def load_clip(audio_dir, name):
     """(file, trim, duration) for a narration clip, or None. With words.json the leading silence
     before the first word is trimmed (Kokoro pads each clip) and the clip ends after the last word."""
     d = Path(audio_dir)
-    folder = d / name
-    if (folder / 'narration.wav').exists():
-        f = folder / 'narration.wav'
+    f = d / name / 'narration.wav'
+    if f.exists():
         total = clip_duration(f)
-        words_file = folder / 'words.json'
+        words_file = f.with_name('words.json')
         if words_file.exists():
             words = json.loads(words_file.read_text()).get('words') or []
             if words:
@@ -396,11 +395,12 @@ def main(argv=None):
         lr = stp.get('land_rect')
         in_d = move_duration(full, lr, 0.0, W, MOT) if lr else 0.0
         stp['land_ease'] = in_d
-        base = P['end_hold'] if nxt_mv is None else P['hold']
-        # a landed page holds long enough to read its outcome caption once the push-in ends
-        dur = max(base, P['after_cut'] + in_d + 1.0) if stp['navigates'] else base
         if nxt_mv is None:
             dur = (P['after_cut'] + in_d if stp['navigates'] else 0.0) + P['end_hold']
+        elif stp['navigates']:   # a landed page holds long enough to read its outcome caption once the push-in ends
+            dur = max(P['hold'], P['after_cut'] + in_d + 1.0)
+        else:
+            dur = P['hold']
         # a hold that shows an outcome caption lasts its reading time once it is up, whatever still_max says
         read = read_seconds(stp['outcome'], CAP) if stp['outcome'] and layers['captions'] else 0.0
         dur = max(dur, P['after_cut'] + in_d + read)
@@ -507,10 +507,12 @@ def main(argv=None):
                 break
         if not stretched:
             break
+    first_clip = {}
     for x in audio:
-        if x is next(y for y in audio if y['caption'] == x['caption']):
-            c = captions[x['caption']]
-            c['span'][0] = round(min(max(c['span'][0], x['start'] - NAR['caption_lead']), c['span'][1]), 4)
+        first_clip.setdefault(x['caption'], x)
+    for ci, x in first_clip.items():
+        c = captions[ci]
+        c['span'][0] = round(min(max(c['span'][0], x['start'] - NAR['caption_lead']), c['span'][1]), 4)
     segments[:] = [sg for sg in segments if sg['dur'] > 1e-6]
     total = retime()
 
@@ -561,6 +563,13 @@ def main(argv=None):
 
     inks = {}
 
+    def anchor_area(r, name, pw):
+        """The page area (x0, y0, x1, y1) under caption anchor `name`, padded by captions.clear, while the
+        camera shows rect r."""
+        ax, ay, aw, ah = anchor_box(name, pw, W, H, cfg)
+        z, k_ = W / r[2], CAP['clear']
+        return r[0] + (ax - k_) / z, r[1] + (ay - k_) / z, r[0] + (ax + aw + k_) / z, r[1] + (ay + ah + k_) / z
+
     def anchor_clear(r0, r1, m0, m1, a0, a1, pw, step=0.1):
         """Whether one caption anchor stays on empty page at every caption sample of [a0, a1] while
         the camera holds r0, eases to r1 over [m0, m1] and holds r1."""
@@ -573,12 +582,8 @@ def main(argv=None):
             key = (capture_at(s_t), tuple(mask_at(s_t) or ()) or None)
             if key not in inks:
                 inks[key] = Ink(key[0], W, H, CAM['word_gap'], key[1])
-            z = W / r[2]
             for name in occ:
-                ax, ay, aw, ah = anchor_box(name, pw, W, H, cfg)
-                k_ = CAP['clear']
-                occ[name] = max(occ[name], inks[key].count(r[0] + (ax - k_) / z, r[1] + (ay - k_) / z,
-                                                           r[0] + (ax + aw + k_) / z, r[1] + (ay + ah + k_) / z))
+                occ[name] = max(occ[name], inks[key].count(*anchor_area(r, name, pw)))
             t += step
         return min(occ.values()) <= CAM['edge_ink']
 
@@ -756,14 +761,10 @@ def main(argv=None):
         t = c['span'][0]
         while t <= c['span'][1]:
             r = rect_at(t)
-            z = W / r[2]
             s_t = src_of(t)
             ink = Ink(capture_at(s_t), W, H, CAM['word_gap'], caption_mask(stp, s_t))
             for name in CAP['anchors']:
-                ax, ay, aw, ah = anchor_box(name, w, W, H, cfg)
-                k_ = CAP['clear']
-                x0, y0 = r[0] + (ax - k_) / z, r[1] + (ay - k_) / z
-                x1, y1 = r[0] + (ax + aw + k_) / z, r[1] + (ay + ah + k_) / z
+                x0, y0, x1, y1 = anchor_area(r, name, w)
                 hit = ink.count(x0, y0, x1, y1)
                 if c['kind'] == 'step':
                     tb = stp['target_box']

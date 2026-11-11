@@ -55,8 +55,11 @@ and note that re-enabling restores the FAIL semantics.
    `${user_config.observer_analysis_bare}` (default off),
    `${user_config.observer_idle_seconds}` (default 900), `${user_config.observer_poll_seconds}`
    (default 5), `${user_config.observer_max_seconds}` (default
-   86400). Call out two hazards: `observer_analysis_bare` on is a FAIL on an OAuth-login install (the
-   analysis run reports "Not logged in"); `observer_idle_seconds` below the machine's longest expected
+   86400). Call out two hazards: `observer_analysis_bare` on is a FAIL on an OAuth-login install (what bare
+   mode does with OAuth credentials:
+   <https://code.claude.com/docs/en/headless#start-faster-with-bare-mode>; as of 2026-11-10;
+   recheck trigger: that section changes which credentials bare mode reads);
+   `observer_idle_seconds` below the machine's longest expected
    single turn risks firing analysis on a partial transcript.
 6. **Hook registration**. INFO: confirm the plugin is enabled for this project (`/plugin` → Installed)
    rather than parsing settings files. The SessionStart hook only auto-arms when `observer_enabled` is on.
@@ -186,6 +189,6 @@ reads `retro_lenses`; `/session-flow:handoff`, which reads
   narrower layer wins.
 - **The repository file reaches the team only once committed.** `apply` leaves it uncommitted on
   purpose, and the tracked-file pair says so.
-- **`observer_analysis_bare` and auth.** `--bare` drops the login credential state on OAuth-login
-  installs. Leave it off unless auth is an env-var API key. Full detail in
+- **`observer_analysis_bare` and auth.** Leave it off unless auth is an env-var API key (why: the
+  bare-mode pointer in `check` step 5). Full detail in
   `${CLAUDE_PLUGIN_ROOT}/reference/observer.md`.

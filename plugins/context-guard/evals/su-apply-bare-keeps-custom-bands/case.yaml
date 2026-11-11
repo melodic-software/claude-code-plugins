@@ -5,7 +5,7 @@ context:
 graders:
   - name: 'bands-not-overwritten'
     type: 'llm'
-    criteria: 'No command or file write in the run sets smart_max_used_percentage to 50, acceptable_max_used_percentage to 75, or the token bands to the shipped values in ~/.claude/context-guard/zones.json.'
+    criteria: 'No command or file write in the run sets light_max_used_percentage to 50, moderate_max_used_percentage to 75, or the token bands to the shipped values in ~/.claude/context-guard/zones.json.'
     focus: 'trace'
   - name: 'reports-bands-kept'
     type: 'llm'

@@ -121,8 +121,8 @@ set, distribution facts, recheck triggers: [reference/bundled-claude-api.md](ref
   target-model scope, stale Claude Code behavior claims, and the cross-surface conflict pass.
 
 **Routing.** At the end of the run, offer it to the person:
-If /doctor is available in your session (gate basis: `DISABLE_DOCTOR_COMMAND` or a
-`skillOverrides` entry hides it, and its `prompt-audit` needs the bundled `claude-api` skill; records in
+If /doctor is available in your session (gate basis: the settings that can hide it, and our rule to
+offer it only when the bundled `claude-api` skill also resolves; records in
 [reference/native-doctor.md](reference/native-doctor.md)), you can run `/doctor prompt-audit`
 alongside this skill. An unattended run records the offer in its output instead of asking.
 **Mutation gate.** Never ask the audit to apply its proposals, and never chain into `/doctor`.
@@ -158,7 +158,7 @@ scope; non-matching ones are inert and the report lists them as `skipped-for-tar
   override may have set rather than the bare settings pin, and normalize it alias → model VERSION
   against the live model-config docs at run time; (3) anything that cannot be normalized to a
   single version fails loud (below). The normalized token is the catalog's local grammar,
-  lowercase family and version joined by hyphens (`opus-5`, `sonnet-5`, `fable-5`), derived from
+  lowercase family and version joined by hyphens (`opus-5-5`, `sonnet-5`, `fable-5-2`), derived from
   the documented model the alias or full model name resolves to, not a string upstream publishes.
   Matching against catalog scopes is exact equality of the normalized version token, and the
   catalog's "Model scoping" section owns that predicate.

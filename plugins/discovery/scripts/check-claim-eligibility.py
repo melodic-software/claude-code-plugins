@@ -100,8 +100,9 @@ def check_claim(claim: dict) -> list[str]:
             problems.append(f"{FLAG} needs claim_kind: content; a {kind} claim gets no flag")
         if not has_reason:
             problems.append(f"{FLAG} needs a single_source: reason")
-        primaries = [s for s in sources if s.get("role") == "primary"]
-        if owner and not any(norm(s.get("pool")) == owner for s in primaries):
+        if owner and not any(
+            s.get("role") == "primary" and norm(s.get("pool")) == owner for s in sources
+        ):
             problems.append(
                 f"{FLAG} needs a primary whose pool is the source_owner "
                 f"({claim.get('source_owner')}); a third-party report is not eligible"

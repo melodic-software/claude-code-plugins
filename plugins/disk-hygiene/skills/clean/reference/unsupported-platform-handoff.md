@@ -116,16 +116,15 @@ engine plan:
    pre-approve it with an allow rule. A `CLAUDE_CONFIG_DIR` elsewhere moves the data root, and with
    it whether the write is protected. Inline `--path` writes nothing, which is one more reason it is
    the per-deletion form. When the prompt offers a session-wide option for the configuration folder,
-   that option approves every later write anywhere under it for the rest of the session: settings,
-   memory, and every plugin's data, not just this run directory. Answer the single prompt instead
-   unless the operator wants that breadth. In a mode that denies the write, the evidence file cannot
+   its reach is far wider than this run directory (the protected-paths pointer below). Answer the
+   single prompt instead unless the operator wants that breadth. In a mode that denies the write, the evidence file cannot
    be written, so the standalone-checkout exception below is unavailable there, while inline
    `--path` verification still runs.
    - **Pointer**: when checking which directories are protected, how each mode handles a
      protected-path write, its session-scoped option, or where `${CLAUDE_PLUGIN_DATA}` resolves,
      fetch [Protected paths](https://code.claude.com/docs/en/permission-modes#protected-paths) and
      [Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
-     live. **As of**: 2026-10-11. **Recheck trigger**: the protected-paths section changes its
+     live. **As of**: 2026-11-10. **Recheck trigger**: the protected-paths section changes its
      directory list, per-mode handling or session-scoped options, the environment-variables section
      moves the data path, or the run directory moves out of `${CLAUDE_PLUGIN_DATA}`.
 
@@ -271,11 +270,11 @@ bodies through `--body-file <path>` or `-F <path>`.
 
 ## Hook registration outlives the cleanup
 
-This skill's frontmatter hooks stay registered for the **rest of the process** that ran
-`/disk-hygiene:clean`
+How long this skill's frontmatter hooks stay registered after `/disk-hygiene:clean` is upstream
+behavior
 ([Hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents),
-as of 2026-10-25; recheck when that section changes how long a skill's hooks stay registered).
-The belt applies only while a clean run is open, though. The `manual-handoff-lane` preview ends
+as of 2026-11-10; recheck when that section changes how long a skill's hooks stay registered).
+The belt applies only while a clean run is open, whatever that lifetime. The `manual-handoff-lane` preview ends
 the run. Each `handoff-apply` opens it again until that call writes its report, and each
 manual-lane `handoff-verify` opens it until an hour passes with no engine call. A manual-lane
 delete follows its own verify, so the PowerShell deletion prompts still cover it ("When a run is open" in
@@ -283,7 +282,8 @@ delete follows its own verify, so the PowerShell deletion prompts still cover it
 
 They do **not** survive a resume: after `claude -p --resume` the belt was absent and an approved
 PowerShell delete ran unprompted in the resumed process
-([#9853](https://github.com/melodic-software/claude-code-plugins/issues/9853)). Run each approved
+([#9853](https://github.com/melodic-software/claude-code-plugins/issues/9853); as of 2026-11-10,
+recheck when a Claude Code release re-registers skill hooks on resume). Run each approved
 manual-lane delete in the same process that ran the skill. When a session resumed after this skill
 ran, the plugin's resume notice says so at session start: make no delete or overwrite until the user
 types `/disk-hygiene:clean` again, whether the user typed it or Claude loaded it through the Skill

@@ -72,8 +72,7 @@ def load_registry(data_dir: Path) -> dict[str, Any]:
     if not path.exists():
         return {"version": 1, "schema_notes": "", "issues": []}
     try:
-        text = path.read_text(encoding="utf-8")
-        data = json.loads(text)
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
         print(f"Error reading {path}: {exc}", file=sys.stderr)
         sys.exit(2)
@@ -227,13 +226,10 @@ def validate_issue(issue: dict[str, Any], index: int) -> list[str]:
         except (ValueError, TypeError):
             errors.append(f"{prefix}: invalid date/datetime in 'closedAt': {closed}")
 
-    affected = issue.get("affected_files")
-    if affected is not None and not isinstance(affected, list):
-        errors.append(f"{prefix}: 'affected_files' must be a list")
-
-    related = issue.get("related")
-    if related is not None and not isinstance(related, list):
-        errors.append(f"{prefix}: 'related' must be a list")
+    for list_field in ("affected_files", "related"):
+        val = issue.get(list_field)
+        if val is not None and not isinstance(val, list):
+            errors.append(f"{prefix}: '{list_field}' must be a list")
 
     return errors
 
@@ -241,31 +237,20 @@ def validate_issue(issue: dict[str, Any], index: int) -> list[str]:
 # ── Result helpers ──────────────────────────────────────────────
 
 
+def _result(status: str, action: str, message: str, data: Any) -> dict[str, Any]:
+    return {"status": status, "action": action, "message": message, "data": data}
+
+
 def _ok(action: str, message: str, data: Any) -> dict[str, Any]:
-    return {
-        "status": "ok",
-        "action": action,
-        "message": message,
-        "data": data,
-    }
+    return _result("ok", action, message, data)
 
 
 def _not_found(action: str, message: str) -> dict[str, Any]:
-    return {
-        "status": "not_found",
-        "action": action,
-        "message": message,
-        "data": {},
-    }
+    return _result("not_found", action, message, {})
 
 
 def _error(action: str, message: str, data: Any = None) -> dict[str, Any]:
-    return {
-        "status": "error",
-        "action": action,
-        "message": message,
-        "data": data if data is not None else {},
-    }
+    return _result("error", action, message, data if data is not None else {})
 
 
 def _invalid_choice(
@@ -491,9 +476,7 @@ def action_stats(
     by_category: Counter[str] = Counter(i.get("category", "unknown") for i in issues)
     by_status: Counter[str] = Counter(i.get("status", "unknown") for i in issues)
     today = date.today()
-    stale_count = sum(
-        1 for i in issues if _is_stale(i, today, 7, missing_is_stale=False)
-    )
+    stale_count = sum(_is_stale(i, today, 7, missing_is_stale=False) for i in issues)
 
     blocking = [
         {
@@ -655,7 +638,7 @@ def _parse_csv_ints(raw: str | None) -> list[int] | None:
                 result.append(int(s))
             except ValueError:
                 print(f"Warning: ignoring non-integer '{s}'", file=sys.stderr)
-    return result if result else None
+    return result or None
 
 
 def output_result(
@@ -681,23 +664,12 @@ def resolve_data_dir(cli_data_dir: Path | None) -> Path:
     if cli_data_dir:
         if "${" in str(cli_data_dir) or "<plugin-data>" in str(cli_data_dir):
             sys.exit(f"--data-dir got an unsubstituted placeholder: {cli_data_dir}")
-        data_dir = cli_data_dir.resolve()
-    else:
-        env_dir = os.environ.get("CLAUDE_PLUGIN_DATA", "")
-        segment = Path(env_dir.rstrip("/\\")).name if env_dir else ""
-        names_this_plugin = segment == "harness-ops" or segment.startswith(
-            "harness-ops-"
-        )
-        data_dir = (
-            Path(env_dir).resolve()
-            if names_this_plugin
-            else Path.home()
-            / ".claude"
-            / "plugins"
-            / "data"
-            / "harness-ops-melodic-software"
-        )
-    return data_dir
+        return cli_data_dir.resolve()
+    env_dir = os.environ.get("CLAUDE_PLUGIN_DATA", "")
+    segment = Path(env_dir.rstrip("/\\")).name if env_dir else ""
+    if segment == "harness-ops" or segment.startswith("harness-ops-"):
+        return Path(env_dir).resolve()
+    return Path.home() / ".claude" / "plugins" / "data" / "harness-ops-melodic-software"
 
 
 def main() -> None:

@@ -52,7 +52,7 @@ END {
   if (block == "") {
     OFS = "\t"
     for (i = 1; i <= n; i++)
-      printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", ids[i], ph[i], v[i, "skill"], v[i, "args"], v[i, "checked"], v[i, "issue"], v[i, "applies-when"], v[i, "prime"]
+      print ids[i], ph[i], v[i, "skill"], v[i, "args"], v[i, "checked"], v[i, "issue"], v[i, "applies-when"], v[i, "prime"]
     exit 0
   }
   for (i = 1; i <= n && ids[i] != want; i++) ;

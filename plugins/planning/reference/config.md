@@ -45,6 +45,7 @@ never used in its place. An invalid value never stops the run.
 | `time_units` | `true`, `false` (bare YAML booleans) | `false` | the procedure in [`../context/problem-framing.md`](../context/problem-framing.md) "Time units": whether an estimate or budget of work may be stated in hours, days or weeks | repository file over user config over default |
 | `plan_panel_rubric` | a list of 2 to 6 `{ name, text }` criteria, each `name` unique snake_case other than `draft`, `rationale`, `angle`, `judges` and `total` | `goal_fit`, `blast_radius`, `test_strategy`, `reversibility`; texts below | `/planning:plan` panel launch ([`../skills/plan/context/plan-panel.md`](../skills/plan/context/plan-panel.md)): passed as the workflow's `rubric`, the criteria judges score and the synthesizer grafts by; the workflow keeps the default for an invalid list | repository file over default |
 | `pre_confirmed_label` | a tracker label name (non-empty string) | unset | same procedure, "Pre-confirmed": the label that marks an item's stated problem confirmed in an unattended run; choose one only people with write access apply, never one a workflow or agent applies | repository file over default |
+| `unattended_finish_check` | a non-empty string naming a check | `the pull request's required checks` | `/planning:interview` Step 4, unattended: the `<check>` in the default Goal line `- Finish line: merged — checked by <check> via the pull request's checks (filled automatically: unattended)`; an item naming a release or in-use outcome gets `not settled yet` and a `blocked` USER-RESERVED row instead | repository file over default |
 | `work_size` | an object with `appetite`, `size`, `uncertainty`, each a map of level name to a quoted one-line description | appetite and size `Small`, `Medium`, `Large`; uncertainty `Known`, `Knowable`, `Unknown`; descriptions below | same procedure, "Work size": the levels the Brief's `### Work size` names | repository file over default |
 | `wayfind_research_start` | `auto`, `confirm` | `auto` (owner decision Q532, 2026-10-15) | `/planning:wayfind` chart step 6 and work step 4: `auto` starts a research item without asking when the frontier holds only research items, else asks first in an interactive session; `confirm` always asks first. An unattended session starts only research items without `needs-human` | repository file over default |
 | `wayfind_hitl_concurrency` | an integer, 1 or more | `1` (owner's Topic 10 accept list, 2026-10-15) | `/planning:wayfind` work step 4: the most `needs-human` items of one map claimed at once across sessions; research items never count | repository file over default |
@@ -139,16 +140,18 @@ plan_panel_rubric:
 
 ## Convention-home keys
 
-Three interview keys and three plan keys resolve through the bound convention home and the four layers of
+Four interview keys and three plan keys resolve through the bound convention home and the four layers of
 [ADR 0075](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md),
 lowest first: the default, the `userConfig` option of the same name, the team file
 `<home>/planning.yaml`, then the personal file `<home>/planning.local.yaml`.
-`answer_audit_rounds`, `wayfind_suggest_questions`, `plan_stress_test`, `plan_size_bands` and
-`plan_inventory_min_files` have no `userConfig` option, so they skip that layer.
+`answer_audit_rounds`, `domain_docs`, `wayfind_suggest_questions`, `plan_stress_test`,
+`plan_size_bands` and `plan_inventory_min_files` have no `userConfig` option, so they skip that
+layer.
 
 | Key | Values | Default | Reader |
 |---|---|---|---|
 | `question_pacing` | `round`, `single` | `round` | `/planning:interview`, first round: `round` asks the frontier as one set, `single` one question per message. A request in the session ("one at a time") overrides it for that session |
+| `domain_docs` | `auto`, `ask`, `off` | `auto` | `/planning:interview`, engineering sessions, Domain-aware behaviors: `auto` writes a resolved term through the glossary skill and hands each qualifying decision to `/architecture:record-decision` at round step 8, "Decision record"; `ask` asks before each write; `off` writes neither and records them in the register. A request in the session overrides it for that session |
 | `answer_audit_rounds` | an integer, `0` or more | `2` | `/planning:interview`, after each round's read-back: offer `/planning:audit-answers` once when this many rounds were accepted whole; `0` never offers |
 | `wayfind_suggest_questions` | an integer, `0` or more | `27` | `/planning:interview`, at each round boundary: suggest `/planning:wayfind chart` once when the ledger's register holds more than this many questions; `0` never suggests |
 | `plan_stress_test` | a block map of `plan`, `proposal` and `incumbent`, each `auto`, `reviewer`, `devils-advocate` or `both` | `auto` for each | `/planning:plan` Steps 3 to 4: which stress-tests run on a draft of that mode |

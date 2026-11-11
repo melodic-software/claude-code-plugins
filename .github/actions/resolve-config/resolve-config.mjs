@@ -12,7 +12,7 @@ import {
   createGitHub,
   paginate,
 } from "../check-trusted-trigger/check-trusted-trigger.mjs";
-import { issueStatus, issueStatusSetter } from "./issue-status.mjs";
+import { issueStatus, issueStatusSetter, StatusDisagreement } from "./issue-status.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
 import { pipelineEvent } from "./predicate.mjs";
 import { DISAGREEMENT_WAIT_MS, fieldStatusSetter, statusLabels } from "./read-status.mjs";
@@ -172,8 +172,13 @@ function settersOf(events) {
   return setters;
 }
 
-// Pages of 100 open issues issuesByStatus reads before it throws.
-export const MAX_ISSUE_PAGES = 20;
+// Open issues per issuesByStatus page. On pages of 100 GitHub answered stale
+// nested field events: for 162 of 210 open issues the newest listed Work
+// status event disagreed with the value or none was listed. On pages of 25
+// every issue's value matched its newest event, at the same GraphQL points.
+export const ISSUE_PAGE_SIZE = 25;
+// Pages issuesByStatus reads before it throws: 2,000 open issues.
+export const MAX_ISSUE_PAGES = 80;
 // Field events per issue in the listing, as many as fieldEvents reads: the
 // Work status setter is the newest Work status event among them, and a field
 // value with none among a full window throws rather than read as unset.
@@ -185,7 +190,7 @@ const LISTED_FIELD_EVENTS = 100;
 export const MAX_STATUS_REREADS = 10;
 const OPEN_ISSUES = `query($owner: String!, $name: String!, $cursor: String, $since: DateTime) {
   repository(owner: $owner, name: $name) {
-    issues(states: OPEN, first: 100, after: $cursor, filterBy: { since: $since }) {
+    issues(states: OPEN, first: ${ISSUE_PAGE_SIZE}, after: $cursor, filterBy: { since: $since }) {
       pageInfo { hasNextPage endCursor }
       nodes {
         number
@@ -211,8 +216,9 @@ ${FIELD_FRAGMENTS}`;
 // `config` does not map throws `unmapped-status`. More than MAX_ISSUE_PAGES
 // pages, a GraphQL error, a malformed answer or a Work status value whose
 // setter falls outside LISTED_FIELD_EVENTS throws. An issue whose listed value
-// and events disagree (StatusDisagreement), since the listing's events can
-// lag, is read again alone (fieldStatusSetter, which waits with `sleep`) and
+// and events disagree (StatusDisagreement), or whose value is one of `states`
+// with no Work status event listed, since the listing's events can lag, is
+// read again alone (fieldStatusSetter, which waits with `sleep`) and
 // that read decides; a re-read that fails otherwise throws. One that still
 // disagrees, a write still landing, or any past MAX_STATUS_REREADS (not read
 // again) is left out of the result, logged as a ::notice::, and named in the
@@ -255,14 +261,17 @@ export async function issuesByStatus(github, repository, states, { since, config
       // could be one of `states`: a wanted label, or a Work status value or
       // event naming one of them. Any other is skipped, so one issue's
       // unreadable field cannot stop a listing it has no part in.
-      const couldMatch = () =>
-        labeled ||
-        (node?.issueFieldValues?.nodes ?? []).some((value) => value?.field?.fullDatabaseId === statusField && states.includes(value?.name)) ||
-        events.some((event) => event.field === statusField && states.includes(event.to));
+      const wantedValue = (node?.issueFieldValues?.nodes ?? []).find((value) => value?.field?.fullDatabaseId === statusField && states.includes(value?.name));
+      const hasStatusEvent = events.some((event) => event.field === statusField);
+      const couldMatch = () => labeled || wantedValue !== undefined || events.some((event) => event.field === statusField && states.includes(event.to));
       let state;
       try {
-        if (nodes.length >= LISTED_FIELD_EVENTS && fieldValues.some((value) => String(value.field) === statusField) && !events.some((event) => event.field === statusField)) {
+        if (nodes.length >= LISTED_FIELD_EVENTS && fieldValues.some((value) => String(value.field) === statusField) && !hasStatusEvent) {
           throw new Error(`#${node.number}'s Work status setter is older than its newest ${LISTED_FIELD_EVENTS} field events`);
+        }
+        // A listing can answer a value with none of the events that set it.
+        if (wantedValue !== undefined && !hasStatusEvent) {
+          throw new StatusDisagreement(`issue field ${statusField} (Work status) holds \`${wantedValue.name}\`, but the listing shows no Work status event`);
         }
         state = issueStatus({ fieldValues, fieldEvents: events, fieldEventsFull: nodes.length >= LISTED_FIELD_EVENTS }, config, trustedActors);
       } catch (error) {
@@ -504,6 +513,7 @@ function outputsFor({ lane, selected }) {
     "pull-requests": selected.grant["pull-requests"],
     issues: selected.grant.issues,
     actions: selected.grant.actions ?? "",
+    "actions-variables": selected.grant["actions-variables"] ?? "",
     // Only a read grant cannot commit; any other value keeps the signed-commit check.
     "can-commit": String(selected.grant.contents !== "read"),
     ...(selected["applied-by"]?.patch === undefined ? {} : { "applied-by-patch": selected["applied-by"].patch }),

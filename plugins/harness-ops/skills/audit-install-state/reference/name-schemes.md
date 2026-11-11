@@ -45,13 +45,13 @@ the default is what keeps the engine correct on an install it has never seen.
 
 ### The `.in_use` row's record
 
-- **Claim.** The number is the PID of the Claude Code process that loaded that plugin version, one
-  marker per enabled plugin version, all carrying the same PID for one session.
-- **Basis.** The Claude Code CHANGELOG (entry 2.1.169) calls these files `.in_use` PID lock files
-  and describes a daily sweep of stale markers from crashed sessions; on every audited tree the
-  number matched the live session's PID. No docs page (claude-directory.md, plugins/manifest-reference.md,
-  plugins/create-marketplace.md) carries a row.
-- **As of.** 2026-09-11, Claude Code 2.1.268.
+- **Decision.** The engine reads the number as the PID of the Claude Code process that loaded that
+  plugin version, one marker per enabled plugin version, all carrying the same PID for one
+  session. Our observation: on every audited tree the number matched the live session's PID.
+- **Pointer.** When stating what the file is or how stale markers are cleared, read the 2.1.169
+  entry of the [Claude Code CHANGELOG](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md)
+  live; no docs page carries an `.in_use` row as of 2026-11-10.
+- **As of.** 2026-11-10.
 - **Recheck trigger.** claude-directory.md or plugins/manifest-reference.md gains an `.in_use` row, or the
   CHANGELOG names the file again.
 

@@ -40,6 +40,11 @@ The walk: recurse from each root to depth 5; a `.git` entry marks a repository a
 into; skip `node_modules`, `vendor`, and `.venv`; the canonical checkout is the first record of
 `git worktree list --porcelain`, not `git rev-parse --show-toplevel`.
 
+- **Pointer**: when checking which record of that list is the main worktree, fetch
+  [git-worktree § List output format](https://git-scm.com/docs/git-worktree#_list_output_format)
+  live. **As of**: 2026-11-10. **Recheck trigger**: that section changes the order or meaning of
+  the porcelain records.
+
 ## `--remote` facts
 
 `--remote` collects facts for referenced repositories that are not checked out locally.

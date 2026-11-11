@@ -97,9 +97,8 @@ source "$HOOK_DIR/hook-utils.sh"
 # Every refusal in this hook goes through here, so the remedy always leads.
 #
 # The harness prints a failing hook's whole stderr inside its own error text, and
-# a reader stops at the first line that tells them what to do. Diagnosis second,
-# remedy first — the reverse order is what made the previous messages useless: the
-# only line guaranteed to be read named a symptom nobody could act on.
+# a reader stops at the first line that tells them what to do: remedy first,
+# diagnosis second.
 #
 # Exit 1 uniformly. The exit code is not a channel here — every non-zero value
 # fails the creation identically and none of them reaches the user — so the
@@ -153,11 +152,9 @@ fi
 # two flat, harness-generated string fields.
 #
 # json_field_to <var> <field> — writes the field into <var> in THIS shell rather
-# than printing it, so the two substitutions that used to wrap each read (one
-# around the whole helper, one around hook::jq_field) are gone; what remains per
-# rung is the reader's own `printf | jq` (or `printf | sed`) pipeline. The `_to`
-# shape is the same fork-avoidance convention hook-utils.sh documents on its own
-# `_to` helpers.
+# than printing it, so a read costs only the reader's own `printf | jq` (or
+# `printf | sed`) pipeline: the fork-avoidance convention hook-utils.sh documents
+# on its own `_to` helpers.
 #
 # The payload is fed through `printf '%s' "$payload" |`, the form hook-utils.sh
 # prescribes for a hook payload and NEVER a here-string: bash fills a
@@ -179,9 +176,8 @@ json_field_to() {
     value=$(printf '%s' "$payload" | jq -r "(.${field} // empty)"' | gsub("\r";"")' 2>/dev/null)
   fi
   if [[ -z "$value" ]]; then
-    # No `2>/dev/null` is added on this rung: sed's stderr reached this hook's
-    # stderr before and still does. `head -n 1` and `tr -d '\r'` are parameter
-    # expansions now, which is where two of the pipeline's processes went.
+    # No `2>/dev/null` on this rung: sed's stderr reaches this hook's stderr.
+    # The first-line cut and CR strip are parameter expansions, not processes.
     value=$(printf '%s' "$payload" | sed -n 's/.*"'"$field"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
     value="${value%%$'\n'*}"
     value="${value//$'\r'/}"
@@ -200,9 +196,7 @@ if [[ -z "$name" ]]; then
     'name the worktree explicitly (claude --worktree <name>); if a name was supplied, this is a harness defect worth reporting' \
     'the WorktreeCreate payload parsed but carried no .name, and guessing a worktree name is worse than refusing'
 fi
-if [[ -z "$repo_dir" ]]; then
-  repo_dir="${CLAUDE_PROJECT_DIR:-$PWD}"
-fi
+repo_dir="${repo_dir:-${CLAUDE_PROJECT_DIR:-$PWD}}"
 
 # The plugin option is read from the environment rather than substituting
 # `${user_config.worktree_root}` into a command: a value substituted into a shell
@@ -283,31 +277,30 @@ status=$?
 # The helper's stderr is not captured, so its own guidance has already reached the
 # user by the time this runs. What is added here is the translation of its
 # documented exit taxonomy (worktree-create.sh, "Exit codes") into a remedy.
-if ((status != 0)); then
-  case "$status" in
-  2)
-    gate::refuse \
-      "choose a worktree name git accepts as a branch — no '..', no trailing '.lock', no reserved name like HEAD" \
-      "the helper rejected the request as a usage error (exit 2) for name: $name"
-    ;;
-  3)
-    gate::refuse \
-      'set the worktreeroot.path git config key (git config --global worktreeroot.path <dir>) or the worktree_root plugin option to a directory outside every repository and on the same drive as the repository (Windows), then retry' \
-      'the helper refused with exit 3 — no usable external root, a root inside a repository, or a cross-drive root on Windows'
-    ;;
-  4)
-    gate::refuse \
-      "if the helper named a worktree or session holding the target or its branch, finish there or choose another name; if $repo_dir is not a git repository, there is nothing to isolate: for a background session, set worktree.bgIsolation to \"none\" in settings so it edits in place; --worktree and subagent isolation need a repository" \
-      "the helper refused with exit 4: $repo_dir is not a git repository, the target or its branch is held by another worktree or session, or git worktree add itself failed" \
-      'the helper or git message above this line is the authoritative detail'
-    ;;
-  *)
-    gate::refuse \
-      'read the helper output above for the failure, then retry' \
-      "the helper exited $status, which is outside its documented 0/2/3/4 taxonomy"
-    ;;
-  esac
-fi
+case "$status" in
+0) ;;
+2)
+  gate::refuse \
+    "choose a worktree name git accepts as a branch — no '..', no trailing '.lock', no reserved name like HEAD" \
+    "the helper rejected the request as a usage error (exit 2) for name: $name"
+  ;;
+3)
+  gate::refuse \
+    'set the worktreeroot.path git config key (git config --global worktreeroot.path <dir>) or the worktree_root plugin option to a directory outside every repository and on the same drive as the repository (Windows), then retry' \
+    'the helper refused with exit 3 — no usable external root, a root inside a repository, or a cross-drive root on Windows'
+  ;;
+4)
+  gate::refuse \
+    "if the helper named a worktree or session holding the target or its branch, finish there or choose another name; if $repo_dir is not a git repository, there is nothing to isolate: for a background session, set worktree.bgIsolation to \"none\" in settings so it edits in place; --worktree and subagent isolation need a repository" \
+    "the helper refused with exit 4: $repo_dir is not a git repository, the target or its branch is held by another worktree or session, or git worktree add itself failed" \
+    'the helper or git message above this line is the authoritative detail'
+  ;;
+*)
+  gate::refuse \
+    'read the helper output above for the failure, then retry' \
+    "the helper exited $status, which is outside its documented 0/2/3/4 taxonomy"
+  ;;
+esac
 
 if [[ -z "$path" ]]; then
   gate::refuse \

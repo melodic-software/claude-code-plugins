@@ -533,10 +533,10 @@ remote_families_report() {
         git -C "$REPO_ROOT" merge-base --is-ancestor "$tip" "$oid" 2>/dev/null; then
         landed="PR #$num merged, the tip is an ancestor of its head"
       fi
-      [[ -n "$landed" ]] && {
+      if [[ -n "$landed" ]]; then
         pr_line="#$num MERGED"
         break
-      }
+      fi
     done <<<"${merged_prs[$name]:-}"
     if [[ -n "${open_pr[$name]+x}" ]]; then
       pr_line="#${open_pr[$name]} OPEN"
@@ -613,10 +613,10 @@ remote_families_report() {
   printf 'Families: agent=%s claude=%s plan=%s stranded=%s pre-wipe=%s none=%s\n' \
     "${n_fam[agent]:-0}" "${n_fam[claude]:-0}" "${n_fam[plan]:-0}" "${n_fam[stranded]:-0}" "${n_fam["pre-wipe"]:-0}" "${n_fam[none]:-0}"
 }
-[[ $REMOTE_FAMILIES -eq 1 ]] && {
+if [[ $REMOTE_FAMILIES -eq 1 ]]; then
   remote_families_report
   exit 0
-}
+fi
 
 # Tip capture setup. The capture is opened before the first branch is classified
 # and every row is appended as its branch is reported, so the file mirrors the
@@ -693,14 +693,12 @@ while IFS= read -r line; do
   [[ -z "$line" ]] && continue
   WORKTREE_PATH["${line%%$'\t'*}"]="${line#*$'\t'}"
 done < <(clean_worktree_branch_paths "$REPO_ROOT")
-GONE_BRANCHES="$(git -C "$REPO_ROOT" branch -vv 2>/dev/null | grep ': gone]' | awk '{print $1}' | tr -d '\r')"
-MERGED_BRANCHES="$(git -C "$REPO_ROOT" branch --merged "origin/${DEFAULT_BRANCH}" 2>/dev/null | sed 's/^[ *]*//' | grep -v "^${DEFAULT_BRANCH}$" | tr -d '\r' || true)"
 while IFS= read -r line; do
   [[ -n "$line" ]] && GONE_SET["$line"]=1
-done <<<"$GONE_BRANCHES"
+done < <(git -C "$REPO_ROOT" branch -vv 2>/dev/null | grep ': gone]' | awk '{print $1}' | tr -d '\r')
 while IFS= read -r line; do
   [[ -n "$line" ]] && MERGED_SET["$line"]=1
-done <<<"$MERGED_BRANCHES"
+done < <(git -C "$REPO_ROOT" branch --merged "origin/${DEFAULT_BRANCH}" 2>/dev/null | sed 's/^[ *]*//' | grep -v "^${DEFAULT_BRANCH}$" | tr -d '\r')
 
 # Bulk reads. One for-each-ref record per local branch carries the tip, the
 # upstream and its ahead/behind summary, so nothing below asks git about a branch
@@ -838,15 +836,13 @@ bulk_facts() {
     [[ -z "${UPSTREAM_EXISTS[$upfull]+x}" ]] || return 1
   elif [[ -n "$upfull" ]]; then
     up="$upshort" a=0 b=0
-    if [[ -z "$track" ]]; then
-      :
-    elif [[ "$track" =~ ^\[ahead\ ([0-9]+)\]$ ]]; then
+    if [[ "$track" =~ ^\[ahead\ ([0-9]+)\]$ ]]; then
       a="${BASH_REMATCH[1]}"
     elif [[ "$track" =~ ^\[behind\ ([0-9]+)\]$ ]]; then
       b="${BASH_REMATCH[1]}"
     elif [[ "$track" =~ ^\[ahead\ ([0-9]+),\ behind\ ([0-9]+)\]$ ]]; then
       a="${BASH_REMATCH[1]}" b="${BASH_REMATCH[2]}"
-    else
+    elif [[ -n "$track" ]]; then
       return 1
     fi
   fi
@@ -909,17 +905,13 @@ classify_branch() {
   fi
 
   if [[ "$branch" == "$CURRENT_BRANCH" ]]; then
-    tier="PROTECTED"
-    reason="current branch"
+    tier=PROTECTED reason="current branch"
   elif [[ "$branch" == "$DEFAULT_BRANCH" ]]; then
-    tier="PROTECTED"
-    reason="default branch"
+    tier=PROTECTED reason="default branch"
   elif clean_branch_matches_protected_pattern "$branch"; then
-    tier="PROTECTED"
-    reason="protected pattern"
+    tier=PROTECTED reason="protected pattern"
   elif [[ -n "${WORKTREE_PATH[$branch]+x}" ]]; then
-    tier="WORKTREE"
-    reason="checked out in worktree — clean up the worktree first"
+    tier=WORKTREE reason="checked out in worktree — clean up the worktree first"
   elif [[ "${PR_STATE[$branch]:-}" == "MERGED" ]]; then
     if [[ -n "${PR_REFOID[$branch]:-}" && -n "$local_tip" && "$local_tip" != "${PR_REFOID[$branch]}" ]]; then
       pr_line="#${PR_NUM[$branch]} MERGED (tip drift)"
@@ -934,48 +926,35 @@ classify_branch() {
         ancestor=0
       fi
       if [[ $ancestor -eq 1 ]]; then
-        tier="SAFE"
-        reason="PR merged (tip is an ancestor of the merged head)"
+        tier=SAFE reason="PR merged (tip is an ancestor of the merged head)"
       else
-        tier="REVIEW"
-        reason="PR merged but branch has commits since merge"
+        tier=REVIEW reason="PR merged but branch has commits since merge"
       fi
     else
-      tier="SAFE"
-      reason="PR merged"
-      pr_line="#${PR_NUM[$branch]} MERGED"
+      tier=SAFE reason="PR merged" pr_line="#${PR_NUM[$branch]} MERGED"
     fi
   elif [[ -n "${MERGED_SET[$branch]+x}" ]]; then
-    tier="SAFE"
-    reason="merged (git ancestry)"
+    tier=SAFE reason="merged (git ancestry)"
   elif [[ "${PR_STATE[$branch]:-}" == "CLOSED" ]]; then
-    tier="REVIEW"
-    reason="PR closed without merge"
-    pr_line="#${PR_NUM[$branch]} CLOSED"
+    tier=REVIEW reason="PR closed without merge" pr_line="#${PR_NUM[$branch]} CLOSED"
   elif [[ -n "${GONE_SET[$branch]+x}" ]]; then
     if [[ -z "$ahead_default" ]]; then
       # Upstream gone AND no origin/<default> to compare against (feature-only
       # clone, unfetched/missing remote HEAD): the script cannot prove the branch
       # is merged, so fail closed to REVIEW rather than offer it as a deletable
       # LIKELY-SAFE candidate that might carry local-only commits.
-      tier="REVIEW"
-      reason="upstream gone, cannot compare against origin/${DEFAULT_BRANCH}"
+      tier=REVIEW reason="upstream gone, cannot compare against origin/${DEFAULT_BRANCH}"
     elif [[ "$ahead_default" -gt 0 ]]; then
-      tier="REVIEW"
-      reason="upstream gone, ${ahead_default} commits not on origin/${DEFAULT_BRANCH}"
+      tier=REVIEW reason="upstream gone, ${ahead_default} commits not on origin/${DEFAULT_BRANCH}"
     else
-      tier="LIKELY-SAFE"
-      reason="upstream gone"
+      tier=LIKELY-SAFE reason="upstream gone"
     fi
   elif [[ "$no_upstream" == 1 && -n "$ahead_default" && "$ahead_default" -gt 0 ]]; then
-    tier="REVIEW"
-    reason="no upstream, ${ahead_default} commits not on origin/${DEFAULT_BRANCH}"
+    tier=REVIEW reason="no upstream, ${ahead_default} commits not on origin/${DEFAULT_BRANCH}"
   elif [[ "$age_days" -gt "$CLEAN_STALE_BRANCH_DAYS" ]]; then
-    tier="REVIEW"
-    reason="stale (${age_days}d)"
+    tier=REVIEW reason="stale (${age_days}d)"
   else
-    tier="REVIEW"
-    reason="orphaned or needs review"
+    tier=REVIEW reason="orphaned or needs review"
   fi
 
   # Landed proof, only for a branch the chain left in one of its REVIEW
@@ -987,8 +966,7 @@ classify_branch() {
     MERGED | CLOSED | OPEN) ;;
     *)
       if landed_reason="$(landed_proof "$branch")"; then
-        tier="LIKELY-SAFE"
-        reason="$landed_reason"
+        tier=LIKELY-SAFE reason="$landed_reason"
       fi
       ;;
     esac
@@ -997,9 +975,7 @@ classify_branch() {
   # An operation in progress in the checkout offers no deletable tier, so a
   # landed proof no longer describes the verdict.
   if [[ -n "$OP_PATH" && ("$tier" == SAFE || "$tier" == LIKELY-SAFE) ]]; then
-    tier="REVIEW"
-    reason="operation in progress: $OP_PATH"
-    landed_reason=""
+    tier=REVIEW reason="operation in progress: $OP_PATH" landed_reason=""
   fi
 
   # Loss assessment, and the REVIEW -> LOSSY refinement. Only a REVIEW verdict

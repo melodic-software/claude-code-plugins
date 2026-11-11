@@ -208,9 +208,8 @@ if [[ "$(git --version 2>/dev/null)" =~ ([0-9]+)\.([0-9]+) ]]; then
 fi
 
 is_include_file() {
-  local c
+  local c k
   c="$(canon "$1")"
-  local k
   for k in ${inc_resolved[@]+"${inc_resolved[@]}"}; do
     [[ "$k" == "$c" ]] && return 0
   done
@@ -239,8 +238,7 @@ for idx in ${inc_conds[@]+"${!inc_conds[@]}"}; do
     *) ;;
     esac
     ;;
-  gitdir/i:*) ;;
-  onbranch:*) ;;
+  gitdir/i:* | onbranch:*) ;;
   hasconfig:remote.*.url:*)
     note "includeIf \"$cond\": hasconfig: is unimplemented in libgit2 (gitui, TortoiseGit, git2/nodegit/pygit2 bindings), where unrecognized conditions fail SILENTLY, and JGit/go-git resolve no includeIf at all — fine for melodic.* (CLI-shelling readers only), unsafe as the identity layer (user.email etc.). Use gitdir/i: for identity."
     ;;
@@ -288,16 +286,15 @@ else
   win_val="${val_values[win_idx]}"
   win_origin="${val_origins[win_idx]}"
   supplied_by="$win_origin"
-  # shellcheck disable=SC2310  # pure predicate; both branches are handled
-  if is_include_file "$win_origin"; then
-    win_origin_canon="$(canon "$win_origin")"
-    for idx in "${!inc_resolved[@]}"; do
-      if [[ "${inc_resolved[idx]}" == "$win_origin_canon" ]]; then
-        supplied_by="includeIf \"${inc_conds[idx]}\" via $win_origin"
-        break
-      fi
-    done
-  fi
+  win_from_include=0
+  win_origin_canon="$(canon "$win_origin")"
+  for idx in ${inc_resolved[@]+"${!inc_resolved[@]}"}; do
+    if [[ "${inc_resolved[idx]}" == "$win_origin_canon" ]]; then
+      supplied_by="includeIf \"${inc_conds[idx]}\" via $win_origin"
+      win_from_include=1
+      break
+    fi
+  done
   ok "$winning_key = $win_val (supplied by $supplied_by)"
 
   # Parse order is precedence: a plain value the parser meets AFTER an
@@ -311,10 +308,9 @@ else
         break
       fi
     done
-    # shellcheck disable=SC2310  # pure predicate; both branches are handled
-    if ((losing_include)) && ! is_include_file "$win_origin"; then
+    if ((losing_include && !win_from_include)); then
       warn "a plain $winning_key in $win_origin is parsed AFTER an include-supplied value and silently overrides it — precedence is parse order, not specificity. If the include is meant to win, move the plain default ABOVE the includeIf block."
-    elif is_include_file "$win_origin"; then
+    elif ((win_from_include)); then
       # The recommended layout: a plain machine default parsed first, the
       # include's more-specific answer after it. Say so — the absence of a
       # confirmation is indistinguishable from an unchecked class.

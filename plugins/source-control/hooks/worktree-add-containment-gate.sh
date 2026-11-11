@@ -57,17 +57,11 @@
 set -uo pipefail
 
 # Kill switch FIRST, above every source: a disabled guard must not pay to parse
-# hook-utils.sh before finding out it is off. Inlined rather than read through
-# hook::is_enabled because the library IS the cost the hoist avoids;
-# scripts/check-killswitch-hoist.sh pins this line to that helper's semantics
-# and fails a guard that sources anything ahead of it.
+# hook-utils.sh. scripts/check-killswitch-hoist.sh pins this line to
+# hook::is_enabled's semantics.
 [[ "${CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CONTAINMENT_GATE_ENABLED:-true}" == "true" ]] || exit 0
-# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
-# subshell for every command substitution even when the body is a builtin
-# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
-# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
-# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
-# no-op and dirname answers `.`.
+# Parameter expansion, not `dirname`: a command substitution forks, which is a
+# process on Windows Git Bash. A bare filename strips to itself, so it means `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
@@ -81,18 +75,10 @@ hook::buffer_stdin_to INPUT || exit 0
 
 hook::require jq "PreToolUse" "source-control" "$INPUT"
 
-# ONE `jq` for the field and no `tr` behind it. The payload is fed through
-# `printf '%s' "$INPUT" | jq`, the form lib/hook-utils.sh prescribes for a hook
-# payload (hook::jq_field, hook::json_complete) and NEVER a here-string: bash
-# fills a here-string's pipe itself, so a payload at or above the pipe capacity
-# (65536 bytes, traced on Git Bash in #1587, the platform these gates time out
-# on) blocks the shell before jq is ever exec'd. Here that hang IS the hook
-# timeout, which on a containment gate is a stall and a fail-open at once, so the
-# separate writer process is the correct trade: 3 creations for the read where a
-# here-string costs 1. The CR strip is the same all-CRs-removed contract done
-# with parameter expansion instead of a `| tr -d '\r'` stage (one process fewer).
-# strace -f -e trace=clone,clone3,fork,vfork,execve: 4 creations / 2 execve
-# before, 3 / 1 after.
+# Fed through `printf '%s' "$INPUT" | jq`, never a here-string: bash fills a
+# here-string's pipe itself, so a payload at or above the 64 KiB pipe capacity
+# blocks the shell before jq runs, and the timed-out hook fails open. CRs are
+# stripped by parameter expansion rather than a `tr` stage.
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
 COMMAND="${COMMAND//$'\r'/}"
 [[ -n "$COMMAND" ]] || exit 0
@@ -111,13 +97,8 @@ HOOK_CWD="${HOOK_CWD//$'\r'/}"
 # git_unlocated <git-args…> — run git with the locating env vars unset, so an
 # inherited GIT_DIR cannot skew a probe's answer (#972 discipline, same as
 # hook::in_git_working_tree). The unset is confined to the subshell, so it never
-# reaches the hook's own environment.
-#
-# The `2>/dev/null` sits on the SUBSHELL, not on the git command: with the
-# redirection off the last command in the subshell, bash execs git in that
-# subshell instead of forking a third process for it (3 creations per probe
-# before, 2 after, measured with strace). `unset` writes nothing to stderr, so
-# moving the redirection out one level silences the same stream and no other.
+# reaches the hook's own environment. The `2>/dev/null` sits on the subshell so
+# bash execs git in it rather than forking again.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 git_unlocated() {
   (
@@ -135,7 +116,7 @@ git_unlocated() {
 # `git_unlocated` so an inherited GIT_DIR cannot skew the answer.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 repo_enclosing() {
-  local target="$1" probe parent top inside
+  local target="$1" probe parent top inside gitdir
   probe="${target%/*}"
   [[ -n "$probe" ]] || probe="/"
   while [[ ! -e "$probe" ]]; do
@@ -152,7 +133,6 @@ repo_enclosing() {
   fi
   inside=$(git_unlocated -C "$probe" rev-parse --is-inside-git-dir)
   if [[ "${inside//$'\r'/}" == "true" ]]; then
-    local gitdir
     gitdir=$(git_unlocated -C "$probe" rev-parse --absolute-git-dir)
     printf 'a git directory\n%s' "${gitdir//$'\r'/}"
     return 0
@@ -177,13 +157,9 @@ configured_root() {
   fi
   if [[ -z "$r" ]]; then
     r="${CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT:-}"
-    # SC2016: the single-quoted ${user_config token is matched literally on
-    # purpose — an unexpanded placeholder is an unset value.
-    # shellcheck disable=SC2016
-    case "$r" in
-    *'${user_config'*) r="" ;;
-    *) ;;
-    esac
+    # An unexpanded ${user_config placeholder is an unset value.
+    # shellcheck disable=SC2016  # the single-quoted token is matched literally
+    [[ "$r" == *'${user_config'* ]] && r=""
   fi
   if [[ -z "$r" && -n "${CLAUDE_PLUGIN_DATA:-}" ]]; then
     r="${CLAUDE_PLUGIN_DATA%/}/worktrees"

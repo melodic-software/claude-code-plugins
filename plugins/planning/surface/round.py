@@ -272,9 +272,7 @@ def exit_with(code, msg):
 
 
 def load(d):
-    doc = load_json(
-        d / "questions.json", {"meta": {}, "rev": 0, "groups": [], "questions": []}
-    )
+    doc = load_json(d / "questions.json", {})
     for k, v in (
         ("meta", {}),
         ("rev", 0),
@@ -304,8 +302,9 @@ def save(d, doc, touched=()):
 def prepare(doc, touched=()):
     """Everything `save` does but the write: stamp, bump rev, and refuse a schema failure."""
     doc["schemaVersion"] = SCHEMA_VERSION
-    if not doc.get("rev") and plugin_version():
-        doc["meta"]["pluginVersion"] = plugin_version()
+    version = None if doc.get("rev") else plugin_version()
+    if version:
+        doc["meta"]["pluginVersion"] = version
     doc["rev"] = doc.get("rev", 0) + 1
     for q in touched:
         q["rev"] = doc["rev"]
@@ -482,6 +481,17 @@ def set_aside_answer(r, doc, q, rec):
     q.update(setAsideAt=now(), setAsideSeq=r.get("seq", 0), setAsideRev=doc["rev"] + 1)
 
 
+def revise_recommendation(r, doc, q, rec, why):
+    """Replace q's recommendation with `rec`, setting aside the answer it outdates and keeping
+    the old recommendation, with `why`, for the page."""
+    set_aside_answer(r, doc, q, rec)
+    if q.get("recommendation") or not q.get("proposed"):
+        # An accepted proposal's first recommendation revises nothing.
+        q["previousRecommendation"] = q.get("recommendation", "")
+        q["revised"] = why or True  # the page says "Recommendation revised." itself
+    q["recommendation"] = rec
+
+
 def checked_list(doc, ids):
     """`ids` as a stored `checkedAgainst` list; refuses one the constraint ledger does not hold."""
     known = {c["id"] for c in doc.get("constraints") or []}
@@ -557,19 +567,8 @@ def add_question(doc, q, repoint=False, latest=None, earlier=None):
         )
     defaulted = "stage" not in q
     if defaulted:
-        newest = doc["questions"][-1] if doc["questions"] else {}
-        q["stage"] = newest.get("stage", "interview")
-    q.setdefault(
-        "round",
-        max(
-            [
-                x.get("round", 1)
-                for x in doc["questions"]
-                if x.get("stage") == q["stage"]
-            ]
-            or [1]
-        ),
-    )
+        q["stage"] = newest_stage(doc)
+    q.setdefault("round", stage_round(doc, q["stage"]))
     q.pop("addedInRound", None)
     latest = newest_round(doc) if latest is None else latest
     if latest > q["round"]:
@@ -677,10 +676,9 @@ def repoint_dependents(doc, new, old, repoint):
             "--repoint moves them"
         ], []
     by_id = {x["id"]: x for x in doc["questions"]}
+    # What `new` already waits on: pointing one of those at `new` would be a cycle.
     below, todo = set(), list(new.get("dependsOn") or [])
-    while (
-        todo
-    ):  # what `new` already waits on: pointing one of those at `new` would be a cycle
+    while todo:
         p = todo.pop()
         if p not in below:
             below.add(p)
@@ -688,16 +686,11 @@ def repoint_dependents(doc, new, old, repoint):
     moved, dropped = [], []
     for x in users:
         cycle = x["id"] in below
-        x["dependsOn"] = list(
-            dict.fromkeys(
-                p
-                for p in (
-                    new["id"] if p == old["id"] and not cycle else p
-                    for p in x["dependsOn"]
-                )
-                if not (cycle and p == old["id"])
-            )
-        )
+        if cycle:
+            deps = [p for p in x["dependsOn"] if p != old["id"]]
+        else:
+            deps = [new["id"] if p == old["id"] else p for p in x["dependsOn"]]
+        x["dependsOn"] = list(dict.fromkeys(deps))
         if not x["dependsOn"]:
             del x["dependsOn"]
         (dropped if cycle else moved).append(x)
@@ -808,6 +801,11 @@ FACTS_REFERENCE = re.compile(
 CHECKED_AGAINST = re.compile(r"^\s*\**checked against:.*$", re.IGNORECASE | re.MULTILINE)
 
 
+def sentence_count(text):
+    """The sentences in `text`, split after each `.`, `!` or `?` that whitespace follows."""
+    return len([s for s in re.split(r"(?<=[.!?])\s+", text) if s])
+
+
 def basis_label(basis):
     """The outcome label (verified or judgment) leading or trailing a basis, lowercased, or None."""
     m = BASIS_LABEL.search(basis or "")
@@ -859,7 +857,7 @@ def lint_questions(doc, qs):
         warn_rec_asks(q["id"], rec)
         warn_rec_visual(doc, q, rec, q.get("commits"))
         basis = (q.get("basis") or "").strip()
-        n = len([s for s in re.split(r"(?<=[.!?])\s+", basis) if s]) if basis else 0
+        n = sentence_count(basis)
         if n > BASIS_SENTENCES:
             warn(f"{q['id']} basis has {n} sentences (budget {BASIS_SENTENCES}, R12)")
         if rec.strip() and not withheld(rec) and not basis_label(basis):
@@ -904,16 +902,19 @@ def group_members(doc, gid):
     return sorted(q["id"] for q in doc["questions"] if q.get("group") == gid)
 
 
+def find_group(doc, gid):
+    """The group with id `gid`, or None."""
+    return next((x for x in doc["groups"] if x["id"] == gid), None)
+
+
 def record_summary_of(doc, gid):
-    next(x for x in doc["groups"] if x["id"] == gid)["summaryOf"] = group_members(
-        doc, gid
-    )
+    find_group(doc, gid)["summaryOf"] = group_members(doc, gid)
 
 
 def warn_stale_summaries(doc, qs):
     """One warning per group whose summary was written for a different set of questions."""
     for gid in dict.fromkeys(q.get("group") for q in qs):
-        g = next((x for x in doc["groups"] if x["id"] == gid), None)
+        g = find_group(doc, gid)
         if g is None or "summaryOf" not in g:
             continue
         added = [i for i in group_members(doc, gid) if i not in g["summaryOf"]]
@@ -927,7 +928,7 @@ def warn_stale_summaries(doc, qs):
 def put_group(doc, g):
     capped(f"group {g['id']} title", g.get("title"), LINE_CAP)
     capped(f"group {g['id']} summary", g.get("summary"), TEXT_CAP)
-    cur = next((x for x in doc["groups"] if x["id"] == g["id"]), None)
+    cur = find_group(doc, g["id"])
     if cur is None:
         cur = {"id": g["id"]}
         doc["groups"].append(cur)
@@ -966,6 +967,16 @@ def set_meta(doc, m):
 
 def newest_round(doc):
     return max([q.get("round", 1) for q in doc["questions"]] or [0])
+
+
+def newest_stage(doc):
+    """The newest question's stage, or "interview" when there is none."""
+    return (doc["questions"][-1] if doc["questions"] else {}).get("stage", "interview")
+
+
+def stage_round(doc, stage):
+    """The highest round among the questions in `stage`, or 1."""
+    return max([x.get("round", 1) for x in doc["questions"] if x.get("stage") == stage] or [1])
 
 
 def stamp_meta(doc):
@@ -1028,12 +1039,8 @@ def op_propose(d, doc, a):
         events = load_json(d / "responses.json", EMPTY_RESPONSES).get("events", [])
         if not any(e.get("seq") == a.fromSeq and e.get("kind") == "ask" for e in events):
             sys.exit(f"refused: propose {a.id} fromSeq {a.fromSeq} names no ask event")
-    newest = doc["questions"][-1] if doc["questions"] else {}
-    q["stage"] = newest.get("stage", "interview")
-    q["round"] = max(
-        [x.get("round", 1) for x in doc["questions"] if x.get("stage") == q["stage"]]
-        or [1]
-    )
+    q["stage"] = newest_stage(doc)
+    q["round"] = stage_round(doc, q["stage"])
     at = now()
     q["proposed"] = {"at": at, **({} if a.fromSeq is None else {"fromSeq": a.fromSeq})}
     asked = "" if a.fromSeq is None else f" from your ask (#{a.fromSeq})"
@@ -1084,7 +1091,7 @@ def checked_round_restate(restate):
     if not isinstance(text, str) or not text.strip():
         sys.exit("refused: restate needs a non-empty text (G7)")
     text = capped("restate text", text.strip(), TEXT_CAP)
-    n = len([s for s in re.split(r"(?<=[.!?])\s+", text) if s])
+    n = sentence_count(text)
     if n > RESTATE_SENTENCES:
         sys.exit(
             f"refused: restate text has {n} sentences; the limit is {RESTATE_SENTENCES} (G7)"
@@ -1364,12 +1371,7 @@ def op_reply(d, doc, a):
             "pass revised `alternatives` in the same op",
         )
         snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
-        set_aside_answer(snapshot, doc, q, a.rec)
-        if q.get("recommendation") or not q.get("proposed"):
-            # An accepted proposal's first recommendation revises nothing.
-            q["previousRecommendation"] = q.get("recommendation", "")
-            q["revised"] = a.why or True  # the page says "Recommendation revised." itself
-        q["recommendation"] = a.rec
+        revise_recommendation(snapshot, doc, q, a.rec, a.why)
         q["contentRev"] = (q.get("contentRev") or 0) + 1
         if alts is not None:
             q["alternatives"] = alts
@@ -1474,12 +1476,7 @@ def op_revise(d, doc, a):
             q[field] = val
             changed.append(field)
     if a.rec is not None:
-        set_aside_answer(snapshot, doc, q, a.rec)
-        if q.get("recommendation") or not q.get("proposed"):
-            # An accepted proposal's first recommendation revises nothing.
-            q["previousRecommendation"] = q.get("recommendation", "")
-            q["revised"] = a.why or True  # the page says "Recommendation revised." itself
-        q["recommendation"] = a.rec
+        revise_recommendation(snapshot, doc, q, a.rec, a.why)
         changed.append("recommendation")
         warn_rec_asks(a.id, a.rec)
     if alts is not None:
@@ -1511,7 +1508,7 @@ def op_revise(d, doc, a):
         regroup = f"{q.get('group') or 'none'} -> {a.group}"
         old, q["group"] = q.get("group"), a.group
         for gid in (old, a.group):
-            g = next((x for x in doc["groups"] if x["id"] == gid), None)
+            g = find_group(doc, gid)
             if g and "summaryOf" in g and g["summaryOf"] != group_members(doc, gid):
                 warn(
                     f"group {gid} summary predates moving {a.id}; refresh it with "
@@ -1590,9 +1587,9 @@ def op_record_terminal(d, doc, a):
         if not (a.text or "").strip():
             sys.exit('refused: decision "hedged" needs `text`: the condition')
         capped("record-terminal condition", a.text, LINE_CAP)
-    if a.decision == "alt" and not a.alt:
-        sys.exit('`alt` KEY required with decision "alt"')
     if a.decision == "alt":
+        if not a.alt:
+            sys.exit('`alt` KEY required with decision "alt"')
         try:
             check_alt(q, "alt", a.alt)
         except ValueError as e:
@@ -2294,13 +2291,13 @@ def apply_ops_file(d, name, claimed):
             f"refused: unexpected keys in the ops file: {sorted(set(spec) - {'ops'})}"
         )
     for i, op in enumerate(spec["ops"]):
-        name = op.get("op") if isinstance(op, dict) else None
-        if name not in OP_ARGS:
+        op_name = op.get("op") if isinstance(op, dict) else None
+        if op_name not in OP_ARGS:
             sys.exit(
-                f"refused: $.ops[{i}]: unknown op {name!r} (known: {', '.join(OP_ARGS)})"
+                f"refused: $.ops[{i}]: unknown op {op_name!r} (known: {', '.join(OP_ARGS)})"
             )
         err = schema.first_error(
-            op, ops_schema["$defs"][name], f"$.ops[{i}]", ops_schema
+            op, ops_schema["$defs"][op_name], f"$.ops[{i}]", ops_schema
         )
         if err:
             sys.exit(f"refused: {err}")
@@ -2510,8 +2507,8 @@ def print_latency(d, as_json=False):
     doc = load(d)
     events = load_json(d / "responses.json", EMPTY_RESPONSES).get("events", [])
     replies = {}
-    lines = [h for q in doc["questions"] for h in q.get("history", [])]
-    for h in lines + list(doc.get("notes") or []):
+    history = [h for q in doc["questions"] for h in q.get("history", [])]
+    for h in history + list(doc.get("notes") or []):
         if h.get("by") == "claude" and h.get("replyTo") is not None and h.get("at"):
             replies.setdefault(h["replyTo"], []).append(seconds(h["at"]))
     delivered, replied = [], []
@@ -2523,13 +2520,14 @@ def print_latency(d, as_json=False):
         if e.get("seq") in replies:
             replied.append(min(replies[e["seq"]]) - seconds(e["at"]))
     if as_json:
-        stats = {}
-        for name, vals in (("saveToDelivered", delivered), ("saveToReply", replied)):
-            stats[name] = {
+        stats = {
+            name: {
                 "n": len(vals),
                 "p50": percentile(vals, 50) if vals else None,
                 "p95": percentile(vals, 95) if vals else None,
             }
+            for name, vals in (("saveToDelivered", delivered), ("saveToReply", replied))
+        }
         print(json.dumps({"latency": stats}, indent=2))
         return
     for name, vals in (("save-to-delivered", delivered), ("save-to-reply", replied)):
@@ -2663,6 +2661,13 @@ def write_text(path, text):
     Path(path).write_text(text, encoding="utf-8", newline="\n")
 
 
+def replace_text(path, text, tag):
+    """Write `text` to a hidden `.<name>.<tag>` file beside `path`, then rename it over `path`."""
+    tmp = path.with_name(f".{path.name}.{tag}")
+    write_text(tmp, text)
+    os.replace(tmp, path)
+
+
 def cmd_export(d, a):
     if a.what == "brief":
         ledger = read_input(a.ledger, "ledger") if a.ledger else None
@@ -2763,12 +2768,8 @@ def record_ledger_sync(d, doc, ledger, force=False):
     notes = exporters.merged_register(d, read_input(ledger, "ledger"))[2]
     drift = [line for kind, line in notes if kind in ("change", "conflict")]
     # A row's note leads with its Q<N>; the one register-wide note (rows out of id order) is "order".
-    rows = list(
-        dict.fromkeys(
-            (re.match(r"Q\d+\b", line) or re.match(r"", line)).group() or "order"
-            for line in drift
-        )
-    )
+    leads = (re.match(r"Q\d+\b", line) for line in drift)
+    rows = list(dict.fromkeys(m.group() if m else "order" for m in leads))
     was = doc["meta"].get("ledgerSync") or {}
     if not force and was.get("rows") == rows and was.get("rev") == doc["rev"]:
         return drift, rows, False
@@ -2826,9 +2827,7 @@ def write_synced_ledger(d, ledger):
     text, notes = exporters.sync_ledger(
         d, read_input(path, "ledger", newline=""), ledger
     )
-    tmp = path.with_name(f".{path.name}.sync")
-    write_text(tmp, text)
-    os.replace(tmp, path)
+    replace_text(path, text, "sync")
     print(f"synced the register rows of {ledger}")
     return notes
 
@@ -2862,9 +2861,7 @@ def edit_ledger(a, edit):
     while backup.exists():
         backup, n = path.with_name(f"{path.name}.{stamp}-{n}.bak"), n + 1
     shutil.copyfile(path, backup)
-    tmp = path.with_name(f".{path.name}.edit")
-    write_text(tmp, new)
-    os.replace(tmp, path)
+    replace_text(path, new, "edit")
     print(f"updated {a.qid} in {path} (backup {backup})")
     check = HERE.parent / "scripts" / "check-open-questions.sh"
     try:
@@ -3044,10 +3041,10 @@ def cmd_ensure_running(d, a):
         )
     d.mkdir(parents=True, exist_ok=True)
     with sidecar_lock(d):
-        flag = a.emoji_markers
-        record_emoji_markers(d, None if flag is None else emoji_flag(flag))
-        pacing = a.pacing
-        record_question_pacing(d, None if pacing is None else pacing_value(pacing))
+        record_emoji_markers(
+            d, None if a.emoji_markers is None else emoji_flag(a.emoji_markers)
+        )
+        record_question_pacing(d, None if a.pacing is None else pacing_value(a.pacing))
         s = bridge.read_session(d, NAME)
         live = bool(s and bridge.running(d, s))
         # The settings layers use --user-settings, else the user file the live server applies. The

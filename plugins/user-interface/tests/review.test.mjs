@@ -107,6 +107,28 @@ describe("suppression", () => {
   });
 });
 
+describe("duration ceiling", () => {
+  const scratch = mkdtempSync(join(tmpdir(), "ui-review-duration-"));
+  after(() => rmSync(scratch, { recursive: true, force: true }));
+  const lower = JSON.stringify({ css: { rules: { disable: [] } }, animation: { duration_ms: { large: 200 } } });
+
+  for (const [name, text, line] of [
+    ["slow.css", ".menu {\n  color: oklch(50% 0.1 200);\n  transition: opacity 250ms;\n}\n", "3"],
+    ["slow.html", "<p>hi</p>\n<style>\n  .menu {\n    transition-duration: 250ms;\n  }\n</style>\n", "4"],
+  ]) {
+    test(`a caller's lower ceiling reports a 250ms transition the shipped 300ms allows (${name})`, () => {
+      const file = join(scratch, name);
+      writeFileSync(file, text);
+      const shipped = review(["--config", "{}", file]);
+      assert.equal(shipped.status, 0, shipped.stderr);
+      const r = review(["--config", lower, file]);
+      assert.equal(r.status, 1, r.stderr);
+      assert.deepEqual(hits(r.sections.Findings, file), [`${line} duration`]);
+      assert.match(r.sections.Findings[0], /250ms is over animation\.duration_ms\.large \(200ms\)/);
+    });
+  }
+});
+
 describe("usage and crash exit 2", () => {
   test("a missing path exits 2, not 1", () => {
     const r = review(["--config", "{}", at("does-not-exist.css")]);

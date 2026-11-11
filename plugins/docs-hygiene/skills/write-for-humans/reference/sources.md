@@ -55,6 +55,17 @@ the text can be plain and short with nobody having verified conformance, and the
 cannot be checked without the specification, which this plugin does not bundle. Never describe
 model-written or model-checked text as STE-conformant.
 
+### Instruction length is a target
+
+The instruction-length rule is a target, not a hard cap: a sentence may run over when splitting it
+would cut one action or its condition into fragments. For the guidance behind this choice, see the
+pointer below.
+
+- **Pointer**: [Prompting Claude Fable 5.2: review instructions written for earlier models](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#review-instructions-written-for-earlier-models).
+- **As of**: 2026-11-09
+- **Recheck trigger**: that section changes its advice on hard style limits, or a new model's
+  prompting guide addresses sentence-length rules.
+
 ## Global English: the ambiguity layer
 
 The ambiguity rules are our selection from Kohl's guidelines for prose that survives non-native

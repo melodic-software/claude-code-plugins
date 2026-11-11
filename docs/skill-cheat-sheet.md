@@ -106,7 +106,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | Skill | Plugin | What it does |
 | --- | --- | --- |
 | [`/architecture:improve`](../plugins/architecture/skills/improve/SKILL.md) | `architecture` | Scan the codebase for shallow modules or boundary crossings, then design or hand on the chosen fix |
-| [`/domain-driven-design:curate-language`](../plugins/domain-driven-design/skills/curate-language/SKILL.md) | `domain-driven-design` | Maintain the domain glossary. Resolve terms, record rejected synonyms |
+| [`/domain-driven-design:ubiquitous-language`](../plugins/domain-driven-design/skills/ubiquitous-language/SKILL.md) | `domain-driven-design` | Find, read, seed, maintain and check the domain glossary |
 | [`/event-storming:methodology`](../plugins/event-storming/skills/methodology/SKILL.md) | `event-storming` | EventStorming facilitation reference across all three formats |
 | [`/event-storming:simulation`](../plugins/event-storming/skills/simulation/SKILL.md) | `event-storming` | Multi-persona agentic EventStorming workshop on Miro |
 | [`/naming:name-it-better`](../plugins/naming/skills/name-it-better/SKILL.md) | `naming` | Generate and evaluate name candidates from blind fresh-context lenses |
@@ -189,6 +189,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/mcp-tools:audit-posture`](../plugins/mcp-tools/skills/audit-posture/SKILL.md) | `mcp-tools` | Inventory configured MCP servers and flag floating versions and other supply-chain risks |
 | [`/plugin-quality:audit`](../plugins/plugin-quality/skills/audit/SKILL.md) | `plugin-quality` | Behavioral audit of a plugin component ending in a maintainer work item |
 | [`/review:code-review`](../plugins/review/skills/code-review/SKILL.md) | `review` | Org CI code-review lane command for a GitHub pull request |
+| [`/review:council`](../plugins/review/skills/council/SKILL.md) | `review` | Configurable reviewer panel chosen per change, with optional fix rounds |
 | [`/review:explain-change`](../plugins/review/skills/explain-change/SKILL.md) | `review` | Change digest for a pull request, markdown record plus an interactive view |
 | [`/review:fanout`](../plugins/review/skills/fanout/SKILL.md) | `review` | Fan review out across every reviewer surface into one ranked report |
 | [`/review:merge-risk`](../plugins/review/skills/merge-risk/SKILL.md) | `review` | Checked merge-risk rating of one pull request with a demote-only flag |
@@ -309,7 +310,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/overengineering:delta`](../plugins/overengineering/skills/delta/SKILL.md) | `overengineering` | Re-run the enforcement-surface audit and report only what moved since the last run |
 | [`/overengineering:justify`](../plugins/overengineering/skills/justify/SKILL.md) | `overengineering` | Make one artifact, or one proposal before it is built, justify its existence on evidence |
 | [`/playbooks:boris`](../plugins/playbooks/skills/boris/SKILL.md) | `playbooks` | Boris Cherny's Claude Code workflow tips across 131 sections (130 upstream, L1 local) |
-| [`/playbooks:fable-5`](../plugins/playbooks/skills/fable-5/SKILL.md) | `playbooks` | Fable 5.1's operating doctrine loaded as standing session instructions |
+| [`/playbooks:fable-5`](../plugins/playbooks/skills/fable-5/SKILL.md) | `playbooks` | Fable 5.2's operating doctrine loaded as standing session instructions |
 | [`/playbooks:repo-sweep`](../plugins/playbooks/skills/repo-sweep/SKILL.md) | `playbooks` | Run the hygiene skill catalog through one repo, one PR, one commit per step |
 | [`/playbooks:skill-authoring`](../plugins/playbooks/skills/skill-authoring/SKILL.md) | `playbooks` | Anthropic's internal skill-authoring playbook and patterns |
 | [`/playgrounds:use`](../plugins/playgrounds/skills/use/SKILL.md) | `playgrounds` | Route playground requests to the first-party plugin, or install it, with recipes and guidance |

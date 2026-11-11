@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": "src/api/client.py"}}], "why": "reads source, writes nothing"},
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/timeout-literals/interview-checklist.md", "content": "- Q1 | blocked |\n"}}], "why": "writes the interview ledger, not source"},
+    {"answer": [], "why": "no tool call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "src/api/client.py", "content": "def timeout():\n    return 30\n"}}], "why": "writes the hardcoded literal into source"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "config/settings.py", "content": "REQUEST_TIMEOUT_SECONDS = 30\n"}}], "why": "rewrites the settings module"}
+  ]
+}

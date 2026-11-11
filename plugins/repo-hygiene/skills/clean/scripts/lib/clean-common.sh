@@ -291,9 +291,7 @@ clean_skip_matches() {
   local repo_key="$1" skip_key
   skip_key="$(clean_path_key "$2")"
   [[ -n "$skip_key" ]] || return 1
-  [[ "$repo_key" == "$skip_key" ]] && return 0
-  [[ "$repo_key" == *"/$skip_key" ]] && return 0
-  return 1
+  [[ "$repo_key" == "$skip_key" || "$repo_key" == *"/$skip_key" ]]
 }
 
 clean_path_is_tracked() {
@@ -337,10 +335,7 @@ clean_path_is_protected() {
 clean_dir_has_protected_descendant() {
   local repo_root="$1" dir="$2" entry
   while IFS= read -r entry; do
-    [[ -z "$entry" ]] && continue
-    if clean_path_is_protected "$repo_root" "$entry"; then
-      return 0
-    fi
+    [[ -n "$entry" ]] && clean_path_is_protected "$repo_root" "$entry" && return 0
   done < <(find "$dir" -mindepth 1 2>/dev/null)
   return 1
 }
@@ -652,9 +647,7 @@ clean_plan() {
     fi
   done
 
-  # Drop any eligible path nested under an eligible ancestor (`du` of the ancestor
-  # already counts it and `rm -rf` already removes it — otherwise the byte total
-  # double-counts and apply hits a spent path). O(n log n), not O(n²): sort each
+  # Drop nested eligible paths in O(n log n), not O(n²): sort each
   # path with a trailing '/' key so an ancestor sorts immediately before ALL its
   # descendants and they stay contiguous (the '/' also stops `build` swallowing a
   # sibling `buildstuff` — `buildstuff/` does not start with `build/`), then skip
@@ -725,8 +718,7 @@ clean_manifest_rel_safe() {
 # one the dry-run emitted — reject it. Junction-aware (fsutil), so it also
 # catches Windows reparse-point ancestors that `realpath`/`-L` miss.
 clean_path_has_reparse_ancestor() {
-  local root="$1" seg
-  local cur="$root"
+  local cur="$1" seg
   local -a parts
   IFS=/ read -r -a parts <<<"${2//\\//}"
   for seg in "${parts[@]}"; do
@@ -745,10 +737,7 @@ clean_path_has_reparse_ancestor() {
 clean_path_has_pruned_segment() {
   local rel="${1//\\//}" seg
   for seg in "${CLEAN_PRUNE_DIRS[@]}"; do
-    case "/$rel/" in
-    *"/$seg/"*) return 0 ;;
-    *) ;;
-    esac
+    [[ "/$rel/" == *"/$seg/"* ]] && return 0
   done
   return 1
 }
@@ -778,31 +767,37 @@ clean_manifest_target_valid() {
   case "$class" in
   caches)
     for e in "${CLEAN_CACHE_EXPLICIT[@]}"; do
-      [[ "$rel" == "$e" ]] && { clean_is_plain_dir "$abs" && return 0 || return 1; }
+      [[ "$rel" == "$e" ]] && { clean_is_plain_dir "$abs"; return; }
     done
     for e in "${CLEAN_CACHE_EXPLICIT_FILES[@]}"; do
-      [[ "$rel" == "$e" ]] && { clean_is_plain_file "$abs" && return 0 || return 1; }
+      [[ "$rel" == "$e" ]] && { clean_is_plain_file "$abs"; return; }
     done
     for e in "${CLEAN_CACHE_FIND_DIR_NAMES[@]}"; do
-      [[ "$base" == "$e" ]] && { clean_is_plain_dir "$abs" && return 0 || return 1; }
+      [[ "$base" == "$e" ]] && { clean_is_plain_dir "$abs"; return; }
     done
     for pat in "${CLEAN_CACHE_FIND_FILE_GLOBS[@]}"; do
       # shellcheck disable=SC2053
-      [[ "$base" == $pat ]] && { clean_is_plain_file "$abs" && return 0 || return 1; }
+      [[ "$base" == $pat ]] && { clean_is_plain_file "$abs"; return; }
     done
     ;;
   build)
     for e in "${CLEAN_BUILD_DIR_NAMES[@]}"; do
-      [[ "$base" == "$e" ]] && { clean_is_plain_dir "$abs" && return 0 || return 1; }
+      [[ "$base" == "$e" ]] && { clean_is_plain_dir "$abs"; return; }
     done
     for pat in "${CLEAN_BUILD_FILE_GLOBS[@]}"; do
       # shellcheck disable=SC2053
-      [[ "$base" == $pat ]] && { clean_is_plain_file "$abs" && return 0 || return 1; }
+      [[ "$base" == $pat ]] && { clean_is_plain_file "$abs"; return; }
     done
     ;;
   *) ;;
   esac
   return 1
+}
+
+# _clean_reject <reason> <entry>: report a rejected manifest entry and count it failed.
+_clean_reject() {
+  printf 'Rejected (%s): %s\n' "$1" "$2" >&2
+  CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
 }
 
 # Consume a manifest: re-stat + re-run the protection gate per entry (the
@@ -838,23 +833,19 @@ clean_apply_manifest() {
       # (missing the path field, e.g. a partial write by a concurrent process) is
       # malformed — fail closed so automation cannot read it as a successful no-op.
       [[ -z "$class$bytes" ]] && continue
-      printf 'Rejected (malformed record): %s\n' "$class $bytes" >&2
-      CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
+      _clean_reject 'malformed record' "$class $bytes"
       continue
     fi
     if [[ -n "$allowed" && " $allowed " != *" $class "* ]]; then
-      printf 'Rejected (wrong tier): %s\n' "$rel" >&2
-      CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
+      _clean_reject 'wrong tier' "$rel"
       continue
     fi
     if ! clean_manifest_rel_safe "$rel"; then
-      printf 'Rejected (outside repo): %s\n' "$rel" >&2
-      CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
+      _clean_reject 'outside repo' "$rel"
       continue
     fi
     if clean_path_has_pruned_segment "$rel"; then
-      printf 'Rejected (pruned tree): %s\n' "$rel" >&2
-      CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
+      _clean_reject 'pruned tree' "$rel"
       continue
     fi
     abs="$root/$rel"
@@ -863,13 +854,11 @@ clean_apply_manifest() {
     # the path to exist).
     [[ -e "$abs" ]] || continue
     if clean_path_has_reparse_ancestor "$root" "$rel"; then
-      printf 'Rejected (symlinked path): %s\n' "$rel" >&2
-      CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
+      _clean_reject 'symlinked path' "$rel"
       continue
     fi
     if ! clean_manifest_target_valid "$class" "$rel" "$abs"; then
-      printf 'Rejected (not a %s target): %s\n' "$class" "$rel" >&2
-      CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
+      _clean_reject "not a $class target" "$rel"
       continue
     fi
     if ! skip="$(clean_target_eligible "$root" "$abs")"; then

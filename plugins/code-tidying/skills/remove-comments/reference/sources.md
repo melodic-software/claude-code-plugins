@@ -12,13 +12,10 @@ not a scoped rule.
   the class-C boundary. Martin's "comments are always failures" is his alone and is not built on.
 - [Google eng-practices, comments explain *why*, not *what*](https://google.github.io/eng-practices/review/reviewer/looking-for.html).
 - [Anthropic prompting best practices, Overeagerness](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#overeagerness)
-  (as of 2026-10-11; recheck when that section's sample prompt drops or rewords the comment,
-  scope, or abstraction lines quoted here),
-  "Only add comments where the logic isn't self-evident". That sentence sits inside
-  anti-overengineering guidance whose sibling bullets say "Don't add features, refactor code, or
-  make 'improvements' beyond what was asked" and "Don't create helpers, utilities, or abstractions
-  for one-time operations". It authorizes the *removal* half of this skill and constrains the
-  *refactoring* half. It is not blanket authority for either.
+  (As of: 2026-11-10; Recheck trigger: that section's sample prompt drops or changes its lines on
+  comments, scope, or one-time abstractions). We read its comment line together with the
+  anti-overengineering lines beside it: it authorizes the *removal* half of this skill and
+  constrains the *refactoring* half. It is not blanket authority for either.
 - [Ousterhout, A Philosophy of Software Design §12.6](https://web.stanford.edu/~ouster/cgi-bin/aposd2ndEdExtract.pdf),
   the author-published rebuttal to "comments are always failures", and the 10-100x
   missing-versus-incorrect cost asymmetry behind this skill's conservative tie-break.

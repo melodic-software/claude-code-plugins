@@ -3,6 +3,74 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0] - 2026-11-11
+
+### Added
+
+- `audit` step 5: code names that look like an existing term's concept but are neither the term nor its `Avoid:` words are reported with a count and `file:line`, each proposed as a new `Avoid:` word through `curate`. Duplicated logic stays with `/code-metrics:audit-duplication`.
+- `curate` removal reports every surviving reference to a removed term (bold mentions in other entries, the glossary index, docs), and its report names where each removed term's meaning went.
+- `curate` names `CODEOWNERS` on the glossary path as the route for a team that wants a domain owner to review glossary changes; there is no reviewer setting.
+- New eval case `cl-audit-unrecorded-synonym`, and three invocation probes for codebase terminology, a named glossary file and the domain model.
+
+### Changed
+
+- Glossary contract: an `Avoid:` line holds only other names for the same concept; a word with its own meaning gets its own entry or stays off. `audit` reports a hit on such a word as a candidate entry, not drift.
+- `audit`'s Implementation group also names a constant or setting that lives in code, and its cut-sentence suggestion adds operating detail to user docs or command help.
+- Description adds 'tidy our codebase terminology' and 'the terms in our domain model' as triggers.
+
+## [0.8.1] - 2026-11-11
+
+### Changed
+
+- `ubiquitous-language` points at the live saved-value section for where settings are filled in
+  instead of restating it. No behavior change.
+
+## [0.8.0] - 2026-11-10
+
+### Added
+
+- Glossary contract: a term is used bare inside its own bounded context and qualified by its context wherever contexts meet (the glossary index, integration code, cross-context docs).
+- Glossary contract: a concept tenants rename on their own screens keeps one model term, recorded as `Shown to users as: configurable per tenant`; tenant words are configuration, never synonyms or `Avoid:` words.
+- `curate` weighs candidate terms in order: domain experts, then the code's existing usage, then published domain standards as inputs, never authority, researched through `/discovery:research` when none is known. Users' differing words go on `Shown to users as:`.
+
+## [0.7.0] - 2026-11-10
+
+### Added
+
+- `audit` proposes entries to prune, grouped by kind with a one-line reason: an implementation entry (a table, column, component, file or route), a term too general to carry project meaning, a canonical term no longer used, and a phrase one existing term already covers. A plain request such as "prune the glossary" or "the glossary feels bloated" routes to `audit`, which stays read-only.
+- `curate` removes or merges entries a person accepted, one group at a time and only on a yes; unattended it writes nothing.
+- Glossary contract: one counting method for every count `audit` and `curate` give (identifiers split at camelCase, PascalCase and snake_case boundaries, whole words, case-insensitive, with the number of files), and a rule that ADRs and docs use a term but never redefine it.
+
+### Changed
+
+- `curate`'s hand-off to `/docs-hygiene:rename-references` groups hits by layer: accepted ADR text takes the new term while ADR file names and numbers stay unchanged, and a stored database value is a decision, either a phased expand, migrate and contract migration or an explicit mapping, recorded with `/architecture:record-decision`.
+
+## [0.6.0] - 2026-11-10
+
+### Added
+
+- Glossary contract: an optional `Actions:` line under an entity records the verb chosen for an operation on it when another verb was contested, the rejected one in parentheses (`Actions: submit (Avoid: raise)`). `lookup` returns it, resolves a rejected verb to its entry and tells its caller the verb is rejected only for that operation on that entity; `curate` and `audit` search for rejected verbs where they name that operation on that entity.
+
+### Changed
+
+- Glossary admission: everyday words used in their ordinary sense stay out; a term earns an entry only when it removes ambiguity in its context (a project-specific meaning, a clash between meanings, or a rejected synonym). `seed` leaves such words out and `audit` flags entries that do not pass.
+
+## [0.5.1] - 2026-11-10
+
+### Changed
+
+- The glossary contract keeps business rules out of entries: an entry says what a concept is, the rule lives in code and a test that names it, and the rule's reason goes in an ADR when it passes `/architecture:record-decision`'s admission test. `audit` reports a rule found in a definition.
+- `/domain-driven-design:ubiquitous-language` names `/architecture:record-decision` for decisions about why the system is built a certain way.
+
+## [0.5.0] - 2026-11-10
+
+### Changed
+
+- **Breaking:** the `curate-language` skill is renamed `/domain-driven-design:ubiquitous-language`. Invoke the new name; the settings `glossary_file` and `glossary_map_file` and their file `docs/conventions/domain-driven-design.yaml` are unchanged.
+- The skill now has five actions: `locate` (find the glossary, searching the whole repository so a `docs/glossary.md` is found), `lookup` (the read-only path other skills use), `seed` (propose a first glossary from code and docs, a person accepting each term), `curate` (the previous maintenance workflow) and `audit` (check entries and find rejected words in code, copy and error messages, report only).
+- Glossary contract: a header sentence says what `Avoid:` means; an entity's states are listed under it, with a state getting its own entry only when it is used as a noun with rules of its own; an optional `Shown to users as:` line records deliberate screen wording. The map file is called the glossary index. Missing bounded contexts route to `/event-storming:simulation`.
+- After a glossary change, rejected words found in code names are handed to `/docs-hygiene:rename-references` as their own change, and those in user-facing copy and error messages are reported, never rewritten.
+
 ## [0.4.22] - 2026-11-09
 
 ### Changed

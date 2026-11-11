@@ -203,6 +203,22 @@ expect "the master decline key declines it too" "0|" "$(new_push)"
 git -C "$REPO" config checks.guardrails.pre-push-content.declined false
 expect "the entry's own key beats the master key" 1 "$(new_push | head -c 1)"
 
+# A working-tree file named exactly like a pushed SHA made git read the bare
+# revision as ambiguous and exit 128, refusing the push.
+new_repo
+base_sha="$(git -C "$REPO" rev-parse HEAD)"
+commit_text notes.md $'line one\nline two\nclean addition\n' "clean"
+tip_sha="$(git -C "$REPO" rev-parse HEAD)"
+: >"$REPO/$base_sha"
+: >"$REPO/$tip_sha"
+expect "files named like the pushed base and tip SHAs do not stop a clean push" "0|" \
+  "$(push_check "$tip_sha" "$base_sha")"
+commit_text notes.md $'line one\nline two\nclean addition\ntoken='"$FAKE_GHP"$'\n' "plant"
+planted="$(short HEAD)"
+expect "files named like the pushed base and tip SHAs still let a planted token block" \
+  "1|notes.md:4: secret or credential pattern: GitHub PAT (commit $planted)
+$HINT" "$(push_check "$(git -C "$REPO" rev-parse HEAD)" "$base_sha")"
+
 new_repo
 printf 'token=%s\n' "$FAKE_GHP" >"$REPO/draft.md"
 got="$(cd "$REPO" && bash "$CHECK" --worktree 2>&1 >/dev/null)"

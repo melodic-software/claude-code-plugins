@@ -99,8 +99,15 @@ under time pressure.
 
 ## 6. Doc-derived claims are graded too
 
-A summarizing web fetch returns a small model's answer *about* a page, not the page. **Absence from a
-paraphrase is not evidence of absence.** Any claim about upstream behavior must come from the raw
+Upstream pages are read raw, never through a summarizing fetch. **Absence from a paraphrase is not
+evidence of absence.** Any claim about upstream behavior must come from the raw
 `.md` endpoint (read the page to a file with `<plugin-root>/scripts/fetch-docs.sh --cache --max-age 0`,
 then read the file), and a destructive conclusion may
 never rest on a summarized read. The sanctioned channel is `code.claude.com`.
+
+- **Pointer**: when stating what a web fetch returns, fetch
+  [tools reference: WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)
+  live.
+- **As of**: 2026-11-10
+- **Recheck trigger**: that section stops describing WebFetch output as a model's extraction
+  rather than the raw page.

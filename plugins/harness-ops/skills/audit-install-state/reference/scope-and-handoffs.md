@@ -37,28 +37,34 @@ descriptor-relative removal. `/disk-hygiene:clean` already implements all of tha
 a kill switch. Reimplementing any of it here would be strictly worse, and would put a deletion engine
 behind an audit's evidence standards rather than a deletion engine's.
 
-## Cross-platform, with one platform-specific function
+## Cross-platform, with two platform-specific functions
 
 Everything is `os.walk` + `stat` + regex in Python 3.11+, and behaves identically on every platform:
 inventory, surface classification, name-scheme classification, retention resolution, the deliberate-
 state sweep, sampling.
 
-**Exactly one function differs by platform**, `probe_pid()`, with a POSIX body (`os.kill(pid, 0)`) and a
-Windows body (`OpenProcess`). No PowerShell anywhere. The root is resolved from `CLAUDE_CONFIG_DIR`
+**Two functions differ by platform**: `probe_pid()`, with a POSIX body (`os.kill(pid, 0)`) and a
+Windows body (`OpenProcess`), and `_process_table()`, which walks `/proc` on Linux, lists
+`Win32_Process` through PowerShell on Windows, and reads one `ps` listing elsewhere. The root is resolved from `CLAUDE_CONFIG_DIR`
 else `~/.claude`, and managed-settings paths are resolved per platform.
 
-That function fails safe: a probe that cannot run, or returns something unmapped, yields `unverified`.
+`probe_pid()` fails safe: a probe that cannot run, or returns something unmapped, yields `unverified`.
 **It never yields `dead`.** That is the trap from `name-schemes.md` encoded as a data value rather
 than a warning, and it matches `disk-hygiene`'s existing `handle_state_unverified` vocabulary.
 
 ## A run never writes into its own scan set
 
-`${CLAUDE_PLUGIN_DATA}` resolves to `~/.claude/plugins/data/<id>`, **inside** the tree being
-scanned. A report written there would be counted, classified, and possibly reported as an unmanaged
+`${CLAUDE_PLUGIN_DATA}` resolves **inside** the tree being scanned. A report written there would be counted, classified, and possibly reported as an unmanaged
 leftover by the run that created it.
 
 So: write the report outside the target root. If a destination inside it is unavoidable, pass it as
 `--csv` and the engine adds it to its own exclusion set and records that under `self_excluded`.
+
+- **Pointer**: when stating where `${CLAUDE_PLUGIN_DATA}` resolves, fetch
+  [plugins manifest reference: environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
+  live.
+- **As of**: 2026-11-10
+- **Recheck trigger**: that section moves the data directory out of `~/.claude`.
 
 ## Where each finding goes
 
@@ -67,7 +73,7 @@ So: write the report outside the target root. If a destination inside it is unav
 | `product-managed-healthy` | Nothing to do. The only lever that shrinks it is lowering `cleanupPeriodDays`, a config change, not a deletion |
 | `age-exceeds-window` | Investigate the sweep's unit for that path first. Never a deletion authorization |
 | `settings-unparsable-pauses-sweep` | Fix the JSON. Retention is stopped until you do. `/harness-config:audit` owns settings correctness |
-| Home-root `~/.claude.json` growth | `claude purge <path>`, the supported command. `--dry-run` previews |
+| Home-root `~/.claude.json` growth | `claude purge <path>`, the supported command; read its flags live at [claude directory: clear local data](https://code.claude.com/docs/en/claude-directory#clear-local-data) (as of 2026-11-10; recheck when that section renames the command) |
 | `deny-listed` | Stop. Read the ledger, diff against the stored baseline, and confirm with whoever ran the experiment |
 | `keep` / secret-bearing | Nothing to do |
 | `unclassified-report-only`, and you want it gone | `/disk-hygiene:clean`, the engine that owns exact-path deletion with a live-handle preflight |

@@ -222,6 +222,7 @@ from babysit_util import (
     DeadlineReached,
     configure_stdio,
     deadline_after,
+    dig,
     is_json_array,
     is_json_object,
     json_array,
@@ -672,15 +673,12 @@ def unresolved_threads(repo: str, number: int) -> list[dict[str, object]] | None
     """
 
     def project(thread: dict[str, Any]) -> dict[str, object]:
-        comments = thread.get("comments")
-        first = comments[0] if isinstance(comments, list) and comments else {}
-        first_object = first if is_json_object(first) else {}
-        author = first_object.get("author")
-        author_object = author if is_json_object(author) else {}
+        comments = json_array(thread.get("comments"))
+        first = json_object(comments[0] if comments else None)
         return {
-            "author": author_object.get("login"),
-            "path": first_object.get("path"),
-            "url": first_object.get("url"),
+            "author": dig(first, "author", "login"),
+            "path": first.get("path"),
+            "url": first.get("url"),
             "isOutdated": thread.get("isOutdated", False),
         }
 
@@ -714,9 +712,7 @@ def repository_default_branch(repo: str) -> str | None:
         data = gh_json(["api", f"repos/{repo}", "--jq", "{name: .default_branch}"])
     except (RuntimeError, json.JSONDecodeError):
         return None
-    if not is_json_object(data):
-        return None
-    name = data.get("name")
+    name = json_object(data).get("name")
     if not name:
         return None
     run_cache.put(merge_policy.DEFAULT_BRANCH_SECTION, repo, str(name))
@@ -793,8 +789,7 @@ def branch_rules(repo: str, branch: str, *, shared: bool = True) -> dict[str, ob
         if not is_json_object(rule):
             continue
         rtype = rule.get("type")
-        raw_params = rule.get("parameters")
-        params = raw_params if is_json_object(raw_params) else {}
+        params = json_object(rule.get("parameters"))
         if rtype == "required_status_checks":
             # A context-less entry is dropped rather than carried: it names no
             # check to reconcile, and a None would sort-crash the union and
@@ -953,14 +948,11 @@ def find_distinct_bot_approval(
         if str(review.get("state") or "") != "APPROVED":
             continue
         review_author = review.get("author")
-        login = (
-            review_author.get("login")
-            if is_json_object(review_author)
-            else review_author
-        )
-        typename = (
-            review_author.get("__typename") if is_json_object(review_author) else None
-        )
+        if is_json_object(review_author):
+            login = review_author.get("login")
+            typename = review_author.get("__typename")
+        else:
+            login, typename = review_author, None
         login_norm = normalize_login_set([login])
         if login_norm & author_norm:
             continue  # same identity as the PR author -- not a distinct approver
@@ -971,8 +963,7 @@ def find_distinct_bot_approval(
         # App's approval would authorize a tier merge past the configured boundary.
         if not (login_norm & approver_norm):
             continue
-        commit = review.get("commit")
-        commit_oid = commit.get("oid") if is_json_object(commit) else None
+        commit_oid = dig(review, "commit", "oid")
         if not (head and commit_oid and str(commit_oid) == str(head)):
             continue  # approval is on a superseded commit -- head moved since review
         match = review
@@ -1048,12 +1039,8 @@ def _ref_repo(ref: dict[str, Any]) -> str | None:
     repository, so the veto scan must read comments from it rather than assuming
     the PR's repo (where a same-numbered issue could carry no marker).
     """
-    repository = ref.get("repository")
-    if not is_json_object(repository):
-        return None
-    name = repository.get("name")
-    owner = repository.get("owner")
-    login = owner.get("login") if is_json_object(owner) else None
+    name = dig(ref, "repository", "name")
+    login = dig(ref, "repository", "owner", "login")
     return f"{login}/{name}" if login and name else None
 
 
@@ -1125,7 +1112,7 @@ def _human_comments(
     reviews: list[dict[str, Any]],
     review_comments: list[dict[str, Any]] | None,
     actor_config: FeedbackConfig,
-) -> list[tuple[str, str, str]]:
+) -> list[tuple[str, str, str, str]]:
     """(login, time, body, association) of every human-authored issue comment, review
     summary and inline review comment on the pull request."""
     corpus: list[dict[str, Any]] = list(fetch_issue_comments(repo, number))
@@ -1337,16 +1324,8 @@ def evaluate_autopilot_tier(
         "blockingLabels": blocking_labels,
         "distinctBotApproval": (
             {
-                "author": (
-                    approval.get("author", {}).get("login")
-                    if is_json_object(approval.get("author"))
-                    else None
-                ),
-                "commit": (
-                    approval.get("commit", {}).get("oid")
-                    if is_json_object(approval.get("commit"))
-                    else None
-                ),
+                "author": dig(approval, "author", "login"),
+                "commit": dig(approval, "commit", "oid"),
             }
             if approval
             else None
@@ -1375,15 +1354,7 @@ def head_committed_at(repo: str, head_sha: str) -> datetime | None:
         data = gh_json(["api", f"repos/{repo}/commits/{head_sha}"])
     except (RuntimeError, json.JSONDecodeError):
         return None
-    if not is_json_object(data):
-        return None
-    commit = data.get("commit")
-    if not is_json_object(commit):
-        return None
-    committer = commit.get("committer")
-    if not is_json_object(committer):
-        return None
-    return parse_github_timestamp(str(committer.get("date") or ""))
+    return parse_github_timestamp(str(dig(data, "commit", "committer", "date") or ""))
 
 
 def latest_check_activity(status_rollup: Any) -> datetime | None:
@@ -1546,7 +1517,7 @@ def pull_request_stack(repo: str, number: int) -> dict[str, Any] | None:
     guessing which of the two it is.
     """
     data = gh_json(["api", f"repos/{repo}/pulls/{number}", "--jq", "{stack: .stack}"])
-    stack = data.get("stack") if is_json_object(data) else None
+    stack = dig(data, "stack")
     return stack if is_json_object(stack) else None
 
 
@@ -1607,7 +1578,7 @@ def branch_update_decision(repo: str, number: int, head_sha: str) -> dict[str, A
 def stack_members(repo: str, stack_number: int) -> list[dict[str, Any]]:
     """The stack's pull requests, bottom to top, as GitHub lists them."""
     data = gh_json(["api", f"repos/{repo}/stacks/{stack_number}"])
-    members = data.get("pull_requests") if is_json_object(data) else None
+    members = dig(data, "pull_requests")
     if not is_json_array(members) or not all(is_json_object(m) for m in members):
         raise RuntimeError(f"unexpected stack payload for {repo} stack {stack_number}")
     return cast(list[dict[str, Any]], members)
@@ -1630,7 +1601,7 @@ def evaluate_stack_layers(
     the head the stack listing reported, so a push between listing and
     evaluation reads as a moved head.
     """
-    trunk = str(json_object(stack.get("base")).get("ref") or "")
+    trunk = str(dig(stack, "base", "ref") or "")
     stack_number = stack.get("number")
     record: dict[str, Any] = {
         "member": True,
@@ -1767,11 +1738,12 @@ def evaluate(
             stack = pull_request_stack(repo, number)
         except (RuntimeError, json.JSONDecodeError) as exc:
             stack_error = str(exc)
-    trunk = str(json_object(json_object(stack).get("base")).get("ref") or "")
+    trunk = str(dig(stack, "base", "ref") or "")
     stack_mode = bool(stack and trunk and base_ref and base_ref != trunk)
     landing_base = rules_base or (trunk if stack_mode else base_ref)
     rules = branch_rules(repo, landing_base or "main")
     head = pr.get("headRefOid")
+    head_sha = str(head) if head else None
     head_matches = (
         None
         if not expected_head
@@ -1783,14 +1755,10 @@ def evaluate(
         for label in cast(list[Any], pr.get("labels") or [])
         if is_json_object(label) and label.get("name")
     ]
-    author = pr.get("author")
-    author_login = author.get("login") if is_json_object(author) else None
+    author_login = dig(pr, "author", "login")
 
     # Reconcile each required status-check context against the deduped rollup.
-    required_contexts = rules.get("requiredContexts")
-    required_context_list = (
-        required_contexts if is_json_array(required_contexts) else []
-    )
+    required_context_list = json_array(rules.get("requiredContexts"))
     required_check_status: list[dict[str, object]] = []
     for raw_context in required_context_list:
         ctx = str(raw_context)
@@ -1946,7 +1914,7 @@ def evaluate(
     }
     if rules.get("requireSignatures"):
         signature_blockers, signature_result = evaluate_required_signatures(
-            repo, number, str(head) if head else None
+            repo, number, head_sha
         )
         blockers.extend(signature_blockers)
     if head_matches is False:
@@ -1985,7 +1953,7 @@ def evaluate(
         review_comments = fetch_pull_request_review_comments(repo, number)
         settle_blockers, settle_result = evaluate_review_settle(
             repo,
-            str(head) if head else None,
+            head_sha,
             settle,
             fetch_review_evidence(
                 repo,
@@ -2003,7 +1971,7 @@ def evaluate(
         tier_blockers, tier_result = evaluate_autopilot_tier(
             repo,
             number,
-            str(head) if head else None,
+            head_sha,
             author_login,
             labels,
             closing_issues,
@@ -2218,16 +2186,17 @@ def evaluate(
 
 
 def allowed_method(repo: str, requested: str | None) -> str:
-    data = gh_json(
-        [
-            "repo",
-            "view",
-            repo,
-            "--json",
-            "squashMergeAllowed,mergeCommitAllowed,rebaseMergeAllowed",
-        ]
+    data = json_object(
+        gh_json(
+            [
+                "repo",
+                "view",
+                repo,
+                "--json",
+                "squashMergeAllowed,mergeCommitAllowed,rebaseMergeAllowed",
+            ]
+        )
     )
-    data = data if is_json_object(data) else {}
     allowed = {
         "squash": bool(data.get("squashMergeAllowed")),
         "merge": bool(data.get("mergeCommitAllowed")),
@@ -2248,7 +2217,7 @@ def _async_payload(text: str) -> dict[str, Any]:
         data = json.loads(text) if text.strip() else None
     except json.JSONDecodeError:
         return {}
-    return data if is_json_object(data) else {}
+    return json_object(data)
 
 
 def request_async_merge(
@@ -2340,7 +2309,9 @@ def read_async_merge(repo: str, number: int, uuid: str) -> dict[str, Any]:
             "corrupt": True,
         }
     try:
-        payload = gh_json(["api", f"repos/{repo}/pulls/{number}/merge-async/{uuid}"])
+        payload = json_object(
+            gh_json(["api", f"repos/{repo}/pulls/{number}/merge-async/{uuid}"])
+        )
     except (RuntimeError, json.JSONDecodeError) as exc:
         return {
             "status": "",
@@ -2348,7 +2319,6 @@ def read_async_merge(repo: str, number: int, uuid: str) -> dict[str, Any]:
             "readError": True,
             "expired": gh_http_status(str(exc)) == 404,
         }
-    payload = payload if is_json_object(payload) else {}
     return {
         "status": str(payload.get("status") or ""),
         "message": str(json_object(payload.get("details")).get("message") or ""),
@@ -2364,17 +2334,18 @@ def pull_request_landed(repo: str, number: int) -> dict[str, Any]:
     merged with no head: the head a merge landed cannot then be confirmed.
     """
     try:
-        data = gh_json(
-            [
-                "api",
-                f"repos/{repo}/pulls/{number}",
-                "--jq",
-                "{merged: .merged, head: .head.sha}",
-            ]
+        data = json_object(
+            gh_json(
+                [
+                    "api",
+                    f"repos/{repo}/pulls/{number}",
+                    "--jq",
+                    "{merged: .merged, head: .head.sha}",
+                ]
+            )
         )
     except (RuntimeError, json.JSONDecodeError):
-        data = None
-    data = data if is_json_object(data) else {}
+        data = {}
     merged, head = data.get("merged"), data.get("head")
     head = head if isinstance(head, str) and head else None
     if not isinstance(merged, bool) or (merged and head is None):
@@ -2445,13 +2416,13 @@ def _failed_ejections(pr: dict[str, Any]) -> int | None:
     if not is_json_array(nodes):
         return None
     count = 0
-    for node in reversed(nodes):
-        kind = json_object(node).get("__typename")
+    for node in map(json_object, reversed(nodes)):
+        kind = node.get("__typename")
         if kind in HEAD_CHANGES:
             return count
-        if kind != "RemovedFromMergeQueueEvent":
+        if kind != REMOVED:
             return None
-        count += json_object(node).get("reason") == "failed_checks"
+        count += node.get("reason") == "failed_checks"
     return count if len(nodes) < merge_policy.MAX_QUEUE_EJECTIONS_LIMIT else None
 
 
@@ -2459,9 +2430,8 @@ def _last_removal_reason(pr: dict[str, Any]) -> str | None:
     """The reason of the queue's newest removal of the pull request, or None
     when a head change is newer than every removal or none can be read."""
     nodes = json_object(pr.get("timelineItems")).get("nodes")
-    for node in reversed(nodes if is_json_array(nodes) else []):
-        node = json_object(node)
-        if node.get("__typename") != "RemovedFromMergeQueueEvent":
+    for node in map(json_object, reversed(json_array(nodes))):
+        if node.get("__typename") != REMOVED:
             return None
         reason = node.get("reason")
         return reason if isinstance(reason, str) and reason else None
@@ -2493,11 +2463,7 @@ def read_merge_queue(repo: str, number: int) -> dict[str, Any]:
         )
     except (RuntimeError, json.JSONDecodeError) as exc:
         return {"readError": f"could not read the merge queue: {exc}"}
-    pr = json_object(
-        json_object(json_object(json_object(data).get("data")).get("repository")).get(
-            "pullRequest"
-        )
-    )
+    pr = json_object(dig(data, "data", "repository", "pullRequest"))
     flags = (pr.get("merged"), pr.get("isInMergeQueue"), pr.get("isMergeQueueEnabled"))
     if not all(isinstance(flag, bool) for flag in flags):
         return {"readError": "the merge queue read returned no pull request state"}
@@ -2617,6 +2583,7 @@ def enqueue_pull_request(repo: str, number: int, *, sha: str) -> dict[str, Any]:
         for error in payload.get("errors") or []
         if is_json_object(error)
     ]
+    error_text = "; ".join(e for e in errors if e)
     if is_json_object(entry):
         # An entry is a live enqueue even beside errors: reported enqueued so
         # it is recorded and checked against the merge.max-in-flight cap.
@@ -2627,14 +2594,15 @@ def enqueue_pull_request(repo: str, number: int, *, sha: str) -> dict[str, Any]:
             "position": entry.get("position"),
         }
         if errors:
-            record["message"] = "; ".join(e for e in errors if e)
+            record["message"] = error_text
         return record
+    stderr = proc.stderr.strip()
     record["status"] = "failed" if errors else None
-    record["message"] = "; ".join(e for e in errors if e) or (
-        proc.stderr.strip() or "enqueuePullRequest returned no merge queue entry"
+    record["message"] = (
+        error_text or stderr or "enqueuePullRequest returned no merge queue entry"
     )
-    if proc.stderr.strip():
-        record["stderr"] = proc.stderr.strip()
+    if stderr:
+        record["stderr"] = stderr
     return record
 
 
@@ -3010,7 +2978,7 @@ def _record_pending(
             "uuid": record["uuid"],
             "head": pin,
             "mergeAction": record.get("mergeAction"),
-            "requestedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "requestedAt": _requested_at(),
         }
         stack = json_object(result.get("stack"))
         if stack.get("landsLowerLayers"):
@@ -3025,12 +2993,16 @@ def _record_pending(
     _write_pending(path, key, entry, result)
 
 
+def _requested_at() -> str:
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
 def _queued_entry(pin: str, *, unconfirmed: bool = False) -> dict[str, Any]:
     entry: dict[str, Any] = {
         "queued": True,
         "head": pin,
         "mergeAction": "merge_queue",
-        "requestedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "requestedAt": _requested_at(),
     }
     if unconfirmed:
         entry["unconfirmed"] = True
@@ -3458,11 +3430,7 @@ def _force_pushed_heads(repo: str, number: int) -> list[str]:
             args += ["-f", f"c={cursor}"]
         data = gh_json_graphql(args, label=f"#{number} force pushes")
         items = json_object(
-            json_object(
-                json_object(
-                    json_object(json_object(data).get("data")).get("repository")
-                ).get("pullRequest")
-            ).get("timelineItems")
+            dig(data, "data", "repository", "pullRequest", "timelineItems")
         )
         page = items.get("nodes")
         info = json_object(items.get("pageInfo"))
@@ -3586,27 +3554,25 @@ def _head_file(repo: str, head: str) -> Callable[[str, str], str | None]:
             ]
         )
         if proc.returncode == 0:
-            text: str | None = proc.stdout
-        elif gh_http_status(proc.stderr or "") != 404:
+            return proc.stdout
+        if gh_http_status(proc.stderr or "") != 404:
             raise RuntimeError(f"head-file-unread:{path}")
-        else:
-            files = json_object(
-                gh_json(["api", f"repos/{repo}/compare/{original}...{head}"])
-            ).get("files")
-            # The comparison lists at most 300 files; a full page may hide one.
-            if (
-                not is_json_array(files)
-                or len(files) >= 300
-                or not any(
-                    is_json_object(item)
-                    and item.get("filename") == path
-                    and item.get("status") == "removed"
-                    for item in files
-                )
-            ):
-                raise HeadFileUnproven(f"head-file-unproven:{path}")
-            text = None
-        return text
+        files = json_object(
+            gh_json(["api", f"repos/{repo}/compare/{original}...{head}"])
+        ).get("files")
+        # The comparison lists at most 300 files; a full page may hide one.
+        if (
+            not is_json_array(files)
+            or len(files) >= 300
+            or not any(
+                is_json_object(item)
+                and item.get("filename") == path
+                and item.get("status") == "removed"
+                for item in files
+            )
+        ):
+            raise HeadFileUnproven(f"head-file-unproven:{path}")
+        return None
 
     return read
 
@@ -3625,20 +3591,17 @@ def score_unattended(
     eligible = inputs.get("eligibility")
     if not policy.enabled or eligible is None or not eligible.eligible:
         return policy
-    if eligible.dependabot is not None:
-        # The Dependabot class is not scored: `ci-status` is its gate, and a
-        # workflow pin bump sits on a HIGH path by definition.
-        details = {
-            **(policy.details or {}),
-            "headSha": json_object(inputs["pr"].get("head")).get("sha"),
-            "risk": {"score": None, "reason": "not-scored:dependabot"},
-        }
-        return replace(policy, details=details)
-    pr, config = inputs["pr"], inputs["config"]
+    pr = inputs["pr"]
     details = {
         **(policy.details or {}),
         "headSha": json_object(pr.get("head")).get("sha"),
     }
+    if eligible.dependabot is not None:
+        # The Dependabot class is not scored: `ci-status` is its gate, and a
+        # workflow pin bump sits on a HIGH path by definition.
+        details["risk"] = {"score": None, "reason": "not-scored:dependabot"}
+        return replace(policy, details=details)
+    config = inputs["config"]
     # The pr-merge lane also needs a passing verifier verdict at the head,
     # judged first: a refusal stands whatever the diff scores, so its lane
     # evidence and changed files are not read and its reasons comment waits
@@ -3668,6 +3631,7 @@ def score_unattended(
         files, complete = merge_policy.changed_files(repo, pr)
     except merge_policy.PolicyReadError:
         files, complete = (), False
+    paths = [p for f in files for p in (f.path, f.previous_path) if p]
     comments: list[dict[str, Any]] | None = None
     try:
         lanes, comments = _lane_evidence(
@@ -3677,9 +3641,7 @@ def score_unattended(
             inputs["identity"],
             self_logins,
             inputs["permission"],
-            [p for f in files for p in (f.path, f.previous_path) if p]
-            if complete
-            else None,
+            paths if complete else None,
             config.floor,
         )
     except HeadPusherUnproven as exc:
@@ -3698,7 +3660,7 @@ def score_unattended(
         merge_policy.own_paths(
             repo,
             pr,
-            frozenset(p for f in files for p in (f.path, f.previous_path) if p),
+            frozenset(paths),
             None if eligible.body_is_intent else merge_policy.MODEL_APP_OWN,
             floor=config.floor,
         )
@@ -3712,7 +3674,7 @@ def score_unattended(
         merge_policy.author_reviewed_paths(
             repo,
             pr,
-            frozenset(p for f in files for p in (f.path, f.previous_path) if p),
+            frozenset(paths),
             inputs.get("trusted_humans") or (),
             reader is not None,
             config.floor,
@@ -4072,6 +4034,28 @@ def shared_copy_escalation_body(
     )
 
 
+def _inputs_head(inputs: Mapping[str, Any]) -> str:
+    """The head SHA of the policy inputs' pull request, as a string."""
+    return str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
+
+
+def _issue_comments(
+    repo: str, number: int, comments: list[dict[str, Any]] | None
+) -> list[dict[str, Any]]:
+    """`comments` when already read, else the pull request's comments."""
+    if comments is not None:
+        return comments
+    return fetch_paginated_api(
+        f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
+    )
+
+
+def _verdict_read_env() -> dict[str, str] | None:
+    """The env override that reads under the verdict reader's token, if set."""
+    token = os.environ.get(verify_evidence.TOKEN_ENV)
+    return {"GH_TOKEN": token} if token else None
+
+
 def escalate_verify(
     repo: str,
     number: int,
@@ -4080,8 +4064,7 @@ def escalate_verify(
     inputs: Mapping[str, Any],
 ) -> dict[str, Any]:
     """`escalate` for a needs-human verifier refusal."""
-    head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
-    body = verify_escalation_body(refusal, head)
+    body = verify_escalation_body(refusal, _inputs_head(inputs))
     return escalate(repo, number, identity, body, VERIFY_ESCALATION_MARKER, inputs)
 
 
@@ -4112,7 +4095,7 @@ def close_capped(
         authority=inputs.get("authority"),
     ):
         return {"closed": False, "reason": f"held: {hold}"}
-    head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
+    head = _inputs_head(inputs)
     label = human_gated_label(repo)
     owner, _, name = repo.partition("/")
     admission = postmerge._role_label(
@@ -4164,11 +4147,7 @@ def escalate(
     changes (a new head or reason). Raises `RuntimeError` on a failed write."""
     pr = json_object(inputs.get("pr"))
     # Read once here, so the lift check reuses what the upsert read.
-    comments = inputs.get("comments")
-    if comments is None:
-        comments = fetch_paginated_api(
-            f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
-        )
+    comments = _issue_comments(repo, number, inputs.get("comments"))
     comment = upsert_marker_comment(
         repo, number, identity, body, comments, marker=marker, post_changed=True
     )
@@ -4221,7 +4200,6 @@ def _lifted_by_person(
     reader's token when one is set; any failure, unreadable list or default
     branch, or unparsable time is no lift, so the label goes on. The second
     value names a read that failed, empty otherwise."""
-    token = os.environ.get(verify_evidence.TOKEN_ENV)
     try:
         prior = _newest_marker_comment(comments, identity, marker) or {}
         escalated = parse_github_timestamp(
@@ -4232,7 +4210,7 @@ def _lifted_by_person(
         timeline = fetch_paginated_api(
             f"repos/{repo}/issues/{number}/timeline?per_page=100",
             f"#{number} timeline",
-            env_overrides={"GH_TOKEN": token} if token else None,
+            env_overrides=_verdict_read_env(),
         )
         removals = [
             (at, event)
@@ -4276,13 +4254,12 @@ def _failed_merge_group_runs(repo: str, branch: str, number: int) -> list[str] |
     """The links of the pull request's failed merge_group runs among the
     repository's newest 100, newest first, or None when they cannot be read.
     Read under the verdict reader's Actions token when one is set."""
-    token = os.environ.get(verify_evidence.TOKEN_ENV)
     proc = gh_capture(
         [
             "api",
             f"repos/{repo}/actions/runs?event=merge_group&status=failure&per_page=100",
         ],
-        env_overrides={"GH_TOKEN": token} if token else None,
+        env_overrides=_verdict_read_env(),
     )
     if proc.returncode != 0:
         return None
@@ -4409,6 +4386,7 @@ def unattended_writes(
         return report
     stopped = (policy.reason or "").startswith(STOP_REFUSALS)
     risk = inputs.get("risk")
+    config = inputs.get("config")
     try:
         if stopped:
             numbers = None
@@ -4418,7 +4396,6 @@ def unattended_writes(
             # passing verifier verdict at its head now; a lanes App entry
             # whose verdict cannot be read stays for the merge queue's own
             # reader (`verify_evidence.QUEUE_READS`).
-            config = inputs.get("config")
             verifier = inputs.get("verify_reader") or (
                 verify_evidence.Reader(
                     repo,
@@ -4497,19 +4474,13 @@ def unattended_writes(
     # reasons comment would only say so on every pull request. Nor does one
     # whose author App merges it itself (`adoption.self-merging-apps`): the
     # score holds only this lane's merge, so a comment or label is noise.
-    config = inputs.get("config")
     author = json_object(json_object(inputs.get("pr")).get("user")).get("id")
     quiet = stopped or (config is not None and author in config.self_merging_apps)
     if not quiet and risk is not None and babysit_risk.holds(risk):
         head = str(json_object(inputs["pr"].get("head")).get("sha"))
         body = risk_comment_body(risk, head)
         try:
-            comments = inputs.get("comments")
-            if comments is None:
-                comments = fetch_paginated_api(
-                    f"repos/{repo}/issues/{number}/comments?per_page=100",
-                    f"#{number} comments",
-                )
+            comments = _issue_comments(repo, number, inputs.get("comments"))
             # An earlier run's reasons comment saying the same thing at this
             # head for long enough means the refusal persisted: escalate it.
             # A shorter stand may be a review still running at the head.
@@ -4625,13 +4596,14 @@ def unattended_writes(
         json_object((policy.details or {}).get("eligibility")).get("reason") or ""
     )
     if not stopped and eligibility.startswith(held):
-        head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
         try:
             report["majorEscalation"] = escalate(
                 repo,
                 number,
                 identity,
-                major_escalation_body(eligibility.removeprefix(held), head),
+                major_escalation_body(
+                    eligibility.removeprefix(held), _inputs_head(inputs)
+                ),
                 MAJOR_ESCALATION_MARKER,
                 inputs,
             )
@@ -4695,11 +4667,7 @@ def _identity_queue_entries(
         )
     except (RuntimeError, json.JSONDecodeError):
         return None
-    queue = json_object(
-        json_object(json_object(json_object(data).get("data")).get("repository")).get(
-            "mergeQueue"
-        )
-    )
+    queue = json_object(dig(data, "data", "repository", "mergeQueue"))
     entries = json_object(queue.get("entries"))
     nodes = [json_object(n) for n in json_array(entries.get("nodes"))]
     if entries.get("totalCount") != len(nodes):
@@ -4755,12 +4723,7 @@ def request_dependabot_rebase(
             "the base tip is unreadable, so nothing was asked",
         )
     try:
-        comments = inputs.get("comments")
-        if comments is None:
-            comments = fetch_paginated_api(
-                f"repos/{repo}/issues/{number}/comments?per_page=100",
-                f"#{number} comments",
-            )
+        comments = _issue_comments(repo, number, inputs.get("comments"))
         commits = fetch_paginated_api(
             f"repos/{repo}/pulls/{number}/commits?per_page=100", f"#{number} commits"
         )
@@ -4791,6 +4754,20 @@ def request_dependabot_rebase(
         )
     inputs_read["rebase"] = body.split("\n", 1)[0]
     return hold, f"{why}; the new head is enqueued once its checks pass"
+
+
+def _emit(result: dict[str, Any], code: int) -> int:
+    """Print the gate's JSON report on stdout and return its exit code."""
+    print(json.dumps(result, indent=2))
+    return code
+
+
+def _refuse_merge(result: dict[str, Any], reason: str) -> int:
+    """Report the merge as not attempted, held on `reason` (exit 10)."""
+    result["ready"] = False
+    result["blockers"].append(reason)
+    result["merge"] = {"attempted": False, "reason": reason}
+    return _emit(result, 10)
 
 
 def unattended_enqueue(
@@ -4824,8 +4801,7 @@ def unattended_enqueue(
         result["ready"] = False
         result["blockers"].append(f"{UNATTENDED_REFUSED}{reason}")
         result["merge"] = result.get("merge") or {"attempted": False, "reason": reason}
-        print(json.dumps(result, indent=2))
-        return 10
+        return _emit(result, 10)
 
     scored = str((inputs["pr"].get("head") or {}).get("sha") or "")
     if not merge_policy.SHA_RE.match(pin) or pin != scored:
@@ -4997,14 +4973,16 @@ def unattended_enqueue(
     # writer, and a merge commit fails its managed-files guard. An unreadable
     # label holds, since the stale head would fail the queue's merge.
     stale_update = inputs_read["state"] == "stale" and eligible_dependabot is None
+    stale = (
+        f"check-inputs-changed:{','.join(inputs_read['changed'])} changed on "
+        f"{branch} since merge base {inputs_read['mergeBase']}"
+        if stale_update
+        else ""
+    )
     pr = json_object(inputs["pr"])
     if stale_update and dependabot.is_dependabot_head(
         json_object(pr.get("head")).get("ref"), json_object(pr.get("user")).get("login")
     ):
-        stale = (
-            f"check-inputs-changed:{','.join(inputs_read['changed'])} changed on "
-            f"{branch} since merge base {inputs_read['mergeBase']}"
-        )
         held, why = request_dependabot_rebase(repo, number, branch, inputs_read, inputs)
         return hold(f"{held}:{stale}; {why}")
     skip = None
@@ -5019,10 +4997,6 @@ def unattended_enqueue(
     if skip:
         inputs_read.update(updated=False, updateSkipped=skip)
     elif stale_update:
-        stale = (
-            f"check-inputs-changed:{','.join(inputs_read['changed'])} changed on "
-            f"{branch} since merge base {inputs_read['mergeBase']}"
-        )
         decision = branch_update_decision(repo, number, pin)
         if decision["method"] == "hold":
             return hold(f"{stale}; the branch update is held: {decision['reason']}")
@@ -5095,8 +5069,7 @@ def unattended_enqueue(
     if pending_path is not None:
         _record_pending(pending_path, repo, number, record, pin, result)
     if not result["enqueued"]:
-        print(json.dumps(result, indent=2))
-        return 10
+        return _emit(result, 10)
     entries = _identity_queue_entries(repo, branch, identity)
     numbers = [json_object(e.get("pullRequest")).get("number") for e in entries or []]
     step["identityEntries"] = numbers
@@ -5149,8 +5122,7 @@ def unattended_enqueue(
             f"{why}; this entry could not be dequeued and may still merge -- "
             "escalate to a human"
         )
-    print(json.dumps(result, indent=2))
-    return 0
+    return _emit(result, 0)
 
 
 def build_settle(logins: Iterable[str], minutes: str) -> ReviewSettleConfig | None:
@@ -5169,9 +5141,7 @@ def build_settle(logins: Iterable[str], minutes: str) -> ReviewSettleConfig | No
     # hold nothing, which is exactly the active-looking inert configuration the
     # paired-flag rule exists to make impossible.
     settle_seconds = (
-        round(settle_minutes * 60)
-        if settle_minutes > 0 and settle_minutes != float("inf")
-        else 0
+        round(settle_minutes * 60) if 0 < settle_minutes < float("inf") else 0
     )
     if not reviewer_logins or settle_seconds < 1:
         return None
@@ -5851,8 +5821,7 @@ def _main() -> int:
             result["blockers"].insert(0, hold)
             result["autoMerge"] = {"ready": False, "blockers": [hold]}
             result["merge"] = {"attempted": False, "reason": reason or "merge pending"}
-            print(json.dumps(result, indent=2))
-            return 10
+            return _emit(result, 10)
         if prior.get("status") == "merged":
             # The recorded request landed at every evaluated head. The gate now
             # reads a merged (closed) PR, but that merge is this run's outcome.
@@ -5889,27 +5858,21 @@ def _main() -> int:
                 except postmerge.PostMergeWriteError as exc:
                     result["unattended"]["dispatched"] = False
                     result["unattended"]["dispatchError"] = str(exc)
-            print(json.dumps(result, indent=2))
-            return 10 if refused else 0
+            return _emit(result, 10 if refused else 0)
 
     if not args.merge:
-        print(json.dumps(result, indent=2))
-        return 0 if result["ready"] else 10
+        return _emit(result, 0 if result["ready"] else 10)
 
     # TOCTOU guard: never merge whatever head happens to be live at run time. The
     # worker/autopilot flow must pass the SHA it vetted; unpinned merges are an
     # explicit interactive override only.
     if not args.expected_head and not args.allow_unpinned_head:
-        reason = (
+        return _refuse_merge(
+            result,
             "--merge requires --expected-head to pin the vetted head SHA "
             "(a newer push could be CLEAN yet unvetted); pass "
-            "--allow-unpinned-head to override interactively"
+            "--allow-unpinned-head to override interactively",
         )
-        result["ready"] = False
-        result["blockers"].append(reason)
-        result["merge"] = {"attempted": False, "reason": reason}
-        print(json.dumps(result, indent=2))
-        return 10
 
     # Under --auto the AI-review holds bind a synchronous merge too.
     go = result["autoMerge"]["ready"] if args.auto else result["ready"]
@@ -5922,8 +5885,7 @@ def _main() -> int:
             unattended is not None and (unattended.inputs or {}).get("identity")
         ):
             result["aiReviewReruns"] = rerun_rate_limited_reviews(repo, result)
-        print(json.dumps(result, indent=2))
-        return 10
+        return _emit(result, 10)
     if arm_auto:
         # Consumers treat `action: merge` as a performed merge; an arm is not one.
         result["action"] = "auto-merge"
@@ -5937,8 +5899,7 @@ def _main() -> int:
     except (RuntimeError, json.JSONDecodeError) as exc:
         # A method-lookup failure is reported, not raised, so output stays JSON.
         result["error"] = f"{type(exc).__name__}: {exc}"
-        print(json.dumps(result, indent=2))
-        return 2
+        return _emit(result, 2)
 
     result["mergeMethod"] = method
     # Atomic head pin: GitHub refuses the merge unless the head still equals the
@@ -5947,12 +5908,9 @@ def _main() -> int:
     # argument, never this pin.
     pin = result.get("headRefOid")
     if not isinstance(pin, str) or not pin:
-        reason = "the gate read no head SHA to pin the merge to -- held"
-        result["ready"] = False
-        result["blockers"].append(reason)
-        result["merge"] = {"attempted": False, "reason": reason}
-        print(json.dumps(result, indent=2))
-        return 10
+        return _refuse_merge(
+            result, "the gate read no head SHA to pin the merge to -- held"
+        )
 
     # A ready PR merges through the async merge API: REST (so it works where
     # GraphQL is refused) and GitHub's required API for merging any stacked PR,
@@ -5973,11 +5931,7 @@ def _main() -> int:
             if queue:
                 result["action"] = "enqueue"
             if stack_lands and (drift := stack_drift(repo, number, result)):
-                result["ready"] = False
-                result["blockers"].append(drift)
-                result["merge"] = {"attempted": False, "reason": drift}
-                print(json.dumps(result, indent=2))
-                return 10
+                return _refuse_merge(result, drift)
             record = async_merge(
                 repo,
                 number,
@@ -6017,8 +5971,7 @@ def _main() -> int:
                         exit_code = 10
                 if pending_path is not None:
                     _record_pending(pending_path, repo, number, record, pin, result)
-                print(json.dumps(result, indent=2))
-                return exit_code
+                return _emit(result, exit_code)
             result["asyncFallback"] = (
                 "the async merge endpoint returned 404 on this host; merged with "
                 "gh pr merge instead"
@@ -6038,10 +5991,9 @@ def _main() -> int:
     }
     result["merged"] = proc.returncode == 0 and not arm_auto
     result["autoMergeEnabled"] = proc.returncode == 0 and arm_auto
-    exit_code = 0 if proc.returncode == 0 else 10
+    exit_code = 10
     if proc.returncode == 0:
-        queue = read_merge_queue(repo, number)
-        exit_code = report_queue_routing(result, queue)
+        exit_code = report_queue_routing(result, read_merge_queue(repo, number))
         unconfirmed = bool(json_object(result.get("mergeQueue")).get("unconfirmed"))
         if pending_path is not None and (result.get("enqueued") or unconfirmed):
             _write_pending(
@@ -6055,8 +6007,7 @@ def _main() -> int:
                 "; without --state-dir nothing is recorded, so a later run cannot "
                 "confirm it"
             )
-    print(json.dumps(result, indent=2))
-    return exit_code
+    return _emit(result, exit_code)
 
 
 if __name__ == "__main__":

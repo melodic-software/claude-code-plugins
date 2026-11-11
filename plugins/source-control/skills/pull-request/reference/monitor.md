@@ -569,11 +569,10 @@ Watch notifications arrive between turns; mid-response, a notification queues un
 - **Session-scoped:** the watch terminates when the session exits; no orphaned background processes. It does not restore on `--resume`. §3.0.1's idempotency check re-arms it
 - **Manual cancel:** "stop the PR monitor" or `TaskStop <id>`
 
-The non-restore claim is verified 2026-09-06 against Claude Code 2.1.263 and
-[Run prompts on a schedule](https://code.claude.com/docs/en/scheduled-tasks#limitations), which
-states that resuming restores unexpired recurring tasks and pending one-shots, and that
-"Background Bash and monitor tasks are never restored on resume." Recheck when that page stops
-carrying that sentence, or when a release note names Monitor or resume behavior.
+- **Pointer**: when deciding whether a watch survives `--resume`, fetch
+  [Run prompts on a schedule, Limitations](https://code.claude.com/docs/en/scheduled-tasks#limitations)
+  live. **As of**: 2026-11-10. **Recheck trigger**: that section changes what a resume restarts, or
+  a release note names Monitor or resume behavior.
 
 **Cloud sessions (`CLAUDE_CODE_REMOTE=true`):** §3.0.0's baseline poll handles event delivery, with the PR-activity subscription waking the session early on reviews and failed checks. Check `CLAUDE_CODE_REMOTE` before arming.
 

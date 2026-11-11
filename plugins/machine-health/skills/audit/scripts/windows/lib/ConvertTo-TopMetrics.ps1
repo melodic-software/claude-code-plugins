@@ -31,15 +31,10 @@ function ConvertTo-TopMetric {
 
     foreach ($r in $CheckResults) {
         if (-not $r -or -not $r.PSObject.Properties['detail']) { continue }
-        $detail = $r.detail
-        if ($null -eq $detail) { continue }
+        if ($null -eq $r.detail) { continue }
 
-        $pairs = Get-DetailPair -Detail $detail
-
-        foreach ($p in $pairs) {
+        foreach ($p in (Get-DetailPair -Detail $r.detail)) {
             $value = $p.Value
-            if ($null -eq $value) { continue }
-
             $isScalar = $value -is [bool] -or
             $value -is [string] -or
             $value -is [int] -or
@@ -50,10 +45,7 @@ function ConvertTo-TopMetric {
             $value -is [byte] -or
             $value -is [short]
 
-            if (-not $isScalar) { continue }
-
-            $key = "$($r.id).$($p.Key)"
-            $out[$key] = $value
+            if ($isScalar) { $out["$($r.id).$($p.Key)"] = $value }
         }
     }
 

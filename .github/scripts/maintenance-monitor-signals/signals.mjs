@@ -405,6 +405,46 @@ export function listingHeldFindings({ heldSweeps = [] }) {
   ];
 }
 
+// work-unblock's publish-lane-level fails red when the lane token's Variables
+// write changed any repository variable but the level variable, or when its
+// check could not list them (publish-lane-level.mjs check). Either is a
+// security signal: a repository variable can shadow an organization one, such
+// as the lanes kill switch. collect's "lane variable runs" source keeps only
+// main's failed scheduled work-unblock runs, and only their failed
+// publish-lane-level job, so the event and workflow are checked there. A
+// variable step that ended without success and with no annotation (a timeout)
+// counts too: a check that did not finish must not read as clear.
+const LANE_VARIABLES = /^lane-variables-(?:changed|unread):/;
+
+export function laneVariableFindings({ laneVariableRuns = [] }) {
+  const lines = [];
+  const runs = new Set();
+  for (const run of laneVariableRuns) {
+    const before = lines.length;
+    for (const { level, message } of run.annotations ?? []) {
+      if (level === "failure" && LANE_VARIABLES.test(String(message))) {
+        lines.push(`${run.name} ${run.url}: ${message}`);
+      }
+    }
+    if (lines.length === before) {
+      for (const step of run.failedSteps ?? []) lines.push(`${run.name} ${run.url}: ${step}, with no check annotation`);
+    }
+    if (lines.length > before) runs.add(run.id);
+  }
+  if (lines.length === 0) return [];
+  return [
+    finding({
+      key: "lane-variables",
+      signal: "14 lane variables",
+      title: "Lane variables: a repository variable changed outside the lane level, or the check could not read",
+      area: "Lanes token (work-unblock publish-lane-level)",
+      summary: `${runs.size} publish-lane-level runs in the last hour failed the repository variable check. Read each run, and set a changed variable back by hand.`,
+      facts: lines,
+      evidence: ["lane-variables", [...runs].map(String).sort()],
+    }),
+  ];
+}
+
 // The lanes whose read faults hold green with only a notice (outage posture
 // element 2), the jobs that print each hold notice, and that notice. A lane
 // that passes the threshold of docs/conventions/pr-pipeline.yaml
@@ -591,6 +631,7 @@ const DETECTORS = [
   postMergeUnreadableFindings,
   listingHeldFindings,
   laneHoldFindings,
+  laneVariableFindings,
 ];
 
 export function detect(data) {

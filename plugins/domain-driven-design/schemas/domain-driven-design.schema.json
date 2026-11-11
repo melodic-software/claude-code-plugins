@@ -11,13 +11,13 @@
       "type": "string",
       "pattern": "^(?!\\.\\.?$)[^/\\\\\\u0000-\\u001f]+$",
       "default": "GLOSSARY.md",
-      "description": "File name /domain-driven-design:curate-language proposes for one bounded context's glossary when the repository has no glossary convention."
+      "description": "File name /domain-driven-design:ubiquitous-language proposes for one bounded context's glossary when the repository has no glossary convention."
     },
     "glossary_map_file": {
       "type": "string",
       "pattern": "^(?!\\.\\.?$)[^/\\\\\\u0000-\\u001f]+$",
       "default": "GLOSSARY-MAP.md",
-      "description": "File name /domain-driven-design:curate-language proposes for the context map at the repository root once more than one bounded context exists."
+      "description": "File name /domain-driven-design:ubiquitous-language proposes for the glossary index at the repository root once more than one bounded context exists."
     }
   }
 }

@@ -12,9 +12,9 @@ disable-model-invocation: true
 | `output_dir`. Native `userConfig` | one operator's personal `--file` destination on one machine | Claude Code's own plugin configuration prompt, never this skill |
 | `docs/conventions/bugs.yaml`. Tracked, cascade-layered | team policy: `/bugs:scan` lanes and filing posture | `apply` here, team layer only |
 
-This is the narrow-write setup shape: `apply` writes only the one artifact this plugin owns. `output_dir` stays check-only: Claude Code
-prompts for and stores it, so writing it here would mean writing the `pluginConfigs` the uniform
-setup contract forbids; reconfiguration routes through the native flow.
+This is the narrow-write setup shape: `apply` writes only the one artifact this plugin owns. `output_dir` stays check-only: it is a
+native option, and this skill never writes the `pluginConfigs` the uniform setup contract forbids;
+reconfiguration routes through the native flow.
 
 Pointer: where option values are stored and which settings files they are read from are read at
 [plugins manifest reference: user configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
@@ -45,17 +45,15 @@ Modify nothing. Report both surfaces, then one remediation line per gap.
    Never recommend a machine-absolute team path.
 4. If the recommended value differs, reconfigure through Claude Code's native flow per the marketplace's
    plugin-reconfiguration convention, which owns the verified-version record: interactive
-   `/plugin configure bugs@<marketplace>` any time. Headless, preferred on Claude Code 2.1.285 or
-   later: `claude plugin configure bugs@<marketplace> --values-stdin < values.json`, run from the
-   project the plugin is installed in (it has no scope flag), where `values.json` holds
-   `{"output_dir": "<path>"}`. Headless fallback, before 2.1.285: `claude plugin install
+   `/plugin configure bugs@<marketplace>` any time. Headless, preferred:
+   `claude plugin configure bugs@<marketplace> --values-stdin < values.json`, run from the project
+   the plugin is installed in, where `values.json` holds `{"output_dir": "<path>"}`. Headless
+   fallback, for a Claude Code release without `plugin configure`: `claude plugin install
    bugs@<marketplace> -s <scope> --config output_dir=<path>`. Always pass `-s`, with the scope
-   `claude plugin list` reports, from that project's directory for a `project`/`local` scope, or
-   the rerun adds a second install record at the scope passed and enables the plugin there; from
+   `claude plugin list` reports, from that project's directory for a `project`/`local` scope; from
    the home directory pass `user`. Whichever route ran, read both its exit code and its output
-   before reporting the value saved: the two routes signal a rejected value differently. Never
-   uninstall to reconfigure. Then rerun `check` in a fresh session (a same-session `check` still
-   reports the old value) and report the observed destination. Convention:
+   before reporting the value saved. Never uninstall to reconfigure. Then rerun `check` in a fresh
+   session and report the observed destination. Convention:
    <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>.
 
    - **Pointer**: when checking how a route reports a rejected value, what the rerun prints, the
@@ -64,9 +62,9 @@ Modify nothing. Report both surfaces, then one remediation line per gap.
      [§ plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install),
      [§ Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
      and [§ What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps)
-     live. **As of**: 2026-11-03. **Recheck trigger**: one of those sections changes how a route
-     reports a rejection, the rerun's output, the `-s` default, where a value is stored, or what an
-     uninstall deletes.
+     live. **As of**: 2026-11-10. **Recheck trigger**: one of those sections changes how a route
+     reports a rejection, the rerun's output, the `-s` default, the scope it installs at, where a
+     value is stored, or what an uninstall deletes.
 
 ### B. `docs/conventions/bugs.yaml` (tracked lane config)
 
@@ -158,15 +156,14 @@ by re-reading it, for `output_dir` by a rerun in a fresh session.
 
 ## Gotchas
 
-- **A same-session `check` reports the old `output_dir`.** Verify a reconfiguration only in a fresh
-  session. When checking when a saved value reaches skill content, fetch
+- **Verify a reconfiguration only in a fresh session.** When checking when a saved value reaches skill content, fetch
   [plugins manifest reference § Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
   and [skills § Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions)
   live (as of 2026-11-03; recheck trigger: either section changes when a substitution is applied).
 - **Never uninstall to reconfigure.** Reconfigure through `check` step A4; what an uninstall deletes
   is upstream's, at the pointer under that step.
-- **The two headless routes signal a rejected value differently.** Read both the exit code and the
-  output before reporting a value saved (pointer under `check` step A4).
+- **Read both the exit code and the output of the headless route that ran** before reporting a
+  value saved (pointer under `check` step A4).
 - **The ignore probe alone blesses an unshared file.** An untracked, unignored file returns the same
   empty `check-ignore` output as a healthy tracked one; the `ls-files` probe is what catches it.
 - **A file `apply` just scaffolded is untracked until staged.** `git ls-files --error-unmatch` will

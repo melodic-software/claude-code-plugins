@@ -238,9 +238,8 @@ the step UNKNOWN with remediation, never green.
      being absorbed. The canary is the proactive convenience; the quoted verdict is the
      enforcement.
    - **Effective configuration (context for the canary).** Run `claude auto-mode config` and report
-     whether its effective rules cover this plugin's bundled scripts. It prints the merged result
-     across the scopes the classifier reads `autoMode` from. User settings and managed settings,
-     so read that output rather than hunting for the underlying files; the managed scopes are not
+     whether its effective rules cover this plugin's bundled scripts. Read that output rather than
+     hunting for the settings files it merges; the managed scopes are not
      locally readable as ordinary settings files. **Forward the launch-time scope when there is
      one.** `--settings` is a global flag consumed at launch, not an input the subcommand accepts,
      so a bare `claude auto-mode config` spawned from a session that was itself launched with
@@ -249,8 +248,8 @@ the step UNKNOWN with remediation, never green.
      when the scope came from an Agent SDK settings object with no file to re-supply, report the
      probe as scope-incomplete rather than as the effective configuration. A missing or
      narrow-looking block is INFO, never FAIL on its own: settings cannot prove reachability,
-     because a host safety classifier decides per call, at call time. Pair it with the
-     [auto-mode configuration reference](https://code.claude.com/docs/en/auto-mode-config).
+     because a host safety classifier decides per call, at call time.
+     **Pointer**: when reading the probe's scopes or output, fetch [Where the classifier reads configuration](https://code.claude.com/docs/en/auto-mode-config#where-the-classifier-reads-configuration) and [Inspect the defaults and your effective config](https://code.claude.com/docs/en/auto-mode-config#inspect-the-defaults-and-your-effective-config) live. **As of**: 2026-11-10. **Recheck trigger**: either section changes the scopes the classifier reads or what `claude auto-mode config` prints.
 
    - **GraphQL reachability (a different wall, probed the same way).** The two canaries above prove
      the lane's own scripts reach the classifier; this one proves the forge will answer them.

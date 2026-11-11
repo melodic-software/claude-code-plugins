@@ -65,6 +65,14 @@ const TRACEPARENT = /^00-(?!0{32})[0-9a-f]{32}-(?!0{16})[0-9a-f]{16}-0[01]$/;
 
 const findings = [];
 
+function isPlainObject(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.length > 0;
+}
+
 // Absolute https URL with a host; query and fragment PRESERVED (permalinks and
 // comment anchors need them — the telemetry strip rule is the join key's, not
 // the raw link's).
@@ -123,13 +131,13 @@ function underRunLinkPrefix(link, prefix) {
 // a binding the full checker would reject on these same surfaces.
 function gateSecurityBinding(securityBinding) {
   const violations = [];
-  if (typeof securityBinding !== "object" || securityBinding === null || Array.isArray(securityBinding)) {
+  if (!isPlainObject(securityBinding)) {
     violations.push("the binding is not a JSON object");
     return violations;
   }
   const temporalHome = securityBinding.admission?.classification?.temporal;
   if (temporalHome === undefined) return violations;
-  if (typeof temporalHome !== "object" || temporalHome === null || Array.isArray(temporalHome)) {
+  if (!isPlainObject(temporalHome)) {
     violations.push("admission.classification.temporal is not an object");
     return violations;
   }
@@ -137,7 +145,7 @@ function gateSecurityBinding(securityBinding) {
     if (!ROUTINE_IDENTITY.test(identity)) {
       violations.push(`admission.classification.temporal key ${JSON.stringify(identity)} is not a routine identity`);
     }
-    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+    if (!isPlainObject(entry)) {
       violations.push(
         `admission.classification.temporal entry ${JSON.stringify(identity)} is not the object form {class, source_surface, run_link_prefix, producer_identity}`,
       );
@@ -147,7 +155,7 @@ function gateSecurityBinding(securityBinding) {
       violations.push(`admission.classification.temporal entry ${JSON.stringify(identity)}: class missing or invalid`);
     }
     for (const key of ["source_surface", "run_link_prefix", "producer_identity"]) {
-      if (typeof entry[key] !== "string" || entry[key].length === 0) {
+      if (!isNonEmptyString(entry[key])) {
         violations.push(`admission.classification.temporal entry ${JSON.stringify(identity)}: ${key} missing or empty`);
       }
     }
@@ -210,8 +218,7 @@ function collectSurfaces(binding) {
     }
   }
   const enabledMap = binding?.routines?.enabled;
-  const routinesEnabled =
-    typeof enabledMap === "object" && enabledMap !== null && !Array.isArray(enabledMap) ? enabledMap : null;
+  const routinesEnabled = isPlainObject(enabledMap) ? enabledMap : null;
   return { surfaces, sections, duplicates, routinesEnabled };
 }
 
@@ -223,29 +230,27 @@ function checkEnvelope(envelope, where, { surfaces, sections, duplicates, routin
     );
   }
   for (const key of REQUIRED_KEYS) {
-    const value = envelope[key];
-    if (typeof value !== "string" || value.length === 0) {
+    if (!isNonEmptyString(envelope[key])) {
       findings.push(`${where}: required key ${key} missing or empty`);
     }
   }
+  for (const [key, tokens, noun] of [
+    ["signal.class", SURFACE_CLASSES, "surface-class"],
+    ["signal.transport", TRANSPORTS, "transport"],
+    ["signal.provenance", PROVENANCES, "provenance"],
+  ]) {
+    const value = envelope[key];
+    if (typeof value === "string" && !tokens.has(value)) {
+      findings.push(`${where}: ${key} ${JSON.stringify(value)} is not a ${noun} token`);
+    }
+  }
   const signalClass = envelope["signal.class"];
-  if (typeof signalClass === "string" && !SURFACE_CLASSES.has(signalClass)) {
-    findings.push(`${where}: signal.class ${JSON.stringify(signalClass)} is not a surface-class token`);
-  }
-  const transport = envelope["signal.transport"];
-  if (typeof transport === "string" && !TRANSPORTS.has(transport)) {
-    findings.push(`${where}: signal.transport ${JSON.stringify(transport)} is not a transport token`);
-  }
-  const provenance = envelope["signal.provenance"];
-  if (typeof provenance === "string" && !PROVENANCES.has(provenance)) {
-    findings.push(`${where}: signal.provenance ${JSON.stringify(provenance)} is not a provenance token`);
-  }
   const workClass = envelope["signal.work_class"];
   if (workClass !== undefined && !WORK_CLASSES.has(workClass)) {
     findings.push(`${where}: signal.work_class ${JSON.stringify(workClass)} is not C1-C5 (omit the key when no class resolves)`);
   }
   const traceparent = envelope["signal.traceparent"];
-  if (typeof traceparent === "string" && traceparent.length > 0 && !TRACEPARENT.test(traceparent)) {
+  if (isNonEmptyString(traceparent) && !TRACEPARENT.test(traceparent)) {
     findings.push(`${where}: signal.traceparent ${JSON.stringify(traceparent)} is not a valid W3C traceparent`);
   }
 
@@ -275,7 +280,7 @@ function checkEnvelope(envelope, where, { surfaces, sections, duplicates, routin
     // identity nor an absent one, so it fails closed rather than slipping
     // between the claimed and claimless branches below; whether a routine is
     // REQUIRED is decided once the source surface resolves.
-    if (routine !== undefined && (typeof routine !== "string" || routine.length === 0)) {
+    if (routine !== undefined && !isNonEmptyString(routine)) {
       findings.push(
         `${where}: signal.routine must be a nonempty routine identity when the key is present — an empty or non-string claim is neither a conforming identity nor an absent one, fail-closed`,
       );
@@ -284,7 +289,7 @@ function checkEnvelope(envelope, where, { surfaces, sections, duplicates, routin
         `${where}: signal.routine ${JSON.stringify(routine)} is not a routine identity — <class-token> or <class-token>/<posture-token>, each segment lowercase [a-z][a-z0-9-]*`,
       );
     }
-    if (typeof sourceSurface !== "string" || sourceSurface.length === 0) {
+    if (!isNonEmptyString(sourceSurface)) {
       findings.push(`${where}: signal.source_surface missing (required for temporal signals)`);
     } else if (!bindingSupplied) {
       findings.push(`${where}: temporal signal requires --binding to resolve signal.source_surface`);
@@ -382,7 +387,7 @@ function checkEnvelope(envelope, where, { surfaces, sections, duplicates, routin
           }
         }
       }
-      if (typeof producerIdentity !== "string" || producerIdentity.length === 0) {
+      if (!isNonEmptyString(producerIdentity)) {
         findings.push(
           `${where}: signal.producer_identity missing (required for routine-fired temporal signals) — the adapter must resolve it from the platform's authenticated run context, like signal.source_surface and signal.raw_link, so admission can pin which schedule within the ratified namespace produced the run`,
         );
@@ -412,21 +417,21 @@ function checkEnvelope(envelope, where, { surfaces, sections, duplicates, routin
             );
           }
           const runLinkPrefix = classificationEntry.run_link_prefix;
-          if (typeof runLinkPrefix !== "string" || runLinkPrefix.length === 0) {
+          if (!isNonEmptyString(runLinkPrefix)) {
             findings.push(
               `${where}: the security binding ratifies no run_link_prefix for routine ${JSON.stringify(routine)} — without the ratified attestation anchor the run-permalink namespace cannot be pinned, so the stamped class fails closed (repair the security binding; check-security-binding.mjs rejects the entry too)`,
             );
-          } else if (typeof rawLink === "string" && rawLink.length > 0 && !underRunLinkPrefix(rawLink, runLinkPrefix)) {
+          } else if (isNonEmptyString(rawLink) && !underRunLinkPrefix(rawLink, runLinkPrefix)) {
             findings.push(
               `${where}: signal.raw_link ${JSON.stringify(rawLink)} is outside the run-link namespace the security binding ratifies for routine ${JSON.stringify(routine)} (${JSON.stringify(runLinkPrefix)}) — the ratified run_link_prefix pins the platform-and-repository run-permalink namespace (which may be shared across schedules), and an agent-writable schedule cannot mint run permalinks outside it: a raw link outside the ratified prefix is not a platform-attested run in that namespace`,
             );
           }
           const ratifiedProducer = classificationEntry.producer_identity;
-          if (typeof ratifiedProducer !== "string" || ratifiedProducer.length === 0) {
+          if (!isNonEmptyString(ratifiedProducer)) {
             findings.push(
               `${where}: the security binding ratifies no producer_identity for routine ${JSON.stringify(routine)} — without the ratified producer the schedule within the run-permalink namespace cannot be pinned, so the stamped class fails closed (repair the security binding; check-security-binding.mjs rejects the entry too)`,
             );
-          } else if (typeof producerIdentity === "string" && producerIdentity.length > 0 && producerIdentity !== ratifiedProducer) {
+          } else if (isNonEmptyString(producerIdentity) && producerIdentity !== ratifiedProducer) {
             findings.push(
               `${where}: signal.producer_identity ${JSON.stringify(producerIdentity)} does not match the producer the security binding ratifies for routine ${JSON.stringify(routine)} (${JSON.stringify(ratifiedProducer)}) — the producer identity the platform injects into the authenticated run context pins which schedule within the shared namespace ran; a mismatch means the claimed producer is not the schedule the binding ratifies for this routine identity`,
             );
@@ -450,8 +455,7 @@ function checkEnvelope(envelope, where, { surfaces, sections, duplicates, routin
     }
   }
   if (
-    typeof rawLink === "string" &&
-    rawLink.length > 0 &&
+    isNonEmptyString(rawLink) &&
     (localScheduler ? !isDurableLocalUri(rawLink, surfaceEntry) : !isAbsoluteHttpsUrl(rawLink))
   ) {
     findings.push(

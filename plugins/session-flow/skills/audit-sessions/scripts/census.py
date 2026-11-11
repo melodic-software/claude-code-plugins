@@ -98,10 +98,11 @@ def write_atomic(path: Path, payload: dict | str) -> bool:
 
 def load_records(data_dir: Path) -> tuple[list[dict], int]:
     """Stored records, plus the count of unreadable or wrong-schema files skipped."""
-    if not store_dir(data_dir).is_dir():
+    store = store_dir(data_dir)
+    if not store.is_dir():
         raise FileNotFoundError(f"no audit-sessions store under {data_dir}; run collect first")
     records, skipped = [], 0
-    for path in sorted(store_dir(data_dir).glob("p-*/*.json")):
+    for path in sorted(store.glob("p-*/*.json")):
         try:
             record = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -198,14 +199,13 @@ def drift(records: list[dict], canaries: list[dict], *, min_count: int, versions
     if newest is not None:
         earlier = ordered[: ordered.index(newest)]
         for model, key in series:
+            newest_count = count(newest, model, key)
             if (
-                count(newest, model, key) >= min_count
+                newest_count >= min_count
                 and any(model in by_version[v] for v in earlier)
                 and not any(count(v, model, key) for v in earlier)
             ):
-                changes.append(
-                    {"class": "new", "key": key, "model": model, "count": count(newest, model, key), "first_seen_version": newest}
-                )
+                changes.append({"class": "new", "key": key, "model": model, "count": newest_count, "first_seen_version": newest})
         for model, key in series:
             # Each model gets its own window: the versions where it has min_count records.
             model_window = [v for v in window if model_records(v, model) >= min_count]

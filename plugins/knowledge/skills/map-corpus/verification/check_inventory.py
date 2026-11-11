@@ -290,7 +290,7 @@ def main(argv=None) -> int:
         )
 
     seen = {}
-    verdict_counts = {v: 0 for v in VERDICTS}
+    verdict_counts = dict.fromkeys(VERDICTS, 0)
     for index, row in enumerate(rows):
         nid = row.get("node_id") if isinstance(row, dict) else None
         if nid is not None:
@@ -346,8 +346,6 @@ def main(argv=None) -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except SystemExit:
-        raise
     except Exception as exc:  # residual bug: documented exit 3, never a bare traceback
         sys.stderr.write(
             f"check_inventory: ERROR: internal failure "

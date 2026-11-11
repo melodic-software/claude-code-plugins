@@ -45,10 +45,6 @@ from babysit_util import (
 )
 
 
-def _csv(value: str | None) -> frozenset[str]:
-    return frozenset(parse_csv_set(value))
-
-
 def build_trigger_config(args: argparse.Namespace, repo: str) -> ReviewTriggerConfig:
     """The trigger config for one repository.
 
@@ -62,7 +58,9 @@ def build_trigger_config(args: argparse.Namespace, repo: str) -> ReviewTriggerCo
     return ReviewTriggerConfig(
         trigger_phrase=effective.review_trigger_phrase or "",
         reviewer_logins=effective.review_bot_logins or frozenset(),
-        extra_bot_logins=_csv(getattr(args, "extra_bot_logins", None)),
+        extra_bot_logins=frozenset(
+            parse_csv_set(getattr(args, "extra_bot_logins", None))
+        ),
     )
 
 
@@ -110,14 +108,7 @@ def validate_current_candidate(
     if (
         current.get("isDraft")
         or behind
-        or merge_state
-        in {
-            "",
-            "BEHIND",
-            "DIRTY",
-            "DRAFT",
-            "UNKNOWN",
-        }
+        or merge_state in {"", "BEHIND", "DIRTY", "DRAFT", "UNKNOWN"}
         or mergeable == "CONFLICTING"
     ):
         if mergeable == "CONFLICTING":
@@ -170,11 +161,11 @@ def existing_trigger(
     )
     known = known_comment_ids or set()
     for comment in comments:
-        if not recognizer.fullmatch(str(comment.get("body") or "")):
-            continue
-        if str(comment.get("id")) in known:
-            continue
-        return comment
+        if (
+            recognizer.fullmatch(str(comment.get("body") or ""))
+            and str(comment.get("id")) not in known
+        ):
+            return comment
     return None
 
 
@@ -385,8 +376,6 @@ def run_locked(
         return result
 
     attempted_at = datetime.now(UTC).isoformat()
-    review_trigger = json_object(pr_state.get("review_trigger"))
-    attempt_history = json_object(review_trigger.get("request_attempt_history"))
     attempt_history[expected_head_sha] = {
         "status": "requesting",
         "attempted_at": attempted_at,
@@ -402,10 +391,7 @@ def run_locked(
             "request_attempt_history": attempt_history,
         }
     )
-    pr_state["review_trigger"] = review_trigger
-    ledger_entry["review_request_history"] = json_object(
-        review_trigger.get("request_history")
-    )
+    ledger_entry["review_request_history"] = request_history
     ledger_entry["review_attempt_history"] = attempt_history
     state["updated_at"] = attempted_at
     write_state(state_path, state)

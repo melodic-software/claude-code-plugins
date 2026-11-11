@@ -1,6 +1,6 @@
 # Verifying the personal-override ignore state
 
-How `apply` step 5 and `check` probe 2 establish that the personal override
+How "Provider binding" step 5 (which `apply` step 1 runs) and `check` probe 2 establish that the personal override
 `<home>/work-items.local.yaml` is ignored **and** untracked, `<home>` being the convention home
 SKILL.md "Resolving the paths" resolves. Both surfaces assert the same condition, so both run the
 same probes; this file is the single description of them. While a legacy
@@ -10,9 +10,9 @@ same probes; this file is the single description of them. While a legacy
 
 The personal override must be both **ignore-matched** and **absent from the index**, and those are two
 independent facts that need opposite remediations. A bare `git check-ignore` cannot separate
-them: it consults the index first and reports nothing (exit 1, no output) for a path that is
-already tracked, because gitignore rules do not apply to tracked files. So its silence means
-either "no rule covers this" or "a rule covers it but the file was committed anyway".
+them: for an already-tracked path its silence means either "no rule covers this" or "a rule covers it but the file was committed anyway"
+([git check-ignore](https://git-scm.com/docs/git-check-ignore#_description), as of 2026-11-10;
+recheck when that page changes how it reports a tracked path or what `-v` reports).
 Reading that silence as the former makes `apply` append an ignore line that changes nothing,
 then announce it as the fix while a credential-bearing file stays in team history.
 

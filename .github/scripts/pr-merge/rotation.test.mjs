@@ -16,7 +16,6 @@ import { forgetMainTip, main as headRefs } from "./head-ref-map.mjs";
 import { main as laneRecords } from "./lane-records.mjs";
 import { mainCall } from "./on-main.fixture.mjs";
 import { ghDownload, ghDownloadArtifact, main, newestTrustedArtifact, newestTrustedRun, rotate, sharedReads } from "./rotation.mjs";
-import { readAnswers } from "./verify-answers.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -425,11 +424,10 @@ test("ghDownload fetches by the id the shared artifact listing names, and lists 
     const download = ghDownload({ repo: "o/r", token: "t", dir: run, env, shared });
     assert.equal(download(41), '{"last":7}');
     assert.deepEqual(readFileSync(join(run, "gh-calls"), "utf8").split("\n").filter(Boolean), ["api -i repos/o/r/actions/artifacts/9/zip"]);
-    // An artifact missing the file (verify-answers' artifact holding only
+    // An artifact missing the file (a pr-merge-verify-answers artifact without
     // eam-skip.json) reads as gh run download's missing file does: ENOENT on
-    // open, which readAnswers takes as "no answers".
-    assert.throws(() => download(41, "other.json"), (error) => error.code === "ENOENT" && error.syscall === "open");
-    assert.equal(readAnswers({ repo: "o/r", id: 41, download: (id) => download(id, "verify-answers.json") }), undefined);
+    // open, which verify-answers.mjs takes as "no skip records".
+    assert.throws(() => download(41, "eam-skip.json"), (error) => error.code === "ENOENT" && error.syscall === "open");
   } finally {
     rmSync(run, { recursive: true, force: true });
   }

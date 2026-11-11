@@ -143,12 +143,10 @@ COMPONENT_DIR="$DATA_DIR/reports"
 REPORT_DIR="$COMPONENT_DIR/$STATE_KEY"
 
 # Rule 3: name the unattributable leftovers, read none of them.
-if [[ -d "$COMPONENT_DIR" ]]; then
-  for legacy in "$COMPONENT_DIR"/claude-observability-*.md; do
-    [[ -f "$legacy" ]] || continue
-    echo "NOTE: unkeyed leftover from an older layout, not read: $legacy" >&2
-  done
-fi
+for legacy in "$COMPONENT_DIR"/claude-observability-*.md; do
+  [[ -f "$legacy" ]] || continue
+  echo "NOTE: unkeyed leftover from an older layout, not read: $legacy" >&2
+done
 
 if [[ $DO_MKDIR -eq 1 ]]; then
   mkdir -p "$REPORT_DIR" || exit 2

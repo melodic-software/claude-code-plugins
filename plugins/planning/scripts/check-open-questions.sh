@@ -88,6 +88,8 @@
 #     Captured assumptions, Out-of-scope, Deferred questions (headings only;
 #     content is not graded), plus Intent when the Brief carries a
 #     `- Restatement:` stamp (a page export)
+#   - with --brief, the Goal carries a `- Finish line:` line whose text is
+#     non-empty and not `not settled yet`
 #   - with --surface <data_dir> (the interview page's data dir), the gate runs
 #     `surface/round.sh export-brief --ledger <ledger>` on that data dir and
 #     the Brief holds every section that export writes (Decisions among them
@@ -169,6 +171,16 @@ fence_awk='
       return 1
     }
     return 0
+  }
+'
+
+# squash(s) returns s with its whitespace runs made one space and its ends trimmed.
+squash_awk='
+  function squash(s) {
+    gsub(/[[:space:]]+/, " ", s)
+    sub(/^ /, "", s)
+    sub(/ $/, "", s)
+    return s
   }
 '
 
@@ -271,16 +283,11 @@ brief_bounds() {
 # whitespace runs made one space. A fenced line is documentation; the heading
 # bounds came from outside any fence.
 brief_fields() {
-  awk -v lo="$1" -v hi="$2" "$fence_awk"'
+  awk -v lo="$1" -v hi="$2" "$fence_awk$squash_awk"'
     NR <= lo || NR >= hi { next }
     fence_line($0) { next }
     fenced { next }
-    {
-      text = $0
-      gsub(/[[:space:]]+/, " ", text)
-      sub(/^ /, "", text)
-      sub(/ $/, "", text)
-    }
+    { text = squash($0) }
     /^#+[[:space:]]/ {
       section = tolower(text)
       sub(/^#+ /, "", section)
@@ -306,17 +313,14 @@ brief_fields() {
 # Print each unfenced heading's text between lines `lo` and `hi` (both
 # exclusive), lowercased, its #s dropped and its whitespace runs made one space.
 heading_texts() {
-  awk -v lo="$1" -v hi="$2" "$fence_awk"'
+  awk -v lo="$1" -v hi="$2" "$fence_awk$squash_awk"'
     NR <= lo || NR >= hi { next }
     fence_line($0) { next }
     fenced { next }
     /^#+[[:space:]]/ {
       text = tolower($0)
       sub(/^#+/, "", text)
-      gsub(/[[:space:]]+/, " ", text)
-      sub(/^ /, "", text)
-      sub(/ $/, "", text)
-      print text
+      print squash(text)
     }
   ' "$3"
 }
@@ -325,16 +329,11 @@ heading_texts() {
 # matches the awk regex `name` (lowercase) between lines `lo` and `hi` (both
 # exclusive), with its whitespace runs made one space, as brief_fields reads a line.
 section_lines() {
-  awk -v name="$1" -v lo="$2" -v hi="$3" "$fence_awk"'
+  awk -v name="$1" -v lo="$2" -v hi="$3" "$fence_awk$squash_awk"'
     NR <= lo || NR >= hi { next }
     fence_line($0) { next }
     fenced { next }
-    {
-      text = $0
-      gsub(/[[:space:]]+/, " ", text)
-      sub(/^ /, "", text)
-      sub(/ $/, "", text)
-    }
+    { text = squash($0) }
     /^#+[[:space:]]/ {
       section = tolower(text)
       sub(/^#+ /, "", section)
@@ -641,6 +640,17 @@ die_ungradeable() {
   exit 2
 }
 
+# Set `matches` to heading_matches "$1" over the file "$2", refusing a fence left
+# open (every heading after it is hidden) or a file that cannot be read.
+headings_or_die() {
+  matches="$(heading_matches "$1" "$2")"
+  case $? in
+  0) ;;
+  4) die_ungradeable "unterminated fenced block in: $2 (every heading after it is hidden; close the fence)" ;;
+  *) die_ungradeable "could not read the headings of: $2" ;;
+  esac
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --help | -h)
@@ -704,13 +714,8 @@ if [[ "$surface_named" -eq 1 ]]; then
   [[ -d "$surface" ]] || die_ungradeable "--surface not found: $surface"
 fi
 
-register_matches="$(heading_matches 'open-question register' "$ledger")"
-matches_status=$?
-if [[ "$matches_status" -eq 4 ]]; then
-  die_ungradeable "unterminated fenced block in: $ledger (every heading after it is hidden; close the fence)"
-elif [[ "$matches_status" -ne 0 ]]; then
-  die_ungradeable "could not read the headings of: $ledger"
-fi
+headings_or_die 'open-question register' "$ledger"
+register_matches="$matches"
 [[ -n "$register_matches" ]] || die_ungradeable "no '## Open-question register' section in: $ledger"
 
 # The gate reads exactly one section. Binding to the first match would grade a
@@ -843,9 +848,8 @@ while IFS= read -r line; do
   row="${row#"${row%%[![:space:]]*}"}"
 
   rest="${row#*|}"
-  status_field="${rest%%|*}"
-  status_field="${status_field#"${status_field%%[![:space:]]*}"}"
-  status_field="${status_field%"${status_field##*[![:space:]]}"}"
+  trim_into "${rest%%|*}"
+  status_field="$trimmed"
 
   # Field count without a subprocess per row: on a single record `awk -F'|'`
   # reports NF as the number of `|` separators plus one.
@@ -860,20 +864,19 @@ while IFS= read -r line; do
   # empty resolution look filled; a row with no question and resolution
   # fields has none.
   after_status="${rest#*|}"
-  round_field="${after_status%%|*}"
-  round_field="${round_field#"${round_field%%[![:space:]]*}"}"
-  round_field="${round_field%"${round_field##*[![:space:]]}"}"
+  trim_into "${after_status%%|*}"
+  round_field="$trimmed"
   resolution="${after_status#*|}"
   if [[ "$resolution" == *"|"* ]]; then resolution="${resolution##*|}"; else resolution=""; fi
-  resolution="${resolution#"${resolution%%[![:space:]]*}"}"
-  resolution="${resolution%"${resolution##*[![:space:]]}"}"
+  trim_into "$resolution"
+  resolution="$trimmed"
   [[ "$resolution" =~ $stale_tail_re ]] && stale_count=$((stale_count + 1))
   if [[ "$round_field" =~ ^[Rr]ound[[:space:]]+([1-9][0-9]*)$ ]]; then
     round_num="${BASH_REMATCH[1]}"
     rounds_seen="$rounds_seen$round_num "
     [[ "$round_num" -gt "$max_round" ]] && max_round="$round_num"
   else
-    proc_problems="$proc_problems$id: round field is not 'round <N>' (N >= 1): '$round_field'"$'\n'
+    proc_problem "$id: round field is not 'round <N>' (N >= 1): '$round_field'"
   fi
 
   # Statuses match case-insensitively without a subprocess per row (a `tr` fork
@@ -901,7 +904,7 @@ while IFS= read -r line; do
   esac
   case "$status_field" in
   answered | deferred | withdrawn | blocked)
-    [[ -n "$resolution" ]] || proc_problems="$proc_problems$id: $status_field row has an empty resolution"$'\n'
+    [[ -n "$resolution" ]] || proc_problem "$id: $status_field row has an empty resolution"
     ;;
   *) ;;
   esac
@@ -960,13 +963,8 @@ if [[ "$brief_named" -eq 1 && -z "$deferred_ids" ]]; then
   # existence check above still ran; the caller named a file that must exist.
   brief_state="ok"
 elif [[ "$brief_named" -eq 1 ]]; then
-  brief_matches="$(heading_matches 'deferred questions' "$brief")"
-  brief_matches_status=$?
-  if [[ "$brief_matches_status" -eq 4 ]]; then
-    die_ungradeable "unterminated fenced block in: $brief (every heading after it is hidden; close the fence)"
-  elif [[ "$brief_matches_status" -ne 0 ]]; then
-    die_ungradeable "could not read the headings of: $brief"
-  fi
+  headings_or_die 'deferred questions' "$brief"
+  brief_matches="$matches"
   # This branch is reached only with rows retired, so a Brief that carries no
   # deferred-questions section cannot satisfy the lookup.
   if [[ -z "$brief_matches" ]]; then
@@ -1053,12 +1051,12 @@ if [[ "$procedure_on" -eq 1 ]]; then
   round_limit="$max_round"
   if [[ "$max_round" -gt "$registered" ]]; then
     round_limit="$registered"
-    proc_problems="${proc_problems}highest round $max_round exceeds the $registered registered question(s); rounds must run contiguously from 1"$'\n'
+    proc_problem "highest round $max_round exceeds the $registered registered question(s); rounds must run contiguously from 1"
   fi
   for ((round_num = 1; round_num <= round_limit; round_num++)); do
     case "$rounds_seen" in
     *" $round_num "*) ;;
-    *) proc_problems="${proc_problems}round $round_num has no register row (rounds must run contiguously from 1; highest is $max_round)"$'\n' ;;
+    *) proc_problem "round $round_num has no register row (rounds must run contiguously from 1; highest is $max_round)" ;;
     esac
   done
 
@@ -1071,16 +1069,20 @@ if [[ "$procedure_on" -eq 1 ]]; then
     # A page export writes Intent above Goal; a hand-written Brief need not.
     [[ -z "$restatement_stamp" ]] || section_patterns+=('intent')
     for section_pattern in "${section_patterns[@]}"; do
-      section_matches="$(heading_matches "^#+[[:space:]]+${section_pattern}[[:space:]]*\$" "$brief")"
-      section_status=$?
-      if [[ "$section_status" -eq 4 ]]; then
-        die_ungradeable "unterminated fenced block in: $brief (every heading after it is hidden; close the fence)"
-      elif [[ "$section_status" -ne 0 ]]; then
-        die_ungradeable "could not read the headings of: $brief"
-      fi
-      section_matches="$(printf '%s\n' "$section_matches" | awk -F'\t' -v lo="$brief_lo" -v hi="$brief_hi" '$1 > lo && $1 < hi')"
-      [[ -n "$section_matches" ]] || proc_problems="${proc_problems}Brief is missing the section matching '$section_pattern'"$'\n'
+      headings_or_die "^#+[[:space:]]+${section_pattern}[[:space:]]*\$" "$brief"
+      section_matches="$(printf '%s\n' "$matches" | awk -F'\t' -v lo="$brief_lo" -v hi="$brief_hi" '$1 > lo && $1 < hi')"
+      [[ -n "$section_matches" ]] || proc_problem "Brief is missing the section matching '$section_pattern'"
     done
+
+    # The Goal's Finish line says when the whole effort is done and who checks it.
+    finish_line="$(section_lines 'goal' "$brief_lo" "$brief_hi" "$brief" | tr '[:upper:]' '[:lower:]' | sed -e 's/\*\*//g' -e 's/__//g' | sed -n 's/^[-*+] finish line:[[:space:]]*//p' | head -n 1)"
+    finish_check="$(printf '%s' "$finish_line" | tr -d '`' | tr '[:upper:]' '[:lower:]')"
+    case "$finish_check" in
+    '' | 'not settled yet' | 'not settled yet.')
+      proc_problem "Brief's Goal has no settled '- Finish line:' line (<merged | released | in use> — checked by <who> via <observable check>)"
+      ;;
+    *) ;;
+    esac
 
     # The page's own export is what the Brief must still carry: the sections a
     # confirmed restatement filled and the user's words in Intent exist only on
@@ -1097,7 +1099,7 @@ if [[ "$procedure_on" -eq 1 ]]; then
       brief_headings=$'\n'"$(heading_texts "$brief_lo" "$brief_hi" "$brief")"$'\n'
       while IFS= read -r want; do
         [[ -z "$want" || "$brief_headings" == *$'\n'"$want"$'\n'* ]] ||
-          proc_problems="${proc_problems}Brief is missing the section '$want' that the page export writes"$'\n'
+          proc_problem "Brief is missing the section '$want' that the page export writes"
       done <<<"$(heading_texts 1 "$export_hi" "$expected_brief")"
       # Every line the export writes in a section other than Decisions (counted below).
       while IFS= read -r want; do

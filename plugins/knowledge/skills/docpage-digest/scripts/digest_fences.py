@@ -26,18 +26,7 @@ CLAIM_LABEL = re.compile(r"^\*\*C(\d+)\.\*\*")
 # Group 2 is the heading text.
 ATX_H2 = headings.atx_heading(level=2, max_indent=0, title_required=True, trail=headings.TRAIL_WHITESPACE)
 FENCE = headings.fence(chars="`", indent=headings.INDENT_SPACES_TABS)
-NONE_MARKERS = frozenset(
-    {
-        "none",
-        "n/a",
-        "(none)",
-        "no prompt snippets",
-        "no snippets",
-        "none.",
-    }
-)
-
-
+NONE_MARKERS = frozenset({"none", "n/a", "(none)", "no prompt snippets", "no snippets", "none."})
 ECHO_LIMIT = 50
 
 
@@ -125,8 +114,6 @@ def run_gate(prog: str, main: Callable[[], int]) -> NoReturn:
     use_utf8_streams()
     try:
         sys.exit(main())
-    except SystemExit:
-        raise
     except Exception as exc:
         sys.stderr.write(
             f"{prog}: ERROR: internal failure {type(exc).__name__}: {exc}. "
@@ -150,9 +137,7 @@ def read_text(path: str, prog: str, what: str) -> str:
 
 
 def split_lines(text: str) -> List[str]:
-    if text.endswith("\n"):
-        return text[:-1].split("\n")
-    return text.split("\n")
+    return (text[:-1] if text.endswith("\n") else text).split("\n")
 
 
 def iter_h2_sections(text: str) -> Iterator[Tuple[str, str, int]]:

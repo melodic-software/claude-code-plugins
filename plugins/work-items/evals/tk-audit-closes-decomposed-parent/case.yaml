@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: tk-audit-closes-decomposed-parent
+graders:
+  - name: 'closes-300'
+    type: 'regex'
+    pattern: '\bclos(?:e|es|ing)\b[^\n#]{0,40}#300\b|#300\b[^\n#]{0,120}\bclosed?\b[^\n#]{0,40}\bcompleted\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'names-400-checker'
+    type: 'regex'
+    pattern: '#400\b[\s\S]{0,600}\bsupport lead\b|\bsupport lead\b[\s\S]{0,600}#400\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-close-400'
+    type: 'regex'
+    pattern: '(?<!not )(?<!n''t )(?<!never )(?<!lead )(?<!who )(?<!checker )(?<!will )(?<!can )(?<!may )(?<!would )(?<!should )(?<!to )\bclos(?:e|es|ing)\s+(?:the\s+)?(?:parent\s+)?#400\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what /work-items:track audit does with the stated state. PASS only if it satisfies every point: (1) Finds parents #300 and #400 through their children''s Parent Refs lines and treats both as decomposed parents with no spec container; (2) Reads each parent''s Finish line before acting; (3) Runs the dependents-on-close step for #300, then closes it as completed with a comment listing its children or their PRs; (4) Leaves #400 open, because an in use Finish line is not something the tracker shows; (5) Posts one comment on #400 that quotes or names the in use Finish line and names the support lead as the checker; (6) Reports both parents with their results. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted, or if #400 is closed.'

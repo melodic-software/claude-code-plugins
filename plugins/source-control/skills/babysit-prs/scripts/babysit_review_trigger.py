@@ -106,6 +106,19 @@ def is_review_bot_item(item: dict[str, Any], config: ReviewTriggerConfig) -> boo
     )
 
 
+def _rest_login(user: Any) -> str:
+    return str(user.get("login") or "") if is_json_object(user) else ""
+
+
+def _signal_id(signal: dict[str, Any]) -> str:
+    return str(signal.get("id") or "")
+
+
+def _unique_sorted_by_id(items: list[dict[str, str]]) -> list[dict[str, str]]:
+    unique = {item["id"]: item for item in items}
+    return sorted(unique.values(), key=lambda item: item["id"])
+
+
 def issue_comment_database_id(comment: dict[str, Any]) -> str:
     for key in ("databaseId", "fullDatabaseId", "id"):
         value = comment.get(key)
@@ -126,20 +139,19 @@ def fetch_review_reactions(
     signals: list[dict[str, str]] = []
     for reaction in reactions:
         user = reaction.get("user")
-        login = str(user.get("login") or "") if is_json_object(user) else ""
         content = str(reaction.get("content") or "")
         if not is_review_bot_item({"author": user}, config):
             continue
         if content not in REACTION_CONTENTS:
             continue
-        reaction_id = str(reaction.get("id") or "")
+        reaction_id = _signal_id(reaction)
         if not reaction_id:
             raise RuntimeError(f"Reviewer reaction from {endpoint} has no stable id")
         signals.append(
             {
                 "id": f"{scope}:{reaction_id}",
                 "reaction_id": reaction_id,
-                "author": login,
+                "author": _rest_login(user),
                 "content": content,
                 "created_at": str(reaction.get("created_at") or ""),
                 "scope": scope,
@@ -181,8 +193,7 @@ def fetch_reaction_signals(
                     config=config,
                 )
             )
-    unique = {signal["id"]: signal for signal in signals}
-    return sorted(unique.values(), key=lambda signal: signal["id"])
+    return _unique_sorted_by_id(signals)
 
 
 def fetch_review_evidence(
@@ -204,7 +215,6 @@ def fetch_review_evidence(
     )
     evidence: list[dict[str, str]] = []
     for review in review_records:
-        login = author_login(review)
         state = str(review.get("state") or "").upper()
         commit_oid = review_commit_oid(review)
         if (
@@ -216,7 +226,7 @@ def fetch_review_evidence(
                 {
                     "id": f"review:{review.get('id')}",
                     "kind": "review",
-                    "author": login,
+                    "author": author_login(review),
                     "state": state,
                     "commit_oid": commit_oid,
                     "submitted_at": str(review.get("submittedAt") or ""),
@@ -225,22 +235,20 @@ def fetch_review_evidence(
             )
     for comment in comment_records:
         user = comment.get("user")
-        login = str(user.get("login") or "") if is_json_object(user) else ""
         commit_oid = str(comment.get("commit_id") or "")
         if is_review_bot_item({"author": user}, config) and commit_oid:
             evidence.append(
                 {
                     "id": f"review_comment:{comment.get('id')}",
                     "kind": "review_comment",
-                    "author": login,
+                    "author": _rest_login(user),
                     "state": "COMMENTED",
                     "commit_oid": commit_oid,
                     "submitted_at": str(comment.get("created_at") or ""),
                     "url": str(comment.get("html_url") or ""),
                 }
             )
-    unique = {item["id"]: item for item in evidence}
-    return sorted(unique.values(), key=lambda item: item["id"])
+    return _unique_sorted_by_id(evidence)
 
 
 def has_current_head_review(
@@ -364,35 +372,30 @@ def resolve_associated_reactions(
     current head's window forever.
     """
     same_head = prior.get("reaction_head_sha") == head_sha
-    reaction_ids = {str(signal.get("id") or "") for signal in reactions}
-    prior_reaction_ids: set[str] = (
-        {str(value) for value in json_array(prior.get("reaction_signal_ids"))}
-        if same_head
-        else set()
-    )
-    associated_reaction_ids: set[str] = (
-        {str(value) for value in json_array(prior.get("current_head_reaction_ids"))}
-        if same_head
-        else set()
-    )
+    reaction_ids = {_signal_id(signal) for signal in reactions}
+    associated_reaction_ids: set[str] = set()
+    if same_head:
+        prior_reaction_ids = {
+            str(value) for value in json_array(prior.get("reaction_signal_ids"))
+        }
+        associated_reaction_ids.update(
+            str(value) for value in json_array(prior.get("current_head_reaction_ids"))
+        )
+        associated_reaction_ids.update(reaction_ids - prior_reaction_ids)
     known_trigger_comment_ids: set[str] = set()
     for history_key in ("request_history", "request_attempt_history"):
         entry = json_object(prior.get(history_key)).get(head_sha)
         if is_json_object(entry) and entry.get("comment_id") is not None:
             known_trigger_comment_ids.add(str(entry["comment_id"]))
     associated_reaction_ids.update(
-        str(signal.get("id") or "")
+        _signal_id(signal)
         for signal in reactions
         if signal.get("scope") == "trigger_comment"
         and str(signal.get("comment_id") or "") in known_trigger_comment_ids
     )
-    if same_head:
-        associated_reaction_ids.update(reaction_ids - prior_reaction_ids)
     associated_reaction_ids.intersection_update(reaction_ids)
     return [
-        signal
-        for signal in reactions
-        if str(signal.get("id") or "") in associated_reaction_ids
+        signal for signal in reactions if _signal_id(signal) in associated_reaction_ids
     ]
 
 
@@ -425,27 +428,19 @@ def classify_review_request(
     evidence = list(review_evidence or [])
     reactions = list(reaction_signals or [])
     current_head_review = has_current_head_review(
-        pr,
-        head_sha,
-        evidence if review_evidence is not None else None,
-        config=config,
+        pr, head_sha, None if review_evidence is None else evidence, config=config
     )
     request_history = json_object(prior.get("request_history"))
     attempt_history = json_object(prior.get("request_attempt_history"))
     refresh_history = json_object(previous.get("branch_refresh_history"))
     requested_before = head_sha in request_history
     attempted_before = head_sha in attempt_history
-    reaction_ids = {str(signal.get("id") or "") for signal in reactions}
+    reaction_ids = {_signal_id(signal) for signal in reactions}
     associated_reactions = resolve_associated_reactions(reactions, head_sha, prior)
-    associated_reaction_ids = {
-        str(signal.get("id") or "") for signal in associated_reactions
-    }
+    associated_reaction_ids = {_signal_id(signal) for signal in associated_reactions}
     latest_associated_reaction = max(
         associated_reactions,
-        key=lambda signal: (
-            str(signal.get("created_at") or ""),
-            str(signal.get("id") or ""),
-        ),
+        key=lambda signal: (str(signal.get("created_at") or ""), _signal_id(signal)),
         default=None,
     )
     associated_reaction_content = str(

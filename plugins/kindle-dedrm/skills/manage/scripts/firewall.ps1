@@ -46,7 +46,7 @@ function Get-Rule {
 
 function Show-State {
     # Status lines go to the host (console), not the success stream, so a caller
-    # capturing the return value ($exists = Show-State) receives only the bool.
+    # testing the return value (if (Show-State)) receives only the bool.
     $rule = Get-Rule
     if (-not $rule) {
         Write-Host '[firewall] absent'
@@ -58,8 +58,8 @@ function Show-State {
 
 switch ($Action) {
     'check' {
-        $exists = Show-State
-        if ($exists) { exit 0 } else { exit 1 }
+        if (Show-State) { exit 0 }
+        exit 1
     }
     'enable' {
         if (-not (Test-IsElevated)) {

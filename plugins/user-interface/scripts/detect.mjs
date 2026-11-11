@@ -81,6 +81,8 @@ const readJson = (file) => {
 const isMapping = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const isDir = (p) => existsSync(p) && statSync(p).isDirectory();
 const isFile = (p) => existsSync(p) && statSync(p).isFile();
+/** The routing.schema.json schema of one routing row. */
+const rowSchema = () => JSON.parse(readFileSync(join(ROOT, "reference/routing.schema.json"), "utf8")).properties.rows.items;
 const filesIn = (dir, re) => (isDir(join(opts.project, dir)) ? readdirSync(join(opts.project, dir)).filter((f) => re.test(f)).map((f) => (dir ? `${dir}/${f}` : f)) : []);
 
 /** The browserslist query the project declares, production environment first, and where. */
@@ -159,7 +161,8 @@ function styleFiles(deps) {
 }
 
 function projectSignals() {
-  const pkg = readJson(join(opts.project, "package.json")) ?? {};
+  const json = readJson(join(opts.project, "package.json"));
+  const pkg = isMapping(json) ? json : {};
   const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies, ...pkg.peerDependencies });
   const match = (d) => PACKAGES.some((p) => (p.endsWith("/") ? d.startsWith(p) : d === p));
   return {
@@ -169,8 +172,8 @@ function projectSignals() {
     storybook: isDir(join(opts.project, ".storybook")),
     docs: DOC_DIRS.flatMap((d) => filesIn(d, DOC_FILE)),
     mcp_servers: Object.keys(readJson(join(opts.project, ".mcp.json"))?.mcpServers ?? {}).sort(),
-    browserslist: browserslist(isMapping(pkg) ? pkg : {}),
-    lint: lint(isMapping(pkg) ? pkg : {}, deps),
+    browserslist: browserslist(pkg),
+    lint: lint(pkg, deps),
     style_files: styleFiles(deps),
   };
 }
@@ -193,7 +196,7 @@ function conventionHome() {
 function escapesProject(path) {
   try {
     const rel = relative(realpathSync(opts.project), realpathSync(path));
-    return rel === ".." || rel.startsWith("../") || rel.startsWith(`..${sep}`) || isAbsolute(rel);
+    return rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel);
   } catch {
     return false;
   }
@@ -260,7 +263,7 @@ const relabel = (v, names) => {
  * version drops routing. A row matching a bundled concern plus id may re-rank it, so it needs only
  * concern and id; a new or complete row needs the full row schema. Returns how many problems it
  * named, since team.errors also holds the layer's other problems. */
-function checkRouting(out) {
+function checkRouting(out, bundledRows) {
   const routing = out.values.routing;
   if (!isMapping(routing)) return 0;
   const team = out.layers.find((l) => l.name === "team");
@@ -275,10 +278,10 @@ function checkRouting(out) {
     if (isMapping(v)) for (const k of Object.keys(v)) if (!Object.hasOwn(props, k)) fail([`${at}: unknown key ${k}, dropped`]) && delete v[k];
     return v;
   };
-  const full = JSON.parse(readFileSync(join(ROOT, "reference/routing.schema.json"), "utf8")).properties.rows.items;
+  const full = rowSchema();
   const partial = { type: "object", required: ["concern", "id"], additionalProperties: false, properties: full.properties };
   const disable = { type: "object", required: ["concern", "id"], additionalProperties: false, properties: { concern: full.properties.concern, id: { type: "string", minLength: 1 } } };
-  const bundled = new Set(JSON.parse(readFileSync(ROUTING, "utf8")).rows.map((r) => `${r.concern}\0${r.id}`));
+  const bundled = new Set(bundledRows.map((r) => `${r.concern}\0${r.id}`));
   const needsFull = (row) => full.required.every((k) => Object.hasOwn(row, k)) || !bundled.has(`${row.concern}\0${row.id}`);
 
   strip({ version: 1, rows: 1, disable: 1, deny: 1 }, routing, "routing");
@@ -306,7 +309,7 @@ function checkRouting(out) {
   return problems;
 }
 
-function config() {
+function config(bundled) {
   const { home, error, skipped } = conventionHome();
   const user = readUserConfig(opts["user-config"]);
   const seam = opts.team || home === null ? scratchHome(home) : null;
@@ -335,7 +338,7 @@ function config() {
         Object.assign(local, { path: join(seam.refused, `${PLUGIN}.local.yaml`), state: "invalid", errors: [`local (${seam.refused}): ${why}`], error_keys: [null] });
       }
     }
-    const routingProblems = checkRouting(out);
+    const routingProblems = checkRouting(out, bundled);
     return { resolved: { ...out, home, ...(error && { home_error: error }), ...(skipped && { home_skipped: skipped }) }, routingProblems };
   } finally {
     if (seam) rmSync(seam.dir, { recursive: true, force: true });
@@ -404,7 +407,7 @@ function applyRouting(bundled, cfg, routingProblems, presence) {
   if (!isMapping(routing)) return { rows: bundled, skipped: [], notes };
 
   const source = team?.path ?? "the team file";
-  const full = JSON.parse(readFileSync(join(ROOT, "reference/routing.schema.json"), "utf8")).properties.rows.items;
+  const full = rowSchema();
   const key = (r) => `${r.concern}\0${r.id}`;
   const byKey = new Map(bundled.map((r) => [key(r), r]));
   const refuse = (row, errors) => notes.push(`${source}: row ${row.concern} ${row.id} not applied: ${errors.join("; ")}`);
@@ -441,7 +444,7 @@ function applyRouting(bundled, cfg, routingProblems, presence) {
 
 const project = projectSignals();
 const { rows: bundled } = JSON.parse(readFileSync(ROUTING, "utf8"));
-const { resolved, routingProblems } = opts.config ? config() : {};
+const { resolved, routingProblems } = opts.config ? config(bundled) : {};
 /** A reader that runs once: installed() is asked twice when a team file adds rows. */
 const once = (read) => {
   let text;

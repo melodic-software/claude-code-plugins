@@ -27,8 +27,8 @@ probe `plugin-eval/unlisted-tools-offered`, has which calls ran).
 settings or permission mode to plugin eval, that section changing which tools a run allows, or
 record 21's recheck trigger.
 
-The runner is a script bundled here rather than a plugin `bin/` executable, because some surfaces
-refuse a plugin with a top-level `bin/`. **Pointer**: when deciding whether this plugin can ship a
+The runner is a script bundled here rather than a plugin `bin/` executable: this plugin ships no
+top-level `bin/`. **Pointer**: when deciding whether this plugin can ship a
 `bin/`, fetch <https://code.claude.com/docs/en/plugins/components#executables> live. **As of**:
 2026-10-08. **Recheck trigger**: that section stops naming surfaces that refuse a `bin/`.
 

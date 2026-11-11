@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "src/client/retry.py defines with_retry: it calls the function up to 3 times, and on a ConnectionError waits 0.5 seconds, then 1 second, doubling each time; the last failure is re-raised. Other exceptions are not retried. api.py wraps fetch_status in it.",
+      "why": "explains the code, no scoping questions"
+    },
+    {
+      "answer": "with_retry retries a call up to 3 times on ConnectionError with a doubling delay starting at 0.5s, then re-raises. Want me to add jitter or retry other errors?",
+      "why": "answers, then a closing offer"
+    },
+    {
+      "answer": "with_retry in src/client/retry.py calls the function up to 3 times, waiting 0.5s then 1s between tries, and only catches ConnectionError. Likely bug: requests raises requests.exceptions.ConnectionError, which is not the built-in ConnectionError, so fetch_status never retries. Catch (requests.ConnectionError, requests.Timeout) instead.",
+      "why": "explains the code and adds a bug it found; no scoping questions"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Before I dig in: what are you trying to achieve with the retry code? Are you seeing failures, or planning a change?",
+      "why": "asks scoping questions instead of answering"
+    },
+    {
+      "answer": "Let's run an interview to pin down the goal. Q1: What problem are you solving with retries?",
+      "why": "starts an interview on an exploratory question"
+    }
+  ]
+}

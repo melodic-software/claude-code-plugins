@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: cl-everyday-word-rejected
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: names-why-not-admitted
+    type: regex
+    pattern: '\b(?:everyday|ordinary|plain|common|general)[- ](?:english |language )?(?:word|sense|meaning|usage|term)s?\b|\bremoves? no ambiguity\b|\bno (?:project[- ]specific|domain[- ]specific|special|distinct) meaning\b|\bnot ambiguous\b|\bnothing to disambiguate\b'
+    flags: 'i'
+    target: last_message
+  - name: glossary-untouched
+    type: regex
+    pattern: '^[-*#|\s]*Week\**\s*(?::|\||$)'
+    flags: 'im'
+    match: not_contains
+    target: { source: file, path: docs/glossary.md }
+  - name: no-md-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-md-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?\.md"'
+    min: 0
+    max: 0
+    arm: 'both'

@@ -46,7 +46,6 @@ checks_init pre-commit "$@" || exit 0
 # biome_config_dir <repo-relative path>: sets CONFIG_DIR to the topmost directory
 # that holds a Biome config on the way up to the repository root ("." for the
 # root itself); returns 1 when none does.
-CONFIG_DIR=""
 biome_config_dir() {
   local dir="${1%/*}"
   [[ "$dir" == "$1" ]] && dir=.
@@ -153,14 +152,13 @@ for i in "${!files[@]}"; do
 done
 
 load_group() { # <config dir> <kind>
-  local i f
+  local i
   GROUP_DIR="$1"
   GROUP_KIND="$2"
   GROUP=()
+  # Git never spells a path with a leading "./", so the root group keeps its paths whole.
   for i in "${!files[@]}"; do
-    [[ "${dirs[i]}" == "$GROUP_DIR" && "${kinds[i]}" == "$GROUP_KIND" ]] || continue
-    f="${files[i]}"
-    if [[ "$GROUP_DIR" == . ]]; then GROUP+=("$f"); else GROUP+=("${f#"$GROUP_DIR"/}"); fi
+    [[ "${dirs[i]}" == "$GROUP_DIR" && "${kinds[i]}" == "$GROUP_KIND" ]] && GROUP+=("${files[i]#"$GROUP_DIR"/}")
   done
   GROUP_BIN=biome
   if local_biome "$GROUP_DIR"; then
@@ -243,9 +241,9 @@ has_diagnostic() {
 }
 
 : >"$CHECKS_TMP/contract"
+out="$CHECKS_TMP/report"
 for i in "${!group_dirs[@]}"; do
   load_group "${group_dirs[i]}" "${group_kinds[i]}"
-  out="$CHECKS_TMP/report"
   run_biome "$out" --error-on-warnings --reporter=concise
   rc=$?
   if ((rc != 0)) && ! has_diagnostic "$out"; then

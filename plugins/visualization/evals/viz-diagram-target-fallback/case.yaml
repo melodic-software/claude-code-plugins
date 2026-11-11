@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: viz-diagram-target-fallback
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: override-read
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: 'visualization\.local\.yaml'
+    min: 1
+    arm: 'with-only'
+  - name: fallback-notice
+    type: 'regex'
+    pattern: 'diagram_target: excalidraw unavailable \([^\n]+\); using auto'
+    target: 'last_message'
+  - name: local-diagram
+    type: 'regex'
+    pattern: '^(?:(?:(?!```)[\s\S])*?```[^\n]*\n(?:(?!```)[\s\S])*?```)*?(?:(?!```)[\s\S])*?```[^\n]*\n(?=(?:(?!```)[\s\S])*?\btoken)(?=(?:(?!```)[\s\S])*?\brevok)'
+    flags: 'i'
+    target: 'last_message'
+    arm: 'both'

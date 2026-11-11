@@ -68,58 +68,20 @@ generated_on=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --help | -h)
-    usage
-    exit 0
-    ;;
-  --repo)
-    [[ $# -ge 2 ]] || die "--repo needs a path" 2
-    repo="$2"
-    shift 2
-    ;;
-  --repo=*)
-    repo="${1#--repo=}"
-    shift
-    ;;
+  --help | -h) usage; exit 0 ;;
+  --repo) [[ $# -ge 2 ]] || die "--repo needs a path" 2; repo="$2"; shift 2 ;;
+  --repo=*) repo="${1#--repo=}"; shift ;;
   --entry)
     [[ $# -ge 2 ]] || die "--entry needs an entry: a route, a verb and a route, Type.Method, or a method name" 2
-    entry="$2"
-    shift 2
-    ;;
-  --entry=*)
-    entry="${1#--entry=}"
-    shift
-    ;;
-  --depth)
-    [[ $# -ge 2 ]] || die "--depth needs a positive integer" 2
-    depth="$2"
-    shift 2
-    ;;
-  --depth=*)
-    depth="${1#--depth=}"
-    shift
-    ;;
-  --out)
-    [[ $# -ge 2 ]] || die "--out needs a path" 2
-    out_file="$2"
-    shift 2
-    ;;
-  --out=*)
-    out_file="${1#--out=}"
-    shift
-    ;;
-  --generated-on)
-    [[ $# -ge 2 ]] || die "--generated-on needs a date" 2
-    generated_on="$2"
-    shift 2
-    ;;
-  --generated-on=*)
-    generated_on="${1#--generated-on=}"
-    shift
-    ;;
-  *)
-    die "unknown argument: $1" 2
-    ;;
+    entry="$2"; shift 2 ;;
+  --entry=*) entry="${1#--entry=}"; shift ;;
+  --depth) [[ $# -ge 2 ]] || die "--depth needs a positive integer" 2; depth="$2"; shift 2 ;;
+  --depth=*) depth="${1#--depth=}"; shift ;;
+  --out) [[ $# -ge 2 ]] || die "--out needs a path" 2; out_file="$2"; shift 2 ;;
+  --out=*) out_file="${1#--out=}"; shift ;;
+  --generated-on) [[ $# -ge 2 ]] || die "--generated-on needs a date" 2; generated_on="$2"; shift 2 ;;
+  --generated-on=*) generated_on="${1#--generated-on=}"; shift ;;
+  *) die "unknown argument: $1" 2 ;;
   esac
 done
 
@@ -133,13 +95,8 @@ if ! git -C "$repo" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   die "refused: not a git repository, so there is no tracked C# source to cite: $repo" 3
 fi
 
-subject=""
 origin_url="$(git -C "$repo" remote get-url origin 2>/dev/null || true)"
-if subject="$(github_repo_name "$origin_url")"; then
-  :
-else
-  subject="$(basename "$repo")"
-fi
+subject="$(github_repo_name "$origin_url")" || subject="$(basename "$repo")"
 
 if [[ -z "$generated_on" ]]; then
   generated_on="$(git -C "$repo" log -1 --format=%cs 2>/dev/null || true)"
@@ -149,7 +106,6 @@ fi
 list="$(mktemp)"
 status="$(mktemp)"
 trap 'rm -f "$list" "$status"' EXIT
-: >"$status"
 
 while IFS= read -r -d '' rel; do
   case "$rel" in
@@ -158,9 +114,7 @@ while IFS= read -r -d '' rel; do
   esac
 done < <(git -C "$repo" ls-files -z --cached) >"$list"
 
-if [[ ! -s "$list" ]]; then
-  die "refused: no tracked C# source. This adapter reads C# call sites only." 3
-fi
+[[ -s "$list" ]] || die "refused: no tracked C# source. This adapter reads C# call sites only." 3
 
 record="$(
   FLOW_ROOT="$repo" FLOW_ENTRY="$entry" FLOW_DEPTH="$depth" \
@@ -168,11 +122,7 @@ record="$(
     awk -f "$TRACE_AWK" "$list"
 )" || true
 
-if [[ -s "$status" ]]; then
-  reason="$(cat "$status")"
-  die "$reason" 3
-fi
-
+[[ ! -s "$status" ]] || die "$(<"$status")" 3
 [[ -n "$record" ]] || die "refused: the tracer produced no record" 3
 
 if [[ -n "$out_file" ]]; then

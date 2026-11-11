@@ -20,7 +20,7 @@ usage() {
   exit 2
 }
 
-[[ $# -eq 3 || ($# -eq 4 && "${4:-}" == "--submit") ]] || usage
+[[ $# -eq 3 || ($# -eq 4 && "$4" == "--submit") ]] || usage
 
 session="$1"
 target="$2"
@@ -38,10 +38,9 @@ if [[ -z "$secret" ]]; then
   exit 2
 fi
 
-playwright-cli -s="$session" fill "$target" "$secret" "$@" >/dev/null 2>&1
-status=$?
-if [[ $status -ne 0 ]]; then
+playwright-cli -s="$session" fill "$target" "$secret" "$@" >/dev/null 2>&1 || {
+  status=$?
   printf 'fill-secret: playwright-cli fill %s failed (exit %d); its output was discarded because it echoes the value. Take a snapshot to see the page state.\n' "$target" "$status" >&2
   exit "$status"
-fi
+}
 printf 'fill-secret: filled %s from %s\n' "$target" "$var_name"

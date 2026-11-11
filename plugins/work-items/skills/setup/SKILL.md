@@ -174,7 +174,7 @@ probes first: it owns the probe order, every PASS/FAIL/INFO row, and the remedia
 prints. `apply` below consumes those probe results and never re-derives them. The `jq` and
 tracker-binding entry gates that check.md's probe 1 tests are defined in
 [`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
-"entry-point presence checks"; read it for what each gate enforces and its remediation.
+"Provider-neutral over the seam" (its three entry invariants); read it for what each gate enforces and its remediation.
 
 ## `apply` (idempotent)
 
@@ -244,8 +244,8 @@ unambiguous; ask only where an item genuinely needs the user.
    [reference/capability-tier-axis-migration.md](reference/capability-tier-axis-migration.md), which
    provisions the canonical `capability-tier: frontier` member defined in
    [`${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md).
-   When the canonical member is still missing after this pass, stop. Triage cannot stamp frontier-tier
-   quota guard and the work-loop reader fails closed to general tier.
+   When the canonical member is still missing after this pass, stop: triage cannot stamp the
+   frontier-tier label, so the frontier-tier quota guard never applies and the work-loop reader fails closed to the general tier.
 5. **Backfill legacy frontier-tier body stamps.** Run the procedure in
    [reference/capability-tier-backfill.md](reference/capability-tier-backfill.md). This pass is
    load-bearing on upgrade: items already triaged with only a body prose frontier-tier stamp
@@ -397,9 +397,9 @@ binding shape live in the plugin's
    - Verify the target label exists via the adapter's label listing; route creation through the
      repo's label-as-code owner under the same policy the schedule step applies, never create ad hoc.
    - For `human-gated`, warn before writing: the seam's `list-frontier --autonomous` exclusion
-     keys on this label, and the shipped seam reads `needs-human`. Remap it only when the bound
-     seam resolves the same `config.role_labels` key, or the frontier filter and the skill will
-     disagree about what autonomous agents may pick up.
+     keys on this label. The shipped seam resolves it from `config.role_labels`; a consumer-local
+     adapter must resolve the same key, or the frontier filter and the skill will disagree about
+     what autonomous agents may pick up.
 4. **Write the binding**: re-read `<home>/work-items.yaml` from disk immediately before writing
    and merge only the `tracker.config.role_labels` key, the binding carries seam-required keys
    (`provider`, `config.lease_ttl_hours`, …) that must survive untouched. Omit entries that keep

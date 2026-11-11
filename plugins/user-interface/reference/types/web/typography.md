@@ -221,16 +221,22 @@ content. Recipe: `logical-properties`.
 
 ## 6. Floors
 
-**Respect the minimums.** Body copy sits at `16px`, the web's default for a reason. Where `16px`
-stands against the browser's default size is in the pointer under "Size floors" in
-`typography/details-and-floors.md`. Dense UI text
+**Respect the minimums.** This is the home of the body-text floor: body copy sits at an effective
+`16px`, the USWDS minimum for body text and the browser's default size. Dense UI text
 may drop to `typography.small_text_px.control` (controls, menus),
 `typography.small_text_px.caption` for captions, and almost never below
 `typography.small_text_px.min`. Also assume readers will zoom, bump the root font size, or override
 line spacing: nothing should shatter when they do. Input text on phones is the `touch` concern; the
 contrast text needs is the `color` concern.
 
-**Audit: Important.** Body text under `16px`, text under `typography.small_text_px.min`, or a
+- **Pointer**: when the body-text floor is in question, fetch USWDS Typography, "Font size",
+  <https://designsystem.digital.gov/components/typography/#font-size>; for the browser's default
+  size, MDN `font-size` under ems, <https://developer.mozilla.org/en-US/docs/Web/CSS/font-size#ems>
+- **As of**: 2026-11-09
+- **Recheck trigger**: USWDS changes its body-text minimum, or MDN changes the default size it
+  states.
+
+**Audit: Important.** Body text under the body-text floor, text under `typography.small_text_px.min`, or a
 layout that breaks when the text is zoomed or the root font size is raised.
 
 **Set long-form reading larger.** Articles, documentation and other text read for minutes at a time
@@ -273,5 +279,5 @@ second one under "Units for text" in `typography/scale-and-rhythm.md`.
 | ALL-CAPS strings scattered through JSX | Casing baked into copy | Sentence case + `text-transform: uppercase` |
 | Ellipsis with no way to see the rest | Truncation without an escape hatch | Tooltip, title attribute, or expand control |
 | Layout mirrored wrong in Arabic/Hebrew | Physical margin/padding/text-align | Logical properties, `text-align: start` |
-| Tapping a field on iPhone zooms the page | Input text under `16px` | The `touch` concern's input size |
+| Tapping a field on iPhone zooms the page | Input text under the input floor | The `touch` concern's input size |
 | Faint gray text failing audits | Contrast under the bar | Darken until it passes the `color` concern's bar |

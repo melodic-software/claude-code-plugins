@@ -31,7 +31,7 @@ const POSTED = { name: "fix-docs / report", conclusion: "success", steps: [{ nam
 // nothing and exits 1. With `draw` set, shuf answers min(draw, the range's top)
 // and records the range, and sleep only records its argument; delays null leaves
 // the default.
-function run(answers, delays = "0 0 0", { calls = "fix-docs", draw, runnerTemp, env = {}, facts = ["posted"] } = {}) {
+function run(answers, delays = "0 0 0", { calls = "fix-docs", draw, runnerTemp, env = {}, facts = ["posted"], marker = false } = {}) {
   const dir = tempDir("handoff-evidence-");
   try {
     const bin = join(dir, "bin");
@@ -71,12 +71,13 @@ function run(answers, delays = "0 0 0", { calls = "fix-docs", draw, runnerTemp, 
         GITHUB_OUTPUT: output,
         CALLS: calls,
         ...(delays === null ? { HANDOFF_EVIDENCE_DELAYS: undefined } : { HANDOFF_EVIDENCE_DELAYS: delays }),
+        ...(marker ? { LANE_HOLD_MARKER: join(dir, "lane-hold", "pr-refine") } : {}),
         ...env,
       },
     });
     const read = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), "utf8") : "");
     const lines = (name) => read(name).split("\n").filter(Boolean);
-    return { status: result.status, stdout: result.stdout, stderr: result.stderr, output: read("output"), args: lines("args"), ranges: lines("ranges"), sleeps: lines("sleeps").map(Number) };
+    return { status: result.status, stdout: result.stdout, stderr: result.stderr, output: read("output"), args: lines("args"), ranges: lines("ranges"), sleeps: lines("sleeps").map(Number), marker: read("lane-hold/pr-refine") };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -186,6 +187,18 @@ test("pr-refine's fix-docs calls hold green with a notice after three failed rea
     assert.doesNotMatch(out.stdout, /::error::/);
     assert.equal(out.output, "");
   }
+});
+
+test("a hold job's held read writes its lane-hold marker; a read that settles or fails closed writes none", () => {
+  const held = run([BROKEN, BROKEN, BROKEN], "0 0 0", { marker: true });
+  assert.equal(held.status, 0);
+  assert.equal(held.marker, "pr-refine 7\n", "the marker names the lane and the run");
+  const settled = run([[answer("200 OK", {}, listing(POSTED)), 0]], "0", { marker: true });
+  assert.equal(settled.output, "posted=true\n");
+  assert.equal(settled.marker, "", "a settled read holds nothing");
+  const closed = run([BROKEN, BROKEN], "0", { calls: "fix-ci", marker: true });
+  assert.equal(closed.status, 1);
+  assert.equal(closed.marker, "", "a red read is no hold");
 });
 
 test("a listing that stays unsettled is no failed read: fix-docs reads on through every wait, and the opt-in ends it as the lag notice", () => {

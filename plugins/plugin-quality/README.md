@@ -8,12 +8,12 @@ their repo mid-session.
 
 - **Audit skill** (`skills/audit`), the six-step hub:
   1. Evidence capture on the main thread, into a durable, compaction-proof packet.
-  2. Map and ground in the fresh `auditor` subagent, with every load-bearing harness-behavior claim
-     verified against current official docs, and a ledger of errors, improvements, quality of life
+  2. Map and ground in the fresh `auditor` subagent, with every claim about harness behavior that a
+     finding depends on verified against current official docs, and a ledger of errors, improvements, quality of life
      and standards alignment per component.
   3. Persist-check on the returned findings, then a blindspot pass and candidates.
   4. Interactive contract lock: scope, severity, and assumptions, written into the packet.
-  5. Presence-gated review seams with stated fallbacks, including a research gate: a claim or
+  5. Optional review integrations, used only when present and each with a stated fallback, including a research gate: a claim or
      remediation without a checked research line is emitted as `needs-decision`, never `agent-ready`.
   6. Emit to the resolved sink behind an unconditional draft+confirm gate.
   Two further modes, both operator-invoked only: `/plugin-quality:audit session` discovers the
@@ -36,16 +36,16 @@ their repo mid-session.
   retired dedicated-file layers are declared in `retirements.yaml` and detected by the shared
   `check-retirements.sh` helper, with a WARN-visible dual-read while the old tracked file
   persists.
-- **Setup skill** (`skills/setup`). `check` (gh + ACTING account, context-guard seam → dispatch
-  mode, convention-home binding + effective config with provenance, retired-convention
-  leftovers) / `apply` (converges the pointer-line region and the topic doc, plus gated
+- **Setup skill** (`skills/setup`). `check` (reports `gh` and the ACTING account, whether
+  context-guard is present and the dispatch mode that follows from it, the convention-home binding
+  and effective config with provenance, and retired-convention leftovers) / `apply` (converges the pointer-line region and the topic doc, plus gated
   retirement cleanup).
 
 ## Context-gate (context-guard integration)
 
 The audit consumes the `context-guard` plugin's per-session snapshots as a **soft dependency**:
 a fresh snapshot routes packet handling, review dispatch, and evidence-flush timing by zone
-(smart / acceptable / dumb); an absent or stale snapshot degrades to the conservative row with a
+(light / moderate / heavy); an absent or stale snapshot degrades to the conservative row with a
 visible notice. Deep analysis always runs in a fresh subagent either way. No context-guard
 install is required. With one, a long-session audit adapts its handling as the context fills.
 
@@ -67,7 +67,7 @@ install is required. With one, a long-session audit adapts its handling as the c
 ```
 
 Zero config works: conservative dispatch, sink resolved by inference or interview at emit time.
-Run `/plugin-quality:setup check` to see the seams; `setup apply` to bind the convention home
+Run `/plugin-quality:setup check` to see which optional integrations are present; `setup apply` to bind the convention home
 and pin a sink in the topic doc there.
 
 ## Requirements

@@ -26,7 +26,7 @@ where artifacts land in the consuming repo.
 The pipeline composes end-to-end. `wayfind` charts the fog upstream when an effort
 is too big to hold at once, then `brainstorm → interview → design →
 design-handoff → plan`, the interview calling `prd` when product intent is unsettled, with `devils-advocate` attacking the plan before
-approval, while `/domain-driven-design:curate-language` is invoked whenever
+approval, while `/domain-driven-design:ubiquitous-language curate` is invoked whenever
 those workflows resolve vocabulary, when the `domain-driven-design` plugin is
 enabled; without it, resolved terms are recorded in the design artifacts
 themselves. Every skill also works standalone.

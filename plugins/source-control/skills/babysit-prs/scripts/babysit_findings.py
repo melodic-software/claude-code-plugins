@@ -2,20 +2,17 @@
 """Finding-decomposition counting entrypoint for babysit-readiness-gate.sh.
 
 The readiness gate is a pure predicate that blocks a readiness declaration while
-source findings outnumber their per-finding classification rows. Counting "what
-is a finding" used to be a bash grep re-implementation of the severity
-vocabulary the Python classifier already owns; #534 makes the gate shell out
-here so the vocabulary lives once, in `babysit_classify`. The gate retains an
-equivalent bash count solely for the Python-free safe-tier degrade (see
+source findings outnumber their per-finding classification rows. The gate shells
+out here so the severity vocabulary lives once, in `babysit_classify`. The gate
+keeps an equivalent bash count only for the Python-free safe-tier degrade (see
 `reference/loop.md`); a convergence test pins the two on thread-state-free input.
 
-Counting only currently-open findings is the fix for #465: a severity marker
-carried in a review thread GitHub reports resolved or outdated is a lifetime
-artifact of an already-addressed round, not a live finding, and must not inflate
-the denominator. That discount is mechanical (resolved/outdated thread state);
-de-duplicating the same concern restated across re-review rounds is deliberately
-out of scope (no reliable mechanical "same concern" signal), so restatements
-within still-open threads still count.
+Only currently-open findings count: a severity marker in a review thread GitHub
+reports resolved or outdated belongs to an already-addressed round and must not
+inflate the denominator. That discount is mechanical (resolved/outdated thread
+state); the same concern restated across re-review rounds is not de-duplicated
+(no reliable mechanical "same concern" signal), so restatements within
+still-open threads still count.
 
 Input is either a comments JSON file (`--comments-json`, the gate's fixture /
 network-free path; the bash-emitted `fetch-all-pr-comments.sh` schema, optionally
@@ -66,12 +63,13 @@ def _author_login(author: Any) -> str:
 def _comment(
     author: Any, body: Any, thread: dict[str, Any] | None = None
 ) -> dict[str, Any]:
+    state = thread or {}
     return {
         "author": _author_login(author),
         "body": str(body or ""),
         "in_review_thread": thread is not None,
-        "isResolved": bool(thread.get("isResolved")) if thread else False,
-        "isOutdated": bool(thread.get("isOutdated")) if thread else False,
+        "isResolved": bool(state.get("isResolved")),
+        "isOutdated": bool(state.get("isOutdated")),
     }
 
 
@@ -97,31 +95,26 @@ def fetch_live_comments(repo: str, number: int) -> list[dict[str, Any]]:
     Issue-level comments and review summaries are not review threads, so they
     carry no resolution state and always count; they are stamped as the PR-level
     surface (`in_review_thread` false) so a classification posted there is
-    credited only against PR-level findings, never a fresh open-thread one
-    (#642). Inline review-thread comments are stamped `in_review_thread` and
-    inherit their thread's `isResolved` / `isOutdated`, so an already-addressed
-    thread's severity markers are discounted. Resolved threads are included
-    (`include_resolved=True`) precisely so they can be discounted rather than
-    silently dropped.
+    credited only against PR-level findings, never a fresh open-thread one.
+    Inline review-thread comments are stamped `in_review_thread` and inherit
+    their thread's `isResolved` / `isOutdated`, so an already-addressed thread's
+    severity markers are discounted rather than silently dropped.
 
-    `fetch_review_threads` caps each thread's comment connection and flags an
-    oversized thread `comments_truncated` rather than raising, so one giant
-    thread cannot fail the whole snapshot for consumers that do not need every
-    comment. This counter DOES need every comment: a severity marker or
-    classification row past the cap that were dropped would under-count and let
-    the gate declare READINESS_OK while a later open finding sits unclassified.
-    So we honor that contract and fail closed on any truncated thread by
-    raising -- `main` maps this to exit 2, which emits no count line and leaves
-    the gate on its complete REST/bash degrade count (`reference/loop.md`).
+    `fetch_review_threads` flags a thread past its per-thread comment cap
+    `comments_truncated` rather than raising. This counter needs every comment:
+    a dropped severity marker or classification row would let the gate declare
+    READINESS_OK while a later open finding sits unclassified. So a truncated
+    thread raises; `main` maps that to exit 2, which emits no count line and
+    leaves the gate on its complete REST/bash degrade count (`reference/loop.md`).
     """
-    comments: list[dict[str, Any]] = [
+    comments = [
         _comment(row.get("author"), row.get("body"))
-        for row in fetch_issue_comments(repo, number)
+        for rows in (
+            fetch_issue_comments(repo, number),
+            fetch_pull_request_reviews(repo, number),
+        )
+        for row in rows
     ]
-    comments.extend(
-        _comment(row.get("author"), row.get("body"))
-        for row in fetch_pull_request_reviews(repo, number)
-    )
     for thread in fetch_review_threads(repo, number, include_resolved=True):
         if not is_json_object(thread):
             continue
@@ -150,13 +143,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     configure_stdio()
     args = parse_args(sys.argv[1:] if argv is None else argv)
-    self_logins = normalize_self_logins((args.self_csv or "").split(","))
+    self_logins = normalize_self_logins(args.self_csv.split(","))
     try:
         if args.comments_json:
             comments = load_comments_json(args.comments_json)
         else:
             comments = fetch_live_comments(resolve_repo(args.repo), args.pr)
-    except (OSError, ValueError, json.JSONDecodeError, RuntimeError) as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         print(f"babysit_findings: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 2
     findings = count_findings(comments, self_logins)

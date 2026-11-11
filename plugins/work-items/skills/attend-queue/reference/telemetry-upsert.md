@@ -63,8 +63,10 @@ API call and rejects a body that is empty, opens with a literal `@`, is not sent
 carries under 16 payload bytes below the sentinel. The write's own exit status is checked next: a
 PATCH that fails leaves the previous pass's body in place, which a read-back running regardless
 would happily accept. The post-write read-back then re-reads what the write stored, the only check
-that sees a write which reported success and stored something else. Create and update use
-`-F body=@`, because `-f body=@FILE` transmits the literal path.
+that sees a write which reported success and stored something else. Create and update pass the
+body file as `-F body=@<file>`, never `-f`; how each flag treats a leading `@` is read live at
+[gh api § Options](https://cli.github.com/manual/gh_api#options) (as of 2026-11-10; recheck when
+that section changes how `-f` or `-F` reads a value).
 
 ## Exit codes
 
@@ -86,10 +88,11 @@ to end the pass: the lane records the outcome and continues.
 | 11 | The comment lookup failed or returned unparsable JSON | Nothing was written (fail closed). Treat the lane as UNREPORTED. |
 | 12 | No comment available to write to; a create may have landed but was not re-found | Treat the lane as UNREPORTED. |
 | 13 | The PATCH of the canonical comment failed | Treat the lane as UNREPORTED; the comment holds an earlier body, not this pass's write. |
-| 14 | The canonical comment does not carry a well-formed telemetry body after the write | Treat the lane as UNREPORTED; do not trust the timestamp. |
+| 14 | The canonical comment does not hold this pass's body after the write (another body, an earlier pass's included, or none readable) | Treat the lane as UNREPORTED; do not trust the timestamp. |
 | 15 | The write identity is unresolved or `--app-slug` is not a slug (nothing written), or a create landed under another login (a wrong `--app-slug`) | Treat the lane as UNREPORTED; under an App token, pass or fix `--app-slug`. |
 | 16 | No safe body dir (none given, not this plugin's data dir, or `/`, the home dir or an ancestor of it), or the body file is a symlink or resolves outside it | NOTHING was read or written. Compose the body under `--body-dir`. |
 | 17 | The body matches the leak scan, a credential shape or a home path or private hostname (the message names the rule, never the match), or the scan could not run | NOTHING was written. Remove the credential-shaped text and rotate a real credential. |
+| 18 | The resolved lane instance looks like a fleet or private hostname, which the public marker would publish, or that scan could not run | NOTHING was written. Re-run once this pass with an empty `--instance`, so the script uses the stored random id; tell the operator to unset a hostname-shaped `lane_instance` key. |
 
 An unreadable comment list is fail-closed rather than read as empty, because treating it as empty
 posts a second comment, the exact failure the singleton exists to prevent.
@@ -102,8 +105,7 @@ pass's own summary.
 
 ## Known limits
 
-A PATCH that succeeds while storing the previous body still verifies: the read-back asserts that
-*some* well-formed telemetry is present, not that *this* pass's write is what is present. Not implemented at all: the 64 KiB cap and read retries that the `harness-ops` lanes wrapper carries.
+Not implemented at all: the 64 KiB cap and read retries that the `harness-ops` lanes wrapper carries.
 
 Report the instance on its own `instance:` line in the pass report, never appended to `lane:`, the
 telemetry reader's lane capture is `[a-z0-9_-]+` and would truncate the suffix. This lane carries no

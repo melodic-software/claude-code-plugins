@@ -111,17 +111,8 @@ have jq || {
 
 # --- Repo resolution ---------------------------------------------------------
 
-if [[ -n "${FETCH_COMMENTS_OWNER:-}" ]]; then
-  OWNER="$FETCH_COMMENTS_OWNER"
-else
-  OWNER=$(gh repo view --json owner -q .owner.login 2>/dev/null | tr -d '\r\n')
-fi
-
-if [[ -n "${FETCH_COMMENTS_REPO:-}" ]]; then
-  REPO="$FETCH_COMMENTS_REPO"
-else
-  REPO=$(gh repo view --json name -q .name 2>/dev/null | tr -d '\r\n')
-fi
+OWNER=${FETCH_COMMENTS_OWNER:-$(gh repo view --json owner -q .owner.login 2>/dev/null | tr -d '\r\n')}
+REPO=${FETCH_COMMENTS_REPO:-$(gh repo view --json name -q .name 2>/dev/null | tr -d '\r\n')}
 
 if [[ -z "$OWNER" || -z "$REPO" ]]; then
   printf 'fetch-all-pr-comments: cannot resolve owner/repo - gh repo view found no repository for the current directory (%s). Run from a checkout of the target repo, or set FETCH_COMMENTS_OWNER + FETCH_COMMENTS_REPO.\n' "$PWD" >&2
@@ -130,51 +121,51 @@ fi
 
 # --- Surface fetch -----------------------------------------------------------
 
-# fetch_surface <endpoint> <jq-projection> — page one API surface and project it
-# into the shared schema, leaving the JSONL in SURFACE_JSON. Every surface has
-# the same two failure modes (the fetch, then the parse) and the same fail-loud
-# response to each, so they live here once rather than per surface.
+# fetch_surface <endpoint> <jq-projection>: page one API surface, project each
+# of its comments into the shared schema, and append the JSONL to ALL_JSON.
+# Every surface has the same two failure modes (the fetch, then the parse) and
+# the same fail-loud response to each, so they live here once rather than per
+# surface.
 #
-# The result comes back through a GLOBAL rather than stdout: both guards must
+# The result accumulates in a GLOBAL rather than stdout: both guards must
 # terminate the SCRIPT, and an `exit 2` inside a `$( )` capture kills only the
 # subshell — the caller would sail on with an empty surface, which is exactly
-# the shape of a PR with no comments there.
-SURFACE_JSON=""
+# the shape of a PR with no comments there. A legitimately empty surface
+# appends nothing.
+ALL_JSON=""
 fetch_surface() {
-  local endpoint="$1" projection="$2" raw
-  SURFACE_JSON=""
+  local endpoint="$1" projection="$2" raw json
   raw=$(gh api --paginate "repos/$OWNER/$REPO/$endpoint?per_page=100" 2>/dev/null) || {
     printf 'fetch-all-pr-comments: gh api %s failed\n' "$endpoint" >&2
     exit 2
   }
-  SURFACE_JSON=$(printf '%s' "$raw" | jq -c "$projection" 2>/dev/null) || {
+  json=$(printf '%s' "$raw" |
+    jq -c 'if type == "array" then .[] else . end | '"$projection" 2>/dev/null) || {
     printf 'fetch-all-pr-comments: jq failed parsing %s response\n' "$endpoint" >&2
     exit 2
   }
+  [[ -z "$json" ]] || ALL_JSON+="$json"$'\n'
 }
 
 # --- Surface 1: General PR comments (issue-level) ----------------------------
 
 fetch_surface "issues/$PR_NUMBER/comments" '
-  if type == "array" then .[] else . end
-  | {
-      id: .id,
-      type: "general",
-      author: .user.login,
-      body: .body,
-      path: null,
-      line: null,
-      created_at: .created_at,
-      in_reply_to_id: null
-    }
+  {
+    id: .id,
+    type: "general",
+    author: .user.login,
+    body: .body,
+    path: null,
+    line: null,
+    created_at: .created_at,
+    in_reply_to_id: null
+  }
 '
-GENERAL="$SURFACE_JSON"
 
 # --- Surface 2: Review-level comments ----------------------------------------
 
 fetch_surface "pulls/$PR_NUMBER/reviews" '
-  if type == "array" then .[] else . end
-  | select(.body != null and .body != "")
+  select(.body != null and .body != "")
   | {
       id: .id,
       type: "review",
@@ -186,37 +177,26 @@ fetch_surface "pulls/$PR_NUMBER/reviews" '
       in_reply_to_id: null
     }
 '
-REVIEWS="$SURFACE_JSON"
 
 # --- Surface 3: Inline review comments (line-anchored) -----------------------
 
 fetch_surface "pulls/$PR_NUMBER/comments" '
-  if type == "array" then .[] else . end
-  | {
-      id: .id,
-      type: "inline",
-      author: .user.login,
-      body: .body,
-      path: .path,
-      line: (.line // .original_line),
-      created_at: .created_at,
-      in_reply_to_id: .in_reply_to_id
-    }
+  {
+    id: .id,
+    type: "inline",
+    author: .user.login,
+    body: .body,
+    path: .path,
+    line: (.line // .original_line),
+    created_at: .created_at,
+    in_reply_to_id: .in_reply_to_id
+  }
 '
-INLINE="$SURFACE_JSON"
 
 # --- Merge and sort by created_at --------------------------------------------
-# Empty surfaces are a legitimate PR (no comments on that surface). `[[ -n ]] &&
-# printf` returns 1 when empty, and with `set -o pipefail` that fails the merge
-# pipeline even when jq succeeded. `if` returns 0 when no condition tested true
-# (bash(1) Compound Commands), so an empty source is not a pipeline failure.
-# jq merge failure is: map it to exit 2 rather than jq's native parse-error 5,
+# A jq merge failure maps to exit 2 rather than jq's native parse-error 5,
 # which this script already documents as "prerequisite missing (gh, jq)".
-{
-  if [[ -n "$GENERAL" ]]; then printf '%s\n' "$GENERAL"; fi
-  if [[ -n "$REVIEWS" ]]; then printf '%s\n' "$REVIEWS"; fi
-  if [[ -n "$INLINE" ]]; then printf '%s\n' "$INLINE"; fi
-} | jq -s 'sort_by(.created_at)' || {
+printf '%s' "$ALL_JSON" | jq -s 'sort_by(.created_at)' || {
   printf 'fetch-all-pr-comments: jq merge failed\n' >&2
   exit 2
 }

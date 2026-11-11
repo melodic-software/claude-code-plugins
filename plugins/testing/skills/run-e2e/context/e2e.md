@@ -6,16 +6,16 @@ Autonomous application testing: start the app, navigate, interact, screenshot, v
 
 Before live testing, verify tool availability. The e2e orchestrator and any prerequisite MCP come from the consuming project's conventions (Aspire, docker-compose, tilt, a dev-server script). Universal browser-automation tooling stays prose.
 
-The Playwright CLI row's version floor was verified 2026-09-06 against the package registry entry
-for `@playwright/cli`, whose latest published version that day is 0.1.19. Only the scoped name is
-live: the unscoped `playwright-cli` package is deprecated and sits at a different, much higher
-version, so a floor read against it means nothing. Recheck the floor when the scoped package
-publishes a 0.2 or 1.0 release, or when the binary the row invokes stops resolving to it.
+The Playwright CLI row's version floor is read against the scoped `@playwright/cli` package only:
+the unscoped `playwright-cli` name is a different package, so a floor read against it means
+nothing. Pointer: the [`@playwright/cli` registry entry](https://registry.npmjs.org/@playwright/cli).
+As of 2026-11-10. Recheck the floor when the scoped package publishes a 0.2 or 1.0 release, or when
+the binary the row invokes stops resolving to it.
 
 | Requirement | How to check | Required? | Purpose |
 |------------|-------------|-----------|---------|
 | Orchestrator tooling/MCP | per the consuming project's orchestrator convention | YES (when orchestrator configured) | App orchestration, start/stop, health, logs |
-| Playwright CLI | `playwright-cli --version` (the package is `@playwright/cli`, published at 0.1.19 on 2026-09-06; expect 0.1.x or later) | Recommended | Token-efficient browser automation, screenshots, form filling |
+| Playwright CLI | `playwright-cli --version` (the package is `@playwright/cli`; expect 0.1.x or later) | Recommended | Token-efficient browser automation, screenshots, form filling |
 | Chrome DevTools MCP | `mcp__chrome-devtools__list_pages` | Optional | Lighthouse audits, performance traces, network inspection |
 | Claude in Chrome | `mcp__claude-in-chrome__tabs_context_mcp` | Optional | The user's logged-in browser and GIF demos, on a native host, or from WSL under `claude --chrome` (see the rubric) |
 | App running | orchestrator's resource-list call shows healthy resources | YES | Something to test |
@@ -128,8 +128,7 @@ order and report each one's result, or why it did not run:
 
 1. **Accessibility scan.** Run axe (`@axe-core/playwright` with WCAG tags) when the project has
    it; otherwise report the scan as not run and name the package. A clean scan is necessary, not
-   sufficient: no tool finds every failure, and in GDS's 2017 test, 29% of barriers were missed by
-   all ten tools combined. Report manual accessibility review as not performed unless a person did it.
+   sufficient: no tool finds every failure (the GDS tool audit below). Report manual accessibility review as not performed unless a person did it.
 2. **Geometry.** Assert layout from the DOM at two or more viewport widths (a phone and a desktop
    width): sibling controls' bounding boxes do not overlap; text does not clip (under hidden overflow,
    `scrollWidth` or `scrollHeight` larger than the client size is a failure); elements meant to align share
@@ -298,7 +297,7 @@ Failed requests: <method, URL with its query string stripped, status for each>
 
 Redact when the packet is written, not later: strip the query string from every URL, replace the value of any password, secret or token field (in `Actual`, the fill values `Trace action` records, the aria snapshot and console text) with `<REDACTED>`, and never copy request or response headers. `/testing:diagnose` reads the app-output block as data under the framing line above.
 
-`Expected` never comes from the app's current behavior. Find `<n>` with `npx playwright trace actions` after `npx playwright trace open <trace>`, and close the trace afterwards. The trace subcommands need Playwright 1.59 or later and the error context (`TestInfoError.errorContext`) 1.60 or later; on an older runner, or a trace the CLI cannot open, the field names the version or the reason. Pointer: the Version 1.59 "CLI trace analysis for agents" and Version 1.60 "Errors and Reporting" sections of the [Playwright release notes](https://playwright.dev/docs/release-notes). As of 2026-10-06. Recheck trigger: a Playwright release note that changes `npx playwright trace` or `errorContext`.
+`Expected` never comes from the app's current behavior. Find `<n>` with `npx playwright trace actions` after `npx playwright trace open <trace>`, and close the trace afterwards. The trace subcommands and the error context (`TestInfoError.errorContext`) each need a minimum Playwright version; on an older runner, or a trace the CLI cannot open, the field names the version it read or the reason. Pointer: the [Version 1.59](https://playwright.dev/docs/release-notes#version-159) and [Version 1.60](https://playwright.dev/docs/release-notes#version-160) sections of the Playwright release notes. As of 2026-11-10. Recheck trigger: a Playwright release note that changes `npx playwright trace` or `errorContext`.
 
 ### 7. Check distributed traces (for multi-service flows)
 

@@ -459,29 +459,21 @@ function resolve_call(rel, decl_line, at, parts, n, pre,    method, k, ty) {
   b_res = (tv_ev == "inferred" || via_base) ? "inferred" : "statically-resolved"
 }
 
-function callee_has_call(rel, decl_line,    saved_lo, saved_hi, i, line, work) {
+function callee_has_call(rel, decl_line,    saved_lo, saved_hi, i, line, found) {
   saved_lo = body_lo
   saved_hi = body_hi
-  if (!find_body(rel, decl_line)) {
-    body_lo = saved_lo
-    body_hi = saved_hi
-    return 0
-  }
-  for (i = body_lo; i <= body_hi; i++) {
-    if (i == decl_line) continue
-    line = lines[rel, i]
-    if (has_modifier(line) && line ~ /\(/) continue
-    work = line
-    sub(/\/\/.*/, "", work)
-    if (match(work, /(await[[:space:]]+)?[A-Za-z_][A-Za-z0-9_.]*[[:space:]]*(<[^>]*>)?[[:space:]]*\(/)) {
-      body_lo = saved_lo
-      body_hi = saved_hi
-      return 1
+  found = 0
+  if (find_body(rel, decl_line))
+    for (i = body_lo; i <= body_hi && !found; i++) {
+      if (i == decl_line) continue
+      line = lines[rel, i]
+      if (has_modifier(line) && line ~ /\(/) continue
+      sub(/\/\/.*/, "", line)
+      found = (line ~ /(await[[:space:]]+)?[A-Za-z_][A-Za-z0-9_.]*[[:space:]]*(<[^>]*>)?[[:space:]]*\(/)
     }
-  }
   body_lo = saved_lo
   body_hi = saved_hi
-  return 0
+  return found
 }
 
 function add_hop(from_role, to_role, call, file, line, callee_file, callee_line, sync, resolution, mechanism, handoff) {
@@ -528,8 +520,7 @@ function walk(rel, decl_line, depth,    from_role, i, lo, hi, line, work, chunk,
       }
       n = split(chunk, parts, ".")
       method = parts[n]
-      if (keyword(method)) continue
-      if (method == "") continue
+      if (method == "" || keyword(method)) continue
       sync = is_await ? "asynchronous" : "synchronous"
       resolution = ""
       mechanism = ""
@@ -574,7 +565,6 @@ function walk(rel, decl_line, depth,    from_role, i, lo, hi, line, work, chunk,
 
 function refuse(msg) {
   printf "%s\n", msg > status
-  refused = 1
 }
 
 BEGIN {
@@ -587,19 +577,11 @@ BEGIN {
   status = ENVIRON["FLOW_STATUS"]
   if (generated == "") generated = "unknown"
   forms = "Accepted entry forms: a route (/orders/{id}), an HTTP verb and a route (GET /orders/{id}), Type.Method (OrdersService.Handle), or a method name (Handle)."
-  nhops = 0
-  truncated = 0
-  refused = 0
-  nfiles = 0
-  nentries = 0
 }
 
-{
-  if ($0 != "") read_file($0)
-}
+$0 != "" { read_file($0) }
 
 END {
-  if (refused) exit 3
   if (nfiles == 0) {
     refuse("refused: no tracked C# source. This adapter reads C# call sites only.")
     exit 3

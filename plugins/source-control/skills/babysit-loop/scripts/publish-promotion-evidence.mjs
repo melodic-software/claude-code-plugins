@@ -452,7 +452,7 @@ function checkRunNumbers(gh, repo, workflow, loMs, hiMs) {
     if (newest - oldest + 1 < total) throw new PublishError(`refusing to publish: ${workflow} lists ${total} runs created ${isoSeconds(lo)}..${isoSeconds(hi)} numbered only ${oldest}..${newest}`);
     return { oldest, newest };
   };
-  span(Math.ceil(loMs / 1000) * 1000, Math.floor(hiMs / 1000) * 1000);
+  span(ceilSecond(loMs), Math.floor(hiMs / 1000) * 1000);
 }
 
 // Issues, pulls and discussions share one number sequence, so a number missing between two created
@@ -711,7 +711,7 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     }
   }
 
-  const judgeWorkflows = postMergeRuns(gh, repo, branch, tracked.filter((c) => c.autonomous), { lane, throughMs });
+  const judgeWorkflows = postMergeRuns(gh, repo, branch, tracked, { lane, throughMs });
 
   // check()'s read-back for a merge a lane identity enqueued.
   const readBack = (r) => {
@@ -729,15 +729,18 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   // A run that did not finish green or red (cancelled, action_required, stale) fails the gate
   // unless a later run of the same check succeeded, so cancelling a red run cannot erase it.
   // Then the post-merge workflow runs on later SHAs containing the merge (postMergeRuns).
-  for (const r of tracked.filter((c) => c.autonomous)) {
+  for (const r of tracked) {
     const wf = judgeWorkflows(r);
     const pin = r.byIdentity && !r.native ? readBack(r) : {};
     if (pin.failure) wf.failures.push(pin.failure);
     if (pin.pending) wf.unsettled = true;
-    for (const failure of wf.failures) {
-      for (const cell of cellsOf(r)) addEvent(cell, "gate-failure", failure.at);
-      gateFailures.push({ number: r.number, ...failure });
-    }
+    const addFailures = (found) => {
+      for (const failure of found) {
+        for (const cell of cellsOf(r)) addEvent(cell, "gate-failure", failure.at);
+        gateFailures.push({ number: r.number, ...failure });
+      }
+    };
+    addFailures(wf.failures);
     const runs = pages(gh, `repos/${repo}/commits/${r.sha}/check-runs?filter=all`, "check_runs").filter((run) => gate.has(run.name));
     const statuses = pages(gh, `repos/${repo}/commits/${r.sha}/statuses`).filter((status) => gate.has(status.context));
     const outcome = (run) => {
@@ -749,14 +752,11 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
       );
       return rerunGreen ? "ok" : "failed";
     };
-    const failedRuns = runs.filter((run) => outcome(run) === "failed");
-    const failedStatuses = statuses.filter((status) => STATUS_FAILED.has(status.state));
-    for (const cell of cellsOf(r)) {
-      for (const run of failedRuns) addEvent(cell, "gate-failure", run.completed_at ?? r.mergedAt);
-      for (const status of failedStatuses) addEvent(cell, "gate-failure", status.created_at);
-    }
-    for (const run of failedRuns) gateFailures.push({ number: r.number, check: run.name, conclusion: run.conclusion, at: run.completed_at ?? r.mergedAt });
-    for (const status of failedStatuses) gateFailures.push({ number: r.number, check: status.context, conclusion: status.state, at: status.created_at });
+    const failures = [
+      ...runs.filter((run) => outcome(run) === "failed").map((run) => ({ check: run.name, conclusion: run.conclusion, at: run.completed_at ?? r.mergedAt })),
+      ...statuses.filter((status) => STATUS_FAILED.has(status.state)).map((status) => ({ check: status.context, conclusion: status.state, at: status.created_at })),
+    ];
+    addFailures(failures);
     const latest = new Map();
     for (const status of [...statuses].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))) {
       if (!latest.has(status.context)) latest.set(status.context, status.state);
@@ -767,7 +767,7 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
       !wf.unsettled &&
       runs.every((run) => outcome(run) === "ok") &&
       [...latest.values()].every((state) => state === "success");
-    r.gate = failedRuns.length + failedStatuses.length + wf.failures.length > 0 ? "failed" : settled ? "passed" : "unsettled";
+    r.gate = failures.length + wf.failures.length > 0 ? "failed" : settled ? "passed" : "unsettled";
   }
 
   // Human-confirmed missed-blocking AI-review findings, from the label timeline.
@@ -911,7 +911,7 @@ function reEarned(counted, contrary, reviewsMeasured) {
     const against = [cell, ...(PROMOTION_DEPENDENCIES[cell] ?? [])];
     const times = contrary.filter((e) => against.includes(e.cell)).map(knownAt);
     if (times.length === 0) continue;
-    const sinceMs = Math.ceil(Math.max(...times) / 1000) * 1000;
+    const sinceMs = ceilSecond(Math.max(...times));
     const after = counted.filter((r) => Date.parse(r.mergedAt) > sinceMs).sort((a, b) => Date.parse(a.mergedAt) - Date.parse(b.mergedAt) || a.number - b.number);
     const later = contrary.filter((e) => Date.parse(e.at) > sinceMs);
     for (let k = 1; k <= after.length; k += 1) {

@@ -3,6 +3,157 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.21.1] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [2.21.0] - 2026-11-11
+
+### Changed
+
+- `/planning:interview`: the closing summary lists the glossary group first. A new or renamed term becomes the first step after the interview: the glossary change, and for a rename `/docs-hygiene:rename-references`, land as their own reviewed change before `/planning:plan` and `/work-items:decompose`, so the spec and tickets name only the settled terms.
+
+## [2.20.0] - 2026-11-10
+
+### Changed
+
+- `/planning:plan` Files affected never names a new file, type or symbol with a verb an entity's glossary `Actions:` line rejects for that operation.
+
+## [2.19.0] - 2026-11-10
+
+### Added
+
+- `/planning:interview`: a scenario walk. When the user calls something unclear, or a question rests on a term the glossary does not define or uses two ways, the interview offers numbered concrete scenarios (`S1`, `S2`, ...) inside one question, each ending with its own recommendation and the term or rule it forces, answered per scenario ("S3: a"). Once an assumption sweep has logged `S<N>` items, scenario ids are qualified by their question (`Q17.S1`), and the bare-code gate fails a bare `S<N>:` scenario that is also a sweep id. Resolutions go on that question's register row and agreed terms to the glossary; during a walk it offers an opt-in diagram through `/visualization:visualize` when available.
+- `/planning:interview`: a closing summary before the confirmation recap groups the decisions changed since read-back, glossary terms added, renamed or removed, out-of-scope items with where each goes, and one ADR verdict line per decision naming the part of `/architecture:record-decision`'s admission test it passes or fails. Replying "Q12: record it" overrules a verdict and hands that decision to `/architecture:record-decision`.
+
+## [2.18.8] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [2.18.7] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [2.18.6] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Skill bodies that restated Claude Code behavior (how injected commands, Bash output, forks,
+  plan mode, the skill re-attach budget and plugin reconfiguration work) now state our rule and
+  point at the live docs section with an as-of date and a recheck trigger. Fixed wording that
+  called a wayfind map a "decision map", moved a misplaced gotchas pointer out of the interview
+  skill's does-NOT list, and made the plan skill's "stress-test, always" line name the exceptions
+  its own steps already allow. No behavior change.
+
+## [2.18.5] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [2.18.4] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [2.18.3] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [2.18.2] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [2.18.1] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [2.18.0] - 2026-11-10
+
+### Changed
+
+- `/planning:interview` hands decisions to `/architecture:record-decision` through a numbered round step, "Decision record" (step 8 of each frontier round, under `domain_docs`): each resolved decision about the system that weighed a real alternative is passed with its rationale and alternatives. The interview no longer carries its own copy of the ADR admission test; `record-decision` owns it. Without the `architecture` plugin the decision is recorded as an ADR candidate in its register row instead of a hand-written ADR.
+- `/planning:plan close-out` hands ADR decisions to `/architecture:record-decision` and drops its copy of the admission test; without that plugin it lists ADR candidates in the PR body.
+
+- `/planning:design-handoff` no longer carries its own copy of the ADR admission test. Its "ADR candidates" entry lists each resolved decision whose thread records a rejected alternative, quoting that alternative, and offers `/architecture:record-decision` for each; that skill applies the test. Without the `architecture` plugin the decisions are listed for a human to judge.
+
+## [2.17.0] - 2026-11-10
+
+### Added
+
+- `/planning:interview`: a `domain_docs` setting in `docs/conventions/planning.yaml` (`auto` default, `ask`, `off`) decides whether an engineering interview writes the glossary and proposes ADRs.
+- `/planning:interview`: a scenario comparison (scenarios as rows, candidate terms or models as columns, then where each helps, makes no difference and costs) is offered when candidates compete, or on request.
+
+### Changed
+
+- `/planning:interview` question layout: the `Inference:` line is folded into the recommendation's reason, and `Checked against:` and `Flips if:` appear only when they carry something.
+- The interview's own text says "interview" where it said "grilling"; "grill me" still reaches the skill.
+
+## [2.16.2] - 2026-11-10
+
+### Changed
+
+- `/planning:interview`, `/planning:prd` and `/planning:plan` read the glossary through the `/domain-driven-design:ubiquitous-language lookup` read action, with a repository search (root, any `docs/` folder, the module folder) when that plugin is absent; `/planning:interview` and `/planning:design` write resolved terms through `/domain-driven-design:ubiquitous-language curate`.
+
+## [2.16.1] - 2026-11-10
+
+### Changed
+
+- The plan template's `Model` column no longer puts a row on `sonnet` for a clear spec alone (migrations and performance work stay on `opus` or above), and the `frontier` tier adds major refactors and migrations and architecture planning. Its model-split pointer moves to choosing-a-model.
+
+## [2.16.0] - 2026-11-09
+
+### Added
+
+- The Brief's Goal carries a fourth line, `Finish line: <merged | released | in use>, checked by <who> via <observable check>`, saying when the whole effort is done and who checks it. The interview proposes it in the restatement, the page export writes `- Finish line: not settled yet` when the restated goal has none, and `check-open-questions.sh --procedure --brief` fails a Goal whose Finish line is missing, empty or `not settled yet`. A Brief already in flight needs its Finish line added before Step 4. The `unattended_finish_check` setting names the check an unattended run puts in the default line.
+- A stated problem whose evidence is only `reported` gets one instance question (the last concrete instance, what it cost, who hit it), never a why chain and never a question reopening the named solution; a problem with `observed` evidence gets none, and the restatement names the artifact. A Problem field that would read `unknown` gets candidate values from the repository and the conversation to confirm or correct; a confirmed value is rated `reported`.
+- Unattended, the interview skips the instance question and the candidates and fills the Goal with `Finish line: merged, checked by <check> via the pull request's checks (filled automatically: unattended)`. It stops for a human, with a `blocked` USER-RESERVED row and a `Stopped: needs a human: <reason>` line, only when the item contradicts a recorded Intent or Vision or raises a critical security issue.
+
+## [2.15.0] - 2026-11-09
+
+### Added
+
+- **`setup --check` validates list keys.** A list key and its items are checked against the schema (type, length, required keys, allowed keys, patterns, key names) instead of being reported unchecked; a list key using a keyword the checker does not implement stays reported as unchecked. List keys are never written from the command line.
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [2.14.3] - 2026-11-09
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [2.14.2] - 2026-11-09
 
 ### Changed

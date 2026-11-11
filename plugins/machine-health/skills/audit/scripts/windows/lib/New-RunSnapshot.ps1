@@ -68,9 +68,9 @@ function New-RunSnapshot {
 # A JSON object's property value, or $null when it is absent; StrictMode 3.0 throws on a missing one.
 function Get-SnapshotField($Object, [string] $Name) {
     if ($Object -is [System.Collections.IDictionary]) { return $Object.Contains($Name) ? $Object[$Name] : $null }
-    if ($null -eq $Object -or $Object -isnot [pscustomobject]) { return $null }
+    if ($Object -isnot [pscustomobject]) { return $null }
     $prop = $Object.PSObject.Properties[$Name]
-    if ($prop) { $prop.Value } else { $null }
+    $prop ? $prop.Value : $null
 }
 
 # The non-null FindingKeys under each check's detail.items, by check id.
@@ -110,7 +110,6 @@ function Get-NewFindingKey {
         [AllowEmptyCollection()] [object[]] $Checks = @()
     )
 
-    $previous = $null
     try {
         $previous = [System.IO.File]::ReadAllText($PreviousPath) | ConvertFrom-Json -ErrorAction Stop
     } catch {

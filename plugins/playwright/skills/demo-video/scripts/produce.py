@@ -192,18 +192,17 @@ class Renderer:
         cy, r = h // 2, 19
         badge = Image.new('RGBA', (2 * r * S, 2 * r * S), (0, 0, 0, 0))
         d = ImageDraw.Draw(badge)
-        if c['kind'] == 'outcome':
-            d.ellipse([0, 0, 2 * r * S - 1, 2 * r * S - 1], fill=OK_GREEN + (255,))
+        outcome = c['kind'] == 'outcome'
+        d.ellipse([0, 0, 2 * r * S - 1, 2 * r * S - 1], fill=(OK_GREEN if outcome else ACCENT) + (255,))
+        if outcome:
             k = r * S / 21
             d.line([(11 * k, 21.5 * k), (18 * k, 28.5 * k), (31 * k, 14 * k)], fill=(255, 255, 255, 255), width=int(4 * k), joint='curve')
-        else:
-            d.ellipse([0, 0, 2 * r * S - 1, 2 * r * S - 1], fill=ACCENT + (255,))
         badge = badge.resize((2 * r, 2 * r), Image.LANCZOS)
         x0 = (h - 2 * r) // 2 + 2
         layer.alpha_composite(badge, (x0, cy - r))
         d = ImageDraw.Draw(layer)
         fg = tuple(self.e['caption_style']['text']) + (255,)
-        if c['kind'] != 'outcome':
+        if not outcome:
             d.text((x0 + r, cy + 1), c['badge'], font=self.f_badge, fill=fg, anchor='mm')
         d.text((x0 + 2 * r + 14, cy + 1), c['text'], font=self.f_cap, fill=fg, anchor='lm')
         self.cap_layers[ci] = layer

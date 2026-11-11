@@ -1,5 +1,82 @@
 # Changelog for the PR pipeline convention
 
+## [9.19.0] - 2026-11-11
+
+### Added
+
+- Repository variable check for work-unblock.yml's `publish-lane-level` (owner decisions Q113 (a) and Q115 (a)). Whenever the job holds a lane token, it lists every repository variable right after the mint and again after the publish, and fails red on any variable created, deleted or changed (value or `updated_at`) other than the configured `limits.lane-level.variable`, or when either listing is missing or incomplete; a failed first listing skips the publish. The state file holds digests and the logs name variables only, never values. The monitoring lane's new signal 14 (`lane-variables`) files a critical incident at once from the check's failure annotation.
+
+## [9.18.0] - 2026-11-11
+
+### Added
+
+- Adaptive lane level, publish and read, in shadow mode (owner decisions Q111 and Q113 (a)). work-unblock.yml's new hourly `publish-lane-level` job decides the issue lane's next concurrency level from the sweep's lanes App rate-limit readings (GET /rate_limit left out), the lane's runs in progress and the last decision, and publishes it as `<level>@<valid-until>` in the variable `limits.lane-level.variable` names (default `CLAUDE_LANE_LEVEL`). pick-slot and label-unblocked's re-fire room read it through one function, `lane-level-value.mjs`: empty, expired or malformed reads as `limits.lane-level.default`, clamped to floor and ceiling. With `limits.lane-level.shadow` (default `true`) the job mints no token and writes nothing, the readers keep the default, and both log the level they would use. New effect `mutate-variable` (every scope read) and the `actions-variables: write` activity grant, which only `publish-lane-level` holds; the publisher refuses any variable name but a `*_LANE_LEVEL` one, so the token cannot touch the lanes kill switches.
+
+### Changed
+
+- `SLOTS` in work-resolve-issue.yml is no longer a literal: it is the effective lane level, 3 while shadowed.
+
+## [9.17.1] - 2026-11-11
+
+### Changed
+
+- The burn-rate pacer (`limits.api github-token pace`) now also paces the scheduled ticks of work-unblock's sweep and pr-merge's merge and enable-auto-merge sweep jobs. pr-merge's post-merge check and cover dispatch still run on every tick, and no event other than the schedule is ever paced.
+- The pacer paces a scheduled tick only when the previous scheduled run of the same workflow, by run id, marked a clean pass of its work (`Mark this tick's work done`), in place of even run numbers, which other events also advance. A held or red pass and a paced tick skip that step, so two scheduled ticks in a row are never both paced and a held pass is retried on the next tick.
+- work-unblock's sweep after a paced run reads back from the clean sweep before it, up to six hours, so a tick dropped or started late after a paced run loses no close. A sweep whose last scheduled run held, skipped its sweep or could not be read now reads the full six hours too, where it read three.
+
+## [9.17.0] - 2026-11-10
+
+### Added
+
+- `limits.sweep-gap-minutes` (default 15). A work-unblock sweep that a finished work-resolve-issue run starts skips its work, and requests no lane token, when a full sweep (a run that uploaded `work-unblock-verdicts`, whatever it concluded) finished under this many minutes ago. A scheduled sweep or an issue close never skips, and a read that fails runs the sweep. 0 turns the gap off.
+
+- `limits.lane-level` (`floor` 2, `ceiling` 4, `default` 3, `clean-windows` 2, `pools` `[lanes-app]`): the bounds and streak of the adaptive lane level L (owner decision Q111). `decide()` in `.github/scripts/lib/lane-level.mjs` picks L per window: up 1 after `clean-windows` clean windows with lane demand when every pool fits (peak share of its planned budget times (L+1)/L at most `api.<pool>.plan`), half on any limit signal the lanes App's own calls meet (a breaker trip is not one), never below `floor` or above `ceiling`; missing data holds L. A `floor` above the `ceiling` is rejected. Nothing reads L yet, so `SLOTS` stays 3.
+
+## [9.16.0] - 2026-11-10
+
+### Added
+
+- `limits.refire-queue-per-slot` (default 2). A work-unblock sweep re-fires issues the lanes kill switch stranded, oldest refused run first, only until the unfinished work-resolve-issue runs reach this value times the lane's `SLOTS` (read from `work-resolve-issue.yml`), and never more than `limits.restarts-per-run`. After the switch clears, the lane stays full with a short queue, and each finished run's sweep tops that queue back up.
+
+### Fixed
+
+- work-unblock re-fires an issue the lanes kill switch stopped on a flat wait once it is past `limits.limit-stops-per-issue` trips. The wait is the `limits.stranded-backoff-hours` `kill-switch` value (1 hour here), counted from when the refused run ended. Before, the wait doubled per trip up to 24 hours. Trips below that bound keep their waits, and kill-switch trips still never count toward a give-up. The other causes still double.
+
+## [9.15.0] - 2026-11-10
+
+### Added
+
+- Each of monitor signal 13's 17 hold jobs keeps a `lane-hold-<lane>` artifact for a day when it holds, and the monitoring lane lists them, one call per lane, so a held run past a lane's read cap still counts toward the lane-holds threshold.
+
+## [9.14.0] - 2026-11-10
+
+### Removed
+
+- `merge.verify-capture.proxy.claude-code-version`. pr-verify-capture installs the Claude Code version main's `package-lock.json` pins and hands it to both driver legs, so a version bump needs no edit to pr-pipeline.yaml. The proxy's `betas`, `body-keys` and `block-types` lists stay as measured; the proxy refuses a value they do not list and names it.
+
+### Fixed
+
+- Monitor signal 13 (lane holds) no longer goes unread for every lane when one lane has more unread runs than its cap, or the read span falls short of the window. Such a read is partly read: a lane whose read runs reach the threshold still files or keeps the incident, and only a whole read clears it.
+
+## [9.13.0] - 2026-11-10
+
+### Removed
+
+- `merge.verify-cache` and the verifier-answers cache behind it. enable-auto-merge reads each pull request's verifier verdict in full, as it did under `shadow`, without the key probe each read paid first, and logs no `verify-cache` line; cost lines no longer carry `cached=`. The `pr-merge-verify-answers` artifact now carries only the arm step's skip records (`eam-skip.json`), and every scheduled or hand-started reader run keeps one, empty when it keeps no records, so the next run never skips on an older run's records. The empty file is written before the kill-switch check or any read, so a run that stops early (kill switch, a held or failed listing, an error) keeps it too.
+
+## [9.12.2] - 2026-11-10
+
+### Fixed
+
+- pr-merge's auto-merge sweep no longer holds a pull request forever on a person's old auto-merge disable: it reads the newest of the auto-merge-disabled, auto-merge-enabled and added-to-merge-queue events in the same query, and holds only while that newest event is a disable by a user account, so a person's later enable or merge-queue add clears it
+
+## [9.12.1] - 2026-11-10
+
+### Changed
+
+- The `review` profile (verify-pr, review-dependency, adjudicate-feedback) runs Opus at effort `high` instead of the model's default effort.
+- The Models section no longer lists the `review` profile among the Sonnet profiles, and notes that `best` names Fable only on Claude Code before v2.1.321.
+
 ## [9.12.0] - 2026-11-09
 
 ### Changed

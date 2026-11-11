@@ -2,7 +2,7 @@
 # Tests for setup-apply.mjs: the narrow write of docs/conventions/review.yaml.
 # Each case builds its own repository root in a temp directory; expected values
 # come from the schema's allowed values (run, report; lens, model, codex; a whole number of at
-# least 1 for fanout_act_on_cap) and the script's stated
+# least 1 for fanout_act_on_cap; the council keys' shapes) and the script's stated
 # exit codes, not from the script's output.
 # test-scope: plugins/review/lib/parse-concern-value.sh plugins/review/lib/resolve-convention-home.sh
 set -uo pipefail
@@ -658,6 +658,56 @@ for bad in 0 1.5 two; do
   assert_eq "case 27: fanout_act_on_cap=$bad exits 1" "1" "$?"
   assert_contains "case 27: the refusal of $bad names the key" "$out" "fanout_act_on_cap"
 done
+
+# --- Case 28: the council keys, checked in full (lists included) -------------
+R28="$(new_root c28)"
+cat >"$(yaml_of "$R28")" <<'YAML'
+council_lanes: off
+council_max_rounds: 2
+council_scores: on
+council_members:
+  correctness:
+    provider: claude
+    model: opus
+    brief: correctness
+    effort: high
+  codex-adv:
+    provider: codex
+    brief: adversarial
+council_panel: [correctness]
+council_rules:
+  - name: security-paths
+    when:
+      paths:
+        - "plugins/*/hooks/**"
+      size: [large]
+      risk: HIGH
+    members: [correctness, codex-adv]
+YAML
+out="$(run --root "$R28" --check)"
+assert_eq "case 28: the council example passes --check" "0" "$?"
+for k in council_lanes council_max_rounds council_scores council_members council_panel council_rules; do
+  assert_contains "case 28: --check prints PASS for $k" "$out" "PASS $k"
+done
+assert_eq "case 28: no WARN" "0" "$(printf '%s\n' "$out" | grep -c '^WARN')"
+council_warn() { # council_warn <label> <file body> <expected WARN text>
+  local r
+  r="$(new_root "c28-$CASE_NUM")"
+  printf '%s' "$2" >"$(yaml_of "$r")"
+  out="$(run --root "$r" --check)"
+  assert_eq "case 28: $1 exits 1" "1" "$?"
+  assert_contains "case 28: $1 warns" "$out" "$3"
+}
+council_warn "a rule with an empty when" $'council_rules:\n  - name: r\n    when:\n    members: [a]\n' 'council_rules.0.when is null'
+council_warn "a rule missing members" $'council_rules:\n  - name: r\n    when:\n      size: [large]\n' 'council_rules.0.members is required'
+council_warn "a rule with an unknown size" $'council_rules:\n  - name: r\n    when:\n      size: [huge]\n    members: [a]\n' 'council_rules.0.when.size.0="huge" is not one of small, medium, large'
+council_warn "a member without a provider" $'council_members:\n  a:\n    model: opus\n' 'council_members.a.provider is required'
+council_warn "a member id outside the pattern" $'council_members:\n  Bad_Id:\n    provider: claude\n' 'council_members key "Bad_Id"'
+council_warn "an empty panel" $'council_panel: []\n' 'council_panel holds 0 items'
+out="$(run --root "$(new_root c28-cli)" council_lanes=on)"
+assert_eq "case 28: council_lanes=on on the command line exits 0" "0" "$?"
+out="$(run --root "$(new_root c28-cli-list)" council_panel=a)"
+assert_eq "case 28: a list key on the command line exits 1" "1" "$?"
 
 # --- The writer's record: written_against from plugin.json, one entry per key ---
 VERSION="$(sed -n 's/^ *"version": "\(.*\)",*$/\1/p' "$SCRIPT_DIR/../../../.claude-plugin/plugin.json")"

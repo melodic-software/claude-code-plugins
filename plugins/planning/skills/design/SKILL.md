@@ -229,7 +229,7 @@ The inventory covers:
   naming, collisions with common library types, namespaces) before naming
 - Follow the project's codified design principles (e.g. Law of Demeter, dependency direction,
   disambiguating overloaded terms) where declared; otherwise low-coupling/high-cohesion defaults
-- Invoke `/domain-driven-design:curate-language` via the Skill tool (if that plugin is enabled)
+- Invoke `/domain-driven-design:ubiquitous-language curate` via the Skill tool (if that plugin is enabled)
   the moment a domain term resolves, so the glossary owner applies the consumer's format,
   placement, and context routing; without it, record the resolved term and rejected synonyms in
   the design artifacts
@@ -305,7 +305,7 @@ Over the full type inventory, once type modeling stabilizes:
 3. Check overloaded-term disambiguation and domain accuracy against the project's domain
    vocabulary
 4. Record decisions in a terminology table inside `type-inventory.md`
-5. Invoke `/domain-driven-design:curate-language` via the Skill tool (if enabled) to sync resolved
+5. Invoke `/domain-driven-design:ubiquitous-language curate` via the Skill tool (if enabled) to sync resolved
    terms and rejected synonyms into the project's glossary; the table above is the standalone
    fallback
 
@@ -464,7 +464,7 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 | Skill | Relationship |
 |-------|-------------|
 | `/planning:interview` | **Before.** Locks the brief (scope + constraints); design explores the solution space within them |
-| `/domain-driven-design:curate-language` | **During.** Owns project-glossary updates when design resolves domain language; not type or boundary design |
+| `/domain-driven-design:ubiquitous-language curate` | **During.** Owns project-glossary updates when design resolves domain language; not type or boundary design |
 | `/visualization:visualize` (if enabled) | **During.** Owns visual-form choice and mermaid craft for a typed artifact's fenced block |
 | `/naming:name-it-better` (if enabled) | **During.** Proposes candidates for a name the design leaves undecided; the human picks, and the pick is recorded in the terminology table |
 | `/architecture:record-decision` (if enabled) | **During.** Records the ADR for a one-way door when its thread resolves ([`reference/reversibility.md`](reference/reversibility.md)) |

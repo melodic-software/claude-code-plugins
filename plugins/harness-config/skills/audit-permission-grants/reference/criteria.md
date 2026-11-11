@@ -74,13 +74,12 @@ None of these may be relayed as clean.
 
 **The exclusion set is disclosed rather than extended by path segment, and here is why.** A
 blanket `vendor/` or `node_modules/` exclusion would make an `error`-tier check silently blind to
-live grants under nested `.claude/skills/` paths, which Claude Code loads the moment it touches a
-file in that subdirectory; with the Bash sandbox on, from 2.1.319, it loads them only when the
-session starts or `/cd`s there, so they stay live grants either way
-(<https://code.claude.com/docs/en/skills>, fetched 2026-08-12, and the
-[2.1.319 changelog](https://code.claude.com/docs/en/changelog#2-1-319), as of
-2026-11-07; recheck when the skills page changes how nested `.claude/skills/` directories are
-discovered). The
+live grants under nested `.claude/skills/` paths, which we treat as live grants because Claude
+Code can load them during a session (Pointer: when deciding whether a nested `.claude/skills/`
+directory is loadable, fetch
+[skills: load skills in monorepos and subdirectories](https://code.claude.com/docs/en/skills#discovery-from-parent-and-nested-directories)
+live. As of: 2026-11-10. Recheck trigger: that section stops loading nested skill directories in
+some session shape). The
 detector instead applies a **loadability model**: only frontmatter at documented discovery paths is
 audited, meaning project or nested `.claude/skills/<name>/SKILL.md`, plugin `skills/<name>/SKILL.md`, and
 the parallel agents/commands paths. A plugin root is `plugins/<name>/`, or any directory at or below

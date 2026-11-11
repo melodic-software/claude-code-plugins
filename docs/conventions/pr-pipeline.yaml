@@ -634,6 +634,26 @@ activities:
     reads-untrusted: false
     # The labeled issue; the hourly sweep takes none and lists open issues.
     inputs: [issue]
+  publish-lane-level:
+    # Hourly, after the label-unblocked sweep: decides the issue lane's next
+    # concurrency level from the sweep's lanes App rate-limit readings, the
+    # lane's runs in progress and the last decision
+    # (.github/scripts/lib/lane-level.mjs), and publishes it as
+    # `<level>@<valid-until>` in the repository variable
+    # limits.lane-level.variable names, which pick-slot and label-unblocked
+    # read (.github/scripts/lib/lane-level-value.mjs). With
+    # limits.lane-level.shadow set it logs the level and writes nothing. A
+    # script, no model. .github/workflows/work-unblock.yml runs it.
+    script: .github/scripts/work-unblock/publish-lane-level.mjs
+    # Writes that one variable, never another (the script refuses any other
+    # name), with the Variables write lane-rules.json adds; it reads nothing
+    # else with the token.
+    effect: mutate-variable
+    gating: advisory
+    # Reads only rate-limit headers and run counts, no free text.
+    reads-untrusted: false
+    # The hourly sweep's readings; no issue or pull request.
+    inputs: []
   apply-verdict:
     # After intake triage, writes its verdict as the lanes App: the Size,
     # Complexity and Uncertainty issue fields (never a work-class label), and
@@ -869,6 +889,8 @@ lanes:
       # Started by a status label added or removed, and by the hourly sweep,
       # in its own job of work-unblock.yml.
       - activity: sync-status
+      # Hourly only, in its own job of work-unblock.yml after label-unblocked.
+      - activity: publish-lane-level
   # Started by intake triage on an opened issue or its dispatch
   # (.github/workflows/intake-triage.yml).
   intake-triage:
@@ -920,8 +942,11 @@ models:
     standard:
       model: opus
       max-turns: 75
+    # verify-pr, review-dependency and adjudicate-feedback check work, so high:
+    # https://code.claude.com/docs/en/model-config#choose-an-effort-level
     review:
       model: opus
+      effort: high
       max-turns: 60
     # Both review lanes judge work the code-fix and standard profiles write
     # (opus), with no objective signal on the head when the model is chosen:
@@ -1179,7 +1204,7 @@ limits:
   fix-docs-per-run: 2
   # The issue lane's WIP cap when the lane merge rate cannot be read; the
   # wip block below derives it otherwise.
-  wip-cap: 24
+  wip-cap: 12
   # Restarts after a run reaches its turn cap, per agent-ready a person adds.
   # 1: one capped run resumes from its pushed branch before a person is asked
   # again. Raise it further only with a security review (#7677).
@@ -1199,13 +1224,29 @@ limits:
   # stranded issues wait for the next one; far above it, queued runs go stale
   # on a lane workflow change.
   restarts-per-run: 10
+  # Kill-switch re-fires keep the issue lane's unfinished runs at this many
+  # per slot (SLOTS, the effective lane level: lane-level below) and no more: after the switch
+  # clears, each sweep, a finished run's included, tops the queue back up,
+  # oldest stranded first, so the lane stays full without a flood (owner
+  # decision Q109).
+  refire-queue-per-slot: 2
+  # Minutes after a full work-unblock sweep finished during which the sweep a
+  # finished work-resolve-issue run starts skips its work. Each full sweep
+  # spends about 800 lanes App calls, and on 2026-11-10 seven an hour reached
+  # the App's 5,200 an hour (run 42898100951); 15 holds those sweeps to about
+  # three an hour beside the hourly schedule, which never skips.
+  sweep-gap-minutes: 15
   # Base hours of work-unblock's re-fire backoff for a stranded agent-ready
   # issue, per cause, doubled once per re-fire already made and held at 24
   # (the schema's description says where each cause's doubling starts). The
   # transient causes, where no model ran and nothing in the issue failed (no
   # run started, no lane token, a kill-switch refusal), take 1; a run that
   # ended with no report or failed again after a re-fire may fail the same way
-  # and spend run-hours each time, so those keep 3.
+  # and spend run-hours each time, so those keep 3. kill-switch never doubles:
+  # a breaker trip is the lanes' load, not the issue's, so past
+  # limit-stops-per-issue trips each re-fire waits this flat hour, and
+  # refire-queue-per-slot paces the drain after the switch clears (owner
+  # decision Q109, 2026-11-10).
   stranded-backoff-hours:
     no-run: 1
     no-report: 3
@@ -1232,13 +1273,39 @@ limits:
   # thresholds meant for the hub's limits sampler, which nothing here enforces. Their
   # defaults live in .github/actions/log-api-budget/rate-limits.json, held
   # for a person like this file; add an `api:` entry here only to override one.
+  # The adaptive lane level L (owner decision Q111, 2026-11-10): the issue
+  # lane's concurrency .github/scripts/lib/lane-level.mjs would pick each
+  # window; SLOTS stays default while shadow is set. L steps up 1 after
+  # clean-windows windows in a row with no limit signal, lane demand and room
+  # (peak share used x (L+1)/L at most api.<pool>.plan, no pool at or under
+  # api.<pool>.writer-pause left), and halves on any limit signal the lanes
+  # App's own calls meet, within floor and ceiling. pools are the budgets L
+  # spends: the lanes App's bursts. A breaker trip, mostly GITHUB_TOKEN spend
+  # that pacing controls, is not a signal; the breaker stays the backstop.
+  lane-level:
+    floor: 2
+    ceiling: 4
+    default: 3
+    clean-windows: 2
+    pools: [lanes-app]
+    # Phase B (owner decision Q113 (a)): work-unblock's hourly
+    # publish-lane-level job publishes L as `<level>@<valid-until>` in the
+    # repository variable `variable` names, valid for valid-minutes, and
+    # pick-slot and label-unblocked read it (lib/lane-level-value.mjs; empty,
+    # expired or malformed reads as default). While shadow is true the job
+    # mints no token and writes nothing, the readers keep default, and both
+    # log the level they would use. variable must end in _LANE_LEVEL, so it
+    # can never name a lanes kill switch.
+    shadow: true
+    variable: CLAUDE_LANE_LEVEL
+    valid-minutes: 150
 
 wip:
   # Cap = lane PRs merged per hour over the window times this target.
   target-lead-time-hours: 2
   # Floor under the computed cap. It stops a
   # day with few merges from shrinking the cap until the lane stalls.
-  min-cap: 24
+  min-cap: 12
   merge-rate-window-hours: 24
   # Lane PRs opened in the window may be at most this share of those merged
   # in it (not limits.admission-factor, which sizes the queued cap).
@@ -1378,6 +1445,9 @@ branch-cleanup:
 # the p90 of how long the signal stayed on, at most 8; close-hours is the
 # median gap before it fired again, rounded up, at most 6. main-red opens at
 # once, and a signal with 3 episodes or fewer takes values from its cadence.
+# lane-variables, a security signal with no episodes yet, opens at once too,
+# and closes only after 168 hours clear: its evidence is one red run, and the
+# next hour's check passes whether or not anyone set the variable back.
 monitor:
   lane-holds:
     threshold: 4
@@ -1419,6 +1489,9 @@ monitor:
     lane-holds:
       open-hours: 2
       close-hours: 6
+    lane-variables:
+      open-hours: 0
+      close-hours: 168
 
 merge:
   # The rung is a pacing cap: off merges nothing without a human; merge lets
@@ -1541,19 +1614,6 @@ merge:
   # (judgment), so a review still running at the head, which scores MED,
   # finishes first.
   risk-escalation-minutes: 60
-  # enable-auto-merge's verifier reads keep each refusal whose inputs have not
-  # moved for the next run (babysit_verify_evidence.py --answers-*). shadow
-  # still reads every pull request in full and logs one `verify-cache` line
-  # each comparing the kept answer with the fresh one; serve answers an
-  # unarmed pull request from a kept refusal whose key still matches. An
-  # armed pull request is always read in full, and a kept answer never arms.
-  # Moved to serve only when at least a day of scheduled runs has logged 50
-  # or more `key=hit` lines, 5 or more for each `stored=<kind>` among them,
-  # and none with `agree=no` (judgment; README.md, Native auto-merge); a kind
-  # under 5 keeps it in shadow, and a day with any `cache=error` line does
-  # not count. Both modes key before the full read, so shadow's `agree`
-  # figures come from serve's order. Any other value fails the schema.
-  verify-cache: shadow
   # A candidate the last run refused on unchanged inputs is reported with that
   # refusal instead of gated again (babysit_merge_skip.py, and for a lanes
   # App pull request's lane refusal enable-auto-merge.mjs); it is gated again
@@ -1597,10 +1657,11 @@ merge:
   # .claude/skills/control-claude-code-plugins, which drives each changed
   # plugin through harness-ops' control-claude-code.
   # `proxy` is the key proxy, the driven Claude Code's only route to the
-  # API (pr-verify-capture.yml). claude-code-version must equal the version
-  # package-lock.json pins (workflow.test.mjs checks it), and the change that
-  # bumps it re-measures `betas` and `body-keys` from the driven session's
-  # requests in the same pull request. token-cap bounds the driven session,
+  # API (pr-verify-capture.yml). The capture installs the Claude Code version
+  # package-lock.json pins; `betas`, `body-keys` and `block-types` are
+  # measured from the driven session's requests, and the proxy refuses any
+  # value they do not list and names it, so a capture after a version bump
+  # says what to add. token-cap bounds the driven session,
   # which runs pull request code; driver-token-cap bounds the trusted driver
   # legs. Both are provisional until a full measured capture sets them, at
   # measured use × 1.5 rounded up to the next 100,000 (#13724).
@@ -1615,7 +1676,6 @@ merge:
     app: claude-code-plugins
     retention-days: 30
     proxy:
-      claude-code-version: 2.1.319
       driven-model: claude-opus-5-5
       driven-small-model: claude-haiku-5-5
       models: [claude-opus-5-5, claude-haiku-5-5]

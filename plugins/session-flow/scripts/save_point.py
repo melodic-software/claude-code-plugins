@@ -470,7 +470,7 @@ def _universal(text: str) -> str:
 
 
 def _text_lines(text: str) -> list[str]:
-    return [line.rstrip("\r\n") for line in _universal(text).splitlines()]
+    return _universal(text).splitlines()
 
 
 def _read_lines(path: Path) -> list[str]:
@@ -689,7 +689,8 @@ class Entry:
 
     @property
     def exempt(self) -> bool:
-        return self.text.startswith(("None.", "None (")) or self.text == ""
+        text = self.text
+        return not text or text.startswith(("None.", "None ("))
 
     @property
     def normalized(self) -> str:
@@ -809,22 +810,18 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
     if body is None:
         return
     rails = [i for i, line in enumerate(body) if RAIL_RE.match(line.strip())]
-    ascii_rails = [
-        i for i, line in enumerate(body) if ASCII_RAIL_RE.match(line.strip())
-    ]
     if len(rails) not in (2, 4):
         detail = f"found {len(rails)}"
+        ascii_rails = sum(1 for line in body if ASCII_RAIL_RE.match(line.strip()))
         if ascii_rails:
-            detail += (
-                f", plus {len(ascii_rails)} ASCII rail line(s); rails are U+2500 only"
-            )
+            detail += f", plus {ascii_rails} ASCII rail line(s); rails are U+2500 only"
         f.fail(
             f"Resume prompt: two U+2500 rails (resume region) or four (goal region plus resume region) required ({detail})"
         )
         return
     # Each rail pair is a region, classified by the instruction line above its
     # top rail. Order is a producer rule, so either order passes.
-    resume: list[str] | None = None
+    between: list[str] | None = None
     resume_bottom = 0
     goals: list[list[str]] = []
     prev_end = 0
@@ -840,9 +837,9 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
                 "Resume prompt: a line between the rails starts with '/goal'; the user types the command, the region holds the condition only"
             )
         if COPY_LINE in above:
-            if resume is not None:
+            if between is not None:
                 f.fail("Resume prompt: more than one resume region")
-            resume, resume_bottom = region, bottom
+            between, resume_bottom = region, bottom
         elif GOAL_COPY_LINE in above:
             goals.append(region)
         else:
@@ -851,12 +848,11 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
             )
     if len(goals) > 1:
         f.fail("Resume prompt: more than one goal region")
-    if resume is None:
+    if between is None:
         f.fail(
             f"Resume prompt: copy instruction line {COPY_LINE!r} missing above the resume region's top rail"
         )
         return
-    between, bottom = resume, resume_bottom
     for goal in goals:
         size = len("\n".join(goal))
         if size > GOAL_CONDITION_MAX:
@@ -871,13 +867,12 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
             f.fail(
                 "Resume prompt: goal region's last line must equal the resume region's 'Read @' directive line"
             )
-    pos = 0
     if not between or not between[0].startswith("Read @"):
         f.fail(
             "Resume prompt: first line between the resume region's rails must be the 'Read @' directive"
         )
         return
-    directive = between[pos]
+    directive = between[0]
     path_part = directive[len("Read @") :].split(",", 1)[0].strip()
     if "\\" in path_part or not (
         path_part.startswith("/") or re.match(r"^[A-Za-z]:/", path_part)
@@ -902,7 +897,7 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
             )
     if DIRECTIVE_CLAUSE not in directive:
         f.fail(f"Resume prompt: directive lacks the clause {DIRECTIVE_CLAUSE!r}")
-    pos += 1
+    pos = 1
     if pos >= len(between) or not (m := PRIOR_SESSION_RE.match(between[pos])):
         f.fail(
             "Resume prompt: 'Prior session: <UUID>.' line missing after the directive"
@@ -966,7 +961,7 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
                     f"Resume prompt: 'Then:' must name exactly one skill as /<skill> (got {headlines[i]!r})"
                 )
     resume_line = f"claude --resume {session_id}"
-    if not any(resume_line in line for line in body[bottom + 1 :]):
+    if not any(resume_line in line for line in body[resume_bottom + 1 :]):
         f.fail(f"Resume prompt: below-rail line carrying {resume_line!r} missing")
 
 
@@ -1081,14 +1076,10 @@ def _check_cumulative(
             if match is not None:
                 pointers.pop(match)
             else:
-                message = (
+                (f.warn if pred_soft else f.fail)(
                     f"{title}: predecessor entry dropped (keep it in place or under "
                     f"'Superseded:', never delete): {entry.text[:60]!r}"
                 )
-                if pred_soft:
-                    f.warn(message)
-                else:
-                    f.fail(message)
 
 
 def _goal_block(doc: Doc) -> list[str]:
@@ -1176,7 +1167,6 @@ def validate_doc(
                     pred = parse_doc(pred_path)
                 except (OSError, UnicodeDecodeError) as exc:
                     f.fail(f"predecessor {previous!r} unreadable: {exc}")
-                    pred = None
     if shape == 3:
         _validate_shape3(doc, f, previous, pred, projects_root, hop_text)
     else:

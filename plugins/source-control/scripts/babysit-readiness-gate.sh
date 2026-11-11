@@ -160,29 +160,15 @@ require_value() {
 while (($# > 0)); do
   case "$1" in
   -h | --help) usage ;;
-  --comments-json)
+  --comments-json | --checklist | --self | --extra-self | --repo)
     require_value "$1" "${2:-}"
-    COMMENTS_JSON="$2"
-    shift 2
-    ;;
-  --checklist)
-    require_value "$1" "${2:-}"
-    CHECKLIST="$2"
-    shift 2
-    ;;
-  --self)
-    require_value "$1" "${2:-}"
-    SELF_CSV="$2"
-    shift 2
-    ;;
-  --extra-self)
-    require_value "$1" "${2:-}"
-    EXTRA_SELF_CSV="$2"
-    shift 2
-    ;;
-  --repo)
-    require_value "$1" "${2:-}"
-    REPO_SLUG="$2"
+    case "$1" in
+    --comments-json) COMMENTS_JSON="$2" ;;
+    --checklist) CHECKLIST="$2" ;;
+    --self) SELF_CSV="$2" ;;
+    --extra-self) EXTRA_SELF_CSV="$2" ;;
+    *) REPO_SLUG="$2" ;;
+    esac
     shift 2
     ;;
   -*)
@@ -211,8 +197,7 @@ while (($# > 0)); do
   esac
 done
 
-have() { command -v "$1" >/dev/null 2>&1; }
-have jq || {
+command -v jq >/dev/null 2>&1 || {
   printf 'babysit-readiness-gate: jq required\n' >&2
   unproven prereq-missing 4
 }
@@ -326,7 +311,7 @@ if [[ ${#SELF_LOGINS[@]} -eq 0 ]]; then
   printf 'babysit-readiness-gate: cannot resolve self identity: the gh api user lookup returned no login (pass --self or --extra-self)\n' >&2
   unproven identity-unresolved 3
 fi
-SELF_JSON="$(printf '%s\n' "${SELF_LOGINS[@]}" | jq -R . | jq -s .)"
+SELF_JSON="$(printf '%s\n' "${SELF_LOGINS[@]}" | jq -nR '[inputs]')"
 
 # --- Split bodies by author class --------------------------------------------
 
@@ -420,14 +405,14 @@ bodies_unreadable() {
     "${COMMENTS_JSON:-live fetch}" >&2
   unproven comments-unreadable 4
 }
-non_self_bodies="$(printf '%s' "$COMMENTS" |
-  jq -r --argjson self "$SELF_JSON" '
-    .[] | select((.author as $a | $self | index($a)) | not) | .body // ""')" ||
-  bodies_unreadable
-self_bodies="$(printf '%s' "$COMMENTS" |
-  jq -r --argjson self "$SELF_JSON" '
-    .[] | select((.author as $a | $self | index($a))) | .body // ""')" ||
-  bodies_unreadable
+# bodies_where <jq filter>: bodies of the comments whose "author is self" test,
+# piped through <filter>, is true ('' for self, '| not' for everyone else).
+bodies_where() {
+  printf '%s' "$COMMENTS" | jq -r --argjson self "$SELF_JSON" \
+    '.[] | select((.author as $a | $self | index($a)) '"$1"') | .body // ""'
+}
+non_self_bodies="$(bodies_where '| not')" || bodies_unreadable
+self_bodies="$(bodies_where '')" || bodies_unreadable
 
 # Self classification-table rows are EXCLUDED from the finding corpus: a
 # reply row like `| 1 | CRITICAL: null deref | VALID | ... |` repeats the
@@ -502,12 +487,12 @@ if [[ "${BABYSIT_READINESS_BASH_ONLY:-}" != 1 && -f "$PY_SCRIPTS/babysit-python.
     printf '%s' "${SELF_LOGINS[*]}"
   )"
   if [[ -n "$COMMENTS_JSON" ]]; then
-    py_out="$(babysit_python "$PY_SCRIPTS/babysit_findings.py" \
-      --comments-json "$COMMENTS_JSON" --self "$self_csv_joined" 2>/dev/null)"
+    py_source=(--comments-json "$COMMENTS_JSON")
   else
-    py_out="$(babysit_python "$PY_SCRIPTS/babysit_findings.py" \
-      --pr "$PR_NUMBER" --self "$self_csv_joined" 2>/dev/null)"
+    py_source=(--pr "$PR_NUMBER")
   fi
+  py_out="$(babysit_python "$PY_SCRIPTS/babysit_findings.py" \
+    "${py_source[@]}" --self "$self_csv_joined" 2>/dev/null)"
   if [[ "$py_out" =~ findings=([0-9]+)[[:space:]]+classified=([0-9]+) ]]; then
     findings="${BASH_REMATCH[1]}"
     classified="${BASH_REMATCH[2]}"
@@ -540,15 +525,15 @@ fi
 
 # --- Verdict ------------------------------------------------------------------
 
+blocked=""
 if ((findings > 0 && classified < findings)); then
-  printf 'READINESS_BLOCKED reason=under-decomposed findings=%s classified=%s unticked=%s\n' \
-    "$findings" "$classified" "$unticked"
-  exit 1
+  blocked=under-decomposed
+elif ((unticked > 0)); then
+  blocked=checklist-incomplete
 fi
-
-if ((unticked > 0)); then
-  printf 'READINESS_BLOCKED reason=checklist-incomplete findings=%s classified=%s unticked=%s\n' \
-    "$findings" "$classified" "$unticked"
+if [[ -n "$blocked" ]]; then
+  printf 'READINESS_BLOCKED reason=%s findings=%s classified=%s unticked=%s\n' \
+    "$blocked" "$findings" "$classified" "$unticked"
   exit 1
 fi
 

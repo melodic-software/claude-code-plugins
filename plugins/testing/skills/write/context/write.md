@@ -31,7 +31,7 @@ When invoked from `/implementation:implement` (plan already approved) or as part
 
 ## Sequence
 
-1. **Tracer bullet first**. Write ONE test confirming ONE thing about the system end-to-end, to prove the path before investing in edge cases. Name tests and interfaces in the domain's own words, from the project's glossary (its ubiquitous-language or glossary file, the nearest one walking up from the code under test). Follow any ADRs that govern the code being changed. Then list the remaining behavior scenarios:
+1. **Tracer bullet first**. Write ONE test confirming ONE thing about the system end-to-end, to prove the path before investing in edge cases. Name tests and interfaces in the domain's own words, from the glossary read in SKILL.md Step 1 ("Domain language read?"): its canonical terms and chosen verbs, never an `Avoid:` word or a verb an `Actions:` line rejects for that operation. Follow any ADRs that govern the code being changed. Then list the remaining behavior scenarios:
    - Happy path (basic correct behavior)
    - Edge cases (null, empty, boundary values)
    - Error paths (invalid input, missing dependencies, timeouts)
@@ -96,7 +96,9 @@ After each Red→Green→Refactor cycle, verify:
 
 ## Four Pillars Assessment (Khorikov)
 
-Every test scores well on all four:
+Resistance to refactoring is non-negotiable and maintainability stays high; protection against
+regressions and fast feedback trade off, so no test maxes the first three pillars at once
+(`/tdd:principles`):
 
 - **Protection against regressions**. Does this test catch real bugs? Tests that only verify trivial behavior (getters, constructors) score low
 - **Resistance to refactoring**. Will this test break when implementation changes but behavior stays the same? Test behavior (observable output), not implementation (internal steps)

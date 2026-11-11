@@ -44,13 +44,11 @@ export async function spawnWithAcquireRetry(spawn, command, args, options = {}) 
     }
 
     const detail = spawnFailureDetail(lastResult);
-    const canRetry = attempt < maxAttempts - 1 && isRetryableAcquireError(detail);
-    if (!canRetry) {
+    if (attempt >= maxAttempts - 1 || !isRetryableAcquireError(detail)) {
       return lastResult;
     }
 
-    const waitMs = computeAcquireBackoffMs(attempt);
-    await sleep(waitMs);
+    await sleep(computeAcquireBackoffMs(attempt));
   }
 
   return (

@@ -35,9 +35,7 @@ function Test-PfroPending {
         $prop = Get-ItemProperty `
             'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' `
             -Name PendingFileRenameOperations -ErrorAction Stop
-        $value = $prop.PendingFileRenameOperations
-        if ($null -eq $value) { return $false }
-        $entries = @($value | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        $entries = @($prop.PendingFileRenameOperations | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
         return $entries.Count -gt 0
     } catch {
         Write-Verbose "Test-PfroPending: property not present. $($_.Exception.Message)"
@@ -112,7 +110,7 @@ $CheckBody = {
             Where-Object { $_.LastDeploymentChangeTime } |
             Sort-Object LastDeploymentChangeTime |
             Select-Object -First 1
-        if ($firstInstall -and $firstInstall.LastDeploymentChangeTime) {
+        if ($firstInstall) {
             $oldestPendingDays = (New-TimeSpan `
                     -Start $firstInstall.LastDeploymentChangeTime `
                     -End (Get-Date)).TotalDays

@@ -1708,6 +1708,25 @@ jobs:
             (^|/)plugins/attribution/skills/audit/evals/fixtures/golden/
             (^|/)scripts/fixtures/hooks-lifecycle-table\.md$
 
+      # Online check of only the external links a pull request adds or changes
+      # in markdown, so a dead URL or a missing #anchor fails here instead of in
+      # the weekly online run after merge. lychee.toml's accept list keeps a
+      # throttled host, a 5xx or a timeout from failing it. It runs the lychee
+      # the offline step installed. Other events have no pull-request diff.
+      - name: Check added and changed external links online
+        id: lychee_online
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash scripts/run-hygiene-gate.sh lychee-online-changed {0}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; the pull request run checked its links."
+            exit 0
+          fi
+          scripts/check-changed-links-online.sh "origin/$BASE_REF"
+
       - name: Check editorconfig conformance
         id: editorconfig
         continue-on-error: true
@@ -2014,6 +2033,7 @@ jobs:
             typos=${{ steps.typos.outcome }}
             gitleaks=${{ steps.gitleaks.outcome }}
             lychee-offline=${{ steps.lychee.outcome }}
+            lychee-online-changed=${{ steps.lychee_online.outcome }}
             editorconfig=${{ steps.editorconfig.outcome }}
             actionlint=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.actionlint.outcome }}
             dependabot-schema=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.dependabot_schema.outcome }}

@@ -11,18 +11,17 @@ routinely conflated; they are distinct:
 - **`code-review` marketplace plugin**: `/code-review:code-review`, installed from the
   `claude-plugins-official` marketplace like any other plugin. Run without `--comment`, it reports
   its findings to the terminal and posts nothing to GitHub; only the `--comment` form posts to the
-  PR (Mutation gate below). That read-only default rests on the command's instructions, not on its
-  `allowed-tools`, which still grant `gh pr comment` and the inline-comment tool. A default run can
-  return no findings: the command stops early on a closed or draft PR, on one it judges to
-  need no review, and on a PR Claude has already commented on, which a CI review lane's earlier
-  comment can trigger.
-  - **Pointer**: for what the plugin targets and where its findings go, see
+  PR (Mutation gate below). We rely on the command's instructions for that default, not on its
+  tool grants. A default run can return no findings.
+  - **Pointer**: for what the plugin targets, where its findings go, which tools it is granted
+    and when it stops early, fetch
     [code-review plugin: Commands](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/code-review#commands)
     and the command file,
-    [`commands/code-review.md`](https://github.com/anthropics/claude-plugins-official/blob/main/plugins/code-review/commands/code-review.md).
-  - **As of**: 2026-11-04
-  - **Recheck trigger**: the command file changes its `--comment` handling, its step-1 stop
-    conditions, or its `allowed-tools`.
+    [`commands/code-review.md`](https://github.com/anthropics/claude-plugins-official/blob/main/plugins/code-review/commands/code-review.md),
+    live.
+  - **As of**: 2026-11-10
+  - **Recheck trigger**: the command posts without `--comment`, or it stops skipping a PR that
+    already carries a Claude comment.
 - **Bundled `/code-review` command**: invoked with no plugin namespace, and never assumed present
   (settings, the host, and the environment decide whether it resolves). Passing a PR as its target
   reviews that PR locally and reports into the session. Some of its arguments edit the working
@@ -35,10 +34,10 @@ routinely conflated; they are distinct:
   live.
 
 **Pointer record for the three surfaces above.** Pointer: the managed service's enablement at
-[code-review: set up Code Review](https://code.claude.com/docs/en/code-review#set-up-code-review),
+[code-review: set up and use Code Review](https://code.claude.com/docs/en/code-review#set-up-and-use-code-review),
 and its availability (plans, preview status, excluded configurations) in the note that opens
 [the page](https://code.claude.com/docs/en/code-review), above its first section; its triggers at
-[code-review: manually trigger reviews](https://code.claude.com/docs/en/code-review#manually-trigger-reviews),
+[code-review: request a review](https://code.claude.com/docs/en/code-review-pull-requests#request-a-review),
 its check-run behavior at
 [code-review: check run output](https://code.claude.com/docs/en/code-review-pull-requests#check-run-output); the
 bundled command's arguments and what each mutates at

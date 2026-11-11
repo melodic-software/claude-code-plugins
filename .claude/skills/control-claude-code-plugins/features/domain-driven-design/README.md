@@ -4,7 +4,7 @@ The skills of `plugins/domain-driven-design`. Each one is driven with `<plugin-d
 
 ## Parts
 
-- `curate-language`: Maintain the domain glossary. Resolve terms, record rejected synonyms.
+- `ubiquitous-language`: Find, read, seed, maintain and check the domain glossary.
 
 ## Sub-features
 

@@ -31,9 +31,8 @@ let dataProblem;
 let asrPython;
 try {
   const parsed = parseRunArgs(process.argv.slice(2));
-  const { dataDir } = parsed;
   asrPython = parsed.asrPython;
-  data = resolvePluginData(dataDir, process.env);
+  data = resolvePluginData(parsed.dataDir, process.env);
 } catch (error) {
   dataProblem = error.message;
 }
@@ -66,17 +65,13 @@ const magick = probe("magick", ["-version"]);
 lines.push(`ImageMagick: ${magick ?? "MISSING - install ImageMagick 7 (watch action only)"}`);
 
 // Optional ASR rung: detected through whichever Python imports faster_whisper, never installed.
-let whisper;
 // An unset option can reach this script as the literal `${user_config...}` token: ignore it.
 const configuredPython = [asrPython, process.env.CLAUDE_PLUGIN_OPTION_ASR_PYTHON]
   .map((value) => value?.trim())
   .find((value) => value && !value.includes("${"));
-for (const python of [...(configuredPython ? [configuredPython] : []), "python", "python3", "py"]) {
-  if (probe(python, ["-c", "import faster_whisper"]) !== undefined) {
-    whisper = python;
-    break;
-  }
-}
+const whisper = [configuredPython, "python", "python3", "py"]
+  .filter(Boolean)
+  .find((python) => probe(python, ["-c", "import faster_whisper"]) !== undefined);
 lines.push(
   `faster-whisper: ${whisper ? `available (via ${whisper})` : "not found (optional; the asr transcript rung degrades)"}`,
 );

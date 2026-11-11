@@ -4,6 +4,82 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.33.1] - 2026-11-11
+
+### Changed
+
+- The `boris` references' auto mode links use the section id the permission-modes page renders
+  now. No behavior change.
+
+## [0.33.0] - 2026-11-10
+
+### Added
+
+- `repo-sweep` hygiene catalog: a read-only `adr-audit` step runs `/architecture:record-decision audit` where the repository has an ADR folder. Retirements go through `/architecture:record-decision` in their own change, after a yes.
+
+## [0.32.0] - 2026-11-10
+
+### Added
+
+- `repo-sweep` hygiene catalog: a read-only `glossary` step runs `/domain-driven-design:ubiquitous-language audit` where the repository has a ubiquitous-language glossary. Its fixes go through `curate` and `/docs-hygiene:rename-references` in their own change.
+
+## [0.31.2] - 2026-11-10
+
+### Fixed
+
+- Links to Claude Code's docs that pointed at moved section anchors now resolve: the permissions page's wrapper list, the permission-modes auto-mode section, and Code Review's setup and review-request sections.
+
+## [0.31.1] - 2026-11-10
+
+### Changed
+
+- `/playbooks:skill-authoring`: restated Claude Code behavior in `SKILL.md`, `skill-criteria.md`, `precompute-context.md` and `verification-loops-in-skills.md` is replaced by pointers to the live docs sections, each with an as-of date and a recheck trigger. No instruction, gate or command changes.
+- `/playbooks:skill-authoring`: Composing Skills now says a plugin can declare the plugins it needs in its manifest, in place of the claim that no dependency management exists; the Sources entry for the vendored playbook points at `/playbooks:update --check` instead of a stale hash.
+- `/playbooks:repo-sweep`: the conflicting-PR stop in `next` points at the GitHub `pull_request` section by anchor.
+- `/playbooks:boris`: the `--bare` row names the 10x figure as Boris's and points at the bare-mode docs section; Section 77's docs line becomes a pointer record.
+
+## [0.31.0] - 2026-11-10
+
+### Changed
+
+- `/playbooks:fable-5`: the doctrine is now authored by Claude Fable 5.2, which read every chapter and kept, revised or added each rule. Meta-rule 3 has every model with a chapter read it, the author included: `fable-5-2.md` now holds only the decisions scoped to Fable 5.2 (effort, the consent gate's reach, code ownership, delegation, reading a caution that states no scope, earlier answers, writing limits in prompts).
+- Three rules that hold for every reader moved from `fable-5-2.md` into the chapters: "No progress theater" sorts a routine error from a deliberate block and binds at every effort level; "Externalize conclusions when they stabilize" has a caution you write to a durable note state its scope and reason; "Density, formatting and quotation" says the one-clause house form carries no sentence or word cap.
+- Chapter pointers moved to the Fable 5.2 guide where it has a section (effort sweep, finishing the task, progress updates, reports, refusal categories); the rest name the Fable 5.1 guide as their source, re-read 2026-11-09.
+- The Opus 5.5, Sonnet 5.5, Haiku 5.5, Opus 5, Sonnet 5 and Opus 4.8 chapters are re-baselined to the Fable 5.2 author.
+
+## [0.30.2] - 2026-11-10
+
+### Changed
+
+- The `boris` playbook's model row now notes that Fable 5 has been superseded and points at the Work with Fable section for which model the `fable` alias selects.
+
+## [0.30.1] - 2026-11-10
+
+### Changed
+
+- The Haiku 5.5 adaptation chapter states the owner's rule that no role routes to Haiku, matching the multi-agent routing rubric.
+
+## [0.30.0] - 2026-11-09
+
+### Added
+
+- `fable-5-2.md`, the Claude Fable 5.2 adaptation chapter: what the playbook does differently on Fable 5.2 for effort, finishing work, the consent gate's reach, code ownership, progress updates, delegation, cautions in durable notes, earlier answers and writing form, each with a pointer to the Fable 5.2 prompting guide.
+
+### Changed
+
+- `/playbooks:fable-5` routes Claude Fable 5.2 to its own adaptation chapter, `fable-5-2.md`, and a later Fable version with no chapter of its own reads `fable-5-2.md` method-only as the nearest prior Fable chapter. Claude Fable 5.1 still reads no chapter, as the doctrine's author. The skill's description lists Fable 5.2 among the current models.
+- Model-choice, effort and pricing pointers in `/playbooks:boris` and its reference files, and the thinking and request-assembly records in the `fable-5` calibration chapter and the prompt-caching reference, are re-read against the Fable 5.2 release and re-dated.
+
+### Removed
+
+- The explicit Claude Fable 5 clause in the `fable-5` routing rule and its eval case. Claude Fable 5 still reads no adaptation chapter, now under the general rule for a version with no chapter of its own or an earlier one in its family.
+
+## [0.29.4] - 2026-11-09
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [0.29.3] - 2026-11-09
 
 ### Changed

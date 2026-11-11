@@ -3,6 +3,31 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.14] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [2.0.13] - 2026-11-10
+
+### Changed
+
+- The routing rubric, README and `/multi-agent:route`'s haiku note state the owner's rule that no role routes to Haiku; a routing-eval pass is now the evidence for the owner to reopen it, not a gate that lifts it on its own.
+
+## [2.0.12] - 2026-11-10
+
+### Changed
+
+- The retrieval role's effort now records an upstream basis in model-config's effort table, and the orchestrator's `high` effort, the worker's `mechanical` model and the retrieval model give the task table in Anthropic's model-choice guide as the context for their judgment. No resolved value changes.
+- The routing rubric records the owner's decision that no role routes to Haiku, with the guide's Haiku rows as the disagreeing source.
+
+## [2.0.11] - 2026-11-09
+
+### Changed
+
+- The routing rubric's model-change pointer is rechecked against the selection matrix that now lists Claude Fable 5.2; no routing changes.
+
 ## [2.0.10] - 2026-11-09
 
 ### Changed

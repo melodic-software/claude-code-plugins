@@ -87,6 +87,7 @@ const TIMER_MAX_MS = 2 ** 31 - 1; // a longer setTimeout delay fires after 1 ms
 const timerMs = (ms) => Math.min(ms, TIMER_MAX_MS);
 const SOCK_MAX = 100; // a Unix socket path is limited to roughly a hundred bytes
 const EXIT_POLL_MS = 1000;
+const WHOLE = /^[1-9]\d*$/; // a whole number above 0, no sign or leading zero
 const NATIVE_LOAD = /failed to load the @microsoft\/tui-test native (?:addon|library)[^\n]*/;
 
 // Launch flags and the variables cleared before Claude Code starts.
@@ -336,17 +337,22 @@ function reapPartials(target) {
   }
 }
 
+/** Verifies the install's signatures and loads it once, then marks it verified. */
+function verifyInstall(dir, repair) {
+  const audit = npm(['audit', 'signatures'], dir);
+  if (!audit.ok) throw new Broken(`npm audit signatures failed (${audit.why})`, repair);
+  const probe = loadProbe(dir);
+  if (!probe.ok) throw new Broken(`the installed engine does not load (${probe.why})`, repair);
+  writeFileSync(join(dir, SIGNED), `${new Date().toISOString()}\n`);
+}
+
 export function ensureInstalled(explicit) {
   const target = installDir(depsBase(explicit).base);
   const repair = repairLine(target);
-  if (hasEngine(target) && existsSync(join(target, SIGNED))) return target;
+  const verified = () => hasEngine(target) && existsSync(join(target, SIGNED));
+  if (verified()) return target;
   if (hasEngine(target)) {
-    // Installed by the repair line: verify signatures and load once, then mark it.
-    const audit = npm(['audit', 'signatures'], target);
-    if (!audit.ok) throw new Broken(`npm audit signatures failed (${audit.why})`, repair);
-    const probe = loadProbe(target);
-    if (!probe.ok) throw new Broken(`the installed engine does not load (${probe.why})`, repair);
-    writeFileSync(join(target, SIGNED), `${new Date().toISOString()}\n`);
+    verifyInstall(target, repair); // installed by the repair line
     return target;
   }
   reapPartials(target);
@@ -357,17 +363,13 @@ export function ensureInstalled(explicit) {
     for (const m of MANIFESTS) copyFileSync(join(HERE, m), join(partial, m));
     const ci = npm(NPM_CI_ARGS, partial);
     if (!ci.ok || !hasEngine(partial)) throw new Broken(`npm ci failed (${ci.why})`, repair);
-    const audit = npm(['audit', 'signatures'], partial);
-    if (!audit.ok) throw new Broken(`npm audit signatures failed (${audit.why})`, repair);
-    const probe = loadProbe(partial);
-    if (!probe.ok) throw new Broken(`the installed engine does not load (${probe.why})`, repair);
-    writeFileSync(join(partial, SIGNED), `${new Date().toISOString()}\n`);
+    verifyInstall(partial, repair);
     // A failed repair can leave the target without an engine; it holds nothing to keep.
     if (existsSync(target) && !hasEngine(target)) rmSync(target, { recursive: true, force: true });
     renameSync(partial, target);
   } catch (err) {
     rmSync(partial, { recursive: true, force: true });
-    if (hasEngine(target) && existsSync(join(target, SIGNED))) return target; // a concurrent install won
+    if (verified()) return target; // a concurrent install won
     throw err instanceof Broken ? err : new Broken(`install failed (${err.message})`, repair);
   }
   return target;
@@ -925,6 +927,10 @@ async function serve(opts) {
   for (const name of CI_NAMES) delete process.env[name];
   if (await childExited(terminal)) throw new Error('claude exited as soon as it started');
   if (stale) rmSync(sock, { force: true });
+  const closeTerminal = async () => {
+    await ctx.recording?.mirror.closeQuiet().catch(() => {});
+    await terminal.closeQuiet();
+  };
   const server = net.createServer((conn) => {
     let buf = '';
     // A client that goes away before its reply must not take the holder down with it.
@@ -936,8 +942,7 @@ async function serve(opts) {
       try {
         const { verb, args } = JSON.parse(buf);
         if (verb === 'stop') {
-          await ctx.recording?.mirror.closeQuiet().catch(() => {});
-          await terminal.closeQuiet();
+          await closeTerminal();
           free(); // before the reply, so a launch right after stop finds the session free
           conn.end(`${JSON.stringify({ ok: true, result: 'stopped' })}\n`, () => process.exit(0));
           return;
@@ -956,14 +961,10 @@ async function serve(opts) {
     rmSync(nameFile ?? sock, { force: true });
     release(lock, process.pid); // last, so the next launch cannot reserve before the endpoint is gone
   };
-  const exit = () => {
+  const closeAndExit = async () => {
+    await closeTerminal();
     free();
     process.exit(0);
-  };
-  const closeAndExit = async () => {
-    await ctx.recording?.mirror.closeQuiet().catch(() => {});
-    await terminal.closeQuiet();
-    exit();
   };
   setTimeout(closeAndExit, Number(opts.ttl) * 1000).unref();
   // Free the session as soon as Claude Code exits, so the next launch can start one.
@@ -983,8 +984,8 @@ async function serve(opts) {
 async function launch(opts) {
   const pluginDir = opts['plugin-dir'] && resolve(opts['plugin-dir']);
   const config = launchConfig(opts, pluginDir);
-  buildLaunch(config, process.env); // usage and credential checks before any install
-  if (!/^[1-9]\d*$/.test(opts.ttl) || Number(opts.ttl) > MAX_TTL_S) {
+  const { env } = buildLaunch(config, process.env); // usage and credential checks before any install
+  if (!WHOLE.test(opts.ttl) || Number(opts.ttl) > MAX_TTL_S) {
     throw new UsageError(`--ttl takes a whole number of seconds up to ${MAX_TTL_S}`);
   }
   // Everything from here on, the pipe name and the log included, happens under the reservation.
@@ -1020,7 +1021,7 @@ async function launch(opts) {
           ...(config.unattended ? ['--unattended'] : []),
           ...(config.inSandbox ? ['--in-sandbox'] : []),
         ],
-        { detached: true, stdio: ['ignore', fd, fd], env: buildLaunch(config, process.env).env },
+        { detached: true, stdio: ['ignore', fd, fd], env },
       );
     } finally {
       closeSync(fd);
@@ -1041,7 +1042,7 @@ async function launch(opts) {
       await request(opts.session, 'ping');
       return `launched session '${opts.session}' (holder pid ${holder.pid}, log ${log})`;
     } catch {
-      await new Promise((r) => setTimeout(r, 250));
+      await sleep(250);
     }
   }
   // A holder that never answered would keep the session reserved where stop cannot reach it.
@@ -1086,9 +1087,8 @@ function doctor(opts) {
   } else if (fc.error || fc.status !== 0) {
     lines.push(`font: unverified (no ${probe.args[0]}); ${unverified}`);
   } else {
-    const font = probe.pattern;
-    const found = new RegExp(font).test(fc.stdout);
-    lines.push(`font: ${font} ${found ? 'found' : 'MISSING; some status glyphs draw as boxes in captures'}`);
+    const found = new RegExp(probe.pattern).test(fc.stdout);
+    lines.push(`font: ${probe.pattern} ${found ? 'found' : 'MISSING; some status glyphs draw as boxes in captures'}`);
   }
   return { text: lines.join('\n'), status };
 }
@@ -1167,16 +1167,17 @@ function runPrint({ config, out, prompt, stopAt, timeoutMs }) {
       }
       if (init && stopAt(init)) stop();
     });
-    child.on('error', (err) => {
+    const settle = () => {
       clearTimeout(deadline);
       clearTimeout(killTimer);
       closeOut();
+    };
+    child.on('error', (err) => {
+      settle();
       fail(err.code === 'ENOENT' ? new Error('claude is not on PATH') : err);
     });
     child.on('close', (code, signal) => {
-      clearTimeout(deadline);
-      clearTimeout(killTimer);
-      closeOut();
+      settle();
       done({ init, code, signal, timedOut });
     });
   });
@@ -1186,7 +1187,7 @@ function printTarget(opts, verb, defaultTimeout) {
   const pluginDir = opts['plugin-dir'] && resolve(opts['plugin-dir']);
   if (!pluginDir) throw new UsageError(`${verb} needs --plugin-dir <dir>`);
   if (!opts.out) throw new UsageError(`${verb} needs --out <path.jsonl>`);
-  if (opts.timeout !== undefined && !/^[1-9]\d*$/.test(opts.timeout)) {
+  if (opts.timeout !== undefined && !WHOLE.test(opts.timeout)) {
     throw new UsageError('--timeout takes a whole number of milliseconds');
   }
   if (!existsSync(pluginDir)) throw new UsageError(`--plugin-dir ${pluginDir} does not exist`);
@@ -1272,7 +1273,7 @@ const LAUNCH_MS = 30_000 + NPM_TIMEOUT_MS;
 
 /** How long a brokered verb waits for the broker's exit: the verb's own timeout plus the reply grace, at most TIMER_MAX_MS. */
 export function brokerDeadline(verb, values) {
-  const own = /^[1-9]\d*$/.test(values.timeout ?? '') ? Number(values.timeout) : undefined;
+  const own = WHOLE.test(values.timeout ?? '') ? Number(values.timeout) : undefined;
   const base = { launch: LAUNCH_MS, ready: own ?? READY_TIMEOUT_MS, log: own ?? LOG_TIMEOUT_MS }[verb];
   return timerMs(base + REPLY_GRACE_MS);
 }

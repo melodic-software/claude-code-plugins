@@ -192,7 +192,7 @@ Auto mode routes permission prompts to a model-based classifier. Safe = auto-app
 
 Shift-tab in the CLI, dropdown in Desktop or VSCode. For who can use auto mode (plan, organization,
 model, provider), see
-[Permission modes, "Eliminate permission prompts with auto mode"](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode).
+[Permission modes, "Eliminate prompts with auto mode"](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode).
 **As of:** 2026-11-01. **Recheck trigger:** that section's requirements list changes, or the
 section is renamed or removed.
 
@@ -383,6 +383,9 @@ Surfaced by @ClaudeDevs on May 12, 2026, described as "shipped recently" (exact 
 
 **Pairs with Tip 76 (Agent View):** agent view runs many sessions at once; `/goal` makes each finish what it started. Worktrees (tip 1) + auto mode (tip 68) + `/goal` approximates an autonomous fleet that doesn't need babysitting.
 
-Docs: "Keep Claude working toward a goal" at code.claude.com.
+- **Pointer**: when deciding what ends a goal, fetch
+  [How evaluation works](https://code.claude.com/docs/en/goal#how-evaluation-works) live.
+- **As of**: 2026-11-10
+- **Recheck trigger**: that section changes what checks a goal or what clears one.
 
 Source: [@ClaudeDevs status 2054351031279186040](https://x.com/ClaudeDevs/status/2054351031279186040)

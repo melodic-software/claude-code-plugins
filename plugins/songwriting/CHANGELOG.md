@@ -3,6 +3,30 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.21] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [1.7.20] - 2026-11-11
+
+### Changed
+
+- `object-writing` points at the live subagent-model and pricing sections instead of restating
+  them; `diagnose` cites the variations heading by its exact text.
+- `suno` spokes agree with the skill's own confidence ladder: tag-order weighting is rated
+  LOW-MEDIUM wherever it appears, two `tips` items are rated MEDIUM, and the Audio Influence
+  starting point in the voice recipe is labeled unverified. The genre catalog drops a stale count,
+  a duplicate genre, an artist name and a wrong row count; the drift ledger's S7 and S10 rows name
+  current sections. No behavior change.
+
+## [1.7.19] - 2026-11-09
+
+### Changed
+
+- The `object-writer` effort record is rechecked against the Claude Fable 5.2 release; no pin changes.
+
 ## [1.7.18] - 2026-11-09
 
 ### Changed

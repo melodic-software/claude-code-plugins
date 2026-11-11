@@ -360,8 +360,8 @@ record; for option types and fixed options, see
   chunk's question text distinct (answers are keyed by it). A chunk of 1, whether a gap of 1 or
   the one left over from a gap of 5, 9, 13 and so on, is a single-select Install/Skip question
   with no hand-added Other option. The limits are the tool's, per
-  [Handle approvals and user input](https://code.claude.com/docs/en/agent-sdk/user-input.md)
-  (as of 2026-10-18; recheck if that page changes them). Then install and enable each pick,
+  [Handle approvals and user input: limitations](https://code.claude.com/docs/en/agent-sdk/user-input#limitations)
+  (as of 2026-11-10; recheck if that section changes them). Then install and enable each pick,
   including one the CLI installs disabled by default. An unanswered or dismissed chunk counts as
   declined
 - `all`. Install every not-yet-installed catalog plugin automatically; one the CLI installs
@@ -386,10 +386,11 @@ no human is present to receive the count.
 
 **Configured value: `${user_config.install_new}`**. We treat this line as rendering the configured
 word into the skill content before the model sees it, but **only when the key is explicitly set**
-in one of the three sources this skill reads `pluginConfigs` from: user settings
-(`~/.claude/settings.json`), `--settings`, or managed settings, with precedence managed →
-`--settings` → user. A project's `.claude/settings.json` or `.claude/settings.local.json` entry does
-nothing at all, and declaring the option in `plugin.json` alone does not make its value readable
+in a scope Claude Code reads `pluginConfigs` from, read live from
+[settings reference: pluginConfigs](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+with the precedence
+[settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence) gives (as of 2026-11-10; recheck when either changes the scopes or their order). We treat a
+project's `.claude/settings.json` or `.claude/settings.local.json` entry as doing nothing, and declaring the option in `plugin.json` alone does not make its value readable
 here either. See [context/scope-semantics.md](context/scope-semantics.md) for the read path, its
 pointer, and why it differs from `enabledPlugins`, which this same skill reads from project and
 local scope.

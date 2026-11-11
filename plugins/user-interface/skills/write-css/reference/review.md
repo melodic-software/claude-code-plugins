@@ -8,9 +8,10 @@ nothing.
 1. Run detect with `--config` and find the project's written CSS conventions (stack-discovery.md,
    step 1).
 2. Run the bundled linter, `<skill-dir>/scripts/review.mjs`, over the paths under review, unless
-   `--no-lint`. Pass the rule ids from `config.values.css.rules.disable` as
-   `--config '{"css":{"rules":{"disable":[...]}}}'`; with no ids, `--config '{}'`. Paths and globs
-   both work.
+   `--no-lint`. Pass the rule ids from `config.values.css.rules.disable` and
+   `config.values.animation.duration_ms` as
+   `--config '{"css":{"rules":{"disable":[...]}},"animation":{"duration_ms":{...}}}'`. Without
+   `animation.duration_ms.large` the script uses the shipped default. Paths and globs both work.
 3. Read the files for what no linter checks.
 4. Report.
 

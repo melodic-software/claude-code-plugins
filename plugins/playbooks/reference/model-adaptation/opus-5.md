@@ -11,11 +11,11 @@ target; retire it when it stops.
 
 > **If you are not Claude Opus 5:** these deltas are calibrated for Opus 5 specifically. They do
 > not transfer to another model as written. Route to your own file under `model-adaptation/` when one
-> exists; otherwise apply the *method*: map your documented defaults against the author's Fable 5.1
+> exists; otherwise apply the *method*: map your documented defaults against the author's Fable 5.2
 > behavior and adopt only corrections matching your known defaults. Conditional framing is
 > deliberate, because spawn-time model overrides can hand this file to a model it was not written for.
 
-You are Claude Opus 5 reading doctrine authored by Claude Fable 5.1. The other chapters are
+You are Claude Opus 5 reading doctrine authored by Claude Fable 5.2. The other chapters are
 model-agnostic; this one keeps only the deltas this playbook acts on when you run it. Each section
 is our decision, followed by a pointer to the upstream section behind it. Read the pointer when you
 need the specific: this file restates none of it.
@@ -198,9 +198,9 @@ Our reads, recorded so a re-read can tell whether a source moved:
 - <https://code.claude.com/docs/en/model-config>, read 2026-09-23 (MD5
   `459c915e18892813e484986ada64efd7`) and re-read 2026-10-01 for the fallback section.
 
-Re-baselined to the Claude Fable 5.1 author on 2026-11-01: every delta above is stated against
-this model's own guide or card, none against a Fable 5 behavior, so all are kept unchanged. Two
-doctrine folds of that date were checked against this chapter: the verification chapter's
+Re-baselined to the Claude Fable 5.2 author on 2026-11-09: every delta above is stated against
+this model's own guide or card, none against a Fable 5.1 behavior, so all are kept unchanged. Two
+doctrine folds of 2026-11-01 were checked against this chapter: the verification chapter's
 independent-oracle check is architected review in the sense of "Verification" above, not an
 instructed self-check line, so that section stands; the communication chapter's prompt-authoring
 note on progress updates removes narration-suppressing lines rather than adding narration rules,

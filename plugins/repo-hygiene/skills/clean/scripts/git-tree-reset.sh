@@ -100,12 +100,27 @@ fi
 
 cd "$REPO_ROOT" || exit 1
 
+# exit_planned_none <code>: end a blocked run with no reset or clean planned.
+exit_planned_none() {
+  printf 'PlannedReset: none\n'
+  printf 'PlannedClean: none\n'
+  exit "$1"
+}
+
+# ahead_count: commits HEAD is ahead of $UPSTREAM (0 when git cannot count them).
+ahead_count() {
+  local n
+  n="$(git rev-list --count "${UPSTREAM}..HEAD" 2>/dev/null | tr -d ' ' || echo 0)"
+  printf '%s' "${n:-0}"
+}
+
 CURRENT_BRANCH="$(git branch --show-current 2>/dev/null | tr -d '\r')"
 UPSTREAM="$(git rev-parse --abbrev-ref '@{u}' 2>/dev/null | tr -d '\r' || true)"
 if [[ -z "$UPSTREAM" ]]; then
   echo "git-tree-reset.sh: no upstream tracking branch (set with git push -u)" >&2
   exit 2
 fi
+BRANCH_REMOTE="$(git config "branch.${CURRENT_BRANCH}.remote" 2>/dev/null | tr -d '\r' || true)"
 
 # Gate an unresolvable upstream before any destructive op. When the upstream is
 # configured (branch.<name>.remote + .merge) but its remote-tracking ref is
@@ -113,28 +128,22 @@ fi
 # deleted and pruned — git rev-parse --abbrev-ref '@{u}' prints the LITERAL token
 # @{u} instead of a ref name, and the pipe above masks git's non-zero exit, so
 # the empty-guard passes and UPSTREAM=@{u}. Left unchecked, git reset --hard @{u}
-# fails with "fatal: ambiguous argument '@{u}'" AFTER the guards, and (pre-#460)
-# git clean -fdx would still run — a partial destructive op. Verify @{u} names a
-# real, resolvable ref (a local-only upstream, branch.remote=".", still resolves
-# to its local branch and passes); if not, skip the repo with a clear reason
-# before any label output whose values (e.g. AheadCount) @{u} would silently
-# corrupt. Never let a literal @{u} reach reset --hard.
+# would fail AFTER the guards. Verify @{u} names a real, resolvable ref (a
+# local-only upstream, branch.remote=".", still resolves to its local branch and
+# passes); if not, skip the repo with a clear reason before any label output
+# whose values (e.g. AheadCount) @{u} would silently corrupt.
 if ! git rev-parse --verify --quiet '@{u}' >/dev/null 2>&1; then
-  UNRESOLVED_REMOTE="$(git config "branch.${CURRENT_BRANCH}.remote" 2>/dev/null | tr -d '\r' || true)"
   UNRESOLVED_MERGE="$(git config "branch.${CURRENT_BRANCH}.merge" 2>/dev/null | tr -d '\r' || true)"
   UNRESOLVED_MERGE_LABEL="${UNRESOLVED_MERGE#refs/heads/}"
-  printf 'Blocked: upstream-unresolved (%s/%s)\n' "${UNRESOLVED_REMOTE:-?}" "${UNRESOLVED_MERGE_LABEL:-?}"
-  printf 'PlannedReset: none\n'
-  printf 'PlannedClean: none\n'
-  exit 6
+  printf 'Blocked: upstream-unresolved (%s/%s)\n' "${BRANCH_REMOTE:-?}" "${UNRESOLVED_MERGE_LABEL:-?}"
+  exit_planned_none 6
 fi
 
 # Fetch the remote the current branch actually tracks, not a hardcoded origin —
 # a branch tracking a non-origin remote would otherwise reset to stale refs. A
 # local-only upstream (branch.<name>.remote = ".") has no remote to fetch; the
 # git-remote existence guard below skips the fetch in that case.
-UPSTREAM_REMOTE="$(git config "branch.${CURRENT_BRANCH}.remote" 2>/dev/null | tr -d '\r' || true)"
-UPSTREAM_REMOTE="${UPSTREAM_REMOTE:-origin}"
+UPSTREAM_REMOTE="${BRANCH_REMOTE:-origin}"
 
 # Resolve the default branch from the tracked remote's HEAD, not a hardcoded
 # origin — a repo whose default branch lives on a non-origin remote (or is not
@@ -143,15 +152,14 @@ DEFAULT_BRANCH="$(clean_default_branch "$REPO_ROOT" "$UPSTREAM_REMOTE")"
 
 TRACKED_DIRTY="$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
 IGNORED_COUNT="$(git status --ignored --porcelain 2>/dev/null | wc -l | tr -d ' ')"
-AHEAD_COUNT="$(git rev-list --count "${UPSTREAM}..HEAD" 2>/dev/null | tr -d ' ' || echo 0)"
-AHEAD_COUNT="${AHEAD_COUNT:-0}"
+AHEAD_COUNT="$(ahead_count)"
 
 # Build the default-preserve exclude args once (shared by dry-run preview + apply).
 mapfile -t PRESERVE_ARGS < <(clean_tree_preserve_args "$INCLUDE_DEPS" "$INCLUDE_SECRETS")
 # Exclude args arrive as `-e <pattern>` pairs, so the pattern count is half of them.
 PRESERVE_SUFFIX=""
 if [[ ${#PRESERVE_ARGS[@]} -gt 0 ]]; then
-  PRESERVE_SUFFIX="$(printf ' (+%d preserve excludes)' "$((${#PRESERVE_ARGS[@]} / 2))")"
+  printf -v PRESERVE_SUFFIX ' (+%d preserve excludes)' "$((${#PRESERVE_ARGS[@]} / 2))"
 fi
 
 printf 'Upstream: %s\n' "$UPSTREAM"
@@ -164,24 +172,17 @@ printf 'PreserveDeps: %s\n' "$([[ "$INCLUDE_DEPS" -eq 1 ]] && echo no || echo ye
 printf 'PreserveSecrets: %s\n' "$([[ "$INCLUDE_SECRETS" -eq 1 ]] && echo no || echo yes)"
 
 BLOCKED=none
+BLOCKED_EXIT=0
 if [[ "$CURRENT_BRANCH" == "$DEFAULT_BRANCH" || "$CURRENT_BRANCH" == "main" || "$CURRENT_BRANCH" == "master" ]] &&
   [[ "$FORCE_DEFAULT" -eq 0 ]]; then
   BLOCKED="default-branch (pass --force-default-branch to override)"
+  BLOCKED_EXIT=3
 elif [[ "$AHEAD_COUNT" -gt 0 && "$DRY_RUN" -eq 0 && "$ALLOW_UNPUSHED" -eq 0 ]]; then
   BLOCKED="unpushed-commits ($AHEAD_COUNT ahead of $UPSTREAM — push first or pass --allow-unpushed)"
+  BLOCKED_EXIT=4
 fi
 printf 'Blocked: %s\n' "$BLOCKED"
-
-if [[ "$BLOCKED" == default-branch* ]]; then
-  printf 'PlannedReset: none\n'
-  printf 'PlannedClean: none\n'
-  exit 3
-fi
-if [[ "$BLOCKED" == unpushed-commits* ]]; then
-  printf 'PlannedReset: none\n'
-  printf 'PlannedClean: none\n'
-  exit 4
-fi
+[[ "$BLOCKED_EXIT" -eq 0 ]] || exit_planned_none "$BLOCKED_EXIT"
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   printf 'PlannedFetch: git fetch %s\n' "$UPSTREAM_REMOTE"
@@ -207,8 +208,7 @@ fi
 # ran against a possibly-stale tracking ref; if the upstream advanced (e.g. was
 # force-pushed) the reset would otherwise discard unpushed HEAD commits without
 # requiring --allow-unpushed.
-AHEAD_COUNT="$(git rev-list --count "${UPSTREAM}..HEAD" 2>/dev/null | tr -d ' ' || echo 0)"
-AHEAD_COUNT="${AHEAD_COUNT:-0}"
+AHEAD_COUNT="$(ahead_count)"
 if [[ "$AHEAD_COUNT" -gt 0 && "$ALLOW_UNPUSHED" -eq 0 ]]; then
   printf 'Blocked: unpushed-commits (%s ahead of %s after fetch — push first or pass --allow-unpushed)\n' "$AHEAD_COUNT" "$UPSTREAM"
   printf 'AppliedReset: none\n'
@@ -237,25 +237,6 @@ printf 'AppliedReset: git reset --hard %s\n' "$UPSTREAM"
 CLEAN_STDERR="$(git clean -fdx ${PRESERVE_ARGS[@]+"${PRESERVE_ARGS[@]}"} 2>&1 >/dev/null)"
 CLEAN_RC=$?
 UNREMOVABLE="$(printf '%s\n' "$CLEAN_STDERR" | grep -c 'failed to remove' || true)"
-CLEAN_NON_LOCKED_FAILURE=0
-if [[ "$CLEAN_RC" -ne 0 ]]; then
-  if [[ -z "$CLEAN_STDERR" ]]; then
-    CLEAN_NON_LOCKED_FAILURE=1
-  else
-    while IFS= read -r clean_line || [[ -n "$clean_line" ]]; do
-      [[ -z "$clean_line" ]] && continue
-      if [[ "$clean_line" != *'failed to remove'* ]]; then
-        CLEAN_NON_LOCKED_FAILURE=1
-        break
-      fi
-    done <<<"$CLEAN_STDERR"
-  fi
-fi
-
-# Restore guard runs after clean unconditionally (data-loss guard): recover any
-# tracked file clean deleted via reparse-point traversal, even on the failure path
-# below — a clean that errored mid-run may still have deleted tracked files first.
-RESTORED="$(clean_restore_tracked_deletions "$REPO_ROOT")"
 
 # Gate the AppliedClean success line on the real outcome. A non-zero exit whose
 # sole cause is locked/in-use files (every non-empty stderr line is a 'failed to
@@ -266,8 +247,17 @@ RESTORED="$(clean_restore_tracked_deletions "$REPO_ROOT")"
 # failure line and a non-zero exit instead of a success line that misrepresents
 # the outcome.
 CLEAN_FAILED=0
-if [[ "$CLEAN_RC" -ne 0 && "$CLEAN_NON_LOCKED_FAILURE" -ne 0 ]]; then
+if [[ "$CLEAN_RC" -ne 0 ]] &&
+  { [[ -z "$CLEAN_STDERR" ]] || LC_ALL=C grep -qv -e '^$' -e 'failed to remove' <<<"$CLEAN_STDERR"; }; then
   CLEAN_FAILED=1
+fi
+
+# Restore guard runs after clean unconditionally (data-loss guard): recover any
+# tracked file clean deleted via reparse-point traversal, even on the failure path
+# below — a clean that errored mid-run may still have deleted tracked files first.
+RESTORED="$(clean_restore_tracked_deletions "$REPO_ROOT")"
+
+if [[ "$CLEAN_FAILED" -eq 1 ]]; then
   printf 'FAILED: git clean -fdx exited %s (non-locked-file cause) — untracked removal incomplete; reset --hard already applied.\n' "$CLEAN_RC" >&2
   [[ -n "$CLEAN_STDERR" ]] && printf '%s\n' "$CLEAN_STDERR" >&2
   printf 'AppliedClean: failed\n'

@@ -66,21 +66,18 @@ emit() {
 resolve_base() {
   local ref
   if [[ -n "$BASE" ]]; then
-    git rev-parse --verify -q "$BASE^{commit}" >/dev/null && {
-      printf '%s' "$BASE"
-      return 0
-    }
-    return 1
+    git rev-parse --verify -q "$BASE^{commit}" >/dev/null && printf '%s' "$BASE"
+    return
   fi
-  ref=$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null) && {
+  if ref=$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null); then
     printf '%s' "$ref"
     return 0
-  }
+  fi
   for ref in origin/main origin/master main master; do
-    git rev-parse --verify -q "$ref^{commit}" >/dev/null 2>&1 && {
+    if git rev-parse --verify -q "$ref^{commit}" >/dev/null 2>&1; then
       printf '%s' "$ref"
       return 0
-    }
+    fi
   done
   return 1
 }

@@ -73,13 +73,13 @@ resolver_and_contract() {
 resolver_and_contract "staleness window (10 minutes)" "10 minutes"
 resolver_and_contract "snapshot path pattern" "~/.claude/context-guard/context/<session_id>.json"
 resolver_and_contract "zones file path" "~/.claude/context-guard/zones.json"
-resolver_and_contract "percentage floor" "smart ≤ 50 < acceptable ≤ 75 < dumb"
-resolver_and_contract "200k-class token band" "200000: smart ≤ 100000 < acceptable ≤ 150000 < dumb"
-resolver_and_contract "1M-class token band" "1000000: smart ≤ 128000 < acceptable ≤ 500000 < dumb"
+resolver_and_contract "percentage floor" "light ≤ 50 < moderate ≤ 75 < heavy"
+resolver_and_contract "200k-class token band" "200000: light ≤ 100000 < moderate ≤ 150000 < heavy"
+resolver_and_contract "1M-class token band" "1000000: light ≤ 128000 < moderate ≤ 500000 < heavy"
 resolver_and_contract "occupancy definition" "total_input_tokens + total_output_tokens"
 resolver_and_contract "token-shape version floor" "cli_version"
 resolver_and_contract "token-shape version floor value" "2.1.132"
-resolver_and_contract "zone vocabulary" "smart / acceptable / dumb / unknown"
+resolver_and_contract "zone vocabulary" "light / moderate / heavy / unknown"
 
 both "$SKILL_N" "skills/audit/SKILL.md" "evidence-degraded marker path" "<session_id>.compacted"
 

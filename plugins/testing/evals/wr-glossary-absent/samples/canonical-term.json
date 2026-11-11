@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "class LoanTest(unittest.TestCase):\n    def test_lending_an_available_tool_records_a_loan_due_in_14_days(self):\n        loan = self.library.lend(\"T-7\", \"C-102\", on=date(2026, 3, 1))\n        self.assertEqual(loan.due_date, date(2026, 3, 15))\n",
+      "why": "names the feature Loan"
+    },
+    {
+      "answer": "def test_tool_on_loan_cannot_go_out_again(self):\n    with self.assertRaises(ValueError):\n        self.library.lend(\"T-7\", \"C-102\", on=date(2026, 3, 2))\n",
+      "why": "lower-case loan in a test name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "class CheckoutTest(unittest.TestCase):\n    def test_checkout_records_due_date(self):\n        record = self.library.check_out(\"T-7\", \"C-102\", on=date(2026, 3, 1))\n        self.assertEqual(record.due_date, date(2026, 3, 15))\n",
+      "why": "uses the user's word, never the glossary's term"
+    },
+    {
+      "answer": "def test_borrowed_tool_is_unavailable(self):\n    self.library.borrow(\"T-7\", \"C-102\")\n    self.assertFalse(self.library.is_available(\"T-7\"))\n",
+      "why": "a third name, not the canonical term"
+    }
+  ]
+}

@@ -10,8 +10,8 @@ disable-model-invocation: true
 A registration is one stdio server bound to one environment of one config file (design:
 [ADR 0086](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0086-bound-the-sql-server-read-tier-by-a-read-only-principal-and-fixed-registrations.md)).
 The plugin ships no server in its own `.mcp.json`; this skill installs a copy of the server into
-`${CLAUDE_PLUGIN_DATA}/server` so registrations survive plugin updates, and registers it under a
-name you choose.
+`${CLAUDE_PLUGIN_DATA}/server` (why that directory: "Upstream record" below), and registers it
+under a name you choose.
 
 The read-only database principal you create is the guarantee. A registration on a login that can
 write is not read-only, whatever the reject list does. This skill creates no principal and no
@@ -109,5 +109,5 @@ was skipped or refused, and each FAIL with its remediation.
   the session that added it.
 - Persistence of `${CLAUDE_PLUGIN_DATA}` across plugin updates:
   <https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data>, as of
-  2026-11-01. Recheck when that section changes, or when `check` reports no server copy after an
+  2026-11-10. Recheck when that section changes, or when `check` reports no server copy after an
   update that `apply` had installed.

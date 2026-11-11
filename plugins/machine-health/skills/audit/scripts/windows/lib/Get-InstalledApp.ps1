@@ -82,8 +82,7 @@ function Get-InstalledApp {
         $states.Add('error')
     }
 
-    $failed = @($states | Where-Object { -not (Test-ReadStateUsable $_) })
-    $state = if ($failed.Count -gt 0) { $failed[0] } else { 'ok' }
+    $state = ($states | Where-Object { -not (Test-ReadStateUsable $_) } | Select-Object -First 1) ?? 'ok'
     return [pscustomobject]@{ ReadState = $state; Apps = $apps.ToArray() }
 }
 
@@ -103,13 +102,9 @@ function ConvertFrom-UninstallEntry {
     if ((& $get 'SystemComponent') -eq 1) { return $null }
     if (& $get 'ParentKeyName') { return $null }
 
-    $installDate = $null
-    $rawDate = [string](& $get 'InstallDate')
     $parsed = [datetime]::MinValue
-    if ([datetime]::TryParseExact($rawDate, 'yyyyMMdd', [cultureinfo]::InvariantCulture,
-            [System.Globalization.DateTimeStyles]::None, [ref]$parsed)) {
-        $installDate = $parsed
-    }
+    $installDate = [datetime]::TryParseExact([string](& $get 'InstallDate'), 'yyyyMMdd', [cultureinfo]::InvariantCulture,
+        [System.Globalization.DateTimeStyles]::None, [ref]$parsed) ? $parsed : $null
 
     $installDir = ([string](& $get 'InstallLocation')).Trim().Trim('"').TrimEnd('\')
     $exePath = (([string](& $get 'DisplayIcon')).Trim() -replace ',\s*-?\d+$', '').Trim('"')

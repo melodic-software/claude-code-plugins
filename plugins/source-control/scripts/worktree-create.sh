@@ -100,7 +100,7 @@ windows_drive_letter() {
   return 1
 }
 
-# check_same_drive <repo-toplevel> <worktree-path> <root-rung> — enforce the
+# check_same_drive <repo-toplevel> <worktree-path> — enforce the
 # same-drive-on-Windows invariant for worktree placement (#2764, #2806).
 #
 # `git worktree move` is `rename()` and cannot cross a volume boundary on
@@ -112,15 +112,9 @@ windows_drive_letter() {
 # WorktreeCreate hook path (exit-0 stderr is dropped to the debug log).
 # Inert when either path lacks a drive letter.
 #
-# <root-rung> labels which resolution arm supplied the foreign root for
-# callers/tests; policy is identical for every rung.
-#
 # Returns 0 to proceed, 3 to refuse. Caller exits on non-zero.
 check_same_drive() {
-  local repo_path="$1" wt_path="$2" rung="$3"
-  local repo_drive wt_drive
-  # Retained for call-site labeling; policy does not branch on it (#2806).
-  : "$rung"
+  local repo_path="$1" wt_path="$2" repo_drive wt_drive
   repo_drive=$(windows_drive_letter "$repo_path") || return 0
   wt_drive=$(windows_drive_letter "$wt_path") || return 0
   [[ "$repo_drive" == "$wt_drive" ]] && return 0
@@ -256,12 +250,12 @@ Options:
                       fresh picks the remote generically — the current branch's
                       configured remote, else origin, else the sole remote — so a
                       clone made with 'git clone -o upstream' resolves upstream's
-                      default branch. When the repository has not been fetched
-                      in 24 hours, fresh first fetches that branch (capped at
-                      5s, prompts off); a failed or timed-out fetch warns and
-                      keeps the cached ref. With no resolvable remote, or an
-                      uncached <remote>/HEAD, it warns and branches from local
-                      HEAD.
+                      default branch. fresh first fetches that branch on every
+                      run (capped at 5s, prompts off); a failed or timed-out
+                      fetch warns, keeps the cached ref, and reports the base
+                      as <remote>/<branch>@<sha>, not refreshed. With no
+                      resolvable remote, or an uncached <remote>/HEAD, it
+                      warns and branches from local HEAD.
   --repo-dir <dir>    Source repository directory. Default: current directory.
   --session-id <id>   Session id recorded in the git worktree lock reason as
                       \`session <id> since\`, the token worktree-claim.sh
@@ -570,16 +564,13 @@ canonicalize_root() {
 
 # Unconfigured root: detected here, resolved after the repository is known below
 # (the worktreeroot.path rung needs the repository, and the data-dir rung
-# stays last). root_rung tracks which resolution arm supplied the root so the
-# same-drive check (#2764/#2806) can label the refusing arm in diagnostics.
+# stays last).
 root_unset=0
-root_rung=0
 if root_is_unset "$root"; then
   root_unset=1
 else
   canonicalize_root "$root" --root
   root="$CANONICAL_ROOT"
-  root_rung=1
 fi
 
 # Resolve the source repository top level.
@@ -619,7 +610,6 @@ if ((root_unset)); then
     canonicalize_root "$WORKTREE_ROOT_VALUE" "$WORKTREE_ROOT_KEY_USED"
     root="$CANONICAL_ROOT"
     root_unset=0
-    root_rung=2
     printf '%s: worktree root resolved from the %s git config key\n' \
       "$PROG" "$WORKTREE_ROOT_KEY_USED" >&2
   fi
@@ -632,7 +622,6 @@ if ((root_unset)) && ! root_is_unset "$fallback_root"; then
   canonicalize_root "$fallback_root" --fallback-root
   root="$CANONICAL_ROOT"
   root_unset=0
-  root_rung=3
 fi
 
 # Rung 4: the plugin's own data directory, delivered by the caller through
@@ -695,7 +684,6 @@ EOF
   fi
 
   root="${data_root%/}/worktrees"
-  root_rung=4
   printf '%s: worktree_root is not configured; defaulting to %s\n' "$PROG" "$root" >&2
   # SC2016: the backticks are literal markdown in guidance text, not a command
   # substitution — expansion is exactly what must NOT happen here.
@@ -832,7 +820,7 @@ derive_conventional_branch() {
 }
 
 branch="$name"
-if [[ "$existing_branch" -eq 0 ]]; then
+if ((!existing_branch)); then
   read_branch_naming
   if [[ "$branch_naming" == conventional-commits ]]; then
     derive_conventional_branch "$name"
@@ -921,10 +909,7 @@ repo=""
 if origin_url=$(git -C "$toplevel" remote get-url origin 2>/dev/null); then
   parse_owner_repo "$origin_url"
 fi
-if [[ -z "$repo" ]]; then
-  repo="${toplevel##*/}"
-  owner=""
-fi
+[[ -n "$repo" ]] || repo="${toplevel##*/}"
 
 # Sanitize the name into a filesystem-safe slug: '/' and any character outside
 # [A-Za-z0-9._-] become '-', runs of '-' collapse, leading/trailing '-' trim.
@@ -1023,7 +1008,7 @@ fi
 # containment message above; enforced here. Path-shape gate (both sides must
 # match <letter>:/) so POSIX and UNC stay inert. Every rung refuses, including
 # the unconfigured plugin-data-dir default.
-check_same_drive "$toplevel" "$worktree_path" "$root_rung" || exit $?
+check_same_drive "$toplevel" "$worktree_path" || exit $?
 
 # --- Reuse: an existing worktree at the target, or an existing branch -----------
 # A relaunched `claude -w <name>`, and two names that derive one branch, meet a
@@ -1116,29 +1101,6 @@ if git -C "$toplevel" show-ref --verify --quiet "refs/heads/$branch"; then
   done
 fi
 
-# Base-ref resolution. The caller owns policy: pass --base-ref (fresh|head),
-# defaulting to fresh when omitted. Claude Code's `worktree.baseRef` lives in
-# settings.json (not git config), so the helper does not probe it — the skill
-# reads the effective setting and passes it through this flag.
-# --existing-branch checks out a branch that already exists instead of creating
-# one. It does not consult --base-ref.
-if [[ "$existing_branch" -eq 1 ]]; then
-  if [[ -n "$base_ref" ]]; then
-    printf '%s: --existing-branch cannot be combined with --base-ref\n' "$PROG" >&2
-    exit 2
-  fi
-  if ((!branch_exists)); then
-    printf '%s: --existing-branch requires a local branch named %q\n' "$PROG" "$name" >&2
-    exit 2
-  fi
-elif ((branch_exists)); then
-  if [[ -n "$base_ref" ]]; then
-    printf '%s: branch %s already exists, so --base-ref %s does not apply; checking it out as it is\n' \
-      "$PROG" "$branch" "$base_ref" >&2
-  fi
-else
-[[ -z "$base_ref" ]] && base_ref="fresh"
-
 # resolve_default_remote <repo-toplevel> — echo the repository's effective
 # default remote name, or return non-zero when none can be resolved. `origin` is
 # only a convention, not a guarantee: `git clone -o upstream` produces a repo
@@ -1203,94 +1165,101 @@ resolve_default_remote() {
   return 1
 }
 
-# FETCH_MAX_AGE_MINUTES / FETCH_CAP_SECONDS — the same freshness window and
-# fetch cap Claude Code's native `fresh` uses (1440 = 24 hours; see
-# refresh_remote_branch).
-FETCH_MAX_AGE_MINUTES=1440
+# FETCH_CAP_SECONDS — the cap on the default-branch fetch a `fresh` base runs,
+# the same cap Claude Code's native `fresh` uses (see refresh_remote_branch).
 FETCH_CAP_SECONDS=5
 
-# fetched_recently <repo-toplevel> — succeed when FETCH_HEAD was written inside
-# the freshness window. FETCH_HEAD lives in the git dir of the worktree the fetch
-# ran from, so both the per-worktree and the common git dir are checked. `find
-# -mmin` is the mtime test GNU, BSD and Git for Windows all share; `stat` is not.
-fetched_recently() {
-  local repo_top="$1" dir
-  for dir in "$(git -C "$repo_top" rev-parse --absolute-git-dir 2>/dev/null | tr -d '\r')" \
-    "$(git -C "$repo_top" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')"; do
-    [[ -n "$dir" && -f "$dir/FETCH_HEAD" ]] || continue
-    [[ -n "$(find "$dir/FETCH_HEAD" -mmin "-$FETCH_MAX_AGE_MINUTES" 2>/dev/null)" ]] && return 0
-  done
-  return 1
-}
-
 # refresh_remote_branch <repo-toplevel> <remote> <branch> — bring
-# refs/remotes/<remote>/<branch> current before `fresh` bases on it, mirroring
-# Claude Code's native `fresh`: when the repository has not been fetched inside
-# the freshness window, fetch the default branch under the cap, and keep the
-# cached ref if the fetch fails. The window and cap above are our mirror of the
-# native values.
+# refs/remotes/<remote>/<branch> current before `fresh` bases on it: fetch the
+# default branch under the cap on every run, and keep the cached ref if the
+# fetch fails. Claude Code's native `fresh` skips the fetch when the repository
+# was fetched in the last 24 hours; this script deliberately does not, because a
+# busy default branch moves many times inside that window, and a base that
+# missed those moves is not fresh.
 #   Pointer: <https://code.claude.com/docs/en/worktrees#choose-the-base-branch>
-#   As-of: 2026-10-11.
+#   As-of: 2026-11-10.
 #   Recheck trigger: that section changes how a "fresh" base refreshes the
-#   remote default branch, the window or cap it names, or its fallback to
-#   local HEAD.
-# Returns 0 when no fetch was needed or it succeeded, 1 when it failed or hit
-# the cap. Prompts are disabled so a credential helper cannot stall the cap
-# waiting on input nobody will type.
+#   remote default branch, the cap it names, or its fallback to local HEAD.
+#   A change to its 24-hour window does not apply here.
+# Returns 0 when the fetch succeeded, 1 when it failed or hit the cap. Prompts
+# are disabled so a credential helper cannot stall the cap waiting on input
+# nobody will type.
 refresh_remote_branch() {
   local repo_top="$1" remote="$2" branch="$3"
-  fetched_recently "$repo_top" && return 0
   GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never run_capped "$FETCH_CAP_SECONDS" \
     git -C "$repo_top" fetch --quiet --no-tags -- "$remote" "$branch" </dev/null >/dev/null 2>&1
 }
 
-case "$base_ref" in
-head)
-  base_commit="HEAD"
-  ;;
-fresh)
-  # Resolve the default REMOTE first, then that remote's default BRANCH
-  # symbolically (never hardcode origin/main — the portability lint forbids
-  # it), refreshing that branch first when the last fetch is over 24 hours old
-  # (refresh_remote_branch). When the symref is not cached locally, fall back to local HEAD
-  # (matching Claude Code's documented behavior, which is itself origin-centric;
-  # see the pointer record on refresh_remote_branch) but warn loudly: "fresh"
-  # promises the remote default branch, so a silent fall-through to HEAD could
-  # carry unpushed local commits the caller did not want.
-  #
-  # The HEAD probe deliberately does NOT cascade back down the remote rungs.
-  # "fresh" means the EFFECTIVE remote's default branch; quietly substituting a
-  # different remote's default branch is a worse failure than the HEAD
-  # fallback, because the caller cannot see it happen.
-  default_remote=$(resolve_default_remote "$toplevel") || default_remote=""
-  head_ref=""
-  if [[ -n "$default_remote" ]]; then
-    head_ref=$(git -C "$toplevel" symbolic-ref -q "refs/remotes/$default_remote/HEAD" 2>/dev/null | tr -d '\r')
+# Base-ref resolution. The caller owns policy: pass --base-ref (fresh|head),
+# defaulting to fresh when omitted. Claude Code's `worktree.baseRef` lives in
+# settings.json (not git config), so the helper does not probe it — the skill
+# reads the effective setting and passes it through this flag.
+# --existing-branch checks out a branch that already exists instead of creating
+# one. It does not consult --base-ref.
+if ((existing_branch)); then
+  if [[ -n "$base_ref" ]]; then
+    printf '%s: --existing-branch cannot be combined with --base-ref\n' "$PROG" >&2
+    exit 2
   fi
-  if [[ -n "$head_ref" ]]; then
-    # The symref names the default branch; `git worktree add` resolves it after
-    # the refresh, so the base is whatever the fetch left behind.
-    if ! refresh_remote_branch "$toplevel" "$default_remote" "${head_ref#"refs/remotes/$default_remote/"}"; then
-      printf '%s: warning: --base-ref fresh could not refresh %s within %ss (fetch failed or timed out); basing on the cached ref, which may be behind the remote.\n' \
-        "$PROG" "${head_ref#refs/remotes/}" "$FETCH_CAP_SECONDS" >&2
-    fi
-    base_commit="$head_ref"
-  else
+  if ((!branch_exists)); then
+    printf '%s: --existing-branch requires a local branch named %q\n' "$PROG" "$name" >&2
+    exit 2
+  fi
+elif ((branch_exists)); then
+  if [[ -n "$base_ref" ]]; then
+    printf '%s: branch %s already exists, so --base-ref %s does not apply; checking it out as it is\n' \
+      "$PROG" "$branch" "$base_ref" >&2
+  fi
+else
+  [[ -z "$base_ref" ]] && base_ref="fresh"
+  base_label="$base_ref"
+  case "$base_ref" in
+  head)
     base_commit="HEAD"
+    ;;
+  fresh)
+    # Resolve the default REMOTE first, then that remote's default BRANCH
+    # symbolically (never hardcode origin/main — the portability lint forbids
+    # it), refreshing that branch first (refresh_remote_branch). When the symref
+    # is not cached locally, fall back to local HEAD (matching Claude Code's
+    # documented behavior, which is itself origin-centric; see the pointer record on refresh_remote_branch) but warn loudly: "fresh"
+    # promises the remote default branch, so a silent fall-through to HEAD could
+    # carry unpushed local commits the caller did not want.
+    #
+    # The HEAD probe deliberately does NOT cascade back down the remote rungs.
+    # "fresh" means the EFFECTIVE remote's default branch; quietly substituting a
+    # different remote's default branch is a worse failure than the HEAD
+    # fallback, because the caller cannot see it happen.
+    default_remote=$(resolve_default_remote "$toplevel") || default_remote=""
+    head_ref=""
     if [[ -n "$default_remote" ]]; then
-      printf '%s: warning: --base-ref fresh could not resolve the remote default branch (%s/HEAD not set); branching from local HEAD instead. Run: git remote set-head %s --auto  to cache it.\n' \
-        "$PROG" "$default_remote" "$default_remote" >&2
-    else
-      printf '%s: warning: --base-ref fresh could not resolve the remote default branch (no default remote: the repository has no remotes, or has several with neither a branch-configured remote nor an origin); branching from local HEAD instead.\n' \
-        "$PROG" >&2
+      head_ref=$(git -C "$toplevel" symbolic-ref -q "refs/remotes/$default_remote/HEAD" 2>/dev/null | tr -d '\r')
     fi
-  fi
-  ;;
-*)
-  printf '%s: --base-ref must be fresh or head, got: %q\n' "$PROG" "$base_ref" >&2
-  exit 2
-  ;;
-esac
+    if [[ -n "$head_ref" ]]; then
+      # The symref names the default branch; `git worktree add` resolves it after
+      # the refresh, so the base is whatever the fetch left behind.
+      if ! refresh_remote_branch "$toplevel" "$default_remote" "${head_ref#"refs/remotes/$default_remote/"}"; then
+        printf '%s: warning: --base-ref fresh could not refresh %s within %ss (fetch failed or timed out); basing on the cached ref, which may be behind the remote.\n' \
+          "$PROG" "${head_ref#refs/remotes/}" "$FETCH_CAP_SECONDS" >&2
+        base_label="${head_ref#refs/remotes/}@$(git -C "$toplevel" rev-parse --short "$head_ref" 2>/dev/null | tr -d '\r'), not refreshed"
+      fi
+      base_commit="$head_ref"
+    else
+      base_commit="HEAD"
+      if [[ -n "$default_remote" ]]; then
+        printf '%s: warning: --base-ref fresh could not resolve the remote default branch (%s/HEAD not set); branching from local HEAD instead. Run: git remote set-head %s --auto  to cache it.\n' \
+          "$PROG" "$default_remote" "$default_remote" >&2
+      else
+        printf '%s: warning: --base-ref fresh could not resolve the remote default branch (no default remote: the repository has no remotes, or has several with neither a branch-configured remote nor an origin); branching from local HEAD instead.\n' \
+          "$PROG" >&2
+      fi
+    fi
+    ;;
+  *)
+    printf '%s: --base-ref must be fresh or head, got: %q\n' "$PROG" "$base_ref" >&2
+    exit 2
+    ;;
+  esac
 fi
 
 # --no-track on fresh: the base is <remote>/<default>, and git would otherwise
@@ -1332,11 +1301,7 @@ fi || {
 # time only: no session token, so it matches no session and check-enter
 # reports a foreign claim. Do not put the host name where the session id
 # goes; that would make every helper lock look owned by every session.
-if [[ -n "$session_id" ]]; then
-  lock_reason="$(worktree_lock_reason worktree-create.sh "$session_id")"
-else
-  lock_reason="$(worktree_lock_reason worktree-create.sh)"
-fi
+lock_reason="$(worktree_lock_reason worktree-create.sh "$session_id")"
 lock_failed=0
 if ! git -C "$toplevel" worktree lock --reason "$lock_reason" "$worktree_path" >&2; then
   lock_failed=1
@@ -1439,7 +1404,7 @@ fi
 if ((branch_exists)); then
   printf '%s: created worktree on existing branch %q\n' "$PROG" "$branch" >&2
 else
-  printf '%s: created worktree on branch %q (base %s)\n' "$PROG" "$branch" "$base_ref" >&2
+  printf '%s: created worktree on branch %q (base %s)\n' "$PROG" "$branch" "$base_label" >&2
 fi
 printf '%s\n' "$worktree_path"
 if ((lock_failed)); then

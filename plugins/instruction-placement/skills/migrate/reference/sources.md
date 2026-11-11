@@ -321,40 +321,34 @@ A re-read of the hooks page found the hook gap unchanged, so this plugin still t
 The record behind the skill body's `## Boundary` section for `cc-plugin-agents-md` and
 [`shim-droppable.md`](shim-droppable.md) (conditions A to F and the nested-`AGENTS.md` verdicts).
 
-- **Claim**: Claude Code ships a built-in plugin that reads `AGENTS.md` as the project
-  instructions. Its settings IDs (current and earlier) and its **Project instructions** option
-  (`instructionFiles`) values, with what each value loads, are in
+- **Decision**: Claude Code ships a built-in plugin that reads `AGENTS.md`, and the conditions in
+  `shim-droppable.md` read its behavior at these pointers. Condition B reads the **Project
+  instructions** option (`instructionFiles`) under both settings IDs, in the user, managed and
+  `--settings` scopes, never project or local settings. Pointers: the IDs, the values and what each
+  loads are in
   [memory § Choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load);
-  condition B reads the option under both IDs, and the settings scopes that section names, never
-  project or local settings. (The settings guide says `--settings` "can set any key your user settings file can set",
-  and the [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) entry
-  gives the scope "User or managed"; see
-  [Change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session),
-  as of 2026-10-07; recheck when the settings guide stops letting `--settings` set user-scope keys,
-  or the `pluginConfigs` scope changes.) The option's first key, `projectInstructions` (`claude`,
-  `agents-fallback`, `both`, `none`), is still honored while `instructionFiles` reads as its
-  default, so an operator's mode can come from either key; like `instructionFiles`, it is a user,
-  `--settings` or managed value a repository cannot rely on. Condition A: the files that "Count, so Claude reads them instead of `AGENTS.md`" are "a
-  `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` in your working directory or any
-  directory above it", the walk to the filesystem root, while "Don't count, and keep loading
-  alongside `AGENTS.md`: your `~/.claude/CLAUDE.md`, your organization's managed `CLAUDE.md`, and
-  `.claude/rules/` files", which is the walk's one exemption. Nested files under the default: "a
-  subdirectory's `AGENTS.md`, when Claude opens a file there with the Read tool and that
-  subdirectory has none of the three `CLAUDE.md` files of its own". The page states no subdirectory trigger for `claude-md-and-agents-md`, and
+  the scope is in the [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+  entry; what `--settings` can set is in
+  [Change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session)
+  (as of 2026-10-07; recheck when the settings guide stops letting `--settings` set user-scope keys,
+  or the `pluginConfigs` scope changes). The option's first key, `projectInstructions`, can also
+  supply the mode (the plugin's README, in the Basis below); like `instructionFiles`, it is a user,
+  `--settings` or managed value a repository cannot rely on. Condition A walks to the filesystem
+  root for the files that count against `AGENTS.md`, with the user `CLAUDE.md` as the walk's one
+  exemption; which files count, and the nested trigger under the default mode, are in
+  [memory § When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md).
+  The page states no subdirectory trigger for `claude-md-and-agents-md`, and
   does not say whether a subdirectory `CLAUDE.md`'s `@AGENTS.md` import expands under
-  `managed-only`; the skill keeps the shims in both cases for that reason. Condition D: the sessions
-  that read `CLAUDE.md` files only are the ones
+  `managed-only`; the skill keeps the shims in both cases for that reason. Condition D asks about
+  every session
   [memory § When AGENTS.md support is unavailable](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable)
-  lists, as bullets and in the version note after them. The difference table,
+  lists, as bullets and in the version note after them, and about the `--add-dir` row of the
+  difference table,
   [memory § Where AGENTS.md differs from CLAUDE.md](https://code.claude.com/docs/en/memory#where-agents-md-differs-from-claude-md),
-  adds a row for directories added with `--add-dir`; for "An `@path` import of a file outside your working
-  directory" (condition E), an `AGENTS.md` read through the setting "Loads only if you already
-  approved external imports for this project, with no prompt"; and for `InstructionsLoaded` hooks
-  (condition F), "Don't fire. They fire as usual for an `AGENTS.md` that a `CLAUDE.md` imports or
-  symlinks to". Condition D's first question: "Share one file with other coding tools" says to put
-  the `@AGENTS.md` import in a `CLAUDE.md` "when your project also has a `CLAUDE.md`, when you've
-  set **Project instructions** to `claude-md`, or in sessions that can't load `AGENTS.md`". That
-  section's settings-panel signal covers only its bulleted sessions, not the version note after
+  whose external-import row governs condition E and whose `InstructionsLoaded` row governs
+  condition F. Condition D's first question follows
+  [memory § Share one file with other coding tools](https://code.claude.com/docs/en/memory#share-one-file-with-other-coding-tools).
+  That section's settings-panel signal covers only its bulleted sessions, not the version note after
   them, so the skill does not attach the signal to the note. The page does not mention the Agent SDK, cloud or web sessions, or `claude-code-action`, so
   condition D asks the operator about each rather than inferring coverage. Condition E's bound:
   the import depth limit in
@@ -365,48 +359,42 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   a plugin loads for one session or without an install, fetch
   [plugins/create: develop without a marketplace](https://code.claude.com/docs/en/plugins/create#develop-without-a-marketplace)
   live. As of: 2026-10-18. Recheck trigger: that section changes the ways a plugin loads for one
-  session or without an install, or starts recording such a plugin in settings. The user roots, from
-  [env-vars](https://code.claude.com/docs/en/env-vars) (fetched 2026-10-01, 158,869 bytes):
-  `CLAUDE_CONFIG_DIR` "Override the configuration directory (default: `~/.claude`). All settings,
-  session history, and plugins are stored under this path. ... Set it in your shell, user
-  settings, or managed settings. Ignored in project and local settings", and
-  `CLAUDE_CODE_PLUGIN_CACHE_DIR` "Override the plugins root directory ... Defaults to
-  `~/.claude/plugins`"; [plugins/loading](https://code.claude.com/docs/en/plugins/loading)
-  (fetched 2026-10-01, 37,348 bytes) says the same root "is `~/.claude/plugins` unless you set
-  `CLAUDE_CODE_PLUGIN_CACHE_DIR`". The resolution expression is the one
-  `/performance:verify` uses. The memory page names the exempt user file
-  only as "your `~/.claude/CLAUDE.md`" and does not say how `CLAUDE_CONFIG_DIR` changes that, so
-  the walk exempts it only at the default root. The removal procedure for an `@AGENTS.md`
-  shim: "Remove
-  the `CLAUDE.md` if it holds nothing else, or keep it if some of your sessions can't load
-  `AGENTS.md` directly." The plugin loads files; nothing upstream says it moves content or writes
+  session or without an install, or starts recording such a plugin in settings. The user roots
+  are `CLAUDE_CONFIG_DIR` and `CLAUDE_CODE_PLUGIN_CACHE_DIR`, read where they may be set (shell,
+  user or managed settings) per
+  [env-vars § Variables](https://code.claude.com/docs/en/env-vars#variables) (fetched 2026-10-01,
+  158,869 bytes), with the plugins root per
+  [plugins/loading § Find plugins on disk](https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk)
+  (fetched 2026-10-01, 37,348 bytes). The resolution expression is the one
+  `/performance:verify` uses. The memory page names the exempt user file only at its default
+  location and does not say how `CLAUDE_CONFIG_DIR` changes that, so
+  the walk exempts it only at the default root. Shim removal follows
+  [memory § Remove an earlier AGENTS.md workaround](https://code.claude.com/docs/en/memory#remove-an-earlier-agents-md-workaround).
+  The plugin loads files; nothing upstream says it moves content or writes
   a shim, and no page states how a disabled built-in plugin is recorded in settings, which is why
   condition C reads `enabledPlugins` for whichever ID the inventory prints rather than one spelling.
-  Condition C's hook policy: under `allowManagedHooksOnly`, "Mods built into Claude Code keep
-  running"; under `disableAllHooks`, "Mods built into Claude Code keep running in both cases"; and
-  the mods overview's "Mods built into Claude Code" table lists `cc-plugin-agents-md`. The memory
-  page's unavailable list no longer names either setting. An earlier revision did (this
-  repository's `plugins/harness-config/reference/agents-md-liveness.md`, as of 2026-09-21, quotes
-  "You or your organization set `disableAllHooks` or `allowManagedHooksOnly`"), and no changelog
-  entry dates the change, so the skill trusts the exemption only from 2.1.287.
+  Condition C's hook policy trusts built-in mods to keep running under `allowManagedHooksOnly` and
+  `disableAllHooks`, per
+  [settings-reference § What runs under `allowManagedHooksOnly`](https://code.claude.com/docs/en/settings-reference#what-runs-under-allowmanagedhooksonly)
+  and [§ `disableAllHooks`](https://code.claude.com/docs/en/settings-reference#disableallhooks),
+  with `cc-plugin-agents-md` listed in
+  [mods overview § Mods built into Claude Code](https://code.claude.com/docs/en/plugins/mods/overview#mods-built-into-claude-code).
+  The memory page's unavailable list no longer names either setting. An earlier revision did (this
+  repository's `plugins/harness-config/reference/agents-md-liveness.md`, as of 2026-09-21, records
+  it), and no changelog entry dates the change, so the skill trusts the exemption only from 2.1.287.
 - **Basis**: [memory](https://code.claude.com/docs/en/memory), fetched 2026-10-01 by the rung-1
   route (50,074 bytes; slug in `llms.txt`; first heading "How Claude remembers your project"),
   sections `#when-claude-code-reads-agents-md`, `#choose-which-instruction-files-load`,
   `#when-agents-md-support-is-unavailable`, `#where-agents-md-differs-from-claude-md`,
   `#remove-an-earlier-agents-md-workaround` and `#share-one-file-with-other-coding-tools`
   (anchors re-read 2026-10-11). [settings-reference](https://code.claude.com/docs/en/settings-reference), fetched
-  2026-10-01, `pluginConfigs`: "Built-in plugins store their options under the same key with an
-  `@builtin` suffix"; fetched again 2026-10-02 (416,824 bytes, first heading "All settings"),
-  "What runs under `allowManagedHooksOnly`" (line 4008) and "`disableAllHooks`" (line 4021).
+  2026-10-01 for the `@builtin` key form under `pluginConfigs`; fetched again 2026-10-02 (416,824
+  bytes, first heading "All settings") for the two hook sections.
   [plugins/mods/overview](https://code.claude.com/docs/en/plugins/mods/overview), fetched
-  2026-10-02 (23,269 bytes, first heading "Mods overview"), "Mods built into Claude Code" (line
-  220). The
-  [changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) entry for 2.1.277
-  reads "Added AGENTS.md support: in a project with no CLAUDE.md, Claude Code reads AGENTS.md
-  instead; change it under \"Project instructions\" in `/config`", and the 2.1.281 entry reads
-  "Changed AGENTS.md support to also work on Amazon Bedrock, Google Vertex AI, Microsoft Foundry,
-  LLM gateways, and sessions with telemetry disabled". The `projectInstructions` key and its value
-  mapping are in the plugin's
+  2026-10-02 (23,269 bytes, first heading "Mods overview"), "Mods built into Claude Code". The
+  [changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) entries for 2.1.277
+  (AGENTS.md support added) and 2.1.281 (support extended to more session kinds). The
+  `projectInstructions` key and its value mapping are in the plugin's
   [README](https://github.com/anthropics/claude-code/blob/main/mods/agents-md/README.md),
   "Setting the option" (commit `2282079d6ac8`, read 2026-10-01); the memory page does not
   mention it.

@@ -113,26 +113,13 @@ _REJECTION_SNIPPET_LEN = 200
 
 def _normalize_path(path: str, cwd: str | None) -> str:
     """Strip cwd prefix from absolute paths so relative and absolute references dedup."""
-    if not path:
-        return path
-
     norm_path = path.replace("\\", "/").rstrip("/")
-
-    if not cwd:
-        return norm_path
-
-    norm_cwd = cwd.replace("\\", "/").rstrip("/")
+    norm_cwd = (cwd or "").replace("\\", "/").rstrip("/")
     if not norm_cwd:
         return norm_path
-
     if norm_path == norm_cwd:
         return "."
-
-    prefix = norm_cwd + "/"
-    if norm_path.startswith(prefix):
-        return norm_path[len(prefix) :]
-
-    return norm_path
+    return norm_path.removeprefix(norm_cwd + "/")
 
 
 def _as_dict(value: Any) -> dict[str, Any]:
@@ -146,6 +133,7 @@ def _as_list(value: Any) -> list[Any]:
 
 
 _TYPED_COMMAND = re.compile(r"<command-name>/([^:\s<]+:[^:\s<]+)</command-name>")
+_PLUGIN_SKILL = re.compile(r"[^:\s]+:[^:\s]+")
 
 
 def _count_typed_plugin_skill(text: str, metrics: dict[str, Any]) -> None:
@@ -164,12 +152,13 @@ def _count_tools_and_extract_paths(content: list[Any], metrics: dict[str, Any]) 
             continue
         name = str(item.get("name", "unknown"))
         metrics["tool_usage"][name] += 1
+        tool_input = _as_dict(item.get("input"))
         if name == "Skill":
-            skill = _as_dict(item.get("input")).get("skill")
-            if isinstance(skill, str) and re.fullmatch(r"[^:\s]+:[^:\s]+", skill):
+            skill = tool_input.get("skill")
+            if isinstance(skill, str) and _PLUGIN_SKILL.fullmatch(skill):
                 metrics["plugin_skills"][skill] += 1
         if name in _FILE_MODIFYING_TOOLS:
-            fp_candidate = _as_dict(item.get("input")).get("file_path")
+            fp_candidate = tool_input.get("file_path")
             if isinstance(fp_candidate, str) and fp_candidate:
                 metrics["files_modified"].add(fp_candidate)
 
@@ -619,6 +608,16 @@ def extract_chain_from_handoff(
 UUID_RE = re.compile(r'"uuid"\s*:\s*"([^"]+)"')
 HANDOFF_TOPIC_RE = re.compile(r"-handoff-(.+)\.md$")
 
+# Aggregate key -> the (section, field) of each session's `data` block it sums.
+_AGGREGATE_TOTALS = {
+    "total_assistant_turns": ("turns", "assistant"),
+    "total_human_messages": ("turns", "human_messages"),
+    "total_input_tokens": ("tokens", "total_input"),
+    "total_output_tokens": ("tokens", "total_output"),
+    "total_compactions": ("compactions", "count"),
+    "total_tool_rejections": ("tools", "rejection_count"),
+}
+
 
 def _scan_project(
     base_path: Path, session_ids: list[str], topic: str | None
@@ -692,12 +691,7 @@ def build_multi_session_output(
     agg_subagents: list[dict[str, Any]] = []
     agg_models: set[str] = set()
     agg_branches: set[str] = set()
-    total_assistant = 0
-    total_human = 0
-    total_input = 0
-    total_output = 0
-    total_compactions = 0
-    total_rejections = 0
+    totals = dict.fromkeys(_AGGREGATE_TOTALS, 0)
     transcripts_present = 0
 
     for idx, sid in enumerate(session_ids):
@@ -713,19 +707,12 @@ def build_multi_session_output(
             subagents = data["subagents"]
             agg_models.update(data["session"]["models"])
             agg_branches.update(data["session"]["git_branches"])
-            total_assistant += data["turns"]["assistant"]
-            total_human += data["turns"]["human_messages"]
-            total_input += data["tokens"]["total_input"]
-            total_output += data["tokens"]["total_output"]
-            total_compactions += data["compactions"]["count"]
-            total_rejections += data["tools"]["rejection_count"]
+            for key, (section, field) in _AGGREGATE_TOTALS.items():
+                totals[key] += data[section][field]
         else:
             subagents = result.get("subagents", [])
 
-        for sub in subagents:
-            tagged = dict(sub)
-            tagged["session_id"] = sid
-            agg_subagents.append(tagged)
+        agg_subagents.extend({**sub, "session_id": sid} for sub in subagents)
 
     # The denominator is the chain: the sessions requested (the walk, under
     # --chain-from), plus under --chain-from the other transcripts that mention
@@ -773,9 +760,9 @@ def build_multi_session_output(
     summary = (
         f"Multi-session retro: {len(session_ids)} chained session(s) "
         f"({transcripts_present} with transcript), "
-        f"{total_assistant} assistant turns total, "
-        f"{total_human} human messages, "
-        f"{total_compactions} compaction(s)"
+        f"{totals['total_assistant_turns']} assistant turns total, "
+        f"{totals['total_human_messages']} human messages, "
+        f"{totals['total_compactions']} compaction(s)"
         f"{coverage_note}"
     )
 
@@ -786,12 +773,7 @@ def build_multi_session_output(
         "fork_candidates": fork_candidates,
         "sessions": sessions_out,
         "aggregate": {
-            "total_assistant_turns": total_assistant,
-            "total_human_messages": total_human,
-            "total_input_tokens": total_input,
-            "total_output_tokens": total_output,
-            "total_compactions": total_compactions,
-            "total_tool_rejections": total_rejections,
+            **totals,
             "all_tools": dict(agg_tools.most_common()),
             "all_plugin_skills": dict(agg_plugin_skills.most_common()),
             "all_subagents": agg_subagents,
@@ -896,7 +878,7 @@ def main() -> None:
 
     # Multi-session: --sessions
     if ns.sessions:
-        _emit_multi_and_exit(list(ns.sessions), ns.base)
+        _emit_multi_and_exit(ns.sessions, ns.base)
 
     # Single-session: legacy positional path
     session_id = ns.session_id

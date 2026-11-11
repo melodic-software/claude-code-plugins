@@ -67,9 +67,12 @@ person who launched you can supply. If you are blocked, say what you are blocked
 what you already tried. That message is the whole value of the stop.
 
 Recovering is part of the work: retry after an error, and go find the information you
-are missing, rather than ending the turn to report either one. A long session or a long
-context is not a reason to stop. Length says nothing about whether the goal is met; keep
-working until it is, or until a mechanism the pipeline owns tells you to hand off.
+are missing, rather than ending the turn to report either one. Recovering stops at
+anything put in your way on purpose. A protected path, a refused permission, or a safety
+control is a boundary, not an obstacle: never route around it. Stop at it, report what
+blocked you, and reach the goal by another path you are allowed to take. A long session or a long context is not
+a reason to stop. Length says nothing about whether the goal is met; keep working until
+it is, or until a mechanism the pipeline owns tells you to hand off.
 ```
 
 ## Where it applies, and where it does not
@@ -82,7 +85,8 @@ my direction" wants the opposite posture, and pasting this block into one conver
 human-in-the-loop review into an agent that acts on its own recommendations.
 
 The loop lanes this repository ships are the worked example of that split. Their two autonomous
-lanes state clauses of their own to this effect, hand-authored inline in each launch prompt; the
+lanes state some of these clauses in their own words, hand-authored inline in each launch prompt
+(the end-of-turn clause and the recovery clause); the
 attended lane deliberately states none, because it opens by telling the session a human is present.
 **No lane references this file.** Launch prompts are pasted into a terminal that may have no plugin
 installed, so they stay self-contained by design.

@@ -103,7 +103,9 @@ class-B moves, and reports.
    reaches outside the scope, deletes a kept comment or misstates a reason.
 3. **On a rejection**, revert that report's edits and dispatch once more, naming the failure. A
    second rejection is reverted, reported as open, and the run fails.
-4. **Apply the class-B moves** the agent proposed, each behind its tier's gate, then report.
+4. **Apply the class-B moves** the agent proposed, each behind its tier's gate, hand each ADR
+   candidate it listed to `/architecture:record-decision` per [ADR candidates](#postures), then
+   report.
 
 With no subagent tool, or when this skill is itself running inside `comment-reviewer`, run the
 workflow in [actions/remove.md](actions/remove.md) inline.
@@ -152,6 +154,15 @@ encode step in [actions/remove.md](actions/remove.md#encode-a-constraint).
 
 **What `none` keeps above the floor**: public-API doc comments, except that one which only restates
 the signature is proposed for deletion, never deleted.
+
+**ADR candidates** (`necessary` and `none`): a deleted comment that records one of this
+repository's own deliberate decisions and names the alternative it was chosen over is an ADR
+candidate as well as a reshape flag; one that names no alternative is a reshape flag only. The
+run that triages it lists it in the report. In an interactive run with the `architecture` plugin
+enabled, the orchestrator, never `comment-reviewer`, then invokes `/architecture:record-decision`
+via the Skill tool for each listed candidate, with the decision, the alternative and the comment's
+text; that skill owns and applies the admission test. Otherwise
+(unattended, `report` mode, or no `architecture` plugin) the candidate stays listed.
 
 **What `explanatory` keeps** is the full earn-its-keep contract: the floor, the public-API doc
 comments, unit and sentinel annotations on the adjacent declaration, and every class-C comment that
@@ -210,6 +221,7 @@ an UNPROVABLE file yields proposals only.
 - `/source-control:commit`, which takes the staged commit-message block and lands the removed
   narrative with the diff that removed it.
 - Reshape flags that need a design decision: `/architecture:improve` on the flagged symbols.
+- ADR candidates listed but not recorded: `/architecture:record-decision` with each one.
 - Open root-cause work (a workaround, a correctness suppression): `/debugging:debug` or
   `/implementation:implement`.
 
@@ -220,7 +232,8 @@ an UNPROVABLE file yields proposals only.
   and `none` the narrative is staged before anything is deleted.
 - Rationale for a *rejected* approach has no referent in the adjacent code, the same surface as a
   stale comment. It is class C ([reference/safety.md](reference/safety.md)); outside `explanatory`
-  it is staged and deleted, since rejected alternatives belong in the commit or PR that removed them.
+  it is staged and deleted, since rejected alternatives belong in the commit or PR that removed them,
+  or in an ADR when the decision is an ADR candidate.
 - Extraction has a cost curve: a name that must grow megasyllabic to stay honest signals the
   information did not fit the name channel ([reference/dissolving-moves.md](reference/dissolving-moves.md)).
 - A tests/ directory near the target is not a net until it demonstrably covers the touched file.

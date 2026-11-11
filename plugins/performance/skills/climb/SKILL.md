@@ -98,9 +98,8 @@ before the first attempt.
    4. Otherwise: `reverted`.
 8. **Keep or revert.**
    - Kept: move the baseline arm to the attempt, `git -C <baseline-path> checkout --detach <attempt-sha>`.
-   - Reverted: in `<climb-path>`, `git reset --keep <last kept sha>`. That moves only climb's own
-     branch, and it refuses rather than overwrite uncommitted edits. If it refuses, stop and report
-     the files; never use another reset form to force it.
+   - Reverted: in `<climb-path>`, `git reset --keep <last kept sha>`, which moves only climb's own
+     branch. If it refuses, stop and report the files; never use another reset form to force it.
 9. **Log the row**: `python3 "${CLAUDE_PLUGIN_ROOT}/skills/climb/scripts/climb_log.py" append --log <slice>/log.tsv`.
    Every row passes all nine flags. The outcome goes in `--verdict` (`kept` or `reverted`) and
    `--tests` (`pass` or `fail`); the measured numbers in `--before`, `--after` and `--delta`; the
@@ -109,7 +108,7 @@ before the first attempt.
 
 - **Pointer**: for what `--keep` refuses and what it moves, see
   [git-reset `--keep`](https://git-scm.com/docs/git-reset#Documentation/git-reset.txt---keep).
-  **As of**: 2026-10-04. **Recheck trigger**: the git-reset page changes the `--keep` description.
+  **As of**: 2026-11-10. **Recheck trigger**: the git-reset page changes the `--keep` description.
 
 ## When the run ends
 
@@ -159,10 +158,9 @@ those same three items. The person starts the run with that condition.
    showed no gain. The holdout informs and never reverts: a gain that did not hold is still the
    climb's result. Do this before step 1 removes the worktrees.
 1. Remove both worktrees with `git worktree remove <path>`. The branch `climb/<goal-slug>` stays
-   and holds the kept commits in commit order. `git worktree remove` refuses a worktree with
-   modified tracked files or untracked files that `.gitignore` does not cover; ignored files do not
-   block it. When it refuses, leave that worktree in place, name its path and the files
-   `git status --porcelain` lists in the report, and let the person clean it. Never pass `--force`.
+   and holds the kept commits in commit order. When `git worktree remove` refuses, leave that
+   worktree in place, name its path and the files `git status --porcelain` lists in the report, and
+   let the person clean it. Never pass `--force`.
 2. Report:
 
 ```text

@@ -1,8 +1,8 @@
 # Foundations
 
-The project's design system, tokens and conventions override everything in this file. Literal
-values in the examples are this skill's defaults: use one only where the project has no token for
-it, and name each default you used.
+The project's design system, tokens and conventions override everything in this file. Fill each
+`{{key}}` placeholder as [`values.md`](../../../reference/values.md) says. Other numbers in the
+examples illustrate the technique.
 
 Each `Baseline:` line links the live compat entry; never copy version numbers from it. As of
 2026-10-11; recheck when that entry's Baseline status changes or the project's browser target moves.
@@ -79,9 +79,10 @@ Rules:
   `press-feedback` (`interaction.md`).
 - Never fix input zoom with `user-scalable=no` or `maximum-scale=1`; that takes zoom from people
   who need it.
-- `max(16px, 1rem)` keeps input text at 16px even when the root font size is set lower. If the
-  design needs smaller input text on desktop, set the smaller size outside
-  `@media (pointer: coarse)` and keep 16px inside it; why is the `touch` concern's.
+- `max(16px, 1rem)` keeps input text at the input floor even when the root font size is set lower.
+  If the design needs smaller input text on desktop, set the smaller size outside
+  `@media (pointer: coarse)` and keep the floor inside it; the floor and why are the `touch`
+  concern's.
 - Keep `user-select: none` to controls, never on `body` or links: people copy text. Extend the
   selector to the project's other controls (tabs, chips, drag handles), and give a link or image
   used as a control `-webkit-touch-callout: none` so a long press opens no callout.
@@ -121,8 +122,8 @@ Use them in place of every left, right, top and bottom: spacing, borders, offset
 ```css
 .card {
   position: relative;
-  padding-inline: var(--space-m, 1.5rem);
-  margin-block-end: var(--space-l, 2rem);
+  padding-inline: var(--space-m, {{spacing.m}});
+  margin-block-end: var(--space-l, {{spacing.l}});
   border-inline-start: 4px solid;
   text-align: start;
 }
@@ -154,8 +155,8 @@ version.
 
 ```css
 :root {
-  --primary-hover: color-mix(in oklch, var(--primary), black 15%);
-  --primary-subtle: color-mix(in oklch, var(--primary) 12%, transparent);
+  --primary-hover: color-mix(in oklch, var(--primary), black {{color.hover_mix_percent}}%);
+  --primary-subtle: color-mix(in oklch, var(--primary) {{color.subtle_mix_percent}}%, transparent);
 }
 ```
 
@@ -219,8 +220,8 @@ spacing.
 
 ```css
 :root {
-  --text-body: clamp(1rem, 0.75rem + 1vw, 1.75rem);
-  --space-section: clamp(3rem, 1rem + 6vw, 8rem);
+  --text-body: clamp({{typography.fluid_body.min_rem}}rem, {{typography.fluid_body.preferred_rem}}rem + {{typography.fluid_body.preferred_vw}}vw, {{typography.fluid_body.max_rem}}rem);
+  --space-section: {{spacing.section[0]}};
 }
 ```
 
@@ -231,9 +232,9 @@ Rules:
 - Work the preferred value out from two points. The slope is `(max - min) / (wide - narrow)` in px
   over px; times 100 it is the `vw` number. The `rem` part is `min - slope × narrow`.
 - Keep both bounds in `rem` so they follow the reader's font size.
-- For a font size, keep the maximum at or below 2.5 times the minimum. The `vw` part does not grow
-  with zoom; past 2.5 times, 500% zoom cannot double the text at some widths, which fails WCAG
-  1.4.4.
+- For a font size, keep the maximum at or below `typography.fluid_max_ratio` times the minimum.
+  The key can only lower the WCAG limit of 2.5: the `vw` part does not grow with zoom, so past 2.5
+  times, 500% zoom cannot double the text at some widths, which fails WCAG 1.4.4.
 - Put fluid values in tokens. Components use the token and never repeat the math.
 - For more than two or three sizes, derive a scale: `one-fluid-scale-for-type-and-space`.
 
@@ -249,12 +250,12 @@ Use it when a design has more than two or three font sizes.
 
 ```css
 :root {
-  --narrow: 20;
-  --wide: 77.5;
-  --size-narrow: 1.125;
-  --size-wide: 1.25;
-  --ratio-narrow: 1.2;
-  --ratio-wide: 1.25;
+  --narrow: {{typography.fluid_scale.narrow_rem}};
+  --wide: {{typography.fluid_scale.wide_rem}};
+  --size-narrow: {{typography.fluid_scale.size_narrow_rem}};
+  --size-wide: {{typography.fluid_scale.size_wide_rem}};
+  --ratio-narrow: {{typography.fluid_scale.ratio_narrow}};
+  --ratio-wide: {{typography.fluid_scale.ratio_wide}};
 
   --fluid: clamp(0rem, (100vw - var(--narrow) * 1rem) / (var(--wide) - var(--narrow)), 1rem);
   --at-narrow: calc(var(--size-narrow) * (1rem - var(--fluid)));
@@ -268,9 +269,9 @@ Use it when a design has more than two or three font sizes.
   --step-4: calc(var(--at-narrow) * pow(var(--ratio-narrow), 4) + var(--at-wide) * pow(var(--ratio-wide), 4));
 
   --space-s: var(--step-0);
-  --space-m: calc(1.5 * var(--step-0));
-  --space-l: calc(2 * var(--step-0));
-  --space-s-l: calc(var(--at-narrow) + 2 * var(--at-wide));
+  --space-m: calc({{typography.fluid_scale.space_m_factor}} * var(--step-0));
+  --space-l: calc({{typography.fluid_scale.space_l_factor}} * var(--step-0));
+  --space-s-l: calc(var(--at-narrow) + {{typography.fluid_scale.space_l_factor}} * var(--at-wide));
 }
 
 body { font-size: var(--step-0); }
@@ -293,9 +294,9 @@ Rules:
   so a ratio set on a descendant changes nothing below it.
 - Derive sizes below step 0 from step 0 and the narrow ratio, as `--step--1` does. With both ratios
   a small size can shrink as the screen grows.
-- Check the top step against the 2.5 limit in `fluid-sizes-with-clamp`: step `n` passes when
-  `(size-wide / size-narrow) × (ratio-wide / ratio-narrow)ⁿ` is 2.5 or less. The example gives
-  1.31 at step 4.
+- Check the top step against the `typography.fluid_max_ratio` limit in `fluid-sizes-with-clamp`,
+  never above 2.5: step `n` passes when `(size-wide / size-narrow) × (ratio-wide / ratio-narrow)ⁿ`
+  is at or below it. The shipped defaults give 1.31 at step 4.
 - Write a space pair only where a layout uses it, and never for a font size: a pair is steep on
   purpose and breaks that limit.
 - For a scale that follows the container, write `100cqi` in place of `100vw`
