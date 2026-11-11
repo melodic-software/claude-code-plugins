@@ -202,6 +202,7 @@ jobs:
             /.github/scripts/maintenance-reconcile-lost-runs/component-status.mjs
             /.github/actions/setup-pinned-node/
             /.node-version
+            /.github/actions/log-api-budget/
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
