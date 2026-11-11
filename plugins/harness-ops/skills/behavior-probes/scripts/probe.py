@@ -345,12 +345,12 @@ def case_problems(case: dict, by_id: dict[str, dict]) -> list[str]:
     return problems
 
 
+def probe_paths(workdir: Path, case_dir: Path) -> dict[str, str]:
+    return {"PROBE_WORKDIR": workdir.as_posix(), "PROBE_CASE_DIR": case_dir.as_posix()}
+
+
 def substitute(text: str, workdir: Path, case_dir: Path, json_escape: bool) -> str:
-    values = {
-        "PROBE_WORKDIR": workdir.as_posix(),
-        "PROBE_CASE_DIR": case_dir.as_posix(),
-    }
-    for name, value in values.items():
+    for name, value in probe_paths(workdir, case_dir).items():
         if json_escape:
             value = json.dumps(value)[1:-1]
         text = text.replace("${" + name + "}", value)
@@ -485,6 +485,10 @@ def satisfies(seen: dict, case: dict) -> bool:
     return not match or match.lower() in seen["text"].lower()
 
 
+def with_verdict(row: dict, judged: str, note: str) -> dict:
+    return {**row, "verdict": judged, "note": note}
+
+
 def verdict(case: dict, obs: dict) -> dict:
     target = case["target"]
     row = {
@@ -495,11 +499,9 @@ def verdict(case: dict, obs: dict) -> dict:
         "cost_usd": obs["cost"],
     }
     if obs["version"] is None:
-        return {
-            **row,
-            "verdict": "inconclusive",
-            "note": "no init event: the CLI did not start a session",
-        }
+        return with_verdict(
+            row, "inconclusive", "no init event: the CLI did not start a session"
+        )
     if case["outcome"] == PRINTS:
         return print_verdict(case, obs, row)
     pattern = re.compile(target.get("input_match", ""))
@@ -511,18 +513,16 @@ def verdict(case: dict, obs: dict) -> dict:
         and (not target.get("in_subagent") or use["subagent"])
     ]
     if not uses:
-        return {
-            **row,
-            "verdict": "inconclusive",
-            "note": "the model never attempted the target call",
-        }
+        return with_verdict(
+            row, "inconclusive", "the model never attempted the target call"
+        )
     want = int(target.get("count", 1))
     if len(uses) < want:
-        return {
-            **row,
-            "verdict": "inconclusive",
-            "note": f"the model attempted {len(uses)} of {want} target calls",
-        }
+        return with_verdict(
+            row,
+            "inconclusive",
+            f"the model attempted {len(uses)} of {want} target calls",
+        )
     seen = [observe_use(use, obs) for use in uses]
     select = target.get("select", "first")
     if select == "first":
@@ -530,21 +530,20 @@ def verdict(case: dict, obs: dict) -> dict:
     shape = target.get("result_match")
     if shape and not all(re.search(shape, s["text"]) for s in seen):
         # Not the output the case reads, such as a denial or a broken tool call.
-        return {
-            **row,
-            "verdict": "inconclusive",
-            "note": "the target call's result is not of result_match's shape",
-        }
+        return with_verdict(
+            row,
+            "inconclusive",
+            "the target call's result is not of result_match's shape",
+        )
     hits = [s for s in seen if satisfies(s, case)]
     passed = bool(hits) if select == "any" else len(hits) == len(seen)
     shown = (hits or seen)[0]
     if any(s["outcome"] == "unknown" for s in seen) and not passed:
-        return {
-            **row,
-            "observed": "unknown",
-            "verdict": "inconclusive",
-            "note": "the target call has no tool result",
-        }
+        return with_verdict(
+            {**row, "observed": "unknown"},
+            "inconclusive",
+            "the target call has no tool result",
+        )
     return {
         **row,
         "observed": shown["outcome"],
@@ -568,19 +567,19 @@ def print_verdict(case: dict, obs: dict, row: dict) -> dict:
     )
     line = next((first_line(o) for o in outputs if first_line(o)), "")
     if not line:
-        return {
-            **row,
-            "verdict": "inconclusive",
-            "note": "the command printed nothing"
+        return with_verdict(
+            row,
+            "inconclusive",
+            "the command printed nothing"
             + ("; a model turn answered instead" if obs["model_turn"] else ""),
-        }
+        )
     if not re.search(case["target"].get("printed_match") or "", line):
         # Not the output the case reads, such as an error or a dialog's text.
-        return {
-            **row,
-            "verdict": "inconclusive",
-            "note": "the first printed line is not of printed_match's shape",
-        }
+        return with_verdict(
+            row,
+            "inconclusive",
+            "the first printed line is not of printed_match's shape",
+        )
     passed = re.search(case["target"]["text_match"], line) is not None
     return {
         **row,
@@ -709,7 +708,6 @@ def live_runner(model: str, timeout: int, raw_dir: Path):
             else 0,
             start_new_session=not windows,
         )
-        stdout: str = ""
         try:
             stdout, _ = process.communicate(
                 prompt, timeout=case.get("timeout", timeout)
@@ -720,9 +718,10 @@ def live_runner(model: str, timeout: int, raw_dir: Path):
                 stdout, _ = process.communicate(timeout=30)
             except subprocess.TimeoutExpired:
                 stdout = ""
+        stdout = stdout or ""
         if not case.get("verdict_only"):
-            (raw_dir / raw_name(case["id"])).write_text(stdout or "", encoding="utf-8")
-        return list((stdout or "").splitlines())
+            (raw_dir / raw_name(case["id"])).write_text(stdout, encoding="utf-8")
+        return stdout.splitlines()
 
     return run
 
@@ -730,16 +729,17 @@ def live_runner(model: str, timeout: int, raw_dir: Path):
 def fake_runner(case: dict, cwd: Path, settings_file: Path, prompt: str) -> list[str]:
     """Emit the stream a case expects, so --dry-run exercises everything but `claude`."""
     target = case["target"]
+    init = {
+        "type": "system",
+        "subtype": "init",
+        "claude_code_version": DRY_RUN_VERSION,
+    }
     if case["outcome"] == PRINTS:
         printed = target["example"]
         return [
             json.dumps(event)
             for event in (
-                {
-                    "type": "system",
-                    "subtype": "init",
-                    "claude_code_version": DRY_RUN_VERSION,
-                },
+                init,
                 {
                     "type": "assistant",
                     "message": {
@@ -759,9 +759,7 @@ def fake_runner(case: dict, cwd: Path, settings_file: Path, prompt: str) -> list
         ]
     outcome = "ran" if case["outcome"] == "allow" else case["outcome"]
     text = case.get("match") or "dry run"
-    events: list[dict] = [
-        {"type": "system", "subtype": "init", "claude_code_version": DRY_RUN_VERSION}
-    ]
+    events: list[dict] = [init]
     denials: list[dict] = []
     for n in range(int(target.get("count", 1))):
         use_id = f"toolu_dry_{n}"
@@ -849,10 +847,11 @@ def rejudge(
 
     A verdict-only case saved no stream, so it keeps its row from the live run
     (prior, by case id) unchanged."""
+    prior = prior or {}
     rows = []
     for case in cases:
         if case.get("verdict_only"):
-            if case["id"] in (prior or {}):
+            if case["id"] in prior:
                 print(
                     f"{'kept':<12} {case['id']}  verdict-only: the live run saved "
                     "no stream to re-read, so its row stands",
@@ -885,12 +884,12 @@ def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
     # A dry run checks the case's wiring, which no platform rules out.
     reason = skip_reason(case) if live else None
     if reason:
-        return {**row, "verdict": "skipped", "note": reason}
+        return with_verdict(row, "skipped", reason)
     if not cli_args_ok(case.get("cli_args") or []):
-        return {**row, "verdict": "error", "note": "cli_args is not allowed flag-value pairs"}
+        return with_verdict(row, "error", "cli_args is not allowed flag-value pairs")
     # The stream of a run that saves one could carry the planted value.
     if case.get("plant_env") and case.get("verdict_only") is not True:
-        return {**row, "verdict": "error", "note": "a plant_env case must be verdict_only"}
+        return with_verdict(row, "error", "a plant_env case must be verdict_only")
     workdir = Path(tempfile.mkdtemp(prefix="cc-probe-"))
     try:
         case_dir = case["dir"]
@@ -900,11 +899,10 @@ def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
             try:
                 bash = bash_argv0()
             except RuntimeError as exc:
-                return {**row, "verdict": "error", "note": str(exc)}
+                return with_verdict(row, "error", str(exc))
             env = child_env(
                 {
-                    "PROBE_WORKDIR": workdir.as_posix(),
-                    "PROBE_CASE_DIR": case_dir.as_posix(),
+                    **probe_paths(workdir, case_dir),
                     "PROBE_LIB": (case_dir.parent.parent / "lib").as_posix(),
                     "PROBE_MODEL": case.get("model", DEFAULT_MODEL),
                 }
@@ -918,18 +916,16 @@ def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
                 check=False,
             )
             if done.returncode != 0:
-                return {
-                    **row,
-                    "verdict": "error",
-                    "note": f"scaffold exited {done.returncode}: {done.stderr.strip()[-200:]}",
-                }
+                return with_verdict(
+                    row,
+                    "error",
+                    f"scaffold exited {done.returncode}: {done.stderr.strip()[-200:]}",
+                )
         cwd = workdir / case.get("cwd", ".")
         if not cwd.is_dir():
-            return {
-                **row,
-                "verdict": "error",
-                "note": f"cwd {case.get('cwd')} does not exist after the scaffold",
-            }
+            return with_verdict(
+                row, "error", f"cwd {case.get('cwd')} does not exist after the scaffold"
+            )
         settings_text = (case_dir / "settings.json").read_text(encoding="utf-8")
         settings_file = workdir / ".probe-settings.json"
         settings_file.write_text(
@@ -974,18 +970,18 @@ def run_suite(cases: list[dict], runner, args) -> list[dict]:
                 and case.get("explicit")
                 and case["id"] not in getattr(args, "case", [])
             ):
-                row = {
-                    **base_row(case),
-                    "verdict": "skipped",
-                    "note": "explicit case: runs live only when --case names it",
-                }
+                row = with_verdict(
+                    base_row(case),
+                    "skipped",
+                    "explicit case: runs live only when --case names it",
+                )
                 break
             if runs >= args.max_runs or spent >= args.max_cost_usd:
-                row = {
-                    **base_row(case),
-                    "verdict": "skipped",
-                    "note": f"suite ceiling reached ({runs} runs, {spent:.2f} USD)",
-                }
+                row = with_verdict(
+                    base_row(case),
+                    "skipped",
+                    f"suite ceiling reached ({runs} runs, {spent:.2f} USD)",
+                )
                 break
             budget = min(
                 case.get("max_budget_usd", DEFAULT_BUDGET_USD),
@@ -1037,6 +1033,12 @@ def exit_code(rows: list[dict]) -> int:
 
 
 # ---------------------------------------------------------------- table, recheck
+
+
+def write_rows(results: Path, rows: list[dict]) -> None:
+    with results.open("w", encoding="utf-8", newline="\n") as fh:
+        for row in rows:
+            fh.write(json.dumps(row) + "\n")
 
 
 def read_rows(results: Path) -> list[dict]:
@@ -1192,11 +1194,7 @@ def main(argv: list[str] | None = None) -> int:
         if not rows:
             print(f"error: no saved streams under {args.out / 'raw'}", file=sys.stderr)
             return 2
-        with (args.out / "results.jsonl").open(
-            "w", encoding="utf-8", newline="\n"
-        ) as fh:
-            for row in rows:
-                fh.write(json.dumps(row) + "\n")
+        write_rows(results, rows)
         print(table(rows))
         return exit_code(rows)
 
@@ -1226,11 +1224,10 @@ def main(argv: list[str] | None = None) -> int:
         live_runner(args.model, args.timeout, out / "raw") if args.live else fake_runner
     )
     rows = run_suite(chosen, runner, args)
-    with (out / "results.jsonl").open("w", encoding="utf-8", newline="\n") as fh:
-        for row in rows:
-            fh.write(json.dumps(row) + "\n")
+    results = out / "results.jsonl"
+    write_rows(results, rows)
     print(table(rows))
-    print(f"\nresults: {(out / 'results.jsonl').as_posix()}", file=sys.stderr)
+    print(f"\nresults: {results.as_posix()}", file=sys.stderr)
     return exit_code(rows)
 
 
