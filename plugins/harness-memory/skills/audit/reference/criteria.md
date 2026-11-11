@@ -26,7 +26,7 @@ for evaluation. The audit applies checks per-entity-type (CLAUDE.md, rules, memo
 
 Every firing rule here is our decision, in our words; a doc-derived check names the docs section it
 rests on as a **Pointer** and stores none of the page's text. Unless a check says otherwise, each
-pointer's as-of date is 2026-09-20 (the "Last updated" date above) and its recheck trigger is a
+pointer's as-of date is 2026-09-20 and its recheck trigger is a
 Claude Code release note or docs change touching the section it points at.
 
 To refresh this file against current official guidance, run the skill's `update` action.
@@ -78,9 +78,9 @@ treats as one file.
   for imports, see [Import additional files](https://code.claude.com/docs/en/memory#import-additional-files).
 
 **Diagnostic**: We read a rule Claude keeps ignoring as a sign the file is too long. When the audit
-was prompted by a rule being ignored, add a C1 WARN naming that symptom even when steps 4-6 pass.
+was prompted by a rule being ignored, add a C1 WARN naming that symptom even when step 4 passes.
 The branch is prompt-conditioned, so it belongs to the judgment tier. Label it "judgment
-candidate" in the report; steps 1-6 remain the deterministic spine, unaffected.
+candidate" in the report; steps 1-5 remain the deterministic spine, unaffected.
 
 - **Pointer**: for the ignored-rule symptom, see
   [Keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short).
@@ -593,7 +593,7 @@ Present findings as a deterministic report:
 |---|-------|------|---------|
 ```
 
-Save the report to the path SKILL.md resolves in "Report location",
+Save the report to the path SKILL.md resolves in "Derive the report location before writing or reading",
 `audit/<state-key>/last-audit.md` under the plugin data directory, so the `report` and `fix` actions
 retrieve **this project's** report rather than whichever one was written last on this machine. The
 key is derived by the resolver SKILL.md names; this file states the format, not the path.

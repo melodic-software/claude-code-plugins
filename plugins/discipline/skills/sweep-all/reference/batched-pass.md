@@ -60,9 +60,8 @@ unchanged and bind every member.
    invariant.
 
    One wave is usually possible, and the two documented limits are not the
-   same kind of limit. `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` ("Maximum number
-   of read-only tools and subagents that can execute in parallel", documented
-   default 10) caps how many run at once. It does not cap how many you
+   same kind of limit. `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` caps how many
+   run at once. It does not cap how many you
    dispatch. The hard one is the session's concurrent subagent limit, which
    fails a spawn past it and is shared with everything else the session is
    running. For its default, what counts against it, and which sessions are
@@ -73,23 +72,20 @@ unchanged and bind every member.
    `reference/docs-lookup-procedure.md`; both sit two levels above this
    skill's directory), rather than
    from this file (as of 2026-10-02; recheck when that section
-   changes the default, what takes a slot, or the exemptions). No per-session total applies:
-   `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` is a documented no-op, so the
-   concurrency and depth limits are the only ones to plan around.
+   changes the default, what takes a slot, or the exemptions). The concurrency
+   and depth limits are the only ones to plan around.
 
-   (Basis: <https://code.claude.com/docs/en/sub-agents>,
-   <https://code.claude.com/docs/en/env-vars>, and
-   <https://code.claude.com/docs/en/whats-new/2026-w32>, read verbatim end to
-   end through the `.md` fetch route
-   ([upstream-drift](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#reading-the-basis-the-fetch-route))
-   on 2026-08-10. For the current rows of `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY`,
-   `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` and `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS`,
-   fetch [env-vars](https://code.claude.com/docs/en/env-vars) live (as of
-   2026-10-11). Upstream publishes no per-page content
-   date, so the fetch date is the whole of the currency claim. Recheck trigger:
-   a Claude Code release note naming tool-use concurrency, parallel tool
-   execution, or any of these variables, or a re-fetch of env-vars diverging
-   from what this file states about them.)
+   - **Pointer**: when planning the wave against these limits, fetch the
+     `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY`,
+     `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` and
+     `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` rows of
+     [Variables](https://code.claude.com/docs/en/env-vars#variables) and
+     [Concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit)
+     live; correlate with <https://code.claude.com/docs/en/whats-new/2026-w32>.
+   - **As of**: 2026-11-10
+   - **Recheck trigger**: a per-session subagent total starts to apply, or the
+     concurrency variable starts to cap how many subagents are dispatched
+     rather than how many run at once.
 
    - **Pointer**: when deciding whether the session running this pass can
      spawn forks at all, fetch

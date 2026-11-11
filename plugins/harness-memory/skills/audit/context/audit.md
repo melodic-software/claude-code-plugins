@@ -130,7 +130,7 @@ where a project CLAUDE.md would in every pass below. Concrete passes:
 
 ## Step 4: Generate report
 
-Use the output format from criteria.md. Save to **the path SKILL.md resolves in "Report location"**,
+Use the output format from criteria.md. Save to **the path SKILL.md resolves in "Derive the report location before writing or reading"**,
 `audit/<state-key>/last-audit.md` under the plugin data directory, with `<state-key>` produced by the
 resolver SKILL.md names. Derive it there rather than restating a path here, so the writer and the two
 readers (`report` and `fix`) cannot drift apart. Create the directory if absent; audit output stays
@@ -139,7 +139,7 @@ contributor-local because it covers personal auto-memory.
 **A `health/` directory or an unkeyed `audit/last-audit.md` is never migrated into a project's
 key.** It carries no project segment, so nothing records which repository produced it, and adopting
 it would invent that attribution. Where one is present, name its path to the user as a leftover
-they may delete. See SKILL.md "Report location".
+they may delete. See SKILL.md "Derive the report location before writing or reading".
 
 Present the report to the user with:
 
