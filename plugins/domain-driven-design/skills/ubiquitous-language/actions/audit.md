@@ -31,7 +31,8 @@ prune. Read-only: every finding is a report line; changes go through `curate` an
    entry, not drift; it goes to `curate`.
 5. Group the scope's code names that look like an existing term's concept, as `seed` step 3 does,
    and report each one that is neither the term nor one of its `Avoid:` words, with its count and a
-   `file:line`. Each finding proposes the name as a new `Avoid:` word through `curate`. Two copies
+   `file:line`. Each finding proposes the name as a new `Avoid:` word through `curate`, or, when the
+   name carries a meaning of its own (its own fields or behavior), as a candidate entry. Two copies
    of the same logic are not a glossary finding: duplicated code goes to
    `/code-metrics:audit-duplication`.
 
@@ -42,6 +43,7 @@ Steps 3 to 5 count every term as the contract's
 
 Contract findings, then prune candidates grouped by kind, each with a one-line reason (an unused term
 with its count and the counting method), then rejected-word hits by `curate` step 5's groups, then
-step 4's candidate entries, then step 5's unrecorded names with their proposed `Avoid:` words. Each
+step 4's candidate entries, then step 5's unrecorded names, each with its proposed `Avoid:` word or
+as a candidate entry. Each
 finding has `file:line` and the change it suggests; removals, merges and new `Avoid:` words go
 through `curate`. Close with the counts. With no glossary: `Glossary: none` and a pointer to `seed`.
