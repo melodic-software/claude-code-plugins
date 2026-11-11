@@ -1,5 +1,5 @@
 ---
-description: "MEDIUM tier, no trigger: a three-phase-file draft applies a stored line discount to invoice totals. Seeded: Phase 2 claims AC4 and B3 (the invoice text shows the percentage) but no work item touches billing/render.py (agents/plan-reviewer.md Delivers check), and a Brief captured assumption has no Load-bearing row. hard: the script sees AC4 on a Satisfies line and passes it. Source: written for this suite from the before contract (plan SKILL.md Step 3 at 6df2738455, agents/plan-reviewer.md, context/plan-reviewer.md)."
+description: "MEDIUM tier, no trigger: a three-phase-file draft applies a stored line discount to invoice totals. Seeded: Phase 2 claims AC4 and B3 (the invoice text shows the percentage) but no work item touches billing/render.py (agents/plan-reviewer.md Delivers check), and a Brief captured assumption has no Load-bearing row. hard: the script sees AC4 on a Satisfies line and passes it. Source: written for this suite from the before behavior (plan SKILL.md Step 3 at 6df2738455, agents/plan-reviewer.md, context/plan-reviewer.md)."
 tags: [plan, plan-reviewer-cut, plan-reviewer-cut-medium, hard]
 runs: 3
 max_turns: 200

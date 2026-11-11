@@ -1,5 +1,5 @@
 ---
-description: "LOW tier, no trigger: a two-file draft adds a delimiter option to a CSV export. Seeded: a Brief captured assumption with no Load-bearing row (agents/plan-reviewer.md second check), and AC3 claimed by Phase 1 that no work item builds (the Delivers check). hard: both seeds pass check-plan-outcome.sh, so only a reader who compares the Brief with the phases catches them. Source: written for this suite from the before contract (plan SKILL.md Step 3 at 6df2738455, agents/plan-reviewer.md, context/plan-reviewer.md)."
+description: "LOW tier, no trigger: a two-file draft adds a delimiter option to a CSV export. Seeded: a Brief captured assumption with no Load-bearing row (agents/plan-reviewer.md second check), and AC3 claimed by Phase 1 that no work item builds (the Delivers check). hard: both seeds pass check-plan-outcome.sh, so only a reader who compares the Brief with the phases catches them. Source: written for this suite from the before behavior (plan SKILL.md Step 3 at 6df2738455, agents/plan-reviewer.md, context/plan-reviewer.md)."
 tags: [plan, plan-reviewer-cut, plan-reviewer-cut-low, hard]
 runs: 3
 max_turns: 150

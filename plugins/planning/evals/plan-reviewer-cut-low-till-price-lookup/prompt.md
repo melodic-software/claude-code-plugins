@@ -1,5 +1,5 @@
 ---
-description: "LOW tier, no trigger: a draft adds price_for and claims load_prices already returns an empty dict for a missing file; catalog/prices.py opens the file unguarded, so it raises FileNotFoundError (context/plan-reviewer.md: findings backed by a code path). Also seeded: a Behavior item that is a step of work, not a claim. hard: the false claim reads as settled fact and only a read of the code disproves it. Source: written for this suite from the before contract (plan SKILL.md Step 3 at 6df2738455, agents/plan-reviewer.md, context/plan-reviewer.md)."
+description: "LOW tier, no trigger: a draft adds price_for and claims load_prices already returns an empty dict for a missing file; catalog/prices.py opens the file unguarded, so it raises FileNotFoundError (context/plan-reviewer.md: findings backed by a code path). Also seeded: a Behavior item that is a step of work, not a claim. hard: the false claim reads as settled fact and only a read of the code disproves it. Source: written for this suite from the before behavior (plan SKILL.md Step 3 at 6df2738455, agents/plan-reviewer.md, context/plan-reviewer.md)."
 tags: [plan, plan-reviewer-cut, plan-reviewer-cut-low, hard]
 runs: 3
 max_turns: 150

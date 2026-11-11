@@ -1,5 +1,5 @@
 ---
-description: "LOW tier, no trigger: a bug-fix draft caps retry backoff in one module. Seeded: it names a config constant `MAX_DELAY` that fetcher/config.py does not define (the ceiling is `MAX_BACKOFF_SECONDS`), and the bug fix names no regression test (context/plan-reviewer.md Design alignment). hard: the author believes its own constant name, and the mechanical gate checks neither. Source: written for this suite from the before contract (plan SKILL.md Step 3 at 6df2738455, agents/plan-reviewer.md, context/plan-reviewer.md)."
+description: "LOW tier, no trigger: a bug-fix draft caps retry backoff in one module. Seeded: it names a config constant `MAX_DELAY` that fetcher/config.py does not define (the ceiling is `MAX_BACKOFF_SECONDS`), and the bug fix names no regression test (context/plan-reviewer.md Design alignment). hard: the author believes its own constant name, and the mechanical gate checks neither. Source: written for this suite from the before behavior (plan SKILL.md Step 3 at 6df2738455, agents/plan-reviewer.md, context/plan-reviewer.md)."
 tags: [plan, plan-reviewer-cut, plan-reviewer-cut-low, hard]
 runs: 3
 max_turns: 150

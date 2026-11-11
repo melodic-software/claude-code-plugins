@@ -1,5 +1,5 @@
 ---
-description: "MEDIUM tier, no trigger: a three-file bug-fix draft makes overnight shifts count forward to the next day. Seeded: the bug fix names no regression test (context/plan-reviewer.md Design alignment), and a Brief captured assumption has no Load-bearing row. hard: the Sanity Checks are real commands, so the plan looks verified while the bug has no test that would catch its return. Source: written for this suite from the before contract (plan SKILL.md Step 3 at 6df2738455, agents/plan-reviewer.md, context/plan-reviewer.md)."
+description: "MEDIUM tier, no trigger: a three-file bug-fix draft makes overnight shifts count forward to the next day. Seeded: the bug fix names no regression test (context/plan-reviewer.md Design alignment), and a Brief captured assumption has no Load-bearing row. hard: the Sanity Checks are real commands, so the plan looks verified while the bug has no test that would catch its return. Source: written for this suite from the before behavior (plan SKILL.md Step 3 at 6df2738455, agents/plan-reviewer.md, context/plan-reviewer.md)."
 tags: [plan, plan-reviewer-cut, plan-reviewer-cut-medium, hard]
 runs: 3
 max_turns: 200

@@ -1,5 +1,5 @@
 ---
-description: "MEDIUM tier, no trigger: a five-file draft adds a reorder command and computes on-hand minus reserved itself although inventory/stock.py already exposes that as `available` (context/plan-reviewer.md: build what existing code already does). Also seeded: a work item changes the weekly report, which the Brief's Out-of-scope excludes. hard for the duplicate; routine for the out-of-scope item, which Step 4.7's reading check also covers. Source: written for this suite from the before contract (plan SKILL.md Step 3 at 6df2738455, agents/plan-reviewer.md, context/plan-reviewer.md)."
+description: "MEDIUM tier, no trigger: a five-file draft adds a reorder command and computes on-hand minus reserved itself although inventory/stock.py already exposes that as `available` (context/plan-reviewer.md: build what existing code already does). Also seeded: a work item changes the weekly report, which the Brief's Out-of-scope excludes. hard for the duplicate; routine for the out-of-scope item, which Step 4.7's reading check also covers. Source: written for this suite from the before behavior (plan SKILL.md Step 3 at 6df2738455, agents/plan-reviewer.md, context/plan-reviewer.md)."
 tags: [plan, plan-reviewer-cut, plan-reviewer-cut-medium, hard]
 runs: 3
 max_turns: 200

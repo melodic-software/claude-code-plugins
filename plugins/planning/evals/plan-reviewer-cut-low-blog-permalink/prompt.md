@@ -1,5 +1,5 @@
 ---
-description: "LOW tier, no trigger: a draft adds post permalinks and writes its own slug helper although blog/text.py already has `slugify`, which AC2's accent folding needs (context/plan-reviewer.md: build what existing code already does). Also seeded: a Behavior item that names a file and a step instead of an observable claim (agents/plan-reviewer.md third check). hard: the duplicate is visible only by reading code the plan never cites. Source: written for this suite from the before contract (plan SKILL.md Step 3 at 6df2738455, agents/plan-reviewer.md, context/plan-reviewer.md)."
+description: "LOW tier, no trigger: a draft adds post permalinks and writes its own slug helper although blog/text.py already has `slugify`, which AC2's accent folding needs (context/plan-reviewer.md: build what existing code already does). Also seeded: a Behavior item that names a file and a step instead of an observable claim (agents/plan-reviewer.md third check). hard: the duplicate is visible only by reading code the plan never cites. Source: written for this suite from the before behavior (plan SKILL.md Step 3 at 6df2738455, agents/plan-reviewer.md, context/plan-reviewer.md)."
 tags: [plan, plan-reviewer-cut, plan-reviewer-cut-low, hard]
 runs: 3
 max_turns: 150
