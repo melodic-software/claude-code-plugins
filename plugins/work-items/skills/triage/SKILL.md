@@ -123,9 +123,7 @@ reporter-info listing, the sweep's list and count, and every read before the fir
    "$TRACKER" claim "<id>" --phase triage --ttl-hours 1
    ```
 
-   `<project root>` is the literal path [`tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet.
-
-   `<id>` is fully qualified. Exit `0`: the claim is held; keep its `lease_comment_id`. Exit `7`:
+   `<project root>` is the literal path [`tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet. `<id>` is fully qualified. Exit `0`: the claim is held; keep its `lease_comment_id`. Exit `7`:
    another session holds the item, so write nothing to it, do not retry it in this run, and report
    `#<n> skipped: claimed by another session`. Exit `2` from a provider whose `claim` takes no
    `--phase` (linear's does not): claim once more without `--phase`. Exit `6` (the provider
