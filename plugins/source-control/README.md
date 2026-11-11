@@ -504,14 +504,6 @@ are never rewritten. The lock is a claim other agents can read, not a write mute
 off, `scripts/worktree-claim.sh report` still lists unclaimed plain-add trees and `check-enter`
 still surfaces a foreign live claim. The key is an on/off switch only.
 
-**`worktree_create_gate_enabled`.** A WorktreeCreate hook has no "not applicable" channel: measured
-on Claude Code 2.1.228, a non-zero exit and an exit 0 without a path both fail the creation. That
-is why `false` makes the gate refuse out loud, and every harness-driven creation path
-(`claude --worktree`, a subagent with `isolation: "worktree"`, a background session) fails with a
-message naming the real stand-downs. To let Claude Code place worktrees itself, set
-`worktree.bgIsolation` to `"none"` in settings, or disable this plugin. Probe, verbatim harness
-output and the as-of stamp: `skills/worktree/fixtures/README.md`.
-
 **`babysit_self_logins`.** The self set drives self-comment suppression, same-login
 classification, readiness-gate classification rows, the merge-gate self-exemption, and the
 resolve-thread bot-only test (a self-authored reply to a bot thread no longer counts as a
@@ -582,7 +574,6 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `worktree_reap_after_hours` | number<br>*min 1* | `48` | Hours since last commit before /worktree cleanup proposes an already-safe worktree for removal by default. Default 48. |
 | `worktree_add_containment_gate_enabled` | boolean | `true` | Blocks a raw Bash git worktree add whose resolved target lands inside a git repository (a working tree, or a .git or bare directory), naming the configured external root. On by default. A conforming target, or one the hook cannot resolve statically, passes silently. |
 | `worktree_add_claim_enabled` | boolean | `true` | After a raw Bash git worktree add, locks the parsed add target with a session-distinct claim (host, session id, timestamp) so concurrent adds cannot steal each other's trees. On by default. Off leaves plain-add trees unclaimed. |
-| `worktree_create_gate_enabled` | boolean | `true` | Redirects a WorktreeCreate away from Claude Code's default location, which may be inside the repository, to the configured worktree_root. On by default. Off does not hand placement back to Claude Code: the gate refuses and every harness-driven worktree creation fails. |
 | `babysit_watched_owners` | string (multiple) | *(none)* | GitHub owners (users or orgs) babysit-prs may act under. Absent: the current repo's owner is inferred per run. |
 | `babysit_self_logins` | string (multiple) | *(none)* | Extra GitHub posting identities (for example a project bot account) added to your gh api user login to form the self set babysit-prs treats as its own. Not a discovery filter. Absent: your gh login alone. |
 | `babysit_intended_write_identity` | string | *(none)* | The single GitHub login babysit-prs's own writes should land under, typically the bot posting identity; a recorded write landing under a different self login surfaces an attribution-drift finding. Set it to one of your self logins. Absent: the check is dormant. |
