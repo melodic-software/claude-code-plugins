@@ -2,10 +2,10 @@ schema_version: "1.1"
 name: interview-document-dba-replica
 description: With the recipient and the needed answers given up front, the interview's document surface writes one template-shaped document for the DBA into the topic's memory slice, covering every item the user named, and reports its path without quizzing the user on the subject
 tags: [interview, document, outcome]
-expected_outcome: One Write creates .work/reporting-replica/document-<role>.md holding Context, How to answer and Anything else sections with answer stubs and a question on each of the maintenance window, tolerable replica lag and backup retention. No document is written outside .work/, and the reply names the path.
+expected_outcome: One Write creates .work/reporting-replica/document-<role>.md holding Context, How to answer and Anything else sections, questions headed `### Q<N>:` with answer stubs, and a question on each of the maintenance window, tolerable replica lag and backup retention. No document is written outside .work/, and the reply names the path.
 execution:
   prompt: "Use the interview skill from the planning plugin on its document surface, topic reporting-replica. We want to point the reporting dashboards at a Postgres read replica, but three things are our DBA's call, not mine. It goes to Priya, the DBA who owns the production Postgres cluster; she knows replication well but hasn't seen the dashboard work. I need back from her: the nightly maintenance window, how much replica lag the replica can run behind before she'd page someone, and how long backups are retained. Write the document."
-  allowed_tools: [Read, Glob, Grep, Skill, Write]
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Bash]
   max_turns: 15
   timeout_seconds: 600
 graders:
@@ -36,7 +36,7 @@ graders:
   - name: template-shape
     type: tool_used
     tool: Write
-    input_match: '^(?=.*document-[a-z0-9-]+\.md)(?=.*## Context)(?=.*## How to answer)(?=.*## Anything else)(?=.*\\n>)'
+    input_match: '^(?=.*document-[a-z0-9-]+\.md)(?=.*## Context)(?=.*## How to answer)(?=.*## Anything else)(?=.*### Q[0-9]+:)(?=.*\\n>)'
     min: 1
     arm: both
   - name: reports-path

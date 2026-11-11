@@ -692,11 +692,12 @@ pin_case_digest "eval case A is unchanged (no criterion added that contradicts t
 # #12660: the Question lanes paragraph passes --data-dir and, on a caller-declared unattended run, --unattended to the surface resolver, and its one line may name an installed optional planner or offer an optional plugin (on a yes it installs at user scope and points to /reload-plugins; never required); the share row no longer names a page; each changes what the surface line says, resolves no row, and the lock row and STOP-on-gap are byte-identical
 # emoji paragraph and the Question lanes declared-default line flip the emoji default to on (#6233); presentation only, they resolve no row, and the no-silent-resolve and lock defenses are byte-identical
 # Document surface folded into the interview: the frontmatter adds the document trigger phrases and the `document` argument word; the Action Router adds one row that resolves a named surface and then runs `auto`, leaving the `lock` row and its STOP-on-gap reading untouched; the roster renames case 38 and adds cases 46-51, which register the recipient questions open and resolve none on anyone behalf, so neither defense is weakened
+# Review fix: the surface-word row now matches only a surface marked onRequest in the registry list, so an alias such as browser no longer reroutes a topic; it still only resolves a surface and runs `auto`, and the `lock` row and its STOP-on-gap reading are untouched
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "6b3c77f44b846f898877dbe579636ad9831f69a94a79125bf88d577b9984ff9e"
+  "5a451ed4f8dfaaac7b0eb83205221de424ee42323b43096cb5222c3de1f27a88"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
@@ -871,7 +872,7 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # Case 36 (pre-round-contradiction-pass) has the draft fixed or asked as one question naming both sides before the round is shown and registers no row, so it agrees with cases 15 and 16.
 # Re-pinned for #8314: adds case 37 sweep-flags-coined-term-after-accept-all, which requires a coined-term register row and blocks the lock while it is open; it licenses no silent capture or fudged gap, so cases 15 and 16 still hold.
 # Case 38 (person-deferred-routes-to-document) defers the DBA retention window with an arbiter tag, resolves no row on the DBA behalf and only recommends the interview's document surface, so it agrees with cases 15 and 16.
-# Cases 46-50 move the document cases into this skill: each interviews only the send, writes the questions to a document under open register rows, and resolves none on the recipient's behalf; case 51 resolves a returned row only when its answer takes the recommendation or an alternative, and reads back a departing one, which stays open, so cases 15 and 16 hold.
+# Cases 46-50 move the document cases into this skill: each interviews only the send, writes the questions to a document under open register rows, and resolves none on the recipient's behalf; case 51 resolves a returned row only when its answer takes the recommendation, and reads back any other, which stays open until the user confirms it, so cases 15 and 16 hold.
 # Re-pin for #8293: case 39 (sweep-decision-item-not-settled-by-unsupported-fact) requires an undecided `decision` sweep item to become an `open` register row, asked, never a fact or a captured assumption, and blocks the lock while it is open, so it agrees with cases 15 and 16.
 # Re-pin for #8365: case 40 (reused-address-stated-literally-and-owner-confirmed) requires an unstated value to become an `open` register row asking the user to confirm the literal, and blocks the lock while it is open; it licenses no silent capture or fudged gap, so it agrees with cases 15 and 16.
 # Adds case 41 product-first-reply-is-one-question-with-strong-answer and case 42 product-run-ends-in-six-item-verdict, which retires open rows as deferred and runs the register gate before the verdict; neither licenses a silent capture or fudged gap, so cases 15 and 16 still hold

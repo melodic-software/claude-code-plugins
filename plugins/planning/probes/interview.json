@@ -174,6 +174,18 @@
       "request": "Package these open decisions so the compliance officer can answer them without a meeting."
     },
     {
+      "id": "doc-pos-train-07",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Turn the open hosting decision into something the ops lead can fill out on his own time."
+    },
+    {
+      "id": "doc-pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Make a markdown questionnaire for the product owner about the export scope."
+    },
+    {
       "id": "doc-neg-train-01",
       "split": "train",
       "expect_trigger": false,

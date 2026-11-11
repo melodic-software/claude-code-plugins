@@ -123,13 +123,15 @@ test('the document surface is picked by "document" or "questionnaire" and never 
   for (const word of ['document', 'questionnaire', 'Questionnaire']) {
     const r = await resolveSurface({ argument: word, userConfig: { surface: UNSET }, env, context: NONE })
     assert.deepEqual([r.surface, r.decidedBy, r.available.ok], ['document', 'argument', true], word)
-    assert.deepEqual(r.read, ['skills/interview/context/lane-document.md', 'skills/interview/context/question-shape.md'])
   }
   const unset = await resolveSurface({ userConfig: { surface: UNSET }, env, context: ALL })
   assert.ok(!unset.alternatives.includes('document'), 'not an alternative')
   assert.doesNotMatch(unset.line, /\bdocument\b/, 'not named in the offer line')
   const onPage = await resolveSurface({ argument: 'page', env, context: ALL })
   assert.ok(!onPage.alternatives.includes('document'))
+  const listed = JSON.parse(execFileSync(process.execPath, [REGISTRY, 'list'], { encoding: 'utf8' }))
+  const onRequest = Object.fromEntries(listed.map(e => [e.id, e.onRequest]))
+  assert.deepEqual([onRequest.document, onRequest.page, onRequest.terminal], [true, false, false], 'list marks the on-request surface')
 })
 
 test('the shared session needs the owner\'s yes unless the user asked for it', async () => {

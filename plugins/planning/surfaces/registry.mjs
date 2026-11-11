@@ -139,7 +139,7 @@ async function main(argv) {
   }
   if (cmd === 'list') {
     const entries = await loadEntries()
-    console.log(JSON.stringify(entries.map(e => ({ id: e.id, reportName: e.reportName, aliases: e.aliases ?? [] }))))
+    console.log(JSON.stringify(entries.map(e => ({ id: e.id, reportName: e.reportName, aliases: e.aliases ?? [], onRequest: !!e.onRequest }))))
     return
   }
   if (cmd !== 'resolve') {
