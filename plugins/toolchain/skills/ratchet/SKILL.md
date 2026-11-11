@@ -91,6 +91,25 @@ On the per-file path with no native baseline, run the rule in its own linter inv
 the counter command reads, so the existing violations do not fail the main lint step: the ceiling
 is what fails it.
 
+### Replacing a lint tool
+
+Use this only when the new tool lacks rules the old one enforces. When it covers every one, switch
+directly: no ratchet.
+
+1. **Run both side by side.** The old tool keeps its own step, so nothing it enforces lapses.
+2. **Freeze the new tool's count.** Record its violation count as a counter (section 4).
+3. **Pay it down.** Tighten as fixes land (section 6).
+4. **Delete the old tool at zero.** When the new tool's count reaches `0`, its rules land at error
+   severity (path 1) in place of the ceiling. The old tool's step, config and dependency go only
+   once the new tool covers every rule the old one enforced; until then, cut the old tool down to
+   the rules the new one lacks.
+
+The vendor's own side-by-side setup, read live:
+[Oxlint, Running Oxlint and ESLint together](https://oxc.rs/docs/guide/usage/linter/migrate-from-eslint#running-oxlint-and-eslint-together).
+
+- **As of:** 2026-11-11.
+- **Recheck trigger:** the page renames or drops that section, or changes when it says to run both.
+
 ## 3. The ceilings file
 
 Add to the file the repository's CI already checks. Find the calls with
