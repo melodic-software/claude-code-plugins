@@ -334,7 +334,7 @@ the broker request, and no other permission; it never holds `checks: write` or `
    `plugins/source-control/scripts/resolve-version-bump-conflict.sh` to
    `$RUNNER_TEMP/merge-base-bin`, recording each copy's SHA-256 as a step output, and read
    `loop.no-progress` from the resolved config.
-9. `setup-runner-isolation`: for a skill, installs bubblewrap and socat and, where
+9. `setup-runner-isolation`: for a skill, which runs in the read file only, installs bubblewrap and socat and, where
    `/proc/sys/kernel/apparmor_restrict_unprivileged_userns` exists, sets it to `0`. It installs
    with `apt-get` from the image's own package lists, else after `apt-get update` (three tries),
    all within 540 s, under the image's own mirror failover settings. It uses no Actions cache: the
@@ -343,17 +343,17 @@ the broker request, and no other permission; it never holds `checks: write` or `
 10. Removes sudo and docker access for the rest of the job: `/var/run/docker.sock` becomes
    root-only and the runner user's `/etc/sudoers.d/runner` entry is deleted. It fails red if
    `sudo -n true` still succeeds or the socket is still open to the runner user.
-11. For a skill, copies the base's [`scripts/setup-env.sh`](../../../scripts/setup-env.sh) and the
+11. For a skill (the read file only), copies the base's [`scripts/setup-env.sh`](../../../scripts/setup-env.sh) and the
     files it installs from (`.python-version`, `.github/requirements-ci.txt`, the root and
     `.github/standards/runner-policy` `package.json` and `package-lock.json`) to
     `$RUNNER_TEMP/setup-env`; a base without the script skips this and step 12's install with a
     notice. Then checks out the trigger gate's `head-sha` with `persist-credentials: false` (full
     history for a merge, else depth 1), then fails red unless `git rev-parse HEAD`
     equals that SHA. This replaces `.base`.
-12. For a skill, sets up Python from the copied `.python-version` and runs the copied
+12. For a skill (the read file only), sets up Python from the copied `.python-version` and runs the copied
     `setup-env.sh`, which installs the hash-pinned wheels in `.github/requirements-ci.txt` into a
     venv under `$RUNNER_TEMP` and the locked Node packages, puts both on `PATH`, and copies the
-    `node_modules` trees into the checkout. Both files install from the base copies in
+    `node_modules` trees into the checkout. It installs from the base copies in
     `$RUNNER_TEMP/setup-env`, so no head code runs before the skill's own Bash; a read skill that
     needs the head's own packages runs `npm ci` there.
     Then runs the activity (below) and, in the read file, records whether the tree is dirty, or
@@ -394,7 +394,7 @@ outcome. In the read file a skill runs on run-claude-cli (`act-key` or `act-toke
 whose step succeeded is a failure when it took no model turn. The write file runs no skill, so its
 `act-outcome` is the script step's outcome.
 
-Both files also output the lane record of a skill run: `record`, the lane-outcome JSON
+The read file also outputs the lane record of a skill run (the write file runs no skill and outputs none): `record`, the lane-outcome JSON
 (ci-workflows `docs/lane-outcome.md`) that ci-workflows' `report-lane-outcome` builds from the
 execution file after the skill, naming the credential the leg ran on, or for a read leg that
 failed before the launcher named it (a CLI install), the secret the call was given. The report job
