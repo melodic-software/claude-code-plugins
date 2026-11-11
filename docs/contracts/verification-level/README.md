@@ -81,7 +81,7 @@ A skill that is itself the independent check when invoked does not read the leve
 | `/discovery:research`, `/discovery:explore`, `/discovery:trace-intent` | the sibling verifier (parent contract, "The sibling verifier, stated once"); `strict` widens research's grading to every row and claim |
 | `/discipline:do-your-research`, `/discipline:recheck-against-upstream`, `/discipline:sweep-all` | the fresh-context confirmation of a clean audit on load-bearing work (shared method, step 2), the fresh-context re-derivation (step 3) and the fan-out tiers' dispatch; `strict` takes do-your-research's fan-out tier at `full` depth |
 | `/education:quiz-me` | the fresh-context answer-key pass |
-| `/planning:plan` | the plan-reviewer dispatch in Step 3; `strict` dispatches it for every plan, which `plan_stress_test`'s `auto` otherwise gives only to high-risk plans |
+| `/planning:plan` | the plan-reviewer dispatch in Step 3; `strict` dispatches it for every plan, which `plan_stress_test`'s `auto` otherwise skips on LOW plans |
 | `/session-flow:orchestrate`, `/session-flow:workflow`, `/session-flow:retro` | imperative 3's verifier in a primed session; the fresh-context reviewer in pre-PR step 2, without which Stage 10 is not done; retro's single-pass analysis and scoring under `retro_lenses: 1` |
 | `/harness-config:audit-automation-gaps` | the fresh-context refusal gate (2.3), whose verdicts `light` lists as `unverified`, and the Phase 4 step 6 reviewer |
 | `/harness-config:audit-instructions` | the Phase C verifiers (per lane, B2 and I33) |

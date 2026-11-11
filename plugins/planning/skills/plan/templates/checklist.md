@@ -16,7 +16,7 @@ Copy into `<memory_dir>/<topic-slug>/plan-checklist.md` (default `.work/`; the t
 
 ## Skip criteria
 
-- Step 3's reviewer SKIPPED under `plan_stress_test`'s `devils-advocate` (Step 4 runs instead), under verification `light` or `off`, and under `auto` when Step 3b's blast radius is LOW or MEDIUM, no trigger matches, verification is not `strict` and the user did not ask for a review; tick Step 3 with the skip and its reason
+- Step 3's reviewer SKIPPED under `plan_stress_test`'s `devils-advocate` (Step 4 runs instead), under verification `light` or `off`, and under `auto` when Step 3b's blast radius is LOW, no trigger matches, verification is not `strict` and the user did not ask for a review; tick Step 3 with the skip and its reason
 - Step 4 SKIPPED under `plan_stress_test`'s `reviewer`, and under `auto` when Step 3b verdict = LOW blast radius and no trigger matches
 - Step 4.5 SKIPPED when the plan is single-phase (no parallelism axis, all-main-session default)
 - Step 4.6 SKIPPED when no unilateral decisions were made (user approved every choice during Q&A)

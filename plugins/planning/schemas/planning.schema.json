@@ -65,7 +65,7 @@
       "default": 27
     },
     "plan_stress_test": {
-      "description": "Per mode of the draft, which stress-tests /planning:plan runs. auto: plan-reviewer when the blast radius is HIGH or CRITICAL, a stress-test trigger matches, or the user asks for a review; /planning:devils-advocate when the blast-radius assessment calls for it. reviewer: plan-reviewer only. devils-advocate: /planning:devils-advocate only. both: both, whatever the blast radius. Only /planning:plan reads this key: a direct /planning:devils-advocate request ignores it and runs the mode its own arguments select.",
+      "description": "Per mode of the draft, which stress-tests /planning:plan runs. auto: plan-reviewer and /planning:devils-advocate when the blast radius is MEDIUM or higher or a stress-test trigger matches, plan-reviewer also when the user asks for a review; a LOW plan with no trigger runs neither. reviewer: plan-reviewer only. devils-advocate: /planning:devils-advocate only. both: both, whatever the blast radius. Only /planning:plan reads this key: a direct /planning:devils-advocate request ignores it and runs the mode its own arguments select.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
