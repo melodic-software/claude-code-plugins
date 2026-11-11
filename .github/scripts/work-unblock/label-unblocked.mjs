@@ -1689,7 +1689,7 @@ export function sharedLaneRuns(actions, repo) {
 // green with its STOPPED notice: at broker-check, BROKER_STEP succeeded and
 // LEASE_STEP skipped), or had broker-check
 // skip its broker ask for the kill switch (`breaker`), was skipped by the WIP
-// cap (`capped`: pick-slot ran, resolve-issue did not), or was skipped by the
+// cap (`capped`: pick-slot ran, no resolve-issue call did), or was skipped by the
 // admit job's blocker gate (`blocked`: its BLOCKER_STEP ran and pick-slot did
 // not, or a call's broker-check stopped at RECHECK_STOP_STEP), or by admit's
 // upstream-status stop (`outage`: a green admit whose UPSTREAM_STEP ran and
@@ -1734,10 +1734,12 @@ async function didNoWork(jobsOf, refusalOf, runs) {
     const checkStopped = calls.find((job) => job.conclusion === "success" && endedAt(job, BROKER_STEP, "success") && endedAt(job, LEASE_STEP, "skipped"));
     const minting = jobs.find((job) => failedAt(job, MINT_STEP));
     const stopped = jobs.find(stoppedAt);
+    // Every call skipped: a key the key-credit gate held off skips
+    // resolve-issue alone, and its subscription call runs.
     const capped =
       named("pick-slot").some((job) => job.conclusion === "success") &&
       named("resolve-issue").length > 0 &&
-      named("resolve-issue").every((job) => job.conclusion === "skipped");
+      calls.every((job) => job.conclusion === "skipped");
     const blocked =
       (named("admit").some((job) => endedAt(job, BLOCKER_STEP, "success")) && named("pick-slot").every((job) => job.conclusion === "skipped")) ||
       calls.some((job) => endedAt(job, RECHECK_STOP_STEP, "success"));

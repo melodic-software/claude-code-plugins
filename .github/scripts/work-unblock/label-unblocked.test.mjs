@@ -2625,6 +2625,20 @@ test("a run the WIP cap skipped keeps re-firing past the failed-mint bound", asy
   assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
 });
 
+// A key the key-credit gate held off skips resolve-issue alone; its
+// subscription call ran, so the run is no WIP cap skip.
+test("a run whose key the key-credit gate held off, with its subscription call run, is no WIP cap skip", async () => {
+  const jobs = [
+    pickSlot,
+    { name: "resolve-issue", conclusion: "skipped", steps: [] },
+    { name: "resolve-issue-subscription / broker-check", conclusion: "success", steps: [{ name: "Ask the broker whether the lane may run", conclusion: "success" }, { name: "Claim the issue with a lane lease", conclusion: "success" }] },
+    { name: "resolve-issue-subscription / run", conclusion: "success", steps: [{ name: "Request the lane token", conclusion: "skipped" }] },
+  ];
+  const { github, actions, calls } = stalledRun({ jobs, conclusion: "success", openLanePrs: 1 });
+  assert.equal(await sweep({ github, actions }, PAUSING), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
 test("a run another gate stopped before its mint, with no WIP cap skip, is not re-fired", async () => {
   const jobs = [pickSlot, { name: "resolve-issue / run", conclusion: "success", steps: [{ name: "Request the lane token", conclusion: "skipped" }] }];
   const { github, actions, calls } = stalledRun({ jobs, conclusion: "success" });
