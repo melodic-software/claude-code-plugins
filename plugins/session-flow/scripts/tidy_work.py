@@ -547,7 +547,7 @@ def resolve_roots(memory_dir: str | None) -> tuple[list[tuple[str, Path]], list[
     if memory is not None:
         roots.append(("memory", memory))
     home_work = (Path(home) / ".work").resolve()
-    if home_work != memory:
+    if all(home_work != path for _, path in roots):
         roots.append(("home", home_work))
     return roots, notes
 
