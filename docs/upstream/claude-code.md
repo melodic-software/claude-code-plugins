@@ -7,8 +7,9 @@ decision leaves no row. The harness facts a skill restates stay in that skill un
 upstream-drift convention; a correction to one of them is recorded in the owning plugin's
 CHANGELOG, and this file points at it rather than repeating it.
 
-**Last audited upstream state:** changelog through `2.1.319` (published 2026-11-06). `2.1.319` was
-read by the release lane, its handoffs in
+**Last audited upstream state:** changelog through `2.1.322` (published 2026-11-10). `2.1.321` and
+`2.1.322` were read release by release as raw markdown on 2026-11-11; no `2.1.320` was published.
+`2.1.319` was read by the release lane, its handoffs in
 [#14033](https://github.com/melodic-software/claude-code-plugins/issues/14033). Releases
 `2.1.257` through `2.1.296` were read release by release as raw markdown. Releases `2.1.297` through
 `2.1.318` were not: that range was past the replay cap, so on 2026-11-04 the components were
@@ -23,7 +24,7 @@ it to the newest published release.
 
 - **Pointer**: for what a release after the marker changed, fetch
   <https://code.claude.com/docs/en/changelog> live.
-- **As of**: 2026-11-07
+- **As of**: 2026-11-11
 - **Recheck trigger:** a new release block appears above the version on the marker line. Nothing
   before `2.1.257` was read release by release; the fleet's coverage of older releases, and of the
   rechecked range, rests on each skill's own verification stamps and the docs-conformance rechecks
@@ -97,6 +98,10 @@ with "Deferred" names the issue that tracks it.
 | A self-paced `/loop` ends when a finished iteration made no reschedule, unless `CLAUDE_CODE_LOOP_KEEPALIVE=1`; a fixed-interval loop stops only when Claude cancels it | 319-115 | session-flow `reference/save-point.md` loop-aware re-arm | [#14040](https://github.com/melodic-software/claude-code-plugins/pull/14040) |
 | With the Bash sandbox on, nested `.claude/skills` load only from the start folder or after `/cd`; they stay audited as live grants | 319-114 | harness-config audit-permission-grants `reference/criteria.md` | [#14040](https://github.com/melodic-software/claude-code-plugins/pull/14040) |
 | The cloud-session note also points at `/permissions`, which now says where the session's rules live | 319-072 | harness-config audit-permission-state `scripts/permission-state.sh` | [#14040](https://github.com/melodic-software/claude-code-plugins/pull/14040) |
+| Model ladder: `fable` resolves to Fable 5.2; gateway sessions still resolve to Fable 5. Supersedes the 257-001 row ([model-config, Model aliases](https://code.claude.com/docs/en/model-config#model-aliases), as of 2026-11-11) | 321-001, 321-096 | this file | this file |
+| Nested `.claude/skills` folders inside `~/.claude/plugins` no longer load; the detector counts them as non-loadable | 321-098 | harness-config audit-permission-grants `scripts/permission-rule-check.sh`, `reference/criteria.md` | harness-config `CHANGELOG.md`, next release |
+| Fast mode also covers Fable 5.2; the fast-tier note points at the fast mode page instead of naming Opus | 321-001, 322-001 | `docs/contracts/loop-lane/README.md` | this file |
+| The Sonnet 5.5 chapter's fast mode pointer still holds after Fable 5.2 fast mode; only its as-of date moved | 321-001 | playbooks model-adaptation `sonnet-5-5.md` | playbooks `CHANGELOG.md`, next release |
 
 ## Nominated
 
@@ -154,6 +159,10 @@ The store verdict is human-written. No row was written to `docs/native-surfaces/
 | `omitClaudeMd` on testing `green-runner` | 271-006 | The agent holds an ungated Bash shell, and the field also drops the user CLAUDE.md where operators keep shell safety rules; the context saving does not outweigh that. Reopen if the workflow gates its Bash the way the docs-fetchers are gated | this file |
 | OSC 7501 or `$.ui.notify` in place of desktop-notification | 295-003, 295-013 | Neither is a routable native replacement for a permission or idle alert today; the plugin stays. Reopen when the mods reference lists `$.ui.notify` or terminal-config names a Windows notification path | [#6228](https://github.com/melodic-software/claude-code-plugins/issues/6228) |
 | `permissions.denyInsteadOfPrompting` in lanes | 319-005 | Lane sessions carry no hook `ask` or `permissions.ask` rule and run in auto or dontAsk mode, where a denied call already returns to the session as a tool error (`AGENTS.md`, "Unattended lanes", and the [loop-lane convention, "Permission modes"](../contracts/loop-lane/README.md#permission-modes)), so the setting adds no cover a lane lacks. Reopen when a lane shows a permission prompt waiting on no one | [#14033](https://github.com/melodic-software/claude-code-plugins/issues/14033) |
+
+Not in scope for the `2.1.321` through `2.1.322` read, by owner decision on 2026-11-11: the mods items
+321-094, 321-095 and 321-108. No change to `audit-mod-posture`, the lanes or ADR 0052. Reopen when
+the owner scopes a mods-posture review.
 
 No change for 280-030: a 2.1.296 probe showed PreToolUse and PostToolUse hooks receive a Write sent with alias keys as the normalized `file_path` and `content`, so guards keyed on `.tool_input.file_path` see those writes.
 
@@ -224,3 +233,10 @@ not yet state the release's behavior; recheck a row when its page does.
 | Nested skill loading under the Bash sandbox | 319-114 | [2.1.319](https://code.claude.com/docs/en/changelog#2-1-319) | [skills, Discovery from parent and nested directories](https://code.claude.com/docs/en/skills#discovery-from-parent-and-nested-directories); recheck when it states the sandbox condition |
 | Self-paced `/loop` end and `CLAUDE_CODE_LOOP_KEEPALIVE` | 319-115 | [2.1.319](https://code.claude.com/docs/en/changelog#2-1-319) | [scheduled-tasks, Stop a loop](https://code.claude.com/docs/en/scheduled-tasks#stop-a-loop); [env-vars](https://code.claude.com/docs/en/env-vars); recheck when the section drops its fallback-wakeup sentence |
 | `/context` row cap at the terminal | 319-104 | [2.1.319](https://code.claude.com/docs/en/changelog#2-1-319) | [commands, All commands](https://code.claude.com/docs/en/commands#all-commands); recheck when the `/context` row states the cap |
+
+The `2.1.321` through `2.1.322` read, on 2026-11-11, recorded the topic below. The page was fetched that day
+and did not yet state the release's behavior; recheck the row when it does.
+
+| Topic | Items | Release | Page |
+|---|---|---|---|
+| Nested `.claude/skills` inside `~/.claude/plugins` | 321-098 | [2.1.321](https://code.claude.com/docs/en/changelog#2-1-321) | [skills, Discovery from parent and nested directories](https://code.claude.com/docs/en/skills#discovery-from-parent-and-nested-directories); recheck when it states the plugins-directory exception |
