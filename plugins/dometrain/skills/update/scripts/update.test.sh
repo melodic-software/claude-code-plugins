@@ -48,7 +48,7 @@ EOF
 chmod +x "$TMP/curl"
 ln -s "$TMP/curl" "$BIN/curl"
 
-SKILL="$TMP/plugin/skills/sync"
+SKILL="$TMP/plugin/skills/update"
 mkdir -p "$SKILL/scripts" "$SKILL/vendor" "$TMP/plugin/skills/grounding"
 cp "$SCRIPT" "$SKILL/scripts/update.sh"
 printf -- '---\nmetadata:\n  synced: "2026-01-01"\n---\n' >"$TMP/plugin/skills/grounding/SKILL.md"
@@ -76,8 +76,8 @@ write_baseline
 run
 assert_eq "baseline matches upstream: exit 0" 0 "$code"
 assert_contains "baseline matches upstream: reports no drift" "$out" "No drift detected"
-run report
-assert_eq "explicit report mode: exit 0" 0 "$code"
+run --check
+assert_eq "explicit --check mode: exit 0" 0 "$code"
 
 # 2. Upstream changed.
 printf 'A new paragraph upstream.\n' >>"$UPSTREAM"
@@ -107,10 +107,10 @@ ln -s "$(command -v diff)" "$BIN/diff"
 run --bogus
 assert_eq "unknown mode: exit 2" 2 "$code"
 
-# 7. --refresh-baseline over drift rewrites the baseline and exits 0.
-run --refresh-baseline
-assert_eq "--refresh-baseline over drift: exit 0" 0 "$code"
-assert_eq "--refresh-baseline copies upstream" "$(cat "$UPSTREAM")" "$(cat "$SKILL/vendor/SKILL.md")"
+# 7. --apply over drift rewrites the baseline and exits 0.
+run --apply
+assert_eq "--apply over drift: exit 0" 0 "$code"
+assert_eq "--apply copies upstream" "$(cat "$UPSTREAM")" "$(cat "$SKILL/vendor/SKILL.md")"
 run
 assert_eq "after refresh: exit 0" 0 "$code"
 

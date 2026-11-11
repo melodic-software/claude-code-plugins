@@ -9,7 +9,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "bash \"/opt/p/skills/sync/scripts/update.sh\"",
+            "command": "bash \"/opt/p/skills/update/scripts/update.sh\"",
             "description": "run"
           }
         }
@@ -21,7 +21,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "diff -u /opt/p/skills/sync/vendor/SKILL.md /tmp/run/upstream.md",
+            "command": "diff -u /opt/p/skills/update/vendor/SKILL.md /tmp/run/upstream.md",
             "description": "run"
           }
         }
@@ -33,7 +33,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "cat /opt/p/skills/sync/vendor/SKILL.md > /tmp/run/baseline.md",
+            "command": "cat /opt/p/skills/update/vendor/SKILL.md > /tmp/run/baseline.md",
             "description": "run"
           }
         }
@@ -45,7 +45,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "cp /opt/p/skills/sync/vendor/SKILL.md /tmp/run/baseline.md",
+            "command": "cp /opt/p/skills/update/vendor/SKILL.md /tmp/run/baseline.md",
             "description": "run"
           }
         }
@@ -59,7 +59,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "curl -fsSL https://raw.githubusercontent.com/Dometrain/mcp/master/skills/dometrain-grounding/SKILL.md > /opt/p/skills/sync/vendor/SKILL.md",
+            "command": "curl -fsSL https://raw.githubusercontent.com/Dometrain/mcp/master/skills/dometrain-grounding/SKILL.md > /opt/p/skills/update/vendor/SKILL.md",
             "description": "run"
           }
         }
@@ -71,7 +71,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "cp /tmp/run/upstream.md /opt/p/skills/sync/vendor/SKILL.md",
+            "command": "cp /tmp/run/upstream.md /opt/p/skills/update/vendor/SKILL.md",
             "description": "run"
           }
         }
@@ -95,7 +95,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "cat /tmp/run/upstream.md | tee /opt/p/skills/sync/vendor/SKILL.md",
+            "command": "cat /tmp/run/upstream.md | tee /opt/p/skills/update/vendor/SKILL.md",
             "description": "run"
           }
         }
