@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.18.4] - 2026-11-11
+
+### Changed
+
+- The `audit` skill's `user-scope` notes no longer restate the `.claude` directory and auto
+  memory docs: they keep the surface list and link the exact sections to read live, with an
+  as-of date and a recheck trigger. No behavior change.
+
+- The `audit` skill now cites the gather-block convention record, "The pre-compute block runs as one shell
+  invocation", instead of restating how the harness runs the pre-compute block. No behavior
+  change.
+
 ## [0.18.3] - 2026-11-09
 
 ### Changed

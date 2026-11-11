@@ -3,6 +3,14 @@
 All notable changes to the `gaming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.22] - 2026-11-11
+
+### Changed
+
+- `setup` points at the plugin manifest reference for where option values are stored, and its
+  RTX 50 verification record states the gate with a refreshed as-of date. The anti-cheat posture
+  note now covers all six launcher rows. No behavior change.
+
 ## [0.10.21] - 2026-11-10
 
 ### Changed

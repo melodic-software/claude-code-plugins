@@ -3,6 +3,17 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.12] - 2026-11-11
+
+### Changed
+
+- `stateless` links the `/memory` docs section by the anchor the page renders, and its
+  out-of-scope notes on transcripts, history and `CLAUDE_CODE_SKIP_PROMPT_HISTORY` link the live
+  sections instead of restating them. `audit` cites the report-location section by its real
+  heading, no longer ties the criteria's as-of date to the "Last updated" line, counts the C1
+  steps correctly, and drops restated hook and mod behavior beside its pointers. No behavior
+  change.
+
 ## [2.1.11] - 2026-11-09
 
 ### Changed

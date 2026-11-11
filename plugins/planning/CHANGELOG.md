@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.21.3] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- The one-way-door definition names exposure outside the trust boundary (a deployed vulnerability, a leaked secret, personal data) as acting outside the code.
+
+- `audit-answers`, `design-handoff` and `devils-advocate` again point at the record of why their
+  git calls stay body Bash calls (the gather-block convention); `setup` again says every
+  reconfigure value, booleans included, is a JSON string. No behavior change.
+
 ## [2.21.2] - 2026-11-11
 
 ### Changed

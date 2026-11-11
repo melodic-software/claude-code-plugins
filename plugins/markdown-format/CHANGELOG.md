@@ -3,6 +3,13 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.13] - 2026-11-11
+
+### Changed
+
+- The `setup` skill's Yarn linker guidance no longer restates Yarn's defaults; it links the
+  `nodeLinker` setting to read live, with an as-of date and a recheck trigger. No behavior change.
+
 ## [1.0.12] - 2026-11-10
 
 ### Changed
