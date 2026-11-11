@@ -2,8 +2,9 @@
 
 **Every documented harness claim in this file was verified 2026-11-04, with Claude Code 2.1.318 the
 latest release**, reading <https://code.claude.com/docs/en/sub-agents#fork-the-current-conversation>
-and <https://code.claude.com/docs/en/env-vars#variables> as fetched that day. Recheck trigger: either page stops
-carrying a quoted span below, either page changes what turns fork mode off, or a release note names
+and <https://code.claude.com/docs/en/env-vars#variables> as fetched that day. Recheck trigger: the
+sub-agents page changes what a non-fork subagent or a fork starts with in context, either page
+changes what turns fork mode off, or a release note names
 fork mode, subagent tool filtering, or `CLAUDE_CODE_FORK_SUBAGENT`. The same stamp covers the fork
 claims in [`batched-pass.md`](batched-pass.md), which cites it rather than repeating it;
 [`../SKILL.md`](../SKILL.md) carries its own pointer records.
@@ -71,11 +72,9 @@ Conversations differ, so specify the question's *properties*, not a fixed
 question. All four are required:
 
 - **Its answer exists only in this conversation's history**, not in a file, not
-  in a `CLAUDE.md`: a non-fork subagent's initial context still contains "every
-  level of the CLAUDE.md hierarchy the main conversation loads" plus the
-  delegation message you write
-  (<https://code.claude.com/docs/en/sub-agents#what-loads-at-startup>). Nor derivable from this
-  plugin.
+  in a `CLAUDE.md`, since a non-fork subagent can answer from what it loads at
+  startup (read <https://code.claude.com/docs/en/sub-agents#what-loads-at-startup>
+  live). Nor derivable from this plugin.
 - **The dispatch prompt neither contains nor paraphrases the answer**. Else a
   non-inheriting subagent answers it from the prompt alone.
 - **It keys on ordinary inherited material**, a prior user turn or tool result.
@@ -94,8 +93,9 @@ question. All four are required:
 
 When the conversation offers no detail meeting all four, a thin session that
 opened straight into a full batch over an already-dirty tree. Do not degrade.
-**Mint one.** "A fork inherits everything the main session has at the moment it
-spawns" (<https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>), so emit a fresh
+**Mint one.** A fork carries what the transcript holds when it spawns (read
+<https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>
+live), so emit a fresh
 high-entropy value into the transcript as an ordinary main-thread tool result
 BEFORE the canary spawns, and ask for it back. It is unguessable by
 construction, exists in no file, and a non-inheriting subagent cannot produce

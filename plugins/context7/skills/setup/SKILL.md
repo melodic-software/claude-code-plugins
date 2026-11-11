@@ -20,8 +20,8 @@ MCP availability: if `mcp__context7__resolve-library-id` and `mcp__context7__que
 ## Actions
 
 `/context7:lookup` works through either of two paths: the **CLI** (`ctx7` via npm) or the
-**Context7 MCP server** (configured by the consuming project). An optional `CONTEXT7_API_KEY` raises
-rate limits for both.
+**Context7 MCP server** (configured by the consuming project). `CONTEXT7_API_KEY` is optional for
+both; what it changes is [Context7 CLI § When is authentication required?](https://context7.com/docs/clients/cli#when-is-authentication-required) (as of 2026-11-10; recheck when that section makes a key required).
 
 - No argument or `check`: run the check.
 - `apply`: run the check, then the guidance-only remediations (auth, MCP).
@@ -42,8 +42,8 @@ not install, edit config, or write anything.
    lookup would then be blocked. Remediation: `apply install-cli`, or add the MCP server (routed in
    `apply`).
 4. **Auth**. INFO: whether `CONTEXT7_API_KEY` is set (`[ -n "$CONTEXT7_API_KEY" ]`). Report
-   presence only; never print the value. Anonymous use works at low rates, so absence is never a
-   FAIL.
+   presence only; never print the value. Absence is never a FAIL: a key is optional (pointer in
+   Actions above).
 5. **Windows Git Bash**. INFO: prefix CLI `ctx7 docs /org/project "..."` calls with
    `MSYS_NO_PATHCONV=1` (a no-op elsewhere, so always safe), or the ID gets path-mangled. Detail:
    `${CLAUDE_PLUGIN_ROOT}/skills/lookup/context/cli.md`.

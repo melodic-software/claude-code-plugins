@@ -77,9 +77,11 @@ surface, which setup must not hand-edit (Check-only carve-out, native `userConfi
 
 After any reconfiguration, rerun `check` **in a fresh session** and verify by invoking
 `/skill-quality:check` via the Skill tool, without turning setup into the full quality audit. The
-fresh session is not optional: the rendered `${user_config.skills_root}` is injected when this skill
-loads, so a same-session rerun still resolves the OLD root and would report a correct write as a
-failure. Re-running `check` when the root resolves and enumerates changes nothing and reports
+fresh session is not optional: a same-session rerun still resolves the OLD root and would report a
+correct write as a failure (when Claude Code substitutes `${user_config.skills_root}`:
+[Plugins reference, "Reference a saved value"](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value),
+as of 2026-11-10; recheck when that section says a changed value reaches a skill already loaded in
+the session). Re-running `check` when the root resolves and enumerates changes nothing and reports
 "already configured".
 
 ## What this skill does NOT do

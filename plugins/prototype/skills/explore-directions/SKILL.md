@@ -31,9 +31,9 @@ invocation:
 - Current branch, `git branch --show-current`
 - Working tree status (empty = clean), `git status --porcelain | head -10`
 
-The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
-bounds nothing: the Bash tool returns the command's complete output into context before there is
-anything to decide about.
+The pipe is the bound and belongs in the command: a read-time cap ("read only the first 10 entries")
+comes after the command has already returned its output inline. What a result returns inline, and
+when it arrives as a saved file instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits) (as of 2026-11-10; recheck when that section changes what a valid result returns inline).
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
@@ -426,8 +426,8 @@ One native Claude Code surface drafts layouts as this skill does, and the two ge
 the intent selector lands on the HTML mockup substrate:
 
 - **`design` (bundled skill)**: drafts artboards on one canvas and publishes the canvas as a
-  Claude Design Artifact: persistent, shareable, edited in a desktop browser with edits saved
-  automatically. It is reserved for the person to run as `/design`; the model does not invoke it.
+  Claude Design Artifact; how that canvas persists, is shared and is edited is [Artifacts § Draft a design canvas](https://code.claude.com/docs/en/artifacts#draft-a-design-canvas) (as of 2026-11-10; recheck when that section changes the canvas lifecycle).
+  It is reserved for the person to run as `/design`; the model does not invoke it.
 - **This skill (marketplace plugin).** Throwaway variants as a local HTML mockup by default, or on
   the real stack on request, switchable from a control bar; only the winning-variant key survives.
 
@@ -436,7 +436,7 @@ the intent selector lands on the HTML mockup substrate:
 the verification record in [reference/design-canvas.md](reference/design-canvas.md)), you
 can run `/design <scope>` instead of or alongside this skill for a hand-editable design canvas.
 State the lifecycle difference with it; the design-canvas subsection above carries the offer
-shape. A local skill named `design` at any level silently shadows the bundled command, and the
+shape. A local skill named `design` at any level shadows the bundled command (precedence: [Skills § Resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name), as of 2026-11-10; recheck when that section stops letting a local skill replace a bundled one), and the
 bundled one never appears in your skill listing, so a `design` entry in that listing is a
 shadowing local skill: do not make the offer, and tell the user a local `design` skill shadows the
 bundled canvas command. A local `design` skill that disables model invocation shadows it too and
@@ -462,10 +462,10 @@ editor; this skill is the throwaway comparison.
 
 **Mutation gate.** A `ClaudeDesign` write changes a project the person's team shares. Write only
 to the project the person named, and only after they asked for the change. A first write asks the
-person for a one-time project approval, or goes through the tool's plan step; the tool refuses
-writes in a subagent, in a non-interactive session, and in plan mode without that plan step, so
-report the refusal and never retry around it. The four-part records live in
-[reference/claude-design-tool.md](reference/claude-design-tool.md).
+person for a one-time project approval, or goes through the tool's plan step. The tool refuses
+writes in some execution contexts, which the probe record in
+[reference/claude-design-tool.md](reference/claude-design-tool.md) lists; report the refusal and
+never retry around it. The four-part records live in that file.
 
 ## Boundary, the marketplace `playground` plugin
 

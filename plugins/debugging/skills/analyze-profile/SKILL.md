@@ -81,7 +81,9 @@ exists; in each case report the stderr line and stop, with no hand-written parse
 Run queries through `scripts/query_profile.py`, which opens the database read-only, passes values
 as bound parameters and refuses any statement other than a read. The format pages write this
 skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`; put that path in place of the
-placeholder before running a command, since a file read through the Read tool gets no substitution.
+placeholder before running a command (where Claude Code substitutes it:
+[Plugins reference, "Where each variable resolves"](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves),
+as of 2026-11-10; recheck when that section substitutes variables in files read with the Read tool).
 
 **Before you answer**, hold the draft against each row:
 
