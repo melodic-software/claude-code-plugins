@@ -52,9 +52,12 @@ nothing.
    - The measurement engine is a Node script, so without `node` `/context-budget:audit` stops
      rather than estimating.
    - The PreToolUse checkpoint in `${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json` registers in exec form
-     (`"command": "node"`), resolved on `PATH` in the hook's own environment. A hook that fails to
-     launch is non-blocking, so with no `node` the checkpoint silently produces no `ask`, while
-     the option can still read `true`. Name that divergence as exactly what a native
+     (`"command": "node"`), resolved on `PATH` in the hook's own environment. With no `node` the
+     checkpoint cannot launch and produces no `ask`, while the option can still read `true` (how
+     Claude Code treats a hook that cannot start:
+     [Hooks, "Exit code output"](https://code.claude.com/docs/en/hooks#exit-code-output), as of
+     2026-11-10; recheck when that section stops treating a hook that cannot start as a
+     non-blocking error). Name that divergence as exactly what a native
      configuration prompt cannot tell you.
 
    FAIL when absent. On Windows, `command -v node` is not the hook's environment: a version
@@ -64,8 +67,8 @@ nothing.
    `[Environment]::GetEnvironmentVariable('Path','Machine')` and `'User'`, not from the current
    process PATH. A non-ephemeral
    in-process hit is INFO beside that result, not a PASS by itself. The checkpoint is never a
-   guarantee: a `PermissionRequest` hook can allow the call and `disableAllHooks` removes
-   non-managed hooks.
+   guarantee: other hooks and settings can override or remove it (the limits and their pointers
+   are in the "Hook" section of `${CLAUDE_PLUGIN_ROOT}/README.md`).
 2. **The Claude Code CLI**: PASS when one resolves; report its absolute path and version, the
    stamp that makes an audit report a claim. INFO when two installs are present (the audit asks
    which to pin). FAIL when none resolves and the operator has no `--binary` path to name.
@@ -77,8 +80,11 @@ nothing.
    structured error rather than a wrong number when neither mode works.
 4. **Settings-write-ask toggle**: report the effective value of
    `${user_config.settings_write_ask_enabled}` (`true` or `false`; an unexpanded token or empty
-   value means the manifest default `true`). INFO. The value is injected when this skill loads,
-   so a change shows only in a **fresh session**; say so rather than re-reading it. When it reads
+   value means the manifest default `true`). INFO. A change shows only in a **fresh session**; say
+   so rather than re-reading it (when Claude Code substitutes the value:
+   [Plugins reference, "Reference a saved value"](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value),
+   as of 2026-11-10; recheck when that section says a changed value reaches a skill already loaded
+   in the session). When it reads
    `false`, note that the checkpoint is deliberately off and step 1's `node` finding downgrades to INFO for
    the hook (it stays FAIL for the engine).
 

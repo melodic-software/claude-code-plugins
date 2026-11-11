@@ -13,20 +13,19 @@ mcp__context7__resolve-library-id(libraryName: "<name>", query: "<query>")
 ```
 
 - Use the **official library name** with proper punctuation: `"Next.js"` not `"nextjs"`, `"Customer.io"` not `"customerio"`, `"Three.js"` not `"threejs"`
-- `query` argument is **required** and directly affects result ranking. Distill the user's intent into a focused library/topic query. That query disambiguates when multiple libraries share a name
+- Always pass the `query` argument: it directly affects result ranking. Distill the user's intent into a focused library/topic query. That query disambiguates when multiple libraries share a name
 - Queries are sent to Context7's backend. Never include secrets (API keys, passwords, credentials), personal data, proprietary code, pasted stack traces, or internal endpoints/identifiers. Send distilled library/topic terms only
 
 ## Result fields
 
-Each result includes:
+The fields each result carries are listed in [Context7 CLI § Query Library Documentation](https://context7.com/docs/clients/cli#query-library-documentation)
+(as of 2026-11-10; recheck when that section's result fields change). How this skill reads them:
 
-- **Library ID**: Context7-compatible identifier (format: `/org/project`)
-- **Title**: library or package name
-- **Description**: short summary
-- **Code Snippets**: number of available code examples (higher = better coverage)
-- **Source Reputation**: `High` / `Medium` / `Low` / `Unknown` (prefer High/Medium)
-- **Benchmark Score**: quality indicator, 100 is max (higher is better)
-- **Versions**: list of versions if indexed. Use a version-specific ID when the user specifies a version
+- **Library ID**: the `/org/project` identifier the next step passes
+- **Code Snippets**: higher means better coverage
+- **Source Reputation**: prefer High or Medium
+- **Benchmark Score**: higher is better
+- **Versions**: use a version-specific ID when the user specifies a version
 
 ## Selection process
 

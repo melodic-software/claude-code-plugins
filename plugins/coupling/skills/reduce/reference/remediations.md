@@ -158,7 +158,7 @@ judged for this list on the same three questions, then one recommendation the hu
   CI when the file and a fresh generation differ. Needs no bundler, so it fits any stack. This repo
   applies the form to its plugin catalog:
   <https://github.com/melodic-software/claude-code-plugins/blob/main/scripts/generate-catalog.mjs>
-  (header lines 3-7: generated block, `--check` as the CI gate). *Not when* two generators would
+  (its header comment: generated block, `--check` as the CI gate). *Not when* two generators would
   write the one file, which is a duplicate writer (see "Duplicate writers"). Parallel changes still
   touch the generated file; regenerating after a merge settles each conflict, so the file stops
   being a place for judgment.

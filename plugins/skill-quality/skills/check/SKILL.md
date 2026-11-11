@@ -194,10 +194,9 @@ and `/evals:plugin-eval` reads the delta.
    successful run). `--help` lists the settings scopes it reads and their order.
 
 This is a **different, cross-skill limit** from `check`'s per-skill listing-entry cap
-(`description` + `when_to_use`): the shared budget every loaded skill draws from together
-(`skillListingBudgetFraction`). The script exits 0 regardless of overflow, because the live budget
-depends on the model's context window, which no file records, and on managed policy, which it does
-not read. Point `/doctor` at the live session for the authoritative resolved cost. The scripts'
+(`description` + `when_to_use`): the shared budget every loaded skill draws from together. The
+script exits 0 regardless of overflow, because the live budget depends on session and policy
+inputs no repository file records (the budget's basis: pointer below). Point `/doctor` at the live session for the authoritative resolved cost. The scripts'
 encoded constants are recorded once each: in the comment above `DESC_CHAR_CAP=` in
 [`${CLAUDE_PLUGIN_ROOT}/scripts/check-skill.sh`](../../scripts/check-skill.sh) and in the header
 of [`${CLAUDE_PLUGIN_ROOT}/scripts/check-listing-budget.sh`](../../scripts/check-listing-budget.sh)
@@ -213,9 +212,11 @@ or either record's pointer changing).
 
 **Only listing-eligible skills count.** The report skips a skill with
 `disable-model-invocation: true` and counts the rest, so a skill whose description never reaches
-the listing does not inflate the aggregate. A consumer's `skillOverrides` can free further
-description characters, which repository content cannot reveal, so the reported figure is an
-upper bound for anyone who sets it. A missing explicit root and a nonnumeric override are both
+the listing does not inflate the aggregate. The reported figure is an upper bound for a consumer
+who sets `skillOverrides`, which repository content cannot reveal (what it frees:
+[Skills, "Skill descriptions are cut short"](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short),
+as of 2026-11-10; recheck when that section stops letting `skillOverrides` change listing
+characters). A missing explicit root and a nonnumeric override are both
 environment errors (exit 2), never a silent skip or a coerced-to-zero budget.
 
 - **Pointer**: when deciding which skills' descriptions reach the listing, fetch
@@ -312,13 +313,11 @@ and review against the invariant.
   none) to make them block.
 - `check-skill.sh` runs `npx markdownlint-cli2` for check 6; when `npx` is absent that check downgrades
   to a WARN rather than failing, so a run on a machine without Node still gates on every other check.
-- **Check 6 defers to the skill's own repo markdownlint config.** `markdownlint-cli2` discovers config
-  from its working directory downward, never above it, so the checker runs it from the top level of the
-  git repo holding the skill: a repo-root `.markdownlint-cli2.jsonc` applies whichever directory or root
-  you started from. (Claim: config applies from parent directories only "up to the current
-  directory". Basis: the `markdownlint-cli2` v0.23.2 README, Configuration section, and a reproduction
-  against this repo. As of 2026-09-23. Recheck when the repo's `markdownlint-cli2` pin changes major or
-  minor version.) A skill in no git repo (a marketplace-installed skill in the plugin cache, which has
+- **Check 6 defers to the skill's own repo markdownlint config.** The checker runs `markdownlint-cli2`
+  from the top level of the git repo holding the skill, so a repo-root `.markdownlint-cli2.jsonc`
+  applies whichever directory or root you started from (where it discovers config:
+  [markdownlint-cli2 README, "Configuration"](https://github.com/DavidAnson/markdownlint-cli2#configuration),
+  as of 2026-11-10; recheck when the repo's `markdownlint-cli2` pin changes major or minor version). A skill in no git repo (a marketplace-installed skill in the plugin cache, which has
   no config) is linted where the checker stands, and markdownlint applies its DEFAULTS, so rules a repo deliberately disables (commonly
   `MD013` line-length for injection blocks and tables, `MD041` first-line-heading for a frontmatter/H2
   start, `MD060` table-pipe style) fire as spurious failures on a skill that passes in-repo. This is the
@@ -387,9 +386,10 @@ and review against the invariant.
   premature completion, post-completion obligations, and legwork). When authoring new agent docs or
   fixing a flagged procedure, invoke `/docs-hygiene:write-for-agents` via the Skill tool.
 - Check 24 (explicit invocation mode) FAILs a marketplace plugin skill (`plugins/*/skills/*`) whose
-  frontmatter omits `disable-model-invocation`, and only WARNs anywhere else: the absent-key default
-  is already `false`, so a consumer's own skill is informed by this fleet's convention rather than
-  broken by it. A non-boolean value FAILs everywhere: the check reads the bare scalar, so a quoted
+  frontmatter omits `disable-model-invocation`, and only WARNs anywhere else, so a consumer's own
+  skill is informed by this fleet's convention rather than broken by it (the key's default:
+  [Skills, "Frontmatter reference"](https://code.claude.com/docs/en/skills#frontmatter-reference),
+  as of 2026-11-10; recheck when that section changes the key's default). A non-boolean value FAILs everywhere: the check reads the bare scalar, so a quoted
   `"false"` fails as the YAML string it is, while a trailing `# comment` naming the exception class
   is fine. The rubric that owns the decision, the
   model-invoked default and the only three exception classes a `true` may claim, is

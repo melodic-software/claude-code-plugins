@@ -3,6 +3,12 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.7] - 2026-11-11
+
+### Changed
+
+- `fill-secret.sh` reports a failed `playwright-cli fill` from one `||` block instead of a separate status check. Its output and exit codes are unchanged.
+
 ## [1.2.6] - 2026-11-10
 
 ### Changed
