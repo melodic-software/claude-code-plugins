@@ -328,9 +328,12 @@ the broker request, and no other permission; it never holds `checks: write` or `
    `plugins/source-control/scripts/resolve-version-bump-conflict.sh` to
    `$RUNNER_TEMP/merge-base-bin`, recording each copy's SHA-256 as a step output, and read
    `loop.no-progress` from the resolved config.
-9. `setup-runner-isolation`: for a skill, installs bubblewrap and socat with `apt-get` (three tries) and, where
-   `/proc/sys/kernel/apparmor_restrict_unprivileged_userns` exists, sets it to `0`. It fails red
-   if `bwrap` is not on `PATH` afterwards. The skill step needs it for subprocess isolation (below).
+9. `setup-runner-isolation`: for a skill, installs bubblewrap and socat and, where
+   `/proc/sys/kernel/apparmor_restrict_unprivileged_userns` exists, sets it to `0`. It installs
+   from a per-image Actions cache when every cached deb matches the SHA-256 in the image's own
+   package lists, else with `apt-get` from those lists, else after `apt-get update` (three tries),
+   all within 540 s. It fails red if `bwrap` or `socat` is not on `PATH` afterwards. The skill step
+   needs them for subprocess isolation (below).
 10. Removes sudo and docker access for the rest of the job: `/var/run/docker.sock` becomes
    root-only and the runner user's `/etc/sudoers.d/runner` entry is deleted. It fails red if
    `sudo -n true` still succeeds or the socket is still open to the runner user.

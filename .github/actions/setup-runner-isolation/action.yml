@@ -2,7 +2,7 @@ name: Setup Runner Isolation
 description: >
   Before PR head code runs: for a skill, install the bubblewrap and socat that
   CLAUDE_CODE_SUBPROCESS_ENV_SCRUB needs while sudo still works, failing
-  closed without bwrap; then remove sudo and docker access for the rest of the
+  closed without them; then remove sudo and docker access for the rest of the
   job. Contract: docs/conventions/pr-pipeline/pr-run-activity.md, run job
   steps 9 and 10.
 
@@ -15,36 +15,97 @@ inputs:
 runs:
   using: composite
   steps:
+    # One cache entry per hosted image: the debs apt picks depend only on the
+    # image's package lists, and an entry nobody restores is evicted after 7 days.
+    - name: Key the package cache
+      id: debs-key
+      if: inputs.install-subprocess-isolation == 'true'
+      shell: bash
+      run: |
+        if [ -n "${ImageOS:-}" ] && [ -n "${ImageVersion:-}" ]; then
+          echo "key=runner-isolation-debs-$ImageOS-$ImageVersion-$(uname -m)" >>"$GITHUB_OUTPUT"
+        fi
+
+    - name: Restore the package cache
+      id: debs-restore
+      if: steps.debs-key.outputs.key != ''
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/isolation-debs/*.deb
+        key: ${{ steps.debs-key.outputs.key }}
+
     # claude-code-action puts the OAuth token in Claude's env; without
     # CLAUDE_CODE_SUBPROCESS_ENV_SCRUB every Bash child inherits it. The
     # scrub's sandbox needs bubblewrap and socat, and the action installs it
     # only for allowed_non_write_users.
     - name: Install subprocess isolation
+      id: install
       if: inputs.install-subprocess-isolation == 'true'
       shell: bash
       run: |
-        # Each apt call is bounded, so a stalled mirror or held lock fails this
-        # step in minutes instead of holding the job to its timeout; a run that
-        # cannot install fails closed below. An image that already ships both
-        # tools skips apt.
-        apt=(-o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o DPkg::Lock::Timeout=60)
-        for i in 1 2 3; do
-          if command -v bwrap >/dev/null && command -v socat >/dev/null; then
-            break
+        dir="$RUNNER_TEMP/isolation-debs"
+        mkdir -p "$dir/partial"
+        have() { command -v bwrap >/dev/null && command -v socat >/dev/null; }
+        # A cache entry is writable by any run on the branch, so a cached deb is
+        # installed only when it is byte for byte the candidate apt would pick
+        # from the image's own signed package lists.
+        verified() {
+          local deb pkg cand want n=0
+          for deb in "$dir"/*.deb; do
+            [ -f "$deb" ] || return 1
+            pkg=$(dpkg-deb -f "$deb" Package) || return 1
+            [[ $pkg =~ ^[a-z0-9][a-z0-9.+-]+$ ]] || return 1
+            cand=$(apt-cache policy "$pkg" | awk '/Candidate:/ {print $2; exit}')
+            want=$(apt-cache show "$pkg=$cand" 2>/dev/null | awk '/^SHA256:/ {print $2; exit}')
+            [ -n "$want" ] && [ "$(sha256sum "$deb" | cut -d' ' -f1)" = "$want" ] || return 1
+            n=$((n + 1))
+          done
+          [ "$n" -gt 0 ]
+        }
+        # The image's own apt settings fail over from its Azure mirror to
+        # archive.ubuntu.com in seconds; every call shares one 540 s budget.
+        deadline=$((SECONDS + 540))
+        apt_get() {
+          local left=$((deadline - SECONDS))
+          [ "$left" -gt 0 ] || return 1
+          timeout "$((left < 180 ? left : 180))" sudo apt-get -o DPkg::Lock::Timeout=60 "$@"
+        }
+        install() { apt_get install -y --no-install-recommends "$@" bubblewrap socat; }
+        if ! have && verified; then
+          apt_get install -y --no-install-recommends --no-download "$dir"/*.deb ||
+            echo "the cached packages did not install; falling back to apt"
+        fi
+        # The image's lists need only the package files; an index refresh,
+        # the slow part of a stalled mirror, runs only when they are stale. Only
+        # files picked from the image's lists are cached, so a restore verifies.
+        if ! have; then
+          rm -f "$dir"/*.deb
+          if install -o "Dir::Cache::archives=$dir/"; then
+            echo "save=true" >>"$GITHUB_OUTPUT"
           fi
-          timeout 180 sudo apt-get "${apt[@]}" update -qq &&
-            timeout 180 sudo apt-get "${apt[@]}" install -y --no-install-recommends bubblewrap socat && break
-          echo "apt-get attempt $i failed or timed out, retrying..."
-          sleep 5
+        fi
+        for i in 1 2 3; do
+          have && break
+          apt_get update -qq && install && break
+          echo "apt-get attempt $i failed or timed out"
+          if [ "$i" -lt 3 ]; then sleep $((i * 10)); fi
         done
         # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor.
         if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
         fi
-        if ! command -v bwrap >/dev/null; then
-          echo "::error::bubblewrap is not installed; the skill's subprocesses cannot be isolated"
+        if ! have; then
+          echo "::error::bubblewrap or socat is not installed; Claude Code cannot scrub its subprocess environment"
           exit 1
         fi
+
+    # Saved before head code runs, so the entry holds only what apt fetched.
+    - name: Save the package cache
+      if: steps.install.outputs.save == 'true' && steps.debs-key.outputs.key != '' && steps.debs-restore.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/isolation-debs/*.deb
+        key: ${{ steps.debs-key.outputs.key }}
 
     # Removes the documented route from head code to the job's secrets in
     # runner memory (harden-runner's disable-sudo does the same): the docker
