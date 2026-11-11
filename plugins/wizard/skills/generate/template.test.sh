@@ -953,7 +953,12 @@ assert_contains "... and prints its prompt" "$out" "Paste the secret:"
 assert_not_contains "... and prints its own newline so the next output is not glued on" \
   "$out" "Paste the secret: len="
 
-LONG_SECRET="$(printf 'a%.0s' {1..4095})"
+LINE_MAX="$(case_run "$TTY_EOF" <<'BODY'
+printf "%s" "$_WIZARD_LINE_MAX"
+BODY
+)"
+UTF8_CHARS=$(((LINE_MAX + 2) / 2))
+LONG_SECRET="$(printf "a%.0s" $(seq "$LINE_MAX"))"
 WHOLE_SECRET_FILE="$TEST_TMPDIR/whole-secret"
 printf '%s\n' "${LONG_SECRET}tail" >"$WHOLE_SECRET_FILE"
 TTY_LONG_FILE="$(tty_fixture long-file "$LONG_SECRET" "$WHOLE_SECRET_FILE")"
@@ -963,7 +968,7 @@ TTY_SHORT="$(tty_fixture short "${LONG_SECRET%a}")"
 MULTILINE_SECRET_FILE="$TEST_TMPDIR/multiline-secret"
 printf 'line-one\nline-two\n' >"$MULTILINE_SECRET_FILE"
 TTY_LONG_MULTILINE="$(tty_fixture long-multiline "$LONG_SECRET" "$MULTILINE_SECRET_FILE")"
-TTY_LONG_UTF8="$(tty_fixture long-utf8 "$(printf 'é%.0s' {1..2048})" '')"
+TTY_LONG_UTF8="$(tty_fixture long-utf8 "$(printf 'é%.0s' $(seq "$UTF8_CHARS"))" '')"
 
 out="$(
   case_run "$TTY_LONG_MULTILINE" <<'BODY'
@@ -981,7 +986,7 @@ ask_secret TOKEN "Paste the secret:"
 BODY
 )"
 assert_contains "the line limit counts bytes, so a multibyte secret at the limit warns" \
-  "$out" "4096 bytes"
+  "$out" "$((UTF8_CHARS * 2)) bytes"
 
 out="$(
   case_run "$TTY_LONG_FILE" <<'BODY'
@@ -990,7 +995,7 @@ printf 'len=%s tail=%s\n' "${#TOKEN}" "${TOKEN: -4}"
 BODY
 )"
 assert_contains "ask_secret warns when a secret reaches the line limit" "$out" "probably cut off"
-assert_contains "... and reads the whole value from the file given" "$out" "len=4099 tail=tail"
+assert_contains "... and reads the whole value from the file given" "$out" "len=$((LINE_MAX + 4)) tail=tail"
 
 out="$(
   case_run "$TTY_LONG_KEEP" <<'BODY'
@@ -998,7 +1003,7 @@ ask_secret TOKEN "Paste the secret:"
 printf 'len=%s\n' "${#TOKEN}"
 BODY
 )"
-assert_contains "... and Enter keeps the pasted value" "$out" "len=4095"
+assert_contains "... and Enter keeps the pasted value" "$out" "len=$LINE_MAX"
 
 out="$(
   case_run "$TTY_LONG_MISSING" <<'BODY'
@@ -1016,7 +1021,7 @@ printf 'len=%s\n' "${#TOKEN}"
 BODY
 )"
 assert_not_contains "a secret under the line limit gets no warning" "$out" "probably cut off"
-assert_contains "... and is kept" "$out" "len=4094"
+assert_contains "... and is kept" "$out" "len=$((LINE_MAX - 1))"
 
 # Echo suppression is a terminal-driver property, so a file-backed fd 3 cannot
 # observe it: with or without -s nothing is echoed here. The flags are therefore

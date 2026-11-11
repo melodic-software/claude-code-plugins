@@ -194,6 +194,8 @@ MAIL_API_TOKEN`, `write_env`, and `set_secret`, in that order.
   `ask_secret` hides input and has no line editing. Backspace works in both.
 - **A long one-line secret can be cut off on paste.** When an `ask_secret` answer reaches the
   terminal's line limit, the wizard warns and offers to read the whole value from a file path
-  instead; for a known-long value (a PEM key, a JWT), tell the person to have that file ready.
+  instead; for a known-long one-line value (a JWT), tell the person to have that file ready. The
+  file must hold one line: for a multi-line key such as a PEM file, capture the file's path with
+  `ask`, not the key.
 - **A missing `gh` is expected.** CI-secret stages print a warning and add a closing-summary line
   naming each value the person still has to set themselves.
