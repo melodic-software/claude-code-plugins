@@ -233,7 +233,7 @@ export function parseXStatusUrl(url) {
     return null;
   }
   const match = X_STATUS_PATH_PATTERN.exec(parsed.pathname);
-  if (!match || !match.groups) {
+  if (!match?.groups) {
     return null;
   }
   const rawHandle = match.groups.handle;
@@ -717,16 +717,18 @@ export async function acquireXMedia(url, context) {
     return failX(spawnFailureDetail(probe) || "yt-dlp metadata/captions probe failed");
   }
   let stderrLog = probeStderr;
-  let files = await listFiles(workDir);
+  /** @type {string[]} */
+  let files = [];
 
   /**
-   * Inspect the working directory and apply the two structural gates: info
+   * Re-list the working directory, then apply the two structural gates: info
    * JSON must parse, and a foreign info JSON (allow-list failure) is a hard
    * provenance violation, never digestible.
    *
    * @returns {Promise<{inspected: InspectedInfoFiles, failure: AcquireOutcome|null}>}
    */
   const inspectAndGate = async () => {
+    files = await listFiles(workDir);
     const inspected = await inspectInfoFiles(files, readFile);
     if (inspected.parseErrors.length > 0) {
       return { inspected, failure: failX(`Invalid info JSON: ${inspected.parseErrors.join("; ")}`) };
@@ -822,23 +824,22 @@ export async function acquireXMedia(url, context) {
   // VTT; `--convert-subs srt` yields clean text, converted back to the VTT
   // container the shared pipeline consumes.
   let captionCleanup = "none";
-  const taggedVtts = [];
+  /** @type {Map<string, string>} tagged VTT path -> original content */
+  const taggedContents = new Map();
   for (const filePath of files.filter((entry) => entry.endsWith(".vtt"))) {
-    if (String(await readFile(filePath)).includes(X_WORD_TIMING_TAG_MARKER)) {
-      taggedVtts.push(filePath);
+    const content = String(await readFile(filePath));
+    if (content.includes(X_WORD_TIMING_TAG_MARKER)) {
+      taggedContents.set(filePath, content);
     }
   }
+  const taggedVtts = [...taggedContents.keys()];
   if (taggedVtts.length > 0) {
     // Originals move aside (yt-dlp only re-downloads absent subtitles) and are
     // unlinked ONLY after the cleanup pass succeeds and produced a converted
     // counterpart for EVERY tagged original; a failed or partial cleanup fails
     // the acquisition instead of silently losing captions.
-    for (const filePath of taggedVtts) {
-      await writeFile(
-        `${filePath}${TAGGED_CAPTION_BACKUP_SUFFIX}`,
-        String(await readFile(filePath)),
-        "utf8",
-      );
+    for (const [filePath, content] of taggedContents) {
+      await writeFile(`${filePath}${TAGGED_CAPTION_BACKUP_SUFFIX}`, content, "utf8");
       await removeFile(filePath);
     }
     await sleep(resolveAcquirePhaseGapMs());
@@ -876,7 +877,6 @@ export async function acquireXMedia(url, context) {
     for (const filePath of taggedVtts) {
       await removeFile(`${filePath}${TAGGED_CAPTION_BACKUP_SUFFIX}`);
     }
-    files = await listFiles(workDir);
     captionCleanup = "converted";
     gated = await inspectAndGate();
     if (gated.failure) {
@@ -901,7 +901,6 @@ export async function acquireXMedia(url, context) {
     mediaPassMs = Date.now() - mediaStarted;
     // The media pass re-writes info JSONs; re-derive the inspection so the
     // final degradation check, ordering, and entry paths never read stale state.
-    files = await listFiles(workDir);
     gated = await inspectAndGate();
     if (gated.failure) {
       return gated.failure;
@@ -1025,28 +1024,20 @@ const spec = /** @satisfies {SourceAdapterSpec} */ ({
     /** @type {HarvestedLink[]} */
     const links = linksFromText(metadata.description, "description");
     const blocked = /** @type {Record<string, unknown>} */ (metadata)["source:blockedDelegations"];
-    if (Array.isArray(blocked)) {
-      for (const delegation of blocked) {
-        const delegationUrl =
-          delegation && typeof delegation === "object"
-            ? /** @type {Record<string, unknown>} */ (delegation).url
-            : null;
-        if (typeof delegationUrl !== "string" || !delegationUrl) {
-          continue;
-        }
-        // Same invariant the text path enforces by its URL pattern: only
-        // parseable http(s) URLs enter the harvest (never javascript:, file:,
-        // or malformed strings from a stderr echo).
-        if (!parseHttpUrl(delegationUrl)) {
-          continue;
-        }
-        links.push({
-          url: delegationUrl,
-          source: "description",
-          timestampSec: null,
-          context: "blocked delegation: outbound link from a media-less post",
-        });
+    for (const delegation of Array.isArray(blocked) ? blocked : []) {
+      const delegationUrl = delegation?.url;
+      // Same invariant the text path enforces by its URL pattern: only
+      // parseable http(s) URLs enter the harvest (never javascript:, file:,
+      // or malformed strings from a stderr echo).
+      if (typeof delegationUrl !== "string" || !parseHttpUrl(delegationUrl)) {
+        continue;
       }
+      links.push({
+        url: delegationUrl,
+        source: "description",
+        timestampSec: null,
+        context: "blocked delegation: outbound link from a media-less post",
+      });
     }
     return deduplicateHarvestedLinks(links);
   },

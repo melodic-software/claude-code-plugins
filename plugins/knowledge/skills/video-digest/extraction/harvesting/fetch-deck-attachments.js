@@ -81,7 +81,7 @@ function isNonPublicIPv4(address) {
   if (parts.length !== 4 || parts.some((p) => !Number.isInteger(p) || p < 0 || p > 255)) {
     return true;
   }
-  const [a, b] = parts;
+  const [a, b, c] = parts;
   return (
     a === 0 ||
     a === 10 ||
@@ -90,11 +90,10 @@ function isNonPublicIPv4(address) {
     (a === 169 && b === 254) ||
     (a === 172 && b >= 16 && b <= 31) ||
     (a === 192 && b === 168) ||
-    (a === 192 && b === 0 && parts[2] === 0) ||
-    (a === 192 && b === 0 && parts[2] === 2) ||
+    (a === 192 && b === 0 && (c === 0 || c === 2)) ||
     (a === 198 && (b === 18 || b === 19)) ||
-    (a === 198 && b === 51 && parts[2] === 100) ||
-    (a === 203 && b === 0 && parts[2] === 113) ||
+    (a === 198 && b === 51 && c === 100) ||
+    (a === 203 && b === 0 && c === 113) ||
     a >= 224
   );
 }
@@ -119,7 +118,7 @@ function ipv6Groups(address) {
   const tail = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
   const missing = 8 - head.length - tail.length;
   if (halves.length === 2 ? missing < 0 : missing !== 0) return null;
-  const groups = [...head, ...Array(halves.length === 2 ? missing : 0).fill("0"), ...tail].map(
+  const groups = [...head, ...Array(missing).fill("0"), ...tail].map(
     (g) => Number.parseInt(g, 16),
   );
   return groups.length === 8 && groups.every((g) => g >= 0 && g <= 0xffff) ? groups : null;
@@ -153,8 +152,8 @@ function isNonPublicIPv6(address) {
   if (g[0] === 0x64 && g[1] === 0xff9b && g.slice(2, 6).every((x) => x === 0)) {
     return embeddedIPv4NonPublic(g[6], g[7]); // 64:ff9b::/96 NAT64
   }
-  if (g[0] === 0x2002) return embeddedIPv4NonPublic(g[1], g[2]); // 6to4
-  const first = g[0];
+  const [first] = g;
+  if (first === 0x2002) return embeddedIPv4NonPublic(g[1], g[2]); // 6to4
   return (
     (first & 0xfe00) === 0xfc00 || // fc00::/7 unique-local
     (first & 0xffc0) === 0xfe80 || // fe80::/10 link-local
@@ -315,7 +314,6 @@ async function safeFetch(url, lookup, transport) {
  * @param {string} url
  * @returns {string}
  */
-
 function slugFromUrl(url) {
   try {
     const parsed = new URL(url);
