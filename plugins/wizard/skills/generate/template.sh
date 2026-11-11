@@ -361,11 +361,24 @@ ask() {
   printf -v "$__wiz_key" '%s' "$__wiz_input"
 }
 
+# A terminal in line mode drops what is typed or pasted past this many bytes on
+# one line, with no error. Pointers: Linux termios(3), "Canonical and
+# noncanonical mode" (https://man7.org/linux/man-pages/man3/termios.3.html);
+# macOS MAX_INPUT in xnu bsd/sys/syslimits.h, enforced in bsd/kern/tty.c
+# (https://github.com/apple-oss-distributions/xnu). As of 2026-11-11. Recheck
+# trigger: either source changes its line limit.
+case "${OSTYPE:-}" in
+darwin*) _WIZARD_LINE_MAX=1023 ;;
+*) _WIZARD_LINE_MAX=4095 ;;
+esac
+
 # ask_secret KEY "Prompt": the ask contract with nothing echoed. No readline
-# here, because -e would echo and -s has to take effect.
+# here, because -e would echo and -s has to take effect. An answer as long as
+# _WIZARD_LINE_MAX was probably cut off, so the human may give a file to read the
+# whole value from instead. A .env value is one line, so that file must be too.
 # shellcheck disable=SC2310  # fatal exits the script directly; set -e suppression is moot
 ask_secret() {
-  local __wiz_key="$1" __wiz_prompt="$2" __wiz_current __wiz_input
+  local __wiz_key="$1" __wiz_prompt="$2" __wiz_current __wiz_input __wiz_path __wiz_bytes
   _valid_key "$__wiz_key"
   _assignable_key "$__wiz_key"
   _check_env_target
@@ -373,6 +386,19 @@ ask_secret() {
   _ask_prompt "$__wiz_prompt" "$__wiz_current"
   read -rs -u 3 __wiz_input || fatal "terminal closed while reading secret $__wiz_key, aborting"
   printf '\n'
+  __wiz_bytes=$(LC_ALL=C && printf '%s' "${#__wiz_input}")
+  if ((__wiz_bytes >= _WIZARD_LINE_MAX)); then
+    warn "$__wiz_key is $__wiz_bytes bytes, the terminal's line limit: it was probably cut off"
+    _ask_prompt "Path to a file holding the whole value (Enter keeps what was pasted):" ""
+    read -r -e -u 3 __wiz_path || fatal "terminal closed while reading a file path for $__wiz_key, aborting"
+    __wiz_path=${__wiz_path/#\~/$HOME}
+    if [[ -n "$__wiz_path" ]]; then
+      [[ -f "$__wiz_path" && -r "$__wiz_path" ]] || fatal "cannot read file $__wiz_path for $__wiz_key, aborting"
+      __wiz_input=$(<"$__wiz_path")
+      [[ "$__wiz_input" != *[$'\n\r']* ]] ||
+        fatal "file $__wiz_path holds more than one line; $__wiz_key must be one line (for a multi-line key such as a PEM file, store its path instead), aborting"
+    fi
+  fi
   [[ -z "$__wiz_input" && -n "$__wiz_current" ]] && __wiz_input="$__wiz_current"
   printf -v "$__wiz_key" '%s' "$__wiz_input"
 }
