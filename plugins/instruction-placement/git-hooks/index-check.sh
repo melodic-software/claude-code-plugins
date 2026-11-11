@@ -45,24 +45,16 @@ if [[ "$CHECKS_MODE" == pre-commit ]]; then
     git checkout-index -z --stdin --prefix="$src/" || exit 1
 fi
 
-target=""
-for candidate in AGENTS.md CLAUDE.md; do
-  if [[ -f "$src/$candidate" ]]; then
-    target="$candidate"
-    break
-  fi
-done
-[[ -n "$target" ]] || exit 0
+target=AGENTS.md
+[[ -f "$src/$target" ]] || target=CLAUDE.md
+[[ -f "$src/$target" ]] || exit 0
 
 relevant=0
 while IFS= read -r -d '' f; do
-  case "$f" in
-  .claude/rules/*.md | */.claude/rules/*.md | "$target")
+  if [[ "$f" == "$target" || "$f" == .claude/rules/*.md || "$f" == */.claude/rules/*.md ]]; then
     relevant=1
     break
-    ;;
-  *) ;;
-  esac
+  fi
 done < <(
   checks_diff --name-only --no-renames -z
   [[ "$CHECKS_MODE" == worktree ]] && git ls-files --others --exclude-standard -z
