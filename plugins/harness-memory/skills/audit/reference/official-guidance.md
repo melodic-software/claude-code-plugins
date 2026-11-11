@@ -27,9 +27,6 @@
 Each section states what this audit does, in our words, and points at the section of the official
 page that covers the topic. Read the page there for its wording; this file stores none of it.
 
-Last researched: 2026-06-20; the memory page pointers re-verified 2026-08-10 (the other sources
-below were not re-checked on that date).
-
 Refresh this file from current official docs via the skill's `update` action.
 
 ---
@@ -168,7 +165,7 @@ read at the pointer.
   [Share rules across projects with symlinks](https://code.claude.com/docs/en/memory#share-rules-across-projects-with-symlinks),
   [User-level rules](https://code.claude.com/docs/en/memory#user-level-rules).
 
-**Path scoping status (verified working 2026-07-24 on Claude Code 2.1.219):** Path scoping defers as
+**Path scoping status (verified working on Claude Code 2.1.219):** Path scoping defers as
 documented. The audit treats a path-scoped rule as absent at session start and loaded once Claude
 reads or writes a matching file, and prices a move into one on that basis; which tools and Bash
 commands count is read live, not restated here. A first-party repro on 2.1.219 with
@@ -177,8 +174,7 @@ commands count is read live, not restated here. A first-party repro on 2.1.219 w
 Probe: the repro recorded in the description of pull request #1393
 (`gh pr view 1393 --repo melodic-software/claude-code-plugins`).
 No changelog entry or maintainer comment pins the version where this began working, so do not claim
-a version floor. Recheck trigger: a Claude Code release note or memory-doc change touching rule
-loading, or any session in which a path-scoped rule is present at session start.
+a version floor.
 
 - **Pointer**: when a finding depends on what loads a path-scoped rule or a nested CLAUDE.md, fetch
   [Path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules) and
@@ -266,9 +262,6 @@ Practices we take from Boris Cherny's published workflow, in our words:
   [Add supporting files](https://code.claude.com/docs/en/skills#add-supporting-files). No docs
   section covers Auto-Dream; correlate with
   [howborisusesclaudecode.com](https://howborisusesclaudecode.com) for the practices themselves.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either docs section is renamed or moved, or a docs page starts covering
-  memory consolidation.
 
 ## Style enforcement
 
@@ -300,15 +293,9 @@ comes back, and which bodies come back at all, is read at the pointer at run tim
   [Instructions seem lost after `/compact`](https://code.claude.com/docs/en/memory#instructions-seem-lost-after-/compact),
   and [Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle)
   (correlate with [Steering Claude Code](https://claude.com/blog/steering-claude-code-skills-hooks-rules-subagents-and-more)).
-- **As of**: 2026-10-11
-- **Recheck trigger**: any of those sections changes what a mechanism in the table gets back after
-  compaction, or the skill re-attach budget; or the [Auto-memory limits](#auto-memory-limits)
-  section the table relays to is renamed.
 
-`AGENTS.md` is its own row's worth of behavior, and the row depends on the repository. The memory
-page changed its `AGENTS.md` guidance between 2026-06-20 and 2026-09-19, so the row below is
-derived from the page as of 2026-09-29, not from the earlier shim-only guidance. Recheck when the
-memory page's `AGENTS.md` section changes again.
+`AGENTS.md` is its own row's worth of behavior, and the row depends on the repository. The row
+below follows the memory page's current `AGENTS.md` guidance, not its earlier shim-only guidance.
 
 The audit models an `AGENTS.md` as loading either directly, where no `CLAUDE.md`,
 `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it displaces it and

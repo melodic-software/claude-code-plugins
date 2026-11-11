@@ -273,8 +273,7 @@ remainder that is not another rule.
 **Why**: Claude Code reports this shape as invalid settings. A scan that kept only the token would
 call `Bash(ls) x` a narrow `Bash(ls)` grant. Pointer: when deciding a rule's shape, fetch
 [permissions: permission rule syntax](https://code.claude.com/docs/en/permissions#permission-rule-syntax)
-live. As of: 2026-10-11. Recheck trigger: that section changes how parentheses in a specifier or
-trailing text after one are read.
+live.
 
 **Recommend**: delete the trailing text, or rewrite the rule as one `Tool(specifier)`.
 

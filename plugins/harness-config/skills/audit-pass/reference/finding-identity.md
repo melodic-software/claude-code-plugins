@@ -123,7 +123,7 @@ content and the same defect.
 churning the whole report on an unrelated edit. The anchor field name carries its algorithm version:
 findings emit **`anchor/v1`**, and two sides compare on the **greatest anchor version both carry**
 (the versioned-fingerprint discipline of SARIF
-[§3.27.17](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html), verified 2026-07-24; recheck when a SARIF release changes fingerprint versioning).
+[§3.27.17](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html)).
 That is the escape hatch: a later algorithm ships as `anchor/v2` alongside `v1`, and a record written
 under `v1` keeps matching until both sides have moved.
 

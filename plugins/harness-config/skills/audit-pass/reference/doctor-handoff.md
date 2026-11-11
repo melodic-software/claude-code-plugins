@@ -44,8 +44,6 @@ from what it does not.
    - **Pointer**: when checking the floor, fetch
      [memory: my CLAUDE.md is too large](https://code.claude.com/docs/en/memory#my-claude-md-is-too-large)
      live.
-   - **As of**: 2026-11-04
-   - **Recheck trigger**: that section states a floor, or moves.
 2. **`DISABLE_DOCTOR_COMMAND`: documented.** The variable's row is on the environment-variables
    page again, so it is a documented suppression channel, and its scope is the row's: read which
    surface it hides, and which it leaves alone, from the row rather than from here.
@@ -70,9 +68,8 @@ names these channels as the suspected causes, `DISABLE_DOCTOR_COMMAND` and a `sk
 naming the skill, rather than asserting either as the reason. Detecting beats predicting either way: the variable's presence in the list says an operator
 *could* have set it, never that they did.
 
-**Recheck trigger:** any Claude Code minor release, or any change to how bundled skills are
-suppressed. Re-verify against current official documentation before
-treating a failed prerequisite as authoritative. A stale *absence* claim reads exactly like a fresh
+Re-verify against current official documentation before treating a failed prerequisite as
+authoritative. A stale *absence* claim reads exactly like a fresh
 one.
 
 ## Absence classification: optional capability
@@ -105,11 +102,8 @@ reads.
   and
   [managed settings: keys only a managed source can set](https://code.claude.com/docs/en/managed-settings#keys-only-a-managed-source-can-set)
   live. Those sections cover the policy line only; this file has found no docs section for the
-  helper-failure or credential lines as of 2026-10-11, so hand them to the operator as lines to look
-  for, not as documented output.
-- **As of**: 2026-10-11
-- **Recheck trigger**: the `Organization policy` line moves off `claude doctor` or `/status`, or a
-  docs section starts covering the helper-failure or credential lines.
+  helper-failure or credential lines, so hand them to the operator as lines to look for, not as
+  documented output.
 
 ## Its output is the delegated tier
 

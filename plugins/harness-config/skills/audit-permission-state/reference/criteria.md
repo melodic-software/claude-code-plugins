@@ -23,11 +23,11 @@ pointer to the section that documents the mechanic; read the wording there. The 
 contract lives in `SKILL.md`; the per-check grant vocabulary lives in the sibling
 `audit-permission-grants`. Neither is restated here.
 
-Pointers, both read 2026-08-11:
+Pointers:
 [settings precedence](https://code.claude.com/docs/en/settings#settings-precedence), and
 [Manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions) and
 [Settings precedence](https://code.claude.com/docs/en/permissions#settings-precedence) on the
-permissions page. Recheck when either page's precedence list adds, drops or reorders a scope.
+permissions page.
 
 ---
 
@@ -77,8 +77,6 @@ than guessing at it.
 
 - **Pointer**: [Where Claude Code keeps the local file in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository)
   and [Environment variables](https://code.claude.com/docs/en/env-vars).
-- **As of**: 2026-09-12
-- **Recheck trigger**: either page documents an entrypoint variable or changes the condition list.
 
 ### Cloud sessions read a different scope set
 
@@ -115,9 +113,6 @@ either section as a change the reader's scripts owe.
   and
   [managed settings: compose every managed source](https://code.claude.com/docs/en/managed-settings#compose-every-managed-source)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: the drop-in section changes how two drop-in files combine a key, or the
-  compose table gains, drops or reclassifies a key kind.
 
 Two are **declared optional platform integrations**: the Windows policy registry keys and the macOS managed-preferences
 domain. Each is read where it is native and readable; where its tool is missing the surface reports
@@ -447,9 +442,6 @@ surviving auto mode. Treat `ask` as a prompt you *expect*, not a guarantee you *
 
 - **Pointer**: [Add a human checkpoint](https://code.claude.com/docs/en/auto-mode-config#add-a-human-checkpoint)
   and [Compound commands](https://code.claude.com/docs/en/permissions#compound-commands).
-- **As of**: 2026-10-11
-- **Recheck trigger**: #83766 closes, or the auto-mode config page changes whether a content-scoped
-  ask rule always prompts.
 
 ## Managed policy, and what it does not buy
 

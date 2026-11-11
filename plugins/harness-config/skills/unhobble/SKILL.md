@@ -259,7 +259,7 @@ Apply the confirmed strip plan:
   measured and only perturbs the other tools that read it. Leave it out of the candidate set only
   when a condition is known to rule it out **and** no `CLAUDE.md` imports or symlinks it; a merely
   unresolved condition keeps it, and so does a shim or import, since that import is itself a live
-  path into context regardless of native support. The conditions carry their dated records in this
+  path into context regardless of native support. The conditions are recorded in this
   plugin's [reference/agents-md-liveness.md](../../reference/agents-md-liveness.md); read them there
   rather than restating them here. What the classification then says is binding on an `AGENTS.md`
   exactly as on a `CLAUDE.md`: one classified `policy` or `convention` is kept and never named to
@@ -289,8 +289,7 @@ Apply the confirmed strip plan:
   `plugin@marketplace` key. **Pointer:** when deciding which scope's `enabledPlugins` value wins,
   fetch
   [settings reference: enabledPlugins](https://code.claude.com/docs/en/settings-reference#enabledplugins)
-  live. **As of:** 2026-10-11. **Recheck trigger:** that section changes the precedence between
-  project and user settings for the key. Do not call an arm stripped until a fresh session's
+  live. Do not call an arm stripped until a fresh session's
   `claude plugin list --json` omits the plugin. One that is still listed is a confound; local or
   managed scope can still win.
 - Print the "you are bare" summary: what a fresh session will now load, which plugins were

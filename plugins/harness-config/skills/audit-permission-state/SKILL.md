@@ -328,7 +328,7 @@ collapse it in the report:
   rather than implying completeness.
 - **An `ask` finding names where the contract lives**: the auto mode config page, and the
   upstream issue anthropics/claude-code#83766 against it. Carry the caveat `reference/criteria.md` §"Ask rules under auto
-  mode" words, with its pointer and dated record, when reporting an `ask` result, and point at
+  mode" words, with its pointer, when reporting an `ask` result, and point at
   `permissions.deny` where the outcome must hold regardless.
 - **`invalid-json` is not `absent`.** A malformed settings file contributes no rules to the
   inventory. Report the parse failure, not an empty scope, and do not describe a managed parse
@@ -371,7 +371,7 @@ conditions, and the one that is not detectable" holds the list and its pointer.
 **A cloud session reads a different scope set, and the run says so.** We treat a user-scope record
 in a cloud session as describing the container, not the operator. The reader detects a cloud
 session by `CLAUDE_CODE_REMOTE`, the only entrypoint variable it branches on.
-`reference/criteria.md` §Scopes holds both dated records.
+`reference/criteria.md` §Scopes holds both records.
 
 ## Prerequisites
 

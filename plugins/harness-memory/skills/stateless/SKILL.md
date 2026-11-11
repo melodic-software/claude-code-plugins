@@ -67,7 +67,7 @@ reports auto memory off, and `0` reports it **on** even against `autoMemoryEnabl
 when the env var is unset does `autoMemoryEnabled` (by settings precedence) decide. `status` must
 report the env var as authoritative whenever it is set. `disable` sets the env var to `1` and
 `autoMemoryEnabled: false` together. The reference file's "Precedence: the env var overrides the
-setting (VERIFIED)" holds the pointer, as-of date and recheck trigger.
+setting (VERIFIED)" holds the pointer.
 
 ## Actions
 

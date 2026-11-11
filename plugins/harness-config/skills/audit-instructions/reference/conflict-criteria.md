@@ -39,17 +39,6 @@ fires.
 The three shared axes (evidence tier, authority, severity) are defined once in
 [criteria.md](criteria.md) and are not restated here.
 
-**Recheck triggers** (as of 2026-10-11). Re-verify against live docs when any fires: a change to the memory page's
-precedence or load-order text; a change to the skills page's statements about instruction authority;
-any new instruction surface added to the product; a change to how permission rules or permission
-modes remove a tool from Claude's pool; a change to **which hook events inject handler output into
-the session's context**, to the events `additionalContext` is accepted on, or to the handler types
-that can return it; the removal, renaming, or restructuring of the hooks page's **per-event exit-2
-table** this file defers to for blockability, or a change to the set of locations a hook may be
-declared in; a change to the table's `SubagentStop`, `PostToolUse`, or `PreToolUse` rows, the
-three the worked examples below cite. A row added to the table, or a change to any row this file
-does not cite, needs no recheck, because the partition itself is never restated here.
-
 ## Sources
 
 Every residency and precedence decision below points at the section it rests on, and the pass reads
@@ -172,7 +161,7 @@ question would report a conflict against a surface nothing loads. Resolve both, 
 condition stays unresolved, **do not assert residency for it**: I15 is a finding lane, so an
 unestablished residency is a leave-alone rather than a pair to judge, exactly as the record's
 finding-lane rule says and as gate 1 already treats every other surface whose residency is not
-established. Both carry their dated records, with the settings scopes and the key the
+established. Both are recorded, with the settings scopes and the key the
 mode lives under, in [agents-md-liveness.md](../../../reference/agents-md-liveness.md).
 
 **An agent definition co-resides with the CLAUDE.md files its subagent loads, and by default that
@@ -199,9 +188,6 @@ restate the rule in the delegation prompt rather than to reconcile the two surfa
 - **Pointer**: when deciding which CLAUDE.md files and which auto memory reach a subagent, fetch
   [subagents: what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
   and [memory: how it works](https://code.claude.com/docs/en/memory#how-it-works) live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: the startup section adds or drops an agent that skips CLAUDE.md, changes what
-  the opt-out field leaves loaded, or adds another per-agent control over it.
 
 **Only the active output style is resident, and only in the main conversation.** A style becomes
 active through the `outputStyle` setting or a plugin's `force-for-plugin`; every other style on disk
@@ -298,9 +284,7 @@ Three consequences for residency, and each one bounds a pair rather than admitti
   Whether it also carries a *gate* is event-specific too, and the sole authority on both is the hooks
   page's
   [Exit code 2 behavior per event](https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event)
-  table (as of 2026-11-04; recheck when the table is renamed, removed or restructured, or its
-  `SubagentStop`, `PostToolUse` or `PreToolUse` row changes, the three cited below). Its rows are not
-  reproduced here in either direction: the event set grows, so any list
+  table. Its rows are not reproduced here in either direction: the event set grows, so any list
   copied into this file becomes a closed partition that silently misgrades the next event added.
   Resolve the handler's event, read that event's row, and pair on the row's own `Can block?` cell:
   - **The cell says yes.** The conflict-bearing content is whatever that row states is prevented,
@@ -497,9 +481,6 @@ precedence the docs decline to state.
 
 - **Pointer**: when grading a pair's precedence, fetch the section its row names live; a row whose
   section now states a winner, or no longer states one, moves between the two tables.
-- **As of**: 2026-10-11
-- **Recheck trigger**: one of those sections adds, removes or changes a statement of which
-  instruction surface wins.
 
 **The escape hatch worth naming.** Because a mechanism outranks instruction text, an instruction-level
 conflict that keeps recurring is often best resolved by moving one side to a mechanism rather than by
@@ -671,8 +652,8 @@ exists on its own grounds, because a mandate naming a tool that can be absent (p
 away; see
 [permission modes: dontAsk](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode),
 [permissions: manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions) and
-[skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference), as of
-2026-10-11; recheck when one of them stops removing or denying the tool) is unsatisfiable in exactly
+[skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference)) is
+unsatisfiable in exactly
 the sessions that most need a gate. It is not a verdict on the pair. Run the gates against the current text as you would for any
 pair, and do not assume that the pair dissolved because one side acquired a condition (gate 5 is
 unaffected; see above) or that a softened verb settles gate 3, whose deciding branch is the one where

@@ -32,10 +32,6 @@ Rows cite the subpages of the current models first. A subpage name in a row mean
 
 - **Pointer**: for which model each subpage covers, see the
   [model-specific guidance table](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#model-specific-guidance).
-- **As of**: 2026-10-01 (each subpage read as raw markdown that day); the Fable 5.2 subpage read
-  whole on 2026-11-09.
-- **Recheck trigger**: a row's cited heading disappears from its subpage, or that table gains or
-  drops a row.
 
 A row's "correlate:" note names a heading in the Opus 5.5 usage guide
 (correlate with <https://claude.dev/blog/getting-the-most-out-of-opus-5-5/>, published 2026-09-22),
@@ -74,7 +70,6 @@ nothing in the section recommends a steer on where the run ends.
 
 - **Pointer**: the Fable 5.2 subpage's
   [set expectations for subagents](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#set-expectations-for-subagents).
-- **As of**: 2026-11-09
 - **Recheck trigger**: that section starts recommending a steer on where the run ends, which
   extends P12's condition to Fable 5.2.
 
@@ -152,8 +147,7 @@ Classify each component by what its body has the model DO (multiple or none):
   On 2026-10-01 that was the only docs section covering this check: we read the Fable 5.1, Opus 5.5
   and Sonnet 5.5 subpages that day (raw markdown, no artifact stored) and none of them covers tying
   progress claims to tool-result evidence; the Fable 5.2 subpage, read whole on 2026-11-09, does
-  not either. As of: 2026-11-09. Recheck trigger: a current model's subpage starts covering the
-  check (repoint there), or that Fable 5 section disappears.
+  not either.
 
 ### P6: Autonomy or checkpoint posture
 

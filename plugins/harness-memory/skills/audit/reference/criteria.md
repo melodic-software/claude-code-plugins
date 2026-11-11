@@ -150,7 +150,7 @@ memory is a precondition of the move, rather than proposing it unconditionally.
 **Import inside a path-scoped rule: verified, not doc-stated.** A rule whose body is only
 `@some/file.md` has its *imported* content inlined at session start while the rule's own body
 correctly defers, so moving content into a path-scoped rule and pulling it in by import saves
-nothing. Reproduced first-party on Claude Code 2.1.219 (2026-07-24); no official page states it.
+nothing. Reproduced first-party on Claude Code 2.1.219; no official page states it.
 The same caveat, with its pointer, is in
 [official-guidance.md, Rules files](official-guidance.md#rules-files).
 **Provenance**: empirical extension, not doc-derived, so the `update` action must not overwrite it
@@ -188,10 +188,6 @@ live in [official-guidance.md](official-guidance.md), not here.
   [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference),
   [Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill)
   and [Override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings).
-- **As of** (the listing-entry pointer): 2026-10-11
-- **Recheck trigger** (the listing-entry pointer): a fetch of those sections changes the per-entry
-  listing cap or how it is configured, or no longer supports the zero-cost rule or the plugin-skill
-  exclusion above; re-derive this paragraph and the listing-entry cost from them.
 
 ### C4: Specificity [WARN]
 
@@ -228,7 +224,7 @@ live in [official-guidance.md](official-guidance.md), not here.
 4. WARN per instance
 
 **Provenance**: the KEEP branch is a **repo extension, not doc-derived**: we found no navigation
-posture in the docs' include list (checked 2026-10-30), so the `update` action must not
+posture in the docs' include list, so the `update` action must not
 overwrite it.
 
 **Why**: Step 1 applies, in our words, the docs' test that CLAUDE.md holds only what Claude cannot
@@ -239,10 +235,6 @@ and 3 are our judgment: no docs section lists them.
   [Keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short); for
   the architecture and file-layout row, see
   [What you can stop doing](https://code.claude.com/docs/en/best-practices#what-you-can-stop-doing).
-- **As of**: 2026-10-30
-- **Recheck trigger**: the include list gains a navigation-pointer entry, the section drops its
-  only-what-Claude-cannot-work-out test, or the stop-doing table drops the architecture and
-  file-layout row.
 
 ### C6: Consistency [FAIL]
 
