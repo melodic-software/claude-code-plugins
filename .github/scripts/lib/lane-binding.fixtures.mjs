@@ -82,7 +82,9 @@ export function fakeActions(runs, pull = { head: { ref: BRANCH, repo: { full_nam
   for (const run of Object.values(runs)) {
     for (const artifact of run.artifacts ?? []) {
       artifact.id = next++;
-      blobs.set(artifact.id, zipOf({ [RECORD_FILE]: artifact.entries.map((e) => JSON.stringify(e)).join("\n") }));
+      // A record the lane closed, unless the fake says it was cut off.
+      const lines = [...artifact.entries, ...(artifact.complete === false ? [] : [{ complete: true }])];
+      blobs.set(artifact.id, zipOf({ [RECORD_FILE]: lines.map((e) => JSON.stringify(e)).join("\n") }));
     }
   }
   return {
