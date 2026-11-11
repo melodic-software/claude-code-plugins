@@ -3740,6 +3740,76 @@ test("a later leg's broker-check refused or skipped for the kill switch is a bre
   }
 });
 
+// broker-check's start gate stopped on the GITHUB_TOKEN budget (cause budget):
+// its `Stop on a low GITHUB_TOKEN budget` step ran and the broker ask skipped.
+const budgetStep = { name: "Stop on a low GITHUB_TOKEN budget", conclusion: "success" };
+const BUDGET_STOPPED = [ADMITTED, pickSlot, { ...KILL_SKIPPED[2], steps: [KILL_SKIPPED[2].steps[0], budgetStep, KILL_SKIPPED[2].steps[1]] }, ...KILL_SKIPPED.slice(3)];
+// broker-check allowed, then the model job's own start gate stopped on the budget.
+const RUN_BUDGET_STOPPED = [
+  ADMITTED,
+  pickSlot,
+  BROKER_ALLOWED,
+  { name: "resolve-issue / run", conclusion: "success", steps: [{ name: "Check the kill switch", conclusion: "success" }, budgetStep, { name: "Assert the broker allowed this attempt", conclusion: "skipped" }] },
+  { name: "report-outcome", conclusion: "skipped", steps: [] },
+];
+const BUDGET_RECORD = `${BREAKER_MARKER}\n<!-- work-unblock cause=budget -->\n`;
+const budgeted = (calls) => {
+  tripped(calls);
+  assert.ok(postedBody(calls).startsWith(BUDGET_RECORD), postedBody(calls));
+};
+const switched = (calls) => {
+  tripped(calls);
+  assert.ok(!postedBody(calls).includes("cause=budget"), postedBody(calls));
+};
+
+test("a run its start gate stopped on the GITHUB_TOKEN budget re-fires at once with a budget record, read from the job listing alone", async () => {
+  for (const jobs of [BUDGET_STOPPED, RUN_BUDGET_STOPPED]) {
+    // Ended two minutes before the sweep: no wait.
+    const { github, actions, calls } = stalledRun({ jobs, conclusion: "success", ended: "2026-10-16T11:58:00Z" });
+    assert.equal(await sweep({ github, actions }), 0);
+    budgeted(calls);
+    assert.deepEqual(logReads(calls), []);
+  }
+  // The same listing without the budget step is a switch trip.
+  const plain = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success", ended: "2026-10-16T11:58:00Z" });
+  assert.equal(await sweep({ github: plain.github, actions: plain.actions }), 0);
+  switched(plain.calls);
+});
+
+test("a budget stop step that skipped is no budget stop", async () => {
+  const skipped = { ...budgetStep, conclusion: "skipped" };
+  const jobs = [ADMITTED, pickSlot, { ...KILL_SKIPPED[2], steps: [KILL_SKIPPED[2].steps[0], skipped, KILL_SKIPPED[2].steps[1]] }, ...KILL_SKIPPED.slice(3)];
+  const { github, actions, calls } = stalledRun({ jobs, conclusion: "success" });
+  assert.equal(await sweep({ github, actions }), 0);
+  switched(calls);
+});
+
+// limits.limit-stops-per-issue is 3: three switch trips make the fourth wait
+// the flat kill-switch hours; three budget stops do not.
+test("budget stops never count toward limits.limit-stops-per-issue or wait the kill-switch hours", async () => {
+  const switchTrips = await afterSweeps(3, KILL_SKIPPED);
+  const fourthSwitch = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success", ...switchTrips });
+  assert.equal(await sweep({ github: fourthSwitch.github, actions: fourthSwitch.actions }), 0);
+  assert.deepEqual(writes(fourthSwitch.calls), [], "a fourth switch trip waits");
+
+  const budgetStops = await afterSweeps(5, BUDGET_STOPPED);
+  const afterBudget = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success", ...budgetStops });
+  assert.equal(await sweep({ github: afterBudget.github, actions: afterBudget.actions }), 0);
+  switched(afterBudget.calls);
+
+  const budgetAfterSwitch = stalledRun({ jobs: BUDGET_STOPPED, conclusion: "success", ...switchTrips });
+  assert.equal(await sweep({ github: budgetAfterSwitch.github, actions: budgetAfterSwitch.actions }), 0);
+  budgeted(budgetAfterSwitch.calls);
+});
+
+test("the budget record says it never counts toward the per-issue bound", () => {
+  const body = breakerComment(KEY, { repo: REPO, run: 5030, ended: Date.parse("2026-10-16T10:05:00Z"), budget: true });
+  assert.ok(body.startsWith(BUDGET_RECORD), body);
+  assert.ok(body.includes(REFUSED_LINK), body);
+  assert.ok(body.includes("never counts toward limits.limit-stops-per-issue"), body);
+  assert.ok(!breakerComment(KEY, { repo: REPO, run: 5030, ended: 0 }).includes("cause=budget"));
+});
+
 test("a green run whose kill-switch check did not run, or whose broker ask ran, is no breaker trip", async () => {
   const [kill, ask] = KILL_SKIPPED[2].steps;
   const check = (steps) => ({ ...KILL_SKIPPED[2], steps });
@@ -3890,6 +3960,12 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   assert.ok(checkSteps.indexOf("Stop on an open blocker") > checkSteps.indexOf("Claim the issue with a lane lease"));
   assert.ok(read.run !== undefined);
   assert.ok(steps(read.run).includes("Stop on stale workflow files"));
+  // The budget step follows the kill switch's step and runs exactly on a budget stop.
+  for (const id of ["broker-check", "run"]) {
+    const named = steps(read[id]);
+    assert.equal(named.indexOf("Stop on a low GITHUB_TOKEN budget"), named.indexOf("Check the kill switch") + 1, id);
+    assert.match(read[id], /^ {6}- name: Stop on a low GITHUB_TOKEN budget\n {8}if: steps\.kill\.outputs\.cause == 'budget'\n/m, id);
+  }
   for (const id of ["broker-check", "run"]) {
     assert.doesNotMatch(read[id], /^ {4}name:/m, `read runner job ${id} keeps its id as its name`);
   }

@@ -65,7 +65,7 @@ const DEFAULTS = new URL("./rate-limits.json", import.meta.url);
 // (rate-guard.test.mjs holds the two equal).
 const SHARES = { plan: 0.7, "writer-pause": 0.4, breaker: 0.2, "read-floor": 0.1, "stop-floor": 0.02 };
 export const BUILT_IN_LIMITS = Object.freeze({
-  "github-token": { ...SHARES, "limit-cap": 1000, pace: 0.2 },
+  "github-token": { ...SHARES, "limit-cap": 1000, pace: 0.2, "start-gate": 0.1 },
   "lanes-app": SHARES,
   graphql: SHARES,
   "owner-token": SHARES,
@@ -77,8 +77,9 @@ export const BUILT_IN_LIMITS = Object.freeze({
 const SHARE = (value) => typeof value === "number" && value >= 0 && value <= 1;
 const COUNT = (value) => Number.isInteger(value) && value >= 1;
 // pace, optional, is pace.mjs's share for timer-driven lanes; stop-floor,
-// optional, the share of the header's limit left at which the latch stops.
-const FIELDS = { plan: (value) => SHARE(value) && value > 0, "writer-pause": SHARE, breaker: SHARE, "read-floor": SHARE, "stop-floor": SHARE, "limit-cap": COUNT, pace: SHARE };
+// optional, the share of the header's limit left at which the latch stops;
+// start-gate, optional, check-kill-switch's share under which a lane does not start.
+const FIELDS = { plan: (value) => SHARE(value) && value > 0, "writer-pause": SHARE, breaker: SHARE, "read-floor": SHARE, "stop-floor": SHARE, "limit-cap": COUNT, pace: SHARE, "start-gate": SHARE };
 const CONTENT_FIELDS = { ...FIELDS, "per-minute": COUNT, "per-hour": COUNT };
 const REQUIRED = ["plan", "writer-pause", "breaker", "read-floor"];
 

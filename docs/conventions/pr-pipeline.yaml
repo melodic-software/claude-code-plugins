@@ -1270,7 +1270,9 @@ limits:
   # content-creation adds per-minute and per-hour. The rate guard reads
   # read-floor and limit-cap, to warn, and stop-floor, to stop a pool until its
   # reset at or under that share left; github-token's pace (projected share left at reset)
-  # paces timer-driven lanes (log-api-budget/pace.mjs); the others are
+  # paces timer-driven lanes (log-api-budget/pace.mjs); github-token's
+  # start-gate (share of the header's limit left) stops a lane at its kill-switch
+  # gate (check-kill-switch), one GET /rate_limit per gate; the others are
   # thresholds meant for the hub's limits sampler, which nothing here enforces. Their
   # defaults live in .github/actions/log-api-budget/rate-limits.json, held
   # for a person like this file; add an `api:` entry here only to override one.
