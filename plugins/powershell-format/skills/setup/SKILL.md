@@ -114,10 +114,12 @@ with your own edit tools.
    stop here and report.
 4. **Actions.** When `actions[]` holds `copy` items, run
    `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" copy --scope <scope>` (plus the same
-   `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused` or
-   `blocked` per entry; `refused` means a locally edited copy, which the `modified` decision
-   covers, and `blocked` means another tool owns the local hooks directory, which the
-   `hooks-path-owned` decision covers. The entry's `powershell-check.ps1` is copied beside its
+   `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused`,
+   `blocked`, `unsafe-path` or `stage-failed` per entry; `refused` means a locally edited copy or
+   dispatcher, which the `modified` decision covers, `blocked` that another tool owns the local
+   hooks directory, which the `hooks-path-owned` decision covers, `unsafe-path` the decision of
+   that name, and `stage-failed` that `git add` failed on a shared install: report it, since the
+   team would not receive the files. The entry's `powershell-check.ps1` is copied beside its
    script.
 5. **Decisions.** Read [reference/git-hook-decisions.md](reference/git-hook-decisions.md) for
    what each kind asks of you, apply each one, then rerun `plan` until only the decisions you
@@ -184,9 +186,8 @@ Run `check`, then for each finding point at the resolution. This skill installs 
   `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check` still reports
   the OLD value; report the observed effective value, never an unobserved change.
 
-After pointing at a remediation, re-run the relevant `check` probe live via Bash (a pre-computed row
-predates the remediation, so never re-read it) and report its actual result. Never claim resolved on
-the reader's report that they installed something.
+After pointing at a remediation, re-run the relevant `check` probe live via Bash and report its
+actual result. Never claim resolved on the reader's report that they installed something.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 

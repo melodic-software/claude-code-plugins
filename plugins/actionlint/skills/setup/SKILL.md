@@ -111,10 +111,12 @@ with your own edit tools.
    stop here and report.
 4. **Actions.** When `actions[]` holds `copy` items, run
    `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" copy --scope <scope>` (plus the same
-   `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused` or
-   `blocked` per entry; `refused` means a locally edited copy, which the `modified` decision
-   covers, and `blocked` means another tool owns the local hooks directory, which the
-   `hooks-path-owned` decision covers.
+   `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused`,
+   `blocked`, `unsafe-path` or `stage-failed` per entry; `refused` means a locally edited copy or
+   dispatcher, which the `modified` decision covers, `blocked` that another tool owns the local
+   hooks directory, which the `hooks-path-owned` decision covers, `unsafe-path` the decision of
+   that name, and `stage-failed` that `git add` failed on a shared install: report it, since the
+   team would not receive the files.
 5. **Decisions.** Read [reference/git-hook-decisions.md](reference/git-hook-decisions.md) for
    what each kind asks of you, apply each one, then rerun `plan` until only the decisions you
    chose to leave remain.
@@ -173,15 +175,17 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 ## Gotchas
 
-- **A userConfig knob is reachable natively only if the manifest declares it.** Per current
-  docs, `claude plugin install --config <key=value>` sets options "declared in the plugin's
-  manifest". An undeclared key silently cannot be set through native plugin configuration (a raw
-  settings `env` block still works).
-- **`--config`'s post-install behavior is undocumented, so the fallback above rests on
-  observation.** The official docs describe `--config` only as a `claude plugin install` flag
-  and say nothing about an already-installed plugin. The verified-version record lives only in
-  the plugin-reconfiguration convention cited in `apply` above. It names which CLI release the
-  still-writes claim was observed on, and which conditions it covered.
+- **A userConfig knob is reachable natively only if the manifest declares it.** An undeclared key
+  silently cannot be set through native plugin configuration (a raw settings `env` block still
+  works). Pointer: the `--config` row in
+  [`plugin install`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install). As of:
+  2026-11-10. Recheck trigger: that row lets `--config` set a key the manifest does not declare.
+- **`--config`'s post-install behavior rests on observation, so the fallback above does too.**
+  Pointer: [`plugin install`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
+  As of: 2026-11-10. Recheck trigger: that section documents what `--config` does against an
+  already-installed plugin. The verified-version record lives only in the plugin-reconfiguration
+  convention cited in `apply` above. It names which CLI release the still-writes claim was
+  observed on, and which conditions it covered.
 - **`-shellcheck=` / `-pyflakes=` are deliberate, and the deadlock claim is a local
   observation.** The entry disables actionlint's external run-block linters because each spawns a
   subprocess per `run:` block; the additional "ShellCheck deadlocks on large blocks under the
