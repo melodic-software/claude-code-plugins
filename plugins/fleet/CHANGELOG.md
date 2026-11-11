@@ -3,6 +3,12 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.25] - 2026-11-11
+
+### Changed
+
+- The reach skill and its relay reference replace machine host names with placeholders, and point at the cross-session messaging, headless and agent view sections for held-message expiry, bare sessions and mechanism limits instead of restating them. No behavior change.
+
 ## [0.2.24] - 2026-11-11
 
 ### Changed

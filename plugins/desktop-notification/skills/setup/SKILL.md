@@ -59,25 +59,18 @@ restores the FAIL semantics.
    failure.
 2. **`jq`**. The pre-computed `jq` row. FAIL if absent: without it the hook can neither classify the
    notification nor emit its terminal sequence, so it drops every notification without a notice.
-   Claim: a Notification hook's output reaches neither the user nor the model, so this check is
-   where a missing jq surfaces.
-   Basis: `https://code.claude.com/docs/en/hooks#notification`, the paragraph after the input
-   example ("Claude Code discards their `systemMessage` and `continue` fields").
-   As of: 2026-10-04.
-   Recheck: that paragraph stops saying Claude Code discards a Notification hook's `systemMessage`.
+   This check is where a missing jq surfaces: the hook cannot report it to the user or the model.
+   Pointer: [Notification](https://code.claude.com/docs/en/hooks#notification). As of: 2026-11-10.
+   Recheck trigger: that section says a Notification hook's output reaches the user or the model.
 3. **Node.js**. The pre-computed `node` row. FAIL if absent: every hook row launches through
-   `node hooks/exec-bash.mjs`, and Claude Code's native binary neither ships nor uses Node, so
-   without it the hook does not launch and no notification fires. The probe runs through the Bash
-   tool, so it works when the launcher cannot. Remediation: install Node.js from
-   `https://nodejs.org/en/download`, or from the platform package manager.
-   Claim: Claude Code's native binary does not invoke Node at runtime, so Node is a separate
-   prerequisite for a hook launched as `node`.
-   Basis: `https://code.claude.com/docs/en/setup`, npm install section ("The installed `claude`
-   binary does not itself invoke Node"), and `https://code.claude.com/docs/en/hooks`, "Exec form
-   and shell form".
-   As of: 2026-09-29.
-   Recheck: the setup page stops saying the binary does not use Node, or the hooks page changes the
-   exec-form `node` example.
+   `node hooks/exec-bash.mjs`, so without it the hook does not launch and no notification fires.
+   The probe runs through the Bash tool, so it works when the launcher cannot. Remediation: install
+   Node.js from `https://nodejs.org/en/download`, or from the platform package manager. Node is a
+   prerequisite separate from Claude Code. Pointer: [Install with
+   npm](https://code.claude.com/docs/en/setup#install-with-npm) and [Exec form and shell
+   form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form). As of: 2026-11-10.
+   Recheck trigger: the setup section says the installed `claude` binary runs Node itself, or the
+   hooks section changes how a hook command launches `node`.
 4. **Per-OS `os_toast` dependency**. Take the current OS family from the pre-computed `uname -s` row
    and probe ONLY that family's requirement (the hook's `case "$(uname -s)"` does exactly this):
    - **Linux**. `command -v notify-send` (libnotify). FAIL only if the `os_toast` channel is

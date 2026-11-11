@@ -1437,17 +1437,15 @@ def _net_added(
 ) -> list[str]:
     """Each match `added` gains over `removed`, so a moved or repinned line
     is not new."""
-    gained = Counter(
-        re.sub(r"\s+", "", m).casefold()
-        for line in _logical_lines(added)
-        for m in find(line)
-    )
-    gained.subtract(
-        re.sub(r"\s+", "", m).casefold()
-        for line in _logical_lines(removed)
-        for m in find(line)
-    )
-    return sorted(m for m, n in gained.items() if n > 0)
+
+    def matches(lines: list[str]) -> Counter[str]:
+        return Counter(
+            re.sub(r"\s+", "", m).casefold()
+            for line in _logical_lines(lines)
+            for m in find(line)
+        )
+
+    return sorted(matches(added) - matches(removed))
 
 
 def _new_model_legs(added: list[str], removed: list[str]) -> list[str]:
@@ -1606,9 +1604,7 @@ def _billed_timeouts(raw: Any, added: list[str], removed: list[str]) -> list[str
     workflow that starts a model leg or calls a local workflow or action that
     may, the head text against the base text too: each timeout raised, set to
     an expression or removed at its own key path."""
-    contents = getattr(raw, "contents", None)
-    pair = contents if isinstance(contents, tuple) and len(contents) == 2 else None
-    base, head = pair if pair else (None, None)
+    base, head = _pair(getattr(raw, "contents", None)) or (None, None)
     if not isinstance(head, str):
         return _raises(_timeout_values(added), _timeout_values(removed))
     found: list[str] = []
@@ -1904,9 +1900,7 @@ def _workflow_privileges(text: str | None) -> tuple[set[str], set[str]] | None:
         triggers: set[str] = set()
     elif isinstance(on, str):
         triggers = {on}
-    elif isinstance(on, list):
-        triggers = {str(t) for t in on}
-    elif isinstance(on, dict):
+    elif isinstance(on, (list, dict)):
         triggers = {str(t) for t in on}
     else:
         return None
@@ -1943,20 +1937,16 @@ def _workflow_privilege_gains(
     workflow: its base text against its head text (an added file against
     none), and its patch's net-added lines as a backstop. Unreadable text
     holds as a widening."""
-    contents = getattr(raw, "contents", None)
-    if getattr(raw, "contents_error", None) is not None or not (
-        isinstance(contents, tuple) and len(contents) == 2
-    ):
-        return ["contents unreadable"], []
-    if not isinstance(contents[1], str) or not (
-        contents[0] is None or isinstance(contents[0], str)
+    base_text, head_text = _read_pair(raw) or (None, None)
+    if not isinstance(head_text, str) or not (
+        base_text is None or isinstance(base_text, str)
     ):
         return ["contents unreadable"], []
     if _yaml() is None:
-        widened, triggers = _text_gains(contents[0], contents[1])
+        widened, triggers = _text_gains(base_text, head_text)
     else:
-        base = _workflow_privileges(contents[0])
-        head = _workflow_privileges(contents[1])
+        base = _workflow_privileges(base_text)
+        head = _workflow_privileges(head_text)
         if base is None or head is None:
             return ["unreadable, malformed, a repeated key or an alias"], []
         widened = sorted(head[0] - base[0])
@@ -1978,10 +1968,7 @@ def _text_secret_gains(raw: Any) -> list[str]:
     (comment-stripped), so a change with no patch, or one a cost branch
     skips, is still read. Unread text gains nothing here: the patch check
     and `_workflow_privilege_gains` hold it."""
-    contents = getattr(raw, "contents", None)
-    if not (isinstance(contents, tuple) and len(contents) == 2):
-        return []
-    base, head = contents
+    base, head = _pair(getattr(raw, "contents", None)) or (None, None)
     if not isinstance(head, str):
         return []
     before = _code_lines(base.split("\n")) if isinstance(base, str) else []
@@ -2006,12 +1993,12 @@ def _cost_reasons(
     privileged: list[str] = []
     secret_files: set[str] = set()
     for f, raw in zip(files, raw_files):
+        patch = getattr(raw, "patch", None)
+        workflow = any(is_workflow_path(p) for p in f.paths)
         # Before any branch below can skip the file: no cost decision clears
         # a widening.
-        if f.status != "removed" and any(is_workflow_path(p) for p in f.paths):
-            widened, triggers = _workflow_privilege_gains(
-                f, raw, getattr(raw, "patch", None)
-            )
+        if f.status != "removed" and workflow:
+            widened, triggers = _workflow_privilege_gains(f, raw, patch)
             if widened:
                 widenings.append(f"{f.path}: {'; '.join(widened)}")
             if triggers:
@@ -2035,7 +2022,6 @@ def _cost_reasons(
         ):
             charges.append(f"{f.path}: in a Pulumi project")
             continue
-        workflow = any(is_workflow_path(p) for p in f.paths)
         pipeline = any(glob_match(_PIPELINE_CONFIG, p) for p in f.paths)
         if not (workflow or pipeline):
             model_legs = _composite_model_legs(f, raw)
@@ -2048,7 +2034,7 @@ def _cost_reasons(
         ):
             charges.append(f"{f.path}: renamed or copied from {old}")
             continue
-        lines = _patch_lines(getattr(raw, "patch", None))
+        lines = _patch_lines(patch)
         if lines is None:
             charges.append(f"{f.path}: no patch to read")
             continue
@@ -2057,9 +2043,8 @@ def _cost_reasons(
         charge: list[str] = []
         spend: list[str] = []
         if workflow:
-            for s in added:
-                if not public and _COST_PRIVATE_LINE.search(s):
-                    charge.append(s.strip())
+            if not public:
+                charge += [s.strip() for s in added if _COST_PRIVATE_LINE.search(s)]
             secret = _net_added(_secret_refs, _if_blocks(added), _if_blocks(removed))
             if secret and f.path not in secret_files:
                 secrets.append(f"{f.path}: new secrets reference {', '.join(secret)}")
@@ -2073,7 +2058,7 @@ def _cost_reasons(
                 charge += _raised_retention(added, removed)
             charge += [f"runner {v}" for v in _new_runners(raw, added, public)]
         else:
-            spend = _unsafe_pipeline_lines(getattr(raw, "patch", ""))
+            spend = _unsafe_pipeline_lines(patch)
         if charge:
             charges.append(f"{f.path}: {'; '.join(charge)}")
         if spend:
@@ -2088,18 +2073,14 @@ def _cost_reasons(
     if spends:
         detail = "; ".join(spends) + "; subscription or prepaid spend, reported only"
         reasons.append(Reason(COST_FINDING_CODE, Risk.MED, detail))
-    if secrets:
-        reasons.append(Reason(SECRET_EXPOSURE_CODE, Risk.HIGH, "; ".join(secrets)))
-    if agents:
-        reasons.append(Reason(AGENT_SURFACE_CODE, Risk.HIGH, "; ".join(agents)))
-    if widenings:
-        reasons.append(
-            Reason(PERMISSION_WIDENING_CODE, Risk.HIGH, "; ".join(widenings))
-        )
-    if privileged:
-        reasons.append(
-            Reason(PRIVILEGED_TRIGGER_CODE, Risk.HIGH, "; ".join(privileged))
-        )
+    for code, found in (
+        (SECRET_EXPOSURE_CODE, secrets),
+        (AGENT_SURFACE_CODE, agents),
+        (PERMISSION_WIDENING_CODE, widenings),
+        (PRIVILEGED_TRIGGER_CODE, privileged),
+    ):
+        if found:
+            reasons.append(Reason(code, Risk.HIGH, "; ".join(found)))
     return reasons
 
 
@@ -2281,18 +2262,19 @@ def _lane_reasons(raw_lanes: Any) -> list[Reason]:
 def _score(inp: RiskInput) -> RiskResult:
     raw_files = _sequence(inp.files)
     files = None if raw_files is None else [_check_file(f) for f in raw_files]
+    checked, raws = files or [], list(raw_files or ())
     # Each producer emits a code at most once, and the only code two of them
     # could share (high-path:**) is refused as a configured glob.
-    paths = _high_path_reasons(inp, files or [], list(raw_files or ()))
+    paths = _high_path_reasons(inp, checked, raws)
     skipped = (
         [] if inp.path_holds is not False else [r for r in paths if is_path_hold(r)]
     )
     reasons = [
-        *_size_reasons(inp, files, list(raw_files or ())),
+        *_size_reasons(inp, files, raws),
         *_lane_reasons(inp.lanes),
         *(r for r in paths if r not in skipped),
-        *_cost_reasons(inp, files or [], list(raw_files or ())),
-        *_trust_gate_reasons(files or [], list(raw_files or ())),
+        *_cost_reasons(inp, checked, raws),
+        *_trust_gate_reasons(checked, raws),
     ]
     reasons.sort(key=lambda reason: (-reason.severity, reason.code))
     worst = max((reason.severity for reason in reasons), default=Risk.LOW)

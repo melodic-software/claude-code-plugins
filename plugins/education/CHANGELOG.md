@@ -3,6 +3,12 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.2] - 2026-11-11
+
+### Changed
+
+- The `illustrate` explainer template points its 16px body size at user-interface's body-text floor and names `typography.measure_ch` beside its 65ch paragraphs, and its build test points the 4.5:1 check at user-interface's contrast floor. No rendered value changes.
+
 ## [1.2.1] - 2026-11-11
 
 ### Changed

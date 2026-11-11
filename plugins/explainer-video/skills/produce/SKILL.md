@@ -131,7 +131,7 @@ record bundle or beside the markdown record they explain
   `${CLAUDE_PLUGIN_ROOT}/scripts/defaults.json`). A cue still under the minimum fails; one under
   the reading time per word is a `FLAG:` line, since narration spoken faster cannot be captioned slower.
   - **Pointer**: when a caption timing value is in question, fetch BBC Subtitle Guidelines section
-    4.1 (<https://www.bbc.co.uk/accessibility/forproducts/guides/subtitles/>) and
+    4.1 (<https://www.bbc.co.uk/accessibility/forproducts/guides/subtitles/#Target-minimum-timing>) and
     <https://partnerhelp.netflixstudios.com/hc/en-us/articles/360051554394-Timed-Text-Style-Guide-Subtitle-Timing-Guidelines>
     live.
   - **As of**: 2026-10-17
