@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# worktree-add-claim-gate.sh — PostToolUse hook: after a raw Bash
+# worktree-add-claim.sh — PostToolUse hook: after a raw Bash
 # `git worktree add`, claim THE parsed add target (#2882).
 #
 # WHY IT EXISTS — worktree-create.sh arms `git worktree lock` on the trees
@@ -24,7 +24,7 @@
 # FAIL-OPEN. A missed claim is visible on the next `worktree-claim.sh report`
 # / `check-enter`; blocking an arbitrary Bash call because this hook could
 # not lock is the worse failure. Kill switch:
-# worktree_add_claim_gate_enabled.
+# worktree_add_claim_enabled.
 #
 # The lock is a *claim other agents can read*. It does not block concurrent
 # writes — git-worktree(1) lock only prevents remove/move/prune.
@@ -34,7 +34,7 @@ set -uo pipefail
 # Kill switch FIRST, before any library is sourced: a disabled hook must not
 # pay to parse hook-utils.sh to learn it is off. Same predicate as
 # hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
-[[ "${CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_GATE_ENABLED:-true}" == "true" ]] || exit 0
+[[ "${CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_ENABLED:-true}" == "true" ]] || exit 0
 # Parameter expansion, not `dirname`: a command substitution forks, which is a
 # process on Windows Git Bash. A bare filename strips to itself, so it means `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
@@ -73,7 +73,7 @@ CLAIM_TARGETS=()
 
 # The parse, the `cd`/`pushd`/`popd` poisoning, the wrapper/`-C` base
 # composition and the add-target walk are worktree-path-lib.sh's, shared
-# verbatim with the containment sibling so the two gates can never disagree
+# verbatim with the containment sibling so the two hooks can never disagree
 # about which target an executed command named. Only the claim is this hook's.
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 collect_add() {

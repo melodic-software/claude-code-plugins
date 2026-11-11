@@ -432,12 +432,12 @@ that carries the detail; none restates the page.
   resume, or the CLI major version moves. On any of those, re-read the pointer before restating
   the record, and re-date it rather than editing a claim in place.
 
-### A preloaded skill that fails to resolve is skipped silently
+### A preloaded skill that does not load
 
-*What we rely on.* A subagent's `skills:` preload that cannot resolve does not fail the dispatch;
-the agent runs without the body it was supposed to carry, and nothing in the run's normal output
-says so. We rely on a resolved preload carrying the skill body itself.
-*As of:* 2026-10-11. *Pointer:* for what a failed and a resolved preload deliver, see
+*What we rely on.* We never count on the harness to fail a dispatch, or to tell the agent, when a
+`skills:` preload does not load; the liveness token is the only evidence we accept that the body
+arrived. We rely on a resolved preload carrying the skill body itself.
+*As of:* 2026-11-11. *Pointer:* for what a missing, a disabled and a resolved preload deliver, see
 [subagents: preload skills into subagents](https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents).
 *Why the plugin cares.* A run whose discipline never loaded is indistinguishable from a good one by
 every other signal, which is what the liveness token exists to catch.

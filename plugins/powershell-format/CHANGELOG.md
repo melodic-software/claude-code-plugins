@@ -3,6 +3,15 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.9] - 2026-11-11
+
+### Changed
+
+- The `setup` skill's `apply install-git-hooks` step now lists every result the installer's `copy` prints (`installed`, `refreshed`, `unchanged`, `refused`, `blocked`, `unsafe-path`, `stage-failed`) and what each means.
+- `setup` no longer mentions a pre-computed row, since the skill has none.
+
+No behavior change.
+
 ## [1.0.8] - 2026-11-09
 
 ### Changed

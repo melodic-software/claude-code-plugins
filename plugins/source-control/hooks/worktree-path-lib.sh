@@ -5,7 +5,7 @@
 #
 # Consumers:
 #   - hooks/worktree-add-containment-gate.sh  (PreToolUse: blocks a nested target)
-#   - hooks/worktree-add-claim-gate.sh        (PostToolUse: claims the add target)
+#   - hooks/worktree-add-claim.sh             (PostToolUse: claims the add target)
 #   - scripts/worktree-claim.sh               (normalizer only)
 #   - scripts/worktree-create.sh              (normalizer only)
 #
