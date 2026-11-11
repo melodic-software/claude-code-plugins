@@ -30,7 +30,9 @@ import {
   stalledFindings,
   throttleFindings,
   throughputFindings,
+  laneVariableFindings,
 } from "./signals.mjs";
+import { VARIABLES_CHANGED, VARIABLES_UNREAD } from "../work-unblock/publish-lane-level.mjs";
 
 const now = new Date("2026-10-19T16:41:00Z");
 const windowStart = new Date("2026-10-19T15:36:00Z");
@@ -784,4 +786,25 @@ test("signal 11: a reason from the report reaches the issue inert", () => {
   });
   assert.doesNotMatch(f.summary, /`|\n/);
   for (const line of f.facts) assert.doesNotMatch(line, /`|\n/);
+});
+
+test("signal 14 fires on publish-lane-level's variable check annotations and on nothing else", () => {
+  const run = (id, annotations) => ({ id, url: `https://github.com/o/r/actions/runs/${id}`, name: "Work Unblock", event: "schedule", annotations });
+  const found = laneVariableFindings({
+    failedRuns: [
+      run(41, [{ level: "failure", message: `${VARIABLES_CHANGED} created CLAUDE_LANES_DISABLED` }]),
+      run(42, [{ level: "failure", message: `${VARIABLES_UNREAD} the repository variables were not listed after the publish (502)` }]),
+      run(43, [{ level: "warning", message: `${VARIABLES_CHANGED} changed LANES_BROKER_URL` }, { level: "failure", message: "Process completed with exit code 1." }]),
+    ],
+  });
+  assert.equal(found.length, 1);
+  assert.equal(found[0].key, "lane-variables");
+  assert.equal(found[0].signal, "14 lane variables");
+  assert.deepEqual(found[0].facts, [
+    "Work Unblock https://github.com/o/r/actions/runs/41: lane-variables-changed: created CLAUDE_LANES_DISABLED",
+    "Work Unblock https://github.com/o/r/actions/runs/42: lane-variables-unread: the repository variables were not listed after the publish (502)",
+  ]);
+  assert.match(found[0].summary, /^2 publish-lane-level runs/);
+  assert.deepEqual(laneVariableFindings({ failedRuns: [run(43, [{ level: "failure", message: "Process completed with exit code 1." }])] }), []);
+  assert.deepEqual(laneVariableFindings({}), []);
 });

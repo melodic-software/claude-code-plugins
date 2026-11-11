@@ -20,6 +20,7 @@ export const SIGNALS = [
   "11 post-merge unreadable",
   "12 listing held",
   "13 lane holds",
+  "14 lane variables",
 ];
 export const LOG_ONLY = new Set(["7 platform incident"]);
 const MUTED = new Set(["not_planned", "duplicate"]);
@@ -42,6 +43,7 @@ export const FILING = {
   "11 post-merge unreadable": { title: "Restore the post-merge check's read of lane merges", priority: "high" },
   "12 listing held": { title: "Restore the merge job's listing of open pull requests", priority: "high" },
   "13 lane holds": { title: "Find why a lane keeps holding its runs", priority: "medium" },
+  "14 lane variables": { title: "Check the repository variables the lane token changed", priority: "critical" },
 };
 
 export const familyOf = (signal) =>
@@ -124,7 +126,7 @@ const SOURCES = {
   "pr-merge api budget": ["2 ceiling", "3 throttling"],
   "lane api budget": ["2 ceiling", "3 throttling"],
   "Actions jobs in use": ["2 ceiling"],
-  "failed runs": ["3 throttling"],
+  "failed runs": ["3 throttling", "14 lane variables"],
   "main full run": ["1 main red"],
   "merge-queue ejections": ["4 merge-queue ejections"],
   "pr-merge sweep": ["3 throttling", "5 held PRs", "8 throughput", "12 listing held"],

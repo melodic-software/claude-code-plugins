@@ -405,6 +405,38 @@ export function listingHeldFindings({ heldSweeps = [] }) {
   ];
 }
 
+// work-unblock's publish-lane-level fails red when the lane token's Variables
+// write changed any repository variable but the level variable, or when its
+// check could not list them (publish-lane-level.mjs check). Either is a
+// security signal: a repository variable can shadow an organization one, such
+// as the lanes kill switch.
+const LANE_VARIABLES = /^lane-variables-(?:changed|unread):/;
+
+export function laneVariableFindings({ failedRuns = [] }) {
+  const lines = [];
+  const runs = new Set();
+  for (const run of failedRuns) {
+    for (const { level, message } of run.annotations ?? []) {
+      if (level === "failure" && LANE_VARIABLES.test(String(message))) {
+        runs.add(run.id);
+        lines.push(`${run.name} ${run.url}: ${message}`);
+      }
+    }
+  }
+  if (lines.length === 0) return [];
+  return [
+    finding({
+      key: "lane-variables",
+      signal: "14 lane variables",
+      title: "Lane variables: a repository variable changed outside the lane level, or the check could not read",
+      area: "Lanes token (work-unblock publish-lane-level)",
+      summary: `${runs.size} publish-lane-level runs in the last hour failed the repository variable check. Read each run, and set a changed variable back by hand.`,
+      facts: lines,
+      evidence: ["lane-variables", [...runs].map(String).sort()],
+    }),
+  ];
+}
+
 // The lanes whose read faults hold green with only a notice (outage posture
 // element 2), the jobs that print each hold notice, and that notice. A lane
 // that passes the threshold of docs/conventions/pr-pipeline.yaml
@@ -591,6 +623,7 @@ const DETECTORS = [
   postMergeUnreadableFindings,
   listingHeldFindings,
   laneHoldFindings,
+  laneVariableFindings,
 ];
 
 export function detect(data) {

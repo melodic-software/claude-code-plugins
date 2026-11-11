@@ -165,7 +165,10 @@ test("an unread signal keeps its timers and leaves its incident as it is", () =>
   const unread = unreadSignals(["failed runs: HTTP 502"]);
   const quiet = planIssues({ findings: [], existing, rules: THRESHOLDS, episodes: carried, unread, now });
   assert.deepEqual([quiet.close, quiet.update], [[], []]);
-  assert.deepEqual(quiet.skip, [{ family: "throttling", number: 41, reason: "not read" }]);
+  assert.deepEqual(quiet.skip, [
+    { family: "throttling", number: 41, reason: "not read" },
+    { family: "lane-variables", number: null, reason: "not read" },
+  ]);
   assert.deepEqual(quiet.episodes[THROTTLING], carried[THROTTLING]);
   const other = planIssues({ findings: [], existing, rules: THRESHOLDS, episodes: carried, unread: unreadSignals(["audits: HTTP 502"]), now });
   assert.deepEqual(other.close.map((c) => c.number), [41]);
@@ -331,7 +334,7 @@ test("every detector's signal is an incident signal or logged only, and an unkno
   const all = detect({
     now,
     windowStart,
-    failedRuns: [denied(1)],
+    failedRuns: [denied(1), { id: 2, url: "u", name: "work-unblock", event: "schedule", annotations: [{ level: "failure", message: "lane-variables-changed: created X" }] }],
     mainRun: { id: 1, url: "u", sha: "a", event: "schedule", conclusion: "failure", failedJobs: [{ name: "j", annotations: [{ level: "failure", message: "m" }] }] },
     budgetReadings: [{ phase: "end", name: "lane", used: 99, limit: 100, remaining: 1 }],
     mergeGroupFailures: [1, 2, 3].map((id) => ({ id, url: "u", workflow: "w", createdAt: "t" })),

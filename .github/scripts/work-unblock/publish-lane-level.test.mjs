@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 
-import { laneClient, levelVariableWriter, run } from "./publish-lane-level.mjs";
+import { check, laneClient, levelVariableWriter, listVariables, run, snapshot } from "./publish-lane-level.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 // 2026-11-10T23:47:00Z.
@@ -187,4 +187,166 @@ test("a configured kill switch name writes nothing and the run still ends with a
   const { lines } = await decideWith({ laneLevel: { shadow: false, variable: "CLAUDE_LANES_REPO_DISABLED" }, lane });
   assert.deepEqual(lane.writes, []);
   assert.match(lines.at(-1), /CLAUDE_LANES_REPO_DISABLED was not set: refusing to write variable "CLAUDE_LANES_REPO_DISABLED"/);
+});
+
+// GET /repos/{repo}/actions/variables as the REST docs describe it: per_page
+// defaults to 10 and caps at 30, page counts from 1, and every page carries
+// the whole total_count. `state.variables` is the repository's list, which a
+// test edits between the two listings.
+function variablesApi(initial) {
+  const state = { variables: initial.map((variable) => ({ ...variable })), fail: false, calls: [] };
+  const github = async (method, path) => {
+    state.calls.push(`${method} ${path}`);
+    const url = new URL(path, "https://api.github.invalid");
+    if (method !== "GET" || url.pathname !== `/repos/${REPO}/actions/variables`) {
+      throw Object.assign(new Error(`unexpected ${method} ${path}`), { status: 404 });
+    }
+    if (state.fail) {
+      throw Object.assign(new Error("GET /repos/{repo}/actions/variables: 502"), { status: 502 });
+    }
+    const perPage = Math.min(Number(url.searchParams.get("per_page") ?? 10), 30);
+    const page = Number(url.searchParams.get("page") ?? 1);
+    return { total_count: state.variables.length, variables: state.variables.slice((page - 1) * perPage, page * perPage) };
+  };
+  return { github, state };
+}
+
+const variable = (name, value, updated_at = "2026-11-10T22:00:00Z") => ({ name, value, created_at: "2026-11-01T00:00:00Z", updated_at });
+const LATER = "2026-11-10T23:47:30Z";
+const BASE = [
+  variable("CLAUDE_LANE_LEVEL", `3@${NOW_S}`),
+  variable("CLAUDE_LANES_REPO_DISABLED", "false"),
+  variable("LANES_BROKER_URL", "https://broker.example.invalid/mint"),
+];
+
+async function checkAround(initial, edit, { laneLevel = {}, failAfter = false } = {}) {
+  const api = variablesApi(initial);
+  const env = {
+    GITHUB_REPOSITORY: REPO,
+    RESOLVED_CONFIG: resolved({ shadow: false, ...laneLevel }),
+    VARIABLES_STATE: join(dir, `variables-${Math.random().toString(16).slice(2)}.json`),
+  };
+  const lines = [];
+  const original = console.log;
+  console.log = (line) => lines.push(line);
+  try {
+    const listed = await snapshot({ env, github: api.github });
+    edit(api.state.variables);
+    api.state.fail = failAfter;
+    const passed = await check({ env, github: api.github });
+    return { listed, passed, lines, calls: api.state.calls, state: readFileSync(env.VARIABLES_STATE, "utf8") };
+  } finally {
+    console.log = original;
+  }
+}
+
+const set = (list, name, value, updated_at = LATER) => {
+  const found = list.find((v) => v.name === name);
+  Object.assign(found, { value, updated_at });
+};
+
+test("variable check: a new level value passes, and so does creating the level variable", async () => {
+  const changed = await checkAround(BASE, (list) => set(list, "CLAUDE_LANE_LEVEL", `4@${NOW_S + 9000}`));
+  assert.equal(changed.passed, true);
+  assert.equal(changed.lines.at(-1), "no repository variable changed but the level variable (3 listed)");
+  const created = await checkAround(BASE.slice(1), (list) => list.push(variable("CLAUDE_LANE_LEVEL", `3@${NOW_S + 9000}`, LATER)));
+  assert.equal(created.passed, true);
+  assert.equal(created.lines.at(-1), "no repository variable changed but the level variable (3 listed)");
+});
+
+test("variable check: a created, changed or deleted variable fails, named with its change", async () => {
+  const cases = [
+    ["a new kill switch shadowing the organization's", (list) => list.push(variable("CLAUDE_LANES_DISABLED", "false", LATER)), "created CLAUDE_LANES_DISABLED"],
+    ["the repository kill switch updated", (list) => set(list, "CLAUDE_LANES_REPO_DISABLED", "true"), "changed CLAUDE_LANES_REPO_DISABLED"],
+    ["the broker endpoint deleted", (list) => list.splice(2, 1), "deleted LANES_BROKER_URL"],
+    ["the broker endpoint rewritten with its own value", (list) => set(list, "LANES_BROKER_URL", "https://broker.example.invalid/mint"), "changed LANES_BROKER_URL"],
+    ["the level variable deleted", (list) => list.splice(0, 1), "deleted CLAUDE_LANE_LEVEL"],
+  ];
+  for (const [label, edit, change] of cases) {
+    const { listed, passed, lines } = await checkAround(BASE, edit);
+    assert.equal(listed, true, label);
+    assert.equal(passed, false, label);
+    assert.equal(lines.at(-1), `::error title=lane-variables::lane-variables-changed: ${change}`, label);
+  }
+});
+
+test("variable check: only the configured level variable may change, never a sibling *_LANE_LEVEL", async () => {
+  const initial = [...BASE, variable("PR_LANE_LEVEL", `2@${NOW_S}`)];
+  const { passed, lines } = await checkAround(initial, (list) => {
+    set(list, "CLAUDE_LANE_LEVEL", `4@${NOW_S + 9000}`);
+    set(list, "PR_LANE_LEVEL", `4@${NOW_S + 9000}`);
+  });
+  assert.equal(passed, false);
+  assert.equal(lines.at(-1), "::error title=lane-variables::lane-variables-changed: changed PR_LANE_LEVEL");
+});
+
+test("variable check: a level variable configured to a kill switch name allows no change to it", async () => {
+  const { passed, lines } = await checkAround(BASE, (list) => set(list, "CLAUDE_LANES_REPO_DISABLED", "true"), { laneLevel: { variable: "CLAUDE_LANES_REPO_DISABLED" } });
+  assert.equal(passed, false);
+  assert.equal(lines.at(-1), "::error title=lane-variables::lane-variables-changed: changed CLAUDE_LANES_REPO_DISABLED");
+});
+
+test("variable check: over 30 variables are paged 30 at a time, so a change on the second page fails", async () => {
+  const many = Array.from({ length: 35 }, (_, i) => variable(`VAR_${String(i + 1).padStart(2, "0")}`, `value ${i + 1}`));
+  const quiet = await checkAround(many, () => {});
+  assert.equal(quiet.passed, true);
+  assert.equal(quiet.lines.at(-1), "no repository variable changed but the level variable (35 listed)");
+  assert.deepEqual(quiet.calls, [
+    `GET /repos/${REPO}/actions/variables?per_page=30&page=1`,
+    `GET /repos/${REPO}/actions/variables?per_page=30&page=2`,
+    `GET /repos/${REPO}/actions/variables?per_page=30&page=1`,
+    `GET /repos/${REPO}/actions/variables?per_page=30&page=2`,
+  ], "two pages per listing for 35 variables");
+  const changed = await checkAround(many, (list) => set(list, "VAR_33", "value 33"));
+  assert.equal(changed.passed, false);
+  assert.equal(changed.lines.at(-1), "::error title=lane-variables::lane-variables-changed: changed VAR_33");
+});
+
+test("variable check: a failed listing before or after the publish fails red", async () => {
+  const api = variablesApi(BASE);
+  api.state.fail = true;
+  const env = { GITHUB_REPOSITORY: REPO, RESOLVED_CONFIG: resolved({ shadow: false }), VARIABLES_STATE: join(dir, "variables-unwritten.json") };
+  const lines = [];
+  const original = console.log;
+  console.log = (line) => lines.push(line);
+  let listed;
+  let passed;
+  try {
+    listed = await snapshot({ env, github: api.github });
+    passed = await check({ env, github: api.github });
+  } finally {
+    console.log = original;
+  }
+  assert.equal(listed, false);
+  assert.match(lines[0], /^::error title=lane-variables::lane-variables-unread: the repository variables were not listed before the publish, so nothing is published \(.*502\)$/);
+  assert.equal(passed, false, "with no listing before, the check cannot pass");
+  assert.match(lines[1], /^::error title=lane-variables::lane-variables-unread: the listing before the publish was not read/);
+
+  const after = await checkAround(BASE, () => {}, { failAfter: true });
+  assert.equal(after.listed, true);
+  assert.equal(after.passed, false);
+  assert.match(after.lines.at(-1), /^::error title=lane-variables::lane-variables-unread: the repository variables were not listed after the publish/);
+});
+
+test("the variable listing throws when it falls short of total_count or the total shifts between pages", async () => {
+  const short = async () => ({ total_count: 12, variables: [variable("A", "1"), variable("B", "2")] });
+  await assert.rejects(listVariables({ github: short, repo: REPO }), /held 2 of its 12 variables/);
+  let page = 0;
+  const shifting = async () => {
+    page += 1;
+    return { total_count: page === 1 ? 31 : 32, variables: page === 1 ? Array.from({ length: 30 }, (_, i) => variable(`V${i}`, "x")) : [variable("V30", "x")] };
+  };
+  await assert.rejects(listVariables({ github: shifting, repo: REPO }), /page 2 .* total_count changed/);
+  const repeated = async () => ({ total_count: 2, variables: [variable("A", "1"), variable("A", "1")] });
+  await assert.rejects(listVariables({ github: repeated, repo: REPO }), /repeated variable/);
+  const empty = async () => ({ total_count: 0, variables: [] });
+  assert.deepEqual(await listVariables({ github: empty, repo: REPO }), {});
+});
+
+test("variable check: no variable value reaches the logs or the state file", async () => {
+  const { lines, state } = await checkAround(BASE, (list) => set(list, "LANES_BROKER_URL", "https://attacker.example.invalid/mint"));
+  for (const text of [...lines, state]) {
+    assert.ok(!text.includes("broker.example.invalid") && !text.includes("attacker.example.invalid"), `a value leaked: ${text}`);
+  }
+  assert.equal(lines.at(-1), "::error title=lane-variables::lane-variables-changed: changed LANES_BROKER_URL");
 });
