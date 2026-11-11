@@ -50,7 +50,7 @@ save-point engine, different delivery.
 
 - **`--unattended`**, anywhere in the arguments: the caller declares that nobody is present. Take it out of
   `$ARGUMENTS` before method detection; the rules below read what is left. It changes only the steps that would
-  ask the user: the `/export` step (record the suggestion in output, do not ask) and stuck dependent work
+  ask the user: the `/export` step (dropped: an unattended run neither suggests nor runs a user-only built-in) and stuck dependent work
   ("Settle in-flight work before writing"). The bare word `unattended` is not this flag: the rules below read it as topic or purpose text, like any word.
 - **Method** (`file` | `prompt`). Recognized ONLY as the first token. `file` forces the full
   durable handoff; `prompt` forces prompt-only. Omitted → auto-detect (engine doc, "Choosing the
@@ -86,13 +86,13 @@ response, the save-point does not exist and STOP has not been reached.
 - [ ] Path chosen (full vs prompt-only) per the engine doc
 - [ ] Copy/paste resume prompt emitted between two dashed rails (engine doc, "Emit the copy/paste
   resume prompt"), the box that is never satisfied by having written the file
-- [ ] `/clear`-then-paste instruction surfaced to the user
+- [ ] `/clear`-then-paste instruction surfaced to the user (a forked side task: new session instead)
 - [ ] **STOP.** No further work items, no next phase, no follow-on skill, no commit/push. The
   session ends as far as the task is concerned. Reachable only once the box above is genuinely
   ticked, never as the act that replaces it. The one exception to "no commit" is the opt-in
   `chore(wip):` commit in "WIP commit on an explicit pause" below, made before the save-point is
   written and never pushed. An `amend` for an event that lands after emit ("Late events after
-  emit" below) is not further work: it repairs the save-point
+  emit" below) is not further work: it repairs the save-point. A forked side task skips this box
 
 **Not authorization to continue (these all stop):**
 
@@ -103,10 +103,18 @@ response, the save-point does not exist and STOP has not been reached.
   `/session-flow:handoff` between them still enforces its `/clear` boundary (that is why the
   handoffs get written)
 - A standalone user-invoked `/session-flow:handoff`: always stop, regardless of surrounding
-  instructions
+  instructions, unless the side-task exception below applies
 
-The only exception: the user's prior turn used explicit stay-in-session language about handoffs
-specifically (e.g. "don't `/clear` between phases, keep going").
+Two exceptions:
+
+- The user's prior turn used explicit stay-in-session language about handoffs specifically (e.g.
+  "don't `/clear` between phases, keep going").
+- The user, or the calling skill's step, names the handoff as a side task split off from the
+  current task, in the request or the purpose text. Never infer it: without that naming, a handoff
+  stops. The save-point covers only the side task; after the rails prompt, this session keeps
+  working its own task and never starts the side task. The `below-rail` slot (prompt-only: a line
+  below the rails) says to paste into a new session without `/clear`; claims stay (see "Hand
+  worktree claims").
 
 ## When to invoke
 
@@ -217,6 +225,7 @@ session claims, record the old session id under Environment to re-establish and 
 the first remaining action, leading the resume prompt's `Next:` headlines (structure doc,
 "Worktree claims"). On the prompt-only path, which writes no file, the first remaining-work bullet
 carries the path, this session's id and the handover. Release nothing: the claim moves, never drops.
+A forked side task hands over no claim on a worktree this session keeps working in.
 
 ## Produce the save-point
 
@@ -244,7 +253,7 @@ reason stated. Never a hand-written handoff file when the script could have run.
 
 This skill's delivery step is the engine's default exit: the rails resume prompt with the
 "`/clear`, then copy everything between the dashed lines" instruction above the top rail. The user
-types `/clear` and pastes; nothing is launched on their behalf.
+types `/clear` and pastes; nothing is launched on their behalf. A forked side task: a new session.
 
 ## Late events after emit
 
@@ -257,7 +266,8 @@ of the fill.
 Never hand-edit the file and never re-run `new` to fold an event in. An event that changes nothing
 needs no amend; say so in one line. `amend` prints the verdict and the new rails: end the turn on
 those rails, pasted verbatim, under the same output-order rule as the first emit. Amending is the
-only work the hard rule allows after emit; the task itself still stops.
+only work the hard rule allows after emit; the task itself still stops, unless the handoff forked
+a side task (the exceptions under the hard rule).
 
 Retiring an entry is a relevance call, made through the `retire` list of `fill` before emit or of
 `amend` after it, never by deleting lines (structure doc, "Shape 3"). Every amendment that still
@@ -393,8 +403,8 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   re-arming EVERY surviving loop, one
   `/loop [<interval>] <original prompt>` line per loop, each its own follow-up message (engine
   doc, "Emit the copy/paste resume prompt")
-- [ ] **EXECUTION STOPS HERE**, the rails prompt and its below-rail notes follow these ticks as
-  the response's final text (see "Output order is fixed" above)
+- [ ] **EXECUTION STOPS HERE** (for a forked side task, only the side task), the rails prompt and
+  its below-rail notes follow these ticks as the response's final text ("Output order is fixed")
 
 **Prompt-only path:**
 
@@ -420,7 +430,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   remaining-work bullet: path, this session's id, handover before `check-enter` (OR none held)
 - [ ] `wip_commit` line reported, as on the full path; a commit, refusal or hook rejection is one
   bullet in the prompt, nothing pushed
-- [ ] If /export is available in your session (gate basis: [`reference/export-verification.md`](reference/export-verification.md)), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. Prompt-only writes no file. **`--unattended`:** record the suggestion; do not ask.
+- [ ] If /export is available in your session (gate basis: [`reference/export-verification.md`](reference/export-verification.md)), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. Prompt-only writes no file. **`--unattended`:** make no suggestion; tick this box as not applicable.
 - [ ] Purpose text (when the invocation carried any) travels inline as the `Purpose:` line below
   the goal quote and above the remaining-work bullets (engine doc, "The purpose argument tailors
   emphasis only"), never discarded; a goal-conflicting purpose flagged rather than obeyed. No
@@ -446,7 +456,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   (OR an explicit statement that none were spawned and none were inherited, or that every
   one was cancelled). Named subagents stay live and addressable across `/clear`; prompt-only
   writes no file, so the leftover list travels in the prompt or not at all.
-- [ ] **EXECUTION STOPS HERE**. "Small enough" means the prompt captures the work, NOT "small
+- [ ] **EXECUTION STOPS HERE** (for a forked side task, only the side task). "Small enough" means the prompt captures the work, NOT "small
   enough to skip `/clear` and finish in-session"; the rails prompt and its below-rail notes follow
   these ticks as the response's final text (see "Output order is fixed" above)
 
@@ -472,11 +482,11 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   the opt-in `chore(wip):` commit of tracked work on a user's pause request ("WIP commit on an
   explicit pause" above); the handoff file itself is never committed
 - **Does not invoke `/clear`**. The user types `/clear`. The skill produces the save-point, emits
-  the resume prompt, and stops
+  the resume prompt, and stops (for a forked side task, only the side task stops)
 - **Does not launch a background agent**. Background delegation is the sibling
   `/session-flow:continue-in-background` skill, and it fires only on the user's explicit request
 - **Does not continue executing the underlying task**, per the hard rule above. Prompt-only does
-  NOT relax this
+  NOT relax this. A forked side task is the hard rule's exception: this session keeps its own task
 - **Does not offer a resident / no-stop mode.** A resident
   `/implementation:implement-dispatch` boundary runs plan marks and the commit; the handoff is
   written last, and only when a clear, model switch, run end, or user-only commit gate applies.

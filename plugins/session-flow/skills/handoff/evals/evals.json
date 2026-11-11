@@ -311,12 +311,12 @@
       "id": 22,
       "name": "leading-unattended-flag-consumed-before-method",
       "prompt": "/session-flow:handoff --unattended prompt",
-      "expected_output": "The `--unattended` flag is taken out of the arguments before method detection, though it comes first, so `prompt` is read as the method (prompt-only path, no durable file) and `--unattended` is never taken as the topic or a method. The only effect of `--unattended` is on the /export step: the suggestion is recorded in the output and the operator is not asked. The skill still STOPS after emitting the resume prompt.",
+      "expected_output": "The `--unattended` flag is taken out of the arguments before method detection, though it comes first, so `prompt` is read as the method (prompt-only path, no durable file) and `--unattended` is never taken as the topic or a method. The only effect of `--unattended` here is on the /export step: no /export suggestion is made at all, in the output or as a question. The skill still STOPS after emitting the resume prompt.",
       "files": [],
       "expectations": [
         "The `--unattended` flag is taken out before method detection, and `prompt` is then read as the method (first remaining token)",
         "No durable handoff file is written (prompt-only path), and the topic is not '--unattended' or 'unattended'",
-        "The /export step records the suggestion in the output and does not ask the operator",
+        "The response neither suggests /export nor asks the operator about it",
         "The self-contained resume prompt is emitted between two dashed U+2500 rails and the skill STOPS after emitting it"
       ]
     },
@@ -583,6 +583,31 @@
         "The goal region is emitted after the resume region, with the condition 'all tests in test/auth pass and the lint step is clean' word for word",
         "No warning about re-producing proof appears above the goal region",
         "No note says the goal region was left out"
+      ]
+    },
+    {
+      "id": 43,
+      "name": "named-side-task-fork-keeps-the-session-working",
+      "prompt": "/session-flow:handoff prompt flaky-ci split off the flaky CI investigation as a side task; I'll keep going on the migration here",
+      "expected_output": "The purpose text names the handoff as a side task split off from the current task, so the side-task exception applies. The resume prompt covers only the flaky CI investigation, and a line below the rails says to paste it into a new session without /clear. No worktree claim this session keeps is handed over. After the rails prompt, the session goes on with the migration and does not start the CI investigation.",
+      "files": [],
+      "expectations": [
+        "The resume prompt covers the flaky CI investigation only, not the migration",
+        "A line below the rails says to paste into a new session without /clear",
+        "The response does not hand over a worktree claim the migration still uses",
+        "The response continues the migration after the rails prompt and does not start the CI investigation"
+      ]
+    },
+    {
+      "id": 44,
+      "name": "unnamed-remaining-phase-is-not-a-side-task",
+      "prompt": "/session-flow:handoff phase-3\n\n(Context: phases 1 and 2 of a three-phase plan are done this session; phase 3 remains. The user has said nothing about side tasks or staying in the session.)",
+      "expected_output": "Nobody named the handoff as a side task, so the side-task exception does not apply. The handoff writes the save-point for phase 3, emits the rails prompt with the /clear instruction, and stops. It does not relabel phase 3 as a side task to keep working.",
+      "files": [],
+      "expectations": [
+        "The response does not call phase 3 a side task",
+        "The rails prompt carries the /clear copy instruction",
+        "The response does no phase 3 work after the rails prompt"
       ]
     }
   ]
