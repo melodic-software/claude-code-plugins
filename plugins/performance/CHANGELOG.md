@@ -3,6 +3,14 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.17] - 2026-11-11
+
+### Changed
+
+- `climb` no longer restates what `git reset --keep` and `git worktree remove` refuse, leaving it
+  to its pointers, and the `go-faster` git and GitHub REST pointers now link their exact sections.
+  No behavior change.
+
 ## [0.14.16] - 2026-11-10
 
 ### Changed

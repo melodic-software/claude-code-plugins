@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.3.15] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [1.3.14] - 2026-11-10
 
 ### Fixed
