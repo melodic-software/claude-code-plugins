@@ -55,7 +55,7 @@ Nothing in this repository ships that way. Measured on the tree: 71 plugin direc
 consumer enables a plugin. Two skills in one plugin cannot be separated by any installation a
 consumer can perform, so a citation between them cannot arrive at an absent file.
 
-Four clauses follow, and all four are load-bearing.
+Four clauses follow, and none is optional.
 
 1. **Intra-plugin citation into a sibling skill's private surface is legal here.** "Intra-plugin"
    means the citing file sits under `plugins/<p>/` and the cited skill is `plugins/<p>/skills/<s>/`
@@ -66,7 +66,7 @@ Four clauses follow, and all four are load-bearing.
    contract is actually about. The same limit applies to anything outside `plugins/`: `docs/**` and
    `.claude/rules/**` cite skills by slash invocation, never by path.
 3. **A citation that does not resolve from the base its own form implies is a defect, whatever its
-   form and wherever it sits.** This clause is not decoration. See correction 1.
+   form and wherever it sits.** Correction 1 shows why the clause is needed.
 4. **Heading anchors stay private even intra-plugin.** An anchor binds body structure rather than
    file layout, and renaming a heading is exactly the refactor the contract protects. The
    distribution-unit argument does not reach it.
