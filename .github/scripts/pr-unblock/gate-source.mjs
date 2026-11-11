@@ -296,10 +296,12 @@ const REASON_LINE = /^- Reason: `([a-z][a-z-]*)`$/;
 export { escalationActivity, escalationRoute, ROUTES } from "./escalation-routes.mjs";
 
 export const FAILING = new Set(["failure", "timed_out", "startup_failure"]);
-// The aggregate of the others: fixing them fixes it. It also fails on a hold
-// label, so it never stands for the head's CI.
-const AGGREGATE = "ci-status";
-// A contract-only run skips every lane, and ci-status then carries the last
+// The aggregate of the others, CI Status, and its ci-status alias: fixing the
+// others fixes them. They also fail on a hold label, so they never stand for
+// the head's CI. A literal, not infra-failure.mjs's AGGREGATE_JOBS: this file
+// also runs from a copy of this directory alone and from a sparse checkout.
+const AGGREGATE_JOBS = new Set(["CI Status", "ci-status"]);
+// A contract-only run skips every lane, and CI Status then carries the last
 // full run's recorded verdict forward, so a skip says nothing about a check.
 const SILENT = new Set(["skipped", "neutral"]);
 const silent = (run) => run.status === "completed" && SILENT.has(run.conclusion);
@@ -322,7 +324,7 @@ export function latestRuns(checkRuns) {
 // clear-escalations reads a fix-ci stop's head through it.
 export function failingChecks(checkRuns) {
   return [...latestRuns(checkRuns).values()]
-    .filter((run) => run.name !== AGGREGATE && run.status === "completed" && (FAILING.has(run.conclusion) || run.conclusion === "cancelled"))
+    .filter((run) => !AGGREGATE_JOBS.has(run.name) && run.status === "completed" && (FAILING.has(run.conclusion) || run.conclusion === "cancelled"))
     .sort((a, b) => a.id - b.id);
 }
 

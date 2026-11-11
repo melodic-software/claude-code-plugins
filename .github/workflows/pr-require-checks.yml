@@ -131,9 +131,11 @@ concurrency:
 # (`bash`, `python`, `node`). One marker, `mark-lanes`, one resolver,
 # `select-tests`, ten working jobs,
 # `lint-repo`, `lint-shell`, `check-plugins`, `check-catalog`, `check-skills`, `test-bash`,
-# `test-python`, `test-node`, `check-managed-files` and `check-tests`, and one aggregate, `ci-status`, whose name,
-# like this workflow's and this file's, is what the org ci-gate ruleset and its
-# verifiers read. No ordinals, no tool name for a multi-tool job, no runner OS
+# `test-python`, `test-node`, `check-managed-files` and `check-tests`, and one aggregate, job `ci-status`, whose
+# check name is `CI Status`; its alias job `report-ci-status` reports that
+# conclusion under the check name `ci-status`, which, like this workflow's and
+# this file's name, is what the org ci-gate ruleset and its verifiers read
+# until that ruleset requires `CI Status`. No ordinals, no tool name for a multi-tool job, no runner OS
 # for a portable lane, and no job name another workflow here also uses. A gate
 # step keeps its `id`, its aggregator key, in whichever job it runs.
 #
@@ -4163,6 +4165,7 @@ jobs:
           tokens: github-token
 
   ci-status:
+    name: CI Status
     needs:
       - mark-lanes
       - select-tests
@@ -5051,7 +5054,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAIL_ROWS: >-
-            .jobs[] | select(.completed_at and .started_at and .name != "ci-status")
+            .jobs[] | select(.completed_at and .started_at and (.name | IN("CI Status", "ci-status") | not))
             | ([.steps[] | .completed_at // empty] | max) as $last
             | select($last)
             | (.conclusion == "cancelled" and ([.steps[].conclusion] | all(. == "success" or . == "skipped"))) as $stuck
@@ -7481,3 +7484,23 @@ jobs:
         timeout-minutes: 1
         run: |
           [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_emit github-token; api_budget_emit_calls github-token; api_budget_emit_content; api_budget_emit_routes github-token; }
+
+  # Keeps the required context `ci-status` reporting CI Status's conclusion
+  # until the github-iac ci-gate ruleset requires `CI Status`; then it is
+  # removed. Like CI Status it carries no contract-only gate, so it reports on
+  # every event the gate runs on. Re-run CI Status, never this job: a re-run of
+  # this one alone replays its old `needs` result.
+  report-ci-status: # lane-coverage-ok: reports CI Status's conclusion under the required context `ci-status`
+    name: ci-status
+    needs: [ci-status]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions: {}
+    steps:
+      - name: Report CI Status's conclusion
+        env:
+          RESULT: ${{ needs.ci-status.result }}
+        run: |
+          echo "CI Status: $RESULT"
+          [ "$RESULT" = success ]

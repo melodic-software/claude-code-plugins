@@ -145,6 +145,18 @@ test("a red ci-status makes a patch bump review", async () => {
   assert.equal((await run(api)).dispatched.length, 1);
 });
 
+test("a red CI Status makes a patch bump review, and a green ci-status alias beside it is not read", async () => {
+  const node = pr(8, { title: "bump x from 1.0.0 to 1.0.1" });
+  const api = fakeApi({
+    nodes: [node],
+    checks: new Map([[node.headRefOid, [{ id: 1, name: "CI Status", app: { slug: "github-actions" }, status: "completed", conclusion: "failure" }]]]),
+    ci: new Map([[node.headRefOid, [{ id: 2, app: { slug: "github-actions" }, status: "completed", conclusion: "success" }]]]),
+  });
+  assert.equal((await run(api)).dispatched.length, 1);
+  assert.deepEqual(api.calls.checks.slice(0, 1).map((call) => call.checkName), ["CI Status"]);
+  assert.equal(api.calls.checks.some((call) => call.checkName === "ci-status"), false);
+});
+
 test("a review-only dependency makes a patch bump review, and an unreadable policy makes every bump review", async () => {
   const node = pr(9, { title: "bump x from 1.0.0 to 1.0.1", changedFiles: 1 });
   const files = new Map([[9, [{ filename: "package.json", patch: "" }]]]);
@@ -476,8 +488,9 @@ test("once the cap is reached the rest are left unread", async () => {
   const lines = [];
   const { dispatched } = await run(api, { maxDispatch: 2, log: (line) => lines.push(line) });
   assert.deepEqual(dispatched.map((d) => d.number), [21, 22]);
-  // Before: 8 check-run reads and 4 commits listings, for the same two dispatches.
-  assert.equal(api.calls.checks.length, 4);
+  // Before: 12 check-run reads and 4 commits listings, for the same two dispatches.
+  // No head here has a CI Status run, so ci-status is read after it.
+  assert.equal(api.calls.checks.length, 6);
   assert.deepEqual(api.calls.commits, [21, 22]);
   assert.ok(lines.includes("defer #23: 2 review dispatches this run; left for a later run unread"));
 });
@@ -490,8 +503,8 @@ test("a reviewed head is recorded, and the next run reads nothing for it", async
   const record = emptyRecord();
   const first = fakeApi({ nodes: [node], checks });
   assert.deepEqual((await run(first, { record })).dispatched, []);
-  // ci-status, then both checks' runs.
-  assert.equal(first.calls.checks.length, 3);
+  // CI Status, ci-status (none of CI Status's on the head), then both checks' runs.
+  assert.equal(first.calls.checks.length, 4);
   assert.ok(record.handled.get(CHECK).has(node.headRefOid));
   const second = fakeApi({ nodes: [node], checks });
   assert.deepEqual((await run(second, { record })).dispatched, []);
