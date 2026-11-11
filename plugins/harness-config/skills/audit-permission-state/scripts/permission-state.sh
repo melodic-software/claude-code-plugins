@@ -245,32 +245,22 @@ fi
 # is deliberately not used: `stat -c` is GNU-only and `stat -f` is BSD-only, so
 # reading a uid portably means a fallback chain and an extra process per path,
 # to answer a question the builtin already answers everywhere.
-if [[ "$LOCAL_ROOT" != "$START_DIR" && -n "${PERMISSION_STATE_OWNER_OVERRIDE:-}" ]]; then
-  if [[ "$PERMISSION_STATE_OWNER_OVERRIDE" == "foreign" ]]; then
-    LOCAL_ROOT="$START_DIR"
-    local_basis="start directory (repository root or its .git/.claude is not owned by this user)"
-  fi
-elif [[ "$LOCAL_ROOT" != "$START_DIR" ]]; then
-  owner_checked=0
+if [[ "$LOCAL_ROOT" != "$START_DIR" ]]; then
   owner_foreign=0
-  for owned_path in "$LOCAL_ROOT" "$LOCAL_ROOT/.git" "$LOCAL_ROOT/.claude"; do
-    [[ -e "$owned_path" ]] || continue
-    owner_checked=1
-    [[ -O "$owned_path" ]] || owner_foreign=1
-  done
-  if [[ "$owner_checked" -eq 1 && "$owner_foreign" -eq 1 ]]; then
+  if [[ -n "${PERMISSION_STATE_OWNER_OVERRIDE:-}" ]]; then
+    [[ "$PERMISSION_STATE_OWNER_OVERRIDE" != "foreign" ]] || owner_foreign=1
+  else
+    for owned_path in "$LOCAL_ROOT" "$LOCAL_ROOT/.git" "$LOCAL_ROOT/.claude"; do
+      if [[ -e "$owned_path" && ! -O "$owned_path" ]]; then owner_foreign=1; fi
+    done
+  fi
+  if [[ "$owner_foreign" -eq 1 ]]; then
     LOCAL_ROOT="$START_DIR"
     local_basis="start directory (repository root or its .git/.claude is not owned by this user)"
   fi
 fi
 
-if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then
-  USER_CONFIG_ROOT="$CLAUDE_CONFIG_DIR"
-elif [[ -n "${HOME:-}" ]]; then
-  USER_CONFIG_ROOT="$HOME/.claude"
-else
-  USER_CONFIG_ROOT=""
-fi
+USER_CONFIG_ROOT="${CLAUDE_CONFIG_DIR:-${HOME:+$HOME/.claude}}"
 
 MANAGED_FILE="$(mscope::base_file "${PERMISSION_STATE_MANAGED_PATH:-}")"
 MANAGED_DROPIN="$(mscope::dropin_dir "${PERMISSION_STATE_MANAGED_PATH:-}")"
@@ -290,26 +280,18 @@ classify_json_file() {
     printf 'unreadable\n'
     return 0
   }
-  crlf_strip <"$path" | jq empty 2>/dev/null || {
-    printf 'invalid-json\n'
-    return 0
-  }
-  # Parsing is not enough: the file must also have the SHAPE a settings file
-  # has. `["Bash(x)"]` and `{"permissions":{"allow":"Bash(*)"}}` are both valid
-  # JSON and neither is a settings file, and reporting them `present` says a
-  # malformed scope is a healthy empty one -- the exact thing SKILL.md's status
-  # vocabulary exists to prevent.
-  #
-  # Deleting this stage once went uncaught: the suite's malformed fixture was
-  # SYNTACTICALLY broken, which the `jq empty` above rejects on its own, so the
-  # assertion passed with the stage gone. A structurally-valid malformed
-  # fixture now covers it.
+  # One jq call settles both failures: a parse error exits nonzero, and so does
+  # a parsed file without the SHAPE a settings file has. `["Bash(x)"]` and
+  # `{"permissions":{"allow":"Bash(*)"}}` are both valid JSON and neither is a
+  # settings file, and reporting them `present` says a malformed scope is a
+  # healthy empty one -- the exact thing SKILL.md's status vocabulary exists to
+  # prevent.
   #
   # Only the three rule lists are checked. A scalar key of the wrong type must
   # not make the file invalid: `present` is what runs `emit_file_conf`, which
-  # feeds the C5-disableType lint a mistyped `disableAutoMode`. `jq -e` takes its exit status from the LAST output, so this filter emits
-  # exactly one verdict; a per-key verdict would make the answer depend on key
-  # order.
+  # feeds the C5-disableType lint a mistyped `disableAutoMode`. `jq -e` takes
+  # its exit status from the LAST output, so this filter emits exactly one
+  # verdict; a per-key verdict would make the answer depend on key order.
   crlf_strip <"$path" | jq -e '
     (.permissions | type) as $pt
     | if $pt == "null" then true
@@ -339,8 +321,7 @@ emit_rules_of_kind() {
     [[ -n "$rule" ]] || continue
     case "$rule" in
     *"$NL_SENTINEL"*)
-      printf 'NOTE: %s %s %s rule contains a literal newline or carriage return and cannot be represented as one record; reported here rather than split or silently stripped into text that matches no rule in the %s: %s\n' \
-        "$scope" "$surface" "$kind" "$noun" "${rule#"$NL_SENTINEL"}"
+      note "$scope $surface $kind rule contains a literal newline or carriage return and cannot be represented as one record; reported here rather than split or silently stripped into text that matches no rule in the $noun: ${rule#"$NL_SENTINEL"}"
       ;;
     *) printf 'rule %s %s %s %s\n' "$scope" "$surface" "$kind" "$rule" ;;
     esac
@@ -426,17 +407,22 @@ emit_json_scope() {
   local scope="$1" surface="$2" path="$3" status
   status="$(classify_json_file "$path")"
   emit "$scope" "$surface" "$status" "$path"
-  if [[ "$status" == "invalid-json" && "$scope" == "managed" ]]; then
+  case "$status:$scope" in
+  invalid-json:managed)
     note "Managed source $surface at $path is not a JSON object. From Claude Code v2.1.259 a managed settings file or drop-in that cannot be parsed refuses startup (exit 1) and names the source. This is not silent non-enforcement."
-  elif [[ "$status" == "invalid-json" && "$scope" == "user" ]]; then
+    ;;
+  invalid-json:user)
     note "User settings at $path are not valid JSON. An interactive session shows a Settings Error; after continue, /status names the file. A -p run skips the broken file. The retention sweep pauses and warns in /status unless managed settings supply cleanupPeriodDays."
-  elif [[ "$status" == "invalid-json" ]]; then
+    ;;
+  invalid-json:*)
     note "Settings source $scope $surface at $path is not valid JSON. An interactive session shows a Settings Error; after continue, /status names the file. A -p run skips the broken file."
-  fi
-  if [[ "$status" == "present" ]]; then
+    ;;
+  present:*)
     emit_file_rules "$scope" "$surface" "$path"
     emit_file_conf "$scope" "$surface" < <(crlf_strip <"$path")
-  fi
+    ;;
+  *) ;;
+  esac
   return 0
 }
 
