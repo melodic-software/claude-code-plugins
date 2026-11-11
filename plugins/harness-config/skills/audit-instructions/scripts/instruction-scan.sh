@@ -234,7 +234,7 @@ I23_ERE="${I23_ERE}|(nearing|approaching) (the )?(context|token)[- ](limit|cap|b
 I27_EFFORT_ERE="(lower|reduc|decreas|dropp?)(e|ed|es|ing|s)? (the |your )?effort" # spellchecker:disable-line
 I27_BREVITY_ERE="${WB_L}short|${WB_L}brief|${WB_L}concise|${WB_L}terse|${WB_L}length|verbos|${WB_L}wordy"
 # I28 trigger-emphasis / blanket-default candidates (criteria fences decide:
-# emphasis guarding a destructive gate or a stated hard precondition is not a
+# a stated hard precondition or a document about the pattern is not a
 # finding). Case-sensitive arm: the all-caps markers themselves. "use even
 # when" is an attested blanket-default form ("Use even when you think you know
 # the answer"), not a quoted guide example — over-production by design.
