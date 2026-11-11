@@ -22,8 +22,7 @@ combined into a single invocation:
 The pipe is the bound and belongs in the command. A read-time cap comes too late for whatever the
 command has already returned inline. What a result returns inline, and when it arrives as a saved
 file instead, is [Tools reference § Output
-limits](https://code.claude.com/docs/en/tools-reference#output-limits) (as of 2026-11-11; recheck
-when that section changes what a valid result returns inline).
+limits](https://code.claude.com/docs/en/tools-reference#output-limits).
 
 Treat a failure as an unknown value and carry on.
 

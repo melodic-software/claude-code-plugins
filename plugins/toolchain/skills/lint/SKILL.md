@@ -21,8 +21,7 @@ invocation:
 The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
 comes too late for whatever the command has already returned inline. What a result returns inline,
 and when it arrives as a saved file instead, is [Tools reference § Output
-limits](https://code.claude.com/docs/en/tools-reference#output-limits) (as of 2026-11-11; recheck
-when that section changes what a valid result returns inline).
+limits](https://code.claude.com/docs/en/tools-reference#output-limits).
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),

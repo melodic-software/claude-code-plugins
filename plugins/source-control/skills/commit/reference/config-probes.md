@@ -8,10 +8,9 @@ hub keeps the commands, the probe list and the combination table; this file keep
 **The two pipes are the bound and belong in the command.** A read-time cap ("read only the summary
 line") comes too late for whatever the command has already returned inline; `head` and `tail`
 truncate before the result exists. What a result returns inline, and when it arrives as a saved file
-instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits)
-(as of 2026-11-11; recheck when that section changes what a valid result returns inline). These
-are ordinary body Bash calls, not pre-compute, so the one-invocation composition that applies to the
-`## Pre-computed context` block does not apply here.
+instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits).
+These are ordinary body Bash calls, not pre-compute, so the one-invocation composition that applies
+to the `## Pre-computed context` block does not apply here.
 
 ## Why probes 2 and 3 omit `--exclude-standard`
 
