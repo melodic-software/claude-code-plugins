@@ -224,10 +224,10 @@ reads it. A key nothing reads is cut.
 
 - No PR or issue numbers, "added in" notes, incident narratives or date-conditional guidance in a
   skill. Git, the CHANGELOG, issues and ADRs hold history.
-- Exempt: upstream-drift records (a section-anchored pointer, plus an as-of date and recheck
-  trigger on a stored value, per the
-  [upstream-drift convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#required-parts))
-  and cross-repo `owner/repo#N` pointers to an upstream bug.
+- Exempt: cross-repo `owner/repo#N` pointers to an upstream bug; a bare `#N` its block also cites
+  upstream (as `owner/repo#N` or an `/issues/N` or `/pull/N` URL); and stored-value records
+  carrying an as-of date and recheck trigger, per the
+  [upstream-drift convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#required-parts).
 - A skill whose users still meet renamed names may keep a names-only "Old patterns" table, within
   the upstream-drift convention's limits.
 - Attribution lives outside the skill: README, LICENSE or NOTICE, CHANGELOG.
