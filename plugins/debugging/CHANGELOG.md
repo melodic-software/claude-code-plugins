@@ -3,6 +3,12 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.7] - 2026-11-11
+
+### Changed
+
+- The debug skill points at the live `/debug` commands row instead of restating what it enables, and analyze-profile points at the plugins reference for where `${CLAUDE_SKILL_DIR}` is substituted. No behavior change.
+
 ## [1.1.6] - 2026-11-09
 
 ### Changed

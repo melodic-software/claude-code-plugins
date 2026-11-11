@@ -5,6 +5,12 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.1] - 2026-11-11
+
+### Changed
+
+- The setup skill points at the live setup, hooks and plugins CLI reference sections for whether Claude Code uses Node, how a hook that cannot start is treated, and what an uninstall removes. No behavior change.
+
 ## [4.0.0] - 2026-11-10
 
 ### Changed
