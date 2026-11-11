@@ -129,9 +129,9 @@ concurrency:
 # repository contract across files, `test` executes code. The domain says over
 # what: `repo`, `shell`, `plugins`, `catalog`, `skills`, or the ecosystem a test job runs
 # (`bash`, `python`, `node`). One marker, `mark-lanes`, one resolver,
-# `select-tests`, ten working jobs,
+# `select-tests`, eleven working jobs,
 # `lint-repo`, `lint-shell`, `check-plugins`, `check-catalog`, `check-skills`, `test-bash`,
-# `test-python`, `test-node`, `check-managed-files` and `check-tests`, and one aggregate, job `ci-status`, whose
+# `test-python`, `test-node`, `check-managed-files`, `check-tests` and `check-workflow-naming`, and one aggregate, job `ci-status`, whose
 # check name is `CI Status`; its alias job `report-ci-status` reports that
 # conclusion under the check name `ci-status`, which, like this workflow's and
 # this file's name, is what the org ci-gate ruleset and its verifiers read
@@ -184,7 +184,9 @@ concurrency:
 # 75 s of setup; at 5 legs main's job p95 reached 414), 7;
 # test-node about 50 (31 s
 # of package chains measured on a warm npm cache), sized for a cold install, 5;
-# check-tests about 140 on the whole tree, measured, 4; ci-status 9 / 42, 3.
+# check-tests about 140 on the whole tree, measured, 4; check-workflow-naming
+# about 60 (checkout, Node setup, npm ci and the lint), estimated, 5;
+# ci-status 9 / 42, 3.
 # The four jobs with a 3-minute budget (mark-lanes, select-tests,
 # check-plugins, check-catalog) carry a 9-minute timeout.
 #
@@ -4176,6 +4178,30 @@ jobs:
         with:
           tokens: github-token
 
+  # Workflow, job, step and action names against melodic-software/standards'
+  # github-actions-conventions naming lint, enforcing. The action runs the
+  # lint and its vocabulary from standards main. The check step runs only
+  # when `.github/**` changed (the `workflows` filter group); the job skips
+  # only on a contract-only event or a draft (see `lint-repo`).
+  check-workflow-naming:
+    name: Check Workflow Naming
+    needs: [select-tests]
+    # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        if: needs.select-tests.outputs.run_workflows == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check workflow and action naming
+        if: needs.select-tests.outputs.run_workflows == 'true'
+        uses: melodic-software/ci-workflows/.github/actions/check-workflow-naming@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+
   ci-status:
     name: CI Status
     needs:
@@ -4191,6 +4217,7 @@ jobs:
       - test-node
       - check-managed-files
       - check-tests
+      - check-workflow-naming
     # Fail-closed through execution: !cancelled() (never a success-guard) so a
     # lane failure still runs this required aggregate and the aggregation below
     # turns it red. A success-guard would skip the job, and a skipped required

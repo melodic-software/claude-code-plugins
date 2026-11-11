@@ -42,7 +42,7 @@ reviewed pull request.
 The `ci-status` required check depends on every **required** workload lane
 (`mark-lanes`, `select-tests`, `lint-repo`, `lint-shell`, `check-plugins`, `check-catalog`,
 `check-skills`, `test-bash`, `test-python`, `test-node`, `check-managed-files`,
-`check-tests`) and requires
+`check-tests`, `check-workflow-naming`) and requires
 each result to be `success`, failing closed through execution
 (`!cancelled()`, never a success-guard, so a skipped lane cannot report
 success to branch protection). The one exception is an ordered skip: a test
