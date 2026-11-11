@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { collect, jobsCarryFile, JOBS_VERSION, LIMITS, listFiled, parseEpisodeCarry, parseHeldCarry, parseJobsCarry, PUBLISH_LANE_LEVEL_JOB, VARIABLE_STEPS } from "./collect.mjs";
+import { collect, jobsCarryFile, JOBS_VERSION, LIMITS, listFiled, parseEpisodeCarry, parseHeldCarry, parseJobsCarry, PUBLISH_LANE_LEVEL_JOB, restAnnotations, restJobs, VARIABLE_STEPS } from "./collect.mjs";
 import { partlyReadSignals, planIssues, SIGNALS, unreadSignals } from "./issues.mjs";
 import { ceilingFindings, detect, laneVariableFindings } from "./signals.mjs";
 
@@ -50,7 +50,47 @@ const commentPage = (all, before = all.length) => {
   return { pageInfo: { hasPreviousPage: start > 0, startCursor: String(start) }, nodes: all.slice(start, before).map(node) };
 };
 
-function fakeApi(routes) {
+// A nodes(ids:) query answered from the same REST routes, as GraphQL shapes
+// them (the recorded pair in "the GraphQL check-run and annotation readers"
+// test below): a run's check runs newest first with upper-case enums and no
+// steps, a check run's annotations with an upper-case level. An id in `nulls`,
+// or one whose REST route fails, answers null with an error naming its index.
+const upper = (value) => (typeof value === "string" ? value.toUpperCase() : null);
+function nodesAnswer(resolve, query, ids, nulls) {
+  const errors = [];
+  const nodes = ids.map((id, i) => {
+    try {
+      if (nulls.has(id)) throw new Error("null");
+      const [, kind, n] = /^(WFR|CR)_(\d+)$/.exec(id);
+      if (kind === "WFR" && query.includes("... on WorkflowRun")) {
+        const jobs = resolve(`/repos/${repo}/actions/runs/${n}/jobs?filter=latest&per_page=100`).jobs ?? [];
+        const checkRuns = jobs.map((j) => ({ id: `CR_${j.id}`, databaseId: j.id, name: j.name, status: upper(j.status), conclusion: upper(j.conclusion) })).reverse();
+        return { databaseId: Number(n), runAttempt: 1, checkSuite: { checkRuns: { totalCount: checkRuns.length, nodes: checkRuns } } };
+      }
+      const annotations = resolve(`/repos/${repo}/check-runs/${n}/annotations?per_page=100`) ?? [];
+      return { databaseId: Number(n), annotations: { totalCount: annotations.length, nodes: annotations.map((a) => ({ annotationLevel: upper(a.annotation_level), title: a.title ?? null, message: a.message })) } };
+    } catch {
+      errors.push({ type: "NOT_FOUND", path: ["nodes", i], message: `Could not resolve to a node with the global id of '${id}'` });
+      return null;
+    }
+  });
+  return errors.length > 0 ? { data: { nodes }, errors } : { data: { nodes } };
+}
+
+// The routes with the ids the GraphQL readers need: each listed run's node id
+// and first attempt, and each listed job's node id.
+const withNodeIds = (routes) =>
+  routes.map(([pattern, value]) => {
+    const add = (v) =>
+      v?.workflow_runs
+        ? { ...v, workflow_runs: v.workflow_runs.map((r) => ({ node_id: `WFR_${r.id}`, run_attempt: 1, ...r })) }
+        : v?.jobs
+          ? { ...v, jobs: v.jobs.map((j) => ({ node_id: `CR_${j.id}`, ...j })) }
+          : v;
+    return [pattern, typeof value === "function" ? (path) => add(value(path)) : add(value)];
+  });
+
+function fakeApi(routes, { nulls = new Set() } = {}) {
   const calls = [];
   const queries = [];
   const resolve = (path) => {
@@ -72,6 +112,7 @@ function fakeApi(routes) {
     queries.push({ query, variables });
     const value = routes.find(([pattern]) => pattern === GRAPHQL)?.[1];
     if (value instanceof Error) throw value;
+    if (query.includes("nodes(ids: $ids)")) return nodesAnswer(resolve, query, variables.ids, nulls);
     const first = /pullRequests\(states: OPEN, baseRefName: "main", first: (\d+)/.exec(query);
     if (first) {
       const pulls = resolve(`/repos/${repo}/pulls?state=open&base=main&sort=updated&direction=desc&per_page=10000&page=1`);
@@ -1651,6 +1692,162 @@ test("lane variable runs: a failed listing or one over the cap is a gap, so sign
   const many = Array.from({ length: LIMITS.laneVariableRuns + 1 }, (_, i) => unblockRun(900 + i));
   const over = await collect(input(fakeApi([[/workflows\/work-unblock\.yml\/runs/, { workflow_runs: many }], ...routes()])));
   assert.deepEqual(over.gaps, [`lane variable runs: over ${LIMITS.laneVariableRuns} failed scheduled work-unblock runs; the rest were not read`]);
+});
+
+// pr-merge run 43092202279 as both APIs answered it on 2026-11-11: GraphQL's
+// check runs (newest first, no steps), REST's jobs list (oldest first, steps
+// left out), and three of its enable-auto-merge job's 28 annotations.
+const RECORDED_RUN = { id: 43092202279, run_attempt: 1 };
+const recordedCheckRun = (id, databaseId, name, conclusion) => ({ id, databaseId, name, status: "COMPLETED", conclusion });
+const RECORDED_NODE = {
+  databaseId: 43092202279,
+  runAttempt: 1,
+  checkSuite: {
+    checkRuns: {
+      totalCount: 6,
+      nodes: [
+        recordedCheckRun("CR_kwDOTCGFQM8AAAAecsxang", 130775014046, "unarmed-status", "SKIPPED"),
+        recordedCheckRun("CR_kwDOTCGFQM8AAAAecp1zog", 130771940258, "post-merge-dispatch", "SKIPPED"),
+        recordedCheckRun("CR_kwDOTCGFQM8AAAAecpy5Dw", 130771892495, "dispatch-full-run", "SKIPPED"),
+        recordedCheckRun("CR_kwDOTCGFQM8AAAAecpy4dg", 130771892342, "gate-check", "SKIPPED"),
+        recordedCheckRun("CR_kwDOTCGFQM8AAAAecpy3Fw", 130771891991, "merge", "SKIPPED"),
+        recordedCheckRun("CR_kwDOTCGFQM8AAAAecpyvPw", 130771889983, "enable-auto-merge", "SUCCESS"),
+      ],
+    },
+  },
+};
+const recordedJob = (id, node_id, name, conclusion) => ({ id, node_id, name, status: "completed", conclusion });
+const RECORDED_JOBS = [
+  recordedJob(130771889983, "CR_kwDOTCGFQM8AAAAecpyvPw", "enable-auto-merge", "success"),
+  recordedJob(130771891991, "CR_kwDOTCGFQM8AAAAecpy3Fw", "merge", "skipped"),
+  recordedJob(130771892342, "CR_kwDOTCGFQM8AAAAecpy4dg", "gate-check", "skipped"),
+  recordedJob(130771892495, "CR_kwDOTCGFQM8AAAAecpy5Dw", "dispatch-full-run", "skipped"),
+  recordedJob(130771940258, "CR_kwDOTCGFQM8AAAAecp1zog", "post-merge-dispatch", "skipped"),
+  recordedJob(130775014046, "CR_kwDOTCGFQM8AAAAecsxang", "unarmed-status", "skipped"),
+];
+const BUDGET_TEXT = "token=github-token workflow=.github/workflows/pr-merge.yml job=enable-auto-merge run=43092202279 attempt=1 limit=5000 remaining=4734 used=266 reset=1794427401 resource=graphql cost=3";
+const FLOOR_TEXT = "GitHub's core API has under its read floor left (-322 of the planned 1000; header remaining 3678 of 5000); reads continue";
+const RECORDED_ANNOTATIONS_NODE = {
+  databaseId: 130771889983,
+  annotations: {
+    totalCount: 3,
+    nodes: [
+      { annotationLevel: "NOTICE", title: "pr-merge-wake", message: "pr=15424 lanes-app-calls=16 github-token-calls=116 report=fresh outcome=armed" },
+      { annotationLevel: "NOTICE", title: "api-budget", message: BUDGET_TEXT },
+      { annotationLevel: "WARNING", title: "", message: FLOOR_TEXT },
+    ],
+  },
+};
+const RECORDED_ANNOTATIONS = [
+  { annotation_level: "notice", title: "pr-merge-wake", message: "pr=15424 lanes-app-calls=16 github-token-calls=116 report=fresh outcome=armed" },
+  { annotation_level: "notice", title: "api-budget", message: BUDGET_TEXT },
+  { annotation_level: "warning", title: "", message: FLOOR_TEXT },
+];
+
+test("the GraphQL check-run and annotation readers answer as the REST jobs and annotations reads of the same run", () => {
+  assert.deepEqual(restJobs(RECORDED_NODE, RECORDED_RUN), RECORDED_JOBS);
+  assert.deepEqual(restAnnotations(RECORDED_ANNOTATIONS_NODE, { id: 130771889983 }), RECORDED_ANNOTATIONS);
+});
+
+test("a GraphQL answer that is cut short, holds a null, is another run's or a re-run's is no answer", () => {
+  const checkRuns = RECORDED_NODE.checkSuite.checkRuns;
+  const variants = [
+    { ...RECORDED_NODE, runAttempt: 2 },
+    { ...RECORDED_NODE, databaseId: 1 },
+    { ...RECORDED_NODE, checkSuite: { checkRuns: { ...checkRuns, totalCount: 31 } } },
+    { ...RECORDED_NODE, checkSuite: { checkRuns: { ...checkRuns, nodes: [...checkRuns.nodes.slice(1), null] } } },
+    { ...RECORDED_NODE, checkSuite: { checkRuns: { totalCount: 0, nodes: [] } } },
+    { ...RECORDED_NODE, checkSuite: null },
+    null,
+  ];
+  for (const node of variants) assert.equal(restJobs(node, RECORDED_RUN), null, JSON.stringify(node)?.slice(0, 80));
+  const annotations = RECORDED_ANNOTATIONS_NODE.annotations;
+  for (const node of [
+    { ...RECORDED_ANNOTATIONS_NODE, annotations: { ...annotations, totalCount: 101 } },
+    { ...RECORDED_ANNOTATIONS_NODE, annotations: null },
+    { ...RECORDED_ANNOTATIONS_NODE, databaseId: 1 },
+    null,
+  ]) {
+    assert.equal(restAnnotations(node, { id: 130771889983 }), null, JSON.stringify(node)?.slice(0, 80));
+  }
+});
+
+// Every source that reads jobs or annotations: pr-merge budget (run 10),
+// in-progress (20), failed runs (30), merge groups (50), the hold lanes
+// (81, 85, 86, 87) and pr-review-main, whose Note the hold needs steps (7000).
+const graphqlScenario = () => [
+  [/workflows\/pr-review-main\.yml\/runs/, { workflow_runs: [run(7000, { event: "workflow_run" })] }],
+  [/runs\/7000\/jobs/, { jobs: [reviewJob(70000, "trigger", false), reviewJob(70001, "review (claude-review, claude-review)", true)] }],
+  [/check-runs\/70001\/annotations/, [notice("pr-review-main", unreadList)]],
+  ...queueRoutes().slice(0, 3),
+  ...holdRoutes(),
+];
+const restGets = (api) => api.calls.filter((c) => c !== GRAPHQL);
+const nodeQueries = (api) => api.queries.filter((q) => q.query.includes("nodes(ids: $ids)"));
+const holdInput = (api) => input(api, { holds: { rule: RULE, carried: CARRIED } });
+
+test("with node ids listed, job lists and annotations are read through GraphQL and every signal reads the same data", async () => {
+  const rest = fakeApi(graphqlScenario());
+  const before = await collect(holdInput(rest));
+  const gql = fakeApi(withNodeIds(graphqlScenario()));
+  const after = await collect(holdInput(gql));
+  assert.deepEqual(after, before);
+  assert.deepEqual(detect(after), detect(before));
+  const replaced = ["runs/10/jobs", "runs/20/jobs", "runs/30/jobs", "runs/81/jobs", "runs/85/jobs", "runs/86/jobs", "runs/87/jobs"]
+    .concat(["check-runs/100/", "check-runs/300/", "check-runs/810/", "check-runs/850/", "check-runs/870/", "check-runs/70001/"]);
+  assert.deepEqual(restGets(gql), restGets(rest).filter((c) => !replaced.some((p) => c.includes(p))));
+  for (const path of replaced) assert.ok(restGets(rest).some((c) => c.includes(path)), `the REST read makes ${path}`);
+  // A source that reads steps still lists its run's jobs through REST, and that read is still carried.
+  for (const path of ["runs/7000/jobs", "runs/50/jobs"]) assert.ok(restGets(gql).some((c) => c.includes(path)), path);
+  assert.deepEqual(after.jobsCarry.map((e) => e.id), [50]);
+  // One list and one annotations query for pr-merge budget, failed runs and three hold lanes; a list for in-progress; annotations for pr-review-main.
+  assert.equal(nodeQueries(gql).length, 12);
+});
+
+test("a null GraphQL node is read through REST, so a gap stays a gap and never reads as no hold", async () => {
+  const gql = fakeApi(withNodeIds(graphqlScenario()));
+  const all = await collect(holdInput(gql));
+  const api = fakeApi(withNodeIds(graphqlScenario()), { nulls: new Set(["WFR_81", "CR_850"]) });
+  const data = await collect(holdInput(api));
+  assert.deepEqual(data, all);
+  assert.deepEqual(data.laneHolds.filter((h) => [81, 85].includes(h.runId)).map((h) => [h.runId, h.reason]), [
+    [85, "fault outcome-unread"],
+    [81, "closed-issue listing failed; open listing failed"],
+  ]);
+  const added = restGets(api).filter((c) => !restGets(gql).includes(c));
+  assert.deepEqual(added.sort(), [`/repos/${repo}/actions/runs/81/jobs?filter=latest&per_page=100`, `/repos/${repo}/check-runs/850/annotations?per_page=100`]);
+});
+
+test("a failed GraphQL read leaves every job and annotation read on REST, as before", async () => {
+  const failing = (routes) => [[GRAPHQL, new Error("HTTP 502")], ...routes];
+  const rest = fakeApi(failing(graphqlScenario()));
+  const gql = fakeApi(failing(withNodeIds(graphqlScenario())));
+  assert.deepEqual(await collect(holdInput(gql)), await collect(holdInput(rest)));
+  assert.deepEqual(restGets(gql), restGets(rest));
+});
+
+test("a jobs read that fails ends its source at that run, once, keeping the runs read before it", async () => {
+  const api = fakeApi([
+    [/actions\/runs\?status=failure/, { workflow_runs: [run(30, { name: "pr-unblock" }), run(32, { name: "pr-refine" }), run(33, { name: "work-unblock" })] }],
+    [/runs\/32\/jobs/, Object.assign(new Error("HTTP 502"), { status: 502 })],
+    ...routes(),
+  ]);
+  const data = await collect(input(api));
+  assert.deepEqual(data.gaps, ["failed runs: HTTP 502"]);
+  assert.deepEqual(data.failedRuns.map((r) => r.id), [30]);
+  assert.deepEqual(data.failedRuns[0].annotations, [{ level: "failure", message: "lane-token-denied: the broker answered 500 with reason unknown" }]);
+  assert.equal(api.calls.filter((c) => c.includes("runs/32/jobs")).length, 1);
+  assert.ok(!api.calls.some((c) => c.includes("runs/33/jobs")));
+});
+
+test("a re-run's jobs are not listed through GraphQL", async () => {
+  const scenario = withNodeIds(graphqlScenario()).map(([pattern, value]) =>
+    String(pattern) === String(/workflows\/work-unblock\.yml\/runs/) ? [pattern, { workflow_runs: value.workflow_runs.map((r) => ({ ...r, run_attempt: 2 })) }] : [pattern, value],
+  );
+  const api = fakeApi(scenario);
+  await collect(holdInput(api));
+  assert.ok(restGets(api).some((c) => c.includes("runs/81/jobs")));
+  assert.ok(!nodeQueries(api).some((q) => q.variables.ids.includes("WFR_81")));
 });
 
 test("the job and step names signal 14 reads are the ones work-unblock.yml uses", () => {
