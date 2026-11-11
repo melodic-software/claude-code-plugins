@@ -114,15 +114,15 @@ export function resolveSourceAdapter(url) {
  * `acquire` is never called with an unclaimed URL.
  *
  * @param {string} url
- * @param {{workDir: string, mode: 'full'|'transcript'}} options
+ * @param {{workDir: string, mode: 'full'|'transcript', captionWaitDeadline?: string|null}} options
  * @param {object} [deps] - adapter-specific injectable I/O (tests only)
  * @returns {Promise<AcquireOutcome>}
  */
-export async function acquireMedia(url, { workDir, mode }, deps = {}) {
+export async function acquireMedia(url, { workDir, mode, captionWaitDeadline = null }, deps = {}) {
   const adapter = resolveSourceAdapter(url);
   const claim = adapter.matchUrl(url);
   if (!claim) {
     throw new UnsupportedSourceError(url, supportedHosts());
   }
-  return adapter.acquire(claim.canonicalUrl, { workDir, mode, deps });
+  return adapter.acquire(claim.canonicalUrl, { workDir, mode, captionWaitDeadline, deps });
 }

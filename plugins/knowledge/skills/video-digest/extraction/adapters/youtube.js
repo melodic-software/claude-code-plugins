@@ -138,6 +138,7 @@ const spec = /** @satisfies {SourceAdapterSpec} */ ({
         mode: context.mode,
         source: adapterSourceDeclarations(adapter),
         videoId: extractVideoId(url) ?? undefined,
+        captionWaitDeadline: context.captionWaitDeadline ?? null,
       },
       context.deps ?? {},
     );

@@ -189,6 +189,36 @@ describe("preflightVideo", () => {
     expect(result.note).toBe("");
   });
 
+  it("enqueues a just-ended live stream as a valid link and records its live_status", async () => {
+    const stdout = [
+      "7zZy1QTvokM",
+      "Stream",
+      "Chan",
+      "@chan",
+      "D",
+      "NA",
+      "4",
+      "10",
+      "post_live",
+    ].join(PREFLIGHT_FIELD_SEP);
+    const spawn = () => Promise.resolve(spawnResult({ success: true, code: 0, stdout }));
+    const result = await preflightVideo(DRIVER_WATCH_URL, { spawn, env });
+    expect(result.action).toBe("enqueue");
+    expect(result.status).toBe("ok");
+    expect(result.liveStatus).toBe("post_live");
+    expect(result.note).toContain("captions may follow post-stream processing");
+  });
+
+  it("leaves the note empty for a video that is not live-derived", async () => {
+    const stdout = ["7zZy1QTvokM", "Talk", "Chan", "@chan", "D", "NA", "4", "10", "not_live"].join(
+      PREFLIGHT_FIELD_SEP,
+    );
+    const spawn = () => Promise.resolve(spawnResult({ success: true, code: 0, stdout }));
+    const result = await preflightVideo(DRIVER_WATCH_URL, { spawn, env });
+    expect(result.liveStatus).toBe("not_live");
+    expect(result.note).toBe("");
+  });
+
   it("rejects a permanently unavailable video", async () => {
     const spawn = () =>
       Promise.resolve(spawnResult({ stderr: "ERROR: [youtube] zzz: Video unavailable" }));

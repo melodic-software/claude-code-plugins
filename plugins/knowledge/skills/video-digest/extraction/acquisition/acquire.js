@@ -19,6 +19,12 @@ import {
 import { withAcquireThrottle } from "./acquire-throttle.js";
 import { spawnFailureDetail } from "./acquire-with-retry.js";
 import { allowTranslatedSubs, buildYtDlpArgs } from "./build-yt-dlp-args.js";
+import {
+  captionsPendingMessage,
+  captionWaitEndedNote,
+  decideCaptionWait,
+  liveStreamInfo,
+} from "./caption-wait.js";
 import { selectCaptionFile } from "./select-caption.js";
 import { spawnYtDlpWithAuthFallback } from "./spawn-yt-dlp-with-auth-fallback.js";
 import { parseVideoMetadata } from "./video-metadata.js";
@@ -78,6 +84,7 @@ const LEGACY_ACQUIRE_PHASE_GAP_ENV = "YOUTUBE_ACQUIRE_PHASE_GAP_SEC";
  * @property {(filePath: string) => Promise<string>} readFile
  * @property {(ms: number) => Promise<void>} [sleep]
  * @property {<T>(fn: () => Promise<T>) => Promise<T>} [withThrottle]
+ * @property {() => number} [now] - epoch ms the caption wait is judged at
  */
 
 /** @type {AcquireDeps} */
@@ -86,7 +93,26 @@ const DEFAULT_DEPS = {
   listFiles: listWorkDirFiles,
   readFile: (/** @type {string} */ filePath) => fs.readFile(filePath, "utf8"),
   sleep: sleepMs,
+  now: Date.now,
 };
+
+/**
+ * The caption-wait decision for an exhausted ladder, from info.json's live fields.
+ * No readable info.json means no wait.
+ *
+ * @param {string} metadataPath
+ * @param {(filePath: string) => Promise<string>} readFile
+ * @param {{ deadline: string|null, nowMs: number }} options
+ * @returns {Promise<import('./caption-wait.js').CaptionWaitDecision>}
+ */
+async function readCaptionWait(metadataPath, readFile, options) {
+  if (!metadataPath) return { state: "none" };
+  try {
+    return decideCaptionWait(liveStreamInfo(JSON.parse(await readFile(metadataPath))), options);
+  } catch {
+    return { state: "none" };
+  }
+}
 
 /**
  * @returns {number}
@@ -269,19 +295,20 @@ async function acquireFullStaged(deps, url, workDir, videoId, source) {
 
 /**
  * @param {string} url
- * @param {{workDir: string, mode?: AcquisitionMode, source?: SourceAcquisitionDeclarations, videoId?: string}} options -
+ * @param {{workDir: string, mode?: AcquisitionMode, source?: SourceAcquisitionDeclarations, videoId?: string, captionWaitDeadline?: string|null}} options -
  *   `videoId` is the URL-claim id the adapter derived (`matchUrl`); this driver
- *   never re-derives it
+ *   never re-derives it. `captionWaitDeadline` is the deadline a held queue row
+ *   recorded, so the caption wait stays bounded across runs.
  * @param {Partial<AcquireDeps>} [deps]
  */
 export async function acquireYouTubeMedia(
   url,
-  { workDir, mode = "full", source = {}, videoId },
+  { workDir, mode = "full", source = {}, videoId, captionWaitDeadline = null },
   deps = {},
 ) {
   const started = Date.now();
   const mergedDeps = { ...DEFAULT_DEPS, ...deps };
-  const { readFile, withThrottle = withAcquireThrottle } = mergedDeps;
+  const { readFile, withThrottle = withAcquireThrottle, now = Date.now } = mergedDeps;
   const throttle = /** @type {<T>(fn: () => Promise<T>) => Promise<T>} */ (withThrottle);
 
   if (!videoId) {
@@ -351,11 +378,32 @@ export async function acquireYouTubeMedia(
     }
   }
 
+  // A live-derived video's captions can still be in post-stream processing: hold it while
+  // the wait is open, in either mode, rather than stop or digest caption-less.
+  /** @type {import('./caption-wait.js').CaptionWaitDecision} */
+  let captionWait = { state: "none" };
+  if (!captionResult.success) {
+    captionWait = await readCaptionWait(artifacts.metadataPath, readFile, {
+      deadline: captionWaitDeadline,
+      nowMs: now(),
+    });
+    if (captionWait.state === "wait") {
+      return { ...failVideo(captionsPendingMessage(captionWait)), captionWait };
+    }
+  }
+  const captionWaitNote =
+    captionWait.state === "expired" ? captionWaitEndedNote(captionWait) : "";
+
   // Full mode holds the downloaded video, so an exhausted ladder proceeds caption-less and the
   // transcript strategy picks ASR or records a degradation. Transcript mode has no media and stops.
   const captionOptional = mode === "full" && Boolean(artifacts.videoPath);
   if (!captionResult.success && !captionOptional) {
-    return failVideo(captionResult.error);
+    return captionWaitNote
+      ? { ...failVideo(`${captionResult.error}; ${captionWaitNote}`), captionWait }
+      : failVideo(captionResult.error);
+  }
+  if (captionWaitNote) {
+    acquireMetrics = { ...acquireMetrics, captionWait: captionWaitNote };
   }
 
   if (!artifacts.metadataPath) {

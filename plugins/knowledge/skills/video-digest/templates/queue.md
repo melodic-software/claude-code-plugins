@@ -7,6 +7,6 @@ Epic-level batch list for `/knowledge:video-digest queue` and `/knowledge:video-
 | # | URL | video-id | title | channel | slug | status | notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 
-Statuses: `pending` | `in_progress` | `complete` | `failed` | `skipped`
+Statuses: `pending` | `in_progress` | `awaiting_captions` | `complete` | `failed` | `skipped`
 
 `title` + `channel` are filled at `queue` time by the preflight probe (`acquisition/preflight-metadata.js`) so a human or agent can read what each row is without opening the URL.
