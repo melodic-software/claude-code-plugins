@@ -1119,6 +1119,12 @@ stage_required_plugins() {
   esac
 }
 
+# Records why the policy was not read and prints it through <emitter>.
+et_note() { # <emitter> <note>
+  ET_NOTE="$2"
+  "$1" "execution-target: $ET_NOTE"
+}
+
 # Fetch origin's default branch once per run and keep the file text from that
 # commit. Any failure leaves ET_TEXT empty, which resolves every lane to
 # local-worktree; the reason is printed once.
@@ -1129,8 +1135,7 @@ load_execution_target() {
   head="$(git -C "$REPO" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)" || head=""
   branch="${head#origin/}"
   if [[ "$head" != origin/* || ! "$branch" =~ ^[A-Za-z0-9._/-]+$ || "$branch" == *..* || "$branch" == -* ]]; then
-    ET_NOTE="no origin default branch resolved; every lane launches local-worktree"
-    info "execution-target: $ET_NOTE"
+    et_note info "no origin default branch resolved; every lane launches local-worktree"
     return 0
   fi
   # The local origin/HEAD symref can go stale or be moved (`git remote
@@ -1142,43 +1147,37 @@ load_execution_target() {
   # remote.origin.url.
   if origin_url_rewritten; then
     ET_REFUSED=1
-    ET_NOTE="origin's URL is rewritten by a url.*.insteadOf rule or remote.origin.url has more than one value; policy not read, every lane launches local-worktree and work-items:triage lanes are skipped"
-    err "execution-target: $ET_NOTE"
+    et_note err "origin's URL is rewritten by a url.*.insteadOf rule or remote.origin.url has more than one value; policy not read, every lane launches local-worktree and work-items:triage lanes are skipped"
     return 0
   fi
   remote_head="$(git -C "$REPO" ls-remote --symref origin HEAD 2>/dev/null |
     awk -F '\t' '$2 == "HEAD" && $1 ~ /^ref: refs\/heads\// { sub(/^ref: refs\/heads\//, "", $1); print $1; exit }')" || remote_head=""
   if [[ -z "$remote_head" || "$remote_head" != "$branch" ]]; then
     ET_REFUSED=1
-    ET_NOTE="origin's HEAD could not be read or disagrees with the local origin/HEAD ($head); policy not read, every lane launches local-worktree and work-items:triage lanes are skipped"
-    err "execution-target: $ET_NOTE"
+    et_note err "origin's HEAD could not be read or disagrees with the local origin/HEAD ($head); policy not read, every lane launches local-worktree and work-items:triage lanes are skipped"
     return 0
   fi
   ET_SLUG="$(origin_slug)"
   info "git fetch origin $branch ($REPO)"
   if ! run git -C "$REPO" fetch --quiet origin "+refs/heads/$branch:refs/remotes/origin/$branch"; then
-    ET_NOTE="fetch of origin/$branch failed; every lane launches local-worktree"
-    err "execution-target: $ET_NOTE"
+    et_note err "fetch of origin/$branch failed; every lane launches local-worktree"
     return 0
   fi
   sha="$(git -C "$REPO" rev-parse --verify --quiet --end-of-options "refs/remotes/origin/$branch^{commit}" 2>/dev/null)" || sha=""
   if [[ ! "$sha" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]]; then
-    ET_NOTE="origin/$branch does not resolve to a commit; every lane launches local-worktree"
-    err "execution-target: $ET_NOTE"
+    et_note err "origin/$branch does not resolve to a commit; every lane launches local-worktree"
     return 0
   fi
   ET_SHA="$sha" ET_REF="origin/$branch"
   if ! ET_TEXT="$(git -C "$REPO" show --end-of-options "$sha:$ET_FILE" 2>/dev/null)"; then
     ET_TEXT=""
-    ET_NOTE="$ET_FILE absent at $ET_REF $ET_SHA; every lane launches local-worktree"
-    info "execution-target: $ET_NOTE"
+    et_note info "$ET_FILE absent at $ET_REF $ET_SHA; every lane launches local-worktree"
     return 0
   fi
   # A file the parser rejects is not read as partial policy.
   if ! bash "$ET_READER" --strict - default >/dev/null 2>&1 <<<"$ET_TEXT"; then
     ET_TEXT=""
-    ET_NOTE="$ET_FILE at $ET_REF $ET_SHA does not parse; every lane launches local-worktree"
-    err "execution-target: $ET_NOTE"
+    et_note err "$ET_FILE at $ET_REF $ET_SHA does not parse; every lane launches local-worktree"
     return 0
   fi
   info "execution-target: read $ET_FILE at $ET_REF $ET_SHA"
@@ -1218,9 +1217,12 @@ resolve_lane_target() {
   done
 }
 
-# The lane's linked worktree, under the plugin data dir keyed like the
+# This repository's directory under the plugin data dir, keyed like the
 # launch-commit marker.
-lane_worktree_path() { printf '%s/%s/worktrees/%s' "$(resolve_data_dir)" "$(repo_marker_key)" "$1"; }
+repo_data_dir() { printf '%s/%s' "$(resolve_data_dir)" "$(repo_marker_key)"; }
+
+# The lane's linked worktree.
+lane_worktree_path() { printf '%s/worktrees/%s' "$(repo_data_dir)" "$1"; }
 
 # Prepare the lane's linked worktree at <sha>. With <require_clean> set, a
 # worktree holding any change refuses (return 1); without it, a dirty
@@ -1260,10 +1262,9 @@ ensure_lane_worktree() {
 claude_app_covers_repo() {
   # The slug comes from origin's URL, the remote `claude --cloud` clones from,
   # never from gh's default repository (which may be an upstream).
-  local slug="$ET_SLUG" owner id selection login repos
+  local slug="$ET_SLUG" owner id selection login repos installs
   [[ -n "$slug" ]] || return 1
   owner="${slug%%/*}"
-  local installs
   installs="$(gh api --paginate user/installations \
     --jq '.installations[] | select(.app_slug == "claude") | [(.id | tostring), .repository_selection, .account.login] | @tsv' 2>/dev/null)" || return 1
   while IFS=$'\t' read -r id selection login; do
@@ -1280,6 +1281,9 @@ claude_app_covers_repo() {
   return 1
 }
 
+# A lane's `telemetry.<key>` as raw text; "" when absent.
+lane_telemetry_field() { jq -r --argjson i "$1" --arg k "$2" '(.lanes[$i].telemetry // {})[$k] // ""' "$CONFIG"; }
+
 # Bodies of the comments on the lane's telemetry issue written by an authorized
 # author (the gh-authenticated login, or the lane's `telemetry.author`), as a
 # JSON array. Prints the reason and returns 1 when the binding is incomplete or
@@ -1288,8 +1292,7 @@ claude_app_covers_repo() {
 # repository is refused. Bodies are parsed by jq only.
 lane_telemetry_bodies() {
   local idx="$1" name="$2" repo issue raw me bot
-  repo="$(jq -r --argjson i "$idx" '(.lanes[$i].telemetry // {}).repo // ""' "$CONFIG")"
-  repo="$(printf '%s' "$repo" | tr '[:upper:]' '[:lower:]')"
+  repo="$(lane_telemetry_field "$idx" repo | tr '[:upper:]' '[:lower:]')"
   if [[ -n "$repo" && "$repo" != "$ET_SLUG" ]]; then
     printf 'telemetry.repo names a repository other than origin (%s)' "${ET_SLUG:-unknown}"
     return 1
@@ -1304,7 +1307,7 @@ lane_telemetry_bodies() {
     printf 'the lane has no numeric telemetry.issue'
     return 1
   }
-  bot="$(jq -r --argjson i "$idx" '(.lanes[$i].telemetry // {}).author // ""' "$CONFIG")"
+  bot="$(lane_telemetry_field "$idx" author)"
   if [[ -n "$bot" && ! "$bot" =~ ^[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?$ ]]; then
     printf 'telemetry.author is not a GitHub login'
     return 1
@@ -1349,7 +1352,7 @@ lane_fallback_value() {
     printf '%s' "$bodies"
     return 1
   }
-  marker="$(jq -r --argjson i "$idx" '(.lanes[$i].telemetry // {}).marker // ""' "$CONFIG")"
+  marker="$(lane_telemetry_field "$idx" marker)"
   jq -r --arg m "$marker" '
     # portability-ok: \s and \S sit in a jq (Oniguruma) regex, not a grep or sed one
     def blocks: [ scan("```[^\n]*\n((?:(?!```)[\\s\\S])*)```") | .[0] ];
@@ -1364,8 +1367,7 @@ lane_fallback_value() {
 
 # The preamble a cloud-session lane's prompt opens with: the stage-start probe.
 stage_probe_preamble() {
-  local name="$1" stage="$2"
-  local plugins
+  local name="$1" stage="$2" plugins
   plugins="$(stage_required_plugins "${stage:-unknown:unknown}")"
   cat <<PREAMBLE
 Stage-start probe (execution target cloud-session; lane $name; stage ${stage:-unset}; policy read from $ET_REF at $ET_SHA via $LANE_TARGET_KEY). Do this before any other step:
@@ -1382,10 +1384,10 @@ PREAMBLE
 
 # Per-lane fallback record: the hash of the fallback value already honored, so
 # one fallback moves exactly one launch to the local host.
-lane_fallback_record_path() { printf '%s/%s/%s-execution-target-fallback' "$(resolve_data_dir)" "$(repo_marker_key)" "$1"; }
+lane_fallback_record_path() { printf '%s/%s-execution-target-fallback' "$(repo_data_dir)" "$1"; }
 # Per-lane cloud launch record: `claude agents --json` does not list cloud
 # sessions, so `start` reads this to avoid a second cloud session per run.
-lane_cloud_record_path() { printf '%s/%s/%s-cloud-launch' "$(resolve_data_dir)" "$(repo_marker_key)" "$1"; }
+lane_cloud_record_path() { printf '%s/%s-cloud-launch' "$(repo_data_dir)" "$1"; }
 
 write_record() { # <path> <content>
   ((DRY_RUN)) && {
@@ -1427,6 +1429,18 @@ run() {
     return 0
   fi
   "$@"
+}
+
+# Previews a lane command under --dry-run, keeping the seeded prompt out of the
+# echoed command: a size placeholder stands in for it.
+print_dry_run_lane() { # <cwd> <prompt_path> <cmd...>
+  local cwd="$1" prompt_path="$2" bytes
+  shift 2
+  bytes="$(wc -c <"$prompt_path" | tr -d ' ')"
+  [[ "$cwd" == "$REPO" ]] || printf 'DRY-RUN: cd %q\n' "$cwd"
+  printf 'DRY-RUN:'
+  printf ' %q' "$@"
+  printf ' %q\n' "<prompt: $prompt_path (${bytes}B)>"
 }
 
 # --- Lane launch --------------------------------------------------------------
@@ -1529,13 +1543,7 @@ launch_lane() {
   marker_path="$(launch_commit_marker_path "$name")"
 
   if ((DRY_RUN)); then
-    # Keep the seeded prompt out of the echoed command — show a size placeholder.
-    local bytes
-    bytes="$(wc -c <"$prompt_path" | tr -d ' ')"
-    [[ "$cwd" == "$REPO" ]] || printf 'DRY-RUN: cd %q\n' "$cwd"
-    printf 'DRY-RUN:'
-    printf ' %q' "${cmd[@]}"
-    printf ' %q\n' "<prompt: $prompt_path (${bytes}B)>"
+    print_dry_run_lane "$cwd" "$prompt_path" "${cmd[@]}"
     printf 'DRY-RUN: write launch-commit marker %s <- %s\n' "$marker_path" "${LAUNCH_COMMIT:-<unresolved>}"
     return 0
   fi
@@ -1566,12 +1574,13 @@ launch_on_target() {
   case "$LANE_TARGET" in
   local-background)
     validate_launch_inputs "$name" "$effort" "$prompt_path" "$settings" || return 1
+    local cwd="$REPO"
     if ensure_lane_worktree "$name" "$ET_SHA" 0; then
-      launch_lane "$name" "$model" "$effort" "$prompt_path" "$settings" "$LANE_WORKTREE"
+      cwd="$LANE_WORKTREE"
     else
       err "lane '$name': no usable linked worktree; launching local-worktree"
-      launch_lane "$name" "$model" "$effort" "$prompt_path" "$settings"
     fi
+    launch_lane "$name" "$model" "$effort" "$prompt_path" "$settings" "$cwd"
     ;;
   cloud-session) launch_cloud_lane "$@" ;;
   *) launch_lane "$name" "$model" "$effort" "$prompt_path" "$settings" ;;
@@ -1652,12 +1661,11 @@ launch_cloud_lane() {
     bytes="$(wc -c <"$prompt_path" | tr -d ' ')"
     printf 'DRY-RUN: cd %q\n' "$LANE_WORKTREE"
     printf 'DRY-RUN: claude --cloud %q\n' "<stage-start probe preamble + prompt: $prompt_path (${bytes}B)>"
-    write_record "$cloud_record" "$(date -u +%Y-%m-%dT%H:%M:%SZ) at $ET_SHA"
-    return 0
+  else
+    local prompt
+    prompt="$(stage_probe_preamble "$name" "$stage")$(cat "$prompt_path")"
+    (cd "$LANE_WORKTREE" && claude --cloud "$prompt") || return 1
   fi
-  local prompt
-  prompt="$(stage_probe_preamble "$name" "$stage")$(cat "$prompt_path")"
-  (cd "$LANE_WORKTREE" && claude --cloud "$prompt") || return 1
   write_record "$cloud_record" "$(date -u +%Y-%m-%dT%H:%M:%SZ) at $ET_SHA"
 }
 
@@ -1712,9 +1720,8 @@ validate_target_lanes() {
 # front by validate_target_lanes (called from main), so every name here is
 # already known.
 for_each_lane() {
-  local callback="$1" pdir
+  local callback="$1" pdir count
   pdir="$(resolve_prompt_dir)"
-  local count
   count="$(jq -r '.lanes | length' "$CONFIG")"
 
   local i name model effort prompt_path settings stage failures=0
@@ -1754,21 +1761,26 @@ plan_lane_target() {
   fi
   # No cloud host takes a stage that may read untrusted input. Refusing here,
   # before restart stops the running session, keeps a refused lane up.
+  local why
   case "$LANE_TARGET" in
-  cloud-session)
-    if stage_may_read_untrusted "$stage"; then
-      untrusted_skip "$name" "$stage" "cloud-session refused (the launcher cannot yet check for connector tools and denied egress)"
-      return 1
-    fi
-    ;;
-  cloud-routine | cloud-project)
-    if stage_may_read_untrusted "$stage"; then
-      untrusted_skip "$name" "$stage" "$LANE_TARGET refused"
-      return 1
-    fi
-    ;;
-  *) ;;
+  cloud-session) why="cloud-session refused (the launcher cannot yet check for connector tools and denied egress)" ;;
+  cloud-routine | cloud-project) why="$LANE_TARGET refused" ;;
+  *) return 0 ;;
   esac
+  if stage_may_read_untrusted "$stage"; then
+    untrusted_skip "$name" "$stage" "$why"
+  fi
+}
+
+# For a host the launcher does not start, prints its setup steps and the lane's
+# mods line and returns 0; returns 1 for a host the launcher starts.
+print_unlaunched_target() { # <name> <stage> <prompt_path> <settings>
+  case "$LANE_TARGET" in
+  cloud-routine | cloud-project) ;;
+  *) return 1 ;;
+  esac
+  print_setup_steps "$1" "$2" "$LANE_TARGET" "$3"
+  print_lane_mods "$4" "$LANE_TARGET"
   return 0
 }
 
@@ -1783,14 +1795,7 @@ _start_one() {
     return 0
   fi
   plan_lane_target "$name" "$stage" || return 1
-  case "$LANE_TARGET" in
-  cloud-routine | cloud-project)
-    print_setup_steps "$name" "$stage" "$LANE_TARGET" "$prompt_path"
-    print_lane_mods "$settings" "$LANE_TARGET"
-    return 0
-    ;;
-  *) ;;
-  esac
+  print_unlaunched_target "$name" "$stage" "$prompt_path" "$settings" && return 0
   info "  start $name${model:+ --model $model}${effort:+ --effort $effort}${settings:+ --settings <lane config>}"
   launch_on_target "$idx" "$name" "$model" "$effort" "$prompt_path" "$settings" "$stage" start || return 1
   print_lane_mods "$settings" "$LANE_TARGET"
@@ -1803,14 +1808,7 @@ _restart_one() {
   validate_launch_inputs "$name" "$effort" "$prompt_path" "$settings" || return 1
   # A host the launcher does not start leaves the running lane up as well.
   plan_lane_target "$name" "$stage" || return 1
-  case "$LANE_TARGET" in
-  cloud-routine | cloud-project)
-    print_setup_steps "$name" "$stage" "$LANE_TARGET" "$prompt_path"
-    print_lane_mods "$settings" "$LANE_TARGET"
-    return 0
-    ;;
-  *) ;;
-  esac
+  print_unlaunched_target "$name" "$stage" "$prompt_path" "$settings" && return 0
   stop_lane_if_running "$name"
   local s=$?
   # A genuine stop failure (not the benign "was not running", 2) means the old
@@ -1864,7 +1862,6 @@ warn_effort_env_override() {
 lane_scope() { ((${#TARGET_LANES[@]})) && printf ' (%s)' "${TARGET_LANES[*]}"; }
 
 action_start() {
-  local rc=0
   info "== lanes: start =="
   warn_effort_env_override
   # A failed refresh aborts BEFORE launching: never seed lanes from stale
@@ -1875,19 +1872,16 @@ action_start() {
   # probe never sits between two lane launches.
   probe_machine_mods
   info "lanes:"
-  for_each_lane _start_one || rc=1
-  return "$rc"
+  for_each_lane _start_one
 }
 
 action_restart() {
-  local rc=0
   info "== lanes: restart$(lane_scope) =="
   warn_effort_env_override
   refresh_repo_and_plugins || return 1
   probe_machine_mods # once, before the first relaunch (see action_start)
   info "lanes:"
-  for_each_lane _restart_one || rc=1
-  return "$rc"
+  for_each_lane _restart_one
 }
 
 action_stop() {
@@ -1998,7 +1992,7 @@ _run_once_one() {
     info "  skip $name: running as background session $sid; run-once does not start a second copy"
     return 0
   fi
-  lock="$(resolve_data_dir)/$(repo_marker_key)/$name-run-once.lock"
+  lock="$(repo_data_dir)/$name-run-once.lock"
   if ((DRY_RUN)); then
     printf 'DRY-RUN: take lock %s\n' "$lock"
   else
@@ -2031,10 +2025,7 @@ _run_once_one() {
   local -a cmd=(claude -p "${LANE_FLAGS[@]}")
   info "  run-once $name${model:+ --model $model} --effort $effort"
   if ((DRY_RUN)); then
-    [[ "$cwd" == "$REPO" ]] || printf 'DRY-RUN: cd %q\n' "$cwd"
-    printf 'DRY-RUN:'
-    printf ' %q' "${cmd[@]}"
-    printf ' %q\n' "<prompt: $prompt_path ($(wc -c <"$prompt_path" | tr -d ' ')B)>"
+    print_dry_run_lane "$cwd" "$prompt_path" "${cmd[@]}"
     return 0
   fi
   local prompt
@@ -2055,7 +2046,7 @@ sq() { printf "'%s'" "${1//\'/\'\\\'\'}"; }
 # The scheduled script and its config snapshot live under the launcher's data
 # directory, never in the checkout: a scheduler runs the script as the operator,
 # and a lane can write anywhere in its checkout, lanes.json included.
-schedule_dir() { printf '%s/%s/scheduled' "$(resolve_data_dir)" "$(repo_marker_key)"; }
+schedule_dir() { printf '%s/scheduled' "$(repo_data_dir)"; }
 
 # sha256 of the file <path> as bare hex; nonzero when no hash tool resolves.
 sha256_of() {
