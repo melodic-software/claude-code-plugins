@@ -100,16 +100,13 @@ function Get-RootResidue {
     $residue = [System.Collections.Generic.List[pscustomobject]]::new()
     foreach ($e in $entries) {
         $isDir = [bool]$e.PSIsContainer
+        # Volume housekeeping ($Recycle.Bin etc.) appears on data volumes
+        # too; it is expected there, not litter.
+        if (Test-NameMatchesAny -Name $e.Name -Patterns ($isDir ? $sharedDirs : $sharedFiles)) { continue }
         if ($IsSystem) {
-            $expected = if ($isDir) { @($sharedDirs) + @($systemDirs) } else { @($sharedFiles) + @($systemFiles) }
-            if (Test-NameMatchesAny -Name $e.Name -Patterns $expected) { continue }
-        } else {
-            # Volume housekeeping ($Recycle.Bin etc.) appears on data volumes
-            # too; it is expected there, not litter.
-            $expected = if ($isDir) { $sharedDirs } else { $sharedFiles }
-            if (Test-NameMatchesAny -Name $e.Name -Patterns $expected) { continue }
-            $litter = if ($isDir) { $litterDirs } else { $litterFiles }
-            if (-not (Test-NameMatchesAny -Name $e.Name -Patterns $litter)) { continue }
+            if (Test-NameMatchesAny -Name $e.Name -Patterns ($isDir ? $systemDirs : $systemFiles)) { continue }
+        } elseif (-not (Test-NameMatchesAny -Name $e.Name -Patterns ($isDir ? $litterDirs : $litterFiles))) {
+            continue
         }
 
         $owner = try { (Get-Acl -LiteralPath $e.FullName -ErrorAction Stop).Owner } catch { $null }
@@ -241,12 +238,7 @@ $CheckBody = {
         #   WARN -- >=10 residue entries: something is actively dumping at a root.
         #   INFO -- 1-9 residue entries.
         #   OK   -- none.
-        $severity = 'OK'
-        if ($residueSorted.Count -ge 10) {
-            $severity = 'WARN'
-        } elseif ($residueSorted.Count -ge 1) {
-            $severity = 'INFO'
-        }
+        $severity = if ($residueSorted.Count -ge 10) { 'WARN' } elseif ($residueSorted.Count -ge 1) { 'INFO' } else { 'OK' }
 
         $summary = if ($residueSorted.Count -eq 0) {
             "Volume roots clean: $($volumes.Count) root(s) scanned, no unexpected entries."
@@ -257,15 +249,10 @@ $CheckBody = {
             $lead = "$($residueSorted.Count) unexpected " +
                 "entr$($residueSorted.Count -eq 1 ? 'y' : 'ies') at volume roots"
             $tail = '. Route removal to disk-hygiene:clean.'
-            $candidate = ''
-            foreach ($render in @({ "$($args[0].volume)$($args[0].name)" }, { $args[0].name })) {
-                $examples = @($residueSorted | Select-Object -First 3 |
-                        ForEach-Object { & $render $_ }) -join ', '
-                $candidate = "$lead ($examples)$tail"
-                if ($candidate.Length -le 240) { break }
-            }
-            if ($candidate.Length -gt 240) { $candidate = "$lead$tail" }
-            $candidate
+            $examples = @($residueSorted | Select-Object -First 3)
+            $withPaths = "$lead ($(@($examples | ForEach-Object { "$($_.volume)$($_.name)" }) -join ', '))$tail"
+            $withNames = "$lead ($(@($examples | ForEach-Object { $_.name }) -join ', '))$tail"
+            if ($withPaths.Length -le 240) { $withPaths } elseif ($withNames.Length -le 240) { $withNames } else { "$lead$tail" }
         }
 
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
