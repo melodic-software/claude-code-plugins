@@ -49,7 +49,10 @@ dotnet format "$REPO_ROOT/<solution>"
 
 ## Gotchas
 
-- **`--project` is required** for test project paths **under the opt-in Microsoft.Testing.Platform (MTP) runner** (enabled via `global.json` / `dotnet.config`), where bare positional paths are rejected: `dotnet test path/to/Project.csproj` fails with "Specifying a project for 'dotnet test' should be via '--project'". Under VSTest, still the .NET 10 default, a bare positional project path is accepted. `--project` works in both, so prefer it either way (re-checked against Microsoft's dotnet-test-mtp/vstest docs, 2026-08-26)
+- **Prefer `--project`** for test project paths under either runner (VSTest or Microsoft.Testing.Platform).
+  - **Pointer**: when a bare project path is rejected, or to check which runner is the default and what each accepts, fetch [dotnet test with MTP: options](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-mtp#options) live.
+  - **As of**: 2026-11-10
+  - **Recheck trigger**: either runner stops accepting `--project` for a test project path, or the default runner changes.
 - **`--nologo` breaks xUnit v3** MTP runner. The flag passes through to the xUnit executable which rejects it as "Unknown option". Result: zero tests ran, exit code 5. Same issue with `-v q`. Use plain `dotnet test` or `-v n`
 - **`TreatWarningsAsErrors` repos**: when the repo turns warnings into errors globally, every warning is build-breaking; don't dismiss a warning as cosmetic
 - **VS locks analyzer DLLs**: if `dotnet build` fails with MSB3021 while Visual Studio is open, close VS or skip analyzers for quick iteration

@@ -1,6 +1,7 @@
 # Treat the plugin, not the skill, as the encapsulation boundary for path citation
 
-- Status: accepted
+- Status: accepted; amended 2026-08-28 (the clause 2 test and two unnamed surfaces) and 2026-11-11
+  (a repo-local control skill is not a distribution unit), see the amendments below
 - Date: 2026-08-26
 
 ## Context
@@ -320,3 +321,15 @@ because the shape has no single search expression, which is the point: **a later
 against the live tree and must not cite any of these numbers as a total.** They are recorded as a
 measured order of magnitude, so that pass knows it is buying dozens of judgments rather than a
 handful.
+
+## Amendment (2026-11-11): a repo-local control skill is not a distribution unit
+
+The Decision counts "no `.claude/skills/` directory in this repository at all", and the
+Consequences re-open this record if the repository "adds a `.claude/skills/` tree". It now has one:
+`.claude/skills/control-claude-code-plugins/`, the control skill `/app-control:drive` reads to run
+this repository's plugin skills. That skill does not ship. No marketplace entry or plugin manifest
+names it, no consumer can enable it, and it serves only work in this checkout.
+
+The premise is about what ships, and the control skill is not a distribution unit, so its presence
+fails neither premise and does not fire the re-open trigger. Read the premise and the trigger as
+excluding it. Clauses 1 to 4 and the 2026-08-28 amendment stand.

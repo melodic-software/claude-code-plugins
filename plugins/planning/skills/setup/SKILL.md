@@ -148,7 +148,8 @@ marketplace's plugin-reconfiguration convention
 which owns the verified-version record): interactive `/plugin configure planning@<marketplace>` any
 time. Headless, preferred: run
 `claude plugin configure planning@<marketplace> --values-stdin < values.json` from the project the
-plugin is installed in, with `values.json` holding `{"use_ask_user_question": "true"}`. Headless
+plugin is installed in, with `values.json` holding `{"use_ask_user_question": "true"}`: every
+value, booleans included, written as a JSON string. Headless
 fallback, for a Claude Code release without `plugin configure`: rerun
 `claude plugin install planning@<marketplace> -s <scope> --config use_ask_user_question=true`
 (repeatable per key). Do **not** uninstall to reconfigure. For the rerun, pass the scope

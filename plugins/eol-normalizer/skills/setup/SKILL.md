@@ -20,8 +20,8 @@ shows the tool's path when present, or `absent` when missing:
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
 `command -v` probe via Bash instead.
 
-`git` is probed in the body, not here: the harness runs a skill's whole pre-compute block as one
-shell invocation, and a worktree-isolated session refuses a compound command that names git.
+`git` is probed in the body, not here ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
+"The pre-compute block runs as one shell invocation").
 
 ## Purpose
 

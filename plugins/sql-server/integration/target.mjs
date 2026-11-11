@@ -28,7 +28,8 @@ const APP_OBJECTS = [
 
 // Each batch runs in turn on the admin connection: master for local, app for Azure.
 export function fixtureBatches(target, { reader, readerPassword, writer, writerPassword }) {
-  const user = (name, password) => (target.kind === 'azure'
+  const azure = target.kind === 'azure';
+  const user = (name, password) => (azure
     ? `CREATE USER [${name}] WITH PASSWORD = N'${password}';`
     : `CREATE USER [${name}] FOR LOGIN [${name}];`);
   const app = [
@@ -40,7 +41,7 @@ export function fixtureBatches(target, { reader, readerPassword, writer, writerP
     `ALTER ROLE db_datareader ADD MEMBER [${writer}];`,
     `ALTER ROLE db_datawriter ADD MEMBER [${writer}];`,
   ];
-  if (target.kind === 'azure') return app;
+  if (azure) return app;
   return [
     `CREATE LOGIN [${reader}] WITH PASSWORD = N'${readerPassword}';`,
     `CREATE LOGIN [${writer}] WITH PASSWORD = N'${writerPassword}';`,

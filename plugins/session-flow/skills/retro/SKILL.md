@@ -79,7 +79,7 @@ plugin is installed. Name that skill and stop; when it is not installed, say tha
 skill codifies one mistake or mines review comments, and stop.
 
 `--unattended`, anywhere in `$ARGUMENTS`, is the caller declaring that nobody is present: take it
-out first. It only gates the `/export` step (record the suggestion in output, do not ask). The bare
+out first. It only gates the user-only built-ins (`/export`, `/insights`): an unattended run neither suggests nor runs them. The bare
 word `unattended` is neither this flag nor a mode: stop and name `--unattended`. A `--pattern '<regex>'` pair is taken out next and
 kept for session mode's ticket section; it selects `session` when no mode is named, and with
 another mode named, stop and say `--pattern` is session mode's only. Read the mode from the remainder. If it specifies a
@@ -143,7 +143,7 @@ are retention-swept (`cleanupPeriodDays`), and the conversation itself has no du
 - **Recheck trigger**: that section stops describing local transcripts as swept after a retention
   period, or a release note names `cleanupPeriodDays`.
 
-If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. **`--unattended`:** record the suggestion in output; do not ask.
+If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. **`--unattended`:** make no suggestion.
 
 ## Verification record: `/export`
 
@@ -166,8 +166,8 @@ Both look back at how sessions went, so "how did I do" can land on either.
 **Routing.** When the person asks about patterns across many sessions, offer it to the person: If /insights is available in your session (gate basis: ungated, though
 some hosts lack it; records in [reference/native-insights.md](reference/native-insights.md)), you
 can run it instead of or alongside this skill for a cross-session usage report. Make the offer at the end of the run. Prefer this skill for what one
-session taught and for codifying it. When the caller passes `--unattended`, the run records the
-offer in its output instead of asking; without that flag it asks.
+session taught and for codifying it. When the caller passes `--unattended`, the run makes no
+offer.
 
 **Mutation gate.** This skill writes only approved codifications. It never runs `/insights` on the
 person's behalf.
@@ -213,7 +213,11 @@ writing it into a brief: a `${…}` token in a spoke reaches the Bash tool unsub
   user asks
 - **Always include skill-candidate and follow-up-candidate analysis**, even when the conclusion is
   "no candidates this session"
-- **Codifying follows the workflow too**. Adding a bullet to a rules file requires verification,
-  not just pasting
+- **Codifying follows the workflow too**. A finding that lands as instruction text (a `CLAUDE.md`,
+  `AGENTS.md` or rules-file line, the guidance tier of
+  [reference/enforcement-ladder.md](reference/enforcement-ladder.md)) names its proof in the PR:
+  an eval case, or a deletion watch with a date (`/harness-config:unhobble`, when the
+  `harness-config` plugin is installed). A mechanical finding goes to `/corrections:codify` (when
+  the `corrections` plugin is installed), which proves its own check
 - **Phase 4 is an interactive checkpoint**, never persist codifications without explicit user
   approval

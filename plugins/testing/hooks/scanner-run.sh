@@ -100,13 +100,13 @@ testing::run_bounded() {
     # The scanner's children first, so the scanner reaps them.
     # ponytail: one level; a grandchild still orphans, and without pkill the group kill alone runs.
     if pkill -TERM -P "$pid"; then
-      for _ in 1 2 3 4 5 6 7 8 9 10; do
+      for ((i = 0; i < 10; i++)); do
         kill -0 "$pid" || break
         sleep 0.1
       done
     fi
     kill -TERM -- "-$pid"
-    for _ in $(seq 1 50); do
+    for ((i = 0; i < 50; i++)); do
       kill -0 -- "-$pid" || exit
       sleep 0.1
     done

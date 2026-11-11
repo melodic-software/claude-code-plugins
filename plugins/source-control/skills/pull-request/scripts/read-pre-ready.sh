@@ -39,7 +39,6 @@ set -uo pipefail
 
 # shellcheck source=pre-ready-steps.sh
 source "$(dirname "${BASH_SOURCE[0]}")/pre-ready-steps.sh"
-STEPS=("${PRE_READY_STEPS[@]}")
 # shellcheck source=../../../lib/base-file.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)/base-file.sh"
 
@@ -51,7 +50,7 @@ usage() {
 emit() {
   local source="$1" off="$2" step
   printf 'source\t%s\n' "$source"
-  for step in "${STEPS[@]}"; do
+  for step in "${PRE_READY_STEPS[@]}"; do
     if [[ "$off" == *" $step "* ]]; then
       printf '%s\tdisabled\n' "$step"
     else
@@ -134,7 +133,7 @@ for ((i = 0; i <= max; i++)); do
   step_var="item_${i}_step" enabled_var="item_${i}_enabled"
   step="${!step_var:-}" enabled="${!enabled_var:-}"
   [[ -n "$step" ]] || fail_closed "pre_ready item $i has no step"
-  [[ " ${STEPS[*]} " == *" $step "* ]] || fail_closed "unknown step '$step' in pre_ready"
+  [[ " ${PRE_READY_STEPS[*]} " == *" $step "* ]] || fail_closed "unknown step '$step' in pre_ready"
   [[ "$steps_seen" != *" $step "* ]] || fail_closed "step '$step' is listed twice in pre_ready"
   steps_seen+="$step "
   case "$enabled" in

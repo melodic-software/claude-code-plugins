@@ -3,6 +3,12 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.15] - 2026-11-11
+
+### Changed
+
+- The audit and audit-posture checklists link the changelog version entries they cite by anchor, and the C13 default links the spec schema's `destructiveHint` entry. No behavior change.
+
 ## [0.8.14] - 2026-11-10
 
 ### Changed

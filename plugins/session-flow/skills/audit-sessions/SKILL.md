@@ -311,7 +311,7 @@ This skill keeps a durable store, flags sessions over the shipped thresholds and
 finding; `/insights` is a separate report the person runs. We treat them as complementary:
 If /insights is available in your session (gate basis: this skill never assumes it resolves; the
 **Pointer** record below), suggest that the person run it alongside this skill. This skill never
-runs it. When the caller passes `--unattended`, record the `/insights` suggestion in the run's output and do not ask the person;
+runs it. When the caller passes `--unattended`, make no `/insights` suggestion;
 without that flag, make the suggestion to the person. For `trends`, make the suggestion at the end of the run.
 
 - **Pointer**: for what `/insights` reports, fetch

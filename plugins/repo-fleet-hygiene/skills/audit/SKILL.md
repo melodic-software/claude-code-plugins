@@ -86,9 +86,9 @@ outside a checkout) that directly holds 2 or more Git repositories, so a run ins
 covers its sibling fleet, then the checkout holding the working directory, else exit 3 naming every
 rung. A Git checkout in the working directory is a rung; the session project directory is not one
 on its own. **Claim:** `ghq root --all` prints every configured root. **Basis:** the
-[ghq README](https://github.com/x-motemen/ghq#usage) (`ghq root [--all]`; "Without '--all' option,
+[ghq README](https://github.com/x-motemen/ghq#commands) (`ghq root [--all]`; "Without '--all' option,
 the primary one is shown") and `ghq help root` on ghq 1.10.1 ("--all  Show all roots"). **As of:**
-2026-09-29. **Recheck:** the README's `root` entry drops or renames `--all`. Pass that guidance
+2026-11-10. **Recheck:** the README's `root` entry drops or renames `--all`. Pass that guidance
 through rather than re-deriving a root yourself. Config resolution is the script's own ladder. Do not
 pre-resolve or pass a probed path yourself:
 explicit `--config` wins, else the script probes

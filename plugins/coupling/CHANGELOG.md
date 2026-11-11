@@ -3,6 +3,12 @@
 All notable changes to the `coupling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.14] - 2026-11-11
+
+### Changed
+
+- The reduce skill's source record links the GitHub node-limit and `git merge-tree` sections by anchor, and `remediations.md` no longer cites a wrong line range for the catalog generator's header. No behavior change.
+
 ## [0.4.13] - 2026-11-11
 
 ### Changed

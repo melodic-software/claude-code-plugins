@@ -57,20 +57,18 @@ function refuseLiterals(node, path) {
   }
 }
 
+function realpath(path, failure) {
+  try {
+    return realpathSync.native(path);
+  } catch (error) {
+    throw new ConfigError(`${failure}: ${error.code ?? error.message}`);
+  }
+}
+
 export function loadConfig(configPath, { projectDir = process.cwd() } = {}) {
   if (typeof configPath !== 'string' || configPath === '') throw new ConfigError('--config <path> is required');
-  let file;
-  let project;
-  try {
-    file = realpathSync.native(configPath);
-  } catch (error) {
-    throw new ConfigError(`cannot read --config ${configPath}: ${error.code ?? error.message}`);
-  }
-  try {
-    project = realpathSync.native(projectDir);
-  } catch (error) {
-    throw new ConfigError(`cannot resolve the project directory ${projectDir}: ${error.code ?? error.message}`);
-  }
+  const file = realpath(configPath, `cannot read --config ${configPath}`);
+  const project = realpath(projectDir, `cannot resolve the project directory ${projectDir}`);
   if (isInside(file, project)) {
     throw new ConfigError(
       `--config ${configPath} is inside the project directory, which the agent can write; keep the config outside it`,

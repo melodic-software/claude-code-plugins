@@ -86,8 +86,7 @@ elif ((has_base || has_default)); then
   usage
 fi
 
-# The repository level: sets repo_value when the file sets the key.
-repo_value="" repo_set=0
+# The repository level: resolves to the file's value when the file sets the key.
 read_repo() {
   [[ -n "$base" ]] || { notice "the pull request's base branch could not be read; the repository level is unread"; return; }
   [[ -n "$default" ]] || { notice "the base repository's default branch could not be read; the repository level is unread"; return; }
@@ -98,11 +97,10 @@ read_repo() {
     notice "$BASE_FILE_REASON; the repository level is unread"
     return
   fi
-  if ((BASE_FILE_HAS)); then repo_value="$BASE_FILE_VALUE" repo_set=1; fi
+  ((BASE_FILE_HAS)) && resolve "$BASE_FILE_VALUE" "repository (docs/conventions/source-control.yaml at $base)"
 }
 
 [[ -z "$mode" ]] || read_repo
-((repo_set)) && resolve "$repo_value" "repository (docs/conventions/source-control.yaml at $base)"
 
 # shellcheck disable=SC2016 # the literal, unsubstituted placeholder
 [[ "$user" == *'${user_config'* ]] && user=""

@@ -287,12 +287,12 @@ The counter commands run in `measure`, with a read-only token and no stored cred
 counter can run third-party code. Only `draft-pr`, which runs no counter, can write.
 
 A `GITHUB_TOKEN` opens that PR only when the repository allows workflows to create pull requests,
-which is off by default for a personal-account repository, and runs on such a PR wait for a human's
-approval. A GitHub App token or a personal access token stored as a secret avoids the wait.
+and runs on a PR it opens can wait for approval. A GitHub App token or a personal access token
+stored as a secret avoids the wait.
 
-- **Pointer:** [Managing GitHub Actions settings for a repository](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository)
-  and [GITHUB_TOKEN](https://docs.github.com/en/actions/concepts/security/github_token).
-- **As of:** 2026-10-04.
+- **Pointer:** for the setting's default and the approval rule, fetch [Actions settings: creating or approving pull requests](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository#preventing-github-actions-from-creating-or-approving-pull-requests)
+  and [when GITHUB_TOKEN triggers workflow runs](https://docs.github.com/en/actions/concepts/security/github_token#when-github_token-triggers-workflow-runs) live.
+- **As of:** 2026-11-10.
 - **Recheck trigger:** either page renames the "Allow GitHub Actions to create and approve pull
   requests" setting or changes what a `GITHUB_TOKEN`-created pull request triggers.
 

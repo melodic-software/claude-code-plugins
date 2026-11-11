@@ -48,7 +48,9 @@ def permission_prompts_args(claude: str) -> list[str]:
     We pass it so an unattended run never waits on a prompt; older CLIs reject it.
     Pointer: https://code.claude.com/docs/en/cli-reference#cli-flags for what the
     flag does. As of 2026-10-11. Recheck trigger: that table renames or drops
-    `--permission-prompts`, or a release note changes its values.
+    `--permission-prompts`, or a release note changes its values. The launch options
+    for unattended runs, this gate included, are set in the loop-lane contract:
+    https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#permission-modes
     """
     if claude_version_at_least(claude, _PERMISSION_PROMPTS_FLOOR):
         return ["--permission-prompts", "none"]
