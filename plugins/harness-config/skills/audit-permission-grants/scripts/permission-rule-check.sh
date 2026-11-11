@@ -543,14 +543,13 @@ scan_bare_tool() {
   # top-level tokens, so a scoped rule (Bash(npm test)) is not double-flagged
   # as a bare grant, and a tool name embedded in another rule's payload
   # (Bash(echo Bash)) is not flagged at all.
-  local text="$1" src="$2" tool tok
+  local tool tokens
+  # Newline-framed, so each token is matched as a whole line.
+  tokens=$'\n'"$(top_level_tokens "$1")"$'\n'
   for tool in Bash PowerShell; do
-    while IFS= read -r tok; do
-      if [[ "$tok" == "$tool" ]]; then
-        emit warning P1 "$src" "bare '$tool' allow rule grants the whole tool and is dropped in auto mode. Allow a specific bare-name command instead, e.g. Bash(babysit_merge.sh:*)."
-        break
-      fi
-    done < <(top_level_tokens "$text")
+    if [[ "$tokens" == *$'\n'"$tool"$'\n'* ]]; then
+      emit warning P1 "$2" "bare '$tool' allow rule grants the whole tool and is dropped in auto mode. Allow a specific bare-name command instead, e.g. Bash(babysit_merge.sh:*)."
+    fi
   done
 }
 
@@ -561,13 +560,11 @@ scan_agent() {
   # categorically, and Agent has no bare-PATH-command analog to re-scope to.
   # Matching runs on top-level tokens so only a rule whose own tool token IS
   # `Agent` or begins `Agent(` is flagged.
-  local text="$1" src="$2" tok
-  while IFS= read -r tok; do
-    if [[ "$tok" == "Agent" || "$tok" == "Agent("* ]]; then
-      emit warning P1 "$src" "Agent allow rules are dropped in auto mode and have no PATH-durable analog — remove/re-scope, or run outside auto mode."
-      break
-    fi
-  done < <(top_level_tokens "$text")
+  local tokens
+  tokens=$'\n'"$(top_level_tokens "$1")"$'\n'
+  if [[ "$tokens" == *$'\n'Agent$'\n'* || "$tokens" == *$'\n'Agent\(* ]]; then
+    emit warning P1 "$2" "Agent allow rules are dropped in auto mode and have no PATH-durable analog — remove/re-scope, or run outside auto mode."
+  fi
 }
 
 # --- Frontmatter allowed-tools scan ------------------------------------------
@@ -856,15 +853,12 @@ reconcile_frontmatter() {
 }
 
 coverage_block() {
-  local s joined=""
+  local joined="(no settings scope was attempted)"
   # Guarded: under `set -u` an empty array must not be expanded at all.
   if [[ "${#scope_status[@]}" -gt 0 ]]; then
-    for s in "${scope_status[@]}"; do
-      [[ -n "$joined" ]] && joined="$joined; "
-      joined="$joined$s"
-    done
+    joined="$(printf '%s; ' "${scope_status[@]}")"
+    joined="${joined%; }"
   fi
-  [[ -n "$joined" ]] || joined="(no settings scope was attempted)"
   printf '\nScan coverage (the denominator — what this run actually read):\n'
   printf '  root: %s (resolved from %s)\n' "$ROOT" "$ROOT_SOURCE"
   printf '  DENOMINATOR = %d input(s) successfully examined: %d frontmatter file(s) + %d settings scope(s) + %d plugin settings.json. The unit on every axis is "read and examined", never "produced a finding".\n' \

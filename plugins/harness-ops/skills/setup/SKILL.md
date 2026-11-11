@@ -179,36 +179,31 @@ The options live in Claude Code's native plugin configuration, which setup must 
   plugin's hooks module hooks no event, so the log starts no process. Turning it on makes the module
   start one process per observable hook event plus `SessionEnd` retention, and only where mods load;
   the README's per-session hook event log section carries the measured cost and where it does not run.
-- **Reconfiguring a personal option:** through Claude Code's native flow, per the marketplace's
-  plugin-reconfiguration convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
-  which owns the verified-version record): interactive `/plugin configure harness-ops@<marketplace>`
-  any time. Headless, preferred on Claude Code 2.1.285 or later:
-  `claude plugin configure harness-ops@<marketplace> --values-stdin < values.json`, where
-  `values.json` holds `{"registry_dir": "<path>"}` (every value a string,
-  `"session_event_log_enabled": "true"` included; keys left out keep their saved values). Headless
-  fallback, before 2.1.285: `claude plugin install harness-ops@<marketplace> -s <scope> --config
-  registry_dir=<path>` (repeatable per key); against an already-installed plugin it prints
-  `already installed` **and still writes the value**. Do **not** uninstall to reconfigure: that
-  drops this plugin's entire stored `pluginConfigs` entry, resetting every option in the README's
-  Options reference (the audit toggles included) to its manifest default. The value always lands
-  in user settings, whichever route writes it. `claude plugin configure` has no scope flag, so run
-  it from the project the plugin is installed in. For the rerun, `-s` defaults to `user`; pass the
-  scope `claude plugin list` reports for this plugin (from the home directory pass `user`), and run from that project's directory for a
-  `project`/`local` scope, or the rerun adds a second install record at the scope passed and
-  enables the plugin there. Check each route's own failure signal: `--values-stdin` rejects a bad
-  value with exit 1 and saves nothing, but stores an empty string as `""`; a rejected `--config`
-  value prints a warning and still exits 0, so read the command's output rather than its exit
-  code. This skill never writes user settings or
-  `pluginConfigs`. Afterwards rerun
-  `check` in a **fresh session**: the rendered `${user_config.*}` is injected at skill load and each
-  hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a
-  same-session `check` still reports the OLD value; report the observed effective value, never an
-  unobserved change.
+- **Reconfiguring a personal option** (`registry_dir`, `session_event_log_enabled` and the rest):
+  through Claude Code's native flow, interactively with `/plugin configure harness-ops@<marketplace>`
+  or by a headless route, as the marketplace's plugin-reconfiguration convention gives them in
+  [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
+  (it owns the verified-version record). Apply the scope and failure-signal caveats in its
+  [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
+  Read both sections and print what they give, the fallback route, its behavior on an
+  already-installed plugin and the scope to pass included, rather than only naming them, and
+  leave out the verified-version record.
+  Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
+  writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**, since a
+  same-session `check` can still show the old value, and report the observed effective value,
+  never an unobserved change.
+
+  - **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+    when a saved value applies, fetch
+    [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+    live.
+  - **As of**: 2026-11-11
+  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+    refused value, or when a saved value applies.
 
 After any reconfiguration, rerun `check` in a **fresh session** and report every observed effective
 destination, never claim an unobserved change, and never read a same-session `check` still showing
-the old value as a failed write (see the reconfiguration note above for why it does). Re-running
+the old value as a failed write. Re-running
 `check` or `apply` when every destination is contained (or defaulted) and the guard is in place
 changes nothing and reports "already configured".
 

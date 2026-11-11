@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [9.21.1] - 2026-11-11
+
+### Fixed
+
+- `pr-run-activity.md` names step 3 (`check-trusted-trigger`, reason `untrusted-base`) as where a PR into a non-default base that is not a native stack layer gets its failure check, not step 4.
+
 ## [9.21.0] - 2026-11-11
 
 ### Changed

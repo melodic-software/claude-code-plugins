@@ -51,7 +51,7 @@ import { testedRun } from "../maintenance-reconcile-lost-runs/infra-failure.mjs"
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { DEPENDABOT_ID, POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
-import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, writeRecord } from "./dispatch-record.mjs";
+import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, RUN_ID, sendDispatch, writeRecord } from "./dispatch-record.mjs";
 import { laneReader, withLaneBinding } from "./address-feedback.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
 import { runTitle, shareWorkflowRuns } from "./feedback-dispatch.mjs";
@@ -85,8 +85,6 @@ export const DEFAULTS = Object.freeze({
   holdLabels: Object.freeze(["do-not-merge", "needs-human"]),
 });
 
-// The run id form the record's readers accept.
-const RUN_ID = /^[1-9][0-9]{0,14}$/;
 const SHA = /^[0-9a-f]{40}$/;
 
 // The check-run handling both dispatchers read a head's runs under.
@@ -109,26 +107,6 @@ function inFlightRun(log, active, { workflow, activity, node }) {
     log(`skip #${node.number}: ${workflow} run ${inFlight.id} for ${activity} is not done yet`);
   }
   return inFlight;
-}
-
-// One pr-unblock.yml dispatch for the PR: the run id it started, or null when
-// it failed or named no usable id. The dispatched run's gate and the broker
-// refuse a run this run did not record, so a dispatch with no usable id counts
-// as failed. `label` prefixes the activity in its log lines.
-async function sendDispatch(api, log, { workflow, base, node, inputs, label = "" }) {
-  try {
-    const { workflowRunId } = await api.dispatchWorkflow({ workflow, ref: `refs/heads/${base}`, inputs });
-    const id = String(workflowRunId);
-    if (!RUN_ID.test(id)) {
-      log(`::error::#${node.number}: ${label}dispatch returned no valid workflow_run_id`);
-      return null;
-    }
-    log(`dispatched ${label}#${node.number} head ${node.headRefOid} workflow_run_id=${id}`);
-    return id;
-  } catch (error) {
-    log(`::error::#${node.number}: ${label}dispatch failed: ${error.message}`);
-    return null;
-  }
 }
 
 // The log line that names a head-lag stop on the head as the cause of this
@@ -437,7 +415,7 @@ export async function dispatchSharedCopies({
       continue;
     }
     sent += 1;
-    const id = await sendDispatch(api, log, { workflow, base, node, label: `${activity} `, inputs: { "pr-number": String(node.number), activity, "dispatcher-run-id": String(runId) } });
+    const id = await sendDispatch(api, log, { workflow, base, node, label: `${activity} `, errorLabel: `${activity} `, inputs: { "pr-number": String(node.number), activity, "dispatcher-run-id": String(runId) } });
     if (id === null) {
       failed += 1;
     } else {

@@ -1,7 +1,20 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "scheduleInterval": "weekly",
   "cooldownMinimumDays": 3,
+  "cooldownDays": {
+    "own": 0,
+    "patch": 3,
+    "minor": 3,
+    "major": 7
+  },
+  "fastTrack": {
+    "reviewed": "2026-11-11",
+    "basis": "Owner decision 2026-11-11: Claude Code and Anthropic updates land as soon as they publish, and this organization's own releases need no soak from itself.",
+    "npm": ["@anthropic-ai/claude-code"],
+    "github-actions": ["anthropics/*"],
+    "own": ["melodic-software/*"]
+  },
   "maxOpenPullRequests": 5,
   "requireGroups": true,
   "autoMerge": {

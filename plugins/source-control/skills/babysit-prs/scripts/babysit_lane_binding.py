@@ -12,7 +12,9 @@ GitHub stored it. A comment counts only when the run its binding names is
 the lane's caller workflow, ran on the head the binding names, and one of
 that run's records lists the
 comment's kind, id and body digest for the same lane, pull request and head.
-Every attempt's record counts, so a re-run's comments stay bound.
+Every attempt's record counts, so a re-run's comments stay bound. A record
+covers its attempt only when it holds the `{"complete":true}` line the lane
+writes once its publish and hold steps did not fail.
 
 A comment without a binding counts while LEGACY_CUTOFF is None, then only
 when posted at or before it and never edited. A comment no live record
@@ -40,9 +42,11 @@ RECORD_FILE = "comments.jsonl"
 # The largest record read: far above one run's comments, small enough that a
 # crafted archive cannot exhaust memory.
 MAX_RECORD_BYTES = 4 << 20
-# The last time a comment with no binding can be the lane's (ISO 8601), or
-# None while the lanes do not yet write bindings.
-LEGACY_CUTOFF: str | None = None
+# The last time a comment with no binding can be the lane's (ISO 8601): 48
+# hours after the lanes began writing bindings, so a run that started before
+# then, and a re-run of one within the lost-run reconciler's 24-hour lookback,
+# still posts comments that count.
+LEGACY_CUTOFF: str | None = "2026-11-13T22:24:32Z"
 # A REST comment carries no edit time, only updated_at, which a review's
 # batch sets up to a second after created_at; a gap past this counts as an
 # edit (GraphQL's lastEditedAt is exact and wins when present).
@@ -251,10 +255,13 @@ def lane_checker(
                 ]
                 live = [a for a in records if a.get("expired") is not True]
                 entries: list[dict[str, Any]] = []
+                recorded: set[str] = set()
                 for artifact in live:
                     data = zip_entry(download(artifact.get("id")), RECORD_FILE)
-                    entries.extend(record_entries(None if data is None else data.decode("utf-8")))
-                recorded = {str(a.get("name")) for a in live}
+                    lines = record_entries(None if data is None else data.decode("utf-8"))
+                    entries.extend(lines)
+                    if any(e.get("complete") is True for e in lines):
+                        recorded.add(str(artifact.get("name")))
                 runs[run_id] = ((run, entries, recorded), None)
             except Exception as exc:  # noqa: BLE001 - kept and raised on each check
                 runs[run_id] = (None, exc)

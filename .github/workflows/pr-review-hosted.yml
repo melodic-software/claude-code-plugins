@@ -207,9 +207,10 @@ jobs:
         if: steps.kill.outputs.proceed != 'true' || vars.CLAUDE_REVIEW_DISABLED == 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
+          CAUSE: ${{ steps.kill.outputs.cause }}
           LANE_SWITCH: ${{ vars.CLAUDE_REVIEW_DISABLED }}
         run: |
-          echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable}, CLAUDE_REVIEW_DISABLED: ${LANE_SWITCH:-unset})"
+          echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable} cause ${CAUSE:-unreadable}, CLAUDE_REVIEW_DISABLED: ${LANE_SWITCH:-unset})"
 
       # A skip fails this job, so the run is a failed first attempt: the
       # lost-run reconciler re-runs it once GitHub Actions is operational

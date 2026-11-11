@@ -4,22 +4,18 @@
       "answer": "`{\"eol_normalizer_enabled\": \"false\"}`"
     },
     {
-      "answer": "{\"eol_normalizer_enabled\":\"false\"}",
-      "why": "no space"
+      "answer": "Set eol_normalizer_enabled to false.",
+      "why": "key and value in prose"
     }
   ],
   "fail": [
     {
-      "answer": "{\"eol_normalizer_enabled\": false}",
-      "why": "unquoted boolean; every value is a string"
-    },
-    {
-      "answer": "eol_normalizer_enabled=false",
-      "why": "the --config form, not the JSON"
-    },
-    {
       "answer": "{\"eol_normalizer_enabled\": \"true\"}",
       "why": "wrong value"
+    },
+    {
+      "answer": "{\"eol_normalizer\": \"false\"}",
+      "why": "near miss: wrong key"
     },
     {
       "answer": "",

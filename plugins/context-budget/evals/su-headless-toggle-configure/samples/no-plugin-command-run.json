@@ -23,6 +23,18 @@
         }
       ],
       "why": "version"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude plugin configure --help 2>&1 | head -40",
+            "description": "Show configure flags"
+          }
+        }
+      ],
+      "why": "a read-only --help probe"
     }
   ],
   "fail": [

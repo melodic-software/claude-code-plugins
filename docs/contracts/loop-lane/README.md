@@ -811,8 +811,10 @@ The reasons behind each binding:
 - **fast binds `sonnet`.** We bind the fast tier to `sonnet` for mechanical items whose output an
   objective check decides, where its speed and cost against the tiers above (see the models
   overview) pay. The tier has nothing to do with Claude Code's fast mode, a separate speed setting
-  for Opus (for fast mode, see
-  [Speed up responses with fast mode](https://code.claude.com/docs/en/fast-mode)).
+  on the models its page lists. Pointer:
+  [Speed up responses with fast mode](https://code.claude.com/docs/en/fast-mode) (the supported
+  models sit in the page's opening). As of: 2026-11-11. Recheck trigger: the page renames fast mode
+  or a release ties it to a capability tier name.
 - **`haiku` is admissible nowhere in these lanes today, and no tier binds it.** Four grounds, each
   our reading of the source it points at; the release figures behind them are in
   [docs/upstream/haiku-5-5-launch.md](../../upstream/haiku-5-5-launch.md):
