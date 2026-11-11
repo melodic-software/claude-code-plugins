@@ -13,27 +13,23 @@ extract_gotchas() {
   local file="$1"
   [[ -f "$file" && -r "$file" ]] || return 1
   awk '
-    BEGIN { fence = 0; insec = 0 }
     {
       line = $0
       sub(/\r$/, "", line)
-      if (fence) {
-        if (line ~ /^(```+|~~~+)$/ && length(line) >= delim_len && substr(line, 1, 1) == delim_ch) {
+      if (fence || match(line, /^(```+|~~~+)/)) {
+        if (!fence) {
+          delim_ch = substr(line, 1, 1)
+          delim_len = RLENGTH
+          fence = 1
+        } else if (line ~ /^(```+|~~~+)$/ && length(line) >= delim_len && substr(line, 1, 1) == delim_ch) {
           fence = 0
         }
         if (insec) print line
         next
       }
-      if (match(line, /^(```+|~~~+)/)) {
-        delim_ch = substr(line, 1, 1)
-        delim_len = RLENGTH
-        fence = 1
-        if (insec) print line
-        next
-      }
       if (insec) {
         # ##? not #{1,2}: mawk 1.3.3 matches ERE intervals as literal text.
-        if (match(line, /^##?[[:space:]]/)) exit
+        if (line ~ /^##?[[:space:]]/) exit
         print line
         next
       }
@@ -58,7 +54,7 @@ trim_body() {
 
 emit_layer() {
   local label="$1" file="$2" body
-  body="$(extract_gotchas "$file" | trim_body)" || return 0
+  body="$(extract_gotchas "$file" | trim_body)"
   [[ -n "$body" ]] || return 0
   if [[ "$emitted" -eq 0 ]]; then
     printf '### Consumer gotchas (cascade)\n\n'
@@ -72,9 +68,7 @@ emit_layer() {
 
 emitted=0
 root="${CLAUDE_PROJECT_DIR:-}"
-if [[ -z "$root" ]]; then
-  root="$(git rev-parse --show-toplevel 2>/dev/null)" || root=""
-fi
+[[ -n "$root" ]] || root="$(git rev-parse --show-toplevel 2>/dev/null)"
 
 # Config-cascade 1.3 special-root classification: a root that is $HOME or an
 # ancestor of it, or is not inside a git working tree, has no team layer or personal override
@@ -88,20 +82,17 @@ if [[ -n "$root" && -n "${HOME:-}" ]]; then
   hp="${hp//\\//}"; hp="${hp%/}"; hp="${hp,,}"
   [[ "$hp" == "$rp" || "$hp" == "$rp"/* ]] && root=""
 fi
-if [[ -n "$root" && "$(git -C "$root" rev-parse --is-inside-work-tree 2>/dev/null)" != true ]]; then
-  root=""
-fi
+[[ -n "$root" && "$(git -C "$root" rev-parse --is-inside-work-tree 2>/dev/null)" != true ]] && root=""
 
 user="${HOME:+$HOME/.claude/bugs.md}"
 [[ -n "$user" ]] && emit_layer "user-global" "$user"
-for pair in "team:docs/conventions/bugs.md" "personal override:.claude/bugs.local.md"; do
-  [[ -n "$root" ]] || break
-  file="$root/${pair#*:}"
-  [[ -n "$user" && "$file" -ef "$user" ]] && continue
-  emit_layer "${pair%%:*}" "$file"
-done
-
-if [[ "$emitted" -eq 0 ]]; then
-  printf '(none)\n'
+if [[ -n "$root" ]]; then
+  for pair in "team:docs/conventions/bugs.md" "personal override:.claude/bugs.local.md"; do
+    file="$root/${pair#*:}"
+    [[ -n "$user" && "$file" -ef "$user" ]] && continue
+    emit_layer "${pair%%:*}" "$file"
+  done
 fi
+
+[[ "$emitted" -eq 0 ]] && printf '(none)\n'
 exit 0
