@@ -131,11 +131,7 @@ function Get-ExtensionPolicy {
             $settingsText = $settingsRead.Values['ExtensionSettings']
             $settings = $null
             if ($settingsText -is [string] -and $settingsText.Trim()) {
-                try {
-                    $settings = $settingsText | ConvertFrom-Json -AsHashtable -ErrorAction Stop
-                } catch {
-                    $settings = $null
-                }
+                $settings = try { $settingsText | ConvertFrom-Json -AsHashtable -ErrorAction Stop } catch { $null }
                 if ($settings -isnot [hashtable] -and $readState -eq 'ok') { $readState = 'error' }
             }
             $installing = if ($settings -is [hashtable]) {
