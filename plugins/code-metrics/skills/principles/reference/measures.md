@@ -112,19 +112,20 @@ finding, and this plugin emits no findings, so it has no suppression surface.
 ## Coverage, per file and per function
 
 The plugin runs no tests. It reads an artifact a test run already produced, and it never reads
-coverage.py's `.coverage` SQLite file, whose schema the project documents as changing without a
-major version bump.
+coverage.py's `.coverage` SQLite file. Each format's record shape, version and the reason the
+SQLite file is skipped are its row under "Coverage artifacts" in
+[`reference/collectors.md`](../../../reference/collectors.md).
 
 | Format | Read from | Per-function detail |
 |---|---|---|
-| lcov tracefile | `DA:` line records, `FN:`/`FNDA:` or lcov 2.2 `FNL:`/`FNA:` | function hit flag |
+| lcov tracefile | `DA:` line records and either lcov function-record shape | function hit flag |
 | Cobertura XML | `line` elements with `number` and `hits` | `method` elements where present |
-| coverage.py JSON | `coverage json` output | its own `functions` regions, 7.6.0 and later |
+| coverage.py JSON | `coverage json` output | its own `functions` regions |
 | Go cover profile | `file:start.col,end.col numstmt count` blocks | none: statement counts over line ranges, exact in total and silent about which line holds which statement |
 
-Four traps a parser has to handle, and the report is only as good as the handling. lcov 2.2 replaced
-the `FN:`/`FNDA:` pairing with index-based `FNL:`/`FNA:` records, so a parser written to the older
-shape reports zero function coverage on modern output. An lcov `BRDA:` record's taken field can be a
+Four traps a parser has to handle, and the report is only as good as the handling. lcov has two
+function-record shapes (the lcov rows of `collectors.md`), so a parser written to one reports zero
+function coverage on the other. An lcov `BRDA:` record's taken field can be a
 literal `-`, meaning the branch was never evaluated, which is not the same as zero. A Cobertura
 `condition-coverage` attribute is a display string such as `50% (1/2)` while `line-rate` on the same
 document is a 0-to-1 decimal. And two different DTDs are both called `coverage-04.dtd` with many
@@ -145,9 +146,9 @@ Two lanes produce a number, and the two numbers are different measures over diff
   by the total identifier count. It inspects resolved types, so it catches implicit and explicit
   `any` alike. It also counts `unknown` as typed, so rewriting `any` to `unknown` raises the
   percentage without adding type information.
-- **Python**, through `mypy --any-exprs-report`: counts of `Any` expressions, plus a type-checking
-  coverage report in Cobertura XML. Counts, not a ratio over the same population as the TypeScript
-  figure.
+- **Python**, through `mypy --any-exprs-report`: mypy's own Coverage column, the expressions not
+  typed `Any` divided by all expressions. A ratio over expressions, a different population from the
+  TypeScript identifier ratio.
 
 Comparing the two, or averaging them, is unsupported. C# reports `not-applicable`: no off-the-shelf
 tool produces a comparable percentage, and a `dynamic` or bare `object` occurrence count is not
@@ -155,18 +156,19 @@ comparable to a ratio. No standard and no CWE anchors any of this; see [threshol
 
 ## Where a collector differs from the textbook
 
-- **`scc` is not a cyclomatic collector.** Its complexity figure is a per-file count of substring
-  matches against a hardcoded per-language keyword list, computed without parsing. It is neither
-  per-function nor a graph measure, so the plugin uses `scc` for line counting only and never
-  surfaces its complexity number.
+- **`scc` is not a cyclomatic collector.** Its complexity figure is neither per-function nor a
+  graph measure (what it counts is the `scc` row of `collectors.md`), so the plugin uses `scc` for
+  line counting only and never surfaces its complexity number.
 - **Halstead from `multimetric` is per file.** It emits volume, difficulty, effort, time, and bugs
   for a file rather than a function, so those rows carry `function: null` and are labeled
   file-level. Python is the exception: `radon hal -j` reports the suite per function.
 - **`gocyclo` output is a text scrape.** It has no JSON mode; its only format is
   `<complexity> <package> <function> <file:line:column>` plus a template flag. The adapter parses
   that text and the row is labeled with the tool's name.
-- **`shellmetrics` values vary by the shell that runs it**, which its own documentation states. Two
-  machines can print different Bash complexity for the same script.
+- **`shellmetrics` values depend on the parser shell.** Two machines can print different Bash
+  complexity for the same script. Pointer:
+  [shellmetrics README § Usage](https://github.com/shellspec/shellmetrics#usage), as of 2026-11-10;
+  recheck when that section stops tying metric values to the shell used.
 - **ESLint-based collectors report violations, not distributions.** The core `complexity` rule and
   `sonarjs/cognitive-complexity` fire above a threshold and stay silent below it, so they are run at
   a threshold of zero to make every function report. They resolve only when the repository already
