@@ -4034,6 +4034,28 @@ def shared_copy_escalation_body(
     )
 
 
+def _inputs_head(inputs: Mapping[str, Any]) -> str:
+    """The head SHA of the policy inputs' pull request, as a string."""
+    return str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
+
+
+def _issue_comments(
+    repo: str, number: int, comments: list[dict[str, Any]] | None
+) -> list[dict[str, Any]]:
+    """`comments` when already read, else the pull request's comments."""
+    if comments is not None:
+        return comments
+    return fetch_paginated_api(
+        f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
+    )
+
+
+def _verdict_read_env() -> dict[str, str] | None:
+    """The env override that reads under the verdict reader's token, if set."""
+    token = os.environ.get(verify_evidence.TOKEN_ENV)
+    return {"GH_TOKEN": token} if token else None
+
+
 def escalate_verify(
     repo: str,
     number: int,
@@ -4042,8 +4064,7 @@ def escalate_verify(
     inputs: Mapping[str, Any],
 ) -> dict[str, Any]:
     """`escalate` for a needs-human verifier refusal."""
-    head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
-    body = verify_escalation_body(refusal, head)
+    body = verify_escalation_body(refusal, _inputs_head(inputs))
     return escalate(repo, number, identity, body, VERIFY_ESCALATION_MARKER, inputs)
 
 
@@ -4074,7 +4095,7 @@ def close_capped(
         authority=inputs.get("authority"),
     ):
         return {"closed": False, "reason": f"held: {hold}"}
-    head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
+    head = _inputs_head(inputs)
     label = human_gated_label(repo)
     owner, _, name = repo.partition("/")
     admission = postmerge._role_label(
@@ -4126,11 +4147,7 @@ def escalate(
     changes (a new head or reason). Raises `RuntimeError` on a failed write."""
     pr = json_object(inputs.get("pr"))
     # Read once here, so the lift check reuses what the upsert read.
-    comments = inputs.get("comments")
-    if comments is None:
-        comments = fetch_paginated_api(
-            f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
-        )
+    comments = _issue_comments(repo, number, inputs.get("comments"))
     comment = upsert_marker_comment(
         repo, number, identity, body, comments, marker=marker, post_changed=True
     )
@@ -4183,7 +4200,6 @@ def _lifted_by_person(
     reader's token when one is set; any failure, unreadable list or default
     branch, or unparsable time is no lift, so the label goes on. The second
     value names a read that failed, empty otherwise."""
-    token = os.environ.get(verify_evidence.TOKEN_ENV)
     try:
         prior = _newest_marker_comment(comments, identity, marker) or {}
         escalated = parse_github_timestamp(
@@ -4194,7 +4210,7 @@ def _lifted_by_person(
         timeline = fetch_paginated_api(
             f"repos/{repo}/issues/{number}/timeline?per_page=100",
             f"#{number} timeline",
-            env_overrides={"GH_TOKEN": token} if token else None,
+            env_overrides=_verdict_read_env(),
         )
         removals = [
             (at, event)
@@ -4238,13 +4254,12 @@ def _failed_merge_group_runs(repo: str, branch: str, number: int) -> list[str] |
     """The links of the pull request's failed merge_group runs among the
     repository's newest 100, newest first, or None when they cannot be read.
     Read under the verdict reader's Actions token when one is set."""
-    token = os.environ.get(verify_evidence.TOKEN_ENV)
     proc = gh_capture(
         [
             "api",
             f"repos/{repo}/actions/runs?event=merge_group&status=failure&per_page=100",
         ],
-        env_overrides={"GH_TOKEN": token} if token else None,
+        env_overrides=_verdict_read_env(),
     )
     if proc.returncode != 0:
         return None
@@ -4371,6 +4386,7 @@ def unattended_writes(
         return report
     stopped = (policy.reason or "").startswith(STOP_REFUSALS)
     risk = inputs.get("risk")
+    config = inputs.get("config")
     try:
         if stopped:
             numbers = None
@@ -4380,7 +4396,6 @@ def unattended_writes(
             # passing verifier verdict at its head now; a lanes App entry
             # whose verdict cannot be read stays for the merge queue's own
             # reader (`verify_evidence.QUEUE_READS`).
-            config = inputs.get("config")
             verifier = inputs.get("verify_reader") or (
                 verify_evidence.Reader(
                     repo,
@@ -4459,19 +4474,13 @@ def unattended_writes(
     # reasons comment would only say so on every pull request. Nor does one
     # whose author App merges it itself (`adoption.self-merging-apps`): the
     # score holds only this lane's merge, so a comment or label is noise.
-    config = inputs.get("config")
     author = json_object(json_object(inputs.get("pr")).get("user")).get("id")
     quiet = stopped or (config is not None and author in config.self_merging_apps)
     if not quiet and risk is not None and babysit_risk.holds(risk):
         head = str(json_object(inputs["pr"].get("head")).get("sha"))
         body = risk_comment_body(risk, head)
         try:
-            comments = inputs.get("comments")
-            if comments is None:
-                comments = fetch_paginated_api(
-                    f"repos/{repo}/issues/{number}/comments?per_page=100",
-                    f"#{number} comments",
-                )
+            comments = _issue_comments(repo, number, inputs.get("comments"))
             # An earlier run's reasons comment saying the same thing at this
             # head for long enough means the refusal persisted: escalate it.
             # A shorter stand may be a review still running at the head.
@@ -4587,13 +4596,14 @@ def unattended_writes(
         json_object((policy.details or {}).get("eligibility")).get("reason") or ""
     )
     if not stopped and eligibility.startswith(held):
-        head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
         try:
             report["majorEscalation"] = escalate(
                 repo,
                 number,
                 identity,
-                major_escalation_body(eligibility.removeprefix(held), head),
+                major_escalation_body(
+                    eligibility.removeprefix(held), _inputs_head(inputs)
+                ),
                 MAJOR_ESCALATION_MARKER,
                 inputs,
             )
@@ -4657,11 +4667,7 @@ def _identity_queue_entries(
         )
     except (RuntimeError, json.JSONDecodeError):
         return None
-    queue = json_object(
-        json_object(json_object(json_object(data).get("data")).get("repository")).get(
-            "mergeQueue"
-        )
-    )
+    queue = json_object(dig(data, "data", "repository", "mergeQueue"))
     entries = json_object(queue.get("entries"))
     nodes = [json_object(n) for n in json_array(entries.get("nodes"))]
     if entries.get("totalCount") != len(nodes):
@@ -4717,12 +4723,7 @@ def request_dependabot_rebase(
             "the base tip is unreadable, so nothing was asked",
         )
     try:
-        comments = inputs.get("comments")
-        if comments is None:
-            comments = fetch_paginated_api(
-                f"repos/{repo}/issues/{number}/comments?per_page=100",
-                f"#{number} comments",
-            )
+        comments = _issue_comments(repo, number, inputs.get("comments"))
         commits = fetch_paginated_api(
             f"repos/{repo}/pulls/{number}/commits?per_page=100", f"#{number} commits"
         )
@@ -4753,6 +4754,20 @@ def request_dependabot_rebase(
         )
     inputs_read["rebase"] = body.split("\n", 1)[0]
     return hold, f"{why}; the new head is enqueued once its checks pass"
+
+
+def _emit(result: dict[str, Any], code: int) -> int:
+    """Print the gate's JSON report on stdout and return its exit code."""
+    print(json.dumps(result, indent=2))
+    return code
+
+
+def _refuse_merge(result: dict[str, Any], reason: str) -> int:
+    """Report the merge as not attempted, held on `reason` (exit 10)."""
+    result["ready"] = False
+    result["blockers"].append(reason)
+    result["merge"] = {"attempted": False, "reason": reason}
+    return _emit(result, 10)
 
 
 def unattended_enqueue(
@@ -4786,8 +4801,7 @@ def unattended_enqueue(
         result["ready"] = False
         result["blockers"].append(f"{UNATTENDED_REFUSED}{reason}")
         result["merge"] = result.get("merge") or {"attempted": False, "reason": reason}
-        print(json.dumps(result, indent=2))
-        return 10
+        return _emit(result, 10)
 
     scored = str((inputs["pr"].get("head") or {}).get("sha") or "")
     if not merge_policy.SHA_RE.match(pin) or pin != scored:
@@ -4959,14 +4973,16 @@ def unattended_enqueue(
     # writer, and a merge commit fails its managed-files guard. An unreadable
     # label holds, since the stale head would fail the queue's merge.
     stale_update = inputs_read["state"] == "stale" and eligible_dependabot is None
+    stale = (
+        f"check-inputs-changed:{','.join(inputs_read['changed'])} changed on "
+        f"{branch} since merge base {inputs_read['mergeBase']}"
+        if stale_update
+        else ""
+    )
     pr = json_object(inputs["pr"])
     if stale_update and dependabot.is_dependabot_head(
         json_object(pr.get("head")).get("ref"), json_object(pr.get("user")).get("login")
     ):
-        stale = (
-            f"check-inputs-changed:{','.join(inputs_read['changed'])} changed on "
-            f"{branch} since merge base {inputs_read['mergeBase']}"
-        )
         held, why = request_dependabot_rebase(repo, number, branch, inputs_read, inputs)
         return hold(f"{held}:{stale}; {why}")
     skip = None
@@ -4981,10 +4997,6 @@ def unattended_enqueue(
     if skip:
         inputs_read.update(updated=False, updateSkipped=skip)
     elif stale_update:
-        stale = (
-            f"check-inputs-changed:{','.join(inputs_read['changed'])} changed on "
-            f"{branch} since merge base {inputs_read['mergeBase']}"
-        )
         decision = branch_update_decision(repo, number, pin)
         if decision["method"] == "hold":
             return hold(f"{stale}; the branch update is held: {decision['reason']}")
@@ -5057,8 +5069,7 @@ def unattended_enqueue(
     if pending_path is not None:
         _record_pending(pending_path, repo, number, record, pin, result)
     if not result["enqueued"]:
-        print(json.dumps(result, indent=2))
-        return 10
+        return _emit(result, 10)
     entries = _identity_queue_entries(repo, branch, identity)
     numbers = [json_object(e.get("pullRequest")).get("number") for e in entries or []]
     step["identityEntries"] = numbers
@@ -5111,8 +5122,7 @@ def unattended_enqueue(
             f"{why}; this entry could not be dequeued and may still merge -- "
             "escalate to a human"
         )
-    print(json.dumps(result, indent=2))
-    return 0
+    return _emit(result, 0)
 
 
 def build_settle(logins: Iterable[str], minutes: str) -> ReviewSettleConfig | None:
@@ -5131,9 +5141,7 @@ def build_settle(logins: Iterable[str], minutes: str) -> ReviewSettleConfig | No
     # hold nothing, which is exactly the active-looking inert configuration the
     # paired-flag rule exists to make impossible.
     settle_seconds = (
-        round(settle_minutes * 60)
-        if settle_minutes > 0 and settle_minutes != float("inf")
-        else 0
+        round(settle_minutes * 60) if 0 < settle_minutes < float("inf") else 0
     )
     if not reviewer_logins or settle_seconds < 1:
         return None
@@ -5813,8 +5821,7 @@ def _main() -> int:
             result["blockers"].insert(0, hold)
             result["autoMerge"] = {"ready": False, "blockers": [hold]}
             result["merge"] = {"attempted": False, "reason": reason or "merge pending"}
-            print(json.dumps(result, indent=2))
-            return 10
+            return _emit(result, 10)
         if prior.get("status") == "merged":
             # The recorded request landed at every evaluated head. The gate now
             # reads a merged (closed) PR, but that merge is this run's outcome.
@@ -5851,27 +5858,21 @@ def _main() -> int:
                 except postmerge.PostMergeWriteError as exc:
                     result["unattended"]["dispatched"] = False
                     result["unattended"]["dispatchError"] = str(exc)
-            print(json.dumps(result, indent=2))
-            return 10 if refused else 0
+            return _emit(result, 10 if refused else 0)
 
     if not args.merge:
-        print(json.dumps(result, indent=2))
-        return 0 if result["ready"] else 10
+        return _emit(result, 0 if result["ready"] else 10)
 
     # TOCTOU guard: never merge whatever head happens to be live at run time. The
     # worker/autopilot flow must pass the SHA it vetted; unpinned merges are an
     # explicit interactive override only.
     if not args.expected_head and not args.allow_unpinned_head:
-        reason = (
+        return _refuse_merge(
+            result,
             "--merge requires --expected-head to pin the vetted head SHA "
             "(a newer push could be CLEAN yet unvetted); pass "
-            "--allow-unpinned-head to override interactively"
+            "--allow-unpinned-head to override interactively",
         )
-        result["ready"] = False
-        result["blockers"].append(reason)
-        result["merge"] = {"attempted": False, "reason": reason}
-        print(json.dumps(result, indent=2))
-        return 10
 
     # Under --auto the AI-review holds bind a synchronous merge too.
     go = result["autoMerge"]["ready"] if args.auto else result["ready"]
@@ -5884,8 +5885,7 @@ def _main() -> int:
             unattended is not None and (unattended.inputs or {}).get("identity")
         ):
             result["aiReviewReruns"] = rerun_rate_limited_reviews(repo, result)
-        print(json.dumps(result, indent=2))
-        return 10
+        return _emit(result, 10)
     if arm_auto:
         # Consumers treat `action: merge` as a performed merge; an arm is not one.
         result["action"] = "auto-merge"
@@ -5899,8 +5899,7 @@ def _main() -> int:
     except (RuntimeError, json.JSONDecodeError) as exc:
         # A method-lookup failure is reported, not raised, so output stays JSON.
         result["error"] = f"{type(exc).__name__}: {exc}"
-        print(json.dumps(result, indent=2))
-        return 2
+        return _emit(result, 2)
 
     result["mergeMethod"] = method
     # Atomic head pin: GitHub refuses the merge unless the head still equals the
@@ -5909,12 +5908,9 @@ def _main() -> int:
     # argument, never this pin.
     pin = result.get("headRefOid")
     if not isinstance(pin, str) or not pin:
-        reason = "the gate read no head SHA to pin the merge to -- held"
-        result["ready"] = False
-        result["blockers"].append(reason)
-        result["merge"] = {"attempted": False, "reason": reason}
-        print(json.dumps(result, indent=2))
-        return 10
+        return _refuse_merge(
+            result, "the gate read no head SHA to pin the merge to -- held"
+        )
 
     # A ready PR merges through the async merge API: REST (so it works where
     # GraphQL is refused) and GitHub's required API for merging any stacked PR,
@@ -5935,11 +5931,7 @@ def _main() -> int:
             if queue:
                 result["action"] = "enqueue"
             if stack_lands and (drift := stack_drift(repo, number, result)):
-                result["ready"] = False
-                result["blockers"].append(drift)
-                result["merge"] = {"attempted": False, "reason": drift}
-                print(json.dumps(result, indent=2))
-                return 10
+                return _refuse_merge(result, drift)
             record = async_merge(
                 repo,
                 number,
@@ -5979,8 +5971,7 @@ def _main() -> int:
                         exit_code = 10
                 if pending_path is not None:
                     _record_pending(pending_path, repo, number, record, pin, result)
-                print(json.dumps(result, indent=2))
-                return exit_code
+                return _emit(result, exit_code)
             result["asyncFallback"] = (
                 "the async merge endpoint returned 404 on this host; merged with "
                 "gh pr merge instead"
@@ -6000,10 +5991,9 @@ def _main() -> int:
     }
     result["merged"] = proc.returncode == 0 and not arm_auto
     result["autoMergeEnabled"] = proc.returncode == 0 and arm_auto
-    exit_code = 0 if proc.returncode == 0 else 10
+    exit_code = 10
     if proc.returncode == 0:
-        queue = read_merge_queue(repo, number)
-        exit_code = report_queue_routing(result, queue)
+        exit_code = report_queue_routing(result, read_merge_queue(repo, number))
         unconfirmed = bool(json_object(result.get("mergeQueue")).get("unconfirmed"))
         if pending_path is not None and (result.get("enqueued") or unconfirmed):
             _write_pending(
@@ -6017,8 +6007,7 @@ def _main() -> int:
                 "; without --state-dir nothing is recorded, so a later run cannot "
                 "confirm it"
             )
-    print(json.dumps(result, indent=2))
-    return exit_code
+    return _emit(result, exit_code)
 
 
 if __name__ == "__main__":
