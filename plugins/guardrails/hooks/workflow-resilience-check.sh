@@ -63,11 +63,8 @@ hook::buffer_stdin_to INPUT || exit 0
 # (additionalContext), once per session and agent — see docs/contracts/hook-observability/.
 hook::require jq "PreToolUse" guardrails "$INPUT"
 
-# Both payload fields in ONE jq process (hook::jq_fields), not two — a jq spawn is
-# fork() emulation on Windows Git Bash. Failure semantics are unchanged: a missing
-# jq or an unparsable payload yields rc 1 here, which exits 0 exactly as the
-# empty-SCRIPT skip below did (both fields would have come back empty, and the
-# scriptPath fallback needs a non-empty SCRIPT_PATH to do anything) —
+# Both payload fields in ONE jq process (hook::jq_fields): a jq spawn is fork()
+# emulation on Windows Git Bash. A missing jq or an unparsable payload exits 0;
 # hook::require jq above has already made the degraded state visible once per
 # session and agent.
 hook::jq_fields "$INPUT" '.tool_input.script' '.tool_input.scriptPath' || exit 0
@@ -97,7 +94,8 @@ emit_tel() {
   hook::emit_telemetry "workflow-resilience-check" "PreToolUse" "ok" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
-# Does the script fan out at all? No fan-out → no burst risk → checked, clean.
+# No fan-out (no burst risk), or a fan-out that already applies a throttle
+# helper or a retry wrapper → checked, clean.
 #
 # Both greps below take $SCRIPT through PROCESS SUBSTITUTION, never `<<<`. An
 # inline Workflow `script:` (or a scriptPath file read above) is unbounded
@@ -107,15 +105,9 @@ emit_tel() {
 # a hang still wedges the Workflow call until the harness cancels at the hook
 # timeout. `printf | grep -q` is not the alternative: `grep -q` early-exits and
 # SIGPIPEs printf, and under the `set -uo pipefail` above the pipeline reports
-# 141 — which the `if !` here would read as "no fan-out".
-if ! grep -qE 'parallel\(|pipeline\(' < <(printf '%s' "$SCRIPT"); then
-  emit_tel '[]'
-  exit 0
-fi
-
-# Already applies a throttle helper or a retry wrapper → author has the
-# resilience primitives; checked, clean.
-if grep -qE 'inWaves|inWavesPipeline|agentRetry' < <(printf '%s' "$SCRIPT"); then
+# 141 — which the `!` here would read as "no fan-out".
+if ! grep -qE 'parallel\(|pipeline\(' < <(printf '%s' "$SCRIPT") ||
+  grep -qE 'inWaves|inWavesPipeline|agentRetry' < <(printf '%s' "$SCRIPT"); then
   emit_tel '[]'
   exit 0
 fi

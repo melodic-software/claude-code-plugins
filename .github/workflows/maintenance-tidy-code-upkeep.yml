@@ -1101,7 +1101,9 @@ jobs:
     # The scan-carrier key's third holder (owner decision, 2026-11-03, #12475):
     # main only, no id-token, no write token, read-only cache, no model; the
     # environment admits main only.
-    environment: pr-pipeline-scan-carrier
+    environment:
+      name: pr-pipeline-scan-carrier
+      deployment: false
     permissions:
       contents: read # check out main
     outputs:
