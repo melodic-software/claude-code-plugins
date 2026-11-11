@@ -1,0 +1,57 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "recommends only; no tool calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "planning:interview"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "PLAN.md"
+          }
+        }
+      ],
+      "why": "loads the interview skill and reads the Brief, never starts the document surface"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "planning:interview",
+            "args": "document retention-window"
+          }
+        }
+      ],
+      "why": "wrong scope: starts the document surface itself instead of recommending it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "planning:interview"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "planning:interview",
+            "args": "questionnaire Dana: retention window"
+          }
+        }
+      ],
+      "why": "wrong scope: hands the question to the document surface on the user's behalf"
+    }
+  ]
+}

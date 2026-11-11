@@ -118,6 +118,20 @@ test('every surface the offer line names can be asked for by that name', async (
   }
 })
 
+test('the document surface is picked by "document" or "questionnaire" and never offered beside the others', async () => {
+  const { env } = emptyProject()
+  for (const word of ['document', 'questionnaire', 'Questionnaire']) {
+    const r = await resolveSurface({ argument: word, userConfig: { surface: UNSET }, env, context: NONE })
+    assert.deepEqual([r.surface, r.decidedBy, r.available.ok], ['document', 'argument', true], word)
+    assert.deepEqual(r.read, ['skills/interview/context/lane-document.md', 'skills/interview/context/question-shape.md'])
+  }
+  const unset = await resolveSurface({ userConfig: { surface: UNSET }, env, context: ALL })
+  assert.ok(!unset.alternatives.includes('document'), 'not an alternative')
+  assert.doesNotMatch(unset.line, /\bdocument\b/, 'not named in the offer line')
+  const onPage = await resolveSurface({ argument: 'page', env, context: ALL })
+  assert.ok(!onPage.alternatives.includes('document'))
+})
+
 test('the shared session needs the owner\'s yes unless the user asked for it', async () => {
   const { env } = emptyProject()
   const asked = await resolveSurface({ argument: 'share', env, context: ALL })

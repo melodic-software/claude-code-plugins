@@ -2,12 +2,11 @@
   "skill": "planning:interview",
   "plugin": "planning",
   "skill_dir": "plugins/planning/skills/interview",
-  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are prd (product intent), plan, brainstorm (no scope yet), questionnaire (someone else answers), wayfind (too big for one session), and audit-answers.",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are prd (product intent), plan, brainstorm (no scope yet), wayfind (too big for one session), and audit-answers. Its doc-* queries cover the document surface: a decision another person answers.",
   "competitors": [
     "planning:prd",
     "planning:plan",
     "planning:brainstorm",
-    "planning:questionnaire",
     "planning:wayfind",
     "planning:audit-answers"
   ],
@@ -97,12 +96,6 @@
       "request": "Have agents validate the answers in my interview file."
     },
     {
-      "id": "neg-train-04",
-      "split": "train",
-      "expect_trigger": false,
-      "request": "I need to send questions to our DBA about the schema change."
-    },
-    {
       "id": "neg-val-01",
       "split": "validation",
       "expect_trigger": false,
@@ -119,6 +112,84 @@
       "split": "validation",
       "expect_trigger": false,
       "request": "Fix the typo in the README."
+    },
+    {
+      "id": "doc-pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I can't answer the retention questions; legal has to. Write something I can send them."
+    },
+    {
+      "id": "doc-pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Put together a list of questions for our DBA about the partitioning plan that she can fill in later."
+    },
+    {
+      "id": "doc-pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The client owns this call. Make me a doc they can answer async."
+    },
+    {
+      "id": "doc-pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Draft questions for the security team about storing tokens in the browser."
+    },
+    {
+      "id": "doc-pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our vendor needs to tell us their rate limits and SLA. Make a form-style doc for them."
+    },
+    {
+      "id": "doc-pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I need to send questions to our DBA about the schema change."
+    },
+    {
+      "id": "doc-pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "No idea on that one, finance owns it. Can you write it up for them?"
+    },
+    {
+      "id": "doc-pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Write questions I can email to the client about which payment providers they need."
+    },
+    {
+      "id": "doc-pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The infra team has to weigh in on this. Prepare something they can respond to."
+    },
+    {
+      "id": "doc-pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Package these open decisions so the compliance officer can answer them without a meeting."
+    },
+    {
+      "id": "doc-neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "File an issue for the token storage bug."
+    },
+    {
+      "id": "doc-neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Save a checkpoint so I can pick this up after lunch."
+    },
+    {
+      "id": "doc-neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Research what PCI DSS says about storing card tokens."
     }
   ]
 }
