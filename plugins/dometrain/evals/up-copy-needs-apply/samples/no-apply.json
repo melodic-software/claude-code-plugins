@@ -1,0 +1,94 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/p/skills/update/scripts/update.sh\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "report mode"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n -- --apply \"/opt/p/skills/update/scripts/update.sh\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "greps for the flag"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/p/skills/update/scripts/update.sh\"; grep -c -- --apply /opt/p/skills/update/context/update.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "flag text in a later command only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/p/skills/update/scripts/update.sh\" --apply",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "refresh"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /opt/p/skills/update && ./scripts/update.sh --apply 2>&1",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "relative path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \\\"/opt/p/skills/update/scripts/update.sh\\\" --apply",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "escaped quotes"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash plugins/dometrain/skills/update/scripts/update.sh --apply",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the clone-relative form context/update.md gives"
+    }
+  ]
+}

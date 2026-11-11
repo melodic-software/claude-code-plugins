@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.20] - 2026-11-11
+
+### Changed
+
+- The setup skill points at the permissions sections for what `Read` deny rules cover and how their patterns match, and the config-hook reference points at git's conditional includes for worktree matching and names all three entries that keep the local and shared scopes. No behavior change.
+
 ## [3.0.19] - 2026-11-11
 
 ### Changed

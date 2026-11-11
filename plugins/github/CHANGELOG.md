@@ -3,6 +3,12 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.3] - 2026-11-11
+
+### Changed
+
+- The advise and audit skills point at the `gh api` options section for which flags write, instead of restating them with a pinned `gh` version. No behavior change.
+
 ## [0.5.2] - 2026-11-04
 
 ### Changed

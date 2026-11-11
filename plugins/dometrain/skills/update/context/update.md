@@ -1,0 +1,79 @@
+# Update / drift protocol
+
+This skill tracks one upstream dependency: **Dometrain's own `dometrain-grounding` skill
+content** (`https://raw.githubusercontent.com/Dometrain/mcp/master/skills/dometrain-grounding/SKILL.md`).
+
+It is not consumed verbatim as a live skill. This plugin's `grounding/` skill owns its own
+usage surface. Upstream is advisory: watch for changes, evaluate, port anything worth keeping.
+
+## The check action
+
+```bash
+# Report drift (no changes made) — the default mode of /dometrain:update
+bash "<skill-dir>/scripts/update.sh" --check
+```
+
+The script does three things:
+
+1. **Fetch** pulls `skills/dometrain-grounding/SKILL.md` from `Dometrain/mcp` master.
+2. **Diff** compares current upstream against `vendor/SKILL.md` (the plugin's baseline),
+   stripping the baseline's own attribution comment first since upstream never carries it.
+3. **Report** prints "no drift" or the diff as "what Dometrain changed since the last review."
+
+**The script does NOT auto-write changes into `grounding/SKILL.md`.** Dometrain's own prose
+style, frontmatter shape, and structure differ from this plugin's conventions and would clobber
+this plugin's additions (the standing untrusted-data instruction, this plugin's own
+frontmatter). The human in the loop decides what to port.
+
+## Roles: consumer vs plugin maintainer
+
+- **Consumers** run `/dometrain:update` (`--check`, the default) for report-only drift visibility. A drift finding is input
+  for an issue or PR against this plugin's marketplace repository. Do not patch the installed
+  copy, which is an ephemeral cache overwritten on plugin update.
+- **Plugin maintainers** port upstream changes in a working clone of the marketplace repository
+  (using the `--plugin-dir` local development loop), then refresh the baseline there, from the
+  clone root and by the clone-relative path (`${CLAUDE_PLUGIN_ROOT}` resolves to the installed
+  plugin cache in a normal session, which is exactly where this must not run):
+
+  ```bash
+  bash plugins/dometrain/skills/update/scripts/update.sh --apply
+  ```
+
+  `/dometrain:update --apply` runs the same command when the session loads the plugin from that
+  clone (`--plugin-dir`).
+
+  **`UPSTREAM_URL` tracks `master`, not a pinned commit.** A pinned URL makes `check` compare the
+  baseline against the same frozen commit forever, so `/dometrain:update` can never detect real drift
+  once Dometrain's `master` moves. The integrity gate is the human diff review a maintainer performs
+  before choosing to run `--apply`; a URL pin adds ceremony without adding protection
+  beyond that.
+
+  This overwrites `vendor/SKILL.md` with current upstream (re-add the attribution comment
+  afterward, since `--apply` writes raw upstream content, which never carries it) and
+  stamps `synced:` in `grounding/SKILL.md`'s frontmatter. It writes next to the script itself,
+  so run it only in a working clone, never in the installed plugin cache. The skill is
+  `disable-model-invocation`, so `--apply` runs only when a maintainer types it.
+
+## What to preserve when integrating upstream changes
+
+When porting upstream additions, **keep** this plugin's customizations:
+
+| Customization | Where it lives | Why |
+|---|---|---|
+| Frontmatter shape | `grounding/SKILL.md` | Plugin conventions (`user-invocable`, `argument-hint`, `disable-model-invocation`, `metadata`) |
+| The `grounding`/`update` skill split | Both skills | `/dometrain:update` must stay non-model-reachable |
+| Standing untrusted-data instruction | `grounding/SKILL.md` | Prompt-injection defense this plugin adds; upstream's own skill doesn't carry it |
+| Tool-source pointer | `grounding/SKILL.md`, README | Names the user-scope `dometrain` server as the way to get the tools, absent from upstream's bundled server |
+
+What to **adopt** from upstream (when present):
+
+- New tools, or new topic coverage in the "When to consult Dometrain" catalog
+- New citation or quota-etiquette conventions
+- New error-handling or quota messages
+
+## Escalation
+
+A substantive behavioral change means a new tool, a new auth model, or a new quota policy. When
+the drift check surfaces one, research primary sources (Dometrain's README, release notes, the
+MCP server card) before porting. Upstream's `SKILL.md` is not a changelog. It reflects the
+current state only.

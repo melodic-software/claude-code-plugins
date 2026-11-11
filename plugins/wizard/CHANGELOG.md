@@ -3,6 +3,18 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.5] - 2026-11-11
+
+### Fixed
+
+- `ask_secret` warns when an answer reaches the terminal's line limit (4,095 bytes on Linux, 1,023 on macOS; past it a pasted line is cut with no error) and offers to read the whole value from a file path. Enter keeps the pasted value; an unreadable file, or one holding more than one line, aborts. Before, a long one-line secret such as a signing key or JWT could be saved cut off with no warning.
+
+## [0.8.4] - 2026-11-11
+
+### Changed
+
+- The unattended skill's WSL, SecretStore and keychain records point at the release notes, section-anchored PowerShell pages and man pages instead of quoting them and pinning module versions. No behavior change.
+
 ## [0.8.3] - 2026-11-10
 
 ### Changed

@@ -24,7 +24,7 @@
       "for": [
         "hook:pr-body-linkage-gate.sh",
         "hook:pr-linkage-mcp-gate.sh",
-        "hook:worktree-add-claim-gate.sh",
+        "hook:worktree-add-claim.sh",
         "hook:worktree-add-containment-gate.sh",
         "hook:worktree-create-gate.sh",
         "hook:worktree-remove-gate.sh"
@@ -107,7 +107,7 @@
       "need": "required",
       "for": [
         "hook:pr-body-linkage-gate.sh",
-        "hook:worktree-add-claim-gate.sh",
+        "hook:worktree-add-claim.sh",
         "hook:worktree-add-containment-gate.sh"
       ],
       "detect": {
@@ -122,7 +122,7 @@
           "min": "3.14.1"
         }
       },
-      "degrade": "With shfmt missing, pr-body-linkage-gate.sh and worktree-add-containment-gate.sh deny the commands they read, and worktree-add-claim-gate.sh, which runs after the command, leaves it unclaimed; a shfmt older than v3.14.1 may read commands differently.",
+      "degrade": "With shfmt missing, pr-body-linkage-gate.sh and worktree-add-containment-gate.sh deny the commands they read, and worktree-add-claim.sh, which runs after the command, leaves it unclaimed; a shfmt older than v3.14.1 may read commands differently.",
       "install": {
         "docs": "https://github.com/mvdan/sh#shfmt"
       }
