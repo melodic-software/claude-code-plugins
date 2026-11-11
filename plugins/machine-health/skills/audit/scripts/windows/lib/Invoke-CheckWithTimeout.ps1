@@ -33,27 +33,28 @@ function Invoke-CheckWithTimeout {
     } -ArgumentList $ScriptPath, $Arguments, $env:PSModulePath
     $completed = Wait-Job -Job $job -Timeout $TimeoutSec
     $jobSw.Stop()
+    $elapsedMs = [int]$jobSw.ElapsedMilliseconds
     if (-not $completed) {
         Stop-Job -Job $job -ErrorAction SilentlyContinue | Out-Null
         Remove-Job -Job $job -Force -ErrorAction SilentlyContinue | Out-Null
-        return @{ ok = $false; reason = 'timeout'; elapsed_ms = [int]$jobSw.ElapsedMilliseconds }
+        return @{ ok = $false; reason = 'timeout'; elapsed_ms = $elapsedMs }
     }
     $outputLines = Receive-Job -Job $job -ErrorAction SilentlyContinue
     Remove-Job -Job $job -Force -ErrorAction SilentlyContinue | Out-Null
     $joined = ($outputLines | Where-Object { $_ }) -join "`n"
     if ([string]::IsNullOrWhiteSpace($joined)) {
-        return @{ ok = $false; reason = 'no_output'; elapsed_ms = [int]$jobSw.ElapsedMilliseconds }
+        return @{ ok = $false; reason = 'no_output'; elapsed_ms = $elapsedMs }
     }
     try {
         $parsed = $joined | ConvertFrom-Json -ErrorAction Stop
-        return @{ ok = $true; result = $parsed; elapsed_ms = [int]$jobSw.ElapsedMilliseconds }
+        return @{ ok = $true; result = $parsed; elapsed_ms = $elapsedMs }
     } catch {
         return @{
             ok         = $false
             reason     = 'invalid_json'
             raw_output = $joined
             error      = $_.Exception.Message
-            elapsed_ms = [int]$jobSw.ElapsedMilliseconds
+            elapsed_ms = $elapsedMs
         }
     }
 }

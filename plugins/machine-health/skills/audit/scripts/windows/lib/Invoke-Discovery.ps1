@@ -47,8 +47,7 @@ function Invoke-Discovery {
 
     foreach ($probe in $ProbeResults) {
         if ($proposals.Count -ge $MaxProposals) { break }
-        if (-not $probe.PSObject.Properties['detected']) { continue }
-        if (-not $probe.detected) { continue }
+        if (-not $probe.PSObject.Properties['detected'] -or -not $probe.detected) { continue }
         if (-not $probe.PSObject.Properties['suggested_check_id']) { continue }
         if ($existingIds.ContainsKey($probe.suggested_check_id)) { continue }
 
