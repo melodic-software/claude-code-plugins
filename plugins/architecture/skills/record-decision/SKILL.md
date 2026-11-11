@@ -151,9 +151,10 @@ A changed decision gets a new record, never an amendment inside the accepted one
 is edited in place only to rename a term or to set its status.
 
 **Partial reversal.** When the new decision reverses only part of a record, keep the old file
-whatever `adr_retirement` says. After the same yes as step 1, set its status to superseded in part
-by the new identifier, naming the part, in the words and form the existing records use; edit only
-that status, and skip steps 2 and 3. When the records carry no such wording, say so and ask for it.
+whatever `adr_retirement` says, and in place of steps 1 to 3: after writing the new record, name the
+old one and the superseded-in-part status you will set, naming the part, in the words and form the
+existing records use. Ask. On a yes, edit only that status; on a no, leave it and say so. When the
+records carry no such wording, say so and ask for it.
 
 1. After writing the new record, name the old one, the resolved `adr_retirement` and its layer, and
    what that will do to the old file. Ask. Act only on a yes; on a no, leave it and say so. Done
