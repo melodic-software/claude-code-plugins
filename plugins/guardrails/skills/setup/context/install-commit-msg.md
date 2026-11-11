@@ -4,7 +4,8 @@ Installs the `commit-msg-convention` entry once for the user, as a git config ho
 under an `includeIf` the operator chooses. It then covers every clone and linked worktree the
 condition matches, and runs beside lefthook, husky, the pre-commit framework or a
 `core.hooksPath` setup, with no edit to any repository. Only the `commit-msg` entry installs
-this way; `pre-commit-content` and `reference-verify` keep the `local` and `shared` scopes.
+this way; `pre-commit-content`, `pre-push-content` and `reference-verify` keep the `local` and
+`shared` scopes.
 
 **Git floor: 2.54.** The installer's floor is 2.54. Below it, `config-hook` returns `git-too-old`
 and `verify` does not count the hook block: treat the hook as not running there. Pointer:
@@ -26,11 +27,11 @@ git release that changes the `hook.<name>.*` keys.
 
 1. **Condition.** Ask the operator which repositories the hook covers, as an `includeIf`
    condition: `gitdir:~/work/` covers every repository under `~/work/`, and its linked worktrees
-   too, since `gitdir` matches a worktree's git directory inside its main repository. Use
-   `gitdir/i:` on Windows. `config-hook` refuses `worktree:` and `worktree/i:` on a git older than
-   its worktree floor; use `gitdir:` there. Pointer:
-   <https://git-scm.com/docs/git-config#_conditional_includes>, as of 2026-10-29; recheck trigger:
-   a git release that changes the `includeIf` keywords. When nobody can answer, stop and report:
+   too. Use `gitdir/i:` on Windows. `config-hook` refuses `worktree:` and `worktree/i:` on a git
+   older than its worktree floor; use `gitdir:` there. Pointer (how each keyword matches, linked
+   worktrees included):
+   <https://git-scm.com/docs/git-config#_conditional_includes>, as of 2026-11-10; recheck trigger:
+   a git release that changes the `includeIf` keywords or what `gitdir` matches for a worktree. When nobody can answer, stop and report:
    never pick a condition.
 2. **Install.** Run `node "<installer>" config-hook --include-if '<condition>'` from a
    repository, `<installer>` being the `install.mjs` path the SKILL.md install steps run. It writes the stable copy and the include file

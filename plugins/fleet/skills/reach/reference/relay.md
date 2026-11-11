@@ -88,14 +88,13 @@ claude -p -n <name> --settings '{"crossSessionInbound":"accept"}' "<standing ins
 ```
 
 - Without `crossSessionInbound: accept`, a `-p` turn does not take messages unattended: it cannot
-  show the approval dialog, so a message the default holds waits for `dialogExpiry` (five minutes
-  unless set) and is then dropped. An interactive session in default or auto mode delivers by
-  default and needs no setting, except that it holds a message from a sender that identifies itself
-  as bypassing permission prompts.
+  show the approval dialog, so a message the default holds expires undelivered. How long a held
+  message waits, and which interactive sessions deliver without the setting, are in the sections
+  below.
   - **Pointer**: [Control inbound messages](https://code.claude.com/docs/en/cross-session-messaging#control-inbound-messages)
     and [Non-interactive sessions](https://code.claude.com/docs/en/cross-session-messaging#non-interactive-sessions)
     fetched live.
-  - **As of**: 2026-10-18
+  - **As of**: 2026-11-10
   - **Recheck trigger**: either section changes the default for a held message, the `dialogExpiry`
     default, or what `crossSessionInbound` accepts.
 - Its standing instructions say what to do with each message and when to stop.
@@ -114,7 +113,8 @@ claude -p -n <name> --settings '{"crossSessionInbound":"accept"}' "<standing ins
     live.
   - **As of**: 2026-11-04
   - **Recheck trigger**: that section changes what keeps a `-p` run open after its turn.
-- Do not start it with `--bare`: a bare session binds no inbox socket and receives nothing.
+- Do not start it with `--bare`: a bare session receives nothing (the pointer is beside the hub's
+  `--bare` bullet).
 
 ## Multi-turn and the open pipe
 
@@ -169,32 +169,32 @@ For a session that outlives the hop, the target lane's own supervisor hosts it:
     [CLI reference: CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) live.
   - **As of**: 2026-10-10
   - **Recheck trigger**: the `claude logs` or `claude attach` row changes.
-- `--bg` cannot be combined with `-p`. A running background session binds an inbox socket, so a
-  later relay turn in that lane can list and message it. `claude --resume <id> --bg "<prompt>"`
+- Never combine `--bg` with `-p`. A later relay turn in that lane can list and message a running
+  background session. `claude --resume <id> --bg "<prompt>"`
   continues a finished one.
 - `claude --bg --exec '<cmd>'` runs a shell job the same way, for a script that must survive the
   hop. Untested.
-- Agent view is a research preview, and its background sessions run on the local machine and stop
-  if it shuts down.
+- Read agent view's limits before relying on a background session to stay up.
   - **Pointer**: [Agent view: Limitations](https://code.claude.com/docs/en/agent-view#limitations),
     fetched live.
-  - **As of**: 2026-10-18
+  - **As of**: 2026-11-10
   - **Recheck trigger**: that section drops the research-preview label or changes its limits, or a
     release note names `--bg` or `claude agents`.
 
 ## Mechanisms not used here
 
 Each fails the fleet's per-lane account split or needs a human; see the linked page before
-reconsidering one. As of 2026-10-11 (first fetched 2026-09-29 against 2.1.284); recheck when a
-release note names the mechanism or a linked section changes.
+reconsidering one. As of 2026-11-10; recheck when a release note names the mechanism or a linked
+section changes.
 
-- **Remote Control and cross-machine `SendMessage`**: same claude.ai account only, and
-  interactive only: `claude -p --remote-control` does not connect (the flag takes the next word as
-  a session name, and the turn shows no bridge event).
+- **Remote Control and cross-machine `SendMessage`**: fails the account split. In our probe
+  `claude -p --remote-control` did not connect (the flag took the next word as a session name, and
+  the turn showed no bridge event).
   <https://code.claude.com/docs/en/cross-session-messaging#message-sessions-on-other-machines>
-- **Cloud sessions** (`claude -p "<msg>" --cloud <id>`): same account, and no CLI read-back of the
-  reply. <https://code.claude.com/docs/en/claude-code-on-the-web#send-follow-ups-from-the-cli>
-- **Channels**: research preview, and a custom channel needs a human to confirm it at launch.
+- **Cloud sessions** (`claude -p "<msg>" --cloud <id>`): fails the account split, and the reply
+  cannot be read back from the CLI.
+  <https://code.claude.com/docs/en/claude-code-on-the-web#send-follow-ups-from-the-cli>
+- **Channels**: needs a human at launch.
   <https://code.claude.com/docs/en/channels#research-preview>
 - **The inbox socket from a script**: we do not script against it, since we found no documented
   message format. <https://code.claude.com/docs/en/cross-session-messaging#the-sessions-inbox-socket>
@@ -234,7 +234,7 @@ credential through a prompt or a copy.
 ## Verified behavior
 
 Claim: the per-lane account model and the route results below. Basis: live probes between
-melo-desk-001 and melo-lap-001, each lane on its own claude.ai sign-in. As of 2026-09-29, Claude
+a desktop and a laptop, each lane on its own claude.ai sign-in. As of 2026-09-29, Claude
 Code 2.1.284. Recheck when a Claude Code release note touches `ListAgents`, `SendMessage`, Remote
 Control session listing, `crossSessionInbound` or `-n`/`--name`, or when a route below fails its
 hop check.

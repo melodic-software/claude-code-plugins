@@ -50,8 +50,10 @@ the principle it claims to serve, per the
 
 1. **Conceptual queries** → `search_dometrain(query, tech?, max_results?)` with a
    natural-language description of what you are implementing (e.g. "validate JWT tokens in
-   ASP.NET Core minimal APIs"). Ranking is hybrid keyword + semantic, so phrase the query
-   naturally rather than keyword-stuffing. Results are ranked lesson excerpts; a note tells you
+   ASP.NET Core minimal APIs"). Phrase the query naturally rather than keyword-stuffing (how
+   results are ranked: the server README's [Tools](https://github.com/Dometrain/mcp#tools)
+   section; as of 2026-11-10; recheck when `/dometrain:sync` reports drift or that section
+   changes how search ranks). Results are ranked lesson excerpts; a note tells you
    when hits are partial-term or semantically related rather than exact keyword matches.
 2. **Code-shaped queries** → `search_code(query, language?, max_results?)` with an identifier,
    API name, or short code fragment (e.g. `AddAuthentication`, `IAsyncEnumerable`). Returns the
@@ -79,15 +81,17 @@ user can tell course-grounded guidance from your own.
 
 ## Quota etiquette
 
-Requests are limited per calendar month per account (all keys share the pool) with a short
-per-minute burst cap; the exact figures live in the consumer's own Dometrain dashboard, not
-here (they change independently of this plugin).
+Requests are quota-limited. How the quota is pooled and capped: the server README's
+[Notes](https://github.com/Dometrain/mcp#notes) section; what a `429` carries:
+[Troubleshooting](https://github.com/Dometrain/mcp#troubleshooting). The exact figures live in
+the consumer's own Dometrain dashboard, not here (they change independently of this plugin).
+As of 2026-11-10; recheck when `/dometrain:sync` reports drift or either section changes.
 
 - Do not repeat an identical search in the same session. Reuse what you already fetched.
 - Prefer one `get_lesson` over re-searching for more snippets of the same lesson.
-- Responses include a `quota_note` once ≥90% of the monthly quota is used; slow down when you see
-  it. On a `429`, the response carries the reset date. Call `get_usage()` if the user asks where
-  they stand, and do not retry until reset (burst-cap `429`s can be retried after a short pause).
+- Slow down when a response carries a `quota_note`. Call `get_usage()` if the user asks where
+  they stand. After a monthly-quota `429`, do not retry until reset (burst-cap `429`s can be
+  retried after a short pause).
 
 ## Boundaries
 
