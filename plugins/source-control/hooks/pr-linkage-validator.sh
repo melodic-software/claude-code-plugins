@@ -16,26 +16,15 @@
 # UNICODE_SPACES normalization is a locale-independent verdict. See the LOCALE
 # note in either consuming hook.
 #
-# Function names are kept exactly as they were when these lived inline in
-# pr-body-linkage-gate.sh (unprefixed), so its annotated history still reads;
-# only the aggregate verdict added with the extraction is namespaced. The `_to`
-# suffix each helper now carries is the one deliberate departure — see PROCESS
-# BUDGET below for why the stdout form had to go.
+# PROCESS BUDGET — every `_to` helper writes into a caller-named variable
+# instead of onto stdout, and lines are split in-shell: GNU Bash forks a
+# subshell for `$(f)` even when `f` is pure builtins, and another for
+# `< <(printf …)`, and on Windows Git Bash each fork is a process.
+# pr-linkage-spawn-budget.test.sh fences it. The `local __plv_dest="$1"` shape
+# follows hook-utils.sh's out-variable convention (no namerefs, Bash 3.2-safe).
 #
-# PROCESS BUDGET (#3509) — every helper here writes into a caller-named variable
-# instead of onto stdout. GNU Bash forks a subshell for `$(f)` even when `f` is
-# pure builtins, and forks a second for `< <(printf …)`. Measured with
-# `strace -f -e trace=clone,clone3,fork,vfork,execve`, the stdout form of these
-# four helpers cost `linkage::problems` 12 forks per judged body and zero extra
-# `execve` — pure process-creation latency, which is the whole cost on the host
-# that filed #3509 (0.3-0.9 s per spawn there, against ~3-5 ms here). `printf -v`
-# and an in-shell line split cost neither a fork nor an exec. The
-# `local __plv_dest="$1"` shape follows hook-utils.sh's own out-variable
-# convention and stays Bash 3.2-safe (no namerefs).
-#
-# TRAILING-NEWLINE CONTRACT — `$(f)` strips EVERY trailing newline from what `f`
-# printed, so a `_to` helper must strip them itself to stay verdict-identical to
-# the stdout form it replaced. `linkage::chomp_to` is that strip, spelled once;
+# TRAILING-NEWLINE CONTRACT — a `_to` helper strips trailing newlines from its
+# result, as `$(f)` would; `linkage::chomp_to` is that strip, spelled once.
 # `section_content_to` needs none, because trimming already removes trailing
 # whitespace.
 #
@@ -289,9 +278,8 @@ scan_linkage() {
 # so a nested `### …` subsection is content — a naive "next line starting with
 # #" reading would call such a section empty.
 #
-# Each line is trimmed through `trim_to`, which writes with `printf -v`: the
-# stdout `trim` it replaced forked, and one fork per body line put a 1000-line
-# body past this hook's own declared timeout.
+# Each line is trimmed through `trim_to`, never a forking `$(trim …)`: one fork
+# per line puts a 1000-line body past the hook's timeout.
 #
 # <dest> is cleared before the heading search, so the not-found return leaves it
 # empty rather than holding whatever the caller had there.
