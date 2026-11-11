@@ -797,8 +797,9 @@ def pull_reads(fake: FakeGitHub) -> list[str]:
 
 class ABranchTieToAFinishedPullRequestDoesNotHold(unittest.TestCase):
     """Every release pull request reuses one head branch, so a FAIL that ties
-    to PR 41 only by recording its head branch holds while the pull request
-    it judged is open, and stops holding once that one merged or closed."""
+    to PR 41 only by recording its head branch holds until the pull request
+    it judged merged. A closed, unmerged one's FAIL still holds, or closing
+    it and reopening on the branch would re-roll the verifier."""
 
     @staticmethod
     def branch_fail(number: int = 99, **pull: Any) -> FakeGitHub:
@@ -815,9 +816,9 @@ class ABranchTieToAFinishedPullRequestDoesNotHold(unittest.TestCase):
         self.assertIsNone(read(fake).refusal, "a merged #99's FAIL held")
         self.assertEqual(pull_reads(fake), [f"repos/{REPO}/pulls/99"])
 
-    def test_a_fail_of_a_closed_pull_request_does_not_hold(self) -> None:
+    def test_a_fail_of_a_closed_unmerged_pull_request_holds(self) -> None:
         fake = self.branch_fail(state="closed")
-        self.assertIsNone(read(fake).refusal, "a closed #99's FAIL held")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
     def test_a_fail_of_an_open_pull_request_holds(self) -> None:
         fake = self.branch_fail(state="open")

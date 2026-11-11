@@ -50,7 +50,7 @@ failed read, a list cut short or no such run keeps the FAIL.
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch (read
   from the name's digest, else from its verdict.json) for a pull request that
-  is not merged or closed (`_finished`; a state that cannot be read counts):
+  is not merged (`_finished`; a state that cannot be read counts):
   `verify:earlier-fail`. Counted PASS or PASS-NOTES verdicts at the
   head whose runs were all created after every such FAIL's run (each
   creation time read fresh from GitHub, which a re-attempt keeps; a missing
@@ -3779,14 +3779,16 @@ class Reader:
 
     def _finished(self, number: int) -> bool:
         """Whether pull request `number`, whose FAIL ties to the one judged
-        only by recording its head branch, merged or closed. Release pull
-        requests reuse one branch, so a finished one's FAILs judged a change
-        that ended with it; a state that cannot be read counts the FAIL."""
+        only by recording its head branch, merged. Release pull requests
+        reuse one branch, so a merged one's FAILs judged a change that landed
+        with it. A closed, unmerged one's FAILs still count, as in `_counts`,
+        or closing and reopening on the branch would re-roll the verifier; a
+        state that cannot be read counts the FAIL too."""
         try:
             pull = json_object(self._pull(number))
         except merge_policy.PolicyReadError:
             return False
-        return bool(pull.get("merged_at")) or pull.get("state") == "closed"
+        return bool(pull.get("merged_at"))
 
     def _counts(self, state: Any, author: Any) -> bool:
         """Whether a pull request in `state` (`OPEN`, `CLOSED` or `MERGED`)
