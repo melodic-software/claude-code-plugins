@@ -225,9 +225,6 @@ Rules:
   UI, "Popover", API reference `Positioner` and `Popup`,
   <https://base-ui.com/react/components/popover#positioner>,
   <https://base-ui.com/react/components/popover#popup>.
-- **As of**: 2026-10-29.
-- **Recheck trigger**: either library renames its origin variable or its starting, ending or
-  instant state.
 
 ## Popover inside a modal: `popover-inside-a-modal`
 

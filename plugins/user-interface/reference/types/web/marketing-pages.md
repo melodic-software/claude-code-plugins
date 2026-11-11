@@ -165,8 +165,6 @@ twitter: { card: "summary_large_image" },
 
 - **Pointer**: Meta for Developers, Images in link shares, "Requirements",
   <https://developers.facebook.com/docs/sharing/webmasters/images#requirements>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the page changes its recommended link-share image size.
 
 If no OG image exists in the repo, report it for a person to supply: it can't be invented. Blog
 posts and docs pages get per-page images when the project already has a generator; otherwise the

@@ -530,8 +530,6 @@ version compiles to (pointer below) and add the `pointer: fine` half where it is
 
 - **Pointer**: Tailwind CSS, "Hover, focus, and other states", "Quick reference" (the `hover` row),
   <https://tailwindcss.com/docs/hover-focus-and-other-states#quick-reference>.
-- **As of**: 2026-10-29.
-- **Recheck trigger**: Tailwind changes the media query its `hover` variant compiles to.
 
 Hover motion doesn't make the target run away. An element that translates or scales on hover moves
 its own hit area. At the edge, the cursor falls off, hover ends, the element returns, hover starts

@@ -93,9 +93,6 @@ root, both vendor properties together:
 
 - **Pointer**: MDN, `font-smooth` syntax, which covers both vendor properties,
   <https://developer.mozilla.org/en-US/docs/Web/CSS/font-smooth#syntax>
-- **As of**: 2026-10-29
-- **Recheck trigger**: either vendor property changes the platforms it works on, or a standard
-  smoothing property ships.
 
 ```css
 body {

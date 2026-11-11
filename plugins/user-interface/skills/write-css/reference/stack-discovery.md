@@ -92,5 +92,3 @@ without the feature, wrap it in `@supports` with a fallback that keeps the compo
 skip it, and name the feature and the target in the reply.
 
 - **Pointer**: <https://developer.mozilla.org/en-US/docs/Glossary/Baseline/Compatibility#baseline_badges>
-- **As of**: 2026-10-11
-- **Recheck trigger**: the page changes what "widely available" or "newly available" means.

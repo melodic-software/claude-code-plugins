@@ -561,11 +561,7 @@ An element keeps its identity and position across states, so users never lose tr
 View transition names the platform mechanism without stating its default animation.
 
 - **Pointer**: when a view transition's default animation matters, fetch https://www.w3.org/TR/css-view-transitions-1/#propdef-view-transition-name live.
-- **As of**: 2026-10-28
-- **Recheck trigger**: the specification changes its default animation or the `view-transition-name` property.
 
 Reduced motion names the platform preference the project reads.
 
 - **Pointer**: when the web preference's values matter, fetch https://www.w3.org/TR/mediaqueries-5/#prefers-reduced-motion live.
-- **As of**: 2026-10-28
-- **Recheck trigger**: the media feature's values change.

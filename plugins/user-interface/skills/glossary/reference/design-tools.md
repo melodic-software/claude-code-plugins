@@ -112,5 +112,3 @@ serves link previews when shared.
 Artboard / frame names the design tool's canvas without stating its features.
 
 - **Pointer**: when frame behavior in the tool matters, fetch https://help.figma.com/hc/en-us/articles/360041539473-Frames-in-Figma-Design live.
-- **As of**: 2026-10-28
-- **Recheck trigger**: the article changes what a frame defines.

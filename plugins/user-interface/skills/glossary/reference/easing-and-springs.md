@@ -135,5 +135,3 @@ looks done.
 Response keeps one base definition for every platform; each platform's parameter differs.
 
 - **Pointer**: when a platform's spring parameter matters, fetch https://developer.apple.com/documentation/swiftui/animation/spring(response:dampingfraction:blendduration:), https://developer.android.com/develop/ui/compose/animation/customize#spring and https://motion.dev/docs/spring#visualduration live; correlate with https://developer.apple.com/videos/play/wwdc2018/803/.
-- **As of**: 2026-10-28
-- **Recheck trigger**: one of those pages renames, adds or redefines a spring parameter.

@@ -174,11 +174,7 @@ disrupts line spacing. Proper superscripts are manually sized and shifted.
 Widow and Orphan name CSS controls without stating their support.
 
 - **Pointer**: when a widow or orphan fix must work in the project's browser targets, fetch https://developer.mozilla.org/en-US/docs/Web/CSS/text-wrap#values, https://developer.mozilla.org/en-US/docs/Web/CSS/widows#browser_compatibility and https://developer.mozilla.org/en-US/docs/Web/CSS/orphans#browser_compatibility live.
-- **As of**: 2026-10-31
-- **Recheck trigger**: any of the pages changes the property's values or its compatibility table.
 
 Font smoothing leaves out which platforms honor it and how it renders on each.
 
 - **Pointer**: when font smoothing matters on a target platform, fetch https://developer.mozilla.org/en-US/docs/Web/CSS/font-smooth#browser_compatibility live.
-- **As of**: 2026-10-31
-- **Recheck trigger**: the page changes the property's status or its compatibility table.

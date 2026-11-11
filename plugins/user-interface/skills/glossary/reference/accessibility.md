@@ -101,5 +101,4 @@ field. aria-label is for an element with no visible label.
 The WCAG contrast pointer lives with Contrast ratio in `color.md`; APCA is named, not adopted.
 
 - **Pointer**: when APCA decides a finding, fetch https://git.apcacontrast.com/documentation/APCA_in_a_Nutshell live.
-- **As of**: 2026-10-28
 - **Recheck trigger**: APCA ships in a WCAG draft.

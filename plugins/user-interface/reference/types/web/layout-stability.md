@@ -93,9 +93,6 @@ every font preload, a same-origin file included; the pointer says why.
   <https://react.dev/reference/react-dom/preload#parameters>, and MDN, `rel=preload`, "CORS-enabled
   fetches",
   <https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Attributes/rel/preload#cors-enabled_fetches>
-- **As of**: 2026-10-29
-- **Recheck trigger**: React changes the `preload` options, or MDN changes when a font preload needs
-  `crossorigin`.
 
 **Audit: Important.** An above-the-fold webfont with no preload whose arrival reflows visible text,
 in a project with no font-loading strategy of its own.

@@ -310,8 +310,6 @@ called.
 
 - **Pointer**: React, `useFormStatus`, Caveats,
   <https://react.dev/reference/react-dom/hooks/useFormStatus#caveats>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the page changes what `pending` reports or where the hook must be called.
 
 Hunt for: submit handlers with no `isSubmitting` / `isPending` / `useFormStatus` state;
 `<button type="submit">` with no `disabled` prop; async `onClick` handlers on "Create", "Pay",

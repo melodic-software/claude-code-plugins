@@ -164,9 +164,6 @@ exclusively.
   <https://help.figma.com/hc/en-us/articles/43602393097239-Write-design-system-guidelines-for-Make-kits#h_01S60MHT1T2MH1K3JKFQJCMAK8>
 - **Correlate with**: Polar's post on its LLM-safe design system,
   <https://polar.sh/blog/orbit-llm-safe-design-system>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the Figma article moves, or revises its component guidelines on variants or
-  raw HTML elements.
 
 **Audit: Important.** A variant or size prop typed as an open `string` where a union of the
 existing values would make an invented one fail the build, or a call site using a variant the

@@ -108,7 +108,6 @@ before the first attempt.
 
 - **Pointer**: for what `--keep` refuses and what it moves, see
   [git-reset `--keep`](https://git-scm.com/docs/git-reset#Documentation/git-reset.txt---keep).
-  **As of**: 2026-11-10. **Recheck trigger**: the git-reset page changes the `--keep` description.
 
 ## When the run ends
 

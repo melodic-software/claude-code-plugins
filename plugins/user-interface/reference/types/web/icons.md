@@ -190,8 +190,7 @@ renders at. Items 2, 4, 5, 6 and 9 are judged by looking at the screen, so their
    Recolor a pack's SVG only after someone has read it and committed it as static source markup;
    never insert fetched or uploaded SVG into the page with `innerHTML`. An SVG nobody has reviewed
    goes in an `<img>`; what a browser restricts there is in
-   [MDN: SVG as an image, Restrictions](https://developer.mozilla.org/en-US/docs/Web/SVG/Guides/SVG_as_an_image#restrictions)
-   (As of 2026-10-29, recheck when that section changes which limits it lists).
+   [MDN: SVG as an image, Restrictions](https://developer.mozilla.org/en-US/docs/Web/SVG/Guides/SVG_as_an_image#restrictions).
 
    **Audit: Suggestion.** An inline illustration with literal colors the project's color tokens do
    not hold.

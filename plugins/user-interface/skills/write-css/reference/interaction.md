@@ -74,9 +74,6 @@ Rules:
 - **Pointer**: Tailwind CSS, upgrade guide, "Hover styles on mobile" (what the `hover` variant
   compiles to, and the custom-variant override),
   <https://tailwindcss.com/docs/upgrade-guide#hover-styles-on-mobile>
-- **As of**: 2026-10-29
-- **Recheck trigger**: Tailwind changes the media query its `hover` variant compiles to, or how a
-  variant is overridden.
 
 ## Press feedback: `press-feedback`
 

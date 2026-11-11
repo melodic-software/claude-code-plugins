@@ -268,8 +268,6 @@ scrolling at all.
 
 - **Pointer**: MDN, `EventTarget.addEventListener()`, "Using passive listeners",
   <https://developer.mozilla.org/en-US/docs/Web/API/EventTarget/addEventListener#using_passive_listeners>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the section changes which events `passive` matters for.
 
 ### Pointer events
 
@@ -520,5 +518,3 @@ shipped.
 Core Web Vitals is named by what the metrics measure, not by their current names or thresholds.
 
 - **Pointer**: when the current metrics or thresholds matter, fetch https://web.dev/articles/vitals#core-web-vitals live.
-- **As of**: 2026-10-28
-- **Recheck trigger**: the page adds, drops or renames a Core Web Vital.

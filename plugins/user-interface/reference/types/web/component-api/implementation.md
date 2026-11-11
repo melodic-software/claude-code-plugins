@@ -223,9 +223,6 @@ package it already uses. With neither, write one as the pointer below shows, onc
 
 - **Pointer**:
   <https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the section moves, or a React release changes how a component catches
-  render errors.
 
 ## File structure and exports
 

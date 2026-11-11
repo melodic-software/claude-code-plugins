@@ -115,13 +115,9 @@ report the provenance it observes, never an unobserved change.
   when a saved value applies, fetch
   [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
   live.
-- **As of**: 2026-11-11
-- **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-  refused value, or when a saved value applies.
 
 The plugin README's Options section lists every option. Pointer:
-<https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>. As of: 2026-11-04.
-Recheck: that section changes how an option is edited or where its value is stored.
+<https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>.
 
 ## Output
 

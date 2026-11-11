@@ -21,8 +21,6 @@ before it inherits a brand, so read the project, then the platform.
 
 - **Pointer**: Apple Human Interface Guidelines, <https://developer.apple.com/design/human-interface-guidelines>;
   Material 3, <https://m3.material.io/>; Fluent 2, <https://fluent2.microsoft.design/>
-- **As of**: 2026-10-04
-- **Recheck trigger**: a platform publishes a new major version of its guidelines.
 
 ## Route
 

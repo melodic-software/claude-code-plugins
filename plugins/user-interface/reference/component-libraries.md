@@ -51,8 +51,6 @@ never a hover tooltip: a "Learn more" link inside a hover tooltip is unreachable
 
 - **Pointer**: WAI-ARIA Authoring Practices Guide, patterns,
   <https://www.w3.org/WAI/ARIA/apg/patterns/>
-- **As of**: 2026-10-11
-- **Recheck trigger**: the guide publishes a new pattern or revises one the component uses.
 
 ## Accessible primitives for React
 

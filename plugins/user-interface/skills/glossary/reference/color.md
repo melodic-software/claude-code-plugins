@@ -111,5 +111,4 @@ the interface built for it.
 Contrast ratio is the one home of WCAG contrast here, and names its thresholds without stating them.
 
 - **Pointer**: when a contrast threshold decides a finding, fetch https://www.w3.org/TR/WCAG22/#contrast-minimum and https://www.w3.org/TR/WCAG22/#non-text-contrast live.
-- **As of**: 2026-10-28
 - **Recheck trigger**: a WCAG version after 2.2 becomes a W3C Recommendation.
