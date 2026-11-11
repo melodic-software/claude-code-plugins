@@ -299,6 +299,100 @@ test("the latch reads the pool's limit-cap: past the plan it warns, and a remain
   assert.deepEqual(lines, ["::warning::GitHub's core API has under its read floor left (50 of the planned 1000; header remaining 4050 of 5000); reads continue"]);
 });
 
+// stop-floor 0.02 of a header limit of 5000 is 100 left. The reset,
+// 2026-10-23T10:33:20Z, is an hour past NOW, so a later call is refused, not waited out.
+const nearZero = (remaining, extra = {}) => [200, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": String(remaining), "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core", ...extra }];
+
+test("stop-floor defaults to 0.02 for every pool", () => {
+  for (const [name, fields] of Object.entries(apiLimits({ resolvedPath: "" }))) {
+    assert.equal(fields["stop-floor"], 0.02, name);
+  }
+});
+
+test("at or under the stop floor of the header's limit, the pool stops until its reset: recorded, no later call, red", async () => {
+  for (const remaining of [100, 99, 1]) {
+    await withDir(async (dir) => {
+      const stopFile = join(dir, "api-budget", "stop");
+      const lines = [];
+      let failed = 0;
+      const gh = fakeGitHub([nearZero(remaining), [200]]);
+      const latch = createRateLimitLatch({ now: () => NOW, log: (line) => lines.push(line), fail: () => (failed += 1), limits: () => apiLimits({ resolvedPath: "" }), stopFile });
+      const fetch = latch.guard(gh.fetch);
+      assert.equal((await fetch(URL_A)).status, 200, "the answer that reached the floor is returned");
+      await assert.rejects(fetch(URL_B), (error) => error instanceof RateLimitStop && error.message.includes("2026-10-23T10:33:20Z"));
+      assert.deepEqual(gh.sent, [`GET ${URL_A}`], `remaining ${remaining}: no second request`);
+      assert.equal(readFileSync(stopFile, "utf8"), "core 1792751600\n");
+      assert.ok(failed >= 1, `remaining ${remaining}: the step fails`);
+      const error = lines.find((line) => line.startsWith("::error::"));
+      assert.equal(error, `::error::GET ${URL_A} left GitHub's core API ${remaining} of 5000 requests, at or under its stop-floor share 0.02 (status 200): no call to it before 2026-10-23T10:33:20Z (x-ratelimit-reset); this step fails`);
+    });
+  }
+});
+
+test("above the stop floor nothing stops: 101 of 5000 left sends on with no error", async () => {
+  const gh = fakeGitHub([nearZero(101), nearZero(101)]);
+  const { latch, lines, failed } = latchFor();
+  const fetch = latch.guard(gh.fetch);
+  await fetch(URL_A);
+  await fetch(URL_B);
+  assert.equal(gh.sent.length, 2);
+  assert.equal(failed(), 0);
+  assert.deepEqual(lines.filter((line) => line.startsWith("::error::") || line.startsWith("::notice::")), []);
+});
+
+test("a holding latch stops at the stop floor with a notice and fails nothing", async () => {
+  const gh = fakeGitHub([nearZero(100), [200]]);
+  const { latch, lines, failed } = latchFor({ hold: true });
+  const fetch = latch.guard(gh.fetch);
+  await fetch(URL_A);
+  await assert.rejects(fetch(URL_B), RateLimitStop);
+  assert.equal(gh.sent.length, 1);
+  assert.equal(failed(), 0);
+  assert.deepEqual(lines.filter((line) => line.startsWith("::error::")), []);
+  assert.ok(lines.some((line) => line.startsWith("::notice::") && line.includes("at or under its stop-floor share 0.02") && line.endsWith("this step holds")));
+});
+
+test("a missing or unreadable limit, remaining or reset never stops on the stop floor", async () => {
+  const answers = [
+    [200, { "x-ratelimit-remaining": "50", "x-ratelimit-reset": "1792751600" }],
+    nearZero("abc"),
+    nearZero(50, { "x-ratelimit-limit": "lots" }),
+    [200, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "50" }],
+    nearZero(50, { "x-ratelimit-reset": "1792747000" }),
+    [200],
+  ];
+  const gh = fakeGitHub([...answers]);
+  const { latch, lines, failed } = latchFor();
+  const fetch = latch.guard(gh.fetch);
+  for (let i = 0; i < answers.length; i++) {
+    assert.equal((await fetch(URL_A)).status, 200, `answer ${i} is sent`);
+  }
+  assert.equal(gh.sent.length, answers.length);
+  assert.equal(failed(), 0);
+  assert.deepEqual(lines.filter((line) => line.startsWith("::error::")), []);
+});
+
+test("limits.api overrides the stop floor: at 0 only an empty pool stops", () =>
+  withDir(async (dir) => {
+    const path = join(dir, "resolved.json");
+    writeFileSync(path, JSON.stringify({ limits: { api: { "github-token": { "stop-floor": 0 } } } }));
+    const gh = fakeGitHub([nearZero(1), nearZero(1)]);
+    const latch = createRateLimitLatch({ now: () => NOW, log: () => {}, fail: () => assert.fail("no stop at 1 left with a stop floor of 0"), limits: () => apiLimits({ resolvedPath: path }), stopFile: null });
+    const fetch = latch.guard(gh.fetch);
+    await fetch(URL_A);
+    await fetch(URL_B);
+    assert.equal(gh.sent.length, 2);
+  }));
+
+test("a refusal still reads as a rate limit hit, not a stop-floor stop", async () => {
+  const gh = fakeGitHub([PRIMARY]);
+  const { latch, lines } = latchFor();
+  await latch.guard(gh.fetch)(URL_A);
+  const error = lines.find((line) => line.startsWith("::error::"));
+  assert.match(error, /hit GitHub's core API rate limit \(status 403\)/);
+  assert.doesNotMatch(error, /stop-floor/);
+});
+
 test("a 403 Resource not accessible keeps its old behavior: returned, no latch, no failure", async () => {
   const refused = [403, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4950" }, { message: "Resource not accessible by integration" }];
   const gh = fakeGitHub([refused, [200]]);

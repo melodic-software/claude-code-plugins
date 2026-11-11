@@ -220,7 +220,7 @@
         "api": {
           "type": "object",
           "additionalProperties": false,
-          "description": "GitHub API margins per pool. The pool's planned budget is the limit its x-ratelimit-limit header reports, at most its limit-cap; plan and read-floor are shares of that planned budget, writer-pause and breaker shares of the header's limit. A graphql call reads `graphql`; any other call reads the entry its token names. Unset fields take their defaults from .github/actions/log-api-budget/rate-limits.json, the only copy, which every merge hold list floors so a change to one waits for a person.",
+          "description": "GitHub API margins per pool. The pool's planned budget is the limit its x-ratelimit-limit header reports, at most its limit-cap; plan and read-floor are shares of that planned budget, writer-pause, breaker and stop-floor shares of the header's limit. A graphql call reads `graphql`; any other call reads the entry its token names. Unset fields take their defaults from .github/actions/log-api-budget/rate-limits.json, the only copy, which every merge hold list floors so a change to one waits for a person.",
           "properties": {
             "github-token": {
               "$ref": "#/$defs/api-pool",
@@ -538,10 +538,16 @@
           "maximum": 1,
           "description": "Share of the planned budget left below which the rate guard warns once per pool; calls continue."
         },
+        "stop-floor": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Share of the header's limit left, by the header's remaining, at or under which the rate guard stops the pool until the header's reset, as at a remaining of 0: it records the stop in the job's stop file, and the step holds where API_BUDGET_HOLD applies, else fails. A response without a readable limit, remaining or future reset never stops on it."
+        },
         "limit-cap": {
           "type": "integer",
           "minimum": 1,
-          "description": "Requests per window the pool plans to, whatever higher limit its header reports: planned = min(header limit, limit-cap), used = header limit - header remaining, left = planned - used. Unset in both the config and rate-limits.json: planned is the header's limit. The rate guard's stop still reads only the header's remaining and GitHub's refusals."
+          "description": "Requests per window the pool plans to, whatever higher limit its header reports: planned = min(header limit, limit-cap), used = header limit - header remaining, left = planned - used. Unset in both the config and rate-limits.json: planned is the header's limit. The rate guard's stop still reads only the header's remaining and limit (stop-floor) and GitHub's refusals."
         }
       }
     },
@@ -554,6 +560,7 @@
         "writer-pause": { "$ref": "#/$defs/api-pool/properties/writer-pause" },
         "breaker": { "$ref": "#/$defs/api-pool/properties/breaker" },
         "read-floor": { "$ref": "#/$defs/api-pool/properties/read-floor" },
+        "stop-floor": { "$ref": "#/$defs/api-pool/properties/stop-floor" },
         "limit-cap": { "$ref": "#/$defs/api-pool/properties/limit-cap" },
         "per-minute": {
           "type": "integer",
