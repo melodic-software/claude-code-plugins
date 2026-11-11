@@ -22,12 +22,10 @@ The pipe is the bound and belongs in the command. A read-time cap ("read only th
 bounds nothing: the Bash tool returns the command's complete output into context before there is
 anything to decide about.
 
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. A
-worktree-isolated session refuses a compound command that contains git, which is why each call
-above stays on its own. The dated record for that refusal, and for the pre-compute composition that
-makes it bite, is the
-[gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation".
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Each call
+above stays on its own
+([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
+"The pre-compute block runs as one shell invocation").
 
 ## Variables
 
