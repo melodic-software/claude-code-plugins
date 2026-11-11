@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: cl-audit-unrecorded-synonym
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: proposes-avoid-word
+    type: regex
+    pattern: '(?:payment ?demand[^\n]{0,200}\bavoid\b|\bavoid\b[^\n]{0,200}payment ?demand)'
+    flags: 'i'
+    target: last_message
+  - name: glossary-unchanged
+    type: regex
+    pattern: '^Avoid: bill\s*$'
+    flags: 'm'
+    target: { source: file, path: docs/glossary.md }
+  - name: no-md-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-md-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?\.md"'
+    min: 0
+    max: 0
+    arm: 'both'

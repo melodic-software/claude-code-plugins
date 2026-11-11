@@ -156,7 +156,7 @@ changes a tier's max upload):
 2. **Drop all gender/tone descriptors** from the style prompt (see `voices.md`)
 3. Style prompt describes only the BACKING (genre, instrumentation, BPM, production)
 4. Lyrics field: full song lyrics with section tags + performance directives in `()`
-5. Audio Influence slider ≥70% to preserve vocal identity
+5. Audio Influence slider ≥70% to preserve vocal identity (a community-derived, unverified starting point: see `voices.md` "Audio Influence with an active Voice")
 6. Generate 4 versions
 7. (Optional) Open winner in Studio for arrangement tweaks
 8. Stem export → external DAW for final polish

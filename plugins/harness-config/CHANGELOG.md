@@ -5,6 +5,13 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.5.3] - 2026-11-11
+
+### Changed
+
+- The `audit-permission-grants` criteria link the permissions page's wrapper section by the id the
+  page renders now. No behavior change.
+
 ## [3.5.2] - 2026-11-10
 
 ### Changed

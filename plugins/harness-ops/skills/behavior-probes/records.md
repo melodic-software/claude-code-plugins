@@ -528,13 +528,10 @@ the trace; its one printed line is the evidence kept. The recheck trigger and ex
 | `TaskStop` | yes | refused: an error result with no permission denial; the checker keeps no error text, and the fixture's task id `probe-none` names no task | not denied; whether it was allowed is undetermined |
 | `ToolSearch` | yes | ran, no denial | allowed |
 
-**Docs comparison.** The [plugin-evals page](https://code.claude.com/docs/en/plugin-evals#grant-tools),
-read 2026-11-03, says: "A run allows only the read-only tools the case lists in `allowed_tools`, from
-`Read`, `Glob`, `Grep`, `NotebookRead`, `Skill`, `AskUserQuestion`, `Agent`, `TodoWrite`, and the task
-tools `TaskCreate`, `TaskGet`, `TaskList`, `TaskUpdate`, and `TaskStop`, plus whatever you grant with
-`--allow-tools`." Its [prompt.md fields](https://code.claude.com/docs/en/plugin-evals#prompt-md-fields)
-row for `allowed_tools` says: "Read-only tools are granted when listed here". The result contradicts
-the first sentence: `Skill` and `Agent` are on its list, were not listed by the case, and ran;
+**Docs comparison.** The plugin-evals [grant tools](https://code.claude.com/docs/en/plugin-evals#grant-tools)
+section and its [prompt.md frontmatter](https://code.claude.com/docs/en/plugin-evals#prompt-md-fields) row
+for `allowed_tools`, both read 2026-11-03, state which tools a run allows; read them live. The result
+contradicts the grant-tools section: `Skill` and `Agent` are on its list, were not listed by the case, and ran;
 `TaskStop` was offered unlisted, though its call does not show whether it would have run;
 `ToolSearch`, on neither list, was offered and ran.
 

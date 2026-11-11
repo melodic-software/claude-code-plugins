@@ -56,9 +56,11 @@ markdown runs only the markdown passes.
    (a needless branch, variable, wrapper or conversion removed) and efficiency (repeated work in a
    loop hoisted, a needless second read dropped) cleanups inside the listed lines. Every edit
    preserves behavior: a cleanup that would change an output, an error, an order or a public
-   signature is a proposal, never an edit. This pass does not call the bundled `simplify` skill,
-   whose scope is the session's own diff rather than this line list; the record for that surface
-   is [bundled-simplify.md](../tidy/reference/bundled-simplify.md#decision-records).
+   signature is a proposal, never an edit. This pass does not call the bundled `simplify` skill;
+   it works on the line list itself. Pointer for the targets `simplify` takes: the `/simplify` row
+   in [All commands](https://code.claude.com/docs/en/commands#all-commands). As of: 2026-11-10.
+   Recheck trigger: that row lets `simplify` take a line list. The record for that surface is
+   [bundled-simplify.md](../tidy/reference/bundled-simplify.md#decision-records).
 2. **Delete zero-information comments in the code lines.** Classify each comment that sits in a
    listed line per [triage.md](../remove-comments/reference/triage.md), skipping the exempt
    surfaces in [safety.md](../remove-comments/reference/safety.md). Apply class A only, the

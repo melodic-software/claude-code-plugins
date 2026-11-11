@@ -2273,17 +2273,17 @@ def _read_back_holds(pull: dict[str, Any], identity: str | None) -> bool:
     ):
         return False
     pins = [
-        c
+        (c, pinned)
         for c in map(json_object, json_array(comments.get("nodes")))
         # The judge's author test (`babysit_postmerge._identity_marks`): a
         # User who owns the bare slug is never the App.
         if actor_key(c.get("author")) == str(identity).strip().casefold()
-        and PIN_LINE.match(str(c.get("body") or "").split("\n", 1)[0].rstrip())
+        and (pinned := PIN_LINE.match(str(c.get("body") or "").split("\n", 1)[0].rstrip()))
     ]
     if not pins or not pull.get("merged"):
         return False
-    pin = pins[-1]
-    sha = PIN_LINE.match(str(pin.get("body")).split("\n", 1)[0].rstrip())[1]
+    pin, pinned = pins[-1]
+    sha = pinned[1]
     return (
         not pin.get("lastEditedAt")
         and _time(pin.get("createdAt")) <= _time(pull.get("mergedAt"))
@@ -2487,8 +2487,8 @@ def _lift(
             block = next(
                 (p for n in notes if (p := read_lift_block(n)) is not None), None
             )
-        if block is None and signal == "canary":
-            return None
+            if block is None:
+                return None
     own = json_object(data.get("pullRequest"))
     if (
         number is not None
@@ -2591,13 +2591,12 @@ def read_demotion(
     """
     owner, name = _split_repo(repo)
     filers = [DEMOTION_FILER, *([agent_identity.strip()] if agent_identity else [])]
-    permission = permission or permission_reader(repo)
-    human = lambda actor: is_human(  # noqa: E731
-        actor,
+    human = partial(
+        is_human,
         repo=repo,
         agent_identity=agent_identity,
         self_logins=self_logins,
-        permission=permission,
+        permission=permission or permission_reader(repo),
     )
     records: list[int] = []
     created: list[datetime] = []
@@ -2628,16 +2627,11 @@ def read_demotion(
                 issue = json_object(json_object(data.get("repository")).get("issue"))
             if not issue:
                 raise PolicyReadError(f"issue #{number} returned nothing")
-            revisions = [
-                json_object(e).get("diff")
-                for e in json_array(
-                    json_object(issue.get("userContentEdits")).get("nodes")
-                )
-            ]
-            texts = [issue.get("body"), *revisions]
             edits = json_object(issue.get("userContentEdits"))
+            revisions = json_array(edits.get("nodes"))
+            texts = [issue.get("body"), *(json_object(e).get("diff") for e in revisions)]
             # A truncated history may hide the marker in an older revision.
-            truncated = edits.get("totalCount") != len(json_array(edits.get("nodes")))
+            truncated = edits.get("totalCount") != len(revisions)
             if not truncated and not any(
                 t is None or DEMOTION_MARKER in str(t) for t in texts
             ):
@@ -2656,7 +2650,6 @@ def read_demotion(
                         f"::warning::demotion #{number}: recovery read failed: {exc}",
                         file=sys.stderr,
                     )
-                    recovered = None
             if hold and recovered is None:
                 if held is None:
                     held = Demotion(True, f"#{number} {hold}", tuple(records))
@@ -3384,13 +3377,12 @@ def recheck_opt_in(
     enqueue: a removal (or a removal and a non-human re-add) after the
     eligibility read refuses. None when it stands or is not needed."""
     owner, name = _split_repo(repo)
-    permission = permission or permission_reader(repo)
-    human = lambda actor: is_human(  # noqa: E731
-        actor,
+    human = partial(
+        is_human,
         repo=repo,
         agent_identity=agent_identity,
         self_logins=self_logins,
-        permission=permission,
+        permission=permission or permission_reader(repo),
     )
     try:
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
@@ -3426,13 +3418,12 @@ def eligibility(
     pull request's base branch).
     """
     owner, name = _split_repo(repo)
-    permission = permission or permission_reader(repo)
-    human = lambda actor: is_human(  # noqa: E731
-        actor,
+    human = partial(
+        is_human,
         repo=repo,
         agent_identity=agent_identity,
         self_logins=self_logins,
-        permission=permission,
+        permission=permission or permission_reader(repo),
     )
     try:
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
@@ -3728,7 +3719,7 @@ def unran_head(activity: Any, ran: Any, decided: str, at: Any) -> str | None:
     moves: list[tuple[str, datetime]] = []
     for move in activity:
         after = str(json_object(move).get("after") or "")
-        if re.fullmatch(r"[0-9a-f]{40}", after) and after != "0" * 40:
+        if SHA_RE.fullmatch(after) and after != "0" * 40:
             made = parse_timestamp(json_object(move).get("timestamp"))
             if made is None:
                 return "the branch's push history is unreadable"
@@ -3790,7 +3781,7 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
             if head_repo != f"{owner}/{name}" or started is None or started >= cutoff:
                 continue
             head = str(run.get("head_sha") or "")
-            if not re.fullmatch(r"[0-9a-f]{40}", head):
+            if not SHA_RE.fullmatch(head):
                 return None
             heads.append(head)
             if head not in vetted:
@@ -3922,11 +3913,7 @@ def merged_parents(then: Any, now: Any) -> list[str]:
     found: list[str] = []
     for commit in _new_commits(then, now) or ():
         for sha in (_parent_shas(commit) or [])[1:]:
-            if (
-                isinstance(sha, str)
-                and re.fullmatch(r"[0-9a-f]{40}", sha)
-                and sha not in found
-            ):
+            if isinstance(sha, str) and SHA_RE.fullmatch(sha) and sha not in found:
                 found.append(sha)
     return found
 

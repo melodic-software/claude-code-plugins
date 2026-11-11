@@ -3,6 +3,13 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.13] - 2026-11-11
+
+### Changed
+
+- `setup` points at the live plugin CLI sections for what a reconfiguration rerun prints and how
+  each route reports a rejected value, instead of restating them. No behavior change.
+
 ## [1.0.12] - 2026-11-09
 
 ### Changed

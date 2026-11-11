@@ -1,5 +1,5 @@
 ---
-description: "The project's ubiquitous-language glossary: locate, lookup (read terms), seed a first one, curate (canonical terms, rejected synonyms, definitions), audit. Use when: 'what does this domain term mean', 'update the domain glossary', 'define this domain term', 'standardize this vocabulary', 'these names conflict', 'we have no glossary yet', 'check our glossary', 'prune the glossary', 'the glossary feels bloated', domain modeling resolves vocabulary, or a skill needs domain terms before naming something. Not for dictionary definitions or bounded-context discovery."
+description: "The project's ubiquitous-language glossary: locate, lookup (read terms), seed a first one, curate (canonical terms, rejected synonyms, definitions), audit. Use when: 'what does this domain term mean', 'update the domain glossary', 'define this domain term', 'standardize this vocabulary', 'these names conflict', 'tidy our codebase terminology', 'the terms in our domain model', 'we have no glossary yet', 'check our glossary', 'prune the glossary', 'the glossary feels bloated', domain modeling resolves vocabulary, or a skill needs domain terms before naming something. Not for dictionary definitions or bounded-context discovery."
 argument-hint: "[locate|lookup|seed|curate|audit] [term, ambiguity, or resolved vocabulary]"
 user-invocable: true
 disable-model-invocation: false
@@ -27,7 +27,10 @@ Entry discipline, the convention-resolution ladder and the multi-context rules l
 
 ## Settings
 
-`locate` resolves the two file-name settings here, since only this file has its values filled in:
+`locate` resolves the two file-name settings here, in this file, not in a spoke. Pointer for where
+saved values are filled in: [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value).
+As of: 2026-11-10. Recheck trigger: that section changes which content `${user_config.KEY}` is
+substituted into.
 
 1. Write the userConfig values to
    `${CLAUDE_PLUGIN_DATA}/ubiquitous-language-user-config-${CLAUDE_SESSION_ID}.json` with the Write

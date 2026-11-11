@@ -21,25 +21,21 @@ Miro MCP server.
 
 ### Tool namespace
 
-The same server's tools resolve under one of two runtime prefixes, depending on where the server
-is defined:
+The same server's tools carry a runtime prefix Claude Code assigns, which differs between the
+plugin-provided server (the default) and the same server configured directly at user or project
+scope (as in the miro README's opt-in `vault-exec` override with the plugin's own server
+disabled).
 
-- **Plugin-provided** (the default): normally **`mcp__plugin_miro_miro__<tool>`** (e.g.
-  `mcp__plugin_miro_miro__miro_create_board`).
-- **Directly configured** at user or project scope, as in the miro README's opt-in `vault-exec`
-  override with the plugin's own server disabled: **`mcp__miro__<tool>`** when the server is named
-  `miro`.
-
-A bare `miro_*` name resolves under neither. Every `miro_*` tool named in this skill and its
+Every `miro_*` tool named in this skill and its
 reference docs denotes that tool under whichever prefix is live; the availability gate (SKILL.md
 "Miro availability & graceful degradation") accepts either by matching the Miro-specific tool name
 (`…__miro_list_boards`), not the server name.
 
-- **Pointer**: when the prefixes above need re-deriving, fetch
+- **Pointer**: when the prefix format needs re-deriving, fetch
   [Plugin-provided MCP servers](https://code.claude.com/docs/en/mcp#plugin-provided-mcp-servers) and
   [Server names, tool names, and reloads](https://code.claude.com/docs/en/plugins/components#server-names-tool-names-and-reloads)
   live.
-- **As of**: 2026-10-11
+- **As of**: 2026-11-10
 - **Recheck trigger**: either section changes the MCP tool-name format, or a Claude Code changelog
   entry mentions MCP tool naming.
 
@@ -65,8 +61,7 @@ marketplace first, then enabled** (enabling alone does not install it).
      (the `sensitive` option) live.
    - **As of**: 2026-10-11
    - **Recheck trigger**: that section changes how a `sensitive` option is prompted for or stored.
-4. **Verify:** in a session with the plugin enabled, `mcp__plugin_miro_miro__*` tools (or
-   `mcp__miro__*` under the user-scope override) are callable.
+4. **Verify:** in a session with the plugin enabled, the `miro_*` tools are callable.
    Test with "List my Miro boards".
 
 ---

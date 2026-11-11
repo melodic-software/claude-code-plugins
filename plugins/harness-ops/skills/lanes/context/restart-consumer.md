@@ -9,7 +9,9 @@ reviewer-facing rationale, not a copy of it.
 
 ## The gap
 
-A loop lane that hits its per-session cycle budget or the `/loop` seven-day expiry
+A loop lane that hits its per-session cycle budget or the `/loop` expiry
+([scheduled tasks: seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry),
+as of 2026-11-10; recheck when that section changes how a recurring task expires)
 writes a restart ask into the `restart_request` field of its telemetry state block
 and stops cleanly. A running loop cannot relaunch itself, and `SKILL.md` documents
 that a relaunch is the only fresh-context reset a lane gets. Nothing in the harness
@@ -30,7 +32,7 @@ The discriminating question is *what survives the failure it remediates*:
 | OS scheduler (chosen) | yes | yes | yes |
 
 - A **watchdog lane is circular**: it is itself a `/loop` session bounded by the
-  same seven-day expiry, cycle budget, and crash risk it exists to remediate.
+  same `/loop` expiry, cycle budget, and crash risk it exists to remediate.
   Nothing restarts the restarter.
 - A **Stop hook** is non-circular and event-driven, but it structurally cannot
   fire when the failed thing is the process or the machine, and those are two of
@@ -145,9 +147,10 @@ Two scheduled forms, different trade-offs:
   upgrading from an older CLI.
   Survives plugin updates (the skill resolves `${CLAUDE_PLUGIN_ROOT}` freshly at
   each invocation, so the task never embeds a plugin cache path that rots), but
-  each tick is a paid model turn. Bound the spend: `claude` supports `--model`
-  and `--max-budget-usd` (verified on this machine, claude 2.1.220), so pin a
-  cheap model and a hard cap on the scheduled command.
+  each tick is a paid model turn. Bound the spend: pin a cheap model and a hard
+  cap on the scheduled command with `claude --model` and `--max-budget-usd`, read
+  live from [CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags)
+  (as of 2026-11-10; recheck when either flag leaves that table).
 - **Offline script form**: `bash <abs-path>/restart-consumer.sh run`. Zero
   model cost (the reader is deterministic), but the embedded absolute path
   points into the plugin cache, which **changes on plugin updates**, the same

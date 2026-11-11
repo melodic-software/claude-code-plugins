@@ -1,5 +1,5 @@
 ---
-description: "Verify the discovery plugin's runtime prerequisites for this session, print the gate allow rules for the operator to paste so the acceptance-gate scripts stop prompting, and write the repository's docs/conventions/discovery.yaml after confirmation. Use when: 'set up discovery', 'configure the discovery plugin', 'is discovery configured', 'discovery setup', 'the research gates keep prompting', 'set explore_output for this repo', or a discovery skill reports a missing capability. Actions: check (read-only, default), apply (writes docs/conventions/discovery.yaml only). Re-runnable."
+description: "Verify the discovery plugin's runtime prerequisites for this session, print the gate allow rules for the operator to paste so the acceptance-gate scripts stop prompting, and write the repository's docs/conventions/discovery.yaml after confirmation. Use when: 'set up discovery', 'configure the discovery plugin', 'is discovery configured', 'discovery setup', 'the research gates keep prompting', 'set explore_output for this repo', or a discovery skill reports a missing capability. Actions: check (read-only, default), apply (writes docs/conventions/discovery.yaml). Re-runnable."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
@@ -17,8 +17,9 @@ fixes where `EXPLORE.md`, `RESEARCH.md` and `INTENT.md` land, in the memory slic
 The plugin owns one tracked consumer file, `docs/conventions/discovery.yaml`, the repository layer
 of its settings (keys, values and layers:
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md); schema:
-`${CLAUDE_PLUGIN_ROOT}/schemas/discovery.schema.json`). `check` reports it; `apply` writes it and
-nothing else. The harness rows and the operator's `~/.claude/settings.json` are reported only, never
+`${CLAUDE_PLUGIN_ROOT}/schemas/discovery.schema.json`). `check` reports it; `apply` writes it,
+plus, on the operator's yes to the convention-home offer, the instruction-file region and the
+`.gitignore` line (`apply` step 5). The harness rows and the operator's `~/.claude/settings.json` are reported only, never
 written. Action routing: no argument or `check` runs the check; `apply` runs the check, then
 writes. Re-running either reads the current state again.
 
@@ -115,7 +116,7 @@ Report a PASS/INFO/WARN table. Do not write anything. No row is ever a FAIL or a
    skill names it and drops that layer, so the row is a WARN. `apply` fixes a value outside the list
    or an empty value; the other shapes are fixed by hand, and `apply` refuses the file until then.
 
-## `apply` (writes `docs/conventions/discovery.yaml` only)
+## `apply` (writes `docs/conventions/discovery.yaml`, and the step 5 region and ignore line on a yes)
 
 1. Run `check` and show its table.
 2. **Resolve the values.** With complete `<key>=<value>` arguments, use them. Otherwise ask one key
@@ -136,12 +137,12 @@ Report a PASS/INFO/WARN table. Do not write anything. No row is ever a FAIL or a
 
    The script checks each value against the schema and validates the whole resulting document
    before it writes; an invalid value or key, or an existing file with a key set twice, an empty
-   string, a map or a list, exits 1 with one line and writes nothing. It writes only
+   string, a map or a list, exits 1 with one line and writes nothing. It writes the file only at
    `<git toplevel>/docs/conventions/discovery.yaml`. It resolves a symlinked root first, then
    refuses a root that is `$HOME` or an ancestor of it, a symlinked `docs`, `docs/conventions` or
    target, a hard-linked target, or a `docs/conventions` that resolves outside the repository,
    checked again right before the
-   write, so nothing lands outside `docs/conventions/`. A missing file is created. A value already in place prints
+   write, so the file never lands outside `docs/conventions/`. A missing file is created. A value already in place prints
    `already configured` and writes nothing.
 4. **An existing file that would change** exits 3 and prints a unified diff without writing. Show
    the operator that diff and ask whether to write it. Only on an explicit yes, re-run the same
@@ -202,4 +203,5 @@ written path, and whether the file is tracked.
   (`${CLAUDE_PLUGIN_DATA}`, for caches and generated state only) stay untouched.
 - Write Claude Code user settings or `pluginConfigs`. `check` reads `~/.claude/settings.json` and
   prints the gate allow rules; the operator applies them.
-- Write any file other than `docs/conventions/discovery.yaml`, or edit the consumer's `.gitignore`.
+- Write any file other than `docs/conventions/discovery.yaml`, except the `apply` step 5 region and
+  ignore line on the operator's explicit yes.

@@ -331,7 +331,8 @@ defect in them. Nothing between 2.1.200 and 2.1.261 adds a prune-by-path verb.
 on a claude.ai account (`<name>@synced`) as enablement with no install record at all, so a synced
 plugin never explains a project-scope row. Pointer: for synced plugins, see
 [Plugins synced from claude.ai](https://code.claude.com/docs/en/plugins/loading#synced-plugins). As
-of: 2026-09-05. Whether a custom GitHub marketplace can be enabled at account level on a personal
+of: 2026-09-05. Recheck trigger: that section starts giving a synced plugin an install record.
+Whether a custom GitHub marketplace can be enabled at account level on a personal
 account is undocumented.
 
 ## `/reload-plugins`: bare by default, `--force` for the MCP-cache-invalidation case
@@ -416,8 +417,8 @@ is silent in both directions, so the asymmetry is stated here once and pointed a
 else.
 
 **`pluginConfigs`: three sources only.** This skill reads `pluginConfigs` from user settings
-(`~/.claude/settings.json`), `--settings`, and managed settings, with precedence
-managed → `--settings` → user, and ignores entries in a project's `.claude/settings.json` or
+(`~/.claude/settings.json`), `--settings`, and managed settings, with the precedence
+[settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence) gives (as of 2026-11-10), and ignores entries in a project's `.claude/settings.json` or
 `.claude/settings.local.json`, matching Claude Code's own refusal of values a cloned repository
 could supply. In every one of those sources the value nests under `options`:
 `{"pluginConfigs":{"<id>@<marketplace>":{"options":{"<key>":"<value>"}}}}`. A key placed directly
@@ -432,7 +433,9 @@ under the plugin id is silently ignored and the render shows the literal placeho
 - **Recheck trigger**: the settings guide stops letting `--settings` set user-scope keys, the
   `pluginConfigs` scope changes, or project or local settings become a source again.
 
-**`enabledPlugins`: user, project, and local all count**, merged local > project > user. That is
+**`enabledPlugins`: user, project, and local all count**, merged in the order
+[settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence)
+gives (as of 2026-11-10; recheck when that section reorders the scopes). That is
 why `fleet-state.sh` reads all three settings maps for enablement, and why doing the same for
 `pluginConfigs` would be wrong.
 
@@ -442,7 +445,9 @@ Two consequences this skill must not get wrong:
   the render falls back to the unset placeholder, and `sync` proceeds under the `ask` default with no
   indication the configured value was discarded. Never advise setting it at project or local scope.
 - A `--setting-sources` invocation that omits `user` drops user settings from that three-source read
-  list, so a headless `sync` launched that way silently loses `install_new` the same way. See
+  list (the flag:
+  [CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags), as of
+  2026-11-10; recheck when that row changes which sources it drops), so a headless `sync` launched that way silently loses `install_new` the same way. See
   [sync-install-enable.md](sync-install-enable.md) Step 4. The fallback is correct, the silence is not.
 
 ## `userConfig` has no `enum` type; `options` is a picker
@@ -560,17 +565,16 @@ stayed on disk with the plugin's version directory intact.
 
 The tree is not a permanent orphan. The `uninstall` step wrote a `.orphaned_at` marker file (epoch
 milliseconds) into the version directory, and the marker survived the marketplace removal. We model
-the background sweep as removing a marked directory about 14 days later, running only while at
-least one plugin is installed, and removing a cache folder only once it holds no directory or
-symlink. So a removed marketplace's tree is swept on the same clock as any other orphaned version,
+the background sweep's window and run condition as the pointer below gives them, and the sweep as
+removing a cache folder only once it holds no directory or symlink. So a removed marketplace's tree is swept on the same clock as any other orphaned version,
 marketplace folder included, provided the machine keeps any plugin installed.
 [`plugin marketplace remove`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-remove)
-says removal "also deletes its cache" and names no directory (read 2026-11-04); the marker is our
+names no cache directory that removal deletes (read 2026-11-04); the marker is our
 observation that connects the two. The sweep
 does visit a removed marketplace's cache folders: the Claude Code 2.1.270 debug log (2026-09-14,
 recorded on [#3835](https://github.com/melodic-software/claude-code-plugins/issues/3835)) shows its
 folder-retention pass keeping two removed marketplaces' folders because each still held content.
-**Observed 2026-10-17 on Claude Code 2.1.302** (melo-desk-001, WSL, probe
+**Observed 2026-10-17 on Claude Code 2.1.302** (a WSL host, probe
 [#3835](https://github.com/melodic-software/claude-code-plugins/issues/3835)): the probe's marked
 version directory, and its marketplace folder, were gone at least 14 days after the
 `.orphaned_at` marker (`1790887278455`, 2026-10-01T20:41Z) while other plugins stayed installed.

@@ -50,8 +50,14 @@ ordering.
 
 **Remove or merge.** Present the prune candidates (from `audit` or the request) one group at a
 time, each with its reason and, for an unused term, its count. Write only the entries the person
-said yes to; a group without a yes stays as it is. A merge keeps the covering term's entry, removes the other and records the removed phrase
-on the covering entry's `Avoid:` line. Unattended, report the candidates and write nothing.
+said yes to; a group without a yes stays as it is. A merge keeps the covering term's entry, removes
+the other and records the removed phrase on the covering entry's `Avoid:` line. Then report every
+reference that still names a removed term, by file and line, for the same reviewed change: bold
+mentions in other entries and the glossary index (which counting skips), and docs. Unattended,
+report the candidates and write nothing.
+
+A team that wants a domain owner to review glossary changes lists the glossary path in its
+`CODEOWNERS` file; this skill has no reviewer setting.
 
 ## 5. Check where the old words still live
 
@@ -78,5 +84,6 @@ and line, in these groups:
 
 Return the canonical term and definition, rejected synonyms and verbs, the bounded context when there is more
 than one, the file updated or created (or the proposed file and its setting layer when nothing was
-written), the entries removed or merged with the counts their question gave, the step 5 hits, and
-any unresolved ambiguity.
+written), the entries removed or merged with the counts their question gave and, for each, where its
+meaning went (an `Avoid:` word on the covering term, moved to code or a doc, or dropped), the
+surviving references to removed terms, the step 5 hits, and any unresolved ambiguity.

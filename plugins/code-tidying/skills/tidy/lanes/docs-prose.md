@@ -11,6 +11,8 @@ README.md
 .claude/skills/*/**.md            # supporting prose files
 ```
 
+The two `.claude/skills/` globs sit under the GLOBAL HARD `.claude/**` entry in [exclusions.md](../reference/exclusions.md), so they yield a candidate only when one of that file's section 4 channels lifts the entry for the run.
+
 Retarget this to the consuming project's actual documentation layout with a project lane at `.claude/tidy-lanes/docs-prose.md`. A project `Scope` block **replaces** the globs above (see [Merge semantics](#merge-semantics)); it does not have to restate the sections it keeps.
 
 ## Merge semantics

@@ -5,8 +5,7 @@ wrong, which is why none of them is caught by "did I do a good job?". They are c
 outcome gate's artifact-grounded criteria, or not at all.
 
 - **A silent preload miss looks exactly like a good run.** A dispatched agent whose `skills:` entry
-  did not resolve starts anyway, writes an artifact, and reports `coverage: complete`; the harness
-  logs a warning to the debug log and nowhere else. The dated record for that harness behavior is
+  did not resolve starts anyway, writes an artifact, and reports `coverage: complete`. The dated record for that harness behavior is
   [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
   "Harness facts the dispatch design rests on". The `preload_token` echo is the check that
   distinguishes "the discipline body reached the agent" from "it did not"; a missing or mismatched

@@ -240,36 +240,32 @@ a `${user_config.*}` string in a shell command), and its report line is printed.
   Mermaid stays out, and `render-components.sh` has no mermaid C4 path. The decision, its pointer
   and its recheck trigger live in the convention's
   [record](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/authoring-formats/README.md#why-mermaid-is-not-offered-for-the-system-key).
-- **A component diagram is one container.** Claim: the C4 component diagram
-  scopes to a single container, and its primary elements are the components
-  inside that container. The model is notation-independent. Basis:
-  <https://c4model.com/diagrams/component> and <https://c4model.com/>. As of:
-  2026-09-29. Recheck when that component-diagram page states
-  a scope other than a single container, or primary elements other than the
-  components inside it.
-- **C4-PlantUML component syntax: read against the README, never run.** Claim: the `plantuml`
-  block uses `!include <C4/C4_Component>`, `Container_Boundary(alias, label, ?tags, ?link, ?descr)`
-  for the container, `Boundary(alias, label, ?type, ...)` per group, `Component(alias, label,
-  ?techn, ?descr, ...)`, and `Rel(from, to, label, ?techn, ?descr, ?sprite, ?tags, ?link)`. A layer
-  violation is `AddRelTag("layer-violation", $textColor, $lineColor)` plus `$tags` on that `Rel`,
-  because `UpdateRelStyle(textColor, lineColor)` restyles every relationship. Basis:
-  <https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md>, which shows the stdlib
-  include only for `C4_Container` and says the released `C4_...` files ship in the stdlib, so the
-  `C4_Component` stdlib name is inferred. As of: 2026-09-29. Recheck when that README changes
-  those signatures or the include path, or when a host with Java can run PlantUML over a rendered
-  block. No PlantUML run has parsed this output.
-- **LikeC4 component syntax: parsed by the CLI.** Claim: the `likec4` block is a `specification`
-  with `softwareSystem`, `container`, `boundary`, and `component` element kinds, a `model` nesting
-  boundaries and components in the container, relationships by dotted full name with a
-  `style { color red }` body, and a `views` block holding `view components of <container>` with
-  `title` and `include *`; an aggregated view puts one component per group directly in the
-  container. Basis: <https://likec4.dev/dsl/specification/>, <https://likec4.dev/dsl/model/>,
-  <https://likec4.dev/dsl/views/>, and <https://likec4.dev/dsl/styling/>, plus `likec4@1.59.4
-  validate` exiting 0 on the golden blocks in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/`
+- **A component diagram is one container.** Its elements are the components inside that one
+  container. Pointer: when deciding a component view's scope or elements, fetch
+  [C4 component diagram § Scope](https://c4model.com/diagrams/component#scope) and
+  [§ Primary elements](https://c4model.com/diagrams/component#primary-elements) live. As of:
+  2026-11-10. Recheck trigger: that page scopes a component diagram to something other than one
+  container, or names other primary elements.
+- **C4-PlantUML component syntax: read against the README, never run.** The renderer writes the
+  macros; a layer violation is a tagged `Rel` (`AddRelTag` plus `$tags`), never an
+  `UpdateRelStyle` call. The `C4_Component` include name is our inference from the README's
+  container example. No PlantUML run has parsed this output. Pointer: when checking the macros
+  or the include the renderer writes, fetch
+  [C4-PlantUML README § Component diagram](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#component-diagram)
+  and
+  [§ Including the C4-PlantUML library](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#including-the-c4-plantuml-library)
+  live. As of: 2026-11-10. Recheck trigger: that README changes the component macros or the
+  include path, or a host with Java can run PlantUML over a rendered block.
+- **LikeC4 component syntax: parsed by the CLI.** The record is a probe: `likec4@1.59.4
+  validate` exits 0 on the golden blocks in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/`
   (`components.c4`, `components-aggregated.c4`), which `render-components.test.sh` diffs
-  against. As of: 2026-09-29. Recheck
-  when any of those pages changes that syntax or a newer `likec4` release ships: set
-  `LIKEC4_VALIDATE=1` when running the test to re-run the CLI.
+  against. Pointer: when checking the syntax the renderer writes, fetch
+  [LikeC4 specification § Element kind](https://likec4.dev/dsl/specification/#element-kind),
+  [model § Element](https://likec4.dev/dsl/model/#element),
+  [views § Scoped views](https://likec4.dev/dsl/views/#scoped-views) and
+  [styling § Relationship](https://likec4.dev/dsl/styling/#relationship) live. As of:
+  2026-11-10. Recheck trigger: any of those sections changes that syntax, or a newer `likec4`
+  release ships: set `LIKEC4_VALIDATE=1` when running the test to re-run the CLI.
 - **The record is one object per line.** A node line starts with `{"id":`. An
   edge line starts with `{"from":`. Any other layout exits 1 and writes
   nothing. Regenerate the graph; do not pretty-print it.

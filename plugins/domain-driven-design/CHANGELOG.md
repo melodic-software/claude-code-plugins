@@ -3,6 +3,13 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1] - 2026-11-11
+
+### Changed
+
+- `ubiquitous-language` points at the live saved-value section for where settings are filled in
+  instead of restating it. No behavior change.
+
 ## [0.8.0] - 2026-11-10
 
 ### Added

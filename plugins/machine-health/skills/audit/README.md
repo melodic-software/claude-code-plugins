@@ -45,7 +45,7 @@ Human-mode output is the on-ramp for debugging a misbehaving check; keep it read
 
 ## Stateless checks, stateful orchestrator
 
-- **Checks** take a current reading and return it. They do not read `history.jsonl` directly; the orchestrator hands them a slice over stdin.
+- **Checks** take a current reading and return it. They do not read `history.jsonl`, and the orchestrator passes them no history; it applies trend to their results.
 - **Orchestrator** (`Invoke-MachineHealthCheck.ps1`) owns: state-root resolution, catalog + overlay merge, history loading, trend computation, severity adjustment, timeouts, remediation sequencing, report rendering, and `state/history.jsonl` append.
 
 Keeps individual checks small, trend logic in one place.

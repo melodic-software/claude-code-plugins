@@ -81,8 +81,8 @@ This is the row most likely to generate a wrong finding, so it gets its own head
 The step from it to "the sweep is failing" is an inference, and for several of these paths it is a
 wrong one:
 
-- **`file-history/`** retains by checkpoint count, not by age, and keeps some snapshots regardless
-  of age. Old mtimes here are the documented behavior, never evidence of a stalled sweep.
+- **`file-history/`** retains by a unit other than age (pointer below). Old mtimes here are never
+  evidence of a stalled sweep.
 - **`projects/<session>/subagents/` and `tool-results/`** are removed *with their parent transcript*.
   A contained file's own mtime is not the unit.
 - **`session-env/`, `tasks/`, `debug/`** are per-session. The session directory ages out, not each
@@ -94,7 +94,7 @@ reads as a deletion authorization.
 
 - **Pointer**: when stating what `file-history/` retains, fetch its row in
   [claude directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)
-  live. **As of**: 2026-10-11. **Recheck trigger**: that row changes its retention unit.
+  live. **As of**: 2026-11-10. **Recheck trigger**: that row changes its retention unit.
 
 Absence is evidence only for the legacy directories: `todos/`, `statsig/` and `logs/` missing on an
 install old enough to have written them shows the sweep completed, including its
@@ -132,13 +132,13 @@ delete. See "unclassified" below.
 `sessions/` holds one small file per running session, which Claude Code manages itself.
 **Hand-deleting these confuses concurrent-session detection.**
 
-They also churn during an audit. A file present in one listing and gone in the next is the
-documented behavior, not a discrepancy, and it means any orphan count keyed on sessions carries a
+They also churn during an audit. A file present in one listing and gone in the next is
+not a discrepancy, and it means any orphan count keyed on sessions carries a
 margin of error, because a session whose record vanished mid-run is *unknown*, not *dead*.
 
 - **Pointer**: when explaining `sessions/` lifetime, fetch its bullet under
   [claude directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)
-  live. **As of**: 2026-10-11. **Recheck trigger**: `sessions/` joins the age sweep.
+  live. **As of**: 2026-11-10. **Recheck trigger**: `sessions/` joins the age sweep.
 
 ## Never delete
 
@@ -151,8 +151,8 @@ We never route `~/.claude.json`, `~/.claude/settings.json`, or `~/.claude/plugin
 
 ## Home-root state, outside the swept tree
 
-`~/.claude.json` lives in the home directory, **not** under `~/.claude`, and is not touched by the
-retention sweep at any value of `cleanupPeriodDays`. We route its growth to `claude purge <path>`
+`~/.claude.json` lives in the home directory, **not** under `~/.claude`, and no retention-sweep
+row lists it as swept, so we read it as outside the sweep at any value of `cleanupPeriodDays`. We route its growth to `claude purge <path>`
 everywhere, never to its old name `claude project purge`; what it removes and how it confirms are
 in the pointer below.
 

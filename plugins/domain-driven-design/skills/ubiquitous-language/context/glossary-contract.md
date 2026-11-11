@@ -38,6 +38,8 @@ Shown to users as: bill
   when no verb was contested.
 - **Rejected synonyms:** names considered and rejected for this concept. Follow the existing file's
   syntax; otherwise use the plain `Avoid:` line above. Omit the line when no synonym was rejected.
+  The line holds only other names for the same concept: a word with a meaning of its own (a credit
+  note beside an invoice) gets its own entry when the context uses it, or stays off the glossary.
 - **Shown to users as:** optional, only when the wording on screens, emails and error messages
   deliberately differs from the term. Checks for rejected words treat this wording as intended.
   When tenants rename the concept on their own screens, the line reads `Shown to users as:

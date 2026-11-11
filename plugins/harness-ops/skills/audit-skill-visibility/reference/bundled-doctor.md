@@ -23,8 +23,8 @@ and withholds every verdict the span cannot support. It is read-only and never d
 
 ## Presence
 
-`doctor` is the one bundled skill the kill switch leaves typable, but an environment variable or
-a `skillOverrides` entry still hides it; `/skill-doctor` is a built-in command with its own gate.
+We never assume `doctor` or `/skill-doctor` is present; what can hide either is read live from
+the pointers in the table above.
 This skill never depends on either and never chains into a `doctor` disable: the audit is complete
 on its own, and its description's presence gate names both surfaces only for the question they
 own.

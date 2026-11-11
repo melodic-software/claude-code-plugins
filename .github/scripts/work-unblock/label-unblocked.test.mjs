@@ -3396,14 +3396,15 @@ const afterClear = (unfinished, failOn) => {
 const restarts = (calls) => writes(calls).filter((call) => call.startsWith("RESTART "));
 const clearLimits = (extra = {}) => withLimits({ "stranded-backoff-hours": { "kill-switch": 1 }, "restarts-per-run": 10, ...extra });
 
-test("the issue lane's slot count is the SLOTS work-resolve-issue.yml sets", () => {
-  const path = join(tempDir("work-unblock-slots-"), "work-resolve-issue.yml");
-  writeFileSync(path, "jobs:\n  pick-slot:\n    env:\n      SLOTS: 4\n");
-  assert.equal(laneSlots(path), 4);
-  writeFileSync(path, "jobs:\n  pick-slot:\n    env:\n      SLOT: 4\n");
-  assert.throws(() => laneSlots(path), /sets no SLOTS/);
-  // The repository's own workflow sets a whole number of slots (its value is free to change).
-  assert.ok(Number.isInteger(laneSlots()) && laneSlots() >= 1);
+test("the issue lane's slot count is the effective lane level: the default while shadowed, the published level once live", () => {
+  const now = Date.parse("2026-11-10T23:00:00Z");
+  const env = { LANE_VARS: JSON.stringify({ CLAUDE_LANE_LEVEL: `4@${now / 1000 + 600}` }) };
+  const lines = [];
+  const log = (line) => lines.push(line);
+  assert.equal(laneSlots({ env, now, log }), 3, "shadow mode (the default) keeps the lane at 3");
+  assert.deepEqual(lines, ["label-unblocked: lane level 3 (shadow; would use 4, published)"]);
+  assert.equal(laneSlots({ laneLevel: { shadow: false }, env, now, log }), 4);
+  assert.equal(laneSlots({ laneLevel: { shadow: false }, env, now: now + 601_000, log }), 3, "an expired value reads as the default");
 });
 
 test("after the switch clears, breaker re-fires top the unfinished lane runs up to refire-queue-per-slot x SLOTS, the oldest stranded first", async () => {
@@ -3435,14 +3436,15 @@ test("a failed unfinished-run listing re-fires no breaker trip this sweep, with 
   assert.ok(lines.some((line) => line.startsWith(QUEUE_HOLD)), lines.join("\n"));
 });
 
-test("a lane workflow with no SLOTS line re-fires no breaker trip this sweep, with a hold notice; a failed mint still restarts", async (t) => {
-  const path = join(tempDir("work-unblock-slots-"), "work-resolve-issue.yml");
-  writeFileSync(path, "jobs:\n  pick-slot:\n    env:\n      ISSUE_NUMBER: 30\n");
+test("a slot count that cannot be read re-fires no breaker trip this sweep, with a hold notice; a failed mint still restarts", async (t) => {
   const fake = afterClear(0);
-  const { code, lines } = await printedBy(t, () => sweep({ github: fake.github, actions: fake.github, slots: () => laneSlots(path) }, clearLimits()));
+  const unread = () => {
+    throw new Error("the lane level is unreadable");
+  };
+  const { code, lines } = await printedBy(t, () => sweep({ github: fake.github, actions: fake.github, slots: unread }, clearLimits()));
   assert.equal(code, 0);
   assert.deepEqual(restarts(fake.calls), ["RESTART 36"]);
-  assert.ok(lines.some((line) => line.startsWith(QUEUE_HOLD) && line.includes("sets no SLOTS")), lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith(QUEUE_HOLD) && line.includes("the lane level is unreadable")), lines.join("\n"));
 });
 
 test("restarts-per-run still caps breaker re-fires under the queue target, the oldest stranded first", async () => {

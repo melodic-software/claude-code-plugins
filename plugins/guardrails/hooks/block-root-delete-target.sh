@@ -3342,7 +3342,7 @@ rdt_judge_pending() {
 # rdt_check_segment through bash's dynamic scope.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_sink_check() {
-  local k=$(($1 + 1)) b w c=0 s=0 stdin=0 last=$((n - 1)) split=0 open=0
+  local k=$(($1 + 1)) b w c=0 s=0 last=$((n - 1)) split=0 open=0
   local -a herestr=() q0=()
   ((${rdt_flat:-1})) || open=1
   [[ "${words[last]}" == *'$' && "${HOOK_SEG_WORD_QUOTED[last]:-0}" == 0 ]] && split=$open
@@ -3358,9 +3358,7 @@ rdt_sink_check() {
     ((open && (k >= n || split))) && rdt_sink=1
     return 0
     ;;
-  source | .)
-    ((k >= n)) || [[ "${words[k]}" == /dev/stdin || "${words[k]}" == /dev/fd/0 || "${words[k]}" == /proc/self/fd/0 ]] && stdin=1
-    ;;
+  source | .) ;;
   bash | sh | zsh | dash | ksh | mksh)
     while ((k < n)); do
       w="${words[k]}"
@@ -3384,26 +3382,21 @@ rdt_sink_check() {
       ((open && (k >= n || (split && k == last)))) && rdt_sink=1
       return 0
     fi
-    ((s || k >= n)) || [[ "${words[k]}" == /dev/stdin || "${words[k]}" == /dev/fd/0 || "${words[k]}" == /proc/self/fd/0 ]] && stdin=1
     ;;
   *) return 0 ;;
   esac
-  ((stdin)) || return 0
+  ((s || k >= n)) || [[ "${words[k]}" == /dev/stdin || "${words[k]}" == /dev/fd/0 || "${words[k]}" == /proc/self/fd/0 ]] || return 0
   ((${rdt_dec_feed:-0})) && rdt_block "decoder-sink"
   ((open && k >= n)) && rdt_sink=1
   # The program it reads (SHELLS AND LAUNCHERS FROM BASH in the header): the
   # last redirection of fd 0, else the text the command before writes into the
   # pipe. A heredoc body is judged once the parse has it (rdt_ix_heredocs).
-  local r=-1 nh=0 hd=0 prog="" has=0 dec=0
-  for ((c = 0; c < ${#HOOK_SEG_REDIR_OP[@]}; c++)); do
-    [[ "${HOOK_SEG_REDIR_OP[c]}" == '<<' || "${HOOK_SEG_REDIR_OP[c]}" == '<<-' ]] && nh=$((nh + 1))
-    [[ "${HOOK_SEG_REDIR_OP[c]}" == '<'* && "${HOOK_SEG_REDIR_FD[c]:-0}" == 0 ]] || continue
-    r=$c
-    hd=$((nh - 1))
-  done
+  local r hd prog="" has=0 dec=0
+  rdt_stdin_redir
+  r=$RDT_IN_R hd=$RDT_IN_HD
   if ((r >= 0)); then
     case "${HOOK_SEG_REDIR_OP[r]}" in
-    '<<' | '<<-') [[ -n "${rdt_hd_at-}" ]] && rdt_hd_shell "$((rdt_hd_at + hd))" "${HOOK_SEG_REDIR_TARGET[r]-}" ;;
+    '<<' | '<<-') [[ -n "${rdt_hd_at-}" ]] && rdt_hd_prog "$((rdt_hd_at + hd))" "${HOOK_SEG_REDIR_TARGET[r]-}" sh ;;
     '<<<')
       prog="${HOOK_SEG_REDIR_TARGET[r]-}"
       has=1
@@ -3419,7 +3412,7 @@ rdt_sink_check() {
       ;;
     h*)
       w="${rdt_text_feed:1}"
-      rdt_hd_shell "${w%%:*}" "${w#*:}"
+      rdt_hd_prog "${w%%:*}" "${w#*:}" sh
       ;;
     x) rdt_block "eval-too-long" ;;
     *) ;;
@@ -3446,12 +3439,29 @@ rdt_sink_check() {
   return 0
 }
 
-# rdt_hd_shell <heredoc index> <delimiter>: the heredoc a shell reads as its
-# program, judged as shell text once the parse has its body, under the
-# directory-change state of the shell that reads it (rdt_ix_heredocs).
-# shellcheck disable=SC2329  # invoked from rdt_sink_check
-rdt_hd_shell() {
-  rdt_hd_lang[$1]='sh'
+# rdt_stdin_redir: the last redirection of fd 0 among HOOK_SEG_REDIR_*, into
+# RDT_IN_R (its index, -1 for none) and RDT_IN_HD (when it is a heredoc, its
+# index among the segment's heredocs).
+# shellcheck disable=SC2329  # invoked from rdt_sink_check and rdt_interp_check
+rdt_stdin_redir() {
+  local c nh=0
+  RDT_IN_R=-1 RDT_IN_HD=-1
+  for ((c = 0; c < ${#HOOK_SEG_REDIR_OP[@]}; c++)); do
+    [[ "${HOOK_SEG_REDIR_OP[c]}" == '<<' || "${HOOK_SEG_REDIR_OP[c]}" == '<<-' ]] && nh=$((nh + 1))
+    [[ "${HOOK_SEG_REDIR_OP[c]}" == '<'* && "${HOOK_SEG_REDIR_FD[c]:-0}" == 0 ]] || continue
+    RDT_IN_R=$c
+    RDT_IN_HD=$((nh - 1))
+  done
+  return 0
+}
+
+# rdt_hd_prog <heredoc index> <delimiter> <lang>: the heredoc a shell (sh) or
+# an interpreter reads as its program, judged in <lang> once the parse has its
+# body, under the directory-change state of the command that reads it
+# (rdt_ix_heredocs).
+# shellcheck disable=SC2329  # invoked from rdt_sink_check and rdt_interp_check
+rdt_hd_prog() {
+  rdt_hd_lang[$1]="$3"
   rdt_hd_st[$1]="${#RDT_ORIGINS[@]} $rdt_cd_unknown $rdt_cd_refuse $2"
 }
 
@@ -3472,6 +3482,48 @@ rdt_shell_prog() {
     [[ "$d" == "$t" ]] || rdt_shell_prog "$d" 0
   fi
   return 0
+}
+
+# rdt_env_split_check <operand> <index of the first word after it>: GNU env's
+# -S splits <operand> and runs the result, so the split words, spliced ahead of
+# the words that follow, are judged as a segment of their own. The provenance
+# array is cleared because it belongs to the OUTER parse and its indices do
+# not describe these words; a stale 1 would read an empty word as a dropped
+# backslash. Reads words from rdt_check_segment through bash's dynamic scope.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment
+rdt_env_split_check() {
+  hook::env_s_split "$1"
+  HOOK_SEG_WORD_QUOTED=()
+  rdt_check_segment ${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} \
+    ${words[@]+"${words[@]:$2}"}
+}
+
+# rdt_parse_words <first index>: the words from <first index> on, joined with
+# a space as eval and `sh -c` join them, parsed as shell text and charged to
+# the eval budget. An operand a trailing backslash produced arrives EMPTY (the
+# tokenizer has no character left to emit), so a join by text would drop it
+# and `eval rm -rf \` would pass: an empty word of provenance 1 is restored to
+# its literal `\` first. Reads words, n and HOOK_SEG_WORD_QUOTED from
+# rdt_check_segment through bash's dynamic scope, before the re-parse
+# rebuilds the last.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment and rdt_watch_check
+rdt_parse_words() {
+  local j text
+  local -a ev=()
+  for ((j = $1; j < n; j++)); do
+    if [[ -z "${words[j]}" ]] && ((${HOOK_SEG_WORD_QUOTED[j]:-0} == 1)); then
+      # shellcheck disable=SC1003  # a literal backslash character, not a quote escape
+      ev+=('\')
+    else
+      ev+=("${words[j]}")
+    fi
+  done
+  # Nested evals re-tokenize nearly the whole command at every level, the same
+  # multiplication the substitution budget exists to stop.
+  text="${ev[*]}"
+  rdt_scanned=$((rdt_scanned + ${#text}))
+  ((rdt_scanned > MAX_COMMAND_LEN)) && rdt_block "eval-too-long"
+  rdt_parse "$text"
 }
 
 # rdt_check_segment <argv word>...: one simple command, as the shell would build
@@ -3729,24 +3781,12 @@ rdt_check_segment() {
         if [[ "$base" == "env" ]]; then
           case "$w" in
           -S | --split-string)
-            sval=""
-            ((i + 1 < n)) && sval="${words[i + 1]}"
-            hook::env_s_split "$sval"
-            # Cleared because the provenance array belongs to the OUTER parse
-            # and its indices do not describe these words; a stale 1 here would
-            # read an empty word as a dropped backslash.
-            HOOK_SEG_WORD_QUOTED=()
-            rdt_check_segment ${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} \
-              ${words[@]+"${words[@]:i+2}"}
+            rdt_env_split_check "${words[i + 1]-}" "$((i + 2))"
             return 0
             ;;
           -S* | --split-string=*)
             sval="${w#-S}"
-            sval="${sval#--split-string=}"
-            hook::env_s_split "$sval"
-            HOOK_SEG_WORD_QUOTED=()
-            rdt_check_segment ${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} \
-              ${words[@]+"${words[@]:i+1}"}
+            rdt_env_split_check "${sval#--split-string=}" "$((i + 1))"
             return 0
             ;;
           --s*)
@@ -3758,15 +3798,9 @@ rdt_check_segment() {
             if [[ "split-string" == "${sval%%=*}"* ]]; then
               local -a env_q=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
               if [[ "$w" == *=* ]]; then
-                hook::env_s_split "${w#*=}"
-                HOOK_SEG_WORD_QUOTED=()
-                rdt_check_segment ${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} \
-                  ${words[@]+"${words[@]:i+1}"}
+                rdt_env_split_check "${w#*=}" "$((i + 1))"
               elif ((i + 1 < n)); then
-                hook::env_s_split "${words[i + 1]}"
-                HOOK_SEG_WORD_QUOTED=()
-                rdt_check_segment ${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} \
-                  ${words[@]+"${words[@]:i+2}"}
+                rdt_env_split_check "${words[i + 1]}" "$((i + 2))"
               fi
               HOOK_SEG_WORD_QUOTED=(${env_q[@]+"${env_q[@]}"})
             fi
@@ -3940,30 +3974,8 @@ rdt_check_segment() {
   # unwrap above never applies to it: there is no `-c` and no new process. Its
   # arguments are joined with a space, exactly as eval joins them, and parsed.
   # Bounded because each level drops at least the `eval` word itself.
-  #
-  # An operand a trailing backslash produced arrives EMPTY (the tokenizer has
-  # no character left to emit), so a join by text would hand the re-parse
-  # `rm -rf ` with no operand at all and `eval rm -rf \` would pass. The
-  # literal `\` is restored first, by the same provenance test the operand loop
-  # below uses, and `HOOK_SEG_WORD_QUOTED` is read HERE because the re-parse
-  # rebuilds it.
   if [[ "$base" == "eval" ]] && ((i + 1 < n)); then
-    local -a ev=()
-    for ((j = i + 1; j < n; j++)); do
-      if [[ -z "${words[j]}" ]] && ((${HOOK_SEG_WORD_QUOTED[j]:-0} == 1)); then
-        # shellcheck disable=SC1003  # a literal backslash character, not a quote escape
-        ev+=('\')
-      else
-        ev+=("${words[j]}")
-      fi
-    done
-    # The joined text is charged to the same tokenizing budget as a
-    # substitution body: nested evals re-tokenize nearly the whole command at
-    # every level, which is the same multiplication the budget exists to stop.
-    local evtext="${ev[*]}"
-    rdt_scanned=$((rdt_scanned + ${#evtext}))
-    ((rdt_scanned > MAX_COMMAND_LEN)) && rdt_block "eval-too-long"
-    rdt_parse "$evtext"
+    rdt_parse_words "$((i + 1))"
     return 0
   fi
 
@@ -4147,8 +4159,8 @@ rdt_delete_operand() {
 # through bash's dynamic scope.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_watch_check() {
-  local k=$(($1 + 1)) x=0 w j c l hit text
-  local -a q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"}) ev=()
+  local k=$(($1 + 1)) x=0 w j c l hit
+  local -a q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
   while ((k < n)); do
     w="${words[k]}"
     case "$w" in
@@ -4198,18 +4210,7 @@ rdt_watch_check() {
     HOOK_SEG_WORD_QUOTED=(${q0[@]+"${q0[@]:k}"})
     rdt_check_segment "${words[@]:k}"
   else
-    for ((j = k; j < n; j++)); do
-      if [[ -z "${words[j]}" ]] && ((${q0[j]:-0} == 1)); then
-        # shellcheck disable=SC1003  # a literal backslash character, not a quote escape
-        ev+=('\')
-      else
-        ev+=("${words[j]}")
-      fi
-    done
-    text="${ev[*]}"
-    rdt_scanned=$((rdt_scanned + ${#text}))
-    ((rdt_scanned > MAX_COMMAND_LEN)) && rdt_block "eval-too-long"
-    rdt_parse "$text"
+    rdt_parse_words "$k"
   fi
   HOOK_SEG_WORD_QUOTED=(${q0[@]+"${q0[@]}"})
   return 0
@@ -4296,7 +4297,7 @@ rdt_cmd_check() {
 # dynamic scope.
 # shellcheck disable=SC2329  # invoked from rdt_cmd_check
 rdt_cmd_rd_bash() {
-  local j b lw p sw='^(/[sq?]+)+$' rec=0 dl=0
+  local j b lw p q sw='^(/[sq?]+)+$' rec=0 dl=0
   local -a pi=()
   b="${words[$1]##*[\\/]}"
   b="${b,,}"
@@ -4320,11 +4321,9 @@ rdt_cmd_rd_bash() {
   ((${#pi[@]} || dl)) || rdt_block "empty-operand"
   for j in ${pi[@]+"${pi[@]}"}; do
     rdt_cmd_pct_to p "${words[j]}"
-    if [[ "$p" == "${words[j]}" ]]; then
-      rdt_delete_operand "$p" "${q0[j]:-0}"
-    else
-      rdt_delete_operand "$p" 0
-    fi
+    q=0
+    [[ "$p" == "${words[j]}" ]] && q="${q0[j]:-0}"
+    rdt_delete_operand "$p" "$q"
   done
   return 0
 }
@@ -4508,6 +4507,16 @@ rdt_robocopy_scan() {
   return 0
 }
 
+# rdt_may_split <index>: status 0 when that word may become more words or
+# none: a brace, a glob or an unquoted expansion, or a quoted "$@" or
+# "${a[@]}". Reads words and HOOK_SEG_WORD_QUOTED from rdt_check_segment
+# through bash's dynamic scope.
+# shellcheck disable=SC2329  # invoked from rdt_robocopy_check and rdt_content_check
+rdt_may_split() {
+  [[ "${words[$1]}" == *'$@'* || "${words[$1]}" == *'[@]}'* ]] ||
+    { ((${HOOK_SEG_WORD_QUOTED[$1]:-0} != 2)) && [[ "${words[$1]}" == *['{*?[$`']* ]]; }
+}
+
 # rdt_robocopy_check <index of the robocopy word>: a robocopy carrying /MIR,
 # /PURGE, /MOVE or /MOV has the destination or the source it deletes from
 # judged as an operand of a recursive rm (ROBOCOPY DELETES in the header).
@@ -4562,8 +4571,7 @@ rdt_robocopy_check() {
   # conversion state is unknown.
   ((unknown)) && tg=(${op[@]+"${op[@]}"})
   for k in ${op[@]+"${op[@]}"}; do
-    if [[ "${words[k]}" == *'$@'* || "${words[k]}" == *'[@]}'* ]] ||
-      { ((${HOOK_SEG_WORD_QUOTED[k]:-0} != 2)) && [[ "${words[k]}" == *['{*?[$`']* ]]; }; then
+    if rdt_may_split "$k"; then
       tg=("${op[@]}")
       break
     fi
@@ -4719,7 +4727,7 @@ rdt_gnu_scan() {
 # rdt_check_segment through bash's dynamic scope.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_content_check() {
-  local k w every=0 of=0
+  local k w of=0
   local -a tg=()
   # Under xargs or parallel the items read are appended as operands, so they
   # are judged as this command's targets whatever it names itself. A dd whose
@@ -4756,13 +4764,7 @@ rdt_content_check() {
   # do the items xargs or parallel may append after it, so with either every
   # operand is judged.
   if [[ "$2" == mv && "$RDT_GNU_SEEN" != *t* ]] && ((${#tg[@]} > 1 && rdt_fed == 0)); then
-    k="${tg[${#tg[@]} - 1]}"
-    w="${words[k]}"
-    if [[ "$w" == *'$@'* || "$w" == *'[@]}'* ]] ||
-      { ((${HOOK_SEG_WORD_QUOTED[k]:-0} != 2)) && [[ "$w" == *['{*?[$`']* ]]; }; then
-      every=1
-    fi
-    ((every)) || unset "tg[$((${#tg[@]} - 1))]"
+    rdt_may_split "${tg[${#tg[@]} - 1]}" || unset "tg[$((${#tg[@]} - 1))]"
   fi
   for k in ${tg[@]+"${tg[@]}"}; do
     rdt_delete_operand "${words[k]}" "${HOOK_SEG_WORD_QUOTED[k]:-0}"
@@ -4796,7 +4798,7 @@ RDT_IX_KWARG_RE=$'^([A-Za-z_][A-Za-z0-9_]*:([^:]|$)|:[A-Za-z_][A-Za-z0-9_]*[[:sp
 # scope.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_interp_check() {
-  local lang k j w c rest stdin=1 stop=0 last=-1 hd=-1 nh=0 rop
+  local lang k j w c rest stdin=1 stop=0 last
   local -a code=() q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
   case "$2" in
   py | python* | pypy*) lang=py ;;
@@ -4892,24 +4894,14 @@ rdt_interp_check() {
   # With no code option and no script, the program is stdin: the last
   # redirection of fd 0 says what that is.
   if ((stdin && ${#code[@]} == 0)); then
-    for ((j = 0; j < ${#HOOK_SEG_REDIR_OP[@]}; j++)); do
-      rop="${HOOK_SEG_REDIR_OP[j]}"
-      [[ "$rop" == '<<' || "$rop" == '<<-' ]] && nh=$((nh + 1))
-      [[ "$rop" == '<'* && "${HOOK_SEG_REDIR_FD[j]:-0}" == 0 ]] || continue
-      last=$j
-      hd=$((nh - 1))
-    done
+    rdt_stdin_redir
+    last=$RDT_IN_R
     if ((last >= 0)); then
       case "${HOOK_SEG_REDIR_OP[last]}" in
       '<<<') code+=("${HOOK_SEG_REDIR_TARGET[last]-}") ;;
-      '<<' | '<<-')
-        # The body is read once the parse has it, as if from here: its
-        # delimiter, to check the index, and the directory-change state.
-        if [[ -n "${rdt_hd_at-}" ]]; then
-          rdt_hd_lang[rdt_hd_at + hd]="$lang"
-          rdt_hd_st[rdt_hd_at + hd]="${#RDT_ORIGINS[@]} $rdt_cd_unknown $rdt_cd_refuse ${HOOK_SEG_REDIR_TARGET[last]-}"
-        fi
-        ;;
+      # The body is read once the parse has it, as if from here: its
+      # delimiter, to check the index, and the directory-change state.
+      '<<' | '<<-') [[ -n "${rdt_hd_at-}" ]] && rdt_hd_prog "$((rdt_hd_at + RDT_IN_HD))" "${HOOK_SEG_REDIR_TARGET[last]-}" "$lang" ;;
       *) ;;
       esac
     fi

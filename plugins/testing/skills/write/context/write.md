@@ -96,7 +96,9 @@ After each Red→Green→Refactor cycle, verify:
 
 ## Four Pillars Assessment (Khorikov)
 
-Every test scores well on all four:
+Resistance to refactoring is non-negotiable and maintainability stays high; protection against
+regressions and fast feedback trade off, so no test maxes the first three pillars at once
+(`/tdd:principles`):
 
 - **Protection against regressions**. Does this test catch real bugs? Tests that only verify trivial behavior (getters, constructors) score low
 - **Resistance to refactoring**. Will this test break when implementation changes but behavior stays the same? Test behavior (observable output), not implementation (internal steps)

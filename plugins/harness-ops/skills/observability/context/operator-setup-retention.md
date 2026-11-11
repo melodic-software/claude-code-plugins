@@ -20,10 +20,9 @@ bodies, so retention is also a privacy bound (see [operator-setup-emission-priva
   always aborts the trim (hot store untouched). Cold is unbounded by design. Measured: 72 MB
   over about 5 weeks (1.38M log rows, 2026-08-16 to 2026-09-22); recheck if `cold/` exceeds ~2 GB. Content boundary: no `api_*_body`
   rows ever reach cold; `user_prompt` rows survive with `body` NULLed and the `prompt` and
-  `prompt_text` attributes scrubbed unless the prompt-keep knob is on. `prompt_text` is a copy
-  of `prompt` on the `user_prompt` event. Basis: Claude Code 2.1.287 changelog entry ("Added
-  `prompt_text` to the OpenTelemetry `user_prompt` event, a copy of `prompt`"),
-  <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md>. Verified 2026-10-01
+  `prompt_text` attributes scrubbed unless the prompt-keep knob is on. We scrub `prompt_text` as
+  prompt-bearing. Pointer: the 2.1.287 entry of
+  <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md>, read live. Verified 2026-10-01
   against that file and the installed 2.1.287 binary; recheck when a release adds another
   prompt-bearing attribute to `user_prompt`. Cold files written by a prune under Claude Code
   2.1.287 or later with harness-ops before 0.80.2 still carry `prompt_text`: compaction scrubs
@@ -36,7 +35,7 @@ bodies, so retention is also a privacy bound (see [operator-setup-emission-priva
   `tool_use_id`, `trace_id`, `span_id`) are always retained. They bridge cold rows to
   on-disk transcript lookups.
 
-Hot is far larger than cold because log lines carry inline API bodies. Measured on melo-lap-001
+Hot is far larger than cold because log lines carry inline API bodies. Measured on one Windows host
 on 2026-09-28: 7 days of logs held 790 MB; unpruned, `cc-logs.json` reached 2.8 GB and
 `cc-metrics.json` 361 MB. Recheck if the store traffic mix changes (for example body capture
 turned off). The two size caps below bound each hot file and the hot files together, even when every
@@ -61,12 +60,12 @@ bash "<skill-dir>/otel/prune-otel-store.sh"             # prune if needed (stop/
 CC_OTEL_RETENTION_DAYS=14 bash "<skill-dir>/otel/prune-otel-store.sh"   # one-off override
 ```
 
-The Collector `fileexporter` can rotate its own files, but its README says "If `append: true` is set
-then setting `rotation` is currently not supported". This store needs `append: true`, so the
-external prune is the only size and age bound. Basis:
-<https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/fileexporter/README.md>
-("File Rotation and Append Option"). Verified 2026-09-29 against that page as fetched that day;
-recheck when the exporter README drops the restriction.
+This store needs `append: true`, and we treat the Collector `fileexporter`'s own rotation as
+unavailable with it, so the external prune is the only size and age bound. Pointer: the "File
+Rotation and Append Option" section of
+<https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/fileexporter/README.md>,
+read live. Verified 2026-09-29 against that page as fetched that day; recheck when the exporter
+README drops the restriction.
 
 `--dry-run` also prints `hot_max_mb=` and `hot_total_max_mb=`, a `hot_total: size_prune cutoff_epoch_seconds=`
 line when the total cap moves the cutoff past the age cutoff, and, per file that drops lines inside
@@ -131,8 +130,9 @@ The task runs a launcher, not a fixed path. On every run it reads the user-scope
 plugin (key `harness-ops@<marketplace>`) in `installed_plugins.json` (under `CLAUDE_CONFIG_DIR`,
 else `~/.claude/plugins/`) and runs `skills/observability/otel/prune-otel-store.sh` from that
 `installPath` through Git Bash (a machine or a user-scope Git for Windows install). A plugin
-update therefore needs no re-registration, and the 14-day orphan sweep of an old version directory
-cannot strand the task. The log is `%LOCALAPPDATA%\provisioning\logs\ClaudeCodeOtelPrune.log`: one
+update therefore needs no re-registration, and the orphan sweep of an old version directory
+([plugins loading: cleanup of previous versions](https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions),
+as of 2026-11-10; recheck when that section changes what the sweep removes) cannot strand the task. The log is `%LOCALAPPDATA%\provisioning\logs\ClaudeCodeOtelPrune.log`: one
 UTC timestamp line per run, the prune's output, then `done: <plugin key> <version>` or
 `failed: <reason>`. A missing plugin, a missing script and a failed prune each exit 1.
 

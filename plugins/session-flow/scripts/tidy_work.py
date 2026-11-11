@@ -516,16 +516,13 @@ def resolve_roots(memory_dir: str | None) -> tuple[list[tuple[str, Path]], list[
     (`memory_dir` comes from a repo-controlled file, so `/etc` must not be walked)."""
     notes: list[str] = []
     top = save_point._git_toplevel(Path.cwd())
-    declared = (
+    memory = (
         Path(memory_dir).expanduser()
         if memory_dir
         else save_point._default_memory_dir()
     )
-    memory = (
-        None
-        if declared is None
-        else (declared if declared.is_absolute() or top is None else top / declared)
-    )
+    if memory is not None and not memory.is_absolute() and top is not None:
+        memory = top / memory
     if memory is None:
         notes.append("no memory root: no git work tree and no plugin data dir")
     else:
@@ -641,13 +638,10 @@ def _survey(
 ) -> tuple[list[tuple[str, Path]], list[str], list[Item], float] | None:
     try:
         table = _load_link_table(args.link_state)
+        roots, notes = resolve_roots(args.memory_dir)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return None
-    resolved = _roots(args)
-    if resolved is None:
-        return None
-    roots, notes = resolved
     states = LinkStates(table, args.offline)
     now = datetime.now(timezone.utc).timestamp()
     items: list[Item] = []
@@ -706,9 +700,8 @@ class Guard:
 
     root: Path
     refusal: str | None = None
-    tracked: list[str] | None = (
-        None  # root-relative tracked paths; None outside a work tree
-    )
+    # root-relative tracked paths; None outside a work tree
+    tracked: list[str] | None = None
 
     def blocks(self, path: Path) -> str | None:
         if self.refusal:

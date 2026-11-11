@@ -241,37 +241,39 @@ hand-written; the shared medium resolver decides the destination, with this plug
 
 ## Gotchas
 
-- **A container diagram is one software system.** The primary elements are the containers inside
-  that system. Deployment concerns such as clustering and failover are not this diagram. Basis:
-  <https://c4model.com/diagrams/container> and <https://c4model.com/>. As of: 2026-09-29. Recheck
-  when the container-diagram page changes its scope, its primary elements, or moves deployment
-  concerns onto this diagram.
-- **C4-PlantUML container syntax: read against the README, never run.** Claim: the `plantuml`
-  block uses `!include <C4/C4_Container>`, `System_Boundary(alias, label, ?tags, ?link, ?descr)`,
-  `Container`, `ContainerDb`, and `ContainerQueue` as `(alias, label, ?techn, ?descr, ...)`, and
-  `Rel(from, to, label, ?techn, ...)`. Basis:
-  <https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md>, which shows that stdlib
-  include verbatim. As of: 2026-09-29. Recheck when that README changes those signatures or the
-  include path, or when a host with Java can run PlantUML over a rendered block. No PlantUML run
-  has parsed this output.
-- **LikeC4 container syntax: parsed by the CLI.** Claim: the `likec4` block declares
-  `softwareSystem`, `container`, and `store` and `queue` kinds (`style { shape storage }` and
-  `shape queue`), nests the containers in the system, relates them by dotted name, and draws
-  `view containers of <system>` with `include *`. Basis: <https://likec4.dev/dsl/specification/>,
-  <https://likec4.dev/dsl/model/>, <https://likec4.dev/dsl/views/>, and
-  <https://likec4.dev/dsl/styling/>, plus `likec4@1.59.4
-  validate` exiting 0 on the golden blocks in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/`
-  (`containers.c4`, `containers-stores.c4`, `containers-broker.c4`, `containers-endpoints.c4`), which
-  `collect-containers.test.sh` diffs against. As of: 2026-09-29. Recheck when any of those pages
-  changes that syntax or a newer `likec4` release ships: set `LIKEC4_VALIDATE=1` when running the
-  test to re-run the CLI.
-- **A search store is read from a host or a compose image.** Claim: an Azure AI Search endpoint is
-  `https://<service-name>.search.windows.net`, so a host with that suffix is labeled
-  `Azure AI Search`. Basis:
-  <https://learn.microsoft.com/en-us/azure/search/search-create-service-portal>. As of: 2026-09-29.
-  Recheck when that page changes the endpoint form or the service moves to another domain. The
-  other hosts the collector labels are listed in `store_technology`; a search service on any other
-  host is labeled `unknown`.
+- **A container diagram is one software system.** It draws the containers inside that one system,
+  and no deployment concerns. Pointer: when checking a container view's scope or elements, fetch
+  [C4 container diagram § Scope](https://c4model.com/diagrams/container#scope),
+  [§ Primary elements](https://c4model.com/diagrams/container#primary-elements) and
+  [§ Notes](https://c4model.com/diagrams/container#notes) live. As of: 2026-11-10. Recheck
+  trigger: the container-diagram page changes its scope, its primary elements, or moves
+  deployment concerns onto this diagram.
+- **C4-PlantUML container syntax: read against the README, never run.** The renderer writes the
+  macros. No PlantUML run has parsed this output. Pointer: when checking the macros or the
+  include the renderer writes, fetch
+  [C4-PlantUML README § Container diagram](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#container-diagram)
+  and
+  [§ Including the C4-PlantUML library](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#including-the-c4-plantuml-library)
+  live. As of: 2026-11-10. Recheck trigger: that README changes the container macros or the
+  include path, or a host with Java can run PlantUML over a rendered block.
+- **LikeC4 container syntax: parsed by the CLI.** The record is a probe: `likec4@1.59.4
+  validate` exits 0 on the golden blocks in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/`
+  (`containers.c4`, `containers-stores.c4`, `containers-broker.c4`, `containers-endpoints.c4`),
+  which `collect-containers.test.sh` diffs against. Pointer: when checking the syntax the
+  collector writes, fetch
+  [LikeC4 specification § Element kind](https://likec4.dev/dsl/specification/#element-kind),
+  [model § Element](https://likec4.dev/dsl/model/#element),
+  [views § Scoped views](https://likec4.dev/dsl/views/#scoped-views) and
+  [styling § Shape](https://likec4.dev/dsl/styling/#shape) live. As of: 2026-11-10. Recheck
+  trigger: any of those sections changes that syntax, or a newer `likec4` release ships: set
+  `LIKEC4_VALIDATE=1` when running the test to re-run the CLI.
+- **A search store is read from a host or a compose image.** A host ending
+  `.search.windows.net` is labeled `Azure AI Search`. Pointer: when checking the service's
+  endpoint form, fetch
+  [Create a search service § Name your service](https://learn.microsoft.com/en-us/azure/search/search-create-service-portal#name-your-service)
+  live. As of: 2026-11-10. Recheck trigger: that section changes the endpoint form or the
+  service moves to another domain. The other hosts the collector labels are listed in
+  `store_technology`; a search service on any other host is labeled `unknown`.
 - **An endpoint is not an edge until it resolves.** A `localhost` URL with no `applicationUrl` on a
   charted deployable, a service name with no compose build context, and a URL naming an external
   service are all `external-endpoint` findings. A `uses` edge is one per ordered pair.

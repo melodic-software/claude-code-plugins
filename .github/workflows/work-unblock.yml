@@ -147,6 +147,9 @@ jobs:
       actions: read # list work-resolve-issue runs to find a failed one, and read a refused job's log
       contents: read # check out main
       id-token: write # prove to the token broker which workflow this is
+    outputs:
+      # The sweep's lanes App rate-limit readings, for publish-lane-level.
+      lane-readings: ${{ steps.readings.outputs.readings }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -351,7 +354,19 @@ jobs:
           SWEEP_BUDGET_MINUTES: "6"
           # A held sweep's marker for monitor signal 13 (lane-hold-marker.mjs).
           LANE_HOLD_MARKER: ${{ runner.temp }}/lane-hold/work-unblock
+          # The published lane level, for the re-fire room (lane-level-value.mjs).
+          LANE_VARS: ${{ toJSON(vars) }}
         run: node ".base/$SCRIPT"
+
+      # The collect part of the adaptive lane level: this sweep's lanes App
+      # readings, the hour's largest burst, for publish-lane-level. Local
+      # files only, no API call (.github/scripts/lib/lane-level-readings.mjs).
+      - name: Collect the lane level readings
+        id: readings
+        if: always() && github.event_name == 'schedule' && steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        timeout-minutes: 1
+        run: node .base/.github/scripts/lib/lane-level-readings.mjs
 
       - name: Scan the upload for credentials
         id: scan-verdicts
@@ -392,6 +407,179 @@ jobs:
       - name: Mark this tick's work done
         if: steps.label.outputs.clean-sweep == 'true'
         run: echo "label-unblocked swept cleanly"
+
+      # The token is cancelled as soon as the job is done; it would otherwise
+      # expire within the hour. This never fails the job.
+      - name: Revoke the lane token
+        if: always() && steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+        run: |
+          # The header goes through stdin so the token never appears in a
+          # process listing.
+          status=$(printf 'Authorization: Bearer %s\n' "$GH_TOKEN" |
+            curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X DELETE -H @- \
+              -H 'Accept: application/vnd.github+json' "$GITHUB_API_URL/installation/token" || true)
+          if [ "$status" = 204 ]; then
+            echo "the lane token is revoked"
+          else
+            echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
+          fi
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: lanes-app github-token
+
+  # The adaptive lane level (owner decisions Q111 and Q113 (a)): once an hour,
+  # after the sweep, decides the issue lane's next concurrency level from the
+  # sweep's lanes App readings, the lane's runs in progress and the last
+  # decision, and publishes it as `<level>@<valid-until>` in the one variable
+  # limits.lane-level.variable names
+  # (.github/scripts/work-unblock/publish-lane-level.mjs). While
+  # limits.lane-level.shadow is set it logs the level as a notice, mints no
+  # token and writes nothing. Any failure ends green with a notice: a missed
+  # hour leaves the last value, which expires to the default. The pacer does
+  # not skip it: it costs a few job-token calls an hour, and the level should
+  # still be decided when the budget runs hot. A tick the pacer paced made no
+  # lanes App calls, so it hands over no readings and decide() holds L.
+  # Schedule only: the broker mints publish-lane-level on no other event.
+  publish-lane-level:
+    needs: label-unblocked
+    if: ${{ !cancelled() && github.event_name == 'schedule' && github.ref == 'refs/heads/main' }}
+    concurrency:
+      group: work-unblock-publish-lane-level
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read # count the issue lane's runs in progress, and read the last decision's artifact
+      contents: read # check out main
+      id-token: write # prove to the token broker which workflow this is
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      # The off switch, checked before anything else.
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); no level decided or published"
+
+      - name: Resolve the config
+        id: config
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: work-unblock
+          activity: publish-lane-level
+          base-path: .base
+          output-path: ${{ runner.temp }}/resolved-config.json
+
+      # limits.lane-level.shadow: a shadow run mints no token.
+      - name: Read the publish mode
+        id: mode
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
+        env:
+          RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
+          SCRIPT: ${{ steps.config.outputs.script }}
+        run: node ".base/$SCRIPT" mode
+
+      # The resolved grant: Variables write, with contents, pull-requests and
+      # issues read. A refused or failed mint leaves no token; the next step
+      # then writes nothing and says so.
+      - name: Request the lane token
+        id: lane-token
+        if: steps.mode.outputs.shadow == 'false'
+        continue-on-error: true
+        uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
+        with:
+          broker-url: ${{ vars.LANES_BROKER_URL }}
+          audience: ${{ vars.LANES_BROKER_AUDIENCE }}
+          lane: work-unblock
+          activity: publish-lane-level
+          effect: ${{ steps.config.outputs.effect }}
+          contents: ${{ steps.config.outputs.contents }}
+          pull-requests: ${{ steps.config.outputs.pull-requests }}
+          issues: ${{ steps.config.outputs.issues }}
+          actions-variables: ${{ steps.config.outputs.actions-variables }}
+          kill-switch-ok: "true"
+          rate-limit-hold-ok: "true"
+
+      - name: Decide and publish the lane level
+        id: publish
+        if: steps.mode.outcome == 'success'
+        timeout-minutes: 2
+        env:
+          RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
+          LANE_READINGS: ${{ needs.label-unblocked.outputs.lane-readings }}
+          LANE_VARS: ${{ toJSON(vars) }}
+          # The job's own token: the lane's run count and the last decision's
+          # artifact. The lane token only writes the variable.
+          ACTIONS_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          # The job token's readings; the script pins the lane token's client
+          # to lanes-app (publish-lane-level.mjs laneClient).
+          API_BUDGET_TOKEN: github-token
+          STATE_OUT: ${{ runner.temp }}/lane-level-state.json
+          SCRIPT: ${{ steps.config.outputs.script }}
+        run: node ".base/$SCRIPT" run
+
+      - name: Scan the upload for credentials
+        id: scan-state
+        if: always() && steps.publish.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/lane-level-state.json
+
+      # The next hour's previous decision; publish-lane-level.mjs reads it from
+      # the newest scheduled run of main's work-unblock.yml.
+      - name: Upload the decision for the next hour
+        if: (always() && steps.publish.outcome == 'success') && steps.scan-state.outputs.clean == 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lane-level-state
+          path: ${{ runner.temp }}/lane-level-state.json
+          retention-days: 1
+          if-no-files-found: ignore
 
       # The token is cancelled as soon as the job is done; it would otherwise
       # expire within the hour. This never fails the job.

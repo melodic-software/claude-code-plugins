@@ -70,13 +70,8 @@ done
 set -- ${ARGS[@]+"${ARGS[@]}"}
 
 BRANCH="${1:-}"
-if [[ -z "$BRANCH" ]]; then
-  BRANCH="$(git branch --show-current 2>/dev/null || true)"
-fi
-
-if [[ -z "$BRANCH" ]]; then
-  exit 1
-fi
+[[ -n "$BRANCH" ]] || BRANCH="$(git branch --show-current 2>/dev/null || true)"
+[[ -n "$BRANCH" ]] || exit 1
 
 # Notes name the source and the reason only, never the pattern text, so a
 # repo-controlled value is not echoed into the caller's context.
@@ -248,23 +243,19 @@ pattern_limit() {
 # =~ returns 2 on a bad pattern). Otherwise reports the source, the reason,
 # and outcome $3.
 usable_pattern() {
-  local src="$1" value="$2" outcome="$3" rc limit
+  local src="$1" value="$2" outcome="$3" limit reason=""
   limit="$(pattern_limit "$value")"
   if [[ -n "$limit" ]]; then
-    note "${src}: ${KEY} ${limit}; ${outcome}"
-    return 1
+    reason="$limit"
+  elif [[ "$value" =~ \\[1-9] ]]; then
+    reason="uses a backreference, which is not allowed"
+  else
+    { [[ "" =~ $value ]]; } 2>/dev/null
+    (($? != 2)) || reason="is an invalid ERE"
   fi
-  if [[ "$value" =~ \\[1-9] ]]; then
-    note "${src}: ${KEY} uses a backreference, which is not allowed; ${outcome}"
-    return 1
-  fi
-  { [[ "" =~ $value ]]; } 2>/dev/null
-  rc=$?
-  if [[ "$rc" -eq 2 ]]; then
-    note "${src}: ${KEY} is an invalid ERE; ${outcome}"
-    return 1
-  fi
-  return 0
+  [[ -z "$reason" ]] && return 0
+  note "${src}: ${KEY} ${reason}; ${outcome}"
+  return 1
 }
 
 REPO_ROOT="$(config_root_resolve)"

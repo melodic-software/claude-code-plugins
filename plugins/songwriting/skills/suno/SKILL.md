@@ -48,7 +48,8 @@ If the action is unknown, show this table and ask what the user wants.
 
 ### The 6-layer formula (style prompt ordering)
 
-Order matters: early tags carry more weight, so front-load genre.
+Lay the prompt out in this order, genre first. That early tags carry more weight is rated
+LOW-MEDIUM, for terse comma-separated prompts only (`power-tips` row above).
 
 1. **Genre / subgenre**. Specific, not "pop" → `synth-pop, 80s-inspired`
 2. **Mood**. 2-3 words → `nostalgic, hopeful` (not 9 conflicting moods)

@@ -2186,16 +2186,17 @@ def evaluate(
 
 
 def allowed_method(repo: str, requested: str | None) -> str:
-    data = gh_json(
-        [
-            "repo",
-            "view",
-            repo,
-            "--json",
-            "squashMergeAllowed,mergeCommitAllowed,rebaseMergeAllowed",
-        ]
+    data = json_object(
+        gh_json(
+            [
+                "repo",
+                "view",
+                repo,
+                "--json",
+                "squashMergeAllowed,mergeCommitAllowed,rebaseMergeAllowed",
+            ]
+        )
     )
-    data = data if is_json_object(data) else {}
     allowed = {
         "squash": bool(data.get("squashMergeAllowed")),
         "merge": bool(data.get("mergeCommitAllowed")),
@@ -2216,7 +2217,7 @@ def _async_payload(text: str) -> dict[str, Any]:
         data = json.loads(text) if text.strip() else None
     except json.JSONDecodeError:
         return {}
-    return data if is_json_object(data) else {}
+    return json_object(data)
 
 
 def request_async_merge(
@@ -2308,7 +2309,9 @@ def read_async_merge(repo: str, number: int, uuid: str) -> dict[str, Any]:
             "corrupt": True,
         }
     try:
-        payload = gh_json(["api", f"repos/{repo}/pulls/{number}/merge-async/{uuid}"])
+        payload = json_object(
+            gh_json(["api", f"repos/{repo}/pulls/{number}/merge-async/{uuid}"])
+        )
     except (RuntimeError, json.JSONDecodeError) as exc:
         return {
             "status": "",
@@ -2316,7 +2319,6 @@ def read_async_merge(repo: str, number: int, uuid: str) -> dict[str, Any]:
             "readError": True,
             "expired": gh_http_status(str(exc)) == 404,
         }
-    payload = payload if is_json_object(payload) else {}
     return {
         "status": str(payload.get("status") or ""),
         "message": str(json_object(payload.get("details")).get("message") or ""),
@@ -2332,17 +2334,18 @@ def pull_request_landed(repo: str, number: int) -> dict[str, Any]:
     merged with no head: the head a merge landed cannot then be confirmed.
     """
     try:
-        data = gh_json(
-            [
-                "api",
-                f"repos/{repo}/pulls/{number}",
-                "--jq",
-                "{merged: .merged, head: .head.sha}",
-            ]
+        data = json_object(
+            gh_json(
+                [
+                    "api",
+                    f"repos/{repo}/pulls/{number}",
+                    "--jq",
+                    "{merged: .merged, head: .head.sha}",
+                ]
+            )
         )
     except (RuntimeError, json.JSONDecodeError):
-        data = None
-    data = data if is_json_object(data) else {}
+        data = {}
     merged, head = data.get("merged"), data.get("head")
     head = head if isinstance(head, str) and head else None
     if not isinstance(merged, bool) or (merged and head is None):
@@ -2413,13 +2416,13 @@ def _failed_ejections(pr: dict[str, Any]) -> int | None:
     if not is_json_array(nodes):
         return None
     count = 0
-    for node in reversed(nodes):
-        kind = json_object(node).get("__typename")
+    for node in map(json_object, reversed(nodes)):
+        kind = node.get("__typename")
         if kind in HEAD_CHANGES:
             return count
-        if kind != "RemovedFromMergeQueueEvent":
+        if kind != REMOVED:
             return None
-        count += json_object(node).get("reason") == "failed_checks"
+        count += node.get("reason") == "failed_checks"
     return count if len(nodes) < merge_policy.MAX_QUEUE_EJECTIONS_LIMIT else None
 
 
@@ -2427,9 +2430,8 @@ def _last_removal_reason(pr: dict[str, Any]) -> str | None:
     """The reason of the queue's newest removal of the pull request, or None
     when a head change is newer than every removal or none can be read."""
     nodes = json_object(pr.get("timelineItems")).get("nodes")
-    for node in reversed(nodes if is_json_array(nodes) else []):
-        node = json_object(node)
-        if node.get("__typename") != "RemovedFromMergeQueueEvent":
+    for node in map(json_object, reversed(json_array(nodes))):
+        if node.get("__typename") != REMOVED:
             return None
         reason = node.get("reason")
         return reason if isinstance(reason, str) and reason else None
@@ -2461,11 +2463,7 @@ def read_merge_queue(repo: str, number: int) -> dict[str, Any]:
         )
     except (RuntimeError, json.JSONDecodeError) as exc:
         return {"readError": f"could not read the merge queue: {exc}"}
-    pr = json_object(
-        json_object(json_object(json_object(data).get("data")).get("repository")).get(
-            "pullRequest"
-        )
-    )
+    pr = json_object(dig(data, "data", "repository", "pullRequest"))
     flags = (pr.get("merged"), pr.get("isInMergeQueue"), pr.get("isMergeQueueEnabled"))
     if not all(isinstance(flag, bool) for flag in flags):
         return {"readError": "the merge queue read returned no pull request state"}
@@ -2585,6 +2583,7 @@ def enqueue_pull_request(repo: str, number: int, *, sha: str) -> dict[str, Any]:
         for error in payload.get("errors") or []
         if is_json_object(error)
     ]
+    error_text = "; ".join(e for e in errors if e)
     if is_json_object(entry):
         # An entry is a live enqueue even beside errors: reported enqueued so
         # it is recorded and checked against the merge.max-in-flight cap.
@@ -2595,14 +2594,15 @@ def enqueue_pull_request(repo: str, number: int, *, sha: str) -> dict[str, Any]:
             "position": entry.get("position"),
         }
         if errors:
-            record["message"] = "; ".join(e for e in errors if e)
+            record["message"] = error_text
         return record
+    stderr = proc.stderr.strip()
     record["status"] = "failed" if errors else None
-    record["message"] = "; ".join(e for e in errors if e) or (
-        proc.stderr.strip() or "enqueuePullRequest returned no merge queue entry"
+    record["message"] = (
+        error_text or stderr or "enqueuePullRequest returned no merge queue entry"
     )
-    if proc.stderr.strip():
-        record["stderr"] = proc.stderr.strip()
+    if stderr:
+        record["stderr"] = stderr
     return record
 
 
@@ -2978,7 +2978,7 @@ def _record_pending(
             "uuid": record["uuid"],
             "head": pin,
             "mergeAction": record.get("mergeAction"),
-            "requestedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "requestedAt": _requested_at(),
         }
         stack = json_object(result.get("stack"))
         if stack.get("landsLowerLayers"):
@@ -2993,12 +2993,16 @@ def _record_pending(
     _write_pending(path, key, entry, result)
 
 
+def _requested_at() -> str:
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
 def _queued_entry(pin: str, *, unconfirmed: bool = False) -> dict[str, Any]:
     entry: dict[str, Any] = {
         "queued": True,
         "head": pin,
         "mergeAction": "merge_queue",
-        "requestedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "requestedAt": _requested_at(),
     }
     if unconfirmed:
         entry["unconfirmed"] = True
@@ -3426,11 +3430,7 @@ def _force_pushed_heads(repo: str, number: int) -> list[str]:
             args += ["-f", f"c={cursor}"]
         data = gh_json_graphql(args, label=f"#{number} force pushes")
         items = json_object(
-            json_object(
-                json_object(
-                    json_object(json_object(data).get("data")).get("repository")
-                ).get("pullRequest")
-            ).get("timelineItems")
+            dig(data, "data", "repository", "pullRequest", "timelineItems")
         )
         page = items.get("nodes")
         info = json_object(items.get("pageInfo"))
@@ -3554,27 +3554,25 @@ def _head_file(repo: str, head: str) -> Callable[[str, str], str | None]:
             ]
         )
         if proc.returncode == 0:
-            text: str | None = proc.stdout
-        elif gh_http_status(proc.stderr or "") != 404:
+            return proc.stdout
+        if gh_http_status(proc.stderr or "") != 404:
             raise RuntimeError(f"head-file-unread:{path}")
-        else:
-            files = json_object(
-                gh_json(["api", f"repos/{repo}/compare/{original}...{head}"])
-            ).get("files")
-            # The comparison lists at most 300 files; a full page may hide one.
-            if (
-                not is_json_array(files)
-                or len(files) >= 300
-                or not any(
-                    is_json_object(item)
-                    and item.get("filename") == path
-                    and item.get("status") == "removed"
-                    for item in files
-                )
-            ):
-                raise HeadFileUnproven(f"head-file-unproven:{path}")
-            text = None
-        return text
+        files = json_object(
+            gh_json(["api", f"repos/{repo}/compare/{original}...{head}"])
+        ).get("files")
+        # The comparison lists at most 300 files; a full page may hide one.
+        if (
+            not is_json_array(files)
+            or len(files) >= 300
+            or not any(
+                is_json_object(item)
+                and item.get("filename") == path
+                and item.get("status") == "removed"
+                for item in files
+            )
+        ):
+            raise HeadFileUnproven(f"head-file-unproven:{path}")
+        return None
 
     return read
 
@@ -3593,20 +3591,17 @@ def score_unattended(
     eligible = inputs.get("eligibility")
     if not policy.enabled or eligible is None or not eligible.eligible:
         return policy
-    if eligible.dependabot is not None:
-        # The Dependabot class is not scored: `ci-status` is its gate, and a
-        # workflow pin bump sits on a HIGH path by definition.
-        details = {
-            **(policy.details or {}),
-            "headSha": json_object(inputs["pr"].get("head")).get("sha"),
-            "risk": {"score": None, "reason": "not-scored:dependabot"},
-        }
-        return replace(policy, details=details)
-    pr, config = inputs["pr"], inputs["config"]
+    pr = inputs["pr"]
     details = {
         **(policy.details or {}),
         "headSha": json_object(pr.get("head")).get("sha"),
     }
+    if eligible.dependabot is not None:
+        # The Dependabot class is not scored: `ci-status` is its gate, and a
+        # workflow pin bump sits on a HIGH path by definition.
+        details["risk"] = {"score": None, "reason": "not-scored:dependabot"}
+        return replace(policy, details=details)
+    config = inputs["config"]
     # The pr-merge lane also needs a passing verifier verdict at the head,
     # judged first: a refusal stands whatever the diff scores, so its lane
     # evidence and changed files are not read and its reasons comment waits
@@ -3636,6 +3631,7 @@ def score_unattended(
         files, complete = merge_policy.changed_files(repo, pr)
     except merge_policy.PolicyReadError:
         files, complete = (), False
+    paths = [p for f in files for p in (f.path, f.previous_path) if p]
     comments: list[dict[str, Any]] | None = None
     try:
         lanes, comments = _lane_evidence(
@@ -3645,9 +3641,7 @@ def score_unattended(
             inputs["identity"],
             self_logins,
             inputs["permission"],
-            [p for f in files for p in (f.path, f.previous_path) if p]
-            if complete
-            else None,
+            paths if complete else None,
             config.floor,
         )
     except HeadPusherUnproven as exc:
@@ -3666,7 +3660,7 @@ def score_unattended(
         merge_policy.own_paths(
             repo,
             pr,
-            frozenset(p for f in files for p in (f.path, f.previous_path) if p),
+            frozenset(paths),
             None if eligible.body_is_intent else merge_policy.MODEL_APP_OWN,
             floor=config.floor,
         )
@@ -3680,7 +3674,7 @@ def score_unattended(
         merge_policy.author_reviewed_paths(
             repo,
             pr,
-            frozenset(p for f in files for p in (f.path, f.previous_path) if p),
+            frozenset(paths),
             inputs.get("trusted_humans") or (),
             reader is not None,
             config.floor,

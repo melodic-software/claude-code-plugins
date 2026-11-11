@@ -326,13 +326,12 @@ def registered_repo_from_gitdir_pointer(path: Path) -> Path | None:
     # directory is `hub.git`, which `repo_path` already supports and which no
     # `.git`-named-ancestor search would ever find.
     for parent in recorded.parents:
-        if parent.name != "worktrees":
-            continue
-        common = parent.parent
-        # Same rule `repo_path` applies: a standard clone's common directory is
-        # the main working tree's `.git`, so git commands run from its parent;
-        # a bare hub has no working tree, so they run from the directory itself.
-        return common.parent if common.name == ".git" else common
+        if parent.name == "worktrees":
+            common = parent.parent
+            # Same rule `repo_path` applies: a standard clone's common directory
+            # is the main working tree's `.git`, so git commands run from its
+            # parent; a bare hub has no working tree, so they run from itself.
+            return common.parent if common.name == ".git" else common
     return None
 
 
@@ -447,8 +446,7 @@ def remove_worktree(worktree: Worktree, root: Path) -> dict[str, object]:
     if not main_repo.exists():
         raise RuntimeError(f"main repo missing for {worktree.key}: {main_repo}")
     resolved = worktree.path.resolve()
-    allowed_root = root.resolve()
-    if allowed_root not in resolved.parents:
+    if root.resolve() not in resolved.parents:
         raise RuntimeError(
             f"refusing to remove worktree outside babysit root: {resolved}"
         )
@@ -521,11 +519,8 @@ def orphan_registration_state(
     return prune_repo_worktree_records(registered_repo, worktree_path)
 
 
-def active_worker_lease(
-    worktree: Worktree, state_dir: Path
-) -> dict[str, object] | None:
-    path = leases.lease_path(state_dir, "worker", worktree.key)
-    current = leases.load_lease(path)
+def active_worker_lease(lease_path: Path) -> dict[str, object] | None:
+    current = leases.load_lease(lease_path)
     if not current or leases.lease_expiry(current) <= datetime.now(UTC):
         return None
     return current
@@ -610,7 +605,7 @@ def main() -> int:
             # final removal. A worker can start after cleanup, but cleanup can
             # never race past a newly acquired lease and delete its worktree.
             with state_lock(lease_path):
-                active_lease = active_worker_lease(worktree, state_dir)
+                active_lease = active_worker_lease(lease_path)
                 if args.lease_token and not active_lease:
                     raise RuntimeError(
                         f"no unexpired worker lease exists for {worktree.key}"

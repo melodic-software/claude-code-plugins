@@ -23,8 +23,8 @@ native form and is worth running beside this capture when a session will not sta
 
 ## Presence
 
-`doctor` is the one bundled skill the kill switch leaves typable, but an environment variable or
-a `skillOverrides` entry still hides it, and headless contexts may lack it. This skill never
+We never assume `doctor` is present; what can hide it is read live from the bundled-skills
+pointer in the table above. This skill never
 depends on it and never chains into a `doctor` fix: the capture is complete on its own.
 
 ## Extraction record

@@ -3,6 +3,13 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.15] - 2026-11-11
+
+### Changed
+
+- The `clean` invocation-forms reference links the permissions page's wrapper section by the id
+  the page renders now. No behavior change.
+
 ## [0.21.14] - 2026-11-10
 
 ### Changed

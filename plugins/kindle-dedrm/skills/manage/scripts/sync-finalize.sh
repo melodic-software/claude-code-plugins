@@ -11,6 +11,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KINDLE_UPDATES_DIR="${LOCALAPPDATA}/Amazon/Kindle/updates"
+CACHED_INSTALLER="${KINDLE_UPDATES_DIR}/KindleForPC-installer.exe"
 
 echo "=== kindle-dedrm: sync finalize ==="
 
@@ -29,13 +30,13 @@ if [[ "${KINDLE_VER}" != "2.8.0.70980" ]]; then
 fi
 
 # A cached installer is what the firewall didn't catch.
-if [[ -f "${KINDLE_UPDATES_DIR}/KindleForPC-installer.exe" ]]; then
+if [[ -f "${CACHED_INSTALLER}" ]]; then
   # portability-ok: Windows-only script (Git Bash + PowerShell + LOCALAPPDATA
   # above already require Windows) — a BSD stat fallback would be dead code.
-  SIZE=$(stat -c%s "${KINDLE_UPDATES_DIR}/KindleForPC-installer.exe" 2>/dev/null || echo unknown)
+  SIZE=$(stat -c%s "${CACHED_INSTALLER}" 2>/dev/null || echo unknown)
   echo "[sync-finalize] cached installer present (${SIZE} bytes) — deleting"
-  rm -f "${KINDLE_UPDATES_DIR}/KindleForPC-installer.exe"
-  if [[ -f "${KINDLE_UPDATES_DIR}/KindleForPC-installer.exe" ]]; then
+  rm -f "${CACHED_INSTALLER}"
+  if [[ -f "${CACHED_INSTALLER}" ]]; then
     echo "[sync-finalize] ERROR: delete failed (file still present)"
     exit 1
   fi

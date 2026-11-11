@@ -232,7 +232,7 @@ object literal without running anything:
 | `get description(){...}`, each `return` collected | `exit`, `init`, `diff`, `terminal-setup` | `getter` |
 | `()=>...` | `artifact-pr-review` | `arrow` |
 | A loop variable of a literal-table roster | `artifact-report` | `roster` |
-| Anything else (`()=>n().description()`) | `design` | `unresolved` |
+| Anything else (`()=>n().description()` with `n` bound to nothing) | none | `unresolved` |
 
 Within a returned expression, only operands in value position count: the start, after a
 top-level ternary `?` or `:`, and after a `||` or `??` fallback unless the fallback is an empty

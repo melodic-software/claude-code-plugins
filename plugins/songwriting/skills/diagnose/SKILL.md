@@ -69,7 +69,7 @@ No action → route on completion stage (partway draft → `demo`; near-complete
 - `variations` output reaches the writer as full section blocks IN CONTEXT: changed lines marked
   `►`, one labeled block per variation, 3-4 per chat menu; scansion maps and per-candidate craft
   notes go to the `variations/` file. Never a bare one-line candidate in a table. See
-  [variations](../../context/pat-pattison/research/variations.md) "Presenting the candidates. Chat
+  [variations](../../context/pat-pattison/research/variations.md) "Presenting the candidates: chat
   vs file".
 - `variations` and `audit` judge candidates against the WRITER's register, not genre and not
   taste. Load [voiceprint](../../context/pat-pattison/research/voiceprint.md); if none exists, name

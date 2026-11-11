@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Unrecorded names:\n- PaymentDemand (src/billing/reminders.ts:1, 3 uses in 1 file) holds the same fields as Invoice. Propose adding it to Invoice's Avoid: line through curate.", "why": "names the code name and the Avoid proposal"},
+    {"answer": "Invoice: add 'payment demand' to its Avoid: line? The reminders module calls the same record PaymentDemand.", "why": "Avoid before the name"}
+  ],
+  "fail": [
+    {"answer": "The glossary meets the contract. No findings.", "why": "misses the unrecorded name"},
+    {"answer": "PaymentDemand duplicates Invoice; run /code-metrics:audit-duplication.", "why": "routes the name to the duplication audit, no Avoid proposal"},
+    {"answer": "", "why": "empty"}
+  ]
+}

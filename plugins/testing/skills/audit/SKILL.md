@@ -323,12 +323,12 @@ above, with `cant-fail-ok: relation across rows`.
   `test.describe.configure` call sets `retries` "for a specific group of tests or a single file" from
   inside a test file (basis: playwright.dev/docs/test-retries; as-of 2026-09-11; recheck when that
   page drops or renames the form). An absent `retries` is a counted decline, never proof of none.
-- **`retries` fires on an expression while the two boolean guards pass on one.** `retries` defaults
-  to `0` and a literal `0` is honored wherever it is written, so only a provable zero puts the flaky
-  shape out of reach and `retries: process.env.CI ? 2 : 0` fires (basis: `config.ts`'s
-  `takeFirst` chain for retries and the TestConfig reference, "By default failing tests are not
-  retried"; as-of v1.63.0, read 2026-09-11; recheck when a release note changes the default or
-  `takeFirst` changes its skip test). `forbidOnly: !!process.env.CI` is the documented scaffold
+- **`retries` fires on an expression while the two boolean guards pass on one.** Only a provable
+  zero puts the flaky shape out of reach, so `retries: process.env.CI ? 2 : 0` fires (pointer for
+  the default: [TestConfig: retries](https://playwright.dev/docs/api/class-testconfig#test-config-retries),
+  as of 2026-11-10; for where a value is read, `config.ts`'s `takeFirst` chain, as-of v1.63.0, read
+  2026-09-11; recheck when a release note changes the default or `takeFirst` changes its skip
+  test). `forbidOnly: !!process.env.CI` is the documented scaffold
   idiom, so any non-`false` expression passes (basis: playwright.dev/docs/test-configuration
   and the `create-playwright` scaffold; as-of 2026-09-11; recheck when either changes the idiom).
 - **A mixed per-project `retries` is read imprecisely, the one place the rules over-fire.** `retries`

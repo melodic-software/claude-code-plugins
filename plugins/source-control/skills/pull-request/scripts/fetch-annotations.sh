@@ -35,100 +35,61 @@ usage() {
   exit 0
 }
 
+die() {
+  printf 'fetch-annotations: %s\n' "$2" >&2
+  exit "$1"
+}
+
 while (($# > 0)); do
   case "$1" in
   -h | --help) usage ;;
-  --failed)
-    FAILED_ONLY=1
-    shift
-    ;;
-  --)
-    shift
-    break
-    ;;
-  -*)
-    printf 'fetch-annotations: unknown flag %q (use --help)\n' "$1" >&2
-    exit 1
-    ;;
+  --failed) FAILED_ONLY=1 ;;
+  --) break ;;
+  -*) die 1 "unknown flag $(printf '%q' "$1") (use --help)" ;;
   *)
-    if [[ -z "$PR_NUMBER" ]]; then
-      PR_NUMBER="$1"
-    else
-      printf 'fetch-annotations: unexpected argument %q\n' "$1" >&2
-      exit 1
-    fi
-    shift
+    [[ -z "$PR_NUMBER" ]] || die 1 "unexpected argument $(printf '%q' "$1")"
+    PR_NUMBER="$1"
     ;;
   esac
+  shift
 done
 
-if [[ -z "$PR_NUMBER" ]]; then
-  printf 'fetch-annotations: <pr-number> required\n' >&2
-  exit 1
-fi
+[[ -n "$PR_NUMBER" ]] || die 1 "<pr-number> required"
 
 # --- Prerequisites -----------------------------------------------------------
 
-have() { command -v "$1" >/dev/null 2>&1; }
-
-have gh || {
-  printf 'fetch-annotations: gh CLI required\n' >&2
-  exit 5
-}
-have jq || {
-  printf 'fetch-annotations: jq required\n' >&2
-  exit 5
-}
+command -v gh >/dev/null 2>&1 || die 5 "gh CLI required"
+command -v jq >/dev/null 2>&1 || die 5 "jq required"
 
 # --- Repo resolution ---------------------------------------------------------
 
-if [[ -n "${FETCH_ANNOT_REPO:-}" ]]; then
-  REPO="$FETCH_ANNOT_REPO"
-else
-  REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null | tr -d '\r\n')
-fi
-
-if [[ "$REPO" != */* ]]; then
-  printf 'fetch-annotations: cannot resolve owner/repo (set FETCH_ANNOT_REPO=owner/name)\n' >&2
-  exit 2
-fi
+REPO="${FETCH_ANNOT_REPO:-}"
+[[ -n "$REPO" ]] || REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null | tr -d '\r\n')
+[[ "$REPO" == */* ]] || die 2 "cannot resolve owner/repo (set FETCH_ANNOT_REPO=owner/name)"
 
 # --- Resolve PR head SHA -----------------------------------------------------
 
 HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid -q .headRefOid 2>/dev/null | tr -d '\r\n')
-if [[ -z "$HEAD_SHA" ]]; then
-  printf 'fetch-annotations: gh pr view %s failed (no head SHA)\n' "$PR_NUMBER" >&2
-  exit 2
-fi
+[[ -n "$HEAD_SHA" ]] || die 2 "gh pr view $PR_NUMBER failed (no head SHA)"
 
 # --- Fetch check-runs for head SHA ------------------------------------------
 
 # Returns list of check_run records: id, name, conclusion, status. Apply jq
 # client-side (avoids gh's --jq flag for stubbing simplicity). `--paginate`
-# walks all pages so PRs with >100 check-runs aren't silently truncated. The
-# `gh api` exit code is captured separately so transport/auth/rate-limit
-# failures surface as exit 2 (per the docstring contract) instead of falling
+# walks all pages so PRs with >100 check-runs aren't silently truncated. A
+# failed `gh api` (transport, auth, rate limit) exits 2 instead of falling
 # through the empty-output branch as a misleading success.
-CHECK_RUNS_RAW=$(gh api --paginate "repos/$REPO/commits/$HEAD_SHA/check-runs?per_page=100" 2>/dev/null)
-api_rc=$?
-if [[ $api_rc -ne 0 ]]; then
-  printf 'fetch-annotations: gh api check-runs failed (exit %d)\n' "$api_rc" >&2
-  exit 2
-fi
+CHECK_RUNS_RAW=$(gh api --paginate "repos/$REPO/commits/$HEAD_SHA/check-runs?per_page=100" 2>/dev/null) ||
+  die 2 "gh api check-runs failed (exit $?)"
 
-# One jq pass both projects the records and applies --failed; a second pipe
-# would only buy another spawn. jq -c keeps each record on one line, the form
-# the walk below reads. The object uses the `{id, name, ...}` shorthand, which
-# jq expands to the same `{id: .id, ...}` construction.
+# One jq pass both projects the records and applies --failed. jq -c keeps each
+# record on one line, the form the walk below reads.
 FILTERED=$(printf '%s' "$CHECK_RUNS_RAW" |
   jq -c --argjson failed_only "$FAILED_ONLY" '
       .check_runs[]
       | {id, name, conclusion, status}
       | select($failed_only == 0
-               or .conclusion == "failure"
-               or .conclusion == "timed_out"
-               or .conclusion == "action_required"
-               or .conclusion == "cancelled")
+               or (.conclusion | IN("failure", "timed_out", "action_required", "cancelled")))
     ')
 
 if [[ -z "$FILTERED" ]]; then
@@ -144,24 +105,19 @@ fi
 #    "path":"x","start_line":N,"end_line":N,"title":"x","message":"x"}
 
 while IFS= read -r cr; do
-  cr_id=$(printf '%s' "$cr" | jq -r '.id')
-  cr_name=$(printf '%s' "$cr" | jq -r '.name')
+  cr_id=$(jq -r '.id' <<<"$cr")
+  cr_name=$(jq -r '.name' <<<"$cr")
   [[ -z "$cr_id" || "$cr_id" == "null" ]] && continue
 
   # `--paginate` walks all annotation pages — large lint/test failures can
   # exceed the 100/page cap and silently drop diagnostics otherwise. Per-page
   # response is `[...]`; jq's `if type == "array" then .[] else . end`
-  # already flattens the multi-array stream paginate emits. Capture the API
-  # exit code separately so transport/auth/rate-limit failures (403/429/etc.)
-  # surface as exit 2 per the docstring contract instead of silently emitting
-  # partial JSONL. The trailing `|| true` on the jq pipe still tolerates
-  # benign per-record decode quirks without aborting the whole walk.
-  ANNOT_RAW=$(gh api --paginate "repos/$REPO/check-runs/$cr_id/annotations?per_page=100" 2>/dev/null)
-  annot_rc=$?
-  if [[ $annot_rc -ne 0 ]]; then
-    printf 'fetch-annotations: gh api annotations for check-run %s failed (exit %d)\n' "$cr_id" "$annot_rc" >&2
-    exit 2
-  fi
+  # already flattens the multi-array stream paginate emits. A failed `gh api`
+  # (403, 429 and the like) exits 2 instead of silently emitting partial
+  # JSONL. The trailing `|| true` on jq still tolerates benign per-record
+  # decode quirks without aborting the whole walk.
+  ANNOT_RAW=$(gh api --paginate "repos/$REPO/check-runs/$cr_id/annotations?per_page=100" 2>/dev/null) ||
+    die 2 "gh api annotations for check-run $cr_id failed (exit $?)"
   printf '%s' "$ANNOT_RAW" |
     jq -c --argjson cr_id "$cr_id" --arg cr_name "$cr_name" '
         if type == "array" then .[] else . end

@@ -67,7 +67,9 @@ non-source paths are not in the coverage total.
   `vitest.config.ts` load produced **2 phantom "unused files"** while the `ERROR:` line went to
   stderr, which `--reporter json` discards. The stdout blob of a degraded run looks perfectly
   healthy, so stdout genuinely cannot establish run health here.
-- **Exit codes:** `0` clean, `1` findings, `1` hard error. Findings and failure are indistinguishable.
+- **Exit codes:** the lane never reads knip's exit code; run health comes from stderr, as above.
+  Pointer: [knip CLI `--no-exit-code`](https://knip.dev/reference/cli#--no-exit-code).
+  As of: 2026-11-10. Recheck trigger: that section gives findings and errors different codes.
 - **Config evaluation is disclosed, not denied.** knip loads a repository-controlled
   `knip.config.{ts,js,mjs,cjs}` through `jiti`; a planted side effect in one **fired**. Every run
   that loads a config module says so in the report. The same experiment in Python did not fire:
@@ -92,17 +94,18 @@ non-source paths are not in the coverage total.
   unreachable code. This is why `--max` orders by git recency and not by confidence.
 - **Input filtering is mandatory.** Handed a non-Python file, vulture logs a parse error and skips
   it. The parse error is written to **stderr** in `<path>:<line>: <message>` shape, the same shape
-  a finding wears on stdout, and the exit code is `1` alone or `3` when real findings coexist.
+  a finding wears on stdout.
 - **Two stderr shapes, opposite meanings.** A `<path>:<line>: <message>` line means one input file
   was unparsable: the lane still ran over everything else, and it is reported as an input note.
   Anything else on stderr (a usage error, a traceback) means the run itself is unsound and the lane
   is degraded. Conflating them would let one stray `.toml` in scope suppress the whole Python lane.
   knip's `ERROR:` stderr rule does **not** generalize here.
-- **Exit codes:** `0` clean, `3` findings, `1` input error. Health comes from the shape of stderr,
-  never from the code.
-- **Pipeline safety:** vulture raises `BrokenPipeError` and returns 1 when its stdout closes early,
-  so its output is written to a temp file and read back in full, never piped into a truncating
-  reader.
+- **Exit codes:** health comes from the shape of stderr, never from the code. Pointer:
+  [vulture exit codes](https://github.com/jendrikseipp/vulture#exit-codes). As of: 2026-11-10.
+  Recheck trigger: that section adds a code that separates an input error from a crash.
+- **Pipeline safety:** vulture's output is written to a temp file and read back in full, never
+  piped into a truncating reader; a stdout closed early fails the run (measured, versions per the
+  record above).
 
 ### gopls: Go
 
@@ -215,12 +218,10 @@ non-source paths are not in the coverage total.
   file that never spells the path can still load the file, so the candidate is uncertain, not
   dead. Precision of this shape is unmeasured beyond the fixture contract (a workflow reference
   saves the script it names; a script named nowhere is the one candidate).
-- **`-H -o` attribute each match to its file, and BSD grep has both.**
-  **Claim:** BSD grep supports `-H` (always print the filename) and `-o` (print only the match).
-  **Basis:** [FreeBSD grep(1)](https://man.freebsd.org/cgi/man.cgi?query=grep&sektion=1): "-H
-  Always print filename headers with output lines." and "-o, --only-matching Prints only the
-  matching part of the lines." **As of:** 2026-09-28. **Recheck:** the lane fails on a BSD or
-  macOS userland, or the man page drops either flag.
+- **`-H -o` attribute each match to its file**, and the lane relies on BSD grep taking both flags.
+  Pointer: [FreeBSD grep(1)](https://man.freebsd.org/cgi/man.cgi?query=grep&sektion=1). As of:
+  2026-11-10. Recheck trigger: the lane fails on a BSD or macOS userland, or the man page drops
+  either flag.
 
 ## Why Rust, a .NET build lane, and an LSP scanning lane are absent
 
@@ -232,9 +233,11 @@ non-source paths are not in the coverage total.
   .NET tool. A Roslyn or ReSharper lane, with unused parameters and unnecessary `using` directives,
   stays excluded. Source files in the other languages still enter the grep lane's
   `unreferenced-file` search, which does not build.
-- **An LSP scanning lane**: Claude Code's `LSP` tool is model-callable only. No bash script can
-  reach it, and it has no batch mode, so enumerating every symbol would cost one model turn each.
-  It is retained only as an optional per-candidate assist inside the already-bounded adjudication.
+- **An LSP scanning lane**: a lane is a detector the scan script runs in one batch. Claude Code's
+  `LSP` tool is used only as an optional per-candidate assist inside the already-bounded
+  adjudication. Pointer:
+  [LSP tool behavior](https://code.claude.com/docs/en/tools-reference#lsp-tool-behavior). As of:
+  2026-11-10. Recheck trigger: that section lets a script or a batch call reach the tool.
 - **`DiagnosticTag.Unnecessary`**: wrong scope everywhere (file-local/private only), push-only
   delivery, and Claude Code's diagnostics normalizer strips `tags` entirely.
 - **pyright as a Python detector**: measured, it misses `dead_fn`, `DeadClass`, and `dead_method`.
