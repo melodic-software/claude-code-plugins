@@ -42,6 +42,14 @@ function roundSec(sec) {
 }
 
 /**
+ * @param {{ startSec: number, endSec: number }} span
+ * @returns {number}
+ */
+function midpointSec({ startSec, endSec }) {
+  return roundSec((startSec + endSec) / 2);
+}
+
+/**
  * @typedef {Object} CoveragePlan
  * @property {number} durationSec
  * @property {number} stratifiedIntervalSec
@@ -219,7 +227,7 @@ export function stratifiedSampleTimestamps(durationSec, intervalSec) {
  * @returns {number[]}
  */
 export function densificationAnchorTimestamps(windows) {
-  return windows.map((window) => roundSec((window.startSec + window.endSec) / 2));
+  return windows.map(midpointSec);
 }
 
 /**
@@ -230,11 +238,5 @@ export function densificationAnchorTimestamps(windows) {
  * @returns {number[]}
  */
 export function cueAnchorTimestamps(cues, patterns = DEFAULT_CUE_ANCHOR_PATTERNS) {
-  /** @type {number[]} */
-  const timestamps = [];
-  for (const cue of cues) {
-    if (!patterns.some((pattern) => pattern.test(cue.text))) continue;
-    timestamps.push(roundSec((cue.startSec + cue.endSec) / 2));
-  }
-  return timestamps;
+  return cues.filter((cue) => patterns.some((pattern) => pattern.test(cue.text))).map(midpointSec);
 }

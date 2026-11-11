@@ -81,6 +81,23 @@ export const WATCH_STATE_FILENAME = "watch.json";
 export const CONTINUATION_PROMPT_FILENAME = "continuation-prompt.md";
 
 /**
+ * Every phase, in `watch.json` key order; also the phases the CLI may mark, which guards
+ * against typo'd phase keys. `companion` is an optional Phase 0b side-marker (not in the
+ * sequential {@link findNextPhase} order): markable when `source/companion-sources.md`
+ * exists, absent from the next-phase walk so a no-companion watch is unaffected.
+ */
+const MARKABLE_PHASES = /** @type {(keyof WatchPhases)[]} */ ([
+  "acquire",
+  "transcript",
+  "watching",
+  "vision",
+  "harvest",
+  "companion",
+  "research",
+  "synthesis",
+]);
+
+/**
  * Create an empty watch state for a new session.
  *
  * @param {object} meta
@@ -115,16 +132,9 @@ export function createWatchState({
     ...(maxFrameGapSec === undefined ? {} : { maxFrameGapSec }),
     ...(sourceMetadata && Object.keys(sourceMetadata).length > 0 ? { sourceMetadata } : {}),
     status: "pending",
-    phases: {
-      acquire: null,
-      transcript: null,
-      watching: null,
-      vision: null,
-      harvest: null,
-      companion: null,
-      research: null,
-      synthesis: null,
-    },
+    phases: /** @type {WatchPhases} */ (
+      Object.fromEntries(MARKABLE_PHASES.map((phase) => [phase, null]))
+    ),
   };
 }
 
@@ -272,15 +282,7 @@ export async function removeRecordedTempSessionDirs(tempSession, label = "close"
 }
 
 /** Sequential phase walk; `companion` is an optional side-marker and stays out of it. */
-const PHASE_ORDER = /** @type {(keyof WatchPhases)[]} */ ([
-  "acquire",
-  "transcript",
-  "watching",
-  "vision",
-  "harvest",
-  "research",
-  "synthesis",
-]);
+const PHASE_ORDER = MARKABLE_PHASES.filter((phase) => phase !== "companion");
 
 /**
  * Resolve the next incomplete phase name.
@@ -466,23 +468,6 @@ export async function writeContinuationPrompt(
   await writeFile(continuationPromptPath(sliceDir), prompt, "utf8");
   return prompt;
 }
-
-/**
- * Phases that may be marked via the CLI — guards against typo'd phase keys.
- * `companion` is an optional Phase 0b side-marker (not in the sequential
- * {@link findNextPhase} order): markable when `source/companion-sources.md`
- * exists, absent from the next-phase walk so a no-companion watch is unaffected.
- */
-const MARKABLE_PHASES = /** @type {(keyof WatchPhases)[]} */ ([
-  "acquire",
-  "transcript",
-  "watching",
-  "vision",
-  "harvest",
-  "companion",
-  "research",
-  "synthesis",
-]);
 
 /**
  * @typedef {Object} WatchStateIo
