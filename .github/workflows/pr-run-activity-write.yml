@@ -4,10 +4,9 @@ name: PR Run Activity Write
 # reports it as the check run `<lane> / <activity>`. The run job gates,
 # resolves the base-SHA config, fails red on a `read` effect, gets the App
 # token the effect grants from the lanes token broker with its OIDC token
-# before any head checkout, runs a skill or a script, and revokes the token;
-# the report job writes the check from the run job's runner-computed outputs.
-# In issue mode it runs scripts only (apply-issue-patch, report-outcome); an
-# issue's skill runs in pr-run-activity-read.yml with no write token.
+# before any head checkout, runs a script, and revokes the token; the report
+# job writes the check from the run job's runner-computed outputs. It runs no
+# skill: every skill runs in pr-run-activity-read.yml with no write token.
 # Neither file references the App key. Read activities run in
 # pr-run-activity-read.yml, whose head-code job holds no OIDC token.
 # Job contract: docs/conventions/pr-pipeline/pr-run-activity.md.
@@ -41,7 +40,7 @@ on:
       issue-number:
         description: >-
           Issue mode: the issue an issues lane works, on an issues event only.
-          There is no PR: the trusted base is the default branch tip, a skill
+          There is no PR: the trusted base is the default branch tip, a script
           commits to a new branch, and no check run is posted.
         required: false
         type: string
@@ -479,10 +478,6 @@ on:
           docs/conventions/pr-pipeline.yaml `funding:`.
         required: true
         type: string
-    secrets:
-      claude-code-oauth-token:
-        description: Claude Code OAuth token for skill activities.
-        required: false
     outputs:
       escalation-reason:
         description: >-
@@ -556,9 +551,8 @@ jobs:
     cache-mode: read
     # id-token: write is only for the broker request. Any step of this job can
     # request an OIDC token for another audience: an accepted residual (ADR
-    # 0058), bounded by the broker's one mint per job. So no step runs a
-    # PR-head test file: the schema refuses the verify-scripts, checks and
-    # self-checks that run checkout tests on a write-effect skill.
+    # 0058), bounded by the broker's one mint per job. So no step runs PR-head
+    # code: the job runs only base scripts, never a skill.
     permissions:
       # The review lanes' comment records, read with ARTIFACT_READ_TOKEN by a
       # script that judges their comments (address-feedback.mjs laneReader).
@@ -568,14 +562,10 @@ jobs:
       id-token: write
     # The report job trusts only these, all computed by runner steps. Every
     # one but act-outcome, escalation-reason and api-failures is a step
-    # outcome or an output of a step that ran before any PR head code. act-outcome reads
-    # steps that run after the skill: for a gate skill the verdict step, so a
-    # gate skill must not execute head code; its promote and turn terms only
-    # turn a success into a failure. The act-result step turns a failed skill
-    # step into a success only when the execution file's result message is a
-    # success over the turn cap, a shape the CLI writes and a finished run
-    # could report anyway. escalation-reason comes from the base's reply,
-    # verdict and apply-patch scripts, which run no model and no head code.
+    # outcome or an output of a step that ran before any PR head code.
+    # act-outcome is the script step's outcome, and escalation-reason comes
+    # from the base's reply, verdict and apply-patch scripts, which run no
+    # model and no head code.
     outputs:
       base-sha: ${{ steps.trusted-base.outputs.commit }}
       head-sha: ${{ steps.gate.outputs.head-sha }}
@@ -598,32 +588,15 @@ jobs:
         || steps.gate.outputs.proceed != 'true' && steps.gate.outputs.reason
         || steps.config.outputs.skip-reason || steps.head-recheck.outputs.skip-reason
         || steps.lane-token.outputs.skip-reason
-        || steps.prepare.outputs.skip-reason || steps.promote.outputs.skip-reason
+        || steps.prepare.outputs.skip-reason
         || steps.act-script.outputs.skip-reason
         || steps.patch-select.outputs.skip-reason }}
       # The base action's own failure text, so the report names why the run
       # job failed before its act step.
       run-failure: ${{ steps.lane-token.outputs.failure-reason }}
-      # The lane-outcome JSON, from steps that read the execution file after
-      # the skill, empty when the step wrote none; the report-check-run action
-      # validates it before the check run carries it. A forged limit stop can
-      # only restart the lane after a reset limit-stop.mjs clamps to at least
-      # `limits.reset-clamp-min` hours away, at most
-      # `limits.limit-stops-per-head` times on one head.
-      record: ${{ steps.lane-record.outputs.record }}
-      # Set after the model ran, so forgeable: post.mjs checks every row.
+      # Set after the script ran, so forgeable: post.mjs checks every row.
       api-failures: ${{ steps.api-failures.outputs.api-failures }}
-      # A gate skill succeeds only on a `pass` verdict, a skill that took no
-      # model turn fails, and a skill whose commits could not be moved onto
-      # the PR branch fails. A skill step that failed only on the turn cap
-      # counts as succeeded (act-result). The verdict step's ACT_OUTCOME repeats this
-      # expression: runner-policy refuses YAML aliases.
-      act-outcome: >-
-        ${{ steps.act-result.outputs.outcome == 'success'
-        && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
-        || steps.promote.outcome == 'failure' || steps.act-turns.outcome != 'success') && 'failure'
-        || steps.act-skill.outcome != 'skipped' && (steps.act-result.outputs.outcome || steps.act-skill.outcome)
-        || steps.act-script.outcome }}
+      act-outcome: ${{ steps.act-script.outcome }}
     steps:
       # The job if: above cannot match an unset variable, so the guard would
       # silently let the App's own events through. An empty default branch
@@ -868,13 +841,14 @@ jobs:
           # review-threads and dependency-review.
           prepare-supported: "true"
 
-      # An issue's skill runs model-chosen commands, so it runs in
-      # pr-run-activity-read.yml with no write token; issue mode here runs
-      # only the scripts that apply and report its work.
-      - name: Assert an issue skill runs in the read runner
-        if: inputs.issue-number != '' && steps.config.outcome == 'success' && steps.config.outputs.kind == 'skill'
+      # A skill runs model-chosen commands, so it runs in
+      # pr-run-activity-read.yml with no write token (resolve-config refuses a
+      # skill whose effect is not read); this file runs only the scripts that
+      # apply, publish and report its work.
+      - name: Assert a skill runs in the read runner
+        if: steps.config.outcome == 'success' && steps.config.outputs.kind == 'skill'
         run: |
-          echo "::error::issue-skill-in-write-runner: an issue skill runs in pr-run-activity-read.yml, which holds no write token"
+          echo "::error::skill-in-write-runner: a skill runs in pr-run-activity-read.yml, which holds no write token"
           exit 1
 
       # review-threads runs in pr-run-activity-read.yml, after its caller's
@@ -1369,8 +1343,7 @@ jobs:
           fi
           echo "no-progress=$no_progress" >>"$GITHUB_OUTPUT"
 
-      # The labels the commit, promote and apply-patch steps treat as a hold,
-      # as a JSON array: do-not-merge, the human-gated role label resolved from the base
+      # The labels the apply-patch step treats as a hold, as a JSON array: do-not-merge, the human-gated role label resolved from the base
       # the way report-escalation.sh does, and the activity's labels-absent
       # list, all read before the head checkout replaces .base. The
       # human-gated label is left out only for apply-patch when the caller's
@@ -1386,7 +1359,7 @@ jobs:
         id: hold-label
         if: >-
           steps.head-recheck.outputs.proceed == 'true' && steps.lane-token.outputs.token != ''
-          && (steps.config.outputs.kind == 'skill' || steps.config.outputs.prepare == 'apply-patch')
+          && steps.config.outputs.prepare == 'apply-patch'
         env:
           RESOLVED: ${{ runner.temp }}/resolved-config.json
           HUMAN_GATE: ${{ steps.config.outputs.prepare == 'apply-patch' && inputs.patch-human-gate || '' }}
@@ -1490,54 +1463,13 @@ jobs:
       - name: Isolate the runner
         if: steps.lane-token.outputs.token != ''
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
-        with:
-          install-subprocess-isolation: ${{ steps.config.outputs.kind == 'skill' }}
-
-      # The act-turns step's script, copied before the head checkout replaces
-      # .base, with its SHA-256, which that step checks its copy against
-      # before it loads it. The same step runs in pr-run-activity-read.yml.
-      - name: Copy the act-turns script from the base
-        id: act-turns-bin
-        if: steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
-        env:
-          DEST: ${{ runner.temp }}/act-turns-bin
-        run: |
-          mkdir -p "$DEST"
-          cp .base/.github/scripts/lib/act-turns.mjs "$DEST/"
-          sum=$(sha256sum <"$DEST/act-turns.mjs")
-          echo "sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
-
-      # Issue mode checks out the trusted base, the default branch tip, or for
-      # apply-patch the issue patch's start commit, never the model job's
-      # workspace.
-      # The head checkout replaces .base, so the base's scripts/setup-env.sh
-      # and the files it installs from are copied out first; a base that
-      # predates the script skips the install.
-      - name: Copy the dependency setup from the base
-        id: setup-env
-        if: steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
-        env:
-          DEST: ${{ runner.temp }}/setup-env
-        run: |
-          if [ ! -f .base/scripts/setup-env.sh ]; then
-            echo "::notice::the base has no scripts/setup-env.sh; the skill runs without its dependencies"
-            exit 0
-          fi
-          policy=.github/standards/runner-policy
-          mkdir -p "$DEST/scripts" "$DEST/$policy"
-          for file in scripts/setup-env.sh .python-version .github/requirements-ci.txt \
-            package.json package-lock.json "$policy/package.json" "$policy/package-lock.json"; do
-            cp ".base/$file" "$DEST/$file"
-          done
-          echo "ready=true" >>"$GITHUB_OUTPUT"
 
       # Logged here, before the head checkout replaces .base: no step after
       # head code loads an action from a checkout. The job-token calls of the
       # branch re-read (github-script), the broker step's compare and the
       # trusted base's dispatch read (gh in composite actions) go through no
-      # counted client, and so do the promote step's pull and label reads,
-      # which come later; each is named, so the count reads as a floor. The
-      # lanes App token's calls, most of them after head code, are not logged.
+      # counted client; each is named, so the count reads as a floor. The
+      # lanes App token's calls are not logged.
       - name: Log the API budget before the head checkout
         id: api-budget
         if: always()
@@ -1550,10 +1482,11 @@ jobs:
             ${{ steps.trusted-base.outcome != 'skipped' && !contains(fromJSON('["issues","pull_request"]'), github.event_name) && 'trusted-base:pulls' || '' }}
             ${{ steps.head-recheck.outcome != 'skipped' && steps.config.outputs.effect == 'mutate-branch' && inputs.issue-number == '' && 'head-recheck:git/ref' || '' }}
             ${{ steps.lane-token.outcome != 'skipped' && inputs.issue-number == '' && github.event_name == 'pull_request' && 'lane-token:compare' || '' }}
-            ${{ steps.lane-token.outcome == 'success' && inputs.issue-number == '' && 'promote:pulls promote:issues/labels' || '' }}
 
-      # A `checkout: base` script activity skips it: the job holds only the
-      # trusted base checkout, and .base stays in place.
+      # Issue mode checks out the trusted base, the default branch tip, or for
+      # apply-patch the issue patch's start commit, never the model job's
+      # workspace. A `checkout: base` script activity skips it: the job holds
+      # only the trusted base checkout, and .base stays in place.
       - name: Check out the PR head
         if: steps.lane-token.outputs.token != '' && steps.config.outputs.checkout != 'base'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1623,439 +1556,6 @@ jobs:
             exit 1
           fi
           bash "$BIN/run-prepare.sh"
-
-      # claude-code-action's commit_files builds each commit on the live tip of
-      # CLAUDE_BRANCH with file bytes from this checkout
-      # (src/mcp/github-file-ops-server.ts:226-367 at ed670b4), so a push to
-      # the PR branch during the run would have its edits to the same files
-      # overwritten. The skill commits to a branch made at the gated SHA
-      # instead, and a later step moves the PR branch to it only while the PR
-      # branch is still at the gated SHA.
-      - name: Make the lane's commit branch at the gated SHA
-        id: lane-branch
-        if: >-
-          steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
-          && steps.config.outputs.can-commit == 'true'
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          LANE_BRANCH: ${{ format('lane-commits/{0}/{1}/{2}-{3}', inputs.lane, inputs.activity, github.run_id, github.run_attempt) }}
-        with:
-          github-token: ${{ steps.lane-token.outputs.token }}
-          retries: 0
-          script: |
-            const { HEAD_SHA, LANE_BRANCH } = process.env;
-            await github.rest.git.createRef({ ...context.repo, ref: `refs/heads/${LANE_BRANCH}`, sha: HEAD_SHA });
-            core.setOutput('branch', LANE_BRANCH);
-
-      - name: Set up Python for the skill
-        if: >-
-          steps.setup-env.outputs.ready == 'true'
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version-file: ${{ runner.temp }}/setup-env/.python-version
-
-      # The install reads only the base copies, so no head code runs: pytest
-      # and the Node tools land on PATH for the base wrappers.
-      - name: Install the skill's dependencies
-        if: >-
-          steps.setup-env.outputs.ready == 'true'
-        env:
-          SETUP_ENV_VENV: ${{ runner.temp }}/setup-env-venv
-        run: |
-          bash "$RUNNER_TEMP/setup-env/scripts/setup-env.sh" --root "$RUNNER_TEMP/setup-env"
-          # Node resolves a package from the importing file's directory, so the
-          # base-built trees are copied into the checkout, where node_modules
-          # is ignored.
-          for dir in . .github/standards/runner-policy; do
-            [ -d "$GITHUB_WORKSPACE/$dir" ] || continue
-            rm -rf "${GITHUB_WORKSPACE:?}/$dir/node_modules"
-            cp -R "$RUNNER_TEMP/setup-env/$dir/node_modules" "$GITHUB_WORKSPACE/$dir/"
-          done
-
-      # claude-code-action sets GH_TOKEN and GITHUB_TOKEN to the lane token in
-      # its own environment and hands that whole environment to Claude
-      # (src/entrypoints/run.ts:189-191, base-action/src/parse-sdk-options.ts:279
-      # at the pinned SHA).
-      # The environment scrub keeps both for Bash, so checkout code a wrapper
-      # runs could read the token from the Bash shell's or the sandbox's pid 1
-      # /proc/<pid>/environ. The settings' env sets both to empty for Claude's
-      # own subprocesses; the action's MCP servers, commit signing among them,
-      # still get the token from their own config env
-      # (src/mcp/install-mcp-server.ts:116-148). Bash here runs only what the
-      # allow rules name, the wrappers among them, which unset both anyway.
-      - name: Keep the GitHub token out of Bash
-        id: skill-settings
-        if: >-
-          steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
-        env:
-          SETTINGS_JSON: ${{ steps.config.outputs.settings-json }}
-        run: |
-          settings=$SETTINGS_JSON
-          [ -n "$settings" ] || settings='{}'
-          json=$(jq -c '.env = (.env // {}) + {GH_TOKEN: "", GITHUB_TOKEN: ""}' <<<"$settings")
-          echo "json=$json" >>"$GITHUB_OUTPUT"
-
-      # A failure does not stop the job here: the next step fails it unless the failure
-      # is only the turn cap on a successful result.
-      - name: Run the skill activity
-        id: act-skill
-        if: >-
-          steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
-        continue-on-error: true
-        uses: anthropics/claude-code-action@4fa93a88de49bbef68b10eb15aabedf28ca0e1ed # v1.0.271
-        env:
-          # Strips the OAuth token and other credentials from Bash, hook and
-          # MCP subprocesses and gives Bash its own PID namespace, so /proc
-          # shows no ancestor's env. It keeps GH_TOKEN and GITHUB_TOKEN
-          # (code.claude.com/docs/en/env-vars, as of 2026-10-04; recheck when
-          # the CLAUDE_CODE_SUBPROCESS_ENV_SCRUB row stops listing GH_TOKEN
-          # and GITHUB_TOKEN as kept), which the settings below clear.
-          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
-          # The action stops reading at Claude's first result message
-          # (base-action/src/run-claude-sdk.ts:198-209), so background work
-          # that reports in a later turn is lost. This runs every subagent in
-          # the foreground and turns off run_in_background
-          # (code.claude.com/docs/en/env-vars, CLAUDE_CODE_DISABLE_BACKGROUND_TASKS
-          # row, as of 2026-10-15; recheck on a claude-code-action bump that
-          # drops that break, or when the row stops naming run_in_background).
-          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
-          CLAUDE_BRANCH: ${{ steps.lane-branch.outputs.branch || steps.gate.outputs.head-ref }}
-          TRUSTED_CONTEXT_FILE: >-
-            ${{ steps.config.outputs.reads-untrusted == 'true' && inputs.issue-number == ''
-            && format('{0}/trusted-context.json', runner.temp) || '' }}
-        with:
-          claude_code_oauth_token: ${{ secrets.claude-code-oauth-token }}
-          github_token: ${{ steps.lane-token.outputs.token }}
-          use_commit_signing: true
-          # The action refuses a bot actor unless it is listed. The trigger
-          # gate has already decided both bot cases: the lanes App passes it
-          # only by setting the app field in issue mode, and github-actions
-          # only on a dispatcher run it verified, whose id this names.
-          allowed_bots: >-
-            ${{ inputs.dispatcher-run-id != '' && 'melodic-automation-lanes[bot],github-actions'
-            || 'melodic-automation-lanes[bot]' }}
-          plugin_marketplaces: ${{ runner.temp }}/base-marketplace
-          plugins: ${{ steps.stage.outputs.plugins }}
-          prompt: ${{ steps.stage.outputs.prompt }}
-          # The model, turns and effort come from the base config's models
-          # profile (resolve-config), never from text the run reads, with the
-          # GitHub token cleared for Bash.
-          settings: ${{ steps.skill-settings.outputs.json }}
-          claude_args: >-
-            --setting-sources user
-            --permission-mode dontAsk
-            ${{ steps.config.outputs.claude-args }}
-            ${{ steps.stage.outputs.claude-args }}
-
-      # claude-code-action fails the step on a `success` result whose
-      # num_turns is over --max-turns, after the CLI has finished the work
-      # (base-action/src/run-claude-sdk.ts:241-250 at the pinned SHA). Such a
-      # run counts as a success: the last result message in the execution
-      # file must say subtype `success`, is_error false, and num_turns over
-      # the cap. Any other failure, or a missing or unreadable file, fails
-      # the job here, as the skill step itself did before.
-      - name: Check the skill's failure is only the turn cap
-        id: act-result
-        if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          ACT_OUTCOME: ${{ steps.act-skill.outcome }}
-          EXECUTION_FILE: >-
-            ${{ steps.act-skill.outputs.execution_file
-            || format('{0}/claude-execution-output.json', runner.temp) }}
-          MAX_TURNS: ${{ steps.config.outputs.max-turns }}
-        with:
-          retries: 0
-          script: |
-            const fs = require('fs');
-            const { ACT_OUTCOME, EXECUTION_FILE, MAX_TURNS } = process.env;
-            if (ACT_OUTCOME === 'success') {
-              core.setOutput('outcome', 'success');
-              return;
-            }
-            let result = null;
-            try {
-              const messages = JSON.parse(fs.readFileSync(EXECUTION_FILE, 'utf8'));
-              result = Array.isArray(messages) ? messages.filter((m) => m?.type === 'result').at(-1) ?? null : null;
-            } catch (error) {
-              core.setFailed(`the skill step failed and its execution file is not readable: ${error.code ?? error.name}`);
-              return;
-            }
-            const cap = /^[1-9][0-9]*$/.test(MAX_TURNS ?? '') ? Number(MAX_TURNS) : null;
-            const turns = result?.num_turns;
-            if (
-              result?.subtype === 'success' && result.is_error === false && cap !== null
-              && Number.isSafeInteger(turns) && turns > cap
-            ) {
-              core.notice(`the skill finished with a successful result after ${turns} turns, over the ${cap}-turn cap; counted as a success`);
-              core.setOutput('outcome', 'success');
-              return;
-            }
-            core.setFailed(
-              `the skill step failed: result subtype=${JSON.stringify(result?.subtype ?? null)} ` +
-                `is_error=${JSON.stringify(result?.is_error ?? null)} num_turns=${JSON.stringify(turns ?? null)} max-turns=${cap ?? 'unset'}`,
-            );
-
-      # Each actions/checkout post step runs git in its checkout's path
-      # whenever <path>/.git/config is there, as a node step that holds the
-      # job's runtime token. The skill can write the head checkout's .git, and
-      # the head checkout removed .base, so it could make one there too; with
-      # both gone, both post steps return before any git runs. No later step of
-      # a skill run needs git, and a script activity skips this step and keeps
-      # its checkout. A pinned action rather than a shell step, like the revoke
-      # step, since the skill could have changed PATH or BASH_ENV. A cancelled
-      # skill runs it too: the post steps still run after a timeout or a cancel.
-      - name: Remove the checkouts' .git directories
-        if: always() && steps.act-skill.outcome != 'skipped'
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          WORKSPACE: ${{ github.workspace }}
-        with:
-          retries: 0
-          script: |
-            const { rmSync } = require('fs');
-            const { WORKSPACE } = process.env;
-            if (!WORKSPACE) {
-              core.setFailed('the workspace path is empty, so the checkouts keep their .git directories');
-              return;
-            }
-            for (const dir of ['.git', '.base/.git']) {
-              rmSync(`${WORKSPACE}/${dir}`, { recursive: true, force: true });
-            }
-
-      # The reply is untrusted model text: it is read with jq and printed as
-      # data, never interpolated into a command. The file path falls back to
-      # the action's fixed location (base-action/src/execution-file.ts:6-13).
-      # It is also uploaded below as audit evidence, since the REST API cannot
-      # read step summaries; nothing in this workflow reads that artifact.
-      - name: Show the skill's final reply
-        if: always() && steps.lane-token.outputs.token != '' && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        env:
-          EXECUTION_FILE: >-
-            ${{ steps.act-skill.outputs.execution_file
-            || format('{0}/claude-execution-output.json', runner.temp) }}
-          REPLY_DIR: ${{ runner.temp }}/skill-reply
-          # The model can read the lane token, so its reply could quote it;
-          # the token is cut out before the reply is shown or uploaded.
-          LANE_TOKEN: ${{ steps.lane-token.outputs.token }}
-        run: |
-          mkdir -p "$REPLY_DIR"
-          if [ ! -f "$EXECUTION_FILE" ]; then
-            echo "No execution file to summarize" | tee "$REPLY_DIR/reply.txt"
-            exit 0
-          fi
-          jq -r --arg token "$LANE_TOKEN" '[.[] | select(.type == "result")] | last | (.result // "")
-            | if $token == "" then . else split($token) | join("[REDACTED]") end
-            | .[:4000] | gsub("`"; "'"'"'")' \
-            "$EXECUTION_FILE" >"$REPLY_DIR/reply.txt"
-          {
-            echo "### Skill reply"
-            echo
-            echo '```text'
-            cat "$REPLY_DIR/reply.txt"
-            echo '```'
-          } >>"$GITHUB_STEP_SUMMARY"
-
-      # A slash command whose expansion fails, such as a skill pre-compute line
-      # the permission mode denies, ends with a `success` result and no model
-      # turn, so the act did nothing. This fails it and records why. The same
-      # step runs in pr-run-activity-read.yml, which holds no lane token.
-      - name: Check the skill took a model turn
-        id: act-turns
-        if: always() && steps.lane-token.outputs.token != '' && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          EXECUTION_FILE: >-
-            ${{ steps.act-skill.outputs.execution_file
-            || format('{0}/claude-execution-output.json', runner.temp) }}
-          REPLY_DIR: ${{ runner.temp }}/skill-reply
-          LANE_TOKEN: ${{ steps.lane-token.outputs.token }}
-          ACT_TURNS_MODULE: ${{ runner.temp }}/act-turns-bin/act-turns.mjs
-          ACT_TURNS_SHA256: ${{ steps.act-turns-bin.outputs.sha256 }}
-        with:
-          retries: 0
-          # .github/scripts/lib/act-turns.mjs, loaded from the bytes checked
-          # against the base copy's hash, with the lane token cut out of the
-          # recorded text and the run fields in the step summary.
-          script: |
-            const { createHash } = require('crypto');
-            const { readFileSync } = require('fs');
-            const { ACT_TURNS_MODULE, ACT_TURNS_SHA256, EXECUTION_FILE, REPLY_DIR, LANE_TOKEN } = process.env;
-            const source = readFileSync(ACT_TURNS_MODULE);
-            if (!ACT_TURNS_SHA256 || createHash('sha256').update(source).digest('hex') !== ACT_TURNS_SHA256) {
-              core.setFailed('act-turns: the staged script does not match the copy taken from the base');
-              return;
-            }
-            const redact = (text) => (LANE_TOKEN ? text.split(LANE_TOKEN).join('[REDACTED]') : text);
-            const { runStep } = await import(`data:text/javascript;base64,${source.toString('base64')}`);
-            await runStep({ core, executionFile: EXECUTION_FILE, replyDir: REPLY_DIR, redact, summary: true });
-
-      # The lane record: the run's failure class and, on a usage limit, when it
-      # resets, read from the execution file's structured fields by
-      # ci-workflows' classifier, never from model text. The report job copies
-      # it onto the posted check run, and issue mode writes it into lane.json,
-      # where the limit-stop restarts read it.
-      # The secret the caller passed, named from its funding role:
-      # `issue-lane` reports ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN.
-      - name: Name the run's credential
-        id: credential
-        if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        env:
-          ROLE: ${{ inputs.role }}
-        run: |
-          if [[ ! "$ROLE" =~ ^[a-z][a-z0-9-]*$ ]]; then
-            echo "::error::role must be lowercase letters, digits and hyphens"
-            exit 1
-          fi
-          role=${ROLE^^}
-          echo "name=${role//-/_}_CLAUDE_CODE_OAUTH_TOKEN" >>"$GITHUB_OUTPUT"
-
-      - name: Record the lane outcome
-        id: lane-record
-        if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
-        with:
-          outcome: ${{ steps.act-result.outputs.outcome || steps.act-skill.outcome }}
-          execution-file: >-
-            ${{ steps.act-skill.outputs.execution_file
-            || format('{0}/claude-execution-output.json', runner.temp) }}
-          lane: ${{ inputs.lane }}
-          lane-id: ${{ inputs.lane }}
-          credential: ${{ steps.credential.outputs.name }}
-          max-turns: ${{ steps.config.outputs.max-turns }}
-
-      - name: Scan the upload for credentials
-        id: scan-upload
-        if: >-
-          always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        env:
-          SCAN_PATHS: |
-            ${{ runner.temp }}/skill-reply/reply.txt
-            ${{ runner.temp }}/skill-reply/act-turns.json
-        run: node "$RUNNER_TEMP/scan-gate/.github/actions/scan-upload/scan-upload.mjs"
-
-      - name: Upload the skill's final reply
-        if: >-
-          (always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')) && steps.scan-upload.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: skill-reply-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
-          # Named files only: head code can write into this directory.
-          path: |
-            ${{ runner.temp }}/skill-reply/reply.txt
-            ${{ runner.temp }}/skill-reply/act-turns.json
-          retention-days: 3
-          if-no-files-found: error
-
-      # The verdict comes from the action's structured_output, read through env
-      # and parsed by jq. Anything but exactly `pass` fails the activity; the
-      # summary is model text, printed as data.
-      - name: Check the gate skill's verdict
-        id: skill-verdict
-        if: always() && steps.act-result.outputs.outcome == 'success' && steps.config.outputs.gating == 'gate'
-        env:
-          STRUCTURED_OUTPUT: ${{ steps.act-skill.outputs.structured_output }}
-        run: |
-          verdict=$(jq -r 'if type == "object" and (.verdict | type) == "string" then .verdict else "" end' <<<"$STRUCTURED_OUTPUT") || verdict=""
-          summary=$(jq -r 'if type == "object" then (.summary // "" | tostring)[:4000] | gsub("`"; "'"'"'") else "" end' <<<"$STRUCTURED_OUTPUT") || summary=""
-          {
-            echo "### Gate verdict"
-            echo
-            echo '```text'
-            printf 'verdict: %s\n\n%s\n' "$verdict" "$summary"
-            echo '```'
-          } >>"$GITHUB_STEP_SUMMARY"
-          if [ "$verdict" != pass ]; then
-            echo "::error::the gate skill's verdict is not pass"
-            exit 1
-          fi
-
-      # Fast-forwards the PR branch to the lane's commits only while it is
-      # still at the gated SHA; otherwise the commits are dropped and the run
-      # the new head started redoes the activity. A do-not-merge or human-gated
-      # label, or a draft, set during the run drops them (awaiting-human). A
-      # pinned action, like the revoke step, since the activity could have
-      # changed PATH. The lane branch is deleted either way.
-      - name: Move the PR branch to the lane's commits
-        id: promote
-        if: always() && steps.lane-token.outputs.token != '' && steps.lane-branch.outputs.branch != '' && inputs.issue-number == ''
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          HEAD_REF: ${{ steps.gate.outputs.head-ref }}
-          LANE_BRANCH: ${{ steps.lane-branch.outputs.branch }}
-          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
-          HOLD_LABELS: ${{ steps.hold-label.outputs.labels }}
-          READ_TOKEN: ${{ github.token }}
-        with:
-          github-token: ${{ steps.lane-token.outputs.token }}
-          retries: 0
-          script: |
-            const { HEAD_SHA, HEAD_REF, LANE_BRANCH } = process.env;
-            const { PR_NUMBER, HOLD_LABELS, READ_TOKEN } = process.env;
-            core.setOutput('skip-reason', '');
-            const tip = async (branch) =>
-              (await github.request('GET /repos/{owner}/{repo}/git/ref/{ref}', { ...context.repo, ref: `heads/${branch}` }))
-                .data.object.sha;
-            try {
-              const lane = await tip(LANE_BRANCH);
-              if (lane === HEAD_SHA) {
-                core.info('The activity made no commits');
-                return;
-              }
-              // A hold or a draft set while the model worked stops the push:
-              // the config decided the hold
-              // predicates only at the start of the job. Read fresh with the
-              // job's read-only token through fetch, since github-script gives
-              // the script no second client.
-              if (!HOLD_LABELS) {
-                core.setFailed('No hold labels were read from the base; the PR branch is not moved');
-                return;
-              }
-              const holds = new Set(['do-not-merge', ...JSON.parse(HOLD_LABELS)]);
-              const read = async (path) => {
-                const response = await fetch(`${process.env.GITHUB_API_URL}/repos/${context.repo.owner}/${context.repo.repo}/${path}`, {
-                  headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${READ_TOKEN}`, 'X-GitHub-Api-Version': '2022-11-28' },
-                });
-                if (!response.ok) {
-                  throw new Error(`Reading ${path} answered ${response.status}; the PR branch is not moved`);
-                }
-                // More labels than one page holds could hide a hold.
-                if (/rel="next"/.test(response.headers.get('link') ?? '')) {
-                  throw new Error(`${path} has more than one page; the PR branch is not moved`);
-                }
-                return response.json();
-              };
-              const pull = await read(`pulls/${Number(PR_NUMBER)}`);
-              const labels = await read(`issues/${Number(PR_NUMBER)}/labels?per_page=100`);
-              const held = labels.map((label) => label.name).filter((name) => holds.has(name));
-              if (held.length || pull.draft !== false) {
-                core.info(`The PR is ${held.length ? `held (${held.join(', ')})` : 'a draft'}; the lane's commits (${lane}) are dropped`);
-                core.setOutput('skip-reason', 'awaiting-human');
-                return;
-              }
-              // The last read before the move, to keep its window short.
-              const head = await tip(HEAD_REF);
-              if (head !== HEAD_SHA) {
-                core.setFailed(`The PR branch moved from ${HEAD_SHA} to ${head} during the run, so the lane's commits (${lane}) are not applied; the run for the new head redoes the activity`);
-                return;
-              }
-              // force: false refuses anything but a fast-forward.
-              await github.rest.git.updateRef({ ...context.repo, ref: `heads/${HEAD_REF}`, sha: lane, force: false });
-              // The push is confirmed from git/ref, which GET /pulls can lag.
-              const moved = await tip(HEAD_REF);
-              if (moved !== lane) {
-                core.setFailed(`The PR branch reads ${moved} after the update to ${lane}`);
-                return;
-              }
-              core.info(`Moved ${HEAD_REF} from ${HEAD_SHA} to ${lane}`);
-            } finally {
-              // A failed cleanup must not fail an activity whose commits landed.
-              await github.rest.git
-                .deleteRef({ ...context.repo, ref: `heads/${LANE_BRANCH}` })
-                .catch((error) => core.warning(`Could not delete ${LANE_BRANCH}: ${error.message}`));
-            }
 
       # Issue mode, script activity: what the resolve-issue run left. A
       # missing artifact leaves the directory empty, which reads as stopped.
@@ -2337,15 +1837,10 @@ jobs:
           SKIP_REASON: >-
             ${{ steps.config.outputs.skip-reason || steps.head-recheck.outputs.skip-reason
             || steps.lane-token.outputs.skip-reason
-            || steps.prepare.outputs.skip-reason || steps.promote.outputs.skip-reason
+            || steps.prepare.outputs.skip-reason
             || steps.act-script.outputs.skip-reason
             || steps.patch-select.outputs.skip-reason }}
-          ACT_OUTCOME: >-
-            ${{ steps.act-result.outputs.outcome == 'success'
-            && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
-            || steps.promote.outcome == 'failure' || steps.act-turns.outcome != 'success') && 'failure'
-            || steps.act-skill.outcome != 'skipped' && (steps.act-result.outputs.outcome || steps.act-skill.outcome)
-            || steps.act-script.outcome }}
+          ACT_OUTCOME: ${{ steps.act-script.outcome }}
           VERDICT_DIR: ${{ runner.temp }}/verdict
         run: |
           mkdir -p "$VERDICT_DIR"
@@ -2658,7 +2153,6 @@ jobs:
           can-commit: ${{ needs.run.outputs.can-commit }}
           all-verified: ${{ steps.signed.outputs.all-verified }}
           unverified: ${{ steps.signed.outputs.unverified }}
-          lane-outcome: ${{ needs.run.outputs.record }}
           verdict-path: ${{ runner.temp }}/verdict/verdict.json
           base-path: .base
           head-sha-fallback: ${{ github.event.pull_request.head.sha || github.sha }}
