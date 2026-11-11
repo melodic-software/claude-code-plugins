@@ -111,8 +111,13 @@ Two exceptions:
 
 - The user's prior turn used explicit stay-in-session language about handoffs specifically (e.g.
   "don't `/clear` between phases, keep going").
-- The handoff forks a side task into its own session. The save-point covers only the side task;
-  after the rails prompt, this session keeps working its own task and never starts the side task.
+- The user, or the calling skill's step, names the handoff as a side task split off from the
+  current task, in the request or the purpose text. Never infer it: without that naming, a handoff
+  stops. The save-point covers only the side task; after the rails prompt, this session keeps
+  working its own task and never starts the side task. The `below-rail` slot (prompt-only: one
+  line below the rails) says to paste the prompt into a new session without `/clear`, and the
+  worktree claims this session keeps stay with it ("Hand worktree claims to the resuming
+  session").
 
 ## When to invoke
 
@@ -223,6 +228,7 @@ session claims, record the old session id under Environment to re-establish and 
 the first remaining action, leading the resume prompt's `Next:` headlines (structure doc,
 "Worktree claims"). On the prompt-only path, which writes no file, the first remaining-work bullet
 carries the path, this session's id and the handover. Release nothing: the claim moves, never drops.
+A forked side task hands over no claim on a worktree this session keeps working in.
 
 ## Produce the save-point
 

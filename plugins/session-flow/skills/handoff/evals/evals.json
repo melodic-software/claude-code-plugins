@@ -584,6 +584,31 @@
         "No warning about re-producing proof appears above the goal region",
         "No note says the goal region was left out"
       ]
+    },
+    {
+      "id": 43,
+      "name": "named-side-task-fork-keeps-the-session-working",
+      "prompt": "/session-flow:handoff prompt flaky-ci split off the flaky CI investigation as a side task; I'll keep going on the migration here",
+      "expected_output": "The purpose text names the handoff as a side task split off from the current task, so the side-task exception applies. The resume prompt covers only the flaky CI investigation, and a line below the rails says to paste it into a new session without /clear. No worktree claim this session keeps is handed over. After the rails prompt, the session goes on with the migration and does not start the CI investigation.",
+      "files": [],
+      "expectations": [
+        "The resume prompt covers the flaky CI investigation only, not the migration",
+        "A line below the rails says to paste into a new session without /clear",
+        "The response does not hand over a worktree claim the migration still uses",
+        "The response continues the migration after the rails prompt and does not start the CI investigation"
+      ]
+    },
+    {
+      "id": 44,
+      "name": "unnamed-remaining-phase-is-not-a-side-task",
+      "prompt": "/session-flow:handoff phase-3\n\n(Context: phases 1 and 2 of a three-phase plan are done this session; phase 3 remains. The user has said nothing about side tasks or staying in the session.)",
+      "expected_output": "Nobody named the handoff as a side task, so the side-task exception does not apply. The handoff writes the save-point for phase 3, emits the rails prompt with the /clear instruction, and stops. It does not relabel phase 3 as a side task to keep working.",
+      "files": [],
+      "expectations": [
+        "The response does not call phase 3 a side task",
+        "The rails prompt carries the /clear copy instruction",
+        "The response does no phase 3 work after the rails prompt"
+      ]
     }
   ]
 }
