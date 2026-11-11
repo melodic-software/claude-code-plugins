@@ -5,8 +5,7 @@ The house standard for writing a skill or a plugin agent in this marketplace. Ci
 
 Precedence: official Anthropic guidance wins. Where it is silent, follow the concise style of
 Pocock's skills. Upstream-owned specifics (caps, defaults, listing behavior) are never restated
-here: read them live from the pointers [Sources](#sources) holds, each with its as-of date and
-recheck trigger. Where a cap is enforced, `/skill-quality:check` enforces it and its script holds
+here: read them live from the pointers [Sources](#sources) holds. Where a cap is enforced, `/skill-quality:check` enforces it and its script holds
 the constant. Figures this page does state are our own measurements, dated. A house
 setting is named as one: a `/skill-quality:check` setting, or a choice of this page's protocol.
 
@@ -225,7 +224,8 @@ reads it. A key nothing reads is cut.
 
 - No PR or issue numbers, "added in" notes, incident narratives or date-conditional guidance in a
   skill. Git, the CHANGELOG, issues and ADRs hold history.
-- Exempt: pointer records (pointer, as-of date, recheck trigger, per the
+- Exempt: upstream-drift records (a section-anchored pointer, plus an as-of date and recheck
+  trigger on a stored value, per the
   [upstream-drift convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#required-parts))
   and cross-repo `owner/repo#N` pointers to an upstream bug.
 - A skill whose users still meet renamed names may keep a names-only "Old patterns" table, within
@@ -351,7 +351,8 @@ the reviewer's reading list for the rest.
 
 ## Sources
 
-Each record: pointer, as-of date, recheck trigger. Re-read the pointer before acting on a figure.
+Each record is a section-anchored pointer; a record of our own measurement adds its as-of date and
+recheck trigger. Re-read the pointer before acting on a figure.
 
 - **Claude Code skills docs**: listing cap and budget at
   [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short);

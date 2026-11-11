@@ -24,9 +24,9 @@ It does not own:
   layers exist, how they merge, the pointer-line grammar that binds a consumer's convention home,
   and the expression doctrine that puts this surface in convention-doc form rather than a
   dedicated file.
-- **The stamp shape on the upstream fact below.**
-  [`upstream-drift`](../upstream-drift/README.md) owns the four required parts of a record and the
-  observability bar its recheck trigger must clear.
+- **The record shape for the upstream-dependent decision below.**
+  [`upstream-drift`](../upstream-drift/README.md) owns the required parts of a record and the
+  observability bar a recheck trigger must clear.
 - **Diagram craft.** Nothing here teaches a dialect. A skill emitting one cites installed craft
   guidance presence-gated, or emits the plainest correct form of the dialect it was told to use.
 
@@ -131,7 +131,7 @@ already emits; it does not add a new deliverable.
 The system key refuses mermaid for the reasons in
 [Why mermaid is not offered for the system key](#why-mermaid-is-not-offered-for-the-system-key).
 That refusal is not a claim that mermaid is unfit for the landscape surface, whose allowed set is
-`structurizr | mermaid`. The four-part record in that section is the single recheck trigger for
+`structurizr | mermaid`. The record in that section is the single recheck trigger for
 both surfaces: when it fires, re-derive the system-key allowed
 set, whether the landscape key's mermaid default should change, and whether the landscape
 emitter's mermaid output should use a dedicated landscape type.
