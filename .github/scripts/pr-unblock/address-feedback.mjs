@@ -8,7 +8,8 @@
 //           review threads the reviewer bot or a listed review bot opened
 //           in a review on a head a review lane's marker confirms, when
 //           every comment is the bot's (a listed bot's only behind a trusted
-//           person's `@codex` request, requestSkip), a trusted person with
+//           person's `@codex` request, or for an unsummoned one a PR a trusted
+//           person opened, requestSkip), a trusted person with
 //           write access asked the lane to fix it, or a trusted person answered
 //           the lane's escalation, then decides skip (no such thread), escalate
 //           (the PR changes .github/workflows/**; or the configured number of
@@ -73,6 +74,11 @@ export { ROUND_MARKER };
 const ACTIVITY = "address-feedback";
 // github-actions[bot], the author of the review lanes' reviewed-head markers.
 export const MARKER_AUTHOR_ID = 41898282;
+// Listed review bots no comment can summon: github-advanced-security[bot],
+// which posts code scanning (CodeQL) alerts after each analysis of a pushed
+// head. requestSkip asks only that a trusted person or the lanes App opened
+// the PR, in place of a `@codex` request.
+export const UNSUMMONED_REVIEWER_IDS = Object.freeze([62310815]);
 const REVIEWED_HEAD =
   /^<!-- claude-lane-reviewed-head lane=(claude-review|claude-security-review) sha=([0-9a-f]{40}) -->$/;
 export const SHA = /^[0-9a-f]{40}$/;
@@ -941,14 +947,24 @@ export const anyListed = (authorIds, reviewerIds = []) => reviewerIds.length > 0
 // Why a thread threadAuthors accepted (`authors`) is not worked for want of a
 // trusted `@codex` request (codexRequest), or null. Only a thread no trusted
 // person directed is checked, at each listed bot's comment (`comments`, each
-// { authorId, review: { authorId, submittedAt } }). The select step and the
-// reply job (keepThreads) and the dispatcher (feedback-dispatch.mjs) all ask.
+// { authorId, review: { authorId, submittedAt } }). An unsummoned bot's
+// comment (UNSUMMONED_REVIEWER_IDS) needs instead a PR a trusted person or the
+// lanes App opened, failing closed on unreadable triggers. The select step and
+// the reply job (keepThreads) and the dispatcher (feedback-dispatch.mjs) all ask.
 export function requestSkip({ authors, comments, reviews, mentions, triggers = null, reviewerIds = [], trustedHumans, appId }) {
   if (authors.some((author) => author.direction === true)) {
     return null;
   }
   for (const comment of comments) {
-    if (reviewerIds.includes(comment.authorId)) {
+    if (reviewerIds.includes(comment.authorId) && UNSUMMONED_REVIEWER_IDS.includes(comment.authorId)) {
+      if (triggers === null) {
+        return { reason: "codex-request-not-found" };
+      }
+      const opener = triggers.opened?.actorId;
+      if (!trustedHumans.has(opener) && opener !== appId) {
+        return { reason: "codex-request-untrusted", requester: opener, via: "opening of the pull request" };
+      }
+    } else if (reviewerIds.includes(comment.authorId)) {
       const submittedAt = comment.review?.authorId === comment.authorId ? comment.review.submittedAt : undefined;
       const skip = codexRequest({ authorId: comment.authorId, submittedAt, reviews, mentions, triggers, reviewerIds, trustedHumans, appId });
       if (skip) {
