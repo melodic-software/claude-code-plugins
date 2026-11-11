@@ -86,7 +86,8 @@ response, the save-point does not exist and STOP has not been reached.
 - [ ] Path chosen (full vs prompt-only) per the engine doc
 - [ ] Copy/paste resume prompt emitted between two dashed rails (engine doc, "Emit the copy/paste
   resume prompt"), the box that is never satisfied by having written the file
-- [ ] `/clear`-then-paste instruction surfaced to the user
+- [ ] `/clear`-then-paste instruction surfaced to the user (a forked side task: paste into a new
+  session instead, with no `/clear`)
 - [ ] **STOP.** No further work items, no next phase, no follow-on skill, no commit/push. The
   session ends as far as the task is concerned. Reachable only once the box above is genuinely
   ticked, never as the act that replaces it. The one exception to "no commit" is the opt-in
@@ -111,7 +112,7 @@ Two exceptions:
 - The user's prior turn used explicit stay-in-session language about handoffs specifically (e.g.
   "don't `/clear` between phases, keep going").
 - The handoff forks a side task into its own session. The save-point covers only the side task;
-  this session keeps working its own task and never starts the side task.
+  after the rails prompt, this session keeps working its own task and never starts the side task.
 
 ## When to invoke
 
@@ -262,7 +263,8 @@ of the fill.
 Never hand-edit the file and never re-run `new` to fold an event in. An event that changes nothing
 needs no amend; say so in one line. `amend` prints the verdict and the new rails: end the turn on
 those rails, pasted verbatim, under the same output-order rule as the first emit. Amending is the
-only work the hard rule allows after emit; the task itself still stops.
+only work the hard rule allows after emit; the task itself still stops, unless the handoff forked
+a side task (the exceptions under the hard rule).
 
 Retiring an entry is a relevance call, made through the `retire` list of `fill` before emit or of
 `amend` after it, never by deleting lines (structure doc, "Shape 3"). Every amendment that still
@@ -398,7 +400,8 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   re-arming EVERY surviving loop, one
   `/loop [<interval>] <original prompt>` line per loop, each its own follow-up message (engine
   doc, "Emit the copy/paste resume prompt")
-- [ ] **EXECUTION STOPS HERE**, the rails prompt and its below-rail notes follow these ticks as
+- [ ] **EXECUTION STOPS HERE** (a forked side task: the side task is what stops, per the hard
+  rule's exceptions), the rails prompt and its below-rail notes follow these ticks as
   the response's final text (see "Output order is fixed" above)
 
 **Prompt-only path:**
@@ -451,7 +454,8 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   (OR an explicit statement that none were spawned and none were inherited, or that every
   one was cancelled). Named subagents stay live and addressable across `/clear`; prompt-only
   writes no file, so the leftover list travels in the prompt or not at all.
-- [ ] **EXECUTION STOPS HERE**. "Small enough" means the prompt captures the work, NOT "small
+- [ ] **EXECUTION STOPS HERE** (a forked side task: the side task is what stops, per the hard
+  rule's exceptions). "Small enough" means the prompt captures the work, NOT "small
   enough to skip `/clear` and finish in-session"; the rails prompt and its below-rail notes follow
   these ticks as the response's final text (see "Output order is fixed" above)
 
@@ -481,7 +485,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
 - **Does not launch a background agent**. Background delegation is the sibling
   `/session-flow:continue-in-background` skill, and it fires only on the user's explicit request
 - **Does not continue executing the underlying task**, per the hard rule above. Prompt-only does
-  NOT relax this
+  NOT relax this. A forked side task is the hard rule's exception: this session keeps its own task
 - **Does not offer a resident / no-stop mode.** A resident
   `/implementation:implement-dispatch` boundary runs plan marks and the commit; the handoff is
   written last, and only when a clear, model switch, run end, or user-only commit gate applies.
