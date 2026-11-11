@@ -127,12 +127,15 @@ const STATEMENT_WORDS = new Set([
   'WRITETEXT',
 ]);
 
+const REMOTE_REFUSALS = ['OPENROWSET', 'OPENQUERY', 'OPENDATASOURCE'].map((word) => [
+  word,
+  `${word} reaches outside the registered server`,
+]);
+
 const SELECT_REFUSALS = new Map([
   ['INTO', 'SELECT ... INTO writes a table'],
   ['OPTION', 'a user OPTION (...) clause can override the per-call settings'],
-  ['OPENROWSET', 'OPENROWSET reaches outside the registered server'],
-  ['OPENQUERY', 'OPENQUERY reaches outside the registered server'],
-  ['OPENDATASOURCE', 'OPENDATASOURCE reaches outside the registered server'],
+  ...REMOTE_REFUSALS,
 ]);
 
 export const LOCK_HINTS = Object.freeze([
@@ -147,23 +150,29 @@ export const LOCK_HINTS = Object.freeze([
 ]);
 
 const SET_OPERATORS = new Set(['UNION', 'ALL', 'EXCEPT', 'INTERSECT']);
+const isSetOperator = (t) => t?.kind === 'word' && SET_OPERATORS.has(t.value);
 
 const refuse = (reason) => ({ ok: false, reason });
+const isSemicolon = (t) => t?.kind === 'punct' && t.value === ';';
+const BATCH_REFUSAL = 'only one statement is allowed; the text holds a batch of several';
+
+// Returns { tokens } or { refusal } when the text does not tokenize.
+function tokenizeOrRefuse(sql) {
+  try {
+    return { tokens: tokenize(String(sql)) };
+  } catch (error) {
+    if (error instanceof TokenizeError) return { refusal: refuse(error.message) };
+    throw error;
+  }
+}
 
 // Returns { ok: true } or { ok: false, reason }.
 export function checkStatement(sql) {
-  let tokens;
-  try {
-    tokens = tokenize(String(sql));
-  } catch (error) {
-    if (error instanceof TokenizeError) return refuse(error.message);
-    throw error;
-  }
-  while (tokens.length && tokens.at(-1).value === ';' && tokens.at(-1).kind === 'punct') tokens.pop();
+  const { tokens, refusal } = tokenizeOrRefuse(sql);
+  if (refusal) return refusal;
+  while (isSemicolon(tokens.at(-1))) tokens.pop();
   if (tokens.length === 0) return refuse('the statement is empty');
-  if (tokens.some((t) => t.kind === 'punct' && t.value === ';')) {
-    return refuse('only one statement is allowed; the text holds a batch of several');
-  }
+  if (tokens.some(isSemicolon)) return refuse(BATCH_REFUSAL);
   const first = tokens[0];
   if (first.kind !== 'word' || (first.value !== 'SELECT' && first.value !== 'WITH')) {
     return refuse('only a SELECT, optionally led by WITH, is allowed');
@@ -189,7 +198,7 @@ export function checkStatement(sql) {
     if (SELECT_REFUSALS.has(t.value)) return refuse(SELECT_REFUSALS.get(t.value));
     if (LOCK_HINTS.includes(t.value)) return refuse(`the ${t.value} lock hint is not allowed`);
     if (t.value === 'SELECT' && depth === 0 && k > 0) {
-      if (prev?.kind === 'word' && SET_OPERATORS.has(prev.value)) continue;
+      if (isSetOperator(prev)) continue;
       if (!mainSeen) {
         mainSeen = true;
         continue;
@@ -219,9 +228,7 @@ const WRITE_STATEMENT_WORDS = new Set([
 
 const WRITE_REFUSALS = new Map([
   ['OUTPUT', 'an OUTPUT clause returns rows; the write tool returns only the row count'],
-  ['OPENROWSET', 'OPENROWSET reaches outside the registered server'],
-  ['OPENQUERY', 'OPENQUERY reaches outside the registered server'],
-  ['OPENDATASOURCE', 'OPENDATASOURCE reaches outside the registered server'],
+  ...REMOTE_REFUSALS,
 ]);
 
 // The write tier's reject list, a heuristic like the read one: it accepts one
@@ -229,20 +236,13 @@ const WRITE_REFUSALS = new Map([
 // { ok: true, terminated } (whether the text ends in a semicolon) or
 // { ok: false, reason }.
 export function checkWriteStatement(sql) {
-  let tokens;
-  try {
-    tokens = tokenize(String(sql));
-  } catch (error) {
-    if (error instanceof TokenizeError) return refuse(error.message);
-    throw error;
-  }
+  const { tokens, refusal } = tokenizeOrRefuse(sql);
+  if (refusal) return refusal;
   // One trailing semicolon is allowed; a second counts as another statement.
-  const terminated = tokens.at(-1)?.kind === 'punct' && tokens.at(-1).value === ';';
+  const terminated = isSemicolon(tokens.at(-1));
   if (terminated) tokens.pop();
   if (tokens.length === 0) return refuse('the statement is empty');
-  if (tokens.some((t) => t.kind === 'punct' && t.value === ';')) {
-    return refuse('only one statement is allowed; the text holds a batch of several');
-  }
+  if (tokens.some(isSemicolon)) return refuse(BATCH_REFUSAL);
   const first = tokens[0];
   if (first.kind !== 'word' || !(DML_WORDS.has(first.value) || first.value === 'WITH')) {
     return refuse('only one INSERT, UPDATE, DELETE or MERGE, optionally led by WITH, is allowed');
@@ -282,7 +282,7 @@ export function checkWriteStatement(sql) {
     } else if (t.value === 'INTO') {
       // INSERT INTO and MERGE INTO come before any SELECT; one after it is SELECT ... INTO, which creates a table.
       if (selects > 0) return refuse('SELECT ... INTO writes a new table');
-    } else if (t.value === 'SELECT' && !(prev?.kind === 'word' && SET_OPERATORS.has(prev.value))) {
+    } else if (t.value === 'SELECT' && !isSetOperator(prev)) {
       // INSERT ... SELECT is the one write with a top-level SELECT; any other
       // would be a second statement, and @@ROWCOUNT would count its rows.
       selects += 1;

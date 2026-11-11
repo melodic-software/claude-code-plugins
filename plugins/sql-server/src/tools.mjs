@@ -35,17 +35,10 @@ function deepFreeze(value) {
   return value;
 }
 
-const databaseProperty = {
-  type: 'string',
-  minLength: 1,
-  description: "A database from this registration's allow-list. Defaults to the first one.",
-};
+const nonEmptyString = (description) => ({ type: 'string', minLength: 1, description });
 
-const schemaProperty = {
-  type: 'string',
-  minLength: 1,
-  description: 'A schema name, such as dbo.',
-};
+const databaseProperty = nonEmptyString("A database from this registration's allow-list. Defaults to the first one.");
+const schemaProperty = nonEmptyString('A schema name, such as dbo.');
 
 export const TOOLS = deepFreeze([
   {
@@ -59,7 +52,7 @@ export const TOOLS = deepFreeze([
       additionalProperties: false,
       required: ['sql'],
       properties: {
-        sql: { type: 'string', minLength: 1, description: 'The SELECT statement to run.' },
+        sql: nonEmptyString('The SELECT statement to run.'),
         database: databaseProperty,
       },
     },
@@ -73,7 +66,7 @@ export const TOOLS = deepFreeze([
       additionalProperties: false,
       properties: {
         database: databaseProperty,
-        schema: { ...schemaProperty, description: 'List only objects in this schema.' },
+        schema: nonEmptyString('List only objects in this schema.'),
       },
     },
   },
@@ -88,7 +81,7 @@ export const TOOLS = deepFreeze([
       properties: {
         database: databaseProperty,
         schema: schemaProperty,
-        name: { type: 'string', minLength: 1, description: 'The table or view name.' },
+        name: nonEmptyString('The table or view name.'),
       },
     },
   },
@@ -106,7 +99,7 @@ export const TOOLS = deepFreeze([
       properties: {
         database: databaseProperty,
         schema: schemaProperty,
-        name: { type: 'string', minLength: 1, description: 'The table the write targets.' },
+        name: nonEmptyString('The table the write targets.'),
       },
     },
   },
@@ -122,7 +115,7 @@ export const TOOLS = deepFreeze([
       additionalProperties: false,
       required: ['sql', 'expectedRows'],
       properties: {
-        sql: { type: 'string', minLength: 1, description: 'The write statement to run.' },
+        sql: nonEmptyString('The write statement to run.'),
         expectedRows: {
           type: 'integer',
           minimum: 0,
