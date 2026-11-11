@@ -93,7 +93,9 @@ node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/queue-cla
 ```
 
 It lists each unclaimed `pending` row, and each unclaimed `awaiting_captions` row whose next check
-time has come, marked `recheck: true`; a held row before its check time is skipped. Attempt
+time has come, marked `recheck: true`; a held row before its check time is skipped. A held row
+whose `notes` record no deadline (a hand-set status) is listed with `recheck: false` and watched
+like a `pending` row, which starts a new caption wait. Attempt
 `claim <n>` on each in turn. On `EEXIST` / exit non-zero, try the next. A `recheck` row runs the
 caption re-check (below) before any watch. Stop with a clear message if no row is claimable.
 
@@ -110,7 +112,7 @@ caption-less. The values that hold a video, the bounds, and their basis are in
    ```
 
    The row goes `in_progress` → `awaiting_captions`, its `notes` recording both times. Release
-   the claim.
+   the claim. A `QUEUE.md` with no `notes` column cannot record them, so `hold` refuses (exit `1`).
 2. **Re-check.** For a `recheck` row (claimed), re-run only the caption pass, passing the
    deadline `next` reported:
 

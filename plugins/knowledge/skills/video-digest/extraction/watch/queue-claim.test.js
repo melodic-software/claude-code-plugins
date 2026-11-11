@@ -275,6 +275,35 @@ describe("awaiting_captions rows", () => {
     ]);
   });
 
+  it("lists a held row with no recorded deadline as a fresh watch, not a re-check", () => {
+    const epicDir = makeEpicDir();
+    const queue = [
+      "| # | URL | video-id | title | channel | slug | status | notes |",
+      "| --- | --- | --- | --- | --- | --- | --- | --- |",
+      `| 1 | https://example.com/a | AAA | A | Chan | a | ${AWAITING_CAPTIONS} | |`,
+      "",
+    ].join("\n");
+    fs.writeFileSync(path.join(epicDir, "QUEUE.md"), queue, "utf8");
+
+    expect(claimableRows(epicDir, NOW)).toEqual([
+      { row: 1, status: AWAITING_CAPTIONS, recheck: false, captionWaitDeadline: null },
+    ]);
+  });
+
+  it("refuses to hold a row when QUEUE.md has no notes column", () => {
+    const epicDir = makeEpicDir();
+    const queue = [
+      "| # | URL | status |",
+      "| --- | --- | --- |",
+      "| 1 | https://example.com/a | in_progress |",
+      "",
+    ].join("\n");
+    fs.writeFileSync(path.join(epicDir, "QUEUE.md"), queue, "utf8");
+
+    expect(holdRowForCaptions(epicDir, 1, notDue)).toBe(false);
+    expect(readQueueRows(epicDir)?.[0]).toEqual({ row: 1, status: "in_progress" });
+  });
+
   it("FIFO watch skips a claimed row", () => {
     const epicDir = makeEpicDir();
     writeQueue(epicDir);

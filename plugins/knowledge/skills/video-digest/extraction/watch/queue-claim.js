@@ -321,12 +321,16 @@ function isRecheckDue(notes, nowMs) {
 /**
  * Hold row `#n` for captions: `in_progress` (first hold) or `awaiting_captions` (a re-check
  * that found none) → `awaiting_captions`, with the next check time and deadline in `notes`.
+ * A `QUEUE.md` with no `notes` column cannot record those times, so the hold is refused.
  * @param {string} epicDir
  * @param {number} row
  * @param {{ nextCheckAt: string, deadline: string }} wait
  * @returns {boolean} true when the row was rewritten
  */
 export function holdRowForCaptions(epicDir, row, wait) {
+  if (readQueueTable(epicDir)?.notesIndex === -1) {
+    return false;
+  }
   return rewriteRow(epicDir, row, ["in_progress", AWAITING_CAPTIONS], {
     status: AWAITING_CAPTIONS,
     notes: captionWaitNotes(wait),
@@ -348,7 +352,9 @@ export function resumeRowFromCaptionWait(epicDir, row, notes = "") {
 /**
  * Rows FIFO `watch` may claim, in `#` order: each unclaimed `pending` row, and each unclaimed
  * `awaiting_captions` row whose next check time has come (`recheck: true`, a caption re-check
- * before any watch). A held row before its check time is skipped.
+ * before any watch). A held row before its check time is skipped. A held row whose notes
+ * record no deadline cannot be re-checked (`caption-recheck.js` requires one), so it is listed
+ * with `recheck: false`: its watch starts a new caption wait, as a `pending` row's would.
  * @param {string} epicDir
  * @param {number} [nowMs]
  * @returns {{ row: number, status: string, recheck: boolean, captionWaitDeadline: string | null }[]}
@@ -362,12 +368,15 @@ export function claimableRows(epicDir, nowMs = Date.now()) {
         e.status === "pending" ||
         (e.status === AWAITING_CAPTIONS && isRecheckDue(e.notes, nowMs)),
     )
-    .map((e) => ({
-      row: e.row,
-      status: e.status,
-      recheck: e.status === AWAITING_CAPTIONS,
-      captionWaitDeadline: parseCaptionWaitNotes(e.notes).deadline,
-    }));
+    .map((e) => {
+      const captionWaitDeadline = parseCaptionWaitNotes(e.notes).deadline;
+      return {
+        row: e.row,
+        status: e.status,
+        recheck: e.status === AWAITING_CAPTIONS && captionWaitDeadline !== null,
+        captionWaitDeadline,
+      };
+    });
 }
 
 /**
