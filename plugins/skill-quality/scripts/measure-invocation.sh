@@ -141,20 +141,33 @@ score_request() {
 }
 
 resolve_skill_md() {
-  local root="$1" rel="$2"
-  if [[ -f "$rel" ]]; then
-    printf '%s\n' "$rel"
-    return
-  fi
-  if [[ -f "$root/$rel/SKILL.md" ]]; then
-    printf '%s\n' "$root/$rel/SKILL.md"
-    return
-  fi
-  if [[ -f "$root/$rel" ]]; then
-    printf '%s\n' "$root/$rel"
-    return
-  fi
+  local root="$1" rel="$2" candidate
+  for candidate in "$rel" "$root/$rel/SKILL.md" "$root/$rel"; do
+    if [[ -f "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return
+    fi
+  done
   return 1
+}
+
+# read_query <probe-file> <index>: sets the caller's id, split, expect and
+# request from one query.
+read_query() {
+  id="$(jq -r ".queries[$2].id" "$1")"
+  split="$(jq -r ".queries[$2].split" "$1")"
+  expect="$(jq -r ".queries[$2].expect_trigger" "$1")"
+  request="$(jq -r ".queries[$2].request" "$1")"
+}
+
+# flag_ids <probe-file> <skill> <message> <jq-filter>: FAILs with the ids the
+# filter prints, space-joined, when it prints any.
+flag_ids() {
+  local ids
+  ids="$(jq -r "$4" "$1")"
+  if [[ -n "$ids" ]]; then
+    err "$1 ($2): $3: $(printf '%s' "$ids" | tr '\n' ' ')"
+  fi
 }
 
 # positive_int <flag> <value>: exits 2 unless value is a positive integer.
@@ -264,26 +277,14 @@ cmd_validate() {
     if ((val < 1)); then
       err "$f ($skill): no validation split"
     fi
-    local dup
-    dup="$(jq -r '.queries | group_by(.id) | map(select(length > 1)[0].id) | .[]?' "$f")"
-    if [[ -n "$dup" ]]; then
-      err "$f ($skill): duplicate query id(s): $(printf '%s' "$dup" | tr '\n' ' ')"
-    fi
-    local bad_expect
-    bad_expect="$(jq -r '.queries[] | select(.expect_trigger | type != "boolean") | .id' "$f")"
-    if [[ -n "$bad_expect" ]]; then
-      err "$f ($skill): expect_trigger must be a boolean; bad id(s): $(printf '%s' "$bad_expect" | tr '\n' ' ')"
-    fi
-    local bad_split
-    bad_split="$(jq -r '.queries[] | select(.split != "train" and .split != "validation") | .id' "$f")"
-    if [[ -n "$bad_split" ]]; then
-      err "$f ($skill): split must be train or validation; bad id(s): $(printf '%s' "$bad_split" | tr '\n' ' ')"
-    fi
-    local empty_req
-    empty_req="$(jq -r '.queries[] | select((.request | type != "string") or (.request | length < 1)) | .id' "$f")"
-    if [[ -n "$empty_req" ]]; then
-      err "$f ($skill): empty request; id(s): $(printf '%s' "$empty_req" | tr '\n' ' ')"
-    fi
+    flag_ids "$f" "$skill" "duplicate query id(s)" \
+      '.queries | group_by(.id) | map(select(length > 1)[0].id) | .[]?'
+    flag_ids "$f" "$skill" "expect_trigger must be a boolean; bad id(s)" \
+      '.queries[] | select(.expect_trigger | type != "boolean") | .id'
+    flag_ids "$f" "$skill" "split must be train or validation; bad id(s)" \
+      '.queries[] | select(.split != "train" and .split != "validation") | .id'
+    flag_ids "$f" "$skill" "empty request; id(s)" \
+      '.queries[] | select((.request | type != "string") or (.request | length < 1)) | .id'
     local rel md
     rel="$(jq -r '.skill_dir // empty' "$f")"
     if [[ -n "$rel" ]]; then
@@ -402,10 +403,7 @@ cmd_score() {
     local i
     for ((i = 0; i < nq; i++)); do
       local id split expect request
-      id="$(jq -r ".queries[$i].id" "$f")"
-      split="$(jq -r ".queries[$i].split" "$f")"
-      expect="$(jq -r ".queries[$i].expect_trigger" "$f")"
-      request="$(jq -r ".queries[$i].request" "$f")"
+      read_query "$f" "$i"
       local tscore
       tscore="$(score_request "$request" "$listing")"
       local winner="$skill"
@@ -431,9 +429,8 @@ cmd_score() {
         fi
       done
       local correct=false
-      if [[ "$expect" == "true" && "$predicted" == "true" ]]; then
-        correct=true
-      elif [[ "$expect" == "false" && "$predicted" == "false" ]]; then
+      # predicted is always true or false, so a match means expect is the same boolean.
+      if [[ "$expect" == "$predicted" ]]; then
         correct=true
       fi
       cases_json="$(jq -c --arg id "$id" --arg split "$split" --argjson expect "$expect" \
@@ -446,27 +443,18 @@ cmd_score() {
     split_json="$(jq -c '
       def band($s; $pos):
         (.[] | select(.split == $s and .expect_trigger == $pos));
-      def rate(hits; n): if n == 0 then null else (hits / n) end;
-      {
-        train: {
-          n: [.[] | select(.split == "train")] | length,
-          n_positive: [band("train"; true)] | length,
-          n_negative: [band("train"; false)] | length,
-          trigger_hits: [band("train"; true) | select(.predicted == true)] | length,
-          false_triggers: [band("train"; false) | select(.predicted == true)] | length
-        },
-        validation: {
-          n: [.[] | select(.split == "validation")] | length,
-          n_positive: [band("validation"; true)] | length,
-          n_negative: [band("validation"; false)] | length,
-          trigger_hits: [band("validation"; true) | select(.predicted == true)] | length,
-          false_triggers: [band("validation"; false) | select(.predicted == true)] | length
+      def rate($hits; $n): if $n == 0 then null else ($hits / $n) end;
+      def stats($s):
+        {
+          n: [.[] | select(.split == $s)] | length,
+          n_positive: [band($s; true)] | length,
+          n_negative: [band($s; false)] | length,
+          trigger_hits: [band($s; true) | select(.predicted == true)] | length,
+          false_triggers: [band($s; false) | select(.predicted == true)] | length
         }
-      }
-      | .train.trigger_rate = (if .train.n_positive == 0 then null else (.train.trigger_hits / .train.n_positive) end)
-      | .train.false_trigger_rate = (if .train.n_negative == 0 then null else (.train.false_triggers / .train.n_negative) end)
-      | .validation.trigger_rate = (if .validation.n_positive == 0 then null else (.validation.trigger_hits / .validation.n_positive) end)
-      | .validation.false_trigger_rate = (if .validation.n_negative == 0 then null else (.validation.false_triggers / .validation.n_negative) end)
+        | .trigger_rate = rate(.trigger_hits; .n_positive)
+        | .false_trigger_rate = rate(.false_triggers; .n_negative);
+      { train: stats("train"), validation: stats("validation") }
     ' <<<"$cases_json")"
 
     jq -n --arg skill "$skill" --arg plugin "$plugin" --arg method "$method" \
@@ -691,10 +679,7 @@ cmd_emit() {
     nq="$(jq '.queries | length' "$f")"
     for ((i = 0; i < nq; i++)); do
       local id split expect request
-      id="$(jq -r ".queries[$i].id" "$f")"
-      split="$(jq -r ".queries[$i].split" "$f")"
-      expect="$(jq -r ".queries[$i].expect_trigger" "$f")"
-      request="$(jq -r ".queries[$i].request" "$f")"
+      read_query "$f" "$i"
       local case_dir="$out/${plugin}-${leaf}-${id}"
       mkdir -p "$case_dir/graders" || return 2
       printf '%s\n' "---
