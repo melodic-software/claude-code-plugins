@@ -1,7 +1,7 @@
 # verification
 
 A Claude Code plugin for the **verification stage** of a disciplined dev workflow. It proves a change achieved its intended outcome, and proves measurable-improvement claims
-against a baseline captured before the change. Three skills, one concern: turning a
+against a baseline captured before the change. Its three skills share one concern, turning a
 green build into confirmed outcomes.
 
 | Skill | What it does |

@@ -163,7 +163,7 @@ simplify capability (code).
 
 ### recheck-against-upstream
 
-Re-anchors the discipline that existing state, config, code, docs, infra, is evidence of what is, never proof it still matches the upstream it depends
+Re-anchors the discipline that existing state (config, code, docs, infrastructure) is evidence of what is, never proof that it still matches the upstream it depends
 on. Fetches the CURRENT official upstream docs for the surface in play,
 diffs the repo's state against them, and classifies each divergence: a
 **gap** (docs say X, we do Y, no recorded rationale, including deprecation
@@ -309,7 +309,7 @@ win).
 
 ### scrutinize-dont-coast
 
-Re-anchors a *meta* discipline rather than a single content axis: don't coast
+Re-anchors a *meta* discipline rather than a single content axis. Don't coast
 on your own recent output. Confidence that work is sound is not evidence that
 it is. The adversarial re-examination runs in a fresh-context
 (non-fork) subagent blind to the reasoning that produced the output. It makes

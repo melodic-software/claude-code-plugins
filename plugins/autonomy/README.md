@@ -68,7 +68,7 @@ whether `node` and `jq` resolve.
   detect-diff-reconciles existing org schedulers and bots instead of duplicating them.
 - **Routine prerequisite resolution** (`reference/prerequisite-resolution.md`): fail-closed,
   per-identity-per-surface verdicts (`supported` / `conditional` / `unsupported` / `unknown`) for
-  which catalog identities can run against a repository, composing owning seams rather than a new
+  which catalog identities can run against a repository, composing the interfaces that own those facts rather than a new
   prober, with `deferred(<trigger>)` (the row's own join trigger) marking `join:` rows that
   have no identities yet. Per-identity
   facts live in each `v1` leaf; `generated/identity-prerequisites.json` is the drift-gated
@@ -76,7 +76,7 @@ whether `node` and `jq` resolve.
   `skills/setup/scripts/resolve-prerequisites.mjs` is the deterministic per-surface resolver;
   the setup skill's prerequisite-resolution slice (`check` / `apply`) consumes it.
 - **Runner design pack** (`reference/runner.md`): the architect-ready design contract for the
-  autonomous-drain runner, the composition spine and its eight seams, the lifecycle state
+  autonomous-drain runner, the composition spine and its eight interfaces, the lifecycle state
   model, the two-family stop-criteria taxonomy with terminal-handoff escalation and
   severity-routed notification fan-out, the matrix-derived launch backend set, and the topology
   ownership seam map, as a progressive-disclosure hub with `reference/runner/` leaves. Design
