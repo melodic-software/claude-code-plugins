@@ -110,7 +110,7 @@ describe("parseCaptionWaitDeadline", () => {
     ).toEqual({ ok: true, deadline: "2026-11-12T00:00:00.000Z" });
   });
 
-  it("rejects a missing or unparseable value", () => {
+  it("rejects a missing or unparsable value", () => {
     expect(parseCaptionWaitDeadline(["node", "x", "url", "--caption-wait-deadline"]).ok).toBe(false);
     expect(
       parseCaptionWaitDeadline(["node", "x", "url", "--caption-wait-deadline", "soon"]).ok,

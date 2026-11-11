@@ -143,7 +143,7 @@ export function parseCaptionWaitDeadline(argv) {
 }
 
 /**
- * A time normalized to the UTC ISO form the queue's `notes` record; null when unparseable.
+ * A time normalized to the UTC ISO form the queue's `notes` record; null when unparsable.
  *
  * @param {string|undefined} value
  * @returns {string|null}
