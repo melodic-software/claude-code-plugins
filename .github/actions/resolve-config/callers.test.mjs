@@ -3725,7 +3725,7 @@ test("pr-run-activity-read.yml: the scan job holds only the scan-carrier key, in
   assert.equal(scan["runs-on"], "ubuntu-24.04");
   assert.deepEqual(scan.needs, ["run", "issue-fields"]);
   assert.deepEqual(scan.permissions, { contents: "read" });
-  assert.equal(scan.environment, "pr-pipeline-scan-carrier");
+  assert.deepEqual(scan.environment, { name: "pr-pipeline-scan-carrier", deployment: false });
   assert.deepEqual(stepSecrets(scan), ["scan-carrier-private-key"], "the one secret in the job");
   assert.deepEqual(scan.steps.filter((step) => stepSecrets(step).length > 0).map((step) => step.id), ["open"], "read in the decode step alone");
   assert.doesNotMatch(JSON.stringify(scan), /id-token|ACTIONS_ID_TOKEN/);
@@ -5536,7 +5536,7 @@ test("pr-run-activity-read.yml: the scan-carrier key is passed by name by each r
   }
   for (const file of files) {
     for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
-      if ((file === "pr-run-activity-read.yml" || CARRIER_HOLDERS.includes(file)) && id === "scan") assert.equal(job.environment, "pr-pipeline-scan-carrier");
+      if ((file === "pr-run-activity-read.yml" || CARRIER_HOLDERS.includes(file)) && id === "scan") assert.deepEqual(job.environment, { name: "pr-pipeline-scan-carrier", deployment: false }, `${file} ${id}`);
       else assert.doesNotMatch(JSON.stringify(job.environment ?? ""), /pr-pipeline-scan-carrier/, `${file} ${id}`);
     }
   }
