@@ -306,6 +306,58 @@ fi
 chmod -R u+w "$tools"
 rm -rf "$f" "$tools" "$elsewhere"
 
+# --- -C <dir>: act as if started in <dir> ---------------------------------------
+# A worker that cannot cd runs it from a directory outside the target work tree.
+other=""
+base_fixture f
+base_fixture other
+fixture_tree::build elsewhere --label new-fragment-elsewhere || exit 2
+out="$(cd "$elsewhere" && bash "$SCRIPT" -C "$f" alpha patch)"
+if [[ $? -eq 0 && "$out" =~ ^\.changes/alpha/feat-some_thing-[0-9a-f]{8}\.md$ && -f "$f/$out" ]] &&
+  [[ -z "$(find "$elsewhere" -name '*.md')" ]]; then
+  ok "-C writes into the named work tree and nothing in the caller's directory"
+else
+  fail "expected .changes/alpha/feat-some_thing-<hex>.md under $f and nothing in $elsewhere, got: $out"
+fi
+out="$(cd "$other" && bash "$SCRIPT" -C "$f/scripts" alpha patch)"
+if [[ $? -eq 0 && -f "$f/$out" && ! -e "$other/.changes" ]]; then
+  ok "-C a subdirectory of a work tree writes at that work tree's root, not in the caller's tree"
+else
+  fail "expected the fragment under $f/.changes and none under $other, got: $out"
+fi
+out="$(bash "$SCRIPT" -C "$elsewhere" -C "$f" alpha patch)"
+if [[ $? -eq 0 && -f "$f/$out" ]]; then
+  ok "-C may repeat, the last naming the directory"
+else
+  fail "expected a fragment under $f with two -C options, got: $out"
+fi
+out="$(bash "$SCRIPT" -C "$f" --stdin alpha minor <<<$'### Added\n\n- Via -C.')"
+rc=$?
+if ((rc == 0)) && grep -q 'Via -C' "$f/$out"; then
+  ok "-C combines with --stdin"
+else
+  fail "expected --stdin to write the body under -C, got: $out"
+fi
+out="$(cd "$elsewhere" && bash "$SCRIPT" -C "$elsewhere/missing" alpha patch 2>&1)"
+if [[ $? -eq 2 && "$out" == *"cannot change to"* ]]; then
+  ok "-C a missing directory exits 2 and writes nothing"
+else
+  fail "expected exit 2 for a missing -C directory, got: $out"
+fi
+out="$(bash "$SCRIPT" -C 2>&1)"
+if [[ $? -eq 2 && "$out" == *"usage:"* ]]; then
+  ok "-C without a directory is a usage error"
+else
+  fail "expected usage and exit 2 for a bare -C, got: $out"
+fi
+out="$(cd "$elsewhere" && bash "$SCRIPT" -C "$elsewhere" alpha patch 2>&1)"
+if [[ $? -eq 2 && "$out" == *"work tree"* ]]; then
+  ok "-C a directory outside any work tree exits 2"
+else
+  fail "expected exit 2 for -C outside a work tree, got: $out"
+fi
+rm -rf "$f" "$other" "$elsewhere"
+
 # --- every fragment stays under .changes/<plugin>/ -----------------------------
 # The lane passes the model's arguments, and the checkout's fragment-plugins.txt
 # and plugin.json files are the model's to edit.
