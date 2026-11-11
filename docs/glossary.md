@@ -17,8 +17,7 @@ applies repository-wide.
 **AFK criterion**
 
 The test of whether remaining work is scoped to run without a human at the keyboard: no decision
-still owed to it, no mid-flight approval it must stop for. A yes routes the delegation decision to
-`session-flow:orchestrate`; the criterion names the test, not the delegation.
+still owed to it, no mid-flight approval it must stop for.
 
 Avoid: away-from-keyboard check
 
@@ -27,6 +26,11 @@ Avoid: away-from-keyboard check
 The failure mode where a session drives toward producing the deliverable while the job is still
 reaching shared understanding of what the deliverable should be. Names the critique that the
 interview-first pipeline answers.
+
+**shared understanding**
+
+The state where the people on a task agree on the problem, its constraints and what done means,
+confirmed in their own words before the deliverable is built.
 
 **context load**
 
@@ -51,7 +55,6 @@ Avoid: highway, stale highway
 **phase boundary**
 
 The moment a stage has produced its artifact and the next has not begun.
-Here, route the next step with `/session-flow:workflow`.
 
 **primary source**
 
@@ -129,7 +132,7 @@ Each maps to the term or doctrine that owns the concept.
 
 | Rejected | Owned by |
 |---|---|
-| design concept | **shared understanding**, the existing house term |
+| design concept | **shared understanding** above |
 | grill-execute-clear | the house workflow taxonomy, which already names the loop |
 | push vs point | **point, don't copy** (`discipline:point-dont-copy`) |
 | highway / stale highway | **navigation pointer** above; survives only as a quoted mnemonic |
@@ -139,22 +142,3 @@ Each maps to the term or doctrine that owns the concept.
 | slice *(the work-item sense)* | **vertical slice** above; bare "slice" means the topic folder |
 | software factory | the loop-lane convention ([`contracts/loop-lane/README.md`](contracts/loop-lane/README.md)) |
 | map / territory | the source author's metaphor, cited where it appears in [`finding-your-unknowns.md`](finding-your-unknowns.md) "The unknowns taxonomy"; never house vocabulary (metaphor-jargon risk) |
-
-## Provenance
-
-Terms through "smart zone" were graded and adopted in lane 6 of the AI Hero course vetting
-(2026-08-18). The decision rows, including the basis for each verdict and the rejected-term
-mappings, are in [`upstream/aihero-course.md`](upstream/aihero-course.md) under "Term adoption".
-Materialization of this file was tracked as
-[#3000](https://github.com/melodic-software/claude-code-plugins/issues/3000).
-
-"unknowns quadrants", "blindspot finding types", and the map/territory rejected-terms row were
-adopted at the finding-your-unknowns integration sign-off (2026-09-01); the decision record is
-[ADR 0025](adr/0025-adopt-the-unknowns-corpus-as-judgment-preserving-contract-deltas.md) and the
-shipping PR carries the full decision sheet.
-
-"work item" through "vertical slice" and the slice rejected-terms row record vocabulary the
-`work-items` plugin already uses; definitions follow
-[`execution-shape.md`](../plugins/work-items/reference/execution-shape.md) "Vocabulary" and the
-tracker contract's "Containers and state". Tracked as
-[#6940](https://github.com/melodic-software/claude-code-plugins/issues/6940).

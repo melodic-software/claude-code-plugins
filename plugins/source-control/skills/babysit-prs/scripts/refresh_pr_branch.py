@@ -167,8 +167,9 @@ def run_locked(
             f"snapshot does not classify the PR as behind its base branch; re-run 'pr_queue_snapshot.py --pr {key} --write-state' to refresh the stored state, then retry"
         )
     snapshot_policy = json_object(pr_state.get("mutation_policy"))
-    if not snapshot_policy.get("head_metadata_complete") or not snapshot_policy.get(
-        "branch_write_allowed"
+    if not (
+        snapshot_policy.get("head_metadata_complete")
+        and snapshot_policy.get("branch_write_allowed")
     ):
         raise RuntimeError("snapshot does not allow writes to this PR head repository")
     if human_stop_blocks_automation(json_object(pr_state.get("human_stop"))):
@@ -180,8 +181,9 @@ def run_locked(
     fallback = repo_policy.fallback_from_args(args)
 
     prior = json_object(pr_state.get("branch_refresh"))
-    ledger = cast(dict[str, Any], state.setdefault("mutation_ledger", {}))
-    ledger_entry = cast(dict[str, Any], ledger.setdefault(key, {}))
+    ledger_entry = cast(
+        dict[str, Any], state.setdefault("mutation_ledger", {}).setdefault(key, {})
+    )
     history = json_object(pr_state.get("branch_refresh_history"))
     history.update(json_object(ledger_entry.get("branch_refresh_history")))
     if expected_head_sha in history:
@@ -337,10 +339,8 @@ def request_dependabot_rebase(
         result["rebase"] = f"would-request {command}"
         return result
     require_worker_lease(args, state_dir, repo, number, renew=True)
-    gh_json(
-        ["api", "-X", "POST", f"repos/{repo}/issues/{number}/comments"]
-        + ["-f", f"body={body}"]
-    )
+    endpoint = f"repos/{repo}/issues/{number}/comments"
+    gh_json(["api", "-X", "POST", endpoint, "-f", f"body={body}"])
     result["rebase"] = command
     return result
 

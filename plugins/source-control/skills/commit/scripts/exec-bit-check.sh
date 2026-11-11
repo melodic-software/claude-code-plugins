@@ -1,53 +1,27 @@
 #!/usr/bin/env bash
 # exec-bit-check.sh — deterministic exec-bit backstop for /source-control:commit.
 #
-# The skill documents an ordered exec-bit procedure in prose. Prose is the first
-# thing a long session stops executing: the motivating failure was four new
-# shebang scripts shipped at mode 100644 with only the consuming repo's CI
-# catching it. This script is the deterministic tier under that prose — the same
-# rule, executable, so a composing session runs a command instead of remembering
-# a paragraph.
+# The skill documents its exec-bit procedure in prose; this script is the same
+# rule as a command, so a composing session runs it instead of remembering it.
 #
-# WHAT IT REPORTS: every path this change stages at a NEW index ENTRY whose
-# staged blob begins with a `#!` shebang while its staged mode is 100644
-# (non-executable). A new entry is NOT the same as the raw status letter `A`:
-# rename and copy detection rewrite those very entries, so a copy destination
-# (`C`) counts too, as does a rename destination (`R`) whose source was 100755
-# and therefore dropped the bit. See the candidate-set comment further down for
-# why `R` and `C` are judged differently.
+# Reports every path staged at a NEW index entry whose staged blob starts with
+# `#!` while its staged mode is 100644. A new entry is not just status `A`: a
+# copy destination (`C`) counts, as does a rename destination (`R`) whose source
+# was 100755. The candidate-set comment below says why `R` and `C` differ.
 #
-# WHAT IT DOES NOT CLAIM: content-determinism is not a property of the whole
-# tool. It holds for the `A` and `C` classes only. The rename arm's
-# `100755`-source gate deliberately makes a `git mv` of a `100644` shebang file
-# answer differently under `diff.renames=false` (reported, as `A`) and under the
-# DEFAULT `diff.renames=true` (not reported, as `R`) — same index, same HEAD.
-# That is a decided trade, kept in #2141; the candidate-set comment carries the
-# reasoning and `repo19` in the test file carries the false positive it buys.
+# Scope limits, matching the skill's reasoning:
+#   - Newly-added paths only; a full-repo sweep is not this check's job.
+#   - Symlinks (120000) and gitlinks (160000) are skipped before the shebang
+#     probe: git tracks a link's own mode, and `git update-index --chmod=+x`
+#     fails on a 120000 entry.
+#   - The shebang is read from the STAGED BLOB, never the worktree file: the
+#     index is what a plain commit records.
 #
-# Deliberate scope limits, each matching the skill's documented reasoning:
-#   - Newly-added paths only. An already-tracked file that was already
-#     executable needs no action, and a full-repo sweep is not this check's job.
-#   - Symlinks (mode 120000) are skipped before the shebang probe. Git tracks
-#     the link's own mode, not its target's; `git update-index --chmod=+x` fails
-#     outright on a 120000 entry, and following the link could reach a file
-#     outside the repo entirely.
-#   - The shebang is read from the STAGED BLOB (`git cat-file blob <sha>`), never
-#     from the worktree file. The index is what a plain commit records, and
-#     reading the blob also avoids every quoting hazard of a worktree path.
-#
-# --fix sets the WORKTREE bit first, then the index entry, because that is the
-# only order that survives a later `git add`: `git update-index --chmod=+x`
-# overrides the index alone, so a re-add re-reads the still-0644 worktree mode
-# and silently reverts the index. It also matters for the pathspec-limited
-# (`--only`) commit form, which records the WORKTREE mode rather than the index.
-#
-# WHY THE INDEX WRITE IS NOT OPTIONAL: under `core.filemode=false` (the default
-# on Windows/NTFS) git
-# ignores worktree permission bits entirely and stages every file 100644. On
-# such a repo `chmod +x` alone NEVER reaches the index, so `git update-index
-# --chmod=+x` is the only thing that can produce a 100755 entry. Both writes are
-# therefore always attempted: the chmod for the file's own sake and for
-# filemode=true repos, the update-index for what actually gets committed.
+# --fix sets the WORKTREE bit first, then the index entry. `git update-index
+# --chmod=+x` alone is reverted by a later `git add` of the still-0644 worktree
+# file, and the pathspec-limited (`--only`) commit records the worktree mode.
+# The index write is still required: under `core.filemode=false` (the Windows
+# default) git ignores worktree bits, so only update-index yields 100755.
 #
 # Usage:
 #   exec-bit-check.sh [--list | --list0 | --probe | --fix] [--repo-dir <dir>] [--all] [-- <path>...]
@@ -59,9 +33,8 @@
 #   --fix     apply the worktree-then-index fix; requires an explicit scope
 #             ('-- <path>...' or --all), since it mutates index entries
 #
-# Every mode anchors at the repository ROOT, so running from a subdirectory
-# behaves identically; caller pathspecs are re-anchored from the caller's cwd
-# first, before the directory change.
+# Every mode runs from the repository ROOT; caller pathspecs are re-anchored
+# from the caller's cwd first.
 #
 # Exit codes:
 #   0  ran successfully (--list/--list0/--probe always exit 0, findings or not;
@@ -107,6 +80,19 @@ reference/exec-bit.md.
 EOF
 }
 
+die() {
+  echo "$PROG: $2" >&2
+  exit "$1"
+}
+
+# Prints a path, %q-quoted when it contains a newline so one path stays one line.
+print_path() {
+  case "$1" in
+  *$'\n'*) printf '%q' "$1" ;;
+  *) printf '%s' "$1" ;;
+  esac
+}
+
 mode=list
 repo_dir=""
 all=0
@@ -114,16 +100,10 @@ paths=()
 
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
-  --list) mode=list ;;
-  --list0) mode=list0 ;;
-  --probe) mode=probe ;;
-  --fix) mode=fix ;;
+  --list | --list0 | --probe | --fix) mode=${1#--} ;;
   --all) all=1 ;;
   --repo-dir)
-    [[ "$#" -ge 2 ]] || {
-      echo "$PROG: --repo-dir needs a value" >&2
-      exit 2
-    }
+    [[ "$#" -ge 2 ]] || die 2 "--repo-dir needs a value"
     repo_dir="$2"
     shift
     ;;
@@ -145,141 +125,69 @@ while [[ "$#" -gt 0 ]]; do
   shift
 done
 
-command -v git >/dev/null 2>&1 || {
-  echo "$PROG: git not found on PATH" >&2
-  exit 3
-}
+command -v git >/dev/null 2>&1 || die 3 "git not found on PATH"
 
 if [[ -n "$repo_dir" ]]; then
-  cd -- "$repo_dir" 2>/dev/null || {
-    echo "$PROG: cannot enter --repo-dir '$repo_dir'" >&2
-    exit 3
-  }
+  cd -- "$repo_dir" 2>/dev/null || die 3 "cannot enter --repo-dir '$repo_dir'"
 fi
 
-git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
-  echo "$PROG: not inside a git work tree" >&2
-  exit 3
-}
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die 3 "not inside a git work tree"
 
-# Anchor everything at the repository root. `git diff --cached --raw`
-# always emits paths relative to the REPOSITORY ROOT, but a `git ls-files`
-# pathspec is interpreted relative to the CURRENT DIRECTORY. Run from a
-# subdirectory, those two disagree: every ls-files lookup misses, `stage_line`
-# comes back empty, and the check silently reports no offenders even when
-# staged non-executable shebang files exist. A fail-open backstop is worse than
-# no backstop, so the mismatch is removed rather than worked around.
-#
-# Caller pathspecs are relative to the caller's cwd, so re-anchor them with
-# `--show-prefix` BEFORE changing directory, or a scoped `--fix` would silently
-# match nothing. An absolute path and a `:`-prefixed magic pathspec are already
-# unambiguous and are left alone.
+# `git diff --cached --raw` prints root-relative paths but a `git ls-files`
+# pathspec is cwd-relative, so from a subdirectory every lookup would miss and
+# the check would fail open. Re-anchor caller pathspecs with `--show-prefix`
+# (absolute and `:`-magic pathspecs are left alone), then cd to the root.
 repo_prefix="$(git rev-parse --show-prefix 2>/dev/null)"
 repo_top="$(git rev-parse --show-toplevel 2>/dev/null)"
 if [[ -n "$repo_prefix" ]] && [[ "${#paths[@]}" -gt 0 ]]; then
-  for _i in "${!paths[@]}"; do
-    case "${paths[$_i]}" in
+  for i in "${!paths[@]}"; do
+    case "${paths[i]}" in
     /* | :*) ;;
-    *) paths[_i]="$repo_prefix${paths[_i]}" ;;
+    *) paths[i]="$repo_prefix${paths[i]}" ;;
     esac
   done
 fi
 if [[ -n "$repo_top" ]]; then
-  cd -- "$repo_top" 2>/dev/null || {
-    echo "$PROG: cannot enter repository root '$repo_top'" >&2
-    exit 3
-  }
+  cd -- "$repo_top" 2>/dev/null || die 3 "cannot enter repository root '$repo_top'"
 fi
 
-# --fix MUTATES index entries, so it refuses an unscoped run. The whole staged
-# set can include another concurrent session's staged work, and silently
-# rewriting its mode entries is exactly the blanket-mutation this skill's
-# surgical-staging discipline exists to prevent. --list/--probe stay unscoped by
-# default because they only read. `--all` is the explicit opt-in for the
-# deliberate whole-index sweep.
+# --fix mutates index entries, and the whole staged set can hold another
+# session's work, so it refuses an unscoped run; --all is the explicit opt-in.
 if [[ "$mode" == "fix" ]] && [[ "$all" -eq 0 ]] && [[ "${#paths[@]}" -eq 0 ]]; then
   echo "$PROG: --fix needs an explicit scope: pass '-- <path>...' for this commit's paths," >&2
   echo "       or --all to deliberately sweep the whole staged set." >&2
   exit 2
 fi
 
-# Collect every path this change stages at a NEW index entry. -z keeps paths
-# with spaces, quotes, or newlines intact; each record is one NUL-terminated
-# info field followed by its path field(s), and a rename or copy emits TWO paths
-# (source, destination), so each status is consumed with its own explicit field
-# reads rather than a positional split.
+# Candidate set: every path staged at a NEW index entry. Rename detection (on
+# by default via `diff.renames`) and copy detection (`diff.renames=copies`) turn
+# the same staged file from `A <path>` into `R<score> <old> <new>` or
+# `C<score> <src> <dst>`, so keying on `A` alone would fail open on the
+# consumer's diff config. `--raw -z` gives the source mode a rename needs; a
+# pair record carries two path fields, and each pair arm must read both or the
+# NUL stream desynchronizes. `R` and `C` do not share a predicate (#2118):
 #
-# `A` alone is NOT the candidate set. Rename and copy detection rewrite the very
-# entries this check exists to catch: the same staged file reports as `A <path>`
-# with detection off and as `R<score> <old> <new>` or `C<score> <src> <dst>` with
-# it on -- `git diff -h` documents `-M`/`-C` as "detect renames"/"detect copies",
-# rename detection is on by default (`diff.renames`), and copy detection turns on
-# with `diff.renames=copies`. Keying on `A` would make the check fail open on the
-# consumer's diff configuration rather than on the staged content -- for the `A`
-# and `C` classes, which is exactly as far as that property goes. It is NOT a
-# property of the whole tool: the rename arm below deliberately does not have it,
-# and the `R` paragraph states why and on whose authority.
+#   C -- the destination did not exist before, so it is newly added whatever
+#        the source mode, and is judged like `A`.
+#   R -- the destination is the same tracked file at a new path, reported only
+#        when its source was 100755 (the move dropped the bit). Moving a
+#        deliberately non-executable 100644 file must not flip its mode.
+#        The cost: `git mv` of a 100644 shebang file is reported under
+#        `diff.renames=false` (as `A`) but not under the default `true` (as
+#        `R`). That disagreement is a decided trade (#2141), pinned by `repo19`
+#        in exec-bit-check.test.sh; reopen #2141 before "repairing" this arm.
 #
-# `--raw` rather than `--name-status` because a RENAME needs BOTH modes to
-# judge: its record is `:<srcmode> <dstmode> <srcsha> <dstsha> <status>`, and
-# the SOURCE mode is what says whether the destination actually dropped the bit.
-#
-# `R` and `C` are NOT symmetric here and do not share a predicate (#2118):
-#
-#   R -- the destination is the SAME tracked file at a new path. `100755 ->
-#        100644` dropped the bit; `100644 -> 100644` is a deliberately
-#        non-executable tracked file merely being moved, and reporting it would
-#        flip a mode nobody changed -- squarely outside this check's
-#        newly-added-only scope. So the rename arm gates on a `100755` source.
-#
-#        THE ACCEPTED TRADE (#2141) -- recorded at the gate, not only at the
-#        test that pins it. This gate makes the RENAME arm's answer a function
-#        of `diff.renames`, and it splits on the DEFAULT config rather than an
-#        opt-in one. `git mv` of a `100644` shebang file reads as `D`+`A` under
-#        `diff.renames=false` and IS reported through the `A` branch; the SAME
-#        index and the SAME HEAD read as `R100` under the default
-#        `diff.renames=true` and are NOT. Only the config differs.
-#
-#        That residual is decided, not overlooked. #2141 weighed three policies
-#        -- keep the gate, drop it for renames too, or make the `A` branch skip
-#        a rename-as-add -- and settled on KEEPING it, with no behavior change.
-#        The false positive the gate prevents is real and is pinned by `repo19`
-#        in exec-bit-check.test.sh: a deliberately non-executable sourced
-#        library or template must not be flipped to `100755` because someone
-#        moved it. Dropping the gate buys config-agreement by shipping that
-#        false positive on every consumer; making the `A` branch match buys it
-#        by reporting LESS, which risks silencing genuinely new files. Neither
-#        trade was judged worth the agreement.
-#
-#        So: do NOT "repair" this arm into agreement with the `A` branch on the
-#        theory that the disagreement is the same defect class as #2118. It is
-#        the same SHAPE and a different verdict. Reopen #2141 first.
-#
-#   C -- the destination is a path that did NOT previously exist. It is newly
-#        added no matter what the source's mode was, which puts it squarely
-#        INSIDE the newly-added-only scope, so the copy arm gates on nothing and
-#        defers to the `100644`-plus-shebang filter below exactly as `A` does.
-#        Gating the copy arm on the source mode would make the answer a function
-#        of the consumer's `diff.renames` setting -- the same staged content
-#        reported as `A` with copy detection off and unreported as `C` with it
-#        on, which is the precise failure this candidate set exists to remove.
-#
-# A pair whose destination kept `100755` is dropped by the `100644` filter below
-# regardless, on either arm.
+# A destination that kept 100755 is dropped by the 100644 filter below.
 added=()
 while IFS= read -r -d '' info; do
   info="${info#:}"
   src_mode="${info%% *}"
   status="${info##* }"
-  # Every pair arm MUST consume both the source and destination path fields:
-  # a record read short desynchronizes the whole NUL stream behind it.
   case "$status" in
   R*)
     IFS= read -r -d '' _source || break
     IFS= read -r -d '' path || break
-    if [[ "$src_mode" == "100755" ]]; then
-      added+=("$path")
-    fi
+    [[ "$src_mode" == "100755" ]] && added+=("$path")
     ;;
   C*)
     IFS= read -r -d '' _source || break
@@ -299,21 +207,10 @@ done < <(git diff --cached --raw -z -- ${paths[@]+"${paths[@]}"} 2>/dev/null)
 offenders=()
 for path in ${added+"${added[@]}"}; do
   # `git ls-files --stage` prints: <mode> SP <sha> SP <stage> TAB <path>
-  stage_line="$(git ls-files --stage -- "$path" 2>/dev/null | head -n 1)"
-  [[ -n "$stage_line" ]] || continue
-
-  entry_mode="${stage_line%% *}"
-  # Only regular files carry exec-bit semantics. 120000 is a symlink; 160000 a
-  # gitlink (submodule). Both are skipped before the blob is ever read.
+  read -r entry_mode blob_sha _ < <(git ls-files --stage -- "$path" 2>/dev/null | head -n 1) || continue
+  # Only regular files carry exec-bit semantics; symlinks and gitlinks drop here.
   [[ "$entry_mode" == "100644" ]] || continue
-
-  rest="${stage_line#* }"
-  blob_sha="${rest%% *}"
-  [[ -n "$blob_sha" ]] || continue
-
-  first_two="$(git cat-file blob "$blob_sha" 2>/dev/null | head -c 2)"
-  [[ "$first_two" == "#!" ]] || continue
-
+  [[ "$(git cat-file blob "$blob_sha" 2>/dev/null | head -c 2)" == "#!" ]] || continue
   offenders+=("$path")
 done
 
@@ -321,43 +218,30 @@ count=${#offenders[@]}
 
 case "$mode" in
 list)
-  # Newline-delimited, so a pathname legally containing a newline would print as
-  # two records and break the one-path-per-line contract. Use --list0 when a
-  # caller must distinguish that case; %q makes the ambiguity visible here
-  # rather than silent.
+  # %q keeps a newline-bearing path on one line; --list0 is the unambiguous form.
   for path in ${offenders+"${offenders[@]}"}; do
-    case "$path" in
-    *$'\n'*) printf '%q\n' "$path" ;;
-    *) printf '%s\n' "$path" ;;
-    esac
+    print_path "$path"
+    printf '\n'
   done
-  exit 0
   ;;
 list0)
-  # NUL-delimited: the only unambiguous machine-readable form, since NUL is the
-  # one byte a git pathname cannot contain. Pair with `read -r -d ''`.
+  # NUL is the one byte a git pathname cannot contain. Pair with `read -r -d ''`.
   for path in ${offenders+"${offenders[@]}"}; do
     printf '%s\0' "$path"
   done
-  exit 0
   ;;
 probe)
   if [[ "$count" -eq 0 ]]; then
     printf 'none\n'
   else
+    # One line: it is injected into skill context, so %q any newline.
     printf '%s staged shebang file(s) still at mode 100644:' "$count"
     for path in "${offenders[@]}"; do
-      # %q for any path carrying a newline (or other control byte): --probe is
-      # injected into skill context as ONE line, and a raw newline would split
-      # a single offender into what reads as several.
-      case "$path" in
-      *$'\n'*) printf ' %q' "$path" ;;
-      *) printf ' %s' "$path" ;;
-      esac
+      printf ' '
+      print_path "$path"
     done
     printf '\n'
   fi
-  exit 0
   ;;
 fix)
   if [[ "$count" -eq 0 ]]; then
@@ -366,18 +250,11 @@ fix)
   fi
   failed=0
   for path in "${offenders[@]}"; do
-    # Worktree bit FIRST — see the header. A path staged as A can still be
-    # absent from disk (added, then removed without staging the removal); the
-    # index fix is still correct and still worth applying, so that case warns
-    # rather than aborting.
-    #
-    # -L is tested BEFORE -e, and this ordering is load-bearing: `-e` FOLLOWS a
-    # symlink, so a path staged as a regular 100644 blob but replaced in the
-    # worktree by a symlink would pass `-e` and hand `chmod +x` the link's
-    # TARGET — a file that may sit entirely outside the repository. The staged
-    # entry says regular file, so this is a worktree/index disagreement, not a
-    # symlink to skip: refuse the path loudly rather than making an unrelated
-    # file executable.
+    # Worktree bit first (see the header). -L is tested before -e because -e
+    # follows a symlink: a path staged as a regular file but a symlink in the
+    # worktree would otherwise make the link's target, possibly outside the
+    # repository, executable. A path staged but absent from disk still gets
+    # its index fix, with a warning.
     if [[ -L "$path" ]]; then
       echo "$PROG: refusing '$path': staged as a regular file but the worktree entry is a symlink" >&2
       failed=1
@@ -399,10 +276,7 @@ fix)
     printf 'exec-bit-check: fixed %s\n' "$path"
   done
   [[ "$failed" -eq 0 ]] || exit 4
-  exit 0
   ;;
-*)
-  echo "$PROG: internal error: unhandled mode '$mode'" >&2
-  exit 2
-  ;;
+*) die 2 "internal error: unhandled mode '$mode'" ;;
 esac
+exit 0

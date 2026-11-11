@@ -29,7 +29,7 @@ probe_kindle_version() {
 }
 
 probe_firewall_rule() {
-  powershell.exe -NoProfile -Command "if (Get-NetFirewallRule -DisplayName '${FIREWALL_RULE_NAME}' -ErrorAction SilentlyContinue) { (Get-NetFirewallRule -DisplayName '${FIREWALL_RULE_NAME}').Enabled } else { 'absent' }" 2>/dev/null | tr -d '\r\n '
+  powershell.exe -NoProfile -Command "\$rule = Get-NetFirewallRule -DisplayName '${FIREWALL_RULE_NAME}' -ErrorAction SilentlyContinue; if (\$rule) { \$rule.Enabled } else { 'absent' }" 2>/dev/null | tr -d '\r\n '
 }
 
 probe_icacls_deny() {
@@ -47,11 +47,12 @@ probe_icacls_deny() {
 }
 
 probe_cached_installer() {
-  if [[ -f "${KINDLE_UPDATES_DIR}/KindleForPC-installer.exe" ]]; then
+  local installer="${KINDLE_UPDATES_DIR}/KindleForPC-installer.exe"
+  if [[ -f "${installer}" ]]; then
     local size_bytes
     # portability-ok: Windows-only script (Git Bash + PowerShell + LOCALAPPDATA
     # above already require Windows) — a BSD stat fallback would be dead code.
-    size_bytes=$(stat -c%s "${KINDLE_UPDATES_DIR}/KindleForPC-installer.exe" 2>/dev/null || echo 0)
+    size_bytes=$(stat -c%s "${installer}" 2>/dev/null || echo 0)
     echo "present-${size_bytes}b"
   else
     echo "absent"
@@ -59,7 +60,7 @@ probe_cached_installer() {
 }
 
 probe_key_finder() {
-  if [[ -d "${KEY_FINDER_DIR}" && -f "${KEY_FINDER_DIR}/Run_keyfinder_admin.vbs" ]]; then
+  if [[ -f "${KEY_FINDER_DIR}/Run_keyfinder_admin.vbs" ]]; then
     echo "installed"
   else
     echo "absent"

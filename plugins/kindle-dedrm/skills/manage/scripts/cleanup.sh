@@ -35,21 +35,17 @@ KINDLE_APP_DIR="${LOCALAPPDATA}/Amazon/Kindle/application"
 CALIBRE_PLUGINS_DIR="${APPDATA}/calibre/plugins"
 KEY_FINDER_DIR="${HOME}/Tools/Kindle_Key_Finder"
 DOWNLOADS_DIR="${HOME}/Downloads"
+CACHED_INSTALLER="${KINDLE_UPDATES_DIR}/KindleForPC-installer.exe"
+KFC_DOWNLOAD="${DOWNLOADS_DIR}/KindleForPC-installer-2.8.70980.exe"
+DEDRM_JSON="${CALIBRE_PLUGINS_DIR}/dedrm.json"
 
 ask_yn() {
   local prompt="$1"
-  if [[ "${MODE}" == "soft" ]]; then
-    case "${prompt}" in
-    *"firewall"* | *"ICACLS"* | *"Kindle for PC uninstall"* | *"Calibre plugin"*) return 1 ;;
-    *) ;;
-    esac
-  fi
-  if [[ "${MODE}" == "full" ]]; then
-    case "${prompt}" in
-    *"Calibre Library"*) return 1 ;;
-    *) ;;
-    esac
-  fi
+  case "${MODE}:${prompt}" in
+  soft:*"firewall"* | soft:*"ICACLS"* | soft:*"Kindle for PC uninstall"* | soft:*"Calibre plugin"*) return 1 ;;
+  full:*"Calibre Library"*) return 1 ;;
+  *) ;;
+  esac
   echo
   read -r -p "${prompt} [y/N]: " ans
   local answer="${ans,,}"
@@ -102,9 +98,9 @@ if [[ "${MODE}" != "soft" ]]; then
 fi
 
 # --- 3. Cached installer in updates dir ---
-if [[ -f "${KINDLE_UPDATES_DIR}/KindleForPC-installer.exe" ]]; then
-  if ask_yn "Delete cached installer at ${KINDLE_UPDATES_DIR}/KindleForPC-installer.exe?"; then
-    run_or_show "rm -f '${KINDLE_UPDATES_DIR}/KindleForPC-installer.exe'"
+if [[ -f "${CACHED_INSTALLER}" ]]; then
+  if ask_yn "Delete cached installer at ${CACHED_INSTALLER}?"; then
+    run_or_show "rm -f '${CACHED_INSTALLER}'"
   else
     echo "  skipped — cached installer retained"
   fi
@@ -120,9 +116,9 @@ if [[ -d "${KEY_FINDER_DIR}" ]]; then
 fi
 
 # --- 5. Downloaded artifacts ---
-if [[ -f "${DOWNLOADS_DIR}/KindleForPC-installer-2.8.70980.exe" ]]; then
-  if ask_yn "Delete ${DOWNLOADS_DIR}/KindleForPC-installer-2.8.70980.exe?"; then
-    run_or_show "rm -f '${DOWNLOADS_DIR}/KindleForPC-installer-2.8.70980.exe'"
+if [[ -f "${KFC_DOWNLOAD}" ]]; then
+  if ask_yn "Delete ${KFC_DOWNLOAD}?"; then
+    run_or_show "rm -f '${KFC_DOWNLOAD}'"
   else
     echo "  skipped — installer retained (useful for re-setup if Amazon revokes URL)"
   fi
@@ -182,12 +178,12 @@ EOF
     3. Expand "File type plugins" — find DeDRM and KFX Input.
     4. Click each → Remove plugin.
     5. Restart Calibre.
-    6. Optional: rm '${CALIBRE_PLUGINS_DIR}/dedrm.json'
+    6. Optional: rm '${DEDRM_JSON}'
 
   Calibre Library (decrypted EPUBs) is NEVER deleted by this skill.
 EOF
-  if [[ -f "${CALIBRE_PLUGINS_DIR}/dedrm.json" ]] && ask_yn "Delete Calibre's dedrm.json (key store)?"; then
-    run_or_show "rm -f '${CALIBRE_PLUGINS_DIR}/dedrm.json'"
+  if [[ -f "${DEDRM_JSON}" ]] && ask_yn "Delete Calibre's dedrm.json (key store)?"; then
+    run_or_show "rm -f '${DEDRM_JSON}'"
   fi
 fi
 

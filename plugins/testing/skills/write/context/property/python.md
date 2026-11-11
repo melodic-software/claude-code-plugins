@@ -4,8 +4,8 @@ This page maps [../property.md](../property.md) onto Hypothesis. If the project 
 different property library, apply the same page with that library's docs.
 
 - **Declaring a property.** Decorate the test with `@given(...)` and give it one strategy per
-  parameter. The audit's pytest adapter treats that decorator as its property marker and skips the
-  whole module for `rule-recomputed-derived`, so put example tests in another module.
+  parameter. The audit's pytest adapter treats that decorator as its property marker and skips
+  `rule-recomputed-derived` for that test only; an example test in the same module is still checked.
 - **Constraining inputs.** Strategy arguments carry the input rules:
   `st.integers(0, 10_000_000)` for an amount in cents, `st.text(min_size=1, max_size=40)` for a
   name. For a value that depends on another (the invoice currency shared by every line), write an
@@ -20,8 +20,9 @@ different property library, apply the same page with that library's docs.
   the next run. Do not commit that directory unless the team shares it deliberately, and copy the
   reduced input into an `@example` or a plain test when you fix the bug.
 
-Verification record. Claim: `@given` is the entry point, `@example` adds an input tried before
-generated ones, `@settings` takes `max_examples` and a `deadline` that `None` disables, and failing
-examples are saved to a directory-based example database by default. Basis:
-<https://hypothesis.readthedocs.io/en/latest/reference/api.html>. As of 2026-10-04. Recheck when a
-Hypothesis major release changes those decorators, the settings names, or the default database.
+Pointers: [`@given`](https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.given),
+[`@example`](https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.example),
+[`@settings`](https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.settings)
+and the [example database](https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.database.DirectoryBasedExampleDatabase).
+As of 2026-11-10. Recheck when a Hypothesis major release changes those decorators, the settings
+names, or the default database.

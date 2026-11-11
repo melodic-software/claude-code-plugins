@@ -125,19 +125,18 @@ echo
 echo "Local downloads (verify SHA256 if files present):"
 DL_DIR="${HOME}/Downloads"
 verify_sha() {
-  local path="$1" expected="$2" label="$3"
-  if [[ -f "${path}" ]]; then
-    local actual
-    actual=$(sha256sum "${path}" | awk '{print $1}')
-    if [[ "${actual}" == "${expected}" ]]; then
-      ok "${label} SHA matches"
-    else
-      stale "${label} SHA differs"
-      note "  expected: ${expected}"
-      note "  actual:   ${actual}"
-    fi
-  else
+  local path="$1" expected="$2" label="$3" actual
+  if [[ ! -f "${path}" ]]; then
     note "  ${label}: not present at ${path}"
+    return
+  fi
+  actual=$(sha256sum "${path}" | awk '{print $1}')
+  if [[ "${actual}" == "${expected}" ]]; then
+    ok "${label} SHA matches"
+  else
+    stale "${label} SHA differs"
+    note "  expected: ${expected}"
+    note "  actual:   ${actual}"
   fi
 }
 verify_sha "${DL_DIR}/$(basename "${PINNED_KFC_URL}")" "${PINNED_KFC_SHA}" "KindleForPC installer"

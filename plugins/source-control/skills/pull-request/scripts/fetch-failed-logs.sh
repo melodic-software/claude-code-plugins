@@ -61,90 +61,48 @@ usage() {
   exit 0
 }
 
+die() {
+  printf 'fetch-failed-logs: %s\n' "$2" >&2
+  exit "$1"
+}
+
 while (($# > 0)); do
   case "$1" in
   -h | --help) usage ;;
   --job)
-    [[ $# -ge 2 ]] || {
-      printf 'fetch-failed-logs: --job needs an argument\n' >&2
-      exit 1
-    }
+    (($# >= 2)) || die 1 "--job needs an argument"
     JOB_ID="$2"
-    shift 2
+    shift
     ;;
   --max-bytes)
-    [[ $# -ge 2 && "$2" =~ ^[0-9]+$ ]] || {
-      printf 'fetch-failed-logs: --max-bytes needs a numeric argument\n' >&2
-      exit 1
-    }
+    [[ $# -ge 2 && "$2" =~ ^[0-9]+$ ]] || die 1 "--max-bytes needs a numeric argument"
     MAX_BYTES="$2"
-    shift 2
-    ;;
-  --keep-zip)
-    KEEP_ZIP=1
     shift
     ;;
-  --raw)
-    RAW=1
-    shift
-    ;;
-  --errors-only)
-    ERRORS_ONLY=1
-    shift
-    ;;
-  --notices)
-    NOTICES=1
-    shift
-    ;;
-  --groups)
-    SHOW_GROUPS=1
-    shift
-    ;;
-  --timing)
-    TIMING=1
-    shift
-    ;;
-  --suspicious)
-    SUSPICIOUS=1
-    shift
-    ;;
-  --audit)
-    SHOW_GROUPS=1
-    TIMING=1
-    SUSPICIOUS=1
-    shift
-    ;;
-  --)
-    shift
-    break
-    ;;
-  -*)
-    printf 'fetch-failed-logs: unknown flag %q (use --help)\n' "$1" >&2
-    exit 1
-    ;;
+  --keep-zip) KEEP_ZIP=1 ;;
+  --raw) RAW=1 ;;
+  --errors-only) ERRORS_ONLY=1 ;;
+  --notices) NOTICES=1 ;;
+  --groups) SHOW_GROUPS=1 ;;
+  --timing) TIMING=1 ;;
+  --suspicious) SUSPICIOUS=1 ;;
+  --audit) SHOW_GROUPS=1 TIMING=1 SUSPICIOUS=1 ;;
+  --) break ;;
+  -*) die 1 "unknown flag $(printf '%q' "$1") (use --help)" ;;
   *)
-    if [[ -z "$RUN_ID" ]]; then
-      RUN_ID="$1"
-    else
-      printf 'fetch-failed-logs: unexpected argument %q\n' "$1" >&2
-      exit 1
-    fi
-    shift
+    [[ -z "$RUN_ID" ]] || die 1 "unexpected argument $(printf '%q' "$1")"
+    RUN_ID="$1"
     ;;
   esac
+  shift
 done
 
 # Compose marker regex based on flags. ERRORS_ONLY suppresses warning;
 # NOTICES adds notice. Default = error + warning.
-if [[ "$ERRORS_ONLY" -eq 1 && "$NOTICES" -eq 1 ]]; then
-  MARKER_RE='##\[(error|notice)\]'
-elif [[ "$ERRORS_ONLY" -eq 1 ]]; then
-  MARKER_RE='##\[error\]'
-elif [[ "$NOTICES" -eq 1 ]]; then
-  MARKER_RE='##\[(error|warning|notice)\]'
-else
-  MARKER_RE='##\[(error|warning)\]'
-fi
+MARKER_LEVELS=error
+((ERRORS_ONLY)) || MARKER_LEVELS+="|warning"
+((NOTICES)) && MARKER_LEVELS+="|notice"
+MARKER_RE="##\[($MARKER_LEVELS)\]"
 
 # Step-structure markers — shared by the per-job walk and the full-run
 # --groups section.
@@ -155,23 +113,12 @@ GROUP_MARKER_RE='##\[(group|endgroup)\]'
 # exit-code mismatches not flagged as ##[error].
 SUSPICIOUS_RE='(retry|retrying|attempt [0-9]+ of [0-9]+|exponential backoff|deprecat|0 tests|no tests (collected|run)|nothing to do|skipped due to|timed out|connection refused|fallback)' # spellchecker:disable-line
 
-if [[ -z "$RUN_ID" && -z "$JOB_ID" ]]; then
-  printf 'fetch-failed-logs: <run-id> or --job <job-id> required\n' >&2
-  exit 1
-fi
+[[ -n "$RUN_ID" || -n "$JOB_ID" ]] || die 1 "<run-id> or --job <job-id> required"
 
 # --- Prerequisites -----------------------------------------------------------
 
-have() { command -v "$1" >/dev/null 2>&1; }
-
-have gh || {
-  printf 'fetch-failed-logs: gh CLI required\n' >&2
-  exit 5
-}
-have unzip || {
-  printf 'fetch-failed-logs: unzip required\n' >&2
-  exit 5
-}
+command -v gh >/dev/null 2>&1 || die 5 "gh CLI required"
+command -v unzip >/dev/null 2>&1 || die 5 "unzip required"
 
 # file_size — byte count of a file, with the surrounding whitespace/CR some
 # `wc` builds emit stripped so the value compares numerically.
@@ -231,16 +178,9 @@ emit_group_timing() {
 
 # --- Repo resolution ---------------------------------------------------------
 
-if [[ -n "${FETCH_LOGS_REPO:-}" ]]; then
-  REPO="$FETCH_LOGS_REPO"
-else
-  REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null | tr -d '\r\n')
-fi
-
-if [[ "$REPO" != */* ]]; then
-  printf 'fetch-failed-logs: cannot resolve owner/repo (set FETCH_LOGS_REPO=owner/name)\n' >&2
-  exit 2
-fi
+REPO="${FETCH_LOGS_REPO:-}"
+[[ -n "$REPO" ]] || REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null | tr -d '\r\n')
+[[ "$REPO" == */* ]] || die 2 "cannot resolve owner/repo (set FETCH_LOGS_REPO=owner/name)"
 
 # --- Scratch dir resolution --------------------------------------------------
 #
@@ -341,10 +281,7 @@ fi
 
 EXTRACT_DIR=$(mktemp -d)
 
-if ! unzip -q "$ZIP_PATH" -d "$EXTRACT_DIR" 2>/dev/null; then
-  printf 'fetch-failed-logs: unzip failed (corrupt ZIP at %s)\n' "$ZIP_PATH" >&2
-  exit 4
-fi
+unzip -q "$ZIP_PATH" -d "$EXTRACT_DIR" 2>/dev/null || die 4 "unzip failed (corrupt ZIP at $ZIP_PATH)"
 
 # Real GitHub Actions ZIP layout (verified 2026-05-08 against run 25505236665;
 # recheck when GitHub changes the run-log archive layout):

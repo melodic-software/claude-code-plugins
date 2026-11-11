@@ -8,8 +8,8 @@ has neither and they have approved adding one.
 
 - **Declaring a property.** Mark an xUnit test method `[Property]` (FsCheck.Xunit) and FsCheck
   supplies its parameters; a `Prop.ForAll(...)` expression works too. The audit's xUnit adapter
-  treats both as property markers and skips the whole file for `rule-recomputed-derived`, so put
-  example tests in another file.
+  treats both as property markers and skips `rule-recomputed-derived` for the test that holds one;
+  an example test in the same file is still checked.
 - **Constraining inputs.** For a domain type such as an invoice, register an arbitrary that builds
   only valid invoices, so no test receives a raw primitive it has to reject.
 - **Run size and replay.** On the attribute, `MaxTest` sets the case count and `Replay` takes the
