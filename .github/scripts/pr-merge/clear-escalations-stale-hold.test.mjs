@@ -66,10 +66,12 @@ const baseTimeline = () => [{ event: "labeled", actor: ACTIONS_BOT, label: { nam
 // is a SUGGESTION, so a clear shows the bar is CRITICAL, not any finding.
 // A thread carries its file and the commit its root comment was made on.
 // A thread carries its file, the commit its root comment was made on and the line it names there.
+// Before LEGACY_CUTOFF: a lane comment with no binding still counts.
+const POSTED_AT = "2026-10-01T00:00:00Z";
 const thread = (isResolved, author, body, path = "plugins/x/z.py", commit = HEAD, line = 12) => ({
   isResolved,
   path,
-  comments: { nodes: [{ author, body, originalCommit: { oid: commit }, originalLine: line, originalStartLine: null }] },
+  comments: { nodes: [{ author, body, createdAt: POSTED_AT, lastEditedAt: null, originalCommit: { oid: commit }, originalLine: line, originalStartLine: null }] },
 });
 const securityThread = (severity, isResolved = false, path = undefined, commit = undefined, line = undefined) =>
   thread(isResolved, { __typename: "Bot", login: "github-actions" }, `${severity}\n\nA finding.\n\nclaude-lane: claude-security-review`, path, commit, line);
