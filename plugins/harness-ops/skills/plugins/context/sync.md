@@ -135,8 +135,10 @@ immediately before each mutating step rather than mutating off a snapshot taken 
 background `autoUpdate` sweep or a concurrent session can change installed/enabled state between
 steps. Inside a step, the loop body is deliberately snapshot-driven: Step 3 reads its id list once
 and then issues one `claude plugin update` per line. That is the intended design, not a violation of
-the rule above. Re-reading state before each of sixty-odd calls would buy nothing, because the skill's own calls
-run one at a time.
+the rule above. Re-reading state before each of sixty-odd calls would not close the race: an
+external writer can still land between the read and the call, and the lost write is silent. The
+step-boundary snapshots (`mid` and `post`, and the `Moved during this run:` row the gotchas
+Concurrency section points to) are what detect it.
 
 A re-read whose inputs did not change reuses the last report instead of running `fleet-state.sh`
 again. `fleet-state.sh` lists every path it read, absent ones included, and `sync-run.sh` reuses
