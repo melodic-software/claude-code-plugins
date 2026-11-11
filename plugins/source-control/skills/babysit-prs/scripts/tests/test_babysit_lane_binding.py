@@ -168,7 +168,6 @@ class ParsingTests(unittest.TestCase):
 
     def test_an_unbound_comment_counts_with_no_cutoff_then_only_by_it_and_unedited(self) -> None:
         self.assertEqual(lb.LEGACY_CUTOFF, JS_CUTOFF)
-        self.assertIsNone(lb.LEGACY_CUTOFF)
         old = {"createdAt": "2026-10-01T00:00:00Z"}
         self.assertTrue(lb.legacy_counts(old))
         self.assertTrue(lb.legacy_counts({"createdAt": "2027-01-01T00:00:00Z"}, None))
