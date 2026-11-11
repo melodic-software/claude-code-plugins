@@ -7,7 +7,7 @@ whenever "continue, clear, handoff, background, stop, or compact?" is the live q
 ## Outcome set (derived, not inherited)
 
 The terminals are exactly the continuation mechanisms this plugin installs plus the built-ins:
-continue in session, `/clear`, `session-flow:handoff`, `session-flow:continue-in-background`,
+continue in session, `/clear`, `/rewind`, `session-flow:handoff`, `session-flow:continue-in-background`,
 `session-flow:clean-stop`, and `/compact`. Two session-flow siblings are deliberately NOT
 terminals: `reconcile` and `orient` are state hygiene. They inform this decision (what is still
 running, where we stand) but never carry the session forward. Mid-task subagent delegation is a
@@ -22,9 +22,12 @@ When the `context-guard` plugin is enabled, look up this session's zone word wit
 reader contract (the contract owns the snapshot path, staleness rule, and bands, so read them
 there; this router consumes only the resulting word, and inlines no band values). Plugin not
 enabled, no tool and an absent snapshot, or `unknown` → assume degraded and lean on the judgment tests below (window position
-and response quality). If context-guard's evidence-degraded marker exists for this session, or
-the session is otherwise known to have been compacted, treat the context as degraded regardless
-of a light zone word. A context-guard release before the rename reports `smart`, `acceptable` and
+and response quality). The zone word reports room only. Context-guard's evidence-degraded marker
+for this session (`evidence_degraded` in the status tool), or other knowledge that the session was
+compacted, is a separate fact read beside it: earlier conversation survives only as a summary, so
+constraints stated only in conversation may be gone. The marker alone does not make a light zone
+degraded; it keys the human-stage handoff rule below, and decay in the answers since still counts
+as degraded. A context-guard release before the rename reports `smart`, `acceptable` and
 `dumb`; read them as `light`, `moderate` and `heavy`.
 
 ## Informant inputs (presence-gated pointers, never duplicated reads)
@@ -110,14 +113,29 @@ boundary.
    reasoning is not the reasoning; this never overrides a degraded zone, where the questions
    below choose the route.*
 4. **Is this session's context disposable: the next work is unrelated and nothing from this
-   session carries over to anything, or two corrections on the same issue have already failed?**
-   → `/clear`. *The cheapest reset, asked before any writing mechanism: capturing state nothing
-   needs is pure cost. Unrelated work is work that neither uses this stage's artifact or files nor
-   serves the same Original goal or work item. After two failed corrections we clear and restate
-   the problem rather than carry those attempts forward.*
+   session carries over to anything, the next work item's durable artifacts (its ticket, spec, plan
+   or decomposed item on disk) already hold everything it needs, or two corrections on the same
+   issue have already failed?** → `/clear`. *The cheapest reset, asked before any writing
+   mechanism: capturing state nothing needs is pure cost. Unrelated work is work that neither uses
+   this stage's artifact or files nor serves the same Original goal or work item. Between work
+   items in an attended session, a summary of what the artifacts already carry is paid for
+   nothing, so we clear rather than compact; lanes keep their own routing. After two failed
+   corrections we clear and restate the problem rather than carry those attempts forward.* In an
+   attended session whose failed attempts were made through file-edit tools, offer `/rewind` first,
+   with a restore option rather than "Summarize from here": it keeps the reads from before the
+   attempts, which a clear discards. It does not restore files only shell commands changed or most
+   subagent edits, and file snapshots are kept for a bounded time. Never offer it as a safety net
+   for orchestrated work.
+
+   - **Pointer**: for what `/rewind` restores and how long snapshots are kept, see
+     <https://code.claude.com/docs/en/checkpointing>
+   - **As of**: 2026-11-11
+   - **Recheck trigger**: the checkpointing page changes its restore options, its Bash or
+     subagent limitations, or its snapshot retention
 5. **Does the work leave this session, is a finished spec or plan moving into execution, or is
    the next work unrelated while something from this session still carries over?** →
-   `session-flow:handoff`, then the user `/clear`s. *Leaving means another agent, another
+   `session-flow:handoff`, then the user `/clear`s, first naming this session with `/rename <name>`
+   when they may want it back through `/resume`. *Leaving means another agent, another
    checkout, a colleague, another machine, or a break longer than the prompt cache lasts. We
    execute a finished spec or plan in a new session. Switching to unrelated work with a follow-up,
    an open item or a finding still owed hands off rather than clears, so that state survives the
@@ -131,12 +149,12 @@ boundary.
    compacts again when the window needs it. A related next task uses this stage's artifact or files
    and serves the same Original goal or work item, so the session's context is still its context.*
 
-**Between human stages, suggest a handoff only at context-guard zone `heavy`.** The human stages
+**Between human stages, suggest a handoff only at context-guard zone `heavy` or on its compaction marker.** The human stages
 are the interview, PRD, design and plan (`context/steps.md`, stages 1, 4, 5 and 6, with the
 explore and research detours they call), and they run in one session. At a boundary between two of
 them, the move to the next stage does not by itself reach question 5: the router suggests
-`session-flow:handoff` for it only when the zone word is `heavy`. At `light`, `moderate` or
-`unknown` it goes on to question 6 and suggests `/compact <focus>` when the window needs it, or
+`session-flow:handoff` for it only when the zone word is `heavy` or the evidence-degraded marker
+exists for this session. At `light`, `moderate` or `unknown` with no marker it goes on to question 6 and suggests `/compact <focus>` when the window needs it, or
 continues; for this boundary an `unknown` zone is not read as degraded. Questions 0, 1 and 4 still
 apply, and so does question 5 when the work leaves this session (the Timing paragraph below),
 because each rests on a fact or the user's own request, not on the window.
@@ -148,10 +166,13 @@ leaving.
 
 - within one phase or activity → `/compact <focus>` each time the window needs it (question 6).
 - interview → design → plan, with any explore or research detour, stays in one session,
-  `/compact <focus>` when the window needs it; a handoff only at zone `heavy` (the rule above).
+  `/compact <focus>` when the window needs it; a handoff only at zone `heavy` or on the compaction
+  marker (the rule above).
 - a finished spec or plan → execution moves to a fresh session (question 5).
 - implementation → review runs in fresh context, for example a reviewer subagent.
-- two failed corrections on one issue → `/clear` (question 4).
+- the next work item, when its durable artifacts hold everything it needs → `/clear` (question 4).
+- two failed corrections on one issue → `/rewind` to a restore point first when the attempts were
+  file edits in an attended session, else `/clear` (question 4).
 
 We route by task: same phase or task compacts with a focus, unrelated work hands off when
 anything carries over and clears when nothing does, work that leaves the session hands off.

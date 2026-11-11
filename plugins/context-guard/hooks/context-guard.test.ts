@@ -18,7 +18,8 @@ const VERDICT = {
   light: 'light zone (1 of 3)',
   moderate: 'moderate zone (2 of 3)',
   heavy: 'heavy zone (3 of 3)',
-  degraded: 'heavy zone (3 of 3, compacted)',
+  lightCompacted: 'light zone (1 of 3, compacted)',
+  moderateCompacted: 'moderate zone (2 of 3, compacted)',
 } as const
 type Verdict = keyof typeof VERDICT
 const crossing = (to: Verdict) => `context-guard: ${VERDICT[to]}.`
@@ -171,7 +172,7 @@ const write = ($: any, file_path = '/work/a.ts', agentId?: string) =>
   $.tool.call({ tool: 'Write', file_path, content: 'x', ...(agentId ? { agentId } : {}) })
 const prompt = ($: any, kind = 'sdk', extra: object = {}) => $.prompt.submit({ text: 'go', wait: false, origin: { kind }, ...extra })
 const OPTIONS =
-  'context-guard: options: record decisions and pending items in a durable file, then continue, /compact, or hand off with /session-flow:handoff, as you and the user choose. A zone never calls for terser output, fewer agents, or lower quality.'
+  'context-guard: options: record decisions and pending items in a durable file, then continue, /compact, or hand off with /session-flow:handoff, as you and the user choose; /context shows what fills the window. A zone never calls for terser output, fewer agents, or lower quality.'
 // The verdict lines; the options line that follows them is asserted on its own.
 const own = (context: readonly string[] | undefined) => (context ?? []).filter(c => c.startsWith('context-guard') && c !== OPTIONS)
 const options = (context: readonly string[] | undefined) => (context ?? []).filter(c => c === OPTIONS)
@@ -732,7 +733,7 @@ test('compaction: with no figures the line says the reading is unavailable, once
   expect(own((await bash($)).context)).toEqual([UNAVAILABLE])
 })
 
-test('compaction: once figures arrive the compacted heavy zone line is sent', async ($, on) => {
+test('compaction: once figures arrive the zone the figures give is sent, with compacted beside it', async ($, on) => {
   const { w } = world(on)
   await walk($, w, [30, 60])
   await compact($, 'manual')
@@ -740,17 +741,28 @@ test('compaction: once figures arrive the compacted heavy zone line is sent', as
   expect(own((await prompt($)).context)).toEqual([UNAVAILABLE])
   w.percent = 20
   const after = (await bash($)).context
-  expect(own(after)).toEqual([restated('degraded')])
-  expect(options(after)).toEqual([OPTIONS])
+  expect(own(after)).toEqual([restated('lightCompacted')])
+  expect(options(after)).toEqual([])
   expect(own((await bash($)).context)).toEqual([])
 })
 
-test('compaction: figures at the first reading restate the compacted heavy zone', async ($, on) => {
+test('compaction: figures at the first reading restate the zone they give, with compacted beside it', async ($, on) => {
   const { w } = world(on)
   await walk($, w, [30, 60])
   await compact($, 'manual')
+  w.percent = 65
+  const after = (await prompt($)).context
+  expect(own(after)).toEqual([restated('moderateCompacted')])
+  expect(options(after)).toEqual([OPTIONS])
+})
+
+test('compaction: the cycle restarts at the zone the figures give, so a later climb crosses again', async ($, on) => {
+  const { w } = world(on)
+  await walk($, w, [30, 60, 80])
+  await compact($, 'manual')
   w.percent = 20
-  expect(own((await prompt($)).context)).toEqual([restated('degraded')])
+  await prompt($)
+  expect((await walk($, w, [60])).flat()).toEqual([`context-guard: ${VERDICT.moderateCompacted}.`])
 })
 
 test('compaction: a precompute dispatch restates nothing and degrades nothing', async ($, on) => {
@@ -776,11 +788,11 @@ test('compaction: a compaction a hook skipped restates nothing', async ($, on) =
   expect(own((await prompt($)).context)).toEqual([])
 })
 
-test('compaction: the settings hook marker alone forces the degraded heavy zone, reported once', async ($, on) => {
+test('compaction: the settings hook marker alone is reported once, beside the zone it leaves unchanged', async ($, on) => {
   const { w } = world(on)
   await walk($, w, [30])
   w.files[`${CTX}/sess-1.compacted`] = { text: '{}', mtimeMs: 1 }
-  expect((await walk($, w, [10, 12])).flat()).toEqual([crossing('degraded')])
+  expect((await walk($, w, [10, 12])).flat()).toEqual([restated('lightCompacted')])
 })
 
 test('resume: a light verdict is not restated after an in-process resume', async ($, on) => {
@@ -971,7 +983,7 @@ test('operator mode: a typed turn holds the line and offers it at turn end with 
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   // Written out once in full, so the offer helper's join is pinned against a literal.
   const offered =
-    'FYI, context-guard: moderate zone (2 of 3). options: record decisions and pending items in a durable file, then continue, /compact, or hand off with /session-flow:handoff, as you and the user choose. A zone never calls for terser output, fewer agents, or lower quality.'
+    'FYI, context-guard: moderate zone (2 of 3). options: record decisions and pending items in a durable file, then continue, /compact, or hand off with /session-flow:handoff, as you and the user choose; /context shows what fills the window. A zone never calls for terser output, fewer agents, or lower quality.'
   expect(offer(crossing('moderate'))).toBe(offered)
   expect(w.suggested).toEqual([offered])
   expect(await notice($)).toBe(offered)
@@ -1096,7 +1108,7 @@ test('hand-off: a restatement due at the same prompt merges with the held line i
   const { w } = world(on)
   await shownThenUntaken($, w)
   await compact($, 'auto')
-  expect(own((await prompt($, 'scheduled-trigger')).context)).toEqual([restated('degraded')])
+  expect(own((await prompt($, 'scheduled-trigger')).context)).toEqual([restated('moderateCompacted')])
 })
 
 test('operator mode: a suggestion that cannot show goes to Claude at the next prompt', OPERATOR, async ($, on) => {
@@ -1197,7 +1209,7 @@ test('operator mode: a shown crossing recorded before a pending restatement merg
   await compact($, 'manual')
   expect(own((await prompt($, 'composer')).context)).toEqual([])
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  expect(w.suggested).toEqual([offer(restated('degraded'))])
+  expect(w.suggested).toEqual([offer(restated('moderateCompacted'))])
 })
 
 test('compaction: an approach line recorded before a pending restatement merges into it', async ($, on) => {
@@ -1337,12 +1349,12 @@ test('menu: the hooks switch off shows nothing', { options: { context_guard_hook
   expect(await notice($, 'desktop')).toBeUndefined()
 })
 
-test('menu: a crossing into the compacted heavy zone names it so in the toast', async ($, on) => {
+test('menu: a crossing in a compacted session names the compaction beside the zone in the toast', async ($, on) => {
   const { w } = world(on)
   await walk($, w, [30])
   w.files[`${CTX}/sess-1.compacted`] = { text: '{}', mtimeMs: 1 }
-  await walk($, w, [10])
-  expect(w.toasts).toEqual([TOAST('light', 'heavy (compacted)')])
+  await walk($, w, [10, 60])
+  expect(w.toasts).toEqual([TOAST('light', 'moderate (compacted)')])
 })
 
 const bandRow = async ($: any, surface: 'terminal' | 'desktop' = 'terminal') => {
@@ -1363,7 +1375,7 @@ test('band: the plugin name, a dash before a reading, the zone then the figure a
   for (const surface of ['terminal', 'desktop'] as const) expect(await bandRow($, surface)).toEqual({ row: 'context-guard: light 23%', beneath: true })
   w.files[`${CTX}/sess-1.compacted`] = { text: '{}', mtimeMs: 1 }
   await bash($)
-  expect((await bandRow($)).row).toBe('context-guard: heavy, compacted 23%')
+  expect((await bandRow($)).row).toBe('context-guard: light, compacted 23%')
 })
 
 test('band: off by default, so a terminal mount returns only what is drawn beneath', async ($, on) => {
@@ -1508,12 +1520,12 @@ test('pull tool: the latest figures and zone, with no line attached, whatever th
   })
 })
 
-test('pull tool: unknown before the first response, and the degraded heavy zone after a compaction', async ($, on) => {
+test('pull tool: unknown before the first response, and still unknown, now degraded, after a compaction', async ($, on) => {
   const { w } = world(on, { percent: undefined })
   expect(JSON.parse(String((await $.tool.call({ tool: 'mcp__context-guard__status' } as any)).result)).zone).toBe('unknown')
   await compact($, 'manual')
   const after = JSON.parse(String((await $.tool.call({ tool: 'mcp__context-guard__status' } as any)).result))
-  expect([after.zone, after.evidence_degraded]).toEqual(['heavy', true])
+  expect([after.zone, after.evidence_degraded]).toEqual(['unknown', true])
   void w
 })
 
@@ -1674,7 +1686,7 @@ test('snapshot: the snapshot body the helper reads on stdin, the per-session tar
 
 // The published zone contract a status line reads: the zone this body resolves to and the edges
 // after zones.json, written whatever model_notices says.
-kitTest('snapshot: publishes the zone and the bands in force from zones.json, and a compaction as degraded heavy', async ($, on) => {
+kitTest('snapshot: publishes the zone and the bands in force from zones.json, and a compaction as degraded beside the zone', async ($, on) => {
   const { w } = world(on, { percent: 65 })
   zonesFile(w, { light_max_used_percentage: 40, moderate_max_used_percentage: 60 })
   await bash($)
@@ -1684,10 +1696,10 @@ kitTest('snapshot: publishes the zone and the bands in force from zones.json, an
   await compact($, 'manual')
   await bash($)
   const after = bodies(w).at(-1)
-  expect([after.zone, after.evidence_degraded]).toEqual(['heavy', true])
+  expect([after.zone, after.evidence_degraded]).toEqual(['light', true])
 })
 
-kitTest('snapshot: a compaction whose reading has no figures still publishes degraded heavy over the kept figures', async ($, on) => {
+kitTest('snapshot: a compaction whose reading has no figures still publishes degraded over the kept figures and their zone', async ($, on) => {
   const { w } = world(on, { percent: 30 })
   await bash($)
   expect([bodies(w).at(-1).zone, bodies(w).at(-1).evidence_degraded]).toEqual(['light', false])
@@ -1695,7 +1707,7 @@ kitTest('snapshot: a compaction whose reading has no figures still publishes deg
   await compact($, 'manual')
   await bash($)
   const kept = bodies(w).at(-1)
-  expect([kept.context_window.used_percentage, kept.zone, kept.evidence_degraded]).toEqual([30, 'heavy', true])
+  expect([kept.context_window.used_percentage, kept.zone, kept.evidence_degraded]).toEqual([30, 'light', true])
 })
 
 test('snapshot: before the first response the body carries the nulls the status line does', async ($, on) => {

@@ -7,7 +7,10 @@ from pathlib import Path
 CONTINUATION = (
     Path(__file__).resolve().parents[2] / "skills" / "workflow" / "context" / "continuation.md"
 )
-RULE = "**Between human stages, suggest a handoff only at context-guard zone `heavy`.**"
+RULE = (
+    "**Between human stages, suggest a handoff only at context-guard zone `heavy`"
+    " or on its compaction marker.**"
+)
 
 
 def test_continuation_keeps_the_handoff_zone_rule_line():

@@ -23,8 +23,7 @@ degraded context **before** quality slips, instead of guessing. Four parts:
   Zones say *where you are*; consumers decide *what to do*.
 - **PostCompact marker hook** (`hooks/post-compact-mark.sh`), a settings hook, so it runs where
   mods are off: it writes an evidence-degraded marker next to the session's snapshot, and the
-  module honors it: a compacted session's effective zone is heavy regardless of its
-  post-compaction numbers. Its row carries a 60-second timeout. The module is the only source of
+  module reports it beside the zone, which still reports room only. Its row carries a 60-second timeout. The module is the only source of
   zone lines. No part of the plugin denies a tool call.
 - **Reader contract** (`reference/reader-contract.md`), the authoritative consumer contract: the
   snapshot path pattern, file shape, the 10-minute staleness rule, fail-open capability detection,
@@ -65,7 +64,7 @@ their defaults:
 | The session first reaches a worse zone this cycle | once per zone, "moderate zone (2 of 3)." |
 | The session comes within `approach_margin` points (5) of a zone edge or a `zones.json` threshold; where a token band edge decides the crossing, within that many points of the window in tokens | once per boundary, "moderate zone (2 of 3), nearing heavy." |
 | The session passes a `zones.json` threshold | once per threshold, "past an operator threshold", with the threshold's action |
-| After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict, once, only when it is past `light`; after a compaction it is `heavy zone (3 of 3, compacted)` once figures arrive, and until then a session with no figures gets "the context reading is unavailable after the compaction, until the next API response." |
+| After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict, once, only when it is past `light`; after a compaction, at any zone, with "compacted" beside it, such as `light zone (1 of 3, compacted)`, once figures arrive, and until then a session with no figures gets "the context reading is unavailable after the compaction, until the next API response." |
 | When the module loads into a session that already has turns (a `--resume` launch, a reload after an options change, a hooks-worker restart) | the verdict, once, only when it is past `light` |
 | After `/clear` | nothing: the new session starts in `light` and a fresh cycle |
 
@@ -75,7 +74,7 @@ word and its rank of three. Past `light`, the verdict lines at a carrier are fol
 line:
 
 ```text
-context-guard: options: record decisions and pending items in a durable file, then continue, /compact, or hand off with /session-flow:handoff, as you and the user choose. A zone never calls for terser output, fewer agents, or lower quality.
+context-guard: options: record decisions and pending items in a durable file, then continue, /compact, or hand off with /session-flow:handoff, as you and the user choose; /context shows what fills the window. A zone never calls for terser output, fewer agents, or lower quality.
 ```
 
 The verdict alone pushed Claude toward handoffs and terse delegation
@@ -245,7 +244,7 @@ beside `context_window`:
 ```
 
 - `zone` is `light`, `moderate`, `heavy` or `unknown`. It is computed from the bands below, and is
-  `heavy` once the session was compacted.
+  not changed by a compaction: `evidence_degraded` is `true` once the session was compacted.
 - `bands` are the edges after `zones.json`. The token edges are for the session's window class, and
   are `null` when the token shape is not computable. Under a lowered auto-compact window `bands`
   also holds `auto_compact_window`, and the percentage edges are already scaled to it.

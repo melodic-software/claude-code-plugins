@@ -13,9 +13,9 @@
 #
 # The marker is part of the cross-plugin artifact seam (fixed HOME-anchored
 # contract path, deliberately OUTSIDE ${CLAUDE_PLUGIN_DATA}); consumers
-# presence-check it and treat the session as evidence-degraded regardless of
-# a green zone (reader contract, "Evidence-degraded marker"). Last-write-
-# wins per session: only the most recent compaction matters.
+# presence-check it and read it beside the zone, which reports room only
+# (reader contract, "Evidence-degraded marker"). Last-write-wins per
+# session: only the most recent compaction matters.
 #
 # SIDE-EFFECT-ONLY by design: this hook's one job is the marker, and it
 # returns no decision. Pointer: when deciding whether PostCompact output can
