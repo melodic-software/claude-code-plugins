@@ -63,20 +63,11 @@ const MAX_CONCURRENT = Number.isInteger(input.maxConcurrent)
 // the review leaves, slices included, are named agents that keep their own pins.
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
 const MODELS = ['inherit', 'opus', 'sonnet', 'haiku', 'fable', 'best']
-const FALLBACK_ROLES = {
-  retrieval: { single: { model: 'sonnet', effort: 'medium' } },
-}
+const isVariant = v => v && MODELS.includes(v.model) && EFFORTS.includes(v.effort)
 const passed = input.roles && typeof input.roles === 'object' ? input.roles : {}
-const R = {}
-for (const role of Object.keys(FALLBACK_ROLES)) {
-  R[role] = {}
-  for (const v of ['single']) {
-    const got = passed[role] && passed[role][v]
-    const ok = got && MODELS.includes(got.model) && EFFORTS.includes(got.effort)
-    if (got && !ok) log('roles.' + role + '.' + v + ' is not a {model alias, effort} pair: using the built-in fallback')
-    R[role][v] = ok ? got : FALLBACK_ROLES[role][v]
-  }
-}
+const passedExtract = passed.retrieval && passed.retrieval.single
+if (passedExtract && !isVariant(passedExtract)) log('roles.retrieval.single is not a {model alias, effort} pair: using the built-in fallback')
+const EXTRACT = isVariant(passedExtract) ? passedExtract : { model: 'sonnet', effort: 'medium' }
 if (!input.roles) log('no roles in args: built-in fallbacks apply')
 
 // Model tiers: the distinct fan-out models in the role map, first seen first, deduped by the
@@ -90,7 +81,7 @@ const TIERS = []
 if (DIVERSITY === 'model') {
   for (const role of ['orchestrator', 'worker', 'verifier', 'retrieval']) {
     const f = passed[role] && passed[role].fanout
-    if (!f || !MODELS.includes(f.model) || !EFFORTS.includes(f.effort)) continue
+    if (!isVariant(f)) continue
     const m = f.model === 'inherit' ? SESSION : f.model
     if (!m) {
       log('roles.' + role + '.fanout is inherit and args.session names no model: an unknown session model is left out of model diversity')
@@ -253,7 +244,7 @@ if (returned.length) {
     'line, line_basis, category, native_severity, native_confidence, raw_text). Do NOT crosswalk severity or ' +
     'confidence (later stages do that). Preserve EVERY finding, never drop one.' + fileClause + '\n\n' + extractInput,
     // stage-normalizer inherits the model and pins no effort, so the routed variant applies to it.
-    { agentType: 'review:stage-normalizer', schema: RECORD_SCHEMA, label: 'stage0-extract', phase: 'Extract', ...opts(R.retrieval.single) }
+    { agentType: 'review:stage-normalizer', schema: RECORD_SCHEMA, label: 'stage0-extract', phase: 'Extract', ...opts(EXTRACT) }
   )
   records = extracted && Array.isArray(extracted.records) ? extracted.records : []
 } else {
@@ -263,11 +254,11 @@ if (returned.length) {
 return {
   diffBase: DIFF_BASE,
   records,
-  raw: returned.map(r => ({ label: r.label, output: r.output })),
+  raw: returned,
   findingsPaths: DIVERSITY === 'lens' ? FINDINGS_PATHS : {},
   nulls,
   ran: roster.map(l => l.label),
-  roles: { extract: R.retrieval.single },
+  roles: { extract: EXTRACT },
   diversity: DIVERSITY,
   ...(DIVERSITY === 'model' ? { tiers: TIERS } : {}),
 }
