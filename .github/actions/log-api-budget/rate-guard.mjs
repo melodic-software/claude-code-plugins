@@ -17,7 +17,9 @@
 // job's stop file, so later steps, the gh wrapper's included, keep it. A response under the pool's
 // read-floor share of its planned budget left (planOf) logs a warning once;
 // belowFloor lets a caller skip a read it can do without. The stop reads only
-// the header's remaining and GitHub's refusals, never the plan.
+// the header's remaining and limit and GitHub's refusals, never the plan: a
+// remaining at or under the pool's stop-floor share of the header's limit
+// stops the pool until its reset, as a remaining of 0 does.
 //
 // The margins are limits.api in pr-pipeline.yaml, read from resolve-config's
 // output (RESOLVED_CONFIG), over the defaults in rate-limits.json beside this
@@ -61,7 +63,7 @@ const DEFAULTS = new URL("./rate-limits.json", import.meta.url);
 // The values rate-limits.json ships, which the guard plans to when that file
 // cannot be read, so a checkout that misses it still keeps every floor
 // (rate-guard.test.mjs holds the two equal).
-const SHARES = { plan: 0.7, "writer-pause": 0.4, breaker: 0.2, "read-floor": 0.1 };
+const SHARES = { plan: 0.7, "writer-pause": 0.4, breaker: 0.2, "read-floor": 0.1, "stop-floor": 0.02 };
 export const BUILT_IN_LIMITS = Object.freeze({
   "github-token": { ...SHARES, "limit-cap": 1000, pace: 0.2 },
   "lanes-app": SHARES,
@@ -74,8 +76,9 @@ export const BUILT_IN_LIMITS = Object.freeze({
 // belong to content-creation alone.
 const SHARE = (value) => typeof value === "number" && value >= 0 && value <= 1;
 const COUNT = (value) => Number.isInteger(value) && value >= 1;
-// pace, optional, is pace.mjs's share for timer-driven lanes.
-const FIELDS = { plan: (value) => SHARE(value) && value > 0, "writer-pause": SHARE, breaker: SHARE, "read-floor": SHARE, "limit-cap": COUNT, pace: SHARE };
+// pace, optional, is pace.mjs's share for timer-driven lanes; stop-floor,
+// optional, the share of the header's limit left at which the latch stops.
+const FIELDS = { plan: (value) => SHARE(value) && value > 0, "writer-pause": SHARE, breaker: SHARE, "read-floor": SHARE, "stop-floor": SHARE, "limit-cap": COUNT, pace: SHARE };
 const CONTENT_FIELDS = { ...FIELDS, "per-minute": COUNT, "per-hour": COUNT };
 const REQUIRED = ["plan", "writer-pause", "breaker", "read-floor"];
 
@@ -397,10 +400,11 @@ export function planOf({ limit, remaining }, limitCap = null) {
 // and where it came from, the pool to stop ("*" for every pool: a secondary
 // limit is not per resource), and low (under readFloor of the planned budget
 // left, planOf with limitCap). Only the header's remaining and GitHub's
-// refusals latch.
+// refusals latch: a remaining of 0, or, with stopFloor, a remaining at or under
+// stopFloor of the header's limit whose header reset is still ahead.
 // headers is a Headers or a plain object of lower-case names; body is the
 // parsed body, or its text.
-export function classify({ url, status, headers, body }, { now = Date.now(), readFloor = null, limitCap = null } = {}) {
+export function classify({ url, status, headers, body }, { now = Date.now(), readFloor = null, limitCap = null, stopFloor = null } = {}) {
   const get = headerReader(headers);
   const graphqlPool = poolOf(url) === "graphql";
   let parsed = body;
@@ -425,7 +429,8 @@ export function classify({ url, status, headers, body }, { now = Date.now(), rea
   const secondary = flagged && messages.some((text) => SIGNALS.secondary.test(text));
   const graphql = errors.some((error) => error?.type === SIGNALS.graphqlErrorType);
   const tooMany = status === 429;
-  const latched = remaining === 0 || retryAfter !== null || message || graphql || tooMany;
+  const floored = stopFloor !== null && limit > 0 && remaining !== null && reset !== null && reset * 1000 > now && remaining <= stopFloor * limit;
+  const latched = remaining === 0 || floored || retryAfter !== null || message || graphql || tooMany;
   const plan = limit > 0 && remaining !== null ? planOf({ limit, remaining }, limitCap) : null;
   const low = readFloor !== null && plan !== null && plan.left < readFloor * plan.planned;
   if (!latched) {
@@ -434,7 +439,7 @@ export function classify({ url, status, headers, body }, { now = Date.now(), rea
   const nowSeconds = Math.floor(now / 1000);
   const candidates = [
     retryAfter !== null ? [nowSeconds + retryAfter, "retry-after"] : null,
-    remaining === 0 && reset !== null ? [reset, "x-ratelimit-reset"] : null,
+    (remaining === 0 || floored) && reset !== null ? [reset, "x-ratelimit-reset"] : null,
   ].filter(Boolean);
   const best = candidates.length ? candidates.reduce((top, next) => (next[0] > top[0] ? next : top)) : null;
   // A header time already past would write a stop that lets the next call go.
@@ -612,7 +617,8 @@ export function createRateLimitLatch({
     const needsBody = SIGNALS.statuses.includes(response.status) || pool === "graphql";
     const body = needsBody ? await response.clone().text().catch(() => "") : null;
     const limitCap = margin(pool, "limit-cap", token);
-    const verdict = classify({ url, status: response.status, headers: response.headers, body }, { now: now(), readFloor: margin(pool, "read-floor", token), limitCap });
+    const stopFloor = margin(pool, "stop-floor", token);
+    const verdict = classify({ url, status: response.status, headers: response.headers, body }, { now: now(), readFloor: margin(pool, "read-floor", token), limitCap, stopFloor });
     low.set(pool, verdict.low);
     if (verdict.latched) {
       stops.set(verdict.pool, Math.max(stops.get(verdict.pool) ?? 0, verdict.reset));
@@ -627,12 +633,19 @@ export function createRateLimitLatch({
           unrecorded = `; the stop could not be recorded in the job's stop file (${error?.code ?? error?.message}), so later steps do not see it`;
         }
       }
+      const refused = await refusedForLimit(response);
       // A stop later steps cannot see is a fault, not a limit to hold on.
-      const resent = !unrecorded && resend && waits(url) && (await refusedForLimit(response));
+      const resent = !unrecorded && resend && waits(url) && refused;
       const holds = resent || (hold && !unrecorded);
       const then = resent ? "it is sent again after the reset" : `this step ${holds ? "holds" : "fails"}`;
+      const get = headerReader(response.headers);
+      const [limit, remaining] = ["limit", "remaining"].map((name) => Number(get(`x-ratelimit-${name}`)));
+      const what =
+        !refused && stopFloor !== null && remaining > 0 && remaining <= stopFloor * limit
+          ? `left GitHub's ${poolLabel(verdict.pool)} ${remaining} of ${limit} requests, at or under its stop-floor share ${stopFloor}`
+          : `hit GitHub's ${poolLabel(verdict.pool)} rate limit`;
       log(
-        `${holds ? "::notice::" : "::error::"}${method} ${url} hit GitHub's ${poolLabel(verdict.pool)} rate limit (status ${response.status}):` +
+        `${holds ? "::notice::" : "::error::"}${method} ${url} ${what} (status ${response.status}):` +
           ` no call to it before ${resetLabel(verdict.reset)} (${verdict.reset_source}); ${then}${unrecorded}`,
       );
       if (!holds) {
