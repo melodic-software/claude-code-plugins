@@ -6,10 +6,6 @@
     {
       "answer": "claude plugin configure --values-stdin typos-format@melodic-software < values.json",
       "why": "flag first"
-    },
-    {
-      "answer": "Interactively, run `/plugin configure typos-format@<marketplace>`.",
-      "why": "interactive route"
     }
   ],
   "fail": [
@@ -20,6 +16,10 @@
     {
       "answer": "claude plugin configure typos-format --values-stdin",
       "why": "near miss: no marketplace"
+    },
+    {
+      "answer": "Run `/plugin configure typos-format@<marketplace>` and set the toggle.",
+      "why": "the interactive route the prompt rules out"
     }
   ]
 }

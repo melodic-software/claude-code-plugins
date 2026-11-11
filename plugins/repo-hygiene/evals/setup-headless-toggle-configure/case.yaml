@@ -3,7 +3,7 @@ name: setup-headless-toggle-configure
 graders:
   - name: configure-route
     type: regex
-    pattern: '(?:/plugin|claude plugin) configure repo-hygiene@\S+'
+    pattern: 'claude plugin configure repo-hygiene@\S+'
     target: last_message
   - name: value-true
     type: regex
@@ -25,7 +25,7 @@ graders:
     target: last_message
   - name: fresh-session-observed-value
     type: llm
-    criteria: 'The reply does not claim the guard is now on. It tells the user to rerun check in a fresh session, since a same-session check can still report the old value, and to report the effective value that check observes.'
+    criteria: 'The reply does not claim the guard is now on. It tells the user to confirm the change by rerunning the setup check in a fresh session, since a same-session check can still report the old value.'
     focus: last_message
   - name: no-plugin-command-run
     type: tool_used

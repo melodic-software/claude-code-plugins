@@ -3,7 +3,7 @@ name: su-headless-toggle-configure
 graders:
   - name: configure-route
     type: regex
-    pattern: '(?:/plugin|claude plugin) configure context-budget@\S+'
+    pattern: 'claude plugin configure context-budget@\S+'
     target: 'last_message'
   - name: string-false-value
     type: regex

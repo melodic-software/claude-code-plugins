@@ -2,9 +2,6 @@
   "pass": [
     {
       "answer": "`claude plugin configure ruff-format@<marketplace> --values-stdin < values.json`"
-    },
-    {
-      "answer": "Interactively, run `/plugin configure ruff-format@<marketplace>`."
     }
   ],
   "fail": [
@@ -19,6 +16,10 @@
     {
       "answer": "",
       "why": "empty"
+    },
+    {
+      "answer": "Run `/plugin configure ruff-format@<marketplace>` and set the toggle.",
+      "why": "the interactive route the prompt rules out"
     }
   ]
 }

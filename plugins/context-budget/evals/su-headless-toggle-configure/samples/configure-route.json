@@ -3,10 +3,6 @@
     {
       "answer": "claude plugin configure context-budget@melodic --values-stdin < values.json",
       "why": "headless route"
-    },
-    {
-      "answer": "Interactively, run `/plugin configure context-budget@<marketplace>`.",
-      "why": "native flow"
     }
   ],
   "fail": [
@@ -17,6 +13,10 @@
     {
       "answer": "claude plugin configure context-budget --values-stdin",
       "why": "near miss: no marketplace"
+    },
+    {
+      "answer": "Run `/plugin configure context-budget@<marketplace>` and set the toggle.",
+      "why": "the interactive route the prompt rules out"
     }
   ]
 }

@@ -2,9 +2,6 @@
   "pass": [
     {
       "answer": "claude plugin configure repo-hygiene@melodic --values-stdin < values.json"
-    },
-    {
-      "answer": "Interactively, run `/plugin configure repo-hygiene@<marketplace>`."
     }
   ],
   "fail": [

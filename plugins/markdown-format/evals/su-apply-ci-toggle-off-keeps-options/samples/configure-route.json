@@ -2,9 +2,6 @@
   "pass": [
     {
       "answer": "Run `claude plugin configure markdown-format@<marketplace> --values-stdin < values.json`."
-    },
-    {
-      "answer": "Interactively, run `/plugin configure markdown-format@<marketplace>`."
     }
   ],
   "fail": [
@@ -15,6 +12,10 @@
     {
       "answer": "Run `claude plugin configure markdown-format --values-stdin`.",
       "why": "near miss: no marketplace"
+    },
+    {
+      "answer": "Run `/plugin configure markdown-format@<marketplace>` and set the toggle.",
+      "why": "the interactive route the prompt rules out"
     }
   ]
 }

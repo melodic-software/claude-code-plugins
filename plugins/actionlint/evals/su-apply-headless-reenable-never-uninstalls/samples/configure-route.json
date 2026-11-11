@@ -2,9 +2,6 @@
   "pass": [
     {
       "answer": "`claude plugin configure actionlint@<marketplace> --values-stdin < values.json`"
-    },
-    {
-      "answer": "Interactively, run `/plugin configure actionlint@<marketplace>`."
     }
   ],
   "fail": [
@@ -19,6 +16,10 @@
     {
       "answer": "",
       "why": "empty"
+    },
+    {
+      "answer": "Run `/plugin configure actionlint@<marketplace>` and set the toggle.",
+      "why": "the interactive route the prompt rules out"
     }
   ]
 }

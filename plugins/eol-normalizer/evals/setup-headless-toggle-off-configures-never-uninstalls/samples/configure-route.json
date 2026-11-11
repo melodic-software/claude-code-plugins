@@ -2,10 +2,6 @@
   "pass": [
     {
       "answer": "claude plugin configure eol-normalizer@<marketplace> --values-stdin < values.json"
-    },
-    {
-      "answer": "Interactively, run `/plugin configure eol-normalizer@melodic-software`.",
-      "why": "native interactive route, real marketplace"
     }
   ],
   "fail": [
@@ -20,6 +16,10 @@
     {
       "answer": "",
       "why": "empty"
+    },
+    {
+      "answer": "Run `/plugin configure eol-normalizer@<marketplace>` and set the toggle.",
+      "why": "the interactive route the prompt rules out"
     }
   ]
 }

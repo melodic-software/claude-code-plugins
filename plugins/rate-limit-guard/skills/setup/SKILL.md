@@ -165,10 +165,8 @@ line.
      it. Report the value as invalid and the default as what runs. A value of the wrong type (text
      for a number or a switch) stops the module loading: report it with step 2's row.
    - Every option except `rate_limit_guard_enabled` acts only where step 2 found the mod running.
-   - A change made now shows in this skill's rendered values only in a **fresh session**. The
-     module reads its options when it loads; Claude Code reloads a module when its options change,
-     so a changed value acts from the next event. The StopFailure hook reads its value at session
-     start. Report the observed value, never an unobserved change.
+   - A change made now is observed only in a **fresh session**: rerun this check there and report
+     the observed value, never an unobserved change.
 
      - **Pointer**: for when a saved value reaches skill content and hook processes, fetch
        [plugins manifest reference § Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)

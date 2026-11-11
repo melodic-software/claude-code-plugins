@@ -2,9 +2,6 @@
   "pass": [
     {
       "answer": "claude plugin configure guardrails@melodic-software --values-stdin < values.json"
-    },
-    {
-      "answer": "Interactively, run `/plugin configure guardrails@<marketplace>`."
     }
   ],
   "fail": [
@@ -15,6 +12,10 @@
     {
       "answer": "claude plugin configure guardrails --values-stdin",
       "why": "near miss: no marketplace"
+    },
+    {
+      "answer": "Run `/plugin configure guardrails@<marketplace>` and set the toggle.",
+      "why": "the interactive route the prompt rules out"
     }
   ]
 }

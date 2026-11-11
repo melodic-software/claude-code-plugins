@@ -6,10 +6,6 @@
     {
       "answer": "claude plugin configure --values-stdin go-format@melodic-software",
       "why": "a flag before the target"
-    },
-    {
-      "answer": "Interactively, run `/plugin configure go-format@<marketplace>`.",
-      "why": "native interactive route"
     }
   ],
   "fail": [
@@ -20,6 +16,10 @@
     {
       "answer": "claude plugin configure go-format --values-stdin",
       "why": "near miss: no marketplace"
+    },
+    {
+      "answer": "Run `/plugin configure go-format@<marketplace>` and set the toggle.",
+      "why": "the interactive route the prompt rules out"
     }
   ]
 }
