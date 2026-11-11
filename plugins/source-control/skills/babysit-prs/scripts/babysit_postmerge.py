@@ -1924,9 +1924,7 @@ class _Context:
     def _baseline(self, signal: str, before: datetime) -> frozenset[str] | None:
         key = (signal, before)
         if key not in self.baseline_cache:
-            created = quote(
-                f"<{before.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}", safe=""
-            )
+            created = quote(f"<{_stamp(before)}", safe="")
             listing = _read(
                 [
                     "api",
@@ -2213,15 +2211,7 @@ class _Context:
             "floor": low.isoformat(),
             "records": records,
         }
-        target = Path(path)
-        tmp = target.with_name(f"{target.name}.{os.getpid()}.tmp")
-        try:
-            tmp.write_text(json.dumps(payload), encoding="utf-8")
-            os.replace(tmp, target)
-        except OSError as exc:
-            print(f"lane records not written to {path}: {exc}", file=sys.stderr)
-            with contextlib.suppress(OSError):
-                tmp.unlink(missing_ok=True)
+        _write_carried(path, payload, "lane records")
 
     def _lane_sender(self, record: dict[str, Any], events: frozenset[str]) -> bool:
         """Whether workflow run `record` ran this repository's own pr-merge.yml
@@ -2329,19 +2319,24 @@ class _Context:
             self.bridge_cache[tip] = bridge
         return self.bridge_cache[tip]
 
+    def _clones(self) -> list[Path]:
+        """The full-history clones `contains` asks, resolved once."""
+        if self.local_clones is None:
+            self.local_clones = _full_history_clones()
+        return self.local_clones
+
     def _local_branch(self) -> tuple[Path, str] | None:
         """The first full-history clone holding a copy of the branch, from
         `refs/remotes/origin/<branch>` or else `refs/heads/<branch>`, and that
         copy's commit; None when no clone holds one."""
-        if self.local_clones is None:
-            self.local_clones = _full_history_clones()
+        clones = self._clones()
         if not self.branch:
             return None
         refs = (f"refs/remotes/origin/{self.branch}", f"refs/heads/{self.branch}")
         return next(
             (
                 (root, out.strip())
-                for root in self.local_clones
+                for root in clones
                 for ref in refs
                 if (
                     out := policy._git(
@@ -2385,9 +2380,7 @@ class _Context:
             return None
         if (chained := self._chain_contains(ancestor, sha)) is not None:
             return chained
-        if self.local_clones is None:
-            self.local_clones = _full_history_clones()
-        for root in self.local_clones:
+        for root in self._clones():
             try:
                 proc = run_command(
                     [
@@ -2465,15 +2458,7 @@ class _Context:
             "repo": f"{self.owner}/{self.name}",
             "attempts": self.attempts_used,
         }
-        target = Path(path)
-        tmp = target.with_name(f"{target.name}.{os.getpid()}.tmp")
-        try:
-            tmp.write_text(json.dumps(payload), encoding="utf-8")
-            os.replace(tmp, target)
-        except OSError as exc:
-            print(f"attempts not written to {path}: {exc}", file=sys.stderr)
-            with contextlib.suppress(OSError):
-                tmp.unlink(missing_ok=True)
+        _write_carried(path, payload, "attempts")
 
     def _outcome(self, run: Run, attributable: bool) -> tuple[str, str]:
         first = self._attempt(run, 1)
@@ -2536,6 +2521,20 @@ class _Context:
         return f"{run.url}/attempts/{2 if run.id in self.red_on_rerun else 1}"
 
 
+def _write_carried(path: str, payload: dict[str, Any], label: str) -> None:
+    """Replace the file at `path` with `payload` through a temporary file.
+    Best effort: a failure is logged, and the file is left as it was."""
+    target = Path(path)
+    tmp = target.with_name(f"{target.name}.{os.getpid()}.tmp")
+    try:
+        tmp.write_text(json.dumps(payload), encoding="utf-8")
+        os.replace(tmp, target)
+    except OSError as exc:
+        print(f"{label} not written to {path}: {exc}", file=sys.stderr)
+        with contextlib.suppress(OSError):
+            tmp.unlink(missing_ok=True)
+
+
 @dataclass
 class _Tally:
     failures: list[Failure] = field(default_factory=list)
@@ -2569,6 +2568,7 @@ def _judge(
         # No dispatch can ever cover it, so it would hold the lane forever.
         raise PostMergeReadError(f"#{merge.number}: merge commit unknown")
     merged_at = _time(merge.merged_at)
+    deadline = merged_at + DISPATCH_DEADLINE
     commit = merge.merge_commit
 
     def relevant(run: Run) -> bool:
@@ -2598,7 +2598,7 @@ def _judge(
         # A missing or edited pin is pending until the dispatch deadline, then
         # a failure, so a demotion record is filed and a human close restarts
         # the floor instead of the lane holding forever.
-        if now > merged_at + DISPATCH_DEADLINE:
+        if now > deadline:
             failures.append(
                 Failure(
                     SIGNAL_READ_BACK,
@@ -2684,7 +2684,6 @@ def _judge(
             final = False
             tally.outstanding.append(run.created_at)
 
-    deadline = merged_at + DISPATCH_DEADLINE
     if not any(r.created_at <= deadline for r in own) and now > deadline:
         # A listing can answer without runs it holds, so the absence is read
         # again by the merge commit and each descendant committed in time: a
@@ -2786,6 +2785,7 @@ def _lane_reruns(
     green one still settles a red run (`_Context.superseded`)."""
     excused = dict(ctx.quarantines)
     try:
+        start = now - ctx.lane_rerun_lookback()
         if list_schedule:
             ctx.held_full_runs.update(
                 (r.id, (SIGNAL_SCHEDULE, r))
@@ -2795,12 +2795,11 @@ def _lane_reruns(
                     FULL_RUN_WORKFLOW,
                     "schedule",
                     ctx.branch,
-                    now - ctx.lane_rerun_lookback(),
+                    start,
                     now,
                 )
                 if ctx.on_branch(r) and not ctx.replaced(r)
             )
-        start = now - ctx.lane_rerun_lookback()
         listing = ctx.dispatch_listing
         listed = (
             [r for r in listing[1] if r.created_at >= start]
@@ -2812,15 +2811,7 @@ def _lane_reruns(
         runs = (
             listed
             if listed is not None and all(r.status == "completed" for r in listed)
-            else _runs(
-                ctx.owner,
-                ctx.name,
-                FULL_RUN_WORKFLOW,
-                "workflow_dispatch",
-                ctx.branch,
-                start,
-                now,
-            )
+            else _dispatch_runs(ctx, start, now)
         )
         ctx.held_full_runs.update((r.id, (SIGNAL_DISPATCH, r)) for r in runs)
         for run in sorted(runs, key=lambda r: r.created_at, reverse=True):
@@ -3061,7 +3052,8 @@ def check(
                     elif not json_object(pr.get("autoMerge")).get("nodes"):
                         optional_pins.add(derived.number)
         merges.sort(key=lambda m: (str(m.merged_at), m.number))
-        read = pinned_merges | optional_pins
+        pin_read = pinned_merges | optional_pins
+        read = set(pin_read)
         if settled is not None:
             read |= {m.number for m in merges if m.by_identity}
         if (prefetch := getattr(pinned_sha, "prefetch", None)) is not None:
@@ -3069,7 +3061,7 @@ def check(
         pins = {
             m.number: pinned_sha(m)
             for m in merges
-            if pinned_sha and m.number in pinned_merges | optional_pins
+            if pinned_sha and m.number in pin_read
         }
         done = {
             m.number
@@ -3322,13 +3314,14 @@ def _identity_entries(
         raise PostMergeReadError(
             "merge queue: the entries read are not the whole queue"
         )
+    key = _login_key(identity)
     found = []
     unknown = 0
     for entry in nodes:
         enqueuer = _actor_key(entry.get("enqueuer"))
         if not enqueuer:
             unknown += 1
-        elif enqueuer == _login_key(identity):
+        elif enqueuer == key:
             pr = json_object(entry.get("pullRequest"))
             found.append((str(pr.get("id")), pr.get("number")))
     return found, unknown
@@ -3491,10 +3484,11 @@ def _identity_marks(
 ) -> list[int]:
     """The indexes of the identity's comments whose first line is `pattern`,
     oldest first. A comment anyone else wrote is no record."""
+    key = _login_key(identity)
     return [
         i
         for i, c in enumerate(comments)
-        if _actor_key(c.get("author")) == _login_key(identity)
+        if _actor_key(c.get("author")) == key
         and pattern.match(_first_line(c.get("body")))
     ]
 
@@ -3615,13 +3609,13 @@ def _pin_sha(
     alone: bool = False,
 ) -> str | None:
     """`read_pin`'s answer from the comments and reviews it read."""
-    mine = [_actor_key(c.get("author")) == _login_key(identity) for c in comments]
+    key = _login_key(identity)
     pins = _identity_marks(comments, identity, PIN_RE)
     if not pins or _edited(comments[pins[-1]]):
         return None
     newest = comments[pins[-1]]
     if alone:
-        if not all(mine[pins[-1] :]):
+        if any(_actor_key(c.get("author")) != key for c in comments[pins[-1] :]):
             return None
         if not is_json_array(reviews):
             raise PostMergeReadError(f"#{number} pin: no review list")
@@ -3630,7 +3624,7 @@ def _pin_sha(
             for review in map(json_object, reviews):
                 submitted = review.get("submittedAt")
                 if (
-                    _actor_key(review.get("author")) != _login_key(identity)
+                    _actor_key(review.get("author")) != key
                     and submitted is not None
                     and datetime.fromisoformat(str(submitted)) >= pinned_at
                 ):
@@ -3698,8 +3692,8 @@ def settle(repo: str, merges: Any, identity: str) -> tuple[list[int], list[str]]
         return posted, ["settle-unposted: the report lists no merges to settle"]
     wanted: dict[int, str] = {}
     for entry in merges:
-        number = json_object(entry).get("number")
-        sha = json_object(entry).get("mergeCommit")
+        item = json_object(entry)
+        number, sha = item.get("number"), item.get("mergeCommit")
         if (
             not isinstance(number, int)
             or isinstance(number, bool)
