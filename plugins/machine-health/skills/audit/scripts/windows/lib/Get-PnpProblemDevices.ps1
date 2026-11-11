@@ -29,12 +29,12 @@ function Get-PnpProblemDevice {
         Write-Verbose 'Get-PnpProblemDevice: pnputil not on PATH.'
         return @()
     }
-    # A non-zero exit is still parsed, as before the adapter: pnputil's exit
-    # code is not documented as a no-problem-devices signal.
     if ($invoked.status -eq 'Failed') {
         Write-Verbose "Get-PnpProblemDevice: pnputil invocation failed. $($invoked.error)"
         return @()
     }
+    # A NonZero exit is still parsed: pnputil's exit code is not documented as
+    # a no-problem-devices signal.
     $raw = $invoked.output
     if (-not $raw) { return @() }
 
@@ -54,10 +54,7 @@ function Get-PnpProblemDevice {
         }
         if (-not $fields.ContainsKey('Instance ID')) { continue }
 
-        $code = 0
-        if ($fields['Problem Code'] -match '(\d+)') {
-            $code = [int]$Matches[1]
-        }
+        $code = $fields['Problem Code'] -match '(\d+)' ? [int]$Matches[1] : 0
         $out.Add([pscustomobject]@{
                 instance_id        = $fields['Instance ID']
                 device_description = $fields['Device Description']
