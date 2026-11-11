@@ -18,7 +18,7 @@ import { DEFERRED_RECORD } from "./feedback-dispatch.mjs";
 // A job's folded `if: >-` scalar, joined the way YAML folds it.
 function jobIf(file, job) {
   const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
-  const block = new RegExp(`\\n  ${job}:\\n(?: {4}#.*\\n)*    if: >-\\n((?: {6}.*\\n)+)`).exec(text);
+  const block = new RegExp(`\\n  ${job}:\\n(?: {4}#.*\\n)*(?: {4}name: .*\\n)?    if: >-\\n((?: {6}.*\\n)+)`).exec(text);
   assert.ok(block, `${file}: job ${job} has a folded if:`);
   return block[1]
     .split("\n")
@@ -1017,7 +1017,7 @@ for (const [file, jobs] of [
     assert.deepEqual(starts, ["dispatcher-current"], "every other job waits on a job");
     for (const job of jobs) {
       // needs: dispatcher-current, alone or first in a list.
-      const block = new RegExp(`\\n  ${job}:\\n    needs: (?:dispatcher-current|\\[dispatcher-current(?:, [a-z-]+)*\\])\\n    if: >-\\n((?: {6}.*\\n)+)`).exec(text);
+      const block = new RegExp(`\\n  ${job}:\\n(?: {4}name: .*\\n)?    needs: (?:dispatcher-current|\\[dispatcher-current(?:, [a-z-]+)*\\])\\n    if: >-\\n((?: {6}.*\\n)+)`).exec(text);
       assert.ok(block, `${job} needs dispatcher-current`);
       assert.match(block[1], /needs\.dispatcher-current\.outputs\.stale != 'true'/, job);
     }

@@ -68,6 +68,8 @@ export const RANKS = Object.freeze({
   merge: Object.freeze({ pull_request_target: 0, workflow_dispatch: 1, schedule: 2 }),
   "enable-auto-merge": Object.freeze({ pull_request_target: 0, workflow_dispatch: 1, schedule: 1 }),
 });
+// Each job's display name, which the jobs API lists it by.
+const NAMES = Object.freeze({ merge: "Merge", "enable-auto-merge": "Enable Auto Merge" });
 const WAITING = new Set(["queued", "pending", "waiting", "requested"]);
 export const MAX_JOB_READS = 5;
 
@@ -148,7 +150,7 @@ export async function main({ env = process.env, actions } = {}) {
       if (!Array.isArray(read?.jobs)) {
         throw new Error(`the jobs of run ${run.id} have an unexpected shape`);
       }
-      if (!WAITING.has(read.jobs.find((j) => j?.name === job)?.status)) {
+      if (!WAITING.has(read.jobs.find((j) => j?.name === NAMES[job])?.status)) {
         continue;
       }
       superseded = true;

@@ -2354,7 +2354,7 @@ const lostRun = (overrides = {}) => ({
 });
 // The dispatch job lost mid-run: its first step ran, the running one was cancelled.
 const startedJobs = [
-  { id: 1, name: "dispatch", conclusion: "cancelled", steps: [{ name: "Set up job", conclusion: "success" }, { name: "Dispatch", conclusion: "cancelled" }] },
+  { id: 1, name: "Dispatch", conclusion: "cancelled", steps: [{ name: "Set up job", conclusion: "success" }, { name: "Dispatch", conclusion: "cancelled" }] },
 ];
 function recoveryApi({ runs = [lostRun()], jobs = { 600: startedJobs }, finished = [], ...options } = {}) {
   const api = sweepApi({ checksAt: {}, ...options });
@@ -2411,15 +2411,23 @@ test("a lost pr-feedback-dispatch.yml run with a started job gets one fresh disp
   }
 });
 
+test("a lost run started before the rename, its dispatch job named by its id, is recovered", async (t) => {
+  const api = recoveryApi({ jobs: { 600: [{ ...startedJobs[0], name: "dispatch" }] } });
+  const { lines } = await sweepMain(t, api, TICK, NOW);
+  assert.deepEqual(api.jobReads, [600]);
+  assert.equal(api.calls.dispatch.length, 1);
+  assert.ok(lines.some((line) => line.startsWith("recover: ") && line.includes("run 600")), lines.join("\n"));
+});
+
 test("a lost run whose dispatch job never started or was not lost, or this run itself, is not recovered", async (t) => {
   const ran = startedJobs[0].steps;
   for (const [label, runs, jobs, reads] of [
-    ["no step ran", [lostRun()], { 600: [{ id: 1, name: "dispatch", conclusion: "cancelled", steps: [] }] }, [600]],
-    ["every step skipped or unfinished", [lostRun()], { 600: [{ id: 1, name: "dispatch", conclusion: "cancelled", steps: [{ conclusion: "skipped" }, { conclusion: null }] }] }, [600]],
+    ["no step ran", [lostRun()], { 600: [{ id: 1, name: "Dispatch", conclusion: "cancelled", steps: [] }] }, [600]],
+    ["every step skipped or unfinished", [lostRun()], { 600: [{ id: 1, name: "Dispatch", conclusion: "cancelled", steps: [{ conclusion: "skipped" }, { conclusion: null }] }] }, [600]],
     ["no job", [lostRun({ conclusion: "startup_failure" })], { 600: [] }, [600]],
     // Another job of the run was lost; the dispatch job finished or was skipped.
-    ["a lost ci-status re-run", [lostRun()], { 600: [{ id: 2, name: "rerun-ci-status", conclusion: "cancelled", steps: ran }, { id: 1, name: "dispatch", conclusion: "success", steps: ran }] }, [600]],
-    ["a failed ci-status re-run", [lostRun({ conclusion: "failure" })], { 600: [{ id: 2, name: "rerun-ci-status", conclusion: "failure", steps: ran }, { id: 1, name: "dispatch", conclusion: "success", steps: ran }] }, [600]],
+    ["a lost ci-status re-run", [lostRun()], { 600: [{ id: 2, name: "Rerun CI Status", conclusion: "cancelled", steps: ran }, { id: 1, name: "Dispatch", conclusion: "success", steps: ran }] }, [600]],
+    ["a failed ci-status re-run", [lostRun({ conclusion: "failure" })], { 600: [{ id: 2, name: "Rerun CI Status", conclusion: "failure", steps: ran }, { id: 1, name: "Dispatch", conclusion: "success", steps: ran }] }, [600]],
     ["this run", [lostRun({ id: Number(RUN_ID) })], {}, []],
   ]) {
     const api = recoveryApi({ runs, jobs });
@@ -2449,7 +2457,7 @@ const refusedRound = (run = REFUSED_RUN) => ({
   ...roundRun("address-feedback", "success", "Passed", "2026-10-17T13:05:00Z"),
   external_id: `pr-unblock:address-feedback:${run}:1`,
 });
-const tokenJob = { id: 9001, name: "apply-feedback-patch / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "failure" }] };
+const tokenJob = { id: 9001, name: "Apply Feedback Patch / Run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "failure" }] };
 function refusedApi({ runs = [refusedRun()], checks = [refusedRound()], message = WORKFLOW_MODIFIED, ...options } = {}) {
   const api = sweepApi({ checksAt: { [HEAD]: checks }, workflowRuns: runs, ...options });
   api.jobReads = [];

@@ -1682,7 +1682,7 @@ test("each candidate's check run is written by its own job, the only one holding
   assert.match(job, /\n {6}gate-rows: \$\{\{ steps\.rows\.outcome == 'success' \}\}\n/);
 
   const writer = jobBlock("gate-check");
-  assert.match(writer, /^ {4}needs: \[merge\]\n/);
+  assert.match(writer, /^ {4}name: Gate Check\n {4}needs: \[merge\]\n/);
   assert.match(writer, /\n {4}if: always\(\) && needs\.merge\.outputs\.gate-rows == 'true'\n/);
   assert.match(writer, /\n {4}permissions:\n {6}contents: read[^\n]*\n(?: {6}#[^\n]*\n)* {6}checks: write\n {6}pull-requests: read[^\n]*\n {4}[a-z]/);
   // Runs wait in line like the merge job's: never two writers at once, and a

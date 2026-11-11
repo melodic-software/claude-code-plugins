@@ -31,7 +31,12 @@ BIND_FIELDS = gh.LANE_ATTEMPT_FIELDS
 
 class LaneAttemptReuseTests(unittest.TestCase):
     REPO = "melodic-software/claude-code-plugins"
-    LANES = [(".github/workflows/pr-review-hosted.yml", ("pr-review / claude-review-status",))]
+    LANES = [
+        (
+            ".github/workflows/pr-review-hosted.yml",
+            ("PR Review / review-status", "pr-review / claude-review-status"),
+        )
+    ]
 
     def setUp(self) -> None:
         recorded = json.loads(FIXTURE.read_text(encoding="utf-8"))
@@ -122,12 +127,12 @@ class LaneAttemptReuseTests(unittest.TestCase):
         }
         jobs = {
             1: [
-                {"id": 11, "name": "kill-switch", "conclusion": "success"},
-                {"id": 12, "name": "pr-review", "conclusion": "skipped"},
+                {"id": 11, "name": "Kill Switch", "conclusion": "success"},
+                {"id": 12, "name": "PR Review", "conclusion": "skipped"},
             ],
             2: [
-                {"id": 21, "name": "kill-switch", "conclusion": "success"},
-                {"id": 22, "name": "pr-review / claude-review-status"},
+                {"id": 21, "name": "Kill Switch", "conclusion": "success"},
+                {"id": 22, "name": "PR Review / review-status"},
             ],
         }
         runs = self.collect(rerun, {1: self.attempt}, jobs, {11: [notice], 22: []})
@@ -136,14 +141,15 @@ class LaneAttemptReuseTests(unittest.TestCase):
         self.assertNotIn("annotations", first[1])
         self.assertNotIn("annotations", second[0])
         self.assertEqual(second[1]["annotations"], [])
-        cancelled = {1: [{"id": 13, "name": "kill-switch", "conclusion": "cancelled"}]}
+        cancelled = {1: [{"id": 13, "name": "Kill Switch", "conclusion": "cancelled"}]}
         self.collect(rerun, {1: self.attempt}, cancelled)
         self.assertFalse(any("check-runs" in path for path in self.reads))
 
     def test_an_earlier_attempts_upstream_stop_is_read(self) -> None:
         # The upstream-status gate failed attempt 1's kill-switch job with its
         # error, and the reusable's caller job was skipped
-        # (babysit_review_evidence `_upstream_stopped`).
+        # (babysit_review_evidence `_upstream_stopped`), on a head tested
+        # before the jobs got display names.
         rerun = {**self.run_record, "run_attempt": 2}
         error = {
             "annotation_level": "failure",

@@ -62,6 +62,7 @@ jobs:
   # floor label. The gate reads before the model resolves, so a model config
   # that fails still leaves the floor label its skip.
   born-triaged:
+    name: Born Triaged
     if: (github.event_name == 'issues' && github.event.action == 'opened') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -168,6 +169,7 @@ jobs:
   # stops intake and the floor label. It runs on a reopened issue too, for the
   # floor label.
   kill-switch:
+    name: Kill Switch
     if: github.event_name == 'issues' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -237,6 +239,7 @@ jobs:
   # skip empty, so the label runs; a rate limit on its read stops the label
   # and its calls with the same token.
   intake-label-needs-triage:
+    name: Intake Label Needs Triage
     needs: [kill-switch, born-triaged]
     if: ${{ !cancelled() && github.event_name == 'issues' && needs.kill-switch.outputs.proceed == 'true' && needs.born-triaged.outputs.rate-limited != 'true' && needs.born-triaged.outputs.skip != 'true' }}
     permissions:
@@ -251,6 +254,7 @@ jobs:
   # triaged and may still carry a status label. A reopened issue gets no
   # triage, only the floor label.
   intake-triage:
+    name: Intake Triage
     needs: [born-triaged, kill-switch]
     if: >-
       ${{ !cancelled()
@@ -468,6 +472,7 @@ jobs:
   # since this run started. A deferred triage wrote no lane comment, so
   # apply-verdict skips it.
   apply-verdict:
+    name: Apply Verdict
     needs: [born-triaged, intake-triage]
     if: >-
       ${{ !cancelled()
@@ -657,6 +662,7 @@ jobs:
   # structured output; apply-refinement (no model) posts it as the lanes App
   # in a separate marked comment. Rules: .github/scripts/intake-triage/refine.mjs.
   refine-select:
+    name: Refine Select
     needs: [born-triaged, apply-verdict]
     if: ${{ !cancelled() && needs.apply-verdict.result == 'success' && needs.apply-verdict.outputs.stopped == '' && needs.apply-verdict.outputs.held == '' }}
     runs-on: ubuntu-24.04
@@ -792,6 +798,7 @@ jobs:
   # subscription token without a refused key attempt first. It holds no
   # secret and runs no model; every failure runs the key. Probing is off.
   refine-key-credit:
+    name: Refine Key Credit
     needs: [refine-select]
     if: ${{ !cancelled() && needs.refine-select.outputs.refine == 'true' && needs.refine-select.outputs.mode != 'size-decline' }}
     runs-on: ubuntu-24.04
@@ -842,6 +849,7 @@ jobs:
   # fallback token after that. Its structured output is the result; it posts
   # nothing.
   refine-issue:
+    name: Refine Issue
     needs: [refine-select, refine-key-credit]
     if: >-
       ${{ !cancelled() && needs.refine-select.outputs.refine == 'true' && needs.refine-select.outputs.mode != 'size-decline'
@@ -1277,6 +1285,7 @@ jobs:
   # With FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, its leg hands off (a limit
   # stop, a credit stop, or a 401 or 402) to refine-issue-fallback.
   refine-issue-subscription:
+    name: Refine Issue Subscription
     needs: [refine-select, refine-key-credit, refine-issue]
     if: >-
       ${{ !cancelled() && needs.refine-select.outputs.refine == 'true' && needs.refine-select.outputs.mode != 'size-decline'
@@ -1658,6 +1667,7 @@ jobs:
   # the next-leg call and the last step's `if` (callers.test.mjs holds the
   # rest equal). It is the last leg and never hands off.
   refine-issue-fallback:
+    name: Refine Issue Fallback
     needs: [refine-select, refine-issue-subscription]
     if: >-
       ${{ !cancelled() && needs.refine-select.outputs.refine == 'true' && needs.refine-select.outputs.mode != 'size-decline'
@@ -1998,6 +2008,7 @@ jobs:
   # agent-ready or needs-human and files no issue; a split also rewrites the
   # refined issue's done-when.
   apply-refinement:
+    name: Apply Refinement
     needs: [born-triaged, refine-select, refine-issue, refine-issue-subscription, refine-issue-fallback]
     if: >-
       ${{ !cancelled() && (needs.refine-issue.outputs.refined == 'true'
@@ -2172,6 +2183,7 @@ jobs:
   # nothing written. Its own job holds the dispatch grant, not the job with
   # the App token.
   redispatch-refined:
+    name: Redispatch Refined
     needs: [apply-refinement]
     if: ${{ !cancelled() && needs.apply-refinement.outputs.redispatch == 'true' }}
     runs-on: ubuntu-24.04
@@ -2208,6 +2220,7 @@ jobs:
   # human or a dispatch), and the triage sweep reaches an issue only once it
   # is an hour old, so each is dispatched here, as a refined issue is above.
   triage-split-children:
+    name: Triage Split Children
     needs: [apply-refinement]
     if: ${{ !cancelled() && needs.apply-refinement.outputs.children != '' }}
     runs-on: ubuntu-24.04

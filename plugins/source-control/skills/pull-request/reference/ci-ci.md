@@ -16,7 +16,7 @@ The system prompt names its path. It is JSON:
   "head_sha": "<40-hex sha>",
   "checks": [
     {
-      "name": "lint-shell",
+      "name": "Lint Shell",
       "workflow": ".github/workflows/ci.yml",
       "annotations": [{"path": "scripts/x.sh", "line": 12, "level": "failure", "message": "..."}],
       "log_excerpt": "<the end of the failed step's log>"

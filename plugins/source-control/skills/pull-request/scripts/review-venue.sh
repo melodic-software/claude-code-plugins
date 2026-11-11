@@ -18,9 +18,10 @@
 # reads unreadable for each lane it leaves undecided, never absent or stale.
 #
 # With --head, a last `tests` line says whether CI's test lanes covered that
-# commit: the GitHub Actions check runs on it whose name is `test` or starts
-# `test-`, `test ` or `test(`, taking per name the newest run that did not
-# skip. It reads `ci` when every one finished as success, skipped or neutral
+# commit: the GitHub Actions check runs on it whose name is `Test` or `test`,
+# or starts with one of them and `-`, ` ` or `(` (`Test Bash (0)`, or
+# `test-bash (0)` on a head tested before the jobs got display names), taking
+# per name the newest run that did not skip. It reads `ci` when every one finished as success, skipped or neutral
 # and at least one succeeded. None (a draft skips them), all skipped, any
 # unfinished, any other conclusion, or more than 500 check runs reads `local`.
 #
@@ -226,7 +227,7 @@ for ((page = 1; page <= CHECK_PAGES; page++)); do
   checks=$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs?filter=all&per_page=100&page=$page") ||
     die 2 "cannot list the check runs of $HEAD_SHA"
   tests=$(jq -c --argjson acc "$tests" '$acc + [.check_runs[]
-    | select(.app.slug == "github-actions" and (.name | test("^test($|[- (])")))
+    | select(.app.slug == "github-actions" and (.name | test("^[Tt]est($|[- (])")))
     | {id, name, status, conclusion}]' <<<"$checks") || die 2 "cannot parse the check runs of $HEAD_SHA"
   if [[ "$(jq '.check_runs | length' <<<"$checks")" -lt 100 ]]; then
     complete=true

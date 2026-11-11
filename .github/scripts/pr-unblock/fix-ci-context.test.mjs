@@ -46,7 +46,7 @@ function fakeApi(overrides = {}) {
       if (overrides.checkRunsError) {
         throw overrides.checkRunsError;
       }
-      return Object.assign([...(overrides.checkRuns ?? [run(11, "lint-shell", "failure"), run(13, "ci-status", "failure")])], { complete: overrides.complete ?? true });
+      return Object.assign([...(overrides.checkRuns ?? [run(11, "Lint Shell", "failure"), run(13, "ci-status", "failure")])], { complete: overrides.complete ?? true });
     },
     // The head's pr-unblock / apply-patch checks: a lane stop runs the retry a rung up.
     listCheckRuns: async (sha, name) => (name === "pr-unblock / fix-ci" ? (overrides.fixCiRuns ?? []) : (overrides.stopRuns ?? [])),
@@ -112,7 +112,7 @@ test("a failing workflow job becomes one context entry with its workflow, annota
     feedback_lines: [],
     checks: [
       {
-        name: "lint-shell",
+        name: "Lint Shell",
         workflow: ".github/workflows/pr-require-checks.yml",
         annotations: [{ path: "scripts/x.sh", line: 12, level: "failure", message: "SC2034: foo appears unused" }],
         log_excerpt: "lint-shell: SC2034",
@@ -158,7 +158,7 @@ test("a review-findings read that fails leaves no findings and still proceeds wi
   const result = await select({ api, pr: 42, repository: "o/r", appId: APP, reviewerId: REVIEWER, maxRounds: 3, log: (line) => lines.push(line) });
   assert.equal(result.decision, "proceed");
   assert.deepEqual(result.file.review_findings, []);
-  assert.deepEqual(result.file.checks.map((check) => check.name), ["lint-shell"]);
+  assert.deepEqual(result.file.checks.map((check) => check.name), ["Lint Shell"]);
   assert.deepEqual(lines, ["::warning::the review findings could not be read (POST graphql returned 502); the context holds none"]);
 });
 
@@ -173,9 +173,9 @@ test("a finding's body and the number of findings are capped", async () => {
 test("CI Status, its ci-status alias, passing checks and a check whose later run passed are left out", async () => {
   const api = fakeApi({
     checkRuns: [
-      run(11, "lint-shell", "failure"),
-      run(14, "lint-shell", "success"),
-      run(12, "test-node", "success"),
+      run(11, "Lint Shell", "failure"),
+      run(14, "Lint Shell", "success"),
+      run(12, "Test Node", "success"),
       run(13, "CI Status", "failure"),
       run(15, "ci-status", "failure"),
     ],
@@ -188,10 +188,10 @@ test("CI Status, its ci-status alias, passing checks and a check whose later run
 test("a failure a later skipped or neutral run of the same check hides is still failing", async () => {
   const api = fakeApi({
     checkRuns: [
-      run(11, "lint-shell", "failure"),
-      run(12, "test-node", "failure"),
-      run(15, "lint-shell", "skipped"),
-      run(16, "test-node", "neutral"),
+      run(11, "Lint Shell", "failure"),
+      run(12, "Test Node", "failure"),
+      run(15, "Lint Shell", "skipped"),
+      run(16, "Test Node", "neutral"),
       run(17, "ci-status", "failure"),
     ],
   });
@@ -199,30 +199,30 @@ test("a failure a later skipped or neutral run of the same check hides is still 
   assert.equal(result.decision, "proceed");
   assert.deepEqual(
     result.file.checks.map((check) => check.name),
-    ["lint-shell", "test-node"],
+    ["Lint Shell", "Test Node"],
   );
 });
 
 test("a later success still outranks an earlier failure when a skip follows it", async () => {
   const api = fakeApi({
-    checkRuns: [run(11, "lint-shell", "failure"), run(14, "lint-shell", "success"), run(16, "lint-shell", "skipped")],
+    checkRuns: [run(11, "Lint Shell", "failure"), run(14, "Lint Shell", "success"), run(16, "Lint Shell", "skipped")],
   });
   const result = await selectWith(api);
   assert.equal(result.decision, "skip");
 });
 
 test("a check with only skipped runs is not failing", async () => {
-  const api = fakeApi({ checkRuns: [run(11, "lint-shell", "skipped"), run(15, "lint-shell", "skipped")] });
+  const api = fakeApi({ checkRuns: [run(11, "Lint Shell", "skipped"), run(15, "Lint Shell", "skipped")] });
   const result = await selectWith(api);
   assert.equal(result.decision, "skip");
 });
 
 test("a github-actions check run that is no workflow job (a lane's own check) is left out", async () => {
-  const api = fakeApi({ checkRuns: [run(11, "lint-shell", "failure"), run(77, "pr-unblock / address-feedback", "failure")] });
+  const api = fakeApi({ checkRuns: [run(11, "Lint Shell", "failure"), run(77, "pr-unblock / address-feedback", "failure")] });
   const result = await selectWith(api);
   assert.deepEqual(
     result.file.checks.map((check) => check.name),
-    ["lint-shell"],
+    ["Lint Shell"],
   );
 });
 
@@ -239,11 +239,11 @@ test("a run path outside .github/workflows is reported as no workflow", async ()
 });
 
 test("timed_out and startup_failure count as failing", async () => {
-  const api = fakeApi({ checkRuns: [run(11, "lint-shell", "timed_out"), run(12, "test-node", "startup_failure")] });
+  const api = fakeApi({ checkRuns: [run(11, "Lint Shell", "timed_out"), run(12, "Test Node", "startup_failure")] });
   const result = await selectWith(api);
   assert.deepEqual(
     result.file.checks.map((check) => check.name),
-    ["lint-shell", "test-node"],
+    ["Lint Shell", "Test Node"],
   );
 });
 
@@ -257,7 +257,7 @@ const CANCEL_ONLY = TIME_LIMITED.filter((a) => a.message === "The operation was 
 test("a check cancelled past its time limit counts as failing, with the time-limit note in its context", async () => {
   const reads = [];
   const api = fakeApi({
-    checkRuns: [run(11, "test-bash (3)", "cancelled"), run(12, "test-bash (1)", "cancelled"), run(13, "ci-status", "failure")],
+    checkRuns: [run(11, "Test Bash (3)", "cancelled"), run(12, "Test Bash (1)", "cancelled"), run(13, "ci-status", "failure")],
     annotations: { 11: TIME_LIMITED, 12: CANCEL_ONLY },
   });
   const listAnnotations = api.listAnnotations;
@@ -269,7 +269,7 @@ test("a check cancelled past its time limit counts as failing, with the time-lim
   assert.equal(result.decision, "proceed");
   assert.deepEqual(
     result.file.checks.map((check) => check.name),
-    ["test-bash (3)"],
+    ["Test Bash (3)"],
   );
   assert.match(result.file.checks[0].annotations[0].message, /^The job has exceeded the maximum execution time of 9m0s$/);
   // Each cancelled check's annotations are read once.
@@ -277,7 +277,7 @@ test("a check cancelled past its time limit counts as failing, with the time-lim
 });
 
 test("a head whose only cancelled checks carry no time-limit note stays not-applicable", async () => {
-  const api = fakeApi({ checkRuns: [run(12, "test-bash (1)", "cancelled"), run(13, "ci-status", "failure")], annotations: { 12: CANCEL_ONLY } });
+  const api = fakeApi({ checkRuns: [run(12, "Test Bash (1)", "cancelled"), run(13, "ci-status", "failure")], annotations: { 12: CANCEL_ONLY } });
   const result = await selectWith(api);
   assert.equal(result.decision, "skip");
   assert.equal(result.skipReason, "not-applicable");
@@ -335,7 +335,7 @@ test("a commit apply-patch writes for fix-ci counts as a round", () => {
 // lane re-run green), including after the round cap; only a whole, settled
 // check listing with nothing failing says so.
 test("a head with no failing check resolves the fix-ci stop, at the round cap too", async () => {
-  const green = [run(11, "lint-shell", "failure"), run(14, "lint-shell", "success"), run(13, "ci-status", "failure")];
+  const green = [run(11, "Lint Shell", "failure"), run(14, "Lint Shell", "success"), run(13, "ci-status", "failure")];
   for (const commits of [[], [fixCommit(), fixCommit(), fixCommit()]]) {
     const result = await selectWith(fakeApi({ checkRuns: green, commits }));
     assert.deepEqual([result.decision, result.skipReason, result.resolved, result.headSha], ["skip", "stop-resolved", true, HEAD]);
@@ -346,9 +346,9 @@ test("a failing, cancelled or unsettled check, a cut-short listing, a hold or a 
   const cases = {
     failing: fakeApi(),
     "failing at the round cap": fakeApi({ commits: [fixCommit(), fixCommit(), fixCommit()] }),
-    "cancelled with no time-limit note": fakeApi({ checkRuns: [run(12, "test-bash (1)", "cancelled")], annotations: { 12: CANCEL_ONLY } }),
-    "a re-run still in progress": fakeApi({ checkRuns: [run(11, "lint-shell", null, { status: "in_progress" })] }),
-    "a cut-short listing": fakeApi({ checkRuns: [run(14, "lint-shell", "success")], complete: false }),
+    "cancelled with no time-limit note": fakeApi({ checkRuns: [run(12, "Test Bash (1)", "cancelled")], annotations: { 12: CANCEL_ONLY } }),
+    "a re-run still in progress": fakeApi({ checkRuns: [run(11, "Lint Shell", null, { status: "in_progress" })] }),
+    "a cut-short listing": fakeApi({ checkRuns: [run(14, "Lint Shell", "success")], complete: false }),
     closed: fakeApi({ pull: { state: "closed", head: { sha: HEAD, repo: { full_name: "o/r" } } }, checkRuns: [] }),
     held: gatedApi({ login: "kyle-sexton", id: HUMAN, type: "User" }, "feedback-disputed"),
   };
@@ -367,7 +367,7 @@ test("a check listing that fails to read throws, so main writes no outputs and r
     const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", PR_NUMBER: "42", APP_SENDER_ID: String(APP), CONTEXT_FILE: join(dir, "context.json"), FIX_CI_ROUNDS: "3", OWNED_BRANCHES: "[]", TRUSTED_ACTORS, GITHUB_OUTPUT: join(dir, "out") };
     await assert.rejects(main(env, { api: fakeApi({ checkRunsError: new Error("GET check-runs returned 502") }), log: () => {} }), /502/);
     assert.throws(() => readFileSync(env.GITHUB_OUTPUT, "utf8"));
-    await main({ ...env, GITHUB_OUTPUT: join(dir, "green") }, { api: fakeApi({ checkRuns: [run(14, "lint-shell", "success")] }), log: () => {} });
+    await main({ ...env, GITHUB_OUTPUT: join(dir, "green") }, { api: fakeApi({ checkRuns: [run(14, "Lint Shell", "success")] }), log: () => {} });
     assert.match(readFileSync(join(dir, "green"), "utf8"), /^skip-reason=stop-resolved\n(?:.*\n)*stop-resolved=true$/m);
     await main({ ...env, GITHUB_OUTPUT: join(dir, "red") }, { api: fakeApi(), log: () => {} });
     assert.match(readFileSync(join(dir, "red"), "utf8"), /^stop-resolved=false$/m);
@@ -514,7 +514,7 @@ test("main writes the context file and the step outputs", async () => {
     assert.match(outputs, new RegExp(`^head-sha=${HEAD}$`, "m"));
     assert.match(outputs, /^escalation-reason=$/m);
     assert.match(outputs, /^context-sha256=[0-9a-f]{64}$/m);
-    assert.equal(JSON.parse(readFileSync(env.CONTEXT_FILE, "utf8")).checks[0].name, "lint-shell");
+    assert.equal(JSON.parse(readFileSync(env.CONTEXT_FILE, "utf8")).checks[0].name, "Lint Shell");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -1100,7 +1100,8 @@ for (const jobId of ["merge", "enable-auto-merge"]) {
     const answers = {
       "/repos/o/r/actions/runs/4242": { id: 4242, run_attempt: 2, actor: OWNER, triggering_actor: OWNER },
       "/repos/o/r/actions/workflows/pr-merge.yml/runs": { workflow_runs: [{ id: 5000, status: "pending", event: "schedule", head_branch: "main", run_attempt: 1 }] },
-      "/repos/o/r/actions/runs/5000/jobs": { jobs: [{ name: jobId, status: "waiting" }] },
+      // The jobs API lists a job by its display name.
+      "/repos/o/r/actions/runs/5000/jobs": { jobs: [{ name: /^ {4}name: (.+)$/m.exec(body)[1], status: "waiting" }] },
     };
     const server = createServer((req, res) => {
       const answer = answers[req.url.split("?")[0]];
@@ -1263,7 +1264,7 @@ test("the pr-merge/unarmed statuses are posted by a job of their own, with statu
   assert.match(arm, /\n {6}- name: Arm and disarm auto-merge\n {8}id: arm\n/);
   assert.match(arm, /RISK_ESCALATION_MINUTES=\$\(yq '\.merge\."risk-escalation-minutes" \/\/ ""' "\$config"\)\n/);
   const post = job("unarmed-status");
-  assert.match(post, /^ {4}needs: \[enable-auto-merge\]\n/);
+  assert.match(post, /^ {4}name: Unarmed Status\n {4}needs: \[enable-auto-merge\]\n/);
   // It runs whenever enable-auto-merge handed it statuses, after a failed
   // step too, and only then.
   assert.match(post, /\n {4}if: \$\{\{ !cancelled\(\) && !inputs\.pr && needs\.enable-auto-merge\.outputs\.unarmed-statuses != '' \}\}\n/);

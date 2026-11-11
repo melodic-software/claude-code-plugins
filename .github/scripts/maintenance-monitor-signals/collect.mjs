@@ -108,11 +108,17 @@ const QUEUE_BRANCH = /^gh-readonly-queue\/[^/]+\/pr-(\d+)-[0-9a-f]+$/;
 // work-unblock.yml names them.
 const WORK_UNBLOCK_PATH = ".github/workflows/work-unblock.yml";
 export const PUBLISH_LANE_LEVEL_JOB = "publish-lane-level";
+// That job's name, and its id as a run from before the job rename lists it.
+const PUBLISH_LANE_LEVEL_NAMES = new Set(["Publish Lane Level", PUBLISH_LANE_LEVEL_JOB]);
 export const VARIABLE_STEPS = new Set(["List the repository variables before the publish", "Check no other repository variable changed"]);
 // Only main's own scheduled or dispatched pr-merge runs are trusted: a PR,
 // fork or branch run can upload an artifact or annotation of the same name.
 const TRUSTED_EVENTS = new Set(["schedule", "workflow_dispatch"]);
 const PR_MERGE_PATH = ".github/workflows/pr-merge.yml";
+// pr-merge's merge job by name, then by the id a run from before the job rename lists.
+const MERGE_JOB = "Merge";
+const MERGE_JOB_BEFORE_RENAME = "merge";
+const mergeJob = (jobs) => jobs.find((j) => j.name === MERGE_JOB) ?? jobs.find((j) => j.name === MERGE_JOB_BEFORE_RENAME);
 // The step name every lane workflow gives request-lane-token in token mode.
 const MINT_STEP = "Request the lane token";
 // Events whose run takes its workflow code from the default branch; a push
@@ -275,7 +281,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     const runs = await prMergeRuns();
     data.budgetReadings = [];
     for (const run of runs.filter((r) => r.status === "completed" && trustedPrMerge(r) && completedInWindow(r)).slice(0, LIMITS.prMergeRuns)) {
-      const merge = (await jobsOf(run)).find((j) => j.name === "merge");
+      const merge = mergeJob(await jobsOf(run));
       if (!merge) continue;
       for (const a of await annotationsOf(merge.id)) {
         const reading = budgetReading(a);
@@ -299,8 +305,9 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     let read = 0;
     for (const run of lanes.slice(0, LIMITS.laneRuns)) {
       if (read >= LIMITS.laneMintJobs) return;
-      const alreadyRead = (job) => run.path === PR_MERGE_PATH && trustedPrMerge(run) && job.name === "merge";
-      const minted = (await jobsOf(run)).filter(
+      const jobs = await jobsOf(run);
+      const alreadyRead = (job) => run.path === PR_MERGE_PATH && trustedPrMerge(run) && job === mergeJob(jobs);
+      const minted = jobs.filter(
         (j) => !alreadyRead(j) && (j.steps ?? []).some((s) => s.name === MINT_STEP && s.conclusion === "success"),
       );
       for (const job of minted) {
@@ -375,7 +382,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     }
     data.laneVariableRuns = [];
     for (const run of runs) {
-      const job = failedJobs(await jobsOf(run)).find((j) => j.name === PUBLISH_LANE_LEVEL_JOB);
+      const job = failedJobs(await jobsOf(run)).find((j) => PUBLISH_LANE_LEVEL_NAMES.has(j.name));
       if (!job) continue;
       const failedSteps = (job.steps ?? []).filter((s) => VARIABLE_STEPS.has(s.name) && s.conclusion && !["success", "skipped"].includes(s.conclusion)).map((s) => `${s.name}: ${s.conclusion}`);
       const annotations = (await annotationsOf(job.id)).map(levelAndMessage);
@@ -606,7 +613,9 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       // of them, so the next run reads the rest and this one reports a gap.
       let readThrough = now.getTime();
       const cut = [];
-      for (const { lane, workflow, jobs, holdRuns: cap = LIMITS.holdRuns, listPages = LIMITS.holdListPages, holdStep, statuses = ["success"] } of HOLD_LANES) {
+      for (const { lane, workflow, jobs: ids, names, holdRuns: cap = LIMITS.holdRuns, listPages = LIMITS.holdListPages, holdStep, statuses = ["success"] } of HOLD_LANES) {
+        // A job by its name, or by its id on a run from before the job rename.
+        const jobs = [...names, ...ids];
         // By id: a run that starts between two page reads shifts one onto the next page.
         const runs = new Map();
         for (const status of statuses) {

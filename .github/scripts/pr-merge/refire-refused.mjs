@@ -93,20 +93,22 @@ const LANES = Object.freeze({
       ".github/workflows/pr-unblock-dispatch.yml",
       ".github/workflows/pr-feedback-dispatch.yml",
     ],
-    // The jobs that call the write runner, whose `run` job alone requests the
-    // lane token; the jobs API names each `<caller> / run`.
+    // The jobs that call the write runner, as [display name, job id], whose
+    // `run` job alone requests the lane token; the jobs API names each
+    // `<display name> / Run`, or `<job id> / run` on a head tested before the
+    // rename.
     writeCallers: [
-      "apply-conflict-patch",
-      "apply-feedback-patch",
-      "publish-feedback",
-      "resolve-feedback-threads",
-      "apply-dependency-patch",
-      "apply-dependency-verdict",
-      "apply-dependency-pin",
-      "apply-patch",
-      "apply-patch-rung-up",
-      "apply-shared-copies",
-      "report-escalation",
+      ["Apply Conflict Patch", "apply-conflict-patch"],
+      ["Apply Feedback Patch", "apply-feedback-patch"],
+      ["Publish Feedback", "publish-feedback"],
+      ["Resolve Feedback Threads", "resolve-feedback-threads"],
+      ["Apply Dependency Patch", "apply-dependency-patch"],
+      ["Apply Dependency Verdict", "apply-dependency-verdict"],
+      ["Apply Dependency Pin", "apply-dependency-pin"],
+      ["Apply Patch", "apply-patch"],
+      ["Apply Patch Rung Up", "apply-patch-rung-up"],
+      ["Apply Shared Copies", "apply-shared-copies"],
+      ["Report Escalation", "report-escalation"],
     ],
     // The activities the pr-unblock-dispatch tick does not dispatch: it
     // dispatches resolve-conflicts, review-dependency, fix-ci and
@@ -284,7 +286,7 @@ export async function tokenRefusal({ jobs, readAnnotations, lane = LANES["pr-unb
     // Only a write runner job requests the token. The jobs API can list a
     // completed job's steps empty or cut short: such a job whose list lacks
     // the token step is judged by its annotations.
-    const writer = lane.writeCallers.some((caller) => job.name === `${caller} / run`);
+    const writer = lane.writeCallers.some(([name, id]) => job.name === `${name} / Run` || job.name === `${id} / run`);
     const token = (Array.isArray(job.steps) ? job.steps : []).find((step) => step.name === STEP);
     const failedAtToken = writer && job.conclusion === "failure" && (token === undefined || token.conclusion === "failure");
     if (!failedAtToken || !Number.isSafeInteger(job.id)) {

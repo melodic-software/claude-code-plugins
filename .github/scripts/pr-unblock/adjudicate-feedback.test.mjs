@@ -1195,8 +1195,8 @@ test("a conditional word or a contracted negation within two lines guards the ca
 // A finding whose only ask is to run tests CI runs (#10075): the select job
 // recorded the head's covering check runs in run.json's `ci`.
 const RUNS = [
-  { name: "test-bash (0)", url: "https://github.com/o/r/actions/runs/1/job/11" },
-  { name: "test-node", url: "https://github.com/o/r/actions/runs/1/job/12" },
+  { name: "Test Bash (0)", url: "https://github.com/o/r/actions/runs/1/job/11" },
+  { name: "Test Node", url: "https://github.com/o/r/actions/runs/1/job/12" },
 ];
 const settleTests = async ({ disposition = "UNCERTAIN", ci = { state: "green", runs: RUNS }, verdict = "tests-only", pushed = false, current = thread("PRRT_a") } = {}) => {
   const posts = [];

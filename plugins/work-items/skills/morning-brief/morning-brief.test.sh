@@ -1334,7 +1334,7 @@ cat >"$REST/$(rest_key "$R/actions/runs/98/jobs?per_page=100").json" <<'EOF'
 {"total_count": 0, "jobs": []}
 EOF
 cat >"$REST/$(rest_key "$R/actions/runs/99/jobs?per_page=100").json" <<'EOF'
-{"total_count": 1, "jobs": [{"id": 990, "name": "review-handoffs"}]}
+{"total_count": 1, "jobs": [{"id": 990, "name": "Review Handoffs"}]}
 EOF
 cat >"$REST/$(rest_key "$R/check-runs/990/annotations?per_page=100").json" <<'EOF'
 []
@@ -1345,7 +1345,7 @@ cat >"$REST/$(rest_key "$R/actions/workflows/pr-unblock.yml/runs?created=>=2026-
 {"total_count": 1, "workflow_runs": [{"id": 88, "html_url": "http://x/runs/88", "event": "pull_request", "display_title": "PR R", "head_sha": "r1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T00:00:00Z"}]}
 EOF
 cat >"$REST/$(rest_key "$R/actions/runs/88/jobs?per_page=100").json" <<'EOF'
-{"total_count": 2, "jobs": [{"id": 881, "name": "publish-feedback / run"}, {"id": 880, "name": "resolve-conflicts / run"}]}
+{"total_count": 2, "jobs": [{"id": 881, "name": "Publish Feedback / Run"}, {"id": 880, "name": "Resolve Conflicts / Run"}]}
 EOF
 cat >"$REST/$(rest_key "$R/check-runs/881/annotations?per_page=100").json" <<'EOF'
 []
@@ -2053,6 +2053,7 @@ for key_run in $(seq 1000 1199); do
   printf '{"total_count": 1, "jobs": [{"id": 5555}]}\n' >"$KEY_LIVE/$(rest_key "$R/actions/runs/$key_run/jobs?per_page=100").json"
 done
 printf '%s\n' '[{"message": "intake-triage exited with: failure. lane-outcome {\"v\":1,\"lane\":\"intake-triage\",\"outcome\":\"failure\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"class\":\"rate-limit\"}"}]' >"$KEY_LIVE/$(rest_key "$R/check-runs/5555/annotations?per_page=100").json"
+# Each names its caller job by its id, as a run before the rename did.
 for key_run in 901 902 903; do
   printf '{"total_count": 1, "jobs": [{"id": %s0, "name": "fix-ci / run"}]}\n' "$key_run" \
     >"$KEY_LIVE/$(rest_key "$R/actions/runs/$key_run/jobs?per_page=100").json"
@@ -2066,6 +2067,8 @@ assert_contains "keys live: the newest 3 runs of a lane are read when failed run
 assert_contains "keys live: the newest runs come out of the cap, not on top of it" "$KEYS_LIVE" \
   "intake-triage.yml  runs=200  failed=200 [rate-limit 197, max-turns 0, auth 0, other 0, unread 3]"
 assert_not_contains "keys live: a record after the first in one message is not read" "$KEYS_LIVE" "KEY: FORGED"
+assert_contains "keys live: a caller job named by its id still names the activity" "$KEYS_LIVE" \
+  "    pr-unblock / fix-ci  profile=unknown  runs=3"
 assert_not_contains "keys live: a later record in one message flags no role" "$KEYS_LIVE" "KEY: PR_UNBLOCK auth"
 assert_contains "keys live: the cap's overflow is reported" "$KEYS_LIVE" \
   "  PARTIAL: annotations read for 200 runs, the newest 3 of each lane and then failed runs first; 3 more were not read (raise --lane-read-limit)"

@@ -188,9 +188,9 @@ class AffectedBase(CheckCase):
             dispatch_run(11, "failure", run_attempt=2, triggering_actor=by(IDENTITY)),
         )
         self.gh.attempts[(11, 1)] = dispatch_run(11, "failure")
-        self.gh.jobs[(11, 1)] = [failed_job(111, "test-bash (0)", step)]
+        self.gh.jobs[(11, 1)] = [failed_job(111, "Test Bash (0)", step)]
         self.fake.logs[111] = bash_log((OTHER_SUITE, False)) if first is None else first
-        self.gh.jobs[(11, 2)] = [failed_job(112, "test-bash (0)", step)]
+        self.gh.jobs[(11, 2)] = [failed_job(112, "Test Bash (0)", step)]
         self.fake.logs[112] = log
 
     def quarantine_issue(
@@ -286,8 +286,8 @@ class AffectedSet(AffectedBase):
         # A person's whole-run re-run: attempt 1 failed elsewhere, this leg passed.
         self.red_dispatch(bash_log((FLAKY, False)))
         self.gh.jobs[(11, 1)] = [
-            failed_job(110, "lint-repo", "Aggregate hygiene results"),
-            {"id": 111, "name": "test-bash (0)", "conclusion": "success", "steps": []},
+            failed_job(110, "Lint Repo", "Aggregate hygiene results"),
+            {"id": 111, "name": "Test Bash (0)", "conclusion": "success", "steps": []},
         ]
         verdict = self.check()
         self.assertEqual(verdict.failures, ())
@@ -298,8 +298,8 @@ class AffectedSet(AffectedBase):
     def test_a_leg_skipped_on_attempt_1_shows_no_pass(self) -> None:
         self.red_dispatch(bash_log((FLAKY, False)))
         self.gh.jobs[(11, 1)] = [
-            failed_job(110, "lint-repo", "Aggregate hygiene results"),
-            {"id": 111, "name": "test-bash (0)", "conclusion": "skipped", "steps": []},
+            failed_job(110, "Lint Repo", "Aggregate hygiene results"),
+            {"id": 111, "name": "Test Bash (0)", "conclusion": "skipped", "steps": []},
         ]
         verdict = self.check()
         self.assertEqual(len(verdict.failures), 1)
@@ -320,7 +320,7 @@ class AffectedSet(AffectedBase):
             ),
         )
         self.gh.jobs[(6, 1)] = [
-            failed_job(61, "test-bash (0)", "Run this leg's shell suites")
+            failed_job(61, "Test Bash (0)", "Run this leg's shell suites")
         ]
         self.fake.logs[61] = log
 
@@ -360,7 +360,7 @@ class AffectedSet(AffectedBase):
         self.red_dispatch(bash_log((FLAKY, True), (TOUCHED, False)))
         verdict = self.check()
         self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
-        self.assertIn("newly failing: test-bash (0)", verdict.failures[0].detail)
+        self.assertIn("newly failing: Test Bash (0)", verdict.failures[0].detail)
         self.assertEqual(verdict.quarantines, ())
         self.assertFalse(verdict.is_verified(verdict.merges[0].merge))
 
@@ -493,7 +493,7 @@ class AffectedSet(AffectedBase):
             ),
         )
         self.gh.jobs[(10, 1)] = [
-            failed_job(102, "test-bash (0)", "Run this leg's shell suites")
+            failed_job(102, "Test Bash (0)", "Run this leg's shell suites")
         ]
 
     def test_expiry_restores_demotion_when_the_baseline_was_red_too(self) -> None:
@@ -542,8 +542,8 @@ class AffectedSet(AffectedBase):
         ctx.now = datetime(2026, 10, 12, 12, tzinfo=UTC)
         with mock.patch.object(pm, "_demotion_issues", return_value=self.gh.issues):
             self.assertEqual(
-                ctx.expired(run, 2, frozenset({"test-bash (0)"})),
-                frozenset({"test-bash (0)"}),
+                ctx.expired(run, 2, frozenset({"Test Bash (0)"})),
+                frozenset({"Test Bash (0)"}),
             )
 
     def test_a_closed_quarantine_issue_quarantines_the_suite_afresh(self) -> None:
@@ -667,7 +667,7 @@ class JudgeRunCli(AffectedBase):
         return code, json.loads(out.getvalue())
 
     def test_an_out_of_set_failure_exits_0_and_files_the_issue(self) -> None:
-        code, report = self.judge("test-bash (0)")
+        code, report = self.judge("Test Bash (0)")
         self.assertEqual(code, 0)
         self.assertEqual(report["demoting"], [])
         self.assertEqual(report["quarantine"]["issues"], [9001])
@@ -681,7 +681,7 @@ class JudgeRunCli(AffectedBase):
             mock.patch.object(pm.policy, "read_config_at", return_value=config),
             mock.patch.object(pm.policy, "resolve") as resolve,
         ):
-            code, _ = self.judge("test-bash (0)", identity=False)
+            code, _ = self.judge("Test Bash (0)", identity=False)
         self.assertEqual(code, 0)
         head.assert_called_once_with(REPO)
         resolve.assert_not_called()
@@ -693,19 +693,19 @@ class JudgeRunCli(AffectedBase):
         self.assertEqual(pm.suite_failures(log, "bash"), frozenset({FLAKY}))
 
     def test_without_file_quarantine_it_writes_nothing(self) -> None:
-        code, _ = self.judge("test-bash (0)", file=False)
+        code, _ = self.judge("Test Bash (0)", file=False)
         self.assertEqual(code, 0)
         self.assertEqual(self.gh.writes(), [])
 
     def test_an_in_set_failure_exits_1(self) -> None:
         self.fake.logs[112] = bash_log((TOUCHED, False))
-        code, report = self.judge("test-bash (0)")
-        self.assertEqual((code, report["demoting"]), (1, ["test-bash (0)"]))
+        code, report = self.judge("Test Bash (0)")
+        self.assertEqual((code, report["demoting"]), (1, ["Test Bash (0)"]))
 
     def test_a_check_that_is_no_test_leg_exits_1(self) -> None:
-        code, report = self.judge("test-bash (0)", "lint-repo: markdown failed")
+        code, report = self.judge("Test Bash (0)", "Lint Repo: markdown failed")
         self.assertEqual(code, 1)
-        self.assertEqual(report["demoting"], ["lint-repo: markdown failed"])
+        self.assertEqual(report["demoting"], ["Lint Repo: markdown failed"])
 
     def test_no_checks_is_a_usage_refusal(self) -> None:
         code, _ = self.judge()
@@ -715,14 +715,14 @@ class JudgeRunCli(AffectedBase):
         self.quarantine_issue(FLAKY, "2026-10-04T10:00:00Z")
         with mock.patch.object(pm, "datetime", wraps=datetime) as clock:
             clock.now.return_value = datetime(2026, 10, 12, 11, 0, tzinfo=UTC)
-            code, report = self.judge(baseline=("test-bash (0)",))
-        self.assertEqual((code, report["demoting"]), (1, ["test-bash (0)"]))
+            code, report = self.judge(baseline=("Test Bash (0)",))
+        self.assertEqual((code, report["demoting"]), (1, ["Test Bash (0)"]))
 
     def test_a_live_quarantine_on_a_baseline_check_exits_0(self) -> None:
         self.quarantine_issue(FLAKY, "2026-10-10T10:00:00Z")
         with mock.patch.object(pm, "datetime", wraps=datetime) as clock:
             clock.now.return_value = datetime(2026, 10, 12, 11, 0, tzinfo=UTC)
-            code, report = self.judge(baseline=("test-bash (0)",))
+            code, report = self.judge(baseline=("Test Bash (0)",))
         self.assertEqual((code, report["demoting"]), (0, []))
 
 
@@ -751,7 +751,7 @@ class LaneRerunOutsideAWindow(AffectedBase):
             11, "failure", actor=self.BOT, triggering_actor=self.BOT
         )
         self.gh.jobs[(11, 1)] = [
-            failed_job(112, "test-bash (0)", "Run this leg's shell suites")
+            failed_job(112, "Test Bash (0)", "Run this leg's shell suites")
         ]
         self.fake.logs[112] = log
         self.gh.artifacts["pr-merge-dispatched-11"] = [

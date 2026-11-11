@@ -150,7 +150,7 @@ permissions: {}
 
 jobs:
   alert:
-    name: File the demotion issue
+    name: File The Demotion Issue
     # The file step's early exits, read from the event before any checkout: a
     # workflow_run event that is not a signal, a full run's pass on attempt 1
     # or action_required, or a run off this repository's main starts no job.
@@ -1307,7 +1307,7 @@ jobs:
   # writes start no workflow run. It runs whatever the alert job concluded,
   # as file-revert does, from the main tip that job checked out.
   label-paths:
-    name: Label the merge paths
+    name: Label The Merge Paths
     needs: [alert]
     if: >-
       !cancelled()
@@ -1360,7 +1360,7 @@ jobs:
   # concluded, since that job can fail after it handed the record over (a
   # canary record or hand-off that did not file). It checks out nothing.
   file-revert:
-    name: File the revert demotion issue
+    name: File The Revert Demotion Issue
     needs: [alert]
     if: >-
       !cancelled()
@@ -1460,7 +1460,7 @@ jobs:
   # dispatch leaves empty, and skips a dispatched run the alert found main
   # already recovered from, and a run the alert excused by suite.
   report-red-main:
-    name: Report the red-main culprit
+    name: Report The Red-Main Culprit
     needs: [alert]
     if: >-
       !cancelled()
@@ -1573,7 +1573,7 @@ jobs:
   # record this closes that main has not cleared holds all the same
   # (closed-by-non-human).
   close-cleared:
-    name: Close the records main cleared
+    name: Close The Records Main Cleared
     if: >-
       github.event_name == 'workflow_run'
       && github.event.workflow_run.name == 'PR Require Checks'

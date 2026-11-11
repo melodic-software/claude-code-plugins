@@ -68,6 +68,7 @@ jobs:
   flag:
     # The author is the comment's, else the review's, else the pull
     # request's, else the issue's, the order flag.mjs reads them in.
+    name: Flag
     if: >-
       (github.event.action == 'unlabeled'
         && github.event.label.name == 'security: outside-actor')

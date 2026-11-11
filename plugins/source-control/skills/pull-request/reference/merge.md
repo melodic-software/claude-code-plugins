@@ -103,8 +103,9 @@ for the user.
   configuration (settings, autoMode, hooks, `CLAUDE.md`, `AGENTS.md`, `.claude/`) and no
   deployment path, unless the user named it in this session.
 - On the head commit you pin, the PR reads `CLEAN` and both AI review lanes have completed with
-  success, matched by exact check name: `pr-review / review-status` or
-  `pr-review / claude-review-status`, and for security `pr-review-security / review-status`,
+  success, matched by exact check name: `PR Review / review-status`, `pr-review / review-status`
+  (a head tested before the rename) or `pr-review / claude-review-status`, and for security
+  `PR Review Security / review-status`, `pr-review-security / review-status`,
   `pr-review-security / security-review`, its legacy caller `security-review / security-review`, or
   `claude-security-review-status` (the names `babysit_merge.py` accepts). A missing, running,
   skipped or failed review check holds. The Codex review posts review threads, not a check run,

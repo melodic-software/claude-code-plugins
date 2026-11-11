@@ -1440,6 +1440,17 @@ class AutoMergeArming(unittest.TestCase):
         result = self._evaluate(
             [
                 _check("ci-status", None),
+                _check("PR Review / review-status", "SUCCESS"),
+                _check("PR Review Security / review-status", "SUCCESS"),
+            ],
+            mergeStateStatus="BLOCKED",
+        )
+        self.assertTrue(result["autoMerge"]["ready"], result["autoMerge"])
+
+    def test_review_status_checks_before_the_rename_satisfy_both_lanes(self) -> None:
+        result = self._evaluate(
+            [
+                _check("ci-status", None),
                 _check("pr-review / review-status", "SUCCESS"),
                 _check("pr-review-security / review-status", "SUCCESS"),
             ],
@@ -1450,12 +1461,12 @@ class AutoMergeArming(unittest.TestCase):
     def test_a_failing_review_status_check_holds_only_its_own_lane(self) -> None:
         for failing, held, other in (
             (
-                "pr-review / review-status",
+                "PR Review / review-status",
                 "claude-review-status",
                 "claude-security-review-status",
             ),
             (
-                "pr-review-security / review-status",
+                "PR Review Security / review-status",
                 "claude-security-review-status",
                 "claude-review-status",
             ),
@@ -1467,8 +1478,8 @@ class AutoMergeArming(unittest.TestCase):
                         *(
                             _check(name, "FAILURE" if name == failing else "SUCCESS")
                             for name in (
-                                "pr-review / review-status",
-                                "pr-review-security / review-status",
+                                "PR Review / review-status",
+                                "PR Review Security / review-status",
                             )
                         ),
                     ],

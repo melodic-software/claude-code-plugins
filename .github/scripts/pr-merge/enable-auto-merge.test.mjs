@@ -221,7 +221,7 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
       return { files: [{ filename: "infra/main.tf" }] };
     }
     if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/actions/runs/9/jobs?filter=all&per_page=100&page=1") {
-      return { jobs: [{ id: 90, name: "pr-review / review-status", completed_at: "2026-10-22T11:00:00Z" }] };
+      return { jobs: [{ id: 90, name: "PR Review / review-status", completed_at: "2026-10-22T11:00:00Z" }] };
     }
     if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/check-runs/90/annotations?per_page=100&page=1") {
       return [{ annotation_level: "notice", message: `claude-lane-hold lane=claude-review sha=${HEAD} criteria=cost label=needs-human` }];

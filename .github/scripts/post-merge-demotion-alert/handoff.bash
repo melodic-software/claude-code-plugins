@@ -97,11 +97,18 @@ send_to_intake() {
 # open; fix_handled the issue this sent to intake or reopened.
 fix_work() {
   local check="$1" sha="$2" signal="$3" on_record="$4" merges="$5" run_link="$6" fix_marker="$7" note="$8"
-  local found fix_number fix_state fix_reason fix_body
+  local found fix_number fix_state fix_reason fix_body job old
   fix_missed='' fix_missed_issue='' fix_open='' fix_handled=''
-  found="$(awk -F'\t' -v m="$fix_marker" '$4 == m && any == "" { any = $0 }
+  # An issue filed on a commit tested before the job rename names the check by
+  # its job id (`Test Bash (3)` was `test-bash (3)`); it is read only when no
+  # issue names the check as it is now.
+  job="${check%% (*}" old="${job// /-}"
+  old="<!-- post-merge-fix check=${old,,}${check:${#job}} -->"
+  found="$(awk -F'\t' -v m="$fix_marker" -v o="$old" '$4 == m && any == "" { any = $0 }
     $4 == m && $2 == "open" && open == "" { open = $0 }
-    END { print (open != "" ? open : any) }' <<<"$own_records")"
+    $4 == o && oldAny == "" { oldAny = $0 }
+    $4 == o && $2 == "open" && oldOpen == "" { oldOpen = $0 }
+    END { print (open != "" ? open : any != "" ? any : oldOpen != "" ? oldOpen : oldAny) }' <<<"$own_records")"
   IFS=$'\t' read -r fix_number fix_state fix_reason _ <<<"$found"
   if [[ "$fix_state" == open ]]; then
     echo "#$fix_number already tracks $check"

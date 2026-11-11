@@ -164,8 +164,11 @@ LANE='{"login":"github-actions[bot]","id":41898282,"type":"Bot"}'
 APP="{\"login\":\"melodic-automation-lanes[bot]\",\"id\":$APP_ID,\"type\":\"Bot\"}"
 OWNER="{\"login\":\"owner\",\"id\":$OWNER_ID,\"type\":\"User\"}"
 STRANGER='{"login":"someone","id":42,"type":"User"}'
-CODE_CHECK='pr-review / review-status'
-SEC_CHECK='pr-review-security / review-status'
+CODE_CHECK='PR Review / review-status'
+SEC_CHECK='PR Review Security / review-status'
+# The names a head tested before the rename shows: the caller job ids.
+OLD_CODE_CHECK='pr-review / review-status'
+OLD_SEC_CHECK='pr-review-security / review-status'
 
 event() { jq -cn --arg e "$1" --argjson actor "$2" --arg at "$3" '{event: $e, actor: $actor, created_at: $at, label: {name: "needs-human"}}'; }
 comment() { jq -cn --argjson user "$1" --arg at "$2" --arg body "$3" '{user: $user, created_at: $at, updated_at: $at, body: $body}'; }
@@ -627,6 +630,14 @@ expect "a notice under the other lane's status job name in this lane's workflow 
 nodecided
 decided "$HEAD" 2026-10-23T13:12:00Z cost pr-review-security-hosted.yml "$SEC_CHECK"
 expect "a cost notice from the security lane's status job decides its head" yes yes yes
+for lane in "pr-review-hosted.yml $OLD_CODE_CHECK" "pr-review-security-hosted.yml $OLD_SEC_CHECK"; do
+  nodecided
+  decided "$HEAD" 2026-10-23T13:12:00Z cost "${lane%% *}" "${lane#* }"
+  expect "a cost notice from a head tested before the rename, under '${lane#* }', decides its head" yes yes yes
+done
+nodecided
+decided "$HEAD" 2026-10-23T13:12:00Z cost pr-review-hosted.yml "$OLD_SEC_CHECK"
+expect "the other lane's status job id in this lane's workflow decides nothing" no no no "covering this head"
 # The status job names pr-review-cli.yml gave before it named both review-status.
 for lane in 'pr-review-hosted.yml pr-review / claude-review-status' 'pr-review-security-hosted.yml pr-review-security / security-review'; do
   nodecided

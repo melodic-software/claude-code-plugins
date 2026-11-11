@@ -21,10 +21,10 @@ const answer = (status, headers = {}, body) =>
   [`HTTP/2.0 ${status}`, ...Object.entries(headers).map(([name, value]) => `${name}: ${value}`), "", body === undefined ? "" : JSON.stringify(body)].join("\r\n");
 const listing = (...jobs) => ({ total_count: jobs.length, jobs });
 
-const BROKER = { name: "fix-docs / broker-check", conclusion: "success", steps: [] };
+const BROKER = { name: "Fix Docs / Broker Check", conclusion: "success", steps: [] };
 // A report job the listing shows before its steps, then with them.
-const UNLISTED = { name: "fix-docs / report", conclusion: "success", steps: [] };
-const POSTED = { name: "fix-docs / report", conclusion: "success", steps: [{ name: "Post the check run", conclusion: "success" }] };
+const UNLISTED = { name: "Fix Docs / Report", conclusion: "success", steps: [] };
+const POSTED = { name: "Fix Docs / Report", conclusion: "success", steps: [{ name: "Post the check run", conclusion: "success" }] };
 
 // Runs `handoff-evidence.sh` with no waits, `posted` unless facts says; each
 // answer is [gh -i output, gh exit status]. A call past the last answer gets
@@ -91,10 +91,33 @@ test("a repeated read sends the page's ETag, and a 304 gives back the body that 
   ]);
   assert.equal(out.status, 0, out.stdout + out.stderr);
   assert.deepEqual(out.args, [`api -i ${FIRST}`, `api -i ${FIRST} -H If-None-Match: "e1"`, `api -i ${FIRST} -H If-None-Match: "e1"`]);
-  assert.match(out.stdout, /^Read 1: missing: fix-docs \/ report has no steps listed; reading again in 0s$/m);
-  assert.match(out.stdout, /^Read 2: missing: fix-docs \/ report has no steps listed; reading again in 0s$/m, "the 304 kept the stored body");
+  assert.match(out.stdout, /^Read 1: missing: Fix Docs \/ Report has no steps listed; reading again in 0s$/m);
+  assert.match(out.stdout, /^Read 2: missing: Fix Docs \/ Report has no steps listed; reading again in 0s$/m, "the 304 kept the stored body");
   assert.match(out.stdout, /^handoff evidence: posted=true \(3 reads\)$/m);
   assert.equal(out.output, "posted=true\n");
+});
+
+test("a run started before the rename is read by its job ids", () => {
+  const out = run([[answer("200 OK", {}, listing({ ...POSTED, name: "fix-docs / report" })), 0]]);
+  assert.equal(out.status, 0, out.stdout + out.stderr);
+  assert.equal(out.output, "posted=true\n");
+});
+
+// Each CALLS id a workflow passes, in Title Case, is the display name of that
+// workflow's job of that id, so the script finds the call's report job.
+test("every call a workflow names is read under that job's display name", () => {
+  const dir = new URL("../../workflows/", import.meta.url);
+  for (const file of ["pr-refine.yml", "pr-unblock.yml", "work-resolve-issue.yml"]) {
+    const text = readFileSync(new URL(file, dir), "utf8");
+    const calls = new Set([...text.matchAll(/^ +CALLS: ([\w -]+)$/gm)].flatMap((match) => match[1].split(" ")));
+    assert.ok(calls.size > 0, file);
+    for (const call of calls) {
+      const display = new RegExp(`^ {2}${call}:\\n {4}name: (.+)$`, "m").exec(text)?.[1];
+      assert.ok(display, `${file} has no named ${call} job`);
+      const out = run([[answer("200 OK", {}, listing({ ...POSTED, name: `${display} / Report` })), 0]], "0", { calls: call });
+      assert.equal(out.output, "posted=true\n", `${file} ${call}: ${out.stdout}`);
+    }
+  }
 });
 
 // The 304 for page 1 carries no Link header: the next page is the one its 200 named.
@@ -205,7 +228,7 @@ test("a listing that stays unsettled is no failed read: fix-docs reads on throug
   const out = run(UNSETTLED.slice(0, 6), "0 0 0 0 0", { env: { HANDOFF_EVIDENCE_LAG: "notice" } });
   assert.equal(out.status, 0);
   assert.equal(out.args.length, 6);
-  assert.match(out.stdout, /^::notice::.*after 6 reads: missing: fix-docs \/ report has no steps listed; the outputs stay empty$/m);
+  assert.match(out.stdout, /^::notice::.*after 6 reads: missing: Fix Docs \/ Report has no steps listed; the outputs stay empty$/m);
   assert.equal(out.output, "");
 });
 
@@ -293,7 +316,7 @@ test("only the fix-docs handoff jobs and the key-credit-markers jobs name HANDOF
 test("a fact still unsettled in a listing that was read fails with no output by default", () => {
   const out = run(lagged(), "0");
   assert.equal(out.status, 1);
-  assert.match(out.stdout, /^::error::handoff evidence for fix-docs still missing after 2 reads: missing: fix-docs \/ report has no steps listed$/m);
+  assert.match(out.stdout, /^::error::handoff evidence for fix-docs still missing after 2 reads: missing: Fix Docs \/ Report has no steps listed$/m);
   assert.equal(out.output, "");
 });
 
@@ -301,7 +324,7 @@ for (const name of ["fix-docs-handoff", "fix-docs-subscription-handoff"]) {
   test(`${name}: a listing that lags past the last read ends as a notice with no output`, () => {
     const out = run(lagged(), "0", { env: refineJobEnv(name) });
     assert.equal(out.status, 0, out.stdout + out.stderr);
-    assert.match(out.stdout, /^::notice::handoff evidence for fix-docs still missing after 2 reads: missing: fix-docs \/ report has no steps listed; the outputs stay empty$/m);
+    assert.match(out.stdout, /^::notice::handoff evidence for fix-docs still missing after 2 reads: missing: Fix Docs \/ Report has no steps listed; the outputs stay empty$/m);
     assert.doesNotMatch(out.stdout, /::error::/);
     assert.equal(out.output, "", "an empty output starts no later leg");
   });

@@ -101,6 +101,7 @@ defaults:
 
 jobs:
   capture:
+    name: Capture
     if: >-
       github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'

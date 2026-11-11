@@ -1865,7 +1865,20 @@ async function someRunJobs(jobsOf, runs, test) {
 // did work and never reported, as a failed run did before kill-switch-ok.
 const stoppedMint = (jobsOf, runs) => someRunJobs(jobsOf, runs, (jobs) => jobs.some(stoppedAt));
 
-const namedJobs = (jobs, name) => jobs.filter((job) => job?.name === name || String(job?.name).startsWith(`${name} /`));
+// The display name of each job this script reads, by job id. The jobs API
+// names a job by its display name, or by its id on a run started before the
+// rename; a called job's name goes on ` / <job>`.
+const JOB_NAMES = {
+  admit: "Admit",
+  "pick-slot": "Pick Slot",
+  "report-outcome": "Report Outcome",
+  "resolve-issue": "Resolve Issue",
+  "resolve-issue-subscription": "Resolve Issue Subscription",
+  "resolve-issue-fallback": "Resolve Issue Fallback",
+  "label-unblocked": "Label Unblocked",
+};
+const namedJobs = (jobs, id) =>
+  jobs.filter((job) => [JOB_NAMES[id], id].some((name) => job?.name === name || String(job?.name).startsWith(`${name} /`)));
 
 // Whether one of `runs` stopped at the admit job's provenance stop.
 const stoppedUntrusted = (jobsOf, runs) => someRunJobs(jobsOf, runs, (jobs) => namedJobs(jobs, "admit").some((job) => endedAt(job, UNTRUSTED_STEP, "success")));

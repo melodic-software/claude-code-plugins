@@ -261,8 +261,11 @@ chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
 HEAD=0123456789abcdef0123456789abcdef01234567
 CODE=pr-review-hosted.yml
 SEC=pr-review-security-hosted.yml
-CODE_CHECK='pr-review / review-status'
-SEC_CHECK='pr-review-security / review-status'
+CODE_CHECK='PR Review / review-status'
+SEC_CHECK='PR Review Security / review-status'
+# The names a head tested before the rename shows: the caller job ids.
+OLD_CODE_CHECK='pr-review / review-status'
+OLD_SEC_CHECK='pr-review-security / review-status'
 # run <id> <file> [status] [sha] [event] [head repository] [pull request number]
 run() { jq -cn --argjson id "$1" --arg f "$2" --arg st "${3:-completed}" --arg sha "${4:-$HEAD}" --arg ev "${5:-pull_request}" --arg hr "${6:-o/r}" \
   --argjson pr "${7:-77}" '{id: $id, path: (".github/workflows/" + $f), status: $st, head_sha: $sha, event: $ev, head_repository: {full_name: $hr},
@@ -272,8 +275,8 @@ runs() { local IFS=,; printf '{"workflow_runs":[%s]}' "$*"; }
 status() { jq -cn --arg n "$1" --arg st "$2" --arg c "$3" --arg h "${4:-success}" \
   '{id: 9, name: $n, status: $st, conclusion: (if $c == "" then null else $c end),
     steps: [{name: "Publish the review", conclusion: $c}, {name: "Apply the hold", conclusion: $h}, {name: "Upload the shadow report", conclusion: "skipped"}]}'; }
-# kill <conclusion> <report-step-conclusion>
-kill_job() { jq -cn --arg c "$1" --arg r "$2" '{id: 1, name: "kill-switch", status: "completed", conclusion: $c,
+# kill <conclusion> <report-step-conclusion> [job name]
+kill_job() { jq -cn --arg c "$1" --arg r "$2" --arg n "${3:-Kill Switch}" '{id: 1, name: $n, status: "completed", conclusion: $c,
   steps: [{name: "Check the kill switch", conclusion: $c}, {name: "Report the kill switch", conclusion: $r}]}'; }
 jobs() { local IFS=,; printf '{"jobs":[%s]}' "$*"; }
 
@@ -311,12 +314,20 @@ else
   fail "unexpected reads: '$(sort -u "$TMP_ROOT/log")'"
 fi
 
+# A head tested before the rename lists the caller job ids.
+JOBS_10="$(jobs "$(kill_job success skipped kill-switch)" "$(status "$OLD_CODE_CHECK" completed success)")"
+JOBS_20="$(jobs "$(kill_job success skipped kill-switch)" "$(status "$OLD_SEC_CHECK" completed success)")"
+expect "a head tested before the rename passes under the job ids" 0 "'$CODE_CHECK' passed on $HEAD" "::error::"
+JOBS_10="$(jobs "$(kill_job success success kill-switch)")"
+expect "a kill switch job named by its id still stops the lane" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): a kill switch was on when it started."
+JOBS_10="$PASS_CODE" JOBS_20="$PASS_SEC"
+
 # The status job names pr-review-cli.yml gave before it named both review-status.
 JOBS_10="$(jobs "$(kill_job success skipped)" "$(status 'pr-review / claude-review-status' completed success)")"
 JOBS_20="$(jobs "$(kill_job success skipped)" "$(status 'pr-review-security / security-review' completed success)")"
 expect "status jobs under their retired names do not count" 1 "'$CODE_CHECK' did not run on $HEAD" "passed on $HEAD"
 # A status job counts only under its own lane's caller job.
-for name in 'other / review-status' 'review-status' "$CODE_CHECK"; do
+for name in 'other / review-status' 'review-status' "$CODE_CHECK" "$OLD_CODE_CHECK"; do
   JOBS_20="$(jobs "$(kill_job success skipped)" "$(status "$name" completed success)")"
   expect "a security run whose status job is named '$name' does not count" 1 "::error::'$SEC_CHECK' did not run on $HEAD"
 done
@@ -492,7 +503,7 @@ for caller in pr-review-hosted.yml pr-review-security-hosted.yml; do
   fi
 done
 export NOTES_41
-KILL_UNLISTED='{"id":41,"name":"kill-switch","status":"completed","conclusion":"success","steps":[]}'
+KILL_UNLISTED='{"id":41,"name":"Kill Switch","status":"completed","conclusion":"success","steps":[]}'
 JOBS_10="$(jobs "$KILL_UNLISTED")"
 NOTES_41="$(notes "$(note notice '' 'a kill switch stops this review (lanes: disabled, CLAUDE_REVIEW_DISABLED: unset)')")"
 expect "a kill-switch job listed with no steps counts as a stop on its report notice, and a stop fails" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): a kill switch was on when it started." "::notice::"
@@ -533,7 +544,7 @@ for caller in pr-review-hosted.yml pr-review-security-hosted.yml; do
     fail "$caller's upstream stop no longer writes 'an upstream outage stops this [security ]review ('"
   fi
 done
-upstream_job() { jq -cn --argjson id "$1" --arg c "$2" --arg u "$3" --arg r "$4" --arg s "$5" '{id: $id, name: "kill-switch", status: "completed", conclusion: $c,
+upstream_job() { jq -cn --argjson id "$1" --arg c "$2" --arg u "$3" --arg r "$4" --arg s "$5" '{id: $id, name: "Kill Switch", status: "completed", conclusion: $c,
   steps: [{name: "Check the kill switch", conclusion: "success"}, {name: "Check upstream status", conclusion: $u},
     {name: "Report the kill switch", conclusion: $r}, {name: "Stop on upstream status", conclusion: $s}]}'; }
 export NOTES_42 NOTES_43
@@ -541,7 +552,7 @@ JOBS_10="$(jobs "$(upstream_job 42 failure success skipped failure)" "$(status "
 NOTES_42="$(notes "$(note failure '' 'an upstream outage stops this review (Actions major_outage); the lost-run reconciler re-runs it once GitHub Actions is operational')")"
 expect "a review the upstream gate stopped is named, with the reconciler's re-run" 1 \
   "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): GitHub Actions or npm listed an outage on its status page when it started. Within 24 hours of the run, the lost-run reconciler re-runs its failed jobs once, as soon as neither lists an outage and GitHub Actions is operational. Once that review passes, its dispatch re-runs this ci-status job under the reconciler's record, so pr-verify accepts it; if that re-run does not come, a person re-runs this ci-status job, not the review run; after 24 hours, push to the head." "a fork, or a bot"
-JOBS_10="$(jobs '{"id":42,"name":"kill-switch","status":"completed","conclusion":"failure","steps":[]}')"
+JOBS_10="$(jobs '{"id":42,"name":"Kill Switch","status":"completed","conclusion":"failure","steps":[]}')"
 expect "a failed kill-switch job listed with no steps counts as an upstream stop on its error" 1 "GitHub Actions or npm listed an outage on its status page when it started. Within 24 hours of the run, the lost-run reconciler" "a fork, or a bot"
 NOTES_42="$(notes "$(note notice '' 'an upstream outage stops this review (Actions major_outage)')")"
 expect "a notice copying the upstream error is no upstream stop" 1 "kill-switch job: failure"

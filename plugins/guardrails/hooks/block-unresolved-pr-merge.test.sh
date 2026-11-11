@@ -159,8 +159,9 @@ J
   matrix-other-name) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test-bash","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":903,"name":"test-bash-node","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
   # The pr-merge lane's own `merge` job pending on the head, alone or beside a
   # real pending check, and a `merge` check from another app.
-  merge-lane-pending) echo '{"total_count":2,"check_runs":[{"id":901,"name":"build","app":{"id":15368,"slug":"github-actions"},"status":"completed","conclusion":"success"},{"id":902,"name":"merge","app":{"id":15368,"slug":"github-actions"},"status":"pending","conclusion":null}]}' >"$FIX/checks.json" ;;
-  merge-lane-and-build-pending) echo '{"total_count":2,"check_runs":[{"id":901,"name":"build","app":{"id":15368,"slug":"github-actions"},"status":"in_progress","conclusion":null},{"id":902,"name":"merge","app":{"id":15368,"slug":"github-actions"},"status":"pending","conclusion":null}]}' >"$FIX/checks.json" ;;
+  merge-lane-pending) echo '{"total_count":2,"check_runs":[{"id":901,"name":"build","app":{"id":15368,"slug":"github-actions"},"status":"completed","conclusion":"success"},{"id":902,"name":"Merge","app":{"id":15368,"slug":"github-actions"},"status":"pending","conclusion":null}]}' >"$FIX/checks.json" ;;
+  merge-lane-renamed-pending) echo '{"total_count":2,"check_runs":[{"id":901,"name":"build","app":{"id":15368,"slug":"github-actions"},"status":"completed","conclusion":"success"},{"id":902,"name":"merge","app":{"id":15368,"slug":"github-actions"},"status":"pending","conclusion":null}]}' >"$FIX/checks.json" ;;
+  merge-lane-and-build-pending) echo '{"total_count":2,"check_runs":[{"id":901,"name":"build","app":{"id":15368,"slug":"github-actions"},"status":"in_progress","conclusion":null},{"id":902,"name":"Merge","app":{"id":15368,"slug":"github-actions"},"status":"pending","conclusion":null}]}' >"$FIX/checks.json" ;;
   merge-other-app-pending) echo '{"total_count":1,"check_runs":[{"id":902,"name":"merge","app":{"id":999,"slug":"other-ci"},"status":"pending","conclusion":null}]}' >"$FIX/checks.json" ;;
   matrix-failed-then-leg) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"failure"},{"id":903,"name":"test (0)","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
   matrix-leg-skipped) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":903,"name":"test (0)","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"skipped"}]}' >"$FIX/checks.json" ;;
@@ -413,6 +414,11 @@ assert_eq "same-suite sibling -> names the bare run" "Failing checks: build" "$(
 scenario none none merge-lane-pending green
 run "the merge lane's own pending check does not block" 'gh pr merge 42 --squash' 0
 assert_eq "merge lane pending -> no stderr" "" "$ERR"
+# The same job by its id: a head tested before the rename, or a repository
+# whose merge job has no display name.
+scenario none none merge-lane-renamed-pending green
+run "the merge lane's pending check under its job id does not block" 'gh pr merge 42 --squash' 0
+assert_eq "merge lane under its job id pending -> no stderr" "" "$ERR"
 scenario none none merge-lane-and-build-pending green
 run "another pending check beside the merge lane still blocks" 'gh pr merge 42 --squash' 2
 assert_eq "names only the other pending check" "Pending checks (use --auto to merge once they pass): build" "$(grep 'Pending checks' <<<"$ERR")"
@@ -421,7 +427,7 @@ run "a merge check from another app still blocks" 'gh pr merge 42 --squash' 2
 assert_contains "names the other app's merge check" "$ERR" "Pending checks (use --auto to merge once they pass): merge"
 scenario none none merge-lane-pending green
 run "an empty ignore list judges the merge lane's check" 'gh pr merge 42 --squash' 2 CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHECKS=
-assert_contains "empty ignore list -> names merge" "$ERR" "Pending checks (use --auto to merge once they pass): merge"
+assert_contains "empty ignore list -> names Merge" "$ERR" "Pending checks (use --auto to merge once they pass): Merge"
 
 # --- 3a. hold labels ------------------------------------------------------------
 # Owner sessions queued pull requests that already carried pr-verify-failed

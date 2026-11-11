@@ -2,6 +2,6 @@
   "class": "control",
   "expected": "pass",
   "scored": "main",
-  "defect": "none: the prerelease ordering the issue asks for, with its test; the only would-be note is that the suite was not run locally, which the head's green test-node job settles",
+  "defect": "none: the prerelease ordering the issue asks for, with its test; the only would-be note is that the suite was not run locally, which the head's green Test Node job settles",
   "mentions": []
 }

@@ -2,6 +2,7 @@
 // README.md "Red main"): expected values are the rule's own words, never the
 // functions' output.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { attemptFailingChecks } from "./failing-checks.mjs";
@@ -15,6 +16,7 @@ import {
   firstParentRange,
   isRevert,
   plannedRevert,
+  RENAMED_JOBS,
   resolveRedMain,
 } from "./red-main.mjs";
 
@@ -45,40 +47,56 @@ test("the remedy defaults to rollback and takes rollback or fail-forward", () =>
 
 test("a failed job is a check; a cancelled or timed-out job is not", () => {
   assert.deepEqual(
-    failingChecks([job(1, "test-node", "failure"), job(2, "test-bash", "cancelled"), job(3, "test-python", "timed_out")]),
-    ["test-node"],
+    failingChecks([job(1, "Test Node", "failure"), job(2, "Test Bash", "cancelled"), job(3, "Test Python", "timed_out")]),
+    ["Test Node"],
   );
 });
 
+test("a run tested before the rename names its checks as one tested after it does", () => {
+  const titled = { 7: [{ annotation_level: "failure", title: "typos failed" }] };
+  assert.deepEqual(
+    failingChecks([job(1, "test-node", "failure"), job(2, "test-bash (3)", "failure"), job(7, "lint-repo", "failure", ["Aggregate hygiene results"])], titled),
+    ["Test Node", "Test Bash (3)", "Lint Repo: typos failed"],
+  );
+  assert.deepEqual(failingChecks([job(1, "other-job", "failure")]), ["other-job"]);
+});
+
+test("each renamed job maps to its pr-require-checks.yml display name", () => {
+  const yml = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
+  for (const [id, name] of Object.entries(RENAMED_JOBS)) {
+    assert.match(yml, new RegExp(`\\n  ${id}:\\n(?: {4}#.*\\n)* {4}name: ${name}\\n`), id);
+  }
+});
+
 test("ci-status beside another failed job adds nothing; alone it is the check", () => {
-  assert.deepEqual(failingChecks([job(1, "ci-status", "failure"), job(2, "lint-repo", "failure")]), ["lint-repo"]);
+  assert.deepEqual(failingChecks([job(1, "ci-status", "failure"), job(2, "Lint Repo", "failure")]), ["Lint Repo"]);
   assert.deepEqual(failingChecks([job(1, "ci-status", "failure")]), ["ci-status"]);
 });
 
 test("CI Status and its ci-status alias are one check: nothing beside another failed job, CI Status alone", () => {
   const gate = job(1, "CI Status", "failure");
   const alias = job(9, "ci-status", "failure");
-  assert.deepEqual(failingChecks([gate, alias, job(2, "lint-repo", "failure")]), ["lint-repo"]);
+  assert.deepEqual(failingChecks([gate, alias, job(2, "Lint Repo", "failure")]), ["Lint Repo"]);
   assert.deepEqual(failingChecks([alias, gate]), ["CI Status"]);
   assert.deepEqual(failingChecks([job(1, "CI Status", "success"), alias]), ["ci-status"]);
 });
 
 test("a hygiene gate is its own check, and the all-branches gitleaks gate counts against no merge", () => {
-  const aggregatorOnly = job(7, "lint-repo", "failure", ["Aggregate hygiene results"]);
+  const aggregatorOnly = job(7, "Lint Repo", "failure", ["Aggregate hygiene results"]);
   const titled = (title) => ({ annotation_level: "failure", title });
   assert.deepEqual(failingChecks([aggregatorOnly], { 7: [titled("gitleaks failed")] }), []);
   assert.deepEqual(failingChecks([aggregatorOnly], { 7: [titled("typos failed"), titled("gitleaks failed")] }), [
-    "lint-repo: typos failed",
+    "Lint Repo: typos failed",
   ]);
 });
 
 test("a failed job listing no failed step is a check of its own; the full list keeps the gitleaks excuse", () => {
   // The jobs API can answer a completed job with no steps or a cut list.
   const gitleaks = { 7: [{ annotation_level: "failure", title: "gitleaks failed" }] };
-  const withSteps = (steps) => ({ id: 7, name: "lint-repo", conclusion: "failure", steps });
-  assert.deepEqual(failingChecks([withSteps([])], gitleaks), ["lint-repo"]);
-  assert.deepEqual(failingChecks([{ id: 7, name: "lint-repo", conclusion: "failure" }], gitleaks), ["lint-repo"]);
-  assert.deepEqual(failingChecks([withSteps([{ name: "Set up job", conclusion: "success" }])], gitleaks), ["lint-repo"]);
+  const withSteps = (steps) => ({ id: 7, name: "Lint Repo", conclusion: "failure", steps });
+  assert.deepEqual(failingChecks([withSteps([])], gitleaks), ["Lint Repo"]);
+  assert.deepEqual(failingChecks([{ id: 7, name: "Lint Repo", conclusion: "failure" }], gitleaks), ["Lint Repo"]);
+  assert.deepEqual(failingChecks([withSteps([{ name: "Set up job", conclusion: "success" }])], gitleaks), ["Lint Repo"]);
   assert.deepEqual(
     failingChecks([withSteps([{ name: "Set up job", conclusion: "success" }, { name: "Aggregate hygiene results", conclusion: "failure" }])], gitleaks),
     [],
@@ -94,7 +112,7 @@ test("a failed job listing no failed step is a check of its own; the full list k
       ],
       gitleaks,
     ),
-    ["lint-repo"],
+    ["Lint Repo"],
   );
 });
 
@@ -102,7 +120,7 @@ test("the alert's two modes: a judged run counts a job with unknown steps whole,
   // The cases babysit_postmerge.py's Baseline tests hold: lint-repo failing on
   // the gitleaks gate with its steps empty, cut short, or listed in full.
   const gitleaks = { 7: [{ annotation_level: "failure", title: "gitleaks failed" }] };
-  const lint = (steps) => ({ id: 7, name: "lint-repo", conclusion: "failure", steps });
+  const lint = (steps) => ({ id: 7, name: "Lint Repo", conclusion: "failure", steps });
   const lists = {
     empty: [],
     cut: [{ name: "Set up job", conclusion: "success" }, { name: "Check out", conclusion: "success" }],
@@ -110,8 +128,8 @@ test("the alert's two modes: a judged run counts a job with unknown steps whole,
   };
   const alert = { failed: ALERT_FAILED, noFailedJobs: true };
   for (const [label, judged, base] of [
-    ["empty", ["lint-repo"], []],
-    ["cut", ["lint-repo"], []],
+    ["empty", ["Lint Repo"], []],
+    ["cut", ["Lint Repo"], []],
     ["full", [], []],
   ]) {
     assert.deepEqual(failingChecks([lint(lists[label])], gitleaks, alert), judged, label);
@@ -119,11 +137,11 @@ test("the alert's two modes: a judged run counts a job with unknown steps whole,
   }
   // A job failing on a real step is a baseline check too.
   const real = lint([{ name: "Test hygiene result aggregation", conclusion: "failure" }]);
-  assert.deepEqual(failingChecks([real], gitleaks, { ...alert, baseline: true }), ["lint-repo"]);
+  assert.deepEqual(failingChecks([real], gitleaks, { ...alert, baseline: true }), ["Lint Repo"]);
   // The alert counts every red conclusion babysit_postmerge.py does, and names
   // a red run with no failed job; red-main counts only `failure`.
-  const cancelled = { id: 9, name: "test-bash", conclusion: "cancelled", steps: [] };
-  assert.deepEqual(failingChecks([cancelled], {}, alert), ["test-bash"]);
+  const cancelled = { id: 9, name: "Test Bash", conclusion: "cancelled", steps: [] };
+  assert.deepEqual(failingChecks([cancelled], {}, alert), ["Test Bash"]);
   assert.deepEqual(failingChecks([cancelled], {}), []);
   assert.deepEqual(failingChecks([], {}, alert), ["pr-require-checks.yml: no failed jobs"]);
 });
@@ -131,14 +149,14 @@ test("the alert's two modes: a judged run counts a job with unknown steps whole,
 test("failing-checks.mjs reads each red job's annotations and applies the mode", () => {
   const calls = [];
   const jobs = [
-    { id: 7, name: "lint-repo", conclusion: "failure", steps: [] },
-    { id: 8, name: "test-node", conclusion: "success", steps: [] },
+    { id: 7, name: "Lint Repo", conclusion: "failure", steps: [] },
+    { id: 8, name: "Test Node", conclusion: "success", steps: [] },
   ];
   const api = (args) => {
     calls.push(args.find((a) => a.startsWith("repos/")));
     return args.includes("--paginate") ? jobs : [{ annotation_level: "failure", title: "gitleaks failed" }];
   };
-  assert.deepEqual(attemptFailingChecks("o/r", "42", "2", { api }), ["lint-repo"]);
+  assert.deepEqual(attemptFailingChecks("o/r", "42", "2", { api }), ["Lint Repo"]);
   assert.deepEqual(attemptFailingChecks("o/r", "42", "2", { api, baseline: true }), []);
   assert.deepEqual(calls.slice(0, 2), ["repos/o/r/actions/runs/42/attempts/2/jobs?per_page=100", "repos/o/r/check-runs/7/annotations?per_page=100"]);
 });

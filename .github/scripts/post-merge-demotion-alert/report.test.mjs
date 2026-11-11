@@ -25,7 +25,7 @@ const failedJob = (id, name) => ({ id, name, conclusion: "failure", steps: [{ na
 
 // A fake world: `merges` oldest first ({ sha, number, by, run }), where `run`
 // is that merge's own full run ({ id, conclusion, attempts: [[jobs]...] }).
-function world({ merges, head = { attempts: [[failedJob(1, "test-node")], [failedJob(2, "test-node")]] }, issues = [], comments = [], autoReverts = [], startAttempt }) {
+function world({ merges, head = { attempts: [[failedJob(1, "Test Node")], [failedJob(2, "Test Node")]] }, issues = [], comments = [], autoReverts = [], startAttempt }) {
   const writes = [];
   const runs = {
     500: { id: 500, head_sha: HEAD, run_attempt: head.attempts.length, status: "completed", conclusion: "failure", attempts: head.attempts },
@@ -140,7 +140,7 @@ test("under fail-forward a pinned lane merge fixes forward and the report plans 
   assert.doesNotMatch(result.body, /The revert it would open|git revert/);
 });
 
-const confirmedRed = (id) => ({ id, conclusion: "failure", attempts: [[failedJob(id * 10, "test-node")], [failedJob(id * 10 + 1, "test-node")]] });
+const confirmedRed = (id) => ({ id, conclusion: "failure", attempts: [[failedJob(id * 10, "Test Node")], [failedJob(id * 10 + 1, "Test Node")]] });
 
 test("a mixed range: a lane merge pinned as the culprit may auto-revert past an owner merge", async () => {
   const w = world({
@@ -180,7 +180,7 @@ test("a range with no evidence run at its oldest merge pins no culprit and opens
 // A world whose re-run of run 500 passed. The fake's run reads `failure`; the
 // re-run attempt's conclusion is what decides.
 function unconfirmedWorld(options) {
-  const w = world({ ...options, head: { attempts: [[failedJob(1, "test-node")], []] } });
+  const w = world({ ...options, head: { attempts: [[failedJob(1, "Test Node")], []] } });
   const inner = w.call;
   w.reads = [];
   w.call = async (method, path, body) => {

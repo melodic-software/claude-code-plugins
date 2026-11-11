@@ -322,7 +322,7 @@ test("the scrub probe runs once per release the gate takes, on a read-only token
   assert.match(job, /^ {4}cache-mode: read$/m);
   assert.deepEqual(/^ {4}permissions:\n((?: {6}.*\n)+)/m.exec(job)[1].trim().split("\n").map((line) => line.trim().split(" #")[0]), ["contents: read"]);
   // Only the later probe legs wait on a probe; no publishing job does.
-  const needers = [...WORKFLOW.matchAll(/^ {2}([a-z0-9-]+):\n {4}needs: (.*)$/gm)].filter(([, , list]) => list.includes(PROBE_JOB)).map(([, id]) => id);
+  const needers = [...WORKFLOW.matchAll(/^ {2}([a-z0-9-]+):\n(?: {4}name: .*\n)? {4}needs: (.*)$/gm)].filter(([, , list]) => list.includes(PROBE_JOB)).map(([, id]) => id);
   assert.deepEqual(needers, ["scrub-probe-subscription", "scrub-probe-fallback"]);
   for (const id of ["scan", "push-branches", "publish"]) assert.doesNotMatch(jobOf(id), /needs\.scrub-probe/, id);
 });

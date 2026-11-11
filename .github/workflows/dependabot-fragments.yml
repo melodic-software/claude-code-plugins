@@ -50,6 +50,7 @@ jobs:
   write:
     # A push runs it only when one of its commits is Dependabot's, by the
     # author scripts/dependabot-fragments.sh walks.
+    name: Write
     if: >-
       github.ref == 'refs/heads/main'
       && (github.event_name != 'push'

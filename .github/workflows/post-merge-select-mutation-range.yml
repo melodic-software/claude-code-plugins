@@ -34,6 +34,7 @@ permissions: {}
 
 jobs:
   select-range:
+    name: Select Range
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5

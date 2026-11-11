@@ -864,8 +864,8 @@ DECISIONS = {
     "indented": (_link(7), _comment(7, body=f"  {DECISION}")),
 }
 CHECKS = {
-    "pr-review-hosted.yml": "pr-review / review-status",
-    "pr-review-security-hosted.yml": "pr-review-security / review-status",
+    "pr-review-hosted.yml": "PR Review / review-status",
+    "pr-review-security-hosted.yml": "PR Review Security / review-status",
 }
 
 
@@ -979,7 +979,10 @@ CARRIES = {
         "runs": [_run(HEAD, LATE, created="2026-01-03T01:00:00Z")]
     },
     "a job other than the status job": {
-        "runs": [_run(HEAD, job="pr-review / review-key")]
+        "runs": [_run(HEAD, job="PR Review / review-key")]
+    },
+    "a status job under its caller before the rename": {
+        "runs": [_run(HEAD, job="pr-review / review-status")]
     },
     "a status job under another caller job": {
         "runs": [_run(HEAD, job="other / review-status")]
@@ -1301,6 +1304,7 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
             "a base merge since the decided head",
             "a notice from the security lane",
             "a newer head pushed before it with a run of every lane",
+            "a status job under its caller before the rename",
         }
         for case in carried:
             self.assertEqual(answers[case], _link(7), case)

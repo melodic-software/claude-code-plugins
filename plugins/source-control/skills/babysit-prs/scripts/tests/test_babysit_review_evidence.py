@@ -49,6 +49,11 @@ FILES = {
     "claude-security-review": ".github/workflows/pr-review-security-hosted.yml",
 }
 JOBS = {
+    "claude-review": "PR Review / review-status",
+    "claude-security-review": "PR Review Security / review-status",
+}
+# The same under the lower-case caller: a head tested before the rename.
+RENAMED_JOBS = {
     "claude-review": "pr-review / review-status",
     "claude-security-review": "pr-review-security / review-status",
 }
@@ -381,7 +386,7 @@ class StatusJobNameTests(Base):
     both lanes' status jobs share the name `review-status`."""
 
     def test_each_lane_binds_under_either_status_job_name(self) -> None:
-        for names in (JOBS, EARLIER_JOBS):
+        for names in (JOBS, RENAMED_JOBS, EARLIER_JOBS):
             runs = [named(whole(lane, S), names[lane]) for lane in LANES]
             result = self.bind(runs)
             for lane in LANES:
@@ -401,8 +406,10 @@ class StatusJobNameTests(Base):
 
     def test_a_job_name_maps_to_its_own_lane(self) -> None:
         for name, lane in {
+            "PR Review / review-status": "claude-review",
             "pr-review / review-status": "claude-review",
             "pr-review / claude-review-status": "claude-review",
+            "PR Review Security / review-status": "claude-security-review",
             "pr-review-security / review-status": "claude-security-review",
             "pr-review-security / security-review": "claude-security-review",
             "other / review-status": "",
@@ -2253,12 +2260,13 @@ def kill_switched(
     message: str | None = None,
     level: str = "notice",
     kill_conclusion: str = "success",
-    kill_name: str = "kill-switch",
+    kill_name: str = "Kill Switch",
+    caller: str | None = None,
 ) -> dict[str, Any]:
     """Attempt 1 as #10092's review runs recorded it: the kill-switch job
     succeeded and wrote its notice, and the reusable's caller job was skipped,
     so no lane job exists."""
-    caller = JOBS[lane].split(" / ", 1)[0]
+    caller = caller or JOBS[lane].split(" / ", 1)[0]
 
     def job(name: str, conclusion: str, annotations: Any = None) -> dict[str, Any]:
         item = {
@@ -2286,7 +2294,7 @@ def kill_switched(
         "conclusion": "success",
         "jobs": [
             job(kill_name, kill_conclusion, [notice]),
-            job("resolve-model", "success"),
+            job("Resolve Model", "success"),
             job(caller, "skipped"),
         ],
     }
@@ -2310,6 +2318,15 @@ class KillSwitchRerunTests(Base):
                 )
                 self.assertTrue(result[lane].bound)
                 self.assertEqual(result[lane].open_findings, 0)
+
+    def test_a_stop_by_the_kill_switch_job_before_the_rename_binds(self) -> None:
+        first = kill_switched(
+            "claude-review", kill_name="kill-switch", caller="pr-review"
+        )
+        result = self.bind(
+            [self.lane_run("claude-review", first, self.ok("claude-review"))]
+        )
+        self.assertTrue(result["claude-review"].bound)
 
     def test_the_other_lanes_notice_does_not_bind(self) -> None:
         for lane, other in zip(LANES, reversed(LANES), strict=True):
@@ -2341,7 +2358,7 @@ class KillSwitchRerunTests(Base):
                 self.assertUnbound(result["claude-review"], "rerun-not-allowed")
 
     def test_the_notice_on_another_job_does_not_bind(self) -> None:
-        first = kill_switched("claude-review", kill_name="resolve-model")
+        first = kill_switched("claude-review", kill_name="Resolve Model")
         result = self.bind(
             [self.lane_run("claude-review", first, self.ok("claude-review"))]
         )
@@ -2660,7 +2677,7 @@ class RecordTests(Base):
 
     def test_record_on_a_job_of_another_name(self) -> None:
         item = whole("claude-review", S)
-        item["attempts"][0]["jobs"][0]["name"] = "pr-review / something-else"
+        item["attempts"][0]["jobs"][0]["name"] = "PR Review / something-else"
         result = self.bind([item])
         self.assertUnbound(result["claude-review"], "no-lane-job")
 
@@ -3193,7 +3210,7 @@ class CountTests(Base):
     def test_draft_skipped_run_is_ignored(self) -> None:
         # Recorded shape: a draft-skipped run holds only the caller job.
         skipped = attempt("claude-review", S0, 1, [], conclusion="skipped")
-        skipped["jobs"][0]["name"] = "pr-review"
+        skipped["jobs"][0]["name"] = "PR Review"
         earlier = run("claude-review", S0, attempts=[skipped])
         result = self.bind([earlier, whole("claude-review", S)])
         self.assertTrue(result["claude-review"].bound)
