@@ -3,6 +3,12 @@
 All notable changes to the `naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1] - 2026-11-11
+
+### Changed
+
+- The name-it-better skill cites its sources record for which skill field drives loading instead of restating it. No behavior change.
+
 ## [0.7.0] - 2026-11-10
 
 ### Changed

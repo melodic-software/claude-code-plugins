@@ -3,6 +3,12 @@
 All notable changes to the `computer-use` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.17] - 2026-11-11
+
+### Changed
+
+- The diagnose skill's failure-diagnostics reference records its claim that upstream troubleshooting does not cover screenshot failures as a pointer with an as-of date and recheck trigger. No behavior change.
+
 ## [0.1.16] - 2026-11-05
 
 ### Changed
