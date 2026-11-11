@@ -13,9 +13,10 @@
 //   dispatch passes), or an issue work-unblock handed back after its lane PR
 //   ended or unparked to needs-triage once a blocker closed; or
 // - /work-items:decompose published it born triaged in `status: ready`, with
-//   no agent-ready, admission-deferred or hold and no open blocker: nothing
-//   ran admission on it, and intake's dispatch runs it (a dispatch skips the
-//   born-triaged gate).
+//   no agent-ready, admission-deferred or hold, no open blocker, no open
+//   sub-issue and no admission comment of the lanes App's but a retriage note:
+//   nothing ran admission on it, and intake's dispatch runs it (a dispatch
+//   skips the born-triaged gate).
 //
 // The needs-triage floor label is no triage label: it lands on open whether
 // or not intake runs. github-actions[bot] issues are left out: the lane
@@ -25,7 +26,9 @@
 // dispatches, and nor do the first 24 whose verdict stopped on a GitHub 5xx,
 // a network error or a deferred triage) the sweep sets its Work status to
 // needs-triage (write-status.mjs) and rewrites that comment to hand it to a
-// maintainer, listing the runs. It files no issue. No model. The count is per triage cycle: a work-unblock
+// maintainer, listing the runs. That write first reads the field fresh and
+// leaves any state but unset, needs-triage or ready, so an issue admitted
+// since the listing is never demoted. It files no issue. No model. The count is per triage cycle: a work-unblock
 // hand-back comment the lanes App posted after the state comment's last edit
 // starts a new cycle with no runs, in the same comment. An issue still at
 // needs-triage whose own state comment hands it off is skipped
@@ -42,6 +45,7 @@ import { pathToFileURL } from "node:url";
 import { BORN_TRIAGED_MARKER, humanIds } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createBudget } from "./collect.mjs";
+import { ADMIT_MARKER } from "../lib/admission-comment.mjs";
 import { UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { loadTrustedActors, statusLabels as labelsByField } from "../../actions/resolve-config/read-status.mjs";
@@ -87,6 +91,9 @@ const HAND_BACK = /^(?:<!-- work-unblock handed triage #[1-9][0-9]* -->|<!-- wor
 // The visible text of the hand-off comment, which the search matches.
 const HANDED_TEXT = "so the sweep no longer dispatches it";
 const FLOOR = "needs-triage";
+// The Work status states a hand-off may replace (null for unset): untriaged,
+// or born triaged and never admitted (bornReady).
+const HAND_OFF_FROM = [null, FLOOR, "ready"];
 // Labels a verdict or a person leaves: an issue with one is triaged.
 const TRIAGED = /^(needs-human|needs-spec|needs-owner-decision|needs-reporter-info|agent-ready|admission-deferred)$|^status: /;
 // What keeps a born-triaged `status: ready` issue out of admission on purpose.
@@ -95,13 +102,23 @@ const ADMISSION_HOLDS = new Set(["agent-ready", "admission-deferred", "needs-hum
 // An issue's lowercased label names; `labels`, when given, stands in for its
 // own (as its Work status field decides them, statusListing).
 const names = (i, labels) => (labels ?? (i.labels ?? []).map((l) => l.name)).map((n) => String(n ?? "").toLowerCase());
+// An open sub-issue makes admission wait (admit.mjs openSubIssues), so it
+// would only send the issue back at status: ready.
 const bornReady = (i, labels) =>
   String(i.body ?? "")
     .trimEnd()
     .endsWith(BORN_TRIAGED_MARKER) &&
   labels.includes("status: ready") &&
   !labels.some((n) => ADMISSION_HOLDS.has(n)) &&
-  !(i.issue_dependencies_summary?.blocked_by > 0);
+  !(i.issue_dependencies_summary?.blocked_by > 0) &&
+  !((i.sub_issues_summary?.total ?? 0) > (i.sub_issues_summary?.completed ?? 0));
+
+// Whether admission already ran on the issue and left it waiting: the lanes
+// App's admission comment (edited in place), unless it is the retriage note
+// that hands the issue back (HAND_BACK).
+export const admissionParked = (comments, appId = null) =>
+  appId !== null &&
+  comments.some((c) => String(c.user?.id) === String(appId) && String(c.body ?? "").startsWith(ADMIT_MARKER) && !HAND_BACK.test(String(c.body ?? "")));
 
 // `statusLabels` (statusListing) maps an issue number to its label names as
 // its Work status field decides them; an issue it leaves out is judged by its
@@ -350,18 +367,24 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
     issues.push(...batch);
     if (batch.length < 100) break;
   }
-  const result = { candidates: 0, dispatched: [], handed: [], handedOff: [], held: [], waiting: [], failed: [], truncated: null };
+  const result = { candidates: 0, dispatched: [], handed: [], handedOff: [], held: [], left: [], parked: [], waiting: [], failed: [], truncated: null };
   const selected = selectCandidates({ issues, now, authorIds, statusLabels });
   const atFloor = (i) => names(i, statusLabels.get(i.number)).includes(FLOOR);
   const filed = selected.length > 0 ? await handedOff(call, repo, appId) : new Set();
   const candidates = selected.filter((i) => !(filed.has(i.number) && atFloor(i)));
   result.candidates = candidates.length;
   // A hold a person set since the listing stands (write-status.mjs keepHold):
-  // the issue is held, so it is neither handed off nor recorded.
+  // the issue is held, so it is neither handed off nor recorded. So does any
+  // state past triage the field reads now (HAND_OFF_FROM): the listing can
+  // read field events stale, and the issue may have been admitted since.
   const handOff = async (number) => {
-    const held = (await setStatus(number, FLOOR, { keepHold: true }))?.outcome === "held";
-    if (held) result.held.push(number);
-    return !held;
+    const written = await setStatus(number, FLOOR, { keepHold: true, from: HAND_OFF_FROM });
+    if (written?.outcome === "held") result.held.push(number);
+    if (written?.outcome === "moved") {
+      result.left.push(number);
+      console.log(`triage-sweep: #${number} left as is: its Work status is ${written.state}`);
+    }
+    return written?.outcome !== "held" && written?.outcome !== "moved";
   };
   // Issues the sweep already handed off cost their reads and do not count
   // toward MAX_CHECKED, so they cannot starve the issues behind them.
@@ -378,6 +401,11 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
         comments.push(...batch);
         full = batch.length === 100;
         if (!full) break;
+      }
+      // Only bornReady lets an issue at status: ready through selectCandidates.
+      if (names(issue, statusLabels.get(number)).includes("status: ready") && admissionParked(comments, appId)) {
+        result.parked.push(number);
+        continue;
       }
       // Past the pages read, the state comment may be hidden: a person
       // decides, so the state is set once.
@@ -551,7 +579,7 @@ async function main() {
   const lines = [
     "### Triage sweep",
     "",
-    `Candidates: ${result.candidates}. Dispatched: ${numbers(result.dispatched)}. Handed to a maintainer after ${ATTEMPTS} runs that reached intake or ${RUN_LIMIT} dispatches: ${numbers(result.handed)}. Handed off for too many comments: ${numbers(result.handedOff)}. Held by a person's hold: ${numbers(result.held)}. Waiting on a run: ${numbers(result.waiting)}. Calls: ${budget.used}.`,
+    `Candidates: ${result.candidates}. Dispatched: ${numbers(result.dispatched)}. Handed to a maintainer after ${ATTEMPTS} runs that reached intake or ${RUN_LIMIT} dispatches: ${numbers(result.handed)}. Handed off for too many comments: ${numbers(result.handedOff)}. Held by a person's hold: ${numbers(result.held)}. Left as is past triage: ${numbers(result.left)}. Waiting on admission: ${numbers(result.parked)}. Waiting on a run: ${numbers(result.waiting)}. Calls: ${budget.used}.`,
     "",
     ...(result.truncated ? [`- ${result.truncated}`] : []),
     ...result.failed.map((f) => `- failed #${f.number}: ${f.error}`),
