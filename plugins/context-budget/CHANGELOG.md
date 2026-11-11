@@ -7,6 +7,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [1.1.0] - 2026-11-10
+
+### Changed
+
+- The audit report's headline framing uses context-guard's renamed zones (`light`, `moderate`,
+  `heavy`, formerly `smart`, `acceptable`, `dumb`).
+
 ## [1.0.8] - 2026-11-10
 
 ### Changed
