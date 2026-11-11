@@ -10,16 +10,16 @@ function is_body(line) {
   return index(line, "\"key\":\"event.name\",\"value\":{\"stringValue\":\"api_request_body\"}") \
     || index(line, "\"key\":\"event.name\",\"value\":{\"stringValue\":\"api_response_body\"}")
 }
+BEGIN { prefix_len = length(tf) + 4 }
 { total++ }
 match($0, "\"" tf "\":\"[0-9]+\"") {
-  prefix_len = length(tf) + 4
   ns = substr($0, RSTART + prefix_len, RLENGTH - prefix_len - 1)
-  secs = substr(ns, 1, length(ns) - 9)
-  if (secs + 0 < cutoff + 0) {
+  secs = substr(ns, 1, length(ns) - 9) + 0
+  if (secs < cutoff + 0) {
     would_compact++
     if (is_body($0)) body_dropped++
     if (ddst != "") print $0 > ddst
-  } else if (secs + 0 < body_cutoff + 0 && is_body($0)) {
+  } else if (secs < body_cutoff + 0 && is_body($0)) {
     surgery++
     if (sdst != "") print $0 > sdst
   } else {
