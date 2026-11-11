@@ -10,6 +10,11 @@
     "pull-requests": "read",
     "issues": "write"
   },
+  "mutate-variable": {
+    "contents": "read",
+    "pull-requests": "read",
+    "issues": "read"
+  },
   "mutate-branch": {
     "contents": "write",
     "pull-requests": "read",

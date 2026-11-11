@@ -332,6 +332,7 @@ import { readLimits, readWip, resolveStrandedBackoff, STRANDED_BACKOFF_MAX } fro
 import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, clearedPastReport, CONFIRMED, confirmedOnly, decide, deferralLapsed, doneReason, judgedSince, loadRules, mergedRefsReader, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, retriageNote, sayWhy, SECURITY_AREA, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, splitLeftOpen, splitParentClosed, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { markLaneHold } from "../lib/lane-hold-marker.mjs";
+import { describeLevel, laneLevelFromEnv, resolvedLaneLevel } from "../lib/lane-level-value.mjs";
 import { subIssueLeftOpen } from "../lib/done-evidence.mjs";
 import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
@@ -436,7 +437,7 @@ const FIX_ISSUE = /^<!-- post-merge-fix check=[^\r\n]+ -->/;
 export const RECURRENCE_PREFIX = "This check failed on main again at `";
 const RELABELED = /^<!-- work-unblock recurrence ([1-9][0-9]{0,15}) -->/;
 // A work-resolve-issue run in any of these has not finished.
-const IN_FLIGHT = ["queued", "in_progress", "waiting", "pending", "requested"];
+export const IN_FLIGHT = Object.freeze(["queued", "in_progress", "waiting", "pending", "requested"]);
 // The sweep's widest window, used when the last good sweep is unknown or
 // older: a missed run loses nothing up to this far back.
 export const LOOKBACK_HOURS = 3;
@@ -1955,13 +1956,12 @@ async function lastLanePull({ github, repo, number, addedAt, bot }) {
   return last;
 }
 
-// The issue lane's slot count, from the one line work-resolve-issue.yml sets it on.
-export function laneSlots(path = new URL("../../workflows/work-resolve-issue.yml", import.meta.url)) {
-  const slots = /^ +SLOTS: ([1-9][0-9]*)$/m.exec(readFileSync(path, "utf8"))?.[1];
-  if (slots === undefined) {
-    throw new Error("work-resolve-issue.yml sets no SLOTS");
-  }
-  return Number(slots);
+// The issue lane's slot count: the effective lane level, which pick-slot in
+// work-resolve-issue.yml reads the same way (lane-level-value.mjs).
+export function laneSlots({ laneLevel = {}, env = process.env, now = Date.now(), log = console.log } = {}) {
+  const read = laneLevelFromEnv(laneLevel, env, now);
+  log(`label-unblocked: ${describeLevel(read)}`);
+  return read.level;
 }
 
 // The titles of every work-resolve-issue run that has not finished.
@@ -2977,7 +2977,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
           failed += await readmitReady({ github, repo, listed, names, humans, bot, gate, appId, admission, cap: limits["readmit-per-run"], now, writer: writeTo, statusOf: statusTo });
         }
       }
-      failed += await restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, slots, writer: writeTo, statusOf: statusTo, openIssues: listed, byStatus: listing, clock, deadline, upstream, ...(statusField ?? (own ? {} : await workStatusField(env, github, repo))) });
+      failed += await restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, slots: slots ?? (() => laneSlots({ laneLevel: resolvedLaneLevel(resolved), env })), writer: writeTo, statusOf: statusTo, openIssues: listed, byStatus: listing, clock, deadline, upstream, ...(statusField ?? (own ? {} : await workStatusField(env, github, repo))) });
       if (carry) {
         const { jobsHit, jobsRead, refusalsHit, refusalsRead } = carry.counts;
         console.log(`::notice title=label-unblocked::carried verdicts: ${jobsHit} job listing(s) and ${refusalsHit} log verdict(s) reused, ${jobsRead} and ${refusalsRead} read`);

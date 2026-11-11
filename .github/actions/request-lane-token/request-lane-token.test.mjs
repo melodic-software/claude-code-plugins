@@ -120,6 +120,7 @@ function request({ compare, ...inputs }, ...answers) {
     PULL_REQUESTS: "read",
     ISSUES: "read",
     ACTIONS: "",
+    ACTIONS_VARIABLES: "",
     SUPERSEDED_OK: "false",
     PR_WORKFLOW_CHANGE_OK: "false",
     HEAD_SHA: "",
@@ -137,6 +138,7 @@ function request({ compare, ...inputs }, ...answers) {
       pull_requests: env.PULL_REQUESTS,
       issues: env.ISSUES,
       ...(env.ACTIONS ? { actions: env.ACTIONS } : {}),
+      ...(env.ACTIONS_VARIABLES ? { actions_variables: env.ACTIONS_VARIABLES } : {}),
     },
     lane: env.LANE,
     activity: env.ACTIVITY,
@@ -888,6 +890,41 @@ test("an actions grant other than read or empty fails before the broker request"
   const run = request({ ...PR_MERGE, ACTIONS: "write" });
   assert.equal(run.status, 1);
   assert.match(run.stdout, /::error::the resolved grant's actions must be read or empty/);
+  assert.equal(run.body, null);
+});
+
+// work-unblock's publish-lane-level: Variables write beside an all-read grant.
+const LEVEL = { LANE: "work-unblock", ACTIVITY: "publish-lane-level", EFFECT: "mutate-variable", CONTENTS: "read", PULL_REQUESTS: "read", ISSUES: "read", PR_NUMBER: "" };
+const levelGrant = (permissions) => ({
+  token: "ghs_lane",
+  expires_at: "2026-10-11T13:00:00Z",
+  mint_id: "5550001-1",
+  effect: "mutate-variable",
+  permissions: { contents: "read", pull_requests: "read", issues: "read", ...permissions },
+  lane: "work-unblock",
+  activity: "publish-lane-level",
+  repository_ids: [Number(REPO_ID)],
+});
+
+test("a resolved actions-variables write grant the broker matches mints the token", () => {
+  const run = request({ ...LEVEL, ACTIONS_VARIABLES: "write" });
+  assert.equal(run.status, 0, run.stdout);
+  assert.match(run.output, /^token=ghs_lane$/m);
+});
+
+test("a broker grant whose actions_variables differs from the resolved grant fails red as effect-mismatch", () => {
+  for (const [resolved, granted] of [["write", {}], ["", { actions_variables: "write" }]]) {
+    const run = request({ ...LEVEL, ACTIONS_VARIABLES: resolved }, { body: levelGrant(granted) });
+    assert.equal(run.status, 1, `${resolved} vs ${JSON.stringify(granted)}`);
+    assert.match(run.stdout, /::error::effect-mismatch: /);
+    assert.doesNotMatch(run.output, /^token=/m);
+  }
+});
+
+test("an actions-variables grant other than write or empty fails before the broker request", () => {
+  const run = request({ ...LEVEL, ACTIONS_VARIABLES: "read" });
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /::error::the resolved grant's actions-variables must be write or empty/);
   assert.equal(run.body, null);
 });
 

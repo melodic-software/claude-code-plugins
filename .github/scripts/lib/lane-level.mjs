@@ -1,8 +1,9 @@
 // The lane concurrency level L the adaptive throughput controller would pick
 // for the next window, as a pure function of the previous decision, one
 // window's readings, that window's lane demand and the resolved limits.
-// Nothing reads it yet: it is the decide part of collect, decide, publish and
-// read, and lane-level.vectors.json is its truth table.
+// It is the decide part of collect, decide, publish and read
+// (work-unblock/publish-lane-level.mjs calls it hourly), and
+// lane-level.vectors.json is its truth table.
 //
 //   previous  { level, streak, holdUntil } from the last decision, or null
 //   readings  { at, pools: { <pool>: { used, limit } }, signals: [..], reset? }
@@ -28,6 +29,10 @@ export const LANE_LEVEL_DEFAULTS = Object.freeze({
   default: 3,
   "clean-windows": 2,
   pools: Object.freeze(["lanes-app"]),
+  // Read and publish (lane-level-value.mjs, publish-lane-level.mjs), not decide().
+  shadow: true,
+  variable: "CLAUDE_LANE_LEVEL",
+  "valid-minutes": 150,
 });
 
 // Shares are decimal configuration, so a boundary the config states exactly
