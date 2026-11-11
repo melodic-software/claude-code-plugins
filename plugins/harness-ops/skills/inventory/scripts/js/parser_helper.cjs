@@ -1708,6 +1708,9 @@ const BUILTIN_CONSTRUCTORS = new Set([
   "WeakSet",
 ]);
 
+// Whether the variable `v` is written only by its one declaration.
+const onlyInit = (v) => v.references.every((r) => !r.isWrite() || r.identifier === v.defs[0].name);
+
 // What makes a target in the analyzed module `entry` (`analyze`) a fresh
 // object, which no write can make a built-in prototype: a function from a
 // node to its freshness (FRESH, `both`) or null. Fresh are a literal, a
@@ -1724,7 +1727,6 @@ const BUILTIN_CONSTRUCTORS = new Set([
 function freshnessOf(entry) {
   const parents = parentsOf(entry);
   const variable = (id) => entry.refs.get(id.start)?.resolved ?? null;
-  const onlyInit = (v) => v.references.every((r) => !r.isWrite() || r.identifier === v.defs[0].name);
   // The method of the global `Object` that `node` reads, directly or
   // through a variable only ever holding it (`var c=Object.create`,
   // `var{create:c}=Object`), or null.
@@ -1805,10 +1807,7 @@ function freshnessOf(entry) {
       const node = stack.pop();
       if (node.type === "ReturnStatement" && node.argument !== null) return null;
       if (FUNCTIONS.has(node.type)) continue;
-      for (const key of Object.keys(node)) {
-        const child = node[key];
-        for (const c of Array.isArray(child) ? child : [child]) if (c && typeof c.type === "string") stack.push(c);
-      }
+      forEachChild(node, (c) => stack.push(c));
     }
     return made;
   };
@@ -2049,7 +2048,6 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
     else if (VM_SPECIFIERS.has(spec)) hit("vm-string-code", null, node);
   }
   const variable = (id) => entry.refs.get(id.start)?.resolved ?? null;
-  const onlyInit = (v) => v.references.every((r) => !r.isWrite() || r.identifier === v.defs[0].name);
   const fresh = freshnessOf(entry);
   const pending = [];
   const trusted = new Set(entry.folds);
@@ -2354,7 +2352,7 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
     // `runInNewContext` patches the outer prototypes). Any load of the vm
     // module is a sink, except an import naming only functions that run no
     // code; so is a vm runner's name read or destructured from any object.
-    if ((VM_RUNNERS.has(member) && !isTarget(parents, node)) || (node.type === "Property" && parents.get(node)?.type === "ObjectPattern" && VM_RUNNERS.has(keyName(node.key, node.computed)))) {
+    if ((VM_RUNNERS.has(member) && !isTarget(parents, node)) || (node.type === "Property" && holder?.type === "ObjectPattern" && VM_RUNNERS.has(keyName(node.key, node.computed)))) {
       hit("vm-string-code", null, node);
     }
     const specs = (isRequire(node) ? paramSpecs(node.arguments[0]) : null) ?? [loadedSpecifier(node)];
@@ -2380,12 +2378,7 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
         (holder?.type === "VariableDeclarator" && holder.init === node && holder.id.type === "ObjectPattern" && onlyCalled(holder));
       if (!named && !inert) hit("definer-escape", null, node);
     }
-    for (const key of Object.keys(node)) {
-      const child = node[key];
-      for (const c of Array.isArray(child) ? child : [child]) {
-        if (c && typeof c.type === "string" && c !== node) stack.push(c);
-      }
-    }
+    forEachChild(node, (c) => stack.push(c));
   }
   return { hits, pending, trusted: [...trusted].sort() };
 }
@@ -2726,19 +2719,14 @@ function scanOf(ast) {
     } else if (node.type === "ObjectPattern") {
       for (const prop of node.properties) {
         if (prop.type !== "Property") continue;
-        if (!prop.computed) keys.add(prop.key.name ?? String(prop.key.value));
-        else if (keyName(prop.key, true) !== null) keys.add(keyName(prop.key, true));
+        const key = prop.computed ? keyName(prop.key, true) : (prop.key.name ?? String(prop.key.value));
+        if (key !== null) keys.add(key);
       }
     }
-    for (const key of Object.keys(node)) {
-      const child = node[key];
-      for (const c of Array.isArray(child) ? child : [child]) {
-        if (c && typeof c.type === "string" && c !== node) {
-          parents.set(c, node);
-          stack.push(c);
-        }
-      }
-    }
+    forEachChild(node, (c) => {
+      parents.set(c, node);
+      stack.push(c);
+    });
   }
   return { keys, loads, imports, computed, aliasInits };
 }
@@ -2757,12 +2745,7 @@ function computedLoads(entry) {
     const node = stack.pop();
     if (unknownLoad(node, parents, spells, paramSpecs) && !aliasInit(node, parents.get(node))) return new Set([UNKNOWN_FILE]);
     if (isRequire(node)) for (const spec of paramSpecs(node.arguments[0]) ?? []) files.add(fileName(spec));
-    for (const key of Object.keys(node)) {
-      const child = node[key];
-      for (const c of Array.isArray(child) ? child : [child]) {
-        if (c && typeof c.type === "string" && c !== node) stack.push(c);
-      }
-    }
+    forEachChild(node, (c) => stack.push(c));
   }
   return files;
 }
