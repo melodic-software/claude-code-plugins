@@ -69,26 +69,28 @@ function manifest(v) {
     head: v.head,
     images: Object.fromEntries(names.map((n) => [n, sha256(join(v.dir, n))])),
   };
+  const file = join(v.dir, MANIFEST);
   try {
-    writeFileSync(join(v.dir, MANIFEST), `${JSON.stringify(doc, null, 2)}\n`, { flag: 'wx' });
+    writeFileSync(file, `${JSON.stringify(doc, null, 2)}\n`, { flag: 'wx' });
   } catch (e) {
-    stop(`${join(v.dir, MANIFEST)}: ${e.code === 'EEXIST' ? 'exists; a baseline is never rewritten' : e.message}`);
+    stop(`${file}: ${e.code === 'EEXIST' ? 'exists; a baseline is never rewritten' : e.message}`);
   }
-  console.log(`manifest=${join(v.dir, MANIFEST)} images=${names.length}`);
+  console.log(`manifest=${file} images=${names.length}`);
   return 0;
 }
 
 // Read <dir>'s manifest and check that its images are exactly the ones on disk,
 // byte for byte.
 function checked(dir) {
+  const file = join(dir, MANIFEST);
   let doc;
   try {
-    doc = JSON.parse(readFileSync(join(dir, MANIFEST), 'utf8'));
+    doc = JSON.parse(readFileSync(file, 'utf8'));
   } catch (e) {
-    stop(`${join(dir, MANIFEST)}: cannot read it (${e.code ?? e.message}); capture with the manifest subcommand`);
+    stop(`${file}: cannot read it (${e.code ?? e.message}); capture with the manifest subcommand`);
   }
   if (doc?.schema !== SCHEMA || typeof doc.images !== 'object' || doc.images === null) {
-    stop(`${join(dir, MANIFEST)}: not a visual-compare manifest`);
+    stop(`${file}: not a visual-compare manifest`);
   }
   const listed = Object.keys(doc.images).sort();
   const onDisk = pngNames(dir);
@@ -119,8 +121,7 @@ async function compare(v) {
   }
   const diffDir = resolve(v['diff-dir']);
   for (const d of [v.baseline, v.after]) {
-    const real = realpathSync(d);
-    if (inside(diffDir, real) || inside(diffDir, resolve(d))) stop(`--diff-dir must be outside ${d}`);
+    if (inside(diffDir, realpathSync(d)) || inside(diffDir, resolve(d))) stop(`--diff-dir must be outside ${d}`);
   }
   const { pixelmatch, PNG } = await loadDeps(v.deps);
   console.log(`threshold=${THRESHOLD} tolerance=${tolerance} reason=${v.reason}`);
