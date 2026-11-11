@@ -64,7 +64,8 @@ type Reading = { zone: Zone | undefined; degraded: boolean; percent?: number; to
 type Crossing = { kind: 'crossing'; from: string; zone: Zone; degraded: boolean; handedOff?: boolean; shown?: boolean; armedBefore: number }
 type Event =
   | Crossing
-  | { kind: 'restate'; zone: Zone; degraded: boolean; unavailable?: boolean }
+  | { kind: 'restate'; zone: Zone; degraded: boolean; unavailable?: undefined }
+  | { kind: 'restate'; zone: undefined; degraded: true; unavailable: true }
   | { kind: 'approach'; zone: Zone; toward: string }
   // actionOnly: a restatement absorbed the verdict, so only the threshold's action sentence is sent.
   | { kind: 'threshold'; zone: Zone; degraded: boolean; rule: Threshold; actionOnly?: boolean }
@@ -222,19 +223,25 @@ const newSession = (restate: Session['restate']): Session => ({
 export const recordReading = (s: Session, reading: Reading, settings: Settings) => {
   s.reading = reading
   const { zone, percent } = reading
+  // A compacted session has no figures until the next API response: the line says the reading is
+  // unavailable, and the restatement waits for the figures.
+  if (s.restate && reading.degraded && percent === undefined && reading.tokens === undefined) {
+    if (!s.awaiting) s.pending.push({ kind: 'restate', zone: undefined, degraded: true, unavailable: true })
+    s.awaiting = true
+    return
+  }
   if (zone === undefined) return
   if (s.restate) {
-    // A compacted session has no figures until the next API response, so its heavy zone is forced:
-    // the line says the reading is unavailable, and the restatement waits for the figures.
-    if (reading.degraded && percent === undefined && reading.tokens === undefined) {
-      if (!s.awaiting) s.pending.push({ kind: 'restate', zone, degraded: true, unavailable: true })
-      s.awaiting = true
-      return
-    }
     s.awaiting = false
-    if (zone !== 'light') s.pending.push({ kind: 'restate', zone, degraded: reading.degraded })
+    // A compacted session's verdict is restated at any zone, so Claude learns of the compaction.
+    if (zone !== 'light' || reading.degraded) s.pending.push({ kind: 'restate', zone, degraded: reading.degraded })
     s.restate = false
-    s.armed = Math.max(s.armed, RANK[zone])
+    // A compaction frees room, so its cycle restarts at the zone the figures give.
+    if (reading.degraded) {
+      s.armed = RANK[zone]
+      s.fired.clear()
+      s.approached.clear()
+    } else s.armed = Math.max(s.armed, RANK[zone])
     s.last = zone
     for (const t of settings.thresholds) if (percent !== undefined && percent >= t.at) s.fired.add(t.at_percent)
     return
@@ -285,8 +292,8 @@ export const recordReading = (s: Session, reading: Reading, settings: Settings) 
   }
 }
 
-// The verdict as Claude and the person read it: moderate zone (2 of 3), heavy zone (3 of 3, compacted).
-const verdictText = (zone: Zone, degraded: boolean) => `${zone} zone (${RANK[zone] + 1} of 3${degraded && zone === 'heavy' ? ', compacted' : ''})`
+// The verdict as Claude and the person read it: moderate zone (2 of 3), light zone (1 of 3, compacted).
+const verdictText = (zone: Zone, degraded: boolean) => `${zone} zone (${RANK[zone] + 1} of 3${degraded ? ', compacted' : ''})`
 
 const dataText = (r: Reading | undefined, cfg: Config) => {
   const items: string[] = []
@@ -331,7 +338,7 @@ export const renderEvent = (e: Event, s: Session, cfg: Config, settings: Setting
 // Follows the verdict lines once per carrier past light. The verdict alone pushed Claude toward
 // handoffs and terse delegation, so the line names the durable-state step and leaves the rest a choice.
 const OPTIONS =
-  'context-guard: options: record decisions and pending items in a durable file, then continue, /compact, or hand off with /session-flow:handoff, as you and the user choose. A zone never calls for terser output, fewer agents, or lower quality.'
+  'context-guard: options: record decisions and pending items in a durable file, then continue, /compact, or hand off with /session-flow:handoff, as you and the user choose; /context shows what fills the window. A zone never calls for terser output, fewer agents, or lower quality.'
 
 // The verdict lines due at one carrier: a line that another one already starts with (an approach
 // line its crossing repeats, with or without an action after it) is sent once.
@@ -437,8 +444,11 @@ async function refresh($: EngineInterface, st: State) {
   })
   if (!s.compacted && home !== undefined && SESSION_ID.test(sid)) {
     s.compacted = await $.fs.exists(`${home}/.claude/${CONTRACT_DIR}/context/${sid}.compacted`).catch(() => false)
+    // The settings hook's marker alone is reported once, as a compaction is.
+    if (s.compacted) s.restate = true
   }
-  const zone = s.compacted ? 'heavy' : word === 'unknown' ? undefined : word
+  // The zone reports room only; the compaction is reported beside it.
+  const zone = word === 'unknown' ? undefined : word
   const token = tokenShape(body.context_window, body.cli_version, settings.bands)
   body.zone = zone ?? 'unknown'
   body.evidence_degraded = s.compacted
@@ -453,8 +463,8 @@ async function refresh($: EngineInterface, st: State) {
   recordReading(s, reading, settings)
   // A reading with no figures (usage gone at exit, or between responses) never replaces one that had them.
   if (body.context_window.used_percentage !== null || s.body === undefined || s.body.context_window.used_percentage === null) s.body = body
-  // The kept figures still publish a compaction seen since: degraded, and heavy.
-  else if (s.compacted) s.body = { ...s.body, zone: 'heavy', evidence_degraded: true }
+  // The kept figures still publish a compaction seen since.
+  else if (s.compacted) s.body = { ...s.body, evidence_degraded: true }
   st.reading = reading
   const band = bandText(reading)
   if (band !== st.band) {
@@ -477,7 +487,7 @@ async function operatorHolds($: EngineInterface, st: State, cfg: Config) {
 const toastText = (from: string, to: string) => `${from} → ${to} · continue, /compact, /clear or handoff`
 const menuLine = (from: string, to: string) =>
   `context-guard: ${from} → ${to} · options: continue, /compact, /clear, or /session-flow:handoff then /clear · more: /context-guard`
-const menuZone = (zone: Zone, degraded: boolean) => (degraded && zone === 'heavy' ? 'heavy (compacted)' : zone)
+const menuZone = (zone: Zone, degraded: boolean) => (degraded ? `${zone} (compacted)` : zone)
 const noticeShows = (st: State, surface: string) => st.notice !== undefined && (st.notice.kind === 'operator' || surface !== 'terminal')
 
 // The lines a carrier attaches now, consumed; none when none is due or operator mode holds them.
@@ -652,7 +662,7 @@ function stopTimer(timer: Timer | undefined) {
 // The band row: context-guard: <zone> <n>%. The zone comes before the figure, so a cut row still shows it.
 export const bandText = (r: Reading | undefined) => {
   if (r?.percent === undefined) return `${PREFIX}-`
-  const zone = r.zone === undefined ? '' : `${r.degraded && r.zone === 'heavy' ? 'heavy, compacted' : r.zone} `
+  const zone = r.zone === undefined ? '' : `${r.zone}${r.degraded ? ', compacted' : ''} `
   return `${PREFIX}${zone}${r.percent}%`
 }
 
@@ -774,7 +784,7 @@ async function registerSurfaces($: EngineInterface, st: State) {
     $.tool.register({
       name: 'status',
       description:
-        "Returns this session's context-window reading as JSON: `zone` (light, moderate, heavy or unknown; the worse of the percent and token bands decides it), `used_percentage`, input and output token totals, `context_window_size`, the band edges and approach margin in force, `evidence_degraded` (true after a compaction, which forces the zone to heavy). Figures come from the last API response: before the first response and right after a compaction, `used_percentage` and the token totals are null and the zone is unknown (heavy after a compaction), and they never include text added since that response, so they change only when a response arrives. With the model_notices option on (off by default), context-guard also adds a line to the next prompt or tool result when the zone worsens or nears a boundary. Read-only.",
+        "Returns this session's context-window reading as JSON: `zone` (light, moderate, heavy or unknown; the worse of the percent and token bands decides it), `used_percentage`, input and output token totals, `context_window_size`, the band edges and approach margin in force, `evidence_degraded` (true after a compaction; the zone still reports room only). Figures come from the last API response: before the first response and right after a compaction, `used_percentage` and the token totals are null and the zone is unknown, and they never include text added since that response, so they change only when a response arrives. With the model_notices option on (off by default), context-guard also adds a line to the next prompt or tool result when the zone worsens or nears a boundary. Read-only.",
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     }),
     $.command.register({
