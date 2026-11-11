@@ -69,12 +69,11 @@ def github_repo(source: object) -> str | None:
 
 def build_rows(installed: dict, known: dict, manifests: dict[str, dict]) -> list[dict]:
     """Rows to check. ``manifests`` maps a marketplace name to its marketplace.json."""
-    rows: list[dict] = []
-    for name, entry in sorted(known.items()):
-        repo = github_repo(entry.get("source"))
-        rows.append(
-            {"kind": "marketplace", "id": name, "repo": repo, "path": MARKETPLACE_MANIFEST}
-        )
+    rows = [
+        {"kind": "marketplace", "id": name, "repo": github_repo(entry.get("source")),
+         "path": MARKETPLACE_MANIFEST}
+        for name, entry in sorted(known.items())
+    ]
     for key in sorted(installed.get("plugins", {})):
         plugin, _, market = key.partition("@")
         entry = next(
@@ -103,12 +102,10 @@ def build_rows(installed: dict, known: dict, manifests: dict[str, dict]) -> list
 
 def endpoints_for(row: dict) -> dict[str, str]:
     repo, path = row["repo"], row["path"]
-    eps = {"repo": f"repos/{repo}"}
+    path_query = f"path={quote(path, safe='')}&" if path else ""
+    eps = {"repo": f"repos/{repo}", "commits": f"repos/{repo}/commits?{path_query}per_page=1"}
     if path:
-        eps["commits"] = f"repos/{repo}/commits?path={quote(path, safe='')}&per_page=1"
         eps["contents"] = f"repos/{repo}/contents/{quote(path, safe='/')}"
-    else:
-        eps["commits"] = f"repos/{repo}/commits?per_page=1"
     return eps
 
 
@@ -153,12 +150,12 @@ def evaluate(row: dict, fetched: dict[str, tuple[int, object]], today: date) -> 
     if status == 200 and isinstance(body, list) and body:
         stamp = body[0].get("commit", {}).get("committer", {}).get("date", "")
         try:
-            last = datetime.fromisoformat(stamp.replace("Z", "+00:00")).astimezone(timezone.utc)
+            last = datetime.fromisoformat(stamp.replace("Z", "+00:00")).astimezone(timezone.utc).date()
         except ValueError:
             out["unknown"] = out["unknown"] or "unreadable commit date"
         else:
-            out["last_commit"] = last.date().isoformat()
-            out["age_days"] = (today - last.date()).days
+            out["last_commit"] = last.isoformat()
+            out["age_days"] = (today - last).days
             if out["age_days"] >= STALE_DAYS:
                 out["flags"].append("stale")
     elif status == 200:
@@ -206,7 +203,7 @@ def main(argv: list[str] | None = None) -> int:
     if checked and all("(status 0)" in (r["unknown"] or "") for r in checked):
         print(
             "error: no repository could be checked (gh missing, unauthenticated or offline): "
-            + (checked[0]["unknown"] or ""),
+            + checked[0]["unknown"],
             file=sys.stderr,
         )
         return 3
