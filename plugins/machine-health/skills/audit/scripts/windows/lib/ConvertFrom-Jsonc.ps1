@@ -40,35 +40,13 @@ function Remove-JsoncComment {
             $ch = $Text[$i]
 
             if ($escaped) {
-                [void]$builder.Append($ch)
                 $escaped = $false
-                $i++
-                continue
-            }
-
-            if ($inString) {
-                if ($ch -eq '\') {
-                    [void]$builder.Append($ch)
-                    $escaped = $true
-                    $i++
-                    continue
-                }
-                if ($ch -eq '"') {
-                    $inString = $false
-                }
-                [void]$builder.Append($ch)
-                $i++
-                continue
-            }
-
-            if ($ch -eq '"') {
+            } elseif ($inString) {
+                $escaped = $ch -eq '\'
+                $inString = $ch -ne '"'
+            } elseif ($ch -eq '"') {
                 $inString = $true
-                [void]$builder.Append($ch)
-                $i++
-                continue
-            }
-
-            if ($ch -eq '/' -and ($i + 1) -lt $length) {
+            } elseif ($ch -eq '/' -and ($i + 1) -lt $length) {
                 $next = $Text[$i + 1]
                 if ($next -eq '/') {
                     # Line comment - skip to newline (keep the newline for line numbers).

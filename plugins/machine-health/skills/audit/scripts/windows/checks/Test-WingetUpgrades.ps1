@@ -116,16 +116,13 @@ $CheckBody = {
                 foreach ($u in $upgrades) {
                     $upgradeId = "$($u.id)"
                     if ([string]::IsNullOrWhiteSpace($upgradeId)) { continue }
-                    $idLower = $upgradeId.ToLowerInvariant()
-
                     # Exact Id first, then shorter '.'-prefixes, so "Microsoft.WSL.Foo"
                     # also matches "microsoft.wsl".
-                    $segments = $idLower.Split('.')
+                    $segments = $upgradeId.ToLowerInvariant().Split('.')
                     for ($i = $segments.Length; $i -ge 2; $i--) {
-                        $candidate = ($segments[0..($i - 1)] -join '.')
+                        $candidate = $segments[0..($i - 1)] -join '.'
                         if (-not $kevIndex.ContainsKey($candidate)) { continue }
-                        $upgradeString = ("$($u.name) $($u.current_version) " +
-                            "-> $($u.available_version)")
+                        $upgradeString = "$($u.name) $($u.current_version) -> $($u.available_version)"
                         foreach ($vuln in $kevIndex[$candidate]) {
                             $kevMatches.Add([pscustomobject]@{
                                     upgrade_id  = $u.id
