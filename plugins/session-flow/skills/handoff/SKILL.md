@@ -86,15 +86,13 @@ response, the save-point does not exist and STOP has not been reached.
 - [ ] Path chosen (full vs prompt-only) per the engine doc
 - [ ] Copy/paste resume prompt emitted between two dashed rails (engine doc, "Emit the copy/paste
   resume prompt"), the box that is never satisfied by having written the file
-- [ ] `/clear`-then-paste instruction surfaced to the user (a forked side task: paste into a new
-  session instead, with no `/clear`)
+- [ ] `/clear`-then-paste instruction surfaced to the user (a forked side task: new session instead)
 - [ ] **STOP.** No further work items, no next phase, no follow-on skill, no commit/push. The
   session ends as far as the task is concerned. Reachable only once the box above is genuinely
   ticked, never as the act that replaces it. The one exception to "no commit" is the opt-in
   `chore(wip):` commit in "WIP commit on an explicit pause" below, made before the save-point is
   written and never pushed. An `amend` for an event that lands after emit ("Late events after
   emit" below) is not further work: it repairs the save-point. A forked side task skips this box
-  (the exceptions below the list)
 
 **Not authorization to continue (these all stop):**
 
@@ -114,10 +112,9 @@ Two exceptions:
 - The user, or the calling skill's step, names the handoff as a side task split off from the
   current task, in the request or the purpose text. Never infer it: without that naming, a handoff
   stops. The save-point covers only the side task; after the rails prompt, this session keeps
-  working its own task and never starts the side task. The `below-rail` slot (prompt-only: one
-  line below the rails) says to paste the prompt into a new session without `/clear`, and the
-  worktree claims this session keeps stay with it ("Hand worktree claims to the resuming
-  session").
+  working its own task and never starts the side task. The `below-rail` slot (prompt-only: a line
+  below the rails) says to paste into a new session without `/clear`; claims stay (see "Hand
+  worktree claims").
 
 ## When to invoke
 
@@ -256,8 +253,7 @@ reason stated. Never a hand-written handoff file when the script could have run.
 
 This skill's delivery step is the engine's default exit: the rails resume prompt with the
 "`/clear`, then copy everything between the dashed lines" instruction above the top rail. The user
-types `/clear` and pastes; nothing is launched on their behalf. A forked side task is pasted into a
-new session with no `/clear` (the hard rule's exceptions).
+types `/clear` and pastes; nothing is launched on their behalf. A forked side task: a new session.
 
 ## Late events after emit
 
@@ -407,9 +403,8 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   re-arming EVERY surviving loop, one
   `/loop [<interval>] <original prompt>` line per loop, each its own follow-up message (engine
   doc, "Emit the copy/paste resume prompt")
-- [ ] **EXECUTION STOPS HERE** (a forked side task: the side task is what stops, per the hard
-  rule's exceptions), the rails prompt and its below-rail notes follow these ticks as
-  the response's final text (see "Output order is fixed" above)
+- [ ] **EXECUTION STOPS HERE** (for a forked side task, only the side task), the rails prompt and
+  its below-rail notes follow these ticks as the response's final text ("Output order is fixed")
 
 **Prompt-only path:**
 
@@ -461,8 +456,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   (OR an explicit statement that none were spawned and none were inherited, or that every
   one was cancelled). Named subagents stay live and addressable across `/clear`; prompt-only
   writes no file, so the leftover list travels in the prompt or not at all.
-- [ ] **EXECUTION STOPS HERE** (a forked side task: the side task is what stops, per the hard
-  rule's exceptions). "Small enough" means the prompt captures the work, NOT "small
+- [ ] **EXECUTION STOPS HERE** (for a forked side task, only the side task). "Small enough" means the prompt captures the work, NOT "small
   enough to skip `/clear` and finish in-session"; the rails prompt and its below-rail notes follow
   these ticks as the response's final text (see "Output order is fixed" above)
 
