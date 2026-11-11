@@ -65,8 +65,6 @@ When the first wake prompts for permission, offer the user one allow rule, `Bash
 
 - **Decision:** the wake is one `wake.sh` command so that a single prefix rule covers it, a bare `watch.sh` re-arm gets its own rule, and the rule's prefix keeps the command's quotes exactly as written. How a prefix rule matches a compound command and what part of a pattern is matched literally are read live.
 - **Pointer:** [permissions: compound commands](https://code.claude.com/docs/en/permissions#compound-commands) and [permissions: wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns).
-- **As of:** 2026-10-11.
-- **Recheck trigger:** a change to that page's "Compound commands" or "Wildcard patterns" section, or a wake that prompts again after the rule is in place.
 
 `ops.json` is `{"ops": [...]}`; each op's fields are in the table below, and the full shapes are in `'<surface_dir>/schema/ops.schema.json'`:
 

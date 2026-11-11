@@ -65,9 +65,6 @@ triangular flow).
 - **Pointer**: [`gh repo set-default`](https://cli.github.com/manual/gh_repo_set-default),
   [`gh repo clone`](https://cli.github.com/manual/gh_repo_clone) and
   [`gh help environment`](https://cli.github.com/manual/gh_help_environment) (`GH_REPO`).
-- **As of**: 2026-11-11, gh 2.103.3.
-- **Recheck trigger**: a gh release note that changes how commands pick the base repository or
-  what `gh repo set-default --view` prints.
 
 ## Resolve a pull request
 
@@ -152,9 +149,8 @@ text, and a quote, `$(…)` or backtick inside it can break out of an inline she
 A cloud session behind the GitHub proxy is served no GraphQL operation: every GraphQL request gets
 `HTTP 403`, whatever token is set. Pointer:
 [Configure cloud environments § GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy).
-As-of: 2026-10-11. Recheck trigger: that section changes its GraphQL entry, or a release note names
-the GitHub proxy. `gh pr view --json`, `gh repo view --json`, `gh pr create`, `gh pr ready`
-and `gh pr merge` all run over GraphQL. The 403 looks like an expired token or a missing scope but
+`gh pr view --json`, `gh repo view --json`, `gh pr create`, `gh pr ready` and `gh pr merge` all
+run over GraphQL. The 403 looks like an expired token or a missing scope but
 is neither: switch to the REST route the spoke names rather than re-authenticating. Probe
 read-only:
 
@@ -175,8 +171,7 @@ restriction is handled in the pull-request skill's `create.md` §2.4.0 and the
 ## Draft stage
 
 A draft cannot merge until it is marked ready
-([changing the stage of a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/changing-the-stage-of-a-pull-request),
-read 2026-10-11; recheck when GitHub changes the draft-stage rules).
+([changing the stage of a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/changing-the-stage-of-a-pull-request)).
 
 ## API budget
 

@@ -39,5 +39,3 @@ target, an unattended agent invented one silently.
 - **Pointer**: ISO/IEC 25010:2023, Foreword, "The main changes are as follows"
   (<https://www.iso.org/standard/78176.html>; the Foreword is readable in the preview at
   <https://cdn.standards.iteh.ai/samples/78176/13ff8ea97048443f99318920757df124/ISO-IEC-25010-2023.pdf>).
-- **As of**: 2026-10-18
-- **Recheck trigger**: ISO publishes an amendment or a new edition of ISO/IEC 25010.

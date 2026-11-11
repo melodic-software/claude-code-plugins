@@ -91,10 +91,6 @@ protection.
   live. When reading a base's strict setting from rulesets, fetch the
   [rules for a branch](https://docs.github.com/en/rest/repos/rules#get-rules-for-a-branch)
   endpoint live.
-- **As of**: 2026-10-04
-- **Recheck trigger**: either docs section changing what the loose or strict setting or a merge
-  queue guarantees, or the rules-for-a-branch endpoint renaming or reshaping the field the code
-  reads for the strict setting.
 
 ## Orchestrator-Only Refresh Procedure
 
@@ -112,9 +108,6 @@ Only the orchestrator may refresh a branch:
    discard it.
    - **Pointer**: the rebase and recreate commands, in
      [Dependabot pull request comment commands](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-pull-request-comment-commands#commands-for-dependabot-pull-requests).
-   - **As of**: 2026-10-24.
-   - **Recheck trigger**: that section changes what rebase or recreate does to a branch that
-     carries another author's commits.
 2. Run the guarded helper, which uses GitHub's default merge update and `expected_head_sha`
    optimistic locking:
 

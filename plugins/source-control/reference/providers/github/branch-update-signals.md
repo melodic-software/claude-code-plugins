@@ -26,9 +26,6 @@ token without access to protection therefore reads `unknown`, never `no`.
   classic protection, fetch
   [Get status checks protection](https://docs.github.com/en/rest/branches/branch-protection#get-status-checks-protection)
   live.
-- **As of**: 2026-11-08
-- **Recheck trigger**: either section renames or removes `mergeable`, `mergeable_state`, `stack` or
-  `strict`.
 
 ## Commits and reviews
 
@@ -41,9 +38,6 @@ its state is `APPROVED`, `CHANGES_REQUESTED` or `COMMENTED`.
   [List commits on a pull request](https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request)
   live; for reviews, fetch
   [List reviews for a pull request](https://docs.github.com/en/rest/pulls/reviews#list-reviews-for-a-pull-request).
-- **As of**: 2026-11-08
-- **Recheck trigger**: the commit list's maximum changes, or a review's `commit_id` or user type
-  changes shape.
 
 ## Behind
 
@@ -52,8 +46,6 @@ name for the reason [freshness](babysit-prs/freshness.md) records.
 
 - **Pointer**: when compare's fields or its `basehead` forms are in question, fetch
   [Compare two commits](https://docs.github.com/en/rest/commits/commits#compare-two-commits) live.
-- **As of**: 2026-11-08
-- **Recheck trigger**: that section changes `behind_by` or the `basehead` forms.
 
 ## Rules
 
@@ -63,9 +55,6 @@ segment.
 
 - **Pointer**: when a rule's type or parameters are in question, fetch
   [Get rules for a branch](https://docs.github.com/en/rest/repos/rules#get-rules-for-a-branch) live.
-- **As of**: 2026-11-08
-- **Recheck trigger**: that section renames `non_fast_forward`, `merge_queue`, `merge_method` or
-  `strict_required_status_checks_policy`.
 
 ## Landing
 
@@ -77,8 +66,6 @@ uses the built-in list and `human_review` the account type and `[bot]` suffix.
 
 - **Pointer**: when the JSON fields are in question, fetch
   [gh repo view: JSON fields](https://cli.github.com/manual/gh_repo_view#json-fields) live.
-- **As of**: 2026-11-08
-- **Recheck trigger**: `gh repo view` renames a merge-method field.
 
 ## Branch-only mode
 
@@ -90,6 +77,3 @@ fields, so the pointer is the source.
 - **Pointer**: when the record's location or fields are in question, fetch
   [gh-stack's stack file](https://github.com/github/gh-stack/blob/main/internal/stack/stack.go)
   live.
-- **As of**: 2026-11-08
-- **Recheck trigger**: a docs page starts covering the record's file name or fields, or gh-stack
-  renames the file or its `stacks`, `branches` or `branch` fields.

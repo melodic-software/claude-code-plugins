@@ -725,8 +725,6 @@ Upstream link formats (volatile; read the pages, never copy their limits here):
 - Claude Desktop `claude://code/new` and `claude://claude.ai/new`, and their `q` limit:
   <https://support.claude.com/en/articles/14729294-open-claude-desktop-with-a-link>.
 - claude.ai on the web documents no prefill link, so the web uses Copy prompt.
-- As of 2026-10-17. Recheck when either page changes a format or limit, when claude.ai documents a
-  web prefill link, or when a link opens with its prompt sent rather than filled in.
 
 ## Uploads
 

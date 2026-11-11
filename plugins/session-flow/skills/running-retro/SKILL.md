@@ -44,8 +44,7 @@ No arming at session start for the default in-session checkpoint. A checkpoint r
 transcript on disk (`<session-id>.jsonl`) with `/session-flow:retro`'s parser rather than parsing
 anew. When checking what that transcript records, fetch
 [Work with sessions](https://code.claude.com/docs/en/how-claude-code-works#work-with-sessions)
-live (as of 2026-11-03; recheck when that section changes what the local session file records or
-where it lives). Invoke a checkpoint any time. (The `arm`
+live. Invoke a checkpoint any time. (The `arm`
 action and its opt-in SessionStart hook are the exception: they arm a detached observer to run the
 checkpoint *after* the session ends; see "Arming a detached observer" below.)
 
@@ -67,13 +66,10 @@ exists for this session, record that too. It outranks a healthy-feeling self-rea
 ### 2. Resolve inputs for the subagent
 
 The analysis runs in a **fresh subagent**, which we treat as seeing none of this conversation,
-the skills invoked, or files read (pointer: [Create custom subagents § What loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup);
-as of 2026-10-11; recheck trigger: that section adds parent conversation to what a subagent
-loads). So resolve
-every input to a concrete value and pass it in the delegation prompt, never a
+the skills invoked, or files read (pointer: [Create custom subagents § What loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)).
+So resolve every input to a concrete value and pass it in the delegation prompt, never a
 `${CLAUDE_PLUGIN_ROOT}` token (where that token expands:
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>; as of
-2026-11-10; recheck trigger: that section adds a delegation prompt to where the token expands):
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>):
 
 - **Session data dir + transcript + subagents dir**. Resolve per the retro skill's "Paths"
   (`${CLAUDE_PLUGIN_ROOT}/skills/retro/SKILL.md`); transcript is `<SESSION_DATA_DIR>/<session-id>.jsonl`,
@@ -193,8 +189,7 @@ First resolve these into shell variables the block below reads. A skill runs **i
 config from the **rendered `${user_config.observer_*}` values** (an unexpanded token or empty = the
 default), never from the `CLAUDE_PLUGIN_OPTION_*` env vars the hook uses (where each form resolves:
 [Plugin manifest reference § User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
-and [§ Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves);
-as of 2026-10-11; recheck trigger: either section changes where a saved option reaches):
+and [§ Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)):
 
 - `OBS_MODEL` ← `${user_config.observer_analysis_model}`; `OBS_EFFORT` ←
   `${user_config.observer_analysis_effort}`. Leave either empty for its default: the observer reads
@@ -247,9 +242,7 @@ Manual checkpoint by default. Composes with `/loop` for periodic checkpoints acr
 running-retro ships no scheduler of its own. It is non-terminating. After routing, the underlying
 task continues in this same session. The detached observer (`arm`) is the push/end-of-life
 counterpart. When checking when a `/loop` task stops firing, fetch
-[scheduled tasks, Limitations](https://code.claude.com/docs/en/scheduled-tasks#limitations) live
-(as of 2026-11-03; recheck when that section changes whether session-scoped tasks fire after the
-session exits).
+[scheduled tasks, Limitations](https://code.claude.com/docs/en/scheduled-tasks#limitations) live.
 
 ## What this skill does NOT do
 

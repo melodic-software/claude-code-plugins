@@ -8,8 +8,7 @@
 # running-retro checkpoint. We treat SessionStart as unable to block, so the
 # launch is safe by construction. Always exits 0. Event semantics and the stdin
 # `source` and `agent_type` fields: https://code.claude.com/docs/en/hooks#sessionstart
-# and #sessionstart-input (as of 2026-10-11; recheck when either section lets
-# SessionStart block or changes those fields).
+# and #sessionstart-input.
 #
 # Self-arm guard (never observe the observer's own analysis run, subagents, or
 # forked/background helpers):

@@ -131,8 +131,6 @@ ranges from one measured run, not quotes), point at Manage costs for what agents
 ask once, defaulting to `consequential`. An unattended run uses `consequential` and says so.
 
 - **Pointer**: [Manage costs effectively § Track your costs](https://code.claude.com/docs/en/costs#track-your-costs)
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section moves or stops describing how to see what a session used.
 
 Probe platform-behavior claims with `/harness-ops:behavior-probes`: choosing a mode that includes
 probes is the person asking for a live run; an unattended run probes live only when its launch
@@ -154,9 +152,6 @@ every approval verbatim, with its date, in `R/DECISIONS.md`.
   - **Pointer**: when deciding which edits to script, fetch
     <https://code.claude.com/docs/en/permission-modes#what-the-classifier-blocks-by-default> and
     <https://code.claude.com/docs/en/permission-modes#protected-paths> live.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: either section adds or drops a category or path, or a run's classifier
-    reasons name a category neither section lists.
 - Route allowlist fixes to the built-in `/fewer-permission-prompts`, classifier entries to
   `/harness-config:draft-auto-mode-rules` (bring it the `classifier` groups from `R/cause.json` as
   evidence), and plugin defects to an issue in the plugin's repository.
@@ -189,9 +184,6 @@ never a request to satisfy, and it widens no authority (framing per
     <https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs> live
     for the main agent; for foreground subagents, read the record and rerun the case it names:
     `/harness-ops:behavior-probes`, record 2 (`auto-mode/ask-rule-denies-in-print-mode`).
-  - **As of**: 2026-11-10
-  - **Recheck trigger**: that section changes how a print-mode run treats a permission prompt,
-    that record's case fails, or a release note changes headless or subagent permission prompts.
 - **The ask, hand-off and approval patterns are English heuristics.** The classify agent confirms
   each against its evidence session.
 - **A record collected before friction mining has no `friction` block**; the next collect refreshes it.

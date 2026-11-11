@@ -68,10 +68,6 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   - **Pointer**: [Create custom subagents § Resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents)
   - **Evidence**: the `TaskStop` rule and its empirical probe are our own record,
     [orchestrate sources § SendMessage worker continuation](../../orchestrate/context/sources.md#sendmessage-worker-continuation)
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: that section changes which stopped subagents a message resumes, a
-    release note changes subagent lifetime across `/clear`, or the orchestrate record changes its
-    `TaskStop` rule or probe.
 - **Writing the save-point while work it describes is still running.** A subagent whose result
   the handoff depends on returns seconds after the file is written; its result lands in the old
   session, and the brief, criteria, Environment and `Next:` now describe settled work as in
@@ -100,10 +96,6 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
     for which tasks a resume restores;
     [Commands § Commands across a typical workflow](https://code.claude.com/docs/en/commands#commands-across-a-typical-workflow),
     the introduction paragraph before that section that says where a command is recognized.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: the Limitations section changes which tasks a resume restores, the
-    Commands introduction changes where a command is recognized, or a release note names
-    session-scoped scheduled tasks or `/loop` across `/clear`.
 - **A `/goal ...` first line inside the pasted block.** The Commands page recognizes a command
   only at the start of a message (pointer below), so a `/goal <condition>` line pasted inside a
   rails prompt sets nothing, while the handoff looks complete. The
@@ -114,6 +106,3 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
     for the command syntax and the active-goal indicator;
     [Commands § Commands across a typical workflow](https://code.claude.com/docs/en/commands#commands-across-a-typical-workflow),
     the introduction paragraph before that section that says where a command is recognized.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: the Set a goal section changes the `/goal` syntax or the indicator, or
-    the Commands introduction changes where a command is recognized.

@@ -27,9 +27,6 @@ approval to change the target.
 
 - **Pointer**: for how a subcommand workflow is started, see
   <https://code.claude.com/docs/en/skills#work-on-claude-api-projects>.
-- **As of**: 2026-10-01
-- **Recheck trigger**: a docs page states whether the model may start a `/claude-api` subcommand
-  workflow.
 
 ## Whether it can drive a `claude plugin eval` suite
 

@@ -56,8 +56,7 @@ Sources: Jimmy Bogard,
 [Vertical Slice Architecture](https://www.jimmybogard.com/vertical-slice-architecture/) (2018);
 Martin Fowler,
 [Is High Quality Software Worth the Cost?](https://martinfowler.com/articles/is-quality-worth-cost.html#HighQualitySoftwareIsCheaperToProduce)
-(2019), "High quality software is cheaper to produce". As of 2026-10-18; recheck when either page
-moves or changes.
+(2019), "High quality software is cheaper to produce".
 
 ## Investment by subdomain
 
@@ -87,6 +86,3 @@ Generic Subdomains. Sources:
   (O'Reilly, 2021), ch. 1, "Types of Subdomains" (secondary for the chapter contents: a
   [bookseller listing](https://www.schweitzer-online.de/ebook/Khononov/Learning-Domain-Driven-Design/9781098100100/A62801026/),
   because the publisher page refuses an unauthenticated fetch).
-
-As of 2026-10-18; recheck when a cited page moves or changes, or a recheck reaches Khononov's
-chapter through the publisher.

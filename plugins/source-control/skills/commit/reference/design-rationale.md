@@ -23,8 +23,6 @@ sources 1 and 2 still decide.
 
 - **Pointer**: the `attribution.text` row of the
   [mods reference, "Prompts and what Claude reads"](https://code.claude.com/docs/en/plugins/mods/reference#prompts-and-what-claude-reads)
-- **As of**: 2026-11-03
-- **Recheck trigger**: that row changes or is removed
 
 ## Key spelling
 

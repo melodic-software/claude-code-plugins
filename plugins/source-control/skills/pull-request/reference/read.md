@@ -32,8 +32,7 @@ gate scans) reads them from the file, not from a copy of tool output.
   whose `isCrossRepository` is `false`. `--head-match` keeps the PRs whose head branch matches the ERE. `--search` keeps the PRs the
   forge's text search matches, such as those whose text mentions a work item's reference.
   - **Pointer**: when checking whether the forge's head filter can name a head repository, fetch
-    the `--head` option of [gh pr list](https://cli.github.com/manual/gh_pr_list) live. **As of**:
-    2026-10-27. **Recheck trigger**: a gh release note changes `gh pr list --head`.
+    the `--head` option of [gh pr list](https://cli.github.com/manual/gh_pr_list) live.
 - **`review-comments`** prints one JSON object per kept comment of the last `<n>` merged PRs
   (2 to 200), newest merge first: `pr`, `source`, `author`, `kind` (`review` body or `inline`),
   `path`, `line`, `body`. `source` is `human` (an owner, member or collaborator of the repository,

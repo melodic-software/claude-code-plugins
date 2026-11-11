@@ -193,6 +193,5 @@ as well. Why every link and not a list of names: [records.md](records.md#sandbox
   cannot dial (`docker context ls` on a WSL2 host). Docker's
   [WSL 2 backend](https://docs.docker.com/desktop/features/wsl/) page covers the integration but
   not the links.
-- **As of:** 2026-11-05.
 - **Recheck when:** Docker Desktop's WSL integration changes how it writes `~/.docker`, or the
   WSL CLI's default context changes.

@@ -15,9 +15,8 @@ is asked, stated, or blocked before the confirmation gate.
 
 A fresh-context (non-fork) sub-agent, so it does not inherit the reasoning that produced the
 recommendations. Request any subagent type but `fork`. What each kind starts from, and when a
-fork is spawned: [How forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents), as of
-2026-11-10; recheck when that section changes what a non-fork subagent starts from, or when a
-request that names no type can yield a fork. Hand it:
+fork is spawned: [How forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents).
+Hand it:
 
 - the ledger: `## Constraint ledger`, `## Open-question register`, and the decision tree;
 - every recommendation as asked, with its `Checked against:` line and `Commits you to:` parts;

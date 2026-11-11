@@ -406,9 +406,6 @@ Which task tools exist and which sessions get them are upstream facts we do not 
   subagent) will have, fetch
   [Task tool availability](https://code.claude.com/docs/en/tools-reference#task-tool-availability)
   live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section changes which task tools exist, or which sessions, models, or
-  opt-ins get them.
 
 Format when there is a list:
 
@@ -772,9 +769,6 @@ checkout run), `new` refuses and asks for an explicit `--memory-dir`.
 - **Pointer**: [Plugin manifest reference § Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
   and [§ Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves),
   for the data-dir layout and which processes receive the variable.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either section changes the data-dir layout, where the variable
-  substitutes, or which processes receive it.
 
 `fill` prints nothing and exits 0 once every required slot is keyed and no key names a slot the
 file does not carry. It exits 1 when it refuses: a required slot absent from the JSON, a key
@@ -854,9 +848,6 @@ carry each variable, and the form of its value, are upstream facts: read them li
 
 - **Pointer**: [Environment variables § Variables](https://code.claude.com/docs/en/env-vars#variables),
   the `CLAUDE_CODE_SESSION_ID` and `CLAUDE_CODE_BRIDGE_SESSION_ID` rows.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either row changes which subprocesses carry the variable or the form of its
-  value.
 
 `transcript` is the session's own on-disk
 record, resolved from the transcript location the docs give and `stat`ed at write; when the lookup
@@ -865,8 +856,6 @@ misses, the honest `unresolved (…)` value is stored (WARN on validate, FAIL un
 
 - **Pointer**: when resolving where a session's transcript lives, fetch
   [Application data](https://code.claude.com/docs/en/claude-directory#application-data) live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section moves or renames the conversation transcript path.
 
 `previous_handoff` (the prior file's bare name, relative to the handoff directory, never a
 `handoffs/`-prefixed path) is the backward chain pointer. The walker resolves the prior session's

@@ -37,7 +37,7 @@ invocable from inside a worktree. The composition record is the
 
 - **Pointer**: when an isolated session refuses a git command, fetch
   [How Claude Code enforces isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation)
-  live. **As of**: 2026-11-10. **Recheck trigger**: that section changes its command-shape check.
+  live.
 
 ## Why every probe anchors at `:/`
 

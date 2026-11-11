@@ -30,5 +30,4 @@ Emitted beside the condition when Step 0.5 ran. One line each:
 - **Readiness**: each condition with its evidence, and any "no" left open.
 
 The pre-run questions these lines answer, and the flags that cap turns and spend:
-<https://code.claude.com/docs/en/best-practices#let-claude-run-without-you>, as of 2026-11-09;
-recheck when that section changes its pre-run questions.
+<https://code.claude.com/docs/en/best-practices#let-claude-run-without-you>.

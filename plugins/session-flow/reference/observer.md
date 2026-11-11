@@ -101,8 +101,8 @@ pass an empty value when the option is unset, and `observer.py` reads the manife
 defaults were chosen for faithful findings: in a four-session local pilot against Haiku 5.5 high,
 Sonnet 5.5 medium and Sonnet 5.5 high, they missed the fewest important findings and invented the
 fewest events. The model is a full ID on purpose, so it does not move when an alias does: see
-[model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases), as of
-2026-10-31; recheck on a new model release, by rerunning that pilot.
+[model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases). Rerun
+that pilot on a new model release.
 
 The run always passes `--effort`, even at the default, and also passes
 `--settings '{"env":{"CLAUDE_CODE_EFFORT_LEVEL":"<effort>"}}'`. That variable overrides `--effort`,
@@ -117,9 +117,7 @@ about fourfold without the `--settings` pin and returned to the `low` range with
 `env` replaces the inherited value; `--settings` outranks user, project and local settings; the levels
 a model accepts depend on the model. Basis: <https://code.claude.com/docs/en/env-vars#precedence>,
 <https://code.claude.com/docs/en/settings#settings-precedence> and
-<https://code.claude.com/docs/en/model-config#adjust-effort-level>. As of: 2026-10-10. Recheck: any
-of those sections changes the precedence between the variable, the flag and the settings levels, or
-the levels a model accepts.
+<https://code.claude.com/docs/en/model-config#adjust-effort-level>.
 
 ## When a run counts as failed
 

@@ -29,9 +29,7 @@ a run, because each one costs a paid pass to discover afterwards.
 - [ ] The run can locate the eval dir: it sits where the CLI looks by default, or the plugin
       records where it is. Keep the run's results out of git. Where the CLI looks and how a plugin
       records another directory:
-      [Use a different eval directory](https://code.claude.com/docs/en/plugin-evals#use-a-different-eval-directory),
-      as of 2026-11-03. Recheck trigger: that section changes the default directory or how another
-      one is recorded.
+      [Use a different eval directory](https://code.claude.com/docs/en/plugin-evals#use-a-different-eval-directory).
 - [ ] Each case is a directory with `prompt.md`, `case.yaml`, or both. A loose file is not a case.
 - [ ] Grader names are unique within the case. Duplicates are rejected at load, which exits 1 and
       looks exactly like a failing case.
@@ -39,9 +37,7 @@ a run, because each one costs a paid pass to discover afterwards.
 ## Precedence
 
 - [ ] Which file wins when both are present, what `case.yaml` requires, and which fields exist
-      only there: [case.yaml fields](https://code.claude.com/docs/en/plugin-evals#case-yaml-fields),
-      as of 2026-10-07. Recheck trigger: that section's precedence sentence or its only-in-`case.yaml`
-      table changes.
+      only there: [case.yaml fields](https://code.claude.com/docs/en/plugin-evals#case-yaml-fields).
 - [ ] Author one or the other per field; two sources for one value is how a suite starts
       measuring something nobody intended.
 
@@ -49,8 +45,7 @@ a run, because each one costs a paid pass to discover afterwards.
 
 Nothing on the authoring machine reaches a run unless the case routes it in. What a run starts
 with and what it withholds:
-[How runs are isolated](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated), as of
-2026-11-03. Recheck trigger: that section changes what a run starts with or loads.
+[How runs are isolated](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated).
 
 - [ ] Anything the task needs is routed into the case explicitly: in the prompt body, in
       `context.add_dirs`, or written by `context.scaffold_script`.
@@ -74,8 +69,7 @@ with and what it withholds:
       skill produces before that write, or recorded as unmeasured. Why the write is denied:
       [Protected paths](https://code.claude.com/docs/en/permission-modes#protected-paths) (the
       `dontAsk` row and the `permissions.allow` paragraph) with
-      [Grant tools](https://code.claude.com/docs/en/plugin-evals#grant-tools), as of 2026-11-01.
-      Recheck trigger: either section changes.
+      [Grant tools](https://code.claude.com/docs/en/plugin-evals#grant-tools).
 - [ ] A case that tests settings seeds them in the workspace with `context.scaffold_script` and
       points the prompt at that scope. The gate fails a denied read of the run's own settings,
       because it can change what the skill reports.
@@ -91,8 +85,7 @@ with and what it withholds:
       `tool_order`, `file_exists`) wherever one can decide the expectation, and grade long output
       with a `regex` over the file's contents rather than a judge. What each type costs and how a
       judge decides: [Grader types](https://code.claude.com/docs/en/plugin-evals#grader-types) and
-      [Choose graders that give a stable signal](https://code.claude.com/docs/en/plugin-evals#choose-graders-that-give-a-stable-signal),
-      as of 2026-11-03. Recheck trigger: either section changes a type's cost or how a judge votes.
+      [Choose graders that give a stable signal](https://code.claude.com/docs/en/plugin-evals#choose-graders-that-give-a-stable-signal).
 - [ ] A grader that cannot pass without the plugin (a `tool_used` on `tool: Skill`, or anything
       `arm: with-only`) is excluded from scoring in both arms and reported as an indicator. Use
       `arm: both` when the check must score in both arms, which a must-not-invoke check
@@ -130,9 +123,6 @@ and check what that target holds before writing a pattern or a criterion against
   fetch
   [What a grader can look at](https://code.claude.com/docs/en/plugin-evals#what-a-grader-can-look-at)
   live for what each target holds, the default target, and the judge's trace window.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section adds or renames a target, changes what one holds or the
-  default, or changes how much of a trace the judge reads.
 
 ## Mocks
 
@@ -140,9 +130,7 @@ and check what that target holds before writing a pattern or a criterion against
       server as the MCP row of [SKILL.md](../SKILL.md) allows. Where a mock file goes, what a
       missing one does, and what a real server needs:
       [Mock MCP servers](https://code.claude.com/docs/en/plugin-evals#mock-mcp-servers) and the
-      `--mocks` rows of [Command options](https://code.claude.com/docs/en/plugin-evals#command-options),
-      as of 2026-11-03. Recheck trigger: either changes where a mock lives, what a missing mock
-      does, or how a real server is enabled.
+      `--mocks` rows of [Command options](https://code.claude.com/docs/en/plugin-evals#command-options).
 - [ ] An agent mock with no committed `mocks/.replay/` recording is a reproducibility defect: the
       answer comes from a fresh model call every run, so the case cannot be compared with itself.
       Commit the recording with the rest of `mocks/`.
@@ -157,10 +145,6 @@ reports the same as FAIL.
 
 - **Pointer**: when writing or checking a case's frontmatter, fetch
   [`prompt.md` fields](https://code.claude.com/docs/en/plugin-evals#prompt-md-fields) live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section gains or loses a key, a default or bound changes, or the
-  binary's validator rejects a case the static validator passed. Then re-derive the validator's
-  FAIL tier with it.
 
 Which grants need a sandbox backend is the CLI's rule too, and this checklist never lists the
 tools.
@@ -168,9 +152,6 @@ tools.
 - **Pointer**: when a case grants a tool outside the read-only set, fetch
   [Grant tools](https://code.claude.com/docs/en/plugin-evals#grant-tools) live for which grants
   run sandboxed and what each platform needs for a sandbox backend.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section changes which grants run under the sandbox or what a platform
-  needs for the backend, or a run is refused for a grant that section does not name.
 
 - [ ] `runs`, `max_turns`, and `timeout_seconds` are inside their bounds. Hitting `max_turns` is a
       run error, not a low score.
@@ -179,8 +160,7 @@ tools.
       grant;
       anything else needs `--allow-tools`, and a grant that runs sandboxed also needs a sandbox
       backend on the machine (the Grant tools record above, in
-      [Frontmatter bounds](#frontmatter-bounds); it has no heading of its own. As of 2026-10-11.
-      Recheck trigger: that record moves or stops naming the backend).
+      [Frontmatter bounds](#frontmatter-bounds); it has no heading of its own).
 - [ ] `tags` are set when the suite will ever be filtered. A case runs if **any** of its tags match.
 
 Run the static validator before every paid pass; it checks the bounds above with no model call.
@@ -204,9 +184,7 @@ What the hub's "Calibrating a judge" commands do with a case's `samples/<grader>
 ## Common mistakes
 
 Check each of the next four against the two pointer records in [Graders](#graders) (they have no
-heading of their own): the targets record and the grader-types record. As of 2026-11-03. Recheck
-trigger: either record moves, or its section changes what a target holds, the default target, how
-a `regex` takes flags, or which files `file_exists` counts.
+heading of their own): the targets record and the grader-types record.
 
 - `target: files` where a file's contents were meant.
 - Assuming which target is the default.
@@ -233,4 +211,4 @@ a `regex` takes flags, or which files `file_exists` counts.
   writes. Replace a paid `llm` grader with a deterministic one wherever one can decide the case.
   When checking what the scaffold writes, fetch
   [Write a case manually](https://code.claude.com/docs/en/plugin-evals#write-a-case-manually)
-  live. As of 2026-10-11. Recheck trigger: that section changes what `init --bare` writes.
+  live.

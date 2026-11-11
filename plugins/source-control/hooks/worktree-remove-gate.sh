@@ -46,10 +46,6 @@
 # Claim: the contract bullets above.
 # Basis: <https://code.claude.com/docs/en/hooks#worktreeremove> and
 #   <https://code.claude.com/docs/en/hooks#worktreeremove-input>.
-# As-of: 2026-10-26.
-# Recheck trigger: a Claude Code release note naming WorktreeRemove, or that
-#   section changing what an exit code means, the input fields, or which
-#   removals fire the event.
 # ───────────────────────────────────────────────────────────────────────────────
 
 set -uo pipefail

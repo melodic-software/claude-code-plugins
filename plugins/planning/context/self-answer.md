@@ -78,8 +78,7 @@ answered normally.
 How a user connects an MCP server or a claude.ai connector:
 [MCP: installing MCP servers](https://code.claude.com/docs/en/mcp#installing-mcp-servers) and
 [MCP: use MCP servers from claude.ai](https://code.claude.com/docs/en/mcp#use-mcp-servers-from-claude-ai);
-`/mcp` shows what is connected. As of 2026-10-11. Recheck when those sections are renamed or the
-way to connect changes.
+`/mcp` shows what is connected.
 
 **Unattended runs never offer and never wait.** Each fact that needs access the run lacks is a
 named blocker in the run's output, naming the system and how to connect it. The run continues

@@ -75,14 +75,12 @@ sessions in the same project. Read-only, because it cannot control them.
      retired while one of its tasks is pending that confirmation. When judging
      why a finished worker is still listed, fetch
      [Finished subagents in the panel and task list](https://code.claude.com/docs/en/sub-agents#finished-subagents-in-the-panel-and-task-list)
-     live (as of 2026-11-03; recheck when that section changes how long a
-     finished subagent stays listed or what keeps it there).
+     live.
    Reconcile **this session's own** ledger only. A spawned subagent that holds
    a task list of its own keeps it out of the parent's view; do not attempt to
    reconcile it. Whether a subagent has the task-tracking tools at all is
    [tools reference: task-tracking tools in subagents and agent teams](https://code.claude.com/docs/en/tools-reference#task-tracking-tools-in-subagents-and-agent-teams)'s
-   to state (as of 2026-11-01; recheck when that section changes which
-   sessions or models have them).
+   to state.
 4. **Sibling-session liveness, read-only inventory.** Report, but do not
    touch, other sessions in this project. Resolve the project's session-data
    directory per the retro skill's "Paths"

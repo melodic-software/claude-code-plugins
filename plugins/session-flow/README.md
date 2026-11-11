@@ -137,9 +137,8 @@ changes would not carry into the isolated worktree the background session edits 
 back to the manual `/clear`-then-paste exit and says why. The launched agent is a NEW session: it
 inherits neither the current session's CLI flags nor its model/effort choices (for what a new
 session starts on, see
-[model config: a new session starts on a different model](https://code.claude.com/docs/en/model-config#a-new-session-starts-on-a-different-model-than-you-picked),
-as of 2026-10-31; recheck when that section changes what persists), the skill mirrors
-and reports the flags the resumed work depends on. Like `handoff`, it STOPS after delivery. The
+[model config: a new session starts on a different model](https://code.claude.com/docs/en/model-config#a-new-session-starts-on-a-different-model-than-you-picked)),
+the skill mirrors and reports the flags the resumed work depends on. Like `handoff`, it STOPS after delivery. The
 background agent is the continuation, and nothing is monitored or babysat.
 
 ```shell
@@ -497,7 +496,7 @@ reference below):
 | `observer_enabled` | `false` | Opt in the SessionStart auto-arm. Off = installing the plugin changes nothing; manual `arm` still works. |
 | `observer_analysis_enabled` | `true` | Run the autonomous post-end analysis once armed. Off = collect-only: observations are distilled and retained under the plugin work dir for manual inspection; nothing is written to the ledger. |
 | `observer_analysis_model` | see options reference | Analysis model, chosen for faithful findings; with effort, the dominant cost lever. |
-| `observer_analysis_effort` | see options reference | Analysis effort, passed as `--effort` and pinned through `--settings` against a `CLAUDE_CODE_EFFORT_LEVEL` from a lower-ranked source; for which sources rank higher, see [env-vars: precedence](https://code.claude.com/docs/en/env-vars#precedence) (as of 2026-10-31; recheck when that section changes how `env` values rank). |
+| `observer_analysis_effort` | see options reference | Analysis effort, passed as `--effort` and pinned through `--settings` against a `CLAUDE_CODE_EFFORT_LEVEL` from a lower-ranked source; for which sources rank higher, see [env-vars: precedence](https://code.claude.com/docs/en/env-vars#precedence). |
 | `observer_analysis_bare` | `false` | Pass `--bare` to the analysis run (breaks OAuth-login auth; leave off unless auth is an env-var API key). |
 | `observer_idle_seconds` | `900` | mtime-idle end threshold; keep above the longest single turn. |
 | `observer_poll_seconds` | `5` | How often the observer re-reads the transcript and re-checks the idle threshold. Minimum 1. |

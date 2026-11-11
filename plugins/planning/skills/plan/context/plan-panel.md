@@ -22,8 +22,7 @@ Before any launch, check whether the `Workflow` tool is in this session's toolse
 loadable). A grant in this skill's frontmatter does not count. When it is absent, or availability
 cannot be confirmed, take the main-thread fallback: formulate the single plan per Step 2 and say
 in one line that the panel was unavailable and why. For the switches that turn workflows off, see
-[Turn workflows off](https://code.claude.com/docs/en/workflows#turn-workflows-off) (as of
-2026-10-02; recheck when a switch is added or renamed there).
+[Turn workflows off](https://code.claude.com/docs/en/workflows#turn-workflows-off).
 
 ## Launch
 
@@ -70,5 +69,4 @@ untrusted fetched text rather than pasting it, and check `git status` after the 
 
 If a run is interrupted, relaunch `planning:plan-panel` with the same `args`. For which agents
 return saved results on relaunch, see
-[Resume after a pause](https://code.claude.com/docs/en/workflows#resume-after-a-pause) (as of
-2026-10-02; recheck when the resume rules change).
+[Resume after a pause](https://code.claude.com/docs/en/workflows#resume-after-a-pause).

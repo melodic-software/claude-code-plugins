@@ -423,8 +423,6 @@ Section content is prose a reviewer reads: plain language, bottom line first, no
 **Visual evidence.** When the diff changes rendered visual or audio output, the section that records verification (`Verification`, or `Test plan` under `summary-test-plan`) carries before/after media captured while verifying, for example by `/testing:run-e2e` or the Chrome screenshot and GIF tools. Create attaches no file itself. The captures reach the PR through the evidence step, `/source-control:pull-request evidence` ([reference/evidence.md](evidence.md)), which attaches the publishable ones in one comment after the verifier passes. So the section names each capture and says it goes to the evidence comment; when no media could be captured, it says no visual evidence was attached. A project turns this step off in its own CLAUDE.md or AGENTS.md.
 
 - **Pointer**: the [`gh pr comment` manual](https://cli.github.com/manual/gh_pr_comment) for `--attach`, and GitHub's [Attaching files](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/attaching-files) for the upload routes and size limits.
-- **As of**: 2026-11-01
-- **Recheck trigger**: a `gh` release note that changes `--attach`.
 
 **Left out.** The section that records verification (`Verification`, or `Test plan` under the portable default) ends with one `Left out:` line naming what was not run or checked, each with its reason (for example, `Left out: end-to-end suite, needs a staging environment`), so a reviewer can tell a gap from an omission; when everything relevant was run, it says `Left out: nothing`. When that section closes the body, the §2.4.3 attribution line still follows it as the body's footer.
 
@@ -433,8 +431,6 @@ on `${CLOSES_LINE}`, wherever else a line sits (`## Related` and `## Summary` in
 other issue or pull request without one, for example `delivered by #M` or `follows #N`.
 
 - **Pointer**: GitHub's [Linking a pull request to an issue using a keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword), for the keywords and where in a body they apply.
-- **As of**: 2026-11-04
-- **Recheck trigger**: that section changes the keyword list or the parts of a pull request it reads.
 
 **Write the body to a file with the Write tool.** Compose the body as literal text: `${CLOSES_LINE}`; `${SIBLINGS_LINE}` (§2.4.0) when non-empty, at the first column directly below it; when §2.7's `--hold` gave a line, that line on its own line below those, before the first `##` block, so the §2.4.2 gates check the body the PR opens with; a blank line when any is non-empty; then one `## <heading>` block per entry in `${SECTION_ORDER[@]}` with real content, leaving out an optional heading that has none (`Related` carries `${REFS_LINES}` when non-empty, else `N/A`), then the `## Acceptance criteria` block when a plan supplied one and no scaffold heading holds it, then the `## Remaining` block for a `Refs:` link, then the `## Glossary candidates` block when an unattended run coined a term, then the ad hoc `## Related` block when the rule above calls for one. Leave the attribution line out; §2.4.3 appends it after the gates. Write it to an absolute path outside the working tree (the session's scratchpad directory when one is listed, else the system temp directory), for example `<tmp>/pr-body-<branch-slug>.md`, and pass that path as `BODY_FILE` to every call below.
 

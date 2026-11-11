@@ -16,7 +16,6 @@ field in the handoff shape) is parked.
   is not CI-green. The meta-muse phase-7 handoff recorded `8ffb18f` as the CI fix while
   CI was still red; `9dddfcd` landed about twenty minutes later and the handoff was never
   amended.
-- **As of:** 2026-09-28.
 - **Recheck:** a maintainer funds a pending-verification field in `structure.md`, or
   "Claim provenance" again lets a pending CI check read as plain fact.
 

@@ -117,9 +117,6 @@ observed.
 
 - **Pointer**: the probe record in [reference/goal-probe.md](reference/goal-probe.md); the docs
   section for non-interactive goals, <https://code.claude.com/docs/en/goal#run-non-interactively>.
-- **As of**: 2026-10-20
-- **Recheck trigger**: a Claude Code release note changes how a background session's first prompt
-  runs a slash command, or that section starts or stops naming background sessions.
 
 ## Delivery: background-agent launch
 
@@ -138,12 +135,10 @@ fallback), then:
 
    - Prints `true` → there is a work tree; inspect it with the gate below.
    - Fails *specifically* because this is not a git repository, AND no `WorktreeCreate` hook is
-     configured (<https://code.claude.com/docs/en/hooks#worktreecreate>; as of 2026-10-11;
-     recheck trigger: that section changes what the hook replaces or when it fires) → there is
+     configured (<https://code.claude.com/docs/en/hooks#worktreecreate>) → there is
      no uncommitted work to protect and no worktree isolation to lose, since we treat
      background sessions there as editing the working directory in place
-     (<https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>; as of
-     2026-10-11; recheck trigger: that section changes when a session edits in place) →
+     (<https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>) →
      launch, and state both in the launch report. That hook is the isolation path for non-Git source control, so a configured one,
      or an absence you cannot establish, puts the launched session in a workspace this
      checkout's local changes never reach: that is the default branch below, not this one.
@@ -171,8 +166,7 @@ fallback), then:
    `worktree.bgIsolation` (below). Unless it is `none`, we treat a background session as editing
    in an isolated worktree, a fresh checkout, so OTHER uncommitted changes in this checkout would
    NOT carry into the launched agent's edits (pointer, for when isolation applies and when it is
-   skipped: <https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>; as of
-   2026-10-18; recheck trigger: that section changes when a session is isolated). Any
+   skipped: <https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>). Any
    such changes → do NOT launch: report why and fall back to the standard `/clear`-then-paste
    instruction (same checkout, dirty state intact), noting the user can commit or stash and
    re-run `/session-flow:continue-in-background`. Exception: launch anyway when the current session already
@@ -194,17 +188,13 @@ fallback), then:
    inside a linked worktree too. Any other
    result, including a file that does not parse, leaves the gate above unchanged. The `--cloud`
    variant below ignores this setting. Pointers:
-   <https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>; as of 2026-10-18;
-   recheck trigger: that section changes what `worktree.bgIsolation` does or its accepted values.
-   Settings precedence (scope order): <https://code.claude.com/docs/en/settings#settings-precedence>;
-   as of 2026-10-18; recheck trigger: that section changes the tier order. Managed file locations:
-   <https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy>; as of
-   2026-10-18; recheck trigger: that section changes where the managed file or drop-in directory
-   lives. Managed file and drop-in merging:
+   <https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>.
+   Settings precedence (scope order): <https://code.claude.com/docs/en/settings#settings-precedence>.
+   Managed file locations:
+   <https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy>.
+   Managed file and drop-in merging:
    <https://code.claude.com/docs/en/managed-settings#how-claude-code-combines-managed-sources>
-   and <https://code.claude.com/docs/en/managed-settings#split-a-file-based-policy-across-teams>;
-   as of 2026-10-18; recheck trigger: either section changes how the file and its drop-ins merge
-   or their order.
+   and <https://code.claude.com/docs/en/managed-settings#split-a-file-based-policy-across-teams>.
 2. Launch from the consuming project's root, passing the `/goal` payload verbatim as one argument.
    First write it, as the completion condition gate defines it, to a temporary file with the
    Write tool (never inline it in the command: prompt content is
@@ -246,8 +236,7 @@ fallback), then:
    `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1`, which keeps the session in the `claude agents` list
    (pointer: for how nested sessions are listed, the `CLAUDE_CODE_CHILD_SESSION` and
    `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE` rows of
-   <https://code.claude.com/docs/en/env-vars#variables>; as of 2026-11-10; recheck trigger:
-   either row changes how nested sessions are listed). Awareness note: the prompt
+   <https://code.claude.com/docs/en/env-vars#variables>). Awareness note: the prompt
    travels in the process argument list, so it is briefly visible to other local processes
    (`ps`), inherent to `claude --bg "<prompt>"`. The mandatory redaction pass has already
    scrubbed the prompt by this point; this exposure is one more reason secrets never belong in
@@ -310,9 +299,6 @@ matches its remote:
   <https://code.claude.com/docs/en/claude-code-on-the-web#continue-a-cloud-session-in-your-terminal>,
   <https://code.claude.com/docs/en/claude-code-on-the-web#send-follow-ups-from-the-cli>; what the
   session lacks: <https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup>.
-- **As of**: 2026-11-10
-- **Recheck trigger**: any of those sections changes what the VM clones or bundles, the `--cloud`,
-  `--teleport` or follow-up syntax, or teleport's requirements.
 
 ## What the launched session inherits (and what it does not)
 
@@ -321,8 +307,6 @@ behavior; the rules below are ours, built on it.
 
 - **Pointer**: [Manage multiple agents with agent view § Settings and provider](https://code.claude.com/docs/en/agent-view#settings-and-provider)
   and [§ Permission mode, model, and effort](https://code.claude.com/docs/en/agent-view#permission-mode-model-and-effort)
-- **As of**: 2026-10-11
-- **Recheck trigger**: either section changes what a new background session inherits.
 
 Our rules:
 
@@ -349,9 +333,6 @@ Our rules:
 
   - **Pointer**: for choosing a level, see the table linked above; for the `--effort` flag, see
     [Set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level).
-  - **As of**: 2026-10-02
-  - **Recheck trigger**: either section is renamed or moved, the table's columns change, or the
-    `--effort` flag changes.
 - **Permission mode is set at launch, not inherited.** Step 2's command always passes
   `--permission-mode auto`, so a directory setting with another default mode does not set the
   launched session's mode.
@@ -414,8 +395,7 @@ can mean any of them.
 - **`/subtask`, `/fork`, `/background` (built-in commands)**: three ways to move work off this
   terminal. None writes a save-point, and this skill never runs them. What each launches, its
   alias, its gate and whether the model can invoke it: the records table in
-  [native-surfaces § verification record](reference/native-surfaces.md#native-background-surfaces-verification-record)
-  (as of 2026-10-11; recheck trigger: that table's rows or their recheck events change).
+  [native-surfaces § verification record](reference/native-surfaces.md#native-background-surfaces-verification-record).
 - **This skill (marketplace plugin).** Writes a durable, redacted save-point, gates on a dirty
   tree, and launches a fresh `claude --bg` session seeded only with the save-point's `/goal`
   payload, so the continuation carries no conversation history, survives on disk, and ends on a
@@ -438,8 +418,7 @@ request. It never runs a native command on the person's behalf.
 
 **Availability is never assumed.** All three are gated, and their behavior depends on the
 session's setup; read the gates live from the records table in
-[native-surfaces § verification record](reference/native-surfaces.md#native-background-surfaces-verification-record)
-(as of 2026-10-11; recheck trigger: that table's rows or their recheck events change). This
+[native-surfaces § verification record](reference/native-surfaces.md#native-background-surfaces-verification-record). This
 section states what to do when they resolve, never that they are present.
 
 ## Gotchas

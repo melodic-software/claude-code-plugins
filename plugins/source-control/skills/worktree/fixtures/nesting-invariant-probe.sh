@@ -30,8 +30,7 @@
 # Passed via `claude -p --settings <file>` so the trace hook comes from this
 # script's own file, not from anything the fixture commits; which settings-file
 # hooks a `-p` session runs is at
-# <https://code.claude.com/docs/en/hooks#workspace-trust> (as of 2026-11-04;
-# recheck when that section changes what a `-p` session runs).
+# <https://code.claude.com/docs/en/hooks#workspace-trust>.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 # STATUS: RUN 2026-09-30 on Claude Code 2.1.285, authenticated, ADJUDICATED. The

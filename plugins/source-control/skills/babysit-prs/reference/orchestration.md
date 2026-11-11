@@ -50,8 +50,7 @@ previously persisted snapshot for that PR. The arms fall into two groups against
 blockers, and no untriaged material bot feedback): **suppressible** arms are fully re-validated by
 the direct merge gate itself (`bash "<plugin-root>/scripts/source-control-babysit-merge" owner/repo#42 --allowed-owners
 <watched-owners> --state-dir <state-dir>`, read-only; for what `mergeStateStatus` reports, see
-[MergeStateStatus](https://docs.github.com/en/graphql/reference/pulls#enum-mergestatestatus), as of
-2026-11-03, recheck when that enum's values change), so one of them firing on a cycle where the PR is already, or just
+[MergeStateStatus](https://docs.github.com/en/graphql/reference/pulls#enum-mergestatestatus)), so one of them firing on a cycle where the PR is already, or just
 became, clean/non-draft/zero-blocker/fully triaged would dispatch a worker that finds nothing left
 to do. That PR is routed straight to the mode-appropriate direct gate per `SKILL.md` instead.
 **Unsuppressible** arms name something the merge gate cannot do, so a worker is still required
@@ -116,8 +115,7 @@ rather than recomputing it, so the untriaged-material clause applies there too.
   `CLEAN`/`HAS_HOOKS` from something else. This is deliberately directional (into, not any diff):
   only the transition into an actionable state is worth a dispatch, and a move out of one, or
   between non-actionable values such as `UNKNOWN`, is not. For the enum's values, see
-  [MergeStateStatus](https://docs.github.com/en/graphql/reference/pulls#enum-mergestatestatus) (as of
-  2026-11-03; recheck when that enum adds, drops or redefines a value). This transition is
+  [MergeStateStatus](https://docs.github.com/en/graphql/reference/pulls#enum-mergestatestatus). This transition is
   frequently the very thing that makes `pr_clean_ready_for_direct_gate` newly true, in which case
   the merge gate itself is exactly what needs to re-check it.
 - **`became_ready_for_review`** (unsuppressible): a draft PR was marked ready for review. Never
@@ -261,7 +259,7 @@ The default of 10 is sized against two real constraints, not habit:
   identity. A cap in the 8-12 range leaves comfortable headroom under that ceiling without having
   to reason precisely about per-worker call counts; a cap near or above 25 starts eating into that
   headroom during a genuine burst.
-  - **Pointer**: when re-sizing the cap, fetch [About secondary rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#about-secondary-rate-limits) live. **As of**: 2026-11-10. **Recheck trigger**: that section changes its concurrent-request limit.
+  - **Pointer**: when re-sizing the cap, fetch [About secondary rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#about-secondary-rate-limits) live. **Recheck trigger**: that section changes its concurrent-request limit.
 - **Human reviewability.** One human reads the results. Roughly ten concurrent lines of activity
   is something a person can sanity-check as results land; well past that, real findings still
   arrive but can no longer be tracked live. That is tolerable as a deliberate one-off under an explicit
@@ -329,8 +327,7 @@ python "<skill-dir>/scripts/manage_babysit_lease.py" acquire --scope worker --pr
   capability** (in Claude Code, the `SendMessage` tool targeting the worker's agent id), never by
   a new dispatch: a second worker in the same worktree is exactly the concurrent-write collision
   the lease check above exists to prevent. For how Claude Code continues an existing subagent, see
-  [Resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents) (as of
-  2026-11-03; recheck when that section changes how an existing subagent is continued). If the
+  [Resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents). If the
   harness has no way to message an existing agent, wait for that worker's
   completion notification rather than dispatching again.
 
@@ -533,11 +530,8 @@ push. The two contracts below are halves of one operation; neither is complete a
 A dispatched non-fork subagent starts without the dispatching conversation and works from the
 delegation message Claude composes. Pointer:
 [sub-agents: What loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup).
-As of 2026-10-11; recheck when that section says a non-fork subagent receives the parent
-conversation or anything beyond the delegation message that carries the operator's turn.
-Everything a conflict worker
-knows about its own authority therefore reaches it inside a delegation prompt written by the agent
-that dispatched it.
+Everything a conflict worker knows about its own authority therefore reaches it inside a
+delegation prompt written by the agent that dispatched it.
 
 That is harmless for reading, merging, and testing, none of which leave the worktree. It is not
 harmless for the push. A host runtime whose autonomy gate grants mutation authority only from the
@@ -617,8 +611,7 @@ re-verify anyway.
   reject conflict markers or a WIP message, and bypassing hooks (`--no-verify`) is forbidden. For
   which commands run which hooks, see the
   [pre-commit](https://git-scm.com/docs/githooks#_pre_commit) and
-  [commit-msg](https://git-scm.com/docs/githooks#_commit_msg) entries of githooks (as of
-  2026-11-03; recheck when either entry changes which commands invoke it). So the preservation
+  [commit-msg](https://git-scm.com/docs/githooks#_commit_msg) entries of githooks. So the preservation
   commit is created with plumbing rather than a porcelain commit, which this contract does not
   count as a hook bypass: stage every conflicted path
   as-is (markers included), create the partial-state merge commit with
@@ -840,9 +833,8 @@ Each worker must:
 - **never rely on the shell's working directory persisting across separate tool calls.** Set the
   worktree explicitly on every call, so no branch-owned fix lands in the wrong repository. For what
   carries over between Bash calls, see
-  [What persists between commands](https://code.claude.com/docs/en/tools-reference#what-persists-between-commands)
-  (as of 2026-11-03; recheck when that section changes how the working directory carries over,
-  for a subagent in particular). Three classes of call need anchoring:
+  [What persists between commands](https://code.claude.com/docs/en/tools-reference#what-persists-between-commands).
+  Three classes of call need anchoring:
   - **git**: `git -C <absolute-worktree-path>` on every one (`status`, `add`, `commit`, `diff`,
     `log`, all of them). The push is `push-branch.sh --dir <absolute-worktree-path>` (below),
     never `git push`.

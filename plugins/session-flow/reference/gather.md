@@ -33,9 +33,6 @@ expansion at all.
 - **Pointer**: the pass and refuse table in
   [melodic-software/claude-code-plugins#1687, "Final state of the rule"](https://github.com/melodic-software/claude-code-plugins/issues/1687#issuecomment-5086783455),
   which supersedes the thread's earlier "bare `$HOME` only" comments.
-- **As of**: 2026-10-11
-- **Recheck trigger**: a release note changes how worktree-isolated agents treat `$`-expansion,
-  or a pre-compute block using `$HOME` fails to load.
 
 ## The probes
 

@@ -229,8 +229,6 @@ sees the force push. The branch moves only after that push succeeds.
   [git-rebase `--update-refs`](https://git-scm.com/docs/git-rebase#Documentation/git-rebase.txt---update-refs)
   live; when reading the comparison, fetch
   [git-range-diff](https://git-scm.com/docs/git-range-diff#_description) live.
-- **As of**: 2026-11-08
-- **Recheck trigger**: either page changes the option or the range form used here.
 
 ### Resolve a conflicted merge
 

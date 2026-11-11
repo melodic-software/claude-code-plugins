@@ -25,8 +25,6 @@ effort.
 
 - **Pointer**: for choosing an effort level, see
   [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level).
-- **As of**: 2026-10-02
-- **Recheck trigger**: the section is renamed or moved, or its table columns change.
 
 ## 1. Interview (optional: lock the Brief before building)
 
@@ -136,8 +134,7 @@ Structured plan with rationale, test strategy, and a user approval gate before e
 - Plan depth scales to blast radius. A wide-impact change earns an adversarial stress-test pass
   (assumptions, failure scenarios, operational gotchas) before approval
 - **Not the same as Claude Code's built-in plan mode.** That is a permission mode (pointer:
-  <https://code.claude.com/docs/en/permission-modes#analyze-before-you-edit-with-plan-mode>; as
-  of 2026-10-11; recheck trigger: that section is renamed or moved); this stage is a planning
+  <https://code.claude.com/docs/en/permission-modes#analyze-before-you-edit-with-plan-mode>); this stage is a planning
   discipline that can run in any mode
 - For non-trivial work, decompose into phases with per-phase verifiable completion criteria
 - The plan keeps the design section as the design stage wrote it; each phase names the part it
@@ -192,8 +189,6 @@ when that reviewer has returned, unless the `verification` level is `light` or `
   cannot color what that reviewer concludes
   - **Pointer**: for the review-against-your-spec step, see
     [Review against your spec](https://code.claude.com/docs/en/best-practices#review-against-your-spec)
-  - **As of**: 2026-10-30
-  - **Recheck trigger**: a re-read of that section no longer supporting the preference above
 - For a high-stakes diff, prefer a cross-vendor advisor **when one is installed and set up**, for example the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the stated fallback (this preference is this repository's judgment, not an upstream rule),
   never a route to a command that may not resolve
   (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository)

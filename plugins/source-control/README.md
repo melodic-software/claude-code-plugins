@@ -170,9 +170,6 @@ In a session that loads a mod, don't rely on this plugin's `PreToolUse` hooks al
   and
   [precedence among rules, hooks, and mods](https://code.claude.com/docs/en/permissions#precedence-among-rules-hooks-and-mods)
   live for how a mod can skip or override these hooks.
-- **As of**: 2026-11-01
-- **Recheck trigger**: either section changes where plugin `PreToolUse` hooks run in the mod chain
-  or when a mod's `tool.check` approval overrides them.
 
 ### `pr-body-linkage-gate`
 
@@ -354,8 +351,7 @@ untracked changes (so `ExitWorktree` with `discard_changes: true` cannot discard
 operation in progress, a detached HEAD holding commits no ref holds, submodules, a lock whose
 reason names another session, or a reap that exits non-zero; `/source-control:worktree cleanup`
 then handles it. The branch is kept. Subagent and workflow-agent worktrees never reach it: Claude Code keeps
-them ([hooks: WorktreeRemove](https://code.claude.com/docs/en/hooks#worktreeremove), as of
-2026-10-26), so `/source-control:worktree cleanup` removes them.
+them ([hooks: WorktreeRemove](https://code.claude.com/docs/en/hooks#worktreeremove)), so `/source-control:worktree cleanup` removes them.
 
 ## Works in any repo
 
@@ -386,10 +382,9 @@ them ([hooks: WorktreeRemove](https://code.claude.com/docs/en/hooks#worktreeremo
   Without it the gates deny the commands they read, naming the cause.
 - **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`, and Claude
   Code's native binary neither ships nor uses Node
-  ([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29; recheck when the setup page
-  says the native binary ships or uses Node). Without `node` the hooks do
-  not launch and the PR-linkage and worktree gates are not enforced. The setup `check` reports
-  whether `node` resolves.
+  ([setup](https://code.claude.com/docs/en/setup)). Without `node` the hooks do not launch and
+  the PR-linkage and worktree gates are not enforced. The setup `check` reports whether `node`
+  resolves.
 - **The `claude` CLI** on the hooks' `PATH`, for `worktree-remove-gate`: it reaps install records
   through `claude plugin uninstall`, and without the CLI it refuses, so a worktree Claude Code
   removes stays on disk until `/source-control:worktree cleanup` removes it.

@@ -4,8 +4,7 @@ Read when a run has written its JSON, or when a wrapper needs to consume one. Th
 the document as the statement of record, never the terminal output. For what a `--json` run prints,
 see the `--json` row of
 [Command options](https://code.claude.com/docs/en/plugin-evals#command-options) and
-[JSON result](https://code.claude.com/docs/en/plugin-evals#json-result) (as of 2026-11-03; recheck
-when either changes what a `--json` run prints).
+[JSON result](https://code.claude.com/docs/en/plugin-evals#json-result).
 
 ## Contents
 
@@ -33,9 +32,6 @@ when either changes what a `--json` run prints).
    - **Pointer**: [Add setup or history with case.yaml](https://code.claude.com/docs/en/plugin-evals#add-setup-or-history-with-case-yaml);
      the `--scaffold` row of [Command options](https://code.claude.com/docs/en/plugin-evals#command-options);
      [JSON result](https://code.claude.com/docs/en/plugin-evals#json-result)
-   - **As of**: 2026-10-27
-   - **Recheck trigger**: that first section changes when a `scaffold_script` runs, the JSON result
-     gains a field recording `--scaffold`, or a release note touches `--scaffold`
 2. `partial`. When `true`, `partialReason` is `cost_ceiling`, `interrupted`, or `auth_failed`. The
    suite did not finish; report that and keep the document out of any trend. The check is done when
    the field has been read, not inferred from the exit code.
@@ -147,9 +143,6 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   - **Pointer**: when judging which cases a plugin path loads in, fetch the `plugins` row of
     [prompt.md fields](https://code.claude.com/docs/en/plugin-evals#prompt-md-fields)
     live.
-  - **As of**: 2026-11-02
-  - **Recheck trigger**: that row changes, or a with-arm run's init line lists a case-directory
-    plugin in a case that does not name it.
 - An invocation probe's denial of a named call other than Skill is a warning when it follows the
   graded Skill call, or the run held a should-not-fire case whose denial-free runs all held; the
   gate prints each probe case's fire counts with and without denials.
@@ -217,8 +210,7 @@ without-run lost its judge to the ceiling: `scoreWithout` and `delta` were both 
   does **not** by itself imply score 0: some errored runs are still graded, while a run that ended
   on an API error, a rate limit mid-suite included, scores 0 ungraded, which is why that limit reads
   as a regression rather than as an outage. Which runs fall on each side:
-  [JSON result](https://code.claude.com/docs/en/plugin-evals#json-result), as of 2026-11-10; recheck when that section changes
-  which errored runs are graded.
+  [JSON result](https://code.claude.com/docs/en/plugin-evals#json-result).
 - `aborted` appears when a mock's `expect:` or `abort_when` stopped the run, carrying `server`,
   `tool`, and `reason`. It scores 0 while `error` stays `null`.
 - `skippedPaidGraders: true` means the cost ceiling skipped this run's judge calls. The skipped
@@ -258,8 +250,7 @@ case complete), read 2026-09-13.
 ## What a delta does and does not say
 
 - For how the delta, a run score and a case score are computed, and when a case passes, read
-  [How a case is scored](https://code.claude.com/docs/en/plugin-evals#how-a-case-is-scored) live
-  (as of 2026-11-03; recheck when that section changes a formula or the pass rule).
+  [How a case is scored](https://code.claude.com/docs/en/plugin-evals#how-a-case-is-scored) live.
 - 1.00 in both arms proves the plugin contributed nothing to that case.
 - Absolute scores are not comparable across ablation modes: under `--ablation none` no grader is
   excluded, so the same suite scores differently. Hold the mode fixed or the trend line is fiction.
@@ -270,8 +261,7 @@ case complete), read 2026-09-13.
   `arm: both` forces scoring in both arms, which is what a must-not-invoke check (`min: 0` **and**
   `max: 0`) needs.
 - Copy a plugin whose directory is named `evals` under another name before a run. Pointer: the
-  probe pair in [records.md](records.md#spoke-reach), as of 2026-10-31; recheck on a Claude Code
-  release by re-running one case with `--keep-temp`. Check the trace for a denied `Read` before
+  probe pair in [records.md](records.md#spoke-reach). Check the trace for a denied `Read` before
   crediting a spoke.
 
 ## Noise report

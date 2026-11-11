@@ -33,8 +33,7 @@ places is the drift a git-config-readable convention exists to prevent.
 - **Value:** a directory OUTSIDE every repository, and outside
   repository-discovery roots such as a ghq root. For what ghq discovers under
   its root, see the `list` entry under COMMANDS in the
-  [ghq README](https://github.com/x-motemen/ghq#commands) (as of 2026-11-03;
-  recheck when that entry changes what `ghq list` enumerates). On Windows, the
+  [ghq README](https://github.com/x-motemen/ghq#commands). On Windows, the
   same drive as the repositories it serves.
 
 ## Reading it (any consumer)
@@ -87,8 +86,7 @@ is this plugin's handling of the `EnterWorktree(name:)` gap. Pointers:
 [worktrees: ask Claude to create a worktree](https://code.claude.com/docs/en/worktrees#ask-claude-to-create-a-worktree)
 for where the name form lands, and
 [replace worktree creation with a hook](https://code.claude.com/docs/en/worktrees#replace-worktree-creation-with-a-hook)
-for the hook seam. As of 2026-10-11; recheck when either section changes where
-the name form lands or which creations the hook replaces.
+for the hook seam.
 
 ## Per-identity and per-repository roots (#2612)
 
@@ -134,8 +132,7 @@ so last-wins picks it up) alongside the identity keys. Verified properties
   is their own. `hasconfig:` is fine for `worktreeroot.*`, which only
   CLI-shelling tools read. For the conditions git defines, see
   [git-config: Conditional includes](https://git-scm.com/docs/git-config#_conditional_includes),
-  and check a client's own docs before relying on one there (as of 2026-11-03;
-  recheck when that section adds or changes a condition keyword).
+  and check a client's own docs before relying on one there.
 - **`gitdir:` is case-sensitive even on case-insensitive NTFS.** Only the
   pattern author's spelling matters. Always `gitdir/i:` on Windows.
 - **Precedence is parse order, not specificity.** A plain
@@ -164,9 +161,7 @@ so last-wins picks it up) alongside the identity keys. Verified properties
   same reason, so `user.useConfigOnly` can do its job. For which keys carry
   identity (signing, SSH and URL rewriting among them) and what
   `user.useConfigOnly` does, see
-  [git-config: Variables](https://git-scm.com/docs/git-config#_variables) (as
-  of 2026-11-03; recheck when that section changes a `user.*`, `gpg.*`,
-  `core.sshCommand` or `url.*` entry).
+  [git-config: Variables](https://git-scm.com/docs/git-config#_variables).
 
 ## Doctor
 

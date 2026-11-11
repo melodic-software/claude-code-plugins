@@ -57,9 +57,8 @@ Two separate needs, resolved separately. Detail, formats, and failure behavior:
 acceptable sole source: what it carries is set by an upstream budget, and our premise is that
 the skills an operator has forgotten are the ones it serves worst (pointer record and live
 sections:
-[candidate-ladder § Why the in-context listing cannot be the sole source](context/candidate-ladder.md#why-the-in-context-listing-cannot-be-the-sole-source);
-as of 2026-10-11; recheck trigger: that section's pointer record or its recheck trigger
-changes). Ladder:
+[candidate-ladder § Why the in-context listing cannot be the sole source](context/candidate-ladder.md#why-the-in-context-listing-cannot-be-the-sole-source)).
+Ladder:
 
 1. The skills index from `/harness-ops:inventory`, if that plugin is enabled: invoke it via the
    Skill tool, asking for its Skills index (`--skills-index`) on stdout, with `--exclude` only
@@ -68,8 +67,7 @@ changes). Ladder:
    `not-installed` alike; reuse it rather than walking the plugin cache (when checking the cache's
    location and layout, fetch
    [Find plugins on disk](https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk)
-   live; as of 2026-11-03, recheck when that section changes the cache path or its directory
-   layout). **Read its output from stdout, never pass `--out` into the
+   live). **Read its output from stdout, never pass `--out` into the
    consuming project**: this skill writes nothing but its Spotlight ledger. A `disabled` record is
    named with a `(disabled)` annotation and a `not-installed` one with `(not installed)`, never
    listed as runnable and never silently dropped. **Done when** the returned set contains at least
@@ -116,8 +114,6 @@ early turns and need not keep every skill this session loaded.
 
 - **Pointer**: [Extend Claude with skills § Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle),
   for which skills compaction re-attaches.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section changes what compaction keeps of invoked skills.
 
 **Do not build a probe.** `/session-flow:orient` already reads branch and git state, handoff
 save-points, workflow checklists, running-retro ledgers, open PRs, and work-items, a superset of
@@ -162,8 +158,7 @@ fixed in [`context/buckets.md`](context/buckets.md) so two sessions cannot pick 
 lose the rotation. It is deliberately **not** in `${CLAUDE_PLUGIN_DATA}`: a fixed filename there
 would be one file per *machine*, and a spotlight shown in one repository would suppress it in
 another (why: "Verification record: plugin data dir" under
-`${CLAUDE_PLUGIN_ROOT}/reference/structure.md#full-path-write-procedure`; as of 2026-10-11;
-recheck trigger: that record changes what the data dir is keyed to).
+`${CLAUDE_PLUGIN_ROOT}/reference/structure.md#full-path-write-procedure`).
 
 ## Render two tiers
 
@@ -225,12 +220,7 @@ A menu has no single successor; the workflow router picks the one next stage.
 - A skill turned off via `skillOverrides` can still appear in a catalog but cannot run.
   Recommending it hands the operator a dead option. Annotate it if the override is visible.
   - **Pointer**: [Extend Claude with skills § Override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings)
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: that section changes what an override value does or which skills it
-    applies to.
 - Most built-in commands are not `Skill`-invocable. They can be *named* as options (`/compact`,
   `/clear`) but not invoked on the operator's behalf; say which is which (pointer record:
-  [continuation § Autonomy: two tiers, each explicitly licensed](../workflow/context/continuation.md#autonomy-two-tiers-each-explicitly-licensed);
-  as of 2026-10-11; recheck trigger: that section's pointer record or its recheck trigger
-  changes).
+  [continuation § Autonomy: two tiers, each explicitly licensed](../workflow/context/continuation.md#autonomy-two-tiers-each-explicitly-licensed)).
 - An empty bucket is a real result and says so, with its reason. Silence reads as an oversight.

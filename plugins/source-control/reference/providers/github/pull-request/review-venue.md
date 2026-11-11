@@ -57,8 +57,6 @@ seconds. When it is still not whole, each lane it leaves undecided reads `local 
 partial page is never taken as the end of the listing, so it cannot read `absent` or `stale`. A
 failed `gh` call or unparsable JSON still exits 2. Pointer: both fields are read at
 [REST API: list workflow runs for a repository](https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository).
-As of: 2026-10-30. Recheck trigger: that section drops `total_count` or makes either field
-optional.
 
 ## The lane's newest verdict
 
@@ -74,8 +72,6 @@ Pointer: `state` and its values are read at
 [REST API: get a workflow](https://docs.github.com/en/rest/actions/workflows#get-a-workflow), the
 `event` filter at
 [REST API: list workflow runs for a workflow](https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow).
-As of: 2026-10-17. Recheck trigger: either section renames `state` or `event`, or changes what
-`active` means.
 
 Runs come newest first. The script takes the first with `status` `completed` and a `conclusion`
 other than `skipped` (a draft, or an actor the lane does not admit) and `cancelled` (a newer push

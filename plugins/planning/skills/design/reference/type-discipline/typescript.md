@@ -129,6 +129,3 @@ TypeScript; read that file first.
 - **Pointer:** TypeScript Handbook, [Narrowing](https://www.typescriptlang.org/docs/handbook/2/narrowing.html)
   ("The `in` operator narrowing", "Using type predicates", "Exhaustiveness checking"), and the
   TypeScript 4.9 release notes, ["The `satisfies` Operator"](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-9.html).
-- **As of:** 2026-10-04.
-- **Recheck trigger:** a TypeScript major release, or either page changing how narrowing,
-  exhaustiveness or `satisfies` behaves.

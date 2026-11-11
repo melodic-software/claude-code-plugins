@@ -160,8 +160,7 @@ itself the thing this skill removes.
    - **Resumable** → resume it. Prefer a real resume over a restart when
      the mechanism supports one (a workflow resume reuses the cached
      prefix instead of redoing work; see
-     <https://code.claude.com/docs/en/workflows#which-agents-run-again>, as of 2026-10-31; recheck
-     when that section changes which agents return saved results).
+     <https://code.claude.com/docs/en/workflows#which-agents-run-again>).
    - **Dead but safe to redo** → restart it (subject to the autonomy
      policy below). Read from the evidence why it died, and fit the
      restart to that cause. If the same command fails identically each

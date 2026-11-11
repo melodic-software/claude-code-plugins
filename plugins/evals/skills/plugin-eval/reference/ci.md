@@ -96,8 +96,6 @@ The record behind those three rules:
 
 - **Pointer**: when deciding what an absent `delta`, `skippedPaidGraders` or a non-null `error`
   means, fetch [JSON result](https://code.claude.com/docs/en/plugin-evals#json-result) live.
-  **As of**: 2026-11-03. **Recheck trigger**: that section changes when `delta` is omitted or what
-  either run field records.
 
 ## Keeping a trend honest
 
@@ -105,8 +103,7 @@ The record behind those three rules:
   `error`.
 - Hold the ablation mode fixed across the runs of one trend, and never put two-arm and
   `--ablation none` points on one line. For what each mode runs, see the `--ablation` row of
-  [Command options](https://code.claude.com/docs/en/plugin-evals#command-options) (as of
-  2026-11-03; recheck when that row changes what a mode runs or scores).
+  [Command options](https://code.claude.com/docs/en/plugin-evals#command-options).
 - Record `claudeVersion` and `suite` (`ablation`, `threshold`, `concurrency`, `caseFilter`) with
   each point, so a step change has somewhere to be attributed.
 - Commit `mocks/.replay/` so agent mocks replay without a model call. It is the one lever that makes
@@ -118,9 +115,7 @@ The record behind those three rules:
 - A sandbox backend on the runner if any case grants a tool that runs sandboxed; which grants do,
   and what a Linux runner installs for the backend, is the Grant tools record in
   [case-authoring.md, Frontmatter bounds](case-authoring.md#frontmatter-bounds) (it has no heading
-  of its own). As of 2026-10-11. Recheck trigger: that record moves or its pointer stops covering
-  which grants run sandboxed or the Linux backend. Without one, each granting run is refused rather
-  than run unconfined.
+  of its own). Without one, each granting run is refused rather than run unconfined.
 - Budget awareness: the command has no free mode, so an every-commit lane should use deterministic
   graders only, and the expensive judge lane should run on a schedule or on demand.
 - A fallback plan for the server-side switch. The command can answer
