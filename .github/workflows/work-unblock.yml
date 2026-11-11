@@ -95,10 +95,13 @@ on:
   issues:
     # labeled and unlabeled start only the sync-status job.
     types: [closed, labeled, unlabeled]
-  # Off the top of the hour, at a minute no other schedule here uses.
+  # Off the top of the hour, at a minute no other schedule here uses, and
+  # after the GITHUB_TOKEN core window resets (observed at :40-:50), so the
+  # sweep and publish-lane-level start on a fresh window instead of inside a
+  # late-window kill switch.
   schedule:
-    - cron: "47 0-3,5-23 * * *"
-    - cron: "47 4 * * *"
+    - cron: "54 0-3,5-23 * * *"
+    - cron: "54 4 * * *"
   # A finished issue lane run may free a slot, so the sweep runs at once and
   # admits the next deferred issue instead of waiting for the hour. It runs
   # main's code only, for a same-repository run, and reads no artifact of the
