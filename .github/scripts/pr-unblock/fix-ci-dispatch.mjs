@@ -96,9 +96,6 @@ const HELD_SKIP = "Skipped: awaiting-human";
 
 const MAX_PAGES = 20;
 
-// The tracker's human-gated label from the binding's JSON text, as
-// pr-merge.yml resolves it: config.role_labels["human-gated"] trimmed, or
-// needs-human when the file is absent (null) or maps none. Invalid JSON throws.
 // The trusted accounts whose idle PRs fix-ci adopts: every one but the authors
 // fix-docs also leaves alone (Dependabot, whose red PRs review-dependency owns;
 // the release and standards-sync Apps, whose PRs carry generated or synced
@@ -108,6 +105,9 @@ export function adoptableOwnerIds(trustedIds, excludedAuthorIds = DOCS_FIX_DEFAU
   return [...trustedIds].filter((id) => !excludedAuthorIds.includes(id));
 }
 
+// The tracker's human-gated label from the binding's JSON text, as
+// pr-merge.yml resolves it: config.role_labels["human-gated"] trimmed, or
+// needs-human when the file is absent (null) or maps none. Invalid JSON throws.
 export function humanGatedLabel(text) {
   if (text === null) {
     return "needs-human";
