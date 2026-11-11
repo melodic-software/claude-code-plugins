@@ -257,6 +257,22 @@ expect() {
       cp "$ROOT/.github/scripts/pr-merge/merge-holds.mjs" "$TMP_ROOT/base-config/.github/scripts/pr-merge/"
     fi
   fi
+  # The base's clear-escalations.mjs with STUB_FILTER: its filterLaneHolds
+  # strips every github-actions[bot] comment's footer (`unfoot`, as for a hold
+  # its lane's run did not record) or fails (`fail`, a run that did not read).
+  if [[ -n "${STUB_FILTER:-}" ]]; then
+    mkdir -p "$TMP_ROOT/base-config/.github/scripts/pr-merge"
+    cat >"$TMP_ROOT/base-config/.github/scripts/pr-merge/clear-escalations.mjs" <<'JS'
+export async function filterLaneHolds() {
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
+  const all = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  if (process.env.STUB_FILTER === "fail") return 1;
+  process.stdout.write(`${JSON.stringify(all.map((c) => (c.user.login === "github-actions[bot]" ? { ...c, body: c.body.replace(/\s*`?claude-lane: [a-z-]+`?\s*$/, "") } : c)))}\n`);
+  return 0;
+}
+JS
+  fi
   if [[ -n "${STUB_PIPELINE:-}" ]]; then
     mkdir -p "$TMP_ROOT/base-config/docs/conventions"
     printf '%s\n' "$STUB_PIPELINE" >"$TMP_ROOT/base-config/docs/conventions/pr-pipeline.yaml"
@@ -320,6 +336,9 @@ expect "a hold comment from a person is not read" 1 1 "needs-human" 0 "" "Ignore
 expect "a github-actions[bot] hold comment with no lane footer is not read" 1 1 "needs-human" 0 "" "No lane footer"
 export STUB_COMMENTS="[$NEW,$OLD]"
 expect "a claude[bot] hold comment gives the reason" 1 1 "needs-human" 0 "(An older hold.). $APPROVE"
+export STUB_COMMENTS="[$OLD,$NEW]"
+STUB_FILTER=unfoot expect "a github-actions[bot] hold its lane's run did not record gives no reason" 1 1 "needs-human" 0 "(An older hold.). $APPROVE" "Changes a trust gate"
+STUB_FILTER=fail expect "a hold comment whose run does not read still fails, without a reason" 1 1 "needs-human" 0 "::error::#6419 carries 'needs-human'. $APPROVE"
 # pr-merge's refusal (enable-auto-merge.mjs refusalBody), a person's: the
 # attend-queue marker, then the reasons marker, the reasons fenced. Newer
 # than the security hold, so it names the hold that set the label (#10224).

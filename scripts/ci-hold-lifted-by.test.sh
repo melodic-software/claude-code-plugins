@@ -127,7 +127,7 @@ expect() {
     cat >"$config/.github/scripts/pr-merge/clear-escalations.mjs" <<'JS'
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-const { PR_NUMBER, HEAD_SHA, CLEARED_SHA, HUMAN_GATED, TRUSTED_ACTORS_PATH, STUB_LOG, STUB_PREDICATE } = process.env;
+const { PR_NUMBER, HEAD_SHA, CLEARED_SHA, HUMAN_GATED, TRUSTED_ACTORS_PATH, STUB_LOG, STUB_PREDICATE, STUB_FILTER } = process.env;
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   appendFileSync(STUB_LOG, "clear-escalations main ran\n");
 }
@@ -135,6 +135,21 @@ export async function recheckStaleHold() {
   appendFileSync(STUB_LOG, `predicate pr=${PR_NUMBER} head=${HEAD_SHA} cleared=${CLEARED_SHA} label=${HUMAN_GATED} trusted=${TRUSTED_ACTORS_PATH}\n`);
   console.log(`stale-review-hold: stub ${STUB_PREDICATE ?? "unset"}`);
   return STUB_PREDICATE === "pass" ? 0 : 1;
+}
+// filterLaneHolds, stubbed: records the comments it was given; STUB_FILTER
+// `unfoot` strips every github-actions[bot] comment's footer, as for a hold
+// its lane's run did not record, and `fail` fails as a read that did not read.
+export async function filterLaneHolds() {
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
+  const all = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  appendFileSync(STUB_LOG, `filter pr=${PR_NUMBER} comments=${all.length}\n`);
+  if (STUB_FILTER === "fail") return 1;
+  const out = STUB_FILTER === "unfoot"
+    ? all.map((c) => (c.user.login === "github-actions[bot]" ? { ...c, body: c.body.replace(/\s*claude-lane: [a-z-]+$/, "") } : c))
+    : all;
+  process.stdout.write(`${JSON.stringify(out)}\n`);
+  return 0;
 }
 JS
   fi
@@ -174,6 +189,21 @@ expect "a hold comment from a person or with no lane footer is not a hold" 0 "No
 export STUB_COMMENTS="[$OLD_HOLD,$HOLD]"
 STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z),$OWNER_LIFT]"
 expect "a trusted person's removal after the hold passes" 0 "kyle-sexton, a person on the trusted-actor list, lifted"
+if grep -qxF 'filter pr=6419 comments=2' "$TMP_ROOT/log"; then
+  ok "the hold comments, pages joined into one array, go through the base module's filterLaneHolds"
+else
+  fail "the base module's filterLaneHolds did not get the comments: '$(cat "$TMP_ROOT/log")'"
+fi
+STUB_EVENTS="[$EARLY_LIFT]"
+STUB_FILTER=unfoot expect "a hold comment its lane's run did not record is no hold" 0 "No review lane has held #6419."
+STUB_FILTER=fail expect "a hold comment whose run does not read fails closed" 1 "::error::could not read the comments of #6419; re-run this run."
+STUB_COMMENTS="[$SPOOF]" expect "with no github-actions[bot] hold comment" 0 "No review lane has held #6419."
+if grep -q '^filter ' "$TMP_ROOT/log"; then
+  fail "filterLaneHolds ran with no github-actions[bot] hold comment"
+else
+  ok "with no github-actions[bot] hold comment filterLaneHolds is not run"
+fi
+STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z),$OWNER_LIFT]"
 STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z),$(jq -c '.performed_via_github_app = null' <<<"$OWNER_LIFT")]"
 expect "a trusted person's direct removal (performed_via_github_app null) passes" 0 "kyle-sexton, a person on the trusted-actor list, lifted"
 STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z),$(jq -c '.performed_via_github_app = {slug: "some-app"}' <<<"$OWNER_LIFT")]"
@@ -316,7 +346,7 @@ expect "a person missing from the base list is not trusted" 1 "kyle-sexton remov
 export STUB_ACTORS='{not json'
 expect "an unreadable trusted-actor list fails closed" 1 "names no person"
 unset STUB_ACTORS
-STUB_CHECKOUT_FAILED=1 expect "a hold with a failed base checkout fails closed" 1 "::error::could not read the trusted-actor list at $BASE; re-run this run."
+STUB_CHECKOUT_FAILED=1 expect "a hold with a failed base checkout fails closed" 1 "::error::could not read the base commit's config at $BASE to check the review-lane hold comments; re-run this run."
 export STUB_EVENTS_FAIL=1
 expect "an unreadable event list fails closed" 1 "::error::could not read the events of #6419; re-run this run."
 unset STUB_EVENTS_FAIL

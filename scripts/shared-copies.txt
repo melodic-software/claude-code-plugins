@@ -769,3 +769,7 @@ lib/read-verification.sh plugins/wizard/lib/read-verification.sh
 lib/config-root.sh plugins/wizard/lib/config-root.sh
 lib/yaml-subset.awk plugins/wizard/lib/yaml-subset.awk
 lib/resolve-convention-home.sh plugins/wizard/lib/resolve-convention-home.sh
+.github/scripts/lib/lane-binding.mjs plugins/review/lib/lane-binding.mjs
+.github/scripts/lib/lane-binding.mjs plugins/work-items/lib/lane-binding.mjs
+.github/scripts/lib/lane-binding.fixtures.mjs plugins/review/lib/lane-binding.fixtures.mjs
+.github/scripts/lib/lane-binding.fixtures.mjs plugins/work-items/lib/lane-binding.fixtures.mjs

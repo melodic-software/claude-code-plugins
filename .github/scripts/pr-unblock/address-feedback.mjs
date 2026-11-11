@@ -45,6 +45,7 @@ import { appendFileSync, lstatSync, readdirSync, readFileSync, writeFileSync } f
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { laneChecker, laneFooter, withoutBinding } from "../lib/lane-binding.mjs";
 import { commentItems, FAILING, gateSource, laneHold, latestRuns, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "./retry-fetch.mjs";
 import { copyPathsOf, isProtectedPath, namedInScope, prPathsOf, sharedCopyPairs } from "./thread-scope.mjs";
@@ -232,7 +233,9 @@ export function staleVerifyNotes(threads, head, { supersededHead } = {}) {
 // A review lane's own comment as the pr-review-cli reusable posts it: by
 // github-actions[bot] (MARKER_AUTHOR_ID), its last non-blank line the lane's
 // `claude-lane: <lane>` footer. Any other github-actions[bot] comment is not a
-// finding.
+// finding. Any workflow's token posts as github-actions[bot], so the comments
+// reach these readers through bindLaneRows, which keeps the footer only on a
+// comment bound to the lane's own run.
 const LANE_FOOTER = /^`?claude-lane: (claude-review|claude-security-review)`?$/;
 const lastLine = (body) =>
   String(body ?? "")
@@ -242,6 +245,100 @@ const lastLine = (body) =>
 // The lane a comment body's footer names, or null.
 export const laneOf = (body) => LANE_FOOTER.exec(lastLine(body))?.[1] ?? null;
 export const isLaneComment = (comment) => comment.authorId === MARKER_AUTHOR_ID && laneOf(comment.body) !== null;
+
+// The body without its last non-blank line: a lane footer's comment as one
+// with no footer.
+export function withoutLaneFooter(body) {
+  const all = String(body ?? "").split("\n");
+  const last = all.findLastIndex((line) => line.trim() !== "");
+  return last === -1 ? all.join("\n") : [...all.slice(0, last), ...all.slice(last + 1)].join("\n");
+}
+
+// A comment's fields as a REST row and as a GraphQL comment node carry them.
+// REST has no edit time, so lastEditedAt stays undefined there.
+export const restFields = (row) => ({ authorId: row.user?.id, id: row.id, createdAt: row.created_at, updatedAt: row.updated_at, lastEditedAt: undefined });
+export const nodeFields = (node) => ({ authorId: node.author?.databaseId, id: node.databaseId, createdAt: node.createdAt, lastEditedAt: node.lastEditedAt });
+
+// `rows` as every reader in this directory takes them. Each github-actions[bot]
+// comment whose last line is a lane footer goes to `check` (lane-binding.mjs
+// laneChecker), with its body as GitHub stored it: one it accepts loses its
+// binding line, so it parses as before; one it refuses loses its footer, so
+// it reads as any other github-actions[bot] comment. No other row is read or
+// changed. A failed read throws.
+export async function bindLaneRows(rows, { kind, check, fields = restFields }) {
+  const bound = [];
+  for (const row of rows) {
+    const { authorId, id, createdAt, updatedAt, lastEditedAt } = fields(row);
+    if (authorId !== MARKER_AUTHOR_ID || laneFooter(row.body) === null) {
+      bound.push(row);
+      continue;
+    }
+    const lane = await check({ kind, id, body: row.body, createdAt, updatedAt, lastEditedAt });
+    bound.push({ ...row, body: lane ? withoutBinding(row.body) : withoutLaneFooter(row.body) });
+  }
+  return bound;
+}
+
+// A REST issue timeline with its `commented` items passed through
+// bindLaneRows; every other event is left as it is.
+export async function bindTimeline(timeline, check) {
+  const comments = await bindLaneRows(timeline.filter((item) => item.event === "commented"), { kind: "issue_comment", check });
+  let next = 0;
+  return timeline.map((item) => (item.event === "commented" ? comments[next++] : item));
+}
+
+// `api` with its comment reads passed through bindLaneRows: issue comments,
+// timeline comments, review comments, the comments of each review thread
+// (listReviewThreads, feedback-dispatch.mjs) and of a thread's re-read
+// (readThread). `actions` ({ getRun, listArtifacts, download }) reads the lane
+// runs' comment records; one checker per pull request reads each run once.
+export function withLaneBinding(api, actions) {
+  const checkers = new Map();
+  const checkerFor = (pr) => {
+    if (!checkers.has(Number(pr))) {
+      checkers.set(Number(pr), laneChecker({ pr: Number(pr), ...actions }));
+    }
+    return checkers.get(Number(pr));
+  };
+  const bindNodes = (nodes, pr) => bindLaneRows(nodes ?? [], { kind: "review_comment", check: checkerFor(pr), fields: nodeFields });
+  const wrap = (name, kind) =>
+    api[name] && { [name]: async (pr, ...rest) => bindLaneRows(await api[name](pr, ...rest), { kind, check: checkerFor(pr) }) };
+  return {
+    ...api,
+    ...wrap("listIssueComments", "issue_comment"),
+    ...(api.listTimeline && { listTimeline: async (pr, ...rest) => bindTimeline(await api.listTimeline(pr, ...rest), checkerFor(pr)) }),
+    ...wrap("listReviewComments", "review_comment"),
+    ...(api.listReviewThreads && {
+      async listReviewThreads(pr, ...rest) {
+        const threads = [];
+        for (const thread of await api.listReviewThreads(pr, ...rest)) {
+          threads.push({ ...thread, comments: { ...thread.comments, nodes: await bindNodes(thread.comments?.nodes, pr) } });
+        }
+        return threads;
+      },
+    }),
+    ...(api.readThread && {
+      async readThread(id) {
+        const thread = await api.readThread(id);
+        return { ...thread, nodes: await bindNodes(thread.nodes, thread.pr) };
+      },
+    }),
+  };
+}
+
+// The Actions reads withLaneBinding needs, with ARTIFACT_READ_TOKEN (the job's
+// own token, actions: read), never the token the script writes with. Without
+// it, a comment that needs a read fails closed.
+export function laneReader(env, { fetch } = {}) {
+  if (!env.ARTIFACT_READ_TOKEN) {
+    const refuse = async () => {
+      throw new Error("ARTIFACT_READ_TOKEN is not set, so a lane comment's binding cannot be checked");
+    };
+    return { getRun: refuse, listArtifacts: refuse, download: refuse };
+  }
+  const reads = createGitHubApi({ token: env.ARTIFACT_READ_TOKEN, repository: env.GITHUB_REPOSITORY, apiUrl: env.GITHUB_API_URL ?? "https://api.github.com", graphqlUrl: "", fetch });
+  return { getRun: reads.getRun, listArtifacts: reads.listArtifacts, download: reads.downloadArtifact };
+}
 
 // The security-review lane's ratings, lowest first (security-review SKILL.md,
 // "Reporting": one `severity: <rating>` line per inline comment), and the
@@ -966,7 +1063,7 @@ export function keepThreads({ threads, reviewComments, reviews, heads, security 
       is_outdated: thread.isOutdated === true,
       root_comment_id: rows[0].id,
       // A lane only from the github-actions[bot] author whose footer the
-      // review lanes write; claude[bot] writes its own body.
+      // review lanes write and bindLaneRows kept; claude[bot] writes its own body.
       comments: rows.map((row, i) => {
         const lane = isLaneComment({ authorId: row.user?.id, body: row.body }) ? laneOf(row.body) : null;
         const listed = authors[i].author === "reviewer" && reviewerIds.includes(row.user?.id);
@@ -1367,7 +1464,7 @@ const THREAD_QUERY = `query($id: ID!) {
       isResolved isOutdated pullRequest { number }
       comments(first: 100) {
         totalCount
-        nodes { databaseId body lastEditedAt editor { ... on User { databaseId } ... on Bot { databaseId } } }
+        nodes { databaseId body createdAt lastEditedAt author { ... on User { databaseId } ... on Bot { databaseId } } editor { ... on User { databaseId } ... on Bot { databaseId } } }
       }
     }
   }
@@ -1635,6 +1732,18 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     },
     compare: async (base, head) => requestData(`${repo}/compare/${base}...${head}`),
     getRun: async (id) => requestData(`${repo}/actions/runs/${id}`),
+    // Every artifact of a run, page by page until total_count.
+    async listArtifacts(id) {
+      const artifacts = [];
+      for (let page = 1; ; page += 1) {
+        const data = await requestData(`${repo}/actions/runs/${id}/artifacts?per_page=100&page=${page}`);
+        const rows = data.artifacts ?? [];
+        artifacts.push(...rows);
+        if (rows.length === 0 || artifacts.length >= (data.total_count ?? 0)) {
+          return artifacts;
+        }
+      }
+    },
     createReviewComment: async (pr, fields) => requestData(`${repo}/pulls/${pr}/comments`, "POST", fields),
     replyToComment: async (pr, commentId, body) => requestData(`${repo}/pulls/${pr}/comments/${commentId}/replies`, "POST", { body }),
     async resolveThread(id) {
@@ -1834,7 +1943,7 @@ export function pullFromFile(path, pr, headSha) {
   }
 }
 
-export async function main(argv, env, { api, log = (line) => console.log(line) } = {}) {
+export async function main(argv, env, { api, actions, log = (line) => console.log(line) } = {}) {
   const command = argv[0];
   need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "PR_NUMBER", "HEAD_SHA", "APP_SENDER_ID"]);
   const pr = positive(env.PR_NUMBER, "PR_NUMBER");
@@ -1842,15 +1951,18 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
   if (!SHA.test(env.HEAD_SHA)) {
     throw new Error("HEAD_SHA is not a commit id");
   }
-  const client =
+  const fetch = api ? undefined : await countedFetch();
+  const client = withLaneBinding(
     api ??
-    createGitHubApi({
-      token: env.GITHUB_TOKEN,
-      repository: env.GITHUB_REPOSITORY,
-      apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
-      graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
-      fetch: await countedFetch(),
-    });
+      createGitHubApi({
+        token: env.GITHUB_TOKEN,
+        repository: env.GITHUB_REPOSITORY,
+        apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
+        graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+        fetch,
+      }),
+    actions ?? laneReader(env, { fetch }),
+  );
   const output = (key, value) => appendFileSync(env.GITHUB_OUTPUT, `${key}=${value}\n`);
   const earlierFailHeads = earlierFailHeadsFrom(env);
   const selectThreads = async () => {

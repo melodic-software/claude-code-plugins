@@ -1383,12 +1383,14 @@ test("listActivity rejects when a later page answers an error, never returning t
 });
 
 // apply-dependency-verdict.mjs runs from $RUNNER_TEMP/base-script, a copy of
-// this directory, with merge-holds.mjs staged beside it in $RUNNER_TEMP/pr-merge
+// this directory, with the shared modules in $RUNNER_TEMP/lib and
+// merge-holds.mjs staged beside it in $RUNNER_TEMP/pr-merge
 // (collect-base-activity).
 test("listActivity loads its cursor reader from the staged layout a script activity runs in", async () => {
   const root = tempDir("base-activity-");
   try {
     cpSync(dirname(fileURLToPath(import.meta.url)), join(root, "base-script"), { recursive: true });
+    cpSync(fileURLToPath(new URL("../lib", import.meta.url)), join(root, "lib"), { recursive: true });
     mkdirSync(join(root, "pr-merge"));
     cpSync(fileURLToPath(new URL("../pr-merge/merge-holds.mjs", import.meta.url)), join(root, "pr-merge", "merge-holds.mjs"));
     const { createGitHubApi: staged } = await import(pathToFileURL(join(root, "base-script", "address-feedback.mjs")).href);

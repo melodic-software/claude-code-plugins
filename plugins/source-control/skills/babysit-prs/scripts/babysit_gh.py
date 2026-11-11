@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, Literal, cast, overload
 from urllib.parse import quote, unquote, urlparse
 
+import babysit_lane_binding as lane_binding
 import babysit_run_cache as run_cache
 from babysit_util import (
     DEFAULT_COMMAND_TIMEOUT_SECONDS,
@@ -2542,6 +2543,50 @@ def carried_lane_attempts(
     return [*attempts[:-1], {**item, "jobs": latest["jobs"]}]
 
 
+def _api_read(
+    path: str, env: Mapping[str, str] | None = None, binary: bool = False
+) -> Any:
+    """One REST GET: parsed JSON, or the raw bytes when `binary`. A failed
+    read raises `RuntimeError`."""
+    if binary:
+        return _run_gh(
+            ["api", path],
+            timeout_seconds=None,
+            check=True,
+            env_overrides=env,
+            binary=True,
+        ).stdout
+    return gh_json(["api", path], env) if env else gh_json(["api", path])
+
+
+def lane_binding_checker(
+    repo: str,
+    number: int,
+    workflows: Mapping[str, str],
+    env_overrides: Mapping[str, str] | None = None,
+) -> lane_binding.Check:
+    """A `babysit_lane_binding.lane_checker` for one pull request's lane
+    comments, reading runs, their artifacts and the record zips over REST
+    with `env_overrides`. It reads only for a comment that carries a
+    binding; a failed read raises."""
+    return lane_binding.lane_checker(
+        pr=number,
+        get_run=lambda run_id: json_object(
+            _api_read(f"repos/{repo}/actions/runs/{run_id}", env_overrides)
+        ),
+        list_artifacts=lambda run_id: fetch_paginated_api(
+            f"repos/{repo}/actions/runs/{run_id}/artifacts?per_page=100",
+            f"run {run_id} artifacts",
+            items_key="artifacts",
+            env_overrides=env_overrides,
+        ),
+        download=lambda artifact_id: _api_read(
+            f"repos/{repo}/actions/artifacts/{artifact_id}/zip", env_overrides, True
+        ),
+        workflows=workflows,
+    )
+
+
 def collect_main_reviews(
     repo: str,
     names: Mapping[str, str],
@@ -2561,15 +2606,7 @@ def collect_main_reviews(
     env = env_overrides
 
     def read(path: str, binary: bool = False) -> Any:
-        if binary:
-            return _run_gh(
-                ["api", path],
-                timeout_seconds=None,
-                check=True,
-                env_overrides=env,
-                binary=True,
-            ).stdout
-        return gh_json(["api", path], env) if env else gh_json(["api", path])
+        return _api_read(path, env, binary)
 
     records: list[dict[str, Any]] = []
     on_branch: dict[str, bool] = {}

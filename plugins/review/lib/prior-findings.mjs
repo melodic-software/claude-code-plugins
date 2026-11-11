@@ -14,7 +14,12 @@
 // non-blank line is the lane's `claude-lane: <lane>` footer, bare or in
 // backticks (or its first line is the lane's reviewed-head marker). Text alone never makes a post the
 // lane's: a lookalike from any other account is not listed, so it cannot
-// suppress a finding.
+// suppress a finding. Any workflow's job token posts as that bot, so a footed
+// post also has to pass lane-binding.mjs's check against the run its binding
+// names (a post with no binding passes while the legacy cutoff allows it); one
+// that fails reads as having no footer, and one that passes is read without
+// its binding line. The check reads that run and its comment-record artifacts
+// with the job token, which needs `actions: read`.
 //
 // CLI env: REPOSITORY (owner/name), PR_NUMBER, HEAD_SHA, LANE (claude-review
 // or claude-security-review), OUTPUT_PATH, GITHUB_TOKEN, optional
@@ -28,6 +33,8 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { pathToFileURL } from "node:url";
+
+import { laneChecker, withoutBinding } from "./lane-binding.mjs";
 
 const SHA = /^[0-9a-f]{40}$/u;
 const LANES = new Set(["claude-review", "claude-security-review"]);
@@ -45,17 +52,17 @@ const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
         nodes {
           isResolved path originalLine originalStartLine diffSide
           comments(first: 1) {
-            nodes { url body lastEditedAt originalCommit { oid } author { ${ACTOR} } editor { ${ACTOR} } }
+            nodes { databaseId createdAt updatedAt url body lastEditedAt originalCommit { oid } author { ${ACTOR} } editor { ${ACTOR} } }
           }
         }
       }
       reviews(first: 100) {
         pageInfo { hasNextPage }
-        nodes { url body lastEditedAt commit { oid } author { ${ACTOR} } editor { ${ACTOR} } }
+        nodes { databaseId createdAt updatedAt url body lastEditedAt commit { oid } author { ${ACTOR} } editor { ${ACTOR} } }
       }
       comments(first: 100) {
         pageInfo { hasNextPage }
-        nodes { url body lastEditedAt author { ${ACTOR} } editor { ${ACTOR} } }
+        nodes { databaseId createdAt updatedAt url body lastEditedAt author { ${ACTOR} } editor { ${ACTOR} } }
       }
     }
   }
@@ -74,14 +81,69 @@ const nonBlank = (body) =>
     .map((l) => l.trim())
     .filter(Boolean);
 
+const footed = (post, lane) => footer(lane).test(nonBlank(post.body).at(-1) ?? "");
+
 // Whether `post` is `lane`'s own: the bot wrote it, nobody else edited it, and
-// it carries the lane's footer as its last non-blank line or the lane's
-// reviewed-head marker as its first line.
+// it carries the lane's footer as its last non-blank line (unless bindPosts
+// marked it unbound) or the lane's reviewed-head marker as its first line.
 export function isLanePost(post, lane) {
   if (!LANES.has(lane) || !isBot(post?.author) || typeof post.body !== "string") return false;
   if (post.lastEditedAt != null && !isBot(post.editor)) return false;
-  const lines = nonBlank(post.body);
-  return footer(lane).test(lines.at(-1) ?? "") || marker(lane).test(lines[0] ?? "");
+  return (post.unbound !== true && footed(post, lane)) || marker(lane).test(nonBlank(post.body)[0] ?? "");
+}
+
+// The posts with each one whose footer would make it the lane's checked by
+// `check` (lane-binding.mjs laneChecker): a post that passes reads without its
+// binding line, one that fails is marked unbound. Other posts are not read.
+// A failed read rejects, failing the job.
+export async function bindPosts({ threads, reviews, comments, lane, check }) {
+  const bind = async (post, kind) => {
+    if (!isLanePost(post, lane) || !footed(post, lane)) return post;
+    const { databaseId: id, body, createdAt, updatedAt, lastEditedAt } = post;
+    return (await check({ kind, id, body, createdAt, updatedAt, lastEditedAt }))
+      ? { ...post, body: withoutBinding(body) }
+      : { ...post, unbound: true };
+  };
+  const bindThread = async (thread) => {
+    const [root, ...rest] = thread?.comments?.nodes ?? [];
+    if (!root) return thread;
+    return { ...thread, comments: { ...thread.comments, nodes: [await bind(root, "review_comment"), ...rest] } };
+  };
+  return {
+    threads: await Promise.all((threads ?? []).map(bindThread)),
+    reviews: await Promise.all((reviews ?? []).map((post) => bind(post, "review"))),
+    comments: await Promise.all((comments ?? []).map((post) => bind(post, "issue_comment"))),
+  };
+}
+
+// lane-binding.mjs's readers over the REST API. An artifact download answers
+// with a redirect to signed storage, followed without the token.
+export function restReaders({ api, repository, token, fetchImpl }) {
+  const headers = { authorization: `Bearer ${token}`, accept: "application/vnd.github+json" };
+  const read = async (path) => {
+    const res = await fetchImpl(`${api}/repos/${repository}/${path}`, { headers });
+    if (!res.ok) throw new Error(`prior-findings: the read of ${path} failed (${res.status})`);
+    return res.json();
+  };
+  return {
+    getRun: (id) => read(`actions/runs/${id}`),
+    listArtifacts: async (id) => {
+      const all = [];
+      for (let page = 1; ; page += 1) {
+        const { artifacts = [] } = await read(`actions/runs/${id}/artifacts?per_page=100&page=${page}`);
+        all.push(...artifacts);
+        if (artifacts.length < 100) return all;
+      }
+    },
+    download: async (id) => {
+      const path = `actions/artifacts/${id}/zip`;
+      let res = await fetchImpl(`${api}/repos/${repository}/${path}`, { headers, redirect: "manual" });
+      const location = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
+      if (location) res = await fetchImpl(location);
+      if (!res.ok) throw new Error(`prior-findings: the read of ${path} failed (${res.status})`);
+      return Buffer.from(await res.arrayBuffer());
+    },
+  };
 }
 
 // A reviewed-head comment's head and whether its status line reports a whole
@@ -252,6 +314,8 @@ export async function main({ env = process.env, fetchImpl = fetch, git = execFil
   const json = await res.json();
   if (!res.ok || json.errors) throw new Error(`prior-findings: the GraphQL read failed (${res.status})`);
   const pr = json.data.repository.pullRequest;
+  const check = laneChecker({ pr: env.PR_NUMBER, ...restReaders({ api, repository: `${owner}/${name}`, token: env.GITHUB_TOKEN, fetchImpl }) });
+  const posts = await bindPosts({ threads: pr.reviewThreads.nodes, reviews: pr.reviews.nodes, comments: pr.comments.nodes, lane, check });
 
   const basic = Buffer.from(`x-access-token:${env.GITHUB_TOKEN}`).toString("base64");
   const run = (args) =>
@@ -280,9 +344,7 @@ export async function main({ env = process.env, fetchImpl = fetch, git = execFil
   };
 
   const { findings, reviewed } = collect({
-    threads: pr.reviewThreads.nodes,
-    reviews: pr.reviews.nodes,
-    comments: pr.comments.nodes,
+    ...posts,
     lane,
     head: env.HEAD_SHA,
     diff,
