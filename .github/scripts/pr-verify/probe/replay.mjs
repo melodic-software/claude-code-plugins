@@ -75,7 +75,6 @@ export const UPSTREAM_JOBS = Object.freeze([
   "Test Node",
   "Check Managed Files",
   "Check Tests",
-  "Check Workflow Naming",
   "CI Status",
   "ci-status",
 ]);

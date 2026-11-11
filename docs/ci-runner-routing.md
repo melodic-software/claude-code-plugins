@@ -42,7 +42,7 @@ reviewed pull request.
 The `ci-status` required check depends on every **required** workload lane
 (`mark-lanes`, `select-tests`, `lint-repo`, `lint-shell`, `check-plugins`, `check-catalog`,
 `check-skills`, `test-bash`, `test-python`, `test-node`, `check-managed-files`,
-`check-tests`, `check-workflow-naming`) and requires
+`check-tests`) and requires
 each result to be `success`, failing closed through execution
 (`!cancelled()`, never a success-guard, so a skipped lane cannot report
 success to branch protection). The one exception is an ordered skip: a test
@@ -76,7 +76,7 @@ no automated review, by design.
 
 Workflow, job and step names follow the org naming lint
 ([github-actions-conventions](https://github.com/melodic-software/standards/blob/main/components/github-actions-conventions/README.md)),
-which `check-workflow-naming` runs. The gate job `ci-status` shows as
+which `lint-repo` runs. The gate job `ci-status` shows as
 `CI Status`, and its alias job `report-ci-status` reports that conclusion as
 `ci-status` until the ci-gate ruleset requires `CI Status`. `lint-repo` lints the repository as a whole (text
 hygiene, the CI configuration, the docs conventions); `lint-shell` runs
