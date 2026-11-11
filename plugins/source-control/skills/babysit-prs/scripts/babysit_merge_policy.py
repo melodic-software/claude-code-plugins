@@ -4177,7 +4177,7 @@ def auto_dismissed(events: Any) -> dict[str, str]:
             and d["dismissal_message"] is None
             and json_object(event.get("actor")).get("type") == "Bot"
             and isinstance(commit, str)
-            and re.fullmatch(r"[0-9a-f]{40}", commit) is not None
+            and SHA_RE.fullmatch(commit) is not None
         )
         if stale and key not in found:
             found[key] = commit
@@ -4207,7 +4207,7 @@ def base_tip(owner: str, name: str, base: str) -> str:
     when it does not read as a commit SHA (merge-holds.mjs `baseTip`)."""
     status, answer = _get(f"repos/{owner}/{name}/git/ref/heads/{base}")
     sha = json_object(json_object(answer).get("object")).get("sha")
-    if status != 200 or not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{40}", sha):
+    if status != 200 or not isinstance(sha, str) or not SHA_RE.fullmatch(sha):
         raise PolicyReadError(f"the base branch {base} did not resolve")
     if _BASE_TIPS is not None:
         _BASE_TIPS[f"{owner}/{name}@{base}"] = sha
@@ -4234,6 +4234,15 @@ def remembered_base_tip(owner: str, name: str, base: str) -> str:
     """`base`'s tip as read inside `base_tips_remembered`, else `base_tip`."""
     known = (_BASE_TIPS or {}).get(f"{owner}/{name}@{base}")
     return known or base_tip(owner, name, base)
+
+
+def _compare(owner: str, name: str, spec: str) -> Any:
+    """The compare of `spec` (`<base>...<head>`); PolicyReadError when it does
+    not read."""
+    status, answer = _get(f"repos/{owner}/{name}/compare/{spec}")
+    if status != 200:
+        raise PolicyReadError(f"compare {spec} is unreadable")
+    return answer
 
 
 def lifts_of(
@@ -4270,7 +4279,7 @@ def lifts_of(
         restored = (
             dismissed.get(key) if row.get("state") == "DISMISSED" and key else None
         )
-        if not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{40}", sha):
+        if not isinstance(sha, str) or not SHA_RE.fullmatch(sha):
             continue
         if row.get("state") == "APPROVED" or restored is not None:
             login = str(json_object(row.get("user")).get("login") or "")
@@ -4310,10 +4319,7 @@ def carried_lifters(
 
     def compare(spec: str) -> Any:
         if spec not in compares:
-            status, answer = _get(f"repos/{owner}/{name}/compare/{spec}")
-            if status != 200:
-                raise PolicyReadError(f"compare {spec} is unreadable")
-            compares[spec] = answer
+            compares[spec] = _compare(owner, name, spec)
         return compares[spec]
 
     def tree(commit: str) -> Any:
@@ -4324,8 +4330,8 @@ def carried_lifters(
 
     dismissed: dict[str, str] = {}
     if any(
-        json_object(json_object(r).get("user")).get("type") == "User"
-        and json_object(json_object(r).get("user")).get("id") in humans
+        (user := json_object(json_object(r).get("user"))).get("type") == "User"
+        and user.get("id") in humans
         and json_object(r).get("state") == "DISMISSED"
         for r in reviews
     ):
@@ -4376,10 +4382,7 @@ def carried_lifters(
             if (
                 base_merges_only(then, now, lifted, in_base)
                 and not same_net_change(then, now)
-                and all(
-                    isinstance(x, str) and re.fullmatch(r"[0-9a-f]{40}", x)
-                    for x in (start, end)
-                )
+                and all(isinstance(x, str) and SHA_RE.fullmatch(x) for x in (start, end))
             ):
                 merges, based = compare(f"{lifted}...{sha}"), compare(f"{start}...{end}")
                 trees = [tree(sha), tree(end)]
@@ -4437,13 +4440,7 @@ def _carries(repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any]) -> bo
         return False
     if decided == sha:
         return True
-
-    def compare(spec: str) -> Any:
-        status, answer = _get(f"repos/{owner}/{name}/compare/{spec}")
-        if status != 200:
-            raise PolicyReadError(f"compare {spec} is unreadable")
-        return answer
-
+    compare = partial(_compare, owner, name)
     try:
         then, now = compare(f"{tip}...{decided}"), compare(f"{tip}...{sha}")
         in_base = base_parents(compare, tip, then, now)
@@ -4534,14 +4531,20 @@ def cost_decision(
     return None
 
 
+def _is_fork(pr: Mapping[str, Any], owner: str) -> bool:
+    """Whether the GraphQL pull request's head is outside `owner`'s
+    repository, or does not read as inside it."""
+    head_owner = json_object(pr.get("headRepositoryOwner")).get("login")
+    return (
+        pr.get("isCrossRepository") is not False
+        or str(head_owner).casefold() != owner.casefold()
+    )
+
+
 def _foreign_refusal(pr: dict[str, Any], owner: str) -> str | None:
     """`fork` for a head outside this repository, `dependency-manager` for a
     dependency manager's pull request, else None."""
-    head_owner = json_object(pr.get("headRepositoryOwner")).get("login")
-    if (
-        pr.get("isCrossRepository") is not False
-        or str(head_owner).casefold() != owner.casefold()
-    ):
+    if _is_fork(pr, owner):
         return "fork"
     if is_dependency_author(str(json_object(pr.get("author")).get("login") or "")):
         return "dependency-manager"
@@ -4989,6 +4992,19 @@ def _discussion(owner: str, name: str, number: int) -> list[dict[str, Any]]:
     ]
 
 
+def _people_discussion(
+    owner: str, name: str, number: int, identity: str
+) -> Iterator[dict[str, Any]]:
+    """Each `_discussion` item a person wrote: not the agent identity, an
+    automation account or a bot."""
+    skip = {_login_key(identity), *AUTOMATION_LOGINS}
+    for item in _discussion(owner, name, number):
+        author = _rest_actor(item.get("user"))
+        login = str((author or {}).get("login") or "")
+        if actor_kind({"author": author}) == "human" and _login_key(login) not in skip:
+            yield item
+
+
 def _quiet_since(
     owner: str, name: str, number: int, identity: str, since: datetime
 ) -> bool:
@@ -4997,12 +5013,7 @@ def _quiet_since(
     submitted. The agent identity, automation accounts and bots do not count;
     a person's item with no readable time does. An unreadable discussion
     raises."""
-    skip = {_login_key(identity), *AUTOMATION_LOGINS}
-    for item in _discussion(owner, name, number):
-        author = _rest_actor(item.get("user"))
-        login = str((author or {}).get("login") or "")
-        if actor_kind({"author": author}) != "human" or _login_key(login) in skip:
-            continue
+    for item in _people_discussion(owner, name, number, identity):
         stamps = [item.get(k) for k in ("created_at", "updated_at", "submitted_at")]
         stamps = [s for s in stamps if s]
         if not stamps or any(_time(s) >= since for s in stamps):
@@ -5104,20 +5115,15 @@ def lane_eligibility(
         issue, refusal = _linked_issue(node, repo)
         if refusal is None:
             issue_number = issue["number"]
-            permission = permission or permission_reader(repo)
-            refusal = trust_refusal(
-                owner,
-                name,
-                issue,
-                lambda actor: is_human(
-                    actor,
-                    repo=repo,
-                    agent_identity=agent_identity,
-                    self_logins=self_logins,
-                    permission=permission,
-                ),
-                {},
-            ) or issue_hold_refusal(issue, issue_holds, issue_status)
+            human = partial(
+                is_human,
+                repo=repo,
+                agent_identity=agent_identity,
+                self_logins=self_logins,
+                permission=permission or permission_reader(repo),
+            )
+            refusal = trust_refusal(owner, name, issue, human, {})
+            refusal = refusal or issue_hold_refusal(issue, issue_holds, issue_status)
         # An adopted pull request closing no issue here is its own intent,
         # the verifier judging its title and body (owner decision 2026-10-22),
         # when a person or a script wrote them (`spec_from_body_ids`: the
@@ -5395,9 +5401,11 @@ def _commit_files(owner: str, name: str) -> Callable[[str], list[str] | None]:
             return None
         status, payload = _get(f"repos/{owner}/{name}/commits/{sha}")
         listing = json_object(payload).get("files")
-        if status != 200 or not is_json_array(listing):
-            return None
-        if len(listing) >= COMMIT_FILES_LIMIT:
+        if (
+            status != 200
+            or not is_json_array(listing)
+            or len(listing) >= COMMIT_FILES_LIMIT
+        ):
             return None
         return [str(json_object(f).get("filename") or "") for f in listing]
 
@@ -5465,11 +5473,7 @@ def dependabot_eligibility(
         node = json_object(json_object(data.get("repository")).get("pullRequest"))
         if not node:
             return Eligibility(False, "pull-request-unreadable")
-        head_owner = json_object(node.get("headRepositoryOwner")).get("login")
-        if (
-            node.get("isCrossRepository") is not False
-            or str(head_owner).casefold() != owner.casefold()
-        ):
+        if _is_fork(node, owner):
             return Eligibility(False, "fork")
         author = json_object(node.get("author"))
         if author.get("__typename") != "Bot" or not dependabot.is_dependabot(
@@ -5802,13 +5806,12 @@ def in_flight(
         return InFlight(False, "merged-since-unset")
     if merged_since.utcoffset() is None:
         return InFlight(False, "merged-since-not-timezone-aware")
-    permission = permission or permission_reader(repo)
-    human = lambda actor: is_human(  # noqa: E731
-        actor,
+    human = partial(
+        is_human,
         repo=repo,
         agent_identity=agent_identity,
         self_logins=self_logins,
-        permission=permission,
+        permission=permission or permission_reader(repo),
     )
     queued: frozenset[int] | None = None
     count = unverified = 0
@@ -5867,20 +5870,9 @@ def _member_discussion(
     """Each human's comment, review or inline comment on the pull request. Only
     an owner, member or collaborator counts: on a public repository anyone can
     comment, and a stranger's text must not dequeue the identity's entry."""
-    for item in _discussion(owner, name, number):
-        author = _rest_actor(item.get("user"))
-        login = str((author or {}).get("login") or "")
-        if actor_kind({"author": author}) != "human" or _login_key(login) in {
-            _login_key(identity),
-            *AUTOMATION_LOGINS,
-        }:
-            continue
-        if (
-            str(item.get("author_association") or "").upper()
-            not in BLOCKER_ASSOCIATIONS
-        ):
-            continue
-        yield item
+    for item in _people_discussion(owner, name, number, identity):
+        if str(item.get("author_association") or "").upper() in BLOCKER_ASSOCIATIONS:
+            yield item
 
 
 def _discussion_login(item: dict[str, Any]) -> str:
@@ -5990,13 +5982,12 @@ def entry_hold(
     from babysit_postmerge import PostMergeReadError  # noqa: PLC0415
 
     owner, name = _split_repo(repo)
-    permission = permission or permission_reader(repo)
-    human = lambda actor: is_human(  # noqa: E731
-        actor,
+    human = partial(
+        is_human,
         repo=repo,
         agent_identity=identity,
         self_logins=self_logins,
-        permission=permission,
+        permission=permission or permission_reader(repo),
     )
     try:
         data = _graphql(ENTRY_HOLD_QUERY, f"#{number}", o=owner, r=name, n=number)
@@ -6016,14 +6007,11 @@ def entry_hold(
             return f"human-blocking-comment:{','.join(blockers)}"
         if not queued:
             return None
-        opt_in = _opt_in_hold(
+        return _opt_in_hold(
             owner, name, pr, json_object(events[-1]).get("createdAt"), human
         )
-        if opt_in:
-            return opt_in
     except (PolicyReadError, PostMergeReadError) as exc:
         return f"unreadable: {exc}"
-    return None
 
 
 # --- Composition ------------------------------------------------------------------------------
