@@ -264,7 +264,7 @@ plugins/domain-driven-design/skills/*/SKILL.md
 plugins/dometrain/README.md
 plugins/dometrain/CHANGELOG.md
 plugins/dometrain/skills/*/SKILL.md
-plugins/dometrain/skills/sync/context/*.md
+plugins/dometrain/skills/update/context/*.md
 plugins/education/README.md
 plugins/education/CHANGELOG.md
 plugins/education/skills/*/SKILL.md

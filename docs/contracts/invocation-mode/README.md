@@ -237,7 +237,7 @@ setup skills are class (ii) by contract; the 141
 | `harness-ops:plugins` | (i) mutating fleet sync | KEEP `true` (re-graded 2026-10-18 under D3 on [#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458): still KEEP, `sync` updates, installs and enables with no stop, and its `--allow-downgrade`, `--install-new` and `--only-install` are model-passable; evidence in [the re-grade below](#re-grade-harness-opsplugins-under-the-2026-10-18-decision-9708)) |
 | `discipline:wait-what` | (i) trigger is human-internal | KEEP `true` |
 | `disk-hygiene:clean` | (i) destructive-capable, approval-gated removal | **FLIPPED → `false`** by the owner's decision on [#9572](https://github.com/melodic-software/claude-code-plugins/issues/9572) (2026-10-26), after the 2026-10-18 D3 re-grade had kept it `true`; both are recorded in [the re-grade below](#re-grade-disk-hygieneclean-under-the-2026-10-18-decision-9706) |
-| `dometrain:sync` | (iii) maintainer-only | KEEP `true` |
+| `dometrain:update` | (iii) maintainer-only | KEEP `true` |
 | `education:teach` | (i) deliberate mode-entry, persistent coaching state | KEEP `true` |
 | `firecrawl:update` | (iii) maintainer-only | KEEP `true` |
 | `planning:questionnaire` | none: no side effects, not setup, not maintainer-only | **FLIPPED → `false`** ([#2969](https://github.com/melodic-software/claude-code-plugins/issues/2969); the re-check for a latent rationale found none, as recorded below; the skill was retired 2026-11-11 into `planning:interview`'s document surface) |

@@ -96,10 +96,11 @@ proactively consults it on a covered topic without an explicit command.
 ## Keeping the grounding skill in sync
 
 The grounding skill's usage guidance is vendored, not hand-copied, from Dometrain's own skill
-content. `/dometrain:sync` is **maintainer-only, never model-invocable, and report-only for
-consumers**. It checks whether upstream has changed. See
-[`skills/sync/context/update.md`](skills/sync/context/update.md) for the full integration
-protocol; only a maintainer working in a clone of this repository refreshes the baseline.
+content. `/dometrain:update` is **maintainer-only and never model-invocable**. Its default
+`--check` reports whether upstream has changed; `--apply` refreshes the vendored baseline and runs
+only from a clone of this repository. See
+[`skills/update/context/update.md`](skills/update/context/update.md) for the full integration
+protocol.
 
 ## Setup mechanism
 
