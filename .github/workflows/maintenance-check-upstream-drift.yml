@@ -44,9 +44,9 @@ jobs:
           - skill: playbooks:skill-authoring
             script: plugins/playbooks/skills/skill-authoring/scripts/update.sh
             args: --check
-          - skill: dometrain:sync
-            script: plugins/dometrain/skills/sync/scripts/update.sh
-            args: report
+          - skill: dometrain:update
+            script: plugins/dometrain/skills/update/scripts/update.sh
+            args: --check
           - skill: context7:lookup
             script: plugins/context7/skills/lookup/scripts/update.sh
             args: ""
