@@ -83,6 +83,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+from collections import Counter
 from pathlib import Path
 
 BOM = "\ufeff"
@@ -291,28 +292,21 @@ def is_word(ch: str) -> bool:
     return ch.isalnum() or ch == "_"
 
 
+SWAP = str.maketrans({"/": "\\", "\\": "/"})
+
+
 def swap(s: str) -> str:
-    return s.translate(str.maketrans({"/": "\\", "\\": "/"}))
+    return s.translate(SWAP)
 
 
 def forms(value: str) -> list[tuple[str, str]]:
-    """(tag, text) for every distinct spelling of value."""
-    out = [("exact", value), ("swap", swap(value))]
-    back = value.replace("/", "\\")
-    if "\\" in back:
-        out.append(("doubled", back.replace("\\", "\\\\")))
-    m = DRIVE_PATH.match(value)
-    if m:
-        rest = m.group(2).replace("\\", "/")
-        out.append(("msys", f"/{m.group(1).lower()}/{rest}"))
-        out.append(("wsl", f"/mnt/{m.group(1).lower()}/{rest}"))
-    seen: set[str] = set()
-    uniq = []
-    for tag, text in out:
-        if text not in seen:
-            seen.add(text)
-            uniq.append((tag, text))
-    return uniq
+    """(tag, text) for every distinct spelling of value, first tag kept."""
+    uniq: dict[str, str] = {}
+    for tag in ("exact", "swap", "doubled", "msys", "wsl"):
+        text = render(tag, value)
+        if text is not None:
+            uniq.setdefault(text, tag)
+    return [(tag, text) for text, tag in uniq.items()]
 
 
 def render(tag: str, new: str) -> str | None:
@@ -506,15 +500,12 @@ def cmd_find(args: argparse.Namespace) -> int:
                     for start, _, tag in found
                 ]
     if args.format == "summary":
-        per_file: dict[str, int] = {}
-        per_class = dict.fromkeys(CLASSES, 0)
-        for row in rows:
-            per_file[row[1]] = per_file.get(row[1], 0) + 1
-            per_class[row[0]] += 1
+        per_file = Counter(row[1] for row in rows)
+        per_class = Counter(row[0] for row in rows)
         for rel, n in per_file.items():
             print(f"file\t{rel}\t{n}")
-        for cls, n in per_class.items():
-            print(f"class\t{cls}\t{n}")
+        for cls in CLASSES:
+            print(f"class\t{cls}\t{per_class[cls]}")
         print(f"sites: {len(rows)}")
         print(f"skipped: {len(skips)}")
     else:
@@ -638,11 +629,12 @@ def cmd_apply(args: argparse.Namespace) -> int:
     for site in args.sites:
         given, num, col, mark = parse_site(site)
         path = root / given
-        rel = known.get(os.path.normcase(str(path.resolve())))
+        resolved = path.resolve()
+        rel = known.get(os.path.normcase(str(resolved)))
         where = f"{given}:{num}:{col}"
         if path.is_symlink():
             refusals.append(f"{where}: a symlink is not editable")
-        elif not path.resolve().is_relative_to(base):
+        elif not resolved.is_relative_to(base):
             refusals.append(f"{where}: outside the root")
         elif rel is None:
             refusals.append(f"{where}: not a tracked file")

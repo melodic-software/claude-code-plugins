@@ -95,15 +95,9 @@ def inside(rel: str) -> str | None:
 
 
 def names_path(text: str, base: str, names: set[str]) -> bool:
-    text = text.strip()
-    if text.startswith("./"):
-        text = text[2:]
-    text = text.rstrip("/")
-    for rel in (text, posixpath.join(base, text) if base else None):
-        rel = inside(rel) if rel else None
-        if rel and rel in names:
-            return True
-    return False
+    text = text.strip().removeprefix("./").rstrip("/")
+    spellings = (text, posixpath.join(base, text)) if base else (text,)
+    return any(inside(rel) in names for rel in spellings)
 
 
 def strings(value) -> list[str]:
@@ -131,11 +125,8 @@ def json_lists(value, pointer: str = ""):
 
 
 def line_list(text: str):
-    entries = [
-        ln.strip()
-        for ln in text.splitlines()
-        if ln.strip() and not ln.strip().startswith("#")
-    ]
+    stripped = (ln.strip() for ln in text.splitlines())
+    entries = [ln for ln in stripped if ln and not ln.startswith("#")]
     yield "lines", entries, [[w for w in WORD_SPLIT.split(e) if w] for e in entries]
 
 
