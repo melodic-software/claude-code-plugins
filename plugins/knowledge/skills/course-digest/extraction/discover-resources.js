@@ -23,6 +23,7 @@ import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { createAdapter } from "./adapters/adapter-contract.js";
 import { resolveAuthStatePath } from "./lib/auth-store.js";
 import { checkAuthAge, closeBrowser, launchBrowser } from "./lib/browser.js";
+import { hasPlayerElement } from "./lib/player-presence.js";
 import {
   findFirstVideoLesson,
   formatLessonLabel,
@@ -188,11 +189,7 @@ async function main() {
   await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(2000);
 
-  const hasPlayer = await page
-    .evaluate((sel) => !!document.querySelector(sel), videoSelector)
-    .catch(() => false);
-
-  if (!hasPlayer) {
+  if (!(await hasPlayerElement(page, videoSelector))) {
     log.error(
       "  ✗ Not authenticated. Run extract-course.js first to establish the auth session.",
     );
@@ -214,16 +211,9 @@ async function main() {
   log.info(`  ${"-".repeat(80)}`);
 
   const report = [];
-  const discoveryCtx = {
-    adapter,
-    course,
-    page,
-    platformCfg,
-    report,
-    checked: 0,
-  };
+  const discoveryCtx = { adapter, course, page, platformCfg, report, checked: 0 };
   await inspectAllLessons(lessonList, discoveryCtx);
-  const checked = discoveryCtx.checked;
+  const { checked } = discoveryCtx;
 
   await closeBrowser(context, browser);
 
