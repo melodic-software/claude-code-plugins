@@ -133,6 +133,18 @@
       "split": "train",
       "expect_trigger": false,
       "request": "Convert all our ADRs to the MADR template."
+    },
+    {
+      "id": "pos-train-08",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Edit an ADR for me: 0012 said Redis for sessions, and we have moved them to Postgres."
+    },
+    {
+      "id": "pos-val-07",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "We kept two of the three choices in ADR 0009 and dropped the third; update the ADR to match."
     }
   ]
 }

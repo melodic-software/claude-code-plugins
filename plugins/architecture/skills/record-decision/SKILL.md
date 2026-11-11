@@ -147,6 +147,15 @@ Runs when the new decision reverses or replaces an existing record, and for an a
 person picks. The new record's `Considered options` (or the convention's equivalent) names the
 retired record by identifier and title and says why it was reversed.
 
+A changed decision gets a new record, never an amendment inside the accepted one: an accepted record
+is edited in place only to rename a term or to set its status.
+
+**Partial reversal.** When the new decision reverses only part of a record, keep the old file
+whatever `adr_retirement` says, and in place of steps 1 to 3: after writing the new record, name the
+old one and the superseded-in-part status you will set, naming the part, in the words and form the
+existing records use. Ask. On a yes, edit only that status; on a no, leave it and say so. When the
+records carry no such wording, say so and ask for it.
+
 1. After writing the new record, name the old one, the resolved `adr_retirement` and its layer, and
    what that will do to the old file. Ask. Act only on a yes; on a no, leave it and say so. Done
    when the person has answered.
@@ -170,8 +179,8 @@ retired record by identifier and title and says why it was reversed.
      live. **As of**: 2026-11-10. **Recheck trigger**: that section changes when a nested
      `AGENTS.md` loads.
 
-Done when `git status --porcelain` shows the new record, the one retirement change, and the line's
-file if it was written, and nothing else.
+Done when `git status --porcelain` shows the new record, the one retirement or partial-status
+change, and the line's file if it was written, and nothing else.
 
 ## Audit
 
@@ -221,8 +230,8 @@ and offer the repository's own observed shape, or the bundled template, instead.
 ## What this skill does NOT do
 
 - **Index generation.** README tables, `index.md`, or any catalog of records
-- **Status lifecycle** beyond what the convention already defines, except the retirement status
-  Step 3 sets
+- **Status lifecycle** beyond what the convention already defines, except the retirement and
+  superseded-in-part statuses Step 3 sets; no structured status or supersedes fields are added
 - **Migrating existing records** to a different template or numbering scheme
 - **Imposing a convention** on a repository that has none: the default template is recommended,
   and nothing is written until the human chooses
