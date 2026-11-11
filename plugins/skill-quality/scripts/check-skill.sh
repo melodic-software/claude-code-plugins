@@ -1491,6 +1491,11 @@ vendor_content_sha() {
   done | LC_ALL=C sort | "${hasher[@]}" | awk '{print $1}'
 }
 
+# metadata_value <key> <frontmatter>: the unquoted value of metadata.<key>.
+metadata_value() {
+  skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field "$1" <<<"$2")"
+}
+
 # Only meaningful when the skill has a HEAD baseline: a brand-new vendored skill
 # staged before a pre-commit run has no prior vendor/ to preserve, so its staged
 # files must not read as "changed vs HEAD". Outside a git repo there is no
@@ -1511,10 +1516,10 @@ elif [[ -d "$SKILL_DIR/vendor" && "$HAVE_BASE_FM" == 1 ]]; then
     # release AND bumps this key in the same change. A vendor/ diff with no
     # accompanying version bump means vendor/ was hand-edited, which the
     # byte-identical guarantee forbids.
-    BASE_UPSTREAM_VERSION="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field upstream-version <<<"$BASE_FM")")"
-    CUR_UPSTREAM_VERSION="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field upstream-version <<<"$FRONTMATTER")")"
-    BASE_UPSTREAM_SHA="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field upstream-sha <<<"$BASE_FM")")"
-    CUR_UPSTREAM_SHA="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field upstream-sha <<<"$FRONTMATTER")")"
+    BASE_UPSTREAM_VERSION="$(metadata_value upstream-version "$BASE_FM")"
+    CUR_UPSTREAM_VERSION="$(metadata_value upstream-version "$FRONTMATTER")"
+    BASE_UPSTREAM_SHA="$(metadata_value upstream-sha "$BASE_FM")"
+    CUR_UPSTREAM_SHA="$(metadata_value upstream-sha "$FRONTMATTER")"
     if [[ -n "$CUR_UPSTREAM_VERSION" && "$CUR_UPSTREAM_VERSION" != "$BASE_UPSTREAM_VERSION" ]]; then
       note "vendor/ changed vs $BASE_REF, paired with an upstream-version bump ($BASE_UPSTREAM_VERSION -> $CUR_UPSTREAM_VERSION) — legitimate sync"
     elif [[ -n "$CUR_UPSTREAM_SHA" && "$CUR_UPSTREAM_SHA" != "$BASE_UPSTREAM_SHA" ]]; then
@@ -1576,8 +1581,8 @@ fi
 # hiding the kindle-dedrm failure mode (a phrase reachable only from a dmi-true
 # skill), so the warning stays and the exemptions stay documented instead.
 if [[ -n "$CUR_DESC" ]]; then
-  CUR_TRIG_WTU="$(printf '%s\n' "$CUR_WTU" | skill_frontmatter::extract_triggers)"
-  if ! grep -qi 'use when' <<<"$CUR_DESC$CUR_WTU" && [[ -z "$CUR_TRIG_WTU" ]]; then
+  if ! grep -qi 'use when' <<<"$CUR_DESC$CUR_WTU" &&
+    [[ -z "$(printf '%s\n' "$CUR_WTU" | skill_frontmatter::extract_triggers)" ]]; then
     warn "description has no 'Use when:' trigger phrasing — a description is a trigger spec, not a summary"
   fi
 fi
@@ -1763,13 +1768,9 @@ precompute_readonly_line() {
 # Does the skill already use `!` dynamic-context injection anywhere? Inline form
 # is recognized only at line start or after whitespace (per the skills docs); a
 # ```! opening fence is the multi-line form. Either presence silences check 18.
-PRECOMPUTE_INJECTS=0
-if grep -qE '(^|[[:space:]])!`' "$SKILL_MD" || grep -qE '^[[:space:]]*```+!' "$SKILL_MD"; then
-  PRECOMPUTE_INJECTS=1
-fi
-
 PRECOMPUTE_CANDIDATE=0
-if ((PRECOMPUTE_INJECTS == 0)); then
+# shellcheck disable=SC2016  # single quotes are deliberate: the backticks are literal regex
+if ! grep -qE '(^|[[:space:]])!`|^[[:space:]]*```+!' "$SKILL_MD"; then
   # Single-level fence scan. A fenced code block is opened by a run of >=3
   # backticks and closes on a bare fence of at least that many; content inside
   # never opens a nested block (CommonMark), so inner ``` examples inside a
@@ -1891,14 +1892,9 @@ if ((${#INJECTIONS[@]} > 0)); then
   if grep -qE '^shell:[[:space:]]*[^[:space:]]' <<<"$FRONTMATTER"; then
     note "shell: declared — dynamic-context injection portability is the author's explicit choice"
   else
-    bash_only_hit=""
-    for inj in "${INJECTIONS[@]}"; do
-      hit="$(grep -oE "$bash_only_re" <<<"$inj" | head -1 || true)"
-      if [[ -n "$hit" ]]; then
-        bash_only_hit="$hit"
-        break
-      fi
-    done
+    # Each injection is one line, so the first match in the joined list is the
+    # first injection's first bash-only token.
+    bash_only_hit="$(printf '%s\n' "${INJECTIONS[@]}" | grep -oE "$bash_only_re" | head -1 || true)"
     if [[ -n "$bash_only_hit" ]]; then
       # shellcheck disable=SC2016  # single quotes deliberate: the backticked tokens in the message are literal
       err "\`!\` dynamic-context injection uses bash-only syntax ('$bash_only_hit') with no \`shell:\` frontmatter — on a host without Git Bash the injection falls through to the PowerShell tool and breaks. Declare \`shell: bash\` (or write portable commands). See https://code.claude.com/docs/en/skills#inject-dynamic-context"
@@ -2356,7 +2352,7 @@ INVOCATION_RUBRIC='docs/contracts/invocation-mode/README.md'
 DMI_RAW="$(skill_frontmatter::field disable-model-invocation <<<"$FRONTMATTER")"
 DMI_TRIMMED="${DMI_RAW#"${DMI_RAW%%[![:space:]]*}"}"
 DMI_TRIMMED="${DMI_TRIMMED%"${DMI_TRIMMED##*[![:space:]]}"}"
-DMI_VAL="$(printf '%s' "$DMI_TRIMMED" | tr '[:upper:]' '[:lower:]')"
+DMI_VAL="${DMI_TRIMMED,,}"
 case "$DMI_VAL" in
   true | yes | on | 1) DMI_BOOL=true ;;
   false | no | off | 0) DMI_BOOL=false ;;
@@ -2439,7 +2435,7 @@ NEXT_ROUTING_HEADING='^##[[:space:]]+(handoff|routing|integration|skill chaining
 
 NEXT_LINE="$(grep -nE '^## Next[[:space:]]*$' "$SKILL_MD" | head -1 | cut -d: -f1)"
 if [[ -z "$NEXT_LINE" ]]; then
-  NEXT_STAGE="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field workflow-stage <<<"$FRONTMATTER")")"
+  NEXT_STAGE="$(metadata_value workflow-stage "$FRONTMATTER")"
   if [[ "$NEXT_STAGE" =~ $NEXT_STAGE_BEARING ]] && ! grep -qiE "$NEXT_ROUTING_HEADING" "$SKILL_MD"; then
     warn "no '## Next' section on a stage-bearing skill (workflow-stage: $NEXT_STAGE): a mid-sequence skill names its successor in one, before '## Gotchas' (skill-bodies rule)"
   else
@@ -2620,18 +2616,16 @@ skill_quality_setting() {
     value="$(bash "$SETTINGS_LIB/parse-concern-value.sh" --strict "$REPO_ROOT/$rel" "$key" 2>/dev/null)"
     status=$?
     value="${value//$'\r'/}"
-    if ((status == 0)) && [[ -z "$value" ]]; then
+    if ((status != 0)); then
+      warn "$rel does not parse; that layer is dropped and $key resolves to $2 unless a later layer sets it"
+    elif [[ -z "$value" ]]; then
       continue
-    fi
-    if ((status == 0)) && [[ "$value" =~ ^[1-9][0-9]{0,3}$ ]] && ((value <= DESC_FIELD_CAP)); then
+    elif [[ "$value" =~ ^[1-9][0-9]{0,3}$ ]] && ((value <= DESC_FIELD_CAP)); then
       SETTING_VALUE="$value"
       SETTING_LAYER="$rel"
       continue
-    fi
-    if ((status == 0)); then
-      warn "$rel: $key is '$value', not a whole number from 1 to $DESC_FIELD_CAP; that layer is dropped and $key resolves to $2 unless a later layer sets it"
     else
-      warn "$rel does not parse; that layer is dropped and $key resolves to $2 unless a later layer sets it"
+      warn "$rel: $key is '$value', not a whole number from 1 to $DESC_FIELD_CAP; that layer is dropped and $key resolves to $2 unless a later layer sets it"
     fi
     SETTING_VALUE="$2"
     SETTING_LAYER="default"
@@ -2845,6 +2839,8 @@ elif [[ -f "$SETTINGS_TOKEN_BASELINE" && -n "$SKILL_REL" ]]; then
 fi
 ST_SEEN=""
 ST_ANY=0
+# shellcheck disable=SC2016  # backticks are literal Markdown in the message
+st_fix='state the fallback in the same sentence, e.g. "(unexpanded, empty, or any other value means `false`)", as `/code-tidying:tidy` does for `hard_exclusions`'
 while IFS= read -r st_md; do
   st_file="${st_md#"$SKILL_DIR"/}"
   st_hits="$(settings_token_hits "$st_md")"
@@ -2871,8 +2867,6 @@ while IFS= read -r st_md; do
   while IFS=$'\t' read -r st_line st_key; do
     st_where="${st_where:+$st_where, }$st_file:$st_line ($st_key)"
   done <<<"$st_hits"
-  # shellcheck disable=SC2016  # backticks are literal Markdown in the message
-  st_fix='state the fallback in the same sentence, e.g. "(unexpanded, empty, or any other value means `false`)", as `/code-tidying:tidy` does for `hard_exclusions`'
   if [[ -z "$st_base" ]] && ((ST_STRICT == 0)); then
     warn "settings token used as a condition with no inline fallback at $st_where — advisory: no settings-token baseline applies to this run (set CHECK_SKILL_SETTINGS_TOKEN_BASELINE to a baseline file, empty for none, to make it a FAIL); $st_fix"
   elif [[ -z "$st_base" ]]; then
