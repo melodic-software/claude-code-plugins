@@ -37,8 +37,8 @@ evolutions". Keep the `claims/<n>.json` shape stable so a later implementation c
 | `title` | Video title from the preflight probe (escaped + 60-char capped), so the row is legible without opening the URL |
 | `channel` | `Display Name (@handle)` from the preflight probe |
 | `slug` | Filled after first bootstrap (`derive-video-slug.js`); may be pre-filled at queue time when companion brief materialized |
-| `status` | `pending` \| `in_progress` \| `complete` \| `failed` \| `skipped` |
-| `notes` | Operator/agent notes (terminal label, error one-liner, or `companion — source/companion-sources.md`) |
+| `status` | `pending` \| `in_progress` \| `awaiting_captions` \| `complete` \| `failed` \| `skipped` |
+| `notes` | Operator/agent notes (terminal label, error one-liner, or `companion — source/companion-sources.md`); an `awaiting_captions` row's next check time and deadline, written by `hold` |
 
 Claim metadata (`claimedAt`, `claimedBy`) lives in `claims/<n>.json`, not in the table, so two terminals do not fight over the same cell semantics.
 
@@ -47,8 +47,8 @@ Claim metadata (`claimedAt`, `claimedBy`) lives in `claims/<n>.json`, not in the
 | Action | Behavior |
 | --- | --- |
 | `queue <url> [url...]` | Ensure `QUEUE.md` exists (from template); **preflight each URL** (validate + fetch title/channel); append rows; **dedupe by video-id** |
-| `queue list` | Display table + list active claim files under `claims/` |
-| `watch` (no URL) | FIFO: first `pending` row with successful exclusive claim |
+| `queue list` | Display table + list active claim files under `claims/`; name each `awaiting_captions` row with the next check time from its `notes` |
+| `watch` (no URL) | FIFO: first row `queue-claim.js next` lists with successful exclusive claim |
 | `watch <n>` | Claim row `#n` only (parallel path across terminals) |
 | `watch <url>` | Unchanged: direct single-video watch |
 
@@ -64,16 +64,21 @@ node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/queue-cla
 
 Exit code `2` = row already taken. For FIFO `watch`, try the next `pending` row; for `watch <n>`, stop with a clear message rather than bootstrapping duplicate work.
 
-1. Set row `#n` → `status: in_progress` in `QUEUE.md`.
-2. Read URL from row; bootstrap:
+1. Set row `#n` → `status: in_progress` in `QUEUE.md`. An `awaiting_captions` row claimed for
+   a re-check keeps its status until the re-check resumes it ([Caption wait](#caption-wait-awaiting_captions)).
+2. Read URL from row; bootstrap, adding `--caption-wait-deadline "<deadline>"` when the row's
+   `notes` record a caption-wait deadline:
 
 ```bash
 node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/run-watch.js "<url>"
 ```
 
-1. Execute skill phases 2–9 (or `run-resume.js` if slice exists and temp valid).
-2. On verify script exit 0 → row `complete`; on unrecoverable failure → `failed` + note.
-3. Release claim:
+1. Exit `3` means captions pending: hold the row (below) and release the claim; do not mark it
+   `failed`.
+2. Execute skill phases 2–9 (or `run-resume.js` if slice exists and temp valid).
+3. On verify script exit 0 → row `complete`, with any `captionWait` note from `run-watch.js`
+   copied into `notes`; on unrecoverable failure → `failed` + note.
+4. Release claim:
 
 ```bash
 node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/queue-claim.js release <n>
@@ -81,7 +86,51 @@ node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/queue-cla
 
 ### FIFO auto-dequeue (`watch` with no URL)
 
-Scan rows in `#` order. For each `pending` row, attempt `claim <n>`. On `EEXIST` / exit non-zero, try next `pending`. Stop with a clear message if no row is claimable.
+List the candidates, in `#` order:
+
+```bash
+node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/queue-claim.js next
+```
+
+It lists each unclaimed `pending` row, and each unclaimed `awaiting_captions` row whose next check
+time has come, marked `recheck: true`; a held row before its check time is skipped. A held row
+whose `notes` record no deadline (a hand-set status) is listed with `recheck: false` and watched
+like a `pending` row, which starts a new caption wait. Attempt
+`claim <n>` on each in turn. On `EEXIST` / exit non-zero, try the next. A `recheck` row runs the
+caption re-check (below) before any watch. Stop with a clear message if no row is claimable.
+
+### Caption wait (`awaiting_captions`)
+
+A live-derived YouTube video whose captions are not published yet is held, not failed or digested
+caption-less. The values that hold a video, the bounds, and their basis are in
+`../reference/sources/youtube.md` "Caption wait for live streams".
+
+1. **Hold.** When `run-watch.js` exits `3`, its stdout carries `nextCheckAt` and `deadline`:
+
+   ```bash
+   node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/queue-claim.js hold <n> --next-check "<nextCheckAt>" --deadline "<deadline>"
+   ```
+
+   The row goes `in_progress` → `awaiting_captions`, its `notes` recording both times. Release
+   the claim. A `QUEUE.md` with no `notes` column cannot record them, so `hold` refuses (exit `1`).
+2. **Re-check.** For a `recheck` row (claimed), re-run only the caption pass, passing the
+   deadline `next` reported:
+
+   ```bash
+   node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/caption-recheck.js "<url>" --caption-wait-deadline "<deadline>"
+   ```
+
+   | `result` | Exit | Next |
+   | --- | --- | --- |
+   | `captions-ready` | `0` | `queue-claim.js resume <n>` (row → `pending`), then watch the row under the claim already held |
+   | `captions-pending` | `3` | `hold <n>` again with the new `nextCheckAt`; release the claim |
+   | `wait-ended` | `0` | `resume <n> --notes "<notes>"`, then watch the row: the deadline in `notes` makes `run-watch.js` fall through to ASR or `transcriptDegradation` |
+   | `failed` | `1` | Report `error`, `hold <n>` again with the reported `nextCheckAt` and `deadline`, and release the claim. A failure past the deadline comes back as `wait-ended`, so the deadline bounds the wait |
+
+### Direct runs
+
+`watch <url>` and `transcript <url>` hold too: exit `3` with `captions pending, next check at
+<time>`. Report that line; with no queue row, nothing records the wait.
 
 ### Parallel terminals
 
@@ -106,6 +155,8 @@ node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/queue-cla
 
 The output also lists `orphaned`: `in_progress` rows with no stub (a run crashed before writing one). Their age is unknown, so `stale-check` leaves them; the agent decides per row whether to reset it to `pending`.
 
+`stale-check` never resets or orphans an `awaiting_captions` row. Its `captionRecheckDue` key lists the unclaimed ones whose next check time has come.
+
 `claim` exits `1` when row `<n>` is not in `QUEUE.md`. Pass `--claimed-by <name>` to record the session holding the claim; the default names the short-lived CLI process (`<host>-pid<n>`).
 
 ## Queue row lifecycle
@@ -117,6 +168,9 @@ stateDiagram-v2
   in_progress --> complete: verify script exit 0
   in_progress --> failed: bootstrap or skill abort
   in_progress --> pending: stale reclaim
+  in_progress --> awaiting_captions: captions pending (exit 3)
+  awaiting_captions --> awaiting_captions: re-check, still pending
+  awaiting_captions --> pending: captions ready, or wait ended
   failed --> pending: operator reset
   pending --> skipped: operator skip
   complete --> [*]
@@ -155,7 +209,7 @@ Emits a JSON array (one entry per URL). Per entry use `action` to decide:
 
 | `action` | `status` | What to do |
 | --- | --- | --- |
-| `enqueue` | `ok` | Append the row; fill `title`/`channel` from `displayTitle`/`displayChannel`; `notes` stays empty |
+| `enqueue` | `ok` | Append the row; fill `title`/`channel` from `displayTitle`/`displayChannel`; copy `note` into `notes` (empty, except a live or just-ended stream's live-stream note) |
 | `enqueue` | `transient` | Append the row (link is real, just blocked this session by bot-check/auth/network); copy `note` into `notes` |
 | `reject` | `unavailable` | Do **not** enqueue (removed / private / 404); report to the user |
 | `reject` | `invalid-url` | Do **not** enqueue (no supported source claims the URL); report to the user with the supported-source list |

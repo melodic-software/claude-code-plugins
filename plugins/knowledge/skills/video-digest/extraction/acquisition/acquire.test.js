@@ -171,6 +171,80 @@ describe("acquireYouTubeMedia", () => {
     expect(result.success).toBe(false);
   });
 
+  describe("caption wait on a live-derived video", () => {
+    const workDir = "/tmp/fake-work";
+    const NOW = Date.parse("2026-11-11T12:00:00.000Z");
+    const HOUR = 60 * 60 * 1000;
+    const justEnded = {
+      live_status: "was_live",
+      release_timestamp: (NOW - 3 * HOUR) / 1000,
+      duration: 2 * 3600,
+    };
+
+    /**
+     * @param {"full" | "transcript"} mode
+     * @param {object} infoFields
+     * @param {string | null} [captionWaitDeadline]
+     */
+    const acquireUncaptioned = (mode, infoFields, captionWaitDeadline = null) =>
+      acquireYouTubeMedia(
+        DRIVER_WATCH_URL,
+        { workDir, mode, videoId: DRIVER_VIDEO_ID, captionWaitDeadline },
+        {
+          ...NO_THROTTLE,
+          now: () => NOW,
+          sleep: async () => {},
+          spawn: spawnOk,
+          listFiles: async () => [
+            ...(mode === "full" ? [`${workDir}/7zZy1QTvokM.mp4`] : []),
+            `${workDir}/7zZy1QTvokM.info.json`,
+          ],
+          readFile: async () =>
+            JSON.stringify({ id: "7zZy1QTvokM", title: "Stream", ...infoFields }),
+        },
+      );
+
+    it("holds transcript mode with captions pending and the next check time", async () => {
+      const result = await acquireUncaptioned("transcript", { live_status: "post_live" });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("captions pending, next check at 2026-11-11T12:30:00.000Z");
+      expect(result.captionWait).toMatchObject({ state: "wait", liveStatus: "post_live" });
+    });
+
+    it("holds full mode instead of completing caption-less", async () => {
+      const result = await acquireUncaptioned("full", justEnded);
+      expect(result.success).toBe(false);
+      expect(result.captionWait).toMatchObject({ state: "wait", liveStatus: "was_live" });
+    });
+
+    it("keeps today's caption-less path for a video that is not live-derived", async () => {
+      const result = await acquireUncaptioned("full", { live_status: "not_live" });
+      expect(result.success).toBe(true);
+      expect(result.data?.caption).toBeNull();
+      expect(result.data?.acquireMetrics?.captionWait).toBeUndefined();
+      expect(result.captionWait).toBeUndefined();
+    });
+
+    it("falls through caption-less once a held row's deadline passed, and says so", async () => {
+      const deadline = new Date(NOW - 1).toISOString();
+      const result = await acquireUncaptioned("full", { live_status: "post_live" }, deadline);
+      expect(result.success).toBe(true);
+      expect(result.data?.caption).toBeNull();
+      expect(result.data?.acquireMetrics?.captionWait).toContain(
+        "falls through to ASR or transcriptDegradation",
+      );
+    });
+
+    it("stops transcript mode as today once the deadline passed, naming the ended wait", async () => {
+      const deadline = new Date(NOW - 1).toISOString();
+      const result = await acquireUncaptioned("transcript", { live_status: "post_live" }, deadline);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("ladder exhausted");
+      expect(result.error).toContain(`caption wait ended at deadline ${deadline}`);
+      expect(result.captionWait).toMatchObject({ state: "expired" });
+    });
+  });
+
   it("classifies a bare .en.vtt as platform-asr when the source declares that class", async () => {
     const workDir = "/tmp/fake-work";
     const videoId = "1001551417340022785";

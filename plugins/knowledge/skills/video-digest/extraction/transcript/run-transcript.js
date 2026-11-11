@@ -3,6 +3,11 @@
  * CLI: acquire captions + write `.work/<video-slug>/transcript.txt`.
  *
  * Usage: node transcript/run-transcript.js <video-url> [--transcript-strategy <captions|captions+repair|asr>]
+ *   [--caption-wait-deadline <iso>]
+ *
+ * A live-derived video whose captions are not published yet exits 3 with a
+ * `captionsPending` report naming the next check time (`acquisition/caption-wait.js`);
+ * `--caption-wait-deadline` carries the deadline a held queue row recorded.
  *
  * Acquisition dispatches through the source-adapter registry; an unknown host
  * fails closed (non-zero exit) listing the supported sources. The transcript
@@ -19,6 +24,11 @@ import path from "node:path";
 import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import {
+  CAPTIONS_PENDING_EXIT,
+  captionsPendingReport,
+  parseCaptionWaitDeadline,
+} from "../acquisition/caption-wait.js";
 import { primaryEntry, UnsupportedSourceError } from "../adapters/adapter-contract.js";
 import { acquireMedia, resolveSourceAdapter } from "../adapters/registry.js";
 import { resolveWorkRoot } from "../lib/work-root.js";
@@ -33,13 +43,18 @@ export async function runTranscriptCli(argv) {
   const url = argv[2];
   if (!url || url.startsWith("--")) {
     writeStderr(
-      "Usage: node transcript/run-transcript.js <video-url> [--transcript-strategy <captions|captions+repair|asr>]",
+      "Usage: node transcript/run-transcript.js <video-url> [--transcript-strategy <captions|captions+repair|asr>] [--caption-wait-deadline <iso>]",
     );
     return 1;
   }
   const strategyArg = parseTranscriptStrategyOverride(argv);
   if (!strategyArg.ok) {
     writeStderr(strategyArg.error);
+    return 1;
+  }
+  const waitArg = parseCaptionWaitDeadline(argv);
+  if (!waitArg.ok) {
+    writeStderr(waitArg.error);
     return 1;
   }
 
@@ -61,13 +76,23 @@ export async function runTranscriptCli(argv) {
     /** @type {import('../adapters/adapter-contract.js').AcquireOutcome} */
     let acquisition;
     try {
-      acquisition = await acquireMedia(url, { workDir, mode: "transcript" });
+      acquisition = await acquireMedia(url, {
+        workDir,
+        mode: "transcript",
+        captionWaitDeadline: waitArg.deadline,
+      });
     } catch (error) {
       if (error instanceof UnsupportedSourceError) {
         writeStderr(error.message);
         return 1;
       }
       throw error;
+    }
+    if (acquisition.captionWait?.state === "wait") {
+      const report = captionsPendingReport(acquisition.captionWait);
+      writeStdout(JSON.stringify(report, null, 2));
+      writeStderr(report.message);
+      return CAPTIONS_PENDING_EXIT;
     }
     if (!acquisition.success || !acquisition.data) {
       writeStderr(acquisition.error ?? "Acquisition failed");

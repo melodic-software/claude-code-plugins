@@ -283,6 +283,8 @@ export function primaryEntry(envelope) {
  * @property {boolean} success
  * @property {AcquisitionEnvelope} [data]
  * @property {string} [error]
+ * @property {import('../acquisition/caption-wait.js').CaptionWaitDecision} [captionWait] -
+ *   set on a failure the caption wait decided: `wait` (captions pending) or `expired`
  */
 
 /**
@@ -298,6 +300,8 @@ export function primaryEntry(envelope) {
  *   post — a shared or pre-populated directory breaks provenance and entry
  *   matching; production entry points mkdtemp a fresh one per run)
  * @property {'full'|'transcript'} mode - 'transcript' must not download media
+ * @property {string|null} [captionWaitDeadline] - the caption-wait deadline a held
+ *   queue row recorded; sources without a caption wait ignore it
  * @property {object} [deps] - adapter-specific injectable I/O (tests only)
  */
 

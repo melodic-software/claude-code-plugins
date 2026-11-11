@@ -97,7 +97,7 @@ repository). Writes stay in the slice and temp directories; subagent briefs carr
 | `queue <url> [url...]` | Append URLs to epic `.work/<watch-epic>/QUEUE.md`; dedupe by slice key. |
 | `queue list` | Show `QUEUE.md` table + active `claims/*.json` stubs. |
 | `transcript <url>` | Captions only. No video download. Runs acquisition + transcript pipeline. |
-| `watch` | Dequeue first `pending` queue row (FIFO). Claim stub → bootstrap → full pipeline. |
+| `watch` | Dequeue the first claimable queue row (FIFO; a row awaiting captions waits for its next check). Claim stub → bootstrap → full pipeline. |
 | `watch <n>` | Dequeue queue row `#n` only (parallel path across terminals). |
 | `watch <url>` | Full pipeline: download → frame selection → vision absorption → link harvest → research agenda → repo-applicability synthesis. |
 | `<url>` | A bare URL, with no action word, means `watch <url>`. |
@@ -114,7 +114,9 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" --data-dir "
 
 1. **Acquire**. Captions + info JSON (`--skip-download`)
 2. **Caption ladder**. Per-source rungs; STOP and surface if exhausted, since this action
-   downloads no media for `asr` to fall back on (see the source spoke)
+   downloads no media for `asr` to fall back on (see the source spoke). A live stream whose
+   captions are still in processing exits `3` instead: report its
+   `captions pending, next check at <time>` line (caption wait: the YouTube spoke)
 3. **Transcribe**. Strategy-driven: `captions` | `captions+repair` | `asr`. The source layer
    declares the per-source default; `--transcript-strategy <value>` overrides it. When the
    resolved strategy cannot run, the digest proceeds without a transcript and the reason is
@@ -331,7 +333,8 @@ and keeps its text-only path.
 **Optional. Faster-whisper** (`large-v3`, `batch_size=8`): powers the `asr` transcript rung,
 selected automatically for caption-absent entries (a `watch` whose caption ladder is exhausted
 proceeds caption-less with the downloaded video; a failed or rate-limited caption download
-still stops) and available on request via
+still stops, and a live stream inside its caption wait exits `3` and is held, per
+`context/watch-queue.md`) and available on request via
 `--transcript-strategy asr` even when captions exist. Either way it runs under `watch` only. ASR
 needs the media file and the `transcript` action never downloads media. Detected at runtime
 through the machine's Python (the `asr_python` interpreter from the table above when set, then
