@@ -4957,9 +4957,12 @@ const MERGE_SHA = "cafe".repeat(10);
 // A merged pull request #5 whose merge commit says `message`; its title and
 // body, which stay editable after the merge, say `body` (by default the same).
 // A null message leaves the merge commit unreadable.
-const evidencePull = (message, { body = message, base = "main", mergedAt = "2026-10-29T14:07:27Z", files = [{ filename: "docs/lanes.md" }] } = {}) =>
+// `onMain`, when set, is the status GitHub's compare of the merge commit with
+// the default branch answers; unset, that compare has no route and fails.
+const evidencePull = (message, { body = message, base = "main", mergedAt = "2026-10-29T14:07:27Z", files = [{ filename: "docs/lanes.md" }], onMain } = {}) =>
   evidenceClient([
     [/\/repos\/o\/r$/, { default_branch: "main" }],
+    ...(onMain === undefined ? [] : [[new RegExp(`/compare/${MERGE_SHA}\\.\\.\\.main$`), { status: onMain }]]),
     [/\/pulls\/5$/, { merged_at: mergedAt, merge_commit_sha: MERGE_SHA, base: { ref: base }, title: "fix: tidy", body }],
     [/\/pulls\/5\/files/, files],
     ...(message === null ? [] : [[new RegExp(`/commits/${MERGE_SHA}$`), { commit: { message, committer: { date: mergedAt } } }]]),
@@ -5008,6 +5011,18 @@ test("doneEvidence takes a merged pull request only into the default branch and 
   assert.equal(await doneEvidence(evidencePull("Closes #77", { base: "release/3.x" }), "/repos/o/r", reason, 77), false, "merged into another branch");
   assert.equal(await doneEvidence(evidencePull("Closes #77", { mergedAt: "2026-09-30T00:00:00Z" }), "/repos/o/r", reason, 77), false, "merged before the issue opened");
   assert.equal(await doneEvidence(evidencePull("Closes #77", { mergedAt: "not a date" }), "/repos/o/r", reason, 77), false, "an unreadable merge time");
+});
+
+// An upper layer of a native stack merges with the layers below it and keeps
+// the lower layer's branch as its base.ref, while its merge commit lands on the
+// default branch; that commit on the default branch is what counts.
+test("doneEvidence takes a stack layer whose merge commit is on the default branch", async () => {
+  const reason = "already-done: #5 shipped it";
+  const layer = { base: "feat/lower-layer" };
+  assert.equal(await doneEvidence(evidencePull("Closes #77", { ...layer, onMain: "ahead" }), "/repos/o/r", reason, 77), true, "merge commit behind main's tip");
+  assert.equal(await doneEvidence(evidencePull("Closes #77", { ...layer, onMain: "identical" }), "/repos/o/r", reason, 77), true, "merge commit is main's tip");
+  assert.equal(await doneEvidence(evidencePull("Closes #77", { ...layer, onMain: "diverged" }), "/repos/o/r", reason, 77), false, "merge commit off main");
+  assert.equal(await doneEvidence(evidencePull("Closes #77", layer), "/repos/o/r", reason, 77), false, "an unreadable compare");
 });
 
 // Re-review on #10978: lane pull requests carry `Closes #N`, so a change to a

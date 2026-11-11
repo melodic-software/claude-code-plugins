@@ -1957,7 +1957,9 @@ jobs:
     cache-mode: read
     # The scan-carrier key's second holder (owner decision, 2026-11-02): main only, no id-token, no
     # write token, read-only cache; the environment admits main only.
-    environment: pr-pipeline-scan-carrier
+    environment:
+      name: pr-pipeline-scan-carrier
+      deployment: false
     permissions:
       contents: read # check out main
     outputs:

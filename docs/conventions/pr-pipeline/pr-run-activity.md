@@ -328,9 +328,12 @@ the broker request, and no other permission; it never holds `checks: write` or `
    `plugins/source-control/scripts/resolve-version-bump-conflict.sh` to
    `$RUNNER_TEMP/merge-base-bin`, recording each copy's SHA-256 as a step output, and read
    `loop.no-progress` from the resolved config.
-9. `setup-runner-isolation`: for a skill, installs bubblewrap and socat with `apt-get` (three tries) and, where
-   `/proc/sys/kernel/apparmor_restrict_unprivileged_userns` exists, sets it to `0`. It fails red
-   if `bwrap` is not on `PATH` afterwards. The skill step needs it for subprocess isolation (below).
+9. `setup-runner-isolation`: for a skill, installs bubblewrap and socat and, where
+   `/proc/sys/kernel/apparmor_restrict_unprivileged_userns` exists, sets it to `0`. It installs
+   with `apt-get` from the image's own package lists, else after `apt-get update` (three tries),
+   all within 540 s, under the image's own mirror failover settings. It uses no Actions cache: the
+   cache unpacks archives with absolute paths while sudo still works. It fails red if `bwrap` or `socat` is not on `PATH` afterwards. The skill step
+   needs them for subprocess isolation (below).
 10. Removes sudo and docker access for the rest of the job: `/var/run/docker.sock` becomes
    root-only and the runner user's `/etc/sudoers.d/runner` entry is deleted. It fails red if
    `sudo -n true` still succeeds or the socket is still open to the runner user.
@@ -1658,7 +1661,9 @@ parents, message and trailer, and the row's escalation reasons.
 ## The scan job
 
 Read file: runs after the run job (and in issue mode the issue-fields job) when the run job
-succeeded or failed, unless the run was cancelled or the call handed off, on a fresh `ubuntu-24.04` VM, in the `pr-pipeline-scan-carrier` environment. It
+succeeded or failed, unless the run was cancelled or the call handed off, on a fresh `ubuntu-24.04` VM, in the `pr-pipeline-scan-carrier` environment with `deployment: false`, which keeps the
+environment's secret and branch policy and records no deployment
+([Using environments without deployments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments#using-environments-without-deployments)). It
 holds `contents: read`, one secret (`SCAN_CARRIER_PRIVATE_KEY`, that environment's, which each
 caller passes by name as `scan-carrier-private-key`, read by its open step alone), no `id-token`, no cache, and nothing from the run job but its outputs. run-claude-cli's
 contract puts the reporting and uploads of a lane that grants unrestricted Bash in a downstream
@@ -1988,7 +1993,7 @@ other than `${{ github.event.repository.default_branch }}` or a `with` key other
 `./.base/.github/actions/open-lane-output` with `private-key: ${{ secrets.scan-carrier-private-key }}`
 exactly; a job that calls the read file passes it by name only,
 `scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}` in its `secrets` map; and only
-the `scan` job may name an `environment`, `pr-pipeline-scan-carrier`. The one second holder (owner
+the `scan` job may name an `environment`, exactly `{ name: pr-pipeline-scan-carrier, deployment: false }`. The one second holder (owner
 decision, 2026-11-02) is `upstream-apply-changelog.yml`'s `scan` job: one `open` step, the same
 action and exact `private-key`, after the main-only gate job, with `contents: read` alone, no
 id-token and a read-only cache; the environment admits main only. The third holder ([owner

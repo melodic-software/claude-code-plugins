@@ -80,7 +80,8 @@ and its recap give the same numbers:
 
 Resolve both format and location in this order:
 
-1. Explicit consumer configuration or repository rules.
+1. Explicit consumer configuration or repository rules, naming a path inside the current
+   repository; a path outside it is ignored and never written.
 2. An existing glossary and glossary index that cover the scope, found by `locate`'s repository
    search (a `docs/glossary.md` counts as much as a root `GLOSSARY.md`).
 3. A single clear convention inferred from the repository's documentation layout and accepted domain

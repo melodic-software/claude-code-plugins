@@ -27,7 +27,7 @@ plugins/harness-ops/skills/plugins/context/sync.md 1 # justified: the sentence s
 plugins/code-tidying/skills/remove-comments/reference/safety.md 1 # justified: the sentence says where the token is substituted and where it is not; the literal text is the subject
 plugins/code-tidying/skills/remove-comments/reference/scope.md 1 # justified: the note says this file's paths are not written through the token; the literal text is the subject
 plugins/disk-hygiene/skills/clean/reference/safety-model.md 7 # justified: the prose names the substitution Claude Code performs on a skill-frontmatter hook's args; the token is described, never run from here
-plugins/dometrain/skills/sync/context/update.md 1 # justified: the prose says what the variable resolves to in a normal session; the sentence names the token and does not run it
+plugins/dometrain/skills/update/context/update.md 1 # justified: the prose says what the variable resolves to in a normal session; the sentence names the token and does not run it
 plugins/event-storming/skills/simulation/reference/agentic-simulation.md 1 # justified: the sentence names the token as the read-only install directory a session archive is never written into; it runs nothing
 plugins/playbooks/skills/skill-authoring/reference/precompute-context.md 2 # justified: the line tells skill authors which pointers to write in a SKILL.md body, where they substitute; the literal text is the guidance
 plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md 1 # justified: the rule tells skill authors how SKILL.md cites a bundled script, where the token substitutes; the literal text is the guidance

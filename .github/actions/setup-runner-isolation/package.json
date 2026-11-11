@@ -1,0 +1,7 @@
+{
+  "name": "setup-runner-isolation",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

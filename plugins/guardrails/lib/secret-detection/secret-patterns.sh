@@ -82,16 +82,12 @@ secrets::any_match() {
 # inverts a hit into a clean miss). See hardcoded-path-patterns.sh for the
 # two-shapes rule.
 secrets::scan_text() {
-  local content="$1" lines label pattern i
+  local content="$1" lines i
   secrets::any_match "$content" || return 0
   for i in "${!SECRET_PATTERNS[@]}"; do
-    label="${SECRET_LABELS[$i]}"
-    pattern="${SECRET_PATTERNS[$i]}"
-    lines=$(LC_ALL=C grep -nE -- "$pattern" < <(printf '%s' "$content") 2>/dev/null |
-      head -3 | cut -d: -f1 | tr '\n' ',' | sed 's/,$//')
-    if [[ -n "$lines" ]]; then
-      printf '%s (line %s)\n' "$label" "$lines"
-    fi
+    lines=$(LC_ALL=C grep -m 3 -nE -- "${SECRET_PATTERNS[$i]}" < <(printf '%s' "$content") 2>/dev/null |
+      cut -d: -f1 | tr '\n' ',')
+    [[ -z "$lines" ]] || printf '%s (line %s)\n' "${SECRET_LABELS[$i]}" "${lines%,}"
   done
   return 1
 }

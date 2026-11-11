@@ -3,6 +3,32 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.0.0] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+### Removed
+
+- The `worktree_create_gate_enabled` option. Its only off position made the WorktreeCreate gate refuse, so every harness-driven worktree creation failed. The gate now always runs; a stored `false` is ignored. To stop the gate placing worktrees, disable the plugin.
+
+## [9.0.1] - 2026-11-11
+
+### Fixed
+
+- The pr-merge verifier gate no longer holds a pull request with `verify:earlier-fail` for a FAIL that ties to it only by head branch when the pull request that FAIL judged is merged, so a new release pull request on the reused `release/plugins` branch stops inheriting the FAILs of earlier, merged release pull requests. A FAIL from an open or closed-unmerged pull request on the same branch, or one whose state cannot be read, still holds.
+
+## [9.0.0] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+Internal simplification, no behavior change.
+
+- The `worktree-add-claim-gate` hook is renamed `worktree-add-claim` (`hooks/worktree-add-claim.sh`), and its option `worktree_add_claim_gate_enabled` is renamed `worktree_add_claim_enabled` (environment form `CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_ENABLED`). The hook never blocks a command: it claims the worktree a `git worktree add` created. A stored value under the old key is ignored and the new key starts at its default, `true`; if you had turned the hook off, set `worktree_add_claim_enabled` to `false` through `/plugin configure`.
+
 ## [8.13.6] - 2026-11-11
 
 ### Changed

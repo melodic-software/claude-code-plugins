@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/docs/glossary.md",
+            "old_string": "Avoid: account owner\n",
+            "new_string": "Avoid: account owner\n\n**Claimant**\n\nA policyholder or third party who files a claim.\n"
+          }
+        }
+      ],
+      "why": "edits the local glossary"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/platform-docs/docs/glossary.md",
+            "old_string": "# Glossary",
+            "new_string": "# Glossary\n\n**Claimant**"
+          }
+        }
+      ],
+      "why": "edits the sibling repository's glossary"
+    }
+  ]
+}
