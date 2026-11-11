@@ -9,7 +9,8 @@ need before the meeting discovers it.
 Refinement-time discovery is the toil addressed: backlog sessions burn shared meeting time
 finding out an item is not ready: acceptance criteria missing, fields absent, scope
 unclear. The check does the recurring pre-refinement pass and annotates each item with what
-is missing, so refinement starts from ready-or-annotated items instead of live archaeology.
+is missing, so refinement starts from ready-or-annotated items and nobody re-investigates
+missing details during the meeting.
 
 ## Trigger and cadence
 

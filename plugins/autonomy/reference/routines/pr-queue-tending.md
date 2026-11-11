@@ -9,7 +9,8 @@ humans each stalled PR is waiting on.
 Silently stalling PRs are the toil addressed: open PRs go stale waiting on a forgotten
 review, red CI nobody noticed, or an unanswered review thread, and each one is rediscovered
 only when someone trips over it. The sweep does the recurring pass over the whole queue and
-turns every stall into a named nudge, so PRs wait on decisions, not on attention.
+turns every stall into a named nudge, so a PR waits only on a decision, never because
+nobody noticed it.
 
 ## Trigger and cadence
 

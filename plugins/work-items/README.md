@@ -54,8 +54,8 @@ plugin: `track`, `work`, `work-loop`, `triage`, `decompose`, `attend-queue` and
 infrastructure skills (`setup`, `onboard-adapter`) speak in provider and tracker
 terms, and `ship` speaks in container and journey terms. Nobody says "add a
 ticket" to an adapter generator. Stuffing the tokens into their triggers to
-satisfy a fleet-wide claim would buy a tidier sentence at the cost of worse
-routing, so the claim is scoped instead.
+satisfy a fleet-wide claim would make the claim simpler to state but would
+worsen routing, so the claim is scoped instead.
 
 ## `/work-items:track` actions
 
