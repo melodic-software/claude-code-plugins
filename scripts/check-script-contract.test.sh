@@ -73,6 +73,7 @@ REGISTRY=(
   "check-artifact-retention.sh|node|-|-"
   "check-all-skills-verb-contract.sh|-|-|-"
   "check-cant-fail-scan.sh|-|-|-"
+  "check-changed-links-online.sh|LYCHEE=/nonexistent/lychee|HEAD|-"
   "check-changed-skills.sh|-|-|-"
   "check-changelog-fragments.sh|-|--check|changelog_fragments"
   "check-changelog-parity.sh|-|--check|changelog_parity"

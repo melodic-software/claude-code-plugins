@@ -36,6 +36,7 @@ eol-renormalize ci-only ci-workflows composite
 evals-schema ci-only ci-workflows composite: check-jsonschema
 gitleaks ci-only ci-workflows composite
 lychee-offline ci-only ci-workflows composite
+lychee-online-changed ci-only network check, scripts/check-changed-links-online.sh origin/main
 marketplace-schema ci-only ci-workflows composite: check-jsonschema
 plugin-schema ci-only ci-workflows composite: check-jsonschema
 workflow-schema ci-only ci-workflows composite: check-jsonschema
