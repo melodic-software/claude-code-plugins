@@ -388,14 +388,15 @@ condition) belongs to the invocation-reach tracked strand in
   user the command to run. Standing `skill-quality:check` automation was deliberately deferred — cross-plugin
   target resolution is not cheap under the single skills-root model — so the doctrine lines in
   the two authoring surfaces carry the rule rather than a check.
-- **C23 ALREADY-PRESENT**: `domain-driven-design:curate-language` triggers already key on
+- **C23 ALREADY-PRESENT**: `domain-driven-design:ubiquitous-language` triggers already key on
   concrete artifacts (glossary, domain term, vocabulary), so upstream's artifact-anchored
   `domain-modeling` rewording (`domain-modeling/SKILL.md:3`, PR #848) had nothing to add. A
   one-shot comparison, not a re-evaluation trigger. Annotated 2026-10-04: upstream reworded the
   trigger again before v1.3.0 (`e12e7ec`, `54bc6b6`, then `d80fa0f` for the `GLOSSARY.md` rename);
   it now fires when the talk turns to codebase terms, or when a `GLOSSARY.md` or an ADR is being written or changed. C23 holds
-  for the glossary half. The ADR clause is a deliberate REJECT: `curate-language` owns no ADRs and
-  surfaces consequential decisions to the planning workflow (`curate-language/SKILL.md:107-108`).
+  for the glossary half. The ADR clause is a deliberate REJECT: `ubiquitous-language` owns no ADRs and
+  leaves them to `/architecture:record-decision`
+  (`plugins/domain-driven-design/skills/ubiquitous-language/SKILL.md:84-85`).
 
 ## Lane E (#2949)
 
