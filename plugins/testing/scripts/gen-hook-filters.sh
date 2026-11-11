@@ -32,7 +32,7 @@ globs="$(awk -f "$AUDIT/scripts/adapter-load.awk" "$AUDIT"/adapters/*.yaml |
   exit 2
 }
 
-json="$(jq -R . <<<"$globs" | jq -s '. as $globs |
+json="$(jq -nR '[inputs] as $globs |
   def cmd($gates; $script): {
     type: "command",
     command: "node",
@@ -49,7 +49,7 @@ json="$(jq -R . <<<"$globs" | jq -s '. as $globs |
     hooks: {
       PreToolUse: rows("test-weaken.sh"; {timeout: 10, statusMessage: "Checking the edit for removed assertions or skipped tests..."})
     }
-  }')" || exit 2
+  }' <<<"$globs")" || exit 2
 
 if [[ "${1:-}" == --check ]]; then
   if [[ "$json" != "$(cat "$OUT" 2>/dev/null)" ]]; then

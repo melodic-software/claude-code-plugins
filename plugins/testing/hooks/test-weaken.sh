@@ -74,12 +74,12 @@ Write)
 esac
 
 SCANNER="${TEST_WEAKEN_SCANNER:-$HOOK_DIR/../skills/audit/scripts/cant-fail-scan.sh}"
-testing::run_scanner "${TEST_WEAKEN_TIMEOUT:-8}" "$work/out" --file "$FILE" --inventory "$old" --inventory "$work/new"
-rc=$SCAN_RC
+limit="${TEST_WEAKEN_TIMEOUT:-8}"
+testing::run_scanner "$limit" "$work/out" --file "$FILE" --inventory "$old" --inventory "$work/new"
 
-if ((rc != 0)); then
-  why="scanner exited $rc"
-  ((rc > 128)) && why="scanner timed out after ${TEST_WEAKEN_TIMEOUT:-8}s"
+if ((SCAN_RC != 0)); then
+  why="scanner exited $SCAN_RC"
+  ((SCAN_RC > 128)) && why="scanner timed out after ${limit}s"
   printf '%s test-weaken: %s: %s\n' "$(date -u +%FT%TZ)" "$FILE" "$why" >>"$DATA/test-weaken.log"
   printf 'test-weaken: %s: %s\n' "$FILE" "$why" >&2
   hook::finish error findings array '[]'
@@ -138,8 +138,8 @@ lead="testing: $FILE_BASE: this $tool weakens its tests:"$'\n'"$body"
 ((${#lead} < 9000)) || lead="${lead:0:8800}"$'\n'"(truncated)"
 
 # grep -c prints 0 and exits 1 on no match; the count is what matters.
-if [[ "$head" == block$'\t'error ]] &&
-  (($(grep -c 'test-change:[[:space:]]*[^[:space:]]' "$work/new") <= $(grep -c 'test-change:[[:space:]]*[^[:space:]]' "$old"))); then
+marker='test-change:[[:space:]]*[^[:space:]]'
+if [[ "$head" == block$'\t'error ]] && (($(grep -c "$marker" "$work/new") <= $(grep -c "$marker" "$old"))); then
   reason="$lead"$'\n'"Denied: rules.test-weaken-block is error. If the change is deliberate, retry the edit with a test-change: <reason> comment naming why the test goes; otherwise fix the code, not the test."
   esc=""
   hook::json_escape_to esc "$reason"
