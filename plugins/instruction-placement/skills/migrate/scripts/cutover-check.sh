@@ -387,7 +387,6 @@ condition_1() {
   # only evidence when the whole list arrived.
   if [[ -n "$ev" && -s "$ev" ]] && ! grep -qF "$ENV_VARS_TAIL_MARKER" "$ev"; then
     note "env-vars: the body never reaches '$ENV_VARS_TAIL_MARKER'; it is truncated or restructured"
-    note "env-vars: page not read (fetch failed or file empty)"
   elif [[ -n "$ev" && -s "$ev" ]]; then
     body="$(awk -v h="$ENV_VARS_HEADING" '$0 == h { f = 1; next } f && /^## / { exit } f' "$ev" | tr -d '\r')"
     [[ -n "$body" ]] && heading_found=1
