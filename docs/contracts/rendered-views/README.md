@@ -425,9 +425,6 @@ does not assume it works: it checks the live Share dialog first.
 
 - **Pointer**: for artifact sharing and its permissions, see
   <https://code.claude.com/docs/en/artifacts#share-an-artifact>.
-- **As of**: 2026-10-02 (Claude Code v2.1.287)
-- **Recheck trigger**: a Claude Code version bump, or a plan about to rely on cross-account or
-  cross-subscription sharing or editing (present or absent).
 
 ## Artifact types
 
@@ -939,7 +936,6 @@ which is another cost of copying.
   gallery uses fictional Acme data; wave-1 already carries derived tokens).
   Public gallery: <https://thariqs.github.io/html-effectiveness>. Official
   templates: <https://github.com/anthropics/html-effectiveness>.
-- **As of:** 2026-09-28.
 - **Recheck:** a lane that cannot cite a public page-shape and must ship a
   checked-in HTML page of its own, or a license change on either source.
 

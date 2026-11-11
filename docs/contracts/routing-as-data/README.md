@@ -84,8 +84,7 @@ marketplace id.
   plugin id and the skill namespace name the same plugin. When checking which name each one
   uses, fetch
   [plugins manifest reference § Metadata precedence](https://code.claude.com/docs/en/plugins/manifest-reference#metadata-precedence)
-  live (as of 2026-11-03; recheck trigger: that section changes which name the install id or the
-  component namespace takes).
+  live.
 - A plugin disabled for the project counts as absent. `kind: tool` resolves from the session's tool
   listing. Tests run on fixtures, never on the live install.
 
@@ -145,7 +144,6 @@ supersedes ADR 0044 for structured configuration is not on `main` yet.
   <https://github.com/melodic-software/standards/blob/main/components/github-actions-conventions/README.md#lane-configuration>
   live; the decision thread is
   [#5906](https://github.com/melodic-software/claude-code-plugins/issues/5906).
-- **As of**: 2026-10-07
 - **Recheck trigger**: an ADR on "home plugin customization in `docs/conventions/<concern>.yaml`"
   merges on `main`; the pointer then moves to it.
 

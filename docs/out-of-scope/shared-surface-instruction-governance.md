@@ -9,7 +9,7 @@ authors' standing instructions meet on one shared surface.
 **Claim:** shared-surface instruction governance is not a convention in this repository.
 **Basis:** the repo is single-operator; I15 detects conflicting pairs and names a winner only
 where official docs settle one; `instruction-exception-register` governs deletions, not
-ownership. **As of:** 2026-09-28. **Recheck:** when a second regular contributor writes to a
+ownership. **Recheck:** when a second regular contributor writes to a
 shared instruction surface (CLAUDE.md, `.claude/rules/`, or a skill body in this checkout), or
 a consuming team reports an adjudication I15 surfaces but cannot resolve.
 

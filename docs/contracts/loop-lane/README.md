@@ -653,9 +653,6 @@ is read live at the pointer.
   [Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit); for the POST body,
   see [Common input fields](https://code.claude.com/docs/en/hooks#common-input-fields); for
   failures, see [HTTP response handling](https://code.claude.com/docs/en/hooks#http-response-handling).
-- **As of**: 2026-07-27
-- **Recheck trigger**: a Claude Code release note or docs change touching HTTP hook handlers, the
-  `if` field, header interpolation, or how edit rules anchor their paths.
 
 - The hook is an `http` handler on `PostToolUse` in the consuming repo's project
   `.claude/settings.json`: per-consuming-repo configuration that no plugin ships. We rely on it as
@@ -695,9 +692,6 @@ Only the http hook is the deterministic leg.
   [Mobile push notifications](https://code.claude.com/docs/en/remote-control#mobile-push-notifications);
   for the variables that turn fetching off, see
   [Features that need feature-flag fetching](https://code.claude.com/docs/en/env-vars#features-that-need-feature-flag-fetching).
-- **As of**: 2026-08-04
-- **Recheck trigger**: a Claude Code release note changes `PushNotification` or the Remote Control
-  requirements.
 
 **The hook binds to the session's project, never to the repository a lane targets.** The record
 path is relative to the session's checkout, and the hook that fires is the one in that session's
@@ -759,7 +753,6 @@ pairings are valid); a security-surface work class routes to the frontier tier u
   [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility)
   and the warning about a checker that passes bad work in
   [re-run failures at higher effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#re-run-failures-at-higher-effort).
-- **As of:** 2026-10-10.
 - **Recheck trigger:** next model release.
 - **Judgment:** the sources state a model-capability rule only. That a reviewer or verifier also
   runs at an effort level no lower than the implementer's is our judgment, as is reading the
@@ -775,7 +768,6 @@ from the model page whenever it matters, and never restated in this convention.
   [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases); for each model's
   position and capabilities, see
   [models overview: compare models](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison).
-- **As of:** 2026-11-09.
 - **Recheck trigger:** any new model on Claude Code's model page.
 
 The reasons behind each binding:
@@ -813,8 +805,7 @@ The reasons behind each binding:
   overview) pay. The tier has nothing to do with Claude Code's fast mode, a separate speed setting
   on the models its page lists. Pointer:
   [Speed up responses with fast mode](https://code.claude.com/docs/en/fast-mode) (the supported
-  models sit in the page's opening). As of: 2026-11-11. Recheck trigger: the page renames fast mode
-  or a release ties it to a capability tier name.
+  models sit in the page's opening).
 - **`haiku` is admissible nowhere in these lanes today, and no tier binds it.** Four grounds, each
   our reading of the source it points at; the release figures behind them are in
   [docs/upstream/haiku-5-5-launch.md](../../upstream/haiku-5-5-launch.md):
@@ -864,7 +855,6 @@ here rather than left as an unstated assumption:
 - **Pointer:** when judging whether a lane can bill usage credits unasked, fetch
   [Fable and usage credits](https://code.claude.com/docs/en/model-config#fable-and-usage-credits)
   live.
-- **As of:** 2026-11-04.
 - **Recheck trigger:** that section changes which session shapes hold or skip the consent prompt,
   or a lane changes its launch shape.
 
@@ -897,9 +887,7 @@ follows the provider's recommendation while a model ID is a pinned snapshot. We 
 the only handle that works under subscription OAuth, so they are the runtime path; the Models API
 list endpoint is the **build/audit-time** verification path, since it may require an API key a loop
 session lacks. No lane hard-codes a model ID (Pointer: for alias semantics, see
-[Model aliases](https://code.claude.com/docs/en/model-config#model-aliases). As of: 2026-10-01.
-Recheck trigger: the model page stops describing aliases as moving with the provider's
-recommendation).
+[Model aliases](https://code.claude.com/docs/en/model-config#model-aliases)).
 
 The binding is built from a live official-docs read at authoring time, never from recall. Any new
 model on Claude Code's model page re-reads the reasons under "Alias binding"; a binding that
@@ -944,9 +932,7 @@ next iteration with `ScheduleWakeup`, and no lane expects an operator to call it
 delay toward the ceiling. Pointer: for the delay bounds and who calls the tool, see
 [Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval)
 and the `ScheduleWakeup` row of the [Tools reference](https://code.claude.com/docs/en/tools-reference).
-As of: 2026-07-27. Recheck trigger: a Claude Code release note changes `ScheduleWakeup` or
-self-paced `/loop`. The self-pacing section the
-`source-control:babysit-prs` skill owns is the worked precedent.
+The self-pacing section the `source-control:babysit-prs` skill owns is the worked precedent.
 
 **The prompt runs fresh; the session does not.** Each cycle re-sends the lane's prompt verbatim into
 the **same** session, so "runs fresh every time" describes the prompt and never the context: a lane
@@ -1295,9 +1281,7 @@ version at or above the floor the scheduled-tasks page names for those providers
 it runs without it. Pointer: for the provider and version conditions on a dynamic `/loop`, see
 [Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval)
 and the `ScheduleWakeup` row of the [Tools reference](https://code.claude.com/docs/en/tools-reference).
-As of: 2026-10-01. Recheck trigger: a Claude Code release note changes `/loop` on a non-first-party
-provider or the version floor. A lane launched below the floor keeps
-the loop but loses both properties the bullet above depends on: idle backoff cannot lengthen the
+A lane launched below the floor keeps the loop but loses both properties the bullet above depends on: idle backoff cannot lengthen the
 wake, and the lane cannot end itself, so a **drain** lane there deadlocks on the first unanswered
 escalation exactly as §4's terminal state exists to prevent, and runs until stopped by hand or until
 the seven-day expiry. No lane detects the provider or the version today, so this is recorded as a

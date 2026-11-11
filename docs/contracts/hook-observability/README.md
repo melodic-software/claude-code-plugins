@@ -29,8 +29,7 @@ A static field on a `hooks.json` **handler object**, sibling of `type`/`command`
 
 It labels the spinner while the hook runs. **A hook script never emits this, because it is configuration,
 not a runtime output field.** Pointer: for the field, see
-<https://code.claude.com/docs/en/hooks#common-fields>. As of: 2026-10-01. Recheck trigger: that
-table moves the field or a runtime output field takes the name. **Rollout status: near-complete.** As of
+<https://code.claude.com/docs/en/hooks#common-fields>. **Rollout status: near-complete.** As of
 2026-07-23, 30 of the 31 wired `type: "command"` handlers across the fleet's 15 hook-bearing
 plugins declare `statusMessage`; the sole remaining holdout is
 `plugins/disk-hygiene/hooks/hooks.json`. Tracked against
@@ -46,13 +45,11 @@ telemetry..."`), not a generic `"Running hook..."`.
 A JSON output field (`hookSpecificOutput` sibling) addressed to the user. We compose it on any exit
 code, exit 2 included, and size it under the cap in
 [Output caps](#output-caps-stated-by-the-reference). Pointer: for which exit codes still read JSON
-output, see <https://code.claude.com/docs/en/hooks#exit-code-2>. As of: 2026-09-27. Recheck
-trigger: that section changes whether JSON output is read on exit 2. Composed via
+output, see <https://code.claude.com/docs/en/hooks#exit-code-2>. Composed via
 `hook::emit_channels` / `hook::emit_skip_notice`
 (`lib/hook-utils.sh`) alongside `additionalContext` in one JSON document: a hook with both
 agent-channel content and a pending notice composes them there and never prints two objects.
 Pointer: for how stdout is parsed as JSON, see <https://code.claude.com/docs/en/hooks#exit-code-0>.
-As of: 2026-10-01. Recheck trigger: that section changes how a multi-object stdout is read.
 
 **Scope, required for exactly one situation:** a missing runtime prerequisite (binary, config
 file, `jq`) causes the hook to silently no-op instead of performing its check. Doctrine
@@ -133,9 +130,6 @@ count, or the disclosure becomes the noise problem it was meant to prevent.
   - **Pointer**: for the field's delivery, see <https://code.claude.com/docs/en/hooks#json-output>
     and the event's section under <https://code.claude.com/docs/en/hooks#hook-events>; for
     background hooks, see <https://code.claude.com/docs/en/hooks#how-async-hooks-execute>.
-  - **As of**: 2026-10-01
-  - **Recheck trigger**: either section changes where `systemMessage` is delivered, or an event's
-    section changes how it treats the field.
 
 **Repeat-notice discipline.** A missing-prerequisite notice behind a broad matcher (every
 `Write|Edit`, every `Bash` call) must not repeat on every invocation. Use `hook::require jq`
@@ -192,15 +186,11 @@ Three cap decisions, each with the section that owns the figure.
    with an opt-in end-of-turn check, and sends neither channel per edit.
    - **Pointer**: for the output cap and what happens over it, see
      <https://code.claude.com/docs/en/hooks#json-output>.
-   - **As of**: 2026-10-04
-   - **Recheck trigger**: that section changes the cap figure or what happens over it.
 
 2. **Each `additionalContext` value is sized on its own.** We size the value against the cap above
    and never against what other hooks on the same event emit.
    - **Pointer**: for how several hooks' values are delivered, see
      <https://code.claude.com/docs/en/hooks#add-context-for-claude>.
-   - **As of**: 2026-09-05
-   - **Recheck trigger**: that section states a budget shared across hooks.
 
 3. **`classifierContext` is not a fourth surface, and its cap governs neither channel above.** It
    is a `PostToolUse` field addressed to the auto-mode classifier, never the user or the model, so
@@ -238,8 +228,7 @@ Recheck trigger: that section starts passing `OTEL_*` variables to hook subproce
 let external tooling correlate a hook's local envelope with the same turn's real OTel stream.
 Adding it is a `hook-telemetry` schema change (`schema_version` 1.0 → 1.1) touching every
 producer's `data_json` construction, out of scope for this doc's three-surface convention.
-Pointer: for the field, see <https://code.claude.com/docs/en/hooks#common-input-fields>. As of:
-2026-10-01. Recheck trigger: that table drops the field or its OpenTelemetry match.
+Pointer: for the field, see <https://code.claude.com/docs/en/hooks#common-input-fields>.
 melodic-software/claude-code-plugins#930 is closed: the per-session event log (`harness-ops`,
 melodic-software/claude-code-plugins#3750) records `prompt_id` per event, and the envelope-spine
 promotion is tracked at melodic-software/claude-code-plugins#3758.
@@ -286,9 +275,6 @@ to the Frequency rule, and `rate-limit-guard`'s threshold line to the Phrasing r
   <https://code.claude.com/docs/en/plugins/mods/api#show-something-without-starting-a-turn>; for
   the model behavior behind the risk, see
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#mid-turn-user-messages-and-task-budgets>.
-- **As of**: 2026-10-04
-- **Recheck trigger**: one of those sections changes who reads a channel, how injected context
-  should be phrased, or how the model treats text that arrives beside tool results.
 
 ### See what a hook or mod sent
 
@@ -302,7 +288,6 @@ carrying the exact text sent, so the debug log holds what the model read.
 
 - **Pointer**: for the debug log and the call, see the links above and
   <https://code.claude.com/docs/en/plugins/mods/troubleshoot#read-the-debug-log>.
-- **As of**: 2026-10-04
 - **Recheck trigger**: one of those sections moves, or the mods API gains its own record of what a
   mod sent Claude.
 
@@ -453,7 +438,3 @@ per cycle.
   <https://platform.claude.com/docs/en/build-with-claude/context-windows#context-awareness>; for the
   countdown and the occasional reminder, see
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#mid-turn-user-messages-and-task-budgets>.
-- **As of**: 2026-10-03
-- **Recheck trigger**: the context-awareness section changes which models receive the injected
-  tags, or the prompting guide changes how often harness text after tool results may arrive before
-  the model treats it as an injection.

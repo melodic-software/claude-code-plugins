@@ -4,6 +4,12 @@ Notable changes to the routing-as-data contract (SemVer). Changing a required ro
 rule, the team-file operations or the degradation rule is a major bump; additive guidance is a minor
 bump; docs-only clarification is a patch.
 
+## [2.0.1] - 2026-11-11
+
+- The metadata-precedence pointer no longer carries an as-of date or recheck trigger, per the
+  upstream-drift convention 5.0.0. The team-layer decision keeps its named trigger and drops its
+  as-of date.
+
 ## [2.0.0] - 2026-10-22
 
 - Team layer, breaking: `routing.rows` may re-rank or override an existing row, and may add a row

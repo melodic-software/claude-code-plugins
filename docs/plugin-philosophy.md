@@ -59,12 +59,10 @@ A git config **vendor section that is not a publisher name** is the git-native p
 convention any `git config --get` consumer must be able to read. We name such a section so it
 collides with neither Git's own variables nor other popular tools', and document it. Pointer: for
 third-party tool variables, see
-[git-config(1) Variables](https://git-scm.com/docs/git-config#_variables). As of: 2026-09-08.
-Recheck trigger: that paragraph being rewritten. Git already owns `worktree.*`
-(`worktree.guessRemote`, `worktree.useRelativePaths`; Pointer:
-[git-worktree(1) Configuration](https://git-scm.com/docs/git-worktree#_configuration). As of:
-2026-09-08. Recheck trigger: git-config(1) adding a new `worktree.*` key), so a placement key
-cannot live there. Popular tools typically name the section after the *tool* (`ghq.root`,
+[git-config(1) Variables](https://git-scm.com/docs/git-config#_variables). Git already owns
+`worktree.*` (`worktree.guessRemote`, `worktree.useRelativePaths`; Pointer:
+[git-worktree(1) Configuration](https://git-scm.com/docs/git-worktree#_configuration)), so a
+placement key cannot live there. Popular tools typically name the section after the *tool* (`ghq.root`,
 `git-town.*`, `lfs.*`, `wt.basedir`, `delta.*`, `hub.protocol`); a publisher-named key (`melodic.*`)
 is still an org-agnosticism defect, and a plugin-named key (`source-control.*`) still couples
 consumers to this marketplace's plugin identity. The worktree-placement key is therefore a
@@ -111,9 +109,6 @@ Keep plugins horizontally decoupled:
     for who tags which repository, and
     [create a release tag](https://code.claude.com/docs/en/plugins/dependencies#create-a-release-tag)
     for the tag name and the command that makes it, live.
-  - **As of**: 2026-11-01
-  - **Recheck trigger**: either section changes who must create the tag, the tag format, or the
-    command that creates it.
 - Every plugin remains useful alone. If an optional collaborator is absent, use a documented fallback
   or report the missing optional capability clearly.
 - Every cross-plugin reference is therefore either declared (the `dependencies` array above, which
@@ -123,9 +118,8 @@ Keep plugins horizontally decoupled:
 This follows Claude Code's own distinction between standalone configuration and plugins: this
 marketplace ships plugins because it distributes versioned capability to other people and projects.
 Pointer: for when to use a plugin rather than standalone configuration, see
-<https://code.claude.com/docs/en/plugins/overview#decide-whether-you-need-a-plugin>. As of:
-2026-08-10. Recheck trigger: that section moves or drops the distinction. Namespaced skill
-invocations are part of that isolation, not an implementation detail.
+<https://code.claude.com/docs/en/plugins/overview#decide-whether-you-need-a-plugin>. Namespaced
+skill invocations are part of that isolation, not an implementation detail.
 
 ### Hardcoded consumer specifics
 
@@ -635,8 +629,7 @@ written for it and deliberately dropped rather than kept for symmetry.
 
 The uniform contract: the skill is named `setup`, sets `disable-model-invocation: true`, because
 setup has side effects a person should trigger by hand (Pointer:
-<https://code.claude.com/docs/en/best-practices#put-team-procedures-in-skills>. As of: 2026-10-30. Recheck trigger:
-that section stops tying the flag to manually triggered side effects), and offers `check` (read-only inspect and verify) and `apply` (idempotent configure) actions. This
+<https://code.claude.com/docs/en/best-practices#put-team-procedures-in-skills>), and offers `check` (read-only inspect and verify) and `apply` (idempotent configure) actions. This
 contract is exception class (ii) of the fleet's invocation-mode rubric
 ([`docs/contracts/invocation-mode/`](contracts/invocation-mode/README.md)), which owns the
 default and the other reasons a skill may set the flag. The
@@ -705,8 +698,8 @@ cannot express, never `/<plugin>:setup check`, which the flag hides from Claude.
 per-action invocation flag.
 Pointer: for `disable-model-invocation`, see
 <https://code.claude.com/docs/en/skills#frontmatter-reference> and
-<https://code.claude.com/docs/en/skills#control-who-invokes-a-skill>. As of: 2026-09-29. Recheck
-trigger: a Claude Code release adds a per-action invocation flag, or that field stops applying to
+<https://code.claude.com/docs/en/skills#control-who-invokes-a-skill>. Recheck trigger: a Claude
+Code release adds a per-action invocation flag, or that field stops applying to
 the whole skill.
 
 The verb set is deliberately closed at `check` and `apply`: no standalone `remove`, `reset`, or
@@ -796,8 +789,6 @@ and CI preparation, and a `SessionStart` hook comparing a bundled manifest again
 the flags that fire it, see <https://code.claude.com/docs/en/hooks#setup>; for the data-directory
 install idiom, see
 <https://code.claude.com/docs/en/plugins/components#install-dependencies-into-the-data-directory>.
-As of: 2026-08-10. Recheck trigger: either section moves, or the `Setup` event or the data-directory
-idiom is removed.
 
 These native idioms complement the `setup` skill; they do not compete with it, and native-first is
 honored either way. The skill is the interactive, discoverable consumer-configuration face
@@ -859,7 +850,6 @@ current refusals. They stay; they are not defects against a missing subaction.
   refusals: `plugins/go-format/skills/setup/SKILL.md` and
   `plugins/typos-format/skills/setup/SKILL.md`. Tokens such as `install-hint` and
   `install-browser` are not setup subactions.
-- **As of:** 2026-10-02.
 - **Recheck trigger:** a setup skill adds an install subaction that fits none of the four shapes, a live
   subaction changes what or where it installs, or a maintainer converges the fleet onto one
   spelling.
@@ -978,14 +968,13 @@ Optional platform integrations must degrade visibly and preserve the portable co
 
 [Feature availability](https://code.claude.com/docs/en/feature-availability) is this contract's
 canonical input: fetch it when a platform, provider, or plan question decides something, and restate
-none of it here (as of 2026-08-10; trigger in [recorded gate runs](#recorded-gate-runs)). A capability the
-platform itself does not ship on a supported OS is the platform's gap, never the "narrower, inherent
+none of it here. A capability the platform itself does not ship on a supported OS is the platform's gap, never the "narrower, inherent
 platform boundary" a plugin may declare. The plugin still owes a portable path.
 
 That input carries two axes, model provider and subscription plan. The *host surface* a consumer
 runs in, whether CLI, Desktop, an IDE extension, web, or mobile, is a third, read separately from
 [Platforms and integrations](https://code.claude.com/docs/en/platforms) and the per-host pages it
-indexes, cited and never restated (as of 2026-08-10; trigger in [recorded gate runs](#recorded-gate-runs)).
+indexes, cited and never restated.
 It is a distinct axis because a host can withhold the plugin system itself rather than one
 capability, and where no plugin loads there is no portable path for one to owe. Host-surface absence
 is therefore neither a plugin defect nor a boundary a plugin may declare: the OS rule above governs
@@ -1035,8 +1024,7 @@ always-loaded listing at all is the invocation-mode choice, owned by the rubric 
 line only if removing it would cause a mistake, and we delete or convert to a hook any instruction
 the model already follows unaided. Pointer: for pruning standing instructions, see
 <https://code.claude.com/docs/en/best-practices#keep-claude-md-short> and
-<https://code.claude.com/docs/en/best-practices#what-you-can-stop-doing>. As of: 2026-10-30.
-Recheck trigger: either section moves or stops recommending pruning. Anthropic reports applying
+<https://code.claude.com/docs/en/best-practices#what-you-can-stop-doing>. Anthropic reports applying
 the same doctrine to Claude Code's own system prompt for the Claude 5 generation; no docs page
 covers that as of 2026-08-08
 (correlate with <https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models>).
@@ -1192,14 +1180,12 @@ this rule instead of restating it.
    who wants a verifier on every phase sets `verify_mechanical_phases` to `true`, which turns the
    carve-out off.
    - **Pointer**: `/implementation:implement-dispatch`, its `verify_mechanical_phases` setting.
-   - **As of**: 2026-10-04.
    - **Recheck trigger**: that setting is renamed or removed, or the carve-out stops naming the PR's
      verify stage as its verdict.
 4. **The testing plugin's judge pass is the precedent.** `/testing:audit --judge` hands the tests a
    change created or changed to a fresh-context subagent on another model class, so the session
    that wrote a test never grades it.
    - **Pointer**: the judge pass section of `/testing:audit`.
-   - **As of**: 2026-10-15.
    - **Recheck trigger**: the pass is renamed or removed, or the judge stops running in a context
      separate from the session that wrote the tests.
 5. **Deterministic gates stay exempt**, within the narrow scope stated above: a script's pass or fail
@@ -1225,8 +1211,7 @@ when one is installed, on the same presence-gate shape with the same generic fal
 
 Those rungs are one choice among the platform's parallelism surfaces;
 [run agents in parallel](https://code.claude.com/docs/en/agents#choose-an-approach) is the
-canonical upstream comparison of all of them (as of 2026-08-10; trigger in
-[recorded gate runs](#recorded-gate-runs)). Why the fleet takes the subagent rung today rather than agent
+canonical upstream comparison of all of them. Why the fleet takes the subagent rung today rather than agent
 teams or cross-session messaging is recorded once in the [gate runs](#recorded-gate-runs). Re-derive
 from that table's triggers instead of re-arguing it at a checkpoint site.
 
@@ -1243,8 +1228,7 @@ A dispatch prompt at any rung:
 - **bounds what counts as a finding**: correctness and the stated requirements, everything else
   optional. An unbounded adversarial prompt returns many low-value findings at full cost, and chasing
   every reported gap over-engineers the work. Pointer:
-  <https://code.claude.com/docs/en/best-practices#review-against-your-spec>. As of:
-  2026-10-30. Recheck trigger: that section stops recommending a bounded review.
+  <https://code.claude.com/docs/en/best-practices#review-against-your-spec>.
 
 ### Named-agent bar
 
@@ -1254,8 +1238,7 @@ pin, or an enforced tool restriction is required.** Otherwise the generic subage
 is the simpler, equally independent form. On tool cages: an allowlist that includes Bash bars
 Edit/Write and recursive spawning but is **not read-only**, because Bash can write. State what the cage
 actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
-<https://code.claude.com/docs/en/plugins/components#frontmatter-fields-in-plugin-agents>. As of:
-2026-08-10. Recheck trigger: plugin agents stop supporting `tools`).
+<https://code.claude.com/docs/en/plugins/components#frontmatter-fields-in-plugin-agents>).
 
 **Exception: `planning:plan-reviewer`.**
 
@@ -1278,7 +1261,6 @@ actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
   `opus`; when weighing a per-call level against the pin, fetch
   [subagents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level)
   live.
-- **As of:** 2026-10-10.
 - **Recheck trigger:** a second dispatch site or direct use appears (the exception then ends), the
   Step 3 dispatch starts passing `effort`, that section changes how a per-call `effort` ranks against
   the `effort` field or which spawns honor it, or the agent's `model` or `effort` changes.
@@ -1300,7 +1282,6 @@ actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
   tools, fetch
   [create custom subagents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools)
   live.
-- **As of:** 2026-10-17.
 - **Recheck trigger:** a second dispatch site or direct use appears (the exception then ends), the
   shared-lane dispatch starts passing `model` or `effort`, that section changes how a `tools` list
   withholds tools, or the agent's `tools`, `model` or `effort` changes.
@@ -1323,15 +1304,13 @@ Four rules decide a lane's model, applied in this order:
   [optimizing for cost and intelligence: compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task)
   and [tune effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort),
   with the self-check step first from
-  [which Claude model should you build with: latency against accuracy](https://claude.dev/blog/which-claude-model-should-you-build-with#latency-against-accuracy)
-  (as of 2026-11-09);
+  [which Claude model should you build with: latency against accuracy](https://claude.dev/blog/which-claude-model-should-you-build-with#latency-against-accuracy);
   for rule 2,
   [orchestrator strategy: delegate bulk work](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work);
   for rule 3, the advisor capability rule in
   [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility);
   for rule 4,
   [re-run failures at higher effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#re-run-failures-at-higher-effort).
-- **As of:** 2026-11-09.
 - **Recheck trigger:** next model release, or any cited section changes.
 - **Judgment:** the advisor rule constrains an API advisor and executor pairing; applying it to a
   subagent verdict and the work it checks is our reading, not a source statement. What counts as an
@@ -1401,15 +1380,13 @@ when a role may route to it and the effort it then runs at. The release evidence
   and [model config: available models](https://code.claude.com/docs/en/model-config#available-models)
   (correlate with <https://claude.dev/blog/building-with-claude-sonnet-5-5>;
   recheck when those docs pages cover what the post adds).
-- **As of:** 2026-11-09.
 - **Recheck trigger:** any new model on Claude Code's model page.
 
 Row 1 is relative to the checked work by construction: a verdict on work done at the top tier runs
 at that tier, since there is no rung above it. The cost ordering behind the rows is
 upstream-owned and is not restated here (Pointer:
-[pricing: model pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing).
-As of: 2026-11-09. Recheck
-trigger: any new model on Claude Code's model page). No row binds a model that is not generally
+[pricing: model pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing)).
+No row binds a model that is not generally
 available to the fleet.
 
 **Override points.** The rows are repository defaults; a personal routing preference belongs in the
@@ -1437,7 +1414,6 @@ from the live roster, never from this file.
   [thinking: interleaved thinking](https://platform.claude.com/docs/en/build-with-claude/thinking#interleaved-thinking);
   for how Claude Code records the capability for a pinned model, see
   [model config: customize pinned model display and capabilities](https://code.claude.com/docs/en/model-config#customize-pinned-model-display-and-capabilities).
-- **As of:** 2026-11-09.
 - **Recheck trigger:** any new model on Claude Code's model page, or that section's per-model
   statement changes.
 
@@ -1549,9 +1525,6 @@ same depth on two models):
   - **Pointer:** for which level fits which kind of work, see
     [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
     the two posts under the source conflict below are correlate notes only.
-  - **As of:** 2026-10-01.
-  - **Recheck trigger:** that section stops matching levels to kinds of work, or starts naming one
-    level for every task.
   - **Source conflict:** the older effort post,
     <https://claude.com/blog/claude-model-and-effort-level-in-claude-code> (correlate only), and
     model config's choose-an-effort-level section, joined by the newer effort post,
@@ -1577,9 +1550,8 @@ same depth on two models):
 - **Effort is the first lever in either direction; steering prose is the second.** We set the
   level to fit the lane's work and add prose only where that level still falls short (Pointer:
   for why, see
-  [steering thinking: effort levels](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#effort-levels).
-  As of: 2026-08-03. Recheck trigger: that section stops ranking effort ahead of prompt
-  steering). Both directions: shallow output from a pinned-`low` lane raises the lane's
+  [steering thinking: effort levels](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#effort-levels)).
+  Both directions: shallow output from a pinned-`low` lane raises the lane's
   effort instead of adding prompt text, and a lane thinking more than the work needs lowers the
   pin before any prose telling the model to think less. A lane that must hold its level for latency
   is the one case that reaches for steering prose first, and it keeps that prose only after
@@ -1597,9 +1569,6 @@ same depth on two models):
   default changes nothing, so a pin that only documents the default costs nothing.
   - **Pointer:** for Claude Code's handling, see the section above; for the API side, see
     [steering thinking: prompt caching](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#prompt-caching).
-  - **As of:** 2026-10-01.
-  - **Recheck trigger:** either section changes what an effort change does to the cache, or which
-    models, providers or versions keep the cache across one.
 
 **Pinned agents.** Every named agent in this repository that sets its own `model` pins its effort, so
 a session tuned down for cost does not silently cheapen a worker. The `model: inherit` agents pin
@@ -1627,7 +1596,6 @@ executor stops detecting that it is stuck (the upstream pointers are under the
   [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level)
   and the `effort` field in
   [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
-- **As of:** 2026-11-09.
 - **Recheck trigger:** any new model on Claude Code's model page, or a pinned agent's `model`
   changes, since a level name means a different depth on each model; the task rows change; a
   checker pinned `medium` misses a defect a `high` pin caught; or a maintainer changes or drops a
@@ -1672,7 +1640,6 @@ and verdict lanes follow the `high` row; well-specified mechanical work follows 
   [model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases); for
   each model's default level, see
   [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level).
-- **As of:** 2026-10-02.
 - **Recheck trigger:** a row named in the table changes, the default effort of the model an agent's
   alias resolves to changes, or an agent's `model` or `effort` changes.
 
@@ -1789,9 +1756,7 @@ session effort. A plugin may advise a session level for a phase of work, but it 
 session level or saved level (Pointer: for how a level is set and saved, see
 [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level);
 for the ultracode setting, see
-[model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level).
-As of: 2026-11-09. Recheck trigger: any new model on Claude Code's model page, or a new way to set
-or save a level).
+[model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level)).
 
 One exception, scoped to frontmatter: a skill or agent may pin `effort`, because the pin holds only
 while that skill or agent is active and never changes the user's session or saved level.
@@ -1819,7 +1784,6 @@ and the release.
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
   for what each alias resolves to per provider, see
   [model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases).
-- **As of:** 2026-11-09.
 - **Recheck trigger:** any new model on Claude Code's model page, or the effort section changes
   which models support effort.
 

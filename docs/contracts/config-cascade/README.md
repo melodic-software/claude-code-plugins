@@ -454,7 +454,6 @@ decision.
     is a declared exception, not drift.
   - **Basis:** [ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md) on the owner decision on #3577; the existing `.claude/standards.yaml` pointer
     already roots the directory, so no new mechanism is needed.
-  - **As of:** 2026-09-29.
   - **Recheck:** a web-session measurement shows plugin-owned `.claude/<name>` writes are fine
     everywhere and a consumer reports confusion, or Claude Code changes protected-path handling.
 - **`songwriting` reads template overrides from `songwriting/templates/`.** The consumer's prompt
@@ -469,7 +468,6 @@ decision.
   - **Basis:** [ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md); `plugins/songwriting/skills/setup/SKILL.md` "The two surfaces"; the path the
     `rhyme`, `song-form`, `meter-prosody`, `co-write`, `metaphor`, `diagnose`, `object-writing`,
     `practice` and `workflow` skills check.
-  - **As of:** 2026-09-29.
   - **Recheck:** a template override becomes a settings-shaped file (keyed values rather than
     prose), or the setup skill starts writing under `.claude/`.
 - **`work-items` reads its recurring schedule from `.github/recurring-schedule.json`.** The file
@@ -483,7 +481,6 @@ decision.
     exception.
   - **Basis:** [ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md); `plugins/work-items/reference/tracker-seam.md` "Recurring schedule";
     `plugins/work-items/skills/setup/SKILL.md`.
-  - **As of:** 2026-09-29.
   - **Recheck:** the schedule gains a personal override or user-global layer, or the reconciling
     automation moves out of `.github/`.
 - **`autonomy` exempts its security axes.** Layers refine additively as the contract requires, except
@@ -516,7 +513,6 @@ decision.
   - **Claim:** the three gitignore postures stay; recommend is default; two consumer-root
     appends are declared exceptions; own-ignore-file is a different file.
   - **Basis:** the owner decision on #3573 (keep the three postures), ADR 0040, and ADR 0015.
-  - **As of:** 2026-09-29.
   - **Recheck:** a setup skill grows a third consumer-root append, or a maintainer
     converges the fleet onto one posture.
 - **`source-control` stops `branch_issue_pattern` resolution on an unusable layer (#4673).**
@@ -646,7 +642,6 @@ conformance.
 
 - **Claim:** the glance table is generated from the Implementers rows; engines are not unified.
 - **Basis:** #3575 and `scripts/sync-config-cascade-semantics.py`.
-- **As of:** 2026-09-29.
 - **Recheck:** operators still miss the row, then add the per-setup check line.
 
 ## Implementers

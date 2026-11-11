@@ -930,8 +930,6 @@ claude --plugin-dir ./plugins/<name>
   - **Pointer**: when choosing between the folder and per-plugin forms, fetch
     [plugin commands: flags that load a plugin for one session](https://code.claude.com/docs/en/plugins/cli-reference#flags-that-load-a-plugin-for-one-session)
     live.
-  - **As of**: 2026-10-10
-  - **Recheck trigger**: that section changes what a folder of plugins loads.
 - **Session-scoped and non-destructive.** The override lasts only for that session and never edits a
   consumer's `extraKnownMarketplaces`; the published registration stays on its GitHub remote. The lone
   exception: `--plugin-dir` cannot override a plugin that *managed* settings force-enable or

@@ -13,9 +13,8 @@ It is not. The rule is one line, and the rest of this doc is why.
 **A `PreToolUse` hook denies or asks. It never pairs `allow` with `updatedInput`.**
 
 A `PreToolUse` hook's decision-control fields, and the outcomes `permissionDecision` takes, are
-listed in [hooks § PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control)
-(as of 2026-10-11; recheck when that section adds or drops a field or an outcome). The others are
-uncontroversial. `updatedInput` is the one that lets a hook rewrite the call, and its only
+listed in [hooks § PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control).
+The others are uncontroversial. `updatedInput` is the one that lets a hook rewrite the call, and its only
 sanctioned pairing here is with `"ask"`.
 
 The concrete case this rule was written against: a commit guard that can tell a non-canonical
@@ -55,9 +54,6 @@ a dead end, and it is why no hook here needs to rewrite a call to get the right 
 - **Pointer**: when checking what Claude sees of a denial, by the JSON `deny` or by `exit 2`, fetch
   [hooks § PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control)
   live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section changes who sees a `deny` reason, or how `exit 2` compares with
-  a JSON `deny`.
 
 Auto mode can make the escape hatch a refusal: Claude Code can refuse a tool call whose input a hook
 changed after the server-side classifier reviewed it. Which sessions, tools and hooks that covers is
