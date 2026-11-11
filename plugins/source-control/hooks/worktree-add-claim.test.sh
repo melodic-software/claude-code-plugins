@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Regression tests for worktree-add-claim-gate.sh (PostToolUse Bash hook,
+# Regression tests for worktree-add-claim.sh (PostToolUse Bash hook,
 # #2882). After a plain `git worktree add`, the hook must lock the new tree
 # with a session-distinct reason and must not rewrite a helper-created
 # reason. Invoked from an unrelated cwd. No network.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOOK="$SCRIPT_DIR/worktree-add-claim-gate.sh"
+HOOK="$SCRIPT_DIR/worktree-add-claim.sh"
 
 FAILED=0
 CASE_NUM=0
@@ -55,7 +55,7 @@ run() {
     '{session_id:$sid,cwd:$cwd,hook_event_name:"PostToolUse",tool_name:"Bash",tool_input:{command:$cmd}}')
   # A here-string, never a pipe: the kill switch exits before reading stdin, and
   # a printf still writing then fails on the closed pipe, which pipefail reports.
-  OUT=$(cd "$UNRELATED" && env -u CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_GATE_ENABLED \
+  OUT=$(cd "$UNRELATED" && env -u CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_ENABLED \
     "$@" bash "$HOOK" <<<"$payload" 2>/dev/null)
   RC=$?
 }
@@ -106,7 +106,7 @@ assert_not_contains "helper reason was not rewritten by the hook" "$helped" "wor
 
 git -C "$REPO" worktree add -q "$EXT/wt-off" -b feat/off
 run "$REPO" "git worktree add $EXT/wt-off -b feat/off" "sess-off" \
-  CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_GATE_ENABLED=false
+  CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_ENABLED=false
 assert_exit "disabled hook exits 0" 0 "$RC"
 off=$(wt_stanza "$REPO" wt-off)
 assert_not_contains "disabled hook does not lock" "$off" "locked"
@@ -156,9 +156,9 @@ git -C "$REPO" worktree add -q "$EXT/wt-noshfmt" -b feat/noshfmt
 payload=$(jq -n --arg cwd "$REPO" --arg cmd "git worktree add $EXT/wt-noshfmt -b feat/noshfmt" \
   '{session_id:"s-noshfmt",cwd:$cwd,hook_event_name:"PostToolUse",tool_name:"Bash",tool_input:{command:$cmd}}')
 RC=0
-OUT=$(cd "$UNRELATED" && env -u CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_GATE_ENABLED \
+OUT=$(cd "$UNRELATED" && env -u CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_ENABLED \
   HOME="$TEST_TMPDIR/noshfmt-home" PATH="$NOSHFMT:/usr/bin:/bin" bash "$HOOK" <<<"$payload" 2>&1) || RC=$?
-assert_exit "no shfmt: the claim gate fails open" 0 "$RC"
+assert_exit "no shfmt: the claim hook fails open" 0 "$RC"
 assert_not_contains "no shfmt: no refusal text" "$OUT" "BLOCKED"
 
 [[ $FAILED -eq 0 ]] || exit 1
