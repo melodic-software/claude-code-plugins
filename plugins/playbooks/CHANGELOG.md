@@ -4,6 +4,13 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.33.1] - 2026-11-11
+
+### Changed
+
+- The `boris` references' auto mode links use the section id the permission-modes page renders
+  now. No behavior change.
+
 ## [0.33.0] - 2026-11-10
 
 ### Added
