@@ -6937,7 +6937,7 @@ jobs:
         # aggregation: the job still fails on the contract step's exit code, and
         # the `ci-lanes` status is on the SHA for the next contract-only run.
         if: ${{ !cancelled() }}
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@226dad32d631e5870f005b94983261ebbcd737f3 # 226dad3 2026-10-31
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@ac4d8780de793b20e60a66890e767df579c80d83 # ac4d878 2026-11-11
         with:
           # Every lane of the needs graph above — the single source of truth
           # for the lane list — through the ordered-skip check. Adding a lane
@@ -6962,6 +6962,9 @@ jobs:
           yield-wait-seconds: ${{ ((job.status == 'failure' && github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) || github.event.pull_request.draft) && '0' || '600' }}
           rerun-contract-only-siblings: ${{ github.event.pull_request.draft && 'false' || 'true' }}
           carry-forward-wait-seconds: '0'
+          # report-ci-status mirrors this gate under `ci-status` and runs on
+          # contract-only events too; the run-shape reads must ignore it.
+          alias-jobs: ci-status
           # This step's own name, so the own-step lookup never depends on
           # how many steps of the job are in progress.
           step-name: Aggregate lane results
