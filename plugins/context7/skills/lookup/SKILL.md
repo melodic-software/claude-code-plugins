@@ -84,6 +84,8 @@ never hand a `${…}` token from those files to the Bash tool.
     [MSYS2: Automatic Unix ⟶ Windows Path Conversion](https://www.msys2.org/docs/filesystem-paths/#automatic-unix-windows-path-conversion).
   - **As of**: 2026-11-03
   - **Recheck trigger**: that section changes which arguments are converted.
-- The CLI has no flag for content depth; for more per call, use the MCP server.
+- For more content per call, use the MCP server. Which flags `ctx7 docs` takes is
+  [Context7 CLI § Query Library Documentation](https://context7.com/docs/clients/cli#query-library-documentation)
+  (as of 2026-11-10; recheck when that section adds a depth or token flag).
 - Never run `ctx7 setup`, or `ctx7 skills install` if a guide names it: this plugin owns the lookup surface, and a second copy of Upstash's `find-docs` fragments lookups and drifts on its own.
 - This skill retrieves library docs only. Architecture decisions and other questions that need cross-checked sources go to a research workflow.
