@@ -418,6 +418,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
+      start-gate: true
       role: pr-unblock
       lane: pr-refine
       activity: fix-docs
@@ -633,6 +634,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
+      start-gate: true
       role: pr-unblock
       lane: pr-refine
       activity: fix-docs
@@ -740,6 +742,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
+      start-gate: true
       role: pr-unblock
       lane: pr-refine
       activity: fix-docs

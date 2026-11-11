@@ -100,7 +100,8 @@ jobs:
         env:
           REASON: ${{ steps.kill.outputs.reason }}
           CAUSE: ${{ steps.kill.outputs.cause }}
-        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing read or deleted"
+          WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
+        run: echo "::notice::${WHY} this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing read or deleted"
 
       # cleanup.mjs reads the branch-cleanup leaf through the base's
       # resolve-config, which needs its dependencies.
@@ -188,7 +189,8 @@ jobs:
         env:
           REASON: ${{ steps.kill.outputs.reason }}
           CAUSE: ${{ steps.kill.outputs.cause }}
-        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing deleted"
+          WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
+        run: echo "::notice::${WHY} this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing deleted"
 
       # The delete stage checks the list against the configured cap.
       - name: Install resolve-config's dependencies

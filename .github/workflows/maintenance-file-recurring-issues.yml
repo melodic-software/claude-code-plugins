@@ -73,7 +73,8 @@ jobs:
         env:
           REASON: ${{ steps.kill.outputs.reason }}
           CAUSE: ${{ steps.kill.outputs.cause }}
-        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing read or filed"
+          WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
+        run: echo "::notice::${WHY} this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing read or filed"
 
       - name: File the due rows
         if: steps.kill.outputs.proceed == 'true'

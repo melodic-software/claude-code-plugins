@@ -140,6 +140,7 @@ jobs:
           KILL: ${{ steps.kill.outputs.proceed }}
           KILL_REASON: ${{ steps.kill.outputs.reason }}
           KILL_CAUSE: ${{ steps.kill.outputs.cause }}
+          KILL_WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops this run', steps.kill.outputs.reset) || 'the lanes kill switch stops this run' }}
           DEGRADED: ${{ steps.upstream.outputs.degraded }}
           DEGRADED_REASON: ${{ steps.upstream.outputs.reason }}
           WHO: ${{ steps.who.outputs.proceed }}
@@ -150,7 +151,7 @@ jobs:
             echo "::error::$1: $2"
             exit 1
           }
-          [ "$KILL" = true ] || stop kill-switch "the lanes start gate stops this run (reason: ${KILL_REASON:-unreadable}, cause: ${KILL_CAUSE:-unreadable})"
+          [ "$KILL" = true ] || stop kill-switch "${KILL_WHY} (reason: ${KILL_REASON:-unreadable}, cause: ${KILL_CAUSE:-unreadable})"
           [ "$DEGRADED" != true ] || stop upstream-degraded "${DEGRADED_REASON}; dispatch again once it recovers"
           [ "$WHO" = true ] || stop untrusted-dispatcher "the dispatcher is not a listed human (reason: ${WHO_REASON:-unreadable})"
 
@@ -336,8 +337,9 @@ jobs:
         env:
           REASON: ${{ steps.kill.outputs.reason }}
           CAUSE: ${{ steps.kill.outputs.cause }}
+          WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
         run: |
-          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable})"
+          echo "::error::${WHY} this run (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable})"
           exit 1
 
       # Under the workspace: --restricted confines the file tools to it.

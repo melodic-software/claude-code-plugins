@@ -156,8 +156,9 @@ jobs:
         env:
           REASON: ${{ steps.kill.outputs.reason }}
           CAUSE: ${{ steps.kill.outputs.cause }}
+          WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
         run: |
-          echo "::notice::the lanes kill switch stops this run (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing dispatched"
+          echo "::notice::${WHY} this run (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing dispatched"
 
       # A push or scheduled run on its first attempt was started by the event
       # itself. A hand run, or any re-run, is checked against the base list:

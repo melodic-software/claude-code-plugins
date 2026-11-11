@@ -293,7 +293,9 @@ const GATES = {
   "pr-review-hosted.yml": { "kill-switch": "switch" },
   "pr-review-main.yml": { trigger: "switch", "trusted-text": "switch", review: "switch", "review-subscription": "switch", "review-fallback": "switch" },
   "pr-review-security-hosted.yml": { "kill-switch": "switch" },
-  "pr-run-activity-read.yml": { "broker-check": "start", run: "switch" },
+  // broker-check reads the budget only for a caller passing start-gate, and
+  // only on a call that is the first in its slot (FIRST_CALL).
+  "pr-run-activity-read.yml": { "broker-check": "first-call", run: "switch" },
   "pr-run-activity-write.yml": { run: "switch" },
   "pr-unblock-dispatch.yml": { dispatch: "start", refine: "start" },
   "pr-unblock.yml": {
@@ -320,6 +322,35 @@ const GATES = {
   "work-unblock.yml": { "label-unblocked": "start", "publish-lane-level": "switch", "sync-status": "switch" },
 };
 
+const FIRST_CALL = /^ {10}budget: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop'\) && 'true' \|\| 'false' \}\}$/m;
+
+// The read-runner calls that pass start-gate, by workflow and job: the issue
+// lane and pr-refine start new work; pr-unblock fixes existing PRs and passes
+// none. Each listed call's handed-off and fallback legs read no budget
+// through FIRST_CALL's fallback test.
+const START_CALLS = {
+  "work-resolve-issue.yml": ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"],
+  "pr-refine.yml": ["fix-docs", "fix-docs-subscription", "fix-docs-fallback"],
+};
+
+test("only the issue lane's and pr-refine's read-runner calls pass start-gate", () => {
+  for (const file of readdirSync(WORKFLOWS).filter((name) => name.endsWith(".yml"))) {
+    const lines = readFileSync(path.join(WORKFLOWS, file), "utf8").split("\n");
+    const starting = [];
+    let calls = 0;
+    let job = null;
+    lines.forEach((line, i) => {
+      const id = /^ {2}([a-z][a-z0-9-]*):$/.exec(line);
+      if (id) job = id[1];
+      if (!/^ {4}uses: \.\/\.github\/workflows\/pr-run-activity-read\.yml\b/.test(line)) return;
+      calls += 1;
+      const next = lines.findIndex((other, j) => j > i && /^ {2}[a-z]/.test(other));
+      if (/^ {6}start-gate: true$/m.test(lines.slice(i, next < 0 ? undefined : next).join("\n"))) starting.push(job);
+    });
+    if (calls) assert.deepEqual(starting, START_CALLS[file] ?? [], file);
+  }
+});
+
 // Each gate step in a workflow: its job and the step's text.
 function gatesIn(file) {
   const lines = readFileSync(path.join(WORKFLOWS, file), "utf8").split("\n");
@@ -329,7 +360,8 @@ function gatesIn(file) {
   lines.forEach((line, i) => {
     const id = i > jobsAt && /^ {2}([a-z][a-z0-9-]*):$/.exec(line);
     if (id) job = id[1];
-    if (!line.includes("uses: ./.base/.github/actions/check-kill-switch")) return;
+    // Any path to the action, at any ref.
+    if (!/^\s*(?:-\s+)?uses:\s*["']?[^\s"'#]*actions\/check-kill-switch(?:@[^\s"'#]*)?["']?\s*(?:#.*)?$/.test(line)) return;
     const next = lines.findIndex((other, j) => j > i && /^ {6}- |^ {2}[a-z]/.test(other));
     found.push({ job, step: lines.slice(i, next < 0 ? undefined : next).join("\n") });
   });
@@ -345,6 +377,8 @@ test("every gate in the workflows is classified, and only start gates read the b
       seen.add(`${file} ${job}`);
       if (kind === "start") {
         assert.match(step, /^ {10}budget: "true"$/m, `${file} ${job} starts new work`);
+      } else if (kind === "first-call") {
+        assert.match(step, FIRST_CALL, `${file} ${job} starts new work on a starting caller's first call only`);
       } else {
         assert.doesNotMatch(step, /budget:/, `${file} ${job} checks the switches only`);
       }

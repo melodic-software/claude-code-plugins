@@ -189,8 +189,9 @@ jobs:
         env:
           REASON: ${{ steps.kill.outputs.reason }}
           CAUSE: ${{ steps.kill.outputs.cause }}
+          WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
         run: |
-          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); the verdict is applied when the lost-run reconciler re-runs this job"
+          echo "::error::${WHY} this run (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); the verdict is applied when the lost-run reconciler re-runs this job"
           exit 1
 
       - name: Download the verdict
@@ -406,8 +407,9 @@ jobs:
         env:
           REASON: ${{ steps.kill.outputs.reason }}
           CAUSE: ${{ steps.kill.outputs.cause }}
+          WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
         run: |
-          echo "::notice::the lanes kill switch stops this run (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing dispatched"
+          echo "::notice::${WHY} this run (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing dispatched"
 
       # The script resolves the pr-unblock lane's address-feedback slot with
       # the base's resolve-config once it has found the PR and its head, and

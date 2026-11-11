@@ -3740,12 +3740,43 @@ test("a later leg's broker-check refused or skipped for the kill switch is a bre
   }
 });
 
-// broker-check's start gate stopped on the GITHUB_TOKEN budget (cause budget):
-// its `Stop on a low GITHUB_TOKEN budget until <reset>` step ran, named with
-// the gate's reset output, and the broker ask skipped.
+// The run a start-gate budget stop leaves (pr-run-activity-read.yml): the
+// first call's broker-check ran its kill-switch step, its `Stop on a low
+// GITHUB_TOKEN budget until <reset>` step (named with the gate's reset
+// output), and skipped the broker ask and the lease, ending green with
+// skip-reason budget. That skip-reason skips the call's run job, so its
+// issue-fields, scan and summary jobs skip too, and report skips with no lease
+// held. No handoff, no scan output: work-resolve-issue's later calls,
+// apply-issue-patch and report-outcome all skip, and the run ends green.
 const epoch = (at) => Date.parse(at) / 1000;
 const budgetStep = (name = `Stop on a low GITHUB_TOKEN budget until ${epoch("2026-10-16T10:30:00Z")}`) => ({ name, conclusion: "success" });
-const budgetStopped = (step = budgetStep()) => [ADMITTED, pickSlot, { ...KILL_SKIPPED[2], steps: [KILL_SKIPPED[2].steps[0], step, KILL_SKIPPED[2].steps[1]] }, ...KILL_SKIPPED.slice(3)];
+const skippedJob = (name) => ({ name, conclusion: "skipped", steps: [] });
+const budgetStopped = (step = budgetStep()) => [
+  ADMITTED,
+  pickSlot,
+  {
+    name: "resolve-issue / broker-check",
+    conclusion: "success",
+    steps: [
+      { name: "Check the kill switch", conclusion: "success" },
+      step,
+      { name: "Ask the broker whether the lane may run", conclusion: "skipped" },
+      { name: "Claim the issue with a lane lease", conclusion: "skipped" },
+    ],
+  },
+  skippedJob("resolve-issue / broker-allowed"),
+  skippedJob("resolve-issue / run"),
+  skippedJob("resolve-issue / issue-fields"),
+  skippedJob("resolve-issue / scan"),
+  skippedJob("resolve-issue / summary"),
+  skippedJob("resolve-issue / report"),
+  { name: "resolve-issue-handoff", conclusion: "success", steps: [{ name: "Read whether the call handed off", conclusion: "success" }] },
+  skippedJob("resolve-issue-subscription"),
+  skippedJob("resolve-issue-fallback"),
+  skippedJob("apply-issue-patch"),
+  skippedJob("report-skip"),
+  skippedJob("report-outcome"),
+];
 const BUDGET_STOPPED = budgetStopped();
 const BUDGET_RECORD = `${BREAKER_MARKER}\n<!-- work-unblock cause=budget -->\n`;
 const budgeted = (calls) => {
@@ -3803,7 +3834,8 @@ test("budget stops never count toward limits.limit-stops-per-issue or wait the k
   assert.equal(await sweep({ github: fourthSwitch.github, actions: fourthSwitch.actions }), 0);
   assert.deepEqual(writes(fourthSwitch.calls), [], "a fourth switch trip waits");
 
-  const budgetStops = await afterSweeps(5, BUDGET_STOPPED);
+  // Five budget records, as separate comments, each followed by its re-add.
+  const budgetStops = history(Array.from({ length: 5 }, (_, index) => breakerComment(KEY, { repo: REPO, run: 4100 + index, ended: Date.parse("2026-10-16T05:00:00Z"), budget: true })));
   const afterBudget = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success", ...budgetStops });
   assert.equal(await sweep({ github: afterBudget.github, actions: afterBudget.actions }), 0);
   switched(afterBudget.calls);
@@ -3811,6 +3843,22 @@ test("budget stops never count toward limits.limit-stops-per-issue or wait the k
   const budgetAfterSwitch = stalledRun({ jobs: BUDGET_STOPPED, conclusion: "success", ...switchTrips });
   assert.equal(await sweep({ github: budgetAfterSwitch.github, actions: budgetAfterSwitch.actions }), 0);
   budgeted(budgetAfterSwitch.calls);
+});
+
+test("a later budget stop edits the issue's one budget record in place, never posting a second", async () => {
+  const once = await afterSweeps(1, BUDGET_STOPPED);
+  const recordId = once.comments.at(-1).id;
+  const again = stalledRun({ jobs: budgetStopped(budgetStep(`Stop on a low GITHUB_TOKEN budget until ${epoch("2026-10-16T11:30:00Z")}`)), conclusion: "success", ...once });
+  assert.equal(await sweep({ github: again.github, actions: again.actions }), 0);
+  const done = writes(again.calls);
+  assert.ok(done[0].startsWith(`PATCH /repos/${REPO}/issues/comments/${recordId} `), done[0]);
+  assert.ok(done[0].includes("cause=budget"), done[0]);
+  assert.ok(!done.some((call) => call.startsWith(`POST /repos/${REPO}/issues/30/comments `)), done.join("\n"));
+  assert.deepEqual(done.slice(1), restarted(30));
+  // A switch trip after it posts its own record: only budget records are edited.
+  const switchAfter = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success", ...once });
+  assert.equal(await sweep({ github: switchAfter.github, actions: switchAfter.actions }), 0);
+  switched(switchAfter.calls);
 });
 
 test("the budget record says it never counts toward the per-issue bound", () => {
@@ -3978,7 +4026,12 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   const checkNamed = steps(read["broker-check"]);
   assert.equal(checkNamed.indexOf(budgetName), checkNamed.indexOf("Check the kill switch") + 1);
   assert.match(read["broker-check"], /^ {6}- name: Stop on a low GITHUB_TOKEN budget until \$\{\{ steps\.kill\.outputs\.reset \}\}\n {8}if: steps\.kill\.outputs\.cause == 'budget'\n/m);
-  assert.match(read["broker-check"], /^ {10}budget: "true"$/m);
+  // Its gate reads the budget on a starting caller's first call, and a budget
+  // stop sets skip-reason budget, which skips the run job.
+  assert.match(read["broker-check"], /^ {10}budget: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop'\) && 'true' \|\| 'false' \}\}$/m);
+  assert.match(read["broker-check"], /^ {6}skip-reason: \$\{\{ steps\.kill\.outputs\.cause == 'budget' && 'budget' \|\| steps\.broker\.outputs\.skip-reason \}\}$/m);
+  assert.match(read.run, /^ {6}&& needs\.broker-check\.outputs\.skip-reason == ''$/m);
+  assert.match(caller["resolve-issue"], /^ {6}start-gate: true$/m);
   assert.ok(!steps(read.run).some((name) => name.startsWith("Stop on a low GITHUB_TOKEN budget")));
   assert.doesNotMatch(read.run, /^ {10}budget:/m);
   for (const id of ["broker-check", "run"]) {

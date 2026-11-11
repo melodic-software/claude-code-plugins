@@ -565,14 +565,16 @@ const parseMarker = (body) => {
 };
 
 // The lanes App's outcome and re-fire markers on an issue, oldest first, each
-// with when it was posted (the backoff comment: last edited).
+// with when it was posted (the backoff comment and the budget record, each
+// edited in place: last edited).
 const appMarkers = (comments, bot) =>
   comments
     .filter((comment) => comment.user?.login === bot)
-    .map((comment) => ({
-      ...parseMarker(comment.body),
-      at: Date.parse(INFRA.test(String(comment.body ?? "")) ? (comment.updated_at ?? comment.created_at) : comment.created_at),
-    }))
+    .map((comment) => {
+      const marker = parseMarker(comment.body);
+      const edited = marker?.budget || INFRA.test(String(comment.body ?? ""));
+      return { ...marker, at: Date.parse(edited ? (comment.updated_at ?? comment.created_at) : comment.created_at) };
+    })
     .filter((marker) => marker.outcome !== undefined && Number.isFinite(marker.at))
     .sort((a, b) => a.at - b.at);
 
@@ -2270,7 +2272,11 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
     if (stalled === "mint-failed" && !recorded && fired >= limits["limit-stops-per-issue"]) {
       return backoff(key, ended, MINT_CAUSE, hoursFor["failed-mint"]);
     }
-    const trip = stalled === "breaker" ? { run: refused.id, ended: Date.parse(refused.updated_at) || ended, budget } : undefined;
+    // An issue keeps one budget record, edited in place for each window.
+    const budgetRecord = budget
+      ? comments.filter((comment) => comment.user?.login === bot && parseMarker(comment.body)?.budget && RUN_ID.test(String(comment.id))).at(-1)?.id
+      : undefined;
+    const trip = stalled === "breaker" ? { run: refused.id, ended: Date.parse(refused.updated_at) || ended, budget, record: budgetRecord } : undefined;
     // Trips sort by when their run ended, not when they fell due, so the sweeps
     // after the switch clears drain them oldest first whatever their waits.
     return { reason: null, resets: trip ? ended : due, refire: key, recorded, stall: stalled, trip };
@@ -2598,7 +2604,10 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
     try {
       // The record first: a failed comment re-fires nothing, so the bound holds.
       if (refire && !recorded) {
-        await github("POST", `${base}/comments`, { body: stall === "breaker" ? breakerComment(refire, { repo, ...trip }) : refireComment(refire, cause) });
+        const body = stall === "breaker" ? breakerComment(refire, { repo, ...trip }) : refireComment(refire, cause);
+        await (trip?.record === undefined
+          ? github("POST", `${base}/comments`, { body })
+          : github("PATCH", `/repos/${repo}/issues/comments/${trip.record}`, { body }));
       }
       if (infra) {
         await (infra.id === undefined

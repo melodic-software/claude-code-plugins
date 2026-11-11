@@ -233,8 +233,9 @@ jobs:
         env:
           REASON: ${{ steps.kill.outputs.reason }}
           CAUSE: ${{ steps.kill.outputs.cause }}
+          WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
         run: |
-          echo "::notice::the lanes kill switch stops this triage and the needs-triage label (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable})"
+          echo "::notice::${WHY} this triage and the needs-triage label (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable})"
 
   # The floor label, on an issues event only: a dispatch asks for triage. A
   # failed or skipped born-triaged gate (always skipped on a reopen) leaves

@@ -532,12 +532,6 @@
           "maximum": 1,
           "description": "Share of the header's limit, projected left at the window's reset from the burn rate so far, under which a timer-driven lane skips a scheduled tick whose previous scheduled run marked a clean pass of its work(.github/actions/log-api-budget/pace.mjs), so the timer lanes slow to half cadence before the breaker stops every lane. 0 turns pacing off."
         },
-        "start-gate": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 1,
-          "description": "github-token's share of the header's limit, by the header's remaining, under which a kill-switch gate that starts new work (.github/actions/check-kill-switch, budget \"true\") stops its lane while the reset is still ahead. The gate reads it from rate-limits.json alone: a value set here is accepted and has no effect on the gate."
-        },
         "read-floor": {
           "type": "number",
           "minimum": 0,

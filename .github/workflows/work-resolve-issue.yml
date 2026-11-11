@@ -408,6 +408,7 @@ jobs:
       id-token: write
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
+      start-gate: true
       lane: work-resolve-issue
       role: issue-lane
       activity: resolve-issue
@@ -605,6 +606,7 @@ jobs:
       id-token: write
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
+      start-gate: true
       lane: work-resolve-issue
       role: issue-lane
       activity: resolve-issue
@@ -701,6 +703,7 @@ jobs:
       id-token: write
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
+      start-gate: true
       lane: work-resolve-issue
       role: issue-lane
       activity: resolve-issue

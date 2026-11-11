@@ -193,7 +193,8 @@ jobs:
         env:
           REASON: ${{ steps.kill.outputs.reason }}
           CAUSE: ${{ steps.kill.outputs.cause }}
-        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing read or labeled"
+          WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
+        run: echo "::notice::${WHY} this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing read or labeled"
 
       # The base config's limits.api, in resolve-config's output shape, for
       # the pacer; a failed read leaves rate-limits.json's defaults.
@@ -510,7 +511,8 @@ jobs:
         env:
           REASON: ${{ steps.kill.outputs.reason }}
           CAUSE: ${{ steps.kill.outputs.cause }}
-        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); no level decided or published"
+          WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
+        run: echo "::notice::${WHY} this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); no level decided or published"
 
       - name: Resolve the config
         id: config
@@ -710,7 +712,8 @@ jobs:
         env:
           REASON: ${{ steps.kill.outputs.reason }}
           CAUSE: ${{ steps.kill.outputs.cause }}
-        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing read or written"
+          WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
+        run: echo "::notice::${WHY} this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing read or written"
 
       # The broker mints on a label event only for a listed human (the
       # trusted-actor list on main, by id), so anyone else stops here quietly,

@@ -32,8 +32,9 @@ and a read lane's broker check, while one exists.
 | `budget` | `false` | `true` also reads the GITHUB_TOKEN budget |
 | `token` | `${{ github.token }}` | The token whose GET /rate_limit answer is the budget reading |
 
-Set `budget: "true"` only on a gate that starts new work: the read runner's `broker-check`, a
-workflow's first gate on a schedule or event that begins a run's work (intake triage and its
+Set `budget: "true"` only on a gate that starts new work: the read runner's `broker-check` on the
+first call of a caller that passes `start-gate: true` (the issue lane and pr-refine; pr-unblock
+fixes existing pull requests and passes none), a workflow's first gate on a schedule or event that begins a run's work (intake triage and its
 refine select, the audit, cleanup, recurring-issue, skill-edit, signals, reconcile, tidy,
 mutation and changelog ticks, the pr-unblock dispatcher, and the work-unblock sweep). A gate
 that finishes or judges existing work keeps the default, so a low budget never throws that work

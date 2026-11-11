@@ -82,6 +82,9 @@ const COUNT = (value) => Number.isInteger(value) && value >= 1;
 // start, which that gate reads from rate-limits.json alone.
 const FIELDS = { plan: (value) => SHARE(value) && value > 0, "writer-pause": SHARE, breaker: SHARE, "read-floor": SHARE, "stop-floor": SHARE, "limit-cap": COUNT, pace: SHARE, "start-gate": SHARE };
 const CONTENT_FIELDS = { ...FIELDS, "per-minute": COUNT, "per-hour": COUNT };
+// Fields rate-limits.json holds that pr-pipeline.yaml's limits.api cannot set
+// (its schema rejects them): their one reader takes the file's value alone.
+export const FILE_ONLY_FIELDS = Object.freeze(["start-gate"]);
 const REQUIRED = ["plan", "writer-pause", "breaker", "read-floor"];
 
 // rate-limits.json, checked: every pool in API_POOLS and no other, each with
