@@ -225,13 +225,9 @@ each only on the surfaces its row names.
 - Skills (what loads when, how supporting files are referenced, the listing budget,
   invocation-control fields): <https://code.claude.com/docs/en/skills>
 - How features layer (per-surface precedence):
-  <https://code.claude.com/docs/en/features-overview#understand-how-features-layer>.
-  As of: 2026-10-11 (anchor as recorded by the pointer audit of that date, not re-fetched since).
-  Recheck trigger: the layering section starts covering routing between surfaces, or is renamed.
+  <https://code.claude.com/docs/en/features-overview#understand-how-features-layer>
 - Routing between surfaces:
-  <https://code.claude.com/docs/en/features-overview#compare-similar-features>.
-  As of: 2026-10-11 (anchor as recorded by the pointer audit of that date, not re-fetched since).
-  Recheck trigger: the compare section is renamed, or stops comparing where content belongs.
+  <https://code.claude.com/docs/en/features-overview#compare-similar-features>
 - Context window (what survives compaction): <https://code.claude.com/docs/en/context-window>
 - Hooks (handler types, and which events inject handler output into context):
   <https://code.claude.com/docs/en/hooks>
@@ -838,7 +834,6 @@ general think-thoroughly prompt over a hand-written plan, so an unscoped row wou
   Pointer: [Sonnet 5.5
   guide, reasoning tasks with JSON
   output](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#reasoning-tasks-with-json-output).
-  As of: 2026-10-01. Recheck trigger: either guide changes its position on thinking instructions.
 - **Considered for `haiku-5-5` on 2026-10-10 and declined.** Our read of the Haiku 5.5 guide that
   day found no position on a standing think-carefully line, so the row stays inert on a
   `haiku-5-5` target. Pointer, the section nearest the topic: [Haiku 5.5 guide, use effort to control
@@ -1459,8 +1454,6 @@ Severity `warning`.
   refuse that pairing; that combination is I17's second `haiku-5-5` widening, not this row.
   Pointer: [effort: change effort mid-conversation
   (beta)](https://platform.claude.com/docs/en/build-with-claude/effort#change-effort-mid-conversation-beta).
-  As of: 2026-10-10. Recheck trigger: that section changes which models or thinking settings it
-  names alongside a per-message effort change.
 - **Reach differs by half, and this is the whole of it.** The effort half reaches every surface, with
   Claude Code surfaces carved out above. **The thinking half reaches API and Agent SDK surfaces
   only.** A Claude Code surface prescribing a mid-session thinking toggle is **out of reach of
@@ -1557,8 +1550,7 @@ ranges below are Detect conditions, not a `Model scope` annotation**, for the re
   replacement, and treat it as a control separate from a thinking budget. Pointer: when weighing
   effort against a thinking budget, fetch
   [effort, "Effort with thinking"](https://platform.claude.com/docs/en/build-with-claude/effort#effort-with-thinking)
-  live. As of: 2026-11-01. Recheck trigger: that section starts treating effort as a thinking
-  budget or as a substitute for `budget_tokens`.
+  live.
 - **Source:** environment variables, the `MAX_THINKING_TOKENS` and
   `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` rows (nonzero values ignored on adaptive-reasoning
   models). Model configuration, "Adaptive reasoning
@@ -1834,9 +1826,8 @@ not a `Model scope` annotation**, for the reason I17 states.
   defaults to `high` such a pin carries no measured calibration that could go stale.
   **The exemption keys to the resolved target, never to the wording.** Read the resolved target's
   default live from the per-model defaults in
-  [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level)
-  (as of 2026-10-10; recheck when that section adds a model or moves a default); when it is not
-  `high`, the exemption lifts and a `high` pin is a finding, **including a broad model-agnostic
+  [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level); when it
+  is not `high`, the exemption lifts and a `high` pin is a finding, **including a broad model-agnostic
   "always use `high`" that names no model at all**. That broad pin is the sharper case rather than
   the excluded one: written where `high` was the no-op default and then carried to a model whose
   default differs, it silently becomes a step nobody measured, which is this row's subject exactly. A resolved target
@@ -1852,13 +1843,12 @@ not a `Model scope` annotation**, for the reason I17 states.
   `effort:` fence below still applies). Where nothing names a different model or effort for the
   subagents, they run on the session's resolved target, which stays the fallback.
   Pointer: [Choose the subagent's model](https://code.claude.com/docs/en/sub-agents#choose-a-model)
-  and [Choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level)
-  (as of 2026-10-17; recheck when either order gains a source or changes precedence). **The exemption speaks to
+  and [Choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level).
+  **The exemption speaks to
   calibration staleness only, never to level adequacy:** a model guide may recommend running above
   the default for named lanes (for one such guide, fetch
   [Opus 4.8 guide, "Calibrating effort and thinking depth"](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#calibrating-effort-and-thinking-depth)
-  live; as of 2026-11-01, recheck when that section stops recommending a level above the default
-  for any lane), and whether a `high` pin under-serves such a lane is that surface's sizing decision,
+  live), and whether a `high` pin under-serves such a lane is that surface's sizing decision,
   outside this row's subject.
 - **Must NOT flag: a per-task or single-turn effort choice**, such as "reach for `xhigh` on hard
   problems", `ultrathink`, or `ultracode`, which selects a level for one piece of work rather than
@@ -2705,8 +2695,8 @@ is `/skill-quality:check`'s; this row covers the agents it does not read.
   definitions; skill authoring best practices, "Avoid time-sensitive information". Pointer:
   [avoid time-sensitive
   information](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#avoid-time-sensitive-information).
-  As of: 2026-10-07. Recheck trigger: `/playbooks:skill-authoring` `## Agents` changes its history
-  rule or its exemptions, which re-derives this row's Must NOT flag set and the scanner's.
+  Recheck trigger: `/playbooks:skill-authoring` `## Agents` changes its history rule or its
+  exemptions, which re-derives this row's Must NOT flag set and the scanner's.
 
 ### I41: Unneeded text in an agent definition
 
@@ -2730,7 +2720,6 @@ Unscoped.
   key". Correlate: the vendor `prompt-audit` procedure's Step 3 deletion rule, read at the commit
   [bundled-claude-api.md](bundled-claude-api.md) pins. Pointer: [concise is
   key](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#concise-is-key).
-  As of: 2026-10-07. Recheck trigger: that section drops the "does Claude really need this" test.
 
 ### I42: Rigid step script for judgment work in an agent definition
 
@@ -2751,8 +2740,6 @@ Unscoped.
 - **Source:** `/playbooks:skill-authoring` `## Agents`; skill authoring best practices, "Set
   appropriate degrees of freedom". Pointer: [set appropriate degrees of
   freedom](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#set-appropriate-degrees-of-freedom).
-  As of: 2026-10-07. Recheck trigger: that section changes which tasks it assigns high or low
-  freedom.
 
 ---
 

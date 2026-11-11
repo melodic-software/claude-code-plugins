@@ -2,8 +2,7 @@
 
 Fourteen postures. Each row: the applicability predicate (which component purposes it binds), what
 counts as present, and the guide pointer that owns the recommended wording. Pointers only.
-Wording is fetched live per SKILL.md Phase A; the recheck trigger for every row is a change to its
-cited section.
+Wording is fetched live per SKILL.md Phase A.
 
 Guide root: <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices>
 (sections cited by heading). Model subpages cited by page + heading where a row needs one.
@@ -29,7 +28,7 @@ Rows cite the subpages of the current models first. A subpage name in a row mean
   We keep them in P1 while Claude Code can still put a session on either model. Pointer: for the
   models a session can fall back to, see
   [model configuration: automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback).
-  As of: 2026-10-01. Recheck trigger: either model leaves Claude Code's model page.
+  Recheck trigger: either model leaves Claude Code's model page.
 
 - **Pointer**: for which model each subpage covers, see the
   [model-specific guidance table](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#model-specific-guidance).
@@ -64,7 +63,6 @@ carries the Sonnet 5.5 condition.
   (P8) and
   [verification on coding tasks](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#verification-on-coding-tasks)
   (P13).
-- **As of**: 2026-10-01
 - **Recheck trigger**: a cited heading disappears from that subpage, or another model's subpage
   covers self-started review rounds, which re-opens P12's model condition.
 
@@ -201,7 +199,6 @@ Classify each component by what its body has the model DO (multiple or none):
   model condition. Read the model list on the run's live fetch; this file keeps no copy.
   Pointer: for which models the capability covers, see
   [context windows: context awareness](https://platform.claude.com/docs/en/build-with-claude/context-windows#context-awareness).
-  As of: 2026-10-01. Recheck trigger: that section's model list changes.
 - **Present when:** the surfaced figure is accompanied by do-not-wrap-up-early framing (or the
   component deliberately avoids surfacing raw countdowns at all, the stronger form).
 - **Pointer:** main page,

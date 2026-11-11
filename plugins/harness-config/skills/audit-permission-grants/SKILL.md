@@ -112,8 +112,7 @@ skill cannot write that file. When deciding where an approval-prompt grant lands
 [permissions: permission system](https://code.claude.com/docs/en/permissions#permission-system)
 live; when deciding whether anything prunes it, fetch
 [permissions: manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions)
-live (as of 2026-11-04; recheck when the first section changes where a prompt approval is saved or
-the second changes how saved rules are removed).
+live.
 
 If a scope filter was given, run the full detector and present only the matching checks. P1, P2, P2b
 and P4 are all emitted by the same rule scan, which runs over frontmatter `allowed-tools` and over
@@ -158,7 +157,7 @@ P4 does not flag `${CLAUDE_PLUGIN_ROOT}` or `${CLAUDE_PLUGIN_DATA}` in a **plugi
 `allowed-tools`; in a `Bash(...)` rule anywhere else it does. See [reference/criteria.md](reference/criteria.md), P4. When
 deciding where those variables resolve, fetch
 [plugins reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
-live (as of 2026-11-03; recheck when that section changes the fields a plugin variable resolves in).
+live.
 
 A clean scan ("No fragile permission grants found.") is a valid outcome. Report it as such, with
 the denominator beside it. `NOTHING TO AUDIT` is **not** that outcome; see "Report the denominator".
@@ -169,8 +168,7 @@ the denominator beside it. `NOTHING TO AUDIT` is **not** that outcome; see "Repo
 
 - **`/permissions` (built-in command)**: the person's tool for editing rules; the model does not
   invoke it. When describing what it does, fetch its row in
-  [commands: all commands](https://code.claude.com/docs/en/commands#all-commands) live (as of
-  2026-11-03; recheck when that row changes or leaves the table).
+  [commands: all commands](https://code.claude.com/docs/en/commands#all-commands) live.
 - **This skill (marketplace plugin).** Audits grants for portability and auto mode durability
   across frontmatter and every settings scope, and writes nothing.
 

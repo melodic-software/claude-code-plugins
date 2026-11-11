@@ -19,8 +19,6 @@ baseline.
 
 - **Pointer**: when deciding which commands a `Read` deny blocks, fetch
   [permissions: read and edit](https://code.claude.com/docs/en/permissions#read-and-edit) live.
-  **As of**: 2026-11-03. **Recheck trigger**: that section changes which Bash commands or
-  subprocesses a `Read` deny covers.
 
 **Counts are not guaranteed.** Where the project also enables the sandbox, a `Read` deny on the file
 can block `check-structure.sh` too. The script distinguishes that case: it reports
@@ -31,8 +29,7 @@ anyway. A `Present: yes` / `Readable: no` pair is a correct result, not a broken
 
 - **Pointer**: when deciding whether the sandbox blocks the script, fetch
   [sandboxing: how sandboxing relates to permissions and permission modes](https://code.claude.com/docs/en/sandboxing#how-sandboxing-relates-to-permissions-and-permission-modes)
-  live. **As of**: 2026-11-03. **Recheck trigger**: that section changes how permission deny rules
-  feed the sandbox boundary.
+  live.
 
 ```bash
 # Key inventory (no values)
@@ -79,8 +76,7 @@ back; never retry around the refusal. The probe record of which operations were 
 
 - **Pointer**: when deciding what the classifier blocks, fetch
   [permission modes: what the classifier blocks by default](https://code.claude.com/docs/en/permission-modes#what-the-classifier-blocks-by-default)
-  live. **As of**: 2026-11-03. **Recheck trigger**: that section changes what it blocks for edits to
-  settings or agent configuration.
+  live.
 
 **The judgment on a baseline deny addition, stated.** Two things have to be checked before the rule is
 added, and neither is mechanical:
@@ -93,8 +89,7 @@ added, and neither is mechanical:
    [validation-categories.md](validation-categories.md) Category D, and which
    `strictPluginOnlyCustomization` values cover hooks from
    [settings reference: strictPluginOnlyCustomization](https://code.claude.com/docs/en/settings-reference#strictpluginonlycustomization)
-   live, as of 2026-11-03; recheck when that entry changes which values cover hooks),
-   a `Bash` hook does not cover the `Read`-pattern family, and one command family's coverage says
+   live), a `Bash` hook does not cover the `Read`-pattern family, and one command family's coverage says
    nothing about another's. **The inventory half is a lookup**: Phase 1.0's
    `scripts/check-hook-coverage.sh` enumerates settings-declared *and* plugin-declared hooks,
    resolving each enabled plugin through the installed-plugin registry. What stays a judgment is
@@ -106,8 +101,7 @@ added, and neither is mechanical:
    security one. See "Interaction with hook-based gates" in the same file. Whether a hook's outcome
    survives a deny or ask rule is read from
    [permissions: precedence among rules, hooks, and mods](https://code.claude.com/docs/en/permissions#precedence-among-rules-hooks-and-mods)
-   live (as of 2026-11-03; recheck when that section changes how deny or ask rules rank against a
-   hook's result).
+   live.
 
 *Moving* an existing deny rule from local to project stays mechanical, since it is bug #8961 placement,
 not a policy change.

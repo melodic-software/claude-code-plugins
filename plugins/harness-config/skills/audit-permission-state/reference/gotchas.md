@@ -38,8 +38,7 @@ platform is not.
   rather than guessing; `criteria.md` §Scopes owns the conditions it resolves.
   - **Pointer**: when checking where the file lives, fetch
     [settings: where Claude Code keeps the local file in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository)
-    live. **As of**: 2026-11-03. **Recheck trigger**: that section changes where the file is kept,
-    or which conditions keep it elsewhere.
+    live.
 - **An empty merge is not an empty machine.** The merge exits 2 when the input carries no scope
   records at all, so a reader that died cannot feed it a clean "nothing in effect"; if you build your
   own pipeline around these scripts, check the status rather than the output.
@@ -48,12 +47,10 @@ platform is not.
   its dated record are in `criteria.md` §Scopes.
   - **Pointer**: when deciding how the two copies combine, fetch
     [settings: where Claude Code keeps the local file in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository)
-    live. **As of**: 2026-11-03. **Recheck trigger**: that section changes whether, or how, a second
-    copy of the file applies.
+    live.
 - **A cloud session's user scope is not the operator's.** The run emits a note whenever
   `CLAUDE_CODE_REMOTE` says it is in a cloud session; carry it into the report rather than presenting
   the cloud container's user file as the operator's configuration.
   - **Pointer**: when deciding which settings a cloud session reads, fetch
     [settings: settings in cloud sessions](https://code.claude.com/docs/en/settings#settings-in-cloud-sessions)
-    live. **As of**: 2026-11-03. **Recheck trigger**: that section changes which settings files or
-    managed sources reach a cloud session.
+    live.

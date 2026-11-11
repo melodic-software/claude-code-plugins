@@ -47,9 +47,6 @@ The load-model column is this audit's working model, not a restatement of the do
   [Organize rules with `.claude/rules/`](https://code.claude.com/docs/en/memory#organize-rules-with-claude/rules/),
   [When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md)
   and auto memory's [How it works](https://code.claude.com/docs/en/memory#how-it-works).
-- **As of**: 2026-10-01
-- **Recheck trigger**: a Claude Code release note or a change to one of those sections alters which
-  files load at session start, on demand, or within the auto-memory limits.
 
 Auto memory's effective enabled/disabled state must be resolved before auditing it, not assumed
 from a single scope: [`${CLAUDE_PLUGIN_ROOT}/skills/stateless/context/status.md`](../stateless/context/status.md),
@@ -112,8 +109,6 @@ carrying `CLAUDE_PLUGIN_ROOT`.
 - **Pointer**: for where each `${…}` reference resolves, see
   [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
   and [Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions).
-- **As of**: 2026-09-27
-- **Recheck trigger**: either table adds supporting files to where a `${…}` reference resolves.
 
 ## Audit mode (default)
 
@@ -152,9 +147,6 @@ with no project, checkout, worktree, or session segment. A fixed `audit/last-aud
 
 - **Pointer**: for the plugin data directory, see
   [Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables).
-- **As of**: 2026-10-01
-- **Recheck trigger**: that section adds a project, worktree, or session segment to the data
-  directory's path.
 
 Losing reports is the smaller half; the larger half is the read. `report` mode would serve whatever
 that file currently holds and `fix` mode would act on it, so on a machine with two repositories,
@@ -206,5 +198,3 @@ Absent that plugin, the fix mode here stands on its own.
 
 - **Pointer**: for what the plugin's skill and command do, read its
   [README: Usage](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/claude-md-management#usage).
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section renames, adds or drops the plugin's skill or command.

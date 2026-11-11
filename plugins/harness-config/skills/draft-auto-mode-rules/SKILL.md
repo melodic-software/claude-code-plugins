@@ -23,8 +23,6 @@ This skill applies that at authoring time instead of reporting it afterwards, th
   and, for the critique command,
   [auto mode config: inspect the defaults and your effective config](https://code.claude.com/docs/en/auto-mode-config#inspect-the-defaults-and-your-effective-config)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either section changes how entries are read or what the critique reviews.
 
 ## Report-only, permanently
 
@@ -49,8 +47,7 @@ can mean either.
 - **`/auto-mode-setup` (built-in command)**: the person runs it; this skill never invokes it. What
   it drafts, reads and saves is read from
   [auto mode config: generate environment entries](https://code.claude.com/docs/en/auto-mode-config#generate-environment-entries)
-  live (as of 2026-11-03; recheck when that section changes what the command drafts or where it
-  saves).
+  live.
 - **This skill (marketplace plugin).** Interviews for entries in every section (`environment`,
   `allow`, `soft_deny`, `hard_deny`), each with stated exclusions and a transcript-visible
   condition, and prints the block without writing anything.
@@ -69,8 +66,8 @@ draft. This skill writes nothing and never chains into `/auto-mode-setup` on the
 
 **Availability is never assumed.** Offer the command when it resolves in this session, never assume
 it is present. Read what gates it from its row of
-[commands: all commands](https://code.claude.com/docs/en/commands#all-commands) live (as of
-2026-11-03; recheck when that row changes what gates the command). The four-part records live in
+[commands: all commands](https://code.claude.com/docs/en/commands#all-commands) live. The four-part
+records live in
 [reference/native-auto-mode-setup.md](reference/native-auto-mode-setup.md).
 
 ## Inputs, and one deliberate omission
@@ -173,8 +170,7 @@ Two things to say while handing it over:
   judges it. Say that rather than implying the draft is validated.
 - **`claude auto-mode reset` is never run.** On a chezmoi-managed home what it removes is not
   recoverable from the settings file alone. Read what it removes from
-  [CLI reference: CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) live (as
-  of 2026-11-03; recheck when that table changes what the reset subcommand removes).
+  [CLI reference: CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) live.
 - **Prose provenance does not belong in an entry.** Dates, issue numbers, and prior-draft archaeology
   cost classifier attention and buy nothing; the critique names stripping them explicitly. Version
   control owns that history.

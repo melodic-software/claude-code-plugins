@@ -82,9 +82,8 @@ and inert plugin self-grants. A deterministic detector scans skill/command/agent
 bare-command-on-PATH pattern. A broad rule in the user-global file
 (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`) reaches every project. The remediation of a
 finding there is the operator's, since no skill can write that file. Where a prompt approval is
-saved is in [permissions: permission system](https://code.claude.com/docs/en/permissions#permission-system)
-(as of 2026-11-04; recheck when that section changes the file). The principle and citations live in the marketplace
-[permission-rule-hygiene convention](../../docs/contracts/permission-rule-hygiene/README.md).
+saved is in [permissions: permission system](https://code.claude.com/docs/en/permissions#permission-system).
+The principle and citations live in the marketplace [permission-rule-hygiene convention](../../docs/contracts/permission-rule-hygiene/README.md).
 Report-only.
 
 ```shell

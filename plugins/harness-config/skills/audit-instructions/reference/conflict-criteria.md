@@ -33,8 +33,8 @@ surface. That governance question is recorded as rejected for this repository in
 `docs/out-of-scope/shared-surface-instruction-governance.md`
 (#3568). `instruction-exception-register` governs deletions only, not ownership.
 **Claim:** I15 does not assign shared-surface ownership. **Basis:** this file's pair-detection
-charter; the rejected-concept ledger entry for #3568. **As of:** 2026-09-28. **Recheck:** when
-that ledger's recheck fires.
+charter; the rejected-concept ledger entry for #3568. **Recheck:** when that ledger's recheck
+fires.
 
 The three shared axes (evidence tier, authority, severity) are defined once in
 [criteria.md](criteria.md) and are not restated here.
@@ -128,8 +128,8 @@ corpus of realistic prompts to test instruction surfaces against is a different 
 filed separately, not as an I15 extension.
 **Claim:** I15 does not adjudicate standing instructions against plausible user requests.
 **Basis:** this file's Prerequisite: co-residency section and the owner decision on #3565.
-**As of:** 2026-09-29. **Recheck:** when the co-residency prerequisite changes or a bounded,
-enumerable request corpus is filed as its own artifact.
+**Recheck:** when the co-residency prerequisite changes or a bounded, enumerable request corpus is
+filed as its own artifact.
 
 ## Prerequisite: co-residency
 
@@ -162,9 +162,6 @@ preload limit from those sections when it runs. This table copies none of them, 
 moved without an edit here.
 
 - **Pointer**: when deciding whether a surface is resident, fetch the section its row names live.
-- **As of**: 2026-11-04
-- **Recheck trigger**: a row's section is renamed or removed, or it adds or drops a condition on
-  when that surface loads.
 
 **The `AGENTS.md` row's residency is conditional on availability and the mode, not on displacement
 alone.** Availability comes first: a session that reads no `AGENTS.md` at all, for any of the
@@ -219,17 +216,12 @@ for the turn in question.
   [output styles: change your output style](https://code.claude.com/docs/en/output-styles#change-your-output-style)
   and [subagents: what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: one of those sections changes whether a style reaches a subagent or when a
-  switch takes effect.
 
 **A prompt hook's text is not an instruction to the main session.** A `type: "prompt"` handler's
 text goes to a separate evaluator model call that returns a decision, and is never injected into the
 main conversation
-([hooks: prompt and agent hook fields](https://code.claude.com/docs/en/hooks#prompt-and-agent-hook-fields),
-as of 2026-10-11; recheck when that section lets a prompt handler's text reach the session's
-context). Comparing that raw
-prompt against a `CLAUDE.md`, a skill, or an output style manufactures conflicts between two models
+([hooks: prompt and agent hook fields](https://code.claude.com/docs/en/hooks#prompt-and-agent-hook-fields)).
+Comparing that raw prompt against a `CLAUDE.md`, a skill, or an output style manufactures conflicts between two models
 that satisfy their own instructions independently: an evaluator told to *return JSON only* does not
 contradict a main-session rule requiring Markdown output.
 
@@ -266,9 +258,6 @@ stdout channel, while it may still use the `additionalContext` channel on an eve
   [hooks: add context for Claude](https://code.claude.com/docs/en/hooks#add-context-for-claude) and
   the event's own section (for example
   [hooks: SessionStart](https://code.claude.com/docs/en/hooks#sessionstart)) live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: the handler types change, an event is added to or dropped from either
-  channel's event set, or an event changes which handler types it accepts.
 
 So **a handler whose output is injected as context enters the comparison set as that text**, on the
 same terms as any other instruction surface. A `SessionStart` command hook printing a standing
@@ -292,8 +281,6 @@ comparison set, so read its hook rows for the residency consequences below and n
 - **Pointer**: when deciding what hook-injected text survives a compaction, fetch
   [context window: what survives compaction](https://code.claude.com/docs/en/context-window#what-survives-compaction)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: the table adds, drops or changes a row about hooks or hook-added context.
 
 Three consequences for residency, and each one bounds a pair rather than admitting it wholesale:
 
@@ -518,8 +505,8 @@ precedence the docs decline to state.
 conflict that keeps recurring is often best resolved by moving one side to a mechanism rather than by
 rewriting prose: a `PreToolUse` hook, a `permissions.deny` rule, or, for a tool a specific skill must
 never call, the skill's own `disallowed-tools` frontmatter (what it removes and for how long:
-[skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference), as of
-2026-10-11; recheck when that field's row changes). Offer this as an option; the choice is the
+[skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference)).
+Offer this as an option; the choice is the
 operator's.
 
 **Check first that the mechanism resolves the pair rather than breaking one side.** Both tool-removal

@@ -13,8 +13,6 @@ the operator's behalf.
 - **Pointer**: when deciding whether `/doctor` can run unattended, fetch
   [skills: check your setup with /doctor](https://code.claude.com/docs/en/skills#check-your-setup-with-/doctor)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section says `/doctor` applies a fix without asking first.
 
 **The handoff is therefore an operator instruction.** The pass finishes its own phases, then tells
 the operator to run `/doctor` themselves. Nothing in this pass invokes it, waits on it, or drives it.
@@ -23,8 +21,6 @@ pass never dispatches.
 
 - **Pointer**: for its scope, write posture and version floor, see
   <https://code.claude.com/docs/en/memory#audit-your-instruction-files>.
-- **As of**: 2026-10-01
-- **Recheck trigger**: that section changes its write posture or version floor, or moves.
 
 **What it does not do is refuse the result the operator brings back.** "Never parses its output as a
 lane result" would make the `delegated` tier unreachable. The lane could never leave `open`, and
@@ -67,8 +63,6 @@ bundled skill.
   [skills: bundled skills](https://code.claude.com/docs/en/skills#bundled-skills) and
   [skills: override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings)
   live.
-- **As of**: 2026-11-04
-- **Recheck trigger**: either section stops letting an override hide a bundled skill.
 
 So the pass **detects absence rather than predicting it**: it checks whether `/doctor` actually
 resolves in this environment, and reports the outcome. If it does not resolve, the run says so and
@@ -130,5 +124,3 @@ run does not have.
 - **Pointer**: when deciding whether `/doctor` still runs as a model-driven skill, fetch
   [skills: check your setup with `/doctor`](https://code.claude.com/docs/en/skills#check-your-setup-with-doctor)
   live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section stops listing `/doctor` among the bundled skills, or moves.

@@ -93,7 +93,7 @@ speak for the plugin.
    run through Claude Code's Bash tool. Report the resolved interpreter; FAIL only if no bash is
    resolvable. Pointer: for which shell a platform's sessions get, native Windows included, fetch
    [tools reference: PowerShell tool](https://code.claude.com/docs/en/tools-reference#powershell-tool)
-   live. As of: 2026-11-10. Recheck trigger: that section changes which shell a platform gets.
+   live.
 5. **Network reachability**, INFO only: `audit`'s drift/freshness fetches read
    `raw.githubusercontent.com`, and a failed fetch degrades to SKIP rather than a setup failure. Do not
    fetch here; `check` performs no network call.

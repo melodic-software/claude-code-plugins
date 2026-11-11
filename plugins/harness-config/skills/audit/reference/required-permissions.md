@@ -105,8 +105,6 @@ the repository's ignored entries as live.
   then ignores from the repository, fetch
   [repository settings under an admin-required sandbox](https://code.claude.com/docs/en/sandboxing#repository-settings-under-an-admin-required-sandbox)
   live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: that section changes its ignore table or the settings sources it still reads.
 
 **Platform limit. Check before recommending it.** Do not offer the sandbox as the fix on a
 native-Windows workstation, where we treat the OS-level remedy as unavailable.
@@ -114,7 +112,6 @@ native-Windows workstation, where we treat the OS-level remedy as unavailable.
 - **Pointer**: before recommending the sandbox, fetch
   [tools reference: preview limitations](https://code.claude.com/docs/en/tools-reference#preview-limitations)
   live for the native-Windows status.
-- **As of**: 2026-11-10
 - **Recheck trigger**: that section stops listing sandboxing as unsupported on Windows.
 
 **A `PreToolUse` hook on `Bash|PowerShell` is a speed bump, not a boundary, *against this threat
@@ -140,8 +137,6 @@ below, and we never report it as fencing a Python or Node script that opens the 
 - **Pointer**: when judging what the outside-directory block covers, fetch
   [permissions: block file-tool reads and writes outside the working directories](https://code.claude.com/docs/en/permissions#block-file-tool-reads-and-writes-outside-the-working-directories)
   live.
-- **As of**: 2026-11-10
-- **Recheck trigger**: that section changes which tools, modes or commands the block covers.
 
 Moving a
 secret outside the working directory is still not protection against a subprocess the fence does
@@ -229,7 +224,6 @@ with this rule is not flagged for lacking a bare `Bash(git push)` rule.
 - **Pointer**: when deciding whether a rule covers the bare command, fetch
   [permissions: wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns)
   live.
-- **As of**: 2026-11-04
 - **Recheck trigger**: that section stops treating a trailing space and `*` as covering the bare
   command.
 

@@ -18,9 +18,8 @@ command of your own, against the plugin data directory.
   [plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
   live; for why an inline command against the data directory is avoided, read the eval-trace
   evidence in #12039.
-- **As of**: 2026-11-01
-- **Recheck trigger**: that section changes which environments receive `${CLAUDE_PLUGIN_DATA}`, or
-  a later eval trace shows an inline command against the data directory running undenied.
+- **Recheck trigger**: a later eval trace shows an inline command against the data directory
+  running undenied.
 
 The key is
 `<repo-identity>/<worktree-discriminator>`, implemented once in the shared `lib/state-key.sh` that
@@ -35,8 +34,6 @@ yours to evaluate. Derive the key from the command.
 - **Pointer**: when deciding how a skill placeholder reaches the body, fetch
   [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section changes where or when `${CLAUDE_PROJECT_DIR}` is substituted.
 
 ## Why the key matters in this skill specifically
 
@@ -52,9 +49,6 @@ larger one.
 - **Pointer**: when deciding what `${CLAUDE_PLUGIN_DATA}` is keyed to, fetch
   [plugin manifest reference: environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section keys the data directory to anything beyond the plugin, such as
-  the project.
 
 ## Two absent-prior cases, and they are not the same
 

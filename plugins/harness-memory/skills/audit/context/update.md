@@ -55,8 +55,8 @@ diff as a contribution/issue against the plugin's repository so the shipped crit
 
 With that framing, the content updates are:
 
-1. `reference/official-guidance.md`: new or changed decisions in our words, pointers, as-of dates
-   and recheck triggers. Never copy the page's text into the file, quoted or paraphrased.
+1. `reference/official-guidance.md`: new or changed decisions in our words and pointers, plus an
+   as-of date and recheck trigger on each stored value. Never copy the page's text into the file, quoted or paraphrased.
 2. `reference/criteria.md`: check thresholds or severity levels needing adjustment, version number,
    "Last updated" date
 

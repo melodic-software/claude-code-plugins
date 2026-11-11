@@ -113,15 +113,12 @@ complete set.
 - Flag a recognizably millisecond-scale `timeout` figure (a round thousands multiple like `30000` or
   `120000`), not merely a large one. Read the field's unit and limits from
   [hooks: timeouts](https://code.claude.com/docs/en/hooks#timeouts) and the `timeout` row of
-  [hooks: common fields](https://code.claude.com/docs/en/hooks#common-fields) live (as of 2026-11-03;
-  recheck when either changes the unit or adds a maximum)
+  [hooks: common fields](https://code.claude.com/docs/en/hooks#common-fields) live
 - Timeouts are reasonable: 5-15s for simple formatters, 30s for slow-startup tools (pwsh)
 - Matchers take their intended evaluation path. The characters a matcher holds decide whether it is
   read as an exact-string list or as a regex, and a regex may match more than the author meant
   (`Edit.*` can also match `NotebookEdit`). Read the character rule and the anchoring behavior from
-  [hooks: matcher patterns](https://code.claude.com/docs/en/hooks#matcher-patterns) live (as of
-  2026-10-11; recheck when that section changes which characters select each path or how a regex is
-  anchored)
+  [hooks: matcher patterns](https://code.claude.com/docs/en/hooks#matcher-patterns) live
 - A shell-form hook quotes each path placeholder; exec form is the docs' preference but shell form
   is correct when the hook needs pipes, `&&`, redirects, or a `.cmd`/`.bat` shim, so do not flag it
 - On a Windows-targeting repo, judge exec-form `command` resolution from the Category D
@@ -135,8 +132,7 @@ complete set.
   a blanket value or a per-surface list; read which values switch hooks off, and what each other
   surface value blocks, from
   [settings reference: strictPluginOnlyCustomization](https://code.claude.com/docs/en/settings-reference#strictpluginonlycustomization)
-  live (as of 2026-10-11; recheck when that entry adds a surface value or changes what one blocks).
-  Report each as set or unset, name the surfaces a customization array
+  live. Report each as set or unset, name the surfaces a customization array
   locks, and say which of the inventoried hooks each one switches off. This is a state reading, not
   a finding on its own.
   Category B's third baseline narrowing depends on this reading: it may not downgrade a missing deny
@@ -208,8 +204,6 @@ never turns a removed row into a rename to `null`. It still removes only an orph
 exactly `false`.
 
 - **Pointer**: when a catalog rename's effect on a settings file is in question, fetch [Migrate users with a renames map](https://code.claude.com/docs/en/plugins/host-marketplace#migrate-users-with-a-renames-map) live.
-- **As of**: 2026-10-03
-- **Recheck trigger**: that section changes what a renames entry points at, how a chain is followed, or which settings files a session rewrites.
 
 | Mode | Definition | Fix policy |
 |---|---|---|
@@ -300,8 +294,7 @@ and names the levers. What governs the category:
   This file keeps no copy of either upstream value: read them in Phase 3 from the pointers in
   [audit-checklist.md](../reference/audit-checklist.md) row G, and how the budget is set from
   [settings reference: skillListingBudgetFraction](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction)
-  live (as of 2026-11-03; recheck when that entry changes how the budget is set or overridden),
-  before publishing a number
+  live, before publishing a number
 - **Overflow check: an existing debug log first, then two routes, and only one of those survives
   a headless run.** The engine looks for a debug log this session already wrote, at the path
   `--debug-log` names, else `CLAUDE_CODE_DEBUG_LOGS_DIR`, else the newest file under
@@ -313,8 +306,7 @@ and names the levers. What governs the category:
   the user to run `/doctor` or read `/context`. When this audit runs headless, under `-p`, a spawned
   agent, or a background job, use the debug-log route instead. Read what each route reports from
   [skills: skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)
-  live (as of 2026-11-03; recheck when that section changes which commands report the listing or
-  where the over-budget warning is written). Report which route was taken; a category that names
+  live. Report which route was taken; a category that names
   only `/doctor` yields nothing in a headless run. Repos with large skill rosters overflow routinely
 - **Measure the roster composition before naming a lever.** Count listing entries by origin: plugin
   skills, project skills (`.claude/skills/`), user skills (`${CLAUDE_CONFIG_DIR:-~/.claude}/skills/`).
@@ -352,7 +344,7 @@ and names the levers. What governs the category:
     override belongs in `settings.json`, and the entry may still be intended for home-rooted
     sessions. Read that file's scope from
     [settings: compare the scope of each settings file](https://code.claude.com/docs/en/settings#compare-the-scope-of-each-settings-file)
-    live (as of 2026-11-03; recheck when that section changes the local file's scope). The engine
+    live. The engine
     lists that read in its `scopes`
     block as `user-local` (absent, unreadable, invalid or ok), except in a home-rooted run, where
     the file is the local scope
@@ -385,9 +377,8 @@ effort settings". What governs the category:
 - **Placement is out of reach.** Where `availableModels` and `enforceAvailableModels` must sit, and
   whether a lower managed source's value survives, depend on how the organization combines its
   managed sources, a mode the files this skill reads do not decide
-  ([managed settings: how Claude Code combines managed sources](https://code.claude.com/docs/en/managed-settings#how-claude-code-combines-managed-sources),
-  as of 2026-10-11; recheck when that section adds or drops a combining mode or changes how a mode
-  treats these keys). So report the value-level finding and leave placement to the administrator. `deniedModels` and `availableModelsMatch` are the exception:
+  ([managed settings: how Claude Code combines managed sources](https://code.claude.com/docs/en/managed-settings#how-claude-code-combines-managed-sources)).
+  So report the value-level finding and leave placement to the administrator. `deniedModels` and `availableModelsMatch` are the exception:
   every file this skill reads is outside managed settings, so finding either key in one settles it
 
 ## Category I: Deep-link registration
@@ -408,8 +399,7 @@ registration". What governs the category:
   reads a file that violates it. Where the schema and the docs page disagree, the docs page states
   the behavior: read it from
   [settings reference: disableDeepLinkRegistration](https://code.claude.com/docs/en/settings-reference#disabledeeplinkregistration)
-  live (as of 2026-11-03; recheck when that entry changes the accepted value or when registration
-  happens)
+  live
 - **Value first, then placement.** A key that is **present** and not the string `"disable"` is a
   prevention that was never invoked (warning); gate on `has(…)`, since an absent key is a consumer
   accepting the default on purpose. Where an organization requires enforcement and the key sits with
