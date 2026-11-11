@@ -79,19 +79,11 @@ $CheckBody = {
             & $add 'available_mb' 'INFO' "$availablePct% memory available"
         }
     }
-    if ($null -ne $c.CommittedPct) {
-        if ($c.CommittedPct -ge $band.CommittedPct.WARN) {
-            & $add 'committed_pct' 'WARN' "$($c.CommittedPct)% committed"
-        } elseif ($c.CommittedPct -ge $band.CommittedPct.INFO) {
-            & $add 'committed_pct' 'INFO' "$($c.CommittedPct)% committed"
-        }
+    if ($null -ne $c.CommittedPct -and $c.CommittedPct -ge $band.CommittedPct.INFO) {
+        & $add 'committed_pct' ($c.CommittedPct -ge $band.CommittedPct.WARN ? 'WARN' : 'INFO') "$($c.CommittedPct)% committed"
     }
-    if ($sustained -and $null -ne $c.DiskLatencyMs) {
-        if ($c.DiskLatencyMs -gt $band.DiskMs.WARN) {
-            & $add 'disk_latency_ms' 'WARN' "disk latency $($c.DiskLatencyMs) ms"
-        } elseif ($c.DiskLatencyMs -gt $band.DiskMs.INFO) {
-            & $add 'disk_latency_ms' 'INFO' "disk latency $($c.DiskLatencyMs) ms"
-        }
+    if ($sustained -and $null -ne $c.DiskLatencyMs -and $c.DiskLatencyMs -gt $band.DiskMs.INFO) {
+        & $add 'disk_latency_ms' ($c.DiskLatencyMs -gt $band.DiskMs.WARN ? 'WARN' : 'INFO') "disk latency $($c.DiskLatencyMs) ms"
     }
 
     $byCpu = @($sample.Processes | Where-Object { $null -ne $_.CpuPct } |

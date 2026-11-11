@@ -56,7 +56,7 @@ function Assert-CatalogEntry {
         throw "CatalogEntry '$($Entry.id)' category '$($Entry.category)' not in allowed set$ctx."
     }
 
-    if (-not @($Entry.os) -or @($Entry.os).Count -eq 0) {
+    if (-not @($Entry.os)) {
         throw "CatalogEntry '$($Entry.id)' os list is empty$ctx."
     }
     foreach ($o in $Entry.os) {
