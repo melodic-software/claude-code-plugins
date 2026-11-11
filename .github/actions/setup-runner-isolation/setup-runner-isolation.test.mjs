@@ -63,7 +63,7 @@ esac
 
 const DPKG_DEB = sh(`awk -F': ' '/^Package:/ {print $2}' "$2"`);
 
-function run({ apt, local = "ok", cached = {}, index = {} }) {
+function run({ apt, local = "ok", cached = {}, index = {}, preinstalled = [] }) {
   const root = tempDir("runner-isolation-");
   const bin = path.join(root, "bin");
   const state = path.join(root, "state");
@@ -71,6 +71,7 @@ function run({ apt, local = "ok", cached = {}, index = {} }) {
   for (const dir of [bin, state, path.join(temp, "isolation-debs")]) mkdirSync(dir, { recursive: true });
   for (const tool of TOOLS) symlinkSync(execFileSync("bash", ["-c", `command -v ${tool}`], { encoding: "utf8" }).trim(), path.join(bin, tool));
   const stubs = { sudo: sh('exec "$@"'), sleep: sh(":"), sysctl: sh(":"), "apt-get": APT_GET, "apt-cache": APT_CACHE, "dpkg-deb": DPKG_DEB };
+  for (const tool of preinstalled) stubs[tool] = sh(":");
   for (const [name, body] of Object.entries(stubs)) {
     writeFileSync(path.join(bin, name), body);
     chmodSync(path.join(bin, name), 0o755);
@@ -154,10 +155,23 @@ test("a mirror that never answers fails closed after three attempts", () => {
   assert.ok(r.stdout.includes(FAIL_CLOSED), r.stdout);
 });
 
-test("a cached install that leaves socat missing still fails closed", () => {
+test("a cached install that fails, with the mirror down, still fails closed", () => {
   const r = run({ apt: "down", local: "no", cached: GENUINE, index: INDEX });
   assert.equal(r.status, 1);
   assert.ok(r.stdout.includes(FAIL_CLOSED), r.stdout);
+});
+
+test("bubblewrap present but socat missing fails closed", () => {
+  const r = run({ apt: "down", preinstalled: ["bwrap"] });
+  assert.equal(r.status, 1);
+  assert.ok(r.stdout.includes(FAIL_CLOSED), r.stdout);
+});
+
+const INLINE_APT = /apt-get[^\n]*install[^\n]*\b(bubblewrap|socat)\b/;
+
+test("the inline-apt pattern matches a known inline install line", () => {
+  assert.match('timeout 180 sudo apt-get "${apt[@]}" install -y --no-install-recommends bubblewrap socat && break', INLINE_APT);
+  assert.match("sudo apt-get install -y socat", INLINE_APT);
 });
 
 test("no workflow or other action installs bubblewrap or socat with its own apt block", () => {
@@ -168,6 +182,6 @@ test("no workflow or other action installs bubblewrap or socat with its own apt 
       .filter((d) => d !== "setup-runner-isolation" && existsSync(path.join(github, "actions", d, "action.yml")))
       .map((d) => path.join(github, "actions", d, "action.yml")),
   ];
-  const inline = files.filter((f) => /apt-get[^\n]*install[^\n]*\b(bubblewrap|socat)\b/.test(readFileSync(f, "utf8")));
+  const inline = files.filter((f) => INLINE_APT.test(readFileSync(f, "utf8")));
   assert.deepEqual(inline.map((f) => path.relative(github, f)), []);
 });
