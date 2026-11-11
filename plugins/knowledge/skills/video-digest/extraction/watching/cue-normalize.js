@@ -13,9 +13,5 @@ import { parseVttSegment } from "@melodic/video-digestion/transcript/vtt-parser"
  * @returns {TranscriptCue[]}
  */
 export function normalizeVttCues(vttText) {
-  return parseVttSegment(vttText).map((cue) => ({
-    startSec: cue.startSec,
-    endSec: cue.endSec,
-    text: cue.text,
-  }));
+  return parseVttSegment(vttText).map(({ startSec, endSec, text }) => ({ startSec, endSec, text }));
 }
