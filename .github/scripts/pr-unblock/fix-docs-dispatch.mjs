@@ -53,7 +53,7 @@
 
 import { LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { allLaneCommits, laneBranchIssue } from "../work-resolve-issue/report-outcome.mjs";
-import { isHandled, markHandled, emptyRecord } from "./dispatch-record.mjs";
+import { isHandled, markHandled, emptyRecord, sendDispatch } from "./dispatch-record.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -81,7 +81,6 @@ export const DEFAULTS = Object.freeze({
 });
 
 export const HISTORY_COMMITS = 50;
-const RUN_ID = /^[1-9][0-9]{0,14}$/;
 const MAX_PAGES = 20;
 // fix-docs's applies-when paths, **/*.md.
 const MARKDOWN = /\.md$/;
@@ -423,25 +422,19 @@ export async function dispatchDocsFixes({
     // Every dispatch call counts against the cap: one that failed or returned
     // no usable id may still have started a run.
     sent += 1;
-    try {
-      const { workflowRunId } = await api.dispatchWorkflow({
-        workflow,
-        ref: `refs/heads/${base}`,
-        inputs: { "pr-number": String(node.number), activity, "dispatcher-run-id": String(runId) },
-      });
-      const id = String(workflowRunId);
-      if (!RUN_ID.test(id)) {
-        failed += 1;
-        log(`::error::#${node.number}: dispatch returned no valid workflow_run_id`);
-        continue;
-      }
-      dispatched.push({ number: node.number, workflowRunId: id });
-      record.docsRuns.set(head, [...(record.docsRuns.get(head) ?? []), id]);
-      log(`dispatched fix-docs #${node.number} head ${head} workflow_run_id=${id}`);
-    } catch (error) {
+    const id = await sendDispatch(api, log, {
+      workflow,
+      base,
+      node,
+      label: "fix-docs ",
+      inputs: { "pr-number": String(node.number), activity, "dispatcher-run-id": String(runId) },
+    });
+    if (id === null) {
       failed += 1;
-      log(`::error::#${node.number}: dispatch failed: ${error.message}`);
+      continue;
     }
+    dispatched.push({ number: node.number, workflowRunId: id });
+    record.docsRuns.set(head, [...(record.docsRuns.get(head) ?? []), id]);
   }
   return { dispatched, failed };
 }
