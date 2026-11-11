@@ -45,7 +45,7 @@ import { appendFileSync, lstatSync, readdirSync, readFileSync, writeFileSync } f
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { FOOTER as LANE_FOOTER, laneChecker, laneFooter, withoutBinding } from "../lib/lane-binding.mjs";
+import { FOOTER as LANE_FOOTER, laneChecker, laneFooter, withoutBinding, withoutLaneFooters } from "../lib/lane-binding.mjs";
 import { commentItems, FAILING, gateSource, laneHold, latestRuns, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "./retry-fetch.mjs";
 import { copyPathsOf, isProtectedPath, namedInScope, prPathsOf, sharedCopyPairs } from "./thread-scope.mjs";
@@ -245,13 +245,9 @@ const lastLine = (body) =>
 export const laneOf = (body) => LANE_FOOTER.exec(lastLine(body))?.[1] ?? null;
 export const isLaneComment = (comment) => comment.authorId === MARKER_AUTHOR_ID && laneOf(comment.body) !== null;
 
-// The body without its last non-blank line: a lane footer's comment as one
-// with no footer.
-export function withoutLaneFooter(body) {
-  const all = String(body ?? "").split("\n");
-  const last = all.findLastIndex((line) => line.trim() !== "");
-  return last === -1 ? all.join("\n") : [...all.slice(0, last), ...all.slice(last + 1)].join("\n");
-}
+// A lane footer's comment as one with no footer: every trailing footer line
+// and the binding line removed (lane-binding.mjs withoutLaneFooters).
+export const withoutLaneFooter = withoutLaneFooters;
 
 // A comment's fields as a REST row and as a GraphQL comment node carry them.
 // REST has no edit time, so lastEditedAt stays undefined there.

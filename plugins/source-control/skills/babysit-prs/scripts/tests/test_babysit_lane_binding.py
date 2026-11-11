@@ -92,6 +92,7 @@ class FakeActions:
             "head_branch": run.get("head_branch", BRANCH),
             "head_repository": {"full_name": run.get("head_repository", REPOSITORY)},
             "status": run.get("status", "completed"),
+            "run_attempt": run.get("run_attempt", 1),
             "created_at": run.get("created_at"),
             "updated_at": run.get("updated_at"),
         }
@@ -291,8 +292,20 @@ class CheckerTests(unittest.TestCase):
         self.assertFalse(check(comment(body, id=12, createdAt="2026-11-03T00:00:00Z")))
         self.assertFalse(check(comment(body, id=13, createdAt="2026-11-01T12:00:00Z", lastEditedAt="2026-11-05T00:00:00Z")))
         running = FakeActions({RUN: {"path": WORKFLOWS["claude-review"], "status": "in_progress", **window}}).checker()
-        with self.assertRaisesRegex(RuntimeError, "not uploaded its comment record yet"):
+        with self.assertRaisesRegex(RuntimeError, "may not be uploaded yet"):
             running(comment(body))
+
+    def test_a_running_attempts_comment_raises_and_a_lost_attempt_is_proved_by_time(self) -> None:
+        first, second = bound("first"), bound("second")
+        window = {"created_at": "2026-11-01T00:00:00Z", "updated_at": "2026-11-02T00:00:00Z"}
+        running = FakeActions({RUN: lane_run([record_entry(first)], status="in_progress", run_attempt=2, **window)}).checker()
+        self.assertTrue(running(comment(first)))
+        with self.assertRaisesRegex(RuntimeError, "may not be uploaded yet"):
+            running(comment(second, id=12))
+        lost = FakeActions({RUN: lane_run([record_entry(first)], run_attempt=2, **window)}).checker()
+        self.assertTrue(lost(comment(second, id=12, createdAt="2026-11-01T12:00:00Z")))
+        whole = FakeActions({RUN: lane_run([record_entry(first)], **window)}).checker()
+        self.assertFalse(whole(comment(second, id=12, createdAt="2026-11-01T12:00:00Z")))
 
     def test_a_run_of_another_branch_or_repository_does_not_bind(self) -> None:
         body = bound("finding")

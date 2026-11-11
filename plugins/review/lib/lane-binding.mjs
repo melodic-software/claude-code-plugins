@@ -17,12 +17,13 @@
 //
 // A comment without a binding was posted before the lanes wrote one: it counts
 // while LEGACY_CUTOFF is null, then only when posted at or before it and never
-// edited. A comment no live record lists, of a run with an expired record
-// (artifact retention) or of a finished run that uploaded none (a job lost
-// before its upload step), is proved by time instead: posted between the
-// run's creation and its last update, and never edited. A run still going that has uploaded no
-// record yet throws, so the caller reads again later. Reads that fail throw, so a caller fails closed and re-runs rather
-// than dropping a comment it could not check.
+// edited. A comment no live record lists, of a finished run one of whose
+// attempts left no live record of the lane (expired by artifact retention, or
+// a job lost before its upload step), is proved by time instead: posted
+// between the run's creation and its last update, and never edited. A comment
+// no record lists yet, of a run still going, throws, so the caller reads
+// again later. Reads that fail throw, so a caller fails closed and re-runs
+// rather than dropping a comment it could not check.
 //
 // Node builtins only: ci-workflows' settled-threads step loads the review
 // plugin's copy (plugins/review/lib/lane-binding.mjs) from a clone of this
@@ -87,6 +88,20 @@ export function withoutBinding(body) {
   const at = nonBlankIndexes(all.map((line) => line.replace(/\r$/, "")));
   all.splice(at.at(-2), 1);
   return all.join("\n");
+}
+
+// The body with its binding line and every trailing lane footer removed: a
+// comment its lane's run did not post, read as one with no footer.
+export function withoutLaneFooters(body) {
+  const all = String(body ?? "").split("\n");
+  for (;;) {
+    const last = all.findLastIndex((line) => line.trim() !== "");
+    const line = last === -1 ? "" : all[last].trim();
+    if (!FOOTER.test(line) && !BINDING.test(line)) {
+      return all.slice(0, last + 1).join("\n");
+    }
+    all.splice(last);
+  }
 }
 
 export const bodyDigest = (body) => createHash("sha256").update(String(body ?? ""), "utf8").digest("hex");
@@ -198,7 +213,7 @@ export function laneChecker({ pr, getPull, getRun, listArtifacts, download, work
             const bytes = zipEntry(await download(artifact.id), RECORD_FILE);
             entries.push(...recordEntries(bytes?.toString("utf8")));
           }
-          return { run, entries, expired: live.length < records.length, unrecorded: records.length === 0 };
+          return { run, entries, recorded: new Set(live.map((a) => a.name)) };
         })(),
       );
     }
@@ -213,7 +228,7 @@ export function laneChecker({ pr, getPull, getRun, listArtifacts, download, work
     if (binding === null) {
       return legacyCounts(comment, cutoff);
     }
-    const { run, entries, expired, unrecorded } = await readRun(binding.runId);
+    const { run, entries, recorded } = await readRun(binding.runId);
     const head = (await readPull())?.head;
     if (
       String(run?.id) !== binding.runId ||
@@ -235,11 +250,18 @@ export function laneChecker({ pr, getPull, getRun, listArtifacts, download, work
         e.id === Number(comment.id) &&
         e.sha256 === digest,
     );
-    if (unrecorded && run.status !== "completed") {
-      throw new Error(`lane run ${binding.runId} has not uploaded its comment record yet`);
+    if (listed) {
+      return true;
     }
-    if (listed || !(expired || unrecorded)) {
-      return listed;
+    // A run still going may not have uploaded the record of the attempt that
+    // posted this comment yet.
+    if (run.status !== "completed") {
+      throw new Error(`lane run ${binding.runId} is still running, so its comment record may not be uploaded yet`);
+    }
+    // Every attempt left a live record of this lane, and none lists it.
+    const attempts = Number.isSafeInteger(run.run_attempt) && run.run_attempt > 0 ? run.run_attempt : 1;
+    if (Array.from({ length: attempts }, (_, i) => `${RECORD_PREFIX}${lane}-${i + 1}`).every((name) => recorded.has(name))) {
+      return false;
     }
     const at = Date.parse(comment.createdAt ?? "");
     return Date.parse(run.created_at) <= at && at <= Date.parse(run.updated_at) && !wasEdited(comment);

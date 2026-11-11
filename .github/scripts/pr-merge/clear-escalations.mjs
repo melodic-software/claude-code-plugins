@@ -175,7 +175,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate, retryServerErrors } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { laneChecker, laneFooter, withoutBinding } from "../lib/lane-binding.mjs";
+import { laneChecker, laneFooter, withoutBinding, withoutLaneFooters } from "../lib/lane-binding.mjs";
 import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
 import {
   CLEARED,
@@ -898,8 +898,7 @@ export async function laneHoldComments(comments, check) {
       continue;
     }
     const own = await check({ kind: "issue_comment", id: comment.id, body: comment.body, createdAt: comment.created_at, updatedAt: comment.updated_at });
-    const body = withoutBinding(comment.body);
-    out.push({ ...comment, body: own ? body : body.replace(/\s*[^\n]*\S[^\n]*\s*$/, "") });
+    out.push({ ...comment, body: own ? withoutBinding(comment.body) : withoutLaneFooters(comment.body) });
   }
   return out;
 }

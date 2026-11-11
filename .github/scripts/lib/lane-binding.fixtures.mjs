@@ -102,6 +102,7 @@ export function fakeActions(runs, pull = { head: { ref: BRANCH, repo: { full_nam
         head_branch: run.head_branch ?? BRANCH,
         head_repository: { full_name: run.head_repository ?? REPOSITORY },
         status: run.status ?? "completed",
+        run_attempt: run.run_attempt ?? 1,
         created_at: run.created_at,
         updated_at: run.updated_at,
       };

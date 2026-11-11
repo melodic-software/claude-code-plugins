@@ -16,11 +16,12 @@ Every attempt's record counts, so a re-run's comments stay bound.
 
 A comment without a binding counts while LEGACY_CUTOFF is None, then only
 when posted at or before it and never edited. A comment no live record
-lists, of a run with an expired record or of a finished run that uploaded
-none, is proved by time instead: posted between the run's creation and its
-last update, and never edited. A run still going that has uploaded no record yet raises, so
-the caller reads again later. Reads that fail raise, so a caller fails
-closed rather than dropping a comment it could not check.
+lists, of a finished run one of whose attempts left no live record of the
+lane (expired, or a job lost before its upload step), is proved by time
+instead: posted between the run's creation and its last update, and never
+edited. A comment no record lists yet, of a run still going, raises, so the
+caller reads again later. Reads that fail raise, so a caller fails closed
+rather than dropping a comment it could not check.
 """
 
 from __future__ import annotations
@@ -253,7 +254,8 @@ def lane_checker(
                 for artifact in live:
                     data = zip_entry(download(artifact.get("id")), RECORD_FILE)
                     entries.extend(record_entries(None if data is None else data.decode("utf-8")))
-                runs[run_id] = ((run, entries, len(live) < len(records), not records), None)
+                recorded = {str(a.get("name")) for a in live}
+                runs[run_id] = ((run, entries, recorded), None)
             except Exception as exc:  # noqa: BLE001 - kept and raised on each check
                 runs[run_id] = (None, exc)
         found, failure = runs[run_id]
@@ -270,7 +272,7 @@ def lane_checker(
         if binding is None:
             return legacy_counts(comment, cutoff)
         run_id, sha = binding
-        run, entries, expired, unrecorded = read_run(run_id)
+        run, entries, recorded = read_run(run_id)
         if (
             not isinstance(run, Mapping)
             or str(run.get("id")) != run_id
@@ -298,10 +300,14 @@ def lane_checker(
             and e.get("sha256") == digest
             for e in entries
         )
-        if unrecorded and run.get("status") != "completed":
-            raise RuntimeError(f"lane run {run_id} has not uploaded its comment record yet")
-        if listed or not (expired or unrecorded):
-            return listed
+        if listed:
+            return True
+        if run.get("status") != "completed":
+            raise RuntimeError(f"lane run {run_id} is still running, so its comment record may not be uploaded yet")
+        attempt = run.get("run_attempt")
+        attempts = attempt if isinstance(attempt, int) and not isinstance(attempt, bool) and attempt > 0 else 1
+        if all(f"{RECORD_PREFIX}{lane}-{n}" in recorded for n in range(1, attempts + 1)):
+            return False
         at = _time(comment.get("createdAt"))
         start, end = _time(run.get("created_at")), _time(run.get("updated_at"))
         in_window = None not in (at, start, end) and start <= at <= end  # type: ignore[operator]

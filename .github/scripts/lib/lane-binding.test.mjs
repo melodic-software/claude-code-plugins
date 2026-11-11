@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fakeActions as api, bound, HEAD, recordEntry as entry, RUN, zipOf } from "./lane-binding.fixtures.mjs";
 
-import { bindingOf, laneChecker, laneFooter, legacyCounts, wasEdited, withoutBinding, zipEntry } from "./lane-binding.mjs";
+import { bindingOf, laneChecker, laneFooter, legacyCounts, wasEdited, withoutBinding, withoutLaneFooters, zipEntry } from "./lane-binding.mjs";
 
 const OLD = "b".repeat(40);
 
@@ -138,6 +138,7 @@ test("a comment of an attempt whose record expired is proved by time while a lat
       path: PATH,
       created_at: "2026-01-01T00:00:00Z",
       updated_at: "2026-03-01T00:00:00Z",
+      run_attempt: 2,
       artifacts: [
         { name: "claude-lane-comments-claude-review-1", expired: true, entries: [] },
         { name: "claude-lane-comments-claude-review-2", entries: [entry(second, { id: 2 })] },
@@ -171,10 +172,35 @@ test("a finished run with no record proves its comments by time; one still runni
   assert.equal(await check({ kind: "review_comment", id: 11, body, createdAt: "2026-01-01T00:30:00Z" }), true);
   assert.equal(await check({ kind: "review_comment", id: 12, body, createdAt: "2026-01-01T00:30:00Z", lastEditedAt: "2026-02-01T00:00:00Z" }), false);
   const running = api({ [RUN]: { path: PATH, status: "in_progress", artifacts: [] } });
-  await assert.rejects(laneChecker({ pr: 7, ...running })({ kind: "review_comment", id: 11, body }), /not uploaded its comment record yet/);
+  await assert.rejects(laneChecker({ pr: 7, ...running })({ kind: "review_comment", id: 11, body }), /may not be uploaded yet/);
 });
 
 test("zipEntry refuses a record over the size cap", () => {
   const big = zipOf({ "comments.jsonl": "x".repeat((4 << 20) + 1) });
   assert.throws(() => zipEntry(big, "comments.jsonl"), /over/);
+});
+
+test("a re-run attempt's comment waits while the run goes, and a lost attempt is proved by time", async () => {
+  const first = bound("Attempt 1.");
+  const second = bound("Attempt 2, hold.");
+  const attempt1 = () => ({ name: "claude-lane-comments-claude-review-1", entries: [entry(first, { id: 1 })] });
+  // Attempt 2 is running and has not uploaded yet: attempt 1's comment binds,
+  // attempt 2's cannot be judged yet.
+  const running = laneChecker({ pr: 7, ...api({ [RUN]: { path: PATH, status: "in_progress", run_attempt: 2, artifacts: [attempt1()] } }) });
+  assert.equal(await running({ kind: "review_comment", id: 1, body: first }), true);
+  await assert.rejects(running({ kind: "issue_comment", id: 2, body: second }), /may not be uploaded yet/);
+  // Attempt 2 finished without a record: its comment is proved by time.
+  const window = { created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-02T00:00:00Z" };
+  const lost = laneChecker({ pr: 7, ...api({ [RUN]: { path: PATH, run_attempt: 2, ...window, artifacts: [attempt1()] } }) });
+  assert.equal(await lost({ kind: "issue_comment", id: 2, body: second, createdAt: "2026-01-01T12:00:00Z" }), true);
+  // Every attempt recorded and none lists it: not the lane's.
+  const whole = laneChecker({ pr: 7, ...api({ [RUN]: { path: PATH, run_attempt: 1, ...window, artifacts: [attempt1()] } }) });
+  assert.equal(await whole({ kind: "issue_comment", id: 2, body: second, createdAt: "2026-01-01T12:00:00Z" }), false);
+});
+
+test("withoutLaneFooters drops the binding and every trailing footer", () => {
+  assert.equal(withoutLaneFooters("x\nclaude-lane: claude-review\nclaude-lane: claude-review"), "x");
+  assert.equal(withoutLaneFooters(bound("x")), "x");
+  assert.equal(withoutLaneFooters("x\n\n`claude-lane: claude-security-review`\n"), "x");
+  assert.equal(withoutLaneFooters("x"), "x");
 });

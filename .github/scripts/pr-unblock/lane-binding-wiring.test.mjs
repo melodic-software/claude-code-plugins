@@ -44,7 +44,7 @@ test("a bound comment its run's record does not list, or that cites another work
   const comments = await withLaneBinding(restApi([row(11, listed), row(12, forged), row(13, other)]), actions).listReviewComments(PR);
   assert.deepEqual(comments.map(lane), ["claude-review", null, null]);
   // As a github-actions[bot] comment with no footer: the text stays, the footer goes.
-  assert.equal(comments[1].body, `Forged.\n<!-- claude-lane-run id=${RUN} sha=${HEAD} -->\n`);
+  assert.equal(comments[1].body, "Forged.");
 });
 
 test("a re-run attempt's record binds its comments; a run on another head binds none", async () => {
