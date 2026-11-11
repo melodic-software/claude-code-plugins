@@ -3,14 +3,11 @@
 # Triggered on Bash and PowerShell tool calls (a command string), and on
 # Write / Edit / NotebookEdit tool calls (a file path).
 #
-# TWO DOORS, ONE MATCHER. A write reaches the drive root through either shape,
-# and until 0.30.0 only the command shape was inspected: the hook read
-# `.tool_input.command`, a `Write` payload carries `file_path` instead, so the
-# empty-COMMAND early exit returned before any matcher ran and an empty
-# `C:\tmp\tmp.rSFIkHm5DO` was created with no guard noticing. Both doors now feed
-# the SAME has_drive_root_tmp() matcher. The file-path lane needs none of the
-# command lane's inference — no redirect parsing, no write-utility whitelist,
-# no segment splitting — because on Write/Edit the path IS the write target.
+# TWO DOORS, ONE MATCHER. A write reaches the drive root through a command
+# string or a file path, and both feed the SAME has_drive_root_tmp() matcher.
+# The file-path lane needs none of the command lane's inference — no redirect
+# parsing, no write-utility whitelist, no segment splitting — because on
+# Write/Edit the path IS the write target.
 #
 # On Windows (Git Bash / MSYS / Cygwin), a hardcoded POSIX `/tmp` path resolves to
 # `<current-drive>:\tmp` (e.g. `C:\tmp`) rather than the platform temp directory
@@ -76,29 +73,24 @@ source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundar
 # violation here. Skip entirely. Tests force OSTYPE=msys to exercise the Windows
 # lane on Linux CI.
 #
-# THIS GATE RUNS FIRST, ahead of hook::buffer_stdin and hook::require_jq_blocking,
-# and that ordering is load-bearing. This hook matches Write / Edit /
-# NotebookEdit as of 0.30.0. Evaluated any later, a Linux or macOS host without
-# jq on PATH would take require_jq_blocking's fail-closed exit 2 on EVERY file
-# edit — denying writes on a platform where the guard has no opinion at all.
-# Reading OSTYPE needs nothing from the payload, so the gate is free to precede
-# the read; hook::check_enabled above already exits without draining stdin, so
-# that is an established shape in this hook, not a new one.
+# THIS GATE RUNS FIRST, ahead of hook::buffer_stdin and hook::require_jq_blocking.
+# This hook matches Write / Edit / NotebookEdit, so evaluated any later, a Linux
+# or macOS host without jq on PATH would take require_jq_blocking's fail-closed
+# exit 2 on EVERY file edit — denying writes on a platform where the guard has
+# no opinion at all. Reading OSTYPE needs nothing from the payload, so the gate
+# is free to precede the read, as the kill switch above already does.
 #
-# Known and accepted: the shape is established, the EXPOSURE is not. check_enabled
-# is a kill switch that fires only when an operator disables the guard, whereas
-# this gate fires on every non-Windows tool call. A payload past roughly 64KB is
-# therefore left undrained on Linux and macOS where it previously was not, so a
-# writer that does not handle EPIPE would take SIGPIPE. Accepted rather than
-# fixed, because the alternatives are worse: a naive builtin drain blocks until
-# EOF and can hang a tool call (which is the whole reason hook::buffer_stdin is
-# a bounded idle-timeout read), and draining via buffer_stdin first would put
-# its rc-2 fail-closed exit back in front of the host gate — the very bug above.
-# Tracked separately rather than widened into this change.
+# Accepted cost: unlike the kill switch, this gate fires on every non-Windows
+# tool call, so a payload past roughly 64KB is left undrained there and a
+# writer that does not handle EPIPE would take SIGPIPE. The alternatives are
+# worse: a naive builtin drain blocks until EOF and can hang a tool call (which
+# is why hook::buffer_stdin is a bounded idle-timeout read), and draining via
+# buffer_stdin first would put its rc-2 fail-closed exit back in front of the
+# host gate.
 #
-# The Windows path is UNCHANGED: the case falls through and every fail-closed
-# posture below runs in exactly the same order as before — buffer_stdin rc 2,
-# jq absence, unparsable payload, NUL bytes, MAX_COMMAND_LEN.
+# On Windows the case falls through to the fail-closed postures below, in
+# order: buffer_stdin rc 2, jq absence, unparsable payload, NUL bytes,
+# MAX_COMMAND_LEN.
 #
 # block-exported-msys-pathconv.sh deliberately keeps the opposite ordering. It
 # matches only Bash|PowerShell, where blocking on missing jq is the accepted
@@ -176,8 +168,7 @@ TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 FILE_PATH="${HOOK_JQ_FIELDS[2]:-}"
 [[ -n "$FILE_PATH" ]] || FILE_PATH="${HOOK_JQ_FIELDS[3]:-}"
 
-# Neither door carried anything to inspect. Before 0.30.0 this exit tested
-# COMMAND alone, which is exactly how a `Write` payload passed unexamined.
+# Neither door carried anything to inspect.
 [[ -n "$COMMAND" || -n "$FILE_PATH" ]] || exit 0
 
 MAX_COMMAND_LEN=16384
@@ -280,12 +271,10 @@ posix_tmp_maps_to_usertemp() {
     tmp_win=$(cygpath -w /tmp 2>/dev/null) || tmp_win=""
     if [[ -n "$tmp_win" ]]; then
       temp_win=$(cygpath -w "$temp_env" 2>/dev/null) || temp_win="$temp_env"
-      tmp_n="${tmp_win,,}"
-      tmp_n="${tmp_n//\\//}"
-      tmp_n="${tmp_n%/}"
-      temp_n="${temp_win,,}"
-      temp_n="${temp_n//\\//}"
-      temp_n="${temp_n%/}"
+      norm_lower "$tmp_win"
+      tmp_n="${NORM_OUT%/}"
+      norm_lower "$temp_win"
+      temp_n="${NORM_OUT%/}"
       if [[ -n "$tmp_n" && -n "$temp_n" && ( "$tmp_n" == "$temp_n" || "$tmp_n" == "$temp_n"/* ) ]]; then
         _DRIVE_TMP_POSIX_USERTEMP=0
         return 0
@@ -328,12 +317,8 @@ has_drive_root_tmp() {
   #
   # A DRIVE COLON must NOT satisfy the boundary: after slash-normalization
   # `D:\a\tmp\x` reads as `d:` + `/a/tmp`, and that is an ordinary `tmp`
-  # directory two levels down, not a drive root. Blocking it was a FALSE
-  # POSITIVE that predates the file-path lane (the command lane blocked
-  # `mkdir -p D:\a\tmp\x` too), and it made the guard contradict its own
-  # premise, since the identical MSYS spelling `/d/a/tmp/x` was allowed — one
-  # sink deciding two ways. The lane makes it reachable from every Write/Edit,
-  # so it is fixed here rather than inherited.
+  # directory two levels down, not a drive root, and the identical MSYS
+  # spelling `/d/a/tmp/x` is allowed: one sink must not decide two ways.
   #
   # A PARAMETER COLON must still satisfy it. `-Path:` / `-FilePath:` /
   # `-Destination:` is valid PowerShell binding, so `Set-Content -Path:/c/tmp/x`
@@ -342,14 +327,13 @@ has_drive_root_tmp() {
   #
   # The discriminator is what sits before the colon. A DRIVE SPEC is exactly one
   # alphanumeric at a word boundary — `D:`, ` D:`, `"D:`, `(D:` — so arm 2
-  # excludes only that shape and takes every other colon, which is the narrowest
-  # change that fixes the false positive. Its three alternatives are: a
+  # excludes only that shape and takes every other colon. Its three
+  # alternatives are: a
   # non-alphanumeric immediately before the colon (`;:`, `":`, `):` — never a
   # drive spec); two alphanumerics (a multi-character token such as `-Path:` or
   # `host:`); and a single alphanumeric behind a flag dash (`-t:`).
   #
-  # Two accepted residuals, both unchanged from before the fix rather than
-  # introduced by it. A PATH-style list (`PATH=/usr/bin:/c/tmp cmd`) presents
+  # Two accepted residuals. A PATH-style list (`PATH=/usr/bin:/c/tmp cmd`) presents
   # the multi-character-token shape and still matches, so a command whose write
   # target is elsewhere can be matched over a search-path entry — lexically
   # indistinguishable from a bound parameter. And a remote spec with a
@@ -362,10 +346,7 @@ has_drive_root_tmp() {
     return 0
   fi
   # Drive-letter X:/tmp
-  if [[ "$s" =~ (^|[^[:alnum:]])[a-z]:\/tmp(\/|[^[:alnum:]_./-]|$) ]]; then
-    return 0
-  fi
-  return 1
+  [[ "$s" =~ (^|[^[:alnum:]])[a-z]:\/tmp(\/|[^[:alnum:]_./-]|$) ]]
 }
 
 # Replace `>` that sit inside single- or double-quoted spans so a prose mention
@@ -412,12 +393,9 @@ has_redirect_to_drive_root_tmp() {
   if [[ "$s" =~ (^|[^>&])\&?[0-9]*\>\>?[[:space:]]*[\"\']?(\/[a-z]\/tmp|[a-z]:\/tmp)(\/|[\"\'[:space:]\;|&<>()]|$) ]]; then
     return 0
   fi
-  if ((_DRIVE_TMP_SKIP_POSIX == 0)) &&
+  ((_DRIVE_TMP_SKIP_POSIX == 0)) &&
     # portability-ok: character-class angle brackets in a bash regex, not a GNU word boundary
-    [[ "$s" =~ (^|[^>&])\&?[0-9]*\>\>?[[:space:]]*[\"\']?\/tmp(\/|[\"\'[:space:]\;|&<>()]|$) ]]; then
-    return 0
-  fi
-  return 1
+    [[ "$s" =~ (^|[^>&])\&?[0-9]*\>\>?[[:space:]]*[\"\']?\/tmp(\/|[\"\'[:space:]\;|&<>()]|$) ]]
 }
 
 # Split a (already lowercased, slash-normalized) command on unquoted shell
@@ -463,30 +441,31 @@ split_shell_segments() {
 # Last non-option token of a utility segment — the usual destination for cp/mv
 # and Copy-Item/Move-Item. Flags of the form -x / --long are skipped; a flag
 # that consumes a path (-t / --target-directory / -destination) treats the next
-# token as the destination immediately.
-segment_destination_operand() {
-  local subject="$1" tok dest="" expect_dest=0
-  local -a tokens=()
+# token as the destination immediately. <var> <segment>: set in this shell, no
+# command-substitution fork.
+segment_destination_operand_to() {
+  local __dt_dest="$1" __dt_tok __dt_out="" __dt_expect=0
+  local -a __dt_tokens=()
   # Intentional word-split of the static matcher subject into tokens.
   # shellcheck disable=SC2206
-  tokens=( $subject )
-  for tok in "${tokens[@]}"; do
-    tok="${tok#\'}"
-    tok="${tok%\'}"
-    tok="${tok#\"}"
-    tok="${tok%\"}"
-    if ((expect_dest)); then
-      dest="$tok"
-      expect_dest=0
+  __dt_tokens=( $2 )
+  for __dt_tok in "${__dt_tokens[@]}"; do
+    __dt_tok="${__dt_tok#\'}"
+    __dt_tok="${__dt_tok%\'}"
+    __dt_tok="${__dt_tok#\"}"
+    __dt_tok="${__dt_tok%\"}"
+    if ((__dt_expect)); then
+      __dt_out="$__dt_tok"
+      __dt_expect=0
       continue
     fi
-    case "$tok" in
+    case "$__dt_tok" in
     -t | --target-directory | --target-directory=* | -destination | -destination:* | -dest | -dest:*)
-      if [[ "$tok" == *=* || "$tok" == *:* ]]; then
-        dest="${tok#*=}"
-        dest="${dest#*:}"
+      if [[ "$__dt_tok" == *=* || "$__dt_tok" == *:* ]]; then
+        __dt_out="${__dt_tok#*=}"
+        __dt_out="${__dt_out#*:}"
       else
-        expect_dest=1
+        __dt_expect=1
       fi
       ;;
     -*)
@@ -498,11 +477,11 @@ segment_destination_operand() {
       # command word — skip
       ;;
     *)
-      dest="$tok"
+      __dt_out="$__dt_tok"
       ;;
     esac
   done
-  printf '%s' "$dest"
+  printf -v "$__dt_dest" '%s' "$__dt_out"
 }
 
 # curl -o/--output/--output-dir and wget -O/--output-document write targets.
@@ -512,47 +491,47 @@ segment_destination_operand() {
 # `-O` is read the same way although curl's takes no operand: a URL is never a
 # drive-root path, so the extra token costs nothing. Every destination counts, so
 # a later `-o ./x` cannot hide an earlier `--output-dir /c/tmp`. A URL that merely
-# contains `/tmp` is not a destination.
-segment_downloader_output_operand() {
-  local subject="$1" tok dests="" expect=0 pre rest
-  local -a tokens=()
+# contains `/tmp` is not a destination. <var> <segment>: set in this shell.
+segment_downloader_output_operand_to() {
+  local __dt_dest="$1" __dt_tok __dt_out="" __dt_expect=0 __dt_pre __dt_rest
+  local -a __dt_tokens=()
   # Intentional word-split of the static matcher subject into tokens.
   # shellcheck disable=SC2206
-  tokens=( $subject )
-  for tok in "${tokens[@]}"; do
-    tok="${tok#\'}"
-    tok="${tok%\'}"
-    tok="${tok#\"}"
-    tok="${tok%\"}"
-    if ((expect)); then
+  __dt_tokens=( $2 )
+  for __dt_tok in "${__dt_tokens[@]}"; do
+    __dt_tok="${__dt_tok#\'}"
+    __dt_tok="${__dt_tok%\'}"
+    __dt_tok="${__dt_tok#\"}"
+    __dt_tok="${__dt_tok%\"}"
+    if ((__dt_expect)); then
       # The token is the operand, and an option token is parsed as well: a bare -O
       # (lowercased it is -o) takes no operand, so `-O -o /c/tmp/x` must not lose
       # the second flag's destination to it.
-      dests+=" $tok"
-      expect=0
-      [[ "$tok" == -* ]] || continue
+      __dt_out+=" $__dt_tok"
+      __dt_expect=0
+      [[ "$__dt_tok" == -* ]] || continue
     fi
-    case "$tok" in
+    case "$__dt_tok" in
     --output=* | --output-document=* | --output-dir=*)
-      dests+=" ${tok#*=}"
+      __dt_out+=" ${__dt_tok#*=}"
       ;;
     --output | --output-document | --output-dir)
-      expect=1
+      __dt_expect=1
       ;;
     *)
-      pre="${tok%%[oO]*}"
-      if [[ "$pre" != "$tok" && "$pre" =~ ^-[[:alpha:]]*$ ]]; then
-        rest="${tok#"$pre"?}"
-        if [[ -n "$rest" ]]; then
-          dests+=" $rest"
+      __dt_pre="${__dt_tok%%[oO]*}"
+      if [[ "$__dt_pre" != "$__dt_tok" && "$__dt_pre" =~ ^-[[:alpha:]]*$ ]]; then
+        __dt_rest="${__dt_tok#"$__dt_pre"?}"
+        if [[ -n "$__dt_rest" ]]; then
+          __dt_out+=" $__dt_rest"
         else
-          expect=1
+          __dt_expect=1
         fi
       fi
       ;;
     esac
   done
-  printf '%s' "$dests"
+  printf -v "$__dt_dest" '%s' "$__dt_out"
 }
 
 # Basename of a command-position word that is path-qualified or ends in .exe,
@@ -598,14 +577,13 @@ segment_writes_drive_root_tmp() {
   if segment_leading_exe_verb_to lead "$subject"; then
     case "$lead" in
     tee | mktemp | mkdir | touch | dd)
-      has_drive_root_tmp "$subject" && return 0
-      return 1
+      has_drive_root_tmp "$subject"
+      return
       ;;
     cp | mv | install)
-      dest=$(segment_destination_operand "$subject")
-      [[ -n "$dest" ]] || return 1
-      has_drive_root_tmp "$dest" && return 0
-      return 1
+      segment_destination_operand_to dest "$subject"
+      [[ -n "$dest" ]] && has_drive_root_tmp "$dest"
+      return
       ;;
     *) ;; # unreachable: segment_leading_exe_verb_to only returns those verbs
     esac
@@ -621,25 +599,23 @@ segment_writes_drive_root_tmp() {
     [[ "$subject" =~ $_DRIVE_TMP_CREATOR_BARE ]] ||
     [[ "$subject" =~ (^|[[:space:];|&]|/)(set-content|add-content|out-file|tee-object|new-item|export-clixml|export-csv)([[:space:]]|:|$) ]] ||
     [[ "$subject" =~ (^|[[:space:]])(ac|ni)([[:space:]]|$) ]]; then
-    has_drive_root_tmp "$subject" && return 0
-    return 1
+    has_drive_root_tmp "$subject"
+    return
   fi
   # Copy / move / install: destination operand only (avoids `cp /tmp/src ./dst`).
   if [[ "$subject" =~ $_DRIVE_TMP_COPY_QUOTED ]] ||
     [[ "$subject" =~ $_DRIVE_TMP_COPY_UNQUOTED ]] ||
     [[ "$subject" =~ $_DRIVE_TMP_COPY_BARE ]]; then
-    dest=$(segment_destination_operand "$subject")
-    [[ -n "$dest" ]] || return 1
-    has_drive_root_tmp "$dest" && return 0
-    return 1
+    segment_destination_operand_to dest "$subject"
+    [[ -n "$dest" ]] && has_drive_root_tmp "$dest"
+    return
   fi
   # curl / wget: output-flag operands only (#4251). A URL path containing
   # `/tmp` is not a write target.
   if [[ "$subject" =~ (^|[[:space:];|&]|/)(curl|wget|curl\.exe|wget\.exe)([[:space:]]|$) ]]; then
-    dest=$(segment_downloader_output_operand "$subject")
-    [[ -n "$dest" ]] || return 1
-    has_drive_root_tmp "$dest" && return 0
-    return 1
+    segment_downloader_output_operand_to dest "$subject"
+    [[ -n "$dest" ]] && has_drive_root_tmp "$dest"
+    return
   fi
   # Inline python write opening a drive-root tmp path, counted only when the
   # command can run code (inline_code_can_run). write_text, write_bytes and
@@ -647,8 +623,8 @@ segment_writes_drive_root_tmp() {
   # command is one python run (command_is_one_python_run) proven read-only
   # (command_opens_only_for_read).
   if [[ "$subject" =~ (write_text|write_bytes|makedirs)[[:space:]]*\( ]]; then
-    has_drive_root_tmp "$subject" && inline_code_can_run && return 0
-    return 1
+    has_drive_root_tmp "$subject" && inline_code_can_run
+    return
   fi
   local py_open="open[[:space:]]*\\(|['\"]open['\"]\\)[[:space:]]*\\("
   if [[ "$subject" =~ $py_open ]]; then
@@ -846,7 +822,7 @@ has_write_utility_with_drive_root_tmp() {
 # On these tools the payload's path IS the write target, so the whole
 # write-shape inference the command lane needs — redirect parsing, the producer
 # utility whitelist, per-segment splitting — is structurally absent here. The
-# matcher is the shipped has_drive_root_tmp(), unchanged and unduplicated, so
+# matcher is the command lane's own has_drive_root_tmp(), so
 # every spelling the command lane blocks (POSIX /tmp, MSYS /c/tmp, C:\tmp,
 # drive-root \tmp) and every one it permits (%TEMP% expansions, /var/tmp,
 # ./tmp, foo/tmp) decide identically on this lane.

@@ -427,18 +427,28 @@ reconstruct_partial_edit() {
 
 ((HAS_FLAG_SHAPE)) && reconstruct_partial_edit
 
-# Split a "bin|chain|flag" CANDIDATES/FAILURES key into its three parts. Globals
-# rather than an echo: this runs per candidate and per finding, and a command
-# substitution would add a fork to each one.
+# Split a "bin|chain|flag" CANDIDATES/FAILURES key into its three parts, plus
+# the finding's display text and the --help command it was checked against.
+# Globals rather than an echo: this runs per candidate and per finding, and a
+# command substitution would add a fork to each one.
 KEY_BIN=""
 KEY_CHAIN=""
 KEY_FLAG=""
+KEY_DISP=""
+KEY_HELPREF=""
 split_candidate_key() {
   local rest
   KEY_BIN="${1%%|*}"
   rest="${1#*|}"
   KEY_CHAIN="${rest%|*}"
   KEY_FLAG="${rest##*|}"
+  if [[ -n "$KEY_CHAIN" ]]; then
+    KEY_DISP="$KEY_BIN $KEY_CHAIN $KEY_FLAG"
+    KEY_HELPREF="$KEY_BIN $KEY_CHAIN --help"
+  else
+    KEY_DISP="$KEY_BIN $KEY_FLAG"
+    KEY_HELPREF="$KEY_BIN --help"
+  fi
 }
 
 # CACHE HITS ARE ANSWERED IN THIS PROCESS. The verifier keeps each
@@ -530,11 +540,10 @@ emit_tel() {
   file_rel=""
   hook::repo_relative_path_to file_rel "$FILE" "$REPO_ROOT"
   if ((${#FAILURES[@]} > 0)); then
-    local f raw="" disp
+    local f raw=""
     for f in "${FAILURES[@]}"; do
       split_candidate_key "$f"
-      [[ -n "$KEY_CHAIN" ]] && disp="$KEY_BIN $KEY_CHAIN $KEY_FLAG" || disp="$KEY_BIN $KEY_FLAG"
-      raw+="$disp"$'\n'
+      raw+="$KEY_DISP"$'\n'
     done
     findings_json=$(printf '%s' "$raw" | jq -Rn '[inputs]' 2>/dev/null) || findings_json="[]"
   fi
@@ -554,14 +563,7 @@ if ((${#FAILURES[@]} > 0)); then
   lines=""
   for f in "${FAILURES[@]}"; do
     split_candidate_key "$f"
-    if [[ -n "$KEY_CHAIN" ]]; then
-      disp="$KEY_BIN $KEY_CHAIN $KEY_FLAG"
-      helpref="$KEY_BIN $KEY_CHAIN --help"
-    else
-      disp="$KEY_BIN $KEY_FLAG"
-      helpref="$KEY_BIN --help"
-    fi
-    lines+="$disp (not in '$helpref')"$'\n'
+    lines+="$KEY_DISP (not in '$KEY_HELPREF')"$'\n'
   done
   cfv_ctx=""
   hook::findings_to cfv_ctx \
