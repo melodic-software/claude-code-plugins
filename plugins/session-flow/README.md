@@ -294,7 +294,7 @@ tracker filing is offered not automatic, the session is never scored, and it is 
 /session-flow:running-retro arm        # arm the detached observer for this session (see below)
 ```
 
-**Detached observer substrate.** running-retro also owns an out-of-band observer that turns the
+**Detached observer process.** running-retro also owns an out-of-band observer that turns the
 checkpoint from PULL (invoked in-session) into a path that can also fire *after* the session ends, something a
 `/loop` structurally cannot do. The `arm` action launches a stdlib-Python tailer, detached from every
 session's process tree so it outlives the session. The tailer reads the transcript at zero context
@@ -476,7 +476,7 @@ The skills adapt to the consuming repo rather than imposing structure:
 ## Requirements
 
 - Node.js on PATH: every hook launches through `node hooks/exec-bash.mjs`, so without it the hooks do not run.
-- The observer substrate only: Python 3.10+, `jq`, and `claude` on PATH. `/session-flow:setup` checks each.
+- The observer process only: Python 3.10+, `jq`, and `claude` on PATH. `/session-flow:setup` checks each.
 - `/session-flow:find-handoff` uses Python 3.10+ when present to tell which transcript directories
   belong to this repository; without it, it lists only directories whose name matches a worktree
   exactly and says so.
@@ -633,8 +633,5 @@ For a Claude Code release without `plugin configure`, see [Plugin install](https
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
 - [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
-
-As of 2026-11-04. Recheck trigger: one of these sections moves, or a Claude Code
-release note changes how plugin options are set or stored.
 
 <!-- END GENERATED: plugin options -->
