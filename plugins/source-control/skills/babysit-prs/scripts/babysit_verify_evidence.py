@@ -49,7 +49,8 @@ failed read, a list cut short or no such run keeps the FAIL.
   fails keeps `verify:fail`;
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch (read
-  from the name's digest, else from its verdict.json):
+  from the name's digest, else from its verdict.json) for a pull request that
+  is not merged or closed (`_finished`; a state that cannot be read counts):
   `verify:earlier-fail`. Counted PASS or PASS-NOTES verdicts at the
   head whose runs were all created after every such FAIL's run (each
   creation time read fresh from GitHub, which a re-attempt keeps; a missing
@@ -1426,6 +1427,11 @@ class Reader:
     _fail_runs: dict[tuple[int, str], list[int]] = field(default_factory=dict)
     # Whether a pull request no issue lists counts (`_elsewhere`).
     _counted: dict[int, bool] = field(default_factory=dict)
+    # Each other pull request's REST record, or the error its read raised,
+    # read at most once per `Reader` (`_pull`).
+    _pulls: dict[int, dict[str, Any] | merge_policy.PolicyReadError] = field(
+        default_factory=dict
+    )
     # Runs whose standing came from the run cache (`_run_state`).
     _shared_runs: set[int] = field(default_factory=set)
     _on_branch: dict[str, bool] = field(default_factory=dict)
@@ -3546,6 +3552,8 @@ class Reader:
                     continue
                 if not head_ref or recorded != head_ref:
                     continue
+            if not tied and self._finished(pr_n):
+                continue
             if self._draft_judged(sha, run_id):
                 ignored += 1
                 continue
@@ -3736,7 +3744,7 @@ class Reader:
         for other in sorted((heads.keys() | unread) - listed.keys() - {number}):
             if other not in self._counted:
                 try:
-                    pull = merge_policy.pull_request(self.repo, other)
+                    pull = self._pull(other)
                 except merge_policy.PolicyReadError as exc:
                     raise _Unreadable(f"#{other} state: {exc}") from exc
                 user = json_object(pull.get("user"))
@@ -3755,6 +3763,30 @@ class Reader:
         if others & unread:
             raise _Unreadable(SIBLING_UNREADABLE)
         return live, set().union(*(heads.get(n, set()) for n in others))
+
+    def _pull(self, number: int) -> dict[str, Any]:
+        """Pull request `number`'s REST record, read once per `Reader`; a
+        failed read raises its `PolicyReadError` again on every call."""
+        if number not in self._pulls:
+            try:
+                self._pulls[number] = merge_policy.pull_request(self.repo, number)
+            except merge_policy.PolicyReadError as exc:
+                self._pulls[number] = exc
+        pull = self._pulls[number]
+        if isinstance(pull, merge_policy.PolicyReadError):
+            raise pull
+        return pull
+
+    def _finished(self, number: int) -> bool:
+        """Whether pull request `number`, whose FAIL ties to the one judged
+        only by recording its head branch, merged or closed. Release pull
+        requests reuse one branch, so a finished one's FAILs judged a change
+        that ended with it; a state that cannot be read counts the FAIL."""
+        try:
+            pull = json_object(self._pull(number))
+        except merge_policy.PolicyReadError:
+            return False
+        return bool(pull.get("merged_at")) or pull.get("state") == "closed"
 
     def _counts(self, state: Any, author: Any) -> bool:
         """Whether a pull request in `state` (`OPEN`, `CLOSED` or `MERGED`)

@@ -248,8 +248,8 @@ class FakeGitHub:
         # closed unless named; its author, unless named none.
         self.closer_states: dict[int, str] = {}
         self.closer_authors: dict[int, dict[str, Any]] = {}
-        # The REST record of a pull request no issue lists, by number: closed
-        # and unmerged unless named.
+        # The REST record of another pull request, by number: open unless
+        # named.
         self.pulls: dict[int, dict[str, Any]] = {}
         self.closers_total: dict[int, int] = {}
         # The pull requests each issue's cross-reference timeline shows:
@@ -551,7 +551,7 @@ class FakeGitHub:
             return ok(
                 {
                     "number": n,
-                    "state": "closed",
+                    "state": "open",
                     "merged_at": None,
                     "closed_at": None,
                     "base": {"ref": "main", "sha": MAIN_SHA},
@@ -788,6 +788,60 @@ class AFailCountsUnderAnyNumber(unittest.TestCase):
     def test_an_unrelated_fail_whose_record_cannot_be_read_blocks(self) -> None:
         fake = passing(artifact(named(UNRELATED, "fail", 99), 2), runs={2: run(2)})
         self.assertEqual(read(fake).refusal, "verify:unreadable")
+
+
+def pull_reads(fake: FakeGitHub) -> list[str]:
+    """The pull request records the reader fetched, by REST path."""
+    return [a for c in fake.calls for a in c if re.search(r"/pulls/[0-9]+$", a)]
+
+
+class ABranchTieToAFinishedPullRequestDoesNotHold(unittest.TestCase):
+    """Every release pull request reuses one head branch, so a FAIL that ties
+    to PR 41 only by recording its head branch holds while the pull request
+    it judged is open, and stops holding once that one merged or closed."""
+
+    @staticmethod
+    def branch_fail(number: int = 99, **pull: Any) -> FakeGitHub:
+        """A pass at the head, and a FAIL of `number` at a head outside PR
+        41 that records PR 41's branch, feat/x, read with `pull` as its state."""
+        name = named(UNRELATED, "fail", number)
+        fake = passing(artifact(name, 2), runs={2: run(2)})
+        fake.records[name] = record(number, UNRELATED, verdict="fail")
+        fake.pulls[number] = pull
+        return fake
+
+    def test_a_fail_of_a_merged_pull_request_does_not_hold(self) -> None:
+        fake = self.branch_fail(state="closed", merged_at="2026-10-02T00:00:00Z")
+        self.assertIsNone(read(fake).refusal, "a merged #99's FAIL held")
+        self.assertEqual(pull_reads(fake), [f"repos/{REPO}/pulls/99"])
+
+    def test_a_fail_of_a_closed_pull_request_does_not_hold(self) -> None:
+        fake = self.branch_fail(state="closed")
+        self.assertIsNone(read(fake).refusal, "a closed #99's FAIL held")
+
+    def test_a_fail_of_an_open_pull_request_holds(self) -> None:
+        fake = self.branch_fail(state="open")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_fail_whose_pull_request_state_cannot_be_read_holds(self) -> None:
+        fake = self.branch_fail(state="closed", merged_at="2026-10-02T00:00:00Z")
+        fake.fail.add("pulls/99")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_fail_under_this_pull_requests_number_holds_unread(self) -> None:
+        # Tied by number: no state is read, whatever #41's would say.
+        fake = self.branch_fail(PR, state="closed")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        self.assertEqual(pull_reads(fake), [], "a tied FAIL read a state")
+
+    def test_each_finished_pull_request_is_read_once(self) -> None:
+        names = [f"{named(sha, 'fail', 99)}-{DIGEST_X}" for sha in (UNRELATED, EARLIER)]
+        fake = passing(
+            artifact(names[0], 2), artifact(names[1], 3), runs={2: run(2), 3: run(3)}
+        )
+        fake.pulls[99] = {"state": "closed", "merged_at": "2026-10-02T00:00:00Z"}
+        self.assertIsNone(read(fake).refusal, "a merged #99's FAILs held")
+        self.assertEqual(pull_reads(fake), [f"repos/{REPO}/pulls/99"])
 
 
 class AnEarlierFailGoesToAHuman(unittest.TestCase):
