@@ -365,7 +365,7 @@ the broker request, and no other permission; it never holds `checks: write` or `
     activity that did not clean up, not a control against a hostile one: the activity holds the
     token and can write the runner's files.
 
-A stacked PR, one whose base is not the default branch, gets a failure check from step 4. Retarget
+A stacked PR, one whose base is not the default branch, gets a failure check from step 3 (`untrusted-base`). Retarget
 it to the default branch to run its lanes.
 
 Its outputs are `base-sha`, `head-sha`, `pr-number`, `gate-reason`, `can-commit` and

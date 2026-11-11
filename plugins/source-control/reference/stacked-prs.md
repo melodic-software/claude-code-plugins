@@ -35,7 +35,7 @@ those gates a required check, an upper layer cannot go green, so use sequential 
 until the pipeline accepts layers. Read the consuming project's PR pipeline docs before stacking;
 in this marketplace, a stacked PR gets a failure check from the run activity
 ([pr-run-activity: The run job](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#the-run-job),
-`check-trusted-base`).
+`check-trusted-trigger` stops it with `untrusted-base`).
 An unattended lane does not stack unless its pipeline accepts layers.
 
 - **Pointer**: for why and when GitHub recommends a stack, fetch
