@@ -6538,6 +6538,7 @@
       announce(x.summary.length > MAX_OWN ? `Claude's answer is in your own option. Shorten it to ${MAX_OWN} characters (it has ${x.summary.length}), then save it.`
         : "Claude's answer is in your own option. Edit it if you like, then save it.");
     }
+    const closeOther = qid => { ui.otherOpen[qid] = false; otherBox._q = null; };
     otherCancel.onclick = () => {
       const qid = ui.cur, q = qById(qid);
       if (!q) return;
@@ -6545,11 +6546,11 @@
       if (before) { // Use as my answer, cancelled: the picks, order and own text go back to what they were
         if (before.fdraft === undefined) delete ui.fdraft[qid]; else ui.fdraft[qid] = before.fdraft;
         if (before.otherText === undefined) delete ui.otherText[qid]; else ui.otherText[qid] = before.otherText;
-        ui.otherOpen[qid] = false; otherBox._q = null;
+        closeOther(qid);
         return render();
       }
       if (q.format === "multi") ui.fdraft[qid] = { options: draftOf(q).filter(o => o !== OTHER) };
-      delete ui.otherText[qid]; ui.otherOpen[qid] = false; otherBox._q = null;
+      delete ui.otherText[qid]; closeOther(qid);
       render();
     };
     on(otherTa, "input", () => { ui.otherText[ui.cur] = otherTa.value; Core.setTyping(); const q = qById(ui.cur); if (q) paintFmtActs(q, myRec(q.id), readOnly(q) || !!Core.lockOf(q.id)); });
@@ -6557,6 +6558,8 @@
     /** The pick controls of a multi, scale or rank question. */
     function renderPicks(q, rec, ro, hideResults) {
       const lk = Core.lockOf(q.id);
+      /** Why the picks cannot change, or "" when they can; `what` is what a lock decided. */
+      const held = what => (lk ? (q.purpose === "poll" ? "The poll is closed." : `Locked. The ${what} is decided.`) : ro ? "Read-only now." : "");
       if (q.format === "multi") {
         const cur = draftOf(q, rec);
         if (multiList._q !== q.id) { resetList(multiList); multiList._q = q.id; }
@@ -6575,8 +6578,8 @@
           li.dataset.on = String(li._box.checked);
         });
         fmtHint.textContent = "Pick every option that fits, then save. Your picks are your vote.";
-        fmtNote.textContent = lk ? (q.purpose === "poll" ? "The poll is closed." : "Locked. The choice is decided.") : ro ? "Read-only now."
-          : rec?.picks?.length ? `You picked ${rec.picks.length}. Add a comment below if you like.` : hideResults ? RESULTS_HINT : "";
+        fmtNote.textContent = held("choice")
+          || (rec?.picks?.length ? `You picked ${rec.picks.length}. Add a comment below if you like.` : hideResults ? RESULTS_HINT : "");
       } else if (q.format === "scale") {
         const v = draftOf(q, rec), labels = q.labels || {}, mid = (q.min + q.max) % 2 === 0 ? (q.min + q.max) / 2 : null;
         const named = n => (n === q.min ? labels.min : n === q.max ? labels.max : n === mid ? labels.mid : "") || "";
@@ -6597,8 +6600,8 @@
         scaleMin.textContent = `${q.min}: ${labels.min}`; scaleMax.textContent = `${q.max}: ${labels.max}`;
         scaleMid.textContent = labels.mid ? (mid != null ? `${mid}: ${labels.mid}` : labels.mid) : ""; // kept empty, it holds the middle column
         fmtHint.textContent = `${tapW()} a number from ${q.min} to ${q.max}, or use the arrow keys. It saves by itself.`;
-        fmtNote.textContent = lk ? (q.purpose === "poll" ? "The poll is closed." : "Locked. The choice is decided.") : ro ? "Read-only now."
-          : rec?.value != null ? `You chose ${rec.value}. Add a comment below if you like.` : hideResults ? RESULTS_HINT : "";
+        fmtNote.textContent = held("choice")
+          || (rec?.value != null ? `You chose ${rec.value}. Add a comment below if you like.` : hideResults ? RESULTS_HINT : "");
       } else {
         const order = draftOf(q, rec), n = order.length;
         if (rankList._q !== q.id) { resetList(rankList); rankList._q = q.id; }
@@ -6617,9 +6620,9 @@
         rankList.classList.toggle("vf-rank-ro", ro);
         fmtHint.textContent = "Put every option in order, best first: drag the handle, or use the arrows. Then save your ranking.";
         const saved = !!rec?.order?.length, dirty = !sameList(order, rec?.order) || ownChanged(q, rec);
-        fmtNote.textContent = lk ? (q.purpose === "poll" ? "The poll is closed." : "Locked. The order is decided.") : ro ? "Read-only now."
-          : saved && !dirty ? "Your ranking is saved. Add a comment below if you like." : saved ? "Not saved yet: save to update your ranking."
-          : hideResults ? RESULTS_HINT : "Not saved yet.";
+        fmtNote.textContent = held("order")
+          || (saved && !dirty ? "Your ranking is saved. Add a comment below if you like." : saved ? "Not saved yet: save to update your ranking."
+            : hideResults ? RESULTS_HINT : "Not saved yet.");
       }
       fmtHint.hidden = ro;
       paintFmtActs(q, rec, ro);
@@ -6651,7 +6654,7 @@
       const q = qById(ui.cur); if (!q) return;
       if (o.other) { if (checked) return openOther(q.id); return otherCancel.click(); }
       // None of these excludes every other pick, as the server does: picking it clears them, and picking another clears it.
-      if (o.none && checked) { ui.otherOpen[q.id] = false; otherBox._q = null; ui.fdraft[q.id] = { options: ["none"] }; return render(); }
+      if (o.none && checked) { closeOther(q.id); ui.fdraft[q.id] = { options: ["none"] }; return render(); }
       const cur = new Set(draftOf(q)); checked ? cur.add(o.id) : cur.delete(o.id);
       if (checked) cur.delete("none");
       ui.fdraft[q.id] = { options: optionsOf(q).map(x => x.id).filter(id => cur.has(id)) };
@@ -6674,7 +6677,7 @@
       if (earlyWaits(qid, early)) return;
       // The saved pick shows at once; a refusal puts the draft back.
       const draft = ui.fdraft[qid], ownDraft = ui.otherText[qid];
-      delete useBefore[qid]; delete ui.fdraft[qid]; delete ui.otherText[qid]; ui.otherOpen[qid] = false; otherBox._q = null;
+      delete useBefore[qid]; delete ui.fdraft[qid]; delete ui.otherText[qid]; closeOther(qid);
       // An own option takes no comment, so only the files written before it go in with it.
       const sent = own != null ? early?.attachments && { attachments: early.attachments } : early;
       Core.pickWith(qid, fields, own != null ? { other: own, attachments: sent?.attachments } : early || { comment: commentOf(rec) })
@@ -6687,7 +6690,7 @@
       const fields = q.format === "multi" ? { options: [] } : q.format === "rank" ? { order: [] } : { value: null };
       clearTimeout(FMT.timer);
       Core.pickWith(qid, fields, { comment: commentOf(rec) }).then(() => {
-        delete ui.fdraft[qid]; delete ui.otherText[qid]; ui.otherOpen[qid] = false; otherBox._q = null;
+        delete ui.fdraft[qid]; delete ui.otherText[qid]; closeOther(qid);
         flash(q.format === "rank" ? "Your ranking is cleared." : "Your pick is cleared.");
       }).catch(fail).finally(render);
     };
@@ -6712,7 +6715,7 @@
     on(scaleRow, "keydown", e => {
       const q = qById(ui.cur); if (!q || q.format !== "scale") return;
       // From the focused value (with nothing chosen yet, focus sits on the first), as a radio group moves.
-      const v = e.target.closest?.(".vf-scale-btn")?._o ? +e.target.closest(".vf-scale-btn")._o.id : draftOf(q) ?? q.min;
+      const o = e.target.closest?.(".vf-scale-btn")?._o, v = o ? +o.id : draftOf(q) ?? q.min;
       const to = { ArrowRight: v + 1, ArrowUp: v + 1, ArrowLeft: v - 1, ArrowDown: v - 1, Home: q.min, End: q.max }[e.key];
       if (to == null) return;
       e.preventDefault(); e.stopPropagation();
@@ -6815,7 +6818,6 @@
         total = people.filter(a => a.order?.length).length;
         rows = opts.map((o, i) => ({ id: o.id, i, label: o.label, n: optCard(q.id, o.id)?.points || 0 }))
           .sort((a, b) => b.n - a.n || a.i - b.i).map(r => ({ ...r, text: `${r.n} point${r.n === 1 ? "" : "s"}` }));
-        total = Math.max(total, 0);
         fmtResHead.textContent = "Ranking so far";
         sum = `Borda points from ${total} ranking${total === 1 ? "" : "s"}: first place gets ${opts.length - 1}, last gets 0.`;
       }
@@ -6877,10 +6879,8 @@
 
     // ---------- Ask Claude panel ----------
     function renderAskPanel(S) {
-      ui.askMode = !v8() && ui.askMode === "explore" ? "ask" : ui.askMode;
       const mode = guestKind(ui.askMode, ui.apWeb);
       for (const [k, b] of Object.entries(apModeBtns)) { b.setAttribute("aria-selected", String(k === mode)); b.setAttribute("aria-pressed", String(k === mode)); }
-      apModeBtns.explore.hidden = !v8();
       apModes.hidden = !Core.me.isOwner; apWeb.hidden = Core.me.isOwner;
       apWeb.setAttribute("aria-pressed", String(!!ui.apWeb));
       const qs = S.questions;
@@ -7025,8 +7025,8 @@
       }
       const qid = it.qid || it.r?.qid || it.u?.qid || it.f?.ctx.qid || "", q = qid && qById(qid);
       const general = !!it.r && !it.r.qid; // a request about the whole session
-      k.qref.hidden = !q && !general; if (q || general) k.qref.textContent = q ? q.id : GEN_LABEL;
-      if (q || general) k.qref.setAttribute("aria-label", q ? `Open ${q.id}: ${q.text}` : "General: about the whole session");
+      k.qref.hidden = !q && !general;
+      if (!k.qref.hidden) { k.qref.textContent = q ? q.id : GEN_LABEL; k.qref.setAttribute("aria-label", q ? `Open ${q.id}: ${q.text}` : "General: about the whole session"); }
       const txt = it.r ? `${KIND_REQ[it.r.kind] || "Request"}: ${it.r.text}` : it.i ? it.i.text : it.x ? it.x.text + (it.x.note ? `\n\nWhy: ${it.x.note}` : "")
         : it.m ? `${it.m.fromName} says they were ${it.m.toName} before. Approve to join them: ${it.m.fromName}'s answers and votes move to ${it.m.toName}.`
         : it.ready ? `${youOr(it.ready.cid, it.ready.by)} marked round ${curRound().current} ready to send.`
@@ -7128,8 +7128,7 @@
       hRoundRow.hidden = hSend.hidden && hCancel.hidden && hReset.hidden;
       hGoal.textContent = S.goal || "No goal yet. One goal keeps the session small: one ticket or one slice.";
       hGoal.classList.toggle("vf-hgoal-empty", !S.goal);
-      hGoalEdit.hidden = !owner || !v8(); hGoalEdit.textContent = S.goal ? "Edit goal" : "Set a goal";
-      hGoalLabel.hidden = hGoalRow.hidden = !v8();
+      hGoalEdit.hidden = !owner; hGoalEdit.textContent = S.goal ? "Edit goal" : "Set a goal";
       // why you're here: the owner edits it; a leader reads it
       hIntroIn.hidden = hIntroRow.hidden = !owner;
       hIntroShown.hidden = owner;
@@ -7247,14 +7246,12 @@
       // links and settings
       hNewGuest.hidden = hNewOwner.hidden = hSettings.hidden = hEnd.hidden = !owner;
       hNewOwner.hidden ||= Core.ownerDevice() != null; // only where the owner link was opened (server.py "host")
-      const nl = laterItems().length;
+      const later = laterItems().sort((a, b) => a.ts - b.ts), nl = later.length;
       hEnd.textContent = S.ended ? "Reopen session" : "End session";
       hEndNote.textContent = owner && !S.ended ? (nl ? `Ending makes the page read-only for guests. ${laterLine(nl)}.` : "Ending makes the page read-only for guests, with the final tree.") : "";
       hEndNote.hidden = !hEndNote.textContent;
       hLinks._t.textContent = owner ? "Links and settings" : "Links";
       // later
-      const later = laterItems().sort((a, b) => a.ts - b.ts);
-      hLater.hidden = !v8() && !later.length;
       hLater._m.textContent = later.length ? String(later.length) : "";
       laterNote.textContent = later.length ? `${laterLine(later.length)} when the session ends.` : "";
       laterNote.hidden = !later.length;
@@ -7339,8 +7336,8 @@
       goalTxt.title = goal;
       goalInput.hidden = !ui.goalEditing;
       goalTxt.hidden = ui.goalEditing || !goal;
-      goalAdd.hidden = ui.goalEditing || !!goal || !me.isOwner || !v8();
-      goalEdit.hidden = ui.goalEditing || !goal || !me.isOwner || !v8();
+      goalAdd.hidden = ui.goalEditing || !!goal || !me.isOwner;
+      goalEdit.hidden = ui.goalEditing || !goal || !me.isOwner;
       goalRow.hidden = !ui.goalEditing && !goal && goalAdd.hidden;
       askTop.hidden = (!!S.ended && !me.isOwner) || !!S.youRemoved;
       if (askTop.hidden && ui.pop === askPanel) closePop();
@@ -7379,7 +7376,6 @@
       for (const [k, b] of Object.entries(switches)) b.setAttribute("aria-checked", String(k === "hideClaude" ? s[k] !== false : !!s[k]));
       for (const [k, b] of Object.entries(tierRows)) b.setAttribute("aria-checked", String(s.prototypeTiers.includes(k)));
       switches.signoff.disabled = !s.voting;
-      switches.hideClaude.hidden = !v8();
       const nLater = laterItems().length;
       endNote.textContent = !S.ended && nLater ? `${laterLine(nLater)}.` : "";
       endNote.hidden = !endNote.textContent;
@@ -7536,9 +7532,8 @@
       propAll.disabled = props.length > room;
       propAllWhy.hidden = !propAll.disabled;
       propAllWhy.textContent = room ? `Round ${S.rounds.length + 1} has room for ${room} more, not all ${props.length}. Park some or make them questions one by one.` : `Round ${S.rounds.length + 1} is full.`;
-      const joins = v8() ? nextN : preparing ? nextN : cur;
       PP.note.textContent = ui.propFilter === "new"
-        ? `These go to Claude with round ${cur}${preparing ? " (already sent; they wait for the next send)" : ""}. Claude places each one. A question you make now joins round ${joins}.`
+        ? `These go to Claude with round ${cur}${preparing ? " (already sent; they wait for the next send)" : ""}. Claude places each one. A question you make now joins round ${nextN}.`
         : ui.propFilter === "notplaced" ? "Claude did not place these and said why. Restore one to send it again."
         : "Parked proposals stay out of the round. Restore one to put it back in New.";
       const shown = !mod ? [] : ui.propFilter === "new" ? props : ui.propFilter === "notplaced" ? notPlaced : parked;
@@ -7658,12 +7653,13 @@
       center.classList.toggle("vf-noq", !q);
       railEmpty.hidden = qs.length > 0;
       if (!qs.length) renderEmpty(S);
+      // the welcome seen, or something answered
+      const beenHere = () => !!store.get(WELCOME_SEEN(), false) || S.questions.some(x => ["answered", "took"].includes(myState(x.id)));
       // Triage 3: until a guest answers anything, the Focus view opens with the goal, the host's ask and where to start.
-      orient.hidden = !q || me.isOwner || !S.me || !!S.ended || !!S.youRemoved || !!ui.orientHidden
-        || (!ui.welcomeAgain && (!!store.get(WELCOME_SEEN(), false) || S.questions.some(x => ["answered", "took"].includes(myState(x.id)))));
+      orient.hidden = !q || me.isOwner || !S.me || !!S.ended || !!S.youRemoved || !!ui.orientHidden || (!ui.welcomeAgain && beenHere());
       introBtn.hidden = !S.intro && !me.isOwner; menuShow("intro", !introBtn.hidden);
-      // a return visit: this person had been here before this page opened (the welcome seen, or something answered)
-      if (ui.returning == null && S.me) ui.returning = !!store.get(WELCOME_SEEN(), false) || S.questions.some(x => ["answered", "took"].includes(myState(x.id)));
+      // a return visit: this person had been here before this page opened
+      if (ui.returning == null && S.me) ui.returning = beenHere();
       goalBack.hidden = !q || me.isOwner || !!S.youWaiting || !!S.youRemoved || !S.goal || !ui.returning || !orient.hidden || !!S.ended || goalHidden() === S.goal;
       if (!goalBack.hidden) goalBackTxt.textContent = `Goal: ${S.goal}`;
       if (!orient.hidden) {
@@ -7710,7 +7706,7 @@
         purposeSel.w.hidden = !me.isOwner;
         if (purposeSel.s.value !== q.purpose && document.activeElement !== purposeSel.s) purposeSel.s.value = q.purpose || "decide";
         purposeSel.s.title = pur[1];
-        const asked = Core.askedOf(q.id).filter(p => S.people[p] && !(S.removed || []).includes(p));
+        const asked = Core.askedOf(q.id).filter(p => S.people[p] && !gone.includes(p));
         const askedNames = asked.map(p => (isMe(p) ? "you" : disp(nameOf(p))));
         qFor.textContent = asked.length ? `Asked of ${askedNames.join(", ")}` : ""; qFor.hidden = !asked.length;
         forBtn.hidden = !me.isOwner || readOnly(q);
@@ -7719,7 +7715,7 @@
         forBox.hidden = forBtn.hidden || ui.forOpen !== q.id;
         qTools.hidden = qPurpose.hidden && purposeSel.w.hidden && qFor.hidden && forBtn.hidden;
         if (!forBox.hidden) {
-          const people = Object.keys(S.people).filter(p => !(S.removed || []).includes(p));
+          const people = Object.keys(S.people).filter(p => !gone.includes(p));
           sync(forList, people, p => p, p => {
             const l = E("label"), cb = E("input"); cb.type = "checkbox";
             cb.onchange = () => {
@@ -7870,7 +7866,7 @@
           : `Show Claude's take: ${nC} card${nC === 1 ? "" : "s"}. They show by themselves once you answer or vote.`);
         ansTitle.textContent = lk ? "All answers" : "Answers";
         // Answered counts everyone who joined (Claude's cards are not people); who is here is a separate number.
-        const joinedN = Math.max(Object.keys(S.people || {}).filter(p => !(S.removed || []).includes(p)).length, here.length);
+        const joinedN = Math.max(Object.keys(S.people || {}).filter(p => !gone.includes(p)).length, here.length);
         const answeredN = all.filter(a => !a.claude).length;
         ansCount.textContent = `${answeredN} of ${joinedN} answered, ${hereTxt}`;
         // Suggestions an unlock closed, shown while the question is open again.
@@ -7911,7 +7907,7 @@
         qPos.textContent = qFrom.textContent = ""; qSug.hidden = qDeps.hidden = qHost.hidden = closedBox.hidden = qPurpose.hidden = purposeSel.w.hidden = qCtx.hidden = qOpen.hidden = true; qText.textContent = "No questions yet";
         qTools.hidden = qFor.hidden = forBtn.hidden = forBox.hidden = passBox.hidden = true;
         onItTxt.textContent = ""; ansCount.textContent = ""; aEmpty.hidden = true; lockBox.hidden = true; lockBtn.hidden = true;
-        reviewRow.hidden = qHist.hidden = true; tools.hidden = true; fmtBox.hidden = true; ansPane.hidden = clSec.hidden = discSec.hidden = true; claudeBar.hidden = true; refBox.hidden = qPicBox.hidden = true;
+        reviewRow.hidden = qHist.hidden = true; fmtBox.hidden = true; ansPane.hidden = clSec.hidden = discSec.hidden = true; claudeBar.hidden = true; refBox.hidden = qPicBox.hidden = true;
       }
       tools.hidden = !q;
       paintSpeech(!!q);
