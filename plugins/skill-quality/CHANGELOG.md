@@ -3,6 +3,12 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.6] - 2026-11-11
+
+### Changed
+
+- The setup and check skills point at the live plugins reference, skills, and markdownlint-cli2 README sections for option substitution, `skillOverrides`, the `disable-model-invocation` default and config discovery, and no longer restate the listing budget's inputs. No behavior change.
+
 ## [1.1.5] - 2026-11-11
 
 ### Changed

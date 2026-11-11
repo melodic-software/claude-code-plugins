@@ -3,6 +3,12 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.24] - 2026-11-11
+
+### Changed
+
+- The manage skill describes the `update` action as HEAD-probing the pinned URLs, and its auto-detect as reading the `status.sh` JSON. `sources.md` shows the drift report line a 404 tutorial now prints and the DeDRM_tools re-fetch date from `versions.md`; `workflow.md` names the Key_Finder bundle's own extractor. No behavior change.
+
 ## [0.8.23] - 2026-11-11
 
 ### Changed
