@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.15] - 2026-11-11
+
+### Changed
+
+- The route skill points at Claude Code's model aliases section for why only aliases are accepted. No behavior change.
+
 ## [2.0.14] - 2026-11-10
 
 ### Changed

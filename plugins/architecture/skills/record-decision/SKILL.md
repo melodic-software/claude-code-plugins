@@ -264,5 +264,6 @@ Failure modes this skill runs into, each stated as the rule it implies.
   working area, so a nearer directory is the answer. Name both in the report, so the human can
   redirect when the root one was intended.
 - **A convention declared in `CLAUDE.md` pointing at a directory that does not exist yet.** Declared
-  beats observed: create the record at the declared path and state in the report that the directory
-  was created because the declaration named it.
+  beats observed when the path is inside this repository: create the record at the declared path and
+  state in the report that the directory was created because the declaration named it. A declared
+  path outside this repository is ignored and never written.

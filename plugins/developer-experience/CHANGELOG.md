@@ -3,6 +3,12 @@
 All notable changes to the `developer-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.4] - 2026-11-11
+
+### Changed
+
+- The setup skill no longer restates allowlist matching or when Claude Code reads `AGENTS.md`; it cites the pointers it already carries. The CLI contract's rules 11 to 15 cite section-anchored Node, Python and Claude Code pages instead of quoting them. No behavior change.
+
 ## [0.5.3] - 2026-11-09
 
 ### Changed

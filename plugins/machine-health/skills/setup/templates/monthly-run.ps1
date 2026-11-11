@@ -11,7 +11,7 @@ scheduler, so the copy in the plugin install never runs. <StateBase> is the
 parent of that folder, and the run starts there.
 
 The audit runs in auto mode, so it can research new findings on the web
-(https://code.claude.com/docs/en/permission-modes.md#eliminate-permission-prompts-with-auto-mode).
+(https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode).
 
 The run counts as ok only when all of these hold: claude exits 0 within the
 timeout, its JSON result has is_error false, the result's first line is the

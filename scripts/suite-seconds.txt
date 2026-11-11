@@ -580,7 +580,7 @@ plugins/songwriting/context/pat-pattison/scripts/datamuse.test.sh 1
 plugins/source-control/hooks/pr-body-linkage-gate.test.sh 10
 plugins/source-control/hooks/pr-linkage-mcp-gate.test.sh 2
 plugins/source-control/hooks/pr-linkage-spawn-budget.test.sh 1
-plugins/source-control/hooks/worktree-add-claim-gate.test.sh 1
+plugins/source-control/hooks/worktree-add-claim.test.sh 1
 plugins/source-control/hooks/worktree-add-containment-gate.test.sh 1
 plugins/source-control/hooks/worktree-create-gate.test.sh 1
 plugins/source-control/hooks/worktree-gates-spawn-budget.test.sh 1
