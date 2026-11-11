@@ -119,6 +119,24 @@
       "split": "validation",
       "expect_trigger": false,
       "request": "Bump the Node version in our CI workflow to the current LTS."
+    },
+    {
+      "id": "pos-train-07",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our codebase terminology is all over the place: support says ticket, the API says case. Help us settle on one word."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Edit GLOSSARY.md so 'tenant' means the paying organization, not one signed-in user."
+    },
+    {
+      "id": "pos-val-06",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Before I name the new aggregate, which words does our domain model already use for a returned parcel?"
     }
   ]
 }
