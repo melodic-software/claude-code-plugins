@@ -66,7 +66,7 @@ Two separators work, and both go on the same `[Tag]` line:
 - `[Tag: descriptor, descriptor]`: colon + comma list (most common in community examples)
 - `[Tag | descriptor | descriptor]`: pipe-separated (also works)
 
-Keep modifiers short: 2-4 words each, 2-5 modifiers per section.
+Keep modifiers short: 2-4 words each, 4-7 modifiers per section (see "Descriptor density sweet spot" below).
 
 ### What you can override per section
 
