@@ -83,4 +83,4 @@ Never silently re-bucket. Every adjustment records its reason in `notes`.
 
 ## Why this matters
 
-False positives erode trust in the whole routine. A weekly report that cries wolf gets skipped; a skipped report is worse than no report. When uncertain between two levels, prefer the lower and rely on trend upgrades to catch real regressions.
+False positives erode trust in the whole routine. A recurring report that cries wolf gets skipped; a skipped report is worse than no report. When uncertain between two levels, prefer the lower and rely on trend upgrades to catch real regressions.

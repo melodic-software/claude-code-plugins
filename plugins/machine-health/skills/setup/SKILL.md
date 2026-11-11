@@ -364,7 +364,7 @@ every rule that grants a shell, file-write or network action beside the proposed
 Quote the rules as data. Never edit the settings file: narrowing a rule is the owner's change.
 
 **The monthly run researches the web in auto mode.** Both routes run in auto mode
-([Permission modes, "Eliminate permission prompts with auto mode"](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode);
+([Permission modes, "Eliminate prompts with auto mode"](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode);
 **As of**: 2026-10-23; **Recheck trigger**: that section stops offering auto mode to `claude -p`
 runs), with no tool list or deny rules of their own: auto mode and the owner's settings decide
 what the run may do. The audit researches new unfamiliar findings and its check proposals through
@@ -443,8 +443,8 @@ changes the wrapper leaves the copy stale, and `check` step 6 FAILs it and offer
 
 - **Pointer**: print mode and the `--permission-mode` and `--bare` flags are in
   [CLI reference, "CLI flags"](https://code.claude.com/docs/en/cli-reference#cli-flags); the
-  wrapper never passes `--bare`, which skips plugin and skill loading.
-  **As of**: 2026-10-22. **Recheck trigger**: a
+  wrapper never passes `--bare`.
+  **As of**: 2026-11-10. **Recheck trigger**: that row changes what `--bare` loads, or a
   [Claude Code CHANGELOG](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) entry
   makes `--bare` the `-p` default or adds a `--no-bare`-style flag.
 - **Pointer**: Git Bash's rewriting of slash-led arguments is in

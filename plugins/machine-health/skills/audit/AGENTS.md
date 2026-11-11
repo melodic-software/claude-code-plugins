@@ -22,6 +22,6 @@ working over pipelines.
 
 Before touching a check's inputs or anything involving `state/history.jsonl`, read
 [README.md, "Stateless checks, stateful orchestrator"](README.md#stateless-checks-stateful-orchestrator):
-checks take a current reading and return it, never reading `history.jsonl` directly; the
-orchestrator (`Invoke-MachineHealthCheck.ps1`) hands them a history slice over stdin and owns all
+checks take a current reading and return it, never reading `history.jsonl`; the
+orchestrator (`Invoke-MachineHealthCheck.ps1`) passes them no history and owns all
 trend, severity, timeout, remediation, and reporting logic.
