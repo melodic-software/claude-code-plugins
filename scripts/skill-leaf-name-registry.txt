@@ -255,19 +255,13 @@ setup *
 # "Shape the user experience of the app being built").
 shape adhd,user-experience
 
-# Kept on merit. dometrain:sync is a maintainer-only drift check of the
-# grounding skill's vendored upstream content; repo-fleet-hygiene:sync
-# fast-forwards a fleet's canonical checkouts onto the remote default branch.
-# Both bring a local copy level with its upstream. Unrelated targets, and the
-# namespace supplies the object in both; each description's first clause names it.
-sync dometrain,repo-fleet-hygiene
-
 # Fixed verb meaning: refreshes vendored upstream material (plugin-philosophy.md,
 # Naming verb table). firecrawl:update syncs the firecrawl wrapper skill against
 # the upstream firecrawl-cli release and SKILL.md source; playbooks:update syncs
-# each vendored pack against its own upstream. Same maintainer-facing sync
-# contract; the namespace supplies the object.
-update firecrawl,playbooks
+# each vendored pack against its own upstream; dometrain:update syncs the
+# vendored dometrain-grounding baseline. Same maintainer-facing sync contract;
+# the namespace supplies the object.
+update dometrain,firecrawl,playbooks
 
 # D19, kept on merit. session-flow:workflow routes a development session,
 # songwriting:workflow routes a writing session.

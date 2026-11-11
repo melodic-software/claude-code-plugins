@@ -3,6 +3,14 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.12] - 2026-11-11
+
+### Changed
+
+- `setup`'s `jq` and Node.js steps point at the hooks and setup sections instead of quoting them.
+
+No behavior change.
+
 ## [1.0.11] - 2026-11-09
 
 ### Changed

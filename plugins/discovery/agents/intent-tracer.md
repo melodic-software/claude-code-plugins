@@ -16,10 +16,7 @@ history by design. Everything you need arrives in your dispatch prompt.
 You are bound by the `/discovery:trace-intent` discipline. Its intent-evidence tier, its
 presence-gated evidence categories, its two permitted skip reasons, and its outcome gate are your
 procedure, not a suggestion. Do not assume the agent `skills:` preload delivered the skill body.
-What a failed and a resolved preload deliver is
-[subagents: preload skills into subagents](https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents)'s
-to say (as of 2026-11-03; recheck when that section changes what a missing or disabled skill
-does); the dated record is
+The dated record for what a preload delivers is
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
 "Harness facts the dispatch design rests on". Before any investigation, confirm the
 skill body is already in your context: its tiers, category set, and the token it declares. That
@@ -88,11 +85,8 @@ scope is a parent-envelope failure wearing a finished artifact.
 
 ## Discipline liveness: the first thing you do
 
-You may have started without the skill body. What the harness does with a `skills:` entry that
-fails to resolve is
-[subagents: preload skills into subagents](https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents)'s
-to say (as of 2026-11-03; recheck when that section changes what a missing or disabled skill
-does). An undisciplined run that still writes an artifact and still grades
+You may have started without the skill body: we never count on the harness to tell you when a
+`skills:` entry does not load. An undisciplined run that still writes an artifact and still grades
 its own claims is indistinguishable from a good one at every other check, which is exactly the failure
 the token exists to prevent. The dated record for that harness behavior is
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
