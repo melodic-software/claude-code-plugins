@@ -91,8 +91,10 @@ on:
           first call handed off as this run's jobs show it, for a caller that
           reads that rather than the first call's outputs. `fallback` for the
           third, which runs on fallback-claude-code-oauth-token after the
-          second call handed off. Issue mode takes empty, `handoff` or
-          `fallback`.
+          second call handed off. Issue mode takes empty, `handoff`,
+          `credit-stop` or `fallback`; `credit-stop` there is a subscription
+          call the caller's own key-credit gate made the first in the slot, so
+          it re-checks the blockers and records the skipped key leg.
         required: false
         type: string
         default: ""
@@ -507,7 +509,7 @@ jobs:
       # resolve-config.mjs, whose packages only the resolve-config action
       # installs; this job does not run it.
       - name: Install resolve-config's packages
-        if: inputs.issue-number != '' && inputs.fallback == ''
+        if: inputs.issue-number != '' && (inputs.fallback == '' || inputs.fallback == 'credit-stop')
         timeout-minutes: 5
         run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
 
@@ -555,10 +557,16 @@ jobs:
           probe-minutes: "0"
 
       # The skipped key's secret name, from the role as run-claude-cli names
-      # it (`issue-lane` gives ISSUE_LANE_CLAUDE_API_KEY).
+      # it (`issue-lane` gives ISSUE_LANE_CLAUDE_API_KEY). An issue caller
+      # whose own gate skipped the key call names it with fallback
+      # credit-stop, so this call, the first in the slot, records the skip
+      # once its broker allows it, as the key call would have.
       - name: Name the skipped key
         id: skipped-key
-        if: steps.credit.outputs.skip-key == 'true'
+        if: >-
+          steps.credit.outputs.skip-key == 'true'
+          || inputs.issue-number != '' && inputs.fallback == 'credit-stop'
+          && steps.broker.outcome == 'success' && steps.broker.outputs.allowed == 'true'
         env:
           ROLE: ${{ inputs.role }}
         run: |
@@ -569,7 +577,7 @@ jobs:
       # The skipped key leg's lane record: outcome skip, class credit-stop,
       # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped key leg
-        if: steps.credit.outputs.skip-key == 'true'
+        if: steps.skipped-key.outcome == 'success'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
@@ -639,11 +647,13 @@ jobs:
       # fails, stops the run as admit's does: no model turn, no outcome
       # marker, agent-ready kept, and work-unblock's sweep re-fires the issue
       # once no blocker is open, matching the stop step below by name. The
-      # report job ends the lease. The first call alone checks: a later leg
-      # runs only after this one handed off.
+      # report job ends the lease. The first call in the slot alone checks:
+      # the key call, or the subscription call a caller's key-credit gate
+      # made first (fallback credit-stop). A later leg runs only after the
+      # first handed off.
       - name: Re-check the issue's blockers in the slot
         id: recheck-blockers
-        if: inputs.issue-number != '' && inputs.fallback == '' && steps.lease.outputs.lease == 'held'
+        if: inputs.issue-number != '' && (inputs.fallback == '' || inputs.fallback == 'credit-stop') && steps.lease.outputs.lease == 'held'
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
@@ -793,13 +803,13 @@ jobs:
         run: |
           # Issue mode runs only on the issues event that names that issue,
           # trusting the default branch tip, with none of the PR inputs and
-          # a fallback only as handoff or fallback; the config step below holds it to
+          # a fallback only as handoff, credit-stop or fallback; the config step below holds it to
           # patch mode.
           if [ -n "$ISSUE_NUMBER" ] || [ "$EVENT_NAME" = issues ]; then
             if ! [[ $ISSUE_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] || [ "$EVENT_NAME" != issues ] ||
               [ "$ISSUE_NUMBER" != "$EVENT_ISSUE" ] || [ "$TRUSTED_BASE" != default-tip ] ||
-              [ -n "$PR_NUMBER$DISPATCHER_RUN_ID" ] || { [ "${FALLBACK:-handoff}" != handoff ] && [ "$FALLBACK" != fallback ]; }; then
-              echo "::error::issue mode needs an issues event, the event's issue number, trusted-base default-tip, no pr-number or dispatcher-run-id, and a fallback of empty, handoff or fallback"
+              [ -n "$PR_NUMBER$DISPATCHER_RUN_ID" ] || { [ "${FALLBACK:-handoff}" != handoff ] && [ "$FALLBACK" != credit-stop ] && [ "$FALLBACK" != fallback ]; }; then
+              echo "::error::issue mode needs an issues event, the event's issue number, trusted-base default-tip, no pr-number or dispatcher-run-id, and a fallback of empty, handoff, credit-stop or fallback"
               exit 1
             fi
           fi
@@ -2028,7 +2038,7 @@ jobs:
           lane: >-
             ${{ inputs.issue-number != '' && inputs.fallback == 'fallback'
             && format('{0} (token {1} handed off)', inputs.lane, steps.launch.outputs.token-name)
-            || inputs.issue-number != '' && inputs.fallback == 'handoff'
+            || inputs.issue-number != '' && (inputs.fallback == 'handoff' || inputs.fallback == 'credit-stop')
             && format('{0} (key {1} handed off)', inputs.lane, steps.launch.outputs.key-name)
             || inputs.issue-number != '' && inputs.lane
             || inputs.fallback == 'credit-stop'

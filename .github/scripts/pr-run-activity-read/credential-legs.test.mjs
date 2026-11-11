@@ -161,10 +161,11 @@ function ends(leg, ready) {
   return out;
 }
 
-// The run job's first step holds these: issue mode takes an empty, handoff
-// or fallback input, and only the second call takes a fallback-ready.
+// The run job's first step holds these: issue mode takes an empty, handoff,
+// credit-stop or fallback input, and only the second call takes a
+// fallback-ready.
 const valid = (issue, fallback, ready) =>
-  (!issue || ["", "handoff", "fallback"].includes(fallback)) && (["", "fallback"].includes(fallback) ? ready === "" : true);
+  (!issue || ["", "handoff", "credit-stop", "fallback"].includes(fallback)) && (["", "fallback"].includes(fallback) ? ready === "" : true);
 
 function* states() {
   for (const issue of [false, true])
