@@ -47,13 +47,16 @@ fi
 for tool in bwrap socat; do printf '#!/bin/bash\\n' >"$FAKE_BIN/$tool"; chmod +x "$FAKE_BIN/$tool"; done
 `);
 
-function run({ apt, preinstalled = [] }) {
+// dpkg stand-in: `stall` blocks 30 s until timeout kills it.
+const DPKG = sh('[ "$FAKE_DPKG" = stall ] && exec "$REAL_SLEEP" 30\nexit 0');
+
+function run({ apt, dpkg = "ok", budget, preinstalled = [] }) {
   const root = tempDir("runner-isolation-");
   const bin = path.join(root, "bin");
   const state = path.join(root, "state");
   for (const dir of [bin, state]) mkdirSync(dir, { recursive: true });
   for (const tool of TOOLS) symlinkSync(execFileSync("bash", ["-c", `command -v ${tool}`], { encoding: "utf8" }).trim(), path.join(bin, tool));
-  const stubs = { sudo: sh('exec "$@"'), sleep: sh(":"), sysctl: sh(":"), dpkg: sh(":"), "apt-get": APT_GET };
+  const stubs = { sudo: sh('exec "$@"'), sleep: sh('echo "$*" >>"$FAKE_SLEEPS"'), sysctl: sh(":"), dpkg: DPKG, "apt-get": APT_GET };
   for (const tool of preinstalled) stubs[tool] = sh(":");
   for (const [name, body] of Object.entries(stubs)) {
     writeFileSync(path.join(bin, name), body);
@@ -61,13 +64,20 @@ function run({ apt, preinstalled = [] }) {
   }
   const log = path.join(root, "log");
   writeFileSync(log, "");
-  const result = spawnSync(path.join(bin, "bash"), ["-e", "-o", "pipefail", "-c", installScript()], {
-    encoding: "utf8",
-    env: { PATH: bin, FAKE_LOG: log, FAKE_BIN: bin, FAKE_STATE: state, FAKE_APT: apt },
-  });
+  const sleeps = path.join(root, "sleeps");
+  writeFileSync(sleeps, "");
+  const env = {
+    PATH: bin, FAKE_LOG: log, FAKE_BIN: bin, FAKE_STATE: state, FAKE_APT: apt, FAKE_DPKG: dpkg, FAKE_SLEEPS: sleeps,
+    REAL_SLEEP: execFileSync("bash", ["-c", "command -v sleep"], { encoding: "utf8" }).trim(),
+  };
+  if (budget !== undefined) env.BUDGET_SECONDS = String(budget);
+  const began = Date.now();
+  const result = spawnSync(path.join(bin, "bash"), ["-e", "-o", "pipefail", "-c", installScript()], { encoding: "utf8", env });
   return {
     status: result.status,
     stdout: result.stdout,
+    elapsed: (Date.now() - began) / 1000,
+    sleeps: readFileSync(sleeps, "utf8").trim().split("\n").filter(Boolean),
     calls: readFileSync(log, "utf8").trim().split("\n").filter(Boolean),
     installed: existsSync(path.join(bin, "bwrap")) && existsSync(path.join(bin, "socat")),
   };
@@ -108,6 +118,18 @@ test("a mirror that never answers fails closed after three refresh attempts", ()
   assert.equal(r.installed, false);
   assert.equal(updates(r.calls), 3, `three update attempts, got: ${r.calls}`);
   assert.ok(r.stdout.includes(FAIL_CLOSED), r.stdout);
+});
+
+test("a dpkg repair that stalls is cut off at the time left in the budget", () => {
+  const r = run({ apt: "down", dpkg: "stall", budget: 4 });
+  assert.equal(r.status, 1);
+  assert.ok(r.elapsed < 10, `4 s budget plus 2 s kill grace, took ${r.elapsed} s`);
+});
+
+test("a backoff sleep longer than the time left is skipped", () => {
+  const r = run({ apt: "down", budget: 15 });
+  assert.equal(r.status, 1);
+  assert.deepEqual(r.sleeps, ["10"], "the 10 s backoff fits; the 20 s one does not");
 });
 
 test("bubblewrap present but socat missing fails closed", () => {
