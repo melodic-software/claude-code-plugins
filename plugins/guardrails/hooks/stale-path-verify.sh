@@ -89,20 +89,14 @@ esac
 # whole file from disk. An Edit's pre-existing lines outside the changed hunk are
 # not this call's claims.
 #
-# Every payload field this hook can need, in ONE jq process (hook::jq_fields),
-# not three — a jq spawn is fork() emulation on Windows Git Bash. Both per-tool
-# content fields and replace_all are fetched together because selecting between
-# them would cost another process; jq reads the same envelope either way, and the
-# tool-specific choice happens below in the shell. `replace_all` keeps its
+# Every payload field this hook can need, in ONE jq process (hook::jq_fields):
+# a jq spawn is fork() emulation on Windows Git Bash. Both per-tool content
+# fields are fetched and the shell picks one below. `replace_all` keeps its
 # `// false | tostring` INSIDE the filter: hook::jq_fields wraps each filter in
 # `// ""`, and jq's `//` treats the boolean false as empty, so a bare
-# `.tool_input.replace_all` would come back "" instead of "false". That is kept
-# for parity with the pre-conversion output, not because a branch depends on it
-# — every consumer below tests `== "true"`, which "" and "false" fail alike.
-# Failure semantics are unchanged: a missing jq or an unparsable payload yields
-# rc 1 here, which exits 0 exactly as the unmatched-TOOL case did —
-# hook::require jq above has already made the degraded state visible once per
-# session and agent.
+# `.tool_input.replace_all` would come back "" instead of "false". A missing jq
+# or an unparsable payload exits 0; hook::require jq above has already made the
+# degraded state visible once per session and agent.
 hook::jq_fields "$INPUT" '.tool_name' '.tool_input.new_string' \
   '.tool_input.content' '.tool_input.replace_all // false | tostring' || exit 0
 TOOL="${HOOK_JQ_FIELDS[0]}"
@@ -183,9 +177,8 @@ spv_word_occurrences() {
 
 # spv_anchor_occurrences <anchor> <file>: how many times <anchor> starts in
 # <file>, overlapping starts included. The advance is one byte past each start,
-# awk's `p = p + i` when `i` is the 1-based index() of an ASCII anchor. No
-# process: the previous counter was an awk over the whole file on every
-# non-word anchor, including a path that contains `/`.
+# awk's `p = p + i` when `i` is the 1-based index() of an ASCII anchor. Builtins
+# only, so no process is spawned per anchor.
 spv_anchor_occurrences() {
   local anchor="$1" file="$2" line rest prefix n=0
   [[ -n "$anchor" && -f "$file" ]] || {
@@ -544,10 +537,7 @@ reconstruct_partial_edit() {
       mapfile -t hits < <(grep -w -F -- "$anchor" "$FILE" 2>/dev/null)
     else
       spv_fixed_hits "$anchor" "$FILE"
-      hits=()
-      if ((${#SPV_HITS[@]})); then
-        hits=("${SPV_HITS[@]}")
-      fi
+      hits=(${SPV_HITS[@]+"${SPV_HITS[@]}"})
     fi
     ((${#hits[@]})) || continue
     # replace_all is the one case where repetition is expected rather than
@@ -575,11 +565,9 @@ reconstruct_partial_edit() {
     if hook::_c_locale spv__word_anchor "$anchor"; then
       [[ "$anchor" != *[.-]* ]] || continue
       occ=$(spv_word_occurrences "$anchor" "$FILE" 2>/dev/null)
-      ((occ == 1)) || continue
-      ctx+="${hits[0]}"$'\n'
-      continue
+    else
+      occ=$(spv_anchor_occurrences "$anchor" "$FILE")
     fi
-    occ=$(spv_anchor_occurrences "$anchor" "$FILE")
     ((occ == 1)) || continue
     ctx+="${hits[0]}"$'\n'
   done
@@ -844,8 +832,7 @@ emit_tel() {
   # The helper carries the redaction: a path it could not make repo-relative
   # comes back as the basename, never an absolute path, which would embed the
   # developer's username.
-  local findings_json="[]" file_rel
-  file_rel=""
+  local findings_json="[]" file_rel=""
   hook::repo_relative_path_to file_rel "$FILE" "$REPO_ROOT"
   if ((${#MISSING[@]} > 0)); then
     findings_json=$(printf '%s\n' "${MISSING[@]}" | jq -Rn '[inputs]' 2>/dev/null) || findings_json="[]"
