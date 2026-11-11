@@ -46,6 +46,14 @@ reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md -> plugins/*/reference/pr-scope-budget.md
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# docs/contracts/plugin-reconfiguration/README.md.
+reference/plugin-reconfiguration.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the canonical contract and the copies.
+docs/contracts/plugin-reconfiguration/README.md -> plugins/*/reference/plugin-reconfiguration.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/managed-scope.sh.
 lib/managed-scope.sh
 
