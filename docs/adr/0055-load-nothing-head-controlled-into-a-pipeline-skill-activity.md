@@ -210,7 +210,7 @@ code is read from the default branch".
 - ci-status reads its hold config at the default branch tip for such a layer, as for a PR into
   the default branch.
 - Evidence, in `melodic-software/pr-pipeline-sandbox` stack
-  [329](https://github.com/melodic-software/pr-pipeline-sandbox/stack/329): on layer
+  329: on layer
   [#328](https://github.com/melodic-software/pr-pipeline-sandbox/pull/328), run
   [43067581568](https://github.com/melodic-software/pr-pipeline-sandbox/actions/runs/43067581568)
   printed `base.ref` the lower branch, `base.sha` the lower layer's head, `stack.base.ref` `main`,
