@@ -71,6 +71,8 @@
     transform-origin: left center;
     pointer-events: none;
   }
+  /* user-interface keys: 250ms is animation.duration_ms.medium and the curve animation.easing_library.out.quint;
+     the item's 150ms color transition below is animation.duration_ms.hover */
   @media (prefers-reduced-motion: no-preference) {
     .vs[data-ready] .vs-highlight { transition: transform 250ms cubic-bezier(0.23, 1, 0.32, 1); }
   }

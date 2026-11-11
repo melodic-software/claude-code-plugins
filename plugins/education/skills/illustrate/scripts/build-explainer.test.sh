@@ -221,6 +221,7 @@ for (const [name, t] of Object.entries(themes)) {
   const low = [];
   for (const n of ACCENTS) {
     // A node label sits on the surface; card text, a muted before-side, and an accent date sit on the tint.
+    // 4.5 is user-interface's body-text contrast floor (reference/types/web/color/contrast.md "The bar").
     const pairs = [["fg", "surface"], ["fg", `t${n}`], ["muted", `t${n}`], [`a${n}`, `t${n}`]];
     for (const [fg, bg] of pairs) {
       const r = t[fg] && t[bg] ? contrast(t[fg], t[bg]) : 0;
