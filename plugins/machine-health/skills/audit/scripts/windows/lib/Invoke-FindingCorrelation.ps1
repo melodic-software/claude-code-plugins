@@ -73,21 +73,14 @@ function Invoke-FindingCorrelation {
         $match = & $rule.Apply $CheckResults
         if ($null -eq $match) { continue }
 
-        if ($match.upgrade_primary_to) {
-            $currentSev = $match.target.severity
-            $newSev = $match.upgrade_primary_to
-            if ($severityOrder[$newSev] -gt $severityOrder[$currentSev]) {
-                $match.target.severity = $newSev
-            }
+        $newSev = $match.upgrade_primary_to
+        if ($newSev -and $severityOrder[$newSev] -gt $severityOrder[$match.target.severity]) {
+            $match.target.severity = $newSev
         }
 
-        if ($match.note_primary) {
-            $existing = $match.target.notes
-            $match.target.notes = $existing ? "$existing; $($match.note_primary)" : $match.note_primary
-        }
-        if ($match.note_partner) {
-            $existing = $match.partner.notes
-            $match.partner.notes = $existing ? "$existing; $($match.note_partner)" : $match.note_partner
+        foreach ($link in @(@($match.target, $match.note_primary), @($match.partner, $match.note_partner))) {
+            $finding, $note = $link
+            if ($note) { $finding.notes = $finding.notes ? "$($finding.notes); $note" : $note }
         }
 
         $applied++
