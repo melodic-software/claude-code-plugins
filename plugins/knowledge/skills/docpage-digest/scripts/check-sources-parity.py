@@ -132,18 +132,10 @@ def table_rows(body):
     return rows
 
 
-def fail(failures, message):
-    failures.append(message)
-
-
 def check(slice_dir):
     failures = []
-    source_path = None
-    for name in ("source.md", "source.txt"):
-        candidate = os.path.join(slice_dir, name)
-        if os.path.isfile(candidate):
-            source_path = candidate
-            break
+    candidates = (os.path.join(slice_dir, name) for name in ("source.md", "source.txt"))
+    source_path = next((path for path in candidates if os.path.isfile(path)), None)
     if source_path is None:
         raise Unusable(f"no source.md or source.txt in {slice_dir!r}")
     lines = source_lines(read(source_path))
@@ -154,76 +146,74 @@ def check(slice_dir):
     except OSError as exc:
         raise Unusable(f"cannot list {digests_dir!r}: {exc}")
 
-    headings = source_headings(lines)
-    print(f"source: {len(lines)} line(s), {len(headings)} heading(s) "
-          f"({sum(1 for h in headings if h[1] == 2)} H2)")
+    found = source_headings(lines)
+    h2_text = {n: t for n, lv, t in found if lv == 2}
+    print(f"source: {len(lines)} line(s), {len(found)} heading(s) ({len(h2_text)} H2)")
 
     # Heading table.
     body = section(sources_text, "Headings")
     if body is None:
-        fail(failures, "SOURCES.md has no '## Headings' section")
+        failures.append("SOURCES.md has no '## Headings' section")
     else:
         listed = []
         for cells in table_rows(body):
             level = LEVEL.match(cells[1]) if len(cells) > 1 else None
             if not cells[0].isdigit() or not level:
-                fail(failures, f"SOURCES.md Headings row not parsed (want line, level): {'|'.join(cells)[:80]!r}")
+                failures.append(f"SOURCES.md Headings row not parsed (want line, level): {'|'.join(cells)[:80]!r}")
                 continue
             listed.append((int(cells[0]), int(level.group(1))))
         if not listed and not failures:
-            fail(failures, "SOURCES.md Headings table parsed zero rows")
-        truth = {(n, lv): t for n, lv, t in headings}
+            failures.append("SOURCES.md Headings table parsed zero rows")
+        truth = {(n, lv): t for n, lv, t in found}
         for key in sorted(set(truth) - set(listed)):
-            fail(failures, f"source heading missing from SOURCES.md Headings: line {key[0]} H{key[1]} {truth[key][:60]!r}")
+            failures.append(f"source heading missing from SOURCES.md Headings: line {key[0]} H{key[1]} {truth[key][:60]!r}")
         for key in sorted(set(listed) - set(truth)):
-            fail(failures, f"SOURCES.md Headings row is no source heading: line {key[0]} H{key[1]}")
+            failures.append(f"SOURCES.md Headings row is no source heading: line {key[0]} H{key[1]}")
         if len(listed) != len(set(listed)):
-            fail(failures, "SOURCES.md Headings lists a heading more than once")
+            failures.append("SOURCES.md Headings lists a heading more than once")
 
     # Digest map: contiguity, coverage, unit starts.
     mapped = []
     body = section(sources_text, "Digest map")
     if body is None:
-        fail(failures, "SOURCES.md has no '## Digest map' section")
+        failures.append("SOURCES.md has no '## Digest map' section")
     else:
         ranges = []
         for cells in table_rows(body):
             name = DIGEST_NAME.search(cells[0])
             span = RANGE.match(cells[1]) if len(cells) > 1 else None
             if not name or not span:
-                fail(failures, f"SOURCES.md Digest map row not parsed (want file, START-END): {'|'.join(cells)[:80]!r}")
+                failures.append(f"SOURCES.md Digest map row not parsed (want file, START-END): {'|'.join(cells)[:80]!r}")
                 continue
             mapped.append(name.group(0))
             ranges.append((int(span.group(1)), int(span.group(2)), name.group(0)))
         if not ranges:
-            fail(failures, "SOURCES.md Digest map parsed zero rows")
+            failures.append("SOURCES.md Digest map parsed zero rows")
         else:
             ranges.sort()
             expected = 1
             for start, end, name in ranges:
                 if end < start:
-                    fail(failures, f"digest map range for {name} runs backwards: {start}-{end}")
+                    failures.append(f"digest map range for {name} runs backwards: {start}-{end}")
                 if start != expected:
                     kind = "gap" if start > expected else "overlap"
-                    fail(failures, f"digest map {kind} before {name}: expected line {expected}, got {start}")
+                    failures.append(f"digest map {kind} before {name}: expected line {expected}, got {start}")
                 expected = max(expected, end + 1)
             if expected - 1 != len(lines):
-                fail(failures, f"digest map ends at line {expected - 1}, source has {len(lines)} line(s)")
-            h2s = [n for n, lv, _ in headings if lv == 2]
-            want = sorted(set(([1] if not h2s or h2s[0] != 1 else []) + h2s))
-            got = [r[0] for r in ranges]
-            by_line = {n: t for n, lv, t in headings if lv == 2}
-            for line in sorted(set(want) - set(got)):
-                what = f"H2 {by_line[line][:60]!r}" if line in by_line else "the introduction"
-                fail(failures, f"no digest unit starts at line {line} ({what})")
-            for line in sorted(set(got) - set(want)):
-                fail(failures, f"digest unit starts at line {line}, which is neither line 1 nor an H2")
+                failures.append(f"digest map ends at line {expected - 1}, source has {len(lines)} line(s)")
+            want = {1, *h2_text}
+            got = {r[0] for r in ranges}
+            for line in sorted(want - got):
+                what = f"H2 {h2_text[line][:60]!r}" if line in h2_text else "the introduction"
+                failures.append(f"no digest unit starts at line {line} ({what})")
+            for line in sorted(got - want):
+                failures.append(f"digest unit starts at line {line}, which is neither line 1 nor an H2")
 
     # Counts: map rows, digest files, status rows.
     status = []
     body = section(sources_text, "Status")
     if body is None:
-        fail(failures, "SOURCES.md has no '## Status' section")
+        failures.append("SOURCES.md has no '## Status' section")
     else:
         for line in body:
             if not STATUS_ROW.match(line):
@@ -232,19 +222,19 @@ def check(slice_dir):
             if name:
                 status.append(name.group(0))
             else:
-                fail(failures, f"SOURCES.md Status row names no digest file: {line.strip()[:80]!r}")
+                failures.append(f"SOURCES.md Status row names no digest file: {line.strip()[:80]!r}")
         if not status:
-            fail(failures, "SOURCES.md Status parsed zero rows")
+            failures.append("SOURCES.md Status parsed zero rows")
     print(f"digest map rows: {len(mapped)}, digest files: {len(on_disk)}, status rows: {len(status)}")
     sets = (("digest map", mapped), ("digests/", on_disk), ("Status", status))
     for label, names in sets:
         if len(names) != len(set(names)):
-            fail(failures, f"{label} names a digest file more than once")
+            failures.append(f"{label} names a digest file more than once")
     for (a_label, a), (b_label, b) in ((sets[0], sets[1]), (sets[0], sets[2])):
         for name in sorted(set(a) - set(b)):
-            fail(failures, f"{name} is in {a_label} but not in {b_label}")
+            failures.append(f"{name} is in {a_label} but not in {b_label}")
         for name in sorted(set(b) - set(a)):
-            fail(failures, f"{name} is in {b_label} but not in {a_label}")
+            failures.append(f"{name} is in {b_label} but not in {a_label}")
     return failures
 
 

@@ -99,22 +99,29 @@ tool, so `apply` installs nothing and writes nothing. It only points:
   `values.json` holds `{"eol_normalizer_enabled": "true"}` (every value a string, booleans
   included; keys left out keep their saved values). Headless fallback, before 2.1.285:
   `claude plugin install eol-normalizer@<marketplace> -s <scope> --config eol_normalizer_enabled=true`
-  (repeatable per key); against an already-installed plugin it prints `already installed` **and
-  still writes the value**. Do **not** uninstall to reconfigure: uninstalling drops this plugin's
+  (repeatable per key). Do **not** uninstall to reconfigure: uninstalling drops this plugin's
   entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
-  to its manifest default. The option value lands in user settings whichever route writes it.
-  `claude plugin configure` has no scope flag, so run it from the project the plugin is installed
+  to its manifest default. `claude plugin configure` has no scope flag, so run it from the project the plugin is installed
   in. For the rerun, `-s` defaults to `user`; pass the scope `claude plugin list` reports for this plugin, and for a
   `project` or `local` scope run from that project's directory, so the rerun matches the existing
   install record; from the home directory pass `user`. `-s` places the install record and
   `enabledPlugins`, and a rerun at another scope adds an install record at that scope and enables
-  the plugin there. Check each route's own failure signal: `--values-stdin` rejects a bad value
-  with exit 1 and saves nothing, but stores an empty string as `""`; the `--config` rerun prints a
-  warning for a rejected value yet exits 0, so read its output. This skill never writes user settings or
-  `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered
+  the plugin there. Whichever route ran, read both its exit code and its output before reporting
+  the value saved: the two routes signal a rejected value differently. This skill never writes user
+  settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered
   `${user_config.*}` is injected at skill load and each hook receives its
   `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a same-session `check`
   still reports the OLD value; report the observed effective value, never an unobserved change.
+
+  - **Pointer**: when checking how a route reports a rejected value, what the rerun prints, the
+    `-s` default, where the value is stored, or what an uninstall deletes, fetch
+    [§ plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
+    [§ plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install),
+    [§ Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
+    and [§ What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps)
+    live. **As of**: 2026-11-10. **Recheck trigger**: one of those sections changes how a route
+    reports a rejection, the rerun's output, the `-s` default, where a value is stored, or what an
+    uninstall deletes.
 - no `eol=` policy: this is the opt-out, not a defect. Point at the repository's own
   `.gitattributes` as the place to declare policy; this skill never writes `.gitattributes`,
   because that would impose a repo-wide line-ending policy the plugin has no mandate to

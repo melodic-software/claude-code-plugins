@@ -104,7 +104,7 @@ Multiple arguments combine: `/discovery:explore payments deps tests` explores th
 Present exploration findings as:
 
 1. **Summary**. 2-3 sentence overview of what was found
-2. **Current state**. Key facts about the explored area (structure, patterns, dependencies). When the explored module has a domain-vocabulary or glossary file, frame findings using the module's domain vocabulary. List each file skipped as intentionally deleted (dimension 2's probe), with the status line or commit that showed it
+2. **Current state**. Key facts about the explored area (structure, patterns, dependencies). When the project keeps a domain glossary (read it with `/domain-driven-design:ubiquitous-language lookup` when that skill is available, else find it yourself), frame findings using its terms. List each file skipped as intentionally deleted (dimension 2's probe), with the status line or commit that showed it
 3. **Existing patterns**. How similar concerns are handled elsewhere in the repo
 4. **Test coverage**. What's tested, what's not, what test patterns are used
 5. **Constraints**. Analyzers, conventions, layer rules, or CI gates that constrain the solution

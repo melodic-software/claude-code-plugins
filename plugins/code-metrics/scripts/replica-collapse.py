@@ -92,27 +92,30 @@ def carrier(rootrel: str, entry: str) -> str | None:
     return None
 
 
+def registry_match(
+    rootrel: str, registries: list[tuple[str, list[tuple[int, str]]]]
+) -> tuple[str, int, str, str] | None:
+    """The first registry line a root-relative path belongs to, with its carrier."""
+    for registry_path, entries in registries:
+        for number, entry in entries:
+            where = carrier(rootrel, entry)
+            if where is not None:
+                return registry_path, number, entry, where
+    return None
+
+
 def collapse(
     document: dict[str, Any],
     registries: list[tuple[str, list[tuple[int, str]]]],
     prefix: str,
 ) -> dict[str, Any]:
     groups: dict[tuple[Any, ...], list[tuple[str, dict[str, Any]]]] = {}
-    order: list[tuple[Any, ...]] = []
     passthrough: list[tuple[int, dict[str, Any]]] = []
     first_index: dict[tuple[Any, ...], int] = {}
     for index, row in enumerate(document.get("measures") or []):
         match = None
         if not row.get("instances") and row.get("file"):
-            rootrel = root_relative(str(row["file"]), prefix)
-            for registry_path, entries in registries:
-                for number, entry in entries:
-                    where = carrier(rootrel, entry)
-                    if where is not None:
-                        match = (registry_path, number, entry, where)
-                        break
-                if match:
-                    break
+            match = registry_match(root_relative(str(row["file"]), prefix), registries)
         if not match:
             passthrough.append((index, row))
             continue
@@ -128,15 +131,11 @@ def collapse(
             row.get("lane"),
             json.dumps(row.get("values") or {}, sort_keys=True),
         )
-        if key not in groups:
-            groups[key] = []
-            order.append(key)
-            first_index[key] = index
-        groups[key].append((where, row))
+        first_index.setdefault(key, index)
+        groups.setdefault(key, []).append((where, row))
 
     merged: list[tuple[int, dict[str, Any]]] = []
-    for key in order:
-        members = groups[key]
+    for key, members in groups.items():
         prefixes = {where for where, _ in members}
         if len(members) < 2 or len(prefixes) != len(members):
             merged.extend((first_index[key], row) for _, row in members)

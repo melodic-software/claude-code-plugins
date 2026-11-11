@@ -222,6 +222,7 @@ from babysit_util import (
     DeadlineReached,
     configure_stdio,
     deadline_after,
+    dig,
     is_json_array,
     is_json_object,
     json_array,
@@ -672,15 +673,12 @@ def unresolved_threads(repo: str, number: int) -> list[dict[str, object]] | None
     """
 
     def project(thread: dict[str, Any]) -> dict[str, object]:
-        comments = thread.get("comments")
-        first = comments[0] if isinstance(comments, list) and comments else {}
-        first_object = first if is_json_object(first) else {}
-        author = first_object.get("author")
-        author_object = author if is_json_object(author) else {}
+        comments = json_array(thread.get("comments"))
+        first = json_object(comments[0] if comments else None)
         return {
-            "author": author_object.get("login"),
-            "path": first_object.get("path"),
-            "url": first_object.get("url"),
+            "author": dig(first, "author", "login"),
+            "path": first.get("path"),
+            "url": first.get("url"),
             "isOutdated": thread.get("isOutdated", False),
         }
 
@@ -714,9 +712,7 @@ def repository_default_branch(repo: str) -> str | None:
         data = gh_json(["api", f"repos/{repo}", "--jq", "{name: .default_branch}"])
     except (RuntimeError, json.JSONDecodeError):
         return None
-    if not is_json_object(data):
-        return None
-    name = data.get("name")
+    name = json_object(data).get("name")
     if not name:
         return None
     run_cache.put(merge_policy.DEFAULT_BRANCH_SECTION, repo, str(name))
@@ -793,8 +789,7 @@ def branch_rules(repo: str, branch: str, *, shared: bool = True) -> dict[str, ob
         if not is_json_object(rule):
             continue
         rtype = rule.get("type")
-        raw_params = rule.get("parameters")
-        params = raw_params if is_json_object(raw_params) else {}
+        params = json_object(rule.get("parameters"))
         if rtype == "required_status_checks":
             # A context-less entry is dropped rather than carried: it names no
             # check to reconcile, and a None would sort-crash the union and
@@ -953,14 +948,11 @@ def find_distinct_bot_approval(
         if str(review.get("state") or "") != "APPROVED":
             continue
         review_author = review.get("author")
-        login = (
-            review_author.get("login")
-            if is_json_object(review_author)
-            else review_author
-        )
-        typename = (
-            review_author.get("__typename") if is_json_object(review_author) else None
-        )
+        if is_json_object(review_author):
+            login = review_author.get("login")
+            typename = review_author.get("__typename")
+        else:
+            login, typename = review_author, None
         login_norm = normalize_login_set([login])
         if login_norm & author_norm:
             continue  # same identity as the PR author -- not a distinct approver
@@ -971,8 +963,7 @@ def find_distinct_bot_approval(
         # App's approval would authorize a tier merge past the configured boundary.
         if not (login_norm & approver_norm):
             continue
-        commit = review.get("commit")
-        commit_oid = commit.get("oid") if is_json_object(commit) else None
+        commit_oid = dig(review, "commit", "oid")
         if not (head and commit_oid and str(commit_oid) == str(head)):
             continue  # approval is on a superseded commit -- head moved since review
         match = review
@@ -1048,12 +1039,8 @@ def _ref_repo(ref: dict[str, Any]) -> str | None:
     repository, so the veto scan must read comments from it rather than assuming
     the PR's repo (where a same-numbered issue could carry no marker).
     """
-    repository = ref.get("repository")
-    if not is_json_object(repository):
-        return None
-    name = repository.get("name")
-    owner = repository.get("owner")
-    login = owner.get("login") if is_json_object(owner) else None
+    name = dig(ref, "repository", "name")
+    login = dig(ref, "repository", "owner", "login")
     return f"{login}/{name}" if login and name else None
 
 
@@ -1125,7 +1112,7 @@ def _human_comments(
     reviews: list[dict[str, Any]],
     review_comments: list[dict[str, Any]] | None,
     actor_config: FeedbackConfig,
-) -> list[tuple[str, str, str]]:
+) -> list[tuple[str, str, str, str]]:
     """(login, time, body, association) of every human-authored issue comment, review
     summary and inline review comment on the pull request."""
     corpus: list[dict[str, Any]] = list(fetch_issue_comments(repo, number))
@@ -1337,16 +1324,8 @@ def evaluate_autopilot_tier(
         "blockingLabels": blocking_labels,
         "distinctBotApproval": (
             {
-                "author": (
-                    approval.get("author", {}).get("login")
-                    if is_json_object(approval.get("author"))
-                    else None
-                ),
-                "commit": (
-                    approval.get("commit", {}).get("oid")
-                    if is_json_object(approval.get("commit"))
-                    else None
-                ),
+                "author": dig(approval, "author", "login"),
+                "commit": dig(approval, "commit", "oid"),
             }
             if approval
             else None
@@ -1375,15 +1354,7 @@ def head_committed_at(repo: str, head_sha: str) -> datetime | None:
         data = gh_json(["api", f"repos/{repo}/commits/{head_sha}"])
     except (RuntimeError, json.JSONDecodeError):
         return None
-    if not is_json_object(data):
-        return None
-    commit = data.get("commit")
-    if not is_json_object(commit):
-        return None
-    committer = commit.get("committer")
-    if not is_json_object(committer):
-        return None
-    return parse_github_timestamp(str(committer.get("date") or ""))
+    return parse_github_timestamp(str(dig(data, "commit", "committer", "date") or ""))
 
 
 def latest_check_activity(status_rollup: Any) -> datetime | None:
@@ -1546,7 +1517,7 @@ def pull_request_stack(repo: str, number: int) -> dict[str, Any] | None:
     guessing which of the two it is.
     """
     data = gh_json(["api", f"repos/{repo}/pulls/{number}", "--jq", "{stack: .stack}"])
-    stack = data.get("stack") if is_json_object(data) else None
+    stack = dig(data, "stack")
     return stack if is_json_object(stack) else None
 
 
@@ -1607,7 +1578,7 @@ def branch_update_decision(repo: str, number: int, head_sha: str) -> dict[str, A
 def stack_members(repo: str, stack_number: int) -> list[dict[str, Any]]:
     """The stack's pull requests, bottom to top, as GitHub lists them."""
     data = gh_json(["api", f"repos/{repo}/stacks/{stack_number}"])
-    members = data.get("pull_requests") if is_json_object(data) else None
+    members = dig(data, "pull_requests")
     if not is_json_array(members) or not all(is_json_object(m) for m in members):
         raise RuntimeError(f"unexpected stack payload for {repo} stack {stack_number}")
     return cast(list[dict[str, Any]], members)
@@ -1630,7 +1601,7 @@ def evaluate_stack_layers(
     the head the stack listing reported, so a push between listing and
     evaluation reads as a moved head.
     """
-    trunk = str(json_object(stack.get("base")).get("ref") or "")
+    trunk = str(dig(stack, "base", "ref") or "")
     stack_number = stack.get("number")
     record: dict[str, Any] = {
         "member": True,
@@ -1767,11 +1738,12 @@ def evaluate(
             stack = pull_request_stack(repo, number)
         except (RuntimeError, json.JSONDecodeError) as exc:
             stack_error = str(exc)
-    trunk = str(json_object(json_object(stack).get("base")).get("ref") or "")
+    trunk = str(dig(stack, "base", "ref") or "")
     stack_mode = bool(stack and trunk and base_ref and base_ref != trunk)
     landing_base = rules_base or (trunk if stack_mode else base_ref)
     rules = branch_rules(repo, landing_base or "main")
     head = pr.get("headRefOid")
+    head_sha = str(head) if head else None
     head_matches = (
         None
         if not expected_head
@@ -1783,14 +1755,10 @@ def evaluate(
         for label in cast(list[Any], pr.get("labels") or [])
         if is_json_object(label) and label.get("name")
     ]
-    author = pr.get("author")
-    author_login = author.get("login") if is_json_object(author) else None
+    author_login = dig(pr, "author", "login")
 
     # Reconcile each required status-check context against the deduped rollup.
-    required_contexts = rules.get("requiredContexts")
-    required_context_list = (
-        required_contexts if is_json_array(required_contexts) else []
-    )
+    required_context_list = json_array(rules.get("requiredContexts"))
     required_check_status: list[dict[str, object]] = []
     for raw_context in required_context_list:
         ctx = str(raw_context)
@@ -1946,7 +1914,7 @@ def evaluate(
     }
     if rules.get("requireSignatures"):
         signature_blockers, signature_result = evaluate_required_signatures(
-            repo, number, str(head) if head else None
+            repo, number, head_sha
         )
         blockers.extend(signature_blockers)
     if head_matches is False:
@@ -1985,7 +1953,7 @@ def evaluate(
         review_comments = fetch_pull_request_review_comments(repo, number)
         settle_blockers, settle_result = evaluate_review_settle(
             repo,
-            str(head) if head else None,
+            head_sha,
             settle,
             fetch_review_evidence(
                 repo,
@@ -2003,7 +1971,7 @@ def evaluate(
         tier_blockers, tier_result = evaluate_autopilot_tier(
             repo,
             number,
-            str(head) if head else None,
+            head_sha,
             author_login,
             labels,
             closing_issues,

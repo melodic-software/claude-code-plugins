@@ -2291,13 +2291,13 @@ def apply_ops_file(d, name, claimed):
             f"refused: unexpected keys in the ops file: {sorted(set(spec) - {'ops'})}"
         )
     for i, op in enumerate(spec["ops"]):
-        name = op.get("op") if isinstance(op, dict) else None
-        if name not in OP_ARGS:
+        op_name = op.get("op") if isinstance(op, dict) else None
+        if op_name not in OP_ARGS:
             sys.exit(
-                f"refused: $.ops[{i}]: unknown op {name!r} (known: {', '.join(OP_ARGS)})"
+                f"refused: $.ops[{i}]: unknown op {op_name!r} (known: {', '.join(OP_ARGS)})"
             )
         err = schema.first_error(
-            op, ops_schema["$defs"][name], f"$.ops[{i}]", ops_schema
+            op, ops_schema["$defs"][op_name], f"$.ops[{i}]", ops_schema
         )
         if err:
             sys.exit(f"refused: {err}")
@@ -2507,8 +2507,8 @@ def print_latency(d, as_json=False):
     doc = load(d)
     events = load_json(d / "responses.json", EMPTY_RESPONSES).get("events", [])
     replies = {}
-    lines = [h for q in doc["questions"] for h in q.get("history", [])]
-    for h in lines + list(doc.get("notes") or []):
+    history = [h for q in doc["questions"] for h in q.get("history", [])]
+    for h in history + list(doc.get("notes") or []):
         if h.get("by") == "claude" and h.get("replyTo") is not None and h.get("at"):
             replies.setdefault(h["replyTo"], []).append(seconds(h["at"]))
     delivered, replied = [], []
@@ -2520,13 +2520,14 @@ def print_latency(d, as_json=False):
         if e.get("seq") in replies:
             replied.append(min(replies[e["seq"]]) - seconds(e["at"]))
     if as_json:
-        stats = {}
-        for name, vals in (("saveToDelivered", delivered), ("saveToReply", replied)):
-            stats[name] = {
+        stats = {
+            name: {
                 "n": len(vals),
                 "p50": percentile(vals, 50) if vals else None,
                 "p95": percentile(vals, 95) if vals else None,
             }
+            for name, vals in (("saveToDelivered", delivered), ("saveToReply", replied))
+        }
         print(json.dumps({"latency": stats}, indent=2))
         return
     for name, vals in (("save-to-delivered", delivered), ("save-to-reply", replied)):
@@ -2660,6 +2661,13 @@ def write_text(path, text):
     Path(path).write_text(text, encoding="utf-8", newline="\n")
 
 
+def replace_text(path, text, tag):
+    """Write `text` to a hidden `.<name>.<tag>` file beside `path`, then rename it over `path`."""
+    tmp = path.with_name(f".{path.name}.{tag}")
+    write_text(tmp, text)
+    os.replace(tmp, path)
+
+
 def cmd_export(d, a):
     if a.what == "brief":
         ledger = read_input(a.ledger, "ledger") if a.ledger else None
@@ -2760,12 +2768,8 @@ def record_ledger_sync(d, doc, ledger, force=False):
     notes = exporters.merged_register(d, read_input(ledger, "ledger"))[2]
     drift = [line for kind, line in notes if kind in ("change", "conflict")]
     # A row's note leads with its Q<N>; the one register-wide note (rows out of id order) is "order".
-    rows = list(
-        dict.fromkeys(
-            (re.match(r"Q\d+\b", line) or re.match(r"", line)).group() or "order"
-            for line in drift
-        )
-    )
+    leads = (re.match(r"Q\d+\b", line) for line in drift)
+    rows = list(dict.fromkeys(m.group() if m else "order" for m in leads))
     was = doc["meta"].get("ledgerSync") or {}
     if not force and was.get("rows") == rows and was.get("rev") == doc["rev"]:
         return drift, rows, False
@@ -2823,9 +2827,7 @@ def write_synced_ledger(d, ledger):
     text, notes = exporters.sync_ledger(
         d, read_input(path, "ledger", newline=""), ledger
     )
-    tmp = path.with_name(f".{path.name}.sync")
-    write_text(tmp, text)
-    os.replace(tmp, path)
+    replace_text(path, text, "sync")
     print(f"synced the register rows of {ledger}")
     return notes
 
@@ -2859,9 +2861,7 @@ def edit_ledger(a, edit):
     while backup.exists():
         backup, n = path.with_name(f"{path.name}.{stamp}-{n}.bak"), n + 1
     shutil.copyfile(path, backup)
-    tmp = path.with_name(f".{path.name}.edit")
-    write_text(tmp, new)
-    os.replace(tmp, path)
+    replace_text(path, new, "edit")
     print(f"updated {a.qid} in {path} (backup {backup})")
     check = HERE.parent / "scripts" / "check-open-questions.sh"
     try:
@@ -3041,10 +3041,10 @@ def cmd_ensure_running(d, a):
         )
     d.mkdir(parents=True, exist_ok=True)
     with sidecar_lock(d):
-        flag = a.emoji_markers
-        record_emoji_markers(d, None if flag is None else emoji_flag(flag))
-        pacing = a.pacing
-        record_question_pacing(d, None if pacing is None else pacing_value(pacing))
+        record_emoji_markers(
+            d, None if a.emoji_markers is None else emoji_flag(a.emoji_markers)
+        )
+        record_question_pacing(d, None if a.pacing is None else pacing_value(a.pacing))
         s = bridge.read_session(d, NAME)
         live = bool(s and bridge.running(d, s))
         # The settings layers use --user-settings, else the user file the live server applies. The

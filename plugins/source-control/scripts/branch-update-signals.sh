@@ -83,6 +83,11 @@ paged() {
 }
 pull() { [[ -n "$PULL" ]] && jq -r "$1" <<<"$PULL" 2>/dev/null | tr -d '\r'; }
 answer() { printf '%s\n' "${1:-unknown}"; }
+# count_answer <n>: yes above zero, no at zero, unknown when <n> is not a count.
+count_answer() {
+  [[ "$1" =~ ^[0-9]+$ ]] || { answer ""; return; }
+  if (($1 > 0)); then answer yes; else answer no; fi
+}
 
 load() {
   [[ -n "$REPO" ]] || REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null | tr -d '\r')
@@ -96,11 +101,11 @@ load() {
     HEAD_SHA=$(git rev-parse -q --verify "refs/heads/$BRANCH^{commit}" 2>/dev/null)
     HEAD_REF="$BRANCH"
   fi
-  [[ -z "$REPO" || -z "$BASE" ]] || {
+  if [[ -n "$REPO" && -n "$BASE" ]]; then
     RULES=$(paged "repos/$REPO/rules/branches/$(uri "$BASE")")
     META=$(gh repo view "$REPO" --json defaultBranchRef,squashMergeAllowed,mergeCommitAllowed,rebaseMergeAllowed 2>/dev/null | tr -d '\r')
     DEFAULT_BRANCH=$(jq -r '.defaultBranchRef.name // empty' <<<"$META" 2>/dev/null | tr -d '\r')
-  }
+  fi
   CHECKOUT_HEAD=$(git rev-parse -q --verify 'HEAD^{commit}' 2>/dev/null)
   # A pull request's objects are only certain to be here when it is checked out.
   { [[ -z "$PR" ]] || [[ -n "$HEAD_SHA" && "$CHECKOUT_HEAD" == "$HEAD_SHA" ]]; } || return 0
@@ -114,14 +119,13 @@ load() {
 history_ready() { [[ -n "$BASE_TIP" && -n "$HEAD_SHA" ]]; }
 
 signal_behind() {
-  local n
+  local n=""
   if [[ -n "$PR" ]]; then
     [[ -n "$HEAD_SHA" && -n "$BASE" ]] && n=$(api "repos/$REPO/compare/$(uri "$BASE")...$HEAD_SHA" --jq .behind_by)
   else
     history_ready && n=$(git rev-list --count "$HEAD_SHA..$BASE_TIP" 2>/dev/null)
   fi
-  [[ "${n:-}" =~ ^[0-9]+$ ]] || { answer ""; return; }
-  if ((n > 0)); then answer yes; else answer no; fi
+  count_answer "$n"
 }
 
 signal_conflict() {
@@ -205,10 +209,9 @@ signal_rewrite() {
     [[ -n "$remote_heads" ]] || { echo allowed; return; }
   fi
   [[ "$ALLOW_REWRITE" == 1 && -n "$HEAD_REF" ]] || { echo blocked; return; }
-  local rules
+  local rules verdict
   rules=$(paged "repos/$REPO/rules/branches/$(uri "$HEAD_REF")")
   [[ -n "$rules" ]] || { echo blocked; return; }
-  local verdict
   verdict=$(jq -r 'if any(.[]; .type == "non_fast_forward") then "blocked" else "allowed" end' <<<"$rules" 2>/dev/null)
   printf '%s\n' "${verdict:-blocked}"
 }
@@ -227,8 +230,8 @@ signal_other_authors() {
   history_ready || { answer ""; return; }
   local me email emails
   me=$(git config user.email 2>/dev/null)
-  emails=$(git log --no-merges --format=%ae "$BASE_TIP..$HEAD_SHA" 2>/dev/null) || { answer ""; return; }
   [[ -n "$me" ]] || { answer ""; return; }
+  emails=$(git log --no-merges --format=%ae "$BASE_TIP..$HEAD_SHA" 2>/dev/null) || { answer ""; return; }
   while IFS= read -r email; do
     if [[ -n "$email" && "${email,,}" != "${me,,}" ]]; then
       answer yes
@@ -240,10 +243,7 @@ signal_other_authors() {
 
 signal_dependents() {
   [[ -n "$HEAD_REF" ]] || { answer ""; return; }
-  local n
-  n=$(gh pr list -R "$REPO" --base="$HEAD_REF" --state open --limit 1 --json number --jq length 2>/dev/null | tr -d '\r')
-  [[ "$n" =~ ^[0-9]+$ ]] || { answer ""; return; }
-  if ((n > 0)); then answer yes; else answer no; fi
+  count_answer "$(gh pr list -R "$REPO" --base="$HEAD_REF" --state open --limit 1 --json number --jq length 2>/dev/null | tr -d '\r')"
 }
 
 signal_base_merged() {
@@ -276,19 +276,14 @@ signal_human_review() {
 signal_landing() {
   [[ -n "$RULES" && -n "$META" ]] || { answer ""; return; }
   case "$(jq -r 'map(select(.type == "merge_queue").parameters.merge_method) | .[0] // ""' <<<"$RULES")" in
-    SQUASH)
-      answer squash
-      return
+    SQUASH) answer squash ;;
+    ?*) answer keeps-commits ;;
+    *)
+      answer "$(jq -r 'if .squashMergeAllowed then "squash"
+        elif .mergeCommitAllowed or .rebaseMergeAllowed then "keeps-commits"
+        else empty end' <<<"$META" 2>/dev/null)"
       ;;
-    ?*)
-      answer keeps-commits
-      return
-      ;;
-    *) ;;
   esac
-  answer "$(jq -r 'if .squashMergeAllowed then "squash"
-    elif .mergeCommitAllowed or .rebaseMergeAllowed then "keeps-commits"
-    else empty end' <<<"$META" 2>/dev/null)"
 }
 
 signal_overlap() {

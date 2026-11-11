@@ -220,7 +220,7 @@ given, and one disposal venue does not exist.
   the chain as drafted was **factually wrong**: the fresh-context phase verifier fires at *every
   phase boundary* (a loop) while confirm → quality-gate → pull-request fires *once at completion*,
   and that verifier is dispatched by `implementation:implement-dispatch`, not `implement` —
-  writing it down canonically would have laundered the error into an SSOT. Also: READMEs are
+  writing it down canonically would have recorded the wrong chain as the single source of truth. Also: READMEs are
   human-facing and graded on a different bar by docs hygiene; `plugin-philosophy.md:474-476`
   routes a cross-plugin concern to a `docs/conventions/` owner doc rather than a plugin README;
   converting the inline mentions to citations would **strip the presence gates from the invocation
@@ -237,7 +237,7 @@ given, and one disposal venue does not exist.
   `verification`'s **own** chaining table (`skills/confirm/SKILL.md:125,128`) already fires on
   "review gate passes" → suggest `confirm`, then PR after CONFIRMED. The skill that renders the
   verdict, the skill that lists the sequence, and the plugin that opens the PR all agreed;
-  `implement`'s handoff step was the lone dissenter. Landed: a new owner doc
+  `implement`'s handoff step alone put review, verification and the PR in a different order. Landed: a new owner doc
   `docs/contracts/pre-pr-ordering/` with a registry row in `plugin-philosophy.md` (the registry's
   own trigger — "a new cross-plugin convention lands in an owner doc before a second plugin adopts
   it" — had already fired); `pre-pr.md` cites the owner for the order and keeps ownership of what
@@ -388,14 +388,15 @@ condition) belongs to the invocation-reach tracked strand in
   user the command to run. Standing `skill-quality:check` automation was deliberately deferred — cross-plugin
   target resolution is not cheap under the single skills-root model — so the doctrine lines in
   the two authoring surfaces carry the rule rather than a check.
-- **C23 ALREADY-PRESENT**: `domain-driven-design:curate-language` triggers already key on
+- **C23 ALREADY-PRESENT**: `domain-driven-design:ubiquitous-language` triggers already key on
   concrete artifacts (glossary, domain term, vocabulary), so upstream's artifact-anchored
   `domain-modeling` rewording (`domain-modeling/SKILL.md:3`, PR #848) had nothing to add. A
   one-shot comparison, not a re-evaluation trigger. Annotated 2026-10-04: upstream reworded the
   trigger again before v1.3.0 (`e12e7ec`, `54bc6b6`, then `d80fa0f` for the `GLOSSARY.md` rename);
   it now fires when the talk turns to codebase terms, or when a `GLOSSARY.md` or an ADR is being written or changed. C23 holds
-  for the glossary half. The ADR clause is a deliberate REJECT: `curate-language` owns no ADRs and
-  surfaces consequential decisions to the planning workflow (`curate-language/SKILL.md:107-108`).
+  for the glossary half. The ADR clause is a deliberate REJECT: `ubiquitous-language` owns no ADRs and
+  leaves them to `/architecture:record-decision`
+  (`plugins/domain-driven-design/skills/ubiquitous-language/SKILL.md:84-85`).
 
 ## Lane E (#2949)
 

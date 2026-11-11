@@ -255,7 +255,7 @@ a committed `mocks/.replay/` so agent mocks replay without a model call.
    delta reads 0, so that share of the pass is wasted. When a script is one you would not run on
    your own machine, select the other cases with `--case <glob>` or `--tag <tag>`. On Linux and WSL2, run the CLI as `env TMPDIR=<dir> claude plugin eval …`, where `<dir>` is a directory of at most 24 characters outside the system temp directories that you create first, on disk (for example `$HOME/.ev` when that stays within 24 characters; not the `/run/user` tmpfs, which kept sandboxes can fill). Why: [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start). When a case's description asks for `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, add it to the same `env` prefix: [sandboxes.md, Auto memory](reference/sandboxes.md#auto-memory).
 
-   Without `--trust-plugin` a non-TTY run against an untrusted directory is refused with exit 1.
+   A non-TTY run against an untrusted directory needs `--trust-plugin` ([Trust the plugin directory](https://code.claude.com/docs/en/plugin-evals#trust-the-plugin-directory), as of 2026-11-10; recheck when that section changes what a run that cannot ask does).
    `--keep-temp` keeps each run's trace for the validity gate under "Reading the delta". A run
    that feeds a decision keeps `--judge-model opus`, since the CLI's default judge is uncalibrated
    for decisions; only an exploratory run drops it. Run it in the foreground with a tool timeout
@@ -266,15 +266,13 @@ a committed `mocks/.replay/` so agent mocks replay without a model call.
    results exist and reads none of them. A command the main conversation starts with the Bash
    tool's `run_in_background` holds a `-p` run open until it exits or reaches its time limit (both
    in [records](reference/records.md#ceiling-trust-and-report-behavior)). A larger suite can
-   outrun the foreground timeout, after which the command moves to the background (it stops
-   instead under `--bare`) and that limit counts from the move, or outrun the limit itself. For what holds a `-p` run open and which
+   outrun the foreground timeout or the time limit itself. For what holds a `-p` run open and which
    limits apply, see <https://code.claude.com/docs/en/headless#background-tasks-at-exit> and
    <https://code.claude.com/docs/en/tools-reference#time-limit-for-background-commands>. An
    interactive session backgrounds a run only as a harness-tracked task it waits for. A run is
    finished when the process exits and `results.json` exists; read the exit code and the JSON
    together, never one alone. Write the file where git ignores it (the
-   CLI's own copy lands under `<eval dir>/results/<timestamp>/`, which can take `--json` too when
-   ignored); a run result is evidence to distill, not a file to commit.
+   CLI's own copy lands where the `--output-dir` row of [Command options](https://code.claude.com/docs/en/plugin-evals#command-options) says, which can take `--json` too when ignored; as of 2026-11-10, recheck when that row changes its default); a run result is evidence to distill, not a file to commit.
 
 4. Read the JSON with the `read` action below. With `--json <file>` there is no terminal table, so
    the JSON is the only record of what happened.
@@ -317,7 +315,7 @@ Read in this order. Stopping early at any step is the finding.
    the suite did not finish: report that and keep the document out of any trend.
 3. Per run, `skippedPaidGraders: true` or a non-null `error`. A skipped judge grader is still
    scored, as a failure with `explanation: "skipped: cost ceiling"`, so it silently depresses the
-   arm. A non-null `error` does not imply score 0, because the run is graded on what it produced.
+   arm. A non-null `error` does not by itself imply score 0: which errored runs are still graded is in [JSON result](https://code.claude.com/docs/en/plugin-evals#json-result) (as of 2026-11-10; recheck when that section changes which errored runs are graded).
    Either makes the case not comparable; say so instead of reporting its number.
 4. `cases[].aggregates.delta`. It is **omitted** when the arms are not comparable. An omitted delta
    is never zero, and neither is a missing `scoreWithout`.
@@ -420,7 +418,7 @@ A CI job runs the command under Run with `--model` and `--judge-model` added, un
 pin both, each to a full model ID and never an alias such as `sonnet`, so a model rollout is not
 read as a plugin regression; pass `--trust-plugin` because a non-TTY job is otherwise refused; and
 read the JSON in addition to the exit code. Exit 1 still fails the job on a below-threshold case,
-but it is overloaded across six causes and exit 2 means partial, so the JSON is what tells a
+but exit 1 has several causes and exit 2 more than one (the table in [Run evals in CI](https://code.claude.com/docs/en/plugin-evals#run-evals-in-ci) lists them), so the JSON is what tells a
 reader which one happened and whether the arms were comparable at all (pointer: the CI pins row under [Sources](#sources)).
 
 ## Boundary, the built-in `plugin eval` command
@@ -448,22 +446,19 @@ reader which one happened and whether the arms were comparable at all (pointer: 
 - The without-arm is not the with-arm minus the plugin: the model without the plugin may load a
   bundled skill such as `claude-api` and cost several times the with-arm. Estimate each arm from
   its own runs.
-- `--trust-plugin` persists. Answering the trust prompt yes inside a git repository trusts the whole
-  repository, and later non-TTY runs launch instead of being refused.
+- `--trust-plugin` persists (observed: [records.md](reference/records.md#ceiling-trust-and-report-behavior)), so later non-TTY runs launch instead of being refused. How far a yes at the trust prompt reaches: [Trust the plugin directory](https://code.claude.com/docs/en/plugin-evals#trust-the-plugin-directory), as of 2026-11-10; recheck when that section changes what a yes trusts.
 - Without `--keep-temp` the per-run `tracePath` points at a directory the runner has already
   deleted, so decide on `--keep-temp` before the run, not after reading a surprising score.
 - A typo in `--case` exits 1 and no exit code separates it from a real failure, so read the CLI's
   message before treating an exit 1 as a failing case.
 - A usage or rate limit mid-suite is **not** marked partial, so `partial: false` does not show the
-  runs ended normally. Later runs end with the error, are graded on what they produced, and usually
-  score 0 in both arms, so the suite reads as a regression. Check each affected run's `error`
+  runs ended normally. Later runs end with the error and get 0 with no grader run, in both arms, so the suite reads as a regression (pointer: [Runs fail with a usage-limit or rate-limit error partway through](https://code.claude.com/docs/en/plugin-evals#runs-fail-with-a-usage-limit-or-rate-limit-error-partway-through), as of 2026-11-10; recheck when that section changes how such a run is scored). Check each affected run's `error`
   (`cases[].arms.with[].error`, `cases[].arms.without[].error`) before believing a drop; when it
   names the limit, rerun those cases with `--case` once the limit resets. It is neither a
   regression nor flaky cases, and leaving the cases out of the trend is not enough on its own.
   When `error` is null, run the validity gate and the noise report before drawing any conclusion,
   and say nothing yet about the cases themselves. A run whose sandbox never started fails the gate's `session started` check; the `TMPDIR` route is in [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start). On Claude Code 2.1.316, when cases grant Bash or load a skill with a pre-computed (``!`command` ``) line, a run's `TMPDIR` must not sit under `/tmp` or `/var/tmp`; the run step's `$HOME` directory avoids it. The gate fails a run whose failed Bash result reports a read-only file system in the run's workspace or `TMPDIR`, or whose pre-computed command failed; recheck when a release note touches `plugin eval` sandbox paths or `TMPDIR` ([records.md](reference/records.md#sandbox-and-credential-store)).
-- A run from inside a Claude Code session keeps its report local and says `kept local`; from a
-  terminal it may publish to claude.ai unless `--no-publish` is passed.
+- Pass `--no-publish` on a terminal run whose report must stay local. When a report publishes, and when a session-started run keeps it local: [HTML report](https://code.claude.com/docs/en/plugin-evals#html-report), as of 2026-11-10; recheck when that section changes when a report publishes.
 - The sandbox limits what the agent under test can reach. It is not a boundary against the
   plugin's own code: hooks, `--scaffold` scripts, and real MCP servers run as you, outside it, with
   network access. A passing suite is a behavior measurement, never a security vetting. Observed sandbox write limits: [records.md](reference/records.md#sandbox-and-credential-store).
@@ -476,9 +471,9 @@ record a drift outcome in this plugin's CHANGELOG.
 
 | Rule | Pointer | As of | Recheck when |
 |---|---|---|---|
-| Version floor and its two error strings | `claude plugin eval --help`; troubleshooting in <https://code.claude.com/docs/en/plugin-evals> | 2026-09-12 | A release note touches `plugin eval`, or the floor error string changes |
+| Version floor and its two error strings | `claude plugin eval --help`; <https://code.claude.com/docs/en/plugin-evals#requirements>; <https://code.claude.com/docs/en/plugin-evals#troubleshooting> | 2026-09-12 | A release note touches `plugin eval`, or the floor error string changes |
 | Git floor | <https://code.claude.com/docs/en/plugin-evals#requirements>; refusal at <https://code.claude.com/docs/en/plugin-evals#git-is-too-old-for-claude-plugin-eval> | 2026-10-10 | That section changes the floor or its no-git exemption |
-| Sandbox backend table and the no-backend refusal | [Set up Linux and WSL2](https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2); plugin-evals platform notes | 2026-10-04 | Either names a Windows backend, or adds or drops a package or WSL note |
+| Sandbox backend table and the no-backend refusal | [Set up Linux and WSL2](https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2); <https://code.claude.com/docs/en/plugin-evals#grant-tools> | 2026-10-04 | Either names a Windows backend, or adds or drops a package or WSL note |
 | Docker credential-store refusal and the `~/.docker/bin` exemption | <https://code.claude.com/docs/en/changelog> (2.1.293); no docs page covers it | 2026-10-10 | A docs page documents the check, or a release note touches sandbox credential exclusion or exempt paths |
 | `eval_tmpdir` 24-character bound and its refusal | [unix(7)](https://man7.org/linux/man-pages/man7/unix.7.html) `sun_path`; sandbox-runtime's bridge sockets and the 63- and 24-character pair in [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start) | 2026-10-31 | sandbox-runtime renames its bridge sockets, a release note touches `plugin eval` sandbox paths or `TMPDIR`, or a `<dir>` within the bound fails with the bridge-socket error |
 | Sandbox network denial report, read by the permission denials check | [Sandboxing, The unsandboxed retry escape hatch](https://code.claude.com/docs/en/sandboxing#the-unsandboxed-retry-escape-hatch) says only that the result names the denied host; no page documents the report's format, observed in a with-arm Bash result on Claude Code 2.1.317 (issue #12988), its shape kept in `scripts/fixtures/run-validity/traces/network-denied.jsonl` | 2026-11-04 | That page documents the violation report, a release note touches sandbox violation reporting, or a kept trace shows a network denial the check missed |
@@ -496,4 +491,4 @@ record a drift outcome in this plugin's CHANGELOG.
 | Judge calibration: what a judge reads, the 90% bar, trace judges not seeing the prompt | <https://code.claude.com/docs/en/plugin-evals#what-a-grader-can-look-at>; "When the grader is an LLM judge" in [eval-audit.md](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/eval-audit.md); a kept 2.1.287 trace | 2026-10-02 | The focus table changes, a kept trace starts carrying the prompt or system prompt, or eval-audit.md moves its bar |
 | CI pins | <https://code.claude.com/docs/en/plugin-evals#run-evals-in-ci>; <https://code.claude.com/docs/en/model-config#model-aliases> | 2026-10-02 | Either section changes how it pins or resolves a model |
 | Headless stay-attached: what holds a `-p` run open, the background command time limit | <https://code.claude.com/docs/en/headless#background-tasks-at-exit>; <https://code.claude.com/docs/en/tools-reference#time-limit-for-background-commands>; a probe on Claude Code 2.1.316 ([records.md](reference/records.md#ceiling-trust-and-report-behavior)) | 2026-11-01 | Either section changes what holds a run open or its limits, or a release note touches background tasks or `-p` exit |
-| Ceiling shapes, trust persistence, the unmarked limit, `kept local`, `init` needing a terminal | <https://code.claude.com/docs/en/plugin-evals> (`--max-cost-usd` and exit-code rows, rate-limit troubleshooting, HTML report, "Write a case manually", CI); [records.md](reference/records.md#ceiling-trust-and-report-behavior) | 2026-09-13 | A release note touches `plugin eval`, publishing, `init` or limit handling, or a pass shows a ceiling shape not named here |
+| Ceiling shapes, trust persistence, the unmarked limit, `kept local`, `init` needing a terminal | <https://code.claude.com/docs/en/plugin-evals#command-options> (`--max-cost-usd` row); <https://code.claude.com/docs/en/plugin-evals#run-evals-in-ci> (exit codes, CI); <https://code.claude.com/docs/en/plugin-evals#runs-fail-with-a-usage-limit-or-rate-limit-error-partway-through>; <https://code.claude.com/docs/en/plugin-evals#html-report>; <https://code.claude.com/docs/en/plugin-evals#write-a-case-manually>; [records.md](reference/records.md#ceiling-trust-and-report-behavior) | 2026-09-13 | A release note touches `plugin eval`, publishing, `init` or limit handling, or a pass shows a ceiling shape not named here |

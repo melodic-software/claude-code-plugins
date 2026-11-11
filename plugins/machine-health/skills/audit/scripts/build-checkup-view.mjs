@@ -37,8 +37,9 @@ const EXCLUSION_WITHHELD = "(exclusion value withheld)";
 
 export class CheckupInputError extends Error {}
 
+const isScalar = (value) => ["string", "number", "boolean"].includes(typeof value);
 const text = (value) => {
-  if (!["string", "number", "boolean"].includes(typeof value)) {
+  if (!isScalar(value)) {
     return "";
   }
   const flat = String(value).replace(/[\p{Cc}\p{Zl}\p{Zp}\p{Bidi_Control}]/gu, " ");
@@ -53,7 +54,7 @@ const isObject = (value) => value !== null && typeof value === "object" && !Arra
 function itemEvidence(item, exclusion) {
   const hidden = ["key", "severity", "muted", "title", ...(exclusion ? ["value"] : [])];
   return Object.entries(item)
-    .filter(([name, value]) => !hidden.includes(name) && ["string", "number", "boolean"].includes(typeof value))
+    .filter(([name, value]) => !hidden.includes(name) && isScalar(value))
     .slice(0, ITEM_FIELDS_SHOWN)
     .map(([name, value]) => text(`${name}: ${value}`));
 }

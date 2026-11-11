@@ -150,16 +150,13 @@ set_kv() { # set_kv <key> <value> <source layer>
   printf -v "VAL_$n" '%s' "$2"
   printf -v "SRC_$n" '%s' "$3"
 }
-val() {
+kv_get() { # kv_get VAL|SRC <key>
   local n
-  n="VAL_$(kv_name "$1")"
+  n="$1_$(kv_name "$2")"
   printf '%s' "${!n:-}"
 }
-src() {
-  local n
-  n="SRC_$(kv_name "$1")"
-  printf '%s' "${!n:-}"
-}
+val() { kv_get VAL "$1"; }
+src() { kv_get SRC "$1"; }
 
 ROLES=()
 NOTES=()
@@ -365,17 +362,15 @@ basis_of() {
 }
 
 role_json() {
-  local r="$1" p="roles.$1" model effort ms es mw="" ew="" mb fb fan guarded=false w guard
+  local r="$1" p="roles.$1" model effort ms es mw="" ew="" mb fb fan guarded=false w guard v
   model="$(val "$p.model")" ms="$(src "$p.model")"
   effort="$(val "$p.effort")" es="$(src "$p.effort")"
   if [[ -n "$WORKLOAD" ]]; then
     w="$p.workloads.$WORKLOAD"
-    if [[ -n "$(val "$w.model")" ]]; then
-      model="$(val "$w.model")" ms="$(src "$w.model")" mw="$WORKLOAD"
-    fi
-    if [[ -n "$(val "$w.effort")" ]]; then
-      effort="$(val "$w.effort")" es="$(src "$w.effort")" ew="$WORKLOAD"
-    fi
+    v="$(val "$w.model")"
+    [[ -z "$v" ]] || model="$v" ms="$(src "$w.model")" mw="$WORKLOAD"
+    v="$(val "$w.effort")"
+    [[ -z "$v" ]] || effort="$v" es="$(src "$w.effort")" ew="$WORKLOAD"
   fi
   fan="$model"
   mb="$(basis_of "$p" model "$ms" "$mw")" fb="$mb"
@@ -394,7 +389,7 @@ role_json() {
   [[ "$model" == inherit ]] && model="$SESSION_MODEL"
   [[ "$fan" == inherit ]] && fan="$SESSION_MODEL"
   if [[ "$model" == haiku || "$fan" == haiku ]]; then
-    NOTES+=("$r: resolves to haiku; no Haiku role until it passes the routing eval (#6901), effort high and never xhigh or max: reference/routing-rubric.md")
+    NOTES+=("$r: resolves to haiku; no role routes to Haiku by owner decision, effort high and never xhigh or max: reference/routing-rubric.md")
   fi
 }
 

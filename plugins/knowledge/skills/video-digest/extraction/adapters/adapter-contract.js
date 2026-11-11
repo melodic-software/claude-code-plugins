@@ -437,14 +437,12 @@ export function validateAdapter(spec) {
   }
   const record = /** @type {Record<string, unknown>} */ (spec);
 
-  for (const method of REQUIRED_METHODS) {
+  for (const [method, expected] of Object.entries(REQUIRED_METHOD_ARITY)) {
     const value = record[method];
     if (typeof value !== "function") {
       violations.push(`required method "${method}" is missing or not a function`);
       continue;
     }
-    const expected =
-      REQUIRED_METHOD_ARITY[/** @type {keyof typeof REQUIRED_METHOD_ARITY} */ (method)];
     if (value.length !== expected) {
       violations.push(
         `method "${method}" declares ${value.length} parameter(s); the contract requires exactly ${expected} (no defaulted/rest required parameters)`,
@@ -478,19 +476,13 @@ export function validateAdapter(spec) {
       violations.push(`attribute "${attribute}" must be a non-empty string or null`);
     }
   }
-  if (
-    typeof record.captionClass !== "string" ||
-    !CAPTION_CLASSES.includes(/** @type {CaptionClass} */ (record.captionClass))
-  ) {
+  if (!CAPTION_CLASSES.includes(/** @type {CaptionClass} */ (record.captionClass))) {
     violations.push(
       `attribute "captionClass" must be one of: ${CAPTION_CLASSES.join(", ")} (the classes the shared caption ladder consumes)`,
     );
   }
   if (
-    typeof record.transcriptStrategy !== "string" ||
-    !TRANSCRIPT_STRATEGIES.includes(
-      /** @type {TranscriptStrategy} */ (record.transcriptStrategy),
-    )
+    !TRANSCRIPT_STRATEGIES.includes(/** @type {TranscriptStrategy} */ (record.transcriptStrategy))
   ) {
     violations.push(
       `attribute "transcriptStrategy" must be one of: ${TRANSCRIPT_STRATEGIES.join(", ")}`,

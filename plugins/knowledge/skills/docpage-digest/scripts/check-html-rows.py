@@ -96,17 +96,16 @@ def main(argv=None):
             if payload is None:
                 print(f"FAIL {name}: no fence follows the label")
                 failures += 1
-            elif all(not ln.strip() or ln in ELLIPSIS for ln in payload.split("\n")):
+                continue
+            lines = payload.split("\n")
+            if all(not ln.strip() or ln in ELLIPSIS for ln in lines):
                 print(f"FAIL {name}: fence payload is empty or only truncation marks, not a quote")
                 failures += 1
             elif payload in raw:
                 print(f"EXACT {name}")
             else:
-                cuts = sum(ln in ELLIPSIS for ln in payload.split("\n"))
-                missing = [
-                    ln for ln in payload.split("\n")
-                    if ln and ln not in ELLIPSIS and ln not in parser.pieces
-                ]
+                cuts = sum(ln in ELLIPSIS for ln in lines)
+                missing = [ln for ln in lines if ln and ln not in ELLIPSIS and ln not in parser.pieces]
                 if missing:
                     print(f"FAIL {name}: {len(missing)} line(s) not a text node or attribute value, first {missing[0][:80]!r}")
                     failures += 1

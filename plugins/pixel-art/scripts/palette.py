@@ -211,16 +211,8 @@ def read_png(path):
                 value = sample + paeth(left, up, up_left)  # identifier, not prose # spellchecker:disable-line
             recon[i] = value & 255
         previous = recon
-        row = []
-        if bpp == 4:
-            for x in range(width):
-                i = x * 4
-                row.append((recon[i], recon[i + 1], recon[i + 2], recon[i + 3]))
-        else:
-            for x in range(width):
-                i = x * 3
-                row.append((recon[i], recon[i + 1], recon[i + 2], 255))
-        rows.append(row)
+        opaque = () if bpp == 4 else (255,)
+        rows.append([tuple(recon[i:i + bpp]) + opaque for i in range(0, width * bpp, bpp)])
     return width, height, rows
 
 
@@ -258,9 +250,7 @@ def snap_rgba(rows, colors, dither=False):
                 continue
             if dither:
                 offset = dither_offset(x, y)
-                red = min(255, max(0, red + offset))
-                green = min(255, max(0, green + offset))
-                blue = min(255, max(0, blue + offset))
+                red, green, blue = (min(255, max(0, channel + offset)) for channel in (red, green, blue))
             cr, cg, cb = colors[nearest_index(red, green, blue, colors)]
             out.append((cr, cg, cb, 255))
         snapped.append(out)
@@ -273,10 +263,7 @@ def snap_frame_rows(rows, palette, dither=False):
     by_rgb = {}
     for key, rgb in zip(keys, colors):
         by_rgb.setdefault(rgb, key)
-    frame = []
-    for row in snap_rgba(rows, colors, dither):
-        chars = []
-        for red, green, blue, alpha in row:
-            chars.append(TRANSPARENT if alpha == 0 else by_rgb[(red, green, blue)])
-        frame.append("".join(chars))
-    return frame
+    return [
+        "".join(TRANSPARENT if alpha == 0 else by_rgb[(red, green, blue)] for red, green, blue, alpha in row)
+        for row in snap_rgba(rows, colors, dither)
+    ]

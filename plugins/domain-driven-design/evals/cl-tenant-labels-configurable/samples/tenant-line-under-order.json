@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "# Northwind Trading glossary\n\n**Order**\n\nA buyer's confirmed request to purchase one or more catalog items.\n\nAvoid: basket, cart\n\nShown to users as: configurable per tenant\n\n**Shipment**\n\nOne physical consignment handed to a carrier.\n\nAvoid: parcel, order line\n", "why": "tenant line under Order"}
+  ],
+  "fail": [
+    {"answer": "**Order**\n\nA buyer's confirmed request to purchase one or more catalog items.\n\nAvoid: basket, cart\n\n**Shipment**\n\nOne physical consignment handed to a carrier.\n\nShown to users as: configurable per tenant\n", "why": "line under Shipment, not Order"},
+    {"answer": "**Order**\n\nA buyer's confirmed request to purchase one or more catalog items.\n\nAvoid: basket, cart, purchase, requisition\n", "why": "tenant words on Avoid, no tenant line"},
+    {"answer": "", "why": "empty file"}
+  ]
+}

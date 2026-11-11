@@ -228,6 +228,7 @@ jobs:
       # re-runs it once on its next pass (reconcile.mjs faultHeld), where the
       # gate checks the trigger again.
       - name: Note the hold
+        id: note-hold
         if: steps.pr.outputs.reason == 'held' || steps.gate.outputs.reason == 'read-fault'
         env:
           GATE_REASON: ${{ steps.gate.outputs.reason }}
@@ -236,6 +237,8 @@ jobs:
             echo "::notice title=pr-verify::held: pr-verify's trigger gate met a GitHub fault (read-fault); nothing is judged"
           fi
           echo "pr-verify held on a GitHub fault; the lost-run reconciler re-runs this run once"
+          # The hold's marker for monitor signal 13 (lane-hold-marker.mjs).
+          { mkdir -p "$RUNNER_TEMP/lane-hold" && echo "pr-verify $GITHUB_RUN_ID" >"$RUNNER_TEMP/lane-hold/pr-verify"; } || true
 
       # The gate and the resolver read the PR separately; both must name the
       # same PR at the run's head, or nothing is judged.
@@ -2140,6 +2143,19 @@ jobs:
           handoff: ${{ (steps.judge.outputs.handoff == 'true' || steps.judge-2.outputs.handoff == 'true' || steps.judge-3.outputs.handoff == 'true' || steps.judge-4.outputs.handoff == 'true' || steps.judge-5.outputs.handoff == 'true' || steps.judge-6.outputs.handoff == 'true' || steps.judge-7.outputs.handoff == 'true' || steps.judge-8.outputs.handoff == 'true' || steps.judge-9.outputs.handoff == 'true' || steps.judge-10.outputs.handoff == 'true' || steps.judge-11.outputs.handoff == 'true' || steps.judge-12.outputs.handoff == 'true' || steps.judge-spec.outputs.handoff == 'true') && (steps.key-leg.outputs.clean || steps.key-leg-2.outputs.clean || steps.key-leg-3.outputs.clean || steps.key-leg-4.outputs.clean || steps.key-leg-5.outputs.clean || steps.key-leg-6.outputs.clean || steps.key-leg-7.outputs.clean || steps.key-leg-8.outputs.clean || steps.key-leg-9.outputs.clean || steps.key-leg-10.outputs.clean || steps.key-leg-11.outputs.clean || steps.key-leg-12.outputs.clean || steps.key-leg-spec.outputs.clean) == 'true' }}
           handoff-reason: ${{ steps.judge.outputs.handoff-reason || steps.judge-2.outputs.handoff-reason || steps.judge-3.outputs.handoff-reason || steps.judge-4.outputs.handoff-reason || steps.judge-5.outputs.handoff-reason || steps.judge-6.outputs.handoff-reason || steps.judge-7.outputs.handoff-reason || steps.judge-8.outputs.handoff-reason || steps.judge-9.outputs.handoff-reason || steps.judge-10.outputs.handoff-reason || steps.judge-11.outputs.handoff-reason || steps.judge-12.outputs.handoff-reason || steps.judge-spec.outputs.handoff-reason }}
 
+      # Note the hold's marker, on a green job only, as monitor signal 13
+      # reads holds.
+      - name: Keep the lane hold marker
+        if: steps.note-hold.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lane-hold-pr-verify
+          path: ${{ runner.temp }}/lane-hold/pr-verify
+          retention-days: 1
+          overwrite: true
+          if-no-files-found: ignore
+
       - name: Log the API budget
         if: always()
         continue-on-error: true
@@ -2293,6 +2309,7 @@ jobs:
       # re-runs it once on its next pass (reconcile.mjs faultHeld), where the
       # gate checks the trigger again.
       - name: Note the hold
+        id: note-hold
         if: steps.pr.outputs.reason == 'held' || steps.gate.outputs.reason == 'read-fault'
         env:
           GATE_REASON: ${{ steps.gate.outputs.reason }}
@@ -2301,6 +2318,8 @@ jobs:
             echo "::notice title=pr-verify::held: pr-verify's trigger gate met a GitHub fault (read-fault); nothing is judged"
           fi
           echo "pr-verify held on a GitHub fault; the lost-run reconciler re-runs this run once"
+          # The hold's marker for monitor signal 13 (lane-hold-marker.mjs).
+          { mkdir -p "$RUNNER_TEMP/lane-hold" && echo "pr-verify $GITHUB_RUN_ID" >"$RUNNER_TEMP/lane-hold/pr-verify"; } || true
 
       # The gate and the resolver read the PR separately; both must name the
       # same PR at the run's head, or nothing is judged.
@@ -4058,6 +4077,19 @@ jobs:
           handoff: ${{ (steps.judge.outputs.handoff == 'true' || steps.judge-2.outputs.handoff == 'true' || steps.judge-3.outputs.handoff == 'true' || steps.judge-4.outputs.handoff == 'true' || steps.judge-5.outputs.handoff == 'true' || steps.judge-6.outputs.handoff == 'true' || steps.judge-7.outputs.handoff == 'true' || steps.judge-8.outputs.handoff == 'true' || steps.judge-9.outputs.handoff == 'true' || steps.judge-10.outputs.handoff == 'true' || steps.judge-11.outputs.handoff == 'true' || steps.judge-12.outputs.handoff == 'true' || steps.judge-spec.outputs.handoff == 'true') && (steps.sub-leg.outputs.clean || steps.sub-leg-2.outputs.clean || steps.sub-leg-3.outputs.clean || steps.sub-leg-4.outputs.clean || steps.sub-leg-5.outputs.clean || steps.sub-leg-6.outputs.clean || steps.sub-leg-7.outputs.clean || steps.sub-leg-8.outputs.clean || steps.sub-leg-9.outputs.clean || steps.sub-leg-10.outputs.clean || steps.sub-leg-11.outputs.clean || steps.sub-leg-12.outputs.clean || steps.sub-leg-spec.outputs.clean) == 'true' }}
           handoff-reason: ${{ steps.judge.outputs.handoff-reason || steps.judge-2.outputs.handoff-reason || steps.judge-3.outputs.handoff-reason || steps.judge-4.outputs.handoff-reason || steps.judge-5.outputs.handoff-reason || steps.judge-6.outputs.handoff-reason || steps.judge-7.outputs.handoff-reason || steps.judge-8.outputs.handoff-reason || steps.judge-9.outputs.handoff-reason || steps.judge-10.outputs.handoff-reason || steps.judge-11.outputs.handoff-reason || steps.judge-12.outputs.handoff-reason || steps.judge-spec.outputs.handoff-reason }}
 
+      # Note the hold's marker, on a green job only, as monitor signal 13
+      # reads holds.
+      - name: Keep the lane hold marker
+        if: steps.note-hold.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lane-hold-pr-verify
+          path: ${{ runner.temp }}/lane-hold/pr-verify
+          retention-days: 1
+          overwrite: true
+          if-no-files-found: ignore
+
       - name: Log the API budget
         if: always()
         continue-on-error: true
@@ -4206,6 +4238,7 @@ jobs:
       # re-runs it once on its next pass (reconcile.mjs faultHeld), where the
       # gate checks the trigger again.
       - name: Note the hold
+        id: note-hold
         if: steps.pr.outputs.reason == 'held' || steps.gate.outputs.reason == 'read-fault'
         env:
           GATE_REASON: ${{ steps.gate.outputs.reason }}
@@ -4214,6 +4247,8 @@ jobs:
             echo "::notice title=pr-verify::held: pr-verify's trigger gate met a GitHub fault (read-fault); nothing is judged"
           fi
           echo "pr-verify held on a GitHub fault; the lost-run reconciler re-runs this run once"
+          # The hold's marker for monitor signal 13 (lane-hold-marker.mjs).
+          { mkdir -p "$RUNNER_TEMP/lane-hold" && echo "pr-verify $GITHUB_RUN_ID" >"$RUNNER_TEMP/lane-hold/pr-verify"; } || true
 
       # The gate and the resolver read the PR separately; both must name the
       # same PR at the run's head, or nothing is judged.
@@ -5698,6 +5733,19 @@ jobs:
             jq '.summary |= gsub("`"; "'"'"'") | .notes |= map(gsub("`"; "'"'"'"))' "$VERDICT_FILE"
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"
+
+      # Note the hold's marker, on a green job only, as monitor signal 13
+      # reads holds.
+      - name: Keep the lane hold marker
+        if: steps.note-hold.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lane-hold-pr-verify
+          path: ${{ runner.temp }}/lane-hold/pr-verify
+          retention-days: 1
+          overwrite: true
+          if-no-files-found: ignore
 
       - name: Log the API budget
         if: always()

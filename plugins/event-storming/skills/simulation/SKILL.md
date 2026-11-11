@@ -186,7 +186,7 @@ Load these based on the mode being run:
 ## Next
 
 - Bounded contexts are settled and their canonical terms need curating:
-  `/domain-driven-design:curate-language`.
+  `/domain-driven-design:ubiquitous-language curate`.
 - A context is ready to design against: `/planning:design`.
 
 ## Cross-run state
@@ -199,6 +199,6 @@ reference files with the Read tool by absolute path (a missing `history.jsonl` m
 never with `cd`, `ls`, `cat` or `sed` in a shell. Never write generated state inside
 the plugin's own installed directory (`${CLAUDE_PLUGIN_ROOT}`) or into the consumer's project tree.
 For what each directory guarantees, fetch
-[Reference plugin paths and store data](https://code.claude.com/docs/en/plugins/components#reference-plugin-paths-and-store-data)
-live (as of 2026-11-03; recheck when that section changes what survives a plugin update or where a
+[Reference plugin paths and store data](https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data)
+live (as of 2026-11-10; recheck when that section changes what survives a plugin update or where a
 plugin may write state).

@@ -49,7 +49,7 @@ def missing(data, m=None, model_dir=None):
     m = m or manifest()
     root = assets_dir(data, m, model_dir)
     return [rel for rel, meta in m['files'].items()
-            if not ((root / rel).is_file() and (root / rel).stat().st_size == meta['size'])]
+            if not ((path := root / rel).is_file() and path.stat().st_size == meta['size'])]
 
 
 def voices(m=None):

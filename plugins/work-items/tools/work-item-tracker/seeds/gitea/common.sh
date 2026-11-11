@@ -119,9 +119,7 @@ readonly WIT_GITEA_DEFAULT_PAGE_SIZE=50
 # organization label walks. Read from limits.list_items_max in capabilities.json at load
 # time, the way the github, jira and local-markdown adapters read theirs, so the manifest
 # callers read and the bound the code enforces are ONE value with no second copy to
-# drift (common.test.sh pins the equality; the list-items tests point a fixture manifest
-# at a lower ceiling to prove the truncation path without walking a thousand items).
-# The manifest schema allows null for "no ceiling", but here the ceiling is also what
+# drift. The manifest schema allows null for "no ceiling", but here the ceiling also
 # stops a server that keeps answering full pages from spinning a walk forever, so
 # anything but a positive integer is a setup error (exit 3), never an unbounded walk.
 WIT_GITEA_LIST_ITEMS_MAX="$(jq -r '.limits.list_items_max' "$WIT_GITEA_ADAPTER_DIR/capabilities.json" 2>/dev/null)"
@@ -159,12 +157,9 @@ wit_gitea_unimplemented() {
 
 # wit_help_if_requested <usage-text> <args…> — print usage + exit 0 on --help.
 wit_help_if_requested() {
-  local usage="$1"
-  shift
-  if [[ "${1:-}" == "--help" ]]; then
-    printf '%s\n' "$usage"
-    exit 0
-  fi
+  [[ "${2:-}" == "--help" ]] || return 0
+  printf '%s\n' "$1"
+  exit 0
 }
 
 # wit_gitea_nonempty_array <json-text> — 0 when the text is a non-empty
@@ -221,11 +216,8 @@ wit_need_gitea_config() {
   # an instance with a lower cap silently returns fewer rows than asked, and one with a
   # higher cap can be paged more efficiently. Read by presence, not `//`, so an explicit
   # null or false is judged below rather than collapsing into the default.
-  if [[ "$(jq -r '.config.gitea | has("page_size")' <<<"$ejson")" == "true" ]]; then
-    WIT_GITEA_PAGE_SIZE="$(jq -r '.config.gitea.page_size' <<<"$ejson")"
-  else
-    WIT_GITEA_PAGE_SIZE="$WIT_GITEA_DEFAULT_PAGE_SIZE"
-  fi
+  WIT_GITEA_PAGE_SIZE="$(jq -r --arg d "$WIT_GITEA_DEFAULT_PAGE_SIZE" \
+    '.config.gitea | if has("page_size") then .page_size else $d end' <<<"$ejson")"
 
   local allow_custom_domain host_suffix
   allow_custom_domain="$(jq -r '.config.gitea.allow_custom_domain // false' <<<"$ejson")"
@@ -286,7 +278,7 @@ wit_need_gitea_config() {
 # declare, even when the token can see them. Each verb enforces it BEFORE any request,
 # mapping a miss to its own usage error (exit 2) so the diagnostic names the verb.
 wit_gitea_scope_in_scope() {
-  [[ "$(jq -r --arg k "$1" 'if (index($k) != null) then "in" else "out" end' <<<"$WIT_GITEA_SCOPES")" == "in" ]]
+  jq -e --arg k "$1" 'index($k) != null' <<<"$WIT_GITEA_SCOPES" >/dev/null
 }
 
 # wit_gitea_token — echo the credential from the env var NAMED BY
@@ -333,9 +325,7 @@ wit_gitea_http() {
     exit "$EX_INTERNAL"
   }
   local curl_args=(-sS -X "$method" -H "Accept: application/json" --proto '=https' -D "$hdrs" -w $'\n%{http_code}' -K -)
-  if [[ -n "$body" ]]; then
-    curl_args+=(-H "Content-Type: application/json" --data "$body")
-  fi
+  [[ -z "$body" ]] || curl_args+=(-H "Content-Type: application/json" --data "$body")
   raw="$(printf 'header = "%s"\nurl = "%s"\n' "$auth" "$url" |
     "$WIT_GITEA_CURL_BIN" "${curl_args[@]}" 2>/dev/null)"
   rc=$?
@@ -365,13 +355,11 @@ wit_gitea_http() {
 # treated as iterable (jq `length` of an object is its key count), yielding an
 # empty or garbage label set instead of an error.
 wit_gitea_require_array() {
-  local ctx="$1"
   local kind
   kind="$(jq -r 'type' <<<"$WIT_GITEA_BODY" 2>/dev/null)" || kind=""
-  if [[ "$kind" != "array" ]]; then
-    printf 'gitea: %s — expected a JSON array, got %s\n' "$ctx" "${kind:-non-JSON}" >&2
-    exit "$EX_INTERNAL"
-  fi
+  [[ "$kind" == "array" ]] && return 0
+  printf 'gitea: %s — expected a JSON array, got %s\n' "$1" "${kind:-non-JSON}" >&2
+  exit "$EX_INTERNAL"
 }
 
 # wit_gitea_require_ok <context> — map WIT_GITEA_STATUS to a

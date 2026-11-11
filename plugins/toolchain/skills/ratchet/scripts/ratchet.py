@@ -346,9 +346,10 @@ def tighten_per_file(counter: dict, counts: dict, break_glass: bool) -> tuple[in
     for path, value, ceiling, allowed, problems in judge_files(counter, counts, break_glass):
         for problem in problems:
             print(f"BROKEN {name}: break-glass exception at {problem}")
-        if problems or value > ceiling + allowed:
+        over = value > ceiling + allowed
+        if problems or over:
             above += 1
-            if value > ceiling + allowed:
+            if over:
                 print(f"ABOVE  {name}: {path} {value} > ceiling {ceiling}")
         elif value < ceiling:
             changed += 1
@@ -424,8 +425,14 @@ def cmd_add(args: argparse.Namespace) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n", 1)[0])
     sub = parser.add_subparsers(dest="action", required=True)
-    for name in ("check", "propose-tighten", "add"):
+    handlers = {
+        "check": cmd_check,
+        "propose-tighten": cmd_propose_tighten,
+        "add": cmd_add,
+    }
+    for name, handler in handlers.items():
         child = sub.add_parser(name)
+        child.set_defaults(handler=handler)
         child.add_argument("--file", default=DEFAULT_FILE)
         if name != "check":
             child.add_argument("--runs", type=positive_int, default=2)
@@ -437,12 +444,7 @@ def main() -> int:
             child.add_argument("--per-file", action="store_true")
             child.add_argument("--break-glass", choices=("on", "off"))
     args = parser.parse_args()
-    handler = {
-        "check": cmd_check,
-        "propose-tighten": cmd_propose_tighten,
-        "add": cmd_add,
-    }[args.action]
-    return handler(args)
+    return args.handler(args)
 
 
 if __name__ == "__main__":

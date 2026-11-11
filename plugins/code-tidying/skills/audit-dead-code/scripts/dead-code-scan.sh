@@ -206,6 +206,14 @@ dc_account_lane_files() {
   esac
 }
 
+# Account the files under the lane state, then write its Lane line with their count.
+lane_files() {
+  local lane="$1" root="$2" state="$3" detail="$4"
+  shift 4
+  dc_account_lane_files "$state" "$@"
+  lane_line "$lane" "$root" "$state" "$#" "$detail"
+}
+
 # Owned-file lists are root-relative. Coverage keys are repo-relative, the same
 # form git ls-files handed the classifier.
 dc_repo_owned() {
@@ -253,6 +261,15 @@ list_repo_files() {
   done < <(find . -type f -name "${pattern#\*}" 2>/dev/null)
 }
 
+# Every file the reference search reads, NUL-separated.
+list_search_files_z() {
+  if [[ "$GIT_OK" == '1' ]]; then
+    git ls-files -z 2>/dev/null
+  else
+    find . -type f -print0 2>/dev/null
+  fi
+}
+
 list_scope_files() {
   local t f
   local -a scan_roots=('.')
@@ -268,6 +285,7 @@ list_scope_files() {
 }
 
 TS_FILES=()
+declare -A TS_IN_SCOPE=()
 PY_FILES=()
 GO_FILES=()
 SYM_FILES=()
@@ -287,7 +305,7 @@ while IFS= read -r scope_line; do
   dc_is_excluded_path "$scope_line" && continue
   [[ -f "$scope_line" ]] || continue
   case "$(dc_lang_of_path "$scope_line")" in
-  ts) TS_FILES+=("$scope_line") SOURCE_FILES+=("$scope_line") ;;
+  ts) TS_FILES+=("$scope_line") TS_IN_SCOPE["$scope_line"]=1 SOURCE_FILES+=("$scope_line") ;;
   py) PY_FILES+=("$scope_line") SOURCE_FILES+=("$scope_line") ;;
   go) GO_FILES+=("$scope_line") SOURCE_FILES+=("$scope_line") ;;
   shell | pwsh) SYM_FILES+=("$scope_line") SOURCE_FILES+=("$scope_line") ;;
@@ -354,11 +372,7 @@ owns_path() {
 
 # 0 when repo-relative path is in the caller's TS/JS candidate set.
 in_ts_files() {
-  local p="$1" f
-  for f in ${TS_FILES[@]+"${TS_FILES[@]}"}; do
-    [[ "$f" == "$p" ]] && return 0
-  done
-  return 1
+  [[ -n "${TS_IN_SCOPE[$1]:-}" ]]
 }
 
 # The owned files, root-relative — the form a detector invoked at that root
@@ -426,9 +440,8 @@ lane_knip() {
   local owned_rel ts_left
   mapfile -t roots < <(project_roots package.json)
   if [[ ${#roots[@]} -eq 0 ]]; then
-    dc_account_lane_files no-manifest ${TS_FILES[@]+"${TS_FILES[@]}"}
-    lane_line knip '-' no-manifest "${#TS_FILES[@]}" \
-      'no package.json project root in this repository'
+    lane_files knip '-' no-manifest 'no package.json project root in this repository' \
+      ${TS_FILES[@]+"${TS_FILES[@]}"}
     return 0
   fi
   for root_rel in "${roots[@]}"; do
@@ -450,21 +463,21 @@ lane_knip() {
     fi
     if [[ "$root_rel" == "." ]]; then root_abs="$REPO_ROOT"; else root_abs="$REPO_ROOT/$root_rel"; fi
     if ! dc_find_nonempty_node_modules "$root_abs" "$REPO_ROOT" >/dev/null; then
-      dc_account_lane_files degraded "${repo_owned[@]}"
-      lane_line knip "$root_rel" degraded "$nfiles" \
-        'node_modules absent or empty by direct ancestor-walk probe — an unrestored knip run MANUFACTURES false unused-file findings, so this root emits no records'
+      lane_files knip "$root_rel" degraded \
+        'node_modules absent or empty by direct ancestor-walk probe — an unrestored knip run MANUFACTURES false unused-file findings, so this root emits no records' \
+        "${repo_owned[@]}"
       continue
     fi
     if ! bin="$(dc_locate_binary knip "$root_abs" "$REPO_ROOT")"; then
-      dc_account_lane_files skipped "${repo_owned[@]}"
-      lane_line knip "$root_rel" skipped "$nfiles" \
-        'knip not resolvable in a repo-local node_modules/.bin nor on PATH — no package runner is invoked, so nothing was fetched'
+      lane_files knip "$root_rel" skipped \
+        'knip not resolvable in a repo-local node_modules/.bin nor on PATH — no package runner is invoked, so nothing was fetched' \
+        "${repo_owned[@]}"
       continue
     fi
     if ! dc_binary_invocable "$bin" --version; then
-      dc_account_lane_files skipped "${repo_owned[@]}"
-      lane_line knip "$root_rel" skipped "$nfiles" \
-        "located at $bin but invocation failed — presence is proven by invocation, never by command -v"
+      lane_files knip "$root_rel" skipped \
+        "located at $bin but invocation failed — presence is proven by invocation, never by command -v" \
+        "${repo_owned[@]}"
       continue
     fi
     if cfg="$(dc_knip_config_module "$root_abs")"; then
@@ -472,14 +485,13 @@ lane_knip() {
     fi
     (cd "$root_abs" && "$bin" --reporter json --no-progress) >"$WORK/knip.out" 2>"$WORK/knip.err" || true
     if dc_knip_stderr_is_degraded "$WORK/knip.err"; then
-      dc_account_lane_files degraded "${repo_owned[@]}"
-      lane_line knip "$root_rel" degraded "$nfiles" \
-        'knip wrote an ERROR: line to stderr, which --reporter json discards; such a run manufactures FALSE POSITIVES, so this root emits no records'
+      lane_files knip "$root_rel" degraded \
+        'knip wrote an ERROR: line to stderr, which --reporter json discards; such a run manufactures FALSE POSITIVES, so this root emits no records' \
+        "${repo_owned[@]}"
       continue
     fi
     if [[ ! -s "$WORK/knip.out" ]]; then
-      dc_account_lane_files ran "${repo_owned[@]}"
-      lane_line knip "$root_rel" ran "$nfiles" 'no unused file, export, type, or enum member reported'
+      lane_files knip "$root_rel" ran 'no unused file, export, type, or enum member reported' "${repo_owned[@]}"
       continue
     fi
     if dc_parse_knip_json <"$WORK/knip.out" >"$WORK/knip.rows"; then
@@ -511,13 +523,11 @@ lane_knip() {
       if [[ "$foreign" -gt 0 ]]; then
         detail="$detail; $foreign finding(s) this root does not own dropped (a NESTED project root's file, or a path excluded from candidate scope) — each nested root reports its own, and only when its own run is healthy"
       fi
-      dc_account_lane_files ran "${repo_owned[@]}"
-      lane_line knip "$root_rel" ran "$nfiles" "$detail"
+      lane_files knip "$root_rel" ran "$detail" "${repo_owned[@]}"
     else
       add_candidate "$root_rel" 0 detector-drift \
         'knip produced output no parser recognized — its JSON shape may have changed'
-      dc_account_lane_files ran "${repo_owned[@]}"
-      lane_line knip "$root_rel" ran "$nfiles" 'output not recognized — recorded as T3 drift, never as clean'
+      lane_files knip "$root_rel" ran 'output not recognized — recorded as T3 drift, never as clean' "${repo_owned[@]}"
     fi
   done
   for ts_left in ${TS_FILES[@]+"${TS_FILES[@]}"}; do
@@ -543,15 +553,15 @@ lane_vulture() {
     return 0
   fi
   if ! bin="$(dc_locate_binary vulture "$REPO_ROOT" "$REPO_ROOT")"; then
-    dc_account_lane_files skipped ${PY_FILES[@]+"${PY_FILES[@]}"}
-    lane_line vulture '.' skipped "${#PY_FILES[@]}" \
-      'vulture not resolvable in a repo-local .venv/bin nor on PATH — no package runner is invoked, so nothing was fetched'
+    lane_files vulture '.' skipped \
+      'vulture not resolvable in a repo-local .venv/bin nor on PATH — no package runner is invoked, so nothing was fetched' \
+      "${PY_FILES[@]}"
     return 0
   fi
   if ! dc_binary_invocable "$bin" --version; then
-    dc_account_lane_files skipped ${PY_FILES[@]+"${PY_FILES[@]}"}
-    lane_line vulture '.' skipped "${#PY_FILES[@]}" \
-      "located at $bin but invocation failed — presence is proven by invocation, never by command -v"
+    lane_files vulture '.' skipped \
+      "located at $bin but invocation failed — presence is proven by invocation, never by command -v" \
+      "${PY_FILES[@]}"
     return 0
   fi
   # Every file is passed in ONE invocation: vulture counts usages across the
@@ -565,9 +575,9 @@ lane_vulture() {
   # vulture exits 1 for a lone unparsable input and 3 when findings coexist, so
   # the code cannot separate "one bad input file" from "the run is unsound".
   if dc_vulture_stderr_is_degraded "$WORK/vulture.err"; then
-    dc_account_lane_files degraded ${PY_FILES[@]+"${PY_FILES[@]}"}
-    lane_line vulture '.' degraded "${#PY_FILES[@]}" \
-      "vulture wrote a non-input error to stderr (exit $rc) — its output is withheld"
+    lane_files vulture '.' degraded \
+      "vulture wrote a non-input error to stderr (exit $rc) — its output is withheld" \
+      "${PY_FILES[@]}"
     return 0
   fi
   # An input-parse-error line is an INPUT note, not a degraded run: every other
@@ -625,9 +635,8 @@ lane_gopls() {
   local owned_rel go_left
   mapfile -t roots < <(project_roots go.mod)
   if [[ ${#roots[@]} -eq 0 ]]; then
-    dc_account_lane_files no-manifest ${GO_FILES[@]+"${GO_FILES[@]}"}
-    lane_line gopls '-' no-manifest "${#GO_FILES[@]}" \
-      'no go.mod module root in this repository'
+    lane_files gopls '-' no-manifest 'no go.mod module root in this repository' \
+      ${GO_FILES[@]+"${GO_FILES[@]}"}
     return 0
   fi
   for root_rel in "${roots[@]}"; do
@@ -653,14 +662,13 @@ lane_gopls() {
     fi
     if [[ "$root_rel" == "." ]]; then root_abs="$REPO_ROOT"; else root_abs="$REPO_ROOT/$root_rel"; fi
     if ! bin="$(dc_locate_binary gopls "$root_abs" "$REPO_ROOT")"; then
-      dc_account_lane_files skipped "${repo_owned[@]}"
-      lane_line gopls "$root_rel" skipped "$nfiles" 'gopls not resolvable on PATH'
+      lane_files gopls "$root_rel" skipped 'gopls not resolvable on PATH' "${repo_owned[@]}"
       continue
     fi
     if ! dc_binary_invocable "$bin" version; then
-      dc_account_lane_files skipped "${repo_owned[@]}"
-      lane_line gopls "$root_rel" skipped "$nfiles" \
-        "located at $bin but invocation failed — presence is proven by invocation, never by command -v"
+      lane_files gopls "$root_rel" skipped \
+        "located at $bin but invocation failed — presence is proven by invocation, never by command -v" \
+        "${repo_owned[@]}"
       continue
     fi
     (cd "$root_abs" && "$bin" check -severity=hint -- "${mod_files[@]}") \
@@ -682,9 +690,9 @@ lane_gopls() {
       done <"$WORK/gopls.out"
     fi
     if [[ "$degraded" == '1' ]]; then
-      dc_account_lane_files degraded "${repo_owned[@]}"
-      lane_line gopls "$root_rel" degraded "$nfiles" \
-        'module graph or workspace did not load (import error on stdout or a non-empty stderr, always with exit 0); hints are SUPPRESSED, so this module produces false NEGATIVES and emits no records'
+      lane_files gopls "$root_rel" degraded \
+        'module graph or workspace did not load (import error on stdout or a non-empty stderr, always with exit 0); hints are SUPPRESSED, so this module produces false NEGATIVES and emits no records' \
+        "${repo_owned[@]}"
       continue
     fi
     while IFS= read -r g_line || [[ -n "$g_line" ]]; do
@@ -716,8 +724,7 @@ lane_gopls() {
     if [[ "$foreign" -gt 0 ]]; then
       detail="$detail; $foreign diagnostic(s) this module does not own dropped (a NESTED module's file, or a path excluded from candidate scope)"
     fi
-    dc_account_lane_files ran "${repo_owned[@]}"
-    lane_line gopls "$root_rel" ran "$nfiles" "$detail"
+    lane_files gopls "$root_rel" ran "$detail" "${repo_owned[@]}"
   done
   for go_left in ${GO_FILES[@]+"${GO_FILES[@]}"}; do
     [[ -n "${GOPLS_SEEN[$go_left]:-}" ]] && continue
@@ -819,13 +826,8 @@ emit_unreferenced_files() {
   : >"$WORK/refhits.txt"
   # -I skips binary files. -H -o attribute each match to the file that held it
   # so a mention inside the candidate itself can be dropped.
-  if [[ "$GIT_OK" == '1' ]]; then
-    git ls-files -z 2>/dev/null |
-      xargs -0 grep -I -H -o -w -F -f "$WORK/filekeys.txt" -- >>"$WORK/refhits.txt" 2>/dev/null || true
-  else
-    find . -type f -print0 2>/dev/null |
-      xargs -0 grep -I -H -o -w -F -f "$WORK/filekeys.txt" -- >>"$WORK/refhits.txt" 2>/dev/null || true
-  fi
+  list_search_files_z |
+    xargs -0 grep -I -H -o -w -F -f "$WORK/filekeys.txt" -- >>"$WORK/refhits.txt" 2>/dev/null || true
   awk -F '\t' '
     NR == FNR {
       key = $1
@@ -907,13 +909,8 @@ lane_grep() {
     # scope: a reference from anywhere saves a symbol. -h drops filenames so the
     # counted token is the match itself; xargs splits the file list for us.
     : >"$WORK/hits.txt"
-    if [[ "$GIT_OK" == '1' ]]; then
-      git ls-files -z 2>/dev/null |
-        xargs -0 grep -o -h -w -F -f "$WORK/names.txt" -- >>"$WORK/hits.txt" 2>/dev/null || true
-    else
-      find . -type f -print0 2>/dev/null |
-        xargs -0 grep -o -h -w -F -f "$WORK/names.txt" -- >>"$WORK/hits.txt" 2>/dev/null || true
-    fi
+    list_search_files_z |
+      xargs -0 grep -o -h -w -F -f "$WORK/names.txt" -- >>"$WORK/hits.txt" 2>/dev/null || true
     while read -r cnt nm; do
       [[ -n "$nm" ]] || continue
       HITS["$nm"]="$cnt"
@@ -992,13 +989,10 @@ TOTAL_CAND="$(wc -l <"$WORK/sorted.tsv" | tr -d ' ')"
 # cap dropped — silently turning the one alarm this script raises about its own
 # blindness into nothing at all. SKILL.md "T3 is the drift bucket": an
 # unrecognized detector line is "recorded, never silently dropped".
-if ((MAX > 0)); then
-  awk -F"$TAB" -v m="$MAX" '$4 == "detector-drift" || ++n <= m' "$WORK/sorted.tsv" >"$WORK/capped.tsv"
-else
-  cp "$WORK/sorted.tsv" "$WORK/capped.tsv"
-fi
-# Drop the recency sort key now that ordering is fixed.
-cut -f2- "$WORK/capped.tsv" >"$WORK/emitted.tsv"
+#
+# The cut drops the recency sort key now that ordering is fixed.
+awk -F"$TAB" -v m="$MAX" 'm <= 0 || $4 == "detector-drift" || ++n <= m' "$WORK/sorted.tsv" |
+  cut -f2- >"$WORK/emitted.tsv"
 EMITTED="$(wc -l <"$WORK/emitted.tsv" | tr -d ' ')"
 DROPPED=$((TOTAL_CAND - EMITTED))
 

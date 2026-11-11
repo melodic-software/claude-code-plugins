@@ -138,7 +138,5 @@ CLEAN_TREE_PRESERVE_DEPS=(
 )
 
 cleanup_paths_config_file() {
-  local script_dir
-  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  printf '%s/../../reference/cleanup-config.md' "$script_dir"
+  printf '%s/../../reference/cleanup-config.md' "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 }

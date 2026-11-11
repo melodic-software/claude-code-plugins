@@ -931,10 +931,8 @@ if [[ "$TOOL_NAME" == "PowerShell" && ("$INPUT" == *'\r'* || "$INPUT" == *'\u000
   rdt_bs=$'\\'
   rdt_cr="${rdt_bs}r" rdt_lf="${rdt_bs}n"
   rdt_in="${INPUT//"$rdt_bs$rdt_bs"/$'\001'}"
-  rdt_in="${rdt_in//"${rdt_bs}u000d"/"$rdt_cr"}"
-  rdt_in="${rdt_in//"${rdt_bs}u000D"/"$rdt_cr"}"
-  rdt_in="${rdt_in//"${rdt_bs}u000a"/"$rdt_lf"}"
-  rdt_in="${rdt_in//"${rdt_bs}u000A"/"$rdt_lf"}"
+  rdt_in="${rdt_in//"${rdt_bs}u000"[dD]/"$rdt_cr"}"
+  rdt_in="${rdt_in//"${rdt_bs}u000"[aA]/"$rdt_lf"}"
   rdt_in="${rdt_in//"$rdt_cr$rdt_lf"/"$rdt_lf"}"
   rdt_in="${rdt_in//"$rdt_cr"/"$rdt_lf"}"
   rdt_in="${rdt_in//$'\001'/"$rdt_bs$rdt_bs"}"
@@ -1195,18 +1193,13 @@ fi
 # on purpose; the tokenizer decides.
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   rdt_ps_pre="${COMMAND,,}"
-  rdt_ps_hit=0
   case "$rdt_ps_pre" in
   *rm* | *remove-item* | *erase* | *cmd* | *rd* | *del* | *robocopy* | *frombase64* | *pwsh* | *powershell* | \
-    *move* | *mv* | *clear-content* | *set-content*) rdt_ps_hit=1 ;;
+    *move* | *mv* | *clear-content* | *set-content*) ;;
   # The Bash lane's words, for the program a bash -c or wsl runs.
-  *unlink* | *rsync* | *worktree* | *truncate* | *shred* | *of=* | *base64* | *base32* | *basenc* | *xxd*) rdt_ps_hit=1 ;;
-  *) ;;
+  *unlink* | *rsync* | *worktree* | *truncate* | *shred* | *of=* | *base64* | *base32* | *basenc* | *xxd*) ;;
+  *) [[ "$rdt_ps_pre" =~ (^|[^[:alnum:]_])(ri|mi|clc)([^[:alnum:]_]|$) ]] || exit 0 ;;
   esac
-  if ((rdt_ps_hit == 0)) && [[ "$rdt_ps_pre" =~ (^|[^[:alnum:]_])(ri|mi|clc)([^[:alnum:]_]|$) ]]; then
-    rdt_ps_hit=1
-  fi
-  ((rdt_ps_hit)) || exit 0
 else
   case "${COMMAND,,}" in
   *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove* | *mv* | *truncate* | \
@@ -1333,11 +1326,8 @@ rdt_is_root() {
   [[ "$s" =~ ^/+$ ]] && return 0
   # A UNC share root: exactly two leading slashes, a host, a share, nothing more.
   [[ "$s" =~ ^//[^/]+/[^/]+$ ]] && return 0
-  [[ "$s" =~ ^[a-z]:$ ]] && return 0
-  [[ "$s" =~ ^/[a-z]$ ]] && return 0
-  [[ "$s" =~ ^/cygdrive/[a-z]$ ]] && return 0
-  [[ "$s" =~ ^/mnt/[a-z]$ ]] && return 0
-  return 1
+  # A drive root, in its Windows, MSYS, Cygwin and WSL spellings.
+  [[ "$s" =~ ^([a-z]:|/[a-z]|/cygdrive/[a-z]|/mnt/[a-z])$ ]]
 }
 
 # rdt_runuser_argv <offset> <words after runuser>: read runuser's argv the way
@@ -1426,9 +1416,11 @@ rdt_runuser_argv() {
           val="${a[k]-}"
           ((k < n)) && k=$((k + 1))
         fi
-        [[ "$hit" == "command" || "$hit" == "session-command" ]] && RDT_RU_CMDS+=("$val")
-        # su builds `sh -c -- CMD` from an operand of `--`, so CMD is the next word.
-        [[ ("$hit" == "command" || "$hit" == "session-command") && "$val" == "--" ]] && ((k < n)) && RDT_RU_CMDS+=("${a[k]}")
+        if [[ "$hit" == "command" || "$hit" == "session-command" ]]; then
+          RDT_RU_CMDS+=("$val")
+          # su builds `sh -c -- CMD` from an operand of `--`, so CMD is the next word.
+          [[ "$val" == "--" ]] && ((k < n)) && RDT_RU_CMDS+=("${a[k]}")
+        fi
         [[ "$hit" == "user" ]] && RDT_RU_U=1
         [[ "$hit" == "shell" ]] && RDT_RU_SHELL="$val"
         ;;
@@ -2020,7 +2012,7 @@ rdt_nearest_to() {
     if [[ "$2" == -d ]]; then [[ -d "$__rn_a" ]] && break; else [[ -e "$__rn_a" ]] && break; fi
     rdt_parent_to __rn_a "$__rn_a"
   done
-  if [[ "$2" == -d ]]; then [[ -d "$__rn_a" ]] || __rn_a=""; fi
+  [[ "$2" == -d && ! -d "$__rn_a" ]] && __rn_a=""
   printf -v "$1" '%s' "$__rn_a"
 }
 
@@ -2440,9 +2432,7 @@ rdt_resolve_all() {
   done
   ((${#todo[@]})) || return 0
   local ok=0
-  if [[ "${todo[*]}" != *$'\n'* ]] && rdt_lines_to lines "${#todo[@]}" realpath -m -- "${todo[@]}"; then
-    ok=1
-  fi
+  [[ "${todo[*]}" != *$'\n'* ]] && rdt_lines_to lines "${#todo[@]}" realpath -m -- "${todo[@]}" && ok=1
   for ((i = 0; i < ${#todo[@]}; i++)); do
     if ((ok)) && [[ -n "${lines[i]}" ]]; then
       res[i]="${lines[i]}"
@@ -2548,14 +2538,12 @@ rdt_split_existing() {
 # gives no tree, so the failure lands on the refusal side.
 declare -A RDT_TREE=()
 rdt_tree_to() {
-  local o="$2" d out rc=0
+  local o="$2" d="" out="" rc=0
   if [[ -n "${RDT_TREE[$o]+x}" ]]; then
     printf -v "$1" '%s' "${RDT_TREE[$o]}"
     return 0
   fi
-  d=""
   rdt_is_unc "$o" || rdt_nearest_to d -d "$o"
-  out=""
   if [[ -n "$d" ]]; then
     # Bounded like the batch resolvers: a git that stalls (a slow network
     # mount, a locked repository) would otherwise carry the hook past the
@@ -2960,6 +2948,23 @@ rdt_add_literal() {
   rdt_add_pair "$t" "$RDT_PL_MODE" "" "$2"
 }
 
+# rdt_compared_to <var> <path>: <path> as rdt_resolve_all resolved it and
+# rdt_winmap_all mapped it, in the spelling two paths are compared in.
+rdt_compared_to() {
+  rdt_canon_to "$1" "${RDT_WMAP[${RDT_RES[$2]}]}"
+}
+
+# rdt_allowed_root_to <var> <path>: rdt_compared_to for an allowed root or a
+# name-prefix or segment entry's directory. Returns 1 for one that grants
+# nothing: `/` before the mapping, or a filesystem root or HOME after it.
+rdt_allowed_root_to() {
+  local __ar_t
+  [[ "${RDT_RES[$2]}" != / ]] || return 1
+  rdt_compared_to __ar_t "$2"
+  { rdt_root_like "$__ar_t" || rdt_is_root "${__ar_t,,}" || [[ "$__ar_t" == "$RDT_HOMEC" ]]; } && return 1
+  printf -v "$1" '%s' "$__ar_t"
+}
+
 # rdt_judge_pending: the outside-tree judgment, once, after both passes.
 rdt_judge_pending() {
   local np=${#RDT_P_TEXT[@]}
@@ -3210,21 +3215,21 @@ rdt_judge_pending() {
   rdt_deadline
   RDT_TEMPC=()
   for c in ${temps[@]+"${temps[@]}"}; do
-    rdt_canon_to t "${RDT_WMAP[${RDT_RES[$c]}]}"
+    rdt_compared_to t "$c"
     rdt_root_like "$t" || RDT_TEMPC+=("$t")
   done
   # The scratchpad counts only strictly under a temp root, where a harness
   # puts it; a payload naming anywhere else as its scratchpad is ignored.
   RDT_SPC=""
   if [[ -n "$sp" ]]; then
-    rdt_canon_to c "${RDT_WMAP[${RDT_RES[$sp]}]}"
+    rdt_compared_to c "$sp"
     for t in ${RDT_TEMPC[@]+"${RDT_TEMPC[@]}"}; do
       [[ "$c" == "$t"/* ]] && RDT_SPC="$c" && break
     done
   fi
   RDT_TREEC=""
   if [[ -n "$tree" ]]; then
-    rdt_canon_to t "${RDT_WMAP[${RDT_RES[$tree]}]}"
+    rdt_compared_to t "$tree"
     rdt_root_like "$t" || RDT_TREEC="$t"
   fi
   # An allowed root, or a name-prefix or segment entry's directory, that is a
@@ -3238,23 +3243,17 @@ rdt_judge_pending() {
   RDT_SNAME=()
   RDT_HOMEC=""
   if [[ -n "$home" ]]; then
-    rdt_canon_to RDT_HOMEC "${RDT_WMAP[${RDT_RES[$home]}]}"
+    rdt_compared_to RDT_HOMEC "$home"
     for c in ${allow[@]+"${allow[@]}"}; do
-      [[ "${RDT_RES[$c]}" == / ]] && continue
-      rdt_canon_to t "${RDT_WMAP[${RDT_RES[$c]}]}"
-      rdt_root_like "$t" || rdt_is_root "${t,,}" || [[ "$t" == "$RDT_HOMEC" ]] || RDT_ALLOWC+=("$t")
+      rdt_allowed_root_to t "$c" && RDT_ALLOWC+=("$t")
     done
     for ((k = 0; k < ${#pdir[@]}; k++)); do
-      [[ "${RDT_RES[${pdir[k]}]}" == / ]] && continue
-      rdt_canon_to t "${RDT_WMAP[${RDT_RES[${pdir[k]}]}]}"
-      { rdt_root_like "$t" || rdt_is_root "${t,,}" || [[ "$t" == "$RDT_HOMEC" ]]; } && continue
+      rdt_allowed_root_to t "${pdir[k]}" || continue
       RDT_PDIRC+=("$t")
       RDT_PNAME+=("${pname[k]}")
     done
     for ((k = 0; k < ${#sdir[@]}; k++)); do
-      [[ "${RDT_RES[${sdir[k]}]}" == / ]] && continue
-      rdt_canon_to t "${RDT_WMAP[${RDT_RES[${sdir[k]}]}]}"
-      { rdt_root_like "$t" || rdt_is_root "${t,,}" || [[ "$t" == "$RDT_HOMEC" ]]; } && continue
+      rdt_allowed_root_to t "${sdir[k]}" || continue
       RDT_SDIRC+=("$t")
       RDT_SNAME+=("${sname[k]}")
     done
@@ -3268,7 +3267,7 @@ rdt_judge_pending() {
     RDT_PROT_BW+=("the git toplevel of the working directory")
   fi
   for c in ${wts[@]+"${wts[@]}"}; do
-    rdt_canon_to t "${RDT_WMAP[${RDT_RES[$c]}]}"
+    rdt_compared_to t "$c"
     rdt_root_like "$t" && continue
     RDT_PROT_B+=("$t")
     RDT_PROT_BW+=("a worktree root git has registered")
@@ -3276,14 +3275,14 @@ rdt_judge_pending() {
   RDT_PROT_A=()
   RDT_PROT_AW=()
   if [[ -n "$hcl" ]]; then
-    rdt_canon_to t "${RDT_WMAP[${RDT_RES[$hcl]}]}"
+    rdt_compared_to t "$hcl"
     RDT_PROT_A+=("$t")
     # shellcheck disable=SC2088  # the label names the directory, nothing expands it
     RDT_PROT_AW+=("~/.claude")
   fi
   # A listed tree that is a filesystem root is dropped, as an allowed root is.
   for c in ${prot[@]+"${prot[@]}"}; do
-    rdt_canon_to t "${RDT_WMAP[${RDT_RES[$c]}]}"
+    rdt_compared_to t "$c"
     { rdt_root_like "$t" || rdt_is_root "${t,,}"; } && continue
     RDT_PROT_A+=("$t")
     RDT_PROT_AW+=("a tree in block_root_delete_target_protected_trees")

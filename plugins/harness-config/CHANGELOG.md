@@ -5,6 +5,31 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.5.2] - 2026-11-10
+
+### Changed
+
+- Skill bodies and reference files across `audit`, `audit-automation-gaps`, `audit-instructions`, `audit-pass`, `audit-permission-grants`, `audit-permission-state`, `audit-prompting-postures`, `setup` and `unhobble` no longer restate Claude Code docs specifics such as hook exit-code behavior, plugin variable scope, managed-settings paths, the debug-log variable, version boundaries and setting names. Each keeps the decision and points at the live docs section, with an as-of date and a recheck trigger.
+- Corrected statements that contradicted the plugin's own files: the hook-event count the candidate guidance covers (four, not three), the `C6-colonStar` no-space case (reported as the `C6-colonStarAmbiguous` warning, not a gap), which `setup` scripts probe for their tools, and `unhobble` restating the instruction-files modes its own record owns.
+
+No behavior change.
+
+## [3.5.1] - 2026-11-10
+
+### Fixed
+
+- Links to Claude Code's docs that pointed at moved section anchors now resolve: the permissions page's wrapper list, the permission-modes auto-mode section, and Code Review's setup and review-request sections.
+
+## [3.5.0] - 2026-11-09
+
+### Changed
+
+- `/harness-config:audit-instructions` checks Claude Fable 5.2 and Claude Mythos 5.2 requests: I17's outright-disable arm, I17-c's fixed-budget set and I25's sampling-parameter set now name both models, each on the thinking pages' per-model lists. I20 keeps its release-floor range, which already reaches Fable 5.2, and records the re-read.
+
+### Fixed
+
+- I8-c's `Model scope` header no longer lists `sonnet-5-5`, matching the row's declined Sonnet 5.5 widening, so the row stays inert on a Sonnet 5.5 target.
+
 ## [3.4.0] - 2026-11-09
 
 ### Changed

@@ -188,11 +188,9 @@ With no argument in an interactive session, run the interview:
 3. **Interview, one decision at a time, recommendation first.** Ask: "What commit-subject / PR-title
    convention does this repo use?"
    - **RECOMMENDED: Conventional Commits**, with the 11-type vocabulary
-     `build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test`, confirmed via the
-     Conventional Commits spec, the Angular convention, commitlint's `@commitlint/config-conventional`
-     source, and `amannn/action-semantic-pull-request`'s default `types` list. All four agree on this
-     exact set; `security` is **not** a Conventional Commits type in any of them. Never offer or
-     accept it as a bundled type.
+     `build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test`, this plugin's
+     default; where it comes from is in `commit/reference/design-rationale.md`, "Where the 11 types
+     come from". `security` is **not** one of them. Never offer or accept it as a bundled type.
    - **Alternative: a custom pattern**, e.g. a ticket-prefix regex like `^[A-Z]+-\d+: .+` for orgs
      that don't use Conventional Commits at all. If step 2 inferred a custom pattern, present it as
      the recommendation instead.

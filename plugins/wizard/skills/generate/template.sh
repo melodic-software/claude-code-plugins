@@ -27,13 +27,7 @@ if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ "$(tput colors 2>/dev/nul
   YELLOW=$(tput setaf 3 || true)
   RED=$(tput setaf 1 || true)
 else
-  BOLD=""
-  DIM=""
-  RESET=""
-  BLUE=""
-  GREEN=""
-  YELLOW=""
-  RED=""
+  BOLD="" DIM="" RESET="" BLUE="" GREEN="" YELLOW="" RED=""
 fi
 
 fatal() {

@@ -513,48 +513,7 @@ def match_invocation(
     the literal value and returning bool. A flag whose label has no callable
     fails closed.
     """
-    spec = subcommand(name)
-    if spec is None:
-        return False
-    checks = external_checks or {}
-
-    def value_ok(flag: Flag, value: str) -> bool:
-        if not literal_value_ok(flag, value):
-            return False
-        if flag.external_check is None:
-            return True
-        check = checks.get(flag.external_check)
-        return callable(check) and bool(check(value))
-
-    index = 0
-    for flag in spec.required:
-        if index >= len(words) or words[index] != flag.name:
-            return False
-        index += 1
-        if flag.takes_value:
-            if index >= len(words) or not value_ok(flag, words[index]):
-                return False
-            index += 1
-
-    seen: set[str] = set()
-    while index < len(words):
-        flag = spec.flag(words[index])
-        if flag is None or (
-            (flag.required or flag.name in seen) and not flag.repeatable
-        ):
-            return False
-        seen.add(flag.name)
-        index += 1
-        if flag.takes_value:
-            if index >= len(words) or not value_ok(flag, words[index]):
-                return False
-            index += 1
-
-    return all(
-        flag.requires in seen
-        for flag in spec.optional
-        if flag.requires is not None and flag.name in seen
-    ) and all(len(seen.intersection(group)) == 1 for group in spec.one_of)
+    return explain_mismatch(name, words, external_checks) is None
 
 
 _TOKEN_CAP = 80
@@ -587,27 +546,32 @@ def explain_mismatch(
 ) -> str | None:
     """Name the first word ``match_invocation`` refuses and the rule it broke.
 
-    Runs on the deny path only and walks the same grammar in the same order, so
-    it returns ``None`` exactly when ``match_invocation`` returns ``True``.
+    ``match_invocation`` is this walk returning ``None``. Message text is built
+    only on a refusal, so the admitting path pays for none of it.
     """
     spec = subcommand(name)
     if spec is None:
         return f"{clip_token(name)} is not an engine subcommand."
     checks = external_checks or {}
 
+    def external_ok(flag: Flag, value: str) -> bool:
+        if flag.external_check is None:
+            return True
+        check = checks.get(flag.external_check)
+        return callable(check) and bool(check(value))
+
     def value_problem(flag: Flag, value: str) -> str | None:
-        subject = f"{flag.name} value {clip_token(value)}"
         if not is_argument(value):
-            return f"{subject} must be a literal, not empty or starting with '-'."
-        if flag.choices is not None and value not in flag.choices:
-            return f"{subject} must be one of: {', '.join(sorted(flag.choices))}."
-        if flag.pattern is not None and flag.pattern.fullmatch(value) is None:
-            return f"{subject} must match {flag.pattern.pattern}."
-        if flag.external_check is not None:
-            check = checks.get(flag.external_check)
-            if not (callable(check) and check(value)):
-                return f"{subject} is not the {flag.external_check}."
-        return None
+            rule = "must be a literal, not empty or starting with '-'"
+        elif flag.choices is not None and value not in flag.choices:
+            rule = f"must be one of: {', '.join(sorted(flag.choices))}"
+        elif flag.pattern is not None and flag.pattern.fullmatch(value) is None:
+            rule = f"must match {flag.pattern.pattern}"
+        elif not external_ok(flag, value):
+            rule = f"is not the {flag.external_check}"
+        else:
+            return None
+        return f"{flag.name} value {clip_token(value)} {rule}."
 
     def read_value(flag: Flag, index: int) -> tuple[int, str | None]:
         if not flag.takes_value:

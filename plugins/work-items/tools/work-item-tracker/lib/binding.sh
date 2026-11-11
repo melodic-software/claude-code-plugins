@@ -264,9 +264,9 @@ wit_with_owner_decision() {
 # invalid-value rule"), and fail.
 wit_invalid() {
   local file="$1" key="$2" override present
-  if override="$(wit_find_override "$1")"; then
+  if override="$(wit_find_override "$file")"; then
     present="$(wit_binding_layer_json "$override" 2>/dev/null |
-      jq --arg k "$2" '($k | split(".")) as $p | any(paths; . == $p)' 2>/dev/null)"
+      jq --arg k "$key" '($k | split(".")) as $p | any(paths; . == $p)' 2>/dev/null)"
     [[ "$present" == "true" ]] && file="$override"
   fi
   [[ "$file" == *.yaml ]] && key="tracker.$key"
@@ -289,7 +289,7 @@ wit_storage_root() {
 # wit_read_binding <path>: validate shape and export the WIT_* binding values.
 # lease_ttl_hours is REQUIRED: defaults live in the binding, never in code.
 wit_read_binding() {
-  local path="$1" json version provider ttl storage human_gated autonomous_eligible recurring_maintenance container container_type minutes
+  local path="$1" json version provider ttl storage human_gated autonomous_eligible recurring_maintenance container minutes
   local owner_decision hold_labels hold_states hold_state_labels wayfind
   json="$(wit_effective_binding_json "$path")" || return 1
   if [[ "$path" == */"$WIT_LEGACY_BINDING" && "$path" != "${WORK_ITEM_TRACKER_BINDING:-}" ]]; then
@@ -306,10 +306,7 @@ wit_read_binding() {
   minutes="$(jq -r '.config.lease_ttl_minutes // 0' <<<"$json")"
   [[ "$minutes" =~ ^[0-9]+$ && "$minutes" -le 59 ]] || { wit_invalid "$path" config.lease_ttl_minutes "$minutes"; return 1; }
   storage="$(jq -r '.config.storage_dir // empty' <<<"$json")"
-  if [[ "$provider" == "local-markdown" && -z "$storage" ]]; then
-    wit_invalid "$path" config.storage_dir "$storage"
-    return 1
-  fi
+  [[ "$provider" != "local-markdown" || -n "$storage" ]] || { wit_invalid "$path" config.storage_dir "$storage"; return 1; }
   # A relative storage_dir is rooted at the binding's directory (a YAML binding's
   # project root), never the caller's CWD, so a verb run from a subdirectory reads
   # the same store.
@@ -321,11 +318,8 @@ wit_read_binding() {
   recurring_maintenance="$(wit_role_label "$json" "recurring-maintenance" "$WIT_DEFAULT_RECURRING_MAINTENANCE_LABEL")"
   # A present non-string container_label is a config error, not a fallback: jq -r would
   # stringify it into a label no item carries, letting containers onto the frontier.
-  container_type="$(jq -r '.config.container_label | type' <<<"$json")"
-  [[ "$container_type" == "null" || "$container_type" == "string" ]] ||
+  container="$(wit_config_text "$json" container_label "$WIT_DEFAULT_CONTAINER_LABEL")" ||
     { wit_invalid "$path" config.container_label "$(jq -c '.config.container_label' <<<"$json")"; return 1; }
-  container="$(jq -r '.config.container_label // empty' <<<"$json")"
-  container="${container:-$WIT_DEFAULT_CONTAINER_LABEL}"
   owner_decision="$(wit_role_label "$json" "owner-decision" "$WIT_DEFAULT_OWNER_DECISION_LABEL")"
   # The hold lists and the wayfind prefix: absent or empty keeps the lib/labels.sh
   # default; a present value of the wrong shape is a config error, never a fallback.

@@ -3,6 +3,43 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.14] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [0.21.13] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [0.21.12] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [0.21.11] - 2026-11-10
+
+### Changed
+
+- The `clean` and `setup` skills point at the live Claude Code docs sections for upstream
+  behavior they used to restate (`AskUserQuestion` availability, the auto-mode classifier,
+  exec-form hooks, Node at runtime), and the `clean` branch-deletion text now names both merged-PR
+  forms the delete script accepts, including `MERGED (tip drift)`. No behavior change.
+
+## [0.21.10] - 2026-11-10
+
+### Fixed
+
+- Links to Claude Code's docs that pointed at moved section anchors now resolve: the permissions page's wrapper list, the permission-modes auto-mode section, and Code Review's setup and review-request sections.
+
 ## [0.21.9] - 2026-11-09
 
 ### Changed

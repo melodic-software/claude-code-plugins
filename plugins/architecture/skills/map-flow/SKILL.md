@@ -201,13 +201,13 @@ option `${user_config.medium}`, or `""` when that reads empty or unsubstituted (
 
 ## Gotchas
 
-- **A dynamic diagram is one feature, not the structure.** Claim: a C4 dynamic diagram shows how
-  elements collaborate at runtime for one feature, story, or use case. Scope is that feature.
-  Primary and supporting elements are the author's choice of software systems, containers, or
-  components. The sequence style and the collaboration style show the same information. Basis:
-  <https://c4model.com/diagrams/dynamic>, fetched 2026-09-28, and the supporting-diagram list at
-  <https://c4model.com/diagrams>. As of: 2026-09-28. Recheck when the dynamic-diagram page changes
-  the scope or the element rule, or the diagrams index adds or removes dynamic.
+- **A dynamic diagram is one feature, not the structure.** The trace covers one entry point.
+  Pointer: when checking a dynamic view's scope or elements, fetch
+  [C4 dynamic diagram § Scope](https://c4model.com/diagrams/dynamic#scope),
+  [§ Primary and supporting elements](https://c4model.com/diagrams/dynamic#primary-and-supporting-elements)
+  and [C4 diagrams § Supporting diagrams](https://c4model.com/diagrams#supporting-diagrams) live.
+  As of: 2026-11-10. Recheck trigger: the dynamic-diagram page changes the scope or the element
+  rule, or the diagrams index adds or removes dynamic.
 - **The picture has no dialect key.** The authoring-formats convention keys only data diagrams and
   C4 system views, so a traced sequence stays an unkeyed mermaid `sequenceDiagram`, as
   `/planning:design` draws its sequence flows. The decision is recorded in
@@ -229,11 +229,13 @@ option `${user_config.medium}`, or `""` when that reads empty or unsubstituted (
   PHP; their files are never read, and a tree with no C# file is refused. A comment is not a call. A declaration line is not a hop.
 - **ASP.NET route attributes are the entry grammar.** `[Route("...")]` and `[HttpGet("...")]`
   (and the Post, Put, Delete, and Patch attribute forms) match a route entry, as do the same
-  quoted strings on `MapGet`/`MapPost` and the other `Map*` methods. Verified 2026-09-28 against
-  <https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/routing>, which shows
-  `[Route("...")]` and `[HttpGet("...")]` including `[HttpGet("/products3")]`. Recheck when that
-  page drops those attribute names. The `Map*` form is the same quoted-route shape; recheck it
-  when the minimal-APIs page stops using `MapGet` with a route string. A verb prefix on the entry
+  quoted strings on `MapGet`/`MapPost` and the other `Map*` methods. Pointer: when checking the
+  route forms the adapter matches, fetch
+  [controller routing § Attribute routing with HTTP verb attributes](https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/routing#attribute-routing-with-http-verb-attributes)
+  and
+  [minimal APIs § Routing](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis#routing)
+  live. As of: 2026-11-10. Recheck trigger: either section drops those attribute names or the
+  `Map*` route-string form. A verb prefix on the entry
   (`GET /orders/{id}`) is matched against the `Http*` attribute names beside the route, or the
   `Map*` name. The script does not compose a class-level `[Route(...)]` with a method route; that
   is a limit of this adapter.

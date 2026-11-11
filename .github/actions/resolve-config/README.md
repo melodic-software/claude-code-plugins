@@ -123,12 +123,12 @@ the `limits` ([README, Limits](../../../docs/conventions/pr-pipeline/README.md#l
 that profile's `model`, `effort` (null when unset), `subagent-model` (`inherit` when unset) and
 `max-turns`, from its activity's route, else `models.default-profile`, else, with no `models`
 block, the built-in `standard` profile (model `opus`, 75 turns); a model outside `haiku`,
-`sonnet` and `opus` resolves to `opus`. That excludes the frontier aliases `fable` and `best` on
-purpose: the lanes run no frontier model until the owner sets a Fable allowance for them, and the
-schema refuses both on a profile (`pr-pipeline.schema.json`, `model` and `subagent-model`), so
+`sonnet` and `opus` resolves to `opus`. That excludes `fable` and `best` on purpose (`best` names
+Fable on Claude Code before v2.1.321, and CI pins 2.1.319): the lanes run no frontier model until
+the owner sets a Fable allowance for them, and the schema refuses both on a profile (`pr-pipeline.schema.json`, `model` and `subagent-model`), so
 this rule catches a config that reached the resolver unchecked. The upstream alias list is
 [model-config, Model aliases](https://code.claude.com/docs/en/model-config#model-aliases), as of
-2026-10-31; recheck when an alias is added or retired. At input `model-rung` 1 the
+2026-11-09; recheck when an alias is added or retired. At input `model-rung` 1 the
 profile's `escalate-to` replaces that profile, one rung at most; a script slot carries `models`
 null. A skill slot with input `issue`, in a config with `models.issue-dimensions`, also carries
 `issue-dimensions` and `timeout-minutes`, and its `max-turns` is the dimensions' turn cap; its

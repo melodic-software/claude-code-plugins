@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "Implementation:\n- Orders table (docs/glossary.md:24): names a database table and its columns, not a domain concept. Remove it?", "why": "names the entry and the implementation reason"},
+    {"answer": "I'd prune **Orders table**: it is an implementation detail (a Postgres table), so it belongs in the architecture docs. Shall I remove it?", "why": "implementation detail, Postgres"},
+    {"answer": "Orders table: names a table, not a domain concept.", "why": "reason is the table itself"}
+  ],
+  "fail": [
+    {"answer": "Removed Backorder and Orders table from docs/glossary.md.", "why": "no reason given"},
+    {"answer": "", "why": "empty"},
+    {"answer": "Backorder is unused: 0 uses in 0 files.", "why": "never mentions the implementation entry"}
+  ]
+}

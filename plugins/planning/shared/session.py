@@ -301,15 +301,14 @@ def tokenize(text, names):
 def mention_texts(doc):
     """(holder, key) of every text a person wrote that can hold a mention, as state.json keeps it."""
     out = []
-    people_cards = [c for lst in doc["cards"].values() for c in lst if c.get("kind") == "person"]
-    for c in [*people_cards, *(t for lst in doc.get("cleared", {}).values() for t in lst)]:
+    for c in [*_answers(doc["cards"]), *_flat(doc.get("cleared", {}))]:
         out += [(c, "text"), *((v, "text") for v in c.get("history", []) if isinstance(v, dict))]
     out += [(lk["source"], "text") for lk in doc["locks"].values() if "text" in (lk.get("source") or {})]
-    for s in (s for lst in doc["suggestions"].values() for s in lst):
+    for s in _flat(doc["suggestions"]):
         out += [(s, "text"), (s, "note")]
     out += [(q, "text") for q in doc["questions"] if (q.get("origin") or {}).get("kind") == "host"]
     out += [(r, "text") for key in ("proposals", "chat", "annotations", "requests") for r in doc[key]]
-    out += [(c, "text") for lst in doc["discussions"].values() for c in lst]
+    out += [(c, "text") for c in _flat(doc["discussions"])]
     out += [(m["replyTo"], "excerpt") for m in doc["chat"] if isinstance(m.get("replyTo"), dict)]
     out += [(n, "body") for lst in doc["notifications"].values() for n in lst if n.get("kind") in ("mention", "reply")]
     return [(h, k) for h, k in out if isinstance(h, dict) and isinstance(h.get(k), str)]
@@ -463,7 +462,7 @@ def cross_field_errors(doc):
     session secret names the owner (only the owner link does), only a poll holds a closed-poll lock, no person holds a
     reaction twice or both thumbs and down on one answer, a comment's id and a report's id and picture are names the server makes, and every link and asset name is one a write route takes
     (the schema's url and assetId patterns, which schema.py does not check)."""
-    errors, seen, per_round = [], set(), {}
+    errors, seen = [], set()
     if HOST in doc["credentials"]["secrets"].values():
         errors.append("A session secret names the owner; only the owner link may.")
     if any(m["status"]["kind"] == "pending" and HOST in (m["from"], m["to"]) for m in doc["mergeRequests"]):
@@ -500,7 +499,7 @@ def cross_field_errors(doc):
         if lock and lock["source"]["kind"] == "poll" and q["purpose"] != "poll":
             errors.append(f"{q['id']} holds a closed-poll lock but is not a poll.")
         seen.add(q["id"])
-        per_round[q["round"]] = per_round.get(q["round"], 0) + 1
+    per_round = collections.Counter(q["round"] for q in doc["questions"])
     errors += [f"Round {n} holds {k} questions; the most is {MAX_ROUND}." for n, k in sorted(per_round.items()) if k > MAX_ROUND]
     held = [(qid, rs) for qid, refs in doc["reactions"].items() for by in refs.values() for rs in by.values()]
     errors += [f"A person holds one reaction twice, or both thumbs and down, on an answer to {qid}." for qid, rs in held if len(set(rs)) < len(rs) or {"thumbs", "down"} <= set(rs)]
@@ -585,11 +584,7 @@ def _live_folder(path, root):
     hidden part, named by an absolute path; its path relative to `root`, as written in the entry."""
     if not isinstance(path, str) or not os.path.isabs(path):
         raise _bad("folder", "folder must be an absolute path to a build folder under the data folder's staging/.")
-    try:
-        real = Path(path).resolve(strict=True)
-        base = Path(root).resolve(strict=True)
-    except (OSError, RuntimeError) as exc:
-        raise _bad("folder", f"No folder at {path}.") from exc
+    real, base = _resolved(path, root, "folder", f"No folder at {path}.")
     staging = base / STAGING
     if not real.is_relative_to(staging) or real == staging:
         raise _bad("folder", f"add-live serves a build folder only from inside {staging}.")
@@ -597,6 +592,14 @@ def _live_folder(path, root):
     if not real.is_dir() or any(part.startswith(".") for part in rel.parts) or not LIVE_FOLDER.fullmatch(rel.as_posix()):
         raise _bad("folder", "folder must name a directory with no hidden folder or name.")
     return rel.as_posix()
+
+
+def _resolved(path, root, field, missing):
+    """(path, root), each resolved through links; refused with `missing` when either does not exist."""
+    try:
+        return Path(path).resolve(strict=True), Path(root).resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise _bad(field, missing) from exc
 
 
 def _answers(cards):
@@ -649,10 +652,10 @@ def _attaching(doc):
 def _bad_links_and_assets(doc):
     """Where the document holds a link that is not http(s) or an asset name write routes refuse."""
     bad = []
-    share = doc["session"]["share"]["url"]
+    sess = doc["session"]
+    share = sess["share"]["url"]
     if share and not URL.fullmatch(share):
         bad.append("session.share.url")
-    sess = doc["session"]
     bad += [f"session.{k}" for k, pattern in (("repo", REPO), ("commit", COMMIT)) if k in sess and not pattern.fullmatch(sess[k])]
     if "commit" in sess and "repo" not in sess:
         bad.append("session.commit")
@@ -938,10 +941,8 @@ def _text(body, field, *, limit=MAX_TEXT, empty_ok=False, optional=False):
     if v is None:
         if optional:
             return None
-        if empty_ok:
-            return ""
-        raise DomainError(400, "empty", f"{field} is empty.", field=field)
-    if not isinstance(v, str):
+        v = ""
+    elif not isinstance(v, str):
         raise _bad(field, f"{field} must be a string.")
     v = _visible(v).strip()
     if not v and not empty_ok:
@@ -1045,11 +1046,7 @@ def _asset_source(path, root):
     """An existing regular file under `root` with no hidden part below it; refused otherwise."""
     if not isinstance(path, str) or not os.path.isabs(path):
         raise _bad("path", "path must be an absolute path to a local file.")
-    try:
-        real = Path(path).resolve(strict=True)
-        base = Path(root).resolve(strict=True)
-    except (OSError, RuntimeError) as exc:
-        raise _bad("path", f"No file at {path}.") from exc
+    real, base = _resolved(path, root, "path", f"No file at {path}.")
     if not real.is_relative_to(base):
         raise _bad("path", f"add-asset reads files only from the session's data folder; save captures in {base / STAGING}.")
     if not real.is_file() or any(part.startswith(".") for part in real.relative_to(base).parts):
@@ -1133,12 +1130,21 @@ def _file_name(body):
     """An upload's display name: one line, its last path part, with control, format (bidi), private-use, surrogate
     and unassigned characters dropped; data, never a path."""
     raw = _text(body, "file", limit=MAX_FILE_NAME * 2)
-    name = one_line("".join(c for c in re.split(r"[\\/]", raw)[-1] if unicodedata.category(c) not in ("Cc", "Cf", "Co", "Cs", "Cn")))
+    name = one_line("".join(c for c in re.split(r"[\\/]", raw)[-1] if unicodedata.category(c) not in (*_DROPPED_KINDS, "Cn")))
     if not name or name in (".", ".."):
         raise _bad("file", "file must name the file.")
     if len(name) > MAX_FILE_NAME:
         raise DomainError(400, "too-long", f"file allows at most {MAX_FILE_NAME} characters.", field="file", max=MAX_FILE_NAME)
     return name
+
+
+def _data_url(m, field):
+    """(bytes, extension) of a THUMB match; refused when its data is not base64."""
+    try:
+        data = base64.b64decode(m.group(2), validate=True)
+    except ValueError as exc:
+        raise _bad(field, f"{field} is not base64.") from exc
+    return data, {"jpeg": "jpg"}.get(m.group(1), m.group(1))
 
 
 def _thumb(v, ext):
@@ -1148,11 +1154,7 @@ def _thumb(v, ext):
     m = THUMB.fullmatch(v) if isinstance(v, str) and len(v) <= MAX_THUMB else None
     if m is None or ext not in THUMB_KINDS:
         raise _bad("thumb", "thumb must be a small PNG, JPEG or WebP data: URL, on a picture.")
-    try:
-        data = base64.b64decode(m.group(2), validate=True)
-    except ValueError as exc:
-        raise _bad("thumb", "thumb is not base64.") from exc
-    kind = {"jpeg": "jpg"}.get(m.group(1), m.group(1))
+    data, kind = _data_url(m, "thumb")
     if not UPLOAD_KINDS[kind][1](data[:64]):
         raise _bad("thumb", f"thumb says {m.group(1)}, but its bytes are not.")
     return v
@@ -1166,13 +1168,9 @@ def _report_image(v, field="image"):
     m = THUMB.fullmatch(v) if isinstance(v, str) else None
     if m is None:
         raise DomainError(415, "file-type", "A report's picture must be a PNG, JPEG or WebP screenshot.", field=field)
-    try:
-        data = base64.b64decode(m.group(2), validate=True)
-    except ValueError as exc:
-        raise _bad(field, f"{field} is not base64.") from exc
+    data, kind = _data_url(m, field)
     if len(data) > REPORT_IMAGE_MAX:
         raise DomainError(413, "upload-too-large", "That picture is too large.", field=field, max=REPORT_IMAGE_MAX)
-    kind = {"jpeg": "jpg"}.get(m.group(1), m.group(1))
     if not UPLOAD_KINDS[kind][1](data[:64]):
         raise DomainError(415, "file-type", f"The picture says {m.group(1)}, but its bytes are not.", field=field)
     return data, kind

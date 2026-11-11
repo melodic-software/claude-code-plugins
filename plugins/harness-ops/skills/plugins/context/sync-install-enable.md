@@ -61,8 +61,8 @@ step's prose, is what to branch on:
   answers are keyed by question text. A chunk of 1, whether a gap of 1 or the one left over from a
   gap of 5, 9, 13 and so on, is one single-select Install/Skip question, with no hand-added Other
   option. The limits are the tool's, per
-  [Handle approvals and user input](https://code.claude.com/docs/en/agent-sdk/user-input.md) (as
-  of 2026-10-18; recheck if that page changes them). Then `claude plugin install <id> -s user` for each the user picks. A
+  [Handle approvals and user input: limitations](https://code.claude.com/docs/en/agent-sdk/user-input#limitations)
+  (as of 2026-11-10; recheck if that section changes them). Then `claude plugin install <id> -s user` for each the user picks. A
   pick is the user's choice, so a pick the CLI reports as disabled by default is then enabled with
   `claude plugin enable <id> -s user`; a pick installed enabled gets no `enable`, which exits 1
   for a plugin that is already enabled. Do not show catalog defaults in the prompt: the CLI's
@@ -75,7 +75,8 @@ step's prose, is what to branch on:
 - **`none`**: install nothing; list the entries under "Action needed" in the report only
 
 **A headless run launched with `--setting-sources` that omits `user` silently reverts this policy to
-`ask`.** `pluginConfigs` is read from user settings, `--settings`, and managed settings only (see
+`ask`** (the flag: [CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags),
+as of 2026-11-10). `pluginConfigs` is read from user settings, `--settings`, and managed settings only (see
 [scope-semantics.md](scope-semantics.md)), so dropping `user` from the source list drops the
 configured `install_new` with it, and the render falls back to the unset placeholder, which this
 step correctly reads as `ask`. That is the right fallback and the wrong silence: say so in the

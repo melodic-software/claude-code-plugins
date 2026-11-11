@@ -43,7 +43,7 @@ cm_resolve_python() {
     printf 'code-metrics needs bash 4 or later (this is %s); macOS: brew install bash; Windows: run under Git Bash\n' "$BASH_VERSION" >&2
     return 2
   fi
-  local here candidate resolved lower probe
+  local here candidate resolved probe
   here="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
   CM_PYTHON_FLOOR="$(sed -n 's/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\1.\2/p' "$here/report.py")"
   [[ -n "$CM_PYTHON_FLOOR" ]] || CM_PYTHON_FLOOR="3.9"
@@ -53,18 +53,10 @@ cm_resolve_python() {
   CM_PY_NATIVE=()
   for candidate in python3 python; do
     resolved="$(command -v "$candidate" 2>/dev/null)" || continue
-    lower="$(printf '%s' "$resolved" | tr '[:upper:]' '[:lower:]')"
-    if [[ "$lower" == *windowsapps* && ! -s "$resolved" ]]; then
-      continue
-    fi
-    if _cm_probe "$probe" "$candidate"; then
-      return 0
-    fi
+    [[ "${resolved,,}" == *windowsapps* && ! -s "$resolved" ]] && continue
+    _cm_probe "$probe" "$candidate" && return 0
   done
-  if command -v py >/dev/null 2>&1 && _cm_probe "$probe" py -3; then
-    return 0
-  fi
-  return 1
+  command -v py >/dev/null 2>&1 && _cm_probe "$probe" py -3
 }
 
 # shellcheck disable=SC2034

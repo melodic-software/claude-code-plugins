@@ -25,9 +25,7 @@ binding_name=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --binding)
-    if [[ $# -lt 2 ]]; then
-      usage_error
-    fi
+    [[ $# -ge 2 ]] || usage_error
     binding_name="$2"
     shift 2
     ;;
@@ -36,9 +34,7 @@ while [[ $# -gt 0 ]]; do
     ;;
   esac
 done
-if [[ -z "$binding_name" ]]; then
-  usage_error
-fi
+[[ -n "$binding_name" ]] || usage_error
 # The name becomes a path segment: constrain it BEFORE interpolation, so
 # `--binding ../../x` cannot escape the searched roots and source an arbitrary file.
 if ! [[ "$binding_name" =~ ^[a-z][a-z0-9-]*$ ]]; then
@@ -101,15 +97,25 @@ wit_case() {
   esac
 }
 
+# wit_out <jq-filter>: the filter's raw result over WIT_OUT.
+wit_out() {
+  jq -r "$1" <<<"$WIT_OUT"
+}
+
+# wit_out_ids: WIT_OUT's item ids as a compact JSON array.
+wit_out_ids() {
+  jq -c '[.items[].id]' <<<"$WIT_OUT"
+}
+
 assert_schema_version() {
-  assert_eq "$1 (schema_version)" "1.0" "$(jq -r '.schema_version' <<<"$WIT_OUT")"
+  assert_eq "$1 (schema_version)" "1.0" "$(wit_out '.schema_version')"
 }
 
 # A list envelope must say whether it is complete: a reader cannot tell an absent
 # flag from an adapter that never checked. Boolean, not `false`: a live instance
 # past its ceiling legitimately reports true.
 assert_truncated_flag() {
-  assert_eq "$1 (truncated is a boolean)" "boolean" "$(jq -r '.truncated | type' <<<"$WIT_OUT")"
+  assert_eq "$1 (truncated is a boolean)" "boolean" "$(wit_out '.truncated | type')"
 }
 
 RUN_TAG="conf-$(date -u +%Y%m%dT%H%M%SZ)-$$"
@@ -120,7 +126,7 @@ wit_case "capabilities" 0 capabilities
 assert_schema_version "capabilities"
 # Checked on JSON type, not jq -r text: `null` is a valid adapter name, and jq -r
 # prints `null` for JSON null too.
-PROVIDER="$(jq -r '.provider' <<<"$WIT_OUT")"
+PROVIDER="$(wit_out '.provider')"
 if jq -e '.provider | type == "string" and length > 0' <<<"$WIT_OUT" >/dev/null; then
   pass "capabilities names a provider"
 else
@@ -189,10 +195,7 @@ FAKE_ID="$PROVIDER:conformance/x#1"
 # wit_case_if_unsupported <verb> <args…>: assert the exit-6 gate for a verb declared
 # unsupported; a supported verb is exercised by its own section below.
 wit_case_if_unsupported() {
-  local verb="$1"
-  if ! verb_supported "$verb"; then
-    wit_case "unsupported $verb → exit 6" 6 "$@"
-  fi
+  verb_supported "$1" || wit_case "unsupported $1 → exit 6" 6 "$@"
 }
 
 wit_case_if_unsupported create-item --title x
@@ -220,15 +223,15 @@ fi
 
 wit_case "status-storage" 0 status-storage "${repo_args[@]+"${repo_args[@]}"}"
 assert_schema_version "status-storage"
-assert_eq "status-storage names field or labels" "ok" "$(jq -r 'if (.storage == "field" and .field == "Work status")
-  or (.storage == "labels" and .field == null) then "ok" else "bad" end' <<<"$WIT_OUT")"
+assert_eq "status-storage names field or labels" "ok" "$(wit_out 'if (.storage == "field" and .field == "Work status")
+  or (.storage == "labels" and .field == null) then "ok" else "bad" end')"
 if ! verb_supported get-field-options; then
-  assert_eq "status-storage without get-field-options → labels" "labels" "$(jq -r '.storage' <<<"$WIT_OUT")"
+  assert_eq "status-storage without get-field-options → labels" "labels" "$(wit_out '.storage')"
 else
   wit_case "get-field-options absent field" 0 get-field-options --field "conformance-absent-field" "${repo_args[@]+"${repo_args[@]}"}"
   assert_schema_version "get-field-options"
   assert_eq "get-field-options absent field → null field_id, empty options" "null|[]" \
-    "$(jq -r '"\(.field_id)|\(.options | tojson)"' <<<"$WIT_OUT")"
+    "$(wit_out '"\(.field_id)|\(.options | tojson)"')"
 fi
 
 # --- create-item ---
@@ -238,15 +241,15 @@ if verb_supported create-item; then
   wit_case "create-item without --title → usage" 2 create-item "${repo_args[@]+"${repo_args[@]}"}"
   wit_case "create-item A" 0 create-item --title "$RUN_TAG A" --body "conformance" "${repo_args[@]+"${repo_args[@]}"}"
   assert_schema_version "create-item A"
-  ITEM_A_ID="$(jq -r '.id' <<<"$WIT_OUT")"
+  ITEM_A_ID="$(wit_out '.id')"
   if [[ "$ITEM_A_ID" =~ ^[a-z0-9][a-z0-9-]*:[^#[:space:]]+#[0-9]+$ ]]; then
     pass "create-item A id grammar"
   else
     fail "create-item A id grammar" "provider:owner/repo#number" "$ITEM_A_ID"
   fi
-  assert_eq "create-item A state open" "open" "$(jq -r '.state' <<<"$WIT_OUT")"
+  assert_eq "create-item A state open" "open" "$(wit_out '.state')"
   wit_case "create-item B" 0 create-item --title "$RUN_TAG B" "${repo_args[@]+"${repo_args[@]}"}"
-  ITEM_B_ID="$(jq -r '.id' <<<"$WIT_OUT")"
+  ITEM_B_ID="$(wit_out '.id')"
 
   # Edge-at-create path: --parent and --blocked-by in one create-item call, distinct
   # from the post-create link-blocks/add-sub-item path below.
@@ -254,8 +257,8 @@ if verb_supported create-item; then
     wit_case "create-item C with --parent + --blocked-by" 0 \
       create-item --title "$RUN_TAG C" --parent "$ITEM_A_ID" --blocked-by "$ITEM_B_ID" \
       "${repo_args[@]+"${repo_args[@]}"}"
-    assert_eq "create-item C parent_id" "$ITEM_A_ID" "$(jq -r '.parent_id' <<<"$WIT_OUT")"
-    assert_eq "create-item C blocked_by_count" "1" "$(jq -r '.blocked_by_count' <<<"$WIT_OUT")"
+    assert_eq "create-item C parent_id" "$ITEM_A_ID" "$(wit_out '.parent_id')"
+    assert_eq "create-item C blocked_by_count" "1" "$(wit_out '.blocked_by_count')"
   fi
 fi
 
@@ -267,7 +270,7 @@ if verb_supported get-item && [[ -n "$ITEM_A_ID" ]]; then
   wit_case "get-item nonexistent → exit 5" 5 get-item "$missing_id"
   wit_case "get-item A" 0 get-item "$ITEM_A_ID"
   assert_schema_version "get-item A"
-  assert_eq "get-item A unblocked" "0" "$(jq -r '.blocked_by_count' <<<"$WIT_OUT")"
+  assert_eq "get-item A unblocked" "0" "$(wit_out '.blocked_by_count')"
 fi
 
 # --- change-link (offline: no provider call) ---
@@ -277,11 +280,11 @@ if verb_supported change-link; then
   wit_case "change-link malformed id → usage" 2 change-link "not-an-id"
   wit_case "change-link" 0 change-link "$link_id"
   assert_schema_version "change-link"
-  assert_eq "change-link item_id echoes the id" "$link_id" "$(jq -r '.item_id' <<<"$WIT_OUT")"
-  assert_eq "change-link shape" "ok" "$(jq -r 'if (.refs | type) == "string" and (.refs | length) > 0
+  assert_eq "change-link item_id echoes the id" "$link_id" "$(wit_out '.item_id')"
+  assert_eq "change-link shape" "ok" "$(wit_out 'if (.refs | type) == "string" and (.refs | length) > 0
     and ((.closes | type) == "string" or .closes == null)
-    and (.branch_ref | type) == "string" and (.branch_ref | length) > 0 then "ok" else "bad" end' <<<"$WIT_OUT")"
-  branch_ref="$(jq -r '.branch_ref' <<<"$WIT_OUT")"
+    and (.branch_ref | type) == "string" and (.branch_ref | length) > 0 then "ok" else "bad" end')"
+  branch_ref="$(wit_out '.branch_ref')"
   assert_eq "manifest declares a change_link.branch_pattern" "string" \
     "$(jq -r '.change_link.branch_pattern | type' <<<"$CAPS")"
   # Round trip: a branch carrying the branch_ref names the same item. Needs a real item,
@@ -289,7 +292,7 @@ if verb_supported change-link; then
   if [[ -n "$ITEM_A_ID" ]]; then
     item_repo="$(sed -E 's/^[^:]+:([^#]+)#.*$/\1/' <<<"$ITEM_A_ID")"
     wit_case "change-link --branch" 0 change-link --branch "feat/${branch_ref}-conformance" --repo "$item_repo"
-    assert_eq "change-link --branch round-trips to the item" "$ITEM_A_ID" "$(jq -r '.item_id' <<<"$WIT_OUT")"
+    assert_eq "change-link --branch round-trips to the item" "$ITEM_A_ID" "$(wit_out '.item_id')"
   fi
   wit_case "change-link --branch without an item reference → exit 5" 5 change-link --branch "conformance"
 else
@@ -301,12 +304,12 @@ fi
 if verb_supported link-blocks && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
   wit_case "link-blocks B blocked-by A" 0 link-blocks "$ITEM_B_ID" --blocked-by "$ITEM_A_ID"
   wit_case "get-item B sees open blocker" 0 get-item "$ITEM_B_ID"
-  assert_eq "B blocked_by_count" "1" "$(jq -r '.blocked_by_count' <<<"$WIT_OUT")"
+  assert_eq "B blocked_by_count" "1" "$(wit_out '.blocked_by_count')"
 fi
 if verb_supported add-sub-item && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
   wit_case "add-sub-item B under A" 0 add-sub-item "$ITEM_B_ID" --parent "$ITEM_A_ID"
   wit_case "get-item B sees parent" 0 get-item "$ITEM_B_ID"
-  assert_eq "B parent_id" "$ITEM_A_ID" "$(jq -r '.parent_id' <<<"$WIT_OUT")"
+  assert_eq "B parent_id" "$ITEM_A_ID" "$(wit_out '.parent_id')"
 fi
 
 # --- sub-item enumeration + container-scoped frontier ---
@@ -316,16 +319,14 @@ if verb_supported list-sub-items && verb_supported add-sub-item && [[ -n "$ITEM_
   wit_case "list-sub-items A" 0 list-sub-items "$ITEM_A_ID"
   assert_schema_version "list-sub-items A"
   assert_truncated_flag "list-sub-items A"
-  assert_contains "A's children hold B" "$(jq -c '[.items[].id]' <<<"$WIT_OUT")" "$ITEM_B_ID"
-  assert_eq "enumerated child B is re-parented to A" "$ITEM_A_ID" \
-    "$(jq -r '.items[0].parent_id' <<<"$WIT_OUT")"
+  assert_contains "A's children hold B" "$(wit_out_ids)" "$ITEM_B_ID"
+  assert_eq "enumerated child B is re-parented to A" "$ITEM_A_ID" "$(wit_out '.items[0].parent_id')"
   wit_case "list-sub-items malformed parent id → usage" 2 list-sub-items "not-an-id"
 
   wit_case "list-frontier --parent A" 0 list-frontier --parent "$ITEM_A_ID"
   assert_schema_version "list-frontier --parent A"
   assert_truncated_flag "list-frontier --parent A"
-  assert_not_contains "scoped frontier drops blocked child B" \
-    "$(jq -c '[.items[].id]' <<<"$WIT_OUT")" "$ITEM_B_ID"
+  assert_not_contains "scoped frontier drops blocked child B" "$(wit_out_ids)" "$ITEM_B_ID"
 fi
 
 # --- frontier ---
@@ -334,7 +335,7 @@ if verb_supported list-items && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
   wit_case "list-frontier" 0 list-frontier "${repo_args[@]+"${repo_args[@]}"}"
   assert_schema_version "list-frontier"
   assert_truncated_flag "list-frontier"
-  frontier_ids="$(jq -c '[.items[].id]' <<<"$WIT_OUT")"
+  frontier_ids="$(wit_out_ids)"
   assert_contains "frontier holds unblocked A" "$frontier_ids" "$ITEM_A_ID"
   assert_not_contains "frontier drops blocked B" "$frontier_ids" "$ITEM_B_ID"
 
@@ -342,24 +343,24 @@ if verb_supported list-items && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
   # labels none does. A freshly created A carries no hold either way.
   wit_case "list-frontier --autonomous" 0 list-frontier --autonomous "${repo_args[@]+"${repo_args[@]}"}"
   assert_schema_version "list-frontier --autonomous"
-  assert_contains "autonomous frontier holds unblocked A" "$(jq -c '[.items[].id]' <<<"$WIT_OUT")" "$ITEM_A_ID"
+  assert_contains "autonomous frontier holds unblocked A" "$(wit_out_ids)" "$ITEM_A_ID"
   assert_eq "autonomous frontier statuses are names or null" "true" \
-    "$(jq '[.items[] | select(has("status")) | .status | (type == "string" or type == "null")] | all' <<<"$WIT_OUT")"
+    "$(wit_out '[.items[] | select(has("status")) | .status | (type == "string" or type == "null")] | all')"
 
   wit_case "list-items" 0 list-items "${repo_args[@]+"${repo_args[@]}"}"
   assert_schema_version "list-items"
   assert_truncated_flag "list-items"
-  assert_contains "list-items holds open A" "$(jq -c '[.items[].id]' <<<"$WIT_OUT")" "$ITEM_A_ID"
+  assert_contains "list-items holds open A" "$(wit_out_ids)" "$ITEM_A_ID"
   assert_eq "list-items rows carry created_at as a UTC timestamp or null" "true" \
-    "$(jq '[.items[] | has("created_at") and (.created_at == null
-      or (.created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")))] | all' <<<"$WIT_OUT")"
+    "$(wit_out '[.items[] | has("created_at") and (.created_at == null
+      or (.created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")))] | all')"
   assert_eq "list-items rows carry milestone as a name or null" "true" \
-    "$(jq '[.items[] | .milestone == null or (.milestone | type == "string" and length > 0)] | all' <<<"$WIT_OUT")"
+    "$(wit_out '[.items[] | .milestone == null or (.milestone | type == "string" and length > 0)] | all')"
   wit_case "list-items --label nobody carries" 0 list-items --label "$RUN_TAG-absent" "${repo_args[@]+"${repo_args[@]}"}"
   assert_truncated_flag "list-items --label"
-  assert_eq "list-items --label nobody carries holds no items" "0" "$(jq '.items | length' <<<"$WIT_OUT")"
+  assert_eq "list-items --label nobody carries holds no items" "0" "$(wit_out '.items | length')"
   wit_case "list-frontier --label nobody carries" 0 list-frontier --label "$RUN_TAG-absent" "${repo_args[@]+"${repo_args[@]}"}"
-  assert_eq "list-frontier --label nobody carries holds no items" "0" "$(jq '.items | length' <<<"$WIT_OUT")"
+  assert_eq "list-frontier --label nobody carries holds no items" "0" "$(wit_out '.items | length')"
 fi
 
 # --- lease lifecycle + claim race ---
@@ -367,8 +368,8 @@ fi
 if verb_supported claim && [[ -n "$ITEM_A_ID" ]]; then
   wit_case "claim A" 0 claim "$ITEM_A_ID" --session-id "$RUN_TAG-s1"
   assert_schema_version "claim A"
-  HOLDER="$(jq -r '.holder' <<<"$WIT_OUT")"
-  LEASE_CID="$(jq -r '.lease_comment_id' <<<"$WIT_OUT")"
+  HOLDER="$(wit_out '.holder')"
+  LEASE_CID="$(wit_out '.lease_comment_id')"
   if [[ -n "$HOLDER" && "$HOLDER" != "null" ]]; then
     pass "claim holder set"
   else
@@ -390,17 +391,17 @@ if verb_supported claim && [[ -n "$ITEM_A_ID" ]]; then
 
   if verb_supported list-items; then
     wit_case "frontier drops claimed A" 0 list-frontier "${repo_args[@]+"${repo_args[@]}"}"
-    assert_not_contains "claimed A left frontier" "$(jq -c '[.items[].id]' <<<"$WIT_OUT")" "$ITEM_A_ID"
+    assert_not_contains "claimed A left frontier" "$(wit_out_ids)" "$ITEM_A_ID"
   fi
 
   if verb_supported reclaim; then
     # A ran through a back-off, so this also asserts reclaim selects the ACTIVE
     # lease, not A's superseded newer one.
     wit_case "reclaim live lease is a no-op" 0 reclaim "$ITEM_A_ID"
-    assert_eq "live lease not reclaimed" "false" "$(jq -r '.reclaimed' <<<"$WIT_OUT")"
+    assert_eq "live lease not reclaimed" "false" "$(wit_out '.reclaimed')"
     # `reason` is FREE TEXT with no contract vocabulary, and adapters word it differently,
     # so assert the semantic fact, never one adapter's prose.
-    reclaim_reason="$(jq -r '.reason' <<<"$WIT_OUT")"
+    reclaim_reason="$(wit_out '.reason')"
     assert_contains "reclaim picked the active lease" "$reclaim_reason" "live"
     assert_not_contains "…and not the superseded one" "$reclaim_reason" "superseded"
 
@@ -408,9 +409,9 @@ if verb_supported claim && [[ -n "$ITEM_A_ID" ]]; then
     if [[ -n "$ITEM_B_ID" ]]; then
       wit_case "claim B with ttl 0" 0 claim "$ITEM_B_ID" --ttl-hours 0 --session-id "$RUN_TAG-s3"
       wit_case "reclaim expired B" 0 reclaim "$ITEM_B_ID"
-      assert_eq "expired lease reclaimed" "true" "$(jq -r '.reclaimed' <<<"$WIT_OUT")"
+      assert_eq "expired lease reclaimed" "true" "$(wit_out '.reclaimed')"
       wit_case "get-item B after reclaim" 0 get-item "$ITEM_B_ID"
-      assert_eq "reclaim cleared assignees" "0" "$(jq -r '.assignees | length' <<<"$WIT_OUT")"
+      assert_eq "reclaim cleared assignees" "0" "$(wit_out '.assignees | length')"
     fi
   fi
 
@@ -422,9 +423,9 @@ if verb_supported claim && [[ -n "$ITEM_A_ID" ]]; then
     fi
     wit_case "release A" 0 release "$ITEM_A_ID" --lease-comment-id "$LEASE_CID"
     assert_schema_version "release A"
-    assert_eq "live lease released" "true" "$(jq -r '.released' <<<"$WIT_OUT")"
+    assert_eq "live lease released" "true" "$(wit_out '.released')"
     wit_case "re-release A is a no-op" 0 release "$ITEM_A_ID" --lease-comment-id "$LEASE_CID"
-    assert_eq "re-release reports released:false" "false" "$(jq -r '.released' <<<"$WIT_OUT")"
+    assert_eq "re-release reports released:false" "false" "$(wit_out '.released')"
     wit_case "same-identity claim after release holds" 0 claim "$ITEM_A_ID" --session-id "$RUN_TAG-s4"
   fi
 fi

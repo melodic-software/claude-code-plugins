@@ -124,8 +124,8 @@ frontier fan-outs. The basis for each default is recorded beside it in
 
 ## Haiku
 
-No role routes to Haiku until it passes this repository's routing eval, and a
-role that does runs at effort `high`. `/multi-agent:route` still resolves a
+No role routes to Haiku, by owner decision, and Haiku runs at effort `high`
+wherever it runs. `/multi-agent:route` still resolves a
 role set to `haiku`, or inheriting a Haiku session, and adds a note. The rule
 and its evidence: [`reference/routing-rubric.md`](reference/routing-rubric.md).
 

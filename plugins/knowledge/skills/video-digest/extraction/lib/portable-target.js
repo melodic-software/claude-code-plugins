@@ -72,7 +72,8 @@ export function portableTargetName(target, deps = {}) {
   if (checkout) {
     const parsed = parseGitHubUrl(normalizeOrigin(checkout.origin ?? ""));
     if (parsed) return `${parsed.owner}/${parsed.repo}`;
-    if (path.basename(resolved)) return path.basename(resolved);
+    const checkoutName = path.basename(resolved);
+    if (checkoutName) return checkoutName;
   }
   const name = path.win32.basename(target.replace(/[\\/]+$/, ""));
   if (!name || name === "." || name === ".." || name === "~") {

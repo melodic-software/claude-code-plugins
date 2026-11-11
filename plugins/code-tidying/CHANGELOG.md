@@ -3,6 +3,32 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.3] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [0.42.2] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [0.42.1] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [0.42.0] - 2026-11-10
+
+### Added
+
+- `/code-tidying:remove-comments` treats deleted rationale for one of the repository's own decisions that names the alternative it beat as an ADR candidate, under the `necessary` and `none` postures. The report lists it under a new "ADR candidates" heading, and in an interactive run with the `architecture` plugin the orchestrating skill (not the `comment-reviewer` agent) hands each one to `/architecture:record-decision`, which applies the admission test. The reshape flag still applies.
+
 ## [0.41.3] - 2026-11-09
 
 ### Changed

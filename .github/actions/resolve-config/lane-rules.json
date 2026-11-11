@@ -12,7 +12,8 @@
   "work-unblock": {
     "stage": "work",
     "forbidden-effects": ["mutate-branch", "publish-artifact", "merge"],
-    "never": "Writes to a branch, or labels an issue that carries a hold label"
+    "activity-grants": { "publish-lane-level": { "actions-variables": "write" } },
+    "never": "Writes to a branch, labels an issue that carries a hold label, or writes any repository variable but the lane level"
   },
   "pr-refine": {
     "stage": "refine",

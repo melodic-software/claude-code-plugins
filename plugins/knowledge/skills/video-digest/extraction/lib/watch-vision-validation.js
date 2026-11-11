@@ -25,24 +25,11 @@ export const TRIAGE_VERDICTS = new Set([
   "skip",
 ]);
 
-export const CELL_IDS = [
-  "R1C1",
-  "R1C2",
-  "R1C3",
-  "R1C4",
-  "R2C1",
-  "R2C2",
-  "R2C3",
-  "R2C4",
-  "R3C1",
-  "R3C2",
-  "R3C3",
-  "R3C4",
-  "R4C1",
-  "R4C2",
-  "R4C3",
-  "R4C4",
-];
+const GRID_INDICES = [1, 2, 3, 4];
+
+export const CELL_IDS = GRID_INDICES.flatMap((row) =>
+  GRID_INDICES.map((col) => `R${row}C${col}`),
+);
 
 const SHEET_ID_RE = /^sheet_\d{3}$/;
 const CELL_ID_RE = /^R[1-4]C[1-4]$/;
@@ -406,14 +393,9 @@ export function validateActionableArtifactsForSlice(sliceDir) {
  */
 export function parseWatchChecklistBlockingTicks(checklistBody) {
   const requiredIds = ["9.1", "9.2", "9.4", "8.1", "8.2", "8.3", "8.4"];
-  /** @type {string[]} */
-  const missing = [];
-  for (const id of requiredIds) {
-    const pattern = new RegExp(`- \\[x\\] \\*\\*${id.replace(".", "\\.")}\\*\\*`, "i");
-    if (!pattern.test(checklistBody)) {
-      missing.push(id);
-    }
-  }
+  const missing = requiredIds.filter(
+    (id) => !new RegExp(`- \\[x\\] \\*\\*${id.replace(".", "\\.")}\\*\\*`, "i").test(checklistBody),
+  );
   return { complete: missing.length === 0, missing };
 }
 
@@ -441,14 +423,8 @@ export function validateWatchChecklistForCompleteSlice(sliceDir) {
   const { complete, missing } = parseWatchChecklistBlockingTicks(
     fs.readFileSync(checklistPath, "utf8"),
   );
-  if (complete) {
-    return { valid: true, errors: [], skipped: false };
-  }
-  return {
-    valid: false,
-    errors: [`unchecked blocking ticks: ${missing.join(", ")}`],
-    skipped: false,
-  };
+  const errors = complete ? [] : [`unchecked blocking ticks: ${missing.join(", ")}`];
+  return { valid: complete, errors, skipped: false };
 }
 
 /**

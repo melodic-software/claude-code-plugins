@@ -24,9 +24,7 @@ EVIDENCE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --evidence)
-    if [[ $# -lt 2 ]]; then
-      usage_error
-    fi
+    [[ $# -ge 2 ]] || usage_error
     EVIDENCE="$2"
     shift 2
     ;;
@@ -53,6 +51,11 @@ record() {
 
 wit() {
   bash "$TRACKER" "$@"
+}
+
+# ids <list-envelope>: the envelope's item ids as a compact JSON array.
+ids() {
+  jq -c '[.items[].id]' <<<"$1"
 }
 
 # Clean slate.
@@ -89,7 +92,7 @@ record "create wayfind item (research)" "$WAYFIND"
 # the wayfind item surfaces as a frontier item.
 FRONTIER="$(wit list-frontier --repo "$REPO")"
 record "frontier before claim" "$FRONTIER"
-IDS="$(jq -c '[.items[].id]' <<<"$FRONTIER")"
+IDS="$(ids "$FRONTIER")"
 assert_contains "frontier holds item1" "$IDS" "$ITEM1_ID"
 assert_not_contains "frontier hides blocked item2" "$IDS" "$ITEM2_ID"
 assert_not_contains "frontier excludes the unblocked container map" "$IDS" "$MAP_ID"
@@ -99,14 +102,14 @@ assert_not_contains "frontier excludes the wayfind item" "$IDS" "$WAYFIND_ID"
 # the global filter.
 SUBS="$(wit list-sub-items "$MAP_ID")"
 record "map sub-items" "$SUBS"
-SUB_IDS="$(jq -c '[.items[].id]' <<<"$SUBS")"
+SUB_IDS="$(ids "$SUBS")"
 assert_contains "sub-items hold item1" "$SUB_IDS" "$ITEM1_ID"
 assert_contains "sub-items hold blocked item2" "$SUB_IDS" "$ITEM2_ID"
 assert_eq "sub-items are re-parented to the map" "$MAP_ID" "$(jq -r '.items[0].parent_id' <<<"$SUBS")"
 
 PFRONTIER="$(wit list-frontier --parent "$MAP_ID")"
 record "scoped frontier before claim" "$PFRONTIER"
-PIDS="$(jq -c '[.items[].id]' <<<"$PFRONTIER")"
+PIDS="$(ids "$PFRONTIER")"
 assert_contains "scoped frontier holds item1" "$PIDS" "$ITEM1_ID"
 assert_not_contains "scoped frontier hides blocked item2" "$PIDS" "$ITEM2_ID"
 assert_not_contains "scoped frontier excludes the map itself" "$PIDS" "$MAP_ID"
@@ -135,7 +138,7 @@ gh issue close "${ITEM1_ID##*#}" -R "$REPO" --comment "e2e: resolved" >/dev/null
 # (blocker count, NOT blockedBy.totalCount — closed blockers linger there).
 FRONTIER2="$(wit list-frontier --repo "$REPO")"
 record "frontier after item1 closed" "$FRONTIER2"
-IDS2="$(jq -c '[.items[].id]' <<<"$FRONTIER2")"
+IDS2="$(ids "$FRONTIER2")"
 assert_contains "item2 graduated into frontier" "$IDS2" "$ITEM2_ID"
 assert_not_contains "closed item1 out of frontier" "$IDS2" "$ITEM1_ID"
 

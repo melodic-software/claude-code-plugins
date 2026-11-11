@@ -207,6 +207,29 @@ Write) SCAN_CONTENT="${HOOK_JQ_FIELDS[2]}" ;;
 esac
 [[ -n "$SCAN_CONTENT" ]] || exit 0
 
+# srv_git_dir_to <var>
+# Checkout git dir, so the manifest index can be cached beside it.
+srv_git_dir_to() {
+  local g="$REPO_ROOT/.git" line
+  if [[ -d "$g" ]]; then
+    printf -v "$1" '%s' "$g"
+    return 0
+  fi
+  if [[ -f "$g" ]]; then
+    IFS= read -r line <"$g" || return 1
+    line=${line%$'\r'}
+    [[ "$line" == 'gitdir:'* ]] || return 1
+    line=${line#gitdir:}
+    line=${line#"${line%%[![:space:]]*}"}
+    if [[ "$line" != /* && "$line" != [A-Za-z]:[/\\]* ]]; then
+      line="$REPO_ROOT/$line"
+    fi
+    printf -v "$1" '%s' "$line"
+    return 0
+  fi
+  return 1
+}
+
 # A plugin's command namespace is its manifest `name`, which need not equal its
 # directory name. Build the name → directory map from the manifests themselves so
 # a renamed directory or a name override resolves correctly.
@@ -242,29 +265,6 @@ esac
 # non-whitespace so `read` keeps an EMPTY field in place (tab is IFS
 # whitespace and would collapse a nameless manifest's fields together); neither
 # byte can appear in a manifest name or path.
-# srv_git_dir_to <var>
-# Checkout git dir, so the manifest index can be cached beside it.
-srv_git_dir_to() {
-  local g="$REPO_ROOT/.git" line
-  if [[ -d "$g" ]]; then
-    printf -v "$1" '%s' "$g"
-    return 0
-  fi
-  if [[ -f "$g" ]]; then
-    IFS= read -r line <"$g" || return 1
-    line=${line%$'\r'}
-    [[ "$line" == 'gitdir:'* ]] || return 1
-    line=${line#gitdir:}
-    line=${line#"${line%%[![:space:]]*}"}
-    if [[ "$line" != /* && "$line" != [A-Za-z]:[/\\]* ]]; then
-      line="$REPO_ROOT/$line"
-    fi
-    printf -v "$1" '%s' "$line"
-    return 0
-  fi
-  return 1
-}
-
 declare -A PLUGIN_DIR=() PLUGIN_SKILL_PATHS=()
 PLUGIN_INDEX_BUILT=0
 build_plugin_index() {
@@ -421,6 +421,8 @@ skill_resolves() {
   local pdir="$1" skill="$2" declared="$3" root sd sdir fname
   local -a roots=()
   skill_roots "$pdir" "$declared"
+  # $skill is never empty (emit_refs' pattern requires a segment), so an empty
+  # $fname never matches it.
   for root in "${roots[@]}"; do
     if [[ -f "$root/$skill/SKILL.md" ]]; then
       fname=$(skill_frontmatter_name "$root/$skill/SKILL.md")
@@ -430,16 +432,12 @@ skill_resolves() {
     if [[ -f "$root/SKILL.md" ]]; then
       fname=$(skill_frontmatter_name "$root/SKILL.md")
       sdir="${root%/}"
-      if [[ -n "$fname" ]]; then
-        [[ "$fname" == "$skill" ]] && return 0
-      else
-        [[ "${sdir##*/}" == "$skill" ]] && return 0
-      fi
+      [[ "${fname:-${sdir##*/}}" == "$skill" ]] && return 0
     fi
     for sd in "$root"/*/SKILL.md; do
       [[ -f "$sd" ]] || continue
       fname=$(skill_frontmatter_name "$sd")
-      [[ -n "$fname" && "$fname" == "$skill" ]] && return 0
+      [[ "$fname" == "$skill" ]] && return 0
     done
   done
   return 1
@@ -453,9 +451,11 @@ skill_resolves() {
 # arguments (`/plugin:skill --apply`, `/plugin:skill <target>`). Take the leading
 # command token from each span rather than requiring the span to match exactly,
 # or argument-bearing invocations — the common form in this repo — go unchecked.
+#
+# Call as: emit_refs <text>
 emit_refs() {
   # shellcheck disable=SC2016  # backticks are literal ERE data, not expansions
-  printf '%s' "$SCAN_CONTENT" | grep -oE '`[^`]+`' 2>/dev/null |
+  printf '%s' "$1" | grep -oE '`[^`]+`' 2>/dev/null |
     sed -E 's/^`+//; s/`+$//' |
     sed -nE 's|^(/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*)([[:space:]].*)?$|\1|p'
 }
@@ -848,17 +848,13 @@ reconstruct_partial_edit() {
     done
   done
   [[ -n "$ctx" ]] || return 0
-
-  local saved="$SCAN_CONTENT"
-  SCAN_CONTENT="$ctx"
-  emit_refs
-  SCAN_CONTENT="$saved"
+  emit_refs "$ctx"
 }
 
 declare -A CHECKED=()
 UNRESOLVED=()
 REFS=()
-mapfile -t REFS < <(emit_refs)
+mapfile -t REFS < <(emit_refs "$SCAN_CONTENT")
 # Reconstruction runs on EVERY Edit, not only when the hunk yielded nothing. One
 # hunk can both carry a complete reference and change a substring inside another
 # (`setup and placeholder` -> `ghost` plus a literal `/alpha:setup`), so gating on
@@ -890,8 +886,7 @@ emit_tel() {
   # The helper carries the redaction: a path it could not make repo-relative
   # comes back as the basename, never an absolute path, which would embed the
   # developer's username.
-  local findings_json="[]" file_rel
-  file_rel=""
+  local findings_json="[]" file_rel=""
   hook::repo_relative_path_to file_rel "$FILE" "$REPO_ROOT"
   if ((${#UNRESOLVED[@]} > 0)); then
     findings_json=$(printf '%s\n' "${UNRESOLVED[@]}" | jq -Rn '[inputs]' 2>/dev/null) || findings_json="[]"

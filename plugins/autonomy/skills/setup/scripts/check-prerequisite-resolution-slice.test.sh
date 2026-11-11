@@ -130,6 +130,68 @@ else
   fail "ratify: apply --ratify failed: $(cat "$tmp/err")"
 fi
 
+# --- ratify again: a matching declaration is replaced in place --------------
+# The binding now holds the tracker declaration above; a proposal with the same
+# surface, identity and need replaces it where it stands, a new need appends,
+# and surface_refs stay deduplicated.
+cat >"$tmp/proposal-replace.json" <<'EOF'
+{
+  "schema_version": "1.0",
+  "surface_refs": ["ci-cron"],
+  "declarations": [
+    {
+      "surface": "ci-cron",
+      "identity": "issue-triage-sweep",
+      "need": "tracker",
+      "state": "present",
+      "rung": "repo-local"
+    },
+    {
+      "surface": "ci-cron",
+      "identity": "issue-triage-sweep",
+      "need": "ci_config",
+      "state": "present",
+      "rung": "repo-local"
+    }
+  ]
+}
+EOF
+if node "$APPLY" --repo "$tmp/repo" --ratify --proposal "$tmp/proposal-replace.json" >/dev/null 2>"$tmp/err"; then
+  node -e '
+    const s = require(process.argv[1]).prerequisite_resolution;
+    const d = s?.declarations ?? [];
+    if (d.length !== 2) process.exit(2);
+    if (d[0].need !== "tracker" || d[0].state !== "present") process.exit(3);
+    if (d[1].need !== "ci_config") process.exit(4);
+    if (JSON.stringify(s.surface_refs) !== JSON.stringify(["ci-cron"])) process.exit(5);
+  ' "$tmp/repo/.claude/autonomy/binding.json"
+  code=$?
+  if [[ $code -eq 0 ]]; then
+    ok "ratify_replace: matching declaration replaced in place, new need appended"
+  else
+    fail "ratify_replace: binding shape exit $code"
+  fi
+else
+  fail "ratify_replace: apply --ratify failed: $(cat "$tmp/err")"
+fi
+
+# --- check with no --surface derives the surfaces from the binding ----------
+if out="$(node "$CHECK" --repo "$tmp/repo" 2>"$tmp/err")"; then
+  node -e '
+    const o = JSON.parse(process.argv[1]);
+    const ids = (o.surfaces ?? []).map((report) => report.surface);
+    if (JSON.stringify(ids) !== JSON.stringify(["ci-cron"])) process.exit(2);
+  ' "$out"
+  code=$?
+  if [[ $code -eq 0 ]]; then
+    ok "binding_surfaces: check without --surface reports the binding's ci-cron surface"
+  else
+    fail "binding_surfaces: assertion exit $code"
+  fi
+else
+  fail "binding_surfaces: check exited non-zero: $(cat "$tmp/err")"
+fi
+
 # Envelope conformance against the fixture binding carrying the new section.
 cat >"$tmp/envelope.md" <<'EOF'
 <!-- autonomy:signal:v1 -->

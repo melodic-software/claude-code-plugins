@@ -41,7 +41,7 @@ export function decodeAttribute(raw) {
   let ok = true;
   const out = raw.replace(/&(#[xX][0-9A-Fa-f]+|#[0-9]+|[a-z]+);/g, (_, ref) => {
     if (!ref.startsWith("#")) return ENTITIES[ref];
-    const code = ref[1] === "x" || ref[1] === "X" ? Number.parseInt(ref.slice(2), 16) : Number(ref.slice(1));
+    const code = ref[1].toLowerCase() === "x" ? Number.parseInt(ref.slice(2), 16) : Number(ref.slice(1));
     if (code === 0 || code > 0x10ffff) ok = false;
     return ok ? String.fromCodePoint(code) : "";
   });
@@ -66,9 +66,10 @@ function elementRefusal(tag) {
   return null;
 }
 
-const nameAt = (html, at) => {
-  NAME.lastIndex = at;
-  return NAME.exec(html)?.[0] ?? null;
+/** The text a sticky pattern matches at `at`, or null. */
+const matchAt = (pattern, html, at) => {
+  pattern.lastIndex = at;
+  return pattern.exec(html)?.[0] ?? null;
 };
 
 /**
@@ -86,7 +87,7 @@ export function k2Refusal(html) {
     i = lt + 1;
     const close = html[i] === "/";
     if (close) i += 1;
-    const name = nameAt(html, i);
+    const name = matchAt(NAME, html, i);
     if (!name) return UNPARSED;
     i += name.length;
     const tag = name.toLowerCase();
@@ -103,7 +104,7 @@ export function k2Refusal(html) {
         break;
       }
       if (close || i === start) return UNPARSED;
-      const attr = nameAt(html, i);
+      const attr = matchAt(NAME, html, i);
       if (!attr) return UNPARSED;
       i += attr.length;
       const key = attr.toLowerCase();
@@ -122,8 +123,7 @@ export function k2Refusal(html) {
           raw = html.slice(j + 1, end);
           i = end + 1;
         } else {
-          UNQUOTED.lastIndex = j;
-          raw = UNQUOTED.exec(html)?.[0] ?? null;
+          raw = matchAt(UNQUOTED, html, j);
           if (raw === null) return UNPARSED;
           i = j + raw.length;
         }
@@ -137,13 +137,10 @@ export function k2Refusal(html) {
 
 /** The first refusal per K2 slide file, as {file, carries}. */
 export function k2Refusals(files) {
-  const refused = [];
-  for (const [path, text] of files) {
-    if (!path.startsWith("project/slides/")) continue;
-    const carries = k2Refusal(text);
-    if (carries) refused.push({ file: path, carries });
-  }
-  return refused;
+  return files.flatMap(([path, text]) => {
+    const carries = path.startsWith("project/slides/") && k2Refusal(text);
+    return carries ? [{ file: path, carries }] : [];
+  });
 }
 
 // ------------------------------------------------------------ deck files
@@ -153,8 +150,9 @@ class Refused extends Error {}
 /** Every file under <root>/project, as [relative path, text]. A symlink or special file anywhere refuses the deck. */
 export function deckFiles(root) {
   const out = [];
+  const top = join(root, "project");
+  if (lstatSync(top).isSymbolicLink()) throw new Refused("project is a symlink");
   const walk = (dir, rel) => {
-    if (lstatSync(dir).isSymbolicLink()) throw new Refused(`${rel} is a symlink`);
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const path = join(dir, entry.name);
       const at = `${rel}/${entry.name}`;
@@ -164,7 +162,7 @@ export function deckFiles(root) {
       else throw new Refused(`${at} is not a regular file or folder`);
     }
   };
-  walk(join(root, "project"), "project");
+  walk(top, "project");
   return out.sort(([a], [b]) => a.localeCompare(b));
 }
 

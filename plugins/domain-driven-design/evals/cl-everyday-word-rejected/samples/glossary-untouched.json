@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "# Northwind Trading glossary\n\nLanguage of the order-fulfillment domain.\n\n**Order**\n\nA buyer's confirmed request to purchase one or more catalog items.\n\nAvoid: basket, cart\n\n**Shipment**\n\nOne physical consignment handed to a carrier.\n\nAvoid: parcel, order line\n", "why": "unchanged"},
+    {"answer": "", "why": "empty file"}
+  ],
+  "fail": [
+    {"answer": "# Northwind Trading glossary\n\n**Order**\n\nA buyer's confirmed request to purchase one or more catalog items.\n\n**Week**\n\nSeven days, Monday to Sunday.\n", "why": "Week entry added"},
+    {"answer": "# Northwind Trading glossary\n\n- Week: seven days, Monday to Sunday.\n", "why": "Week added in list form"}
+  ]
+}

@@ -311,11 +311,7 @@ def head_repository_scope(
         and head_metadata_complete
         and (
             same_repository
-            or (
-                cross_repository is True
-                and bool(head_repo_name)
-                and head_owner in configured_owners
-            )
+            or (cross_repository is True and head_owner in configured_owners)
         )
     )
     return {
@@ -568,89 +564,55 @@ def classify_pr(
     prev_blocking_ids = set(prev.get("blocking_feedback_ids") or [])
     prev_material_ids = set(prev.get("material_feedback_ids") or [])
     prev_human_ids = set(prev.get("human_feedback_ids") or [])
-    # Distinct from `prev_human_ids`: that set contains every human id ever
-    # seen regardless of blocking state, so it cannot tell "this id was
-    # already blocking last cycle" apart from "this id existed but wasn't
-    # blocking last cycle". `prev_human_blocking_ids` tracks only ids that
-    # were classified `human_blocking` as of the previous snapshot, so a
-    # comment/review that keeps the same id but is edited or reclassified
-    # from nonblocking into blocking is detected as new blocking information
-    # below, mirroring `prev_blocking_ids`'s role for bot feedback.
     prev_human_blocking_ids = set(prev.get("human_blocking_feedback_ids") or [])
     blocking_feedback_ids = [item["id"] for item in feedback["blocking"]]
     material_feedback_ids = [item["id"] for item in feedback["material"]]
     human_blocking_feedback_ids = [item["id"] for item in feedback["human_blocking"]]
-    human_feedback_ids = [
-        item["id"] for item in (*feedback["human_blocking"], *feedback["human"])
-    ]
-    # Parity with the bot delta arms' *structural* self-filter: bot feedback can
-    # never contain this engine's own posts, because the engine comments under
-    # the operator's human login and `collect_feedback` only routes bot-authored
-    # items to `feedback["blocking"]`/`["material"]`. The human arms have no such
-    # structural guard, so without this an operator whose login is the configured
-    # self-login sees every prior-round worker reply (classification tables,
-    # "Fixed in <sha>" follow-ups) counted as new human-authored feedback --
-    # manufacturing a self-inflicted, unsuppressible `new_human_blocking_feedback`
-    # dispatch that re-fires forever with zero real work. This brings the
-    # deterministic delta to the same rule `reference/review-discipline.md` §1
-    # already mandates for the worker's own classification replies.
-    #
-    # Deliberately scoped to the new-feedback deltas only, NOT to
-    # `collect_feedback`'s classification: a self-authored item still lands in
-    # `feedback["human_blocking"]` above, so a genuine "don't merge, I found a
-    # problem" comment the maintainer posts under their own login keeps
-    # `human_stop`/the triage blocker intact and continues to halt the merge
-    # gate. Filtering it there instead would silently strip the solo maintainer's
-    # ability to human-stop their own PR. Here it only stops re-dispatching a
-    # worker onto the engine's own prior output.
+    human_items = (*feedback["human_blocking"], *feedback["human"])
+    human_feedback_ids = [item["id"] for item in human_items]
     new_blocking_feedback = [
         item for item in feedback["blocking"] if item["id"] not in prev_blocking_ids
     ]
-    # A blocking bot item the agent just triaged via the feedback ledger's
-    # dispose action reclassifies from `blocking` to `material` at the same id
-    # and head (see `collect_feedback`'s `disposition_applies` branch). That id
-    # was already seen in `prev_blocking_ids`, so it is not new information a
-    # fresh worker needs to act on -- excluding it here mirrors `resolved_*`
-    # deltas that also fold prior state into "already known" rather than "new".
-    #
-    # But GitHub sometimes reuses/edits an existing review comment's id
-    # instead of posting a new one, so the same id can resurface as
-    # genuinely different content on a new head (e.g. a P1 turning into a
-    # bot execution-error note, or one bot-error note replaced by another).
-    # Treating every id that was merely *seen* before -- whether it was
-    # blocking or already material -- as "already known" would silently
-    # swallow that fresh finding. Only suppress an id when it is still the
-    # same head it was last recorded at, or a disposition *recorded at that
-    # same current head* exists for it (either legitimately absorbs the
-    # reuse into "already known"). This mirrors `prev_blocking_ids`'s escape
-    # valve, applied to `prev_material_ids` as well since a bot can reuse an
-    # id that was *already* material just as readily as one that was
-    # blocking. `dispositions_at_current_head` (not raw `dispositions`) is
-    # deliberate: a disposition from an older head must not keep suppressing
-    # this valve once the PR has moved to a new head -- see its definition
-    # above.
+    # An id already seen as blocking or material is not new: a ledger dispose
+    # reclassifies a blocking item to material at the same id and head. GitHub
+    # can also reuse a comment id for different content on a new head, so a
+    # seen id counts as new again once the head changed, unless a disposition
+    # recorded at the current head covers it (an older-head one does not).
     new_material_feedback = [
         item
         for item in feedback["material"]
         if (
             item["id"] not in prev_material_ids
-            or (head_sha_changed and item["id"] not in dispositions_at_current_head)
+            and item["id"] not in prev_blocking_ids
         )
-        and (
-            item["id"] not in prev_blocking_ids
-            or (head_sha_changed and item["id"] not in dispositions_at_current_head)
-        )
+        or (head_sha_changed and item["id"] not in dispositions_at_current_head)
     ]
+    # The human arms drop this engine's own posts: it comments under the
+    # operator's login, so without this every prior worker reply would count
+    # as new human feedback and re-dispatch forever (the rule
+    # `reference/review-discipline.md` §1 sets for classification replies).
+    # Bot arms need no such filter, since `collect_feedback` routes only
+    # bot-authored items there. Only the new-feedback deltas filter:
+    # self-authored items stay in `feedback["human_blocking"]`, so a maintainer
+    # can still human-stop their own PR.
     new_human_feedback = [
         item
-        for item in (*feedback["human_blocking"], *feedback["human"])
+        for item in human_items
         if item["id"] not in prev_human_ids
         and not is_self_login(item.get("author"), self_logins)
     ]
-    changed = bool(prev) and (
-        prev.get("head_sha") != head_sha or prev.get("updated_at") != updated_at
+    # Against `prev_human_blocking_ids`, not `prev_human_ids`, so an id edited
+    # or reclassified from nonblocking into blocking still trips this arm.
+    new_human_blocking_feedback = [
+        item
+        for item in feedback["human_blocking"]
+        if item["id"] not in prev_human_blocking_ids
+        and not is_self_login(item.get("author"), self_logins)
+    ]
+    changed = head_sha_changed or (
+        bool(prev) and prev.get("updated_at") != updated_at
     )
-    new_to_state = not bool(prev)
+    new_to_state = not prev
 
     # Blockers/material and status are derived here -- ahead of the fan-out
     # gate below -- purely so the gate can consult `blockers` to recognize a
@@ -777,12 +739,8 @@ def classify_pr(
         )
     elif review_state == "engaged_reaction_reviewing":
         blockers.append("reviewer reacted with eyes; awaiting a current-head review")
-    if review_attempt_for_head and str(review_attempt_for_head.get("status") or "") in {
-        "ambiguous",
-        "failed",
-        "requesting",
-    }:
-        attempt_status = str(review_attempt_for_head.get("status") or "attempted")
+    attempt_status = str(review_attempt_for_head.get("status") or "")
+    if attempt_status in {"ambiguous", "failed", "requesting"}:
         blockers.append(f"review request {attempt_status}; user decision required")
         material.append("review request must not be retried automatically")
     elif review_trigger["request_eligible"]:
@@ -805,50 +763,24 @@ def classify_pr(
     else:
         status = "idle"
 
-    # A material bot-feedback item with no disposition recorded at the
-    # CURRENT head has never actually been triaged for this head's content
-    # -- e.g. the write-ahead worker check-in landed (clearing
-    # `worker_checkin_head_unconfirmed`) but the dispatched worker crashed
-    # before ever disposing it through the feedback ledger.
-    # Checked against `dispositions_at_current_head` (not the full raw
-    # `dispositions` map), mirroring `new_material_feedback`'s own
-    # head-scoped escape valve above: when a bot reuses a material id's
-    # content on a new head, `new_material_feedback` already dispatches a
-    # fresh worker for that head's content precisely because a disposition
-    # from an older head does not "cover" it. Checking the full
-    # `dispositions` map here would then contradict that -- a stale head-A
-    # disposition would make the item look already-triaged again on head B,
-    # even though the head-B content was never disposed, permanently
-    # suppressing `quiet_recheck_due` if the dispatched worker crashes
-    # before disposing it. A disposition recorded at the current head is a
-    # durable "this exact head's content was looked at" signal (`dispose`
-    # accepts material ids, not just blocking ones).
+    # A material item with no disposition at the CURRENT head was never
+    # triaged for this head's content (e.g. the worker checked in, then
+    # crashed before disposing it). An older-head disposition does not count,
+    # matching `new_material_feedback`; counting it would suppress
+    # `quiet_recheck_due` for content no one disposed.
     untriaged_material_feedback = [
         item
         for item in feedback["material"]
         if item["id"] not in dispositions_at_current_head
     ]
 
-    # A clean, non-draft PR with zero blockers and no untriaged material bot
-    # feedback is routed straight to the mode-appropriate merge gate per the
-    # runbook (`SKILL.md`, "Fan Out"), never dispatched a worker just for
-    # being newly-seen or for lacking a worker check-in at this head -- there
-    # is nothing for a worker to do. Drafts are excluded so the runbook's
-    # zero-blocker-draft exception (always route through a worker to assess
-    # completeness) still holds. `ACTIONABLE_MERGE_STATES` (CLEAN, and
-    # HAS_HOOKS on GHES repos with pre-receive hooks) is the same set the
-    # merge gate itself treats as merge-ready -- HAS_HOOKS must not be
-    # excluded here or a ready GHES PR would be denied the direct-gate path
-    # and get a needless worker dispatch instead.
-    #
-    # Untriaged material feedback must also keep this PR out of the direct
-    # gate: the merge gate never inspects bot feedback content, only
-    # gate-level signals, so routing there would silently drop the material
-    # item on the floor forever. Excluding it here does not by itself force
-    # `needs_worker` -- an already-known (non-new) untriaged material item
-    # still only re-dispatches a worker via `quiet_recheck_due`'s periodic
-    # fallback below, once `pr_clean_ready_for_direct_gate` no longer
-    # suppresses it.
+    # A clean, non-draft PR with zero blockers goes straight to the merge gate
+    # (`SKILL.md`, "Fan Out"): a worker would have nothing to do. Drafts always
+    # route through a worker to assess completeness. `ACTIONABLE_MERGE_STATES`
+    # is the set the merge gate treats as merge-ready, HAS_HOOKS (GHES)
+    # included. Untriaged material feedback keeps the PR out too, since the
+    # merge gate never reads bot feedback; a known untriaged item still waits
+    # for `quiet_recheck_due` rather than forcing `needs_worker`.
     pr_clean_ready_for_direct_gate = bool(
         not pr.get("isDraft")
         and merge_state in ACTIONABLE_MERGE_STATES
@@ -861,25 +793,15 @@ def classify_pr(
     # `classification == "active"` is sticky (e.g. the same still-pending CI
     # check re-reports every cycle) and would otherwise spawn a worker forever
     # on a PR that is simply still waiting, not newly actionable.
-    identity_fields = (
-        "checks_failing_identities",
-        "checks_pending_identities",
-    )
-    identity_fields_present = [field_name in prev for field_name in identity_fields]
-    if any(identity_fields_present) and not all(identity_fields_present):
+    has_failing = "checks_failing_identities" in prev
+    if has_failing != ("checks_pending_identities" in prev):
         raise ValueError(
             "persisted check identity state must contain both failing and pending arrays"
         )
-    # Deliberately narrower than "the pending/failing sets differ": a check
-    # simply *starting* (moving into pending) or one of several pending checks
-    # completing while siblings are still pending is not itself actionable and
-    # would otherwise dispatch a worker that finds "still waiting" on every
-    # such micro-transition during a normal CI run. Only these are actionable:
-    # a genuinely new failing check (regression), a previously-failing check
-    # clearing (retry or otherwise, without a new commit -- may now be
-    # mergeable), or every previously-pending check having settled (CI as a
-    # whole finished, worth a merge-gate check).
-    if all(identity_fields_present):
+    # Narrower than "the check sets differ": a check starting, or one of
+    # several pending checks finishing, is not actionable. Only a new failing
+    # check, a failing check clearing, or all pending checks settling is.
+    if has_failing:
         prev_checks_failing = persisted_check_identity_keys(
             prev.get("checks_failing_identities"), "checks_failing_identities"
         )
@@ -903,9 +825,8 @@ def classify_pr(
     new_failing_checks = bool(
         current_checks_failing - prev_checks_failing - approval_held_keys
     )
-    resolved_failing_checks = (
-        bool(prev_checks_failing - (current_checks_failing | current_checks_pending))
-        and not current_checks_pending
+    resolved_failing_checks = not current_checks_pending and bool(
+        prev_checks_failing - current_checks_failing
     )
     ci_settled = bool(prev_checks_pending) and not current_checks_pending
     checks_changed = bool(prev) and (
@@ -917,60 +838,27 @@ def classify_pr(
         and merge_state in ACTIONABLE_MERGE_STATES
         and prev_merge_state not in ACTIONABLE_MERGE_STATES
     )
-    # Compared against `prev_human_blocking_ids`, not `prev_human_ids`: an id
-    # that was present last cycle only as nonblocking `human` feedback must
-    # still trip this arm when it is edited or reclassified into
-    # `human_blocking` at the same id, instead of being silently filtered out
-    # as merely "already seen".
-    new_human_blocking_feedback = [
-        item
-        for item in feedback["human_blocking"]
-        if item["id"] not in prev_human_blocking_ids
-        and not is_self_login(item.get("author"), self_logins)
-    ]
     # Symmetric to `resolved_failing_checks`: a PR previously blocked only by
     # human feedback (CHANGES_REQUESTED, an unresolved inline thread) that the
     # user has since addressed -- with no accompanying head SHA, check, or
     # merge-state change -- must still get a fresh worker/merge-gate check
     # promptly rather than waiting for `quiet_recheck_due`'s fallback window.
-    prev_human_stop = json_object(prev.get("human_stop")) if bool(prev) else {}
-    prev_human_blocking_required = bool(prev_human_stop.get("required"))
     resolved_human_blocking = bool(
-        prev_human_blocking_required and not feedback["human_blocking"]
+        json_object(prev.get("human_stop")).get("required")
+        and not feedback["human_blocking"]
     )
-    # Symmetric to `resolved_human_blocking`: a bot blocker that clears at the
-    # same head -- the bot moves CHANGES_REQUESTED to APPROVED, deletes the
-    # comment, or an inline bot thread resolves -- leaves every other delta
-    # false (no new blocking/material id, no check or merge-state change), so
-    # without this arm a PR that just lost its last bot blocker would sit
-    # unprocessed until `quiet_recheck_due`'s fallback window even though it
-    # may now be ready for the merge/follow-up gate. Excludes ids that merely
-    # reclassified into `material` (a ledger dispose or downgrade, mirroring
-    # `new_material_feedback`'s exclusion) -- that is a triage the agent just
-    # performed, not a blocker actually clearing, and must not re-dispatch a
-    # worker on its own.
+    # The same for a bot blocker clearing at the same head, which trips no
+    # other delta. An id that only reclassified into `material` (a ledger
+    # dispose or downgrade) is a triage just performed, not a clearing.
     genuinely_cleared_blocking_ids = (
         prev_blocking_ids - set(blocking_feedback_ids) - set(material_feedback_ids)
     )
     resolved_blocking_feedback = (
         bool(genuinely_cleared_blocking_ids) and not feedback["blocking"]
     )
-    # A draft PR marked ready for review is only reflected in `updatedAt`, not
-    # `head_sha`/checks/merge-state, so it needs its own delta -- otherwise a
-    # freshly-actionable PR sits unprocessed until `quiet_recheck_due` (up to
-    # 4 hours) if a worker already checked in on it while still a draft.
-    #
-    # `"is_draft" in prev` distinguishes "key genuinely absent" (state
-    # persisted by a pre-upgrade version of this engine, before `is_draft`
-    # was written at all) from "key present and False" (a PR this engine has
-    # already classified as not-a-draft). A bare `prev.get("is_draft")` would
-    # collapse both to a falsy default, so a legacy draft PR marked ready
-    # before the first post-upgrade `--write-state` call would never trip
-    # this delta -- silently skipping the draft-completeness worker
-    # assessment the Fan Out contract requires for a draft->ready
-    # transition. Legacy/unknown previous state is treated as "was a draft"
-    # (worker-required), not "wasn't", so it fails safe toward one extra
-    # worker dispatch rather than a missed completeness check.
+    # Draft-to-ready shows only in `updatedAt`, so it needs its own delta. A
+    # legacy `prev` with no `is_draft` key counts as a draft, failing safe
+    # toward one extra worker dispatch over a missed completeness check.
     prev_was_draft = bool(prev.get("is_draft")) if "is_draft" in prev else bool(prev)
     became_ready_for_review = bool(prev_was_draft and not pr.get("isDraft"))
     last_worker_checkin_head_sha = str(prev.get("last_worker_checkin_head_sha") or "")
@@ -980,90 +868,22 @@ def classify_pr(
     # Computed here (rather than alongside `quiet_recheck_due` below) so
     # `dispatch_pending_unconfirmed` can consult it too.
     last_worker_checkin = parse_timestamp(prev.get("last_worker_checkin_at"))
-    # Closes a snapshot-then-dispatch crash gap distinct from the one
-    # `worker_checkin_head_unconfirmed` alone covers. `--write-state` persists
-    # this cycle's `is_draft`/feedback-id state unconditionally, but
-    # `record-worker-checkin` only runs later, write-ahead at actual dispatch
-    # (`reference/orchestration.md`'s Fan-Out Gate Safety Net). If the run
-    # exits between those two writes, the *next* snapshot's `prev` already
-    # reflects the resolved delta (e.g. `is_draft` already `false`, the new
-    # material id already known) -- so `became_ready_for_review`/
-    # `new_material_feedback` no longer fire, and
-    # `worker_checkin_head_unconfirmed` (still true, since no check-in was
-    # ever recorded) is the only signal left standing. But that arm is
-    # suppressible, so a PR that is otherwise clean/non-draft/zero-blocker at
-    # the unchanged head would have it suppressed too -- silently dropping a
-    # dispatch this run had already decided was required, straight past the
-    # worker it was supposed to get and onto the direct merge gate.
-    # `pending_worker_dispatch_head_sha` closes this: persisted at the *same*
-    # atomic `--write-state` that absorbs the transient delta (below,
-    # alongside `needs_worker`), so the two can never desync. It records "a
-    # dispatch was owed as of this head", and the override below fires only
-    # while that specific head's dispatch remains unconfirmed.
+    # Crash gap: `--write-state` persists this cycle's delta state, but
+    # `record-worker-checkin` runs only later, at dispatch
+    # (`reference/orchestration.md`'s Fan-Out Gate Safety Net). A run that
+    # exits between them leaves the next `prev` with the delta absorbed, and
+    # the one arm still standing, `worker_checkin_head_unconfirmed`, is
+    # suppressible. `pending_worker_dispatch_head_sha`, persisted in the same
+    # write as the delta, records the owed dispatch so it survives.
     #
-    # Confirmation is NOT simply "the last recorded check-in head equals the
-    # current head" (i.e. NOT `not worker_checkin_head_unconfirmed`) -- that
-    # head-only comparison has no notion of *when* the check-in happened
-    # relative to *when the obligation was created*. If the head never
-    # changes across cycles (e.g. a draft is marked ready with no new
-    # commit), an OLD check-in from a prior, unrelated dispatch at that same
-    # head reads as "confirmed" purely by coincidence, even though it
-    # predates the pending obligation entirely and never actually confirmed
-    # it. That would let `worker_checkin_head_unconfirmed` read `False` while
-    # a same-head dispatch obligation is still outstanding, silently
-    # dropping it once the transient delta that created it (e.g.
-    # `became_ready_for_review`) is itself absorbed into `prev` on the
-    # following cycle. Instead, confirmation requires a check-in recorded at
-    # or after the moment the obligation itself was recorded
-    # (`pending_worker_dispatch_recorded_at`, persisted alongside the head
-    # SHA below, from the *same* `observed_at` this run computed
-    # `needs_worker` from) -- self-clearing the moment a real
-    # post-obligation check-in lands at this head, or the head moves again
-    # (which re-arms via `head_sha_changed`/a fresh pending head instead). A
-    # legacy snapshot written before this field existed has no recorded
-    # timestamp, so confirmation can never be proven -- failing safe toward
-    # one extra worker dispatch, consistent with every other
-    # legacy-migration default in this function.
-    #
-    # The override is further scoped to *why* the obligation must survive
-    # becoming `pr_clean_ready_for_direct_gate`, via two independent
-    # conditions rather than trusting the persisted
-    # `pending_worker_dispatch_unsuppressible` class alone:
-    #
-    # 1. `prev_pending_dispatch_unsuppressible`: if every delta that created
-    #    the obligation was suppressible (e.g. `new_to_state` while CI was
-    #    still pending) and this cycle's PR is now clean-ready, forcing a
-    #    worker here would dispatch one that finds nothing to do -- the exact
-    #    over-dispatch the suppressible/unsuppressible split exists to
-    #    prevent, just reached via the crash-recovery path instead of a
-    #    same-cycle delta. An obligation that included at least one
-    #    unsuppressible delta (something the direct merge gate cannot do on
-    #    its own, e.g. `new_material_feedback` or `became_ready_for_review`)
-    #    survives on this condition alone.
-    #
-    # 2. `not pr_clean_ready_for_direct_gate` (this cycle's freshly derived
-    #    value, never a persisted one): a delta is only ever classified
-    #    suppressible because the direct merge gate re-validates the same
-    #    signal *once the PR reaches clean-ready*. If the PR is still not
-    #    clean-ready this cycle -- e.g. `checks_changed` woke it while a
-    #    blocking bot comment was still outstanding, so
-    #    `pending_worker_dispatch_unsuppressible` was correctly persisted
-    #    `False` (the delta genuinely is suppressible-class) -- the direct
-    #    gate has not actually taken over verifying that obligation's
-    #    concern, and the worker check it was owed still never happened.
-    #    Gating solely on the persisted class would drop that obligation the
-    #    moment the triggering delta is absorbed into `prev` on the next
-    #    cycle, even though the PR remains exactly as blocked as when the
-    #    obligation was created -- silently skipping the owed worker until
-    #    `quiet_recheck_due`'s fallback window instead. Re-deriving readiness
-    #    fresh each cycle (rather than trusting the persisted class in
-    #    isolation) is what actually decides whether the direct gate has --
-    #    or has not -- taken over.
-    #
-    # A legacy snapshot written before `pending_worker_dispatch_unsuppressible`
-    # existed has no recorded reason kind, so it defaults to `True` -- failing
-    # safe toward one extra worker dispatch, consistent with every other
-    # legacy-migration default in this function.
+    # Confirmation needs a check-in at or after the obligation's
+    # `pending_worker_dispatch_recorded_at`, not just one at the same head: an
+    # older check-in at an unchanged head predates the obligation. The
+    # obligation survives a clean-ready PR only when it included an
+    # unsuppressible delta, and otherwise only while the PR is still not
+    # clean-ready this cycle, since the direct gate has then not taken over.
+    # Legacy snapshots missing either field fail safe toward one extra
+    # dispatch.
     prev_pending_dispatch_head_sha = str(
         prev.get("pending_worker_dispatch_head_sha") or ""
     )
@@ -1242,27 +1062,11 @@ def classify_pr(
         ]
     )
 
-    # Write-ahead companion to `record-worker-checkin`: this snapshot's own
-    # verdict on whether a worker was required, keyed to the head it was
-    # required for. Persisted unconditionally by `--write-state` (see
-    # `persisted_pr_state`) in the same atomic write as the transient state
-    # this fixes the crash gap for, so the two can never desync -- unlike the
-    # ledger check-in, which is written later, only at actual dispatch.
+    # The write-ahead dispatch obligation `dispatch_pending_unconfirmed` reads
+    # next cycle: `--write-state` persists it in the same write as this
+    # cycle's delta state, unlike the check-in written only at dispatch.
     pending_worker_dispatch_head_sha = head_sha if needs_worker else ""
-    # Recorded alongside the head SHA so a later cycle's
-    # `dispatch_pending_unconfirmed` (above) can tell a suppressible-only
-    # obligation from one that included an unsuppressible delta -- see that
-    # variable's definition for why the distinction matters. `unsuppressible_delta`
-    # is exactly the same predicate the reasons list above labels
-    # non-suppressible, so no new classification is introduced here.
     pending_worker_dispatch_unsuppressible = bool(needs_worker and unsuppressible_delta)
-    # Recorded from the same `observed_at` this run computed `needs_worker`
-    # from, so a later cycle's `dispatch_confirmed_by_checkin` (above) can
-    # tell a check-in that actually confirms this obligation from one that
-    # merely happens to share this head's SHA by coincidence (e.g. an older,
-    # unrelated check-in at a head that never changed across cycles) -- see
-    # `dispatch_pending_unconfirmed`'s definition above for why head-SHA
-    # equality alone cannot prove confirmation.
     pending_worker_dispatch_recorded_at = observed_at if needs_worker else ""
 
     return {
@@ -1439,12 +1243,8 @@ def prev_head_ref_unique(
     if not previous_prs:
         return None
     prev = json_object(previous_prs.get(str(pr.get("key") or "")))
-    if not prev:
-        return None
     prev_uniqueness = json_object(prev.get("head_ref_uniqueness"))
-    if not prev_uniqueness:
-        return None
-    return bool(prev_uniqueness.get("unique"))
+    return bool(prev_uniqueness.get("unique")) if prev_uniqueness else None
 
 
 def is_head_ref_alias_error(message: str) -> bool:
@@ -1459,6 +1259,15 @@ def annotate_queue_head_refs(
     previous_prs: dict[str, Any] | None = None,
 ) -> None:
     """Prove branch uniqueness globally for each distinct watched head ref."""
+
+    def guard(pr: dict[str, Any], checked: bool, matches: list[str]) -> None:
+        apply_head_ref_guard(
+            pr,
+            checked=checked,
+            matching_prs=matches,
+            prev_unique=prev_head_ref_unique(pr, previous_prs),
+        )
+
     groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for pr in prs:
         head_repo = str(pr.get("head_repository") or "").casefold()
@@ -1466,12 +1275,7 @@ def annotate_queue_head_refs(
         if complete and head_repo and head_ref:
             groups.setdefault((head_repo, head_ref), []).append(pr)
         else:
-            apply_head_ref_guard(
-                pr,
-                checked=False,
-                matching_prs=[],
-                prev_unique=prev_head_ref_unique(pr, previous_prs),
-            )
+            guard(pr, False, [])
 
     for group_prs in groups.values():
         representative = group_prs[0]
@@ -1485,21 +1289,9 @@ def annotate_queue_head_refs(
             message = f"{representative['key']} {HEAD_REF_ALIAS_ERROR_MARKER} {exc}"
             if errors is not None:
                 errors.append(message)
-            for pr in group_prs:
-                apply_head_ref_guard(
-                    pr,
-                    checked=False,
-                    matching_prs=[],
-                    prev_unique=prev_head_ref_unique(pr, previous_prs),
-                )
-            continue
+            checked, matches = False, []
         for pr in group_prs:
-            apply_head_ref_guard(
-                pr,
-                checked=True,
-                matching_prs=matches,
-                prev_unique=prev_head_ref_unique(pr, previous_prs),
-            )
+            guard(pr, checked, matches)
 
 
 def recommend_cadence(classifications: list[str]) -> str:

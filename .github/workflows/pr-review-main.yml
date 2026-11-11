@@ -401,8 +401,22 @@ jobs:
       # Runs only on a held select: the step the lost-run reconciler reads
       # beside the `held: ` notice (reconcile.mjs faultHeld, HELD_STEP).
       - name: Note the hold
+        id: note-hold
         if: steps.select.outputs.held == 'true'
-        run: echo "pr-review-main held on an unread file list; the lost-run reconciler re-runs this run once"
+        run: |
+          echo "pr-review-main held on an unread file list; the lost-run reconciler re-runs this run once"
+          # The hold's marker for monitor signal 13 (lane-hold-marker.mjs).
+          { mkdir -p "$RUNNER_TEMP/lane-hold" && echo "pr-review-main $GITHUB_RUN_ID" >"$RUNNER_TEMP/lane-hold/pr-review-main"; } || true
+      - name: Keep the lane hold marker
+        if: steps.note-hold.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lane-hold-pr-review-main
+          path: ${{ runner.temp }}/lane-hold/pr-review-main
+          retention-days: 1
+          overwrite: true
+          if-no-files-found: ignore
 
       - name: Log the API budget
         if: always()
@@ -849,8 +863,12 @@ jobs:
       # Runs only on a held select: the step the lost-run reconciler reads
       # beside the `held: ` notice (reconcile.mjs faultHeld, HELD_STEP).
       - name: Note the hold
+        id: note-hold
         if: steps.select.outputs.held == 'true'
-        run: echo "pr-review-main held on an unread file list; the lost-run reconciler re-runs this run once"
+        run: |
+          echo "pr-review-main held on an unread file list; the lost-run reconciler re-runs this run once"
+          # The hold's marker for monitor signal 13 (lane-hold-marker.mjs).
+          { mkdir -p "$RUNNER_TEMP/lane-hold" && echo "pr-review-main $GITHUB_RUN_ID" >"$RUNNER_TEMP/lane-hold/pr-review-main"; } || true
 
       # One source for the gate's result: the trigger job's, or this leg's
       # own gate when it ran. Each value must have its fixed shape, so no
@@ -1544,6 +1562,19 @@ jobs:
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"
 
+      # Note the hold's marker, on a green job only, as monitor signal 13
+      # reads holds; matrix legs share the name and overwrite each other.
+      - name: Keep the lane hold marker
+        if: steps.note-hold.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lane-hold-pr-review-main
+          path: ${{ runner.temp }}/lane-hold/pr-review-main
+          retention-days: 1
+          overwrite: true
+          if-no-files-found: ignore
+
       - name: Log the API budget
         if: always()
         continue-on-error: true
@@ -1781,8 +1812,12 @@ jobs:
       # Runs only on a held select: the step the lost-run reconciler reads
       # beside the `held: ` notice (reconcile.mjs faultHeld, HELD_STEP).
       - name: Note the hold
+        id: note-hold
         if: steps.select.outputs.held == 'true'
-        run: echo "pr-review-main held on an unread file list; the lost-run reconciler re-runs this run once"
+        run: |
+          echo "pr-review-main held on an unread file list; the lost-run reconciler re-runs this run once"
+          # The hold's marker for monitor signal 13 (lane-hold-marker.mjs).
+          { mkdir -p "$RUNNER_TEMP/lane-hold" && echo "pr-review-main $GITHUB_RUN_ID" >"$RUNNER_TEMP/lane-hold/pr-review-main"; } || true
 
       # One source for the gate's result: the trigger job's, or this leg's
       # own gate when it ran. Each value must have its fixed shape, so no
@@ -2484,6 +2519,19 @@ jobs:
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"
 
+      # Note the hold's marker, on a green job only, as monitor signal 13
+      # reads holds; matrix legs share the name and overwrite each other.
+      - name: Keep the lane hold marker
+        if: steps.note-hold.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lane-hold-pr-review-main
+          path: ${{ runner.temp }}/lane-hold/pr-review-main
+          retention-days: 1
+          overwrite: true
+          if-no-files-found: ignore
+
       - name: Log the API budget
         if: always()
         continue-on-error: true
@@ -2681,8 +2729,12 @@ jobs:
       # Runs only on a held select: the step the lost-run reconciler reads
       # beside the `held: ` notice (reconcile.mjs faultHeld, HELD_STEP).
       - name: Note the hold
+        id: note-hold
         if: steps.select.outputs.held == 'true'
-        run: echo "pr-review-main held on an unread file list; the lost-run reconciler re-runs this run once"
+        run: |
+          echo "pr-review-main held on an unread file list; the lost-run reconciler re-runs this run once"
+          # The hold's marker for monitor signal 13 (lane-hold-marker.mjs).
+          { mkdir -p "$RUNNER_TEMP/lane-hold" && echo "pr-review-main $GITHUB_RUN_ID" >"$RUNNER_TEMP/lane-hold/pr-review-main"; } || true
 
       # One source for the gate's result: the trigger job's, or this leg's
       # own gate when it ran. Each value must have its fixed shape, so no
@@ -3342,6 +3394,19 @@ jobs:
             jq '{findings, critical, summary: (.summary | gsub("`"; "'"'"'")), items: (.items | map(.title |= gsub("`"; "'"'"'") | .body |= gsub("`"; "'"'"'")))}' "$VERDICT_FILE"
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"
+
+      # Note the hold's marker, on a green job only, as monitor signal 13
+      # reads holds; matrix legs share the name and overwrite each other.
+      - name: Keep the lane hold marker
+        if: steps.note-hold.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lane-hold-pr-review-main
+          path: ${{ runner.temp }}/lane-hold/pr-review-main
+          retention-days: 1
+          overwrite: true
+          if-no-files-found: ignore
 
       - name: Log the API budget
         if: always()

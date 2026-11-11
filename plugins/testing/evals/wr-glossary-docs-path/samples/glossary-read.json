@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/w/docs/glossary.md\"}}]}}\n",
+      "why": "Read tool on the glossary"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"cat README.md docs/glossary.md\",\"description\":\"Read project docs\"}}]}}\n",
+      "why": "cat in Bash"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"cat README.md docs/*\",\"description\":\"Read project docs\"}}]}}\n",
+      "why": "cat over a glob that covers the glossary"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty trace"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"ls -R\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_x\",\"content\":\"docs/glossary.md\\nREADME.md\\ntests\\ntool_library.py\"}]}}\n",
+      "why": "the glossary only appears in a directory listing"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/w/GLOSSARY.md\"}}]}}\n",
+      "why": "looks for the root glossary, which does not exist here"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"ls docs/*\"}}]}}\n",
+      "why": "a glob in a directory listing reads nothing"
+    }
+  ]
+}

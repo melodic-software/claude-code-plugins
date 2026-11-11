@@ -422,8 +422,12 @@ claude --model opus --effort medium   # merge lane
 claude --model opus --effort high     # attended queue
 ```
 
-Swap `opus` for `best` on a lane root where the organization runs its
-orchestrator at the frontier tier. Do not drive the headless text form
+The frontier tier stays `opus` on every lane root until the owner decides the
+Fable rung; binding it to Fable then means `fable`, since `best` names the same
+model as `opus` from Claude Code v2.1.321
+([model config: version history](https://code.claude.com/docs/en/model-config#version-history),
+as of 2026-11-09; recheck when that table changes what `best` resolves to).
+Do not drive the headless text form
 `/advisor`, `/advisor <model>`, or `/advisor off` from a lane prompt: any
 advisor pairing is a settings value fixed at launch.
 

@@ -82,6 +82,13 @@ SUFFIXES = (
     "e",
 )
 TOKEN_RE = re.compile(r"[a-z0-9]+")
+SCORED_FIELDS = ("description", "argument_hint", "search_hint")
+CAMEL_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
+# Classes whose store rows take `route` or `suggest`, never `wrap`: a Native
+# step invokes through the Skill tool, and none of these is a skill.
+ROUTE_ONLY_CLASSES = frozenset(
+    {"builtin-command", "bundled-workflow", "builtin-agent", "builtin-tool"}
+)
 
 
 def stem(word: str) -> str:
@@ -118,10 +125,6 @@ def _bag(*parts: tuple[str, float]) -> Counter:
         for token in tokenize(text):
             bag[token] += weight
     return bag
-
-
-SCORED_FIELDS = ("description", "argument_hint", "search_hint")
-CAMEL_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 
 
 def split_words(name: str) -> str:
@@ -206,19 +209,15 @@ class Component:
 
 def idf_table(bags: Iterable[Counter]) -> dict[str, float]:
     bags = list(bags)
-    df: Counter = Counter()
-    for bag in bags:
-        df.update(bag.keys())
+    df = Counter(t for bag in bags for t in bag)
     total = len(bags)
     return {t: math.log((1 + total) / (1 + n)) + 1.0 for t, n in df.items()}
 
 
-def _vector(bag: Counter, idf: dict[str, float]) -> dict[str, float]:
-    return {t: (1 + math.log(w)) * idf.get(t, 1.0) for t, w in bag.items() if w > 0}
-
-
-def _norm(vec: dict[str, float]) -> float:
-    return math.sqrt(sum(v * v for v in vec.values())) or 1.0
+def _vector(bag: Counter, idf: dict[str, float]) -> tuple[dict[str, float], float]:
+    """A bag's TF-IDF vector and its norm (1.0 for an empty vector)."""
+    vec = {t: (1 + math.log(w)) * idf.get(t, 1.0) for t, w in bag.items() if w > 0}
+    return vec, math.sqrt(sum(v * v for v in vec.values())) or 1.0
 
 
 def score_pair(
@@ -234,15 +233,18 @@ def score_pair(
     cosine = sum(sv[t] * cv[t] for t in shared) / (sn * cn)
     coverage = sum(sv[t] ** 2 for t in shared) / (sn * sn)
     text_score = math.sqrt(cosine * coverage)
-    name_score = 0.0
-    for names in surface.name_sets:
+    reachable = component.name_tokens | component.plugin_tokens
+
+    def name_coverage(names: set[str]) -> float:
         total = sum(idf.get(t, 1.0) for t in names)
         hit = sum(
             idf.get(t, 1.0)
             * (1.0 if t in component.name_tokens else PLUGIN_NAME_CREDIT)
-            for t in names & (component.name_tokens | component.plugin_tokens)
+            for t in names & reachable
         )
-        name_score = max(name_score, hit / total if total else 0.0)
+        return hit / total if total else 0.0
+
+    name_score = max([0.0, *map(name_coverage, surface.name_sets)])
     score = NAME_WEIGHT * name_score + (1 - NAME_WEIGHT) * text_score
     if len(shared) == 1 and surface.described:
         score *= SINGLE_TOKEN_FACTOR
@@ -256,10 +258,7 @@ Scored = tuple[Surface, Component, float, list[str]]
 def score_all(surfaces: list[Surface], components: list[Component]) -> list[Scored]:
     """Every pair sharing at least one token, best first per native surface."""
     idf = idf_table([s.bag for s in surfaces] + [c.bag for c in components])
-    vectors: dict[int, tuple[dict[str, float], float]] = {}
-    for item in [*surfaces, *components]:
-        vec = _vector(item.bag, idf)
-        vectors[id(item)] = (vec, _norm(vec))
+    vectors = {id(item): _vector(item.bag, idf) for item in [*surfaces, *components]}
     found: list[Scored] = []
     for surface in surfaces:
         scored = []
@@ -306,24 +305,23 @@ def invocability(registrations: list[dict[str, Any]]) -> dict[str, Any]:
     def agreed(values: list[Any]) -> Any:
         return values[0] if values and all(v == values[0] for v in values) else None
 
-    models: list[Any] = []
-    users: list[Any] = []
-    hints: list[Any] = []
-    for entry in registrations:
-        if isinstance(entry.get("model_invocable"), bool):
-            models.append(entry["model_invocable"])
-        elif isinstance(entry.get("disable_model_invocation"), bool):
-            models.append(not entry["disable_model_invocation"])
-        else:
-            models.append(None)
-        users.append(
-            entry.get("user_invocable")
-            if isinstance(entry.get("user_invocable"), bool)
-            else None
-        )
-        hint = entry.get("argument_hint")
-        hints.append(hint if isinstance(hint, str) and hint else None)
-    model, user = agreed(models), agreed(users)
+    def flag(entry: dict[str, Any], key: str) -> bool | None:
+        value = entry.get(key)
+        return value if isinstance(value, bool) else None
+
+    def model_flag(entry: dict[str, Any]) -> bool | None:
+        model = flag(entry, "model_invocable")
+        if model is not None:
+            return model
+        disabled = flag(entry, "disable_model_invocation")
+        return None if disabled is None else not disabled
+
+    def hint(entry: dict[str, Any]) -> str | None:
+        value = entry.get("argument_hint")
+        return value if isinstance(value, str) and value else None
+
+    model = agreed([model_flag(e) for e in registrations])
+    user = agreed([flag(e, "user_invocable") for e in registrations])
     invocable_by = {
         (True, True): "model+user",
         (False, True): "user-only",
@@ -332,7 +330,7 @@ def invocability(registrations: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "model_invocable": model,
         "user_invocable": user,
-        "argument_hint": agreed(hints),
+        "argument_hint": agreed([hint(e) for e in registrations]),
         "invocable_by": invocable_by,
     }
 
@@ -349,10 +347,3 @@ def recommended_integration(klass: str, invocable_by: str) -> str | None:
     if invocable_by in ("model+user", "model-only"):
         return "route" if klass in ROUTE_ONLY_CLASSES else "route-or-wrap"
     return None
-
-
-# Classes whose store rows take `route` or `suggest`, never `wrap`: a Native
-# step invokes through the Skill tool, and none of these is a skill.
-ROUTE_ONLY_CLASSES = frozenset(
-    {"builtin-command", "bundled-workflow", "builtin-agent", "builtin-tool"}
-)

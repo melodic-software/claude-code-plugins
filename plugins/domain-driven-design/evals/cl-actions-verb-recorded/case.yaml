@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: cl-actions-verb-recorded
+description: "A settled verb choice for an operation on an entity is recorded as an Actions line under that entity, with the rejected verb in parentheses. glossary-contract.md Entry discipline, Actions. Hard because the easy writes are a new 'Dispatch' entry or folding 'send' into the Shipment Avoid line, which would reject the noun's synonym rather than the verb."
+tags: [domain-driven-design, ubiquitous-language, outcome, actions, scaffold]
+expected_outcome: "docs/glossary.md gains, under the Shipment entry, an Actions line naming dispatch with send rejected in parentheses (Actions: dispatch (Avoid: send)); no Dispatch entry is added and Shipment's Avoid line is unchanged."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/domain-driven-design:ubiquitous-language curate We settled it in today's modeling session: handing a shipment to the carrier is called 'dispatch', never 'send'. Record that in the glossary."
+  allowed_tools: [Skill, Read, Glob, Grep, Write, Edit]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: actions-line-written
+    type: regex
+    pattern: '\*\*Shipment\*\*[\s\S]*?Actions:[^\n]*\bdispatch\b[^\n]*\(\s*Avoid:\s*[^)\n]*\bsend\b[^)\n]*\)'
+    flags: 'i'
+    target: { source: file, path: docs/glossary.md }
+  - name: no-dispatch-entry
+    type: regex
+    pattern: '^\*\*Dispatch\*\*'
+    flags: 'im'
+    match: not_contains
+    target: { source: file, path: docs/glossary.md }
+  - name: noun-avoid-unchanged
+    type: regex
+    pattern: '\*\*Shipment\*\*[\s\S]*^Avoid: parcel, order line[ \t]*$'
+    flags: 'm'
+    target: { source: file, path: docs/glossary.md }

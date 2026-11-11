@@ -15,17 +15,17 @@ import { snapshotBootstrapContactSheets } from "./snapshot-bootstrap.js";
 export function postBootstrapSlice(sliceDir) {
   const absSlice = path.resolve(sliceDir);
   const sheetIndexPath = exportSheetFrameIndex(absSlice);
-  const checklistPath = initWatchChecklist(absSlice, { force: false });
+  const checklistPath = initWatchChecklist(absSlice);
 
   let bootstrapSnapshot;
   try {
     bootstrapSnapshot = snapshotBootstrapContactSheets(absSlice);
   } catch {
-    bootstrapSnapshot = undefined;
+    // The snapshot is optional: a failure leaves it out of the result.
   }
 
   // Bootstrap metrics (contactSheetCount, selectedFrames) already land in
-  // watch.json's `watching` phase via run-watch.js markPhaseComplete — no
-  // separate progress file needed (One Mechanism Per Concern).
+  // watch.json's `watching` phase via run-watch.js markPhaseComplete, so this
+  // writes no separate progress file.
   return { sheetIndexPath, checklistPath, bootstrapSnapshot };
 }

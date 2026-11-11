@@ -188,11 +188,24 @@ test("a FAIL index never replaces or keeps a name its run already holds", () => 
 test("the verdict is each job's only artifact upload but the key job's probing and credit-stop markers, and follows the written verdict", () => {
   for (const job of JOBS) {
     const uploads = STEPS[job].filter((s) => /uses: actions\/upload-artifact@/.test(s.block));
+    // The lane-hold marker is told by its artifact name, never its step name:
+    // exactly one upload names lane-hold-pr-verify, only after Note the hold
+    // ran (when no judge ran), with the fixed path that step wrote.
+    const markers = uploads.filter((s) => input(s.block, "name") === "lane-hold-pr-verify");
+    assert.equal(markers.length, 1, `${job}: one lane-hold marker upload`);
+    const [marker] = markers;
+    assert.match(marker.block, /^ {8}if: steps\.note-hold\.outcome == 'success'$/m, job);
+    assert.equal(input(marker.block, "path"), "${{ runner.temp }}/lane-hold/pr-verify", job);
+    assert.equal(input(marker.block, "retention-days"), "1", job);
+    assert.equal(input(marker.block, "if-no-files-found"), "ignore", job);
+    assert.match(step("Note the hold", job), /^ {8}id: note-hold$/m, job);
+    assert.equal(STEPS[job].indexOf(marker), index("Log the API budget", job) - 1, job);
     assert.deepEqual(
-      uploads.map((s) => s.name),
+      uploads.filter((s) => s !== marker).map((s) => s.name),
       job === KEY ? ["Upload the key's probing marker", "Upload the verdict", "Upload the key's credit-stop marker"] : ["Upload the verdict"],
       job,
     );
+    assert.ok(uploads.filter((s) => s !== marker).every((s) => !String(input(s.block, "name")).startsWith("lane-hold-")), job);
     assert.ok(index("Judge the pull request", job) >= 0 && index("Write the verdict", job) > index("Judge the pull request", job), job);
     // The written verdict is scanned just before it uploads, and uploads only on the scan's clean output.
     assert.ok(index("Scan the upload for credentials", job) > index("Write the verdict", job), job);
@@ -672,7 +685,9 @@ test("the key job hands the judgment on only after a clean handoff or with no ke
     assert.equal(input(next, "state"), "${{ steps.credential.outputs.state }}", job);
     assert.equal(input(next, "handoff"), `\${{ (${chainOf((id) => `steps.${id}.outputs.handoff == 'true'`, "judge")}) && (${chainOf((id) => `steps.${id}.outputs.clean`, legStep)}) == 'true' }}`, job);
     assert.equal(input(next, "handoff-reason"), `\${{ ${chainOf((id) => `steps.${id}.outputs.handoff-reason`, "judge")} }}`, job);
-    assert.equal(index("Pick the next leg", job), index("Log the API budget", job) - 1, job);
+    // Only the lane-hold marker upload sits between it and the budget log.
+    assert.equal(index("Pick the next leg", job), index("Log the API budget", job) - 2, job);
+    assert.equal(input(STEPS[job][index("Log the API budget", job) - 1].block, "name"), "lane-hold-pr-verify", job);
   }
   assert.equal(index("Pick the next leg", FB), -1);
 });
@@ -1286,9 +1301,7 @@ const stepsIn = (source, id) =>
     .split(/\n(?=      - name: )/)
     .slice(1)
     .map((block) => ({ name: /^      - name: (.*)$/m.exec(block)[1], block }));
-const CAP_SUB = "capture-subscription";
 const CAP_STEPS = stepsIn(CAPTURE_TEXT, CAP);
-const SUB_STEPS = stepsIn(CAPTURE_TEXT, CAP_SUB);
 const capIndex = (name) => {
   const at = CAP_STEPS.findIndex((s) => s.name === name);
   assert.ok(at >= 0, `a capture step named ${name}`);
@@ -1334,8 +1347,8 @@ const scriptOf = (block) => /^ {8}run: \|\n((?: {10}.*\n?|\n)+)/m.exec(block)[1]
 
 test("the capture workflow and its jobs can write nothing", () => {
   assert.match(CAPTURE_TEXT, /^permissions: \{\}$/m);
-  assert.deepEqual(jobIds(CAPTURE_TEXT), [CAP, CAP_SUB]);
-  for (const id of [CAP, CAP_SUB]) {
+  assert.deepEqual(jobIds(CAPTURE_TEXT), [CAP]);
+  for (const id of [CAP]) {
     const granted = blockOf(jobIn(CAPTURE_TEXT, id), "permissions", 4).trim().split("\n").map((line) => line.trim().split(" #")[0]);
     assert.deepEqual(granted, ["contents: read", "pull-requests: read", "actions: read"], id);
     assert.match(jobIn(CAPTURE_TEXT, id), /^ {4}cache-mode: read$/m, id);
@@ -1383,8 +1396,8 @@ test("the capture gates run first, then the reach probe after runner isolation a
   // red for every failure but a handoff, before the head checkout.
   assert.match(capStep(PROBE), /^ {8}continue-on-error: true$/m);
   assert.doesNotMatch(capStep(PROBE_CHECK), /continue-on-error/);
-  // Only the next-leg call, which runs no head code, sits between them.
-  assert.equal(capIndex(PROBE_CHECK) + 2, capIndex(HEAD_CHECKOUT));
+  // Only the next-leg call and the blocked capture, which run no head code, sit between them.
+  assert.equal(capIndex(PROBE_CHECK) + 3, capIndex(HEAD_CHECKOUT));
   const probe = capStep(PROBE);
   assert.match(probe, /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40} /);
   assert.deepEqual(list(probe, "tools"), ["Bash", "Read", "Write", "Grep"]);
@@ -1448,9 +1461,8 @@ test("the step that starts the app holds no credential in any env it inherits, a
   }
   // No step from the head checkout on holds a secret or the job token.
   for (const s of CAP_STEPS.slice(capIndex(HEAD_CHECKOUT))) assert.doesNotMatch(s.block, /secrets\.|github\.token/, s.name);
-  // The capture job's only secret is its key; the subscription job reads none.
+  // The capture job's only secret is its key; no subscription token is referenced.
   assert.deepEqual([...new Set(jobIn(CAPTURE_TEXT, CAP).match(/secrets\.[A-Z_]+/g))], ["secrets.PR_VERIFY_CLAUDE_API_KEY"]);
-  assert.equal(jobIn(CAPTURE_TEXT, CAP_SUB).match(/secrets\./), null);
   // The key reaches the key proxy's start, before the runner is isolated, and no other step.
   const readers = CAP_STEPS.filter((s) => /secrets\.PR_VERIFY_CLAUDE_API_KEY\b/.test(s.block)).map((s) => s.name);
   assert.deepEqual(readers.filter((name) => name !== "Check the credential"), [PROXY_START]);
@@ -1625,8 +1637,8 @@ test("the driver's file tools are fenced to the head and the run directory, and 
     assert.ok(capIndex("Write the driven settings and the proxy config") < capIndex("Apply the Claude managed settings"));
     assert.ok(capIndex("Apply the Claude managed settings") < capIndex(ISOLATE));
   }
-  // Both legs run the Claude Code the proxy's betas were measured on.
-  for (const leg of [driver, capStep(PROBE)]) assert.equal(input(leg, "cli-version"), "${{ steps.driven.outputs.claude-code-version }}");
+  // Both legs run the Claude Code the install step read from the lock.
+  for (const leg of [driver, capStep(PROBE)]) assert.equal(input(leg, "cli-version"), "${{ steps.claude.outputs.version }}");
   // Both legs run without Claude Code's sandbox: launch's nested claude and
   // npm ci need hosts beyond GitHub, and the probe checks where they run.
   for (const leg of [driver, capStep(PROBE)]) assert.equal(input(leg, "sandbox"), '"false"');
@@ -1685,7 +1697,7 @@ test("the driver's file tools are fenced to the head and the run directory, and 
   assert.match(leaked.stdout, /^::error::the driver's file tools are not fenced off \/proc, the runner's temp directory and ~\/\.claude, directly or through a link; no pull request code runs$/m);
   assert.doesNotMatch(leaked.stdout, /not tested/);
   // Every launcher step carries the same fence, the probe's and the driver's alike.
-  const launchers = [...CAP_STEPS, ...SUB_STEPS].filter((s) => /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@/.test(s.block));
+  const launchers = CAP_STEPS.filter((s) => /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@/.test(s.block));
   assert.equal(launchers.length, 2);
   const fences = launchers.map((s) => list(s.block, "disallowed-tools").filter((rule) => /^(?:Read|Edit)\(/.test(rule)));
   for (const fence of fences) assert.deepEqual(fence, FENCE);
@@ -2043,72 +2055,35 @@ test("a probe that handed off skips the probe check and every step from the head
   assert.ok(capIndex(CAP_HANDOFF) < capIndex(PROBE_CHECK));
 });
 
-test("capture-subscription runs only when the capture job's key could not capture, on a fixed runner", () => {
-  const job = jobIn(CAPTURE_TEXT, CAP_SUB);
-  assert.match(job, /^ {4}needs: capture$/m);
-  assert.match(job, /^ {4}runs-on: ubuntu-24\.04$/m);
-  assert.equal(
-    jobIf(CAPTURE_TEXT, CAP_SUB),
-    [
-      "!cancelled()",
-      `&& ${TRIGGER_GATE}`,
-      "&& needs.capture.result == 'success'",
-      "&& needs.capture.outputs.next-leg == 'subscription'",
-    ].join(" "),
-  );
-  const run = (result, outputs) => admits(jobIf(CAPTURE_TEXT, CAP_SUB), withNeeds({ [CAP]: { result, outputs } }));
-  assert.ok(run("success", { "next-leg": "subscription" }));
-  // A key that captured, or a capture job that stopped at its gates (no app, a judged head), runs nothing more.
-  assert.ok(!run("success", { "next-leg": "" }));
-  assert.ok(!run("success", {}));
-  // A red capture job (a probe that found a reachable credential) runs no second leg.
-  assert.ok(!run("failure", { "next-leg": "subscription" }));
-  assert.ok(!run("skipped", {}));
-  assert.ok(!admits(jobIf(CAPTURE_TEXT, CAP_SUB), withNeeds({ [CAP]: { result: "success", outputs: { "next-leg": "subscription" } } }, { head_repository: { full_name: "someone/fork" } })));
-  // The capture job's outputs: the next-leg call's, compared to a fixed
-  // string in that `if`, and no step of this job reads `needs.`.
-  assert.equal(
-    /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(jobIn(CAPTURE_TEXT, CAP))?.[1],
-    ["      next-leg: ${{ steps.next.outputs.next-leg }}", "      next-reason: ${{ steps.next.outputs.next-reason }}", ""].join("\n"),
-  );
-  // The capture's next leg comes from its credential decision and its probe's handoff, after every other step.
+const BLOCKED = "Write the blocked capture";
+
+test("a key that cannot capture records the capture blocked in the capture job, with no second leg", () => {
+  // The next leg comes from the credential decision and the probe's handoff, after every other gate.
   const next = capStep("Pick the next leg");
   assert.doesNotMatch(next, /^ {8}if:/m);
   assert.equal(input(next, "state"), "${{ steps.credential.outputs.state }}");
   assert.equal(input(next, "handoff"), "${{ steps.probe.outputs.handoff }}");
   assert.equal(input(next, "handoff-reason"), "${{ steps.probe.outputs.handoff-reason }}");
-  assert.equal(capIndex("Pick the next leg"), capIndex(HEAD_CHECKOUT) - 1);
   assert.equal(capIndex("Pick the next leg"), capIndex(PROBE_CHECK) + 1);
-  assert.doesNotMatch(job.slice(job.indexOf("\n    steps:\n")), /needs\./);
+  assert.equal(capIndex(BLOCKED), capIndex("Pick the next leg") + 1);
+  assert.equal(capIndex(HEAD_CHECKOUT), capIndex(BLOCKED) + 1);
+  const write = capStep(BLOCKED);
+  assert.match(write, /^ {8}id: handoff-capture$/m);
+  assert.equal(stepIf(write), "steps.next.outputs.next-leg == 'subscription'");
+  assert.equal(input(write, "WHY"), "${{ steps.next.outputs.next-reason }}");
+  // No job reads the leg any more, so the capture job exports none.
+  assert.doesNotMatch(jobIn(CAPTURE_TEXT, CAP), /^ {4}outputs:/m);
+  // The scan and the upload take either capture, the driver's or the blocked one.
+  const either = "(steps.collect.outcome == 'success' || steps.handoff-capture.outcome == 'success')";
+  assert.equal(stepIf(capStep("Scan the capture for credentials")), `always() && ${either}`);
+  assert.equal(stepIf(capStep("Upload the capture")), `(always() && ${either}) && steps.scan-capture.outputs.clean == 'true'`);
 });
 
-// A step's lines without comments or blank lines, so steps compare by what runs.
-const codeLines = (block) =>
-  block
-    .split("\n")
-    .filter((line) => line.trim() !== "" && !line.trim().startsWith("#"))
-    .join("\n");
-const SUB_BLOCKED = "Write the blocked capture";
-const SUB_GATES = ["Resolve main's tip", "Check out the default branch tip", "Set up Node", "Check the kill switch", "Read the capture config", "Resolve the pull request", "Check the trigger", "Assert the gate and the resolver agree", "Log the API budget"];
-const subStep = (name) => {
-  const found = SUB_STEPS.find((s) => s.name === name);
-  assert.ok(found, `a capture-subscription step named ${name}`);
-  return found.block;
-};
-
-test("capture-subscription records the capture blocked, since a subscription token cannot go behind the key proxy, and runs no model or head code", { skip: process.platform === "win32" && "bash step" }, () => {
-  assert.deepEqual(SUB_STEPS.map((s) => s.name), [...SUB_GATES, SUB_BLOCKED, "Scan the capture for credentials", "Upload the capture"]);
-  for (const s of SUB_STEPS) {
-    assert.doesNotMatch(s.block, /run-claude-cli@|setup-runner-isolation|apply-claude-managed-settings|^ {10}path: head$|secrets\./m, s.name);
-  }
-  const write = subStep(SUB_BLOCKED);
-  assert.match(write, /^ {8}id: collect$/m);
-  assert.equal(stepIf(write), "steps.agree.outcome == 'success'");
-  assert.equal(input(write, "WHY"), "${{ env.LEG_FALLBACK_REASON }}");
-  const out = path.join(tempDir("capture-sub-blocked-"), "pr-capture");
-  const ran = runStep(write, { APP: "claude-code-plugins", OUT: out, WHY: "credit-stop" });
+test("the blocked capture says a subscription token cannot go behind the key proxy", { skip: process.platform === "win32" && "bash step" }, () => {
+  const out = path.join(tempDir("capture-blocked-"), "pr-capture");
+  const ran = runStep(capStep(BLOCKED), { APP: "claude-code-plugins", OUT: out, WHY: "credit-stop" });
   assert.equal(ran.status, 0, ran.stderr);
-  // The reason the plan fixes for this leg: a subscription token cannot go behind the key proxy.
+  // The reason the plan fixes for this case: a subscription token cannot go behind the key proxy.
   assert.deepEqual(JSON.parse(readFileSync(path.join(out, "e2e-summary.json"), "utf8")), {
     route: "none",
     app: "claude-code-plugins",
@@ -2118,19 +2093,6 @@ test("capture-subscription records the capture blocked, since a subscription tok
     publishable: [],
   });
   assert.match(ran.stdout, /^::notice::the key could not capture \(credit-stop\); /m);
-  // The job's notice still names why the key leg could not capture.
-  assert.match(jobIn(CAPTURE_TEXT, CAP_SUB), /^ {6}LEG_FALLBACK_REASON: \$\{\{ needs\.capture\.outputs\.next-reason \}\}$/m);
-});
-
-test("capture-subscription repeats the capture job's gate steps, then writes the blocked capture", () => {
-  for (const name of SUB_GATES) assert.equal(codeLines(subStep(name)), codeLines(capStep(name)), name);
-  // The scan and the upload are the capture job's, under the same id and name, so find-capture.mjs reads either job's.
-  for (const name of ["Scan the capture for credentials", "Upload the capture"]) assert.equal(codeLines(subStep(name)), codeLines(capStep(name)), name);
-  assert.equal(input(subStep("Upload the capture"), "name"), input(capStep("Upload the capture"), "name"));
-  for (const steps of [CAP_STEPS, SUB_STEPS]) {
-    const uploads = steps.filter((s) => /uses: actions\/upload-artifact@/.test(s.block)).map((s) => s.name);
-    assert.deepEqual(uploads, steps === CAP_STEPS ? ["Upload the key's probing marker", "Upload the key's credit-stop marker", "Upload the capture"] : ["Upload the capture"]);
-  }
 });
 
 test("the probe's Write and Grep through links in the run directory must be refused, with the driver's own allowances", { skip: process.platform === "win32" && "bash step" }, () => {
@@ -2337,16 +2299,24 @@ test("the driven settings carry no scrub while the outer leg keeps it, and the b
   assert.match(SIBLING_INIT, /exec node "\$driver\/broker\.mjs" [^\n]*\\\n[^\n]* --in-sandbox /);
 });
 
-test("the betas were measured on the Claude Code the lock pins", { skip: spawnSync("yq", ["--version"]).status !== 0 && "needs yq" }, () => {
-  const configFile = fileURLToPath(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url));
-  const version = spawnSync("yq", ['.merge."verify-capture".proxy."claude-code-version"', configFile], { encoding: "utf8" }).stdout.trim();
-  const pkg = JSON.parse(readFileSync(new URL("../../../package.json", import.meta.url), "utf8"));
-  const lock = JSON.parse(readFileSync(new URL("../../../package-lock.json", import.meta.url), "utf8"));
-  assert.equal(version, pkg.devDependencies["@anthropic-ai/claude-code"]);
-  assert.equal(version, lock.packages["node_modules/@anthropic-ai/claude-code"].version);
-  // The install compares them again on main's files, and installs from main's lock only.
+test("the capture takes the Claude Code version from the lock alone", { skip: (spawnSync("yq", ["--version"]).status !== 0 || spawnSync("jq", ["--version"]).status !== 0) && "needs yq and jq" }, () => {
   const install = scriptOf(capStep("Install the driven Claude Code"));
-  assert.match(install, /\[ "\$version" != "\$want" \]/);
+  const filter = /^version=\$\(jq -r '([^']+)' \.base\/package-lock\.json\)$/m.exec(install)?.[1];
+  assert.ok(filter, "the install step reads the version from main's package-lock.json");
+  const lockFile = fileURLToPath(new URL("../../../package-lock.json", import.meta.url));
+  const read = spawnSync("jq", ["-r", filter, lockFile], { encoding: "utf8" });
+  assert.equal(read.status, 0, read.stderr);
+  const pkg = JSON.parse(readFileSync(new URL("../../../package.json", import.meta.url), "utf8"));
+  assert.equal(read.stdout.trim(), pkg.devDependencies["@anthropic-ai/claude-code"], "the install step's filter yields package.json's exact pin from the lock");
+  assert.match(install, /^echo "version=\$version" >>"\$GITHUB_OUTPUT"$/m, "the install step hands the version to the driver legs");
+  assert.match(capStep("Install the driven Claude Code"), /^ {8}id: claude$/m, "the install step's outputs are steps.claude");
+  const configFile = fileURLToPath(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url));
+  const proxyKeys = spawnSync("yq", ['.merge."verify-capture".proxy | keys | .[]', configFile], { encoding: "utf8" });
+  assert.equal(proxyKeys.status, 0, proxyKeys.stderr);
+  assert.ok(proxyKeys.stdout.split("\n").includes("betas"), "the proxy block is read");
+  assert.ok(!proxyKeys.stdout.split("\n").includes("claude-code-version"), "pr-pipeline.yaml holds no second copy of the version");
+  assert.doesNotMatch(CAPTURE_TEXT, /claude-code-version/, "no workflow step reads a version outside the lock");
+  // It installs from main's lock only.
   assert.match(install, /^timeout \d+m npm ci --prefix "\$dir" --no-audit --no-fund$/m);
   assert.match(install, /^timeout \d+m npm audit signatures --prefix "\$dir"$/m);
   assert.match(install, /\.base\/package-lock\.json >"\$dir\/package-lock\.json"$/m);
@@ -2616,14 +2586,6 @@ test("stopping the key proxy matches the proxy's node command line, not its sh w
   const re = new RegExp(pattern);
   assert.match(node, re);
   assert.doesNotMatch(`/bin/sh -c ${watcher}`, re);
-});
-
-test("a capture job that hands off leaves capture-subscription time inside the judges' wait", () => {
-  // The subscription job's own bound, after a handoff measured at 36 s from
-  // job start (run 41984197946), stays inside find-capture.mjs WAIT_MS.
-  const minutes = (id) => Number(/^ {4}timeout-minutes: (\d+)$/m.exec(jobIn(CAPTURE_TEXT, id))[1]);
-  assert.equal(minutes(CAP_SUB), 30);
-  assert.ok(WAIT_MS >= (minutes(CAP_SUB) + 5) * 60_000);
 });
 
 test("the three judge jobs carry identical capture steps, before the prompt, that never fail the job", () => {

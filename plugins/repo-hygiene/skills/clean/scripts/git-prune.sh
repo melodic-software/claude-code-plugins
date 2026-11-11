@@ -63,15 +63,14 @@ cd "$REPO_ROOT" || exit 1
 for op in "${GIT_PRUNE_OPS[@]}"; do
   if [[ "$DRY_RUN" -eq 1 ]]; then
     printf 'Planned: %s\n' "$op"
+    continue
+  fi
+  printf 'Running: %s\n' "$op" >&2
+  if [[ "$op" == "git remote prune origin" ]]; then
+    clean_git_noninteractive remote prune origin ||
+      printf 'RemoteUnreachable: remote unreachable (git remote prune origin)\n'
   else
-    printf 'Running: %s\n' "$op" >&2
-    if [[ "$op" == "git remote prune origin" ]]; then
-      if ! clean_git_noninteractive remote prune origin; then
-        printf 'RemoteUnreachable: remote unreachable (git remote prune origin)\n'
-      fi
-    else
-      eval "$op"
-    fi
+    eval "$op"
   fi
 done
 

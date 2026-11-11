@@ -3,6 +3,96 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.20] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.19] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.18] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.17] - 2026-11-10
+
+### Changed
+
+Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [8.12.16] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [8.12.15] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [8.12.14] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.13] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.12] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.11] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [8.12.10] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.9] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.8] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
 ## [8.12.7] - 2026-11-09
 
 ### Changed

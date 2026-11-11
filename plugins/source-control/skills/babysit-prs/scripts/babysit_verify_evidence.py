@@ -276,7 +276,7 @@ import time
 import urllib.parse
 import zipfile
 from collections.abc import Callable, Iterable, Iterator
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -323,6 +323,23 @@ INDEX_RUNS_CAP = 120
 INDEX_NAMES_CAP = 100
 # One line per judgment on stderr: the exact-name reads it made.
 INDEX_READS_PREFIX = "babysit-index-reads"
+# Most exact-name reads answer empty. One read per job of a name nothing
+# uploads gives the empty answer's ETag, kept beside `listing_path`; each
+# first page then sends it as If-None-Match, and GitHub answers an unchanged
+# (empty) name with a 304 that does not count against the primary limit.
+# The ETag follows the body across names, as observed on 2026-11-10 (owner
+# token); GitHub documents ETags per resource, not across names. A seed that
+# fails, or whose body is not exactly empty, is no seed: every read is a 200.
+#   Pointer: <https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api>,
+#   "Use conditional requests".
+#   As-of: 2026-11-10.
+#   Recheck trigger: a name read that sent the seed answers 304 while it holds
+#   an artifact, or no 304 reaches the job's api-budget notice.
+EMPTY_ETAG_SUFFIX = ".empty-etag"
+EMPTY_ETAG_SEED_NAME = "babysit-empty-etag-seed"
+EMPTY_NAMED = {"total_count": 0, "artifacts": []}
+ETAG_RE = re.compile(r'(W/)?"[!#-~]{1,200}"')
+NOT_MODIFIED_RE = re.compile(r"^gh: HTTP 304$", re.MULTILINE)
 # A file holding the pull request's REST record as the caller read it
 # (`merge_policy.cached_pull_request`).
 PULL_ENV = "BABYSIT_VERIFY_PULL"
@@ -1391,6 +1408,9 @@ class Reader:
     # This Reader took the job's over-count whole listing
     # (`OVERCOUNT_FALLBACK_SUFFIX`) and records its outcome there.
     _overcount_mine: bool = False
+    # The job's empty-name ETag (`EMPTY_ETAG_SUFFIX`), once looked up.
+    _empty_etag: str | None = None
+    _empty_etag_looked: bool = False
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
     _created: dict[int, Any] = field(default_factory=dict)
@@ -1464,9 +1484,6 @@ class Reader:
     _legacy_refs: dict[int, str] = field(default_factory=dict)
     # The live issues `_targeted` read, taken by the next `_elsewhere`.
     _live_issues: dict[int, dict[Any, Any]] = field(default_factory=dict)
-    # A targeted listing read for the answer key, taken by the next judgment
-    # of the same pull request and head (`_verdict_artifacts`).
-    _handoff: dict[tuple[int, str], list[dict[str, Any]]] = field(default_factory=dict)
     # The exact-name and run-artifact reads this Reader made.
     index_reads: int = 0
 
@@ -1561,8 +1578,7 @@ class Reader:
     def refresh(self) -> None:
         """Drop a saved listing: the next judgment pages the API itself (and
         saves that listing for the rest of the run). In index mode every
-        judgment reads the index afresh; this drops a kept one too."""
-        self._handoff.clear()
+        judgment reads the index afresh."""
         if self._saved:
             self._artifacts, self._saved, self._own = None, False, True
 
@@ -2073,22 +2089,24 @@ class Reader:
         return read if isinstance(read, tuple) else None
 
     def _api_object(
-        self, path: str, deadline: float
+        self, path: str, deadline: float, empty_etag: str | None = None
     ) -> tuple[dict[str, Any], dict[str, str]] | int | None:
         """The JSON object at `path` and its headers, read again after
         `LISTING_WAITS` while time is left when the read fails transiently
         (`_transient`) or its body is cut short; the HTTP status of any other
         failed answer (None without one), or None once the waits or the time
         run out, with `_page_transient` set when the last read was one of
-        those."""
+        those. With `empty_etag` (`_seed_empty_etag`) the read is conditional
+        and a 304 is `EMPTY_NAMED`."""
         self._page_transient = False
+        conditional = ["-H", f"If-None-Match: {empty_etag}"] if empty_etag else []
         for wait in (*LISTING_WAITS, None):
             left = deadline - _listing_clock()
             if left <= 0:
                 return None
             try:
                 proc, headers = gh_api_with_headers(
-                    ["api", path],
+                    ["api", *conditional, path],
                     timeout_seconds=left,
                     env_overrides=self._env(),
                 )
@@ -2105,6 +2123,9 @@ class Reader:
                     return body, headers
             else:
                 detail = (proc.stderr or "").strip()
+                if conditional and NOT_MODIFIED_RE.search(detail):
+                    self._page_transient = False
+                    return dict(EMPTY_NAMED, artifacts=[]), headers
                 if not _transient(detail):
                     self._page_transient = False
                     return gh_http_status(detail)
@@ -2947,6 +2968,41 @@ class Reader:
             if a["expires_at"] is None or _when(a["expires_at"]) > now
         ]
 
+    def _named_path(self, name: str, page: int) -> str:
+        return (
+            f"repos/{self.repo}/actions/artifacts"
+            f"?name={urllib.parse.quote(name)}&per_page={LISTING_PAGE_SIZE}&page={page}"
+        )
+
+    def _seed_empty_etag(self, deadline: float) -> str | None:
+        """The job's empty-name ETag (`EMPTY_ETAG_SUFFIX`): read from the
+        file beside `listing_path`, else from one read of
+        `EMPTY_ETAG_SEED_NAME` under the Actions token, kept only when its
+        body is exactly `EMPTY_NAMED`. An empty file is a seed that failed;
+        no `listing_path` is no job to seed for. Either way, None."""
+        if self._empty_etag_looked:
+            return self._empty_etag
+        self._empty_etag_looked = True
+        if not self.listing_path:
+            return None
+        path = Path(f"{self.listing_path}{EMPTY_ETAG_SUFFIX}")
+        try:
+            kept = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            read = self._api_object(
+                self._named_path(EMPTY_ETAG_SEED_NAME, 1), deadline
+            )
+            self.index_reads += 1
+            kept = ""
+            if isinstance(read, tuple) and read[0] == EMPTY_NAMED:
+                kept = read[1].get("etag", "")
+            tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+            with contextlib.suppress(OSError):
+                tmp.write_text(kept, encoding="utf-8")
+                os.replace(tmp, path)
+        self._empty_etag = kept if kept and ETAG_RE.fullmatch(kept) else None
+        return self._empty_etag
+
     def _named(self, name: str, deadline: float) -> list[dict[str, Any]]:
         """Every unexpired artifact named exactly `name`, under any run: the
         API's name filter matches whole names. The pages must hold, each id
@@ -2958,9 +3014,9 @@ class Reader:
             page = 1
             while True:
                 read = self._api_object(
-                    f"repos/{self.repo}/actions/artifacts"
-                    f"?name={urllib.parse.quote(name)}&per_page={LISTING_PAGE_SIZE}&page={page}",
+                    self._named_path(name, page),
                     deadline,
+                    self._seed_empty_etag(deadline) if page == 1 else None,
                 )
                 self.index_reads += 1
                 if not isinstance(read, tuple):
@@ -3111,24 +3167,6 @@ class Reader:
         )
         return list(found.values())
 
-    def targeted(self, number: int, head: str) -> list[dict[str, Any]]:
-        """`_targeted` for the answer key, kept for this pull request's next
-        judgment at `head`. Raises `RuntimeError` when it cannot be read."""
-        try:
-            pr = merge_policy.pull_request(self.repo, number)
-            head_ref = str(json_object(json_object(pr).get("head")).get("ref") or "")
-            listing = self._targeted(
-                number, head, head_ref, self._commits(number, head) | {head}
-            )
-        except (
-            _Unreadable,
-            merge_policy.PolicyReadError,
-            postmerge.PostMergeReadError,
-        ) as exc:
-            raise RuntimeError(str(exc)) from exc
-        self._handoff[(number, head)] = listing
-        return listing
-
     def own_verdicts(self, number: int, head: str) -> list[dict[str, Any]]:
         """The verdict artifacts naming this pull request or `head`, through
         the FAIL index and the legacy FAILs, with the passes at the head and
@@ -3163,12 +3201,9 @@ class Reader:
         self, number: int, head: str, head_ref: str, commits: set[str]
     ) -> list[dict[str, Any]]:
         """What a judgment iterates: the whole listing, or in index mode the
-        targeted one (the answer key's, when it read one for this head)."""
+        targeted one."""
         if not self.index_mode():
             return self._listing()
-        handed = self._handoff.pop((number, head), None)
-        if handed is not None:
-            return handed
         return self._targeted(number, head, head_ref, commits)
 
     def fail_findings(self, number: int) -> list[dict[str, Any]]:
@@ -4340,572 +4375,12 @@ def lane_queue(
     }
 
 
-# Kept verifier answers (`--answers-in`, `--answers-out`), one per pull
-# request, so enable-auto-merge.mjs need not read again what has not moved.
-# An entry is written only from a fresh read whose answer is a refusal of a
-# kind that holds until an input moves (`answer_cacheable`), never an allow,
-# so a kept answer can delay an arm but never cause one; armed pull requests
-# are never served one. It is served only while the inputs the key hashes
-# hash the same (`_answer_key`) and it has not expired (the `expiresAt`
-# `_kept_report` sets). An input the key does not hash (an edit to a review's
-# body or an inline comment, who resolved a thread) can only keep a refusal
-# standing until it expires: a delay, never an arm.
-# pr-merge.yml keeps the file as the pr-merge-verify-answers artifact of a
-# scheduled or hand-started run of main (.github/scripts/pr-merge/
-# verify-answers.mjs); a file of another version, repository or code is no
-# file, and any read behind the key that fails is no key: both read in full.
-SHADOW, SERVE = "shadow", "serve"
-ANSWERS_VERSION = 1
-ANSWER_TTL = timedelta(minutes=60)
-# The refusals that stand until an input the key hashes moves.
-STABLE_REFUSALS = (
-    MISSING,
-    FAIL,
-    EARLIER_FAIL,
-    REPEATED_FAIL,
-    SPEC_CHANGED,
-    UNTRUSTED_SPEC,
-    TOO_OLD,
-)
-# The first or second line of a comment enable-auto-merge.mjs writes itself
-# (its refusal and pin, the gate's queue-ejection comment): its edits are the
-# lane's own writes, so they move no key.
-SELF_MARKERS = (
-    "<!-- babysit-merge-risk -->",
-    "<!-- babysit-merge-pin sha=",
-    "<!-- babysit-merge-queue-ejections -->",
-)
-PROBE_ISSUE_FIELDS = (
-    "number repository{nameWithOwner} updatedAt lastEditedAt "
-    "timelineItems(first:1){totalCount updatedAt} "
-    "labels(first:100){totalCount nodes{name}} "
-    "comments(first:100){totalCount nodes{databaseId updatedAt}} "
-    "closedByPullRequestsReferences(first:1,includeClosedPrs:true){totalCount}"
-)
-PROBE_QUERY = (
-    "query($o:String!,$r:String!,$n:Int!,$h:GitObjectID!,$ta:String!,$ar:String!)"
-    "{repository(owner:$o,name:$r){pullRequest(number:$n){headRefOid baseRefOid "
-    "createdAt title body timelineItems(first:1){totalCount} "
-    "comments(last:100){totalCount nodes{databaseId updatedAt body "
-    "author{__typename login}}} "
-    "reviewThreads(first:100){totalCount nodes{isResolved "
-    "comments(first:1){totalCount}}} "
-    f"closingIssuesReferences(first:10){{totalCount nodes{{{PROBE_ISSUE_FIELDS}}}}}}}"
-    "head:object(oid:$h){... on Commit{checkSuites(first:100){totalCount "
-    "nodes{databaseId updatedAt status conclusion}}}} "
-    "trusted:object(expression:$ta){oid} admission:object(expression:$ar){oid}}}"
-)
-PROBE_REFS_QUERY = (
-    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
-    f"issueOrPullRequest(number:$n){{__typename ... on Issue{{{PROBE_ISSUE_FIELDS}}}}}}}}}"
-)
-
-
-class _ProbeFailed(Exception):
-    """A read behind the key failed or came back cut: no key, a full read."""
-
-
-def answer_cacheable(report: Any) -> bool:
-    """Whether a fresh answer may be kept: a refusal of a stable kind (the
-    verdict's, a link refusal, a risk hold, a queue-ejection refusal), and
-    nothing in it unreadable. An allow never is."""
-    if not is_json_object(report) or "cached" in report or "cache" in report:
-        return False
-    text = json.dumps(report).casefold()
-    if "unreadable" in text or "could not be read" in text:
-        return False
-    refusal = report.get("refusal")
-    if refusal == INELIGIBLE:
-        return isinstance(report.get("ineligible"), str)
-    if refusal is not None:
-        return refusal in STABLE_REFUSALS
-    if report.get("ineligible") is not None:
-        return False
-    if isinstance(report.get("reviews"), str):
-        return True
-    queue = json_object(report.get("queue"))
-    return (
-        "reviews" in report
-        and isinstance(queue.get("refusal"), str)
-        and queue.get("readError") is None
-        and queue.get("commentError") is None
-    )
-
-
-def answer_kind(report: Any) -> str:
-    """A short name for what an answer decides, for the shadow log line."""
-    if not is_json_object(report):
-        return "none"
-    if isinstance(report.get("ineligible"), str):
-        return "ineligible"
-    if isinstance(report.get("refusal"), str):
-        return str(report["refusal"])
-    if isinstance(report.get("reviews"), str):
-        return "reviews"
-    if isinstance(json_object(report.get("queue")).get("refusal"), str):
-        return "queue"
-    return "allow"
-
-
-def _decides(report: dict[str, Any]) -> tuple[Any, ...]:
-    """The fields enable-auto-merge.mjs decides and notes on (verifyHold,
-    verifyClears, ejectionHold, decide's whole-review request), a risk hold's
-    text aside."""
-    queue = json_object(report.get("queue"))
-    return (
-        report.get("refusal"),
-        report.get("needsHuman"),
-        report.get("ineligible"),
-        isinstance(report.get("reviews"), str),
-        report.get("reviewsPerson"),
-        report.get("wholeReviewWanted"),
-        queue.get("refusal"),
-    )
-
-
-def _code_digest() -> str:
-    """The reader's code: every module beside this one, and the legacy FAILs
-    file. A deploy that changes any of them invalidates every kept answer."""
-    digest = hashlib.sha256()
-    here = Path(__file__).resolve().parent
-    for path in sorted([*here.glob("*.py"), *here.glob(LEGACY_FAILS_FILE)]):
-        digest.update(path.name.encode("utf-8") + b"\0" + path.read_bytes() + b"\0")
-    return digest.hexdigest()
-
-
 def _when(value: Any) -> datetime | None:
     try:
         when = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError:
         return None
     return when if when.tzinfo is not None else None
-
-
-def load_answers(
-    path: str | None, repo: str, code: str, now: datetime
-) -> dict[int, dict[str, Any]]:
-    """The unexpired entries of the answers file at `path`, by pull request.
-    A missing or malformed file, or one of another version, repository or
-    code, is none; an entry of another shape is dropped."""
-    if not path:
-        return {}
-    try:
-        data = json_object(json.loads(Path(path).read_text(encoding="utf-8")))
-    except Exception:  # noqa: BLE001 - nested past the recursion limit included
-        return {}
-    entries = data.get("entries")
-    if (
-        data.get("version") != ANSWERS_VERSION
-        or data.get("repo") != repo
-        or data.get("code") != code
-        or not is_json_object(entries)
-    ):
-        return {}
-    kept: dict[int, dict[str, Any]] = {}
-    for number, entry in entries.items():
-        entry = json_object(entry)
-        expires = _when(entry.get("expiresAt"))
-        if (
-            ARTIFACT_ID_RE.fullmatch(str(number))
-            and isinstance(entry.get("key"), str)
-            and _when(entry.get("readAt")) is not None
-            and expires is not None
-            and now < expires
-            and is_json_object(entry.get("report"))
-        ):
-            kept[int(number)] = entry
-    return kept
-
-
-def _write_answers(
-    path: str | None,
-    seed: dict[int, dict[str, Any]],
-    repo: str,
-    code: str,
-    now: datetime,
-    number: int,
-    entry: dict[str, Any] | None,
-) -> None:
-    """Best effort: `path`'s entries (this run's earlier pull requests), else
-    `seed`'s (the last run's), with `number`'s set to `entry` or dropped."""
-    if not path:
-        return
-    target = Path(path)
-    entries = load_answers(path, repo, code, now) if target.exists() else dict(seed)
-    entries.pop(number, None)
-    if entry is not None:
-        entries[number] = entry
-    payload = {
-        "version": ANSWERS_VERSION,
-        "repo": repo,
-        "code": code,
-        "entries": {str(n): e for n, e in sorted(entries.items())},
-    }
-    tmp = target.with_name(f"{target.name}.{os.getpid()}.tmp")
-    with contextlib.suppress(OSError):
-        target.parent.mkdir(parents=True, exist_ok=True)
-        tmp.write_text(json.dumps(payload), encoding="utf-8")
-        os.replace(tmp, target)
-
-
-def _probe_graphql(query: str, variables: dict[str, str | int]) -> dict[str, Any]:
-    """The probe query's `repository`; any error or missing part fails."""
-    args = ["api", "graphql", "-f", f"query={query}"]
-    for name, value in variables.items():
-        args += ["-F" if isinstance(value, int) else "-f", f"{name}={value}"]
-    try:
-        proc = postmerge.gh_capture(args)
-        payload = json_object(json.loads(proc.stdout))
-    except (RuntimeError, ValueError, OSError) as exc:
-        raise _ProbeFailed(str(exc)) from exc
-    repository = json_object(payload.get("data")).get("repository")
-    if proc.returncode != 0 or payload.get("errors") or not is_json_object(repository):
-        raise _ProbeFailed("the probe did not read")
-    return repository
-
-
-def _whole(connection: Any, what: str) -> list[Any]:
-    """A connection's nodes, failing when it was cut."""
-    connection = json_object(connection)
-    nodes = connection.get("nodes")
-    if not is_json_array(nodes) or connection.get("totalCount") != len(nodes):
-        raise _ProbeFailed(f"{what} came back cut")
-    return nodes
-
-
-def _issue_print(issue: Any) -> dict[str, Any]:
-    issue = json_object(issue)
-    return {
-        "number": issue.get("number"),
-        "repo": json_object(issue.get("repository")).get("nameWithOwner"),
-        "updatedAt": issue.get("updatedAt"),
-        "lastEditedAt": issue.get("lastEditedAt"),
-        "timeline": issue.get("timelineItems"),
-        "labels": sorted(
-            str(json_object(n).get("name"))
-            for n in _whole(issue.get("labels"), "labels")
-        ),
-        "comments": [
-            [json_object(c).get("databaseId"), json_object(c).get("updatedAt")]
-            for c in _whole(issue.get("comments"), "issue comments")
-        ],
-        "closedBy": json_object(issue.get("closedByPullRequestsReferences")).get(
-            "totalCount"
-        ),
-    }
-
-
-def _self_written(comment: dict[str, Any], bot: str | None) -> bool:
-    """A comment enable-auto-merge.mjs wrote itself (`SELF_MARKERS`)."""
-    author = json_object(comment.get("author"))
-    if bot is None or author.get("__typename") != "Bot" or author.get("login") != bot:
-        return False
-    lines = str(comment.get("body") or "").split("\n", 2)[:2]
-    return any(line.rstrip("\r").startswith(SELF_MARKERS) for line in lines)
-
-
-def _answer_key(
-    args: argparse.Namespace, reader: Reader
-) -> tuple[str, datetime, datetime | None]:
-    """The key of the inputs the read takes (the pull request, its issues,
-    the verdict artifacts, the head's PASS runs, the config, rung and trust
-    files; not review-body or inline-comment edits, nor who resolved a
-    thread), when the pull request turns too old (`TOO_OLD_DAYS`), and the
-    earliest expiry of a PASS artifact at the head (None without one).
-    Raises `_ProbeFailed`, or any error of a read behind it."""
-    parts: dict[str, Any] = {
-        "version": ANSWERS_VERSION,
-        "args": [
-            args.repo,
-            args.branch,
-            args.number,
-            args.head,
-            args.base_sha,
-            # The cap that stood here before the config set it: keeps saved keys.
-            merge_policy.MAX_VERIFY_FAILS,
-            args.rung,
-            args.lane_link,
-            args.lane_reviews,
-            args.lane_queue,
-            args.shared_listing,
-        ],
-    }
-    bot: str | None = None
-    try:
-        if args.base_sha is not None:
-            base = merge_policy.config_at(args.repo, args.base_sha)
-            if base.error:
-                raise _ProbeFailed(base.error)
-            config = merge_policy.with_default_branch(args.repo, base)
-            parts["config"] = asdict(config)
-            bot = (config.agent_identity or "").removesuffix("[bot]") or None
-        # In index mode only the verdict artifacts this judgment can count.
-        listing = (
-            reader.targeted(args.number, args.head)
-            if reader.index_mode()
-            else reader.listing()
-        )
-        # `_task_list` reads the rules at the default branch, whatever the base.
-        default = merge_policy._default_branch(args.repo, shared=True)
-    except (merge_policy.PolicyReadError, RuntimeError) as exc:
-        raise _ProbeFailed(str(exc)) from exc
-    owner, _, name = args.repo.partition("/")
-    repository = _probe_graphql(
-        PROBE_QUERY,
-        {
-            "o": owner,
-            "r": name,
-            "n": args.number,
-            "h": args.head,
-            # By full ref: a bare name resolves as git does, a tag first.
-            "ta": f"refs/heads/{args.branch}:{TRUSTED_ACTORS_PATH}",
-            "ar": f"refs/heads/{default}:{ADMISSION_RULES_PATH}",
-        },
-    )
-    pull = json_object(repository.get("pullRequest"))
-    if pull.get("headRefOid") != args.head:
-        raise _ProbeFailed("the head moved")
-    created = _when(pull.get("createdAt"))
-    if created is None:
-        raise _ProbeFailed("no creation time")
-    closing = json_object(pull.get("closingIssuesReferences"))
-    issues = _whole(closing, "closing issues")
-    if not issues:
-        named, _ = merge_policy.refs_issue(pull.get("body"))
-        if named is not None:
-            node = json_object(
-                _probe_graphql(
-                    PROBE_REFS_QUERY, {"o": owner, "r": name, "n": named}
-                ).get("issueOrPullRequest")
-            )
-            issues = [node] if node.get("__typename") == "Issue" else []
-    comments = json_object(pull.get("comments"))
-    parts["pull"] = {
-        "base": pull.get("baseRefOid"),
-        "created": pull.get("createdAt"),
-        "title": hashlib.sha256(str(pull.get("title")).encode("utf-8")).hexdigest(),
-        "body": hashlib.sha256(str(pull.get("body")).encode("utf-8")).hexdigest(),
-        "timeline": json_object(pull.get("timelineItems")).get("totalCount"),
-        "comments": comments.get("totalCount"),
-        "said": [
-            [c.get("databaseId")]
-            if _self_written(c, bot)
-            else [c.get("databaseId"), c.get("updatedAt")]
-            for c in map(json_object, _whole(comments, "pull request comments"))
-        ],
-        "threads": [
-            [
-                json_object(t).get("isResolved"),
-                json_object(json_object(t).get("comments")).get("totalCount"),
-            ]
-            for t in _whole(pull.get("reviewThreads"), "review threads")
-        ],
-        "suites": sorted(
-            json.dumps(s, sort_keys=True)
-            for s in _whole(
-                json_object(repository.get("head")).get("checkSuites"), "check suites"
-            )
-        ),
-        "issues": [_issue_print(issue) for issue in issues],
-        "trusted": json_object(repository.get("trusted")).get("oid"),
-        "admission": json_object(repository.get("admission")).get("oid"),
-    }
-    # The verdict artifacts the read counts: every FAIL-named one, under any
-    # pull request, and every one named for this pull request.
-    own = re.compile(rf"pr-verify-0*{args.number}-")
-    verdicts = []
-    passes: list[dict[str, Any]] = []
-    for item in map(json_object, listing):
-        name_ = str(item.get("name") or "")
-        match = verdict_name(name_)
-        failed = FAIL_PREFIX_RE.match(name_) is not None or (
-            match is not None and match[3] == "fail"
-        )
-        if not (failed or own.match(name_)):
-            continue
-        run_id = json_object(item.get("workflow_run")).get("id")
-        verdicts.append([item.get("id"), name_, item.get("expired"), run_id])
-        if (
-            match is not None
-            and int(match[1]) == args.number
-            and match[2] == args.head
-            and match[3] in PASSES
-            and item.get("expired") is False
-        ):
-            passes.append(item)
-    parts["verdicts"] = sorted(verdicts, key=json.dumps)
-    expiry: datetime | None = None
-    runs = []
-    for item in passes:
-        run_id = json_object(item.get("workflow_run")).get("id")
-        try:
-            record = json_object(
-                reader._actions(
-                    ["api", f"repos/{args.repo}/actions/runs/{run_id}"],
-                    f"run {run_id}",
-                )
-            )
-        except _Unreadable as exc:
-            raise _ProbeFailed(str(exc)) from exc
-        runs.append(
-            [run_id]
-            + [
-                record.get(k)
-                for k in (
-                    "run_attempt",
-                    "status",
-                    "conclusion",
-                    "run_started_at",
-                    "created_at",
-                )
-            ]
-        )
-        expires = _when(item.get("expires_at"))
-        if expires is None:
-            raise _ProbeFailed("a PASS artifact with no expiry")
-        expiry = expires if expiry is None else min(expiry, expires)
-    parts["runs"] = sorted(runs, key=json.dumps)
-    key = hashlib.sha256(
-        json.dumps(parts, sort_keys=True, default=str).encode("utf-8")
-    ).hexdigest()
-    return key, created + timedelta(days=TOO_OLD_DAYS), expiry
-
-
-@dataclass
-class _Lookup:
-    """What `_answered` knows before the full read: the kept answers, the
-    key, and whether it matches the kept refusal for this pull request."""
-
-    code: str
-    kept: dict[int, dict[str, Any]]
-    key: str | None
-    too_old: datetime | None
-    pass_expiry: datetime | None
-    entry: dict[str, Any] | None
-    stored: dict[str, Any] | None
-    hit: bool
-    cache: dict[str, str]
-
-
-def _lookup(args: argparse.Namespace, reader: Reader, now: datetime) -> _Lookup:
-    """The kept answer for this pull request and the key it must match. A
-    probe that cannot key is a miss; any other error raises. Under serve's
-    `--answers-only` no kept entry is a miss with no probe: nothing could hit."""
-    code = _code_digest()
-    kept = load_answers(args.answers_in, args.repo, code, now)
-    entry = kept.get(args.number)
-    key: str | None = None
-    too_old: datetime | None = None
-    pass_expiry: datetime | None = None
-    if entry is not None or not (args.answers_mode == SERVE and args.answers_only):
-        try:
-            key, too_old, pass_expiry = _answer_key(args, reader)
-        except Exception as exc:  # noqa: BLE001 - no key is a full read
-            print(f"verify-cache: #{args.number} no key: {exc}", file=sys.stderr)
-    stored = json_object(entry.get("report")) if entry else None
-    hit = (
-        key is not None
-        and entry is not None
-        and entry.get("key") == key
-        and answer_cacheable(stored)
-        and json_object(stored).get("head") == args.head
-    )
-    cache = {
-        "mode": SERVE if args.answers_mode == SERVE else SHADOW,
-        "key": "hit" if hit else "miss",
-        "stored": answer_kind(stored) if hit else "none",
-    }
-    return _Lookup(code, kept, key, too_old, pass_expiry, entry, stored, hit, cache)
-
-
-def _kept_report(
-    args: argparse.Namespace, now: datetime, look: _Lookup, report: dict[str, Any]
-) -> dict[str, Any]:
-    """`report`, kept for the next run when cacheable, with the `cache`
-    object comparing it with the kept one."""
-    fresh = None
-    if look.key is not None and answer_cacheable(report):
-        # Age changes only one answer: verify:missing turns verify:too-old
-        # past TOO_OLD_DAYS. Any other answer moves only with the key.
-        limits = [now + ANSWER_TTL, look.pass_expiry]
-        limits.append(look.too_old if report.get("refusal") == MISSING else None)
-        fresh = {
-            "key": look.key,
-            "readAt": now.isoformat(),
-            "expiresAt": min(t for t in limits if t is not None).isoformat(),
-            "report": report,
-        }
-    _write_answers(
-        args.answers_out, look.kept, args.repo, look.code, now, args.number, fresh
-    )
-    agree = "n/a"
-    if look.hit:
-        same = _decides(json_object(look.stored)) == _decides(report)
-        agree = "yes" if same else "no"
-    return report | {
-        "cache": look.cache | {"fresh": answer_kind(report), "agree": agree},
-    }
-
-
-def _answered(
-    args: argparse.Namespace, reader: Reader, now: datetime
-) -> dict[str, Any]:
-    """`evidence` with kept answers (`main`): served under `serve` when the
-    key matches a kept refusal, else read in full, kept when cacheable, and
-    compared with the kept one in the `cache` object.
-
-    The cache never costs the read: any error of its own (an answers file
-    json cannot load, a module that cannot be hashed, a write that fails)
-    leaves the plain report, as without answers files, and under
-    `--answers-only` no answer at all, each with a `cache` object marking
-    the error. The probe's rate guard is not such an
-    error: a rate limit behind the key exits the process (`os._exit(75)`) as
-    any other read's does, the price of one GraphQL point a read."""
-    serve = args.answers_mode == SERVE
-    # What the run logs for a read the cache failed on (`cache=error`).
-    failed = {"mode": SERVE if serve else SHADOW, "error": True}
-    # The key first in both modes, so a kept entry carries the key of the
-    # inputs as they stood before the read: one that moves during it is a
-    # miss next run, never a hit on a stale refusal.
-    try:
-        look = _lookup(args, reader, now)
-        if serve and look.hit:
-            _write_answers(
-                args.answers_out,
-                look.kept,
-                args.repo,
-                look.code,
-                now,
-                args.number,
-                look.entry,
-            )
-            return json_object(look.stored) | {
-                "cached": True,
-                "cache": look.cache | {"fresh": "none", "agree": "n/a"},
-            }
-        if serve and args.answers_only:
-            # No full read: a miss is no answer at all.
-            _write_answers(
-                args.answers_out,
-                look.kept,
-                args.repo,
-                look.code,
-                now,
-                args.number,
-                look.entry,
-            )
-            return {"head": args.head, "cached": False, "cache": look.cache}
-    except Exception as exc:  # noqa: BLE001 - the cache never costs the read
-        print(f"verify-cache: #{args.number} cache error: {exc!r}", file=sys.stderr)
-        if serve and args.answers_only:
-            return {"head": args.head, "cached": False, "cache": failed}
-        return _evidence_report(args, reader) | {"cache": failed}
-    report = _evidence_report(args, reader)
-    try:
-        return _kept_report(args, now, look, report)
-    except Exception as exc:  # noqa: BLE001 - the cache never costs the read
-        print(f"verify-cache: #{args.number} cache error: {exc!r}", file=sys.stderr)
-        return report | {"cache": failed}
 
 
 def _settle(
@@ -6392,14 +5867,6 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     `merge.max-queue-ejections` limit, and the gate's refusal and comment at
     or over it.
 
-    With `--answers-in <file>` and `--answers-out <file>`, the line is also
-    one of the answers the last run kept (`_answered`): `--answers-mode
-    serve` prints a kept refusal whose key still matches with `cached: true`
-    and reads nothing more; any other mode (`shadow`) reads in full all the
-    same and adds a `cache` object comparing the kept answer with the fresh
-    one. `--answers-only` (serve only; shadow ignores it) prints a kept
-    refusal or no answer at all, never reading in full.
-
     `lane-room --postmerge-result <file> [--rung-cap <value>]`: whether the
     pr-merge lane may merge one more of its own pull requests now
     (`merge_policy.lane_room`, `LaneRoom.report`), from this run's
@@ -6424,7 +5891,11 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     again (`_settle`). With `--idle-tick`, post-merge-dispatch's reuse of an
     earlier tick's report, which must also pass `postmerge.idle_refusal`;
     `--fresh` with it, for a report this job's check just made, skips that
-    rule's verifying runs (`idle_runs_refusal`)."""
+    rule's verifying runs (`idle_runs_refusal`).
+
+    `check-code --code-sha <sha>`: settle's first refusal alone, which reads
+    nothing from GitHub: exit 0 when the check code at this checkout is the
+    code at `<sha>`, 1 when settle would refuse the report as code-changed."""
     parser = argparse.ArgumentParser(
         prog="babysit_verify_evidence.py", allow_abbrev=False
     )
@@ -6440,10 +5911,6 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     cmd.add_argument("--lane-queue", action="store_true")
     cmd.add_argument("--rung", default=None)
     cmd.add_argument("--shared-listing", action="store_true")
-    cmd.add_argument("--answers-in", default=None)
-    cmd.add_argument("--answers-out", default=None)
-    cmd.add_argument("--answers-mode", default=SHADOW)
-    cmd.add_argument("--answers-only", action="store_true")
     cmd.add_argument("number", type=int)
     cmd.add_argument("head")
     room = sub.add_parser("lane-room", allow_abbrev=False)
@@ -6465,6 +5932,8 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     settle.add_argument("--code-sha", required=True)
     settle.add_argument("--idle-tick", action="store_true")
     settle.add_argument("--fresh", action="store_true")
+    code = sub.add_parser("check-code", allow_abbrev=False)
+    code.add_argument("--code-sha", required=True)
     legacy = sub.add_parser("legacy-fails", allow_abbrev=False)
     legacy.add_argument("--repo", required=True)
     legacy.add_argument("--branch", default="main")
@@ -6492,6 +5961,8 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
         ):
             parser.error("head and --base-sha must be full commit SHAs")
         return _capped_close_main(args, now)
+    if args.command == "check-code":
+        return 0 if merge_policy.check_code_unchanged(args.code_sha) else 1
     if args.command == "settle":
         if args.fresh and not args.idle_tick:
             parser.error("--fresh needs --idle-tick")
@@ -6530,14 +6001,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     if args.shared_listing:
         reader.listing_max_age = None
     with merge_policy.base_tips_remembered():
-        if (
-            args.answers_in is None
-            and args.answers_out is None
-            and not args.answers_only
-        ):
-            print(json.dumps(_evidence_report(args, reader)))
-            return 0
-        print(json.dumps(_answered(args, reader, now or datetime.now(UTC))))
+        print(json.dumps(_evidence_report(args, reader)))
         return 0
 
 

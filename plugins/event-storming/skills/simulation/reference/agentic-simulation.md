@@ -263,7 +263,7 @@ You are [ROLE NAME], participating in an EventStorming workshop to explore [DOMA
 
 ## Your Role in the Workshop
 - Write Domain Events (orange) from YOUR perspective using past tense
-- Flag Hot Spots (purple) for things that worry you
+- Flag Hot Spots (red) for things that worry you
 - Challenge other participants' events when they conflict with your experience
 - Ask questions when something seems too simple or too complex
 
@@ -280,7 +280,7 @@ You are [ROLE NAME], participating in an EventStorming workshop to explore [DOMA
 
 ### Persona Persistence Across Rounds
 
-LLM agents are stateless: each Agent tool invocation starts fresh. Without persistence, a persona in Round 3 has no memory of what they wrote in Round 1, leading to inconsistent identity, vocabulary drift, and lost incremental knowledge.
+Each persona is a separate Agent tool invocation, and this skill hands it its earlier rounds only through the prompt (for what a spawned agent starts with, fetch [Agent tool behavior](https://code.claude.com/docs/en/tools-reference#agent-tool-behavior) live; as of 2026-11-10; recheck when that section changes what a spawned agent inherits). Without persistence, a persona in Round 3 has no memory of what they wrote in Round 1, leading to inconsistent identity, vocabulary drift, and lost incremental knowledge.
 
 **Solution: Temp profile files loaded into each agent prompt.**
 
@@ -353,7 +353,7 @@ Use `{domain}-{date}-{random4}` format, e.g., `devconf-20260321-a7f2`, where `{r
 At session end, ask user: "Delete persona temp files? (They can be archived for session replay.)"
 
 - If yes: delete the session directory recursively with the host shell's remover, `rm -rf "{session_dir}/"` on POSIX/Git Bash, `Remove-Item -LiteralPath "{session_dir}" -Recurse -Force` on PowerShell; keep the path quoted, it may contain spaces (`{session_dir}` is the path the temp primitive returned at session start, not a path you recompute here)
-- If no: archive to `${CLAUDE_PLUGIN_DATA}/sessions/{session_id}/` (the per-plugin data directory that survives updates). Session archives are per-run state, not skill source; never write them into the plugin's own installed directory (`${CLAUDE_PLUGIN_ROOT}`, read-only under cache isolation) or into the consumer's project tree
+- If no: archive to `${CLAUDE_PLUGIN_DATA}/sessions/{session_id}/` (the per-plugin data directory). Session archives are per-run state, not skill source; never write them into the plugin's own installed directory (`${CLAUDE_PLUGIN_ROOT}`) or into the consumer's project tree. For what each directory guarantees, fetch [Reference plugin paths and store data](https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data) live (as of 2026-11-10; recheck when that section changes what survives a plugin update or where a plugin may write state)
 
 ---
 
@@ -636,7 +636,7 @@ The legend MUST be incrementally updated as each phase introduces new building b
 **Ubiquitous Language capture (facilitator observation, not a formal phase):**
 Per Brandolini (Ch. 1): "When new terms arise, and the discussion shows that they have an exact meaning in that context, I start capturing key term definitions on a special sticky note and place them just below the normal flow." In simulation, the facilitator notes domain-specific terms with precise contextual meanings as they emerge organically during ANY phase, not as a dedicated step. Use gray stickies placed below the main flow. These are NOT Wikipedia definitions, just what each term means in THIS domain conversation. Examples: "CFP: Call for Papers", "Track: Parallel session stream."
 
-At Wrapping Up, these gray stickies become graduation candidates: offer each resolved term for the consumer repo's committed project glossary, one entry per term with a 1-2 sentence definition of what it IS and a plain `Avoid:` line listing the rejected synonyms, project-context terms only. When `/domain-driven-design:curate-language` is available in the current session, delegate this active maintenance to it by invoking it via the Skill tool; the skill discovers the consumer's format and location and routes only among contexts already established by the workshop or project. Without that skill, preserve the same discovery-first, lazy fallback and ask when placement is ambiguous. Glossary graduation never discovers bounded contexts.
+At Wrapping Up, these gray stickies become graduation candidates: offer each resolved term for the consumer repo's committed project glossary, one entry per term with a 1-2 sentence definition of what it IS and a plain `Avoid:` line listing the rejected synonyms, project-context terms only. When `/domain-driven-design:ubiquitous-language curate` is available in the current session, delegate this active maintenance to it by invoking it via the Skill tool; the skill discovers the consumer's format and location and routes only among contexts already established by the workshop or project. Without that skill, preserve the same discovery-first, lazy fallback and ask when placement is ambiguous. Glossary graduation never discovers bounded contexts.
 
 **Bounded context identification (POST-WORKSHOP homework, not a workshop phase):**
 Brandolini is emphatic (Ch. 6): "Once the workshop is officially over, and participants left the workshop room, we can start talking software, ...finally!" and "We can't assume the business side to know about bounded contexts. BCs are mostly a software development issue." BC discovery is the software architect's homework AFTER the workshop, using these 6 heuristics from Ch. 6:
@@ -722,7 +722,7 @@ This is NOT a separate "contradiction round". Brandolini explicitly warns agains
 **Choose a sorting strategy** (not always Pivotal Events):
 
 - **Pivotal Events** (default): works when there's a clear linear flow with phase transitions
-- **Temporal Milestones**: use when the domain has concurrent processes on different timescales (conference planning, project management). Place blue stickies at top: "1 year before", "6 months before", "1 month before", "1 week before", "Day of", "After"
+- **Temporal Milestones**: use when the domain has concurrent processes on different timescales (conference planning, project management). Place dark_green stickies at top: "1 year before", "6 months before", "1 month before", "1 week before", "Day of", "After"
 - **Chapters Sorting**: use when event dump is very large (150+). Extract 15-25 key chapters first, sort them, then apply structure to the events
 - **Swimlanes**: add after initial sorting when multiple actors run independent parallel flows. Uses vertical space heavily
 - **Combine strategies**: Brandolini combines them, because "it's hard to define the structure upfront"
@@ -816,7 +816,7 @@ This is a SEPARATE phase from Walk-through, with a different direction and a dif
 
 Per Brandolini (Ch. 5) this is OPTIONAL, and happens AFTER Walk-through + Reverse Narrative, but BEFORE Problems & Opportunities. "Once the flow is adequately clear and consistent to everyone (usually after People and Systems and Explicit Walk-through), you may want to start digging into when and where value is delivered" (Ch. 5).
 
-**Sub-round A, Financial value (green for creation, red for destruction):**
+**Sub-round A, Financial value (green for creation, pink for destruction):**
 Start with money, "the most obvious choice" (Ch. 5). Facilitator prompts: "Where does money change hands? Where is value created? Where is it destroyed?"
 
 **Sub-round B, Non-financial value currencies:**

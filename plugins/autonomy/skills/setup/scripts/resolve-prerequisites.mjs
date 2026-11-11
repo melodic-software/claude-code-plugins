@@ -69,6 +69,9 @@ const CI_MARKERS = [
   "bitbucket-pipelines.yml",
 ];
 
+const TRACKER_PROBE = { probe_class: "repo-file", seam: "work-item-tracker" };
+const TOOLCHAIN_PROBE = { probe_class: "repo-file", seam: "toolchain" };
+
 function usage(message) {
   if (message) console.error(message);
   console.error(
@@ -147,6 +150,11 @@ function readEnabledFlag(yamlText) {
   const match = yamlText.match(/^\s*enabled\s*:\s*(true|false)\s*(?:#.*)?$/m);
   if (!match) return null;
   return match[1] === "true";
+}
+
+// A probe ran unless its result is unresolvable.
+function probeOutcome(result, fields) {
+  return { result, ran: result !== "unresolvable", provenance: { kind: "probe", ...fields } };
 }
 
 function loadEmission(path) {
@@ -243,117 +251,37 @@ function readTrackerBinding(repoRoot) {
 function probeTracker(repoRoot) {
   const { path: bindingRel, read: bindingRead } = readTrackerBinding(repoRoot);
   if (!bindingRead.ok) {
-    return {
-      result: "absent",
-      ran: true,
-      provenance: {
-        kind: "probe",
-        probe_class: "repo-file",
-        seam: "work-item-tracker",
-        path: bindingRel,
-        detail: bindingRead.reason,
-      },
-    };
+    return probeOutcome("absent", { ...TRACKER_PROBE, path: bindingRel, detail: bindingRead.reason });
   }
   const provider = bindingRead.value?.provider;
   if (typeof provider !== "string" || provider.length === 0) {
-    return {
-      result: "absent",
-      ran: true,
-      provenance: {
-        kind: "probe",
-        probe_class: "repo-file",
-        seam: "work-item-tracker",
-        path: bindingRel,
-        detail: "provider missing",
-      },
-    };
+    return probeOutcome("absent", { ...TRACKER_PROBE, path: bindingRel, detail: "provider missing" });
   }
-  const capsRel = posixJoin(
-    "tools",
-    "work-item-tracker",
-    "adapters",
-    provider,
-    "capabilities.json",
-  );
-  const capsPath = join(repoRoot, ...capsRel.split("/"));
-  if (!pathExists(capsPath)) {
+  const capsRel = posixJoin("tools", "work-item-tracker", "adapters", provider, "capabilities.json");
+  if (!pathExists(join(repoRoot, ...capsRel.split("/")))) {
     // Presence-gated composition fallback: binding exists but adapter caps
     // cannot be established → unresolvable (unknown), not absent.
-    return {
-      result: "unresolvable",
-      ran: false,
-      provenance: {
-        kind: "probe",
-        probe_class: "repo-file",
-        seam: "work-item-tracker",
-        path: capsRel,
-        detail: "adapter capabilities.json absent; composition fallback",
-      },
-    };
+    return probeOutcome("unresolvable", {
+      ...TRACKER_PROBE,
+      path: capsRel,
+      detail: "adapter capabilities.json absent; composition fallback",
+    });
   }
-  return {
-    result: "present",
-    ran: true,
-    provenance: {
-      kind: "probe",
-      probe_class: "repo-file",
-      seam: "work-item-tracker",
-      path: `${bindingRel}+${capsRel}`,
-    },
-  };
+  return probeOutcome("present", { ...TRACKER_PROBE, path: `${bindingRel}+${capsRel}` });
 }
 
 function probeCiConfig(repoRoot) {
   const marker = firstExisting(repoRoot, CI_MARKERS);
-  if (marker !== null) {
-    return {
-      result: "present",
-      ran: true,
-      provenance: {
-        kind: "probe",
-        probe_class: "repo-file",
-        owner: "resolution-contract",
-        path: marker,
-      },
-    };
-  }
-  return {
-    result: "absent",
-    ran: true,
-    provenance: {
-      kind: "probe",
-      probe_class: "repo-file",
-      owner: "resolution-contract",
-      path: CI_MARKERS[0],
-      detail: "no CI-config marker found",
-    },
-  };
+  const fields = { probe_class: "repo-file", owner: "resolution-contract" };
+  return marker !== null
+    ? probeOutcome("present", { ...fields, path: marker })
+    : probeOutcome("absent", { ...fields, path: CI_MARKERS[0], detail: "no CI-config marker found" });
 }
 
 function probeDependencyManifests(repoRoot) {
   const manifest = firstExisting(repoRoot, DEPENDENCY_MANIFESTS);
-  if (manifest !== null) {
-    return {
-      result: "present",
-      ran: true,
-      provenance: {
-        kind: "probe",
-        probe_class: "repo-file",
-        path: manifest,
-      },
-    };
-  }
-  return {
-    result: "absent",
-    ran: true,
-    provenance: {
-      kind: "probe",
-      probe_class: "repo-file",
-      path: "package.json",
-      detail: "no dependency/build manifest found",
-    },
-  };
+  if (manifest !== null) return probeOutcome("present", { probe_class: "repo-file", path: manifest });
+  return probeOutcome("absent", { probe_class: "repo-file", path: "package.json", detail: "no dependency/build manifest found" });
 }
 
 function probeEcosystems(repoRoot) {
@@ -363,30 +291,18 @@ function probeEcosystems(repoRoot) {
     // Fallback: inference from build files (never bundled defaults).
     const inferred = probeDependencyManifests(repoRoot);
     if (inferred.result === "present") {
-      return {
-        result: "present",
-        ran: true,
-        provenance: {
-          kind: "probe",
-          probe_class: "repo-file",
-          seam: "toolchain",
-          path: inferred.provenance.path,
-          detail: "ecosystems dir absent; inferred from build files",
-          rung: "repo-inferred",
-        },
-      };
+      return probeOutcome("present", {
+        ...TOOLCHAIN_PROBE,
+        path: inferred.provenance.path,
+        detail: "ecosystems dir absent; inferred from build files",
+        rung: "repo-inferred",
+      });
     }
-    return {
-      result: "absent",
-      ran: true,
-      provenance: {
-        kind: "probe",
-        probe_class: "repo-file",
-        seam: "toolchain",
-        path: ".claude/ecosystems",
-        detail: "absent; build-file inference also negative",
-      },
-    };
+    return probeOutcome("absent", {
+      ...TOOLCHAIN_PROBE,
+      path: ".claude/ecosystems",
+      detail: "absent; build-file inference also negative",
+    });
   }
 
   const teamFiles = entries.filter(
@@ -395,88 +311,43 @@ function probeEcosystems(repoRoot) {
   const localOnly = entries.filter((name) => name.endsWith(".local.yaml"));
 
   if (teamFiles.length === 0 && localOnly.length > 0) {
-    return {
-      result: "unresolvable",
-      ran: false,
-      provenance: {
-        kind: "probe",
-        probe_class: "repo-file",
-        seam: "toolchain",
-        path: ".claude/ecosystems/*.local.yaml",
-        detail: "uncommitted personal layer only; scheduled runs cannot establish",
-        rung: "uncommitted",
-      },
-    };
+    return probeOutcome("unresolvable", {
+      ...TOOLCHAIN_PROBE,
+      path: ".claude/ecosystems/*.local.yaml",
+      detail: "uncommitted personal layer only; scheduled runs cannot establish",
+      rung: "uncommitted",
+    });
   }
 
-  let configured = 0;
-  let disabled = 0;
-  for (const name of teamFiles) {
-    const text = readFileSync(join(dir, name), "utf8");
-    const enabled = readEnabledFlag(text);
-    if (enabled === false) {
-      disabled += 1;
-      continue;
-    }
-    configured += 1;
-  }
+  const configured = teamFiles.filter(
+    (name) => readEnabledFlag(readFileSync(join(dir, name), "utf8")) !== false,
+  ).length;
+  const disabled = teamFiles.length - configured;
 
   if (configured > 0) {
-    return {
-      result: "present",
-      ran: true,
-      provenance: {
-        kind: "probe",
-        probe_class: "repo-file",
-        seam: "toolchain",
-        path: ".claude/ecosystems",
-        detail: `${configured} enabled ecosystem file(s)`,
-        rung: "consumer-authored",
-      },
-    };
+    return probeOutcome("present", {
+      ...TOOLCHAIN_PROBE,
+      path: ".claude/ecosystems",
+      detail: `${configured} enabled ecosystem file(s)`,
+      rung: "consumer-authored",
+    });
   }
 
   if (disabled > 0) {
-    return {
-      result: "absent",
-      ran: true,
-      provenance: {
-        kind: "probe",
-        probe_class: "repo-file",
-        seam: "toolchain",
-        path: ".claude/ecosystems",
-        detail: "ecosystem files present but enabled: false (not configured)",
-        rung: "consumer-authored",
-      },
-    };
+    return probeOutcome("absent", {
+      ...TOOLCHAIN_PROBE,
+      path: ".claude/ecosystems",
+      detail: "ecosystem files present but enabled: false (not configured)",
+      rung: "consumer-authored",
+    });
   }
 
-  return {
-    result: "absent",
-    ran: true,
-    provenance: {
-      kind: "probe",
-      probe_class: "repo-file",
-      seam: "toolchain",
-      path: ".claude/ecosystems",
-      detail: "no ecosystem yaml files",
-    },
-  };
+  return probeOutcome("absent", { ...TOOLCHAIN_PROBE, path: ".claude/ecosystems", detail: "no ecosystem yaml files" });
 }
 
 function probeSourceTree(repoRoot) {
   const dir = firstExisting(repoRoot, ["src", "lib", "app", "pkg", "cmd"]);
-  if (dir !== null) {
-    return {
-      result: "present",
-      ran: true,
-      provenance: {
-        kind: "probe",
-        probe_class: "repo-file",
-        path: dir,
-      },
-    };
-  }
+  if (dir !== null) return probeOutcome("present", { probe_class: "repo-file", path: dir });
   // Any non-dotfile besides manifests counts.
   const entries = listDir(repoRoot) ?? [];
   const codeish = entries.filter(
@@ -484,103 +355,29 @@ function probeSourceTree(repoRoot) {
       !name.startsWith(".") &&
       !["README.md", "LICENSE", "CHANGELOG.md"].includes(name),
   );
-  if (codeish.length > 0) {
-    return {
-      result: "present",
-      ran: true,
-      provenance: {
-        kind: "probe",
-        probe_class: "repo-file",
-        path: codeish[0],
-      },
-    };
-  }
-  return {
-    result: "absent",
-    ran: true,
-    provenance: {
-      kind: "probe",
-      probe_class: "repo-file",
-      path: "src",
-      detail: "no source tree markers",
-    },
-  };
+  if (codeish.length > 0) return probeOutcome("present", { probe_class: "repo-file", path: codeish[0] });
+  return probeOutcome("absent", { probe_class: "repo-file", path: "src", detail: "no source tree markers" });
 }
 
 function probeDocumentationCorpus(repoRoot) {
-  if (pathExists(join(repoRoot, "docs"))) {
-    return {
-      result: "present",
-      ran: true,
-      provenance: {
-        kind: "probe",
-        probe_class: "repo-file",
-        path: "docs",
-      },
-    };
-  }
+  if (pathExists(join(repoRoot, "docs"))) return probeOutcome("present", { probe_class: "repo-file", path: "docs" });
   const rootMd = (listDir(repoRoot) ?? []).filter((n) => n.endsWith(".md"));
   if (rootMd.length > 0 && pathExists(join(repoRoot, "src"))) {
-    return {
-      result: "present",
-      ran: true,
-      provenance: {
-        kind: "probe",
-        probe_class: "repo-file",
-        path: rootMd[0],
-      },
-    };
+    return probeOutcome("present", { probe_class: "repo-file", path: rootMd[0] });
   }
-  return {
-    result: "absent",
-    ran: true,
-    provenance: {
-      kind: "probe",
-      probe_class: "repo-file",
-      path: "docs",
-      detail: "documentation corpus not established",
-    },
-  };
+  return probeOutcome("absent", { probe_class: "repo-file", path: "docs", detail: "documentation corpus not established" });
 }
 
 function probeActivitySignals(repoRoot) {
   // Collates CI + tracker + git — absence of any one is negative per leaf.
   const ci = probeCiConfig(repoRoot);
   const tracker = probeTracker(repoRoot);
+  const fields = { probe_class: "repo-file", path: "ci+tracker" };
   if (ci.result === "present" && tracker.result === "present") {
-    return {
-      result: "present",
-      ran: true,
-      provenance: {
-        kind: "probe",
-        probe_class: "repo-file",
-        path: "ci+tracker",
-        detail: "CI-config and tracker binding both present",
-      },
-    };
+    return probeOutcome("present", { ...fields, detail: "CI-config and tracker binding both present" });
   }
-  if (ci.result === "absent" || tracker.result === "absent") {
-    return {
-      result: "absent",
-      ran: true,
-      provenance: {
-        kind: "probe",
-        probe_class: "repo-file",
-        path: "ci+tracker",
-        detail: `ci=${ci.result}; tracker=${tracker.result}`,
-      },
-    };
-  }
-  return {
-    result: "unresolvable",
-    ran: false,
-    provenance: {
-      kind: "probe",
-      probe_class: "repo-file",
-      path: "ci+tracker",
-      detail: `ci=${ci.result}; tracker=${tracker.result}`,
-    },
-  };
+  const result = ci.result === "absent" || tracker.result === "absent" ? "absent" : "unresolvable";
+  return probeOutcome(result, { ...fields, detail: `ci=${ci.result}; tracker=${tracker.result}` });
 }
 
 function probeMcp(repoRoot) {
@@ -588,7 +385,6 @@ function probeMcp(repoRoot) {
   const presence = pathExists(mcpPath);
   const enablement = {
     result: "unresolvable",
-    ran: false,
     detail:
       "enablement gate only partly resolvable from committed surfaces; compose config-audit when installed",
   };
@@ -599,11 +395,9 @@ function probeMcp(repoRoot) {
     const s = settings.value;
     if (s.enableAllProjectMcpServers === true) {
       enablement.result = "present";
-      enablement.ran = true;
       enablement.detail = "enableAllProjectMcpServers=true";
     } else if (Array.isArray(s.enabledMcpjsonServers)) {
       enablement.result = s.enabledMcpjsonServers.length > 0 ? "present" : "absent";
-      enablement.ran = true;
       enablement.detail = "enabledMcpjsonServers from committed settings";
     } else {
       enablement.detail =
@@ -611,124 +405,45 @@ function probeMcp(repoRoot) {
     }
   }
   return {
-    presence: {
-      result: presence ? "present" : "absent",
-      ran: true,
-      provenance: {
-        kind: "probe",
-        probe_class: "harness-context",
-        path: ".mcp.json",
-      },
-    },
-    enablement: {
-      result: enablement.result,
-      ran: enablement.ran,
-      provenance: {
-        kind: "probe",
-        probe_class: "harness-context",
-        seam: "config-audit",
-        path: ".claude/settings.json",
-        detail: enablement.detail,
-      },
-    },
+    presence: probeOutcome(presence ? "present" : "absent", { probe_class: "harness-context", path: ".mcp.json" }),
+    enablement: probeOutcome(enablement.result, { probe_class: "harness-context", seam: "config-audit", path: ".claude/settings.json", detail: enablement.detail }),
   };
 }
 
 function probeAdvisoryDatabase(machineContext) {
   // Curated advisory source is not established by repo-file presence alone.
-  if (!machineContext) {
-    return {
-      result: "unresolvable",
-      ran: false,
-      provenance: {
-        kind: "probe",
-        probe_class: "harness-context",
-        path: "advisory-database",
-        detail: "curated source reachability not established without declaration or --machine-context",
-      },
-    };
-  }
-  return {
-    result: "unresolvable",
-    ran: false,
-    provenance: {
-      kind: "probe",
-      probe_class: "machine-context",
-      path: "advisory-database",
-      detail: "machine-context probe for curated advisory source not implemented as a network fetch",
-    },
-  };
+  return probeOutcome("unresolvable", {
+    probe_class: machineContext ? "machine-context" : "harness-context",
+    path: "advisory-database",
+    detail: machineContext
+      ? "machine-context probe for curated advisory source not implemented as a network fetch"
+      : "curated source reachability not established without declaration or --machine-context",
+  });
 }
 
 function probeUpstreamChangelog(machineContext) {
-  if (!machineContext) {
-    return {
-      result: "unresolvable",
-      ran: false,
-      provenance: {
-        kind: "probe",
-        probe_class: "harness-context",
-        path: "upstream-changelog",
-        detail: "upstream release-note reachability unprobeable on committed surfaces alone",
-      },
-    };
-  }
-  return {
-    result: "unresolvable",
-    ran: false,
-    provenance: {
-      kind: "probe",
-      probe_class: "machine-context",
-      path: "upstream-changelog",
-      detail: "machine-context network reachability not asserted by this resolver",
-    },
-  };
+  return probeOutcome("unresolvable", {
+    probe_class: machineContext ? "machine-context" : "harness-context",
+    path: "upstream-changelog",
+    detail: machineContext
+      ? "machine-context network reachability not asserted by this resolver"
+      : "upstream release-note reachability unprobeable on committed surfaces alone",
+  });
 }
 
 function probeMergePath(surface, binding) {
   const recorded = binding.surfaces[surface];
-  if (recorded) {
-    // A recorded scheduling surface that is not advisory-only can carry merge
-    // policy dispositions when the security binding stamps them; presence of
-    // the surface is the repo-local half of the question.
-    const mergeCapable =
-      recorded.merge_policy_capable === true ||
-      recorded.class === "temporal";
-    if (mergeCapable) {
-      return {
-        result: "present",
-        ran: true,
-        provenance: {
-          kind: "probe",
-          probe_class: "harness-context",
-          path: binding.path,
-          detail: `surface ${surface} recorded in binding`,
-        },
-      };
-    }
+  const fields = { probe_class: "harness-context", path: binding.path };
+  // A recorded scheduling surface that is not advisory-only can carry merge
+  // policy dispositions when the security binding stamps them; presence of
+  // the surface is the repo-local half of the question.
+  if (recorded && (recorded.merge_policy_capable === true || recorded.class === "temporal")) {
+    return probeOutcome("present", { ...fields, detail: `surface ${surface} recorded in binding` });
   }
   if (!binding.present) {
-    return {
-      result: "unresolvable",
-      ran: false,
-      provenance: {
-        kind: "probe",
-        probe_class: "harness-context",
-        path: binding.path,
-        detail: "binding absent; merge-path disposition unestablished",
-      },
-    };
+    return probeOutcome("unresolvable", { ...fields, detail: "binding absent; merge-path disposition unestablished" });
   }
-  return {
-    result: "absent",
-    ran: true,
-    provenance: {
-      kind: "probe",
-      probe_class: "harness-context",
-      path: binding.path,
-      detail: `surface ${surface} not recorded as merge-capable`,
-    },
-  };
+  return probeOutcome("absent", { ...fields, detail: `surface ${surface} not recorded as merge-capable` });
 }
 
 function runNeedProbe(needId, ctx) {
@@ -754,16 +469,11 @@ function runNeedProbe(needId, ctx) {
     case "merge_path":
       return probeMergePath(ctx.surface, ctx.binding);
     default:
-      return {
-        result: "unresolvable",
-        ran: false,
-        provenance: {
-          kind: "probe",
-          probe_class: "repo-file",
-          path: needId,
-          detail: `unknown need id ${needId}`,
-        },
-      };
+      return probeOutcome("unresolvable", {
+        probe_class: "repo-file",
+        path: needId,
+        detail: `unknown need id ${needId}`,
+      });
   }
 }
 
@@ -780,18 +490,19 @@ function resolveNeed(need, identity, ctx) {
   if (decl) {
     const declState = decl.state;
     const rung = decl.rung ?? "repo-local";
+    const declarationProvenance = {
+      kind: "declaration",
+      rung,
+      state: declState,
+      need: need.id,
+      surface: ctx.surface,
+      probe_result: probe.result,
+      probe_ran: probe.ran,
+    };
     if (declState === "absent" || declState === "disabled") {
       // Declaration narrows: disables even when probe finds present.
       effective = "absent";
-      provenance = {
-        kind: "declaration",
-        rung,
-        state: declState,
-        need: need.id,
-        surface: ctx.surface,
-        probe_result: probe.result,
-        probe_ran: probe.ran,
-      };
+      provenance = declarationProvenance;
     } else if (declState === "present") {
       if (probe.ran && probe.result === "absent") {
         effective = "absent";
@@ -811,27 +522,10 @@ function resolveNeed(need, identity, ctx) {
       } else if (!probe.ran || probe.result === "unresolvable") {
         // Probe could not run — declaration stands, qualified.
         effective = "conditional";
-        provenance = {
-          kind: "declaration",
-          rung,
-          state: declState,
-          need: need.id,
-          surface: ctx.surface,
-          probe_result: probe.result,
-          probe_ran: probe.ran,
-          unprobeable: true,
-        };
+        provenance = { ...declarationProvenance, unprobeable: true };
       } else {
         effective = "present";
-        provenance = {
-          kind: "declaration",
-          rung,
-          state: declState,
-          need: need.id,
-          surface: ctx.surface,
-          probe_result: probe.result,
-          probe_ran: probe.ran,
-        };
+        provenance = declarationProvenance;
       }
     }
   }

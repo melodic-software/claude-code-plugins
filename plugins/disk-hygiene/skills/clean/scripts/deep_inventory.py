@@ -301,37 +301,26 @@ def superseded_versions(
         for _, name, path in versions:
             used = _in_use(path, running or ())
             target = _in_use(Path(os.path.realpath(path)), links)
+            disposition, evidence = "KEEP", None
             if name == newest:
-                disposition, reason, evidence = (
-                    "KEEP",
-                    f"newest of {len(versions)} versions beside it in {parent}",
-                    None,
-                )
+                reason = f"newest of {len(versions)} versions beside it in {parent}"
             elif used:
-                disposition, reason, evidence = (
-                    "KEEP",
-                    f"a running process executes {used}",
-                    {"running": used},
-                )
+                reason = f"a running process executes {used}"
+                evidence = {"running": used}
             elif target:
-                disposition, reason, evidence = (
-                    "KEEP",
-                    f"the symlink {links[target]} points at it",
-                    {"symlink": links[target]},
-                )
+                reason = f"the symlink {links[target]} points at it"
+                evidence = {"symlink": links[target]}
             elif running is None:
-                disposition, reason, evidence = (
-                    "UNKNOWN",
+                disposition = "UNKNOWN"
+                reason = (
                     f"superseded by {newest}; the process table was not read, "
-                    "so whether a process executes it is not known",
-                    None,
+                    "so whether a process executes it is not known"
                 )
             else:
-                disposition, reason, evidence = (
-                    "CANDIDATE",
+                disposition = "CANDIDATE"
+                reason = (
                     f"superseded by {newest}; no running process executes it and "
-                    "no symlink beside it or in a launcher directory points at it",
-                    None,
+                    "no symlink beside it or in a launcher directory points at it"
                 )
             rows.append(
                 make_row(
@@ -405,46 +394,32 @@ def plugin_cache_versions(claude_dir: Path, now: float) -> list[dict[str, Any]]:
     if not paths:
         return []
     registry = claude_dir / INSTALLED_PLUGINS
-
-    def read(rel: str) -> str:
-        return _read_guarded(claude_dir, rel)
-
+    read = functools.partial(_read_guarded, claude_dir)
     known = load_registry(read, claude_dir, registry.name)
-    doubt = known.doubt
     rows = []
     for path in paths:
-        producer = path.parent.name
-        common = {"producer": producer, "category": "plugin-cache-version"}
-        if doubt:
-            rows.append(
-                make_row(
-                    path,
-                    disposition="UNKNOWN",
-                    reason=f"{doubt}; the registry cannot show whether this version is installed",
-                    **common,
-                )
-            )
+        evidence = None
+        if known.doubt:
+            disposition = "UNKNOWN"
+            reason = f"{known.doubt}; the registry cannot show whether this version is installed"
         elif resolve(path) in known.referenced:
-            rows.append(
-                make_row(
-                    path,
-                    disposition="KEEP",
-                    reason=f"an installPath in {registry.name} points at this installed version",
-                    evidence={"tool": "claude-code", "references": str(registry)},
-                    **common,
-                )
-            )
+            disposition = "KEEP"
+            reason = f"an installPath in {registry.name} points at this installed version"
+            evidence = {"tool": "claude-code", "references": str(registry)}
         else:
-            marker = orphan_marker(read, path.relative_to(claude_dir).as_posix(), now)
-            rows.append(
-                make_row(
-                    path,
-                    disposition="CANDIDATE",
-                    reason=_orphan_reason(registry.name, marker, known.installs),
-                    evidence=marker,
-                    **common,
-                )
+            evidence = orphan_marker(read, path.relative_to(claude_dir).as_posix(), now)
+            disposition = "CANDIDATE"
+            reason = _orphan_reason(registry.name, evidence, known.installs)
+        rows.append(
+            make_row(
+                path,
+                producer=path.parent.name,
+                category="plugin-cache-version",
+                disposition=disposition,
+                reason=reason,
+                evidence=evidence,
             )
+        )
     return rows
 
 
@@ -475,46 +450,37 @@ def tmp_entries(
             used = _in_use(path, running or ())
         except OSError:
             continue
-        common = {"category": "tmp-producer"}
+        _, producer, keep_reason = match or (None, "unknown", None)
         if match is None:
-            row = make_row(
-                path,
-                producer="unknown",
-                disposition="UNKNOWN",
-                reason="no producer prefix rule matches this name",
-                **common,
+            disposition, reason = "UNKNOWN", "no producer prefix rule matches this name"
+        elif keep_reason:
+            disposition, reason = "KEEP", keep_reason
+        elif used:
+            disposition, reason = "KEEP", f"a running process uses {used}"
+        elif age < min_age_days:
+            disposition = "KEEP"
+            reason = (
+                f"changed {age:.1f} days ago, inside the {min_age_days:g}-day window "
+                f"in which a live {producer} run may still use it"
+            )
+        elif running is None:
+            disposition = "UNKNOWN"
+            reason = (
+                f"{producer} leftover unchanged for {age:.0f} days; the process table "
+                "was not read, so whether a process uses it is not known"
             )
         else:
-            _, producer, keep_reason = match
-            if keep_reason:
-                verdict = ("KEEP", keep_reason)
-            elif used:
-                verdict = ("KEEP", f"a running process uses {used}")
-            elif age < min_age_days:
-                verdict = (
-                    "KEEP",
-                    f"changed {age:.1f} days ago, inside the {min_age_days:g}-day window "
-                    f"in which a live {producer} run may still use it",
-                )
-            elif running is None:
-                verdict = (
-                    "UNKNOWN",
-                    f"{producer} leftover unchanged for {age:.0f} days; the process table "
-                    "was not read, so whether a process uses it is not known",
-                )
-            else:
-                verdict = (
-                    "CANDIDATE",
-                    f"{producer} leftover unchanged for {age:.0f} days; no running process uses it",
-                )
-            row = make_row(
+            disposition = "CANDIDATE"
+            reason = f"{producer} leftover unchanged for {age:.0f} days; no running process uses it"
+        rows.append(
+            make_row(
                 path,
                 producer=producer,
-                disposition=verdict[0],
-                reason=verdict[1],
-                **common,
+                category="tmp-producer",
+                disposition=disposition,
+                reason=reason,
             )
-        rows.append(row)
+        )
     return rows
 
 
@@ -564,37 +530,27 @@ def project_transcripts(
     rows = []
     for path in _child_dirs(projects_dir):
         name = path.name
-        common = {"producer": "claude-code", "category": "transcript-dir"}
+        evidence = None
         if not name.startswith("-") or len(name) > PROJECT_NAME_CAP:
-            rows.append(
-                make_row(
-                    path,
-                    disposition="UNKNOWN",
-                    reason="the name is not a decodable POSIX path encoding",
-                    **common,
-                )
-            )
-            continue
-        source = decode_project(name, fs_root)
-        if source is None:
-            rows.append(
-                make_row(
-                    path,
-                    disposition="CANDIDATE",
-                    reason="transcripts of a project whose source path no longer exists",
-                    **common,
-                )
-            )
+            disposition = "UNKNOWN"
+            reason = "the name is not a decodable POSIX path encoding"
+        elif (source := decode_project(name, fs_root)) is None:
+            disposition = "CANDIDATE"
+            reason = "transcripts of a project whose source path no longer exists"
         else:
-            rows.append(
-                make_row(
-                    path,
-                    disposition="KEEP",
-                    reason=f"transcripts of {source}, which still exists",
-                    evidence={"tool": "claude-code", "references": source},
-                    **common,
-                )
+            disposition = "KEEP"
+            reason = f"transcripts of {source}, which still exists"
+            evidence = {"tool": "claude-code", "references": source}
+        rows.append(
+            make_row(
+                path,
+                producer="claude-code",
+                category="transcript-dir",
+                disposition=disposition,
+                reason=reason,
+                evidence=evidence,
             )
+        )
     return rows
 
 

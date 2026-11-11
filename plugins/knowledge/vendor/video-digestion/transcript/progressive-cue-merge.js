@@ -84,9 +84,9 @@ export function deduplicateOverlappingCues(
     if (progressive) {
       if (normalizeProgressiveText(cue.text).length >= normalizeProgressiveText(prev.text).length) {
         kept[kept.length - 1] = {
+          ...cue,
           startSec: Math.min(prev.startSec, cue.startSec),
           endSec: Math.max(prev.endSec, cue.endSec),
-          text: cue.text,
         };
       }
       continue;
@@ -119,6 +119,7 @@ export function mergeProgressiveCues(cues, { maxGapSec = 0.5 } = {}) {
     if (gap <= maxGapSec && extendsPrev) {
       prev.endSec = Math.max(prev.endSec, cue.endSec);
       prev.text = cue.text;
+      if (cue.lines) prev.lines = cue.lines;
       continue;
     }
 

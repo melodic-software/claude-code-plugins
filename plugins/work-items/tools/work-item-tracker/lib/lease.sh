@@ -21,7 +21,7 @@ wit_lease_json() {
     body="${body#"$WIT_LEASE_MARKER"}"
     printf '%s\n' "${body%% -->*}"
     ;;
-  *) printf '' ;;
+  *) ;;
   esac
 }
 
@@ -47,7 +47,7 @@ wit_select_active_lease() {
     [[ -n "$row" ]] || continue
     cand="$(wit_lease_json "$(jq -r '.body' <<<"$row")")"
     [[ -n "$cand" ]] || continue
-    [[ "$(jq -r '.superseded_at // empty' <<<"$cand")" == "" ]] || continue
+    [[ -z "$(jq -r '.superseded_at // empty' <<<"$cand")" ]] || continue
     WIT_ACTIVE_LEASE_ID="$(jq -r '.id' <<<"$row")"
     WIT_ACTIVE_LEASE_JSON="$cand"
     break
@@ -85,7 +85,7 @@ wit_lease_phase_valid() {
 # A lease renewed more than 300 s after now, or with a TTL over WIT_LEASE_MAX_TTL_HOURS, is not live.
 wit_lease_is_live() {
   local lease="$1" now_epoch="$2" renewed ttl_seconds renewed_epoch
-  [[ "$(jq -r '.superseded_at // empty' <<<"$lease")" == "" ]] || return 1
+  [[ -z "$(jq -r '.superseded_at // empty' <<<"$lease")" ]] || return 1
   renewed="$(jq -r '.renewed_at // empty' <<<"$lease")"
   ttl_seconds="$(wit_lease_ttl_seconds "$lease")" || return 1
   ((ttl_seconds > 0 && ttl_seconds <= WIT_LEASE_MAX_TTL_HOURS * 3600)) || return 1

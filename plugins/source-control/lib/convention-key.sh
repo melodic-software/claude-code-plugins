@@ -70,16 +70,12 @@ convention_key_yaml_has() {
 
 # Print yaml | none. Returns 3 for an unparsable YAML.
 convention_key_layer() {
-  local rc
   convention_key_yaml_has "$1" "$2"
-  rc=$?
-  if ((rc == 0)); then
-    echo yaml
-  elif ((rc == 3)); then
-    return 3
-  else
-    echo none
-  fi
+  case $? in
+    0) echo yaml ;;
+    3) return 3 ;;
+    *) echo none ;;
+  esac
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

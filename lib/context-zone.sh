@@ -8,7 +8,7 @@
 # context-guard's mod) plus the optional machine-scope
 # ~/.claude/context-guard/zones.json override and prints EXACTLY ONE word:
 #
-#   smart / acceptable / dumb / unknown
+#   light / moderate / heavy / unknown
 #
 # Fail-open (../reference/reader-contract.md is the authoritative contract):
 # absent, stale (captured_at older than the 10-minute staleness window), or
@@ -43,7 +43,7 @@
 # 2026-10-11, recheck when either section changes what the token fields count).
 # Earlier snapshots would misfire the bands badly. A cumulative total is NOT observable from the numbers alone: 170k
 # cumulative in a 200k window is a perfectly plausible current occupancy and
-# resolves dumb while the live context may be nowhere near it. So the token
+# resolves heavy while the live context may be nowhere near it. So the token
 # shape requires the snapshot's cli_version to be >= 2.1.132; an absent,
 # malformed, or older version marks it not-computable and leaves the
 # percentage shape to stand alone. A second, independent plausibility guard
@@ -51,24 +51,28 @@
 # a snapshot whose version field was forged).
 #
 # SHIPPED DEFAULT BANDS (zones.json absent = zero-config): percentage bands
-# smart ≤ 50 < acceptable ≤ 75 < dumb over used_percentage, and per
+# light ≤ 50 < moderate ≤ 75 < heavy over used_percentage, and per
 # window-class token bands over occupancy:
 #
-#   window class 200000:  smart ≤ 100000 < acceptable ≤ 150000 < dumb
-#   window class 1000000: smart ≤ 128000 < acceptable ≤ 500000 < dumb
+#   window class 200000:  light ≤ 100000 < moderate ≤ 150000 < heavy
+#   window class 1000000: light ≤ 128000 < moderate ≤ 500000 < heavy
 #
 # All are declared judgment defaults, NOT doc- or benchmark-derived
 # constants (anchors and provenance are recorded in the reader contract).
 # zones.json is the operator's tuning path:
 #
 #   {
-#     "smart_max_used_percentage": 50,
-#     "acceptable_max_used_percentage": 75,
+#     "light_max_used_percentage": 50,
+#     "moderate_max_used_percentage": 75,
 #     "token_bands": {
-#       "200000":  { "smart_max_tokens": 100000, "acceptable_max_tokens": 150000 },
-#       "1000000": { "smart_max_tokens": 128000, "acceptable_max_tokens": 500000 }
+#       "200000":  { "light_max_tokens": 100000, "moderate_max_tokens": 150000 },
+#       "1000000": { "light_max_tokens": 128000, "moderate_max_tokens": 500000 }
 #     }
 #   }
+#
+# OLD KEY NAMES: for one release the resolver also reads smart_max_* as
+# light_max_* and acceptable_max_* as moderate_max_*, the new name winning
+# when both are set (the reader contract's "Zones" section).
 #
 # LOWERED AUTO-COMPACT WINDOW: when the snapshot's bands.auto_compact_window
 # is a number above 0 and below context_window_size (the mod publishes it only
@@ -96,9 +100,9 @@
 set -uo pipefail
 
 STALENESS_SECONDS=600 # 10 minutes — byte-matches the reader contract
-DEFAULT_SMART_MAX=50
-DEFAULT_ACCEPTABLE_MAX=75
-# [class, smart_max, acceptable_max] rows, ascending class order, as JSON
+DEFAULT_LIGHT_MAX=50
+DEFAULT_MODERATE_MAX=75
+# [class, light_max, moderate_max] rows, ascending class order, as JSON
 # because the snapshot pass takes the bands as data.
 DEFAULT_TOKEN_BANDS='[[200000,100000,150000],[1000000,128000,500000]]'
 
@@ -138,24 +142,38 @@ snap="$HOME/.claude/context-guard/context/$sid.json"
 # defaults otherwise, with a visible notice for each present shape that is bad.
 # One jq pass validates the two shapes INDEPENDENTLY and prints two lines: the
 # percentage result, then the token result.
-smart_max=$DEFAULT_SMART_MAX
-acceptable_max=$DEFAULT_ACCEPTABLE_MAX
+light_max=$DEFAULT_LIGHT_MAX
+moderate_max=$DEFAULT_MODERATE_MAX
 token_bands=$DEFAULT_TOKEN_BANDS
 zones="$HOME/.claude/context-guard/zones.json"
 if [[ -e "$zones" ]]; then
   # Stderr on the GROUP: see REDIRECTION PLACEMENT above.
   { zres=$(jq -r '
+    def alias($new; $old):
+      (if (.[$new] // null) == null and (.[$old] // null) != null then .[$new] = .[$old] else . end)
+      | del(.[$old]);
+    def normalize:
+      if type != "object" then .
+      else alias("light_max_used_percentage"; "smart_max_used_percentage")
+        | alias("moderate_max_used_percentage"; "acceptable_max_used_percentage")
+        | if ((.token_bands? // null) | type) == "object"
+          then .token_bands |= map_values(
+            if type == "object"
+            then alias("light_max_tokens"; "smart_max_tokens") | alias("moderate_max_tokens"; "acceptable_max_tokens")
+            else . end)
+          else . end
+      end;
     def pct_ok:
       (type == "object")
-      and ((.smart_max_used_percentage? // null) | type) == "number"
-      and ((.acceptable_max_used_percentage? // null) | type) == "number"
-      and (.smart_max_used_percentage > 0)
-      and (.smart_max_used_percentage < .acceptable_max_used_percentage)
-      and (.acceptable_max_used_percentage <= 100);
+      and ((.light_max_used_percentage? // null) | type) == "number"
+      and ((.moderate_max_used_percentage? // null) | type) == "number"
+      and (.light_max_used_percentage > 0)
+      and (.light_max_used_percentage < .moderate_max_used_percentage)
+      and (.moderate_max_used_percentage <= 100);
     def pct_absent:
       (type == "object")
-      and ((.smart_max_used_percentage? // null) == null)
-      and ((.acceptable_max_used_percentage? // null) == null)
+      and ((.light_max_used_percentage? // null) == null)
+      and ((.moderate_max_used_percentage? // null) == null)
       and (keys | all(IN("token_bands", "actions", "approach_margin", "thresholds")));
     def tb_state:
       if (.token_bands? // null) == null then "absent"
@@ -164,20 +182,21 @@ if [[ -e "$zones" ]]; then
         and (.token_bands | to_entries | all(
           (.key | test("^[0-9]+$"))
           and ((.value | type) == "object")
-          and ((.value.smart_max_tokens? // null) | type) == "number"
-          and ((.value.acceptable_max_tokens? // null) | type) == "number"
-          and (.value.smart_max_tokens > 0)
-          and (.value.smart_max_tokens < .value.acceptable_max_tokens)
-          and (.value.acceptable_max_tokens <= (.key | tonumber))
+          and ((.value.light_max_tokens? // null) | type) == "number"
+          and ((.value.moderate_max_tokens? // null) | type) == "number"
+          and (.value.light_max_tokens > 0)
+          and (.value.light_max_tokens < .value.moderate_max_tokens)
+          and (.value.moderate_max_tokens <= (.key | tonumber))
         ))
       then "valid" else "invalid" end;
-    (if pct_ok then "\(.smart_max_used_percentage) \(.acceptable_max_used_percentage)"
+    normalize |
+    (if pct_ok then "\(.light_max_used_percentage) \(.moderate_max_used_percentage)"
      elif pct_absent then "absent"
      else "invalid" end),
     (tb_state as $s
      | if $s == "valid"
        then (.token_bands | to_entries | sort_by(.key | tonumber)
-             | map([(.key | tonumber), .value.smart_max_tokens, .value.acceptable_max_tokens])
+             | map([(.key | tonumber), .value.light_max_tokens, .value.moderate_max_tokens])
              | tojson)
        else $s end)
   ' "$zones"); } 2>/dev/null || zres=""
@@ -195,10 +214,10 @@ if [[ -e "$zones" ]]; then
   }
   if [[ "$zpct" == "invalid" ]]; then
     printf 'context-guard: zones.json malformed — using shipped default bands (%s/%s)\n' \
-      "$DEFAULT_SMART_MAX" "$DEFAULT_ACCEPTABLE_MAX" >&2
+      "$DEFAULT_LIGHT_MAX" "$DEFAULT_MODERATE_MAX" >&2
   elif [[ "$zpct" != "absent" ]]; then
-    smart_max=${zpct%% *}
-    acceptable_max=${zpct#* }
+    light_max=${zpct%% *}
+    moderate_max=${zpct#* }
   fi
   if [[ "$ztb" == "invalid" ]]; then
     printf 'context-guard: zones.json token_bands malformed — using shipped default token bands (200000:100000/150000, 1000000:128000/500000)\n' >&2
@@ -239,7 +258,7 @@ TOKEN_SEMANTICS_MIN_VERSION="2.1.132"
 # Stderr on the GROUP: see REDIRECTION PLACEMENT above.
 { zone=$(jq -r --arg sid "$sid" --arg minver "$TOKEN_SEMANTICS_MIN_VERSION" \
   --argjson now "$now_epoch" --argjson stale "$STALENESS_SECONDS" \
-  --argjson smax "$smart_max" --argjson amax "$acceptable_max" \
+  --argjson smax "$light_max" --argjson amax "$moderate_max" \
   --argjson tbands "$token_bands" '
   def vge($cand; $min):
     ($cand | test("^[0-9]+(\\.[0-9]+)*$"))
@@ -288,7 +307,7 @@ TOKEN_SEMANTICS_MIN_VERSION="2.1.132"
            else null end) as $tz
         | [$pz, $tz] | map(select(. != null))
         | if length == 0 then "unknown"
-          else max as $worst | ["smart", "acceptable", "dumb"][$worst] end
+          else max as $worst | ["light", "moderate", "heavy"][$worst] end
       end
   end' "$snap"); } 2>/dev/null || unknown
 zone=${zone//$'\r'/}
@@ -296,7 +315,7 @@ zone=${zone//$'\r'/}
 # The word is the contract. Anything the pass above could not resolve, and
 # anything outside the vocabulary, leaves here as unknown.
 case "$zone" in
-smart | acceptable | dumb) printf '%s\n' "$zone" ;;
+light | moderate | heavy) printf '%s\n' "$zone" ;;
 *) unknown ;;
 esac
 

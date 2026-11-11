@@ -111,8 +111,8 @@ It takes no arguments and fetches only the pages `${CLAUDE_PLUGIN_ROOT}/context/
 one line per record: `verified <id>`; `drift <id> <url>`, with the stored and fetched sentences on
 the next two lines; or `unverified <id> as of <date>` when the page could not be read fresh. It
 exits 0 whatever the results, so a run with no network still completes. Its grant names the script
-with no `*`, and a Bash rule with no `*` matches one exact command (see
-<https://code.claude.com/docs/en/permissions#wildcard-patterns>, as of 2026-10-28; recheck when that
+with no `*` (how such a rule matches:
+<https://code.claude.com/docs/en/permissions#wildcard-patterns>, as of 2026-11-10; recheck when that
 section changes how such a rule matches).
 
 - **Drift goes first.** Before the gate opens, list each `drift` result: the record id, its section

@@ -96,6 +96,16 @@ pre-scoring filters could not match.
      noun-for-a-thing vs verb-for-an-action and tells the final shaping
      pass which syntactic conventions apply.
    - **Responsibility.** What the thing DOES, in one line.
+   - **Domain terms.** When the target names a domain concept, the
+     project's glossary entries for it: invoke
+     `/domain-driven-design:ubiquitous-language lookup` via the Skill tool
+     when that skill is available, else find and read the glossary
+     yourself. Canonical terms and chosen verbs feed the domain-lore lens;
+     `Avoid:` words, and a verb in the parentheses of the entity's
+     `Actions:` line (blocked only for that operation on that entity),
+     join the blocklist with the reason "rejected in the glossary" and the
+     provenance glossary-stated, treated as user-stated: the team resolved
+     it, so the merge step disqualifies a candidate that uses it.
    - **Firing / usage context.** When it is reached for, and how it reads
      at the call site.
    - **Scope boundaries.** What it is NOT: the adjacent things it must not

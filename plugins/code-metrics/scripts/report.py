@@ -253,11 +253,11 @@ def files_excluded_only(
     return len(only)
 
 
-def _with_excluded_files(
-    summary: dict[str, Any],
-    measures: list[dict[str, Any]],
-    excluded: list[dict[str, Any]],
+def _summary(
+    measures: list[dict[str, Any]], excluded: list[dict[str, Any]], root: str = ""
 ) -> dict[str, Any]:
+    """`summarize`, plus `files_excluded_only` when that count is above zero."""
+    summary = summarize(measures, root)
     count = files_excluded_only(measures, excluded)
     if count:
         summary["files_excluded_only"] = count
@@ -344,9 +344,7 @@ def anchor_document(doc: dict[str, Any], root: str, kind: str) -> dict[str, Any]
     # summary only: a recomputation from the surviving rows omits them.
     previous = doc.get("summary") or {}
     measures = doc.get("measures") or []
-    summary = _with_excluded_files(
-        summarize(measures, ""), measures, doc.get("excluded") or []
-    )
+    summary = _summary(measures, doc.get("excluded") or [])
     for key in ("duplicated_lines", "clone_groups", "by_lane", "by_directory"):
         if key in previous and key not in summary:
             summary[key] = previous[key]
@@ -405,7 +403,7 @@ def assemble(
         # documents needs to know which value the reference was applied to.
         "thresholds": list(threshold_entries),
         "measures": measures,
-        "summary": _with_excluded_files(summarize(measures, root), measures, excluded),
+        "summary": _summary(measures, excluded, root),
         "excluded": excluded,
         "unavailable": [
             _lane_measure(row) for row in run if row.get("status") == "unavailable"
@@ -509,6 +507,15 @@ def _is_line(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
+def _union(first: Any, second: Any) -> list[Any]:
+    """`first`'s items, then each of `second`'s not already among them."""
+    merged = list(first or [])
+    for item in second or []:
+        if item not in merged:
+            merged.append(item)
+    return merged
+
+
 def _merge_into(target: dict[str, Any], row: dict[str, Any]) -> bool:
     """Fold `row` into `target` when their values do not disagree.
 
@@ -531,21 +538,15 @@ def _merge_into(target: dict[str, Any], row: dict[str, Any]) -> bool:
     for field in ("start_line", "end_line"):
         if target.get(field) is None and row.get(field) is not None:
             target[field] = row[field]
-    labels = list(target.get("labels") or [])
-    for label in row.get("labels") or []:
-        if label not in labels:
-            labels.append(label)
-    target["labels"] = labels
+    target["labels"] = _union(target.get("labels"), row.get("labels"))
     collectors = [c for c in str(target.get("collector") or "").split(", ") if c]
     incoming_collector = str(row.get("collector") or "")
     if incoming_collector and incoming_collector not in collectors:
         collectors.append(incoming_collector)
     target["collector"] = ", ".join(collectors)
-    over = list(target.get("over_reference") or [])
-    for measure in row.get("over_reference") or []:
-        if measure not in over:
-            over.append(measure)
-    target["over_reference"] = over
+    target["over_reference"] = _union(
+        target.get("over_reference"), row.get("over_reference")
+    )
     if row.get("replicas") and not target.get("replicas"):
         target["replicas"] = row["replicas"]
     return True
@@ -719,7 +720,6 @@ def render(
         )
         lines.append(header)
         lines.append("|" + "---|" * (5 + len(keys)))
-        shown = 0
         primary = _primary_threshold(thresholds_, keys)
         if duplication:
             # Largest group first: the reader's question is "what is the
@@ -750,7 +750,7 @@ def render(
                     r.get("start_line") or 0,
                 ),
             )
-        for row in ordered:
+        for shown, row in enumerate(ordered):
             if shown >= MAX_RENDERED_ROWS:
                 remaining = len(measures) - shown
                 where_full = (
@@ -784,9 +784,8 @@ def render(
                 f"| {where} | {row.get('function') or ''} | {row.get('lane', '')} | "
                 f"{', '.join(row.get('labels') or [])} | "
                 + " | ".join(_fmt(values.get(k)) for k in keys)
-                + f" | {', '.join(row.get('over_reference', [])) or ''} |"
+                + f" | {', '.join(row.get('over_reference', []))} |"
             )
-            shown += 1
         if halstead_zero:
             lines.append("")
             lines.append(
@@ -978,10 +977,8 @@ def main(argv: list[str]) -> int:
         print(json.dumps(anchor_document(doc, args.root, args.kind), indent=2))
         return 0
     if args.command == "resummarize":
-        doc["summary"] = _with_excluded_files(
-            summarize(doc.get("measures", []), args.root),
-            doc.get("measures") or [],
-            doc.get("excluded") or [],
+        doc["summary"] = _summary(
+            doc.get("measures", []), doc.get("excluded") or [], args.root
         )
         print(json.dumps(doc, indent=2))
         return 0

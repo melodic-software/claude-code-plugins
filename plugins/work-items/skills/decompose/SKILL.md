@@ -47,7 +47,7 @@ Collect the source's acceptance criteria with their ids for Step 2's criterion t
 
 When `## Plan` opens with a `### Behavior` list, extract it for Step 2's cut: each `- B<n>: <claim> (AC<i>, ...)` item with the criterion ids it cites, the list's `Process criteria:` line (criteria no behavior shows), and each phase's `**Delivers:**` line naming the B ids that phase builds.
 
-Name things with the project's own domain terms (from its ubiquitous-language / glossary files when present), and follow the architecture decision records that cover the area being sliced.
+Name things with the project's own domain terms: invoke `/domain-driven-design:ubiquitous-language lookup` via the Skill tool when that skill is available, otherwise Glob the repository for `**/*{glossary,Glossary,GLOSSARY,ubiquitous,UBIQUITOUS}*.md` (the root, any `docs/` folder and the module's own folder) and Read the match that covers the area; a path the project's instructions declare, or a `glossary_file` set in `docs/conventions/domain-driven-design.yaml`, wins, and a tool's own reference glossary under a plugin or package `reference/` or `context/` folder is skipped, and follow the architecture decision records that cover the area being sliced.
 
 ### 2. Draft vertical slices
 
@@ -104,7 +104,7 @@ Prefer AFK. Mark HITL only when the vertical slice genuinely needs judgment (arc
 
 The human-gated label (default `needs-human`) is what keeps an item out of autonomous pickup: `list-frontier --autonomous` excludes it (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Verbs (core public surface)"). Merely omitting the autonomous-eligible label does NOT; an unlabeled HITL item would still be claimable by `/work-items:work`. An HITL item wants the human-gated label set AND the autonomous-eligible one (default `agent-ready`) omitted.
 
-**Investigation tickets, decisions, not deliverables.** When the source still carries unresolved unknowns (open design questions, unvalidated approaches, fuzzy scope), emit **investigation tickets** alongside, or ahead of. Build vertical slices. An investigation ticket resolves ONE decision and records the resolution as a closing comment; it produces no production code. Type each by the skill that resolves it:
+**Investigation tickets, decisions, not deliverables.** When the source still carries unresolved unknowns (open design questions, unvalidated approaches, fuzzy scope), emit **investigation tickets** alongside, or ahead of, the build vertical slices. An investigation ticket resolves ONE decision and records the resolution as a closing comment; it produces no production code. Type each by the skill that resolves it:
 
 | Investigation type | Resolves | Routes to |
 |--------------------|----------|-----------|
@@ -113,7 +113,7 @@ The human-gated label (default `needs-human`) is what keeps an item out of auton
 | interview | Scope/contract ambiguity only the user can settle | `/planning:interview` |
 | design | Type, contract, module-boundary, topology, or data-model unknown | `/planning:design` |
 
-A build vertical slice waiting on an unresolved decision names that investigation ticket as a blocker (its `--blocked-by` edge and its `## Depends on` body list). Investigation tickets are HITL by default (their output is a decision a human confirms). Label them `needs-human`, never `agent-ready`.
+A build vertical slice waiting on an unresolved decision names that investigation ticket as a blocker (its `--blocked-by` edge and its `## Depends on` body list). Investigation tickets are HITL by default (their output is a decision a human confirms). Label them with the human-gated role label, never the autonomous-eligible one.
 
 ### 2b. Wide refactors: expand, migrate, contract
 
@@ -323,7 +323,7 @@ Classify per taxonomy: the **issue type** from the item's nature. `Bug` (fixing 
 
 Items published here are **born triaged**: they enter the tracker classified, role-labeled, and briefed at creation, so `/work-items:triage` never re-processes them. Keep the body's last line, `<!-- work-items:born-triaged -->`, verbatim: a repository's intake automation may key on it, together with the author, the Issue Type and the role label, to skip items born triaged.
 
-**Leave the parent item untouched**: no close, no edit. The new items sit under it; they do not stand in for it.
+**Leave the parent item untouched at publish**: no close, no edit. The new items sit under it; they do not stand in for it. Once they close, "Decomposed parent close" in [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md) owns the parent's close, run by `/work-items:track done` and `/work-items:track audit`.
 
 ### Container lifecycle (spec-on-tracker). Opt-in
 

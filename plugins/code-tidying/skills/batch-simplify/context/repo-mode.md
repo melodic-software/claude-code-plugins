@@ -154,10 +154,10 @@ The prompt carries everything the main workflow's Phase 6 prompt carries, plus:
 **Repo mode does not invoke the bundled `/simplify`.** This is not because `/simplify` lacks a
 target. It accepts one. There are two concrete reasons:
 
-1. `/simplify` fans out review agents of its own, so one dispatch occupies several concurrency
-   slots rather than one (pointer: the `/simplify` row in
-   [All commands](https://code.claude.com/docs/en/commands#all-commands); as of 2026-10-11,
-   recheck when that row stops running review agents in parallel; record in
+1. Repo mode budgets one concurrency slot per group dispatch, and a `/simplify` dispatch is not
+   held to one slot (how it runs: the `/simplify` row in
+   [All commands](https://code.claude.com/docs/en/commands#all-commands); As of: 2026-11-10;
+   Recheck trigger: that row stops running review agents in parallel; record in
    [bundled-simplify.md](bundled-simplify.md#decision-records), relay as of 2026-10-11, recheck
    when that table is renamed or moved). At a 4–6 soft cap that can leave a single group in
    flight, not four.

@@ -23,13 +23,14 @@ the same surface in
 Same cleanup job, different scale and discipline. `/simplify` is one pass over one target and
 applies its fixes; batch-simplify sweeps a time window, a branch, or the whole repository in
 waves, grouped by ecosystem in dependency order, with a checklist, a deferred-items contract, and
-docs-mode factual staleness that the bundled skill does not cover. The description's `Skip for
-single-file cleanup, use /simplify instead` clause is the routing half of this record.
+docs-mode factual staleness that the bundled skill does not cover. The description's `prefer it
+for single-file cleanup; this skill for batch sweeps` clause is the routing half of this record.
 
 ## Presence
 
 When the bundled skill resolves, the SKILL.md Native step runs it per group in place of the
-simplifier agent, except in `docs` mode or under `--unattended`; otherwise the agent runs as before.
+simplifier agent, except in `docs` mode, in repo mode, or under `--unattended`; otherwise the agent
+runs as before.
 
 ## Extraction record
 

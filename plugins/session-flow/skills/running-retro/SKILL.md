@@ -70,8 +70,10 @@ The analysis runs in a **fresh subagent**, which we treat as seeing none of this
 the skills invoked, or files read (pointer: [Create custom subagents § What loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup);
 as of 2026-10-11; recheck trigger: that section adds parent conversation to what a subagent
 loads). So resolve
-every input to a concrete value and pass it in the delegation prompt, a `${CLAUDE_PLUGIN_ROOT}`
-token will NOT expand there:
+every input to a concrete value and pass it in the delegation prompt, never a
+`${CLAUDE_PLUGIN_ROOT}` token (where that token expands:
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>; as of
+2026-11-10; recheck trigger: that section adds a delegation prompt to where the token expands):
 
 - **Session data dir + transcript + subagents dir**. Resolve per the retro skill's "Paths"
   (`${CLAUDE_PLUGIN_ROOT}/skills/retro/SKILL.md`); transcript is `<SESSION_DATA_DIR>/<session-id>.jsonl`,

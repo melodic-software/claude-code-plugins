@@ -50,21 +50,17 @@ function checkRepoSize(parsed) {
   const sizeResult = spawnSync(
     "gh",
     ["api", `repos/${parsed.owner}/${parsed.repo}`, "--jq", ".size"],
-    {
-      encoding: "utf-8",
-      timeout: 15000,
-    },
+    { encoding: "utf-8", timeout: 15000 },
   );
 
   if (sizeResult.status !== 0 || !sizeResult.stdout.trim()) {
-    log.warn(
-      "  Could not check repo size (gh api failed). Proceeding with clone.",
-    );
+    log.warn("  Could not check repo size (gh api failed). Proceeding with clone.");
     log.debug(`  gh stderr: ${sizeResult.stderr?.trim()}`);
     return;
   }
 
-  const sizeKB = Number.parseInt(sizeResult.stdout.trim(), 10);
+  // parseInt skips the surrounding whitespace gh prints.
+  const sizeKB = Number.parseInt(sizeResult.stdout, 10);
   const sizeMB = Math.round(sizeKB / 1024);
   log.info(`  Repo size: ~${sizeMB} MB`);
 

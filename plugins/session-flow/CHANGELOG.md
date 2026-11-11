@@ -1,5 +1,77 @@
 # Changelog: session-flow plugin
 
+## [7.7.0] - 2026-11-10
+
+### Changed
+
+- The workflow router's continuation rule names the renamed context zones: a handoff between human
+  stages is suggested only at zone `heavy` (formerly `dumb`). It reads the old words from an
+  earlier context-guard as the new ones.
+
+## [7.6.9] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [7.6.8] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [7.6.7] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [7.6.6] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [7.6.5] - 2026-11-10
+
+### Changed
+
+- Skill bodies point at the live Claude Code docs sections for upstream behavior they used to
+  restate (print-mode permission prompts, nested-session listing, built-in command records, where
+  a plugin variable expands, bare-mode credentials, subagent model resolution and nesting caps),
+  and fix five internal inconsistencies: the handoff shape `continue-in-background` validates, the
+  shapes that store a resume prompt in `find-handoff`, the "Suggested skills" section reference in
+  `recommend-skills`, the workflow router's invocability wording, and the stage-skip rule's scope
+  in the workflow checklist. No behavior change.
+
+## [7.6.4] - 2026-11-10
+
+### Changed
+
+- `/session-flow:workflow`'s design step points at the architecture-decision capability's admission test instead of restating an older copy of it.
+
+## [7.6.3] - 2026-11-10
+
+### Changed
+
+- Shared `transcript_reader.py` synced where this plugin carries it: the reader's code is simplified, and what it returns for every transcript is unchanged.
+
+## [7.6.2] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [7.6.1] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
 ## [7.6.0] - 2026-11-09
 
 ### Added

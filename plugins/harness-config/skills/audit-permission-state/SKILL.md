@@ -63,8 +63,8 @@ without that flag it asks.
 **Mutation gate.** `fewer-permission-prompts` writes project settings, and `/permissions` writes
 whichever scope the person edits. This skill never chains into either on its own behalf.
 
-**Availability is never assumed.** Bundled skills are gated by settings such as
-`disableBundledSkills`, and both surfaces vary by version and host; this section states what to do
+**Availability is never assumed.** Settings, version and host decide whether either surface
+resolves; this section states what to do
 when they resolve, never that they are present. The four-part records live in
 [reference/native-surfaces.md](reference/native-surfaces.md).
 
@@ -75,8 +75,13 @@ holds including under `--oracle`. It is not the same as writing nothing at all: 
 real `claude -p` session, and a session rewrites `~/.claude.json` and adds project, session-env,
 security, subagent and backup state under your config directory. The flag prints that before it
 spawns anything. Every other action writes nothing anywhere. This skill treats managed policy as
-read-only by construction: its sources are admin-write OS locations or a claude.ai Owner role, so a
-plugin could not author them even if it wanted to.
+read-only by construction: it reads the managed sources and never authors them.
+
+- **Pointer**: when deciding which managed sources exist and who can write each, fetch
+  [managed settings: where each mechanism stores the policy](https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy)
+  live.
+- **As of**: 2026-11-10
+- **Recheck trigger**: that section adds a managed mechanism or a store a plugin or user can write.
 
 ## Arguments
 
@@ -330,7 +335,7 @@ collapse it in the report:
   at `~/.claude/remote-settings.json` into the effective set, and treats the Organization policy
   line in `/status` as the failure read. The script says so on every run; carry it into the report
   rather than implying completeness.
-- **An `ask` finding names where the contract lives**: the auto mode config page, and the open
+- **An `ask` finding names where the contract lives**: the auto mode config page, and the
   upstream issue #83766 against it. Carry the caveat `reference/criteria.md` §"Ask rules under auto
   mode" words, with its pointer and dated record, when reporting an `ask` result, and point at
   `permissions.deny` where the outcome must hold regardless.

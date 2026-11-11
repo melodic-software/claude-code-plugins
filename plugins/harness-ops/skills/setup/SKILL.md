@@ -10,9 +10,8 @@ disable-model-invocation: true
 Setup under the uniform setup contract (`docs/plugin-philosophy.md` "Setup is explicit and
 repeatable" in the marketplace repository). This plugin's configuration is native
 `userConfig` scalars that Claude Code owns (`registry_dir`, `skill_usage_dir`, `skill_usage_scope`,
-and the six `session_*` hook-logging options): Claude Code prompts for them when the plugin is
-enabled, stores non-sensitive options in user settings, and ignores `pluginConfigs` entries in
-project and local settings on current releases (at or above 2.1.207). `registry_dir` alone also has
+and the six `session_*` hook-logging options); how Claude Code prompts for them, where it stores
+them and which scopes it reads are in the official contract below. `registry_dir` alone also has
 repository layers: the team file `<home>/harness-ops.yaml` (convention home, default
 `docs/conventions`) beats the option, and the personal override `<home>/harness-ops.local.yaml`
 beats the team file (config-cascade convention). This skill never writes any of them.
@@ -25,11 +24,12 @@ file ahead of the first event so `check` can report a configured state before lo
 The consumer's root `.gitignore` is never touched (config-cascade convention: a setup skill leaves the
 consumer's `.gitignore` to the consumer; the guard lives in a tree the plugin owns).
 
-Official contract (verified 2026-10-07):
-<https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>. Recheck when a fetch of that
-section no longer states that Claude Code prompts for `userConfig` values and stores non-sensitive
-ones in user settings, when the `#user-configuration` anchor stops resolving, or when a release note
-changes how `pluginConfigs` entries in project and local settings are treated.
+Official contract: when stating how `userConfig` values are prompted for or stored, fetch
+<https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration> and
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored> live. As of
+2026-11-10. Recheck when either section stops saying Claude Code prompts for `userConfig` values
+or stores non-sensitive ones in user settings, or when a release note changes how `pluginConfigs`
+entries in project and local settings are treated.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then the two
 bounded writes below. Non-interactive, never prompts.

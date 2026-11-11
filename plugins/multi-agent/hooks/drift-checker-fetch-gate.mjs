@@ -24,12 +24,11 @@ export const FETCH_HOSTS = [
 ]
 
 export function decide(payload) {
-  const agent = String((payload && payload.agent_type) || '')
-  if (!/(^|:)drift-checker$/.test(agent)) return null
+  if (!/(^|:)drift-checker$/.test(String(payload?.agent_type || ''))) return null
   if (payload.tool_name !== 'WebFetch') return 'drift-checker may only use WebFetch'
   let url
   try {
-    url = new URL(String((payload.tool_input && payload.tool_input.url) || ''))
+    url = new URL(String(payload.tool_input?.url || ''))
   } catch {
     return 'drift-checker fetch denied: the URL does not parse'
   }
@@ -37,7 +36,7 @@ export function decide(payload) {
   if (url.username || url.password) return 'drift-checker fetch denied: the URL carries userinfo'
   if (url.search) return 'drift-checker fetch denied: the URL carries a query string'
   if (!FETCH_HOSTS.includes(url.hostname.toLowerCase())) {
-    return 'drift-checker fetch denied: ' + url.hostname + ' is not a first-party docs host (' + FETCH_HOSTS.join(', ') + ')'
+    return `drift-checker fetch denied: ${url.hostname} is not a first-party docs host (${FETCH_HOSTS.join(', ')})`
   }
   return null
 }

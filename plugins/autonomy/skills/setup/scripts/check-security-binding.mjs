@@ -170,8 +170,10 @@ const CREDENTIAL_ENV_VARS = new Set(["github_token", "gh_token"]);
 // rejects it so a recipe cannot substitute a throwaway path for the real home.
 const EPHEMERAL_SEGMENTS = new Set(["tmp", "temp", "shm"]);
 const isEnvToken = (segment) => /^\$[a-z_]+$/.test(segment) || /^%[a-z_]+%$/.test(segment);
-const isHomeEnvToken = (segment) =>
-  isEnvToken(segment) && ["home", "userprofile"].includes(segment.replace(/^[$%]/, "").replace(/%$/, ""));
+const envTokenName = (segment) => segment.replace(/^[$%]/, "").replace(/%$/, "");
+const isHomeEnvToken = (segment) => isEnvToken(segment) && ["home", "userprofile"].includes(envTokenName(segment));
+// Credential entries and their expansions compare lowercased with forward slashes.
+const lowerSlashed = (path) => path.toLowerCase().replaceAll("\\", "/");
 // A route prefix matches on a SEGMENT boundary only: the pathname equals the
 // prefix or continues with "/" immediately after it — a plain startsWith
 // would accept e.g. "/metadata-not-a-credential" via "/metadata".
@@ -240,16 +242,11 @@ function normalizeHostPath(p) {
   // misread "//etc/..." as the host's own "/etc/...". Refuse it so containment can
   // never accept it, consistent with the home-anchored coherence guard's UNC rejection.
   if (slashed.startsWith("//")) return null;
-  const driveMatch = /^([a-zA-Z]:)\//.exec(slashed);
+  const drive = /^([a-zA-Z]:)\//.exec(slashed)?.[1].toLowerCase() ?? null;
+  if (drive === null && !slashed.startsWith("/")) return null;
   // Drive-letter paths are case-insensitive: fold the whole drive path so "C:/X"
   // and "c:/x" contain. POSIX paths keep their case (see above).
-  const cased = driveMatch !== null ? slashed.toLowerCase() : slashed;
-  const drive = driveMatch !== null ? driveMatch[1].toLowerCase() : null;
-  let anchor = "";
-  if (drive !== null) anchor = drive;
-  else if (cased.startsWith("/")) anchor = "/";
-  if (anchor === "") return null;
-  const body = anchor === "/" ? cased.slice(1) : cased.slice(drive.length + 1);
+  const body = drive === null ? slashed.slice(1) : slashed.slice(drive.length + 1).toLowerCase();
   const out = [];
   for (const segment of body.split("/")) {
     if (segment === "" || segment === ".") continue;
@@ -260,7 +257,7 @@ function normalizeHostPath(p) {
     }
     out.push(segment);
   }
-  return anchor === "/" ? `/${out.join("/")}` : `${drive}/${out.join("/")}`;
+  return `${drive ?? ""}/${out.join("/")}`;
 }
 
 // Deny-by-default containment: the host-side expanded path resolves under one
@@ -279,9 +276,8 @@ function pathUnderConfiguredRoot(candidate, roots) {
     // Trusting a whole filesystem root is never valid credential-absence
     // evidence, so it fails closed like an unconfigured root; a narrower root
     // such as "c:/creds" is unaffected.
-    if (normRoot === null || normRoot === "" || normRoot === "/" || /^[a-z]:\/$/.test(normRoot)) return false;
-    if (normCandidate === normRoot) return true;
-    return normCandidate.startsWith(`${normRoot}/`);
+    if (normRoot === null || normRoot === "/" || /^[a-z]:\/$/.test(normRoot)) return false;
+    return normCandidate === normRoot || normCandidate.startsWith(`${normRoot}/`);
   });
 }
 
@@ -302,7 +298,7 @@ function pathUnderConfiguredRoot(candidate, roots) {
 // expansion, so its recorded host_expanded must repeat it verbatim. Returns
 // null when the entry is valid evidence, else the reason.
 function credentialEntryProblem(entry, expanded, credentialRoots) {
-  const normalized = entry.toLowerCase().replaceAll("\\", "/");
+  const normalized = lowerSlashed(entry);
   if (normalized.includes("://")) {
     if (!isMetadataEndpoint(normalized)) {
       return "not a known cloud metadata endpoint credential route (169.254.169.254 or metadata.google.internal over plain HTTP on the default port, on a known credential route)";
@@ -311,8 +307,7 @@ function credentialEntryProblem(entry, expanded, credentialRoots) {
   }
   const segments = normalized.split("/").filter((segment) => segment.length > 0);
   if (segments.length === 1 && isEnvToken(segments[0])) {
-    const bare = segments[0].replace(/^[$%]/, "").replace(/%$/, "");
-    if (!CREDENTIAL_ENV_VARS.has(bare)) {
+    if (!CREDENTIAL_ENV_VARS.has(envTokenName(segments[0]))) {
       return `not a well-known credential env token (${[...CREDENTIAL_ENV_VARS].map((name) => `$${name.toUpperCase()}`).join(", ")}); an org-specific token is not recognized by name — probe the host filesystem path where the injected secret is stored (e.g. /run/secrets/my-org-token) and configure its parent in --credential-roots`;
     }
     return credentialExpansionProblem(entry, expanded);
@@ -345,8 +340,8 @@ function credentialEntryProblem(entry, expanded, credentialRoots) {
 // entry handling (lowercase, backslashes to slashes). Returns null when
 // valid, else the reason.
 function credentialExpansionProblem(entry, expanded) {
-  const normalizedEntry = entry.toLowerCase().replaceAll("\\", "/");
-  const normalizedExpanded = expanded.toLowerCase().replaceAll("\\", "/");
+  const normalizedEntry = lowerSlashed(entry);
+  const normalizedExpanded = lowerSlashed(expanded);
   const segments = normalizedEntry.split("/").filter((segment) => segment.length > 0);
   const homeAnchored =
     !normalizedEntry.includes("://") && segments.length > 1 && isHomeEnvToken(segments[0]);
@@ -461,6 +456,10 @@ function isNonEmptyString(value) {
   return typeof value === "string" && value.length > 0;
 }
 
+function isArrayOfNonEmptyStrings(value) {
+  return Array.isArray(value) && value.every(isNonEmptyString);
+}
+
 // The comparison form of a probed host: lowercased, with the optional DNS root
 // dot dropped, so a trailing-dot spelling never reads as a distinct target.
 const bareHost = (host) => host.toLowerCase().replace(/\.$/, "");
@@ -529,6 +528,17 @@ function checkEnum(value, tokens, where) {
     return false;
   }
   return true;
+}
+
+// Every work class is a required key holding one of the tokens.
+function checkPerClassEnums(perClass, tokens, where) {
+  for (const workClass of WORK_CLASSES) {
+    if (Object.hasOwn(perClass, workClass)) {
+      checkEnum(perClass[workClass], tokens, `${where}.${workClass}`);
+    } else {
+      findings.push(`${where}.${workClass}: required key missing`);
+    }
+  }
 }
 
 // --- Structural validation (mirrors guardrails-security-binding.schema.json) ---
@@ -610,18 +620,10 @@ function validateStructure(binding) {
           // Informational only: shape-checked here and never passed to
           // verifyProbeTranscript, so it can neither cover a ratified
           // destination nor stand as evidence that other traffic is denied.
-          if (
-            Object.hasOwn(entry, "base_egress_allowlist") &&
-            (!Array.isArray(entry.base_egress_allowlist) ||
-              entry.base_egress_allowlist.some((host) => !isNonEmptyString(host)))
-          ) {
+          if (Object.hasOwn(entry, "base_egress_allowlist") && !isArrayOfNonEmptyStrings(entry.base_egress_allowlist)) {
             findings.push(`${where}.base_egress_allowlist: must be an array of non-empty strings (the empty array is allowed); it records the base allowlist for the reviewing human and is never probe coverage`);
           }
-          if (
-            Object.hasOwn(entry, "component_reachable_hosts") &&
-            (!Array.isArray(entry.component_reachable_hosts) ||
-              entry.component_reachable_hosts.some((host) => !isNonEmptyString(host)))
-          ) {
+          if (Object.hasOwn(entry, "component_reachable_hosts") && !isArrayOfNonEmptyStrings(entry.component_reachable_hosts)) {
             findings.push(`${where}.component_reachable_hosts: must be an array of non-empty host strings — the empty array is the explicit claim that this surface installs nothing carrying policy rules of its own`);
           }
           if (!isNonEmptyString(entry.substrate)) {
@@ -675,13 +677,7 @@ function validateStructure(binding) {
       findings.push("merge_policy: must be an object keyed by work class");
     } else {
       checkAllowedKeys(binding.merge_policy, WORK_CLASSES, "merge_policy");
-      for (const workClass of WORK_CLASSES) {
-        if (!Object.hasOwn(binding.merge_policy, workClass)) {
-          findings.push(`merge_policy.${workClass}: required key missing`);
-        } else {
-          checkEnum(binding.merge_policy[workClass], MERGE_TOKENS, `merge_policy.${workClass}`);
-        }
-      }
+      checkPerClassEnums(binding.merge_policy, MERGE_TOKENS, "merge_policy");
     }
   }
 
@@ -698,13 +694,7 @@ function validateStructure(binding) {
           continue;
         }
         checkAllowedKeys(perClass, WORK_CLASSES, where);
-        for (const workClass of WORK_CLASSES) {
-          if (!Object.hasOwn(perClass, workClass)) {
-            findings.push(`${where}.${workClass}: required key missing`);
-          } else {
-            checkEnum(perClass[workClass], VERIFICATION_TOKENS, `${where}.${workClass}`);
-          }
-        }
+        checkPerClassEnums(perClass, VERIFICATION_TOKENS, where);
       }
     }
   }
@@ -1078,7 +1068,7 @@ function validateClassTopologyStructure(topology, where) {
       if (!Object.hasOwn(entry, constraint)) continue;
       const value = entry[constraint];
       const targets = typeof value === "string" ? [value] : Array.isArray(value) ? value : null;
-      if (targets === null || targets.length === 0 || targets.some((target) => !isNonEmptyString(target))) {
+      if (!isArrayOfNonEmptyStrings(targets) || targets.length === 0) {
         findings.push(`${entryWhere}.${constraint}: must be a non-empty role name or a non-empty array of role names`);
         continue;
       }
@@ -1094,7 +1084,7 @@ function validateClassTopologyStructure(topology, where) {
     for (const predicate of ["requires_modality", "requires_feature"]) {
       if (!Object.hasOwn(entry, predicate)) continue;
       const value = entry[predicate];
-      if (!Array.isArray(value) || value.length === 0 || value.some((token) => !isNonEmptyString(token))) {
+      if (!isArrayOfNonEmptyStrings(value) || value.length === 0) {
         findings.push(`${entryWhere}.${predicate}: must be a non-empty array of non-empty string tokens`);
         continue;
       }
@@ -1119,10 +1109,7 @@ function levelNumber(token) {
 // matches both. Subset/identity checks alone miss e.g. {pool: blue, region:
 // us} vs {pool: blue, os: linux}.
 function jointlySatisfiable(markersA, markersB) {
-  for (const [key, value] of Object.entries(markersA)) {
-    if (Object.hasOwn(markersB, key) && markersB[key] !== value) return false;
-  }
-  return true;
+  return Object.entries(markersA).every(([key, value]) => !Object.hasOwn(markersB, key) || markersB[key] === value);
 }
 
 // The egress-probe target must be a genuinely EXTERNAL host — loopback,
@@ -1227,13 +1214,14 @@ function isNonExternalEgressHost(host) {
     const hextets = expandIpv6(h);
     // An invalid literal is not a valid probe target — reject outright.
     if (hextets === null) return true;
+    const allZeroHextets = (start, end) => hextets.slice(start, end).every((hextet) => hextet === "0000");
     // The IPv4 address the last two hextets carry, for the forms that embed one.
     const embeddedV4 = () => Number.parseInt(hextets[6], 16) * 65536 + Number.parseInt(hextets[7], 16);
-    if (hextets.slice(0, 5).every((hextet) => hextet === "0000") && hextets[5] === "ffff") {
+    if (allZeroHextets(0, 5) && hextets[5] === "ffff") {
       // v4-mapped: classify the embedded IPv4.
       return isDeniedV4(embeddedV4());
     }
-    if (hextets.slice(0, 6).every((hextet) => hextet === "0000")) {
+    if (allZeroHextets(0, 6)) {
       // ::/96 — unspecified (::), loopback (::1), and the whole deprecated
       // IPv4-compatible space (::0.0.0.0 through ::255.255.255.255, RFC 4291
       // §2.5.5.1): the embedded-dotted-quad form (e.g. "::127.0.0.1") writes
@@ -1245,7 +1233,7 @@ function isNonExternalEgressHost(host) {
     // 64:ff9b::/96 — well-known NAT64 prefix (RFC 6052): the IANA registry
     // flags it globally reachable, but RFC 6052 forbids embedding non-global
     // IPv4, so classify the embedded address like the v4-mapped branch above.
-    if (hextets[0] === "0064" && hextets[1] === "ff9b" && hextets.slice(2, 6).every((hextet) => hextet === "0000")) {
+    if (hextets[0] === "0064" && hextets[1] === "ff9b" && allZeroHextets(2, 6)) {
       return isDeniedV4(embeddedV4());
     }
     const first = Number.parseInt(hextets[0], 16);
@@ -1261,10 +1249,7 @@ function isNonExternalEgressHost(host) {
     // anycast. (2001:db8::/32 documentation space sits OUTSIDE this /23 and
     // keeps its own test below.)
     if (hextets[0] === "2001" && second <= 0x01ff) {
-      const reachableAnycast =
-        second === 0x0001 &&
-        hextets.slice(2, 7).every((hextet) => hextet === "0000") &&
-        ["0001", "0002", "0003"].includes(hextets[7]);
+      const reachableAnycast = second === 0x0001 && allZeroHextets(2, 7) && ["0001", "0002", "0003"].includes(hextets[7]);
       return !(
         reachableAnycast ||
         second === 0x0003 ||
@@ -2036,16 +2021,9 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
   // promotion_state entry: promotion is a human-ratified knob flip recorded
   // on the governance surface, and an earned value without its ratification
   // record bypasses that discipline.
-  const ratifiedPromoted = (cell) =>
-    isPlainObject(binding.promotion_state) &&
-    isPlainObject(binding.promotion_state[cell]) &&
-    binding.promotion_state[cell].state === "promoted";
+  const ratifiedPromoted = (cell) => binding.promotion_state?.[cell]?.state === "promoted";
   for (const [workClass, cell] of Object.entries(AUTO_MERGE_PROMOTION_CELL)) {
-    if (
-      isPlainObject(binding.merge_policy) &&
-      binding.merge_policy[workClass] === "auto" &&
-      !ratifiedPromoted(cell)
-    ) {
+    if (binding.merge_policy?.[workClass] === "auto" && !ratifiedPromoted(cell)) {
       findings.push(
         `merge_policy.${workClass}: "auto" without a ratified promotion_state.${cell} entry (state "promoted") — promotion is a human-ratified knob flip recorded on the governance surface; an earned value without its ratification record bypasses the promotion discipline`,
       );
@@ -2055,9 +2033,7 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
   // (advisory -> blocking per the security-review leaf) — a deliberate
   // carve-out from the floors-may-tighten rule for this one cell: stronger
   // than the advisory floor here is a promotion, not mere tightening.
-  const aiReview = isPlainObject(binding.verification_blocking)
-    ? binding.verification_blocking["ai-review"]
-    : null;
+  const aiReview = binding.verification_blocking?.["ai-review"];
   if (isPlainObject(aiReview) && aiReview.C3 === "blocking" && !ratifiedPromoted("C3-ai-review-blocking")) {
     findings.push(
       'verification_blocking.ai-review.C3: "blocking" without a ratified promotion_state.C3-ai-review-blocking entry (state "promoted") — advisory -> blocking is the earned promotion flip for this cell; an earned value without its ratification record bypasses the promotion discipline',
@@ -2109,11 +2085,8 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
           `merge_policy.${workClass}: "auto" with verification_blocking.${layer}.${workClass} "advisory" — an automatic transition requires unanimous agreement among every checker the class declares, and an advisory layer records a checker's dissent without withholding the transition; set verification_blocking.${layer}.${workClass} to "blocking" (ratifying its promotion_state cell where the cell is promotable) or bind merge_policy.${workClass} to "human"`,
         );
       }
-      const aiReviewLayer = binding.verification_blocking["ai-review"];
-      if (!isPlainObject(aiReviewLayer) || aiReviewLayer[workClass] !== "not-required") continue;
-      const topology = isPlainObject(binding.verification_topology)
-        ? binding.verification_topology[workClass]
-        : null;
+      if (!isPlainObject(aiReview) || aiReview[workClass] !== "not-required") continue;
+      const topology = binding.verification_topology?.[workClass];
       if (!isPlainObject(topology) || !Array.isArray(topology.roles)) continue;
       const declaredModelCheckers = topology.roles
         .filter(
@@ -2242,18 +2215,12 @@ function topologyConstraintTargets(entry, constraint) {
 function checkTopologySemantics(topology, workClass) {
   const where = `verification_topology.${workClass}`;
   const floor = TOPOLOGY_FLOORS[workClass];
-  if (Number.isInteger(topology.min_checkers) && topology.min_checkers < floor.min_checkers) {
-    findings.push(
-      `${where}.min_checkers: ${topology.min_checkers} weakens the shipped floor ${floor.min_checkers} — floors may be tightened, never weakened (override_justification applies to admission rules only)`,
-    );
-  }
-  if (
-    Number.isInteger(topology.min_model_checkers) &&
-    topology.min_model_checkers < floor.min_model_checkers
-  ) {
-    findings.push(
-      `${where}.min_model_checkers: ${topology.min_model_checkers} weakens the shipped floor ${floor.min_model_checkers} — floors may be tightened, never weakened (override_justification applies to admission rules only)`,
-    );
+  for (const knob of ["min_checkers", "min_model_checkers"]) {
+    if (Number.isInteger(topology[knob]) && topology[knob] < floor[knob]) {
+      findings.push(
+        `${where}.${knob}: ${topology[knob]} weakens the shipped floor ${floor[knob]} — floors may be tightened, never weakened (override_justification applies to admission rules only)`,
+      );
+    }
   }
   if (topology.cross_vendor_required === false && floor.cross_vendor_required) {
     findings.push(
@@ -2380,8 +2347,8 @@ function checkTopologySemantics(topology, workClass) {
   // be held distinct by a relational constraint in at least one direction
   // (distinct_vendor_from implies distinct model: disjoint vendors never
   // share an instance).
-  const holdsDistinct = (a, b) =>
-    RELATIONAL_CONSTRAINTS.some(
+  const relatedBy = (a, b, constraints) =>
+    constraints.some(
       (constraint) =>
         topologyConstraintTargets(a, constraint).includes(b.name) ||
         topologyConstraintTargets(b, constraint).includes(a.name),
@@ -2393,7 +2360,7 @@ function checkTopologySemantics(topology, workClass) {
   // other by scanner class above.
   for (let i = 0; i < modelCheckers.length; i += 1) {
     for (let j = i + 1; j < modelCheckers.length; j += 1) {
-      if (!holdsDistinct(modelCheckers[i], modelCheckers[j])) {
+      if (!relatedBy(modelCheckers[i], modelCheckers[j], RELATIONAL_CONSTRAINTS)) {
         findings.push(
           `${where}.roles: checker roles ${JSON.stringify(modelCheckers[i].name)} and ${JSON.stringify(modelCheckers[j].name)} carry no distinct_model_from/distinct_vendor_from relation between them — nothing keeps both from resolving to one instance, and N runs of a single instance count as ONE checker toward min_checkers; constrain the pair distinct in at least one direction`,
         );
@@ -2436,10 +2403,7 @@ function checkTopologySemantics(topology, workClass) {
       for (let j = i + 1; j < modelCheckers.length; j += 1) {
         const a = modelCheckers[i];
         const b = modelCheckers[j];
-        const disjoint =
-          topologyConstraintTargets(a, "distinct_vendor_from").includes(b.name) ||
-          topologyConstraintTargets(b, "distinct_vendor_from").includes(a.name);
-        if (!disjoint) {
+        if (!relatedBy(a, b, ["distinct_vendor_from"])) {
           findings.push(
             `${where}.roles: model-adjudicated checkers ${JSON.stringify(a.name)} and ${JSON.stringify(b.name)} carry no distinct_vendor_from relation between them while cross_vendor_required is true — vendor disjointness is required AMONG the model slots, not only against the generator, because same-vendor checkers share failure modes and their agreement is weaker evidence than its count suggests`,
           );
@@ -2454,7 +2418,6 @@ function checkTopologySemantics(topology, workClass) {
 function resolveEffectivePromotion(binding, evidencePath) {
   const lines = [];
   let events = null;
-  let evidenceUnavailable = false;
   try {
     const parsed = JSON.parse(readFileSync(evidencePath === "-" ? 0 : evidencePath, "utf8"));
     if (!Array.isArray(parsed)) throw new Error("evidence document must be a JSON array of events");
@@ -2462,7 +2425,6 @@ function resolveEffectivePromotion(binding, evidencePath) {
   } catch (error) {
     // Unavailable evidence telemetry fail-closes to the unpromoted default —
     // a report, never a crash.
-    evidenceUnavailable = true;
     lines.push(
       `evidence source ${evidencePath} unavailable (${error.message}) — fail-closed: every cell resolves to effective state unpromoted`,
     );
@@ -2479,7 +2441,7 @@ function resolveEffectivePromotion(binding, evidencePath) {
   for (const [cell, entry] of Object.entries(promotionState)) {
     if (!isPlainObject(entry)) continue;
     const bound = entry.state;
-    if (evidenceUnavailable) {
+    if (events === null) {
       resolved.set(cell, {
         bound,
         effective: "unpromoted",
@@ -2602,23 +2564,16 @@ function resolveEffectivePromotion(binding, evidencePath) {
 // --- Entry point ---
 
 const args = process.argv.slice(2);
+const options = {
+  "--evidence": null,
+  "--probe-evidence-root": null,
+  "--egress-hosts": null,
+  "--credential-roots": null,
+};
 let bindingPath = null;
-let evidencePath = null;
-let probeRoot = null;
-let egressHostsArg = null;
-let credentialRootsArg = null;
 for (let i = 0; i < args.length; i += 1) {
-  if (args[i] === "--evidence") {
-    evidencePath = args[i + 1];
-    i += 1;
-  } else if (args[i] === "--probe-evidence-root") {
-    probeRoot = args[i + 1];
-    i += 1;
-  } else if (args[i] === "--egress-hosts") {
-    egressHostsArg = args[i + 1];
-    i += 1;
-  } else if (args[i] === "--credential-roots") {
-    credentialRootsArg = args[i + 1];
+  if (Object.hasOwn(options, args[i])) {
+    options[args[i]] = args[i + 1];
     i += 1;
   } else if (bindingPath === null) {
     bindingPath = args[i];
@@ -2627,12 +2582,15 @@ for (let i = 0; i < args.length; i += 1) {
     break;
   }
 }
+const {
+  "--evidence": evidencePath,
+  "--probe-evidence-root": probeRoot,
+  "--egress-hosts": egressHostsArg,
+  "--credential-roots": credentialRootsArg,
+} = options;
 if (
   !isNonEmptyString(bindingPath) ||
-  (evidencePath !== null && !isNonEmptyString(evidencePath)) ||
-  (probeRoot !== null && !isNonEmptyString(probeRoot)) ||
-  (egressHostsArg !== null && !isNonEmptyString(egressHostsArg)) ||
-  (credentialRootsArg !== null && !isNonEmptyString(credentialRootsArg))
+  Object.values(options).some((value) => value !== null && !isNonEmptyString(value))
 ) {
   console.error(
     "usage: check-security-binding.mjs <binding.json> [--evidence <evidence.json>] [--probe-evidence-root <dir>] [--egress-hosts <host,host,...>] [--credential-roots <path,path,...>]",
@@ -2650,11 +2608,8 @@ const egressAllowList =
 // --credential-roots configured" guidance rather than a confusing empty-allowlist
 // rejection — fail-closed either way.
 const credentialRootsParsed =
-  credentialRootsArg === null
-    ? null
-    : credentialRootsArg.split(",").map((root) => root.trim()).filter((root) => root.length > 0);
-const credentialRoots =
-  credentialRootsParsed !== null && credentialRootsParsed.length === 0 ? null : credentialRootsParsed;
+  credentialRootsArg?.split(",").map((root) => root.trim()).filter((root) => root.length > 0) ?? [];
+const credentialRoots = credentialRootsParsed.length > 0 ? credentialRootsParsed : null;
 
 let raw;
 try {

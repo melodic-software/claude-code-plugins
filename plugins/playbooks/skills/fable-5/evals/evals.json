@@ -5,7 +5,7 @@
       "id": 1,
       "name": "trigger-arm-session-doctrine",
       "prompt": "load the playbook",
-      "expected_output": "Arms the current session with Fable 5.1's standing doctrine from this skill body and proceeds. Does not fetch an upstream pack or run /playbooks:update.",
+      "expected_output": "Arms the current session with Fable 5.2's standing doctrine from this skill body and proceeds. Does not fetch an upstream pack or run /playbooks:update.",
       "files": [],
       "narration": true,
       "expectations": [
@@ -44,11 +44,12 @@
       "id": 4,
       "name": "trigger-fable-5-1-adaptation-no-chapter",
       "prompt": "fable 5.1 adaptation",
-      "expected_output": "States that Claude Fable 5.1 is the doctrine's author and reads no adaptation chapter under meta-rule 3, so there is nothing to load beyond the skill body; reads no file under reference/model-adaptation/.",
+      "expected_output": "States that, under meta-rule 3's general rule, Claude Fable 5.1 reads no adaptation chapter: the Fable family has no chapter for Fable 5.1 or any earlier Fable version, and fable-5-2.md belongs to a later version, so there is nothing to load beyond the skill body; reads no file under reference/model-adaptation/.",
       "files": [],
       "narration": true,
       "expectations": [
-        "States that Fable 5.1 is the author of the doctrine and reads no adaptation chapter",
+        "States that Fable 5.1 has no chapter of its own or of an earlier Fable version and reads no adaptation chapter",
+        "Does not read fable-5-2.md, since a later version's chapter is never a substitute",
         "Reads no file under reference/model-adaptation/, in particular no Opus, Sonnet, or Haiku chapter",
         "Does not treat the request as a /playbooks:update drift check"
       ]
@@ -57,7 +58,7 @@
       "id": 6,
       "name": "route-fable-5-1-session-at-arm-time",
       "prompt": "You are running as Claude Fable 5.1. Load the playbook before we start on this refactor.",
-      "expected_output": "Arms the session from the skill body and, per meta-rule 3, reads no chapter under reference/model-adaptation/, because Fable 5.1 is the doctrine's author.",
+      "expected_output": "Arms the session from the skill body and, per meta-rule 3, reads no chapter under reference/model-adaptation/, because the Fable family has no chapter for Fable 5.1 or any earlier Fable version.",
       "files": [],
       "narration": true,
       "expectations": [
@@ -70,12 +71,12 @@
       "id": 7,
       "name": "route-fable-5-2-session-reads-its-chapter",
       "prompt": "You are running as Claude Fable 5.2. Load the playbook before we start on this refactor.",
-      "expected_output": "Arms the session and, per meta-rule 3, reads the Fable 5.2 model-adaptation chapter, fable-5-2.md, at arm time. It does not treat itself as the doctrine's author, and does not read an Opus, Sonnet, or Haiku chapter in its place or beside it.",
+      "expected_output": "Arms the session and, per meta-rule 3, reads the Fable 5.2 model-adaptation chapter, fable-5-2.md, at arm time, although Fable 5.2 is the doctrine's author. It does not read an Opus, Sonnet, or Haiku chapter in its place or beside it.",
       "files": [],
       "narration": true,
       "expectations": [
         "Reads fable-5-2.md from the model-adaptation directory before continuing work",
-        "Does not skip the adaptation chapter on the grounds that Fable 5.1 authored the doctrine",
+        "Does not skip the adaptation chapter on the grounds that Fable 5.2 authored the doctrine",
         "Does not read an Opus, Sonnet, or Haiku chapter as a substitute or in addition"
       ]
     },

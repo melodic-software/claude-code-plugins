@@ -218,8 +218,6 @@ jobs:
       API_BUDGET_TOKEN: github-token
       # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
-      # At most this many resolve-issue runs at once. The one place to change it.
-      SLOTS: 3
       ISSUE_NUMBER: ${{ github.event.issue.number }}
     outputs:
       slot: ${{ steps.slot.outputs.slot }}
@@ -297,11 +295,49 @@ jobs:
           applied-by-supported: patch work-outcome
           split-child: ${{ needs.admit.outputs.split-child }}
 
+      # SLOTS is the effective lane level: the published level variable,
+      # clamped to limits.lane-level's floor and ceiling, or its default when
+      # the value is empty, expired or malformed, and the default while
+      # limits.lane-level.shadow is set, with a notice naming the level it
+      # would use (.github/scripts/lib/lane-level-value.mjs). It reads the
+      # vars context and the resolved config, no API. A read that cannot run
+      # (no base checkout) leaves the fallback below, the same default.
+      - name: Read the lane level
+        id: level
+        if: steps.tip.outputs.sha != ''
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          LANE_VARS: ${{ toJSON(vars) }}
+          RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
+        run: node .base/.github/scripts/lib/lane-level-value.mjs slots
+
       - name: Pick the slot
         id: slot
+        env:
+          # limits.lane-level.default, the fallback when the read fails.
+          SLOTS: ${{ steps.level.outputs.slots || '3' }}
         run: |
           [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && $SLOTS =~ ^[1-9][0-9]*$ ]] || exit 1
           echo "slot=$((ISSUE_NUMBER % SLOTS))" >> "$GITHUB_OUTPUT"
+
+      # Either WIP cap hold above, kept as the lane-hold-work-resolve-issue
+      # artifact for monitor signal 13 (lane-hold-marker.mjs).
+      - name: Mark the lane hold
+        id: hold-marker
+        if: steps.wip.outputs.held == 'true' || (steps.wip.outputs.capped != 'true' && steps.wip.outputs.capped != 'false')
+        continue-on-error: true
+        run: mkdir -p "$RUNNER_TEMP/lane-hold" && echo "work-resolve-issue $GITHUB_RUN_ID" >"$RUNNER_TEMP/lane-hold/work-resolve-issue"
+      - name: Keep the lane hold marker
+        if: steps.hold-marker.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lane-hold-work-resolve-issue
+          path: ${{ runner.temp }}/lane-hold/work-resolve-issue
+          retention-days: 1
+          overwrite: true
+          if-no-files-found: ignore
 
       - name: Log the API budget at the end
         if: always()
@@ -1198,6 +1234,7 @@ jobs:
       reuse-branch: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '' }}
       runner-checks: ${{ needs.run-checks.result == 'success' && needs.run-checks.outputs.checks || '' }}
       verify-close: ${{ needs.admit.outputs.verify-close }}
+      hold-marker: true
       collect-refused: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-collect-refused || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-collect-refused || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-collect-refused || '' }}
       # Why apply-issue-patch committed nothing, so the hand-back names it;
       # a failed job that gave no reason crashed before committing or refusing.

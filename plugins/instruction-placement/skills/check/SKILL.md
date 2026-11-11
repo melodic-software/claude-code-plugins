@@ -30,9 +30,11 @@ A gate, not an audit. It answers one question with one exit code: **would every 
 instruction surface in this repository actually load when it is supposed to, and does the
 always-loaded index still describe what is on disk?**
 
-It exists because every failure mode here is silent. Claude Code does not warn when a rule's glob
-matches nothing, when a bracket expression is malformed, or when a pattern exceeded the brace budget
-and was used unexpanded. The rule simply never fires, and the convention it carries is quietly
+It exists because every failure mode here is silent: a glob that matches nothing, a malformed
+bracket expression, a pattern over the brace budget (how Claude Code treats one:
+[Memory, "Path-specific rules"](https://code.claude.com/docs/en/memory#path-specific-rules), as of
+2026-11-10; recheck when that section starts reporting such a pattern or changes how it uses one).
+The rule simply never fires, and the convention it carries is quietly
 absent from every session that needed it. A repository can accumulate a dozen dead rules and look
 healthy.
 
@@ -43,7 +45,7 @@ Wire it into CI beside the linters. It is fast, deterministic, and has no judgme
 | Check | Mechanism | Failure means |
 |---|---|---|
 | Glob resolves | `glob-tools.sh rules` | The rule never fires for any file in the repository |
-| Frontmatter parses | same (`FRONTMATTER` row) | Claude Code ignores the frontmatter and loads the rule unscoped, in every session |
+| Frontmatter parses | same (`FRONTMATTER` row) | The rule loads unscoped |
 | Bracket expressions valid | same | The pattern silently matches nothing |
 | Brace budget respected | same | The pattern is used unexpanded; its braces match nothing |
 | Glob not over-broad | same | Advisory. The rule loads so often it saves nothing |
@@ -51,24 +53,23 @@ Wire it into CI beside the linters. It is fast, deterministic, and has no judgme
 | Index target loaded at all | `render-index.sh reachable` | A root `CLAUDE.md` is read instead of the index and does not import it |
 | Nested AGENTS.md wired | `render-index.sh wiring` | An indexed nested surface never loads: a `CLAUDE.md` on its path is read instead and no `CLAUDE.md` imports it |
 
-The last two are the least obvious. A `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the
-working directory or above it is read *instead of* `AGENTS.md`, so a repository carrying both with
-no import between them gets a generated, in-sync index that never enters context: the
-subagent-gap mitigation does nothing while every other check reports green. The
-same silence repeats one level down: a nested `AGENTS.md` is indexed as a surface that loads when
-Claude reads its directory, and a `CLAUDE.md` on that path takes its place unless one of them
-imports or symlinks it. Sync, reachability, and wiring are independent questions; ask all three.
+The last two are the least obvious. A repository carrying a `CLAUDE.md`-family file and an
+`AGENTS.md` with no import between them can get a generated, in-sync index that never enters
+context (which file Claude Code reads: pointer below): the subagent-gap mitigation does nothing
+while every other check reports green. The same silence can repeat one level down, for a nested
+`AGENTS.md` with a `CLAUDE.md` on its path and no import or symlink between them. Sync,
+reachability, and wiring are independent questions; ask all three.
 
 The reachability and wiring gates treat an `AGENTS.md`, at the root and in a subdirectory alike,
 as shadowed wherever a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` sits in the working
 directory or above it, and treat direct `AGENTS.md` reading as dependent on the CLI floor and
-session recorded in `skills/migrate/reference/sources.md`, "The minimum CLI version". Canary runs
-on Claude Code 2.1.278 observed the shadowing.
+session recorded in `skills/migrate/reference/sources.md`, "The minimum CLI version". The 2026-09-19 CI
+canary on Claude Code 2.1.278, recorded in that file under "The CI canary", observed the shadowing.
 
 - **Pointer**: for when Claude Code reads `AGENTS.md` and when that support is unavailable, see
   <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> and
   <https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable>.
-- **As of**: 2026-09-29
+- **As of**: 2026-11-10
 - **Recheck trigger**: those sections change which file names shadow `AGENTS.md`, or a release note
   names `AGENTS.md` or instruction-file loading.
 
@@ -152,7 +153,7 @@ do about it**. The three failure statuses have different fixes and saying "inval
 |---|---|---|
 | `zero-match` | No tracked file under the rule's base directory matches | The glob is wrong, or the code it described was moved or deleted. Correct the pattern, or retire the rule |
 | `bad-bracket` | A `[` cannot be read as a bracket expression | Escape it as `\[` if it is a literal, or close the expression |
-| `over-budget` | Expansion exceeded 1,000 patterns or 4 MiB | Split the rule, or replace brace groups with a broader pattern |
+| `over-budget` | Expansion exceeded the brace budget ([Path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules), as of 2026-11-10, recheck when that section changes the budget) | Split the rule, or replace brace groups with a broader pattern |
 | `unparsable` (`FRONTMATTER`) | The YAML between the `---` markers will not parse | Quote the offending value (`paths: "**/*.ts"`), fix the indentation, then rerun. The rule is loading unscoped until then |
 | `over-broad` | Matches most of the rule's base: the repository for a root rule, its subtree for a nested one | Advisory. Narrow it, or accept it and raise `--breadth-max` |
 
@@ -194,8 +195,10 @@ do about it**. The three failure statuses have different fixes and saying "inval
   reachability verdict is the false assurance the previous point warns about. `NATIVE` is the
   honest middle verdict, not a pass: it says only that nothing in the repository blocks the target,
   which is all a static check can see. `verify-load.sh` is what answers whether it actually loaded.
-- **Rules discovery follows symlinks and does not require git.** A symlinked rule points outside the
-  repository by design. That is the documented way to share one rule set across projects, so it is
+- **Rules discovery follows symlinks and does not require git.** A symlinked rule may point outside the
+  repository to share one rule set across projects
+  ([Share rules across projects with symlinks](https://code.claude.com/docs/en/memory#share-rules-across-projects-with-symlinks),
+  as of 2026-11-10; recheck when that section changes how a symlinked rule loads), so it is
   never tracked. Nested instruction files are the opposite: tracked-only, because an untracked or
   vendored `AGENTS.md` must never reach the consuming repository's always-loaded surface. If a rule
   seems missing from a report, check which of the two rules applies before assuming a bug.

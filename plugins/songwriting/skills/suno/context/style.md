@@ -18,7 +18,8 @@ The style/genre prompt tells Suno **what kind of song to make**. v5/v5.5 expande
 
 ## The 6-layer formula
 
-Order matters. Early tags are weighted more heavily.
+Lay the prompt out in this order. That early tags weigh more is rated LOW-MEDIUM, for terse
+comma-separated prompts only ([power-tips.md](power-tips.md)).
 
 ### Layer 1: Genre / subgenre
 

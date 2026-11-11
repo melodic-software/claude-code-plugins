@@ -63,8 +63,8 @@ The runtime scripts and their tools:
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`: grep, tr and awk (no jq)
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/conflict-scan.sh`: awk **and** sort (no jq)
 
-Only `conflict-scan.sh`, `instruction-scan.sh` and `permission-state.sh` probe for their tools; the rest call them with no
-guard, so read each script's actual calls rather than trusting a single script's prerequisite block to
+Most scripts that need `jq` probe for it, but only `conflict-scan.sh` and `instruction-scan.sh` probe
+for `awk` and `sort`; the rest call those with no guard, so read each script's actual calls rather than trusting a single script's prerequisite block to
 speak for the plugin.
 
 1. **`jq`**, from the pre-computed `jq` row. FAIL if absent: the JSON-parsing scripts need it (`inventory.sh` degrades
@@ -84,8 +84,10 @@ speak for the plugin.
    just `audit-instructions`. Report `awk` and `sort` by name rather than as one row, since a
    minimal shell can carry one and not the other.
 4. **Bash shell**, INFO: the scripts are bash (arrays, `[[ ]]`, process substitution, `BASH_SOURCE`),
-   run through Claude Code's Bash tool, which is the bash shell on every platform and Git Bash on native Windows.
-   Report the resolved interpreter; FAIL only if no bash is resolvable.
+   run through Claude Code's Bash tool. Report the resolved interpreter; FAIL only if no bash is
+   resolvable. Pointer: for which shell a platform's sessions get, native Windows included, fetch
+   [tools reference: PowerShell tool](https://code.claude.com/docs/en/tools-reference#powershell-tool)
+   live. As of: 2026-11-10. Recheck trigger: that section changes which shell a platform gets.
 5. **Network reachability**, INFO only: `audit`'s drift/freshness fetches read
    `raw.githubusercontent.com`, and a failed fetch degrades to SKIP rather than a setup failure. Do not
    fetch here; `check` performs no network call.

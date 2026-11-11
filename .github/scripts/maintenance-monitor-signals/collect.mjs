@@ -45,8 +45,8 @@ export const LIMITS = {
   // prints a hold (for pr-verify and pr-review-main, only a job whose `Note the
   // hold` ran; pr-merge's two jobs both), so at most 4 × 3 + 5 + 4 + 5 +
   // (2 × 6 + 20 + 40 + 80 + 70) × 2 + 80 × 3 calls while each other run has
-  // one such job. Past it, the span stops
-  // at the last run read and the window is a gap.
+  // one such job, plus one lane-hold marker list per lane (7). Past it, the
+  // span stops at the last run read and the window is a gap.
   holdRuns: 6,
   // Run list pages of 100 per hold lane, unless the lane sets its own
   // (HOLD_LANES listPages): intake-triage listed up to 151 green runs over the
@@ -146,7 +146,7 @@ export function parseJobsCarry(text, repo) {
   return new Map(data.runs.map((e) => [jobsKey(e.id, e.attempt), e]));
 }
 
-const NO_HELD = { runs: [], from: null, through: null };
+const NO_HELD = { runs: [], from: null, through: null, scanned: [] };
 const NO_EPISODES = { at: null, signals: {} };
 export const jobsCarryFile = (repo, runs, held = NO_HELD, episodes = NO_EPISODES) => JSON.stringify({ version: JOBS_VERSION, repository: repo, runs, held, episodes });
 
@@ -165,24 +165,29 @@ export function parseEpisodeCarry(text, repo, now) {
   return episodes.signals;
 }
 
-// The held runs the same file carries, {runs, from, through}: the runs, and
-// the unbroken span of completion times the lane read them over (null when
-// not known, as in a file written before it carried them), or an error for
-// any other shape.
+// The held runs the same file carries, {runs, from, through, scanned}: the
+// runs, the unbroken span of completion times the lane read them over (null
+// when not known, as in a file written before it carried them), and the runs
+// read with no hold, {lane, runId, at} by completion time (none in a file
+// written before it carried them), or an error for any other shape.
 export function parseHeldCarry(text, repo) {
   const data = JSON.parse(text);
   const held = data?.held ?? NO_HELD;
-  const entry = (h) =>
-    HOLD_LANES.some((l) => l.lane === h?.lane) &&
-    Number.isSafeInteger(h.runId) && h.runId > 0 &&
-    typeof h.url === "string" &&
-    (h.item === null || typeof h.item === "string") &&
-    typeof h.reason === "string" &&
-    typeof h.at === "string" && isTimeOrNull(h.at);
-  if (data?.repository !== repo || !Array.isArray(held?.runs) || !held.runs.every(entry) || !isTimeOrNull(held.from) || !isTimeOrNull(held.through)) {
+  const scanned = held?.scanned ?? [];
+  const scannedEntry = (h) => HOLD_LANES.some((l) => l.lane === h?.lane) && Number.isSafeInteger(h.runId) && h.runId > 0 && typeof h.at === "string" && isTimeOrNull(h.at);
+  const entry = (h) => scannedEntry(h) && typeof h.url === "string" && (h.item === null || typeof h.item === "string") && typeof h.reason === "string";
+  if (
+    data?.repository !== repo ||
+    !Array.isArray(held?.runs) ||
+    !held.runs.every(entry) ||
+    !isTimeOrNull(held.from) ||
+    !isTimeOrNull(held.through) ||
+    !Array.isArray(scanned) ||
+    !scanned.every(scannedEntry)
+  ) {
     throw new Error("the carried held runs have an unexpected shape");
   }
-  return { runs: held.runs, from: held.from, through: held.through };
+  return { runs: held.runs, from: held.from, through: held.through, scanned };
 }
 
 // `carriedJobs` is the last run's job reads (parseJobsCarry). A completed
@@ -528,21 +533,30 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
   // code that completed in the window, whose hold job succeeded with a hold
   // notice or warning (signals.mjs parseHold), one entry per run,
   // added to the carried ones still inside the rule's window. A run already
-  // carried is not read again, nor counted against LIMITS.holdRuns. The carry
-  // also records the span it was read over, which ends at the last run read
+  // carried is not read again, nor counted against LIMITS.holdRuns, and nor is
+  // a run carried as read with no hold while its completion time is the one
+  // carried: a new attempt is read again. Those runs are carried while they
+  // completed inside the run list's lookback from this window, the oldest the
+  // next run can list. The carry also records the span it was read over,
+  // which ends at the last run read
   // when a lane had more than the cap. It stays unbroken when the last run
   // read through a time inside the run list's lookback: runs that completed
   // since then are read, so a late cron loses none. Otherwise (no carry, a
-  // stale one, a failed read) it starts again at this window. An unread rule,
-  // a lane over the cap, or a span shorter than the rule's window, is a gap,
-  // so signal 13's issue neither clears nor files from part of its window;
-  // the carried runs still go on to the next run.
+  // stale one, a failed read) it starts again at this window. An unread rule
+  // is a gap that leaves signal 13 unread. A lane over the cap, or a span
+  // shorter than the rule's window, is a partly-read gap: holds read in part
+  // of the window are a floor on the whole window's, so a lane at the
+  // threshold still files or keeps its issue, but the issue never clears on
+  // such a read. The carried runs still go on to the next run.
   const heldRuns = new Map();
+  const scannedRuns = new Map();
+  const listedRuns = new Map();
   let heldFrom = null;
   let heldThrough = null;
   if (holds) {
     const { carried } = holds;
     for (const h of carried?.runs ?? []) heldRuns.set(`${h.lane}:${h.runId}`, h);
+    for (const s of carried?.scanned ?? []) scannedRuns.set(`${s.lane}:${s.runId}`, s);
     const through = Date.parse(carried?.through);
     const unbroken = carried?.from && through >= windowStart.getTime() - RUN_LOOKBACK_HOURS * 3600_000 && through <= now.getTime();
     heldFrom = unbroken ? carried.from : iso(windowStart);
@@ -572,8 +586,9 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
             if (page >= listPages) throw new Error(`over ${listPages * 100} ${status === "success" ? "green" : "red"} runs of ${lane} listed; the oldest were not read`);
           }
         }
+        listedRuns.set(lane, new Map([...runs].filter(([, r]) => defaultBranchCode(r) && ownHead(r))));
         const unread = [...runs.values()]
-          .filter((r) => defaultBranchCode(r) && ownHead(r) && completedSince(r) && !heldRuns.has(`${lane}:${r.id}`))
+          .filter((r) => defaultBranchCode(r) && ownHead(r) && completedSince(r) && !heldRuns.has(`${lane}:${r.id}`) && scannedRuns.get(`${lane}:${r.id}`)?.at !== r.updated_at)
           .sort((a, b) => Date.parse(a.updated_at) - Date.parse(b.updated_at));
         if (unread.length > cap) {
           readThrough = Math.min(readThrough, Date.parse(unread[cap - 1].updated_at));
@@ -593,7 +608,11 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
               if (hold) found.push(hold);
             }
           }
-          if (found.length === 0) continue;
+          if (found.length === 0) {
+            scannedRuns.set(key, { lane, runId: run.id, at: run.updated_at });
+            continue;
+          }
+          scannedRuns.delete(key);
           heldRuns.set(key, {
             lane,
             runId: run.id,
@@ -612,14 +631,48 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
         if (at < since || at > now.getTime()) heldRuns.delete(key);
       }
       data.holdRule = holds.rule;
-      if (cut.length > 0) {
-        throw new Error(`over the cap of unread green runs of ${cut.join(", ")}; held runs read only through ${heldThrough}`);
-      }
-      if (Date.parse(heldFrom) > since) throw new Error(`held runs read only since ${heldFrom}, short of the ${holds.rule.windowHours}-hour window`);
+      const partly = [];
+      if (cut.length > 0) partly.push(`over the cap of unread green runs of ${cut.join(", ")}; held runs read only through ${heldThrough}`);
+      if (Date.parse(heldFrom) > since) partly.push(`held runs read only since ${heldFrom}, short of the ${holds.rule.windowHours}-hour window`);
+      if (partly.length > 0) gaps.push(`lane holds partly read: ${partly.join("; ")}`);
     });
+
+    // The lane-hold-<lane> artifact each hold job keeps for a day when it held
+    // (lib/lane-hold-marker.mjs): one list call per lane, newest 100. A marker
+    // counts only for a run the lane's listing above holds, so it passes the
+    // same trust and status checks, and only for a run the scan did not find
+    // held, whose read reason stands. It reaches the runs the scan's cap
+    // leaves unread. Past 100 markers the newest stand as a floor: that many
+    // is over any threshold. A lane with no listing is the scan's gap.
+    if (!(holds.rule instanceof Error)) {
+      await source("lane hold markers", async () => {
+        const since = now.getTime() - holds.rule.windowHours * 3600_000;
+        for (const { lane } of HOLD_LANES) {
+          const runs = listedRuns.get(lane);
+          if (!runs) continue;
+          const { artifacts = [] } = await get(`/repos/${repo}/actions/artifacts?name=lane-hold-${lane}&per_page=100`);
+          for (const a of artifacts) {
+            const run = !a.expired && runs.get(a.workflow_run?.id);
+            const at = Date.parse(run?.updated_at);
+            if (!run || at < since || at > now.getTime() || heldRuns.has(`${lane}:${run.id}`)) continue;
+            scannedRuns.delete(`${lane}:${run.id}`);
+            heldRuns.set(`${lane}:${run.id}`, { lane, runId: run.id, url: run.html_url, item: null, reason: "hold marker", at: run.updated_at });
+          }
+        }
+      });
+    }
   }
   data.laneHolds = [...heldRuns.values()].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, LIMITS.holdsKept);
-  data.heldCarry = { runs: data.laneHolds, from: heldThrough ? heldFrom : null, through: heldThrough };
+  const listedSince = windowStart.getTime() - RUN_LOOKBACK_HOURS * 3600_000;
+  const scanned = [...scannedRuns.values()].filter((s) => {
+    const at = Date.parse(s.at);
+    return at >= listedSince && at <= now.getTime();
+  });
+  // Marker-only holds are carried like the rest: the run listing reaches back
+  // only about 7 h, so the carry is what keeps a marked hold in the 24-hour
+  // count. Its reason stays "hold marker"; the scan reads forward from its
+  // last read and does not come back for it.
+  data.heldCarry = { runs: data.laneHolds, from: heldThrough ? heldFrom : null, through: heldThrough, scanned };
 
   // Open pull requests whose head carries a stop the pr-unblock lane routed to
   // a failing status (its lane-stopped comment, by the lanes App, names the

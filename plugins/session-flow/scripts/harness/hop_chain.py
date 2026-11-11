@@ -386,9 +386,11 @@ def fill_skeleton(path: Path, hop: int, size: FillerSize) -> None:
     lines = path.read_text(encoding="utf-8").split("\n")
     # Shape 3 ids its open questions and decisions; each hop rewrites the same ids,
     # their prior text staying in the hop file.
-    ids = {"open-questions": "Q", "decisions": "D"}
-    if frontmatter_value(path, "handoff_shape") != "3":
-        ids = {}
+    ids = (
+        {"open-questions": "Q", "decisions": "D"}
+        if frontmatter_value(path, "handoff_shape") == "3"
+        else {}
+    )
     out: list[str] = []
     counter = 0
     for line in lines:
@@ -467,16 +469,10 @@ def fill_skeleton(path: Path, hop: int, size: FillerSize) -> None:
                 for i in range(count)
             )
             continue
-        if slot.endswith("-new") and slot[: -len("-new")] in CUMULATIVE_SLOTS:
-            base = slot[: -len("-new")]
+        base = slot.removesuffix("-new")
+        if base in CUMULATIVE_SLOTS:
             out.extend(
                 f"- [h{hop}] {filler_line(base, counter + i, CUMULATIVE_ENTRY_WIDTH)}"
-                for i in range(CUMULATIVE_ENTRIES_PER_HOP)
-            )
-            continue
-        if slot in CUMULATIVE_SLOTS:
-            out.extend(
-                f"- [h{hop}] {filler_line(slot, counter + i, CUMULATIVE_ENTRY_WIDTH)}"
                 for i in range(CUMULATIVE_ENTRIES_PER_HOP)
             )
             continue
@@ -516,13 +512,14 @@ def size_filler(skeleton_lines: int, skeleton_chars: int, slots: int) -> FillerS
 
 def measure_skeleton(path: Path) -> tuple[int, int, int]:
     """Lines, characters, and padded-slot count of a skeleton, FILL lines aside."""
-    lines = path.read_text(encoding="utf-8").split("\n")
-    kept = [line for line in lines if FILL_RE.search(line) is None]
-    slots = sum(
-        1
-        for line in lines
-        if (m := FILL_RE.search(line)) is not None and m.group(1) in PADDED_SLOTS
-    )
+    kept: list[str] = []
+    slots = 0
+    for line in path.read_text(encoding="utf-8").split("\n"):
+        match = FILL_RE.search(line)
+        if match is None:
+            kept.append(line)
+        elif match.group(1) in PADDED_SLOTS:
+            slots += 1
     return len(kept), len("\n".join(kept)), max(slots, 1)
 
 
@@ -592,6 +589,14 @@ def load_transcript(session_id: str, projects_root: Path) -> Transcript:
     return Transcript(Path(hits[0]), list(iter_records(Path(hits[0]))))
 
 
+def _assistant_blocks(record: dict) -> list:
+    """The content blocks of an assistant record; empty for any other record."""
+    if record.get("type") != "assistant":
+        return []
+    content = (record.get("message") or {}).get("content")
+    return content if isinstance(content, list) else []
+
+
 def _tool_uses(records: list[dict]):
     """Yield ((record index, block ordinal), record, block) per tool_use.
 
@@ -601,14 +606,8 @@ def _tool_uses(records: list[dict]):
     the two compared equal and the ordering check passed.
     """
     for index, record in enumerate(records):
-        if record.get("type") != "assistant":
-            continue
-        message = record.get("message") or {}
-        content = message.get("content")
-        if not isinstance(content, list):
-            continue
         ordinal = 0
-        for block in content:
+        for block in _assistant_blocks(record):
             if isinstance(block, dict) and block.get("type") == "tool_use":
                 yield (index, ordinal), record, block
                 ordinal += 1
@@ -617,12 +616,7 @@ def _tool_uses(records: list[dict]):
 def final_assistant_text(records: list[dict]) -> str:
     text = ""
     for record in records:
-        if record.get("type") != "assistant":
-            continue
-        message = record.get("message") or {}
-        content = message.get("content")
-        if not isinstance(content, list):
-            continue
+        content = _assistant_blocks(record)
         parts = [
             b.get("text") or ""
             for b in content
@@ -710,8 +704,7 @@ def assess_hop(
     row.num_turns = str(result.get("num_turns", ""))
     cost = result.get("total_cost_usd")
     row.cost_usd = f"{cost:.4f}" if isinstance(cost, (int, float)) else ""
-    for name in CHECKS:
-        row.checks[name] = "FAIL"
+    row.checks = dict.fromkeys(CHECKS, "FAIL")
 
     if row.subtype and row.subtype != "success":
         row.reasons.append(f"result subtype {row.subtype}")
@@ -1035,10 +1028,8 @@ def live_runner(cfg: argparse.Namespace):
             )
         except subprocess.TimeoutExpired:
             kill_tree(process)
-            try:
+            with contextlib.suppress(subprocess.TimeoutExpired):
                 process.communicate(timeout=30)
-            except subprocess.TimeoutExpired:
-                pass
             return {
                 "subtype": "error_timeout",
                 "result": "",
@@ -1064,6 +1055,7 @@ def execute_chain(
     session_ids: list[str] = []
     fixtures: list[Path] = []
     sessions_per_run = cfg.hops + 1
+    model = cfg.model or ""
 
     for run in range(1, cfg.runs + 1):
         fixture = make_fixture(work_dir, run, cfg.pad_context)
@@ -1086,7 +1078,7 @@ def execute_chain(
                 run=run,
                 hop=hop,
                 session_id=session_id,
-                model=cfg.model or "",
+                model=model,
                 result=result,
                 fixture=fixture,
                 before=before,
@@ -1097,7 +1089,7 @@ def execute_chain(
             if not row.passed:
                 _keep_failed_transcript(session_id, projects_root, work_dir, run, hop)
             if rails_text is None:
-                rows.extend(_skipped_rows(run, hop, sessions_per_run, cfg.model or ""))
+                rows.extend(_skipped_rows(run, hop, sessions_per_run, model))
                 break
             prompt = rails_text
 

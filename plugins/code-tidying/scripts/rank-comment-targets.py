@@ -60,7 +60,8 @@ import re
 import subprocess
 import sys
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
+from functools import lru_cache
 from pathlib import Path
 
 EXIT_NOT_GIT = 1
@@ -72,11 +73,15 @@ ADMIN = re.compile(
     re.IGNORECASE,
 )
 CENSUS = Path(__file__).with_name("comment-census.py")
+FAN_IN_GREP = (
+    *"grep -I -o -h -w -F -f - --".split(),
+    *(f"*.{ext}" for ext in "sh py ts tsx js mjs cs yml yaml toml json md ps1".split()),
+)
 
 
-def git(*args: str, cwd: str = ".") -> str:
+def git(*args: str, input: str | None = None) -> str:
     return subprocess.run(
-        ["git", *args], capture_output=True, text=True, check=False, cwd=cwd
+        ["git", *args], input=input, capture_output=True, text=True, check=False
     ).stdout
 
 
@@ -109,19 +114,10 @@ def rank_norm(values: dict[str, float]) -> dict[str, float]:
 def generated_paths(paths: list[str]) -> set[str]:
     if not paths:
         return set()
-    proc = subprocess.run(
-        ["git", "check-attr", "--stdin", "-z", "linguist-generated"],
-        input="\0".join(paths) + "\0",
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    out: set[str] = set()
-    fields = proc.stdout.split("\0")
-    for i in range(0, len(fields) - 2, 3):
-        if fields[i + 2] in ("set", "true"):
-            out.add(fields[i])
-    return out
+    stdin = "\0".join(paths) + "\0"
+    attrs = git("check-attr", "--stdin", "-z", "linguist-generated", input=stdin)
+    fields = attrs.split("\0")
+    return {p for p, v in zip(fields[::3], fields[2::3]) if v in ("set", "true")}
 
 
 def census_records() -> tuple[dict[str, dict], dict]:
@@ -182,55 +178,19 @@ def fan_in(paths: list[str]) -> dict[str, int]:
     names = sorted({os.path.basename(p) for p in paths})
     if not names:
         return {}
-    proc = subprocess.run(
-        [
-            "git",
-            "grep",
-            "-I",
-            "-o",
-            "-h",
-            "-w",
-            "-F",
-            "-f",
-            "-",
-            "--",
-            "*.sh",
-            "*.py",
-            "*.ts",
-            "*.tsx",
-            "*.js",
-            "*.mjs",
-            "*.cs",
-            "*.yml",
-            "*.yaml",
-            "*.toml",
-            "*.json",
-            "*.md",
-            "*.ps1",
-        ],
-        input="\n".join(names) + "\n",
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    counts: dict[str, int] = defaultdict(int)
-    for line in proc.stdout.splitlines():
-        counts[line] += 1
+    counts = Counter(git(*FAN_IN_GREP, input="\n".join(names) + "\n").splitlines())
     out = {}
     for p in paths:
-        own = 0
+        name = os.path.basename(p)
         try:
-            own = (
-                Path(p)
-                .read_text(encoding="utf-8", errors="replace")
-                .count(os.path.basename(p))
-            )
+            own = Path(p).read_text(encoding="utf-8", errors="replace").count(name)
         except OSError:
-            pass
-        out[p] = max(0, counts.get(os.path.basename(p), 0) - own)
+            own = 0
+        out[p] = max(0, counts[name] - own)
     return out
 
 
+@lru_cache(maxsize=None)
 def _census_is_comment_token():
     """Load comment-census.is_comment_token once so drift lines match the census."""
     import importlib.util
@@ -243,22 +203,16 @@ def _census_is_comment_token():
     return mod.is_comment_token
 
 
-_IS_COMMENT_TOKEN = None
-
-
 def comment_line_numbers(path: str) -> set[int]:
-    global _IS_COMMENT_TOKEN
     try:
         from pygments import lex
         from pygments.lexers import get_lexer_for_filename
     except ImportError:
         return set()
-    if _IS_COMMENT_TOKEN is None:
-        try:
-            _IS_COMMENT_TOKEN = _census_is_comment_token()
-        except Exception:  # noqa: BLE001 - census import failed; no comment lines to report
-            return set()
-    is_comment = _IS_COMMENT_TOKEN
+    try:
+        is_comment = _census_is_comment_token()
+    except Exception:  # noqa: BLE001 - census import failed; no comment lines to report
+        return set()
     try:
         lexer = get_lexer_for_filename(path, stripnl=False)
     except Exception:  # noqa: BLE001 - unknown extension means no comment lines to report
@@ -411,12 +365,12 @@ def main(argv: list[str] | None = None) -> int:
     for p in rows:
         r = records[p]
         lines = max(1, r.get("lines", 0))
-        a = sum(weighted.get(q, 0.0) for q in by_hash[r["sha256"]])
-        raw_a = sum(raw.get(q, 0.0) for q in by_hash[r["sha256"]])
-        auth = defaultdict(int)
-        for q in by_hash[r["sha256"]]:
-            for who, n in authors.get(q, {}).items():
-                auth[who] += n
+        copies = by_hash[r["sha256"]]
+        a = sum(weighted.get(q, 0.0) for q in copies)
+        raw_a = sum(raw.get(q, 0.0) for q in copies)
+        auth: Counter[str] = Counter()
+        for q in copies:
+            auth.update(authors.get(q, {}))
         total = sum(auth.values())
         diffusion = 1 - (max(auth.values()) / total) if total else 0.0
         expected = median.get(r.get("language", "?"), 0.0) * lines

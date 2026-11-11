@@ -152,5 +152,5 @@ reporting the lane as if nothing were partitioned.
 
 ## Known limits
 
-Not implemented: the 64 KiB cap, body-file containment, and read retries that the `harness-ops`
+Not implemented: the 64 KiB cap and read retries that the `harness-ops`
 lanes wrapper carries.

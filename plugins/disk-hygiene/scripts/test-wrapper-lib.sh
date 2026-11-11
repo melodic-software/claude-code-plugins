@@ -49,7 +49,7 @@ test_wrapper::interpreter_to() {
   for _test_wrapper_candidate in python python3; do
     if command -v "$_test_wrapper_candidate" >/dev/null 2>&1; then
       _test_wrapper_interpreter="$_test_wrapper_candidate"
-      return 0
+      break
     fi
   done
   return 0

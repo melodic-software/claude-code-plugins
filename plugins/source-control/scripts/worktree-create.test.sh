@@ -18,9 +18,9 @@ command -v git >/dev/null 2>&1 || skip_suite "git not available"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-# `fresh` may fetch. Only local-path remotes are reachable from this suite, so a
-# fixture that misses the FETCH_HEAD seed fails its fetch at once instead of
-# dialing one of the placeholder github.com / gitlab.com URLs.
+# `fresh` fetches on every run. Only local-path remotes are reachable from this
+# suite, so a fetch from one of the placeholder github.com / gitlab.com URLs
+# fails at once instead of dialing out, and `fresh` bases on the seeded ref.
 export GIT_ALLOW_PROTOCOL=file
 
 # TEST_TMPDIR_NATIVE — a drive-letter-anchored form of TEST_TMPDIR on a Windows
@@ -109,9 +109,6 @@ mkrepo() {
         # Point <remote>/HEAD at main without a network fetch so `fresh` resolves.
         git -C "$repo" update-ref "refs/remotes/$remote_name/main" "$(git -C "$repo" rev-parse HEAD)"
         git -C "$repo" symbolic-ref "refs/remotes/$remote_name/HEAD" "refs/remotes/$remote_name/main"
-        # A just-written FETCH_HEAD reads as "fetched moments ago", so `fresh`
-        # skips its refresh fetch and these fixture URLs are never contacted.
-        : >"$repo/.git/FETCH_HEAD"
       fi
     fi
   } >/dev/null 2>&1
@@ -747,12 +744,10 @@ stalerepo() {
 }
 
 # --- Case: fresh refreshes a stale cached origin/HEAD before basing (#4249) ---
-# The clone's origin/main is one commit behind and FETCH_HEAD is decades old,
-# so `fresh` must fetch; right after creation the worktree is 0 behind the
-# remote branch, the issue's own verification.
+# The clone's origin/main is one commit behind, so `fresh` must fetch; right
+# after creation the worktree is 0 behind the remote branch, the issue's own
+# verification.
 repo=$(stalerepo "$TEST_TMPDIR/stale-remote.git")
-: >"$repo/.git/FETCH_HEAD"
-touch -t 200001010000 "$repo/.git/FETCH_HEAD"
 root="$TEST_TMPDIR/wtroot-stale"
 errfile="$TEST_TMPDIR/err-stale.txt"
 out=$(bash "$HELPER" --name feat/stale --root "$root" --base-ref fresh --repo-dir "$repo" 2>"$errfile")
@@ -770,15 +765,16 @@ repo=$(stalerepo "$TEST_TMPDIR/stale-remote-nofh.git")
 rm -f "$repo/.git/FETCH_HEAD"
 root="$TEST_TMPDIR/wtroot-stale-nofh"
 out=$(bash "$HELPER" --name feat/stale-nofh --root "$root" --base-ref fresh --repo-dir "$repo" 2>/dev/null)
-assert_file_exists "no FETCH_HEAD counts as stale and fetches" "$out/REMOTE_ONLY.md"
+assert_file_exists "a clone with no FETCH_HEAD fetches" "$out/REMOTE_ONLY.md"
 
-# --- Case: a fetch inside the 24-hour window is trusted, not repeated ---
+# --- Case: a fetch moments ago does not skip the refresh ---
 repo=$(stalerepo "$TEST_TMPDIR/stale-remote-recent.git")
 : >"$repo/.git/FETCH_HEAD"
 root="$TEST_TMPDIR/wtroot-stale-recent"
-out=$(bash "$HELPER" --name feat/stale-recent --root "$root" --base-ref fresh --repo-dir "$repo" 2>/dev/null)
-assert_file_exists "recent-fetch worktree materializes" "$out/README.md"
-assert_file_absent "a recent FETCH_HEAD skips the refresh fetch" "$out/REMOTE_ONLY.md"
+errfile="$TEST_TMPDIR/err-stale-recent.txt"
+out=$(bash "$HELPER" --name feat/stale-recent --root "$root" --base-ref fresh --repo-dir "$repo" 2>"$errfile")
+assert_file_exists "a recent FETCH_HEAD still fetches" "$out/REMOTE_ONLY.md"
+assert_contains "a refreshed base reports fresh" "$(cat "$errfile")" "(base fresh)"
 
 # --- Case: a failed refresh warns and keeps the cached ref (offline still works) ---
 repo=$(stalerepo "$TEST_TMPDIR/stale-remote-gone.git")
@@ -791,6 +787,8 @@ assert_exit "failed refresh still succeeds" 0 "$?"
 assert_file_exists "failed refresh bases on the cached ref" "$out/README.md"
 assert_file_absent "failed refresh cannot carry the remote-only commit" "$out/REMOTE_ONLY.md"
 assert_contains "failed refresh warns it could not refresh" "$(cat "$errfile")" "could not refresh origin/main"
+assert_contains "failed refresh reports the cached base commit, not fresh" "$(cat "$errfile")" \
+  "(base origin/main@$(git -C "$repo" rev-parse --short origin/main 2>/dev/null), not refreshed)"
 
 # --- Case: a hung refresh is abandoned at the 5-second cap ---
 # An ssh transport whose "ssh" only sleeps stands in for an unreachable host;

@@ -29,14 +29,10 @@ sha256_jq_stdin() {
 
 # section_digest <file> <open heading line> <close heading line>
 # sha256 of everything strictly BETWEEN the two heading lines, each matched as a WHOLE
-# LINE. Whole-line matching is load-bearing, not tidiness: a prefix match let a crafted
-# heading MOVE the region's own boundary. Appending
-# `### Step 2 — Drive the frontier-rounds loop, and how to read Step 1.5 before it` plus an
-# override paragraph as the last thing inside Step 1.5 closed the region early under a
-# prefix match, so the override fell outside the hash and the suite stayed green. Under
-# whole-line matching that crafted heading is just another line inside the region, and the
-# digest changes. `pin_section` additionally requires each boundary to occur EXACTLY ONCE,
-# so a duplicated heading cannot truncate the region either.
+# LINE: under a prefix match, a crafted heading that starts like the close heading (plus an
+# override paragraph after it) ends the region early, so the override falls outside the hash.
+# `pin_section` also requires each boundary to occur EXACTLY ONCE, so a duplicated heading
+# cannot truncate the region either.
 #
 # `close` is a builtin in mawk (and `open` reads badly beside it), so the awk variables are
 # named h_open / h_close: assigning to a builtin name is a run-time error, not a warning,

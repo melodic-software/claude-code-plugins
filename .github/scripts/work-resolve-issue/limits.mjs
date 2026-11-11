@@ -24,6 +24,8 @@ export const LIMIT_DEFAULTS = Object.freeze({
   "reset-clamp-min": 1,
   "reset-clamp-max": 168,
   "restarts-per-run": 5,
+  "refire-queue-per-slot": 2,
+  "sweep-gap-minutes": 15,
   "readmit-per-run": 20,
   "parent-rescan-per-run": 5,
   "limit-stops-per-head": 3,
@@ -33,7 +35,7 @@ export const LIMIT_DEFAULTS = Object.freeze({
   "stop-retries": 2,
 });
 // The leaves 0 is a valid value of; every other leaf is at least 1.
-const ZERO_ALLOWED = new Set(["turn-cap-restarts", "stop-retries"]);
+const ZERO_ALLOWED = new Set(["turn-cap-restarts", "stop-retries", "sweep-gap-minutes"]);
 
 // Every leaf, each set integer within its range over its default.
 export const resolveLimits = (limits) =>
@@ -48,7 +50,8 @@ export function readLimits(path) {
 
 // The `limits.stranded-backoff-hours` leaf: per cause work-unblock's sweep
 // re-fires a stranded issue for, the base hours of its backoff, doubled once
-// per re-fire already counted and held at STRANDED_BACKOFF_MAX.
+// per re-fire already counted and held at STRANDED_BACKOFF_MAX; kill-switch's
+// hours are a flat wait that never doubles.
 export const STRANDED_BACKOFF_MAX = 24;
 export const STRANDED_BACKOFF_DEFAULTS = Object.freeze({
   "no-run": 3,

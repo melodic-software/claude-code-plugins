@@ -46,11 +46,13 @@ excluded path, or delete text without a landing place (staging rule below).
 | **0** | Class-A deletion | `change-shape.py` verdict **COMMENT-ONLY** | The comment-stripped token sequence is identical, so no code token moved. Exhaustive over the file; needs no tests, no build, no config |
 | **1** | Rename Variable / Rename Field on a function-local identifier | verdict **RENAME-ONLY** under one consistent mapping, and the identifier is neither exported nor public | A shape claim: every differing token is an identifier under one injective old→new mapping, no old name survives at an unchanged position, and no new name was already in use in the file. It cannot see other files, reflection, or string-keyed access, so it earns application plus a flagged review line in the report, never silence |
 | **2** | Additive local move: Extract Variable, Replace Magic Literal, Introduce Assertion, Slide Statements, Decompose Conditional, Replace Nested Conditional with Guard Clauses, Introduce Special Case | discovered test net, run before and after | These add tokens, so the token proof reports CODE-CHANGED by construction and cannot certify them. Only tests attest behavior preservation here |
-| **3** | Interface-creating move: Extract Function, Change Function Declaration, Extract Class, Introduce Parameter Object, Move Statements into Function, Replace Inline Code with Function Call, Inline Function | discovered test net, and **always a proposal in a non-interactive run** | Creates or renames an interface other code depends on. Ousterhout (APOSD §9.8) and Anthropic's own overeagerness guidance both warn against automating exactly this; the test net is necessary, not sufficient |
+| **3** | Interface-creating move: Extract Function, Change Function Declaration, Extract Class, Introduce Parameter Object, Move Statements into Function, Replace Inline Code with Function Call, Inline Function, Encode in a Type | discovered test net, and **always a proposal in a non-interactive run** | Creates or renames an interface other code depends on. Ousterhout (APOSD §9.8) and Anthropic's own overeagerness guidance both warn against automating exactly this; the test net is necessary, not sufficient |
 
-`change-shape.py` is at `../../../scripts/change-shape.py` (relative to this file; the
-`${CLAUDE_PLUGIN_ROOT}` token is substituted in `SKILL.md` but **not** in a reference file, which
-arrives through the Read tool with the placeholder intact) and carries its verdict in
+`change-shape.py` is at `../../../scripts/change-shape.py` (relative to this file, never through
+the `${CLAUDE_PLUGIN_ROOT}` token; pointer for where that token is substituted:
+[Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions),
+As of: 2026-11-10, Recheck trigger: that section changes where plugin variables are substituted)
+and carries its verdict in
 the exit code: 0 COMMENT-ONLY, 10 RENAME-ONLY, 20 CODE-CHANGED, 21 UNPROVABLE, 3 tooling
 unavailable, **2 no grammar mapping for the file's extension, or no PowerShell host for a
 `.ps1`/`.psm1` file** (or a usage error). Run it against

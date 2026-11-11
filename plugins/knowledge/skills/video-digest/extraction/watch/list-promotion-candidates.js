@@ -31,6 +31,16 @@ const MIN_CANDIDATES_PER_SESSION = 3;
  */
 
 /**
+ * @param {number|null} ts
+ * @param {{ startSec: number, endSec?: number | null }} session an open-ended session runs to the video's end
+ * @param {number} durationSec
+ * @returns {boolean}
+ */
+function inSession(ts, session, durationSec) {
+  return ts != null && ts >= session.startSec && ts <= (session.endSec ?? durationSec);
+}
+
+/**
  * @param {string} sliceDir
  * @returns {PromotionCandidate[]}
  */
@@ -58,9 +68,7 @@ export function listPromotionCandidates(sliceDir) {
       const frame = byFile[cell.frame];
       if (!frame) continue;
       const ts = frame.timestampSec ?? null;
-      const session =
-        sessions.find((s) => ts != null && ts >= s.startSec && ts <= (s.endSec ?? durationSec))
-          ?.name ?? "unknown";
+      const session = sessions.find((s) => inSession(ts, s, durationSec))?.name ?? "unknown";
 
       const existing = candidates.get(cell.frame);
       const score = frame.priorityScore ?? 0;
@@ -81,21 +89,19 @@ export function listPromotionCandidates(sliceDir) {
   const triaged = [...candidates.values()];
 
   for (const session of sessions) {
-    const end = session.endSec ?? durationSec;
-    const inSession = triaged.filter(
-      (c) => c.timestampSec != null && c.timestampSec >= session.startSec && c.timestampSec <= end,
-    );
-    if (inSession.length < MIN_CANDIDATES_PER_SESSION) {
+    const triagedCount = triaged.filter((c) =>
+      inSession(c.timestampSec, session, durationSec),
+    ).length;
+    if (triagedCount < MIN_CANDIDATES_PER_SESSION) {
       const extras = selection.selectedFrames
         .filter(
           (f) =>
             Number.isFinite(f.timestampSec) &&
-            f.timestampSec >= session.startSec &&
-            f.timestampSec <= end &&
+            inSession(f.timestampSec, session, durationSec) &&
             !candidates.has(f.file),
         )
         .sort((a, b) => b.priorityScore - a.priorityScore)
-        .slice(0, MIN_CANDIDATES_PER_SESSION - inSession.length);
+        .slice(0, MIN_CANDIDATES_PER_SESSION - triagedCount);
       for (const frame of extras) {
         candidates.set(frame.file, {
           sourceFile: frame.file,

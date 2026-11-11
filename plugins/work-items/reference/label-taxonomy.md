@@ -62,8 +62,8 @@ lane pass. A present malformed, empty, or non-string entry is a configuration er
 fall back silently. Two constraints on remapping:
 
 - **`human-gated` is shared with the seam.** `list-frontier --autonomous` excludes items by that
-  label, and the shipped seam reads `needs-human`; remap this role only when the bound seam
-  resolves the same `config.role_labels` key, or the frontier filter and the skill will disagree.
+  label. The shipped seam resolves it from `config.role_labels`; a consumer-local adapter must
+  resolve the same key, or the frontier filter and the skill will disagree.
 - **The remapped label must exist** in the consuming repo (or route through its label-as-code
   owner), the same never-create-ad-hoc rule as every other label.
 

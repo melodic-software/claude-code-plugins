@@ -150,12 +150,18 @@ def _time(text: Any) -> datetime | None:
         return None
 
 
+def _malformed(text: str) -> bool:
+    """Whether a limit is neither empty nor a whole number."""
+    text = text.strip()
+    return text not in ("", "null") and not re.fullmatch(r"[0-9]{1,6}", text)
+
+
 def limit(text: str | None, default: int) -> int:
     """A `merge.skip-unchanged` limit: empty is `default`, a whole number is
     itself, anything else is 0 (off)."""
     if text is None or text.strip() in ("", "null"):
         return default
-    return int(text) if re.fullmatch(r"[0-9]{1,6}", text.strip()) else 0
+    return 0 if _malformed(text) else int(text)
 
 
 # --- Reads ---------------------------------------------------------------
@@ -536,9 +542,7 @@ def run_filter(args: argparse.Namespace) -> int:
         ("max-minutes", args.max_minutes),
         ("max-skips", args.max_skips),
     ):
-        if text.strip() not in ("", "null") and not re.fullmatch(
-            r"[0-9]{1,6}", text.strip()
-        ):
+        if _malformed(text):
             print(
                 f"::warning::merge.skip-unchanged.{name} is not a whole number; no candidate is skipped"
             )

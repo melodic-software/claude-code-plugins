@@ -108,10 +108,14 @@ the repository's ignored entries as live.
 - **As of**: 2026-10-10
 - **Recheck trigger**: that section changes its ignore table or the settings sources it still reads.
 
-**Platform limit. Check before recommending it.** The sandbox runs on macOS, Linux, and WSL2; native
-Windows is not supported, and the PowerShell tool lists "On Windows, sandboxing is not supported"
-([tools reference](https://code.claude.com/docs/en/tools-reference)) among its preview limitations. On a native-Windows workstation the OS-level remedy is unavailable, so
-do not offer it there as the fix.
+**Platform limit. Check before recommending it.** Do not offer the sandbox as the fix on a
+native-Windows workstation, where we treat the OS-level remedy as unavailable.
+
+- **Pointer**: before recommending the sandbox, fetch
+  [tools reference: preview limitations](https://code.claude.com/docs/en/tools-reference#preview-limitations)
+  live for the native-Windows status.
+- **As of**: 2026-11-10
+- **Recheck trigger**: that section stops listing sandboxing as unsupported on Windows.
 
 **A `PreToolUse` hook on `Bash|PowerShell` is a speed bump, not a boundary, *against this threat
 model*.** It can inspect the command string and deny the call, and a hook exiting 2 blocks a call an
@@ -129,16 +133,17 @@ carry "rank it below the sandbox" into a destructive-git finding. See that secti
 
 **Residual risk, stated plainly.** Where no OS-level boundary is available, a deny glob cannot keep a
 secret from a session that has shell execution. **Directory location is a fence for the file tools,
-not for an arbitrary subprocess.** From Claude Code 2.1.257,
-`permissions.blockReadsOutsideWorkingDirectories` stops Read, Grep, Glob, and LSP from reading
-paths outside the working directories, in every permission mode including `bypassPermissions`. Auto
-mode offers to turn that block on before the first such read. A Bash command that reads a matching
-path through a recognized file command, such as `cat`, prompts even in auto mode and
-`bypassPermissions`. A command the shell parser cannot trace prompts even when it names no outside
-path. A Python or Node script that opens the path itself is still not fenced by the setting.
-**Claim, basis, as of, recheck:** that paragraph,
-[settings-reference](https://code.claude.com/docs/en/settings-reference#permissions-blockreadsoutsideworkingdirectories),
-2026-09-28, and a re-fetch of that section that changes which tools the block covers. Moving a
+not for an arbitrary subprocess.** `permissions.blockReadsOutsideWorkingDirectories` is that
+fence; which tools, permission modes and Bash commands it covers is read live from the pointer
+below, and we never report it as fencing a Python or Node script that opens the path itself.
+
+- **Pointer**: when judging what the outside-directory block covers, fetch
+  [permissions: block file-tool reads and writes outside the working directories](https://code.claude.com/docs/en/permissions#block-file-tool-reads-and-writes-outside-the-working-directories)
+  live.
+- **As of**: 2026-11-10
+- **Recheck trigger**: that section changes which tools, modes or commands the block covers.
+
+Moving a
 secret outside the working directory is still not protection against a subprocess the fence does
 not cover. The boundary that holds for that case is the OS principal. A file readable by the
 account the session runs as is reachable by that subprocess, wherever it sits. So the durable

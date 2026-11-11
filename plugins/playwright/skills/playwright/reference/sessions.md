@@ -52,7 +52,7 @@ Useful when an outer script pins session name and inner commands shouldn't repea
 
 ## Persistent profiles
 
-By default, profile is in-memory and lost on `close`. Use `--persistent` to save to disk (cookies + storage carry across browser restarts):
+Use `--persistent` to save the profile to disk (cookies + storage carry across browser restarts):
 
 ```bash
 playwright-cli -s=auth open https://app.example.com --persistent
@@ -60,6 +60,8 @@ playwright-cli -s=auth close
 # ... later ...
 playwright-cli -s=auth open https://app.example.com    # still logged in
 ```
+
+- **Pointer**: for what a session keeps without `--persistent`, read upstream's [storage-state reference, "Security Notes"](https://github.com/microsoft/playwright-cli/blob/main/skills/playwright-cli/references/storage-state.md#security-notes). **As of**: 2026-11-10. **Recheck trigger**: the playwright skill's frontmatter `upstream-version` moves.
 
 For explicit profile location:
 

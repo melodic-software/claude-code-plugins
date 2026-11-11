@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: wr-glossary-docs-path
+context:
+  scaffold_script: scaffold.sh
+description: "Glossary reader, docs placement. The same workspace and prompt as wr-glossary-root with the glossary at docs/glossary.md instead of a root GLOSSARY.md. Graded on whether the run finds and reads the glossary at docs/glossary.md, a sibling of tool_library.py rather than an ancestor on its walk-up path, and the tests use Loan and none of its rejected synonyms. Source: the maintainers' own writing, an owner-approved measurement before the glossary capability is restructured. Hard: the glossary is off the documented read path and the request says 'check out' throughout. Needs --scaffold --allow-tools Bash Edit Write."
+tags: [testing, write, glossary, hard]
+runs: 3
+execution:
+  max_turns: 60
+  timeout_seconds: 900
+  allowed_tools: [Read, Glob, Grep, Bash, Edit, Write, Skill]
+expected_outcome: "Reads docs/glossary.md, then adds the feature to Library under the glossary's term, such as a loan with a due date, with unittest tests in tests/test_tool_library.py that use Loan and none of checkout, rental or booking, and runs the suite until it passes"
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?write"'
+  - name: canonical-term
+    type: regex
+    target:
+      source: file
+      path: tests/test_tool_library.py
+    flags: i
+    pattern: 'loan'
+  - name: no-rejected-term
+    type: regex
+    target:
+      source: file
+      path: tests/test_tool_library.py
+    flags: i
+    match: not_contains
+    pattern: 'check(?:ed|s|ing)?[ _-]?outs?|rental|booking'
+  - name: glossary-read
+    type: regex
+    target: trace
+    pattern: '"name":"Read","input":\{"file_path":"[^"]*docs/glossary\.md"|"name":"Bash","input":\{"command":"(?=(?:[^"\\]|\\.)*\b(?:cat|sed|head|tail|less|grep)\b)(?:[^"\\]|\\.)*docs/(?:glossary(?:\.md|\*)|\*+(?:\.md)?)'

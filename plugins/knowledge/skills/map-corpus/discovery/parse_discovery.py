@@ -71,45 +71,41 @@ def normalize_url(url: str, strip_punct: bool = False) -> str | None:
         url = url.rstrip(".,;")
     parts = urlsplit(url)
     scheme = parts.scheme.lower()
-    if scheme not in ("http", "https"):
+    if scheme not in ("http", "https") or not parts.netloc:
         return None
-    if not parts.netloc:
-        return None
-    netloc = parts.netloc
-    if "@" in netloc:  # lowercase host only; userinfo is case-significant
-        userinfo, host = netloc.rsplit("@", 1)
-        netloc = userinfo + "@" + host.lower()
-    else:
-        netloc = netloc.lower()
+    # lowercase host only; userinfo is case-significant
+    userinfo, at, host = parts.netloc.rpartition("@")
+    netloc = userinfo + at + host.lower()
     # trailing slashes dropped, bare root included: one spelling per
     # resource, so root-with-slash dedupes against the bare origin
     path = parts.path.rstrip("/")
-    kept = [
-        (k, v)
-        for k, v in parse_qsl(parts.query, keep_blank_values=True)
-        if not TRACKING_PARAMS_RE.match(k)
-    ]
-    query = urlencode(kept)
+    query = urlencode(
+        [
+            (k, v)
+            for k, v in parse_qsl(parts.query, keep_blank_values=True)
+            if not TRACKING_PARAMS_RE.match(k)
+        ]
+    )
     return urlunsplit((scheme, netloc, path, query, ""))  # fragment dropped
 
 
 def extract_markdown_urls(text: str, base_url: str) -> list:
     """Link targets from markdown: [](), <autolink>, and bare URLs."""
-    found = []  # (target, is_bare_text_capture)
-    for regex, bare in (
+    urls = []
+    for regex, bare_text_capture in (
         (MD_LINK_RE, False),
         (MD_AUTOLINK_RE, False),
         (BARE_URL_RE, True),
     ):
-        found.extend((m.group(1), bare) for m in regex.finditer(text))
-    urls = []
-    for target, bare in found:
-        if target.startswith("#"):
-            continue
-        absolute = urljoin(base_url, target)
-        normalized = normalize_url(absolute, strip_punct=bare)
-        if normalized:
-            urls.append(normalized)
+        for match in regex.finditer(text):
+            target = match.group(1)
+            if target.startswith("#"):
+                continue
+            normalized = normalize_url(
+                urljoin(base_url, target), strip_punct=bare_text_capture
+            )
+            if normalized:
+                urls.append(normalized)
     return urls
 
 

@@ -10,8 +10,8 @@ lives in the linked concern docs.
 ## Naming
 
 **CC** = Claude Code CLI (the `claude` binary's telemetry). Shorthand in env vars (`CC_OTEL_*`), store
-files (`cc-logs.json`, `cc-metrics.json`, `cc-traces.json`), DuckDB views (`cc_logs`, `cc_metrics`,
-`cc_spans`), and hook scripts (`cc-telemetry-ensure.sh`). Docker stack labels use the full slug
+files (`cc-logs.json`, `cc-metrics.json`, `cc-traces.json`), and DuckDB views (`cc_logs`, `cc_metrics`,
+`cc_spans`). Docker stack labels use the full slug
 `claude-code-observability` (no `cc` in label values). **Not** your application's own OTEL or
 Aspire app-host traces.
 
@@ -19,8 +19,8 @@ Aspire app-host traces.
 
 Claude Code → OTLP `http://127.0.0.1:4318` → OTel Collector → fan-out:
 
-- file exporter → `.claude/observability/otel/{cc-logs,cc-metrics,cc-traces}.json` (persistent
-  store, gitignored, **`append: true`** so a Collector restart appends rather than truncating;
+- file exporter → `$CC_OTEL_STORE/{cc-logs,cc-metrics,cc-traces}.json`, or the repo-relative
+  `.claude/observability/otel/` when that is unset (persistent store, gitignored, **`append: true`** so a Collector restart appends rather than truncating;
   DuckDB `read_json_auto` queries via [`../otel/cc-otel.sql`](../otel/cc-otel.sql))
 - `otlp_grpc/cc_dashboard` → Aspire standalone dashboard (**all three signals**, optional live UI;
   in-memory, bounded by the dashboard's built-in telemetry caps; restart resets it)

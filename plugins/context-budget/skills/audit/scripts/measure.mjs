@@ -385,8 +385,7 @@ function skillFrontmatterRow(entry) {
 }
 
 function collapsedSkillCount(total, included) {
-  if (typeof total !== 'number' || typeof included !== 'number') return null;
-  if (total < included) return null;
+  if (typeof total !== 'number' || typeof included !== 'number' || total < included) return null;
   return total - included;
 }
 
@@ -410,7 +409,7 @@ async function sdkSnapshot({ sdk, sdkVersion, sdkEntry, bin, deny, label }) {
   // model API call; the structured usage arrives over the control protocol.
   const q = query({ prompt: '/context', options });
 
-  const result = await new Promise((resolvePromise, rejectPromise) => {
+  const { init, usage } = await new Promise((resolvePromise, rejectPromise) => {
     const timer = setTimeout(() => {
       rejectPromise(new Error(`SDK session produced no init message within ${SPAWN_TIMEOUT_MS / 1000}s`));
       q.interrupt().catch(() => {});
@@ -428,7 +427,6 @@ async function sdkSnapshot({ sdk, sdkVersion, sdkEntry, bin, deny, label }) {
     })().catch((e) => { clearTimeout(timer); rejectPromise(e); });
   });
 
-  const { init, usage } = result;
   const categories = {};
   for (const c of usage.categories ?? []) categories[c.name] = c.tokens;
   // A deny that empties a bucket makes the SDK omit it rather than report 0.
@@ -561,7 +559,7 @@ function cliSnapshot({ bin, deny, label }) {
 // ---------------------------------------------------------------------------
 
 async function takeSnapshot(args) {
-  const deny = args.deny ? args.deny.split(',').map((s) => s.trim()).filter(Boolean) : [];
+  const deny = splitCsv(args.deny);
   const bin = resolveBinary(args.binary);
   if (!bin) {
     degrade('no-binary', 'no `claude` executable found on PATH and no --binary given',
@@ -570,6 +568,14 @@ async function takeSnapshot(args) {
 
   const sdkCandidates = [args['sdk-dir'], process.cwd()];
   const found = findSdkEntry(sdkCandidates);
+  const sdkRun = async () => sdkSnapshot({
+    sdk: await import(pathToFileURL(found.entry).href),
+    sdkVersion: sdkVersionFromEntry(found.entry),
+    sdkEntry: found.entry,
+    bin,
+    deny,
+    label: args.label,
+  });
   if (args['measure-only']) {
     // Read-only consumer mode: exact SDK measurement or nothing. No cli-parse
     // rung, no install offer; main() rejects --out, so no file is written.
@@ -582,10 +588,7 @@ async function takeSnapshot(args) {
         EXIT_SDK_ABSENT);
     }
     try {
-      const sdk = await import(pathToFileURL(found.entry).href);
-      return await sdkSnapshot({
-        sdk, sdkVersion: sdkVersionFromEntry(found.entry), sdkEntry: found.entry, bin, deny, label: args.label,
-      });
+      return await sdkRun();
     } catch (e) {
       degrade('measurement-failed', `sdk mode failed: ${String(e).slice(0, 300)}`,
         'Verify the binary runs (`claude --version`); measure-only does not fall back to cli-parse.');
@@ -593,10 +596,7 @@ async function takeSnapshot(args) {
   }
   if (found) {
     try {
-      const sdk = await import(pathToFileURL(found.entry).href);
-      return await sdkSnapshot({
-        sdk, sdkVersion: sdkVersionFromEntry(found.entry), sdkEntry: found.entry, bin, deny, label: args.label,
-      });
+      return await sdkRun();
     } catch (e) {
       // SDK resolved but the measurement failed — fall through to cli-parse,
       // carrying the reason so the record stays honest about the downgrade.
@@ -865,7 +865,7 @@ async function runAttribute(args) {
       'Install the Agent SDK for tool enumeration, or pass --tools with an explicit comma-separated list.');
     }
   } else {
-    tools = args.tools.split(',').map((s) => s.trim()).filter(Boolean);
+    tools = splitCsv(args.tools);
   }
   if (!tools.length) usageError('--tools resolved to an empty list');
 
@@ -1042,8 +1042,7 @@ function catalogueTokens(lever) {
 function binaryScanPath(bin) {
   if (!/\.(cmd|bat)$/i.test(bin)) return { path: bin, viaShim: false };
   const exe = bin.replace(/\.(cmd|bat)$/i, '.exe');
-  if (existsSync(exe)) return { path: realpathSync(exe), viaShim: true };
-  return { path: bin, viaShim: true };
+  return { path: existsSync(exe) ? realpathSync(exe) : bin, viaShim: true };
 }
 
 function countTokenHits(buf, token) {
@@ -1108,7 +1107,7 @@ function runVerifyCatalogue(args) {
   if (args['find-unstored']) {
     const seen = new Set();
     const text = buf.toString('latin1');
-    for (const match of text.matchAll(/\b(?:CLAUDE_CODE|ENABLE|DISABLE)_[A-Z0-9_]+\b/g)) {
+    for (const match of text.matchAll(ENV_TOKEN_RE)) {
       if (!storedEnv.has(match[0])) seen.add(match[0]);
     }
     unstored = [...seen].sort();

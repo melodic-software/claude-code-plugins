@@ -49,6 +49,8 @@ import re
 import shutil
 import subprocess
 import sys
+from collections import Counter
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -742,13 +744,12 @@ def validate_row(row: Any, index: int) -> list[str]:
                 f"{', '.join(OBSERVATION_CLASSES)} - an observation record states its "
                 "evidence class, never a bare availability assertion"
             )
-        if not isinstance(observation.get("detail"), str) or not observation.get(
-            "detail"
-        ):
+        detail = observation.get("detail")
+        if not isinstance(detail, str) or not detail:
             problems.append(f"{label}: `observation.detail` must be a non-empty string")
-        elif observation.get(
-            "class"
-        ) == "upstream-source" and not UPSTREAM_SHA_RE.search(observation["detail"]):
+        elif observation.get("class") == "upstream-source" and not (
+            UPSTREAM_SHA_RE.search(detail)
+        ):
             problems.append(
                 f"{label}: an `upstream-source` observation names the upstream commit "
                 "in its `detail` (8+ hex chars) - source evidence without a pin cannot "
@@ -812,6 +813,7 @@ def _integration_problems(row: dict[str, Any], label: str) -> list[str]:
     native = row.get("native") if isinstance(row.get("native"), dict) else {}
     klass = native.get("class")
     markers = native.get("markers") if isinstance(native.get("markers"), list) else []
+    baked = row.get("baked") if isinstance(row.get("baked"), dict) else {}
     verdict = row.get("verdict")
     if verdict == "defer":
         if integration != "route":
@@ -835,8 +837,7 @@ def _integration_problems(row: dict[str, Any], label: str) -> list[str]:
                 "takes `integration` `suggest` (a route phrase on a surface the "
                 "model never lists is dead text)"
             )
-        baked = row.get("baked")
-        if isinstance(baked, dict) and baked.get("description_phrase") is True:
+        if baked.get("description_phrase") is True:
             problems.append(
                 f"{label}: a `suggest` row for a bundled skill marked "
                 "`model-invocation-disabled` never bakes a description phrase "
@@ -856,7 +857,6 @@ def _integration_problems(row: dict[str, Any], label: str) -> list[str]:
                 f"{label}: a `{integration}` row carries an evidence line naming "
                 "the observed invocation mode"
             )
-    baked = row.get("baked") if isinstance(row.get("baked"), dict) else {}
     if baked.get("native_step") is True and integration != "wrap":
         problems.append(
             f"{label}: `baked.native_step` is true only when `integration` is `wrap`"
@@ -1018,38 +1018,31 @@ def _escape_cell(text: str) -> str:
     return _CELL_SPECIALS.sub(r"\\\1", _CELL_BREAKS.sub(" ", str(text))).strip()
 
 
+def _tally(values: Iterable[str]) -> str:
+    """`value count` pairs in sorted order, or "none" when there are none."""
+    return ", ".join(f"{k} {v}" for k, v in sorted(Counter(values).items())) or "none"
+
+
 def render_block(
     rows: list[dict[str, Any]], dismissals: list[dict[str, Any]] | None = None
 ) -> str:
     """Render the marker-fenced body: a summary table, per-lane sections, and
     the dismissed pairs."""
     dismissals = dismissals or []
-    lines: list[str] = []
-    lines.append("## Summary")
-    lines.append("")
-    lines.append("| Lane | Rows | Baked | Integration | Verdicts |")
-    lines.append("|---|---|---|---|---|")
+    by_lane = {
+        lane: [r for r in rows if r["native"]["class"] == lane] for lane, _, _ in LANES
+    }
+    lines = [
+        "## Summary",
+        "",
+        "| Lane | Rows | Baked | Integration | Verdicts |",
+        "|---|---|---|---|---|",
+    ]
     for lane, heading, _noun in LANES:
-        lane_rows = [r for r in rows if r["native"]["class"] == lane]
-        baked = sum(
-            1
-            for r in lane_rows
-            if r["baked"]["description_phrase"]
-            or r["baked"]["boundary_section"]
-            or r["baked"]["native_step"]
-            or r["baked"]["suggest_sentence"]
-        )
-        tally: dict[str, int] = {}
-        integrations: dict[str, int] = {}
-        for row in lane_rows:
-            tally[row["verdict"]] = tally.get(row["verdict"], 0) + 1
-            integrations[row["integration"]] = (
-                integrations.get(row["integration"], 0) + 1
-            )
-        verdicts = ", ".join(f"{k} {v}" for k, v in sorted(tally.items())) or "none"
-        integration = (
-            ", ".join(f"{k} {v}" for k, v in sorted(integrations.items())) or "none"
-        )
+        lane_rows = by_lane[lane]
+        baked = sum(1 for r in lane_rows if any(r["baked"][k] for k in BAKED_FLAGS))
+        integration = _tally(r["integration"] for r in lane_rows)
+        verdicts = _tally(r["verdict"] for r in lane_rows)
         lines.append(
             f"| {_escape_cell(heading)} | {len(lane_rows)} | {baked} | "
             f"{_escape_cell(integration)} | {_escape_cell(verdicts)} |"
@@ -1058,7 +1051,7 @@ def render_block(
 
     for lane, heading, noun in LANES:
         lane_rows = sorted(
-            (r for r in rows if r["native"]["class"] == lane),
+            by_lane[lane],
             key=lambda r: (
                 r["native"]["name"],
                 r["component"]["plugin"],
@@ -1228,10 +1221,9 @@ def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
             if row["native"].get("class") == "marketplace-plugin"
             else GATE_TOKEN
         )
-        wants_desc = row["baked"]["description_phrase"]
-        wants_boundary = row["baked"]["boundary_section"]
-        wants_step = row["baked"]["native_step"]
-        wants_suggest = row["baked"]["suggest_sentence"]
+        wants_desc, wants_boundary, wants_step, wants_suggest = (
+            row["baked"][key] for key in BAKED_FLAGS
+        )
         if not (wants_desc or wants_boundary or wants_step or wants_suggest):
             continue
         if component["kind"] == "agent":
@@ -1287,18 +1279,11 @@ def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
                 f"suggest sentence for `/{native_name}`"
             )
 
+    # The loop above already indexed every row's `component`, `native` and `baked` flags.
     claimed_suggest = {
-        (
-            row["component"]["plugin"],
-            row["component"]["skill"],
-            row["native"]["name"],
-        )
+        (row["component"]["plugin"], row["component"]["skill"], row["native"]["name"])
         for row in rows
-        if isinstance(row, dict)
-        and isinstance(row.get("baked"), dict)
-        and row["baked"].get("suggest_sentence")
-        and isinstance(row.get("component"), dict)
-        and isinstance(row.get("native"), dict)
+        if row["baked"]["suggest_sentence"]
     }
 
     plugins_dir = repo / "plugins"

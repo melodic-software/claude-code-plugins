@@ -86,6 +86,7 @@ function gitOut(root, args) {
   }
 }
 const git = (root, args) => gitOut(root, args) !== null;
+const isSha = (v) => typeof v === "string" && /^[0-9a-f]{40}$/.test(v);
 
 /**
  * A reader of team files at the pull request's base commit (`baseRefOid`), which
@@ -93,7 +94,7 @@ const git = (root, args) => gitOut(root, args) !== null;
  * locally, the reader finds nothing and warns, so defaults apply.
  */
 function baseReader(root, baseOid, warnings) {
-  if (typeof baseOid !== "string" || !/^[0-9a-f]{40}$/.test(baseOid)) {
+  if (!isSha(baseOid)) {
     warnings.push("team: no baseRefOid in the facts; team layer ignored");
     return { ref: null, root, read: () => null };
   }
@@ -121,19 +122,8 @@ function layerPaths(root, userFile, teamFiles, personalOverrideFile) {
 }
 
 function readJsonLayer(path, label, warnings) {
-  let text;
   try {
-    text = readFileSync(path, "utf8");
-  } catch (error) {
-    warnings.push(`${label} ${path}: ${error.message}; layer ignored`);
-    return null;
-  }
-  return parseJsonLayer(text, label, path, warnings);
-}
-
-function parseJsonLayer(text, label, path, warnings) {
-  try {
-    const value = JSON.parse(text);
+    const value = JSON.parse(readFileSync(path, "utf8"));
     if (value && typeof value === "object" && !Array.isArray(value)) return value;
     warnings.push(`${label} ${path}: not a JSON object; layer ignored`);
   } catch (error) {
@@ -195,12 +185,7 @@ export function resolveDigestConfig(baseOid) {
   const warnings = [];
   const config = {};
   for (const [key, value] of Object.entries(DEFAULTS)) config[key] = { value, source: "default" };
-  const paths = layerPaths(
-    findRoot(),
-    "review-digest.json",
-    [TEAM_YAML],
-    ".claude/review-digest.local.json",
-  );
+  const paths = layerPaths(findRoot(), "review-digest.json", [TEAM_YAML], ".claude/review-digest.local.json");
   const layers = [];
   if (existsSync(paths.user)) {
     const value = readJsonLayer(paths.user, "user-global", warnings);
@@ -240,7 +225,7 @@ export function resolveDigestConfig(baseOid) {
  * the destination without listing medium values itself.
  */
 export function resolveMedium(option, baseOid) {
-  const teamRef = typeof baseOid === "string" && /^[0-9a-f]{40}$/.test(baseOid) ? baseOid : "";
+  const teamRef = isSha(baseOid) ? baseOid : "";
   const resolution = resolveViewMedium(
     { lane: "review:explain-change", userConfig: option, projectRoot: findRoot(), teamRef },
     { dataDir: process.env.CLAUDE_PLUGIN_DATA || null },

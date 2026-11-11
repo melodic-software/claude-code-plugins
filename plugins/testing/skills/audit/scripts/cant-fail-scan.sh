@@ -945,9 +945,7 @@ scan_config() {
       fi
       ;;
     F)
-      if [[ ${#rule_level[@]} -gt 0 ]]; then
-        rule_override "$slug" "$strict" || continue
-      fi
+      rule_override "$slug" "$strict" || continue
       f_rule+=("$slug")
       f_loc+=("$rel:$line")
       f_detail+=("$detail")
@@ -1059,9 +1057,7 @@ scan_retry() {
     fi
     case "$rec" in
     F)
-      if [[ ${#rule_level[@]} -gt 0 ]]; then
-        rule_override "$slug" "$strict" || continue
-      fi
+      rule_override "$slug" "$strict" || continue
       f_rule+=("$slug")
       f_loc+=("$rel:$line")
       f_detail+=("$detail")
@@ -1137,6 +1133,10 @@ walk_errors=0
 while IFS= read -r err_line || [[ -n "$err_line" ]]; do
   [[ "$err_line" == *[!$' \t']* ]] && walk_errors=$((walk_errors + 1))
 done <"$WALK_ERR"
+# read_gap: some input the scan enumerated was not fully read.
+read_gap() {
+  ((unreadable > 0 || cfg_unreadable > 0 || walk_errors > 0))
+}
 enumerated=$((enum_js + enum_py + enum_cs + enum_sh + enum_ps + enum_go))
 fired_blocks=$((n_cf1 + n_cf3 + x_cf1 + x_cf3))
 declined_cf1=$((blocks - n_cf1 - x_cf1))
@@ -1150,34 +1150,22 @@ threshold_of() {
   # threshold_of <slug> [<lexer language>]: the retry settings of the other
   # runners share flaky-passes-suite and state their own condition.
   case "$1:${2:-}" in
-  flaky-passes-suite:config-pytest)
-    printf 'threshold: --reruns, --force-reruns or reruns > 0 or not an integer, --fail-on-flaky absent from addopts'
-    return 0
-    ;;
-  flaky-passes-suite:config-vitest)
-    printf 'threshold: retry or retry.count under a test key > 0 or an expression; Vitest has no fail-on-flaky option'
-    return 0
-    ;;
-  flaky-passes-suite:config-jest)
-    printf 'threshold: jest.retryTimes(n) with n > 0 or an expression; Jest has no fail-on-flaky option'
-    return 0
-    ;;
-  *) ;;
-  esac
-  case "$1" in
-  zero-assertion) printf 'threshold: 0 assertion tokens' ;;
-  recomputed-expectation) printf 'threshold: >=1 self-identical equality assertion' ;;
-  mock-only-oracle) printf 'threshold: 100%% of assertions are mock-interaction' ;;
-  flaky-passes-suite) printf 'threshold: retries > 0 or an expression, failOnFlakyTests absent or literal false' ;;
-  only-not-forbidden) printf 'threshold: forbidOnly absent or literal false' ;;
-  inert-assertion) printf 'threshold: >=1 assertion statement that never evaluates' ;;
-  constant-restatement) printf 'threshold: >=1 constant or local literal compared to a literal, with no call under test' ;;
-  source-text-read) printf 'threshold: >=1 static-path read of a tracked non-test source file' ;;
-  conditional-assertion) printf 'threshold: 100%% of assertions inside an if, a catch or a loop over a result, no else and no length check, or a C# return; before every assertion' ;;
-  recomputed-derived) printf 'threshold: >=1 expected value built from the arguments of the call under test' ;;
-  snapshot-only) printf 'threshold: 100%% of assertions are snapshot calls' ;;
-  weak-oracle) printf 'threshold: 100%% of assertions are weak matchers or over-broad exception checks' ;;
-  throw-only-oracle) printf 'threshold: 100%% of assertions check only that a value the test constructed exists or has its type' ;;
+  flaky-passes-suite:config-pytest) printf 'threshold: --reruns, --force-reruns or reruns > 0 or not an integer, --fail-on-flaky absent from addopts' ;;
+  flaky-passes-suite:config-vitest) printf 'threshold: retry or retry.count under a test key > 0 or an expression; Vitest has no fail-on-flaky option' ;;
+  flaky-passes-suite:config-jest) printf 'threshold: jest.retryTimes(n) with n > 0 or an expression; Jest has no fail-on-flaky option' ;;
+  zero-assertion:*) printf 'threshold: 0 assertion tokens' ;;
+  recomputed-expectation:*) printf 'threshold: >=1 self-identical equality assertion' ;;
+  mock-only-oracle:*) printf 'threshold: 100%% of assertions are mock-interaction' ;;
+  flaky-passes-suite:*) printf 'threshold: retries > 0 or an expression, failOnFlakyTests absent or literal false' ;;
+  only-not-forbidden:*) printf 'threshold: forbidOnly absent or literal false' ;;
+  inert-assertion:*) printf 'threshold: >=1 assertion statement that never evaluates' ;;
+  constant-restatement:*) printf 'threshold: >=1 constant or local literal compared to a literal, with no call under test' ;;
+  source-text-read:*) printf 'threshold: >=1 static-path read of a tracked non-test source file' ;;
+  conditional-assertion:*) printf 'threshold: 100%% of assertions inside an if, a catch or a loop over a result, no else and no length check, or a C# return; before every assertion' ;;
+  recomputed-derived:*) printf 'threshold: >=1 expected value built from the arguments of the call under test' ;;
+  snapshot-only:*) printf 'threshold: 100%% of assertions are snapshot calls' ;;
+  weak-oracle:*) printf 'threshold: 100%% of assertions are weak matchers or over-broad exception checks' ;;
+  throw-only-oracle:*) printf 'threshold: 100%% of assertions check only that a value the test constructed exists or has its type' ;;
   *) printf 'threshold: unknown rule' ;;
   esac
 }
@@ -1238,30 +1226,25 @@ action_of() {
   # retry count itself.
   flaky-passes-suite:config-pytest)
     printf 'Add --fail-on-flaky to addopts beside the reruns so a test that passes only on a rerun fails the run (pytest-rerunfailures 15.0 or later), or drop the reruns where the suite is meant to be deterministic. A deliberate flaky tolerance records that with a cant-fail-ok: annotation in the config.'
-    return 0
     ;;
   flaky-passes-suite:config-vitest)
     printf 'Set retry: 0, or remove it, where the suite is meant to be deterministic; Vitest has no switch that fails a run on a retry-earned pass, so a retried test that passes leaves the run green. Where CI keeps retries, run local and agent loops with --retry 0. A deliberate flaky tolerance records that with a cant-fail-ok: annotation in the config.'
-    return 0
     ;;
   flaky-passes-suite:config-jest)
     printf 'Remove the jest.retryTimes call, or pass 0, where the test is meant to be deterministic; Jest has no switch that fails a run on a retry-earned pass, so a retried test that passes leaves the run green. A deliberate flaky tolerance records that with a cant-fail-ok: annotation on the call'"'"'s line or the line above it.'
-    return 0
     ;;
   throw-only-oracle:*)
     printf 'Assert what the constructed value should hold (a property the constructor sets, a result its first call returns) instead of only that it exists. A smoke test kept to prove construction or wiring succeeds records that with a cant-fail-ok: <why> annotation.'
     ;;
-  *) ;;
-  esac
-  case "$1" in
-  inert-assertion | constant-restatement | source-text-read | conditional-assertion | recomputed-derived | snapshot-only | weak-oracle | throw-only-oracle) return 0 ;;
-  zero-assertion)
+  # inert-assertion in a language with no remedy above has no Action.
+  inert-assertion:*) ;;
+  zero-assertion:*)
     printf 'Add an assertion on the observable behavior this test exercises.'
     ;;
-  recomputed-expectation)
+  recomputed-expectation:*)
     printf 'State the expected value independently (a literal or precomputed constant) instead of recomputing it with the same expression, so the assertion can discriminate. A determinism contract, f(x) == f(x) on purpose, records that with a cant-fail-ok: annotation.'
     ;;
-  mock-only-oracle)
+  mock-only-oracle:*)
     printf "Review whether the mock-interaction contract is the intended oracle; if not, assert on a real collaborator's output or state. A deliberate interaction-style test records that with a cant-fail-ok: annotation."
     ;;
   # failOnFlakyTests as a config option shipped in Playwright 1.52, the
@@ -1269,10 +1252,10 @@ action_of() {
   # v1.63.0 as of 2026-09-11; recheck on a release note renaming or deprecating
   # the option). The detector does not read the installed version, so the Action
   # names the floor rather than assuming it.
-  flaky-passes-suite)
+  flaky-passes-suite:*)
     printf 'Set failOnFlakyTests: true in the Playwright config so a test that fails and passes on a retry fails the run (config option from Playwright 1.52; the --fail-on-flaky-tests CLI flag covers 1.45 and later), or set retries: 0 where the suite is meant to be deterministic. A deliberate flaky tolerance records that with a cant-fail-ok: annotation.'
     ;;
-  only-not-forbidden)
+  only-not-forbidden:*)
     printf 'Set forbidOnly: !!process.env.CI in the Playwright config, the scaffold idiom, so a committed test.only fails CI instead of shrinking the suite to one passing test.'
     ;;
   *) printf 'unknown rule — report this as a detector defect' ;;
@@ -1295,7 +1278,7 @@ confidence_of() {
   # wiring are benign cases the text cannot tell apart.
   case "$1" in
   zero-assertion | recomputed-expectation | inert-assertion) printf 'high' ;;
-  *) printf '' ;;
+  *) ;;
   esac
 }
 
@@ -1322,7 +1305,7 @@ surfaces_line() {
     "$cfg_examined" "$cfg_enum" "$cfg_shadowed" "$cfg_unparsed" "$cfg_unreadable" \
     "$n_cfg1" "$n_cfg2" "$d_cfg1" "$d_cfg2" "$x_cfg1" "$x_cfg2" \
     "$(retry_counts)" "$n_rcfg" "$d_rcfg" "$x_rcfg" \
-    "$(if [[ "$unreadable" -gt 0 || "$cfg_unreadable" -gt 0 || "$walk_errors" -gt 0 ]]; then
+    "$(if read_gap; then
       printf '%d unreadable test file(s), %d unreadable playwright config(s), %d walk/read error line(s)' "$unreadable" "$cfg_unreadable" "$walk_errors"
     else
       printf 'none — every discovered test file was examined'
@@ -1560,7 +1543,7 @@ ci_of() {
 # kinds named by the project's name tokens and package references must agree,
 # except that operational, then live, win a disagreement so a warning is not lost.
 kind_of_project() {
-  local proj="$1" i toks ks=() k pf="$PJ_BASE/$1"
+  local proj="$1" i toks tk ks=() k pf="$PJ_BASE/$1"
   for i in ${tc_pk_re[@]+"${!tc_pk_re[@]}"}; do
     if [[ "$proj" =~ ${tc_pk_re[$i]} ]]; then
       KIND_R="${tc_pk_kind[$i]}"
@@ -1568,12 +1551,11 @@ kind_of_project() {
     fi
   done
   toks=" $(sed -E 's/([a-z0-9])([A-Z])/\1.\2/g' <<<"${proj%.csproj}" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9\n' ' ') "
-  case "$toks" in *' unit '*) ks+=(unit) ;; *) ;; esac
-  case "$toks" in *' integration '*) ks+=(integration) ;; *) ;; esac
-  case "$toks" in *' smoke '*) ks+=(live) ;; *) ;; esac
-  case "$toks" in *' functional '*) ks+=(functional) ;; *) ;; esac
-  case "$toks" in *' architecture '*) ks+=(architecture) ;; *) ;; esac
-  case "$toks" in *' provisioning '*) ks+=(operational) ;; *) ;; esac
+  # <name token>=<kind>, in the order the kinds are collected.
+  for tk in unit=unit integration=integration smoke=live functional=functional \
+    architecture=architecture provisioning=operational; do
+    [[ "$toks" == *" ${tk%=*} "* ]] && ks+=("${tk#*=}")
+  done
   if [[ -r "$pf" ]]; then
     if LC_ALL=C grep -qiE 'PackageReference[^>]*Include="(Reqnroll|Microsoft\.Playwright)' "$pf"; then ks+=(functional); fi
     if LC_ALL=C grep -qiE 'PackageReference[^>]*Include="ArchUnitNET' "$pf"; then ks+=(architecture); fi
@@ -1652,9 +1634,7 @@ ctx_text() {
 esc_cell() {
   # detector-findings cell-escaping rule: literal | becomes \| ; the engine
   # already flattened tabs/newlines out of details.
-  local s="$1"
-  s="${s//|/\\|}"
-  printf '%s' "$s"
+  printf '%s' "${1//|/\\|}"
 }
 
 yaml_scalar() {
@@ -1777,13 +1757,13 @@ case "$mode" in
 count)
   printf '%d\n' "$total"
   coverage_block >&2
-  if [[ "$unreadable" -gt 0 || "$cfg_unreadable" -gt 0 || "$walk_errors" -gt 0 ]]; then exit 2; fi
+  if read_gap; then exit 2; fi
   exit 0
   ;;
 findings)
   emit_findings_file
   coverage_block >&2
-  if [[ "$unreadable" -gt 0 || "$cfg_unreadable" -gt 0 || "$walk_errors" -gt 0 ]]; then exit 2; fi
+  if read_gap; then exit 2; fi
   exit 0
   ;;
 check)
@@ -1804,7 +1784,7 @@ check)
     printf '\nFAIL: %d gating finding(s).\n' "$gating"
     exit 1
   fi
-  if [[ "$unreadable" -gt 0 || "$cfg_unreadable" -gt 0 || "$walk_errors" -gt 0 ]]; then
+  if read_gap; then
     printf '\nFAIL (closed): 0 gating findings, but %d unreadable test file(s), %d unreadable playwright config(s), and %d walk/read/engine error line(s) — an input the scan could not fully read is never a clean one.\n' \
       "$unreadable" "$cfg_unreadable" "$walk_errors"
     exit 2
@@ -1822,9 +1802,9 @@ report)
   else
     print_findings_lines
   fi
-  for b in ${blk_lines[@]+"${blk_lines[@]}"}; do printf '%s\n' "$b"; done
+  [[ ${#blk_lines[@]} -eq 0 ]] || printf '%s\n' "${blk_lines[@]}"
   coverage_block
-  if [[ "$unreadable" -gt 0 || "$cfg_unreadable" -gt 0 || "$walk_errors" -gt 0 ]]; then exit 2; fi
+  if read_gap; then exit 2; fi
   exit 0
   ;;
 *)

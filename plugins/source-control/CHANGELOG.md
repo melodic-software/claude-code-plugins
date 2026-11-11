@@ -3,6 +3,151 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.13.0] - 2026-11-10
+
+### Added
+
+- `/source-control:pull-request create`: an unattended change names new code from the project's glossary, read before naming, and lists each domain term it coins that the glossary lacks under a `## Glossary candidates` section for a person to curate. The run never writes the glossary.
+
+## [8.12.9] - 2026-11-10
+
+### Changed
+
+- `--stop-uncovered` stops on the dispatch run listing alone, before the schedule and canary listings and the branch reads that filter them. `babysit_verify_evidence.py check-code` answers settle's code-changed refusal with no GitHub read.
+
+## [8.12.8] - 2026-11-10
+
+### Changed
+
+- The `babysit-prs` worker prompt template now carries the subagent discipline preamble the
+  loop-lane convention requires of every dispatch: the discipline plugin's sweep skill when it is
+  installed, else the three standing instructions inline.
+
+## [8.12.7] - 2026-11-10
+
+### Changed
+
+- `babysit-prs` prints nothing on an iteration where no PR materially changed. Every iteration
+  still completes its evidence checklist and writes it to `babysit-checklist.md` in the working-notes
+  location, where the next iteration reads its `Subscribed PRs` line; an iteration with a material
+  change prints the Reporting lines followed by the completed checklist.
+
+## [8.12.6] - 2026-11-10
+
+### Changed
+
+- Skill bodies point at the live upstream sections for scheduling bounds, worktree isolation,
+  plugin variables, GitHub limits and auto-mode scopes instead of restating them, and the commit
+  type set no longer claims every source lists the same 11 types. No behavior change.
+
+### Fixed
+
+- Links to Claude Code's docs that pointed at moved section anchors now resolve: the permissions page's wrapper list, the permission-modes auto-mode section, and Code Review's setup and review-request sections.
+
+## [8.12.5] - 2026-11-10
+
+### Changed
+
+- The demotion read now lists main's green runs in fixed weekly cells shared by every red-main record in one read, so records filed close together read each listing page once instead of once per record. Each record's recovery is unchanged; a weekly cell too large to read whole holds the record.
+
+## [8.12.4] - 2026-11-10
+
+### Changed
+
+Internal simplification, no behavior change.
+
+## [8.12.3] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- answer empty exact-name artifact reads with a 304
+
+  In a job that names `BABYSIT_VERIFY_LISTING`, the verdict reader makes
+  one read of an artifact name nothing uploads and keeps that empty
+  answer's ETag beside the listing, but only when the body is exactly
+  empty. Each first page of an exact-name read then sends it as
+  `If-None-Match`, and a 304 reads as the empty page, so the verdict is
+  the one a 200 gives. A failed or non-empty seed sends no header, and a
+  304 to a read that sent none stays unreadable.
+
+## [8.12.2] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [8.12.1] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.0] - 2026-11-10
+
+### Removed
+
+- The babysit-prs verdict-evidence script's `evidence` command no longer takes `--answers-in`, `--answers-out`, `--answers-mode` or `--answers-only`, and no longer probes an answer key before its read: every call reads in full and prints the plain report, as it did without those flags.
+
+## [8.11.6] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [8.11.5] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [8.11.4] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+### Fixed
+
+- `worktree-create.sh --base-ref fresh` now fetches the default branch on every run, still capped at 5 seconds. Before, it skipped the fetch when the repository had been fetched in the last 24 hours, as Claude Code's native `fresh` does. It then reported a base hours behind the remote as `(base fresh)`. When the fetch fails or hits the cap, the final line now reads `(base <remote>/<branch>@<short-sha>, not refreshed)`.
+
+## [8.11.3] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [8.11.2] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
 ## [8.11.1] - 2026-11-09
 
 ### Fixed

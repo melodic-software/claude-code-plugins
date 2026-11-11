@@ -4,7 +4,8 @@ The architecture `map-*` skills' team configuration surface: a natural-language 
 consumer's convention home**, bound by the pointer line the consuming marketplace's config-cascade
 expression doctrine defines. Zero config is NOT a working state for this surface: `architecture_dir`
 has no default, because a plugin guessing where a repository keeps its architecture artifacts would
-write two files into a directory nobody asked for.
+write two files into a directory nobody asked for. The `record-decision` keys use a separate
+surface, [Decision-record keys](#decision-record-keys).
 
 ## Where the config lives
 
@@ -63,6 +64,40 @@ An unknown key, a `landscape_dialect` value outside the two above, or a `compone
 that is not a comma-separated list of layer names, is reported by `/architecture:setup check` as
 a FAIL with a remediation line. It is never silently ignored and never coerced to the default.
 `component_layers` absent is a PASS: the key is optional.
+
+## Decision-record keys
+
+`/architecture:record-decision` reads three optional keys through the four layers of
+[ADR 0075](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md),
+not through the topic doc above. Lowest first: the default, the `userConfig` option of the same
+name, the team file `<home>/architecture.yaml`, then the personal file
+`<home>/architecture.local.yaml` (gitignored). `adr_extra_triggers` is a list, which `userConfig`
+cannot carry, so it skips that layer. Schema:
+[`schemas/architecture.schema.json`](../schemas/architecture.schema.json).
+
+| Key | Values | Default | Meaning |
+|---|---|---|---|
+| `adr_template` | a path to a Markdown file: repo-relative in the team and personal files, absolute or `~/`-relative in `userConfig` | the bundled `skills/record-decision/templates/adr.md` | The template `record-decision` recommends when the repository has no ADR convention. A repository's own convention, found by discovery, always wins. A repo-relative path must name a regular file inside the repository, never a symlink |
+| `adr_extra_triggers` | a list of short phrases, for example `touches personal data`, `needs a compliance review` | none | Extra conditions that join the admission test's "at least one" list. They never remove the requirement that a real alternative was weighed. A layer that sets the list replaces a lower layer's list whole |
+| `adr_retirement` | `delete`, `supersede`, `archive` | `delete` | How `record-decision` retires a record a new decision reverses, after the person's yes. `delete` removes the file and never reuses its number; `supersede` sets its status to superseded by the new record in the repository's own status words; `archive` moves it to the ADR folder's archive folder |
+
+```yaml
+adr_template: docs/adr/template.md
+adr_retirement: supersede
+adr_extra_triggers:
+  - touches personal data
+  - needs a compliance review
+```
+
+Resolve `<home>` by running `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"` from the
+repository root. Exit 0 prints the home. Exit 1 (no pointer) and exit 4 (the repository declined a
+home) use the default home, `docs/conventions`. Exit 5 (the root is `$HOME`, an ancestor of it, or
+not a git work tree) skips both file layers. Any other exit skips both file layers and is reported.
+
+A value the schema rejects, or an `adr_template` path that does not resolve to a readable file, is
+reported with its file, key and value, and that layer is dropped: a valid higher layer still wins,
+otherwise the default; a lower layer's value is never used. There is no folder-level layer: the
+cascade keeps one convention home per git root (ADR 0075, fix 13).
 
 ## C4 dialect surfaces
 
@@ -145,4 +180,5 @@ no key. Every `map-*` skill
 reads this surface and never writes it. `map-data` also reads `<home>/authoring-formats/README.md`
 for `diagram_dialect.data`, and `map-components`, `map-context`, `map-containers`, and
 `map-deployment` read it for `diagram_dialect.system`; none of them writes that file. None of
-these skills writes any other file in the consumer's root.
+these skills writes any other file in the consumer's root. No skill writes `architecture.yaml` or
+`architecture.local.yaml`; they are edited by hand.

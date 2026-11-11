@@ -21,7 +21,7 @@
         {
           "tool": "Write",
           "input": {
-            "file_path": "/ws/.claude/plugin-data/curate-language-user-config-abc.json",
+            "file_path": "/ws/.claude/plugin-data/ubiquitous-language-user-config-abc.json",
             "content": "{}"
           }
         }

@@ -535,11 +535,7 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument("--repo-root")
     parser.add_argument("--from-json")
-    parser.add_argument(
-        "--format",
-        choices=("json", "dispatch-args", "ladder-overrides", "excludes", "registries"),
-        default="json",
-    )
+    parser.add_argument("--format", choices=("json", *LINE_FORMATS), default="json")
     args = parser.parse_args(argv)
     if args.from_json:
         try:

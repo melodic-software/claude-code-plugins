@@ -78,6 +78,8 @@ function Write-StateFile {
         }
     }
 
+    $discardTemp = { Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue }
+
     $existed = [System.IO.File]::Exists($destination)
     $newText = & $Update (& $readCurrent)
     if ($null -eq $newText) { return $false }
@@ -93,7 +95,7 @@ function Write-StateFile {
         return $true
     } catch {
         if ((Get-InnerHResult $_) -notin $alreadyExists) {
-            Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
+            & $discardTemp
             throw
         }
     }
@@ -102,11 +104,11 @@ function Write-StateFile {
     try {
         $newText = & $Update (& $readCurrent)
     } catch {
-        Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
+        & $discardTemp
         throw
     }
     if ($null -eq $newText) {
-        Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
+        & $discardTemp
         return $false
     }
     & $writeTemp $newText

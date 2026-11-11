@@ -80,15 +80,9 @@ export async function promoteKeyFrames(sliceDir, promotions, { copyFile = fs.cop
  */
 export function parsePromotionPair(pair) {
   const pipeSeparator = pair.indexOf("|");
-  if (pipeSeparator !== -1) {
-    return {
-      sourcePath: pair.slice(0, pipeSeparator),
-      destName: pair.slice(pipeSeparator + 1),
-    };
-  }
-
-  const windowsDrive = /^[A-Za-z]:/.test(pair);
-  const separator = windowsDrive ? pair.indexOf(":", 2) : pair.indexOf(":");
+  // A Windows drive letter's colon (`C:`) is part of the source, not the separator.
+  const separator =
+    pipeSeparator !== -1 ? pipeSeparator : pair.indexOf(":", /^[A-Za-z]:/.test(pair) ? 2 : 0);
   if (separator === -1) {
     throw new Error(`Invalid promotion pair (expected source:dest or source|dest): ${pair}`);
   }
@@ -115,9 +109,7 @@ export async function runPromoteKeyFramesCli(argv) {
     return 1;
   }
 
-  const promotions = pairs.map(parsePromotionPair);
-
-  const promoted = await promoteKeyFrames(sliceDir, promotions);
+  const promoted = await promoteKeyFrames(sliceDir, pairs.map(parsePromotionPair));
   writeStdout(JSON.stringify({ promoted }, null, 2));
   return 0;
 }

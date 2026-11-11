@@ -23,39 +23,17 @@ BLOCKED_BY=""
 REPO=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --title)
-    [[ $# -ge 2 ]] || wit_usage_error "--title needs a value"
-    TITLE="$2"
-    shift 2
-    ;;
-  --body)
-    [[ $# -ge 2 ]] || wit_usage_error "--body needs a value"
-    BODY="$2"
-    shift 2
-    ;;
-  --labels)
-    [[ $# -ge 2 ]] || wit_usage_error "--labels needs a value"
-    LABELS="$2"
-    shift 2
-    ;;
-  --type)
-    [[ $# -ge 2 ]] || wit_usage_error "--type needs a value"
-    TYPE="$2"
-    shift 2
-    ;;
-  --parent)
-    [[ $# -ge 2 ]] || wit_usage_error "--parent needs a value"
-    PARENT="$2"
-    shift 2
-    ;;
-  --blocked-by)
-    [[ $# -ge 2 ]] || wit_usage_error "--blocked-by needs a value"
-    BLOCKED_BY="$2"
-    shift 2
-    ;;
-  --repo)
-    [[ $# -ge 2 ]] || wit_usage_error "--repo needs a value"
-    REPO="$2"
+  --title | --body | --labels | --type | --parent | --blocked-by | --repo)
+    [[ $# -ge 2 ]] || wit_usage_error "$1 needs a value"
+    case "$1" in
+    --title) TITLE="$2" ;;
+    --body) BODY="$2" ;;
+    --labels) LABELS="$2" ;;
+    --type) TYPE="$2" ;;
+    --parent) PARENT="$2" ;;
+    --blocked-by) BLOCKED_BY="$2" ;;
+    *) REPO="$2" ;; # --repo, the only flag left
+    esac
     shift 2
     ;;
   *) wit_usage_error "unexpected argument: $1" ;;

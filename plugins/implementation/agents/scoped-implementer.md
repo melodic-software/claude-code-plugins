@@ -150,19 +150,23 @@ passes no `effort` here: neither the Agent tool's per-call parameter nor a Workf
 call's.
 
 We bind `sonnet` at `effort: medium` for a well-scoped implementation phase, and keep Opus as the
-binding for complex work. Where an organization's `availableModels` allowlist blocks `sonnet`, we
+binding for complex work. A clear spec alone does not make a phase well-scoped: a migration or a
+performance optimization stays on `opus` or above even with a precise spec. Where an organization's `availableModels` allowlist blocks `sonnet`, we
 accept the substitute model the harness picks and keep `effort: medium` on it. The effort pin is
 the effort-pin owner's ruling of 2026-10-01.
 
 - **Pointer**: for the model split, see
-  <https://code.claude.com/docs/en/costs#choose-the-right-model>; for the effort levels, see
+  <https://platform.claude.com/docs/en/about-claude/models/choosing-a-model#model-selection-matrix>
+  (correlate with
+  <https://claude.dev/blog/which-claude-model-should-you-build-with#pick-a-model-by-task> and its
+  TL;DR caveat on clear specs); for the effort levels, see
   <https://code.claude.com/docs/en/model-config#adjust-effort-level> and
   <https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels>;
   for the subagent model order and allowlist substitution, see
   <https://code.claude.com/docs/en/sub-agents#choose-a-model>; for the per-spawn `effort` and
   every source that ranks over the pin, see <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>.
-- **As of**: 2026-10-31
+- **As of**: 2026-11-09
 - **Recheck trigger**: the subagents effort section changes precedence or which spawns honor
-  `effort`, the costs section changes its model split, either effort-levels section changes its
+  `effort`, the selection matrix or the guide's task table changes its model split, either effort-levels section changes its
   advice for `medium`, the allowlist substitution changes, or the `sonnet` alias moves to a new
   model.

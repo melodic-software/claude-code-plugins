@@ -10,7 +10,7 @@ check.
 
 1. **`jq` entry gate**, the authoritative check is
    [`reference/tracker-seam.md`](../../../reference/tracker-seam.md)
-   "entry-point presence checks"; probe it (`command -v jq`), don't restate it. Absent is FAIL with that
+   "Provider-neutral over the seam" (its three entry invariants); probe it (`command -v jq`), don't restate it. Absent is FAIL with that
    reference's install remediation, the schedule snippets parse with `jq` unconditionally.
 2. **Tracker provider binding**, resolve the convention home and `BINDING` (SKILL.md "Resolving the
    paths"). A broken pointer (resolver exit `3`) is FAIL, naming the resolver's message. Where no home
@@ -45,7 +45,7 @@ check.
    `tracker` mapping; a legacy `.work-item-tracker.local.json`, still read beside a legacy-only
    binding, as JSON), carry only allowlisted keys
    (CONTRACT.md "Setup (binding file)"), and be gitignored, never tracked. Otherwise FAIL.
-   Ignored and untracked are **two independent probes**: run the same pair `apply` step 5 uses, per
+   Ignored and untracked are **two independent probes**: run the same pair "Provider binding" step 5 uses, per
    [`reference/personal-override-ignore-probes.md`](personal-override-ignore-probes.md). A bare
    `git check-ignore` is silent for an already-tracked personal override. Tracked is the more serious FAIL;
    name it as such when both hold.

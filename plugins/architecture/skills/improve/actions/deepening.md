@@ -39,7 +39,7 @@ scope decomposed into, since the right width depends on the repository being sca
 the method. Name the count and the areas to the user before dispatching: scan cost rises with the
 subagent count, and the scan fan-out is the largest cost of a run.
 
-If the project keeps a domain glossary, read it: the nearest `GLOSSARY.md` (or the name the domain-driven-design `glossary_file` setting sets, or an equivalent), plus the nearest `GLOSSARY-MAP.md` in a multi-context repository, found by walking UP from the directory being examined toward the repo root and stopping at the first match (the same way `.editorconfig` / `.gitignore` resolve).
+Read the project's domain glossary, if it keeps one: invoke `/domain-driven-design:ubiquitous-language lookup` via the Skill tool for the directory being examined when that skill is available; otherwise Glob the repository for `**/*{glossary,Glossary,GLOSSARY,ubiquitous,UBIQUITOUS}*.md` (the root, any `docs/` folder and the module's own folder) and Read the match that covers the area; a path the project's instructions declare, or a `glossary_file` set in `docs/conventions/domain-driven-design.yaml`, wins, and a tool's own reference glossary under a plugin or package `reference/` or `context/` folder is skipped, plus its glossary index in a multi-context repository.
 
 Also read any architecture decision records (ADRs) in the area being examined. Give them the same discovery discipline as the glossary rather than one shallow glob. If the consuming project declares where its decisions live (a path in its `CLAUDE.md` / rules, or a documented convention), honor that. Otherwise walk the ladder of common homes in [../../../reference/adr-discovery.md](../../../reference/adr-discovery.md), from the examined directory up to the repo root. ADR placement varies widely; a single default glob misses most of them.
 
@@ -127,7 +127,7 @@ When the user has chosen a candidate, work through its decision tree in three gr
 
 Side effects inline as decisions crystallize:
 
-- **New concept or sharpened term?** Invoke `/domain-driven-design:curate-language` via the Skill tool immediately
+- **New concept or sharpened term?** Invoke `/domain-driven-design:ubiquitous-language curate` via the Skill tool immediately
   when that skill is available in the current session; it owns active glossary maintenance and
   known-context routing.
   Otherwise preserve the existing fallback: update a consumer-declared ubiquitous-language glossary

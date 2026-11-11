@@ -13,6 +13,8 @@ authoritative reference is
 [Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)
 in the skills docs. Read that for the exact `` !`command` `` inline and ` ```! ` fenced forms,
 substitution variables, and the `shell:` / `disableSkillShellExecution` settings.
+**As of**: 2026-11-10. **Recheck trigger**: that section changes when injected commands run,
+whether their output is scanned again, or what `disableSkillShellExecution` does.
 
 ## What it is
 
@@ -31,13 +33,13 @@ Convert a context-gathering step to `!` injection when **all** hold:
 - **Needed up front, every time.** The skill always wants this context before it reasons.
   One-off or branch-dependent lookups belong in the body as instructions, not injection.
 - **Independent of Claude's judgment.** The command doesn't depend on a decision Claude makes
-  first. Injection is a single pass. Output is not re-scanned, so one placeholder cannot feed
-  another (see the docs); anything requiring a computed argument stays a normal tool call.
-- **Cheap and bounded.** It returns fast and small. Every injected command runs under the Bash
-  tool's default two-minute timeout, and output past the inline ceiling arrives as a file path plus
-  a short preview rather than as text, so a slow or large-output command either delays every load
-  or hands Claude a path instead of the data
-  ([How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)).
+  first. Anything requiring a computed argument, another placeholder's output included, stays a
+  normal tool call; the pass rules are in the section linked at the top of this page.
+- **Cheap and bounded.** It returns fast and small, since every load waits for it and a large
+  output may not arrive inline. For the timeout and output limits, fetch
+  [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
+  live (as of 2026-11-10; recheck when that section changes the timeout or how oversized output
+  arrives).
 - **Grantable.** A narrow `allowed-tools` rule in the skill covers it, and it is not the kind of
   command a consumer's ask or deny rule plausibly matches (see
   [Grant every injected command](#grant-every-injected-command)).
@@ -47,13 +49,17 @@ needs an argument Claude derives, is expensive, or cannot be granted that narrow
 
 ## Conventions we pin
 
-These are Melodic Software conventions, not upstream doctrine. They rest on the failure, timeout,
-stderr, and output-size semantics the skills page documents under
-[How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run) and
-[When an injected command fails](https://code.claude.com/docs/en/skills#when-an-injected-command-fails),
-read 2026-09-02. **Recheck trigger:** a re-read of either section no longer matching the claims
-below, or the page documenting the shell options injections run under. The permission convention
-carries its own record.
+These are Melodic Software conventions, not upstream doctrine. The permission convention carries
+its own record; the others rely on this one:
+
+- **Pointer**: when deciding how an injected command fails, times out, or reports stderr and large
+  output, fetch
+  [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run) and
+  [When an injected command fails](https://code.claude.com/docs/en/skills#when-an-injected-command-fails)
+  live.
+- **As of**: 2026-11-10
+- **Recheck trigger**: either section changes what aborts a render, the timeout, or stderr and
+  output-size handling, or the page starts naming the shell options injections run under.
 
 ### Grant every injected command
 
@@ -81,14 +87,8 @@ check refuses aborts the skill load. We therefore:
 
 ### Defensive fallback is mandatory
 
-A failed injected command aborts the whole skill invocation: Claude never sees the skill content for
-that invocation. With the default `bash` shell any non-zero exit counts as a failure, except exit code
-1 from the search and comparison commands the docs list. A command the Bash tool cannot background is
-killed at the two-minute timeout and aborts the same way. stderr merges into stdout and lands in the
-injected text
-([When an injected command fails](https://code.claude.com/docs/en/skills#when-an-injected-command-fails),
-read 2026-09-02; recheck when that section changes what counts as a failed injected command).
-Every injected command must therefore carry an explicit fallback, so a probe that
+Which exits and timeouts count as a failed injected command is in the record above. Every injected
+command must carry an explicit fallback, so a probe that
 runs and fails degrades the rendered skill to a known string instead of preventing the skill from
 loading at all. Permission refusals are the grant's job, not the fallback's (see above):
 
@@ -212,8 +212,12 @@ must never assert a bare `empty = none`.
 
 ### Windows / `shell:` awareness
 
-`shell:` defaults to `bash`; on Windows without Git Bash the PowerShell tool runs injected
-commands instead (see the docs). Write injection commands portably, or declare `shell:`
+Which tool runs injected commands depends on `shell:` and the host: fetch
+[How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run) and
+the `shell` row of
+[Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) live (as of
+2026-11-10; recheck when either changes which tool runs an injection or the `shell` default).
+Write injection commands portably, or declare `shell:`
 explicitly, so a bash-only pipeline doesn't silently break on a PowerShell host, and pick a
 `|| echo` fallback that is valid in the shell that will run it.
 
@@ -237,15 +241,17 @@ skill that reaches the PowerShell tool because bash is unavailable.
 
 ## Mechanics not to get wrong (pointers, not copies)
 
-- **Single pass.** Substitution runs once over the file; injected output is inserted as plain
-  text and never re-scanned. A command cannot emit a placeholder for a later pass.
+- **Single pass.** Never design an injected command to emit a placeholder for another to expand;
+  the pass rules are in the section linked at the top of this page.
 - **Renders on every invocation path**: user `/name`, the Skill tool, and auto-invocation all
-  preprocess. When injected output changes between invocations, Claude Code appends the full
-  rendered content again ([Skills](https://code.claude.com/docs/en/skills), read 2026-09-02; recheck when that page
-  changes the re-append behavior), so keep injected output stable and small.
-- **Kill switch.** `disableSkillShellExecution` replaces each command with
-  `[shell command execution disabled by policy]`. The skill must still make sense when that
-  string appears in place of the output. Never make correctness depend on injection succeeding.
+  preprocess. Keep injected output stable and small, since output that changes between
+  invocations costs context again: fetch
+  [Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle) live
+  (as of 2026-11-10; recheck when that section changes what a re-invocation with new output adds).
+- **Kill switch.** `disableSkillShellExecution` puts placeholder text in place of every command
+  (its wording is in the section linked at the top of this page). The skill must still make sense
+  when that text appears in place of the output. Never make correctness depend on injection
+  succeeding.
 - **Plugin paths.** Reference bundled scripts with `${CLAUDE_SKILL_DIR}` (or
   `${CLAUDE_PLUGIN_ROOT}` for a plugin's own tree) and project files with `${CLAUDE_PROJECT_DIR}`
   so injection is path-independent; see the substitution table in the docs.

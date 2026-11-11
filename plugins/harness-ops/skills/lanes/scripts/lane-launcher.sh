@@ -454,6 +454,18 @@ check_optarg() {
 # reformat never bleeds code into --help.
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
 
+set_valued_opt() { # <flag> <value>
+  case "$1" in
+  --config) CONFIG="$2" ;;
+  --repo) REPO="$2" ;;
+  --agents-json) AGENTS_JSON_FILE="$2" ;;
+  --data-dir) DATA_DIR_OVERRIDE="$2" ;;
+  --gate-arm-script) GATE_ARM_SCRIPT_OVERRIDE="$2" ;;
+  --telemetry-json) TELEMETRY_JSON_FILE="$2" ;;
+  *) return 1 ;;
+  esac
+}
+
 # --- Argument parse -----------------------------------------------------------
 # First non-option token is the action; remaining non-option tokens are lane
 # names (targets for restart/stop).
@@ -467,45 +479,17 @@ parse_args() {
         seen_action=1
       fi
       ;;
-    --config)
+    --config | --repo | --agents-json | --data-dir | --gate-arm-script | --telemetry-json)
       check_optarg "$1" "${2:-}" || exit 3
-      CONFIG="$2"
+      set_valued_opt "$1" "$2"
       shift
       ;;
-    --config=*) CONFIG="${1#*=}" ;;
-    --repo)
-      check_optarg "$1" "${2:-}" || exit 3
-      REPO="$2"
-      shift
+    --config=* | --repo=* | --agents-json=* | --data-dir=* | --gate-arm-script=* | --telemetry-json=*)
+      set_valued_opt "${1%%=*}" "${1#*=}"
       ;;
-    --repo=*) REPO="${1#*=}" ;;
     --no-pull) NO_PULL=1 ;;
     --no-update) NO_UPDATE=1 ;;
     --dry-run) DRY_RUN=1 ;;
-    --agents-json)
-      check_optarg "$1" "${2:-}" || exit 3
-      AGENTS_JSON_FILE="$2"
-      shift
-      ;;
-    --agents-json=*) AGENTS_JSON_FILE="${1#*=}" ;;
-    --data-dir)
-      check_optarg "$1" "${2:-}" || exit 3
-      DATA_DIR_OVERRIDE="$2"
-      shift
-      ;;
-    --data-dir=*) DATA_DIR_OVERRIDE="${1#*=}" ;;
-    --gate-arm-script)
-      check_optarg "$1" "${2:-}" || exit 3
-      GATE_ARM_SCRIPT_OVERRIDE="$2"
-      shift
-      ;;
-    --gate-arm-script=*) GATE_ARM_SCRIPT_OVERRIDE="${1#*=}" ;;
-    --telemetry-json)
-      check_optarg "$1" "${2:-}" || exit 3
-      TELEMETRY_JSON_FILE="$2"
-      shift
-      ;;
-    --telemetry-json=*) TELEMETRY_JSON_FILE="${1#*=}" ;;
     --write-script) WRITE_SCRIPT=1 ;;
     -h | --help)
       usage
@@ -591,6 +575,17 @@ LEGACY_LANES_CONFIG_REL=".work/lanes.json"
 # than it left them and skip every lane with "prompt file not found".
 LEGACY_CONFIG_HOME=0
 
+# Runs a validation filter over the config into <var>. A failed query rejects
+# the config instead of passing on empty output.
+config_query() { # <var> <what> <filter>
+  local out
+  out="$(jq -r "$3" "$CONFIG")" || {
+    err "lane config validation query failed ($2): $CONFIG"
+    exit 3
+  }
+  printf -v "$1" '%s' "$out"
+}
+
 resolve_config() {
   if [[ -z "$CONFIG" ]]; then
     CONFIG="${HARNESS_OPS_LANES_CONFIG:-$REPO/$LANES_CONFIG_REL}"
@@ -625,11 +620,9 @@ resolve_config() {
   # every action snapshots sessions once, so a duplicated name would launch two
   # same-named sessions while stop reaches only the most-recent one. Reject it at
   # config time rather than silently acting on an ambiguous set.
-  local dupes
-  dupes="$(jq -r '[.lanes[].name | select(. != null)] | group_by(.) | map(select(length > 1) | .[0]) | join(", ")' "$CONFIG")" || {
-    err "lane config validation query failed (duplicate lane names): $CONFIG"
-    exit 3
-  }
+  local dupes traversal mistyped badstage badsched line
+  config_query dupes "duplicate lane names" \
+    '[.lanes[].name | select(. != null)] | group_by(.) | map(select(length > 1) | .[0]) | join(", ")'
   [[ -z "$dupes" ]] || {
     err "lane config has duplicate lane names: $dupes (names must be unique): $CONFIG"
     exit 3
@@ -641,15 +634,11 @@ resolve_config() {
   # targeted restart of one would make the other's staleness probe read a launch
   # commit it never launched at. Reject rather than silently encode, so the
   # documented marker path stays literally true for every accepted name.
-  local traversal
-  traversal="$(jq -r '
+  config_query traversal "lane name path safety" '
     [ .lanes[].name
       | select(. != null)
       | select(type == "string")
-      | select(test("[/\\\\]") or . == "." or . == "..") ] | join(", ")' "$CONFIG")" || {
-    err "lane config validation query failed (lane name path safety): $CONFIG"
-    exit 3
-  }
+      | select(test("[/\\\\]") or . == "." or . == "..") ] | join(", ")'
   [[ -z "$traversal" ]] || {
     err "lane config has lane names that are not usable as a path component: $traversal"
     err "  (a name must not contain '/' or '\\', or be '.' or '..'): $CONFIG"
@@ -664,8 +653,8 @@ resolve_config() {
   # explicit `null` is the JSON spelling of "no value" and stays equivalent to
   # an absent field. `settings` is deliberately NOT typed here — it is checked
   # per lane in validate_launch_inputs, which skips just that lane.
-  local mistyped
-  mistyped="$(jq -r '
+  # shellcheck disable=SC2016 # $i is a jq variable, not shell
+  config_query mistyped "lane field typing" '
     [ .lanes
       | to_entries[]
       | .key as $i
@@ -674,10 +663,7 @@ resolve_config() {
       | select(.key == "name" or .key == "model" or .key == "effort" or .key == "prompt")
       | select(.value != null and (.value | type) != "string")
       | "lane #\($i) .\(.key) is \(.value | type)" ]
-    | join(", ")' "$CONFIG")" || {
-    err "lane config validation query failed (lane field typing): $CONFIG"
-    exit 3
-  }
+    | join(", ")'
   [[ -z "$mistyped" ]] || {
     err "lane config has non-string values for string fields: $mistyped"
     err "  (name/model/effort/prompt must be JSON strings): $CONFIG"
@@ -686,25 +672,17 @@ resolve_config() {
   # `stage` becomes part of an execution-target key. One that is not a
   # <plugin>:<skill> string is warned about and dropped: lane_stage reads the
   # same predicate, and a lane with no stage counts as untrusted.
-  local badstage line
-  badstage="$(jq -r "$JQ_VALID_STAGE"'
+  config_query badstage "lane stage shape" "$JQ_VALID_STAGE"'
     .lanes[] | select(.stage != null and (.stage | valid_stage | not))
-    | "lane \(.name // "?" | @sh | gsub("\n"; "\\n")): stage \(.stage | tojson)"' "$CONFIG")" || {
-    err "lane config validation query failed (lane stage shape): $CONFIG"
-    exit 3
-  }
+    | "lane \(.name // "?" | @sh | gsub("\n"; "\\n")): stage \(.stage | tojson)"'
   while IFS= read -r line; do
-    [[ -n "$line" ]] && warn "$CONFIG: $line is not a <plugin>:<skill> string (lowercase, digits, '-'); ignoring it, so the lane has no stage" # a stage that is not <plugin>:<skill>
+    [[ -n "$line" ]] && warn "$CONFIG: $line is not a <plugin>:<skill> string (lowercase, digits, '-'); ignoring it, so the lane has no stage"
   done <<<"$badstage"
   # An invalid `schedule` is warned about and dropped: _schedule_one reads the
   # same predicate and treats that lane as unscheduled.
-  local badsched
-  badsched="$(jq -r "$JQ_SCHEDULE_MINUTES"'
+  config_query badsched "lane schedule" "$JQ_SCHEDULE_MINUTES"'
     .lanes[] | select(.schedule != null and (.schedule | schedule_minutes) == null)
-    | "lane \(.name // "?" | @sh | gsub("\n"; "\\n")): schedule \(.schedule | tojson)"' "$CONFIG")" || {
-    err "lane config validation query failed (lane schedule): $CONFIG"
-    exit 3
-  }
+    | "lane \(.name // "?" | @sh | gsub("\n"; "\\n")): schedule \(.schedule | tojson)"'
   while IFS= read -r line; do
     [[ -n "$line" ]] && warn "$CONFIG: $line is not {\"every_minutes\": <whole number 1-999>}; ignoring it, so the lane has no schedule"
   done <<<"$badsched"

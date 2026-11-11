@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /tmp/run check-ignore docs/conventions/user-interface.local.yaml"
+          }
+        }
+      ],
+      "why": "a repository-relative path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "chezmoi source-path ~/docs/conventions/user-interface.yaml"
+          }
+        }
+      ],
+      "why": "chezmoi managed check for a user-global file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat ~/docs/conventions/user-interface.yaml"
+          }
+        }
+      ],
+      "why": "home-directory convention file"
+    }
+  ]
+}

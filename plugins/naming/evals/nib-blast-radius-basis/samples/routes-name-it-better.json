@@ -6,7 +6,7 @@
   "fail": [
     { "answer": [], "why": "no call: answering inline skips the skill" },
     { "answer": [{ "tool": "Skill", "input": { "skill": "docs-hygiene:rename-references" } }], "why": "the rename sweep is for a decided rename" },
-    { "answer": [{ "tool": "Skill", "input": { "skill": "domain-driven-design:curate-language" } }], "why": "glossary curation, not naming" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "domain-driven-design:ubiquitous-language" } }], "why": "glossary curation, not naming" },
     { "answer": [{ "tool": "Skill", "input": { "skill": "naming:name-it-better-extra" } }], "why": "prefix collision" },
     { "answer": [{ "tool": "Skill", "input": { "skill": "planning:brainstorm", "args": "then naming:name-it-better" } }], "why": "target named only in args" }
   ]

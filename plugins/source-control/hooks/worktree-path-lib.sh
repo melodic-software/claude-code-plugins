@@ -177,7 +177,6 @@ worktree_add_target_to() {
   hook::git_invocation "${__wt_w[@]}" || return 1
   local __wt_gi="$HOOK_GITINV_GI"
   local -a __wt_words=("${HOOK_GITINV_WORDS[@]}")
-  local -a __wt_wrapper_dirs=(${HOOK_GITINV_WRAPPER_DIRS[@]+"${HOOK_GITINV_WRAPPER_DIRS[@]}"})
   __wt_n=${#__wt_words[@]}
 
   [[ "$HOOK_GITINV_SUB" == "worktree" ]] || return 1
@@ -186,27 +185,20 @@ worktree_add_target_to() {
 
   # The effective directory the git process runs in: the payload cwd, composed
   # with each wrapper chdir in execution order, then each git global -C in
-  # order (git applies multiple -C values cumulatively). Any dynamic hop makes
-  # the base unknowable, so the segment is left alone.
-  for __wt_hop in ${__wt_wrapper_dirs[@]+"${__wt_wrapper_dirs[@]}"}; do
+  # order (git applies multiple -C values cumulatively). An empty or dynamic
+  # hop makes the base unknowable, so the segment is left alone.
+  local -a __wt_hops=(${HOOK_GITINV_WRAPPER_DIRS[@]+"${HOOK_GITINV_WRAPPER_DIRS[@]}"})
+  for ((__wt_j = __wt_gi + 1; __wt_j < __wt_sub_idx; __wt_j++)); do
+    [[ "${__wt_words[__wt_j]}" == "-C" ]] || continue
+    ((__wt_j++))
+    [[ -n "${__wt_words[__wt_j]:-}" ]] || return 1
+    __wt_hops+=("${__wt_words[__wt_j]}")
+  done
+  for __wt_hop in ${__wt_hops[@]+"${__wt_hops[@]}"}; do
     # shellcheck disable=SC2310  # worktree_path_is_dynamic is a pure predicate; the match is the verdict
     worktree_path_is_dynamic "$__wt_hop" && return 1
     __wt_base=$(worktree_path_resolve_against "$__wt_base" "$__wt_hop")
     [[ -n "$__wt_base" ]] || return 1
-  done
-  __wt_j=$((__wt_gi + 1))
-  while ((__wt_j < __wt_sub_idx)); do
-    if [[ "${__wt_words[__wt_j]}" == "-C" ]]; then
-      __wt_hop="${__wt_words[__wt_j + 1]:-}"
-      [[ -n "$__wt_hop" ]] || return 1
-      # shellcheck disable=SC2310  # worktree_path_is_dynamic is a pure predicate; the match is the verdict
-      worktree_path_is_dynamic "$__wt_hop" && return 1
-      __wt_base=$(worktree_path_resolve_against "$__wt_base" "$__wt_hop")
-      [[ -n "$__wt_base" ]] || return 1
-      ((__wt_j += 2))
-      continue
-    fi
-    ((__wt_j++))
   done
 
   # Walk the `add` arguments for the target path: the first positional word.

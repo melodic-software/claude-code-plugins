@@ -19,7 +19,12 @@ invocation:
 - Uncommitted .md files (empty = none matched or the probe returned nothing), `git status --porcelain | grep -E '\.md"?$' | head -10`
 
 The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
-bounds nothing: the Bash tool returns the complete output into context before anything can be decided.
+limits only what is read after the command returns, never what it returns.
+
+- **Pointer**: when deciding how much command output reaches context, fetch
+  [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits) live. **As of**:
+  2026-11-10. **Recheck trigger**: that section changes how much output arrives inline or what
+  arrives in place of output past the inline limit.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls, not pre-compute lines: the harness runs a skill's whole pre-compute block
@@ -236,5 +241,5 @@ Total: <N> file(s) audited, <T1> Tier 1, <T2> Tier 2, <T3> Tier 3 findings.
 ## Sources
 
 - [Diataxis Explanation](https://diataxis.fr/explanation/), the Diataxis classifier behind the preamble treatment
-- [Claude 4 best practices](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-4-best-practices), source of the negation rule's worked example ("Do not use markdown" rewritten to the positive form), read 2026-08-31; recheck when that page drops or rewords the example
+- [Prompting best practices, Control the format of responses](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#control-the-format-of-responses), source of the negation rule's worked example ("Do not use markdown" rewritten to the positive form), read 2026-11-10; recheck when that page drops or rewords the example
 - [markdownlint configuration](https://github.com/DavidAnson/markdownlint?tab=readme-ov-file#configuration), opt-out marker HTML-comment form precedent

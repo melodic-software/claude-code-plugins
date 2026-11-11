@@ -148,24 +148,26 @@ marketplace's plugin-reconfiguration convention
 which owns the verified-version record): interactive `/plugin configure planning@<marketplace>` any
 time. Headless, preferred: run
 `claude plugin configure planning@<marketplace> --values-stdin < values.json` from the project the
-plugin is installed in, with `values.json` holding `{"use_ask_user_question": "true"}` (every value
-a string, booleans included; keys left out keep their saved values). Headless fallback, for a
-Claude Code release without `plugin configure`: rerun
+plugin is installed in, with `values.json` holding `{"use_ask_user_question": "true"}`. Headless
+fallback, for a Claude Code release without `plugin configure`: rerun
 `claude plugin install planning@<marketplace> -s <scope> --config use_ask_user_question=true`
-(repeatable per key). Against an already-installed plugin it prints `already installed` and still
-writes the value. Do **not** uninstall to reconfigure: that drops the plugin's entire stored
-`pluginConfigs` entry, resetting every option in the README's Options reference to its manifest
-default. Either route stores the value in user settings. `claude plugin configure` has no scope
-flag and finds only an install visible from the working directory. For the rerun, `-s` defaults to
-`user`; pass the scope `claude plugin list` reports, and run from that project's directory for a
-`project`/`local` scope, or the rerun adds a second install record at the scope passed and enables
-the plugin there; from the home directory pass `user`. Check each route's own failure signal:
-`claude plugin configure` rejects a bad value with exit 1 and saves nothing, but stores an empty
-string as `""`; the rerun prints a warning for a rejected value yet exits 0, so read its output.
-This skill never writes Claude Code
-user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered `${user_config.*}`
-and each hook's `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check`
-still reports the OLD value; report the observed effective value, never an unobserved change.
+(repeatable per key). Do **not** uninstall to reconfigure. For the rerun, pass the scope
+`claude plugin list` reports, run from that project's directory for a `project`/`local` scope, and
+from the home directory pass `user`. Check each route's own failure signal: read both its exit
+code and its output before reporting a value saved. This skill never writes Claude Code user
+settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**: a same-session
+`check` can still report the old value, so report the observed effective value, never an
+unobserved change.
+
+- **Pointer**: for the upstream specifics, fetch live
+  [§ plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
+  [§ plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install),
+  [§ What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps),
+  [§ Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
+  and [§ Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value).
+- **As of**: 2026-11-10
+- **Recheck trigger**: one of those sections changes how a route takes or rejects a value, what an
+  uninstall deletes, what `-s` places, or when a saved value takes effect.
 
 ### Verify after remediation
 

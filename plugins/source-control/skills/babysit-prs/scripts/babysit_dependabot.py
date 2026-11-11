@@ -51,6 +51,7 @@ import base64
 import json
 import posixpath
 import re
+from collections import Counter
 from collections.abc import Callable, Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -267,10 +268,8 @@ def _compare_files(get: Get, repo: str, old: str, new: str) -> dict[str, Any] | 
     if not isinstance(files, list) or len(files) >= COMPARE_FILES_LIMIT:
         return None
     return {
-        str(json_object(f).get("filename")): None
-        if json_object(f).get("status") == "removed"
-        else json_object(f).get("sha")
-        for f in files
+        str(f.get("filename")): None if f.get("status") == "removed" else f.get("sha")
+        for f in map(json_object, files)
     }
 
 
@@ -326,10 +325,10 @@ def rebase_request(
     """(hold, comment body to post or None, why) for a behind Dependabot
     head. One request per base tip, and none within `REQUEST_COOLDOWN` of
     the newest counted one unless the head conflicts with its base (an
-    unreadable time counts as recent). Every commit Dependabot's: a rebase. The others all base merges
-    GitHub made (a stray update-branch): a recreate, which drops only them.
-    Any other commit holds as edited and posts nothing, since a recreate
-    would discard it. One request per base tip."""
+    unreadable time counts as recent). Every commit Dependabot's: a rebase.
+    The others all base merges GitHub made (a stray update-branch): a
+    recreate, which drops only them. Any other commit holds as edited and
+    posts nothing, since a recreate would discard it."""
     requests = counted_requests(comments, identities)
     if any(base == base_sha for base, _ in requests):
         return (
@@ -462,6 +461,12 @@ def subject_major(message: str, update: Update) -> bool | None:
     return is_major(single.group(2), single.group(3))
 
 
+def _segment(head_ref: Any) -> str:
+    """The head branch's ecosystem segment (`dependabot/<segment>/...`), or ""."""
+    found = _ECOSYSTEM.match(str(head_ref))
+    return found.group(1) if found else ""
+
+
 def classify(
     title: str,
     body: str,
@@ -472,13 +477,11 @@ def classify(
     """The tier from what Dependabot wrote: its commits' metadata, the title,
     the body's `Updates` lines and the head branch, and the newest `ci-status`
     conclusion on the head."""
-    found = _ECOSYSTEM.match(str(head_ref))
-    ecosystem = found.group(1) if found else ""
+    ecosystem = _segment(head_ref)
     metadata: list[Update] | None = None
     for item in commits:
-        commit = json_object(json_object(item).get("commit"))
-        author = json_object(commit.get("author"))
-        if (author.get("name"), author.get("email")) == DEPENDABOT_AUTHOR:
+        if is_dependabot_commit(item):
+            commit = json_object(json_object(item).get("commit"))
             message = str(commit.get("message") or "")
             entries = parse_metadata(message)
             if entries is not None:
@@ -538,8 +541,7 @@ def review_only(
         for e in entries
     ):
         return (POLICY_UNREADABLE,)
-    found = _ECOSYSTEM.match(str(head_ref))
-    segment = found.group(1) if found else ""
+    segment = _segment(head_ref)
     ecosystem = BRANCH_ECOSYSTEMS.get(segment, segment)
     names = {u.name for u in updates}
     reasons: list[str] = []
@@ -851,19 +853,16 @@ def commit_refusal(item: Any, lane_identity: str | None = None) -> str | None:
     entry = json_object(item)
     commit = json_object(entry.get("commit"))
     sha = str(entry.get("sha") or "?")[:12]
-    author = json_object(commit.get("author"))
-    committer = json_object(commit.get("committer"))
-    message = str(commit.get("message") or "")
     if json_object(commit.get("verification")).get("verified") is not True:
         return f"commit-unverified:{sha}"
-    if committer.get("email") != GITHUB_COMMITTER_EMAIL:
+    if json_object(commit.get("committer")).get("email") != GITHUB_COMMITTER_EMAIL:
         return f"commit-not-committed-by-github:{sha}"
-    signed = (author.get("name"), author.get("email"))
-    if signed == DEPENDABOT_AUTHOR:
+    if is_dependabot_commit(entry):
         return None
     login = str(json_object(entry.get("author")).get("login") or "")
     lane = lane_identity and login.casefold() == lane_identity.casefold()
-    return None if lane and SKIP_MARKER in message else f"commit-not-dependabot:{sha}"
+    skip = SKIP_MARKER in str(commit.get("message") or "")
+    return None if lane and skip else f"commit-not-dependabot:{sha}"
 
 
 def commits_refusal(
@@ -1017,7 +1016,7 @@ def _ancestry(sha: str, by_sha: dict[str, Any]) -> set[str]:
 def _pusher(item: Any, lane: str | None) -> str | None:
     """The login whose push must bring a pull-request commit: Dependabot's or
     the lanes App's (author login `lane`); None for any other commit."""
-    if _signed(item) == DEPENDABOT_AUTHOR:
+    if is_dependabot_commit(item):
         return DEPENDABOT_AUTHOR[0]
     login = json_object(json_object(item).get("author")).get("login")
     return lane if lane and str(login or "").casefold() == lane else None
@@ -1328,14 +1327,13 @@ def lock_refusal(before: Any, after: Any) -> str | None:
                 return "lock-resolved"
             if isinstance(value, (dict, list)):
                 stack.append(value)
-    was = old.get("packages") if isinstance(old.get("packages"), dict) else {}
-    is_ = now.get("packages") if isinstance(now.get("packages"), dict) else {}
 
     def script(packages: dict[str, Any], name: str) -> bool:
         return json_object(packages.get(name)).get("hasInstallScript") is True
 
-    for name in sorted(set(was) | set(is_)):
-        if script(was, name) != script(is_, name):
+    # Both sides hold the same keys, checked above.
+    for name in sorted(now["packages"]):
+        if script(old["packages"], name) != script(now["packages"], name):
             return f"lock-install-script:{name}"
     return None
 
@@ -1346,23 +1344,17 @@ def requirements_refusal(before: Any, after: Any) -> str | None:
     `--hash=sha256:` continuation: no option line, URL or VCS requirement."""
     if not isinstance(before, str) or not isinstance(after, str):
         return "requirements-unreadable"
-    kept: dict[str, int] = {}
-    for line in before.split("\n"):
-        kept[line] = kept.get(line, 0) + 1
+    kept = Counter(before.split("\n"))
     added: list[str | None] = []
     for line in after.split("\n"):
-        if kept.get(line):
+        if kept[line]:
             kept[line] -= 1
             continue
         text = line.removesuffix("\r")
-        if not (
-            _BLANK_OR_COMMENT.fullmatch(text)
-            or _REQUIREMENT.fullmatch(text)
-            or _HASH_LINE.fullmatch(text)
-        ):
-            return "requirements-line"
         if _REQUIREMENT.fullmatch(text):
             added.append(_project(text))
+        elif not (_BLANK_OR_COMMENT.fullmatch(text) or _HASH_LINE.fullmatch(text)):
+            return "requirements-line"
     # A fix repins; every pin it adds names a project a removed line named.
     removed = {_project(line.removesuffix("\r")) for line, n in kept.items() if n > 0}
     fresh = next((name for name in added if name not in removed), "")

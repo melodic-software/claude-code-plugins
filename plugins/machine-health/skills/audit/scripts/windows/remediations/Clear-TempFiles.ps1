@@ -62,11 +62,7 @@ function Get-NonReparseFile {
             }
             # StrictMode throws on an absent property and test mocks may lack PSIsContainer;
             # a missing one means a plain file.
-            $isContainer = $false
-            if ($entry.PSObject.Properties['PSIsContainer']) {
-                $isContainer = [bool]$entry.PSIsContainer
-            }
-            if ($isContainer) {
+            if ($entry.PSObject.Properties['PSIsContainer'] -and $entry.PSIsContainer) {
                 $queue.Enqueue($entry.FullName)
             } else {
                 $entry
@@ -148,9 +144,7 @@ $attempt = [ordered]@{
         deleted_count   = $deletedCount
     }
     bytes_freed  = [int64]$deletedBytes
-    error        = if ($errorMessages.Count -gt 0) {
-        $errorMessages -join '; '
-    } else { $null }
+    error        = if ($errorMessages.Count -gt 0) { $errorMessages -join '; ' } else { $null }
 }
 
 if ($Human) {
@@ -158,10 +152,8 @@ if ($Human) {
     Write-Output ("[clear-temp-files] deleted $deletedCount files ($mb MB); " +
         "skipped-locked $skippedLocked; skipped-reparse $skippedReparse")
     foreach ($p in $paths) {
-        $b = $before[$p].bytes
-        $a = $after[$p].bytes
-        $bmb = [math]::Round($b / 1MB, 1)
-        $amb = [math]::Round($a / 1MB, 1)
+        $bmb = [math]::Round($before[$p].bytes / 1MB, 1)
+        $amb = [math]::Round($after[$p].bytes / 1MB, 1)
         Write-Output "  $p : $bmb MB -> $amb MB"
     }
 } else {

@@ -38,8 +38,11 @@ while IFS= read -r line; do
     continue
   fi
   IFS='|' read -ra cells <<<"$line"
+  # Trim the spaces (not tabs) around each cell.
   for i in "${!cells[@]}"; do
-    cells[i]="$(printf '%s' "${cells[i]}" | sed 's/^ *//; s/ *$//')"
+    cell="${cells[i]}"
+    cell="${cell#"${cell%%[! ]*}"}"
+    cells[i]="${cell%"${cell##*[! ]}"}"
   done
   adapter="${cells[1]}"
   case "$adapter" in

@@ -3,6 +3,62 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.0] - 2026-11-10
+
+### Added
+
+- `record-decision` retires the record a new decision reverses, after your yes. The new
+  `adr_retirement` setting picks how: `delete` (default; the number is never reused, and the ADR
+  folder gets one line saying retired records live in its git history), `supersede` (in the
+  repository's own status words) or `archive`. It resolves through all four layers and is reported
+  with its layer.
+- `/architecture:record-decision audit`: read-only. Lists retire candidates grouped by reason (what
+  the record decided is gone from the code, a later commit or record contradicts it, or it fails the
+  admission test), each with `file:line` or commit evidence.
+- The admission test's "at least one" list gains decisions not discoverable from the code:
+  infrastructure, cloud or external services, or a decision not to do something.
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- The next ADR number counts records in the archive folder and in the folder's git history, so a
+  retired number is never reused.
+- A record, and any retirement, is committed in the pull request of the change that made the
+  decision; a decision with no code change gets its own pull request.
+
+## [2.1.1] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [2.1.0] - 2026-11-10
+
+### Added
+
+- `/architecture:record-decision` ships a default template, `templates/adr.md` (title, status, a few sentences of context, decision and why, Considered options when alternatives were weighed, optional Consequences), and recommends it when a repository has no ADR convention. It still writes nothing until the human chooses, and a repository's own convention always wins.
+- Two optional decision-record settings, `adr_template` and `adr_extra_triggers`, resolved through the four-layer cascade (`userConfig` for the template, the team `<home>/architecture.yaml`, the personal `<home>/architecture.local.yaml`), with a schema in `schemas/architecture.schema.json`.
+
+### Changed
+
+- The ADR admission test now requires a real alternative that was weighed, plus at least one of: hard to reverse, shapes the system's structure, shapes a key quality attribute such as security, privacy or performance, or a team's extra trigger. Surprising without context is a reason to write the record, no longer a gate. The test lives only in this skill; callers hand decisions to it.
+- `/architecture:record-decision` names `/domain-driven-design:ubiquitous-language` for term definitions, and the interview, plan close-out and `remove-comments` handoffs in its Composition table.
+
+## [2.0.16] - 2026-11-10
+
+### Changed
+
+- `/architecture:improve` reads the glossary through the `/domain-driven-design:ubiquitous-language lookup` read action, with a repository search (root, any `docs/` folder, the module folder) when that plugin is absent, and writes resolved terms through `/domain-driven-design:ubiquitous-language curate`.
+
+## [2.0.15] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [2.0.14] - 2026-11-09
 
 ### Changed

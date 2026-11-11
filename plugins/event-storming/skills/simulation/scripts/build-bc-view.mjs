@@ -68,26 +68,20 @@ function asList(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function isRecord(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 function e(value) {
   return escapeHtml(asText(value));
 }
 
-function texts(value) {
-  return asList(value)
-    .map((item) => asText(item))
-    .filter((item) => item !== "");
-}
-
-function objects(value) {
-  return asList(value).filter((row) => row && typeof row === "object" && !Array.isArray(row));
-}
-
 function joined(value) {
-  return texts(value).map((item) => escapeHtml(item)).join(", ");
+  return asList(value).map(e).filter(Boolean).join(", ");
 }
 
 function contextRows(rows) {
-  const items = objects(rows);
+  const items = asList(rows).filter(isRecord);
   if (items.length === 0) return "<tr><td>None.</td><td></td><td></td><td></td><td></td></tr>";
   return items
     .map(
@@ -142,12 +136,16 @@ function fail(message, code) {
   process.exit(code);
 }
 
+function errorText(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function runCheck(path) {
   let html;
   try {
     html = readFileSync(path, "utf8");
   } catch (error) {
-    fail(error instanceof Error ? error.message : String(error), 2);
+    fail(errorText(error), 2);
   }
   const verdict = validateRenderedPage(html);
   if (!verdict.ok) fail(verdict.failures.join(","), 1);
@@ -158,11 +156,9 @@ function runBuild() {
   try {
     model = JSON.parse(readFileSync(0, "utf8"));
   } catch (error) {
-    fail(`invalid JSON (${error instanceof Error ? error.message : String(error)})`, 2);
+    fail(`invalid JSON (${errorText(error)})`, 2);
   }
-  if (!model || typeof model !== "object" || Array.isArray(model)) {
-    fail("JSON root must be an object", 2);
-  }
+  if (!isRecord(model)) fail("JSON root must be an object", 2);
   const page = buildBoundedContextPage(model);
   const verdict = validateRenderedPage(page);
   if (!verdict.ok) fail(`refused to emit (${verdict.failures.join(",")})`, 1);

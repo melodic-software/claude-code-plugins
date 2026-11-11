@@ -34,13 +34,17 @@ code they describe rather than in a directory of their own.
 ## Rung 3. None
 
 No convention. The caller decides what that means: `/architecture:improve` reads nothing and moves
-on; `/architecture:record-decision` names the rungs it searched, offers shapes, and defers.
+on; `/architecture:record-decision` names the rungs it searched, recommends its default template beside other shapes, and defers.
 
 ## Inference: numbering
 
-Parse the identifier prefix of every record in the chosen directory. The next identifier is the
-highest existing plus one, at the **same zero-pad width and separator** the existing records use
-(`0031-`, `ADR-009-`, `31_` are three different answers to the same question).
+Parse the identifier prefix of every record in the chosen directory, its archive folder, and every
+record ever added under the directory in git history
+(`git log --diff-filter=A --name-only --format= -- <dir>`), so a retired record's number is never
+reused. The next identifier is the highest of
+those plus one, at the **same zero-pad width and separator** the existing records use (`0031-`,
+`ADR-009-`, `31_` are three different answers to the same question). A gap in the numbering marks a
+retired record, not an error.
 
 A date-prefixed scheme uses today's date in the observed format rather than a counter.
 

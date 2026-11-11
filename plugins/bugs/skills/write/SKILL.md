@@ -23,13 +23,15 @@ much of a command's output reaches the result, and in what form, is read at
 As of: 2026-10-11. Recheck trigger: that section changes the inline ceiling or what arrives past it.
 
 A failure (not a repository, git unavailable) is an unknown value; carry on. These stay body Bash
-calls rather than pre-compute lines because a worktree-isolated session refuses a compound command
-that contains git. The dated record for how the pre-compute block is composed is
+calls rather than pre-compute lines. The dated record for how the pre-compute block is composed is
 owned by `/source-control:worktree` (its gather-block record, "The pre-compute block runs as one
-shell invocation"); how injected commands run is read at
+shell invocation"); which commands a worktree-isolated session refuses is read at
+[worktrees: how Claude Code enforces isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation),
+and how injected commands run at
 [skills: how injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
-As of: 2026-10-11. Recheck triggers: the gather-block section moves, is renamed, or changes how the
-block is composed; the skills section changes how a block's commands are run.
+As of: 2026-11-10. Recheck triggers: the gather-block section moves, is renamed, or changes how the
+block is composed; the worktrees section changes which commands it refuses; the skills section
+changes how a block's commands are run.
 
 ## Pre-computed context
 
@@ -114,8 +116,10 @@ The most important part is documenting the issue clearly so that the agent knows
 how. Using screenshots with arrows pointing out the issue is a great way to do this. When the
 defect is visual and none came with the description, ask the reporter for one. A pasted
 screenshot or image path backs Expected vs actual like the reporter's own words; name it under
-Notes so it is attached when filed. A video file cannot be read: ask for a screenshot or a few
-still frames. A repo that wants a screenshot on every rendered-output report says so in its consumer
+Notes so it is attached when filed. Ask for a screenshot or a few still frames, not a video
+(which file types Read handles:
+[tools reference: Read tool behavior](https://code.claude.com/docs/en/tools-reference#read-tool-behavior),
+as of 2026-11-10; recheck when that section adds a video type). A repo that wants a screenshot on every rendered-output report says so in its consumer
 gotchas.
 
 If it's motion, use a frame-state capture. Find the frame where something needs fixing, copy the
@@ -201,8 +205,7 @@ severity cannot be calibrated from context, ask one question rather than invent 
 
 "Report a bug" can mean a defect in the person's own code or one in Claude Code itself.
 
-- **`/bug` (built-in command)**: reports a problem with Claude Code itself. It is reserved for the
-  person to run; the model does not invoke it. What it includes and where the report goes are read
+- **`/bug` (built-in command)**: reports a problem with Claude Code itself. What it includes and where the report goes are read
   live from its row. Pointer: the second row of
   [context/native-bug.md](context/native-bug.md#the-built-in-bug-command-verification-record)
   carries that record. As of: 2026-10-11. Recheck trigger: that row moves or stops carrying its own
@@ -211,12 +214,11 @@ severity cannot be calibrated from context, ask one question rather than invent 
   repository, filed nowhere unless they ask.
 
 When the defect is in Claude Code itself (the CLI, a built-in command, a bundled skill), offer it to
-the person: If /bug is available in your session (gate basis: not gated in the extraction, though a
-host may lack it; records in
+the person: If /bug is available in your session (gate basis: the records in
 [context/native-bug.md](context/native-bug.md#the-built-in-bug-command-verification-record)), you
 can run it instead of or alongside this skill. When the caller passes `--unattended`, the run records the offer in its output instead of asking; without that flag it
-asks. Never run `/bug` on the person's behalf: it packages session history for someone
-outside this repository, and only the person decides what goes and where. Never assume `/bug` is
+asks. Never run `/bug` on the person's behalf: whether to run it is the person's decision.
+Never assume `/bug` is
 present in their host.
 
 ## Next

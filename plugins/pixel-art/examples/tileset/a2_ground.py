@@ -23,26 +23,19 @@ def is_lip(x, y):
     return x < LIP or x >= W - LIP or y < TILE + LIP or y >= H - LIP
 
 
+def pixel(x, y, index):
+    if is_lip(x, y):
+        return "L" if (x + y + index) % 7 == 0 else "l"
+    return "G" if (x * 3 + y + index) % 13 == 0 else "g"
+
+
 def block(index):
-    rows = []
-    for y in range(H):
-        chars = []
-        for x in range(W):
-            if is_lip(x, y):
-                chars.append("L" if (x + y + index) % 7 == 0 else "l")
-            else:
-                chars.append("G" if (x * 3 + y + index) % 13 == 0 else "g")
-        rows.append("".join(chars))
-    return rows
+    return ["".join(pixel(x, y, index) for x in range(W)) for y in range(H)]
 
 
 def build():
-    frames = {}
-    order = []
-    for index in range(COUNT):
-        name = f"b{index:02d}"
-        frames[name] = block(index)
-        order.append(name)
+    order = [f"b{index:02d}" for index in range(COUNT)]
+    frames = {name: block(index) for index, name in enumerate(order)}
     return {
         "palette": {
             "g": "#3a7a32",

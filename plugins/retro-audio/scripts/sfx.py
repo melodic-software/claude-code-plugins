@@ -60,8 +60,10 @@ def render_sfx(params, rate=44100):
         time = index / rate
         local = time % repeat if repeat > 0 else time
         current = freq + slide * local
-        if limit is not None:
-            current = min(current, float(limit)) if slide > 0 else max(current, float(limit)) if slide < 0 else current
+        if limit is not None and slide > 0:
+            current = min(current, float(limit))
+        elif limit is not None and slide < 0:
+            current = max(current, float(limit))
         if arp_time > 0 and local >= arp_time:
             current *= arp_ratio
         current = max(1.0, current)
@@ -76,7 +78,7 @@ def render_sfx(params, rate=44100):
         else:
             phase = (phase + current / rate) % 1
             sample = tone.oscillate(wave_name, phase, current_duty)
-        level = tone.envelope(local if repeat > 0 else time, attack, sustain, decay)
+        level = tone.envelope(local, attack, sustain, decay)
         if punch and time < 0.01:
             level = min(1.0, level + punch)
         sample *= level * volume

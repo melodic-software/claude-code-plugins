@@ -6,18 +6,18 @@ workflow.
 
 | Skill | What it does |
 |---|---|
-| `/domain-driven-design:curate-language` | Actively maintains the consuming project's ubiquitous-language glossary: resolves ambiguous or overloaded terms, records canonical language and rejected synonyms, sharpens definitions to say what each term is, and routes entries to already-known bounded contexts. It never discovers boundaries itself. |
+| `/domain-driven-design:ubiquitous-language` | Owns the consuming project's ubiquitous-language glossary. `locate` finds it, `lookup` reads terms for other skills (the one read path every reader uses), `seed` proposes a first glossary from the code with a person accepting each term, `curate` resolves terms and records canonical language and rejected synonyms, and `audit` checks entries and finds rejected words in code, copy and error messages. It never discovers boundaries itself and never rewrites code or copy. |
 
 Deferred: `context-mapping` and `aggregate-design` join this plugin when those
 practices materialize as skills.
 
 Bounded-context **discovery** is out of scope here. Workshop-driven discovery lives in
-the standalone `event-storming` plugin, which `curate-language` soft-routes to when
-boundaries are missing.
+the standalone `event-storming` plugin, which `ubiquitous-language` routes to
+(`/event-storming:simulation`) when boundaries are missing.
 
 ## Works in any repo
 
-- **Reads your conventions first.** Glossary filename, location, shape, and context map
+- **Reads your conventions first.** Glossary filename, location, shape, and glossary index
   come from the consuming project. Where none exist, it proposes, never imposes, one
   `GLOSSARY.md` per bounded context and a root `GLOSSARY-MAP.md` once more than one
   context exists, and writes only after you confirm; creation stays lazy.
@@ -35,8 +35,9 @@ boundaries are missing.
 /plugin install domain-driven-design@melodic-software
 ```
 
-The `planning` plugin invokes `/domain-driven-design:curate-language` when it is installed, and
-records resolved terms in its own artifacts when it is not. Install this plugin alongside
+Reader skills in other plugins invoke `lookup` when this plugin is installed and search for the
+glossary themselves when it is not. The `planning` plugin invokes `curate` when a term resolves,
+and records resolved terms in its own artifacts when this plugin is absent. Install this plugin alongside
 `planning` to get glossary stewardship inside the planning workflow.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
@@ -48,8 +49,8 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `glossary_file` | string | `"GLOSSARY.md"` | File name curate-language proposes for a bounded context's glossary when the repository has no glossary convention. A file name, never a path. docs/conventions/domain-driven-design.yaml overrides this. |
-| `glossary_map_file` | string | `"GLOSSARY-MAP.md"` | File name curate-language proposes for the root context map once more than one bounded context exists. A file name, never a path. docs/conventions/domain-driven-design.yaml overrides this. |
+| `glossary_file` | string | `"GLOSSARY.md"` | File name ubiquitous-language proposes for a bounded context's glossary when the repository has no glossary convention. A file name, never a path. docs/conventions/domain-driven-design.yaml overrides this. |
+| `glossary_map_file` | string | `"GLOSSARY-MAP.md"` | File name ubiquitous-language proposes for the root glossary index once more than one bounded context exists. A file name, never a path. docs/conventions/domain-driven-design.yaml overrides this. |
 
 ### How to set these
 

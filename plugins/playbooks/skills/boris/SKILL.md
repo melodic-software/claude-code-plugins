@@ -52,7 +52,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Tip | Key Action |
 |-----|------------|
 | Parallel work | Use git worktrees, 3-5 sessions |
-| Model | Boris: Fable 5 for the hardest and longest tasks (Sections 94–95); Opus otherwise (Section 2, historical). As of the 2026-07-24 sync. For current model choice see the [models overview](https://platform.claude.com/docs/en/models/overview#latest-models-comparison) and [cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task) (both as of 2026-11-09; recheck on a new model release). Re-sync through `/playbooks:update` when upstream publishes tips for a newer model |
+| Model | Boris: Fable 5 for the hardest and longest tasks (Sections 94–95); Opus otherwise (Section 2, historical). As of the 2026-07-24 sync. Fable 5 has since been superseded; for which Fable model the `fable` alias selects, see [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable) (as of 2026-11-09; recheck when that section names another Fable model). For current model choice see the [models overview](https://platform.claude.com/docs/en/models/overview#latest-models-comparison) and [cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task) (both as of 2026-11-09; recheck on a new model release). Re-sync through `/playbooks:update` when upstream publishes tips for a newer model |
 | Planning | Auto mode plans implicitly on 4.6+; reach for plan mode when you want the written artifact of intent (Section 87) |
 | CLAUDE.md | Add what corrections teach, and prune as you add (Section 4) |
 | Skills | Create for repeated workflows |
@@ -98,7 +98,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Chrome Extension | Give Claude a browser to verify frontend work |
 | Desktop Web Testing | Built-in browser for web server testing |
 | Fork Sessions | `/branch` or `--resume <id> --fork-session` |
-| --bare | 10x faster SDK startup for non-interactive usage |
+| --bare | Boris: 10x faster SDK startup for non-interactive usage (Section 57). For what bare mode skips, see [Start faster with bare mode](https://code.claude.com/docs/en/headless#start-faster-with-bare-mode) (as of 2026-11-10; recheck when that section changes what bare mode skips) |
 | --add-dir | Multi-repo access with permissions |
 | --agent | Custom agents from `.claude/agents` |
 | Routines | Scheduled / event-driven Claude Code, runs on Anthropic infra |

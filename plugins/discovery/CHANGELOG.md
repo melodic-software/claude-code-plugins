@@ -1,5 +1,17 @@
 # Changelog: discovery plugin
 
+## [1.7.2] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [1.7.1] - 2026-11-10
+
+### Changed
+
+- `/discovery:explore` reads the glossary through `/domain-driven-design:ubiquitous-language lookup` when that plugin is installed.
+
 ## [1.7.0] - 2026-11-09
 
 ### Added

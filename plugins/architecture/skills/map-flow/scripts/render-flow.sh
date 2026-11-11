@@ -45,38 +45,16 @@ outdir=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --help | -h)
-    usage
-    exit 0
-    ;;
-  --record)
-    [[ $# -ge 2 ]] || die "--record needs a path" 2
-    record="$2"
-    shift 2
-    ;;
-  --record=*)
-    record="${1#--record=}"
-    shift
-    ;;
-  --out)
-    [[ $# -ge 2 ]] || die "--out needs a directory" 2
-    outdir="$2"
-    shift 2
-    ;;
-  --out=*)
-    outdir="${1#--out=}"
-    shift
-    ;;
-  *)
-    die "unknown argument: $1" 2
-    ;;
+  --help | -h) usage; exit 0 ;;
+  --record) [[ $# -ge 2 ]] || die "--record needs a path" 2; record="$2"; shift 2 ;;
+  --record=*) record="${1#--record=}"; shift ;;
+  --out) [[ $# -ge 2 ]] || die "--out needs a directory" 2; outdir="$2"; shift 2 ;;
+  --out=*) outdir="${1#--out=}"; shift ;;
+  *) die "unknown argument: $1" 2 ;;
   esac
 done
 
-[[ -n "$record" && -n "$outdir" ]] || {
-  usage >&2
-  exit 2
-}
+[[ -n "$record" && -n "$outdir" ]] || { usage >&2; exit 2; }
 [[ -r "$record" ]] || die "cannot read record: $record" 1
 [[ -d "$outdir" ]] || die "not a directory: $outdir" 1
 grep -q '"schema_version"[[:space:]]*:[[:space:]]*1' "$record" ||
@@ -152,12 +130,9 @@ BEGIN { out = ENVIRON["OUT_FILE"] }
 /"truncated"[[:space:]]*:[[:space:]]*"/ {
   truncated = jstr($0, "truncated")
 }
-/"depth"[[:space:]]*:/ {
-  if (match($0, /"depth"[[:space:]]*:[[:space:]]*[0-9]+/)) {
-    s = substr($0, RSTART, RLENGTH)
-    sub(/.*:[[:space:]]*/, "", s)
-    depth = s
-  }
+match($0, /"depth"[[:space:]]*:[[:space:]]*[0-9]+/) {
+  depth = substr($0, RSTART, RLENGTH)
+  sub(/.*:[[:space:]]*/, "", depth)
 }
 /^[[:space:]]*[{]"from_role":/ {
   n++
@@ -178,25 +153,16 @@ BEGIN { out = ENVIRON["OUT_FILE"] }
   if (hand[n] == "yes") handoffs++
 }
 END {
-  # Collapse consecutive identical role pairs.
+  # Collapse consecutive identical role pairs: arrow k draws hop first[k] for count[k] hops.
   m = 0
-  i = 1
-  while (i <= n) {
+  collapsed = 0
+  for (i = 1; i <= n; i = j + 1) {
     j = i
     while (j < n && from[j + 1] == from[i] && to[j + 1] == to[i] && sync[j + 1] == sync[i] && res[j + 1] == res[i] && mech[j + 1] == mech[i] && hand[j + 1] == hand[i])
       j++
-    m++
-    c_from[m] = from[i]
-    c_to[m] = to[i]
-    c_sync[m] = sync[i]
-    c_res[m] = res[i]
-    c_hand[m] = hand[i]
-    c_call[m] = call[i]
-    c_file[m] = file[i]
-    c_line[m] = line[i]
-    c_mech[m] = mech[i]
-    c_count[m] = j - i + 1
-    i = j + 1
+    first[++m] = i
+    count[m] = j - i + 1
+    if (count[m] > 1) collapsed += count[m]
   }
   emit("# Flow")
   emit("")
@@ -213,19 +179,20 @@ END {
   emit("sequenceDiagram")
   # Stable participant order: first appearance.
   pcount = 0
-  for (i = 1; i <= m; i++) {
-    if (!(c_from[i] in printed)) { printed[c_from[i]] = 1; pcount++; order[pcount] = c_from[i] }
-    if (!(c_to[i] in printed)) { printed[c_to[i]] = 1; pcount++; order[pcount] = c_to[i] }
+  for (i = 1; i <= n; i++) {
+    if (!(from[i] in printed)) { printed[from[i]] = 1; order[++pcount] = from[i] }
+    if (!(to[i] in printed)) { printed[to[i]] = 1; order[++pcount] = to[i] }
   }
   for (i = 1; i <= pcount; i++)
     emit("  participant " order[i] " as " order[i])
-  for (i = 1; i <= m; i++) {
-    arrow = (c_sync[i] == "asynchronous" ? "-->>" : "->>")
-    label = c_call[i] " " c_file[i] ":" c_line[i] " " c_res[i]
-    if (c_mech[i] != "") label = label " " c_mech[i]
-    if (c_hand[i] == "yes") label = label " handoff /architecture:map-events"
-    if (c_count[i] > 1) label = label " (" c_count[i] " hops collapsed)"
-    emit("  " c_from[i] arrow c_to[i] ": " q(label))
+  for (k = 1; k <= m; k++) {
+    i = first[k]
+    arrow = (sync[i] == "asynchronous" ? "-->>" : "->>")
+    label = call[i] " " file[i] ":" line[i] " " res[i]
+    if (mech[i] != "") label = label " " mech[i]
+    if (hand[i] == "yes") label = label " handoff /architecture:map-events"
+    if (count[k] > 1) label = label " (" count[k] " hops collapsed)"
+    emit("  " from[i] arrow to[i] ": " q(label))
   }
   emit("```")
   emit("")
@@ -236,8 +203,6 @@ END {
   for (i = 1; i <= n; i++)
     emit("| " from[i] " | " to[i] " | " call[i] " | " file[i] ":" line[i] " | " sync[i] " | " res[i] " | " mech[i] " | " hand[i] " |")
   emit("")
-  collapsed = 0
-  for (i = 1; i <= m; i++) if (c_count[i] > 1) collapsed += c_count[i]
   if (collapsed > 0)
     emit("Collapsed " collapsed " hops that shared a role pair, sync, resolution, mechanism, and handoff. The table above keeps every cited call.")
   else

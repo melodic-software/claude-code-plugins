@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# typos-format hook entry for the one row that remains after spell-check
-# findings moved to commit time (the git pre-commit entry in git-hooks/):
+# typos-format hook entry. Spell-check findings come at commit time, from the
+# git pre-commit entry in git-hooks/; this hook carries one row:
 #
 #   typos-format.sh --end-of-turn    the opt-in Stop row (typos_format_end_of_turn)
 #
@@ -31,8 +31,7 @@ if [[ "${1:-}" == --end-of-turn ]]; then
   [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
   # silent-skip-ok: the SessionStart probe already told the user typos is missing (prerequisites.json, hook:typos-format.sh), and the bundled checker reports it; blocking every turn end on a host problem would not help the model.
   command -v typos >/dev/null 2>&1 || exit 0
-  "${BASH:-bash}" "$HOOK_DIR/../git-hooks/typos-check.sh" --worktree >/dev/null && exit 0
-  exit 2
+  "${BASH:-bash}" "$HOOK_DIR/../git-hooks/typos-check.sh" --worktree >/dev/null || exit 2
 fi
 
 exit 0

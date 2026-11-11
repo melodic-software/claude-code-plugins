@@ -25,8 +25,10 @@ behavior.
 | `quiz_policy` | `${user_config.quiz_policy}` | `on-request`. Act only when invoked. Values govern OFFER CADENCE only (see "Non-gating posture"). Unknown value → treat as `on-request`. |
 | `report_library_dir` | `${user_config.report_library_dir}` | unset → artifacts land under `${CLAUDE_PLUGIN_DATA}` (see "Retention mechanics"). Set to a corpus checkout to redirect the library root there. |
 
-Configure via the `/plugin` dialog, or headless with `claude plugin install
-education@<marketplace> --config KEY=VALUE` (your installed marketplace name). The hardcoded-path
+Configure via the `/plugin` dialog, or headless by the routes `/education:setup` `check` step 7
+lists, which follow the
+[plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md)
+(it owns the verified-version record). The hardcoded-path
 guardrails may block a literal non-home `report_library_dir`; when a write is blocked, report the
 block and fall back to the `${CLAUDE_PLUGIN_DATA}` default rather than working around the
 guardrail.

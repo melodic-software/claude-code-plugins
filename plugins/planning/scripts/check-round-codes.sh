@@ -24,6 +24,10 @@
 #                   line is named by that question, whether `:`, `.` or `)`
 #                   follows it. `Checked against: C1, C3` is bare twice; each
 #                   later use in the same block is not checked
+#   scenario id     a scenario walk's `S<N>` qualified by its question
+#                   (`Q17.S1`) is not a ledger code and is skipped; a line
+#                   opened by a bare `S<N>:` whose `S<N>` is a sweep row is
+#                   bare, since a reader cannot tell the scenario from the row
 #
 # Lines inside fenced code blocks are ignored, in the ledger and the round; a
 # fence left open exits 2.
@@ -138,8 +142,9 @@ LC_ALL=C awk '
         if (fold[i] && next1 == "s" && substr(hay, pos + len + 1, 1) !~ wordch) { len++; next1 = substr(hay, pos + len, 1) }
         off = pos + len - 1
         if (prev ~ wordch || next1 ~ wordch) continue
+        if (prev == "." && substr(hay, 1, pos - 2) ~ /Q[0-9]+$/) continue
         used[c] = 1
-        if (!named(line, pos, len)) {
+        if ((c ~ /^S[0-9]+$/ && substr(line, 1, pos - 1) ~ /^[^A-Za-z0-9]*$/ && substr(line, pos + len) ~ /^[`*_"]*:/) || !named(line, pos, len)) {
           bare++
           printf "bare=%d:%s\n", lno, substr(line, pos, length(c))
         }
@@ -147,10 +152,22 @@ LC_ALL=C awk '
       }
     }
   }
+  # The id of the question a line opens, or "" when it opens none.
+  function question_id(line,    c) {
+    if (!match(line, /^[^A-Za-z0-9]*Q[0-9]+[.):]/)) return ""
+    c = substr(line, RSTART, RLENGTH)
+    # Q17.S1 is a qualified scenario id, not a question line.
+    if (c ~ /\.$/ && substr(line, RSTART + RLENGTH, 1) ~ /[A-Za-z0-9]/) return ""
+    sub(/^[^A-Za-z0-9]*/, "", c)
+    sub(/[.):]$/, "", c)
+    return c
+  }
   FNR == 1 && NR > 1 && in_fence { exit 4 }
-  FILENAME == ledger_file {
+  {
     sub(/\r$/, "")
     if (fence($0) || in_fence) next
+  }
+  FILENAME == ledger_file {
     if ($0 ~ /^[ \t]*- [QCFS][0-9]+[ \t]*\|/) {
       c = $0
       sub(/^[ \t]*- /, "", c)
@@ -173,26 +190,14 @@ LC_ALL=C awk '
     next
   }
   pass == 1 {
-    sub(/\r$/, "")
-    if (fence($0) || in_fence) next
-    if (match($0, /^[^A-Za-z0-9]*Q[0-9]+[.):]/)) {
-      c = substr($0, RSTART, RLENGTH)
-      sub(/^[^A-Za-z0-9]*/, "", c)
-      sub(/[.):]$/, "", c)
-      add_code(c, 0)
-    }
+    add_code(question_id($0), 0)
     next
   }
   {
-    sub(/\r$/, "")
-    if (fence($0) || in_fence) next
-    if (match($0, /^[^A-Za-z0-9]*Q[0-9]+[.):]/)) {
+    if ((c = question_id($0)) != "") {
       delete used
       # The Q<N> that opens a question line is the handle of that question,
       # named by the question itself whatever separator follows it.
-      c = substr($0, RSTART, RLENGTH)
-      sub(/^[^A-Za-z0-9]*/, "", c)
-      sub(/[.):]$/, "", c)
       used[c] = 1
     }
     grade($0, FNR)

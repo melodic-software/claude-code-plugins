@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "docs/adr/0003-serve-the-public-api-over-rest.md",
+            "content": "# 3. Serve the public API over REST\n\nReverses ADR 0002.\n"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "docs/adr/0002-serve-the-public-api-over-graphql.md",
+            "content": "# 2. Superseded\n"
+          }
+        }
+      ]
+    }
+  ]
+}

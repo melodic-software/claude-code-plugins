@@ -3,6 +3,18 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.6] - 2026-11-10
+
+### Changed
+
+- The playwright skill no longer restates `playwright-cli` defaults (headless mode, the session profile, the `video-start` frame size); it keeps the decisions and the measured video table and points at the upstream README, `--help` and the storage-state reference for the current values. No behavior change.
+
+## [1.2.5] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [1.2.4] - 2026-11-09
 
 ### Changed

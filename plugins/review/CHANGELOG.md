@@ -3,6 +3,46 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.4.1] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.4.0] - 2026-11-10
+
+### Changed
+
+- The code-reviewer agent's glossary check also flags a verb an entity's `Actions:` line rejects, when the change uses it for that operation on that entity.
+
+## [8.3.5] - 2026-11-10
+
+### Fixed
+
+- Links to Claude Code's docs that pointed at moved section anchors now resolve: the permissions page's wrapper list, the permission-modes auto-mode section, and Code Review's setup and review-request sections.
+
+## [8.3.4] - 2026-11-10
+
+### Changed
+
+- Skill bodies point at the live upstream sections for bundled-review, managed-service, workflow,
+  nesting and model-guidance specifics instead of restating them, each with an as-of date and a
+  recheck trigger.
+- `setup` now lists `docs/conventions/review-digest.yaml` among the files it may write, and
+  `explain-change` states why a view answer is capped at 4000 characters.
+
+## [8.3.3] - 2026-11-10
+
+### Changed
+
+- The code-reviewer agent flags, as advisory, a new name that uses a word the project's glossary rejects.
+
+## [8.3.2] - 2026-11-10
+
+### Changed
+
+- The fanout run-everything mode and the fanout-sweep workflow say why `best` stays out of model diversity: it names Fable on older Claude Code releases. No behavior change.
+
 ## [8.3.1] - 2026-11-09
 
 ### Changed

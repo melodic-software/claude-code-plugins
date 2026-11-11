@@ -91,6 +91,27 @@ Artifact renders mermaid natively, whereas a local HTML file renders a mermaid
 diagram only if the page embeds a mermaid renderer inline; a bare `mermaid` block in
 a plain file stays unrendered.
 
+### MCP App canvas (connected canvas server)
+
+A canvas server's tools return an MCP App, an interactive view for the host to render. Which hosts
+render one, Claude Code included, is read live from the pointer below. Our rule: in the Claude Code
+terminal the skill draws locally; on Claude Desktop or claude.ai it may draw on a connected canvas,
+under the `hosted_canvas` setting. A `diagram_target` of `excalidraw` or `tldraw` asks for that canvas
+and never widens this rule: where it would not draw, the skill falls back to `auto`.
+
+- **Pointer**: when deciding whether this session's surface renders a canvas, fetch
+  [Add an interactive UI to your MCP server: See the UI render in Claude](https://claude.com/docs/connectors/building/mcp-apps/quickstart#see-the-ui-render-in-claude)
+  live.
+- **As of**: 2026-11-10
+- **Recheck trigger**: that section lists Claude Code as a host that renders MCP Apps, or the
+  section is renamed or moves.
+
+This plugin bundles no canvas server. A person who wants one can install an official server at user
+level; each repository's README says how and which variants run locally or remotely:
+
+- Excalidraw: <https://github.com/excalidraw/excalidraw-mcp>
+- tldraw: `apps/mcp-app` in <https://github.com/tldraw/tldraw>
+
 ## Form catalog
 
 ### Mermaid diagram families

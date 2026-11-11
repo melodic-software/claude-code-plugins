@@ -20,8 +20,9 @@ action.
 
 ## Configured options
 
-Claude Code substitutes these values when the skill loads. The spokes you open with Read arrive
-unsubstituted, so they refer to this table. A cell that reads as a literal `user_config` token
+The spokes refer to this table for these values. Where a `${user_config.*}` reference resolves:
+<https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value>, as of
+2026-11-10; recheck when that section changes which plugin content takes a saved value. A cell that reads as a literal `user_config` token
 rather than a value is unset: treat it as the default.
 
 | Option | Value | Default |
@@ -265,8 +266,7 @@ patterns live in the source spokes.
 
 ## Prerequisites
 
-The skill needs **Git Bash on Windows** (its `shell: bash` invocation fails before any command
-runs without bash) and **Node 22 or newer** (the runner reads
+The skill needs **Git Bash on Windows** (its frontmatter sets `shell: bash`) and **Node 22 or newer** (the runner reads
 `import.meta.dirname`). Pointers:
 [skills, injected commands](https://code.claude.com/docs/en/skills#how-injected-commands-run) and
 [Node `import.meta.dirname`](https://github.com/nodejs/node/blob/main/doc/api/esm.md#importmetadirname),

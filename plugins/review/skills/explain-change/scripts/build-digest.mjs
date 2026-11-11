@@ -100,7 +100,7 @@ export function bridgeDirProblem(dir, origin) {
     return `${dir} must be owned by you with mode 0700`;
   }
   if (realpathSync(dir) !== resolve(dir)) return `${dir} is not a plain directory path (a link is in it)`;
-  const root = repoRoot(realpathSync(dir));
+  const root = repoRoot(dir);
   if (root) return `${dir} is inside the working tree ${root}`;
   let session;
   try {

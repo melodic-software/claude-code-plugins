@@ -3,6 +3,28 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.16] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [0.26.15] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [0.26.14] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
 ## [0.26.13] - 2026-11-09
 
 ### Changed

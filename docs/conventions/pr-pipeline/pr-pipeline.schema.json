@@ -100,6 +100,20 @@
           "default": 5,
           "description": "Issues one work-unblock sweep restarts or re-fires."
         },
+        "refire-queue-per-slot": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 2,
+          "description": "Kill-switch re-fires' queue target per issue-lane slot (SLOTS in work-resolve-issue.yml): a work-unblock sweep re-fires breaker-stranded issues, oldest first, only until the work-resolve-issue runs not yet finished reach this times SLOTS, within restarts-per-run."
+        },
+        "sweep-gap-minutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 60,
+          "default": 15,
+          "description": "Minutes after a work-unblock full sweep (a run that uploaded work-unblock-verdicts) finished during which a sweep a finished work-resolve-issue run starts skips its work. A scheduled sweep or an issue close never skips. 0 turns the gap off."
+        },
         "readmit-per-run": {
           "type": "integer",
           "minimum": 1,
@@ -152,7 +166,7 @@
         "stranded-backoff-hours": {
           "type": "object",
           "additionalProperties": false,
-          "description": "Per cause work-unblock's sweep re-fires a stranded agent-ready issue for, the base hours of its re-fire backoff: the wait after the run ended (or the label was added) is these hours doubled once per re-fire already made on the same lane workflow files, or per trip past limit-stops-per-issue for kill-switch, up to 24 hours. no-run: no work-resolve-issue run started, and these hours are also the wait before the first re-fire; no-report: a run ended green with no report and no pull request, the same; failed-again: a re-fired run failed or was cancelled again, so the wait is at least twice these hours; failed-mint: a run got no lane token, backed off only past limit-stops-per-issue re-fires, so the wait is at least these hours doubled that many times; kill-switch: a run the lanes kill switch refused, backed off past limit-stops-per-issue trips.",
+          "description": "Per cause work-unblock's sweep re-fires a stranded agent-ready issue for, the base hours of its re-fire backoff: the wait after the run ended (or the label was added) is these hours doubled once per re-fire already made on the same lane workflow files, up to 24 hours, except kill-switch, which never doubles. no-run: no work-resolve-issue run started, and these hours are also the wait before the first re-fire; no-report: a run ended green with no report and no pull request, the same; failed-again: a re-fired run failed or was cancelled again, so the wait is at least twice these hours; failed-mint: a run got no lane token, backed off only past limit-stops-per-issue re-fires, so the wait is at least these hours doubled that many times; kill-switch: a run the lanes kill switch refused; past limit-stops-per-issue trips each re-fire waits these hours after the run ended, flat, with no doubling and no cap on trips.",
           "properties": {
             "no-run": { "type": "integer", "minimum": 1, "maximum": 24, "default": 3 },
             "no-report": { "type": "integer", "minimum": 1, "maximum": 24, "default": 3 },
@@ -216,6 +230,28 @@
             "graphql": { "$ref": "#/$defs/api-pool" },
             "owner-token": { "$ref": "#/$defs/api-pool" },
             "content-creation": { "$ref": "#/$defs/api-content-pool" }
+          }
+        },
+        "lane-level": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The adaptive lane level L, the issue lane's concurrency .github/scripts/lib/lane-level.mjs picks per window (owner decision Q111), published and read under shadow, variable and valid-minutes. L steps up 1 after clean-windows windows in a row with no limit signal, lane demand (runs waiting or every slot running) and room in each pool (peak share used x (L+1)/L at most api.<pool>.plan, and more than api.<pool>.writer-pause left), halves on any limit signal the lanes App's own calls meet (a breaker trip is not one), and stays within floor and ceiling; a floor above the ceiling is rejected. Missing data holds L.",
+          "properties": {
+            "floor": { "type": "integer", "minimum": 1, "maximum": 10, "default": 2, "description": "Lowest level; a step down never goes below it." },
+            "ceiling": { "type": "integer", "minimum": 1, "maximum": 10, "default": 4, "description": "Highest level; a level above it is read as it." },
+            "default": { "type": "integer", "minimum": 1, "maximum": 10, "default": 3, "description": "The level with no previous decision or a malformed one, clamped to floor and ceiling." },
+            "clean-windows": { "type": "integer", "minimum": 1, "maximum": 24, "default": 2, "description": "Clean windows with demand in a row before a step up." },
+            "pools": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "enum": ["github-token", "lanes-app", "graphql", "owner-token"] },
+              "default": ["lanes-app"],
+              "description": "The api pools whose room a step up needs; each takes plan and writer-pause from api."
+            },
+            "shadow": { "type": "boolean", "default": true, "description": "True: work-unblock's publish-lane-level job logs the level it decides, mints no token and writes nothing, and pick-slot and label-unblocked keep default while logging the published level they would use." },
+            "variable": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*_LANE_LEVEL$", "default": "CLAUDE_LANE_LEVEL", "description": "The repository variable the level is published in as <level>@<valid-until>; it must end in _LANE_LEVEL, so it can never name a lanes kill switch." },
+            "valid-minutes": { "type": "integer", "minimum": 60, "maximum": 1440, "default": 150, "description": "How long a published value holds; past it the readers use default. Above an hour, so one missed hourly run keeps the last level." }
           }
         }
       }
@@ -494,7 +530,7 @@
           "type": "number",
           "minimum": 0,
           "maximum": 1,
-          "description": "Share of the header's limit, projected left at the window's reset from the burn rate so far, under which a timer-driven lane skips its even-numbered scheduled ticks (.github/actions/log-api-budget/pace.mjs), so the timer lanes slow to half cadence before the breaker stops every lane. 0 turns pacing off."
+          "description": "Share of the header's limit, projected left at the window's reset from the burn rate so far, under which a timer-driven lane skips a scheduled tick whose previous scheduled run marked a clean pass of its work(.github/actions/log-api-budget/pace.mjs), so the timer lanes slow to half cadence before the breaker stops every lane. 0 turns pacing off."
         },
         "read-floor": {
           "type": "number",
@@ -912,10 +948,11 @@
             "read",
             "mutate-branch",
             "mutate-tracker",
+            "mutate-variable",
             "publish-artifact",
             "merge"
           ],
-          "description": "What the activity may change. The runner derives ordering and the token grant from it and checks that a read activity left the tree clean, unless the activity hands its change on as a patch."
+          "description": "What the activity may change. The runner derives ordering and the token grant from it and checks that a read activity left the tree clean, unless the activity hands its change on as a patch. mutate-variable reads everything and writes only what its lane's activity grant adds: repository Variables, for work-unblock's publish-lane-level alone."
         },
         "gating": {
           "enum": ["gate", "advisory"],
@@ -1358,12 +1395,6 @@
           "default": 1,
           "description": "Fresh attempts one issue gets after the pr-merge lane closes its pull request at `max-verify-fails` or as `verify:too-old`: the issue goes back to agent-ready with the FAIL findings, and the closed pull request's FAILs leave the cap's count. Past this many the issue is parked at `status: confirmed` (README.md, Verifier verdict). The lower of the base's and main's applies; any other value is 0, so no attempt starts."
         },
-        "verify-cache": {
-          "type": "string",
-          "enum": ["shadow", "serve"],
-          "default": "shadow",
-          "description": "How enable-auto-merge uses the verifier refusals the last run kept (babysit_verify_evidence.py --answers-in/--answers-out). shadow: every pull request is still read in full, and each read logs whether the kept answer's key matched and whether it decides as the fresh read does. serve: an unarmed pull request whose kept refusal's key still matches is answered from it with no further read. Only refusals are kept, an armed pull request is always read in full, and a kept answer never arms."
-        },
         "risk-escalation-minutes": {
           "type": "integer",
           "minimum": 0,
@@ -1401,14 +1432,9 @@
             "proxy": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["claude-code-version", "driven-model", "driven-small-model", "models", "token-cap", "driver-token-cap", "max-tokens-ceiling", "max-body-bytes", "max-in-flight", "max-count-tokens-requests", "max-preflight-requests", "upstream-timeout-ms", "betas", "body-keys", "block-types"],
+              "required": ["driven-model", "driven-small-model", "models", "token-cap", "driver-token-cap", "max-tokens-ceiling", "max-body-bytes", "max-in-flight", "max-count-tokens-requests", "max-preflight-requests", "upstream-timeout-ms", "betas", "body-keys", "block-types"],
               "description": "The key proxy the capture's driven Claude Code reaches the API through, and the driven session's models (README.md, Verifier verdict).",
               "properties": {
-                "claude-code-version": {
-                  "type": "string",
-                  "pattern": "^\\d+\\.\\d+\\.\\d+$",
-                  "description": "The Claude Code version the capture installs, equal to package-lock.json's pin; betas and body-keys were measured on it (README.md, Verifier verdict)."
-                },
                 "driven-model": {
                   "type": "string",
                   "pattern": "^claude-[a-z0-9-]+$",
@@ -1470,7 +1496,7 @@
                   "type": "array",
                   "uniqueItems": true,
                   "items": { "type": "string", "minLength": 1 },
-                  "description": "The anthropic-beta values a request may name, measured from the driven session on claude-code-version (README.md, Verifier verdict)."
+                  "description": "The anthropic-beta values a request may name, measured from the driven session on the Claude Code package-lock.json pins (README.md, Verifier verdict)."
                 },
                 "body-keys": {
                   "type": "array",

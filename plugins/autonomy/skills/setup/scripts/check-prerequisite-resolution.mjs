@@ -29,21 +29,14 @@ function usage(message) {
 }
 
 function parseArgs(argv) {
-  let repo = process.cwd();
-  let surface = null;
+  const args = { repo: process.cwd(), surface: null };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === "--repo") {
-      repo = argv[++i];
-      continue;
-    }
-    if (arg === "--surface") {
-      surface = argv[++i];
-      continue;
-    }
-    usage(`unknown argument: ${arg}`);
+    if (arg === "--repo") args.repo = argv[++i];
+    else if (arg === "--surface") args.surface = argv[++i];
+    else usage(`unknown argument: ${arg}`);
   }
-  return { repo, surface };
+  return args;
 }
 
 function loadBinding(repo) {
@@ -66,10 +59,8 @@ function surfaceIds(binding) {
     }
   }
   const refs = binding.prerequisite_resolution?.surface_refs;
-  if (Array.isArray(refs)) {
-    for (const id of refs) {
-      if (typeof id === "string") ids.add(id);
-    }
+  for (const id of Array.isArray(refs) ? refs : []) {
+    if (typeof id === "string") ids.add(id);
   }
   return ids;
 }
@@ -96,14 +87,9 @@ function main() {
       throw new Error(`--repo ${repo} is not a directory`);
     }
 
-    const binding = loadBinding(repo);
-    const surfaces = surface ? [surface] : [...surfaceIds(binding)];
+    const surfaces = surface ? [surface] : [...surfaceIds(loadBinding(repo))];
     if (surfaces.length === 0) surfaces.push("unbound");
-
-    const reports = [];
-    for (const id of surfaces.sort()) {
-      reports.push(runResolver(repo, id));
-    }
+    const reports = surfaces.sort().map((id) => runResolver(repo, id));
 
     const output = {
       schema_version: 1,
