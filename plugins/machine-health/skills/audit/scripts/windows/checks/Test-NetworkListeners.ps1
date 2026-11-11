@@ -54,9 +54,7 @@ $CheckBody = {
     $groups = [ordered]@{}
     foreach ($l in $read.Listeners) {
         $identity = switch ($l.PathSource) {
-            'process' { $l.Path }
-            'process-reported' { $l.Path }
-            'service' { $l.Path }
+            { $_ -in 'process', 'process-reported', 'service' } { $l.Path }
             'kernel' { 'system' }
             default { $null }
         }
@@ -73,7 +71,7 @@ $CheckBody = {
         $writable = $false
         if ($l.Path) {
             foreach ($root in $writableRoots) {
-                if ($l.Path.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) { $writable = $true }
+                if ($l.Path.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) { $writable = $true; break }
             }
         }
         $fields = @{

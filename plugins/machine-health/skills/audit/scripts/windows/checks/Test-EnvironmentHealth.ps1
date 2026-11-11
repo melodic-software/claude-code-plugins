@@ -235,9 +235,7 @@ $CheckBody = {
         Write-Verbose "Test-EnvironmentHealth: machine Environment unreadable. $machineError"
     }
 
-    $allVars = [System.Collections.Generic.List[pscustomobject]]::new()
-    foreach ($row in $userVars) { $allVars.Add($row) }
-    foreach ($row in $machineVars) { $allVars.Add($row) }
+    $allVars = @($userVars) + @($machineVars)
 
     $disableFindings = New-FindingList
     foreach ($row in $allVars) {
@@ -258,14 +256,8 @@ $CheckBody = {
             })
     }
 
-    $userPathRow = $null
-    foreach ($row in $userVars) {
-        if ($row.name -eq 'Path') { $userPathRow = $row; break }
-    }
-    $machinePathRow = $null
-    foreach ($row in $machineVars) {
-        if ($row.name -eq 'Path') { $machinePathRow = $row; break }
-    }
+    $userPathRow = $userVars | Where-Object name -eq 'Path' | Select-Object -First 1
+    $machinePathRow = $machineVars | Where-Object name -eq 'Path' | Select-Object -First 1
 
     $userPathKind = $null
     $userPathRaw = ''
@@ -375,25 +367,16 @@ $CheckBody = {
     $shadowed = New-FindingList
     foreach ($exeName in ($nameToHits.Keys | Sort-Object)) {
         $hits = $nameToHits[$exeName]
-        $uniqueNorms = [System.Collections.Generic.List[string]]::new()
-        foreach ($h in $hits) {
-            $n = Get-NormalizedPathEntry $h.path
-            if (-not $uniqueNorms.Contains($n)) { $uniqueNorms.Add($n) }
-        }
+        $uniqueNorms = @($hits | ForEach-Object { Get-NormalizedPathEntry $_.path } | Select-Object -Unique)
         if ($uniqueNorms.Count -lt 2) { continue }
         $winner = $hits[0]
-        $otherScopes = [System.Collections.Generic.List[string]]::new()
-        $otherPaths = [System.Collections.Generic.List[string]]::new()
-        for ($i = 1; $i -lt $hits.Count; $i++) {
-            $otherScopes.Add($hits[$i].scope)
-            $otherPaths.Add($hits[$i].path)
-        }
-        $warn = Test-ScopeLowerThanExpected -WinnerScope $winner.scope -OtherScopes @($otherScopes)
+        $others = @($hits | Select-Object -Skip 1)
+        $warn = Test-ScopeLowerThanExpected -WinnerScope $winner.scope -OtherScopes @($others.scope)
         $shadowed.Add([pscustomobject]@{
                 name         = $winner.file
                 winner_path  = $winner.path
                 winner_scope = $winner.scope
-                other_paths  = $otherPaths
+                other_paths  = @($others.path)
                 warn         = $warn
             })
     }
@@ -419,15 +402,10 @@ $CheckBody = {
         $reasons.Add('User Path is REG_SZ (breaks %TOKEN% expansion)')
     }
 
-    $truthyDisable = New-FindingList
-    foreach ($d in $disableFindings) {
-        if ($d.disables_updates) { $truthyDisable.Add($d) }
-    }
+    $truthyDisable = @($disableFindings | Where-Object disables_updates)
     if ($truthyDisable.Count -gt 0) {
         if ($severity -eq 'OK') { $severity = 'WARN' }
-        $scopes = [System.Collections.Generic.List[string]]::new()
-        foreach ($d in $truthyDisable) { $scopes.Add($d.scope) }
-        $reasons.Add("DISABLE_AUTOUPDATER set ($($scopes -join ', '))")
+        $reasons.Add("DISABLE_AUTOUPDATER set ($($truthyDisable.scope -join ', '))")
     }
 
     if ($credentialFindings.Count -gt 0) {
@@ -435,10 +413,7 @@ $CheckBody = {
         $reasons.Add("$($credentialFindings.Count) credential-named variable(s)")
     }
 
-    $shadowWarns = New-FindingList
-    foreach ($s in $shadowed) {
-        if ($s.warn) { $shadowWarns.Add($s) }
-    }
+    $shadowWarns = @($shadowed | Where-Object warn)
     if ($shadowWarns.Count -gt 0) {
         if ($severity -eq 'OK') { $severity = 'WARN' }
         $processReasons.Add("$($shadowWarns.Count) shadowed executable(s) with lower-precedence winner")
@@ -449,11 +424,7 @@ $CheckBody = {
     if ($duplicateFindings.Count -gt 0) { $infoBits.Add("$($duplicateFindings.Count) duplicate PATH entry group(s)") }
     $shadowInfo = $shadowed.Count - $shadowWarns.Count
     if ($shadowInfo -gt 0) { $processReasons.Add("$shadowInfo shadowed executable name(s)") }
-    $falsyDisable = New-FindingList
-    foreach ($d in $disableFindings) {
-        if (-not $d.disables_updates) { $falsyDisable.Add($d) }
-    }
-    if ($falsyDisable.Count -gt 0) { $infoBits.Add('DISABLE_AUTOUPDATER set but not truthy') }
+    if ($truthyDisable.Count -lt $disableFindings.Count) { $infoBits.Add('DISABLE_AUTOUPDATER set but not truthy') }
 
     if ($infoBits.Count -gt 0) {
         if ($severity -eq 'OK') { $severity = 'INFO' }
