@@ -66,7 +66,7 @@ export function resolveReadResolution(timestampSec, windows, forceTextDense = fa
  */
 export function toSelectedFrame(frame, priorityScore, windows) {
   const textDense = isInTextDenseWindow(frame.timestampSec, windows);
-  const readResolution = resolveReadResolution(frame.timestampSec, windows, textDense);
+  const readResolution = textDense ? NATIVE_ESCALATION_RESOLUTION : DEFAULT_DETAIL_RESOLUTION;
 
   return {
     path: frame.path,
