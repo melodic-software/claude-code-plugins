@@ -204,10 +204,11 @@ Before sending, delete:
 
 ## Gotchas
 
-- **The standing posture erodes across context compaction.** "Applies for the
-  rest of the session" is content-based persistence, so a summarized or
-  compacted conversation can drop these rules out of context. Re-invoke
-  `/adhd:shape` if responses stop being shaped.
+- **The standing posture erodes across context compaction.** Re-invoke
+  `/adhd:shape` if responses stop being shaped. What compaction keeps of an
+  invoked skill: [Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle);
+  as of 2026-11-10; recheck when that section changes what compaction keeps
+  of an invoked skill.
 
 ## Attribution
 
