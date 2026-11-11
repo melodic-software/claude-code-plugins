@@ -1720,14 +1720,10 @@ def entry_reclaimable_local_bytes(entry: dict[str, Any]) -> int | None:
     Hard links are excluded entirely: deleting one name does not free the
     shared object, and counting every name would double-count.
     """
-    if entry.get("kind") != "file":
-        return None
-    if entry.get("size_qualifiers"):
+    if entry.get("kind") != "file" or entry.get("size_qualifiers"):
         return None
     size = entry.get("logical_size")
-    if not isinstance(size, int):
-        return None
-    return size
+    return size if isinstance(size, int) else None
 
 
 def reclaimable_local_bytes(entries: list[dict[str, Any]]) -> int:
@@ -1892,7 +1888,7 @@ def accumulate_child_rollup(
             "logical_size": entry.get("logical_size"),
         }
     else:
-        bucket["descendants"] = bucket["descendants"] + 1
+        bucket["descendants"] += 1
     mtime = entry.get("mtime_ns")
     if isinstance(mtime, int):
         newest = bucket["newest"]
@@ -1900,7 +1896,7 @@ def accumulate_child_rollup(
     bucket["qualifiers"].update(entry.get("size_qualifiers") or ())
     local = entry_reclaimable_local_bytes(entry)
     if local is not None:
-        bucket["reclaimable"] = bucket["reclaimable"] + local
+        bucket["reclaimable"] += local
 
 
 def child_rollup_rows(
@@ -1955,16 +1951,12 @@ def inventory_parent_paths(paths: Iterable[str]) -> set[str]:
     """
     parents: set[str] = set()
     for path in paths:
-        if not isinstance(path, str) or "/" not in path:
+        if not isinstance(path, str):
             continue
-        parent = path.rsplit("/", 1)[0]
-        while parent:
-            if parent in parents:
-                break
+        parent = path.rpartition("/")[0]
+        while parent and parent not in parents:
             parents.add(parent)
-            if "/" not in parent:
-                break
-            parent = parent.rsplit("/", 1)[0]
+            parent = parent.rpartition("/")[0]
     return parents
 
 
@@ -2057,18 +2049,15 @@ def windows_storage_sense_state() -> dict[str, Any]:
     }
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as key:
-            for name, field in (
-                ("01", "enabled"),
-                ("04", "temporary_files_cleanup"),
+            for name, field, convert in (
+                ("01", "enabled", bool),
+                ("04", "temporary_files_cleanup", bool),
+                ("2048", "cadence_days", int),
             ):
                 try:
-                    state[field] = bool(winreg.QueryValueEx(key, name)[0])
+                    state[field] = convert(winreg.QueryValueEx(key, name)[0])
                 except OSError:
                     pass
-            try:
-                state["cadence_days"] = int(winreg.QueryValueEx(key, "2048")[0])
-            except OSError:
-                pass
     except OSError:
         pass
     return state
@@ -2122,7 +2111,8 @@ def format_gib(value: int) -> str:
 
 
 def storage_sense_state_text(state: dict[str, Any]) -> str:
-    enabled = {True: "on", False: "off"}.get(state["enabled"], "not detected")
+    on_off = {True: "on", False: "off"}
+    enabled = on_off.get(state["enabled"], "not detected")
     cadence = state["cadence_days"]
     if cadence is None:
         schedule = "schedule not detected"
@@ -2132,9 +2122,7 @@ def storage_sense_state_text(state: dict[str, Any]) -> str:
         schedule = "runs every day"
     else:
         schedule = f"runs every {cadence} days"
-    scope = {True: "on", False: "off"}.get(
-        state["temporary_files_cleanup"], "not detected"
-    )
+    scope = on_off.get(state["temporary_files_cleanup"], "not detected")
     return (
         f"Storage Sense detected: {enabled}, {schedule}, "
         f"temporary-files cleanup {scope}."
@@ -2328,58 +2316,22 @@ def volume_root_os_owned_names(
     """Basenames the volume-root guard treats as OS-owned at a drive/FS root."""
     current = platform_key or os_key()
     if current == "windows":
-        return {
-            name.casefold()
-            for name in (
-                WINDOWS_VOLUME_SYSTEM_NAMES
-                | WINDOWS_OS_ROOT_EXTRA_NAMES
-                | {root.name for root in _windows_env_roots()}
-            )
-        }
-    if current == "macos":
-        return {
-            name.casefold()
-            for name in (
-                "System",
-                "Library",
-                "Applications",
-                "private",
-                "Volumes",
-                "cores",
-                "usr",
-                "bin",
-                "sbin",
-                "etc",
-                "dev",
-                "tmp",
-                "var",
-            )
-        }
-    return {
-        name.casefold()
-        for name in (
-            "bin",
-            "boot",
-            "dev",
-            "etc",
-            "home",
-            "lib",
-            "lib64",
-            "lost+found",
-            "media",
-            "mnt",
-            "opt",
-            "proc",
-            "root",
-            "run",
-            "sbin",
-            "srv",
-            "sys",
-            "tmp",
-            "usr",
-            "var",
+        names: Iterable[str] = (
+            WINDOWS_VOLUME_SYSTEM_NAMES
+            | WINDOWS_OS_ROOT_EXTRA_NAMES
+            | {root.name for root in _windows_env_roots()}
         )
-    }
+    elif current == "macos":
+        names = (
+            "System Library Applications private Volumes cores"
+            " usr bin sbin etc dev tmp var"
+        ).split()
+    else:
+        names = (
+            "bin boot dev etc home lib lib64 lost+found media mnt opt proc"
+            " root run sbin srv sys tmp usr var"
+        ).split()
+    return {name.casefold() for name in names}
 
 
 def volume_root_os_owned_file_name_matches(
@@ -2393,15 +2345,14 @@ def volume_root_os_owned_file_name_matches(
         return folded in WINDOWS_OS_ROOT_FILE_NAMES
     if current == "macos":
         return folded in MACOS_OS_ROOT_FILE_NAMES
-    if folded in LINUX_OS_ROOT_FILE_NAMES:
-        return True
-    return any(fnmatch.fnmatch(folded, pattern) for pattern in LINUX_OS_ROOT_FILE_GLOBS)
+    return folded in LINUX_OS_ROOT_FILE_NAMES or any(
+        fnmatch.fnmatch(folded, pattern) for pattern in LINUX_OS_ROOT_FILE_GLOBS
+    )
 
 
 def volume_root_home_container_name(platform_key: str | None = None) -> str:
     """The volume-root directory that holds user homes on this platform."""
-    current = platform_key or os_key()
-    return "home" if current == "linux" else "Users"
+    return "home" if (platform_key or os_key()) == "linux" else "Users"
 
 
 def root_child_listing_fields(info: os.stat_result | None) -> dict[str, Any]:
@@ -2428,12 +2379,11 @@ def root_children_skipped_reason_counts(
     skipped: list[dict[str, Any]],
 ) -> dict[str, int]:
     """Stdout grouping of withheld root children, reason → count."""
-    counts: dict[str, int] = {}
-    for item in skipped:
-        reason = item.get("reason")
-        if not isinstance(reason, str) or not reason:
-            continue
-        counts[reason] = counts.get(reason, 0) + 1
+    counts = Counter(
+        reason
+        for item in skipped
+        if isinstance(reason := item.get("reason"), str) and reason
+    )
     return dict(sorted(counts.items()))
 
 
@@ -2596,8 +2546,7 @@ def root_child_names_case_sensitive(platform_key: str | None = None) -> bool:
     (or both). Windows and macOS volume roots are case-insensitive, so casefold
     matching remains the operator-friendly path there.
     """
-    current = platform_key or os_key()
-    return current == "linux"
+    return (platform_key or os_key()) == "linux"
 
 
 def normalize_root_child_selection(
@@ -2646,12 +2595,10 @@ def normalize_root_child_selection(
                 f"--root-child {raw!r} is not an admitted immediate child "
                 "of the scan target"
             )
-        canonical = by_name[key]
-        seen_key = canonical if sensitive else canonical.casefold()
-        if seen_key in seen:
+        if key in seen:
             continue
-        seen.add(seen_key)
-        resolved.append(canonical)
+        seen.add(key)
+        resolved.append(by_name[key])
     return resolved
 
 
@@ -2736,20 +2683,15 @@ def scan_tree(
                     data = metadata(path, kind)
                 elif child.is_dir(follow_symlinks=False):
                     kind = "directory"
-                    walked = True
                     # Stat before any read of the directory: listing it can move
                     # its atime, which an atime-basis rule must not see.
                     info = path.lstat()
+                    subtotal: int | None = 0
+                    cut: str | None = None
                     if not sizes_only and path.name.casefold() in VCS_NAMES:
-                        subtotal: int | None = None
-                        walked = False
-                        truncated.append(relative)
-                        unwalked_reasons[relative] = "vcs-boundary"
+                        cut = "vcs-boundary"
                     elif not sizes_only and protections:
-                        subtotal = None
-                        walked = False
-                        truncated.append(relative)
-                        unwalked_reasons[relative] = "protected"
+                        cut = "protected"
                     elif max_depth is not None and depth >= max_depth:
                         # A depth cut is the one truncation reason emptiness can
                         # answer. One cheap first-child probe (no recursion, no
@@ -2766,21 +2708,21 @@ def scan_tree(
                         # protected or VCS directory must still land in
                         # truncated.
                         if directory_has_child(path):
-                            subtotal = None
-                            walked = False
-                            truncated.append(relative)
-                            unwalked_reasons[relative] = "depth-cut"
-                        else:
-                            subtotal = 0
+                            cut = "depth-cut"
                     else:
                         before = inventoried
                         subtotal = visit(path, depth + 1)
                         descendants = inventoried - before
                         if subtotal is None:
                             # scandir failed inside this child: unknown, not empty.
-                            walked = False
                             unwalked_reasons[relative] = "scan-error"
-                    data = metadata(path, kind, subtotal, walked=walked, info=info)
+                    if cut is not None:
+                        subtotal = None
+                        truncated.append(relative)
+                        unwalked_reasons[relative] = cut
+                    data = metadata(
+                        path, kind, subtotal, walked=subtotal is not None, info=info
+                    )
                     # Truncated children contribute unknown, not zero: adding
                     # null as 0 was what made a truncated subtree look empty.
                     if subtotal is not None:
@@ -2850,20 +2792,16 @@ def scan_tree(
         total_size = 0
         truncated.append(".")
     repositories = sorted(set(repositories))
+    error_paths = {
+        item["path"]
+        for item in errors
+        if isinstance(item, dict) and isinstance(item.get("path"), str)
+    }
     stdlib_shadowing: list[dict[str, Any]] = []
     review_ranking: dict[str, Any] | None = None
     if not sizes_only:
         annotate_tracked(entries, target, repositories, truncated, repo_errors)
-        apply_rules(
-            entries,
-            policy.get("rules", []),
-            set(truncated)
-            | {
-                item["path"]
-                for item in errors
-                if isinstance(item, dict) and isinstance(item.get("path"), str)
-            },
-        )
+        apply_rules(entries, policy.get("rules", []), set(truncated) | error_paths)
         apply_in_flight_refs(entries, target, in_flight_refs or [])
         stdlib_shadowing = annotate_stdlib_shadowing(entries, target)
         # Last, after rules and in-flight refs have ticked or unticked: the
@@ -2877,11 +2815,6 @@ def scan_tree(
         target_identity["size_qualifiers"] = sorted(
             set(target_identity["size_qualifiers"] + ["not-walked"])
         )
-    error_paths = {
-        item["path"]
-        for item in errors
-        if isinstance(item, dict) and isinstance(item.get("path"), str)
-    }
     # Everything the walk could not fully account for, from all three places it
     # can be recorded: an explicit truncation, a scan error (which never adds a
     # truncation and can leave no entry at all), and a `not-walked` record.
@@ -3228,21 +3161,21 @@ def validate_plan(
     candidates = plan.get("candidates")
     if not isinstance(candidates, list) or not candidates:
         raise HygieneError("plan candidates must be a non-empty array")
+    required = {
+        "path",
+        "tier",
+        "provenance",
+        "reason",
+        "evidence",
+        "why_not_work_product",
+        "risk",
+        "owner",
+    }
     normalized: list[dict[str, Any]] = []
     seen: list[PurePosixPath] = []
     for candidate in candidates:
         if not isinstance(candidate, dict):
             raise HygieneError("each candidate must be an object")
-        required = {
-            "path",
-            "tier",
-            "provenance",
-            "reason",
-            "evidence",
-            "why_not_work_product",
-            "risk",
-            "owner",
-        }
         if not required.issubset(candidate):
             raise HygieneError(
                 f"candidate is missing: {', '.join(sorted(required - set(candidate)))}"
@@ -3260,20 +3193,15 @@ def validate_plan(
         if overlaps_accepted_path(pure, seen):
             raise HygieneError(f"candidate paths overlap: {relative}")
         seen.append(pure)
-        if (
-            not isinstance(candidate["provenance"], str)
-            or not candidate["provenance"].strip()
+        for field, needs in (
+            ("provenance", "provenance"),
+            ("reason", "a reason"),
+            ("why_not_work_product", "work-product analysis"),
+            ("risk", "a risk assessment"),
         ):
-            raise HygieneError(f"candidate needs provenance: {relative}")
-        if not isinstance(candidate["reason"], str) or not candidate["reason"].strip():
-            raise HygieneError(f"candidate needs a reason: {relative}")
-        if (
-            not isinstance(candidate["why_not_work_product"], str)
-            or not candidate["why_not_work_product"].strip()
-        ):
-            raise HygieneError(f"candidate needs work-product analysis: {relative}")
-        if not isinstance(candidate["risk"], str) or not candidate["risk"].strip():
-            raise HygieneError(f"candidate needs a risk assessment: {relative}")
+            value = candidate[field]
+            if not isinstance(value, str) or not value.strip():
+                raise HygieneError(f"candidate needs {needs}: {relative}")
         if (
             not isinstance(candidate["evidence"], list)
             or not candidate["evidence"]
