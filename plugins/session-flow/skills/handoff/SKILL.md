@@ -50,7 +50,7 @@ save-point engine, different delivery.
 
 - **`--unattended`**, anywhere in the arguments: the caller declares that nobody is present. Take it out of
   `$ARGUMENTS` before method detection; the rules below read what is left. It changes only the steps that would
-  ask the user: the `/export` step (record the suggestion in output, do not ask) and stuck dependent work
+  ask the user: the `/export` step (dropped: an unattended run neither suggests nor runs a user-only built-in) and stuck dependent work
   ("Settle in-flight work before writing"). The bare word `unattended` is not this flag: the rules below read it as topic or purpose text, like any word.
 - **Method** (`file` | `prompt`). Recognized ONLY as the first token. `file` forces the full
   durable handoff; `prompt` forces prompt-only. Omitted → auto-detect (engine doc, "Choosing the
@@ -92,7 +92,8 @@ response, the save-point does not exist and STOP has not been reached.
   ticked, never as the act that replaces it. The one exception to "no commit" is the opt-in
   `chore(wip):` commit in "WIP commit on an explicit pause" below, made before the save-point is
   written and never pushed. An `amend` for an event that lands after emit ("Late events after
-  emit" below) is not further work: it repairs the save-point
+  emit" below) is not further work: it repairs the save-point. A forked side task skips this box
+  (the exceptions below the list)
 
 **Not authorization to continue (these all stop):**
 
@@ -103,10 +104,14 @@ response, the save-point does not exist and STOP has not been reached.
   `/session-flow:handoff` between them still enforces its `/clear` boundary (that is why the
   handoffs get written)
 - A standalone user-invoked `/session-flow:handoff`: always stop, regardless of surrounding
-  instructions
+  instructions, unless the side-task exception below applies
 
-The only exception: the user's prior turn used explicit stay-in-session language about handoffs
-specifically (e.g. "don't `/clear` between phases, keep going").
+Two exceptions:
+
+- The user's prior turn used explicit stay-in-session language about handoffs specifically (e.g.
+  "don't `/clear` between phases, keep going").
+- The handoff forks a side task into its own session. The save-point covers only the side task;
+  this session keeps working its own task and never starts the side task.
 
 ## When to invoke
 
@@ -420,7 +425,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   remaining-work bullet: path, this session's id, handover before `check-enter` (OR none held)
 - [ ] `wip_commit` line reported, as on the full path; a commit, refusal or hook rejection is one
   bullet in the prompt, nothing pushed
-- [ ] If /export is available in your session (gate basis: [`reference/export-verification.md`](reference/export-verification.md)), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. Prompt-only writes no file. **`--unattended`:** record the suggestion; do not ask.
+- [ ] If /export is available in your session (gate basis: [`reference/export-verification.md`](reference/export-verification.md)), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. Prompt-only writes no file. **`--unattended`:** make no suggestion; tick this box as not applicable.
 - [ ] Purpose text (when the invocation carried any) travels inline as the `Purpose:` line below
   the goal quote and above the remaining-work bullets (engine doc, "The purpose argument tailors
   emphasis only"), never discarded; a goal-conflicting purpose flagged rather than obeyed. No
