@@ -3845,9 +3845,10 @@ test("a broker-check breaker trip is not re-fired while the issue lane is paused
 
 // A GitHub API rate-limit stop before any model turn. Each line is a stop
 // line's shape as its writer prints it: rate-guard.mjs's hit-the-limit line
-// (the measured L533 line of run 42976925201, its reset moved to this test's
-// day), PR #15305's stop-floor line (its rate-guard.test.mjs expectation), and
-// api-budget.bash's api_budget_refuse line, each the failed step's last line.
+// (run 42976925201's run-checks line, its reset moved to this test's day),
+// rate-guard.mjs's stop-floor line (rate-guard.test.mjs's stop-floor
+// expectation), and api-budget.bash's api_budget_refuse line, each the failed
+// step's last line.
 const LIMIT_ID = 120990000001;
 const RESET = "2026-10-16T12:30:00Z";
 const STOP_LINES = {
@@ -3925,7 +3926,7 @@ test("a rate-limit stop before any model turn is on the failed-mint bound and ba
   assert.deepEqual(writes(recent.calls), []);
 });
 
-// Run 42976995398 (#14922): the subscription leg ran the model, then
+// Run 42976995398: the subscription leg ran the model, then
 // run-checks and apply-issue-patch's trigger check failed. The same stop line
 // in a pre-model job of a run where a model step ran is no rate-limit stop.
 test("a rate-limit stop line in a run where a model step ran is not did-no-work: no log is read and the failed-run re-fire is unchanged", async () => {
