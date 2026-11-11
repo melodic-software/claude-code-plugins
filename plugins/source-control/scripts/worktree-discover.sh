@@ -237,11 +237,11 @@ done
 roots=()
 rungs=()
 add_root() {
-  local p="${1//\\//}" i
+  local p="${1//\\//}" r
   while [[ ${#p} -gt 1 && "$p" == */ ]]; do p="${p%/}"; done
   tsv_safe "$p" || return 0
-  for i in ${roots[@]+"${!roots[@]}"}; do
-    [[ "${roots[$i]}" == "$p" ]] && return 0
+  for r in ${roots[@]+"${roots[@]}"}; do
+    [[ "$r" == "$p" ]] && return 0
   done
   roots+=("$p")
   rungs+=("$2")
