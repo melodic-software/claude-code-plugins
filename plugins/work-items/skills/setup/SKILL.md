@@ -340,7 +340,7 @@ unambiguous; ask only where an item genuinely needs the user.
    item (adapter: "List items", `--label <resolved recurring-maintenance label>`, with bodies) and keep
    only the one whose marker names the OLD `id` exactly. When exactly one exists. **Renamed id:**
    rewrite that marker line to the new `id` (a provider body-edit op, read-modify-write of the whole
-   body; GitHub adapter: `gh issue edit <N> --body-file ...`), or close it (adapter: "Close item") if
+   body; GitHub adapter: `gh issue edit <N> -R <owner>/<repo> --body-file ...`, the repository the item id names), or close it (adapter: "Close item") if
    the user is instead retiring the item; **Dropped row:** close that item (adapter: "Close item") with
    a comment noting the recurring item was retired from the schedule. Otherwise the
    `recurring`-labeled issue lingers unreachable. An id rename or drop with no matching open item
@@ -362,13 +362,13 @@ schedule work. Triage marks an untrusted item with `provenance: untrusted`, the 
 1. **Skip when no binding exists**, nothing is bound yet.
 2. **Skip when the bound provider has no label listing** (`local-markdown`, read-only `jira`), report
    INFO and continue; triage verifies at item-edit time.
-3. **Discover** via the adapter's label listing (GitHub: `gh label list --limit 200`, filter
+3. **Discover** via the adapter's label listing (GitHub: `gh label list -R <owner>/<repo> --limit 200`, the repository `check` probe 2 named, filter
    `provenance:`). Look for `provenance: untrusted`.
 4. **Present**. Report "provenance label provisioned" and continue.
 5. **Missing, label-as-code owner declared**, stop. Name the label and route remediation
    to that owner; never `gh label create` ad hoc.
 6. **Missing, no label-as-code owner, interactive user present**, offer to create it via the
-   adapter's label-creation mechanics (GitHub: `gh label create "<name>" --description
+   adapter's label-creation mechanics (GitHub: `gh label create "<name>" -R <owner>/<repo> --description
    "<description>" --color "<color>"` using the reference table). RECOMMENDED: create it, this pass
    is the upgrade migration for repos that predated the label. Re-list after creation and confirm
    it exists before continuing.
