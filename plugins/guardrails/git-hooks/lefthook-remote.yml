@@ -4,7 +4,9 @@
 # lefthook looks up a remote's scripts, and runs with the consumer repository as its working
 # directory. Job names differ from the shared-copy jobs (guardrails-<entry>) so the two never merge.
 # The runner is sh, never bash: on Windows a bash looked up by name can be System32's WSL launcher.
-# The pre-push jobs run in turn (no parallel: true), so lefthook replays the pushed refs to each.
+# Each pre-push job sets use_stdin and reads the pushed refs. Lefthook 2.2.2 hands them to both
+# jobs, with or without parallel: true, despite the use_stdin page's note that only one job gets
+# stdin; lefthook-remote.test.sh checks that each job blocks from the refs it reads.
 commit-msg:
   jobs:
     - name: guardrails-remote-commit-msg-convention
