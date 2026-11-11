@@ -2,9 +2,11 @@
 
 The surface registry (`surfaces/registry.mjs`, run from SKILL.md "Question lanes") routes here only
 when something asks for this surface: the user ("make a questionnaire for the DBA", "turn this into
-a doc legal fills in", `/planning:interview document <topic>`), or the user taking the Step 5
-recommendation in [`handoff.md`](handoff.md) for a question only another person can answer. It is
-never offered beside the other surfaces, because it is not a way for the user to answer.
+a doc legal fills in", `/planning:interview document <topic>`) or the skill's arguments, which start
+it directly, or the user taking the Step 5 recommendation in [`handoff.md`](handoff.md). When the
+interview itself finds, partway through, a question only another person can answer, offer this lane
+in one line and start it only on the user's yes. It is never offered beside the other surfaces,
+because it is not a way for the user to answer.
 `<plugin-root>` is the placeholder SKILL.md "Spoke paths" defines. The question shape every lane
 shares: [`question-shape.md`](question-shape.md).
 
