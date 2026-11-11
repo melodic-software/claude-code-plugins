@@ -3,6 +3,13 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.33] - 2026-11-11
+
+### Changed
+
+- `/harness-ops:changelog` reads a fired recheck trigger as a `correct` signal only for a stored value (a recorded default, limit, version gate or measured observation); for a pointer, which carries no trigger, the feature grep is the signal.
+- The README options reference lists its upstream documentation as pointers only, with no as-of date or recheck trigger.
+
 ## [8.12.32] - 2026-11-11
 
 ### Changed

@@ -3,6 +3,16 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.11] - 2026-11-11
+
+### Changed
+
+- The README options reference lists its upstream documentation as pointers only, with no as-of date or recheck trigger.
+
+### Fixed
+
+- Check 29 no longer warns on a bare `#N` whose block also cites N upstream (as `owner/repo#N` or an `/issues/N` or `/pull/N` URL), so a pointer record without an as-of date or recheck trigger can name its upstream bug by number. A block with an as-of date and recheck trigger stays exempt.
+
 ## [1.1.10] - 2026-11-11
 
 ### Changed
