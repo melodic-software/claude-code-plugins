@@ -156,9 +156,11 @@ if [[ -n "$ledger_arg" && -e "$ledger_arg" && ! -r "$ledger_arg" ]]; then
   exit 3
 fi
 
-# Highest of the versions given, by numeric dotted compare. Portable across GNU
+# Numeric dotted sort of stdin lines by their leading version. Portable across GNU
 # and BSD sort, which do not agree on -V.
-vmax() { printf '%s\n' "$@" | grep -E "^$VERSION_RE\$" | sort -t. -k1,1n -k2,2n -k3,3n | tail -1; }
+vsort() { sort -t. -k1,1n -k2,2n -k3,3n; }
+# Highest of the versions given.
+vmax() { printf '%s\n' "$@" | grep -E "^$VERSION_RE\$" | vsort | tail -1; }
 
 # --- Repository root -----------------------------------------------------------
 # CR-stripped through an empty-means-fall-back test rather than `|| pwd`, so a
@@ -196,10 +198,9 @@ if [[ -f "$ledger" ]]; then
 fi
 
 if [[ -z "$last" ]] && ((in_repo)); then
-  # SUBJECT only (%s). The version regex below deliberately reaches only the
-  # `address Claude Code v<A>[..<B>] changelog` subject form.
-  # Only the versions inside the `address Claude Code v<A>[..<B>] changelog` phrase count;
-  # a subject can carry another dotted version (a plugin release) that is not an apply.
+  # SUBJECT only (%s), and only the versions inside the
+  # `address Claude Code v<A>[..<B>] changelog` phrase count: a subject can carry
+  # another dotted version (a plugin release) that is not an apply.
   subject_versions="$(git log --format='%s' 2>/dev/null | tr -d '\r' |
     grep -E '^[a-z]+(\([^)]*\))?!?: .*address Claude Code v'"$VERSION_RE"'(\.\.v?'"$VERSION_RE"')? changelog' |
     grep -oE 'address Claude Code v'"$VERSION_RE"'(\.\.v?'"$VERSION_RE"')? changelog' |
@@ -263,11 +264,8 @@ finish_without_range() {
 # One line per release in range: "<version>\t<core item count>", oldest first.
 # mode "after": version > last (or every release when last is empty).
 # mode "between": first <= version <= last_in_range.
-if [[ -n "$range_first" ]]; then
-  mode="between"
-else
-  mode="after"
-fi
+mode="after"
+[[ -n "$range_first" ]] && mode="between"
 rows="$(bash "$plugin_root/scripts/changelog-releases.sh" "$changelog")"
 mapfile -t in_range < <(printf '%s\n' "$rows" | awk -F'\t' -v mode="$mode" -v last="$last" -v lo="$range_first" -v hi="$range_last" '
   function vcmp(a, b,   A, B, i) {
@@ -285,11 +283,11 @@ mapfile -t in_range < <(printf '%s\n' "$rows" | awk -F'\t' -v mode="$mode" -v la
   $1 == "release" { if (wanted($2)) n[$2] += 0 }
   $1 == "item" && $3 !~ /\[VSCode\]/ { if (wanted($2)) n[$2]++ }
   END { for (v in n) print v "\t" n[v] }
-' | sort -t. -k1,1n -k2,2n -k3,3n)
+' | vsort)
 
 # Newest published release, independent of the range, for the latest line and the
 # installed-version warning.
-latest="$(printf '%s\n' "$rows" | awk -F'\t' '$1 == "release" { print $2 }' | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)"
+latest="$(printf '%s\n' "$rows" | awk -F'\t' '$1 == "release" { print $2 }' | vsort | tail -1)"
 printf 'latest: %s\n' "${latest:-unknown}"
 
 # A body with the right heading but no release marker is a parse failure (the page
@@ -309,25 +307,23 @@ if ((rel_count == 0)); then
   exit 0
 fi
 
-# Each row is "<version>\t<core item count>"; the version is the field before the tab.
-first="${in_range[0]%%$'\t'*}"
-last_in_range="${in_range[rel_count - 1]%%$'\t'*}"
+# Each row is "<version>\t<core item count>"; the version (X.Y.Z, no whitespace)
+# is everything before the first whitespace.
+range_versions=("${in_range[@]%%[[:space:]]*}")
+last_in_range="${range_versions[rel_count - 1]}"
 item_count="$(printf '%s\n' "${in_range[@]}" | awk -F'\t' '{ s += $2 } END { print s + 0 }')"
-versions="$(printf '%s\n' "${in_range[@]}" | cut -f1 | tr '\n' ' ')"
-versions="${versions% }"
 
-printf 'range: %s..%s (%d releases, %d core items)\n' "$first" "$last_in_range" "$rel_count" "$item_count"
+printf 'range: %s..%s (%d releases, %d core items)\n' "${range_versions[0]}" "$last_in_range" "$rel_count" "$item_count"
 
+if ((rel_count > cap_releases)); then
+  printf 'releases: (%d releases, list omitted beyond the cap)\n' "$rel_count"
+else
+  printf 'releases: %s\n' "${range_versions[*]}"
+fi
 if ((rel_count > cap_releases || item_count > cap_items)); then
-  if ((rel_count > cap_releases)); then
-    printf 'releases: (%d releases, list omitted beyond the cap)\n' "$rel_count"
-  else
-    printf 'releases: %s\n' "$versions"
-  fi
   printf 'cap: exceeded (%d releases / %d items)\n' "$cap_releases" "$cap_items"
   printf 'recommend: replay cost scales with items and the current docs carry the cumulative state. Run a docs-conformance recheck of the components, then set the marker in %s to %s and diff only from there\n' "$ledger" "$last_in_range"
 else
-  printf 'releases: %s\n' "$versions"
   printf 'cap: within budget (%d releases / %d items)\n' "$cap_releases" "$cap_items"
   if [[ -z "$last" ]]; then
     printf 'recommend: no read marker. After this range is applied, create %s with the marker line at %s\n' "$ledger" "$last_in_range"
