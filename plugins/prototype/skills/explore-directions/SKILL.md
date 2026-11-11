@@ -45,7 +45,7 @@ Project ecosystems: !`${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh 2>/dev/nu
 
 ## Variables
 
-Arguments: `$ARGUMENTS`. `--unattended`, anywhere in the arguments, is the caller declaring nobody is present, which governs the `/design` suggestion under "Boundary". It is not scope: take it out first, so `/design <scope>` never carries it.
+Arguments: `$ARGUMENTS`. `--unattended`, anywhere in the arguments, is the caller declaring nobody is present, which drops the `/design` suggestion under "Boundary". It is not scope: take it out first, so `/design <scope>` never carries it.
 
 ## Purpose
 
@@ -221,8 +221,8 @@ Constraints:
 
 ### Design-canvas alternative (bundled `design` skill, run by the person)
 
-When the intent selector lands on the HTML mockup substrate and `medium` allows it (resolve it first per [reference/medium.md](reference/medium.md)), tell the user before building that
-the design canvas is an alternative they can run themselves; this skill builds the HTML mockup
+When the intent selector lands on the HTML mockup substrate and `medium` allows it (resolve it first per [reference/medium.md](reference/medium.md)), tell the user before building, except
+under `--unattended`, that the design canvas is an alternative they can run themselves; this skill builds the HTML mockup
 either way and never invokes `design`. Read [reference/design-canvas.md](reference/design-canvas.md)
 before making the offer: it holds the two options, the lifecycle difference the offer names, the
 capture discipline, and the verification record for the `design` registration.
@@ -431,7 +431,7 @@ the intent selector lands on the HTML mockup substrate:
   the real stack on request, switchable from a control bar; only the winning-variant key survives.
 
 **Routing.** On the mockup host, this skill builds the mockup whether or not the user runs
-`/design`. Unless the resolved medium keeps the view on this machine ([reference/medium.md](reference/medium.md)), which drops this offer and the unattended record of it, tell the user before building: If /design is available in your session (gate basis:
+`/design`. Unless the resolved medium keeps the view on this machine ([reference/medium.md](reference/medium.md)), which drops this offer, tell the user before building: If /design is available in your session (gate basis:
 the verification record in [reference/design-canvas.md](reference/design-canvas.md)), you
 can run `/design <scope>` instead of or alongside this skill for a hand-editable design canvas.
 State the lifecycle difference with it; the design-canvas subsection above carries the offer
@@ -441,8 +441,8 @@ shadowing local skill: do not make the offer, and tell the user a local `design`
 bundled canvas command. A local `design` skill that disables model invocation shadows it too and
 is hidden from you, so every offer adds that `/design`'s description should read "Make a new
 Design artifact from a brief"; anything else is a local skill, not the canvas, and not to be run
-for it. With `--unattended`, record the suggestion, with its lifecycle difference, in the run's
-output and build without asking.
+for it. With `--unattended`, make no `/design` suggestion, record none, and never attempt the
+command: build without asking.
 
 **Mutation gate.** The canvas persists under the user's account. This skill never runs it, never
 publishes on its own initiative, and never references the canvas from anything tracked in the
