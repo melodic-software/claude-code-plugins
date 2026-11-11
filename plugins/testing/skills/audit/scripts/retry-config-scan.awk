@@ -122,8 +122,7 @@ function pytest_scan(    want, i, s, in_sec, sec, key, val, kl, j, toml, n, m, t
     if (s ~ /^[[:space:]]*([#;]|$)/) continue
     # A key line: a name at the line start, then = (or : in an INI file).
     if (!match(s, toml ? "^[[:space:]]*[A-Za-z_][A-Za-z0-9_.-]*[[:space:]]*=" : "^[A-Za-z_][A-Za-z0-9_.-]*[[:space:]]*[=:]")) continue
-    key = substr(s, 1, RLENGTH - 1)
-    key = trim(key)
+    key = trim(substr(s, 1, RLENGTH - 1))
     val = substr(s, RLENGTH + 1)
     kl = i
     if (key != "addopts" && key != "reruns") continue
@@ -263,7 +262,7 @@ function vitest_scan(    i, j, s, rawline, c, d, seg_start, seg_colon, key, val,
   emit(exempt ? "X" : "F", R_LINE[first], val " under a test key; Vitest has no option that fails a run on a retry-earned pass")
 }
 
-function continued_value(i,   k, ve, v) {
+function continued_value(i,   k, ve) {
   for (k = i + 1; k <= nlines; k++) {
     if (MASKL[k] ~ /^[[:space:]]*$/) continue
     ve = value_end(MASKL[k], 1)
