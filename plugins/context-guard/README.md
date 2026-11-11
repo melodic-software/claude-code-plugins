@@ -64,8 +64,8 @@ their defaults:
 | The session first reaches a worse zone this cycle | once per zone, "moderate zone (2 of 3)." |
 | The session comes within `approach_margin` points (5) of a zone edge or a `zones.json` threshold; where a token band edge decides the crossing, within that many points of the window in tokens | once per boundary, "moderate zone (2 of 3), nearing heavy." |
 | The session passes a `zones.json` threshold | once per threshold, "past an operator threshold", with the threshold's action |
-| After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict, once: after `/resume` or `/branch` only when it is past `light`; after a compaction at any zone, with "compacted" beside it, such as `light zone (1 of 3, compacted)`, once figures arrive, and until then a session with no figures gets "the context reading is unavailable after the compaction, until the next API response." |
-| When the module loads into a session that already has turns (a `--resume` launch, a reload after an options change, a hooks-worker restart) | the verdict, once, only when it is past `light` |
+| After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict, once: after `/resume` or `/branch` only when it is past `light`, unless the session has the compaction marker; after a compaction at any zone, with "compacted" beside it, such as `light zone (1 of 3, compacted)`, once figures arrive, and until then a session with no figures gets "the context reading is unavailable after the compaction, until the next API response." |
+| When the module loads into a session that already has turns (a `--resume` launch, a reload after an options change, a hooks-worker restart) | the verdict, once, only when it is past `light`; when the session has the compaction marker, at any zone, with "compacted" beside it |
 | After `/clear` | nothing: the new session starts in `light` and a fresh cycle |
 
 A dip below a boundary sends nothing and starts no new cycle; only a return to `light` does. An

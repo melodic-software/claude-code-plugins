@@ -830,6 +830,14 @@ test('reload: a load with earlier turns past light restates the verdict once, wi
   expect((await walk($, w, [80])).flat()).toEqual([crossing('heavy')])
 })
 
+test('reload: a load into a session with the compaction marker restates the verdict once at any zone', async ($, on) => {
+  const { w } = world(on, { turns: 3, percent: 20 })
+  w.files[`${CTX}/sess-1.compacted`] = { text: '{}', mtimeMs: 1 }
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  expect(own((await prompt($)).context)).toEqual([restated('lightCompacted')])
+  expect((await walk($, w, [22])).flat()).toEqual([])
+})
+
 test('reload: the first load of a session sends nothing', async ($, on) => {
   world(on, { turns: 0, percent: 60 })
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
