@@ -219,12 +219,14 @@ failure names for a cli-flag finding, which is unverified rather than proven wro
 
 ## `apply read-deny [local|shared] [user] [remove]` (opt-in, explicit argument only)
 
-Native `Read()` deny rules keep credential files out of the Read tool and out of the file
-commands Claude Code recognizes in Bash (`cat`, `head`, `tail`, `sed`, redirects).
+Native `Read()` deny rules keep credential files out of the Read tool and out of the Bash file
+commands Claude Code applies them to.
 `block-credential-read`, off by default, covers what no deny rule reaches when it is on: an
-interpreter that opens the file itself (`python3 -c "open('.env')"`). Pointer: "Read and Edit" in
-<https://code.claude.com/docs/en/permissions>. As of: 2026-10-15. Recheck trigger: that
-section changes which tools or Bash commands a `Read` deny rule reaches, or its pattern syntax.
+interpreter that opens the file itself (`python3 -c "open('.env')"`). Pointer:
+[What Read and Edit rules cover](https://code.claude.com/docs/en/permissions#what-read-and-edit-rules-cover)
+and [Special characters and negation](https://code.claude.com/docs/en/permissions#special-characters-and-negation).
+As of: 2026-11-10. Recheck trigger: either section changes which tools or Bash commands a
+`Read` deny rule reaches, or its pattern syntax.
 
 This is the one `apply` action that changes settings, and only this way: the skill prints the
 rules, then you add them to the chosen file with your edit tools. No script writes settings.
@@ -237,8 +239,8 @@ Never runs from bare `apply`.
    never touches user settings.
 2. **Print the rules** for that file, as a `permissions.deny` list:
    `Read(.env)`, `Read(.env.*)`, `Read(!.env.example)`, `Read(!.env.sample)`,
-   `Read(!.env.template)`. A bare filename matches at any depth; each `!` rule carves its
-   template out of the rule before it, so it must follow `Read(.env.*)` in the same list.
+   `Read(!.env.template)`. Each `!` rule must follow `Read(.env.*)` in the same list (how a
+   bare filename and a `!` rule match: the pointer above).
 3. **User settings only with consent.** With the `user` argument, also print `Read(~/.ssh/**)`
    and `Read(~/.aws/**)` for the user settings file, state that they apply in every project
    and stop Claude's file tools reading any file under those directories, and add them only
