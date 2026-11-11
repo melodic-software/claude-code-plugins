@@ -1,6 +1,7 @@
 # Allow API keys from the operator's own linked Console orgs
 
-- Status: accepted; amended 2026-10-16 (decision 3, see the amendment below)
+- Status: accepted; amended 2026-10-16 (decision 3) and 2026-11-11 (CI's credential order on
+  `run-claude-cli` lanes, decisions 3 and 4), see the amendments below
 - Date: 2026-10-11
 - Amends: [ADR 0037](0037-seat-mandatory-reviews-on-the-operator-session-and-retire-the-oauth-lanes.md),
   its premise that the operator cannot use API keys
@@ -109,3 +110,32 @@ Where decision 3 says a lane rotates through the linked orgs, read this amendmen
 Every lane today runs claude-code-action, so none has a credit fallback: each queues and alerts at
 its limit until it is rebuilt on its own `claude -p` step (#6967). How such a lane saves its
 progress when a limit stops it is an open operator decision, carried on #7677.
+
+## Amendment (2026-11-11): CI's credential order on `run-claude-cli` lanes
+
+A CI lane on ci-workflows' `run-claude-cli` action runs on up to three credentials, in this order:
+
+1. its role's API key (`<ROLE>_CLAUDE_API_KEY`);
+2. its role's assigned subscription token (`<ROLE>_CLAUDE_CODE_OAUTH_TOKEN`), once the key leg
+   hands off;
+3. the org fallback token `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN`, once the subscription leg hands off,
+   when that secret is set.
+
+The fallback token belongs to a separate Claude account, the operator's primary account. Which
+lanes run on `run-claude-cli`, what counts as a handoff, and the job each leg runs in are in
+[`.github/lane-funding.json`](../../.github/lane-funding.json) and the pipeline convention's
+[Funding](../conventions/pr-pipeline/README.md#funding) section. A claude-code-action lane still
+takes its role's subscription token alone.
+
+The eval and measurement lanes on the `claude-cli` launcher that hold the same three secrets use
+the same order.
+
+Where decision 3 and the 2026-10-16 amendment make credits the fallback after a subscription limit
+and keep the key to the fallback run, these lanes run the key leg first and the subscription leg
+second. Where decision 4 says no lane rotates between subscription accounts automatically, a lane
+that holds the fallback token makes at most one further handoff, to the fallback account, and goes
+no further; a claude-code-action lane never changes account. Decisions 1, 2 and 5 stand.
+
+The 2026-10-16 amendment's closing line, "Every lane today runs claude-code-action, so none has a
+credit fallback", no longer holds for these lanes: each runs on its role's key first. A
+claude-code-action lane still queues and alerts at its limit.
