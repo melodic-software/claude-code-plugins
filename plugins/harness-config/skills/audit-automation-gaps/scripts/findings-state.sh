@@ -610,7 +610,7 @@ require_readable_file() {
 
 cmd_read() {
   parse_common_args "read" "$@"
-  # Without this a missing jq would read as an unparseable envelope (exit 5).
+  # Without this a missing jq would read as an unparsable envelope (exit 5).
   require_jq
   if [[ "$ARG_FINDINGS_GIVEN" -eq 1 ]]; then
     die "read does not take --findings"
