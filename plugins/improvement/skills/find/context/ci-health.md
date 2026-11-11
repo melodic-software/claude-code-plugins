@@ -40,24 +40,22 @@ Derive `<owner>/<repo>` from the first configured remote URL (`git remote` /
 
 ## Never use the `/timing` endpoint
 
-`GET /repos/{owner}/{repo}/actions/runs/{run_id}/timing` carries an official deprecation notice, so
-do not build anything on it. Every duration number below comes from run timestamps instead. Basis:
-the GitHub REST reference for
-[workflow runs](https://docs.github.com/en/rest/actions/workflow-runs), whose "Get workflow run
-usage" entry reads "This endpoint is in the process of closing down." Verified 2026-09-06 against
-that page as fetched that day. Recheck when the entry loses that notice, or when the endpoint is
-removed and the call starts returning 404.
+`GET /repos/{owner}/{repo}/actions/runs/{run_id}/timing` is being retired upstream, so do not build
+anything on it. Every duration number below comes from run timestamps instead.
+
+- **Pointer**: when checking the endpoint's status, fetch
+  [Get workflow run usage](https://docs.github.com/en/rest/actions/workflow-runs#get-workflow-run-usage)
+  live.
+- **As of**: 2026-11-10
+- **Recheck trigger**: that section drops its retirement notice, or the endpoint is removed and the
+  call starts returning 404.
 
 ## Iterate by `created` date windows, never deep pagination
 
-The cap is documented, not folklore. "List workflow runs for a repository" returns up to 1,000
-results for each search that uses `actor`, `branch`, `check_suite_id`, `created`, `event`,
-`head_sha`, or `status`, and page-walking past that returns nothing rather than an error. The bound
-is per search, so splitting the period into `created` windows gives each window its own budget,
-which is also the natural shape for trend buckets. Basis: the GitHub REST reference for
-[workflow runs](https://docs.github.com/en/rest/actions/workflow-runs), verified 2026-09-06 against
-that page as fetched that day. Recheck when that page moves the 1,000-result bound or changes which
-parameters it applies to. Use the documented `created` date filter:
+The run-listing endpoint caps the results of each filtered search, and page-walking past the cap
+returns nothing rather than an error. The bound is per search, so splitting the period into
+`created` windows gives each window its own budget, which is also the natural shape for trend
+buckets (record at the end of the list below). Use the documented `created` date filter:
 
 - Split the analysis period (default: last 28 days, in 7-day buckets) into windows and query
   each window separately with `created=<start>..<end>`.
@@ -66,10 +64,12 @@ parameters it applies to. Use the documented `created` date filter:
 - If a window's `total_count` exceeds one page, either narrow the window or fetch the few extra
   pages *within* that window. Shallow pages inside a bounded window are fine; an unbounded page
   walk across the whole history is what the cap breaks.
-  - **Pointer**: for the page-size limit, read the `per_page` parameter in
+  - **Pointer**: for the per-search result cap, the filters it applies to and the page-size
+    limit (the `per_page` parameter), read
     [List workflow runs for a repository](https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository).
-  - **As of**: 2026-11-03
-  - **Recheck trigger**: that section changes the `per_page` maximum.
+  - **As of**: 2026-11-10
+  - **Recheck trigger**: that section drops the per-search cap, stops applying it to `created`, or
+    changes the `per_page` maximum.
 
 ## Metrics
 
