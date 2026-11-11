@@ -1725,28 +1725,15 @@ const RECORDED_JOBS = [
   recordedJob(130771940258, "CR_kwDOTCGFQM8AAAAecp1zog", "post-merge-dispatch", "skipped"),
   recordedJob(130775014046, "CR_kwDOTCGFQM8AAAAecsxang", "unarmed-status", "skipped"),
 ];
-const BUDGET_TEXT = "token=github-token workflow=.github/workflows/pr-merge.yml job=enable-auto-merge run=43092202279 attempt=1 limit=5000 remaining=4734 used=266 reset=1794427401 resource=graphql cost=3";
-const FLOOR_TEXT = "GitHub's core API has under its read floor left (-322 of the planned 1000; header remaining 3678 of 5000); reads continue";
-const RECORDED_ANNOTATIONS_NODE = {
-  databaseId: 130771889983,
-  annotations: {
-    totalCount: 3,
-    nodes: [
-      { annotationLevel: "NOTICE", title: "pr-merge-wake", message: "pr=15424 lanes-app-calls=16 github-token-calls=116 report=fresh outcome=armed" },
-      { annotationLevel: "NOTICE", title: "api-budget", message: BUDGET_TEXT },
-      { annotationLevel: "WARNING", title: "", message: FLOOR_TEXT },
-    ],
-  },
-};
-const RECORDED_ANNOTATIONS = [
-  { annotation_level: "notice", title: "pr-merge-wake", message: "pr=15424 lanes-app-calls=16 github-token-calls=116 report=fresh outcome=armed" },
-  { annotation_level: "notice", title: "api-budget", message: BUDGET_TEXT },
-  { annotation_level: "warning", title: "", message: FLOOR_TEXT },
-];
+// That job's 28 annotations as each API answered: REST's annotations read
+// (the fields the sources read) and GraphQL's CheckRun node.
+const RECORDED = JSON.parse(readFileSync(new URL("./recorded-annotations.json", import.meta.url), "utf8"));
+const RECORDED_ANNOTATIONS_NODE = RECORDED.graphql;
 
 test("the GraphQL check-run and annotation readers answer as the REST jobs and annotations reads of the same run", () => {
   assert.deepEqual(restJobs(RECORDED_NODE, RECORDED_RUN), RECORDED_JOBS);
-  assert.deepEqual(restAnnotations(RECORDED_ANNOTATIONS_NODE, { id: 130771889983 }), RECORDED_ANNOTATIONS);
+  assert.equal(RECORDED.rest.length, 28);
+  assert.deepEqual(restAnnotations(RECORDED_ANNOTATIONS_NODE, { id: RECORDED.checkRun }), RECORDED.rest);
 });
 
 test("a GraphQL answer that is cut short, holds a null, is another run's or a re-run's is no answer", () => {
@@ -1838,6 +1825,40 @@ test("a jobs read that fails ends its source at that run, once, keeping the runs
   assert.deepEqual(data.failedRuns[0].annotations, [{ level: "failure", message: "lane-token-denied: the broker answered 500 with reason unknown" }]);
   assert.equal(api.calls.filter((c) => c.includes("runs/32/jobs")).length, 1);
   assert.ok(!api.calls.some((c) => c.includes("runs/33/jobs")));
+});
+
+// A malformed answer to every nodes query, and which of its ids go to REST.
+const MALFORMED = [
+  ["a 200 whose error names no node", (a) => ({ ...a, errors: [{ type: "INTERNAL", message: "Something went wrong" }] }), "all"],
+  ["data.nodes not an array", () => ({ data: { nodes: {} } }), "all"],
+  ["fewer nodes than ids", (a) => ({ data: { nodes: a.data.nodes.slice(0, -1) } }), "last"],
+  ["an error on a field inside the first node", (a) => ({ ...a, errors: [{ type: "INTERNAL", message: "field failed", path: ["nodes", 0, "checkSuite"] }] }), "first"],
+];
+const restPath = (id) => {
+  const [, kind, n] = /^(WFR|CR)_(\d+)$/.exec(id);
+  return kind === "WFR" ? `runs/${n}/jobs` : `check-runs/${n}/annotations`;
+};
+
+test("a malformed GraphQL answer sends the ids it does not answer for to REST, and every signal reads the same data", async () => {
+  const rest = fakeApi(graphqlScenario());
+  const before = await collect(holdInput(rest));
+  for (const [what, shape, toRest] of MALFORMED) {
+    const api = fakeApi(withNodeIds(graphqlScenario()));
+    const graphql = async (query, variables) => {
+      const answer = await api.graphql(query, variables);
+      return query.includes("nodes(ids: $ids)") ? shape(answer) : answer;
+    };
+    const after = await collect({ ...holdInput(api), graphql });
+    assert.deepEqual(after, before, what);
+    if (toRest === "all") {
+      assert.deepEqual(restGets(api), restGets(rest), what);
+      continue;
+    }
+    for (const { variables } of nodeQueries(api)) {
+      const id = toRest === "first" ? variables.ids[0] : variables.ids.at(-1);
+      assert.ok(restGets(api).some((c) => c.includes(restPath(id))), `${what}: ${id}`);
+    }
+  }
 });
 
 test("a re-run's jobs are not listed through GraphQL", async () => {
