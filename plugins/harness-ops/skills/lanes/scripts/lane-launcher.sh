@@ -1769,7 +1769,9 @@ plan_lane_target() {
   esac
   if stage_may_read_untrusted "$stage"; then
     untrusted_skip "$name" "$stage" "$why"
+    return 1
   fi
+  return 0
 }
 
 # For a host the launcher does not start, prints its setup steps and the lane's
