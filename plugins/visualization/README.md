@@ -85,6 +85,11 @@ rendered diagram. These facts and their sources are documented in the catalog.
   repository's `docs/conventions/visualization.yaml` and of the gitignored personal override
   `docs/conventions/visualization.local.yaml`). Whether diagram content may go to a canvas server
   reached over the network: `allow` or `deny`. `deny` from any layer wins.
+- **`diagram_target`** (`userConfig`, string, default `auto`; also the `diagram_target` key of a
+  repository's `docs/conventions/visualization.yaml` and of the gitignored personal override
+  `docs/conventions/visualization.local.yaml`). Where a diagram is drawn: `auto` (pick by where the session runs),
+  `terminal`, `local-page`, `excalidraw` or `tldraw`. A later layer wins: the personal override,
+  then the team file, then `userConfig`.
 
 Configure with `/plugin configure visualization@<marketplace>`, or headless with
 `claude plugin install visualization@<marketplace> -s <scope> --config
@@ -111,6 +116,24 @@ never for a diagram that will be committed, which stays Mermaid, and only where 
 uses a canvas server only when you say in the session that the server runs locally. The plugin ships no canvas server; the optional official ones (Excalidraw, tldraw) install
 at user level from their repositories, listed in the visualize skill's catalog.
 
+`hosted_canvas` only steers `/visualization:visualize`; other skills and tools can still call the
+server. To block a canvas server for every tool, add a Claude Code permission deny rule on its
+tools, such as `mcp__tldraw__*`, using the server's configured name (a server a plugin provides
+takes the `mcp__plugin_<plugin>_<server>__*` form). The
+[MCP rule form](https://code.claude.com/docs/en/permissions#mcp) matches every tool of that
+server, and a tool denied at any settings level cannot be allowed at another
+([Settings precedence](https://code.claude.com/docs/en/permissions#settings-precedence)).
+
+**`diagram_target`.** Applies only when the form is a diagram. An explicit medium argument still
+wins, and so does a person's own resolved `medium` setting; the skill names that override in one
+line. `terminal` draws an inline Mermaid or ASCII fence, `local-page` a local HTML file, and
+`excalidraw` or `tldraw` that canvas server, under the `hosted_canvas` rules above. A diagram that
+will be committed stays Mermaid source whatever the target. When the chosen target is unavailable
+(no such server connected, a surface that does not render it, or `hosted_canvas` forbids it), the
+skill uses `auto` and says so in one line. Unlike `hosted_canvas`, the team file is read from the
+working tree only: the key is a preference, not a floor. An unrecognized value is reported and
+that layer is dropped.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -123,6 +146,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `medium` | string | `"auto"` | Preferred delivery medium. auto (default) defers to the shared medium resolver, then decides by content and available surfaces; terminal always renders inline; file renders richer forms as a local HTML file, never published; artifact or hosted prefers a published Artifact, else a file. |
 | `thin_context_prompt` | string | `"auto"` | What the skill does when code is pasted with little context and no form named. auto (default) asks one ranked question only when two or more code-shape forms fit about equally; always offers the ranked menu on any bare code paste; never renders the recommended form without asking. |
 | `hosted_canvas` | string | `"allow"` | Whether diagram content may go to a canvas server reached over the network (a remote MCP server). allow (default) permits it where the surface renders a canvas; deny keeps diagrams local or on a local server. deny from any layer wins. |
+| `diagram_target` | string | `"auto"` | Where a diagram is drawn. auto (default) picks by surface; terminal draws an inline Mermaid or ASCII fence; local-page writes a local HTML file; excalidraw or tldraw draws on that connected canvas server. A target that is unavailable, or that hosted_canvas forbids, falls back to auto. |
 
 ### How to set these
 

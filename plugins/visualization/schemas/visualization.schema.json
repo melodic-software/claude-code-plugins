@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/visualization/schemas/visualization.schema.json",
   "title": "visualization team config",
-  "description": "Schema for a repository's docs/conventions/visualization.yaml and its personal override docs/conventions/visualization.local.yaml. Resolution: plugins/visualization/skills/visualize/SKILL.md Step 3, the canvas server rule.",
+  "description": "Schema for a repository's docs/conventions/visualization.yaml and its personal override docs/conventions/visualization.local.yaml. Resolution: plugins/visualization/skills/visualize/SKILL.md Step 3, the canvas server and diagram target rules.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -12,6 +12,12 @@
       "type": "string",
       "enum": ["allow", "deny"],
       "default": "allow"
+    },
+    "diagram_target": {
+      "description": "Where /visualization:visualize draws a diagram: auto picks by surface; terminal an inline Mermaid or ASCII fence; local-page a local HTML file; excalidraw or tldraw that connected canvas server. A later layer wins (the personal override over this file over userConfig); a target that is unavailable, or that hosted_canvas forbids, falls back to auto.",
+      "type": "string",
+      "enum": ["auto", "terminal", "local-page", "excalidraw", "tldraw"],
+      "default": "auto"
     }
   }
 }
