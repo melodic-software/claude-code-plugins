@@ -125,7 +125,10 @@ jobs:
       review: ${{ steps.select.outputs.review || steps.files.outputs.review }}
       pr-number: ${{ steps.gate.outputs.pr-number }}
       head-sha: ${{ steps.gate.outputs.head-sha }}
-      base-sha: ${{ steps.gate.outputs.base-sha }}
+      # The PR's own base, the review's diff base: for a stack layer the
+      # layer below, so the review reads this layer's change alone. Code
+      # comes from .base, the main checkout, never from it.
+      base-sha: ${{ steps.gate.outputs.pr-base-sha }}
       judged: ${{ steps.judged.outputs.judged }}
       held: ${{ steps.select.outputs.held }}
       main-sha: ${{ steps.main.outputs.main-sha }}
@@ -889,7 +892,7 @@ jobs:
           GATE_REVIEW: ${{ steps.select.outputs.review }}
           GATE_PR: ${{ steps.gate.outputs.pr-number }}
           GATE_HEAD: ${{ steps.gate.outputs.head-sha }}
-          GATE_BASE: ${{ steps.gate.outputs.base-sha }}
+          GATE_BASE: ${{ steps.gate.outputs.pr-base-sha }}
         run: |
           if [ "$CARRIED" = true ]; then
             proceed=$CARRIED_PROCEED review=$CARRIED_REVIEW pr=$CARRIED_PR head=$CARRIED_HEAD base=$CARRIED_BASE
@@ -1832,7 +1835,7 @@ jobs:
           GATE_REVIEW: ${{ steps.select.outputs.review }}
           GATE_PR: ${{ steps.gate.outputs.pr-number }}
           GATE_HEAD: ${{ steps.gate.outputs.head-sha }}
-          GATE_BASE: ${{ steps.gate.outputs.base-sha }}
+          GATE_BASE: ${{ steps.gate.outputs.pr-base-sha }}
         run: |
           if [ "$CARRIED" = true ]; then
             proceed=$CARRIED_PROCEED review=$CARRIED_REVIEW pr=$CARRIED_PR head=$CARRIED_HEAD base=$CARRIED_BASE
@@ -2749,7 +2752,7 @@ jobs:
           GATE_REVIEW: ${{ steps.select.outputs.review }}
           GATE_PR: ${{ steps.gate.outputs.pr-number }}
           GATE_HEAD: ${{ steps.gate.outputs.head-sha }}
-          GATE_BASE: ${{ steps.gate.outputs.base-sha }}
+          GATE_BASE: ${{ steps.gate.outputs.pr-base-sha }}
         run: |
           if [ "$CARRIED" = true ]; then
             proceed=$CARRIED_PROCEED review=$CARRIED_REVIEW pr=$CARRIED_PR head=$CARRIED_HEAD base=$CARRIED_BASE

@@ -189,6 +189,7 @@ const STOPPED = (reason) => ({
   "head-ref": "",
   "head-sha": "",
   "base-sha": "",
+  "pr-base-sha": "",
 });
 const PROCEED = {
   proceed: "true",
@@ -197,6 +198,7 @@ const PROCEED = {
   "head-ref": "feat/lane-probe",
   "head-sha": HEAD_SHA,
   "base-sha": BASE_SHA,
+  "pr-base-sha": BASE_SHA,
 };
 
 // pull_request
@@ -507,6 +509,78 @@ test("workflow_run: a PR on a non-default base stops with untrusted-base", async
   const pull = fixture("api-pull-42.json");
   pull.base.ref = "feat/stack-parent";
   const github = fakeGitHub({ [commitPulls]: [pull] });
+  assert.deepEqual(await gate({ eventName: "workflow_run", event, github }), STOPPED("untrusted-base"));
+});
+
+// A layer of a native stack: its base is the layer below, and GitHub names the
+// stack's own base in pull_request.stack. The layer is trusted only when that
+// stack base is the default branch, and its base-sha is the stack base's SHA
+// (a default-branch commit), never the lower layer's unmerged head.
+
+const STACK_BASE_SHA = "3333333333333333333333333333333333333333";
+const asLayer = (pull, stackBase = "main") => {
+  pull.base.ref = "feat/stack-parent";
+  pull.stack = { id: 1, number: 7, position: 2, size: 2, base: { ref: stackBase, sha: STACK_BASE_SHA } };
+  return pull;
+};
+// pr-base-sha stays the layer's own base, the diff base a review reads; only
+// base-sha, which lanes check out, moves to the stack base.
+const LAYER_PROCEED = { ...PROCEED, "base-sha": STACK_BASE_SHA, "pr-base-sha": BASE_SHA };
+
+test("pull_request: a stack layer whose stack targets the default branch proceeds on the stack base SHA", async () => {
+  const event = fixture("event-pull-request.json");
+  event.repository.default_branch = "main";
+  asLayer(event.pull_request);
+  assert.deepEqual(await gate({ eventName: "pull_request", event }), LAYER_PROCEED);
+});
+
+test("pull_request: a stack layer whose stack targets another branch stops with untrusted-base", async () => {
+  const event = fixture("event-pull-request.json");
+  event.repository.default_branch = "main";
+  asLayer(event.pull_request, "release/x");
+  assert.deepEqual(await gate({ eventName: "pull_request", event }), STOPPED("untrusted-base"));
+});
+
+test("pull_request: a stack layer whose stack base SHA is malformed stops with untrusted-base", async () => {
+  const event = fixture("event-pull-request.json");
+  event.repository.default_branch = "main";
+  asLayer(event.pull_request).stack.base.sha = "main";
+  assert.deepEqual(await gate({ eventName: "pull_request", event }), STOPPED("untrusted-base"));
+});
+
+test("pull_request: a PR into the default branch keeps its own base SHA when it is a stack's bottom layer", async () => {
+  const event = fixture("event-pull-request.json");
+  event.repository.default_branch = "main";
+  event.pull_request.base.ref = "main";
+  event.pull_request.stack = { id: 1, number: 7, position: 1, size: 2, base: { ref: "main", sha: STACK_BASE_SHA } };
+  assert.deepEqual(await gate({ eventName: "pull_request", event }), PROCEED);
+});
+
+test("workflow_dispatch: a fetched stack layer on the default branch proceeds on the stack base SHA", async () => {
+  const event = fixture("event-workflow-dispatch.json");
+  event.repository.default_branch = "main";
+  const github = fakeGitHub({ [`GET /repos/${REPOSITORY}/pulls/42`]: asLayer(fixture("api-pull-42.json")) });
+  assert.deepEqual(await gate({ eventName: "workflow_dispatch", event, github, prNumber: "42" }), LAYER_PROCEED);
+});
+
+test("workflow_dispatch: a fetched stack layer on another branch stops with untrusted-base", async () => {
+  const event = fixture("event-workflow-dispatch.json");
+  event.repository.default_branch = "main";
+  const github = fakeGitHub({ [`GET /repos/${REPOSITORY}/pulls/42`]: asLayer(fixture("api-pull-42.json"), "release/x") });
+  assert.deepEqual(await gate({ eventName: "workflow_dispatch", event, github, prNumber: "42" }), STOPPED("untrusted-base"));
+});
+
+test("workflow_run: a stack layer on the default branch proceeds on the stack base SHA", async () => {
+  const event = fixture("event-workflow-run.json");
+  event.repository.default_branch = "main";
+  const github = fakeGitHub({ [commitPulls]: [asLayer(fixture("api-pull-42.json"))] });
+  assert.deepEqual(await gate({ eventName: "workflow_run", event, github }), LAYER_PROCEED);
+});
+
+test("workflow_run: a stack layer on another branch stops with untrusted-base", async () => {
+  const event = fixture("event-workflow-run.json");
+  event.repository.default_branch = "main";
+  const github = fakeGitHub({ [commitPulls]: [asLayer(fixture("api-pull-42.json"), "release/x")] });
   assert.deepEqual(await gate({ eventName: "workflow_run", event, github }), STOPPED("untrusted-base"));
 });
 
