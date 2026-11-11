@@ -99,8 +99,8 @@ relying on an `unverified` or drifted record "unverified as of <date>" in the pl
 ${CLAUDE_PLUGIN_ROOT}/skills/migrate/scripts/plan-migration.sh --root <repo>
 ```
 
-**Always pass `--root`.** A shell's working directory does not persist between tool calls, so a run
-without it plans whatever directory the call happened to land in. `--root` may point anywhere inside
+**Always pass `--root`.** The call's working directory may not be the repository root (what carries over between calls: [Tools reference, "What persists between commands"](https://code.claude.com/docs/en/tools-reference#what-persists-between-commands),
+as of 2026-11-10; recheck when that section changes whether `cd` carries over). `--root` may point anywhere inside
 the repository; the script resolves to the toplevel itself.
 
 Read-only: it has no other mode, and `--dry-run` is accepted and ignored so an older caller does
@@ -113,7 +113,7 @@ indistinguishable from a run that never happened. Its rows are the facts a migra
 | `DIR` | `<path> <state> <CLAUDE.md bytes> <AGENTS.md bytes>`. The state names the work; the table below says what Apply does for each |
 | `BUDGET` | `<path> <cumulative AGENTS.md bytes, root to that path> <OK\|OVER>`, against Codex's project-doc budget, which is cumulative across the files it loads rather than per file. The number and its dated record live beside `CODEX_PROJECT_DOC_BUDGET` in `scripts/plan-migration.sh`; read it there rather than restating it. `OVER` means content has to move out before the migration, not after |
 | `CASE` | A filename differing only by case. Rename it: until then the repository behaves differently per developer filesystem. Pointer: [Differences between Windows and Linux case sensitivity](https://learn.microsoft.com/en-us/windows/wsl/case-sensitivity#differences-between-windows-and-linux-case-sensitivity). As of: 2026-11-03. Recheck trigger: that section changes either filesystem's default |
-| `SUPPRESS` | A bare `~/CLAUDE.md` or `~/CLAUDE.local.md`. Present, it is read instead of `AGENTS.md` in every directory below home, and no repository-side change fixes that |
+| `SUPPRESS` | A bare `~/CLAUDE.md` or `~/CLAUDE.local.md`. No repository-side change fixes it. Pointer: [When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md). As of: 2026-11-10. Recheck trigger: that section changes which files count |
 | `PATHDET` | Code that finds a path by the existence of `CLAUDE.md`. Each one works while the shim exists and breaks at cutover. Report them; fixing them is not this run's scope unless the operator asks. The match is **not** a list of existence-test spellings: a list misses `-e`, `Test-Path`, `os.stat`, `File.exist?` and whatever nobody thought of, and every miss reports a clean tree. Any existence-ish mention in a code file is a row, so prose in an eval file lands here too; that is the safe direction, and the acknowledgement file answers a false positive once, in writing |
 | `CITE` | A markdown link resolving into `CLAUDE.md`. Each is retargeted in the same PR as the content move, or the link dies |
 | `MENTION` | Every other tracked occurrence of the literal `CLAUDE.md`: a YAML list entry, a comment, a path in a config, including under `.claude/`, which is where a Claude-configured repo most often enumerates its own instruction files. Neither a link nor an existence call, so it is nobody else's row. A content directory holding more than ten is rolled up to `<dir>/ <count> rows`; `.claude/` and `.github/` never are, because a leak lives in configuration. `--expand-mentions` prints them all. **A roll-up is the answer, not a deferral**: a content directory (captured prose, vendored docs) is reported by count and left alone, because every one of its mentions is the same non-finding. Triage the individually-listed rows with the operator |
@@ -189,7 +189,7 @@ between steps must leave content duplicated rather than deleted:
    a dead link the moment the move lands, so it is not a follow-up.
 6. **Offer the index; never write it unasked.** The generated rules index is a *Claude-only* block
    in the tool-agnostic `AGENTS.md`, and it is not free: in `medley` the render was 6,860 bytes,
-   +52% on the always-loaded file, pushing the worst Codex path to 28,870 of its 32,768-byte
+   +52% on the always-loaded file, pushing the worst Codex path to 28,870 bytes against its
    budget. So run `render` first, report the byte cost and the resulting worst-path `BUDGET` row,
    and write it only on the operator's acceptance:
 

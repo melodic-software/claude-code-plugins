@@ -96,5 +96,5 @@ When `reference/linux/not-implemented.md` is replaced, seed the inventory pass w
 
 - Not a license to install things. Discovery inspects; never runs `winget install`, `brew install`, `apt install`.
 - Not a generalized "security scanner." Skill covers a narrow posture (pending security updates, Defender signatures, CISA KEV apps) and does not replicate a vulnerability scanner.
-- Not a replacement for operational monitoring. Machine-health looks at weekly trends on one workstation, not real-time telemetry across a fleet.
-- Not a silent force. Every self-modification appears in the week's report; no change is invisible to the human.
+- Not a replacement for operational monitoring. Machine-health looks at trends across runs on one workstation, not real-time telemetry across a fleet.
+- Not a silent force. Every self-modification appears in that run's report; no change is invisible to the human.

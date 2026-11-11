@@ -72,7 +72,7 @@ Nothing is approved by default. A normal `weekly` run does clear `DryRun`, but e
 
 If the interactive user has had keyboard or mouse input in the last 60 seconds, **skip all remediations** for this run. Read-only checks still run; report still generates. A note appears in the run log and report's "Remediations" section explaining the deferral.
 
-Rationale: a remediation restarting a service at the wrong moment can interrupt real work. The weekly cadence gives remediations a fresh chance next Monday morning.
+Rationale: a remediation restarting a service at the wrong moment can interrupt real work. The next scheduled run gives remediations a fresh chance.
 
 ## Escalation on failure
 
@@ -86,7 +86,7 @@ Failure **does not** trigger another attempt, alternate remediation, or fall-thr
 
 ## What about remediations that work but the finding persists?
 
-Example: `Restart-StoppedService` succeeds, but 2 hours later the service dies again. The next weekly run re-detects the stopped service and remediates again. If the same service-target pair is remediated in **3 consecutive runs**, the orchestrator should:
+Example: `Restart-StoppedService` succeeds, but 2 hours later the service dies again. The next run re-detects the stopped service and remediates again. If the same service-target pair is remediated in **3 consecutive runs**, the orchestrator should:
 
 - Log this as a pattern in the run log.
 - Add a `<StateBase>/TODO.md` entry proposing investigation (investigation by a human, not another remediation type).
