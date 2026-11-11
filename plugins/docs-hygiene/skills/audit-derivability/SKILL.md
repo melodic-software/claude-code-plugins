@@ -17,10 +17,8 @@ Collect with **individual** Bash calls, one command per call, never combined:
 - Current branch, `git branch --show-current`
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-body Bash calls, not pre-compute lines: the harness runs a skill's whole pre-compute block as one
-shell invocation, and a worktree-isolated session refuses a compound command containing git. The dated record for that composition claim is the
-[gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation".
+body Bash calls, not pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
+"The pre-compute block runs as one shell invocation").
 
 ## Pre-computed context
 

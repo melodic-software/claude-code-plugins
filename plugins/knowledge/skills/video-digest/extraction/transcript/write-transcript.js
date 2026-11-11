@@ -41,7 +41,7 @@ function countParagraphs(transcript) {
 /** @typedef {{ startSec: number, endSec: number, text: string }} WatchCue */
 
 /**
- * @param {{ startSec: number, endSec: number, text: string }} cue
+ * @param {WatchCue} cue
  * @returns {WatchCue}
  */
 function toWatchCue(cue) {
@@ -248,13 +248,15 @@ export async function writeSliceReadme(
   },
   { writeFile = fs.writeFile } = {},
 ) {
-  let transcriptLines = transcriptFiles
-    .map((file) => `- \`${file}\` — cleaned timestamped transcript (\`[M:SS]\` paragraphs)\n`)
-    .join("");
+  let transcriptLines;
   if (noVideoEntries) {
     transcriptLines = "- No video entries were found in this post, so no transcript was written\n";
   } else if (transcriptFiles.length === 0) {
     transcriptLines = "- No transcript was written (see the run's transcript degradation)\n";
+  } else {
+    transcriptLines = transcriptFiles
+      .map((file) => `- \`${file}\` — cleaned timestamped transcript (\`[M:SS]\` paragraphs)\n`)
+      .join("");
   }
   const readmePath = path.join(sliceDir, "README.md");
   const readme = `# ${videoTitle}
@@ -400,12 +402,8 @@ export async function writeEnvelopeTranscriptArtifacts(
   const transcripts = [];
   /** @type {EnvelopeEntryDegradation[]} */
   const entryDegradations = [];
-  let captionlessEntryCount = 0;
 
   for (const [entryIndex, entry] of entries.entries()) {
-    if (!entry.caption) {
-      captionlessEntryCount += 1;
-    }
     const plan = resolveTranscriptStrategy({
       adapterDefault: transcriptStrategy,
       override: strategyOverride,
@@ -501,7 +499,7 @@ export async function writeEnvelopeTranscriptArtifacts(
     entryCount: entries.length,
     primaryEntryIndex,
     transcripts,
-    captionlessEntryCount,
+    captionlessEntryCount: entries.filter((entry) => !entry.caption).length,
     transcriptDegradation: primaryDegradation?.reason ?? primary?.caption?.provenanceNote ?? null,
     entryDegradations,
   };

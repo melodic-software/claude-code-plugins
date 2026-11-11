@@ -394,11 +394,11 @@ for d in ${dirs[@]+"${dirs[@]}"}; do
   for f in "$d"/*.yaml; do [[ -f "$f" ]] && extra+=("$f"); done
 done
 id_lines() { sed -n "s/^id:[[:space:]]*['\"]\{0,1\}\([A-Za-z0-9_.-]*\).*/\1/p" "$@"; }
-declare -A known=() shipped=()
+declare -A shipped=() consumer=()
 while read -r id; do shipped[$id]=1; done < <(id_lines "$PLUGIN"/skills/audit/adapters/*.yaml)
-while read -r id; do known[$id]=1; done < <(id_lines "$PLUGIN"/skills/audit/adapters/*.yaml ${extra[@]+"${extra[@]}"})
+((${#extra[@]})) && while read -r id; do consumer[$id]=1; done < <(id_lines "${extra[@]}")
 for id in ${ids[@]+"${ids[@]}"}; do
-  [[ -z "${known[$id]:-}" ]] || continue
+  [[ -z "${shipped[$id]:-}${consumer[$id]:-}" ]] || continue
   loc="${layers[*]}"
   for f in "${layers[@]}"; do
     # In the docs file only the config block's lines count.

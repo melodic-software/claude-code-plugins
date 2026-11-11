@@ -294,7 +294,7 @@ const voidedLine = (st: State, cfg: Config): { line: string; levels: Level[] } |
 // Follows any approach or edge line, once per carrier. Facts alone led Claude to stop launching agents
 // and to move work to a smaller model, so the options are stated and lowering quality is not one of them.
 const OPTIONS =
-  "rate-limit-guard: options: continue at the same model, effort and review depth; the user can switch accounts (https://github.com/melodic-software/claude-code-account-rotation); or schedule work for after the reset. Usage never calls for lowering model, effort or review depth; whether to stop or pause is the user's call, or an opted-in loop lane's floor."
+  "rate-limit-guard: options: continue at the same model, effort and review depth; the user can switch accounts (https://github.com/melodic-software/claude-code-account-rotation); or schedule work for after the reset. /usage shows what is using the plan (https://code.claude.com/docs/en/costs#track-your-costs). Usage never calls for lowering model, effort or review depth; whether to stop or pause is the user's call, or an opted-in loop lane's floor."
 
 const dueLines = (st: State, cfg: Config): string[] => {
   const due = dueEvents(st, cfg).sort(([a], [b]) => order(a) - order(b))

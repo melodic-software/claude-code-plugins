@@ -3,6 +3,16 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.2] - 2026-11-11
+
+### Changed
+
+- The `implement` skill now cites the gather-block convention record, "The pre-compute block runs as one shell
+  invocation", instead of restating how the harness runs the pre-compute block. No behavior
+  change.
+
+- `implement-dispatch` no longer restates which settings hide `/batch`, what it needs to run, or where `CLAUDE_CODE_SUBAGENT_MODEL` ranks; it points at the live docs sections and its existing records instead. No behavior change.
+
 ## [0.38.1] - 2026-11-10
 
 ### Changed

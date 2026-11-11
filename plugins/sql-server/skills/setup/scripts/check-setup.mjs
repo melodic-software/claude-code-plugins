@@ -99,6 +99,7 @@ export function checkSetup({
   }
 
   if (config === undefined) return rows;
+  const configFile = resolve(configPath);
   const names = environment === undefined ? Object.keys(config.environments) : [environment];
   for (const name of names) {
     let registration;
@@ -119,12 +120,7 @@ export function checkSetup({
       const detail = set ? 'is set in this shell' : 'is not set in this shell; the server needs it set where Claude Code starts';
       row('INFO', `auth ${name}`, `${variable} ${detail}`);
     }
-    const command = registrationCommand({
-      environment: name,
-      configPath: resolve(configPath),
-      serverDir: serverDir ?? '<data-dir>/server',
-      auth: registration.auth,
-    });
+    const command = registrationCommand({ environment: name, configPath: configFile, serverDir: serverDir ?? '<data-dir>/server', auth: registration.auth });
     row('INFO', `register ${name}`, command);
   }
   return rows;

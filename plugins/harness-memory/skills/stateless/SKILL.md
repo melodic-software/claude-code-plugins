@@ -98,7 +98,7 @@ carrying `CLAUDE_PLUGIN_ROOT`.
 - **`/memory` (built-in command)**: the person's own interactive command. This skill never runs
   it.
   - **Pointer**: for what it opens and toggles, read
-    [View and edit with `/memory`](https://code.claude.com/docs/en/memory#view-and-edit-with-memory).
+    [View and edit with `/memory`](https://code.claude.com/docs/en/memory#view-and-edit-with-/memory).
   - **As of**: 2026-11-03
   - **Recheck trigger**: that section adds or drops what the command edits or toggles.
 - **This skill (marketplace plugin).** Reports the effective auto-memory state across every

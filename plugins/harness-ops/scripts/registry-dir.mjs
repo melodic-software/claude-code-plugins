@@ -102,8 +102,9 @@ try {
   rmSync(scratch, { recursive: true, force: true });
 }
 
+const DEFAULT = { registry_dir: null, layer: "default", path: null, data_dir: null };
 const errors = [];
-let result = { registry_dir: null, layer: "default", path: null, data_dir: null };
+let result = DEFAULT;
 for (const layer of layers) {
   const path = home === null || !layer.path ? null : relative(project, layer.path);
   // Errors about this key or about the whole file; other keys belong to other readers.
@@ -112,15 +113,15 @@ for (const layer of layers) {
   let invalid = layer.error_keys.includes(KEY);
   let dir = null;
   if (value !== undefined && !invalid) {
-    const [found, why] = check(value, layer.name === "userConfig" ? start : project);
+    let why;
+    [dir, why] = check(value, layer.name === "userConfig" ? start : project);
     if (why) {
       errors.push(`${layer.name}${path ? ` (${layer.path})` : ""}: "${KEY}": ${JSON.stringify(value)} ${why}`);
       invalid = true;
     }
-    dir = found;
   }
   if (invalid) {
-    if (layer.name !== "local") result = { registry_dir: null, layer: "default", path: null, data_dir: null };
+    if (layer.name !== "local") result = DEFAULT;
   } else if (value !== undefined) result = { registry_dir: value, layer: layer.name, path, data_dir: dir };
 }
 console.log(JSON.stringify({ ...result, home, ...(skipped && { home_skipped: skipped }), errors }));

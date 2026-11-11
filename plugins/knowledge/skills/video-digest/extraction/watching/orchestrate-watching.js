@@ -37,6 +37,13 @@ import {
  */
 
 /**
+ * @param {import('@melodic/video-digestion/frames/models').FrameCandidate[]} frames
+ */
+function asAnchorCandidates(frames) {
+  return frames.map((frame) => ({ ...frame, timestampSource: /** @type {const} */ ("anchor") }));
+}
+
+/**
  * Run the deterministic two-pass watching pipeline.
  *
  * Frames keep the times scene detection measured or estimated and the exact
@@ -95,10 +102,7 @@ export async function orchestrateWatching(
   const anchorFrames = await runAnchorExtract(videoPath, framesDir, anchorTimestamps, { log });
   const mergedCandidates = mergeFrameCandidates([
     ...sceneDedup.unique,
-    ...anchorFrames.map((frame) => ({
-      ...frame,
-      timestampSource: /** @type {const} */ ("anchor"),
-    })),
+    ...asAnchorCandidates(anchorFrames),
   ]);
   const dedupResult = await runDedup(mergedCandidates, {}, { log });
 
@@ -116,13 +120,7 @@ export async function orchestrateWatching(
   if (fillTimestamps.length > 0) {
     log.info(`watching: gap-fill extraction starting count=${fillTimestamps.length}`);
     const fillFrames = await runAnchorExtract(videoPath, framesDir, fillTimestamps, { log });
-    uniqueFrames = mergeFrameCandidates([
-      ...dedupResult.unique,
-      ...fillFrames.map((frame) => ({
-        ...frame,
-        timestampSource: /** @type {const} */ ("anchor"),
-      })),
-    ]);
+    uniqueFrames = mergeFrameCandidates([...dedupResult.unique, ...asAnchorCandidates(fillFrames)]);
   }
 
   const selection = selectFramesForCoverage(uniqueFrames, {

@@ -4,7 +4,12 @@
  *
  * Usage: node watch/run-watch.js <video-url> [--skip-research] [--target <repo>]
  *   [--recover <slice-dir>] [--transcript-strategy <captions|captions+repair|asr>]
- *   [--max-frame-gap-sec <sec>]
+ *   [--max-frame-gap-sec <sec>] [--caption-wait-deadline <iso>]
+ *
+ * A live-derived video whose captions are not published yet exits 3 with a
+ * `captionsPending` report and writes no slice (`acquisition/caption-wait.js`);
+ * `--caption-wait-deadline` carries the deadline a held queue row recorded, and
+ * once it passes the run digests caption-less and reports `captionWait`.
  *
  * Acquisition dispatches through the source-adapter registry (unknown host
  * fails closed, non-zero exit, listing supported sources) and consumes the
@@ -32,6 +37,11 @@ import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 import { parseVttSegment } from "@melodic/video-digestion/transcript/vtt-parser";
 
+import {
+  CAPTIONS_PENDING_EXIT,
+  captionsPendingReport,
+  parseCaptionWaitDeadline,
+} from "../acquisition/caption-wait.js";
 import {
   primaryEntry,
   sourceMetadataSubset,
@@ -137,6 +147,12 @@ export async function runWatchCli(argv) {
     return 1;
   }
   const maxFrameGapSec = maxFrameGapArg.override ?? MAX_FRAME_GAP_SEC;
+  const waitArg = parseCaptionWaitDeadline(argv);
+  if (!waitArg.ok) {
+    writeStderr(waitArg.error);
+    return 1;
+  }
+  const captionWaitDeadline = waitArg.deadline;
 
   // Until watch.json records the temp dirs, nothing else points at them, so a
   // failure removes the ones this run made. Once recorded, --recover needs them.
@@ -170,7 +186,16 @@ export async function runWatchCli(argv) {
     return /** @type {const} */ ([signal, handler]);
   });
   try {
-    running = watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFrameGapSec, temp });
+    running = watchUrl({
+      url,
+      adapter,
+      skipResearch,
+      target,
+      strategyArg,
+      maxFrameGapSec,
+      captionWaitDeadline,
+      temp,
+    });
     return await running;
   } catch (error) {
     if (error instanceof InterruptedError) return 1;
@@ -263,10 +288,20 @@ function trackChildren(temp) {
  *   target: string|undefined,
  *   strategyArg: { override: import('../adapters/adapter-contract.js').TranscriptStrategy | null },
  *   maxFrameGapSec: number,
+ *   captionWaitDeadline: string|null,
  *   temp: TempDirs,
  * }} options
  */
-async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFrameGapSec, temp }) {
+async function watchUrl({
+  url,
+  adapter,
+  skipResearch,
+  target,
+  strategyArg,
+  maxFrameGapSec,
+  captionWaitDeadline,
+  temp,
+}) {
   const throwIfInterrupted = () => {
     if (temp.interrupted) throw new InterruptedError();
   };
@@ -286,7 +321,7 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
   let acquisition;
   writeStderr("watch: acquire start");
   try {
-    acquisition = await acquireMedia(url, { workDir, mode: "full" });
+    acquisition = await acquireMedia(url, { workDir, mode: "full", captionWaitDeadline });
   } catch (error) {
     if (error instanceof UnsupportedSourceError) {
       writeStderr(error.message);
@@ -295,6 +330,12 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
     throw error;
   }
   throwIfInterrupted();
+  if (acquisition.captionWait?.state === "wait") {
+    const report = captionsPendingReport(acquisition.captionWait);
+    writeStdout(JSON.stringify(report, null, 2));
+    writeStderr(report.message);
+    return CAPTIONS_PENDING_EXIT;
+  }
   if (!acquisition.success || !acquisition.data) {
     writeStderr(acquisition.error ?? "Acquisition failed");
     return 1;
@@ -303,6 +344,8 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
 
   const envelope = acquisition.data;
   const { metadata, entries } = envelope;
+  // The note an expired caption wait left; the queue row's `notes` carries it.
+  const captionWait = envelope.acquireMetrics?.captionWait ?? null;
   const sliceKey = adapter.extractSliceKey(url, metadata) ?? metadata.id;
   const videoSlug = deriveVideoSlug(metadata.title, sliceKey);
   const sliceDir = resolveWorkSliceDir(resolveWorkRoot(), videoSlug);
@@ -432,6 +475,7 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
           textOnly: true,
           transcriptStrategy: primaryTranscript?.strategy ?? null,
           transcriptDegradation: written.transcriptDegradation,
+          captionWait,
           harvestedLinkCount: harvestedLinks.length,
           skipResearch,
           tempSession,
@@ -532,6 +576,7 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
         targetMinFrames,
         transcriptStrategy: primaryTranscript?.strategy ?? null,
         transcriptDegradation: written.transcriptDegradation,
+        captionWait,
         harvestedLinkCount: harvestedLinks.length,
         skipResearch,
         tempSession,

@@ -211,9 +211,7 @@ function scan_body(   i, j, s, rawline, c, d, seg_start, seg_colon, key, val, ve
         gsub(/[[:space:]]/, "", key)
         gsub(/['"`]/, "", key)
         ve = value_end(s, j + 1)
-        val = substr(rawline, j + 1, ve - j)
-        sub(/^[[:space:]]+/, "", val)
-        sub(/[[:space:]]+$/, "", val)
+        val = trim(substr(rawline, j + 1, ve - j))
         # A colon separates a key from its value only when what sits left of it
         # is an identifier (a quoted key is one once the quotes are stripped).
         # A value continued onto the next line leaves its ternary colon behind,
@@ -240,17 +238,16 @@ function scan_body(   i, j, s, rawline, c, d, seg_start, seg_colon, key, val, ve
 # the value there. A blank or comment-only line is skipped, and a line whose
 # first token closes the enclosing object yields "", which is the same nothing
 # the key's own line gave.
-function continued_value(i,   k, ve, v) {
+function continued_value(i,   k, ve) {
   for (k = i + 1; k <= nlines; k++) {
     if (MASKL[k] ~ /^[[:space:]]*$/) continue
     ve = value_end(MASKL[k], 1)
-    v = substr(RAWL[k], 1, ve)
-    sub(/^[[:space:]]+/, "", v)
-    sub(/[[:space:]]+$/, "", v)
-    return v
+    return trim(substr(RAWL[k], 1, ve))
   }
   return ""
 }
+
+function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
 
 # End of the value that starts at s[from]: the next , } or ] at the value's own
 # depth, else end of line. A trailing } or ] belongs to the enclosing object, so
@@ -339,14 +336,10 @@ function emit(kind, slug, line, detail) {
 
 function decide(   kind, detail) {
   kind = exempt ? "X" : "F"
-  if (spread) {
-    emit("D", "flaky-passes-suite", A_line, "spread-undecidable")
-    emit("D", "only-not-forbidden", A_line, "spread-undecidable")
-    return
-  }
-  if (variadic) {
-    emit("D", "flaky-passes-suite", A_line, "variadic-undecidable")
-    emit("D", "only-not-forbidden", A_line, "variadic-undecidable")
+  if (spread || variadic) {
+    detail = spread ? "spread-undecidable" : "variadic-undecidable"
+    emit("D", "flaky-passes-suite", A_line, detail)
+    emit("D", "only-not-forbidden", A_line, detail)
     return
   }
   if (!ret_fire) {

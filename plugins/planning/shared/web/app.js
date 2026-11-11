@@ -4967,9 +4967,10 @@
       () => Core.newOwnerLink().catch(fail));
     const laterItems = () => Core.state.ideas.filter(i => i.status === "later");
     const laterLine = n => `${n} Later item${n === 1 ? "" : "s"} will become tracker item${n === 1 ? "" : "s"}`;
-    endBtn.onclick = guarded(() => !Core.state.ended && { title: "End the session?", ok: "End session", body: `Guests can no longer answer, vote, chat or post; they see the final tree. You can reopen it later.${laterItems().length ? " " + laterLine(laterItems().length) + "." : ""}` }, () => {
-      const on = !Core.state.ended, n = laterItems().length;
-      Core.endSession(on).then(() => { closePop(); flash(on ? `Session ended. Guests now see the final tree.${n ? " " + laterLine(n) + "." : ""}` : "Session reopened."); }).catch(fail);
+    const laterTail = () => { const n = laterItems().length; return n ? ` ${laterLine(n)}.` : ""; };
+    endBtn.onclick = guarded(() => !Core.state.ended && { title: "End the session?", ok: "End session", body: `Guests can no longer answer, vote, chat or post; they see the final tree. You can reopen it later.${laterTail()}` }, () => {
+      const on = !Core.state.ended, tail = laterTail();
+      Core.endSession(on).then(() => { closePop(); flash(on ? `Session ended. Guests now see the final tree.${tail}` : "Session reopened."); }).catch(fail);
     });
     skip.onclick = e => { e.preventDefault(); if (phone.matches) setTab("answer"); setMode("focus"); (ta.disabled ? qText : ta).focus(); };
     gear.onclick = () => (ui.pop === settingsPop ? closePop() : openSurface(settingsPop, gear));
@@ -5186,6 +5187,27 @@
       if (ab?.note) { fact("Their note", ab.note); facts.lastChild.className = "vf-pc-note"; } // whole, never clamped
       const parts = [head, facts];
       const k = (b, key) => { b.dataset.k = key; return b; };
+      const focusField = key => { const i = pcard.querySelector(`[data-k="${key}"]`); i?.focus(); i?.select(); };
+      // The name form, mine or, for the owner, another person's: `end` closes it, Cancel returns focus to `back`, and
+      // `said` words the name the server gave.
+      const renameForm = ({ keys: [kIn, kCancel, kSave], value, label, end, back, send, said }) => {
+        const f = E("form", "vf-rename");
+        const inp = E("input", "vf-input"); inp.maxLength = 40; inp.value = ui.renameDraft ?? value; inp.setAttribute("aria-label", label); k(inp, kIn);
+        inp.oninput = () => { ui.renameDraft = inp.value; };
+        const row = E("div", "vf-crow");
+        const cancel = k(btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel"), kCancel);
+        const save = k(E("button", "vf-btn vf-btn-primary vf-btn-sm", "Save name"), kSave); save.type = "submit";
+        row.append(cancel, save); f.append(inp, row);
+        cancel.onclick = () => { end(); ui.renameDraft = null; fillPcard(); pcard.querySelector(`[data-k="${back}"]`)?.focus(); };
+        f.onsubmit = e => {
+          e.preventDefault();
+          const v = inp.value.trim(); if (!v) return inp.focus();
+          save.disabled = true;
+          send(v).then(j => { end(); ui.renameDraft = null; flash(said(j.name, v)); fillPcard(); })
+            .catch(fail).finally(() => { save.disabled = false; });
+        };
+        return f;
+      };
       if (c.pinned) parts.unshift(k(ibtn("vf-tbtn vf-icon-btn vf-popx", "x", `Close ${me ? "your card" : `${disp(name)}'s card`}`), "x")); // F11: the one close control
       if (me) {
         const t = themeToggle(fillPcard);
@@ -5265,56 +5287,26 @@
           parts.push(awayB, dev);
         }
         if (ui.renaming) {
-          const f = E("form", "vf-rename");
-          const inp = E("input", "vf-input"); inp.maxLength = 40; inp.value = ui.renameDraft ?? Core.me.name; inp.setAttribute("aria-label", "Your name"); k(inp, "rn");
-          inp.oninput = () => { ui.renameDraft = inp.value; };
-          const row = E("div", "vf-crow");
-          const cancel = k(btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel"), "rc");
-          const save = k(E("button", "vf-btn vf-btn-primary vf-btn-sm", "Save name"), "rs"); save.type = "submit";
-          row.append(cancel, save); f.append(inp, row);
-          cancel.onclick = () => { ui.renaming = false; ui.renameDraft = null; fillPcard(); pcard.querySelector('[data-k="rename"]')?.focus(); };
-          f.onsubmit = e => {
-            e.preventDefault();
-            const v = inp.value.trim(); if (!v) return inp.focus();
-            save.disabled = true;
-            Core.rename(v).then(j => { ui.renaming = false; ui.renameDraft = null; flash(j.name !== v ? `Someone already uses that name, so you are ${j.name}.` : `You are now ${j.name}.`); fillPcard(); })
-              .catch(fail).finally(() => { save.disabled = false; });
-          };
-          parts.push(f);
+          parts.push(renameForm({ keys: ["rn", "rc", "rs"], value: Core.me.name, label: "Your name", end: () => { ui.renaming = false; }, back: "rename", send: v => Core.rename(v),
+            said: (got, v) => (got !== v ? `Someone already uses that name, so you are ${got}.` : `You are now ${got}.`) }));
         } else if (c.pinned) {
           const rn = k(lbtn("vf-menu-item vf-menu-plain", "pencil", "Change my name"), "rename");
-          rn.onclick = () => { ui.renaming = true; fillPcard(); const i = pcard.querySelector('[data-k="rn"]'); i?.focus(); i?.select(); };
+          rn.onclick = () => { ui.renaming = true; fillPcard(); focusField("rn"); };
           parts.push(rn);
         }
       }
       if (owner && c.pinned && !me && avatarUps(pid, false).done) parts.push(E("h3", "vf-pop-sub", "Their picture"), avatarControls(pid, false, k));
       if (owner && c.pinned && !me && role !== "Host" && S.people) {
         const acts = E("div", "vf-pc-acts"), pa = personActs(() => pid, true, p => {
-          ui.renameFor = p; ui.renameDraft = null; fillPcard();
-          const i = pcard.querySelector('[data-k="rnp"]'); i?.focus(); i?.select();
+          ui.renameFor = p; ui.renameDraft = null; fillPcard(); focusField("rnp");
         });
         for (const [kk, b] of Object.entries(pa)) k(b, "pa-" + kk);
         paintPersonActs(pa, pid, "card");
         acts.append(pa.rename, pa.view, pa.lead, pa.trust, pa.merge, pa.remove);
         parts.push(acts);
         if (ui.renameFor === pid) {
-          // The same form as one's own name, for this person.
-          const f = E("form", "vf-rename");
-          const inp = E("input", "vf-input"); inp.maxLength = 40; inp.value = ui.renameDraft ?? nameOf(pid); inp.setAttribute("aria-label", `New name for ${disp(nameOf(pid))}`); k(inp, "rnp");
-          inp.oninput = () => { ui.renameDraft = inp.value; };
-          const row = E("div", "vf-crow");
-          const cancel = k(btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel"), "rpc");
-          const save = k(E("button", "vf-btn vf-btn-primary vf-btn-sm", "Save name"), "rps"); save.type = "submit";
-          row.append(cancel, save); f.append(inp, row);
-          cancel.onclick = () => { ui.renameFor = null; ui.renameDraft = null; fillPcard(); pcard.querySelector('[data-k="pa-rename"]')?.focus(); };
-          f.onsubmit = e => {
-            e.preventDefault();
-            const v = inp.value.trim(); if (!v) return inp.focus();
-            save.disabled = true;
-            Core.renamePerson(pid, v).then(j => { ui.renameFor = null; ui.renameDraft = null; flash(j.name !== v ? `Someone already uses that name, so they are ${j.name}.` : `Renamed to ${j.name}.`); fillPcard(); })
-              .catch(fail).finally(() => { save.disabled = false; });
-          };
-          parts.push(f);
+          parts.push(renameForm({ keys: ["rnp", "rpc", "rps"], value: nameOf(pid), label: `New name for ${disp(nameOf(pid))}`, end: () => { ui.renameFor = null; }, back: "pa-rename",
+            send: v => Core.renamePerson(pid, v), said: (got, v) => (got !== v ? `Someone already uses that name, so they are ${got}.` : `Renamed to ${got}.`) }));
         }
         if (ui.mergeFrom === pid) {
           const box = E("div", "vf-merge");
@@ -5536,14 +5528,15 @@
     function fillReq(li, r) {
       const k = li._k, q = qById(r.qid), failed = r.status === "failed", running = r.status === "running" || failed, editing = ui.reqEditing.has(r.id) && !running;
       li._r = r;
-      k.kind.textContent = r.kind === "ask" ? "Ask Claude" : "Research";
+      const kindName = r.kind === "ask" ? "Ask Claude" : "Research";
+      k.kind.textContent = kindName;
       k.kind.className = "vf-chip " + (r.kind === "ask" ? "vf-chip-quiet" : "vf-chip-accent");
       k.qref.textContent = q ? `${q.id}: ${q.text}` : r.qid || `${GEN_LABEL}: ${GEN_Q.text}`;
       k.who.replaceChildren(...whoLine(r.cid, r.name, r.ts));
       k.status.textContent = failed ? `Failed${r.reason ? `: ${r.reason}` : ""}` : running ? `Running, ${Core.span(r.ts) ? "asked " + since(r.ts) : "just started"}` : "";
       k.status.hidden = !running;
       k.status.classList.toggle("vf-rstat-fail", failed);
-      fillClamp(k.text, "r:" + r.id, r.text, `${r.kind === "ask" ? "Ask Claude" : "Research"} request from ${disp(r.name)}`, q ? `${q.id}: ${q.text}` : "");
+      fillClamp(k.text, "r:" + r.id, r.text, `${kindName} request from ${disp(r.name)}`, q ? `${q.id}: ${q.text}` : "");
       fillAtts(li._att, r.att, `Request from ${disp(r.name)}`);
       k.text.hidden = editing; k.tarea.hidden = k.tK.hint.hidden = !editing;
       const fresh = !running && !ui.reqSeen.has(r.id);
@@ -5594,8 +5587,6 @@
         k.modHide = btn("vf-btn vf-btn-ghost vf-btn-sm vf-mod-hide"); k.modEdit = btn("vf-btn vf-btn-ghost vf-btn-sm vf-mod-edit", "Edit");
         k.modHide.onclick = () => toggleHidden(k.qid, k.a);
         k.modEdit.onclick = () => openEdit(k.qid, k.a, k.modEdit);
-      }
-      if (!compact) {
         k.agree = E("span", "vf-agree");
         k.goWith = btn("vf-btn vf-btn-ghost vf-btn-sm", "Go with this");
         k.lockThis = btn("vf-btn vf-btn-ghost vf-btn-sm vf-btn-brass-ghost", "Lock this one");
@@ -5695,9 +5686,9 @@
       if (k.cKey !== cKey) {
         k.cKey = cKey;
         k.citeRow.replaceChildren(...cites.map(id => {
-          const x = (Core.state.research[qid] || []).find(r => r.id === id), li2 = E("li"), b = btn("vf-citechip");
-          b.append(icon("cite"), E("span", null, `${KIND_LABEL[x.kind] || "Research"} ${id}`));
-          b.setAttribute("aria-label", `Cites ${KIND_LABEL[x.kind] || "Research"} ${id}: show it in the Claude thread`);
+          const x = (Core.state.research[qid] || []).find(r => r.id === id), li2 = E("li"), b = btn("vf-citechip"), name = `${kindLabel(x.kind)} ${id}`;
+          b.append(icon("cite"), E("span", null, name));
+          b.setAttribute("aria-label", `Cites ${name}: show it in the Claude thread`);
           b.onclick = () => showResult(qid, id);
           li2.append(b); return li2;
         }));
@@ -5707,7 +5698,7 @@
       li.classList.toggle("vf-bot", bot);
       li.classList.toggle("vf-lead", !!lead && s.voting && !isLocked);
       li.classList.toggle("vf-pinned", isLocked);
-      const votes = a.votes || [], ro = readOnly(qById(qid)), gather = q?.purpose === "gather";
+      const votes = a.votes || [], ro = readOnly(q), gather = q?.purpose === "gather";
       k.mine = votes.includes(me.cid);
       k.other = !!a.other;
       // On a question that takes a pick, the pick is the vote; a person's own "Something else…" option is backed with one.
@@ -5915,6 +5906,7 @@
 
     // ---------- Claude thread (Q77) ----------
     const KIND_LABEL = { ask: "Answer", research: "Research", explore: "Explore", design: "Design", prototype: "Prototype" };
+    const kindLabel = kind => KIND_LABEL[kind] || "Research";
     const KIND_REQ = { ask: "Ask", research: "Research", explore: "Explore", design: "Design", prototype: "Prototype" };
     const RSTAT = { pending: "Waiting for the host", running: "Running", declined: "Declined", done: "Done", failed: "Failed" };
     const RSTAT_SELF = { pending: "Waiting for your Claude", running: "Your Claude is on it" };
@@ -5990,7 +5982,7 @@
       ask.after(fromDisc);
       li.append(head, bodyR);
       head.onclick = () => { const id = li._x.id; ui.resClosed.has(id) ? ui.resClosed.delete(id) : ui.resClosed.add(id); render(); };
-      full.onclick = () => openReader(`${KIND_LABEL[li._x.kind] || "Research"} report`, `${li._x.skill ? li._x.skill + ", " : ""}${li._q.id}: ${li._q.text}`, li._x.report, full);
+      full.onclick = () => openReader(`${kindLabel(li._x.kind)} report`, `${li._x.skill ? li._x.skill + ", " : ""}${li._q.id}: ${li._q.text}`, li._x.report, full);
       li._k = { head, ttl, via, isNew, tm, bodyR, ask, sum, srcs, full, citedBy, share, shareNote, discard, publish, takeDown, fromDisc, useRow, reply, ansActs };
       return li;
     }
@@ -6000,7 +5992,7 @@
       if (!k.bodyR.id) { k.bodyR.id = "vf-res-" + x.id; k.head.setAttribute("aria-controls", k.bodyR.id); }
       // Connect your Claude: a result the requester's own Claude wrote says whose Claude it was.
       k.ttl.textContent = x.own ? `${x.kind === "ask" ? "Answer" : KIND_LABEL[x.kind] || "Answer"} from ${isMe(x.byCid) ? "your" : `${disp(x.by || "someone")}'s`} own Claude`
-        : x.kind === "ask" ? "Claude's answer" : KIND_LABEL[x.kind] || "Research";
+        : x.kind === "ask" ? "Claude's answer" : kindLabel(x.kind);
       li.classList.toggle("vf-res-own", !!x.own);
       k.via.textContent = x.skill ? `via ${x.skill}` : ""; k.via.hidden = !x.skill; // nothing named: no "via Claude" under "Claude's answer"
       k.via.title = x.why || ""; // C37: why Claude routed it there
@@ -6096,7 +6088,7 @@
       return li;
     }
     function fillThReq(li, r, q) {
-      const k = li._k, owner = Core.me.isOwner;
+      const k = li._k;
       li._r = r;
       k.kind.textContent = KIND_REQ[r.kind] || r.kind;
       k.kind.className = "vf-chip " + (r.kind === "research" ? "vf-chip-accent" : "vf-chip-quiet");
@@ -6109,8 +6101,9 @@
       k.prog.dataset.run = String(r.status === "running");
       if (r.runner === "self" && isMe(r.cid)) fillSelfActs(li._self, r, q); else li._self.hidden = true;
       fillFromDisc(k.fromDisc, Core.state, q, r.id);
-      fillClamp(k.text, "tr:" + r.id, r.text, `${KIND_REQ[r.kind] || "Request"} from ${isMe(r.cid) ? "you" : disp(r.name)}`, `${q.id}: ${q.text}`);
-      fillAtts(li._att, r.att || (Core.state.myRequests || []).find(x => x.id === r.id)?.att, `Request from ${isMe(r.cid) ? "you" : disp(r.name)}`);
+      const from = isMe(r.cid) ? "you" : disp(r.name);
+      fillClamp(k.text, "tr:" + r.id, r.text, `${KIND_REQ[r.kind] || "Request"} from ${from}`, `${q.id}: ${q.text}`);
+      fillAtts(li._att, r.att || (Core.state.myRequests || []).find(x => x.id === r.id)?.att, `Request from ${from}`);
       k.acts.hidden = paintReqActs(k, r);
     }
     function renderThread(S, q) {
@@ -6118,8 +6111,9 @@
       if (thList._q !== q.id) { resetList(thList); thList._q = q.id; }
       sync(thList, items, i => i.id, i => (i.t === "res" ? makeRes() : i.t === "note" ? makeThNote() : makeThReq()),
         (li, i) => (i.t === "res" ? fillRes(li, i.x, q) : i.t === "note" ? fillThNote(li, i.a, q) : fillThReq(li, i.r, q)));
-      const mineOpen = (S.myRequests || []).filter(r => r.qid === q.id && r.runner !== "self" && (r.status === "pending" || r.status === "running")).length;
-      const others = Math.max(0, (S.requestCounts?.byQ?.[q.id] || 0) - (Core.me.isOwner ? (S.requests || []).filter(r => r.qid === q.id && (r.status === "pending" || r.status === "running")).length : mineOpen));
+      const openHere = r => r.qid === q.id && (r.status === "pending" || r.status === "running");
+      const mineOpen = (S.myRequests || []).filter(r => openHere(r) && r.runner !== "self").length;
+      const others = Math.max(0, (S.requestCounts?.byQ?.[q.id] || 0) - (Core.me.isOwner ? (S.requests || []).filter(openHere).length : mineOpen));
       reqChip.textContent = others ? `${others} more open with the host` : "";
       reqChip.hidden = !others;
       // with others' requests open, the head and the empty line say so, never "Nothing asked yet" beside the count
@@ -6273,7 +6267,7 @@
         li._x = x;
         const b = li.firstChild, on2 = (ui.cites[q.id] || []).includes(x.id);
         b.setAttribute("aria-pressed", String(on2));
-        b.firstChild.textContent = `${KIND_LABEL[x.kind] || "Research"} ${x.id}${x.by ? `, asked by ${isMe(x.byCid) ? "you" : disp(x.by)}` : ""}`;
+        b.firstChild.textContent = `${kindLabel(x.kind)} ${x.id}${x.by ? `, asked by ${isMe(x.byCid) ? "you" : disp(x.by)}` : ""}`;
         b.lastChild.textContent = x.skill ? `via ${x.skill}, ${since(x.ts)}` : since(x.ts);
       });
       const shown = picked.filter(id => res.some(x => x.id === id));
@@ -6283,9 +6277,9 @@
         b.onclick = () => { const cur = ui.cites[ui.cur] || []; ui.cites[ui.cur] = cur.filter(c => c !== id); ui.dirty = true; render(); };
         li.append(b); return li;
       }, (li, id) => {
-        const x = res.find(r => r.id === id), b = li.firstChild;
-        b.children[1].textContent = `${KIND_LABEL[x.kind] || "Research"} ${id}`;
-        b.setAttribute("aria-label", `Remove the citation of ${KIND_LABEL[x.kind] || "Research"} ${id}`);
+        const x = res.find(r => r.id === id), b = li.firstChild, name = `${kindLabel(x.kind)} ${id}`;
+        b.children[1].textContent = name;
+        b.setAttribute("aria-label", `Remove the citation of ${name}`);
       });
       citeChips.hidden = !citeChips.children.length;
     }

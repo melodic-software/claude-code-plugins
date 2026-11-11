@@ -3,6 +3,22 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.0] - 2026-11-11
+
+### Added
+
+- `/toolchain:ratchet` gains a section for replacing a lint tool that lacks some of the old tool's rules: run both, freeze and pay down the new tool's count, and delete the old tool at zero.
+
+## [1.1.8] - 2026-11-11
+
+### Changed
+
+- The `lint` skill now cites the gather-block convention record, "The pre-compute block runs as one shell
+  invocation", instead of restating how the harness runs the pre-compute block. No behavior
+  change.
+
+- `ratchet`, and the `check` context files for Go, .NET, Python, TypeScript and gates, point at the exact upstream sections (GitHub Actions settings, Go 1.23 release notes, `dotnet test` options, pytest-randomly usage, Playwright retries) instead of restating vendor defaults, versions and error text. No behavior change.
+
 ## [1.1.7] - 2026-11-10
 
 ### Changed

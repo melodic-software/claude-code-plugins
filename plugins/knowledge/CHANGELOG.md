@@ -4,6 +4,18 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.4.1] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [1.4.0] - 2026-11-11
+
+### Added
+
+- `video-digest` now waits for captions on a YouTube live stream that has not had them published yet. Before, it stopped or digested without captions. Queue rows move to a new `awaiting_captions` status. They are re-checked every 30 minutes for at most 12 hours. After that the digest uses ASR or records a `transcriptDegradation`. `transcript` and `watch` exit 3 with `captions pending, next check at <time>`.
+
 ## [1.3.16] - 2026-11-11
 
 ### Changed

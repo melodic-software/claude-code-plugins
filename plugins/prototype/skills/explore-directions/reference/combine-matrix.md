@@ -107,7 +107,7 @@ single pick it names the direction, the values, and what was rejected and why:
 Dropdown entrance: decided from the dropdown mockup
 - Direction: scale + fade, not slide
 - scale from 0.96, opacity 0 to 1
-- 180ms enter, 140ms exit, cubic-bezier(0.32, 0.72, 0, 1)
+- 180ms enter, 140ms exit, cubic-bezier(0.32, 0.72, 0, 1) (user-interface's animation.easing.out)
 - Rejected: slide-down felt heavy at 200ms and jittery below it
 ```
 

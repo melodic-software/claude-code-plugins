@@ -172,6 +172,18 @@ def _read_source(
     return text, err, {"url": url, **extra}
 
 
+def _give_up(block: dict[str, Any], status: str, problem: str) -> dict[str, Any]:
+    block["status"] = status
+    block["problems"].append(problem)
+    return block
+
+
+def _count(
+    names: dict[str, dict[str, Any]], statuses: tuple[str, ...]
+) -> dict[str, int]:
+    return {s: sum(1 for e in names.values() if e["status"] == s) for s in statuses}
+
+
 def _stale(page: str, source: dict[str, Any]) -> list[str]:
     """The advisory for a page served stale from the cache, or none."""
     if not source.get("stale"):
@@ -230,34 +242,31 @@ def build_tools_crosscheck(
     }
     tools = report.get("builtin_tools")
     if not isinstance(tools, dict):
-        block["status"] = "unavailable"
-        block["problems"].append("no builtin_tools lane was extracted")
-        return block
+        return _give_up(block, "unavailable", "no builtin_tools lane was extracted")
     text, err, block["source"] = _read_source(tools_file, TOOLS_URL)
     if text is None:
-        block["status"] = "unavailable"
-        block["problems"].append(f"tools reference unavailable: {err}")
-        return block
+        return _give_up(block, "unavailable", f"tools reference unavailable: {err}")
     rows = parse_tools_table(text)
     block["source"]["rows"] = len(rows)
     if not rows:
-        block["status"] = "broken"
-        block["problems"].append(
-            "no rows parsed from the tools table - the tools reference layout changed"
+        return _give_up(
+            block,
+            "broken",
+            "no rows parsed from the tools table - the tools reference layout changed",
         )
-        return block
     block["advisories"] += _stale("tools reference", block["source"])
     alias_of = {
         alias: name
         for name, rec in tools.items()
         for alias in (rec.get("aliases") or [])
     }
-    names: dict[str, dict[str, Any]] = {}
-    for name in tools:
-        names[name] = {
+    names: dict[str, dict[str, Any]] = {
+        name: {
             "status": "documented" if name in rows else "undocumented",
             "docs_summary": rows.get(name, {}).get("summary"),
         }
+        for name in tools
+    }
     for name, row in rows.items():
         if name in names:
             continue
@@ -266,9 +275,7 @@ def build_tools_crosscheck(
             "binary_alias_of": alias_of.get(name),
             "docs_summary": row["summary"],
         }
-    block["counts"] = {
-        s: sum(1 for e in names.values() if e["status"] == s) for s in TOOL_STATUSES
-    }
+    block["counts"] = _count(names, TOOL_STATUSES)
     block["names"] = names
     lane = ((report.get("integrity") or {}).get("lanes") or {}).get("builtin_tools")
     if lane and lane.get("status") != "ok":
@@ -307,9 +314,10 @@ def parse_commands_table(text: str) -> dict[str, dict[str, Any]]:
         m, rest = parsed
         name = m.group("name")
         body = rest.strip().replace("\\|", "|")
+        kind = "command"
         kind_m = _KIND_RE.match(body)
-        kind = kind_m.group(1).lower() if kind_m else "command"
-        body = body[kind_m.end() :] if kind_m else body
+        if kind_m:
+            kind, body = kind_m.group(1).lower(), body[kind_m.end() :]
         row: dict[str, Any] = {
             "args": m.group("args").replace("\\|", "|").strip() or None,
             "kind": kind,
@@ -458,14 +466,15 @@ def classify(
             continue
         bin_alias_of = alias_owner.get(name)
         docs_alias_of = (
-            docs_aliases.get(name) if not (row and not row["is_alias"]) else None
+            docs_aliases.get(name) if row is None or row["is_alias"] else None
         )
+        docs_alias = row["is_alias"] if row else name in docs_aliases
         if row and row["removed"]:
             registered = reg is not None or bin_alias_of is not None
             status = (
                 "removed_in_docs_but_registered" if registered else "removed_in_docs"
             )
-        elif (row and row["is_alias"]) or (row is None and name in docs_aliases):
+        elif docs_alias:
             if reg is not None:
                 status = "docs_alias_but_registered"
             elif bin_alias_of is not None:
@@ -480,11 +489,7 @@ def classify(
             "status": status,
             "binary_kind": reg["kind"] if reg else ("alias" if bin_alias_of else None),
             "binary_alias_of": bin_alias_of,
-            "docs_kind": (
-                "alias"
-                if (row and row["is_alias"]) or (row is None and name in docs_aliases)
-                else (row["kind"] if row else None)
-            ),
+            "docs_kind": "alias" if docs_alias else (row["kind"] if row else None),
             "docs_args": row["args"] if row else None,
             "docs_alias_of": docs_alias_of,
             "docs_summary": row["summary"] if row else None,
@@ -496,14 +501,13 @@ def classify(
         entry["kind_mismatch"] = bool(
             row and reg and not row["is_alias"] and row["kind"] != reg["kind"]
         )
-        if reg:
-            documented_aliases = set(row["aliases"]) if row else set()
-            documented_aliases |= {
+        if reg and row:
+            documented_aliases = set(row["aliases"]) | {
                 a for a, owner in docs_aliases.items() if owner == name
             }
             only_docs = sorted(documented_aliases - set(reg["aliases"]))
             only_binary = sorted(set(reg["aliases"]) - documented_aliases)
-            if row and (only_docs or only_binary):
+            if only_docs or only_binary:
                 entry["alias_disagreement"] = {
                     "docs_only": only_docs,
                     "binary_only": only_binary,
@@ -544,27 +548,25 @@ def build_crosscheck(
     }
     block["tools"] = build_tools_crosscheck(report, tools_file)
     if not report.get("sources", {}).get("binary", {}).get("available"):
-        block["status"] = "unavailable"
-        block["problems"].append(
-            "the binary was not read; there is nothing to cross-check"
+        return _give_up(
+            block,
+            "unavailable",
+            "the binary was not read; there is nothing to cross-check",
         )
-        return block
 
     docs_text, err, block["sources"]["commands"] = _read_source(docs_file, COMMANDS_URL)
     if docs_text is None:
-        block["status"] = "unavailable"
         block["sources"]["commands"]["error"] = err
-        block["problems"].append(f"commands page unavailable: {err}")
-        return block
+        return _give_up(block, "unavailable", f"commands page unavailable: {err}")
 
     rows = parse_commands_table(docs_text)
     block["sources"]["commands"]["rows"] = len(rows)
     if not rows:
-        block["status"] = "broken"
-        block["problems"].append(
-            f"no rows parsed under '{_SECTION}' - the commands page layout changed"
+        return _give_up(
+            block,
+            "broken",
+            f"no rows parsed under '{_SECTION}' - the commands page layout changed",
         )
-        return block
     block["advisories"] += _stale("commands", block["sources"]["commands"])
 
     changelog: dict[str, dict[str, Any]] | None = None
@@ -593,10 +595,7 @@ def build_crosscheck(
             + ", ".join(unhealthy)
             + " - an undocumented or docs_only status may reflect extraction, not the product"
         )
-    counts = {s: 0 for s in STATUSES}
-    for entry in names_block.values():
-        counts[entry["status"]] += 1
-    block["counts"] = counts
+    block["counts"] = _count(names_block, STATUSES)
     block["kind_mismatches"] = sorted(
         n for n, e in names_block.items() if e["kind_mismatch"]
     )

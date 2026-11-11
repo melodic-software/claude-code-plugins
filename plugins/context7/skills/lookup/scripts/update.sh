@@ -53,16 +53,11 @@ mkdir -p "$SNAPSHOT_DIR/find-docs" "$SNAPSHOT_DIR/cli"
 # On success: prints version to stdout, returns 0.
 # On failure: prints nothing to stdout, returns non-zero.
 verify_ctx7_callable() {
+  command -v ctx7 >/dev/null 2>&1 || return 1
   local version
-  if ! command -v ctx7 >/dev/null 2>&1; then
-    return 1
-  fi
   version=$(ctx7 --version 2>/dev/null | tr -d '\r')
-  if [[ -z "$version" ]]; then
-    return 2
-  fi
+  [[ -n "$version" ]] || return 1
   printf '%s\n' "$version"
-  return 0
 }
 
 install_and_verify() {
@@ -113,10 +108,6 @@ fi
 echo ""
 
 # --- upstream skill content check ---
-# Resolve master once and fetch both files at that commit, so both baselines and the
-# stamped upstream-version name the same revision.
-UPSTREAM_SHA=$(git ls-remote "$UPSTREAM_REPO" refs/heads/master 2>/dev/null | cut -f1)
-
 # Return codes:
 #   0 — upstream unchanged (or baseline seeded/refreshed successfully in --refresh-baseline mode)
 #   1 — drift detected (content differs, OR baseline missing in non-refresh mode)
@@ -156,13 +147,11 @@ check_skill_drift() {
   tr -d '\r' <"$baseline" >"$baseline_lf"
   tr -d '\r' <"$tmpfile" >"$tmpfile_lf"
 
-  if diff -q "$baseline_lf" "$tmpfile_lf" >/dev/null 2>&1; then
+  local diff_output diff_lines
+  if diff_output=$(diff -u "$baseline_lf" "$tmpfile_lf"); then
     echo "  ✓ Upstream unchanged since last baseline"
     return 0
   fi
-
-  local diff_output diff_lines
-  diff_output=$(diff -u "$baseline_lf" "$tmpfile_lf")
   diff_lines=$(printf '%s\n' "$diff_output" | wc -l | tr -d ' ')
   echo "  ↳ Drift detected ($diff_lines diff lines)"
   echo ""
@@ -184,13 +173,16 @@ check_skill_drift() {
 
   echo "  ↳ To integrate (plugin maintainers, in a working clone):"
   echo "      1. Review the diff above and decide what to port into:"
-  echo "           $SKILL_DIR/SKILL.md"
+  echo "           $SKILL_MD"
   echo "           $SKILL_DIR/context/{cli,mcp,lookup,update}.md"
   echo "      2. Preserve the plugin's customizations (see context/update.md)"
   echo "      3. After integration, re-run this script with --refresh-baseline"
   return 1
 }
 
+# Resolve master once and fetch both files at that commit, so both baselines and the
+# stamped upstream-version name the same revision.
+UPSTREAM_SHA=$(git ls-remote "$UPSTREAM_REPO" refs/heads/master 2>/dev/null | cut -f1)
 if [[ "$UPSTREAM_SHA" =~ ^[0-9a-f]{40}$ ]]; then
   echo "=== Upstream commit: $UPSTREAM_SHA ==="
   echo ""
@@ -206,7 +198,7 @@ else
   CLI_SKILL_RC=2
 fi
 
-if [[ "$MODE" == "--refresh-baseline" ]] && [[ $FIND_DOCS_RC == 0 ]] && [[ $CLI_SKILL_RC == 0 ]]; then
+if [[ "$MODE" == "--refresh-baseline" && $FIND_DOCS_RC == 0 && $CLI_SKILL_RC == 0 ]]; then
   TODAY=$(date -u +%Y-%m-%d)
   sed -i.bak -E -e "s/^( *synced: ).*/\1$TODAY/" \
     -e "s/^( *upstream-version: ).*/\1upstash\/context7@$UPSTREAM_SHA/" "$SKILL_MD" &&

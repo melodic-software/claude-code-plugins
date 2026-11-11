@@ -3,6 +3,12 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.22] - 2026-11-11
+
+### Changed
+
+- `setup` now says a no-argument audit with no config follows the audit's no-scope ladder and exits 3 only when no rung resolves. The ghq README links in `audit` and `sync` point at a section that exists, and the GraphQL limits and `${CLAUDE_SKILL_DIR}` substitution notes point at the live docs sections. No behavior change.
+
 ## [0.28.21] - 2026-11-10
 
 ### Changed

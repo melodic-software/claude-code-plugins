@@ -9,7 +9,7 @@
 // exit: 0 when the copy holds this version and its dependencies, 1 when not, 2 on a usage error
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { DEPENDENCIES, installedVersion, missingDependencies } from './check-setup.mjs';
@@ -32,7 +32,7 @@ function main(argv) {
     return 2;
   }
   const serverDir = join(resolve(values['data-dir']), 'server');
-  const { version } = JSON.parse(readFileSync(join(PLUGIN_ROOT, '.claude-plugin', 'plugin.json'), 'utf8'));
+  const { version } = JSON.parse(readFileSync(join(PLUGIN_ROOT, MANIFEST), 'utf8'));
 
   if (installedVersion(serverDir) === version && missingDependencies(serverDir).length === 0) {
     process.stdout.write(`unchanged: ${serverDir} holds ${version} with its dependencies\n`);
@@ -45,8 +45,9 @@ function main(argv) {
   const previousDir = `${serverDir}.previous`;
   rmSync(stagingDir, { recursive: true, force: true });
   for (const path of [...COPIED, MANIFEST]) {
-    mkdirSync(join(stagingDir, path, '..'), { recursive: true });
-    cpSync(join(PLUGIN_ROOT, path), join(stagingDir, path), { recursive: true });
+    const destination = join(stagingDir, path);
+    mkdirSync(dirname(destination), { recursive: true });
+    cpSync(join(PLUGIN_ROOT, path), destination, { recursive: true });
   }
   const npm = spawnSync('npm', ['ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'], {
     cwd: stagingDir,

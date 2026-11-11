@@ -30,6 +30,14 @@ import { serializeTempSession } from "../lib/temp-session-paths.js";
  */
 
 /**
+ * @param {string} filePath
+ * @param {unknown} value
+ */
+async function writeJson(filePath, value) {
+  await fs.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+/**
  * Persist selection manifest and coverage plan under the work slice.
  *
  * @param {string} sliceDir
@@ -42,9 +50,10 @@ export async function writeWatchingManifest(sliceDir, watching, tempSession) {
   await fs.mkdir(keyFramesDir, { recursive: true });
 
   const portableSession = serializeTempSession(tempSession);
+  const highVolume = watching.highVolume ?? false;
   const selection = {
     targetMinFrames: watching.targetMinFrames ?? watching.coveragePlan?.targetMinFrames ?? 0,
-    highVolume: watching.highVolume ?? false,
+    highVolume,
     candidateCount: watching.candidateCount,
     durationSec: watching.durationSec ?? watching.coveragePlan?.durationSec ?? 0,
     densificationWindows: watching.densificationWindows,
@@ -72,15 +81,14 @@ export async function writeWatchingManifest(sliceDir, watching, tempSession) {
   };
 
   const selectionPath = path.join(keyFramesDir, "selection.json");
-  await fs.writeFile(selectionPath, `${JSON.stringify(selection, null, 2)}\n`, "utf8");
+  await writeJson(selectionPath, selection);
 
   const coveragePlanPath = path.join(keyFramesDir, "coverage-plan.json");
-  const coveragePayload = {
+  await writeJson(coveragePlanPath, {
     ...(watching.coveragePlan ?? {}),
     actualFrameCount: watching.selectedFrames.length,
-    highVolume: watching.highVolume ?? false,
-  };
-  await fs.writeFile(coveragePlanPath, `${JSON.stringify(coveragePayload, null, 2)}\n`, "utf8");
+    highVolume,
+  });
 
   return {
     selectionPath: path.relative(sliceDir, selectionPath),

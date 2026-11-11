@@ -109,13 +109,17 @@ function run(command, args, { env = process.env, quiet = false } = {}) {
 // Meets SQL Server's default password policy: upper, lower, digit and symbol.
 const newPassword = () => `${randomBytes(16).toString('hex')}Aa1!`;
 
-async function loadTedious() {
+async function loadDependency(name) {
   try {
-    const module = await import('tedious');
-    return module.default ?? module;
+    return await import(name);
   } catch (error) {
-    throw new SetupError(`cannot load tedious; run npm ci --prefix plugins/sql-server first (${error.message})`);
+    throw new SetupError(`cannot load ${name}; run npm ci --prefix plugins/sql-server first (${error.message})`);
   }
+}
+
+async function loadTedious() {
+  const module = await loadDependency('tedious');
+  return module.default ?? module;
 }
 
 // The container's certificate is self-signed for localhost, so the client
@@ -316,12 +320,7 @@ async function startLocal(tedious, dir, container, saPassword) {
 // Connects to app as the Azure CLI's signed-in account, the server's Entra
 // admin. A serverless database resuming from pause can take about a minute.
 async function connectAzure(tedious, target) {
-  let identity;
-  try {
-    identity = await import('@azure/identity');
-  } catch (error) {
-    throw new SetupError(`cannot load @azure/identity; run npm ci --prefix plugins/sql-server first (${error.message})`);
-  }
+  const identity = await loadDependency('@azure/identity');
   const endpoint = { server: target.server, port: 1433, connectTimeout: 90_000 };
   log('connecting to the Azure SQL Database app as the Azure CLI account');
   const authentication = { type: 'token-credential', options: { credential: new identity.AzureCliCredential() } };
@@ -450,6 +449,11 @@ async function main() {
       return { isError: response.result.isError === true, text: response.result.content?.[0]?.text ?? '', data: response.result.structuredContent };
     }
 
+    async function checkNoOpenTransaction(problems, after) {
+      const open = await openPluginTransactions(admin, tedious);
+      if (open !== 0) problems.push(`after ${after} ${open} plugin session(s) held an open transaction`);
+    }
+
     const rowsOf = ({ data }) => data.rows.map((row) => Object.fromEntries(data.columns.map((column, i) => [column, row[i]])));
 
     async function sessionDrift(after) {
@@ -482,8 +486,7 @@ async function main() {
         }
         const drift = await sessionDrift(`${label} (round ${round})`);
         if (drift) failures['S1/S2'].push(drift);
-        const open = await openPluginTransactions(admin, tedious);
-        if (open !== 0) failures['S1/S2'].push(`after ${label} (round ${round}) ${open} plugin session(s) held an open transaction`);
+        await checkNoOpenTransaction(failures['S1/S2'], `${label} (round ${round})`);
       }
     }
     // The guarantee does not rest on the reject list: each write sent past it
@@ -566,8 +569,7 @@ async function main() {
     const expectedItems = JSON.stringify([[1, 'uno'], [2, 'two'], [3, 'three']]);
     const afterCommit = await itemRows(admin, tedious);
     if (afterCommit !== expectedItems) failures.S4.push(`after the committed write dbo.items held ${afterCommit}, not ${expectedItems}`);
-    let held = await openPluginTransactions(admin, tedious);
-    if (held !== 0) failures.S4.push(`after the committed write ${held} plugin session(s) held an open transaction`);
+    await checkNoOpenTransaction(failures.S4, 'the committed write');
     const committedState = await fingerprint(admin, tedious, target);
 
     const mismatch = await call('write', { sql: "UPDATE dbo.items SET name = N'all'", expectedRows: 1 });
@@ -577,8 +579,7 @@ async function main() {
     const afterMismatch = await itemRows(admin, tedious);
     if (afterMismatch !== expectedItems) failures.S4.push(`after the rolled-back write dbo.items held ${afterMismatch}, not ${expectedItems}`);
     for (const change of changed(committedState, await fingerprint(admin, tedious, target))) failures.S4.push(`the rolled-back write changed the database: ${change}`);
-    held = await openPluginTransactions(admin, tedious);
-    if (held !== 0) failures.S4.push(`after the rolled-back write ${held} plugin session(s) held an open transaction`);
+    await checkNoOpenTransaction(failures.S4, 'the rolled-back write');
     passes.S4 = `write carries _meta["${REQUIRES_USER_INTERACTION}"]: true and the other tools do not; without --write it refused the call ` +
       `and the database stayed unchanged; with --write, query still ran as ${READER}, a write affecting the expected 1 row committed, ` +
       'a write affecting 3 rows against expectedRows 1 rolled back with a tool error and left the table unchanged, ' +

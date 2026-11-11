@@ -6,11 +6,9 @@ The caller reads the PR, the base-SHA config and the review-lane evidence, and
 hands them in; this module only judges them. No work class is read. A LOW
 score merges unattended, and so does a MED one whose every reason is a size,
 reported review-finding or cost-finding reason (`holds`); every other reason
-holds.
-So every doubtful
-input rates a holding reason: missing or unrecognized data is a miss, never a
-pass, and it never raises: input it cannot read at all rates HIGH as
-`high-path:**`. Inputs are plain built-in
+holds. So every doubtful input rates a holding reason: missing or
+unrecognized data is a miss, never a pass, and it never raises: input it
+cannot read at all rates HIGH as `high-path:**`. Inputs are plain built-in
 types (str, int, bool, None, list, tuple) built from parsed JSON; subclasses
 that override their own behavior are out of scope. A count outside
 0..10**9 is malformed. Each reason code appears once.
@@ -25,9 +23,9 @@ and submodules, and it holds whatever the floor switch says. Its
 instead, which a clean security review bound to the head clears
 (`security_review_clean`, owner decision Q26 option B), and so do the
 `gate` entries in `RiskInput.author_reviewed` (owner direction 2026-10-27).
-No other path rates
-HIGH for being trusted alone, and the two review lanes, which are the gate,
-judge it, except the cost and trusted-actor holds below. The configured
+No other path rates HIGH for being trusted alone, and the two review lanes,
+which are the gate, judge it, except the cost and trusted-actor holds below.
+The configured
 `merge.diff-check.denied-paths` are joined to the floor. Every glob matches
 case-insensitively, because a lane host on a case-insensitive filesystem
 treats `Codeowners` as `CODEOWNERS`.
@@ -480,31 +478,34 @@ class Floor:
     all: tuple[str, ...]
 
 
+def _unique(items: Iterable[Any]) -> tuple[Any, ...]:
+    """`items` in first-seen order, each once."""
+    return tuple(dict.fromkeys(items))
+
+
 @lru_cache(maxsize=32)
 def floor_for(rows: FloorRows = ()) -> Floor:
     """`FLOOR_CLASSES` joined to the repository's rows. The strictest row of a
     glob wins, so a row can add to the floor and never loosen it: a glob any
     row calls `trust` or refuses the lift never takes it."""
     joined = (*((g, c, True) for g, c in FLOOR_CLASSES), *rows)
-    classes = tuple(dict.fromkeys((g, c) for g, c, _ in joined))
+    classes = _unique((g, c) for g, c, _ in joined)
     no_lift = {
         *_NO_AUTHOR_LIFT,
         *(g for g, c, lift in joined if c == "trust" or not lift),
     }
     return Floor(
         classes=classes,
-        high=tuple(dict.fromkeys(g for g, c in classes if c in PERSON_CLASSES)),
-        review=tuple(dict.fromkeys(g for g, c in classes if c == "enforcement")),
-        author_review=tuple(
-            dict.fromkeys(
-                g
-                for g, c in classes
-                if c in AUTHOR_REVIEW_CLASSES
-                and g not in no_lift
-                and not g.startswith(".github/workflows/")
-            )
+        high=_unique(g for g, c in classes if c in PERSON_CLASSES),
+        review=_unique(g for g, c in classes if c == "enforcement"),
+        author_review=_unique(
+            g
+            for g, c in classes
+            if c in AUTHOR_REVIEW_CLASSES
+            and g not in no_lift
+            and not g.startswith(".github/workflows/")
         ),
-        all=tuple(dict.fromkeys(g for g, _ in classes)),
+        all=_unique(g for g, _ in classes),
     )
 
 
@@ -543,9 +544,8 @@ _SAFE_SEGMENT = re.compile(r"[A-Za-z0-9._-]+")
 _SAFE_GLOB_SEGMENT = re.compile(r"[A-Za-z0-9._*-]+")
 
 _ABSENT_MODE = "000000"
-_TWO_SIDED = frozenset(
-    {"modified", "changed", "renamed", "copied"}
-)  # need a previous mode
+# The statuses that need a previous mode.
+_TWO_SIDED = frozenset({"modified", "changed", "renamed", "copied"})
 # Git file modes by type. Only regular files may stay below HIGH.
 _MODE_TYPES = {
     "100644": "regular",
@@ -781,6 +781,18 @@ def _manifest(text: Any) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+def _pair(contents: Any) -> tuple[Any, Any] | None:
+    """`ChangedFile.contents` when it is a (base, head) pair, else None."""
+    return contents if isinstance(contents, tuple) and len(contents) == 2 else None
+
+
+def _read_pair(raw: Any) -> tuple[Any, Any] | None:
+    """The (base, head) text the caller read, None when it could not."""
+    if getattr(raw, "contents_error", None) is not None:
+        return None
+    return _pair(getattr(raw, "contents", None))
+
+
 def _canonical(data: Any, key: str) -> str | None:
     """A key's value as sorted JSON, so `false` and `0` differ; None when
     absent or `data` is no object."""
@@ -830,12 +842,10 @@ def _marketplace_changes(base: dict[str, Any], head: dict[str, Any]) -> list[str
 
 def _manifest_changes(f: _File, raw: Any) -> list[str]:
     """What in a manifest change needs review (`_MANIFEST_CODE`)."""
-    contents = getattr(raw, "contents", None)
     if f.status not in ("modified", "added") or f.paths != (f.path,):
         return [f"{f.status} manifest"]
-    if getattr(raw, "contents_error", None) is not None or not (
-        isinstance(contents, tuple) and len(contents) == 2
-    ):
+    contents = _read_pair(raw)
+    if contents is None:
         return ["contents unreadable"]
     before = "{}" if f.status == "added" else contents[0]
     base, head = _manifest(before), _manifest(contents[1])
@@ -922,10 +932,8 @@ def _actors_widened(f: _File, raw: Any) -> str | None:
     removes entries."""
     if f.status != "modified" or len(f.paths) != 1:
         return f"{f.status} trusted-actor list"
-    contents = getattr(raw, "contents", None)
-    if getattr(raw, "contents_error", None) is not None or not (
-        isinstance(contents, tuple) and len(contents) == 2
-    ):
+    contents = _read_pair(raw)
+    if contents is None:
         return "contents unreadable"
     base, head = _manifest(contents[0]), _manifest(contents[1])
     if base is None or head is None:
@@ -1113,9 +1121,7 @@ def _yaml_entries(text: str) -> list[tuple[tuple[str, ...], str]]:
         path = tuple(s for _, s in stack)
         m = _ENTRY.match(stripped)
         if not m and stripped.startswith("{"):
-            entries += [
-                (path + (k,), _scalar(v)) for _, k, v in _FLOW_PAIR.findall(stripped)
-            ]
+            entries += _flow_pairs(path, stripped)
             continue
         if not m:
             entries.append((path, _scalar(stripped)))
@@ -1127,10 +1133,13 @@ def _yaml_entries(text: str) -> list[tuple[tuple[str, ...], str]]:
             if value:
                 scalar_at = indent
         elif value.startswith("{"):
-            entries += [
-                (path + (key, k), _scalar(v)) for _, k, v in _FLOW_PAIR.findall(value)
-            ]
+            entries += _flow_pairs(path + (key,), value)
     return entries
+
+
+def _flow_pairs(path: tuple[str, ...], text: str) -> list[tuple[tuple[str, ...], str]]:
+    """Each `key: value` pair of a flow mapping, its key appended to `path`."""
+    return [(path + (k,), _scalar(v)) for _, k, v in _FLOW_PAIR.findall(text)]
 
 
 # A runs-on value that is one matrix key or input, as is or through fromJSON.
@@ -1150,9 +1159,9 @@ def _referenced_runners(text: str) -> list[str]:
         for value in _runner_values(text)
         if (m := _RUNNER_REF.fullmatch(value))
     }
-    values: list[str] = []
     if not refs:
-        return values
+        return []
+    values: list[str] = []
     for path, value in _yaml_entries(text):
         names = [p.casefold() for p in path]
         if not value or not names or "{" in value:
@@ -1187,9 +1196,7 @@ def _new_runners(raw: Any, added: list[str], public: bool) -> list[str]:
     against the base text when both were read, with the matrix values and
     input defaults a runs-on expression names, and from added inline runs-on
     lines. Unread text and an added block holds."""
-    contents = getattr(raw, "contents", None)
-    pair = contents if isinstance(contents, tuple) and len(contents) == 2 else None
-    base, head = pair if pair else (None, None)
+    base, head = _pair(getattr(raw, "contents", None)) or (None, None)
     gained: Counter[str] = Counter()
     if isinstance(head, str):
         before = base if isinstance(base, str) else ""

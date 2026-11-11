@@ -34,7 +34,8 @@ the caption ladder below deliberately falls through to them.
 **Caption ladder:** manual EN → auto EN (the original `en-orig` before a bare auto `en`) →
 auto-translate EN → exhausted: `transcript` mode STOPs and surfaces; `watch` (video downloaded)
 proceeds caption-less and the transcript strategy picks `asr` or records a
-`transcriptDegradation`. A track is manual only when info.json
+`transcriptDegradation`. A live-derived video inside its caption wait (below) waits instead,
+in both modes. A track is manual only when info.json
 `subtitles` lists its key.
 Rung 3 and below trigger the auto-caption dedup clean-up pass. Declared caption class:
 `manual-and-auto`. Declared transcript strategy: `captions`.
@@ -67,6 +68,31 @@ the extractor argument that carries the decision.
 
 A caption pass that exits non-zero still selects from the tracks already written, and the failed
 track's `ERROR:` line lands in `transcriptDegradation`.
+
+### Caption wait for live streams
+
+An exhausted ladder reads info.json `live_status`, and the queue preflight prints it too.
+
+This spoke's decision: a video whose `live_status` is `is_live` or `post_live`, or `was_live` with
+a known, recent end, may still get auto-captions from post-stream processing, so the run waits for
+them instead of stopping (`transcript`) or digesting caption-less (`watch`). The stream's end is
+taken as `release_timestamp` plus `duration`. The wait is bounded: a re-check every 30 minutes, at
+most 12 hours from the stream's end (from the first hold when the end is unknown). Once that
+deadline passes, the run takes the exhausted-ladder path above and records the ended wait. Every
+other value, an absent one, and a `was_live` stream whose end is unknown or older than the window
+keep today's behavior. The constants live in
+`extraction/acquisition/caption-wait.js`; the queue side is `../../context/watch-queue.md`
+"Caption wait". The observation behind the decision, auto-captions arriving about 2 hours after
+a stream ended, is [#14743](https://github.com/melodic-software/claude-code-plugins/issues/14743).
+
+- **Pointer**: when a held video's `live_status` or timestamps look different, fetch the
+  `live_status` and `release_timestamp` entries in yt-dlp's output template field list at
+  <https://github.com/yt-dlp/yt-dlp#output-template> and the YouTube extractor's
+  `_list_formats` live-status mapping at
+  <https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/extractor/youtube/_video.py> live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: a yt-dlp release note that adds, renames or removes a `live_status`
+  value, or changes what the YouTube extractor sets `release_timestamp` from.
 No extractor allow-list is declared: the youtube extractor resolves claimed URLs in-family, with
 no foreign delegation on the single-video path.
 

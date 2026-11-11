@@ -89,6 +89,18 @@ HOT_PADDING = {
         "/session-flow:handoff for the next save-point.",
     ),
 }
+# Sections rewritten whole at every hop, filled by `_hot`.
+HOT_SLOTS = (
+    "brief",
+    "criteria",
+    "environment",
+    "file-roles",
+    "remaining",
+    "open-questions",
+    "blockers",
+    "skills",
+    "next",
+)
 
 # Read patterns (AUDIT.md Q2): files up to WHOLE_MAX are read in one Read, up to
 # PAGED_MAX in pages, larger ones partially.
@@ -259,12 +271,15 @@ def _fields(key: str, lane: str) -> dict:
     }
 
 
+def _render(key: str, templates, lane: str) -> str:
+    return _pick(key, templates).format(**_fields(key, lane))
+
+
 def _entry(slot: str, key: str, lane: str, width: int) -> str:
-    text = _pick(key, TEMPLATES[slot]).format(**_fields(key, lane))
+    text = _render(key, TEMPLATES[slot], lane)
     extra = 0
     while len(text) < width:
-        detail_key = f"{key}/d{extra}"
-        text += " " + _pick(detail_key, DETAILS).format(**_fields(detail_key, lane))
+        text += " " + _render(f"{key}/d{extra}", DETAILS, lane)
         extra += 1
     return text
 
@@ -284,11 +299,16 @@ def _session_id(case: str, hop: int) -> str:
     return str(uuid.uuid5(NAMESPACE, f"{case}/hop-{hop}"))
 
 
+def _final(pred: dict, hop: int) -> dict:
+    """The case's final-hop text at the newest hop, else nothing."""
+    return (pred.get("final") or {}) if hop == int(pred["hops"]) else {}
+
+
 def _hot(pred: dict, hop: int, name: str, lane: str) -> list[str]:
     """A rewritten (hot) section's lines: the case's final-hop text at the newest hop,
     generic lane text before it."""
-    final = pred.get("final") or {}
-    if hop == int(pred["hops"]) and final.get(name):
+    final = _final(pred, hop)
+    if final.get(name):
         return [*final[name], *HOT_PADDING.get(name, ())]
     f = _fields(f"{lane}/{hop}/{name}", lane)
     generic = {
@@ -329,42 +349,34 @@ def _hot(pred: dict, hop: int, name: str, lane: str) -> list[str]:
 
 
 def _did_left(pred: dict, hop: int, lane: str) -> tuple[str, str]:
-    final = pred.get("final") or {}
-    if hop == int(pred["hops"]) and final.get("did"):
+    final = _final(pred, hop)
+    if final.get("did"):
         return final["did"], final["left"]
     did = "; then ".join(
-        _pick(f"{lane}/{hop}/did{i}", DID_TEMPLATES).format(
-            **_fields(f"{lane}/{hop}/did{i}", lane)
-        )
-        for i in range(2)
+        _render(f"{lane}/{hop}/did{i}", DID_TEMPLATES, lane) for i in range(2)
     )
     left = "; and ".join(
-        _pick(f"{lane}/{hop}/left{i}", LEFT_TEMPLATES).format(
-            **_fields(f"{lane}/{hop}/left{i}", lane)
-        )
-        for i in range(2)
+        _render(f"{lane}/{hop}/left{i}", LEFT_TEMPLATES, lane) for i in range(2)
     )
     return did, left
 
 
-def _injection_items(pred: dict, hop: int, slot: str) -> list[dict]:
-    """The case's injections into `slot` at `hop`, the `first` ones ahead of the rest."""
+def _injection_items(pred: dict, hop: int, slot: str) -> tuple[list[dict], list[dict]]:
+    """The case's injections into `slot` at `hop`: the `first` ones, then the rest."""
     items = [
         item
         for item in pred.get("injections", [])
         if int(item["hop"]) == hop and item["section"] == slot
     ]
-    return [i for i in items if i.get("position") == "first"] + [
-        i for i in items if i.get("position") != "first"
-    ]
+    return (
+        [i for i in items if i.get("position") == "first"],
+        [i for i in items if i.get("position") != "first"],
+    )
 
 
 def _injections(pred: dict, hop: int, slot: str) -> tuple[list[str], list[str]]:
-    items = _injection_items(pred, hop, slot)
-    return (
-        [i["text"] for i in items if i.get("position") == "first"],
-        [i["text"] for i in items if i.get("position") != "first"],
-    )
+    first, rest = _injection_items(pred, hop, slot)
+    return [i["text"] for i in first], [i["text"] for i in rest]
 
 
 def _fill(path: Path, pred: dict, hop: int, width: int, lane: str) -> int:
@@ -406,28 +418,18 @@ def _fill(path: Path, pred: dict, hop: int, width: int, lane: str) -> int:
                 prefix
                 + "the re-scan read the lossless on-disk transcript; no compaction occurred."
             )
-        elif slot in (
-            "brief",
-            "criteria",
-            "environment",
-            "file-roles",
-            "remaining",
-            "open-questions",
-            "blockers",
-            "skills",
-            "next",
-        ):
+        elif slot in HOT_SLOTS:
             out.extend(_hot(pred, hop, slot, lane))
         else:
-            base = slot[: -len("-new")] if slot.endswith("-new") else slot
+            base = slot.removesuffix("-new")
             first, last = _injections(pred, hop, base)
-            texts = []
             count, share = ENTRIES_PER_HOP[base]
-            for i in range(count):
-                key = f"{pred['topic']}/{hop}/{base}/{i}"
-                text = _entry(base, key, lane, int(width * share))
-                generated += len(text)
-                texts.append(text)
+            key = f"{pred['topic']}/{hop}/{base}"
+            texts = [
+                _entry(base, f"{key}/{i}", lane, int(width * share))
+                for i in range(count)
+            ]
+            generated += sum(map(len, texts))
             out.extend(f"- [h{hop}] {text}" for text in [*first, *texts, *last])
     path.write_text("\n".join(out), encoding="utf-8", newline="\n")
     return generated
@@ -484,11 +486,8 @@ def _slots(path: Path) -> dict[str, bool]:
 
 def _section_body(text: str, title: str) -> list[str]:
     lines = text.split("\n")
-    start = lines.index(f"## {title}") + 1
-    end = next(
-        (i for i in range(start, len(lines)) if lines[i].startswith("## ")), len(lines)
-    )
-    return lines[start:end]
+    start, count = _section_span(lines, title)
+    return lines[start : start + count - 1]
 
 
 def _ordinal(lines: list[str], body, text: str, what: str) -> int:
@@ -510,8 +509,7 @@ def _fill_3(path: Path, pred: dict, hop: int, lane: str, live: dict) -> None:
     ref each injection was given."""
     from save_point import AMENDMENT_RE  # hop_chain put the scripts dir on sys.path
 
-    hops = int(pred["hops"])
-    final = (pred.get("final") or {}) if hop == hops else {}
+    final = _final(pred, hop)
     date = _when(pred, hop)[:10]
     slots = _slots(path)
     floors = {
@@ -530,27 +528,26 @@ def _fill_3(path: Path, pred: dict, hop: int, lane: str, live: dict) -> None:
 
     def id_lines(section: str, generated: list[str]) -> list[str]:
         """This hop's new entries for an id section: injections around generated text."""
-        items = _injection_items(pred, hop, section)
-        firsts = [i for i in items if i.get("position") == "first"]
-        rest = [i for i in items if i.get("position") != "first"]
-        out = []
-        for item in firsts:
-            live["refs"][item["id"]] = ref = new_id(ID_PREFIX[section])
-            out.append(f"- {ref} {item['text']}")
-        out += [f"- {new_id(ID_PREFIX[section])} {text}" for text in generated]
-        for item in rest:
-            live["refs"][item["id"]] = ref = new_id(ID_PREFIX[section])
-            out.append(f"- {ref} {item['text']}")
-        return out
+        prefix = ID_PREFIX[section]
+        firsts, rest = _injection_items(pred, hop, section)
+
+        def injected(item: dict) -> str:
+            live["refs"][item["id"]] = ref = new_id(prefix)
+            return f"- {ref} {item['text']}"
+
+        head = [injected(item) for item in firsts]
+        middle = [f"- {new_id(prefix)} {text}" for text in generated]
+        return head + middle + [injected(item) for item in rest]
 
     f = _fields(f"{lane}/{hop}/shape3", lane)
     values: dict[str, str] = {}
 
+    firsts, rest = _injection_items(pred, hop, "amendment")
     amendments = [
         i["text"]
         if hop == 1 and n == 0
         else f"**Amended (owner, {date}):** {i['text']}"
-        for n, i in enumerate(_injection_items(pred, hop, "amendment"))
+        for n, i in enumerate([*firsts, *rest])
     ]
     if hop == 1:
         values["goal"] = f"> {pred['goal']} (owner, {pred['start'][:10]})"
@@ -611,9 +608,7 @@ def _fill_3(path: Path, pred: dict, hop: int, lane: str, live: dict) -> None:
     retire: list[dict] = []
     decisions = (
         [
-            _pick(f"{lane}/1/decision/{i}", TEMPLATES["decisions"]).format(
-                **_fields(f"{lane}/1/decision/{i}", lane)
-            )
+            _render(f"{lane}/1/decision/{i}", TEMPLATES["decisions"], lane)
             for i in range(2)
         ]
         if hop == 1
@@ -745,7 +740,6 @@ def _build(case_spec: dict, out_dir: Path, memory_dir: Path | None) -> list[Path
             raise ValueError(f"{case}: target_bytes steers shape-2 chains only")
         _check_shape3_spec(pred, hops)
     live: dict = {"refs": {}, "open-questions": [], "decisions": [], "rolling": None}
-    out_dir = Path(out_dir)
     memory = Path(memory_dir) if memory_dir else out_dir / ".work"
     (memory / "handoffs").mkdir(parents=True, exist_ok=True)
     ignore = memory / ".gitignore"
@@ -880,14 +874,12 @@ def _section_span(
     """1-based start line of `## title` and the line count up to the next heading
     (or up to `## until`)."""
     start = lines.index(f"## {title}") + 1
-    stop_title = f"## {until}" if until else None
-    for i in range(start, len(lines)):
-        line = lines[i]
-        if (stop_title and line == stop_title) or (
-            not stop_title and line.startswith("## ")
-        ):
-            return start, i - start + 1
-    return start, len(lines) - start + 1
+    ends = (
+        i
+        for i in range(start, len(lines))
+        if (lines[i] == f"## {until}" if until else lines[i].startswith("## "))
+    )
+    return start, next(ends, len(lines)) - start + 1
 
 
 def read_turns(path: Path, pattern: str | None = None) -> list[dict]:

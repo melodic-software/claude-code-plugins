@@ -155,6 +155,16 @@ function evalRead(call) {
   return { name: expr.name, trusts: folded.trusts };
 }
 
+// Calls `visit` on each AST node directly under `node`, in key order.
+function forEachChild(node, visit) {
+  for (const key of Object.keys(node)) {
+    const child = node[key];
+    for (const c of Array.isArray(child) ? child : [child]) {
+      if (c && typeof c.type === "string" && c !== node) visit(c);
+    }
+  }
+}
+
 // Rewrites, in place, each direct `eval` that only reads an identifier
 // (`evalRead`) into that read, so scope analysis sees a plain reference
 // and no direct eval around it. Returns the built-ins the folds trust.
@@ -171,12 +181,7 @@ function foldEvals(ast) {
       Object.assign(node, { type: "Identifier", name: read.name, start, end }, range ? { range } : {});
       continue;
     }
-    for (const key of Object.keys(node)) {
-      const child = node[key];
-      for (const c of Array.isArray(child) ? child : [child]) {
-        if (c && typeof c.type === "string" && c !== node) stack.push(c);
-      }
-    }
+    forEachChild(node, (c) => stack.push(c));
   }
   return trusts;
 }
@@ -220,15 +225,10 @@ function parentsOf(entry) {
   const stack = [entry.ast];
   while (stack.length) {
     const node = stack.pop();
-    for (const key of Object.keys(node)) {
-      const child = node[key];
-      for (const c of Array.isArray(child) ? child : [child]) {
-        if (c && typeof c.type === "string" && c !== node) {
-          parents.set(c, node);
-          stack.push(c);
-        }
-      }
-    }
+    forEachChild(node, (c) => {
+      parents.set(c, node);
+      stack.push(c);
+    });
   }
   entry.parents = parents;
   return parents;
@@ -261,7 +261,8 @@ function innermostScope(manager, offset) {
 
 function lookup(entry, req) {
   if (req.top) return entry.top?.set.get(req.name) ?? null;
-  if (entry.decls.get(req.offset)?.name === req.name) return entry.decls.get(req.offset);
+  const decl = entry.decls.get(req.offset);
+  if (decl?.name === req.name) return decl;
   const ref = entry.refs.get(req.offset);
   if (ref && ref.identifier.name === req.name && ref.resolved) return ref.resolved;
   for (let s = innermostScope(entry.manager, req.offset); s; s = s.upper) {
@@ -634,10 +635,11 @@ class Flow {
     }
   }
 
-  // Where the value `node` evaluates to goes next.
+  // Where the value `node` evaluates to goes next. forwards() climbs optional
+  // chains too (its ChainExpression case), so no separate check is needed here.
   value(node) {
     let parent = this.parents.get(node);
-    while (forwards(parent, node) || parent?.type === "ChainExpression") {
+    while (forwards(parent, node)) {
       node = parent;
       parent = this.parents.get(node);
     }
@@ -780,12 +782,7 @@ class Flow {
     if (!this.once(`${fn.start}:${index}`)) return;
     const params = fn.params;
     if (params.slice(0, index + 1).some((p) => p.type === "RestElement")) throw new Unresolved("a rest parameter", fn.start);
-    if (fn.type !== "ArrowFunctionExpression") {
-      const scope = this.entry.manager.acquire(fn, true);
-      if (!scope || scope.set.get("arguments")?.references.length) {
-        throw new Unresolved("a function that reads `arguments`", fn.start);
-      }
-    }
+    if (argumentsAliased(this.entry, fn)) throw new Unresolved("a function that reads `arguments`", fn.start);
     const param = params[index];
     if (param === undefined) return;
     const id = param.type === "AssignmentPattern" ? param.left : param;
@@ -1149,12 +1146,7 @@ class Namespace {
           throw new Unresolved("`import.meta` used other than for a named read", node.start);
         }
       }
-      for (const key of Object.keys(node)) {
-        const child = node[key];
-        for (const c of Array.isArray(child) ? child : [child]) {
-          if (c && typeof c.type === "string" && c !== node) stack.push(c);
-        }
-      }
+      forEachChild(node, (c) => stack.push(c));
     }
     this.metaChecked = true;
   }
@@ -1375,12 +1367,7 @@ function namespace(req) {
         sites++;
         walk.site(node);
       }
-      for (const key of Object.keys(node)) {
-        const child = node[key];
-        for (const c of Array.isArray(child) ? child : [child]) {
-          if (c && typeof c.type === "string" && c !== node) stack.push(c);
-        }
-      }
+      forEachChild(node, (c) => stack.push(c));
     }
   } catch (e) {
     if (e instanceof RangeError) return { ok: true, safe: false, reason: "the namespace is too deep to follow", at: null };
@@ -1721,6 +1708,9 @@ const BUILTIN_CONSTRUCTORS = new Set([
   "WeakSet",
 ]);
 
+// Whether the variable `v` is written only by its one declaration.
+const onlyInit = (v) => v.references.every((r) => !r.isWrite() || r.identifier === v.defs[0].name);
+
 // What makes a target in the analyzed module `entry` (`analyze`) a fresh
 // object, which no write can make a built-in prototype: a function from a
 // node to its freshness (FRESH, `both`) or null. Fresh are a literal, a
@@ -1737,7 +1727,6 @@ const BUILTIN_CONSTRUCTORS = new Set([
 function freshnessOf(entry) {
   const parents = parentsOf(entry);
   const variable = (id) => entry.refs.get(id.start)?.resolved ?? null;
-  const onlyInit = (v) => v.references.every((r) => !r.isWrite() || r.identifier === v.defs[0].name);
   // The method of the global `Object` that `node` reads, directly or
   // through a variable only ever holding it (`var c=Object.create`,
   // `var{create:c}=Object`), or null.
@@ -1818,10 +1807,7 @@ function freshnessOf(entry) {
       const node = stack.pop();
       if (node.type === "ReturnStatement" && node.argument !== null) return null;
       if (FUNCTIONS.has(node.type)) continue;
-      for (const key of Object.keys(node)) {
-        const child = node[key];
-        for (const c of Array.isArray(child) ? child : [child]) if (c && typeof c.type === "string") stack.push(c);
-      }
+      forEachChild(node, (c) => stack.push(c));
     }
     return made;
   };
@@ -2062,7 +2048,6 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
     else if (VM_SPECIFIERS.has(spec)) hit("vm-string-code", null, node);
   }
   const variable = (id) => entry.refs.get(id.start)?.resolved ?? null;
-  const onlyInit = (v) => v.references.every((r) => !r.isWrite() || r.identifier === v.defs[0].name);
   const fresh = freshnessOf(entry);
   const pending = [];
   const trusted = new Set(entry.folds);
@@ -2367,7 +2352,7 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
     // `runInNewContext` patches the outer prototypes). Any load of the vm
     // module is a sink, except an import naming only functions that run no
     // code; so is a vm runner's name read or destructured from any object.
-    if ((VM_RUNNERS.has(member) && !isTarget(parents, node)) || (node.type === "Property" && parents.get(node)?.type === "ObjectPattern" && VM_RUNNERS.has(keyName(node.key, node.computed)))) {
+    if ((VM_RUNNERS.has(member) && !isTarget(parents, node)) || (node.type === "Property" && holder?.type === "ObjectPattern" && VM_RUNNERS.has(keyName(node.key, node.computed)))) {
       hit("vm-string-code", null, node);
     }
     const specs = (isRequire(node) ? paramSpecs(node.arguments[0]) : null) ?? [loadedSpecifier(node)];
@@ -2393,12 +2378,7 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
         (holder?.type === "VariableDeclarator" && holder.init === node && holder.id.type === "ObjectPattern" && onlyCalled(holder));
       if (!named && !inert) hit("definer-escape", null, node);
     }
-    for (const key of Object.keys(node)) {
-      const child = node[key];
-      for (const c of Array.isArray(child) ? child : [child]) {
-        if (c && typeof c.type === "string" && c !== node) stack.push(c);
-      }
-    }
+    forEachChild(node, (c) => stack.push(c));
   }
   return { hits, pending, trusted: [...trusted].sort() };
 }
@@ -2739,19 +2719,14 @@ function scanOf(ast) {
     } else if (node.type === "ObjectPattern") {
       for (const prop of node.properties) {
         if (prop.type !== "Property") continue;
-        if (!prop.computed) keys.add(prop.key.name ?? String(prop.key.value));
-        else if (keyName(prop.key, true) !== null) keys.add(keyName(prop.key, true));
+        const key = prop.computed ? keyName(prop.key, true) : (prop.key.name ?? String(prop.key.value));
+        if (key !== null) keys.add(key);
       }
     }
-    for (const key of Object.keys(node)) {
-      const child = node[key];
-      for (const c of Array.isArray(child) ? child : [child]) {
-        if (c && typeof c.type === "string" && c !== node) {
-          parents.set(c, node);
-          stack.push(c);
-        }
-      }
-    }
+    forEachChild(node, (c) => {
+      parents.set(c, node);
+      stack.push(c);
+    });
   }
   return { keys, loads, imports, computed, aliasInits };
 }
@@ -2770,12 +2745,7 @@ function computedLoads(entry) {
     const node = stack.pop();
     if (unknownLoad(node, parents, spells, paramSpecs) && !aliasInit(node, parents.get(node))) return new Set([UNKNOWN_FILE]);
     if (isRequire(node)) for (const spec of paramSpecs(node.arguments[0]) ?? []) files.add(fileName(spec));
-    for (const key of Object.keys(node)) {
-      const child = node[key];
-      for (const c of Array.isArray(child) ? child : [child]) {
-        if (c && typeof c.type === "string" && c !== node) stack.push(c);
-      }
-    }
+    forEachChild(node, (c) => stack.push(c));
   }
   return files;
 }

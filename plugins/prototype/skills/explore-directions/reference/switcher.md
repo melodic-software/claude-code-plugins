@@ -15,7 +15,8 @@ which is why it is not theme-aware.
 - **Verbatim.** The asset's markup, styles and wiring are the spec. No project fonts, no brand
   colors, no theme switching, no extra shadows or borders.
 - **The highlight slides; the variant swap stays instant.** The active item's highlight animates
-  between buttons (250ms, strong ease-out) as spatial feedback on the switcher itself, but the
+  between buttons (250ms, a strong ease-out: user-interface's `animation.duration_ms.medium` and
+  `animation.easing_library.out.quint`) as spatial feedback on the switcher itself, but the
   variant being previewed still switches with no transition: flipping happens a hundred times a
   session.
 - **One allowed modification:** if a variant occupies the bottom center of the screen (a toast

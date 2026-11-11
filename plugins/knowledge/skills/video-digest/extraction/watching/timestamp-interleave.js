@@ -50,23 +50,12 @@ export function frameMinuteLabel(timestampSec, timestampSource, roundMinutes = M
 export function interleaveTranscriptAndFrames(cues, frames) {
   /** @type {InterleavedReadItem[]} */
   const items = [];
-
   for (const cue of cues) {
-    items.push({
-      kind: "transcript",
-      timestampSec: cue.startSec,
-      transcriptText: cue.text,
-    });
+    items.push({ kind: "transcript", timestampSec: cue.startSec, transcriptText: cue.text });
   }
-
   for (const frame of frames) {
-    items.push({
-      kind: "frame",
-      timestampSec: frame.timestampSec,
-      frame,
-    });
+    items.push({ kind: "frame", timestampSec: frame.timestampSec, frame });
   }
-
   return items.sort(compareTimesUntimedLast);
 }
 

@@ -22,9 +22,8 @@ bounds nothing: the Bash tool returns the command's complete output into context
 anything to decide about.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+separate body Bash calls rather than pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
+"The pre-compute block runs as one shell invocation").
 
 ## Variables
 
@@ -127,11 +126,11 @@ exits 2 (no `gh`, no `jq`, a `git` without `merge-tree --write-tree`, no host da
 co-change alone and record `gap: collision hotspots not measured: <the script's message>` in
 the report.
 
-- Pointer: the 100-file cap per pull request comes from the "Node limit" section of
-  <https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api>;
-  the exit codes the script reads are under "OUTPUT" and "EXIT STATUS" in
-  <https://git-scm.com/docs/git-merge-tree>.
-- As of: 2026-10-04.
+- Pointer: the 100-file cap per pull request comes from
+  <https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#node-limit>;
+  the exit codes the script reads are in <https://git-scm.com/docs/git-merge-tree#OUTPUT> and
+  <https://git-scm.com/docs/git-merge-tree#_exit_status>.
+- As of: 2026-11-10.
 - Recheck trigger: the forge's pull-request file list returns more than 100 files for one pull request,
   or `git merge-tree --write-tree` changes its exit status meanings.
 

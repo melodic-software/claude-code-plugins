@@ -187,6 +187,8 @@ artifact already listed:
   is never a directory level.
 - `transcriptDegradation`: recorded in the `run-state/watch.json` phase map (transcript phase)
   and echoed on CLI output.
+- `captionWait`: the note a live stream's ended caption wait leaves, recorded in the
+  `run-state/watch.json` phase map (acquire phase) and echoed on CLI output.
 - X blocked delegations: the refused outbound link is harvested, so it lands in
   `source/harvested-links.json`; the acquire phase detail carries the count.
 - `source:`-prefixed envelope metadata (`source:snowflakeAliasing`, `source:blockedDelegations`,

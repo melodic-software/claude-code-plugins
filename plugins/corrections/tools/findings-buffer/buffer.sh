@@ -74,8 +74,7 @@ python3 -I "$HERE/lib/redact_rows.py" >"$TMP/redacted"
 RC=$?
 if [[ $RC -ne 0 ]]; then
   echo "buffer.sh: redaction failed; nothing appended" >&2
-  [[ $RC -eq 2 ]] && exit 2
-  exit 1
+  exit $((RC == 2 ? 2 : 1))
 fi
 node "$CORE" prepare <"$TMP/redacted" >"$TMP/rows" || exit $?
 [[ -s "$TMP/rows" ]] || exit 0

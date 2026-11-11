@@ -1327,6 +1327,19 @@ hook `ask` in a lane. This subsection holds which mode each lane runs in.
 - **As of:** 2026-11-01.
 - **Recheck trigger:** that page's `--permission-prompts` row changes.
 
+**Launch options.** An unattended Claude Code launch passes this set, drawn from what the lanes
+launcher builds. Other headless launchers adopt it when next touched. A flag whose effect no probe
+has shown stays out of the table. The lanes launcher also passes `--permission-prompts none` on
+`--bg` launches; that use stays until a probe settles the UNVERIFIED bullet above.
+
+| Option | Applies to | Value |
+|---|---|---|
+| `--permission-mode` | Every launch | By lane kind, per the bullets above: `auto` for local lanes, `dontAsk` for CI lanes |
+| `--model` | Every launch whose lane sets a model | The lane's configured model |
+| `--effort` | Every launch | The lane's configured effort |
+| `-n <name>` | `--bg` launches | The lane's name |
+| `--permission-prompts none` | `-p` launches on Claude Code 2.1.259 or later | Passed; older CLIs reject the flag |
+
 ## 6. Rate-limit guard binding
 
 All three lanes consume the shared subscription rate-limit windows (§3). An installed plugin cannot

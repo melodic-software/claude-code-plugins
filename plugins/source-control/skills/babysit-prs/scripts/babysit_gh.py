@@ -1623,24 +1623,20 @@ def discover_prs(
     repo_list = [repo for repo in (repos or []) if repo]
     if bool(owner_list) == bool(repo_list):
         raise ValueError("discover_prs requires exactly one of owners or repos")
-    author_list: list[str | None] = [author for author in (authors or []) if author]
-    if not author_list:
-        author_list = [None]
+    author_list: list[str | None] = [
+        author for author in (authors or []) if author
+    ] or [None]
     found: dict[str, tuple[str, int]] = {}
     errors: list[str] = []
-    if repo_list:
-        per_repo_limit = max(limit, 1)
-        for author in author_list:
+    for author in author_list:
+        if repo_list:
             for repo in repo_list:
-                _list_prs_for_repo(repo, per_repo_limit, author, found, errors)
-    else:
-        for author in author_list:
-            searched, search_errors = _search_prs_for_owners(owner_list, limit, author)
-            listed, list_errors = _list_prs_for_owners(owner_list, limit, author)
-            found.update(searched)
-            found.update(listed)
-            errors.extend(search_errors)
-            errors.extend(list_errors)
+                _list_prs_for_repo(repo, max(limit, 1), author, found, errors)
+            continue
+        for strategy in (_search_prs_for_owners, _list_prs_for_owners):
+            rows, strategy_errors = strategy(owner_list, limit, author)
+            found.update(rows)
+            errors.extend(strategy_errors)
     return sorted(found.values()), list(dict.fromkeys(errors))
 
 
@@ -1648,8 +1644,7 @@ def fetch_pull_request_author(repo: str, number: int) -> str:
     """The PR author's login from `gh pr view --json author`."""
     repo = repo.casefold()
     payload = gh_json(["pr", "view", str(number), "--repo", repo, "--json", "author"])
-    author = payload.get("author") if is_json_object(payload) else None
-    login = author.get("login") if is_json_object(author) else None
+    login = dig(payload, "author", "login")
     if not isinstance(login, str) or not login:
         # Fail closed: an unread author cannot be shown not to be a self login.
         raise RuntimeError(f"Unexpected gh pr view author for {repo}#{number}")
@@ -1787,7 +1782,7 @@ def rest_check_rollup(repo: str, head_sha: str) -> list[dict[str, Any]]:
         f"{repo}@{head_sha} check runs",
         items_key="check_runs",
     ):
-        suite_id = json_object(run.get("check_suite")).get("id")
+        suite_id = dig(run, "check_suite", "id")
         rollup.append(
             {
                 "__typename": "CheckRun",
@@ -1868,8 +1863,8 @@ def rest_view_pr(repo: str, number: int) -> dict[str, Any]:
     pull = cast(dict[str, Any], data)
     head = json_object(pull.get("head"))
     base = json_object(pull.get("base"))
-    head_repo = str(json_object(head.get("repo")).get("full_name") or "")
-    base_repo = str(json_object(base.get("repo")).get("full_name") or "")
+    head_repo = str(dig(head, "repo", "full_name") or "")
+    base_repo = str(dig(base, "repo", "full_name") or "")
     head_sha = str(head.get("sha") or "")
     mergeable = pull.get("mergeable")
     reviews = fetch_pull_request_reviews(repo, number)
@@ -1882,10 +1877,7 @@ def rest_view_pr(repo: str, number: int) -> dict[str, Any]:
         "headRefOid": head_sha,
         "headRepository": {"nameWithOwner": head_repo},
         "headRepositoryOwner": {
-            "login": str(
-                json_object(json_object(head.get("repo")).get("owner")).get("login")
-                or ""
-            )
+            "login": str(dig(head, "repo", "owner", "login") or "")
         },
         "isDraft": bool(pull.get("draft")),
         "isCrossRepository": bool(head_repo and base_repo and head_repo != base_repo),
@@ -2022,26 +2014,24 @@ def flatten_paginated_items(
     page, each with no name, no status and no conclusion, and every real check
     run on the commit disappears behind it.
     """
+    items: list[Any]
     if items_key is not None:
         pages = value if is_json_array(value) else [value]
-        items: list[Any] = []
-        for page in pages:
-            if not is_json_object(page) or not is_json_array(page.get(items_key)):
-                raise RuntimeError(f"Unexpected paginated response for {label}")
-            items.extend(page[items_key])
-        if not all(is_json_object(item) for item in items):
-            raise RuntimeError(f"Unexpected paginated response items for {label}")
-        return items
-    if not is_json_array(value):
+        if not all(
+            is_json_object(page) and is_json_array(page.get(items_key))
+            for page in pages
+        ):
+            raise RuntimeError(f"Unexpected paginated response for {label}")
+        items = [item for page in pages for item in page[items_key]]
+    elif not is_json_array(value):
         raise RuntimeError(f"Unexpected paginated response for {label}")
-    if value and all(is_json_array(page) for page in value):
+    elif value and all(is_json_array(page) for page in value):
         items = [item for page in value for item in page]
-        if not all(is_json_object(item) for item in items):
-            raise RuntimeError(f"Unexpected paginated response items for {label}")
-        return items
-    if all(is_json_object(item) for item in value):
-        return list(value)
-    raise RuntimeError(f"Unexpected paginated response items for {label}")
+    else:
+        items = list(value)
+    if not all(is_json_object(item) for item in items):
+        raise RuntimeError(f"Unexpected paginated response items for {label}")
+    return items
 
 
 # A filtered workflow-run listing returns at most this many runs per search:
@@ -2218,16 +2208,13 @@ def fetch_pull_request_commits(
         )
     out: list[dict[str, Any]] = []
     for row in rows:
-        commit = row.get("commit")
-        verification = commit.get("verification") if is_json_object(commit) else None
-        if is_json_object(verification):
-            verified = verification.get("verified") is True
-            reason = str(verification.get("reason") or "unreadable")
-        else:
-            verified = False
-            reason = "unreadable"
+        verification = json_object(dig(row, "commit", "verification"))
         out.append(
-            {"sha": str(row.get("sha") or ""), "verified": verified, "reason": reason}
+            {
+                "sha": str(row.get("sha") or ""),
+                "verified": verification.get("verified") is True,
+                "reason": str(verification.get("reason") or "unreadable"),
+            }
         )
     return out
 
@@ -2279,10 +2266,9 @@ def rest_hydrate_reviews(pr: dict[str, Any], repo: str, number: int) -> None:
     it again would repeat an identical paginated request per PR per pass, so
     the drop of `latestReviews` still runs and the refetch does not.
     """
-    if pr.get("_graphql_available") is False and is_json_array(pr.get("reviews")):
-        pr.pop("latestReviews", None)
-        return
-    pr["reviews"] = fetch_pull_request_reviews(repo, number)
+    from_rest = pr.get("_graphql_available") is False
+    if not (from_rest and is_json_array(pr.get("reviews"))):
+        pr["reviews"] = fetch_pull_request_reviews(repo, number)
     pr.pop("latestReviews", None)
 
 
@@ -2291,6 +2277,12 @@ def fetch_pull_request_review_comments(repo: str, number: int) -> list[dict[str,
         f"repos/{repo}/pulls/{number}/comments?per_page=100",
         f"{repo}#{number} review comments",
     )
+
+
+# What `fetch_review_threads` requires of every comment it returns.
+_REVIEW_COMMENT_KEYS = frozenset(
+    {"body", "path", "url", "createdAt", "updatedAt", "databaseId"}
+)
 
 
 def fetch_review_threads(
@@ -2391,11 +2383,7 @@ def fetch_review_threads(
                 raise RuntimeError(f"Malformed review thread for {repo}#{number}")
             if thread["isResolved"] and not include_resolved:
                 continue
-            comment_connection = thread.get("comments")
-            if not is_json_object(comment_connection):
-                raise RuntimeError(
-                    f"Malformed comments connection in review thread {thread['id']}"
-                )
+            comment_connection = json_object(thread.get("comments"))
             comment_page_info = comment_connection.get("pageInfo")
             comment_nodes = comment_connection.get("nodes")
             total_count = comment_connection.get("totalCount")
@@ -2419,17 +2407,7 @@ def fetch_review_threads(
                     raise RuntimeError(
                         f"Malformed comment author in review thread {thread['id']}"
                     )
-                if any(
-                    key not in comment
-                    for key in (
-                        "body",
-                        "path",
-                        "url",
-                        "createdAt",
-                        "updatedAt",
-                        "databaseId",
-                    )
-                ):
+                if not _REVIEW_COMMENT_KEYS.issubset(comment):
                     raise RuntimeError(
                         f"Incomplete comment in review thread {thread['id']}"
                     )

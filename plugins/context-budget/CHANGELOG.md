@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [1.1.1] - 2026-11-11
+
+### Changed
+
+- The setup skill points at the live hooks and plugins reference sections for how a hook that cannot start is treated and when a saved option value is substituted, and sends the checkpoint's limits to the README "Hook" section. The `/context` and `explain-usage` records hold their descriptions in the probe record instead of quoting them. No behavior change.
+
 ## [1.1.0] - 2026-11-10
 
 ### Changed

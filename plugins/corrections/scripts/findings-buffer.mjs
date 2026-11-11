@@ -36,6 +36,7 @@ const FLOOR = 64;
 const OBS_ID = /^[0-9a-f]{16}$/;
 const TS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/;
 const ADAPTERS = join(ROOT, "tools/findings-buffer/adapters");
+const VERBS = ["append.sh", "read.sh"];
 const NAME = /^[A-Za-z0-9._-]+$/;
 // The user-scope binding's keys, outside schemas/findings-buffer.schema.json, so the repository files never set them.
 const USER_KEYS = ["findings_buffer_adapter_repository", "findings_buffer_adapter_path"];
@@ -47,7 +48,6 @@ const USER_SCHEMA = {
 };
 // A repository's settings env block reaches this process, and GIT_* there could point git at another repository.
 const GIT_ENV = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")));
-
 const SHOWN = 5;
 
 const say = (text) => process.stderr.write(`findings-buffer: ${text}\n`);
@@ -81,23 +81,14 @@ function conventionHome(project) {
 
 /** Why the adapter directory `candidate` is unusable, or {dir} with its physical path, which must lie inside `base`. */
 function checkAdapter(base, candidate, { where, missing }) {
-  let root;
-  let dir;
-  try {
-    root = realpathSync(base);
-    dir = realpathSync(candidate);
-  } catch {
-    return { why: missing };
-  }
+  const root = physical(base);
+  const dir = physical(candidate);
+  if (root === null || dir === null) return { why: missing };
   if (!dir.startsWith(root + sep)) return { why: `it does not resolve inside ${where}` };
   if (!statSync(dir).isDirectory()) return { why: "not a directory" };
-  for (const verb of ["append.sh", "read.sh"]) {
-    let real;
-    try {
-      real = realpathSync(join(dir, verb));
-    } catch {
-      return { why: `${verb} is missing` };
-    }
+  for (const verb of VERBS) {
+    const real = physical(join(dir, verb));
+    if (real === null) return { why: `${verb} is missing` };
     if (!real.startsWith(dir + sep) || !statSync(real).isFile()) return { why: `${verb} is not a regular file inside the adapter directory` };
     try {
       accessSync(real, constants.X_OK);
@@ -168,7 +159,7 @@ function userBinding(project, scratch) {
   const checked = checkAdapter(here.top, resolvePath(here.top, path), { where: "this checkout", missing: "no such directory in this checkout" });
   if (checked.why) return checked;
   // The directory and each verb's real location belong to this checkout, not to a repository nested in it.
-  for (const dir of [checked.dir, ...["append.sh", "read.sh"].map((verb) => dirname(realpathSync(join(checked.dir, verb))))]) {
+  for (const dir of [checked.dir, ...VERBS.map((verb) => dirname(realpathSync(join(checked.dir, verb))))]) {
     const found = owner(dir);
     if (found === null || found.top !== here.top || found.common !== here.common) return { why: "it lies inside another git repository nested in this one" };
   }

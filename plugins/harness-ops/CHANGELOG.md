@@ -3,6 +3,36 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.26] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.25] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.24] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- The audit-performance skill makes no `/doctor` suggestion under `--unattended`, since `/doctor` is reserved for the person to run.
+
+## [8.12.23] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- The `lanes` and `observability` skills now cite the gather-block convention record, "The pre-compute block runs as one shell
+  invocation", instead of restating how the harness runs the pre-compute block. No behavior
+  change.
+
 ## [8.12.22] - 2026-11-11
 
 ### Changed

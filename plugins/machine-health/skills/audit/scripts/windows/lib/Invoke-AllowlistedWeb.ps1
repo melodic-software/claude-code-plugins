@@ -112,8 +112,7 @@ function Write-EgressLogLine {
     } catch {
         # The orchestrator reads this log into `urls_called`; surface a failed
         # write on stderr rather than silently corrupting that snapshot.
-        $err = "egress log write failed ($($_.Exception.Message)). Dropped: $line"
-        [Console]::Error.WriteLine("[machine-health] $err")
+        [Console]::Error.WriteLine("[machine-health] egress log write failed ($($_.Exception.Message)). Dropped: $line")
     }
 }
 

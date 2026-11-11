@@ -15,7 +15,7 @@
  *
  * Emits a JSON array (one entry per URL) to stdout. Each entry:
  *   { url, videoId, ok, status, action, note, reason,
- *     title, channel, handle, displayTitle, displayChannel }
+ *     title, channel, handle, displayTitle, displayChannel, liveStatus }
  *
  * status:  ok | unavailable | transient | invalid-url
  * action:  enqueue (ok / transient) | reject (unavailable / invalid-url)
@@ -49,7 +49,15 @@ export const PREFLIGHT_PRINT_TEMPLATE = [
   "%(repost_count)s",
   "%(comment_count)s",
   "%(like_count)s",
+  // After the emptiness probes, so their field positions stay fixed.
+  "%(live_status)s",
 ].join(PREFLIGHT_FIELD_SEP);
+
+/** Index of `live_status` in a {@link PREFLIGHT_PRINT_TEMPLATE} line. */
+const LIVE_STATUS_FIELD = 8;
+
+/** `live_status` values whose captions may still be in post-stream processing. */
+const STREAM_PROCESSING_STATUSES = new Set(["is_live", "post_live"]);
 
 /** Display cap for the queue `title` cell (keeps the markdown table scannable). */
 export const MAX_QUEUE_TITLE_CHARS = 60;
@@ -153,7 +161,17 @@ export function isEmptyPostShell(stdout) {
   if (fields.length < 8) {
     return false;
   }
-  return fields.slice(2).every((field) => normalizeField(field) === "");
+  return fields.slice(2, 8).every((field) => normalizeField(field) === "");
+}
+
+/**
+ * The probe's yt-dlp `live_status`; empty when the line lacks it or yt-dlp printed none.
+ *
+ * @param {string} stdout
+ * @returns {string}
+ */
+export function parsePreflightLiveStatus(stdout) {
+  return normalizeField(firstNonEmptyLine(stdout).split(PREFLIGHT_FIELD_SEP)[LIVE_STATUS_FIELD]);
 }
 
 /**
@@ -220,6 +238,7 @@ function summarizeDetail(detail) {
  * @property {string} handle - raw channel handle, leading at-sign included
  * @property {string} displayTitle - escaped + truncated title cell
  * @property {string} displayChannel - escaped channel cell
+ * @property {string} liveStatus - yt-dlp `live_status` from the probe; empty when unknown
  */
 
 /**
@@ -241,6 +260,7 @@ function preflightResult({
   handle = "",
   displayTitle = "",
   displayChannel = "",
+  liveStatus = "",
 }) {
   return {
     url,
@@ -255,6 +275,7 @@ function preflightResult({
     handle,
     displayTitle,
     displayChannel,
+    liveStatus,
   };
 }
 
@@ -344,12 +365,19 @@ export async function preflightVideo(url, deps = {}) {
 
   if (result.success) {
     const { title, channel, handle } = parsePreflightLine(result.stdout);
+    const liveStatus = parsePreflightLiveStatus(result.stdout);
+    // A live or just-ended stream is a valid link: it enqueues, and its row says why
+    // its captions may be late.
     return preflightResult({
       url,
       videoId,
       ok: true,
       status: "ok",
       action: "enqueue",
+      note: STREAM_PROCESSING_STATUSES.has(liveStatus)
+        ? `live stream (${liveStatus}): captions may follow post-stream processing`
+        : "",
+      liveStatus,
       title,
       channel,
       handle,

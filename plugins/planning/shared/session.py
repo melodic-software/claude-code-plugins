@@ -5271,8 +5271,8 @@ class Session:
             if pic is not None and (n is not None or not (isinstance(pic, str) and re.fullmatch(rf"[1-{MAX_REPORT_IMAGES}]", pic))):
                 raise _bad("pic", f"pic must name one of the report's pictures, 1 to {MAX_REPORT_IMAGES}, without add.")
             if n is None:
-                pics = _report_pics(r)
-                stored = pics[int(pic or 1) - 1] if int(pic or 1) <= len(pics) else ""
+                pics, i = _report_pics(r), int(pic or 1)
+                stored = pics[i - 1] if i <= len(pics) else ""
             else:
                 adds = r.get("adds", [])
                 stored = adds[int(n) - 1].get("image", "") if int(n) <= len(adds) else ""
@@ -5282,16 +5282,21 @@ class Session:
         mime = UPLOAD_KINDS[stored.rsplit(".", 1)[1]][0]
         return {"id": fid, "image": f"data:{mime};base64,{base64.b64encode(f.read_bytes()).decode()}"}
 
+    @staticmethod
+    def _adds_view(r):
+        """A report's additions, each saying whether it has a picture, never where it is saved."""
+        return [{**{k: v for k, v in a.items() if k != "image"}, "image": "image" in a} for a in r.get("adds", [])]
+
     def _report_view(self, fid, r):
         """A report as the owner's page reads it: whether it has a picture, never where it is saved."""
         return {"id": fid, **{k: copy.deepcopy(v) for k, v in r.items() if k not in ("image", "moreImages", "adds")}, "image": "image" in r,
-                "images": len(_report_pics(r)), "adds": [{**{k: v for k, v in a.items() if k != "image"}, "image": "image" in a} for a in r.get("adds", [])]}
+                "images": len(_report_pics(r)), "adds": self._adds_view(r)}
 
     def _my_report_view(self, fid, r):
         """A report as its reporter reads it in Your reports: their words and additions, and its status, never the
         context their page sent or where a picture is saved."""
         return {"id": fid, "text": r["text"], "status": r["status"], "ts": r["ts"], "image": "image" in r, "images": len(_report_pics(r)),
-                "adds": [{**{k: v for k, v in a.items() if k != "image"}, "image": "image" in a} for a in r.get("adds", [])]}
+                "adds": self._adds_view(r)}
 
     # -- settings, prefs, notifications, session ---------------------------------------------
 
@@ -5652,7 +5657,7 @@ class Session:
         return out[:MAX_MENTIONS]
 
     def _notify_mentions(self, text, actor, where, *, before="", skip=(), **ref):
-        old = set(self._mentioned(before, actor)) if before else set()
+        old = set(self._mentioned(before, actor))
         for p in self._mentioned(text, actor):
             if p not in old and p not in skip:
                 self._notify(p, "mention", f"mentioned you {where}.", actor=actor, by=actor, body=clip(one_line(text), 160), **ref)
@@ -5796,14 +5801,8 @@ class Session:
 
     def _digest_disagreements(self, q, by):
         """Who disagreed with which answer of q and why, while that answer and its disagreer remain."""
-        out = []
-        for d in self.state.get("disagreements", {}).get(q["id"], []):
-            if not self._active(d["pid"]):
-                continue
-            named = self._named(q, d["card"])
-            if named is not None:
-                out.append({**named, "reason": d["reason"], **by(d["pid"])})
-        return out
+        return [{**named, "reason": d["reason"], **by(d["pid"])} for d in self.state.get("disagreements", {}).get(q["id"], [])
+                if self._active(d["pid"]) and (named := self._named(q, d["card"])) is not None]
 
     def _digest_turns(self, q, by):
         """Who passed on q (with their reason), how many active guests gave no signal at all, and on a question
@@ -5829,18 +5828,15 @@ class Session:
         """What pid holds now on q besides a card: each vote, back, reaction, Disagree and Pass, for `late`. A
         pick is the person's card, listed on its own."""
         st, qid, out = self.state, q["id"], []
-
-        def about(ref):
-            return self._named(q, ref)
-
         ref = st["votes"].get(qid, {}).get(pid)
-        if ref and not ref.startswith("o:") and about(ref) is not None:
-            out.append({"act": "vote", **about(ref)})
-        out += [{"act": "back", **about(r)} for r in st.get("backs", {}).get(qid, {}).get(pid, []) if about(r) is not None]
+        if ref and not ref.startswith("o:") and (said := self._named(q, ref)) is not None:
+            out.append({"act": "vote", **said})
+        out += [{"act": "back", **said} for r in st.get("backs", {}).get(qid, {}).get(pid, []) if (said := self._named(q, r)) is not None]
         for r, held in st["reactions"].get(qid, {}).items():
-            if pid in held and about(r) is not None:
-                out.append({"act": "reaction", **about(r), "reactions": list(held[pid])})
-        out += [{"act": "disagree", **about(d["card"]), "reason": d["reason"]} for d in st.get("disagreements", {}).get(qid, []) if d["pid"] == pid and about(d["card"]) is not None]
+            if pid in held and (said := self._named(q, r)) is not None:
+                out.append({"act": "reaction", **said, "reactions": list(held[pid])})
+        out += [{"act": "disagree", **said, "reason": d["reason"]} for d in st.get("disagreements", {}).get(qid, [])
+                if d["pid"] == pid and (said := self._named(q, d["card"])) is not None]
         mine = st.get("passes", {}).get(qid, {}).get(pid)
         if mine is not None:
             out.append({"act": "pass", "text": "", **({"reason": mine["reason"]} if "reason" in mine else {})})
@@ -5958,10 +5954,10 @@ class Session:
             for b in ballots:
                 for i, o in enumerate(b):
                     points[o] += len(b) - 1 - i
-            ids = list(labels)
-            borda = [{"option": labels[o], "points": points[o]} for o in sorted(ids, key=lambda o: (-points[o], ids.index(o)))]
+            place = {o: i for i, o in enumerate(labels)}
+            borda = [{"option": labels[o], "points": points[o]} for o in sorted(labels, key=lambda o: (-points[o], place[o]))]
             given = collections.Counter(ballots)
-            orders = [{"order": [labels[o] for o in b], "people": n} for b, n in sorted(given.items(), key=lambda kv: (-kv[1], [ids.index(o) for o in kv[0]]))]
+            orders = [{"order": [labels[o] for o in b], "people": n} for b, n in sorted(given.items(), key=lambda kv: (-kv[1], [place[o] for o in kv[0]]))]
             out = {"kind": "rank", "closed": closed, "people": len(ballots), "borda": borda, "orders": orders, "others": others, "comments": comments}
         if not out["people"] and not others and not comments:
             return {"kind": "unanswered"}
@@ -6058,10 +6054,7 @@ class Session:
             known.add(q["id"])
             made.append(q)
         effects = self._parse_placements(op.get("placements", []), required, n, known, made)
-        for target in {n, n + 1}:
-            size = self._round_size(target) + sum(1 for q in made if q["round"] == target)
-            if size > MAX_ROUND:
-                raise DomainError(409, "round-full", f"Round {target} would hold {size} questions; the most is {MAX_ROUND}.")
+        self._check_round_room(n, made)
         now = self.now()
         if cur is not None and cur["status"]["kind"] == "working":
             s = cur["status"]
@@ -6084,15 +6077,19 @@ class Session:
         known = {q["id"] for q in self.state["questions"]}
         made = []
         effects = self._parse_placements(op.get("placements", []), required, n, known, made)
-        for target in {n, n + 1}:
-            size = self._round_size(target) + sum(1 for q in made if q["round"] == target)
-            if size > MAX_ROUND:
-                raise DomainError(409, "round-full", f"Round {target} would hold {size} questions; the most is {MAX_ROUND}.")
+        self._check_round_room(n, made)
         s = cur["status"]
         cur["status"] = {"kind": "closed", "sentAt": s["sentAt"], "ackAt": s["ackAt"], "closedAt": self.now(), "next": None}
         for q in made:
             self._add_question(q)
         return {"round": cur["n"], "placed": self._place(effects)}
+
+    def _check_round_room(self, n, made):
+        """Refuse when round n or n + 1, with the questions `made` adds, would pass MAX_ROUND."""
+        for target in {n, n + 1}:
+            size = self._round_size(target) + sum(1 for q in made if q["round"] == target)
+            if size > MAX_ROUND:
+                raise DomainError(409, "round-full", f"Round {target} would hold {size} questions; the most is {MAX_ROUND}.")
 
     def _parse_placements(self, placements, required, n, known, made):
         """Check every placement before anything changes; returns the effects to apply."""
@@ -6583,9 +6580,8 @@ class Session:
         """A chat message with only active people's reactions."""
         if "reactions" not in m:
             return m
-        reactions = {e: [p for p in pids if p in active] for e, pids in m["reactions"].items()}
+        reactions = {e: kept for e, pids in m["reactions"].items() if (kept := [p for p in pids if p in active])}
         out = {k: v for k, v in m.items() if k != "reactions"}
-        reactions = {e: pids for e, pids in reactions.items() if pids}
         return {**out, "reactions": reactions} if reactions else out
 
     def _visible_chat(self, active):
@@ -6830,6 +6826,7 @@ def _settings_patch(settings, patch):
     """Apply a partial Settings object in place after checking every key; returns settings."""
     if not isinstance(patch, dict):
         raise _bad("settings", "settings must be an object.")
+    ordered = {"guestPopups": GUEST_POPUPS, "prototypeTiers": PROTOTYPE_TIERS}  # lists kept in their allowed values' order
     for k, v in patch.items():
         if k not in DEFAULT_SETTINGS and k not in OPTIONAL_SETTINGS:
             raise _bad(k, f"{k} is not a setting.")
@@ -6837,12 +6834,9 @@ def _settings_patch(settings, patch):
             if not isinstance(v, dict) or set(v) - set(THEME_VALUES) or any(v[t] not in THEME_VALUES[t] for t in v):
                 raise _bad("theme", "theme takes mode (" + ", ".join(THEME_VALUES["mode"]) + "), accent (" + ", ".join(THEME_VALUES["accent"])
                            + ") and palette (" + ", ".join(THEME_VALUES["palette"]) + ").")
-        elif k == "guestPopups":
-            if not isinstance(v, list) or any(x not in GUEST_POPUPS for x in v) or len(set(v)) != len(v):
-                raise _bad(k, f"guestPopups is a list of {', '.join(GUEST_POPUPS)}, each at most once.")
-        elif k == "prototypeTiers":
-            if not isinstance(v, list) or any(x not in PROTOTYPE_TIERS for x in v) or len(set(v)) != len(v):
-                raise _bad(k, f"prototypeTiers is a list of {', '.join(PROTOTYPE_TIERS)}, each at most once.")
+        elif k in ordered:
+            if not isinstance(v, list) or any(x not in ordered[k] for x in v) or len(set(v)) != len(v):
+                raise _bad(k, f"{k} is a list of {', '.join(ordered[k])}, each at most once.")
         elif k in SETTING_VALUES:
             if v not in SETTING_VALUES[k]:
                 raise _bad(k, f"{k} must be one of {', '.join(SETTING_VALUES[k])}.")
@@ -6851,10 +6845,8 @@ def _settings_patch(settings, patch):
     for k, v in patch.items():
         if k == "theme":
             settings["theme"] = {**settings["theme"], **v}
-        elif k == "guestPopups":
-            settings[k] = [x for x in GUEST_POPUPS if x in v]
-        elif k == "prototypeTiers":
-            settings[k] = [x for x in PROTOTYPE_TIERS if x in v]
+        elif k in ordered:
+            settings[k] = [x for x in ordered[k] if x in v]
         else:
             settings[k] = v
     return settings

@@ -1,5 +1,13 @@
 # Changelog: discovery plugin
 
+## [1.7.4] - 2026-11-11
+
+### Changed
+
+- The `blindspot` and `explore` skills now cite the gather-block convention record, "The pre-compute block runs as one shell
+  invocation", instead of restating how the harness runs the pre-compute block. No behavior
+  change.
+
 ## [1.7.3] - 2026-11-11
 
 ### Changed

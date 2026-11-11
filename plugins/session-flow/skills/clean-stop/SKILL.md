@@ -25,7 +25,7 @@ bodies on the remote.
 ## Arguments
 
 `--unattended` is the only argument: the caller declares that nobody is present. It only gates the
-`/export` step (record the suggestion in output, do not ask); remote artifacts are always created
+`/export` step (dropped: an unattended run neither suggests nor runs a user-only built-in); remote artifacts are always created
 without prompting, as step 3 states. Take it out wherever it appears; other text is context for the
 sweep. The bare word `unattended` is not this flag: stop and name `--unattended`.
 
@@ -58,7 +58,7 @@ sweep. The bare word `unattended` is not this flag: stop and name `--unattended`
    [All settings § cleanupPeriodDays](https://code.claude.com/docs/en/settings-reference#cleanupperioddays);
    as of 2026-10-11; recheck trigger: that setting is renamed or stops
    governing transcript retention). When the session is worth keeping:
-   If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. **`--unattended`:** record the suggestion in output; do not ask.
+   If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. **`--unattended`:** make no suggestion.
    That destination is machine-local, so when the machine may go away, also
    surface copying the export off the machine as a "preserve off the machine" item.
 3. **Linkage + breadcrumbs (redact before any remote write).** Before a PR

@@ -172,9 +172,10 @@ judge::session_set() {
 # judge::load: set INFOS to one compact JSON object per file the session set's
 # records name: the file, its repository, whether any record says "whole file"
 # (blocks:null), the block names and ordinals the writes created or changed,
-# the first recorded cant-fail-ok: count (0 when that write created the file), the changed lines (the hint for a
-# whole-file bash harness), the writers (session and agent ids) and the last
-# writer's session (the owner of its verdicts).
+# the first recorded cant-fail-ok: count (0 when that write created the file),
+# the changed lines (the hint for a whole-file bash harness), the writers
+# (session and agent ids) and the last writer's session (the owner of its
+# verdicts).
 # IFILES holds each info's file path, the same index. One jq reads every
 # record; only when a malformed record fails it does each file get its own.
 # JUDGE_AGENT_SKIP, space-separated agent ids, drops every file a subagent
@@ -235,9 +236,10 @@ judge::drop() {
 # changed-line hint for a whole-file key. A block is in doubt when a write
 # created or changed it, when a write's blocks are unknown (all blocks), or
 # when it holds or sits under a cant-fail-ok: marker and the file's count rose
-# above the first recorded one (a created file starts from 0). A file the scanner cannot list, or whose lexer
-# lost sync, is one whole-file key. A missing file is skipped, and logged
-# once: judge::drop removes its records, so no later Stop derives it again.
+# above the first recorded one (a created file starts from 0). A file the
+# scanner cannot list, or whose lexer lost sync, is one whole-file key. A
+# missing file is skipped, and logged once: judge::drop removes its records,
+# so no later Stop derives it again.
 #
 # The result is cached under derive/, keyed by the sha256 of the info, this
 # hook directory (so a plugin update re-derives), the file's current content
@@ -449,11 +451,12 @@ judge::busy() {
 
 # judge::reserve_run: reserve one judge run for the session and set RUNRES to
 # its marker, or fail when the optional CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS
-# limit is reached (a test seam; metrics.sh unsets it). Under a limit the marker is runs/<pkey>/<sid>/<n>, the first free
-# n from 1 to the limit, created exclusively, so jobs that reach the check
-# together cannot all take the last run. A reservation is kept when the
-# judge starts and released (judge::release_run) when it does not; a job
-# killed in between keeps it, which errs toward spending less.
+# limit is reached (a test seam; metrics.sh unsets it). Under a limit the
+# marker is runs/<pkey>/<sid>/<n>, the first free n from 1 to the limit,
+# created exclusively, so jobs that reach the check together cannot all take
+# the last run. A reservation is kept when the judge starts and released
+# (judge::release_run) when it does not; a job killed in between keeps it,
+# which errs toward spending less.
 judge::reserve_run() {
   local cap="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS:-}" d="$DATA/runs/$PKEY/$SID" n
   RUNRES=""
@@ -711,11 +714,11 @@ judge::section1() {
   awk '/^## 1\. /{f=1} f&&/^## /&&!/^## 1\. /{exit} f' "$HOOK_DIR/../skills/test-value/SKILL.md" 2>/dev/null
 }
 
-# judge::run <info> <keys> <seconds> <hint> <run reservation>: one judge run over the file's keys
-# (the caller holds their locks and a slot), writing verdicts under the ledger
-# of the file's last writer, so a successor that adopts that session finds
-# them and their relay markers. A key left without a verdict gets a failed
-# attempt.
+# judge::run <info> <keys> <seconds> <hint> <run reservation>: one judge run
+# over the file's keys (the caller holds their locks and a slot), writing
+# verdicts under the ledger of the file's last writer, so a successor that
+# adopts that session finds them and their relay markers. A key left without
+# a verdict gets a failed attempt.
 judge::run() {
   local info="$1" keys="$2" t="$3" hint="$4" res="${5:-}" dir file repo owner writers n budget raw sys prompt rc kh here
   local rule denied blob kind
@@ -1043,7 +1046,7 @@ judge::validate() {
     [[ "$origin" == FLAG ]] && RELAY_UF=$((RELAY_UF + 1))
     ;;
   esac
-  for p in ${RELAY_REPOS[@]+"${RELAY_REPOS[@]}"}; do [[ "$p" == "${FIELDS[0]}" ]] && known=1; done
+  for p in ${RELAY_REPOS[@]+"${RELAY_REPOS[@]}"}; do [[ "$p" == "${FIELDS[0]}" ]] && known=1 && break; done
   ((known)) || RELAY_REPOS+=("${FIELDS[0]}")
 }
 
@@ -1219,7 +1222,6 @@ judge::findings() {
   done
 }
 
-# judge::counts <validated verdict lines>: "N tests (F FLAG, P PASS, U UNKNOWN)".
 # judge::mark_relayed <owner sid>/<key-hash>...: record the keys as relayed,
 # with one mkdir for every directory.
 judge::mark_relayed() {
@@ -1229,6 +1231,8 @@ judge::mark_relayed() {
   for m in "$@"; do : >"$DATA/relayed/$PKEY/$m"; done
 }
 
+# judge::counts: set COUNTS to "N tests (F FLAG, P PASS, U UNKNOWN)" from the
+# counts judge::validate keeps.
 judge::counts() {
   local s=s
   ((RELAY_N == 1)) && s=""

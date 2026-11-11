@@ -1440,12 +1440,10 @@ def _next_id(pred: Doc | None, spec: IdSpec) -> int:
     predecessor's text names; rule floors predate that seeding."""
     if pred is None:
         return 1
-    floor = _fm_int(pred, spec.floor_key) if pred.shape == 3 else None
-    ids = (
-        [n for n, _, _ in _id_entries(pred, spec) if n is not None]
-        if pred.shape == 3
-        else []
-    )
+    floor, ids = None, []
+    if pred.shape == 3:
+        floor = _fm_int(pred, spec.floor_key)
+        ids = [n for n, _, _ in _id_entries(pred, spec) if n is not None]
     if floor is None and spec is not RULES:
         text = "\n".join(pred.lines)
         ids += [int(n) for n in re.findall(rf"\b{spec.prefix}(\d+)\b", text)]
@@ -1475,18 +1473,14 @@ def _amendment_spans(
     return [(a, b) for a, b in spans], plain
 
 
-def _amendment_units(lines: list[str]) -> tuple[list[tuple[str, ...]], list[str]]:
-    spans, plain = _amendment_spans(lines)
-    return [tuple(lines[a:b]) for a, b in spans], plain
-
-
 def _entry_units(doc: Doc, title: str) -> tuple[list[tuple[str, ...]], list[str]]:
     """The retirable units of a RETIRED_ENTRY_SECTIONS section and its other
     non-blank lines: amendment units for Original goal, one unit per line for
     Direction changes."""
     lines = doc.section(title) or []
     if title == "Original goal":
-        return _amendment_units(lines)
+        spans, plain = _amendment_spans(lines)
+        return [tuple(lines[a:b]) for a, b in spans], plain
     return [(line,) for line in lines if line.strip()], []
 
 
@@ -2115,10 +2109,12 @@ def _print_verdict(doc: Doc, findings: Findings, code: int) -> None:
         print(f"{level}: {message}")
     if code == 3:
         label = "UNSUPPORTED-SHAPE"
+    elif code != 0:
+        label = "FAIL"
+    elif findings.unvalidated:
+        label = "UNVALIDATED"
     else:
-        label = "FAIL" if code != 0 else ("WARN" if findings.items else "PASS")
-        if code == 0 and findings.unvalidated:
-            label = "UNVALIDATED"
+        label = "WARN" if findings.items else "PASS"
     count = f" ({len(findings.items)})" if findings.items else ""
     print(f"validate: {label}{count} {_posix(doc.path)}")
 
@@ -2147,11 +2143,18 @@ def cmd_emit(args: argparse.Namespace) -> int:
     if doc.shape == 3:
         # The prompt is never withheld (save-point.md, "Three failed attempts
         # do not withhold the rails"); the notice says validate fails it.
+        # An UNVALIDATED verdict is always under the Read cap, so only a FAIL
+        # needs the size read.
         verdict = _size_finding(doc, "this hop's file")
-        over_read = _cap_state(doc)[0] > READ_CAP_BYTES
-        if verdict and (verdict[0] == "UNVALIDATED" or over_read):
+        if verdict and (
+            verdict[0] == "UNVALIDATED" or _cap_state(doc)[0] > READ_CAP_BYTES
+        ):
             level, message = verdict
-            tail = "`validate` fails it" if over_read else "the file was not validated"
+            tail = (
+                "the file was not validated"
+                if level == "UNVALIDATED"
+                else "`validate` fails it"
+            )
             print(f"{level}: {message}; {tail}; the prompt is emitted", file=sys.stderr)
     real = _posix(path)
     out: list[str] = []
@@ -2262,9 +2265,9 @@ def _apply_retire(
             del out[a]
     term = (_line_parts(out[0])[1] if out else "") or "\n"
     review = "Review before you continue"
+    name = rel.rsplit("/", 1)[-1]
     for heading in listings:
         doc = _content_doc(out)
-        name = rel.rsplit("/", 1)[-1]
         if any(name in line and heading in line for line in doc.section(review) or []):
             continue
         end = _section_end(doc, review)
@@ -2332,19 +2335,19 @@ def cmd_fill(args: argparse.Namespace) -> int:
     slot line, which is the only shape `validate` accepts as closed.
 
     The write path reuses neither `_read_lines` nor `parse_doc`: both apply
-    universal-newline translation and would rewrite a CRLF target to LF.
-    `parse_doc` serves the `type: handoff` and shape guards alone, read-only,
-    mirroring `cmd_validate` and `cmd_emit`. Every refusal happens before the
-    write, so a refused target is byte-identical.
+    universal-newline translation and would rewrite a CRLF target to LF. A
+    translated copy of the same bytes serves the `type: handoff` and shape
+    guards alone, read-only, mirroring `cmd_validate` and `cmd_emit`. Every
+    refusal happens before the write, so a refused target is byte-identical.
     """
     path = Path(args.file)
     if not path.is_file():
         return _die(2, f"not a file: {path}")
     try:
         text = path.read_bytes().decode("utf-8")
-        doc = parse_doc(path)
     except (OSError, UnicodeDecodeError) as exc:
         return _die(2, f"cannot read {path}: {exc}")
+    doc = _doc_from_lines(path, _text_lines(text))
     if not doc.has_frontmatter or doc.frontmatter.get("type") != "handoff":
         return _die(2, f"not a handoff file (no 'type: handoff' frontmatter): {path}")
     # `validate_doc`'s shape ladder, in its order and for its reason: a newer

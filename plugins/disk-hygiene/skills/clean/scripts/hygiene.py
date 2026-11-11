@@ -1720,14 +1720,10 @@ def entry_reclaimable_local_bytes(entry: dict[str, Any]) -> int | None:
     Hard links are excluded entirely: deleting one name does not free the
     shared object, and counting every name would double-count.
     """
-    if entry.get("kind") != "file":
-        return None
-    if entry.get("size_qualifiers"):
+    if entry.get("kind") != "file" or entry.get("size_qualifiers"):
         return None
     size = entry.get("logical_size")
-    if not isinstance(size, int):
-        return None
-    return size
+    return size if isinstance(size, int) else None
 
 
 def reclaimable_local_bytes(entries: list[dict[str, Any]]) -> int:
@@ -1892,7 +1888,7 @@ def accumulate_child_rollup(
             "logical_size": entry.get("logical_size"),
         }
     else:
-        bucket["descendants"] = bucket["descendants"] + 1
+        bucket["descendants"] += 1
     mtime = entry.get("mtime_ns")
     if isinstance(mtime, int):
         newest = bucket["newest"]
@@ -1900,7 +1896,7 @@ def accumulate_child_rollup(
     bucket["qualifiers"].update(entry.get("size_qualifiers") or ())
     local = entry_reclaimable_local_bytes(entry)
     if local is not None:
-        bucket["reclaimable"] = bucket["reclaimable"] + local
+        bucket["reclaimable"] += local
 
 
 def child_rollup_rows(
@@ -1955,16 +1951,12 @@ def inventory_parent_paths(paths: Iterable[str]) -> set[str]:
     """
     parents: set[str] = set()
     for path in paths:
-        if not isinstance(path, str) or "/" not in path:
+        if not isinstance(path, str):
             continue
-        parent = path.rsplit("/", 1)[0]
-        while parent:
-            if parent in parents:
-                break
+        parent = path.rpartition("/")[0]
+        while parent and parent not in parents:
             parents.add(parent)
-            if "/" not in parent:
-                break
-            parent = parent.rsplit("/", 1)[0]
+            parent = parent.rpartition("/")[0]
     return parents
 
 
@@ -2057,18 +2049,15 @@ def windows_storage_sense_state() -> dict[str, Any]:
     }
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as key:
-            for name, field in (
-                ("01", "enabled"),
-                ("04", "temporary_files_cleanup"),
+            for name, field, convert in (
+                ("01", "enabled", bool),
+                ("04", "temporary_files_cleanup", bool),
+                ("2048", "cadence_days", int),
             ):
                 try:
-                    state[field] = bool(winreg.QueryValueEx(key, name)[0])
+                    state[field] = convert(winreg.QueryValueEx(key, name)[0])
                 except OSError:
                     pass
-            try:
-                state["cadence_days"] = int(winreg.QueryValueEx(key, "2048")[0])
-            except OSError:
-                pass
     except OSError:
         pass
     return state
@@ -2122,7 +2111,8 @@ def format_gib(value: int) -> str:
 
 
 def storage_sense_state_text(state: dict[str, Any]) -> str:
-    enabled = {True: "on", False: "off"}.get(state["enabled"], "not detected")
+    on_off = {True: "on", False: "off"}
+    enabled = on_off.get(state["enabled"], "not detected")
     cadence = state["cadence_days"]
     if cadence is None:
         schedule = "schedule not detected"
@@ -2132,9 +2122,7 @@ def storage_sense_state_text(state: dict[str, Any]) -> str:
         schedule = "runs every day"
     else:
         schedule = f"runs every {cadence} days"
-    scope = {True: "on", False: "off"}.get(
-        state["temporary_files_cleanup"], "not detected"
-    )
+    scope = on_off.get(state["temporary_files_cleanup"], "not detected")
     return (
         f"Storage Sense detected: {enabled}, {schedule}, "
         f"temporary-files cleanup {scope}."
@@ -2328,58 +2316,22 @@ def volume_root_os_owned_names(
     """Basenames the volume-root guard treats as OS-owned at a drive/FS root."""
     current = platform_key or os_key()
     if current == "windows":
-        return {
-            name.casefold()
-            for name in (
-                WINDOWS_VOLUME_SYSTEM_NAMES
-                | WINDOWS_OS_ROOT_EXTRA_NAMES
-                | {root.name for root in _windows_env_roots()}
-            )
-        }
-    if current == "macos":
-        return {
-            name.casefold()
-            for name in (
-                "System",
-                "Library",
-                "Applications",
-                "private",
-                "Volumes",
-                "cores",
-                "usr",
-                "bin",
-                "sbin",
-                "etc",
-                "dev",
-                "tmp",
-                "var",
-            )
-        }
-    return {
-        name.casefold()
-        for name in (
-            "bin",
-            "boot",
-            "dev",
-            "etc",
-            "home",
-            "lib",
-            "lib64",
-            "lost+found",
-            "media",
-            "mnt",
-            "opt",
-            "proc",
-            "root",
-            "run",
-            "sbin",
-            "srv",
-            "sys",
-            "tmp",
-            "usr",
-            "var",
+        names: Iterable[str] = (
+            WINDOWS_VOLUME_SYSTEM_NAMES
+            | WINDOWS_OS_ROOT_EXTRA_NAMES
+            | {root.name for root in _windows_env_roots()}
         )
-    }
+    elif current == "macos":
+        names = (
+            "System Library Applications private Volumes cores"
+            " usr bin sbin etc dev tmp var"
+        ).split()
+    else:
+        names = (
+            "bin boot dev etc home lib lib64 lost+found media mnt opt proc"
+            " root run sbin srv sys tmp usr var"
+        ).split()
+    return {name.casefold() for name in names}
 
 
 def volume_root_os_owned_file_name_matches(
@@ -2393,15 +2345,14 @@ def volume_root_os_owned_file_name_matches(
         return folded in WINDOWS_OS_ROOT_FILE_NAMES
     if current == "macos":
         return folded in MACOS_OS_ROOT_FILE_NAMES
-    if folded in LINUX_OS_ROOT_FILE_NAMES:
-        return True
-    return any(fnmatch.fnmatch(folded, pattern) for pattern in LINUX_OS_ROOT_FILE_GLOBS)
+    return folded in LINUX_OS_ROOT_FILE_NAMES or any(
+        fnmatch.fnmatch(folded, pattern) for pattern in LINUX_OS_ROOT_FILE_GLOBS
+    )
 
 
 def volume_root_home_container_name(platform_key: str | None = None) -> str:
     """The volume-root directory that holds user homes on this platform."""
-    current = platform_key or os_key()
-    return "home" if current == "linux" else "Users"
+    return "home" if (platform_key or os_key()) == "linux" else "Users"
 
 
 def root_child_listing_fields(info: os.stat_result | None) -> dict[str, Any]:
@@ -2428,12 +2379,11 @@ def root_children_skipped_reason_counts(
     skipped: list[dict[str, Any]],
 ) -> dict[str, int]:
     """Stdout grouping of withheld root children, reason → count."""
-    counts: dict[str, int] = {}
-    for item in skipped:
-        reason = item.get("reason")
-        if not isinstance(reason, str) or not reason:
-            continue
-        counts[reason] = counts.get(reason, 0) + 1
+    counts = Counter(
+        reason
+        for item in skipped
+        if isinstance(reason := item.get("reason"), str) and reason
+    )
     return dict(sorted(counts.items()))
 
 
@@ -2596,8 +2546,7 @@ def root_child_names_case_sensitive(platform_key: str | None = None) -> bool:
     (or both). Windows and macOS volume roots are case-insensitive, so casefold
     matching remains the operator-friendly path there.
     """
-    current = platform_key or os_key()
-    return current == "linux"
+    return (platform_key or os_key()) == "linux"
 
 
 def normalize_root_child_selection(
@@ -2646,12 +2595,10 @@ def normalize_root_child_selection(
                 f"--root-child {raw!r} is not an admitted immediate child "
                 "of the scan target"
             )
-        canonical = by_name[key]
-        seen_key = canonical if sensitive else canonical.casefold()
-        if seen_key in seen:
+        if key in seen:
             continue
-        seen.add(seen_key)
-        resolved.append(canonical)
+        seen.add(key)
+        resolved.append(by_name[key])
     return resolved
 
 
@@ -2736,20 +2683,15 @@ def scan_tree(
                     data = metadata(path, kind)
                 elif child.is_dir(follow_symlinks=False):
                     kind = "directory"
-                    walked = True
                     # Stat before any read of the directory: listing it can move
                     # its atime, which an atime-basis rule must not see.
                     info = path.lstat()
+                    subtotal: int | None = 0
+                    cut: str | None = None
                     if not sizes_only and path.name.casefold() in VCS_NAMES:
-                        subtotal: int | None = None
-                        walked = False
-                        truncated.append(relative)
-                        unwalked_reasons[relative] = "vcs-boundary"
+                        cut = "vcs-boundary"
                     elif not sizes_only and protections:
-                        subtotal = None
-                        walked = False
-                        truncated.append(relative)
-                        unwalked_reasons[relative] = "protected"
+                        cut = "protected"
                     elif max_depth is not None and depth >= max_depth:
                         # A depth cut is the one truncation reason emptiness can
                         # answer. One cheap first-child probe (no recursion, no
@@ -2766,21 +2708,21 @@ def scan_tree(
                         # protected or VCS directory must still land in
                         # truncated.
                         if directory_has_child(path):
-                            subtotal = None
-                            walked = False
-                            truncated.append(relative)
-                            unwalked_reasons[relative] = "depth-cut"
-                        else:
-                            subtotal = 0
+                            cut = "depth-cut"
                     else:
                         before = inventoried
                         subtotal = visit(path, depth + 1)
                         descendants = inventoried - before
                         if subtotal is None:
                             # scandir failed inside this child: unknown, not empty.
-                            walked = False
                             unwalked_reasons[relative] = "scan-error"
-                    data = metadata(path, kind, subtotal, walked=walked, info=info)
+                    if cut is not None:
+                        subtotal = None
+                        truncated.append(relative)
+                        unwalked_reasons[relative] = cut
+                    data = metadata(
+                        path, kind, subtotal, walked=subtotal is not None, info=info
+                    )
                     # Truncated children contribute unknown, not zero: adding
                     # null as 0 was what made a truncated subtree look empty.
                     if subtotal is not None:
@@ -2850,20 +2792,16 @@ def scan_tree(
         total_size = 0
         truncated.append(".")
     repositories = sorted(set(repositories))
+    error_paths = {
+        item["path"]
+        for item in errors
+        if isinstance(item, dict) and isinstance(item.get("path"), str)
+    }
     stdlib_shadowing: list[dict[str, Any]] = []
     review_ranking: dict[str, Any] | None = None
     if not sizes_only:
         annotate_tracked(entries, target, repositories, truncated, repo_errors)
-        apply_rules(
-            entries,
-            policy.get("rules", []),
-            set(truncated)
-            | {
-                item["path"]
-                for item in errors
-                if isinstance(item, dict) and isinstance(item.get("path"), str)
-            },
-        )
+        apply_rules(entries, policy.get("rules", []), set(truncated) | error_paths)
         apply_in_flight_refs(entries, target, in_flight_refs or [])
         stdlib_shadowing = annotate_stdlib_shadowing(entries, target)
         # Last, after rules and in-flight refs have ticked or unticked: the
@@ -2877,11 +2815,6 @@ def scan_tree(
         target_identity["size_qualifiers"] = sorted(
             set(target_identity["size_qualifiers"] + ["not-walked"])
         )
-    error_paths = {
-        item["path"]
-        for item in errors
-        if isinstance(item, dict) and isinstance(item.get("path"), str)
-    }
     # Everything the walk could not fully account for, from all three places it
     # can be recorded: an explicit truncation, a scan error (which never adds a
     # truncation and can leave no entry at all), and a `not-walked` record.
@@ -3228,21 +3161,21 @@ def validate_plan(
     candidates = plan.get("candidates")
     if not isinstance(candidates, list) or not candidates:
         raise HygieneError("plan candidates must be a non-empty array")
+    required = {
+        "path",
+        "tier",
+        "provenance",
+        "reason",
+        "evidence",
+        "why_not_work_product",
+        "risk",
+        "owner",
+    }
     normalized: list[dict[str, Any]] = []
     seen: list[PurePosixPath] = []
     for candidate in candidates:
         if not isinstance(candidate, dict):
             raise HygieneError("each candidate must be an object")
-        required = {
-            "path",
-            "tier",
-            "provenance",
-            "reason",
-            "evidence",
-            "why_not_work_product",
-            "risk",
-            "owner",
-        }
         if not required.issubset(candidate):
             raise HygieneError(
                 f"candidate is missing: {', '.join(sorted(required - set(candidate)))}"
@@ -3260,20 +3193,15 @@ def validate_plan(
         if overlaps_accepted_path(pure, seen):
             raise HygieneError(f"candidate paths overlap: {relative}")
         seen.append(pure)
-        if (
-            not isinstance(candidate["provenance"], str)
-            or not candidate["provenance"].strip()
+        for field, needs in (
+            ("provenance", "provenance"),
+            ("reason", "a reason"),
+            ("why_not_work_product", "work-product analysis"),
+            ("risk", "a risk assessment"),
         ):
-            raise HygieneError(f"candidate needs provenance: {relative}")
-        if not isinstance(candidate["reason"], str) or not candidate["reason"].strip():
-            raise HygieneError(f"candidate needs a reason: {relative}")
-        if (
-            not isinstance(candidate["why_not_work_product"], str)
-            or not candidate["why_not_work_product"].strip()
-        ):
-            raise HygieneError(f"candidate needs work-product analysis: {relative}")
-        if not isinstance(candidate["risk"], str) or not candidate["risk"].strip():
-            raise HygieneError(f"candidate needs a risk assessment: {relative}")
+            value = candidate[field]
+            if not isinstance(value, str) or not value.strip():
+                raise HygieneError(f"candidate needs {needs}: {relative}")
         if (
             not isinstance(candidate["evidence"], list)
             or not candidate["evidence"]
@@ -3555,11 +3483,7 @@ def same_open_object(left: os.stat_result, right: os.stat_result) -> bool:
 
 def same_removal_identity(path: Path, entry: dict[str, Any]) -> bool:
     """Allow expected directory metadata churn while preserving object identity."""
-    try:
-        info = path.lstat()
-    except OSError:
-        return False
-    return same_stat_identity(info, entry)
+    return same_identity(path, entry)
 
 
 def marker_exists(path: Path, errors: list[str]) -> bool:
@@ -3581,8 +3505,7 @@ def discover_current_repositories(
     errors: list[str] = []
     current = candidate if candidate.is_dir() else candidate.parent
     while True:
-        git_marker = current / ".git"
-        if marker_exists(git_marker, errors):
+        if marker_exists(current / ".git", errors):
             marker_roots.add(current)
         if any(marker_exists(current / name, errors) for name in (".hg", ".svn")):
             errors.append(f"{current}: non-Git VCS state is not independently verified")
@@ -3754,6 +3677,9 @@ def verify_github_remote_head(
     return confirmed, detail
 
 
+GIT_SHA_RE = re.compile(r"[0-9a-fA-F]{40,64}")
+
+
 def local_head_shas(repo: Path) -> tuple[list[dict[str, str]], str | None]:
     """Return every local branch head, plus a detached HEAD when present."""
     branches = run_git(
@@ -3767,7 +3693,7 @@ def local_head_shas(repo: Path) -> tuple[list[dict[str, str]], str | None]:
             name, sha = line.split("\t", 1)
         except ValueError:
             return [], "local-heads-unverified"
-        if not re.fullmatch(r"[0-9a-fA-F]{40,64}", sha):
+        if not GIT_SHA_RE.fullmatch(sha):
             return [], "local-heads-unverified"
         heads.append({"name": name, "sha": sha.casefold()})
     symbolic = run_git(repo, "symbolic-ref", "-q", "HEAD")
@@ -3776,7 +3702,7 @@ def local_head_shas(repo: Path) -> tuple[list[dict[str, str]], str | None]:
     if symbolic.returncode == 1:
         detached = run_git(repo, "rev-parse", "--verify", "HEAD^{commit}")
         sha = detached.stdout.strip()
-        if detached.returncode != 0 or not re.fullmatch(r"[0-9a-fA-F]{40,64}", sha):
+        if detached.returncode != 0 or not GIT_SHA_RE.fullmatch(sha):
             return [], "local-heads-unverified"
         heads.append({"name": "HEAD", "sha": sha.casefold()})
     unique = {(item["name"], item["sha"]): item for item in heads}
@@ -3788,7 +3714,7 @@ def stash_shas(repo: Path) -> tuple[list[str], str | None]:
     if stashes.returncode != 0:
         return [], "stashes-unverified"
     result = [value.casefold() for value in stashes.stdout.splitlines() if value]
-    if not all(re.fullmatch(r"[0-9a-fA-F]{40,64}", value) for value in result):
+    if not all(GIT_SHA_RE.fullmatch(value) for value in result):
         return [], "stashes-unverified"
     return result, None
 
@@ -4088,11 +4014,12 @@ def execution_blockers() -> list[str]:
     if os_key() != "linux":
         return [PLATFORM_BLOCKER]
     required = (os.open, os.stat, os.unlink, os.rmdir)
-    if not all(function in os.supports_dir_fd for function in required):
-        return ["dirfd-anchoring-unavailable"]
-    if os.scandir not in os.supports_fd:
-        return ["dirfd-anchoring-unavailable"]
-    if not hasattr(os, "O_DIRECTORY") or not hasattr(os, "O_NOFOLLOW"):
+    if (
+        not all(function in os.supports_dir_fd for function in required)
+        or os.scandir not in os.supports_fd
+        or not hasattr(os, "O_DIRECTORY")
+        or not hasattr(os, "O_NOFOLLOW")
+    ):
         return ["dirfd-anchoring-unavailable"]
     _, error = linux_mount_points()
     return ["mount-state-unverified"] if error else []
@@ -4180,9 +4107,13 @@ def candidate_handle_state(
     return "clear", None
 
 
-def snapshot_digest(snapshot: dict[str, Any]) -> str:
-    canonical = json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode()
+def canonical_sha256(value: Any) -> str:
+    canonical = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(canonical).hexdigest()
+
+
+def snapshot_digest(snapshot: dict[str, Any]) -> str:
+    return canonical_sha256(snapshot)
 
 
 def approval_token(snapshot: dict[str, Any], plan: dict[str, Any]) -> str:
@@ -4192,9 +4123,7 @@ def approval_token(snapshot: dict[str, Any], plan: dict[str, Any]) -> str:
         "tier": plan.get("tier"),
         "candidates": plan.get("candidates"),
     }
-    return hashlib.sha256(
-        json.dumps(material, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()[:24]
+    return canonical_sha256(material)[:24]
 
 
 def resolve_snapshot_target(snapshot: dict[str, Any]) -> tuple[Path, set[Path]]:
@@ -4259,14 +4188,18 @@ def resolve_snapshot_target(snapshot: dict[str, Any]) -> tuple[Path, set[Path]]:
     return target, known_mounts
 
 
+def snapshot_truncated_paths(snapshot: dict[str, Any]) -> set[str]:
+    return {
+        value for value in snapshot.get("truncated_paths", []) if isinstance(value, str)
+    }
+
+
 def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
     baseline_exact_names = baseline_protected_names()
     target, known_mounts = resolve_snapshot_target(snapshot)
     entries = entry_map(snapshot)
     candidates = validate_plan(plan, entries)
-    truncated_paths = {
-        value for value in snapshot.get("truncated_paths", []) if isinstance(value, str)
-    }
+    truncated_paths = snapshot_truncated_paths(snapshot)
     exact_names = baseline_exact_names | set(
         snapshot.get("policy", {}).get("protected_exact_names", [])
     )
@@ -4411,7 +4344,7 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
         outcome = "manual-handoff-lane"
     else:
         outcome = "blocked"
-    payload = {
+    return {
         "status": "blocked" if blocked else "ready-for-explicit-approval",
         "outcome": outcome,
         "tier": plan["tier"],
@@ -4429,7 +4362,6 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             "snapshot. Re-preview after any change."
         ),
     }
-    return payload
 
 
 def removal_sort_key(relative: str) -> tuple[int, str]:
@@ -4493,6 +4425,18 @@ def emptied_container_order(
     return ordered
 
 
+def lstat_failure_verdict(relative: str, exc: OSError) -> dict[str, Any]:
+    """The verdict for a path whose ``lstat`` raised ``exc``."""
+    if isinstance(exc, FileNotFoundError):
+        return {"path": relative, "verdict": "gone", "reasons": ["no-longer-present"]}
+    reason = (
+        "needs-elevation"
+        if isinstance(exc, PermissionError)
+        else "filesystem-state-unverified"
+    )
+    return {"path": relative, "verdict": "contested", "reasons": [reason]}
+
+
 def verify_emptied_container(
     target: Path,
     relative: str,
@@ -4515,20 +4459,8 @@ def verify_emptied_container(
     contested: set[str] = set()
     try:
         info = path.lstat()
-    except FileNotFoundError:
-        return {"path": relative, "verdict": "gone", "reasons": ["no-longer-present"]}
-    except PermissionError:
-        return {
-            "path": relative,
-            "verdict": "contested",
-            "reasons": ["needs-elevation"],
-        }
-    except OSError:
-        return {
-            "path": relative,
-            "verdict": "contested",
-            "reasons": ["filesystem-state-unverified"],
-        }
+    except OSError as exc:
+        return lstat_failure_verdict(relative, exc)
     # Object identity, not stat identity: a directory's mtime and size change
     # every time a child is added or removed, and removing this container's
     # children is the whole premise. same_stat_identity would report the
@@ -4590,6 +4522,16 @@ def verify_emptied_container(
     }
 
 
+def failed_vcs_evidence(blocker: str, **extra: str) -> dict[str, Any]:
+    """A failed VCS-evidence result: every gate failed, for one ``blocker``."""
+    return {
+        "status": "failed",
+        "gates": {name: {"status": "failed"} for name in VCS_EVIDENCE_GATE_NAMES},
+        "blockers": [blocker],
+        **extra,
+    }
+
+
 def handoff_verify(
     snapshot: dict[str, Any],
     approved: list[str],
@@ -4608,9 +4550,7 @@ def handoff_verify(
     exact_names = baseline_protected_names() | set(
         snapshot.get("policy", {}).get("protected_exact_names", [])
     )
-    truncated_paths = {
-        value for value in snapshot.get("truncated_paths", []) if isinstance(value, str)
-    }
+    truncated_paths = snapshot_truncated_paths(snapshot)
     globs = snapshot_protection_globs(snapshot)
     verdicts: list[dict[str, Any]] = []
     containers: list[dict[str, Any]] = []
@@ -4638,32 +4578,8 @@ def handoff_verify(
             }
             try:
                 path.lstat()
-            except FileNotFoundError:
-                verdicts.append(
-                    {
-                        "path": relative,
-                        "verdict": "gone",
-                        "reasons": ["no-longer-present"],
-                    }
-                )
-                continue
-            except PermissionError:
-                verdicts.append(
-                    {
-                        "path": relative,
-                        "verdict": "contested",
-                        "reasons": ["needs-elevation"],
-                    }
-                )
-                continue
-            except OSError:
-                verdicts.append(
-                    {
-                        "path": relative,
-                        "verdict": "contested",
-                        "reasons": ["filesystem-state-unverified"],
-                    }
-                )
+            except OSError as exc:
+                verdicts.append(lstat_failure_verdict(relative, exc))
                 continue
             candidate_protections = hard_protection(
                 path, target, exact_names, known_mounts
@@ -4706,34 +4622,24 @@ def handoff_verify(
                 except (OSError, HygieneError):
                     current_paths = expected_paths
                     contested.add("filesystem-state-unverified")
-            if candidate_evidence and evidence_inventory_eligible:
-                try:
-                    evidence_result = verify_vcs_checkout_evidence(
-                        target,
-                        path,
-                        current_paths,
-                        candidate_evidence,
-                        approved,
+            if candidate_evidence:
+                if evidence_inventory_eligible:
+                    try:
+                        evidence_result = verify_vcs_checkout_evidence(
+                            target,
+                            path,
+                            current_paths,
+                            candidate_evidence,
+                            approved,
+                        )
+                    except (OSError, subprocess.SubprocessError, HygieneError) as exc:
+                        evidence_result = failed_vcs_evidence(
+                            "vcs-evidence-state-unverified", error=str(exc)
+                        )
+                else:
+                    evidence_result = failed_vcs_evidence(
+                        "vcs-evidence-non-git-truncation"
                     )
-                except (OSError, subprocess.SubprocessError, HygieneError) as exc:
-                    evidence_result = {
-                        "status": "failed",
-                        "gates": {
-                            name: {"status": "failed"}
-                            for name in VCS_EVIDENCE_GATE_NAMES
-                        },
-                        "blockers": ["vcs-evidence-state-unverified"],
-                        "error": str(exc),
-                    }
-                contested.update(evidence_result["blockers"])
-            elif candidate_evidence:
-                evidence_result = {
-                    "status": "failed",
-                    "gates": {
-                        name: {"status": "failed"} for name in VCS_EVIDENCE_GATE_NAMES
-                    },
-                    "blockers": ["vcs-evidence-non-git-truncation"],
-                }
                 contested.update(evidence_result["blockers"])
             evidence_verified = (
                 evidence_result is not None and evidence_result["status"] == "verified"
@@ -5058,6 +4964,40 @@ def anchored_remove(
         os.close(parent_fd)
 
 
+def protected_skip(
+    path: str, detail: str, matches: Iterable[dict[str, str]] = ()
+) -> dict[str, Any]:
+    """A ``protected`` skip record, with ``protection_matches`` when any matched."""
+    return {
+        "path": path,
+        "outcome": "protected",
+        "detail": detail,
+        **protection_matches_field(matches),
+    }
+
+
+def handle_state_skip(relative: str, path: Path) -> dict[str, str] | None:
+    """The skip record for a path whose handle state is not ``clear``, or None."""
+    state, detail = handle_state(path)
+    if state == "clear":
+        return None
+    outcome = {"open": "locked", "needs_elevation": "needs-elevation"}.get(
+        state, "handle-state-unverified"
+    )
+    return {"path": relative, "outcome": outcome, "detail": detail or ""}
+
+
+def removal_failure_skip(relative: str, exc: HygieneError | OSError) -> dict[str, str]:
+    """The skip record for an ``anchored_remove`` call that raised ``exc``."""
+    if isinstance(exc, HygieneError):
+        outcome = "changed-or-link"
+    elif isinstance(exc, PermissionError):
+        outcome = "needs-elevation"
+    else:
+        outcome = "delete-failed"
+    return {"path": relative, "outcome": outcome, "detail": str(exc)}
+
+
 def apply_nothing_removed_report(
     plan: dict[str, Any], target: Path, skipped: list[dict[str, Any]]
 ) -> dict[str, Any]:
@@ -5082,17 +5022,11 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
     candidates = validate_plan(plan, entries)
     platform_blockers = execution_blockers()
     if platform_blockers:
+        detail = ", ".join(platform_blockers)
         return apply_nothing_removed_report(
             plan,
             target,
-            [
-                {
-                    "path": item["path"],
-                    "outcome": "protected",
-                    "detail": ", ".join(platform_blockers),
-                }
-                for item in candidates
-            ],
+            [protected_skip(item["path"], detail) for item in candidates],
         )
     checked = preview(snapshot, plan)
     if checked["status"] != "ready-for-explicit-approval":
@@ -5101,14 +5035,11 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
             plan,
             target,
             [
-                {
-                    "path": item["path"],
-                    "outcome": "protected",
-                    "detail": ", ".join(by_path[item["path"]]["blockers"]),
-                    **protection_matches_field(
-                        by_path[item["path"]].get("protection_matches", [])
-                    ),
-                }
+                protected_skip(
+                    item["path"],
+                    ", ".join(by_path[item["path"]]["blockers"]),
+                    by_path[item["path"]].get("protection_matches", []),
+                )
                 for item in candidates
             ],
         )
@@ -5143,11 +5074,9 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
             candidate_blockers.append(vcs)
         if candidate_blockers:
             skipped.append(
-                {
-                    "path": candidate["path"],
-                    "outcome": "protected",
-                    "detail": ", ".join(sorted(set(candidate_blockers))),
-                }
+                protected_skip(
+                    candidate["path"], ", ".join(sorted(set(candidate_blockers)))
+                )
             )
             continue
         for relative in selected:
@@ -5158,13 +5087,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                 continue
             fresh_mounts, fresh_mount_error = linux_mount_points()
             if fresh_mount_error:
-                skipped.append(
-                    {
-                        "path": relative,
-                        "outcome": "protected",
-                        "detail": "mount-state-unverified",
-                    }
-                )
+                skipped.append(protected_skip(relative, "mount-state-unverified"))
                 continue
             fresh_protections = hard_protection(
                 path,
@@ -5180,39 +5103,21 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                 fresh_protections.append(fresh_vcs)
             if fresh_protections:
                 skipped.append(
-                    {
-                        "path": relative,
-                        "outcome": "protected",
-                        "detail": ", ".join(sorted(set(fresh_protections))),
-                        **protection_matches_field(consumer_matches),
-                    }
+                    protected_skip(
+                        relative,
+                        ", ".join(sorted(set(fresh_protections))),
+                        consumer_matches,
+                    )
                 )
                 continue
-            state, detail = handle_state(path)
-            if state != "clear":
-                outcome = {"open": "locked", "needs_elevation": "needs-elevation"}.get(
-                    state, "handle-state-unverified"
-                )
-                skipped.append(
-                    {"path": relative, "outcome": outcome, "detail": detail or ""}
-                )
+            handle_skip = handle_state_skip(relative, path)
+            if handle_skip:
+                skipped.append(handle_skip)
                 continue
             try:
                 anchored_remove(target_fd, relative, entry, entries, target)
-            except HygieneError as exc:
-                skipped.append(
-                    {"path": relative, "outcome": "changed-or-link", "detail": str(exc)}
-                )
-                continue
-            except PermissionError as exc:
-                skipped.append(
-                    {"path": relative, "outcome": "needs-elevation", "detail": str(exc)}
-                )
-                continue
-            except OSError as exc:
-                skipped.append(
-                    {"path": relative, "outcome": "delete-failed", "detail": str(exc)}
-                )
+            except (HygieneError, OSError) as exc:
+                skipped.append(removal_failure_skip(relative, exc))
                 continue
             logical = entry_logical_file_bytes(entry)
             reclaimable = entry_reclaimable_local_bytes(entry) or 0
@@ -5737,10 +5642,7 @@ def handoff_apply(
             removal,
             [],
             [],
-            [
-                {"path": relative, "outcome": "protected", "detail": detail}
-                for relative in approved
-            ],
+            [protected_skip(relative, detail) for relative in approved],
         )
     before = shutil.disk_usage(target).free
     verdicts: list[dict[str, Any]] = []
@@ -5755,7 +5657,7 @@ def handoff_apply(
 
     def stop(index: int, reason: str) -> None:
         skipped.extend(
-            {"path": name, "outcome": "protected", "detail": f"batch stopped: {reason}"}
+            protected_skip(name, f"batch stopped: {reason}")
             for name in approved[index:]
         )
 
@@ -5773,11 +5675,7 @@ def handoff_apply(
                 if verdict["verdict"] != "clear":
                     reasons = ", ".join(verdict["reasons"])
                     skipped.append(
-                        {
-                            "path": relative,
-                            "outcome": "protected",
-                            "detail": f"{verdict['verdict']}: {reasons}",
-                        }
+                        protected_skip(relative, f"{verdict['verdict']}: {reasons}")
                     )
                     continue
                 if target_fd is None:
@@ -5840,8 +5738,7 @@ def recycle_handoff_path(
                 metadata / GIT_METADATA_NAME, target, globs, set()
             )
             if blocker:
-                skip = {"path": relative, "outcome": "protected", "detail": blocker}
-                return [], [skip], False
+                return [], [protected_skip(relative, blocker)], False
     recycled = windows_recycle(target.joinpath(*PurePosixPath(relative).parts))
     if recycled["outcome"] not in {"recycled", "removed"}:
         outcome = (
@@ -5905,7 +5802,7 @@ def unlink_handoff_path(
             repository_paths,
             exact_names,
         )
-        if consumer_protection_matches(path, target, globs):
+        if consumer_protected(path):
             reasons.append("consumer-protected-path")
         # Git metadata holds no tracked content, and tracked_blocker cannot
         # answer for it: `git rev-parse --show-toplevel` fails inside `.git`.
@@ -5918,14 +5815,9 @@ def unlink_handoff_path(
                 reasons.append(vcs)
         return sorted(set(reasons))
 
-    removed: list[dict[str, Any]] = []
-    skipped: list[dict[str, str]] = []
     known_mounts, mount_error = linux_mount_points()
     if mount_error:
-        skipped.append(
-            {"path": relative, "outcome": "protected", "detail": "mount-state-unverified"}
-        )
-        return removed, skipped
+        return [], [protected_skip(relative, "mount-state-unverified")]
     candidate_blockers = path_blockers(
         target.joinpath(*PurePosixPath(relative).parts), known_mounts
     )
@@ -5937,14 +5829,9 @@ def unlink_handoff_path(
         if (blocker := opaque_contents_blocker(metadata, target, globs, known_mounts))
     ]
     if candidate_blockers:
-        skipped.append(
-            {
-                "path": relative,
-                "outcome": "protected",
-                "detail": ", ".join(candidate_blockers),
-            }
-        )
-        return removed, skipped
+        return [], [protected_skip(relative, ", ".join(candidate_blockers))]
+    removed: list[dict[str, Any]] = []
+    skipped: list[dict[str, str]] = []
     for name in removal_entries(relative, entries):
         entry = entries[name]
         path = target.joinpath(*PurePosixPath(name).parts)
@@ -5953,13 +5840,7 @@ def unlink_handoff_path(
             continue
         fresh_mounts, fresh_mount_error = linux_mount_points()
         if fresh_mount_error:
-            skipped.append(
-                {
-                    "path": name,
-                    "outcome": "protected",
-                    "detail": "mount-state-unverified",
-                }
-            )
+            skipped.append(protected_skip(name, "mount-state-unverified"))
             continue
         purge = entry["kind"] == "directory" and path in git_metadata
         fresh_blockers = path_blockers(path, fresh_mounts)
@@ -5969,20 +5850,11 @@ def unlink_handoff_path(
             )
             fresh_blockers = [contents_blocker] if contents_blocker else []
         if fresh_blockers:
-            skipped.append(
-                {
-                    "path": name,
-                    "outcome": "protected",
-                    "detail": ", ".join(fresh_blockers),
-                }
-            )
+            skipped.append(protected_skip(name, ", ".join(fresh_blockers)))
             continue
-        state, detail = handle_state(path)
-        if state != "clear":
-            outcome = {"open": "locked", "needs_elevation": "needs-elevation"}.get(
-                state, "handle-state-unverified"
-            )
-            skipped.append({"path": name, "outcome": outcome, "detail": detail or ""})
+        handle_skip = handle_state_skip(name, path)
+        if handle_skip:
+            skipped.append(handle_skip)
             continue
         try:
             anchored_remove(
@@ -5993,20 +5865,8 @@ def unlink_handoff_path(
                 target,
                 purge_protected=consumer_protected if purge else None,
             )
-        except HygieneError as exc:
-            skipped.append(
-                {"path": name, "outcome": "changed-or-link", "detail": str(exc)}
-            )
-            continue
-        except PermissionError as exc:
-            skipped.append(
-                {"path": name, "outcome": "needs-elevation", "detail": str(exc)}
-            )
-            continue
-        except OSError as exc:
-            skipped.append(
-                {"path": name, "outcome": "delete-failed", "detail": str(exc)}
-            )
+        except (HygieneError, OSError) as exc:
+            skipped.append(removal_failure_skip(name, exc))
             continue
         removed.append(
             {
@@ -6080,11 +5940,7 @@ def main(argv: list[str] | None = None) -> int:
         close_clean_runs()
         if args.command == "scan":
             target_input = Path(args.target).expanduser().absolute()
-            if (
-                not target_input.exists()
-                or not target_input.is_dir()
-                or has_linkish_component(target_input)
-            ):
+            if not target_input.is_dir() or has_linkish_component(target_input):
                 raise HygieneError(
                     "target must be an existing directory with no link or reparse-point component"
                 )
@@ -6101,7 +5957,7 @@ def main(argv: list[str] | None = None) -> int:
             volume_root = is_volume_root(target)
             if os_managed and not root_children_mode:
                 raise HygieneError("OS-managed roots are not valid audit targets")
-            if os_managed and root_children_mode and not volume_root:
+            if os_managed and not volume_root:
                 raise HygieneError(
                     "--root-children on an OS-managed target requires a volume-root target"
                 )
@@ -6172,10 +6028,9 @@ def main(argv: list[str] | None = None) -> int:
                     # A busy /tmp lists tens of thousands of entries; the file
                     # carries no snapshot schema, so preview refuses it.
                     write_json(output_path, listing)
-                    kinds: dict[str, int] = {}
-                    for item in admitted:
-                        kind = str(item.get("kind", "unknown"))
-                        kinds[kind] = kinds.get(kind, 0) + 1
+                    kinds = Counter(
+                        str(item.get("kind", "unknown")) for item in admitted
+                    )
                     summary = {
                         key: value
                         for key, value in listing.items()

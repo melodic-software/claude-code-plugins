@@ -68,7 +68,7 @@ same triggers. These stamps are probe results with a date, not standing facts.
   alone; when neither is, the zone is unknown.
 - **Evidence-degraded marker (fixed path, optional):**
   `~/.claude/context-guard/context/<session_id>.compacted`. Presence means the session was
-  compacted; treat it as evidence-degraded regardless of zone.
+  compacted. It is read beside the zone, which reports room only; it never changes the zone.
 - **Zone vocabulary:** `light` / `moderate` / `heavy` / `unknown`. `unknown` is the conservative
   word; consumers treat it as "assume degraded".
 
@@ -119,13 +119,14 @@ wrote, falls back to its own lookup over `context_window` and `zones.json` as th
 describes; the fields are additive, and a reader ignores keys it does not know.
 
 - `zone`: `light`, `moderate`, `heavy` or `unknown`, as the module resolved this body: the
-  combination rule over the bands below, and `heavy` once the session was compacted. It is as of
-  `captured_at`, so the staleness rule still applies: a stale file means `unknown`. A
-  `.compacted` marker still means degraded whatever this field says. For one release a reader
+  combination rule over the bands below. It reports room only: a compaction does not change it,
+  and `evidence_degraded` reports the compaction beside it. It is as of `captured_at`, so the
+  staleness rule still applies: a stale file means `unknown`. For one release a reader
   also accepts `smart`, `acceptable` and `dumb` as `light`, `moderate` and `heavy`: a session
   still running the earlier module writes them, with `bands` under the old key names
   (`smart_max_*`, `acceptable_max_*`).
-- `evidence_degraded`: `true` once the module saw a compaction or the marker for this session.
+- `evidence_degraded`: `true` once the module saw a compaction or the marker for this session,
+  whatever `zone` says.
 - `bands`: the edges in force after `zones.json`: `light_max_used_percentage` and
   `moderate_max_used_percentage` always; `light_max_tokens` and `moderate_max_tokens` for
   the session's window class, `null` when the token shape is not computable (see "Version
@@ -273,8 +274,8 @@ their best when we set it. Its `moderate` edge,
 500000, sits below 512K, the first MRCR length at which both Claude rows scored under one half.
 Between the two, scores sag without a measured cliff, so a reading there is `moderate`, not `heavy`: an
 `moderate` edge of 250000 read `heavy` at 26% of a 1M window on no evidence for current models
-or agentic work (#6644). The 200k row's `moderate` edge, 150000, sits at
-the top of the practitioner consensus of about 125-150K. `zones.json` is the correction path, and
+or agentic work (#6644). The 200k row's `moderate` edge, 150000, is a declared judgment
+default with no measured basis. `zones.json` is the correction path, and
 the numeric agreement of the 200k row's percentage translation with the shipped 50/75 percentage
 defaults is coincidence, not validation.
 
@@ -319,8 +320,9 @@ skill's module check), none of the following runs except the PostCompact marker.
   carries a session id. Beside the
   crossings the module sends one approach line per boundary per cycle (`approach_margin`
   percentage points before it), one line per `thresholds` entry passed, and the verdict restated
-  once, only when it is past `light`, after a compaction (not a `precompute` one), after an
-  in-process resume, and on a reload or a worker respawn (a load with earlier turns). Each line
+  once after an in-process resume and on a reload or a worker respawn (a load with earlier
+  turns), only when it is past `light`; once after a compaction (not a `precompute` one), and on
+  any of those loads when the session has the marker, at any zone. Each line
   sent is also written as sent to the debug log. Lines due
   at one carrier: a crossing or restatement recorded before a pending restatement merges into it;
   a crossing recorded after it is the newer verdict and replaces it. After
@@ -377,11 +379,10 @@ skill's module check), none of the following runs except the PostCompact marker.
 - **No gate**: the module never denies a tool call. A zone is reported, never enforced.
 - **PostCompact marker** (a settings hook, so it runs where mods are off): writes the
   evidence-degraded marker file (below).
-- **The zone lines honor the marker**: when the marker exists, or the module saw the
-  compaction itself, the lines treat the session's effective zone as
-  **heavy** regardless of the resolved word, including a green post-compaction reading and
-  including `unknown`. That implements this contract's own "evidence-degraded regardless of zone"
-  rule, so the marker is never write-only.
+- **The zone lines report the marker beside the zone**: when the marker exists, or the module saw
+  the compaction itself, the lines, toast and band row add "compacted" beside the resolved zone,
+  and the verdict is restated once at any zone, so the marker is never write-only. The zone itself
+  stays the room reading.
 - **Status tool** `mcp__context-guard__status`: returns the session's latest figures (the last API
   response's), its zone, whether the evidence is degraded, the bands in force (the token edges of
   the session's window class as `light_max_tokens` and `moderate_max_tokens`, `null` when the
@@ -408,8 +409,9 @@ last-write-wins per session:
 ```
 
 `trigger` is `manual` | `auto` | `unknown`. **Presence alone is the signal**: a consumer that
-finds the marker treats the session as evidence-degraded regardless of a green zone (see the next
-section for why). Consumers should not gate on `compacted_at` freshness. Compaction's evidence
+finds the marker knows earlier conversation survives only as a summary, so constraints stated only
+in conversation may be gone, whatever the zone says (see the next section for why). The zone keeps
+reporting room; each consumer decides what the marker means for its own routing. Consumers should not gate on `compacted_at` freshness. Compaction's evidence
 loss does not expire with time in the same session. The marker is part of this contract's
 documented interface (fixed path, same character-class and trust rules as snapshots); it closes
 the documented gap
@@ -429,10 +431,10 @@ boundary-timed carve-out.
 ## Zone is not a compaction indicator
 
 A compacted session's `used_percentage` **resets downward** while the evidence in its
-conversational context is already gone. A consumer that knows its session was compacted (or
-summarized by the harness) must treat the session as **evidence-degraded regardless of zone**,
-including a green `light` reading. The snapshot cannot tell you compaction happened; only the
-session itself can know.
+conversational context is already gone. The zone then reports the room regained, not the evidence
+lost, so a consumer that knows its session was compacted (or summarized by the harness) reads that
+fact beside the zone, including a green `light` reading. The snapshot's figures cannot tell you
+compaction happened; `evidence_degraded`, the marker, or the session itself can.
 
 **The docs publish the default thresholds; we state no figure.** The default depends on the model,
 the window it runs with, and the environment. This is a documentation pointer, not something read

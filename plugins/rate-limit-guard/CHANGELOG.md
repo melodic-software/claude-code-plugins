@@ -3,6 +3,12 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.12] - 2026-11-11
+
+### Changed
+
+- The options line after an approach or threshold notice now points to `/usage`.
+
 ## [3.0.11] - 2026-11-10
 
 ### Changed

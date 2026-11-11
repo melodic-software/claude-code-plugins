@@ -3,6 +3,21 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.6] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [1.0.5] - 2026-11-11
+
+### Changed
+
+- `lookup` and `setup` point at the Context7 CLI docs sections for `docs` flags, result fields,
+  authentication, telemetry and when a key is needed, instead of restating them. `lookup.md` no
+  longer calls the `library` query argument required; it says to always pass one, as `cli.md`
+  does. No behavior change.
+
 ## [1.0.4] - 2026-11-05
 
 ### Fixed

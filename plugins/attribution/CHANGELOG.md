@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.7] - 2026-11-11
+
+### Changed
+
+- The `audit` and `setup` skills now cite the gather-block convention record, "The pre-compute block runs as one shell
+  invocation", instead of restating how the harness runs the pre-compute block. No behavior
+  change.
+
 ## [0.18.6] - 2026-11-10
 
 ### Changed

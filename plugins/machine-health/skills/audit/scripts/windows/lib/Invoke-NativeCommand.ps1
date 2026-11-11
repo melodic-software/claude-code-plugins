@@ -82,9 +82,8 @@ function Invoke-NativeCommand {
     } else {
         (($raw | Out-String) -replace '\r?\n$', '')
     }
-    $status = if ($null -ne $code -and $code -eq 0) { 'Ok' } else { 'NonZero' }
     return [pscustomobject]@{
-        status    = $status
+        status    = $code -eq 0 ? 'Ok' : 'NonZero'
         source    = $Name
         exit_code = $code
         output    = $text

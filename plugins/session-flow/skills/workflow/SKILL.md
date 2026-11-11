@@ -147,7 +147,8 @@ context-guard's zone report (its `mcp__context-guard__status` tool, or its snaps
 conservative when it does not. Mid-stage with a healthy window,
 skip this, the default is simply to continue. Mid-stage with a bloated window, walk the router
 too. Between human stages (interview, PRD, design, plan), suggest a handoff only at context-guard
-zone `heavy`; these stages run in one session (`context/continuation.md`).
+zone `heavy` or on its compaction marker; these stages run in one session
+(`context/continuation.md`).
 
 The router **suggests; it does not act**. The recommendation goes to the human with the evidence
 that drove it, and executing the routed mechanism takes an explicit per-invocation license

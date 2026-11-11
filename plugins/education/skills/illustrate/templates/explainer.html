@@ -56,11 +56,11 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 var(--sans); }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 var(--sans); } /* 16px: the user-interface body-text floor (reference/types/web/typography.md, section 6. Floors) */
 .page { max-width: 46rem; margin: 0 auto; padding: 0 16px; padding-block: 2rem 3rem; display: grid; gap: 1.5rem; }
 h1 { margin: 0 0 0.5rem; font-size: 1.7rem; line-height: 1.2; text-wrap: balance; }
 h2 { margin: 0; font-size: 1.15rem; }
-p { margin: 0; max-width: 65ch; }
+p { margin: 0; max-width: 65ch; } /* the user-interface key typography.measure_ch */
 .lede { display: grid; gap: 0.5rem; font-size: 1.05rem; }
 .meta { color: var(--muted); font-size: 0.9rem; }
 code { font-family: var(--mono); font-size: 0.85em; overflow-wrap: anywhere; }

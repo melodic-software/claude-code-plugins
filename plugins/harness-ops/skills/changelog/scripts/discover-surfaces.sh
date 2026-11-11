@@ -11,7 +11,7 @@
 # skipped. Exits 0 whenever ROOT exists, 2 for a missing ROOT or an unknown argument.
 set -euo pipefail
 
-if [[ "$#" -gt 1 ]] || case "${1:-}" in -*) true ;; *) false ;; esac; then
+if [[ "$#" -gt 1 || "${1:-}" == -* ]]; then
   echo "discover-surfaces: unknown argument: $*" >&2
   exit 2
 fi
@@ -27,6 +27,8 @@ emit() {
 count_lines() { wc -l | tr -d ' '; }
 count_files() { find "$@" -type f 2>/dev/null | count_lines; }
 count_dirs() { find "$@" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | count_lines; }
+# count_depth2 DIR FIND-ARGS...: entries exactly two levels under DIR.
+count_depth2() { find "$1" -mindepth 2 -maxdepth 2 "${@:2}" 2>/dev/null | count_lines; }
 # emit_file LABEL PATH: one line when PATH is a regular file.
 emit_file() { if [[ -f "$2" ]]; then emit "$1" 1 "$2"; fi; return 0; }
 # emit_tree LABEL DIR GLOB FIND-ARGS...: count files under DIR when it exists.
@@ -52,11 +54,11 @@ emit_file "project settings" .claude/settings.json
 emit_file "local settings" .claude/settings.local.json
 emit_file "mcp config" .mcp.json
 emit_tree "project hooks" .claude/hooks '.claude/hooks/**'
-emit "project skills" "$(find .claude/skills -mindepth 2 -maxdepth 2 -name SKILL.md 2>/dev/null | count_lines)" '.claude/skills/*/SKILL.md'
+emit "project skills" "$(count_depth2 .claude/skills -name SKILL.md)" '.claude/skills/*/SKILL.md'
 emit_tree "project agents" .claude/agents '.claude/agents/*.md' -name '*.md'
 
 if [[ "$shape" = plugin ]]; then
-  emit "plugin skills (excl. vendor)" "$(find skills -mindepth 2 -maxdepth 2 -name SKILL.md 2>/dev/null | count_lines)" 'skills/*/SKILL.md'
+  emit "plugin skills (excl. vendor)" "$(count_depth2 skills -name SKILL.md)" 'skills/*/SKILL.md'
   emit_tree "plugin agents" agents 'agents/*.md' -name '*.md'
   emit_tree "plugin commands" commands 'commands/*.md' -name '*.md'
   emit_tree "plugin hooks" hooks 'hooks/**'
@@ -67,10 +69,10 @@ if [[ "$shape" = marketplace ]]; then
   emit "plugin skills (excl. vendor)" "$(find plugins -mindepth 4 -maxdepth 4 -path 'plugins/*/skills/*/SKILL.md' -not -path '*/vendor/*' 2>/dev/null | count_lines)" 'plugins/*/skills/*/SKILL.md'
   emit "plugin skill spokes (excl. vendor)" "$(find plugins -path 'plugins/*/skills/*' -name '*.md' -not -name SKILL.md -not -path '*/vendor/*' -not -path 'plugins/*/skills/*/evals/*' 2>/dev/null | count_lines)" 'plugins/*/skills/**/*.md'
   emit "plugin agents" "$(find plugins -mindepth 3 -maxdepth 3 -path 'plugins/*/agents/*.md' 2>/dev/null | count_lines)" 'plugins/*/agents/*.md'
-  emit "plugin hook dirs" "$(find plugins -mindepth 2 -maxdepth 2 -type d -name hooks 2>/dev/null | count_lines)" 'plugins/*/hooks/**'
-  emit "plugin READMEs" "$(find plugins -mindepth 2 -maxdepth 2 -name README.md 2>/dev/null | count_lines)" 'plugins/*/README.md'
-  emit "conventions" "$(find docs/conventions -mindepth 2 -maxdepth 2 -name README.md 2>/dev/null | count_lines)" 'docs/conventions/*/README.md'
-  emit "contracts" "$(find docs/contracts -mindepth 2 -maxdepth 2 -name README.md 2>/dev/null | count_lines)" 'docs/contracts/*/README.md'
+  emit "plugin hook dirs" "$(count_depth2 plugins -type d -name hooks)" 'plugins/*/hooks/**'
+  emit "plugin READMEs" "$(count_depth2 plugins -name README.md)" 'plugins/*/README.md'
+  emit "conventions" "$(count_depth2 docs/conventions -name README.md)" 'docs/conventions/*/README.md'
+  emit "contracts" "$(count_depth2 docs/contracts -name README.md)" 'docs/contracts/*/README.md'
   emit_tree "upstream drift ledgers" docs/upstream 'docs/upstream/*.md' -maxdepth 1 -name '*.md'
   emit_file "native-surfaces store" docs/native-surfaces/records.json
   emit_file "official-docs index" docs/official-docs.md

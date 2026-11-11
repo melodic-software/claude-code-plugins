@@ -43,13 +43,11 @@ while (($#)); do
   case "$1" in
   --login | --reason | --step)
     (($# >= 2)) || die "$1 needs a value"
-    if [[ "$1" == --login ]]; then
-      login="$2"
-    elif [[ "$1" == --reason ]]; then
-      reason="$2" has_reason=1
-    else
-      steps+=("$2")
-    fi
+    case "$1" in
+    --login) login="$2" ;;
+    --reason) reason="$2" has_reason=1 ;;
+    *) steps+=("$2") ;;
+    esac
     shift
     ;;
   *) die "unexpected argument $(printf '%q' "$1")" ;;

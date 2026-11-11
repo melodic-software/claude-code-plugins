@@ -51,14 +51,13 @@ while (($#)); do
     printf '%s\n' "$usage_text"
     exit 0
     ;;
-  --prs | --repo) (($# >= 2)) || die "$1 needs a value; $usage_text" ;;
+  --prs | --repo)
+    (($# >= 2)) || die "$1 needs a value; $usage_text"
+    if [[ "$1" == --prs ]]; then prs="$2"; else repo="$2"; fi
+    shift 2
+    ;;
   *) die "unknown argument: $1; $usage_text" ;;
   esac
-  case "$1" in
-  --prs) prs="$2" ;;
-  *) repo="$2" ;;
-  esac
-  shift 2
 done
 if [[ ! "$prs" =~ ^[1-9][0-9]{0,2}$ ]] || ((prs < 2 || prs > 200)); then
   die "--prs must be an integer from 2 to 200; $usage_text"
