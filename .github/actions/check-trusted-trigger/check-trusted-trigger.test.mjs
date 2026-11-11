@@ -189,6 +189,7 @@ const STOPPED = (reason) => ({
   "head-ref": "",
   "head-sha": "",
   "base-sha": "",
+  "pr-base-sha": "",
 });
 const PROCEED = {
   proceed: "true",
@@ -197,6 +198,7 @@ const PROCEED = {
   "head-ref": "feat/lane-probe",
   "head-sha": HEAD_SHA,
   "base-sha": BASE_SHA,
+  "pr-base-sha": BASE_SHA,
 };
 
 // pull_request
@@ -521,7 +523,9 @@ const asLayer = (pull, stackBase = "main") => {
   pull.stack = { id: 1, number: 7, position: 2, size: 2, base: { ref: stackBase, sha: STACK_BASE_SHA } };
   return pull;
 };
-const LAYER_PROCEED = { ...PROCEED, "base-sha": STACK_BASE_SHA };
+// pr-base-sha stays the layer's own base, the diff base a review reads; only
+// base-sha, which lanes check out, moves to the stack base.
+const LAYER_PROCEED = { ...PROCEED, "base-sha": STACK_BASE_SHA, "pr-base-sha": BASE_SHA };
 
 test("pull_request: a stack layer whose stack targets the default branch proceeds on the stack base SHA", async () => {
   const event = fixture("event-pull-request.json");

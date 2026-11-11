@@ -1458,6 +1458,7 @@ export async function evaluateTrigger({
     "head-ref": pull.head.ref,
     "head-sha": pull.head.sha,
     "base-sha": baseSha,
+    "pr-base-sha": pull.base.sha,
   };
 }
 
@@ -1486,6 +1487,7 @@ function stopped(reason) {
     "head-ref": "",
     "head-sha": "",
     "base-sha": "",
+    "pr-base-sha": "",
   };
 }
 

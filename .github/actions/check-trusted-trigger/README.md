@@ -291,6 +291,7 @@ that cannot stops it with `untrusted-rerunner`.
 | `proceed` | `true` or `false` |
 | `reason` | `ok`, `fork`, `no-pr`, `head-lag`, `untrusted-base`, `bot-actor`, `untrusted-actor`, `untrusted-rerunner`, `untrusted-author`, `list-unreadable`, or `read-fault` with `fault-reason: true` |
 | `pr-number`, `head-ref`, `head-sha`, `base-sha` | The resolved PR; empty unless `proceed` is `true` |
+| `pr-base-sha` | The PR's own `base.sha`, a diff base only, never checked out; for a stack layer the unmerged layer below, otherwise equal to `base-sha`. Empty unless `proceed` is `true` |
 
 Reasons are checked in the order list and denied ids, event and PR, head lag, fork, base, denied actor, actor,
 re-runner, author. Every failure, including
