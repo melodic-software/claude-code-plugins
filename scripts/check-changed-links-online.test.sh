@@ -31,6 +31,7 @@ Kept: <https://kept.example.org/a>
 New [link](https://new.example.org/page#section).
 Again https://new.example.org/page#section, and plain http://plain.example.org/x.
 ++ starts with a plus https://plus.example.org/p
+See [rule](https://wiki.example.org/Rule_(programming)).
 EOF
 printf 'See https://code.example.org/c\n' >"$repo/docs/b.txt"
 printf '| a | <https://fixture.example.org/f> |\n' >"$repo/scripts/fixtures/hooks-lifecycle-table.md"
@@ -40,9 +41,9 @@ g commit -q -m change
 run() { (cd "$repo" && bash "$SCRIPT" "$@"); }
 
 out="$(run --list "$base")"
-want=$'http://plain.example.org/x\nhttps://new.example.org/page#section\nhttps://plus.example.org/p'
+want=$'http://plain.example.org/x\nhttps://new.example.org/page#section\nhttps://plus.example.org/p\nhttps://wiki.example.org/Rule_(programming)'
 if [[ $out == "$want" ]]; then
-  pass "--list takes added markdown URLs once each, trailing punctuation dropped"
+  pass "--list takes added markdown URLs once each, balanced parentheses kept, trailing punctuation dropped"
 else
   bad "--list output" "want: $want; got: $out"
 fi
@@ -77,7 +78,7 @@ if grep -qx -- '--offline' "$TMP_ROOT/args"; then
 else
   pass "the run is online"
 fi
-if [[ "$(cat "$TMP_ROOT/input")" == $'<http://plain.example.org/x>\n<https://new.example.org/page#section>\n<https://plus.example.org/p>' ]]; then
+if [[ "$(cat "$TMP_ROOT/input")" == $'<http://plain.example.org/x>\n<https://new.example.org/page#section>\n<https://plus.example.org/p>\n<https://wiki.example.org/Rule_(programming)>' ]]; then
   pass "lychee's input is the listed URLs as autolinks"
 else
   bad "lychee input" "$(cat "$TMP_ROOT/input")"
@@ -98,5 +99,10 @@ else
 fi
 
 if run >/dev/null 2>&1; then bad "no base ref exited 0"; else pass "a missing base ref is a usage error"; fi
+if out="$(LYCHEE="$stub" run no-such-ref 2>&1)"; then
+  bad "an unreadable diff passed" "$out"
+else
+  pass "a base ref git cannot resolve fails the check"
+fi
 
 test_harness::report

@@ -23,13 +23,18 @@ if [[ $# -ne 1 || -z $1 ]]; then
 fi
 base=$1
 
-# Test data whose links are meant not to resolve, as the offline lane excludes.
+# A diff that cannot be read fails the check rather than reading as "no links".
+# The excludes are test data whose links are meant not to resolve, as the
+# offline lane excludes them.
+diff=$(git diff -U0 --no-color --no-ext-diff --dst-prefix=b/ "$base...HEAD" -- '*.md' \
+  ':(exclude)plugins/attribution/skills/audit/evals/fixtures/golden/**' \
+  ':(exclude)scripts/fixtures/hooks-lifecycle-table.md')
+# A URL may hold balanced parentheses, as a Wikipedia title does; a closing
+# parenthesis outside a pair ends a markdown link destination.
 mapfile -t urls < <(
-  git diff -U0 --no-color --no-ext-diff --dst-prefix=b/ "$base...HEAD" -- '*.md' \
-    ':(exclude)plugins/attribution/skills/audit/evals/fixtures/golden/**' \
-    ':(exclude)scripts/fixtures/hooks-lifecycle-table.md' |
+  printf '%s\n' "$diff" |
     grep -vE '^\+\+\+ (b/|/dev/null)' | sed -n 's/^+//p' |
-    grep -oE 'https?://[^][[:space:]<>()"`'"'"']+' |
+    grep -oE 'https?://([^][[:space:]<>()"`'"'"']|\([^()[:space:]]*\))+' |
     sed -E 's/[.,;:!?*_]+$//' |
     LC_ALL=C sort -u || true
 )
