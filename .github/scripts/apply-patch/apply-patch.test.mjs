@@ -458,11 +458,11 @@ test("refuses a path under a skills/ directory at any depth, in any case, and a 
   }
 });
 
-test("only the docs row names the skills and skill-md refusals, only review-threads new-exec-bit, only ci-context and review-threads the git hook and attribute refusals, and no row has to", () => {
+test("only the docs row names the skills and skill-md refusals, only review-threads new-exec-bit, only ci-context and review-threads the git hook and attribute refusals, only issue claude-protected, and no row has to", () => {
   const hooks = ["gitattributes", "husky", "lefthook"];
   for (const name of Object.keys(RULES)) {
     const named = RULES[name].refuse.filter((refusal) => REFUSALS[refusal].optional);
-    assert.deepEqual(named, { docs: ["skills", "skill-md"], "review-threads": ["new-exec-bit", ...hooks], "ci-context": hooks }[name] ?? [], name);
+    assert.deepEqual(named, { docs: ["skills", "skill-md"], "review-threads": ["new-exec-bit", ...hooks], "ci-context": hooks, issue: ["claude-protected"] }[name] ?? [], name);
   }
   const refuse = RULES.docs.refuse.filter((name) => !REFUSALS[name].optional);
   assert.doesNotThrow(() => checkRow(row("docs", { refuse })));
@@ -1021,14 +1021,17 @@ test("the ci-context and review-threads rows refuse .gitattributes at any depth,
   }
 });
 
-test("docs/husky.md, docs/lefthook.md and sub/lefthook.yml are not refused, and the issue row refuses none of the hook and attribute paths", () => {
+// The issue row refuses .husky/ and lefthook.yml at any depth as Claude Code
+// protected paths instead, and leaves .gitattributes, which Claude Code does not protect.
+test("docs/husky.md, docs/lefthook.md and sub/lefthook.yml are not hook refusals, and the issue row refuses only the Claude Code protected ones", () => {
   for (const path of ["docs/husky.md", "docs/lefthook.md", "sub/lefthook.yml"]) {
     for (const name of Object.keys(RULES)) {
-      assert.deepEqual(refusalsOf(entry(path), RULES[name].refuse), [], `${name} ${path}`);
+      const expected = name === "issue" && path === "sub/lefthook.yml" ? ["claude-protected"] : [];
+      assert.deepEqual(refusalsOf(entry(path), RULES[name].refuse), expected, `${name} ${path}`);
     }
   }
-  for (const [path] of HOOK_PATHS) {
-    assert.deepEqual(refusalsOf(entry(path), RULES.issue.refuse), [], `issue ${path}`);
+  for (const [path, refusal] of HOOK_PATHS) {
+    assert.deepEqual(refusalsOf(entry(path), RULES.issue.refuse), refusal === "gitattributes" ? [] : ["claude-protected"], `issue ${path}`);
   }
 });
 
@@ -1046,22 +1049,32 @@ const LEFTHOOK_PATHS = [
 ];
 const LEFTHOOK_LOOKALIKES = ["docs/lefthook-local.md", "sub/.lefthook-notes", "sub/lefthook.yaml", "sub/.lefthook/x", "sub/.config/lefthook.yml", ".lefthook-notes", "lefthook-local.md", "lefthook.yml.bak", ".config/sub/lefthook.yml"];
 
-test("the ci-context and review-threads rows refuse every lefthook config and script path, in any case and through any .. segment, and no other row does", () => {
+// The lefthook file names Claude Code protects at any depth
+// (https://code.claude.com/docs/en/permission-modes#protected-paths), which the
+// issue row refuses as claude-protected.
+const CLAUDE_LEFTHOOK = new Set(["lefthook.yml", "lefthook.yaml", ".lefthook.yml", ".lefthook.yaml"]);
+const issueRefusal = (path) => (CLAUDE_LEFTHOOK.has(path.split("/").at(-1).toLowerCase()) ? ["claude-protected"] : []);
+
+test("the ci-context and review-threads rows refuse every lefthook config and script path, in any case and through any .. segment, and only the issue row's claude-protected refuses any of them elsewhere", () => {
   const variants = ["LEFTHOOK.YAML", "a/../.LeftHook-Local.JSONC", ".Config/LeftHook.TOML", "x/../.config/lefthook-local.yml", ".LEFTHOOK/x", "A/../.LEFTHOOK-LOCAL/h"];
   for (const path of [...LEFTHOOK_PATHS, ...variants]) {
     for (const name of Object.keys(RULES)) {
-      const expected = name === "ci-context" || name === "review-threads" ? ["lefthook"] : [];
+      const expected = name === "ci-context" || name === "review-threads" ? ["lefthook"] : name === "issue" ? issueRefusal(path) : [];
       assert.deepEqual(refusalsOf(entry(path), RULES[name].refuse), expected, `${name} ${path}`);
     }
   }
+  assert.deepEqual(refusalsOf(entry("LEFTHOOK.YAML"), RULES.issue.refuse), ["claude-protected"]);
+  assert.deepEqual(refusalsOf(entry(".lefthook/pre-commit/x.sh"), RULES.issue.refuse), []);
 });
 
-test("paths that only look like lefthook's are refused on no row", () => {
+test("paths that only look like lefthook's are refused on no row but issue, where Claude Code protects the file name", () => {
   for (const path of LEFTHOOK_LOOKALIKES) {
     for (const name of Object.keys(RULES)) {
-      assert.deepEqual(refusalsOf(entry(path), RULES[name].refuse), [], `${name} ${path}`);
+      assert.deepEqual(refusalsOf(entry(path), RULES[name].refuse), name === "issue" ? issueRefusal(path) : [], `${name} ${path}`);
     }
   }
+  assert.deepEqual(refusalsOf(entry("sub/lefthook.yaml"), RULES.issue.refuse), ["claude-protected"]);
+  assert.deepEqual(refusalsOf(entry("docs/lefthook-local.md"), RULES.issue.refuse), []);
 });
 
 test("under the ci-context row a patch that writes paths that only look like lefthook's pushes", async (t) => {
@@ -2246,8 +2259,14 @@ test("issue target: a patch made on another commit is refused, never applied wit
   assert.deepEqual(api.calls, []);
 });
 
-test("issue target: the issue row refuses the universal set, each refusal before any API call", async (t) => {
+test("issue target: the issue row refuses the universal set and Claude Code's protected paths, each refusal before any API call", async (t) => {
   const cases = [
+    [
+      "a .claude/ hook",
+      (repo) => (mkdirSync(join(repo, ".claude/hooks"), { recursive: true }), writeFileSync(join(repo, ".claude/hooks/sink.sh"), "#!/bin/sh\n")),
+      "patch-protected-path",
+    ],
+    ["a nested .mcp.json", (repo) => (mkdirSync(join(repo, "plugins/x"), { recursive: true }), writeFileSync(join(repo, "plugins/x/.mcp.json"), "{}\n")), "patch-protected-path"],
     ["a .github/ workflow", (repo) => (mkdirSync(join(repo, ".github/workflows"), { recursive: true }), writeFileSync(join(repo, ".github/workflows/x.yml"), "on: push\n")), "patch-protected-path"],
     ["CODEOWNERS", (repo) => writeFileSync(join(repo, "CODEOWNERS"), "* @o\n"), "patch-protected-path"],
     [".gitmodules", (repo) => writeFileSync(join(repo, ".gitmodules"), "\n"), "patch-protected-path"],
@@ -2259,7 +2278,7 @@ test("issue target: the issue row refuses the universal set, each refusal before
     ],
     ["a symbolic link", (repo) => symlinkSync("README.md", join(repo, "link")), "patch-invalid"],
   ];
-  assert.deepEqual(issueRow().refuse, ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused"]);
+  assert.deepEqual(issueRow().refuse, ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused", "claude-protected"]);
   for (const [what, edit, reason] of cases) {
     const fix = repoWithPatch(t, edit);
     const api = fakeApi(fix.repo, fix.head, { labels: READY });
