@@ -10,7 +10,7 @@ table (§3); drift found by that audit is recorded here.
 Minor: additive guidance.
 
 - **Permission modes gains a launch-options table.** It holds the set an unattended launch passes,
-  as the lanes launcher builds it: permission mode by lane kind, model and effort per lane, `-n` on
+  drawn from what the lanes launcher builds: permission mode by lane kind, model and effort per lane, `-n` on
   `--bg`, and `--permission-prompts none` on `-p` launches from Claude Code 2.1.259. Flags whose
   effect is unproven stay out (owner decision).
 
