@@ -36,11 +36,12 @@ const MANAGED_DIRS = {
 
 export class OptionsError extends Error {}
 
+const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+
 // The managed settings files in merge order, or [] on a platform with no documented path.
 export function managedSettingsFiles(platform = process.platform) {
   const dir = MANAGED_DIRS[platform];
   if (!dir) return [];
-  const files = [join(dir, "managed-settings.json")];
   const dropin = join(dir, "managed-settings.d");
   let names = [];
   try {
@@ -50,10 +51,8 @@ export function managedSettingsFiles(platform = process.platform) {
       throw new OptionsError(`managed settings directory ${dropin} cannot be read (${error.code ?? error.message})`);
     }
   }
-  for (const name of names.filter((n) => n.endsWith(".json") && !n.startsWith(".")).sort()) {
-    files.push(join(dropin, name));
-  }
-  return files;
+  const dropins = names.filter((n) => n.endsWith(".json") && !n.startsWith(".")).sort();
+  return [join(dir, "managed-settings.json"), ...dropins.map((name) => join(dropin, name))];
 }
 
 // This install's identity and, when it sits in the plugin cache, its user settings file.
@@ -91,12 +90,9 @@ function optionsIn(file, install) {
   } catch (error) {
     throw new OptionsError(`settings file ${file} is not valid JSON (${error.message})`);
   }
-  if (settings === null || typeof settings !== "object" || Array.isArray(settings)) {
-    throw new OptionsError(`settings file ${file} is not a JSON object`);
-  }
+  if (!isObject(settings)) throw new OptionsError(`settings file ${file} is not a JSON object`);
   // A malformed pluginConfigs or matching entry fails closed rather than contributing no verdict,
   // so a broken managed file cannot let the user scope decide.
-  const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
   if (!Object.hasOwn(settings, "pluginConfigs")) return [];
   const configs = settings.pluginConfigs;
   if (!isObject(configs)) throw new OptionsError(`pluginConfigs in ${file} is not an object`);

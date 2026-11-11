@@ -338,6 +338,23 @@ class CloseLifted(unittest.TestCase):
         self.assertIn("state_reason=completed", gh.writes[2])
         self.assertIn(f"pull request #7 merged at {FIX_MERGE}", gh.writes[0][-1])
 
+    def test_a_stack_layer_merged_into_main_lifts_the_record(self) -> None:
+        # An upper layer of a native stack lands with the layers below it and
+        # keeps the lower layer's branch as its base; its stack's base is main.
+        layer = merged_pull() | {"baseRefName": "feat/lower", "stack": {"baseRefName": "main"}}
+        gh = Gh({9: REVERT}, [layer])
+        self.assertEqual(self.run_close(gh), 1)
+        self.assertIn(f"pull request #7 merged at {FIX_MERGE}", gh.writes[0][-1])
+
+    def test_a_pull_request_into_another_branch_lifts_nothing(self) -> None:
+        for other in (
+            {"baseRefName": "feat/lower"},
+            {"baseRefName": "feat/lower", "stack": None},
+            {"baseRefName": "feat/lower", "stack": {"baseRefName": "release"}},
+        ):
+            gh = Gh({9: REVERT}, [merged_pull() | other])
+            self.assertEqual((self.run_close(gh), gh.writes), (0, []), other)
+
     def test_a_field_repository_close_removes_a_legacy_label(self) -> None:
         # A record filed before the repository set models.issue-status still
         # carries the label; post-merge-demotion-alert.yml removes it on close.

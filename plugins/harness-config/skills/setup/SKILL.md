@@ -25,6 +25,12 @@ tool's path when present, or `absent` when missing:
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
 `command -v` probe via Bash instead.
 
+- **Pointer**: for the placeholder a skipped load-time command leaves, fetch
+  [skills § Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: the placeholder text changes.
+
 ## Purpose
 
 Setup per the uniform setup contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in

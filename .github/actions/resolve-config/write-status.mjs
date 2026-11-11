@@ -114,7 +114,7 @@ export async function writeState({ github, repository, number, state, config, cu
 // What a state writer's entry point hands its run, over the base config's
 // models.issue-status and trusted-actor list (read-status.mjs
 // loadTrustedActors):
-// - `set(number, state, {fields, keepHold, releases})` writes `state`
+// - `set(number, state, {fields, keepHold, releases, from})` writes `state`
 //   (writeState), skipping an option this process already wrote for the
 //   issue, or one `fields` (field id -> {option}) shows it holds. `fields`
 //   must come from a trusted read (read-status.mjs fieldStatus's rule): an
@@ -122,7 +122,11 @@ export async function writeState({ github, repository, number, state, config, cu
 //   needs. With `keepHold`, the field is read first on every call, and that
 //   read alone decides a skip; a hold (HOLD_STATES) a listed human set is not
 //   replaced unless it is `releases`, the hold the write answers: `set`
-//   answers `{outcome: "held", state}` and the caller treats the issue as held;
+//   answers `{outcome: "held", state}` and the caller treats the issue as held.
+//   `from`, the trusted states the write may replace (null for unset), reads
+//   the field the same way and leaves any other state: a listing read before
+//   it can be stale, so the write must not demote a state set since. `set`
+//   answers `{outcome: "moved", state}` with the state it found;
 // - `leaveAgentReady(number, state, {orUnset})` writes `state` only while the
 //   field's trusted state (read-status.mjs fieldStatus) is agent-ready, so
 //   taking agent-ready off never resets another state. With `orUnset`, it also
@@ -155,21 +159,25 @@ export async function statusWriter({ env, github, repository, sleep = (ms) => ne
       throw new StatusWriteError(`#${number}'s Work status field could not be read: ${error?.message ?? error}`, { cause: error });
     }
   };
-  const set = async (number, state, { fields, keepHold, releases } = {}) => {
+  const set = async (number, state, { fields, keepHold, releases, from } = {}) => {
     if (failure) {
       throw failure;
     }
+    const fresh = keepHold || Array.isArray(from);
     // A person may set a hold after any write, this process's own included.
-    if (keepHold) {
+    if (fresh) {
       const now = await readField(number);
-      if (now.personHold && now.state !== releases) {
+      if (keepHold && now.personHold && now.state !== releases) {
         return { outcome: "held", state: now.state };
       }
       if (now.state === state) {
         return { outcome: "unchanged", state };
       }
+      if (Array.isArray(from) && !from.includes(now.state ?? null)) {
+        return { outcome: "moved", state: now.state };
+      }
     }
-    const current = keepHold ? null : (wrote.get(number) ?? fields?.[String(config?.["field-id"])]?.option);
+    const current = fresh ? null : (wrote.get(number) ?? fields?.[String(config?.["field-id"])]?.option);
     const result = await writeState({ github, repository, number, state, config, current });
     wrote.set(number, result.option);
     return result;

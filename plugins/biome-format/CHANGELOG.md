@@ -3,6 +3,31 @@
 All notable changes to the `biome-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.19] - 2026-11-11
+
+### Fixed
+
+- The `setup` skill's git-hook decisions reference no longer restates when husky sets `core.hooksPath`; the `husky-install` row keeps its action: tell the user to run the project's install.
+- `setup check` no longer downgrades a tool the git pre-commit entry needs to INFO while the plugin's toggle is off and that entry is installed: the entry runs at commit outside Claude Code and reads no toggle, so the tool keeps the grade it gets with the toggle on.
+
+## [1.0.18] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [1.0.17] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [1.0.16] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [1.0.15] - 2026-11-11
 
 ### Changed

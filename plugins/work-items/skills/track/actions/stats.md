@@ -9,7 +9,7 @@ Present a dashboard summarizing the current state of work items.
 1. **Check recurring due items** (optional, degrading gracefully when the consuming repo has no recurring schedule):
 
 ```bash
-SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+SCHEDULE="<project root>/.github/recurring-schedule.json"
 if [[ -f "$SCHEDULE" ]]; then
   jq --arg today "$(date +%Y-%m-%d)" \
     '[.items[] | select(.next_due != null and .next_due <= $today)] | length' "$SCHEDULE"
@@ -17,6 +17,8 @@ else
   echo 0  # no recurring schedule configured
 fi
 ```
+
+`<project root>` is the literal path [`tracker-seam.md`](../../../reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet.
 
 1. **Present:**
 

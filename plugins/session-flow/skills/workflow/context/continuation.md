@@ -183,9 +183,9 @@ anything carries over and clears when nothing does, work that leaves the session
 - Mid-phase, hand bulk work to subagents before compacting, so the window fills with their short
   returns instead of the raw material.
 - A cleared conversation stays resumable, so `/clear` loses nothing durable.
-- Handoff and questionnaire files stay where they are in the memory dir (handoffs in
-  `<memory_dir>/handoffs/`, questionnaires in
-  `<memory_dir>/<topic-slug>/questionnaire-<recipient-role-slug>.md`); none of the above moves them.
+- Handoff files and the interview's documents for another person stay where they are in the memory
+  dir (handoffs in `<memory_dir>/handoffs/`, documents in
+  `<memory_dir>/<topic-slug>/document-<recipient-role-slug>.md`); none of the above moves them.
 
 - **Pointer**: for clearing a conversation and resuming it, see
   <https://code.claude.com/docs/en/sessions#manage-context-within-a-session>

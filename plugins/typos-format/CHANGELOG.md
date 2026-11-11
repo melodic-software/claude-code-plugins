@@ -3,6 +3,30 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.17] - 2026-11-11
+
+### Fixed
+
+- The `setup` skill's git-hook decisions reference no longer restates when husky sets `core.hooksPath`; the `husky-install` row keeps its action: tell the user to run the project's install.
+
+## [1.0.16] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [1.0.15] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [1.0.14] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [1.0.13] - 2026-11-11
 
 ### Changed

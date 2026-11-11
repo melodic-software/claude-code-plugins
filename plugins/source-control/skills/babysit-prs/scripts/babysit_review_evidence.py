@@ -21,7 +21,10 @@ Inputs are raw GitHub API shapes the caller collects for one pull request:
   github-actions[bot] or the Claude App carrying an `edit` record: GraphQL's
   `lastEditedAt` and `editor{__typename login}` for it (`_edited_by_another`),
   and for an edited comment its `userContentEdits` as `history`
-  (`_marker_revisions`).
+  (`_marker_revisions`). A github-actions[bot] comment, or a thread's first
+  comment, that ends in a lane footer and carries a binding line also
+  carries the lane-binding verdict (`babysit_lane_binding.VERDICT`,
+  babysit_merge._attach_lane_bindings); one without it is not the lane's.
 - `threads`: `babysit_gh.fetch_review_threads(..., include_resolved=True)`,
   whose comments carry `lastEditedAt` and `editor`, or None when they could
   not be read.
@@ -43,6 +46,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+import babysit_lane_binding as lane_binding
 from babysit_risk import Floor, LONG_LINE_BYTES, LaneEvidence, glob_match
 
 # Lane id -> (caller workflow path, status job names). Fixed in code: a
@@ -316,7 +320,8 @@ CLAUDE_APP_LOGINS = frozenset({"claude", "claude[bot]"})
 LANE_TAG_RE = re.compile(r"^\s*`?claude-lane: ([\w-]+)`?\s*$", re.MULTILINE)
 # ci-workflows pr-review-cli.yml posts as github-actions[bot] (REST login;
 # GraphQL drops the suffix). Such a comment is the lane's only when its last
-# non-blank line is that lane's footer.
+# non-blank line is that lane's footer and the lane-binding check accepts it
+# (`_actions_verdict`).
 ACTIONS_LOGINS = frozenset({"github-actions", "github-actions[bot]"})
 # Every author a lane comment can have; the caller attaches each one's edit
 # record (babysit_merge._attach_edits).
@@ -336,13 +341,46 @@ def _footer_lane(body: str) -> str | None:
     return tag[1] if tag else None
 
 
-def _lane_comment(lane: str, login: object, body: str) -> bool:
+def _actions_verdict(record: Mapping[str, Any], view: Mapping[str, Any]) -> bool | None:
+    """Whether a footed github-actions[bot] comment is its lane's own: the
+    verdict the caller attached (`babysit_lane_binding.VERDICT`), else, for
+    a comment with no binding, the legacy rule. A bound comment no check
+    has judged is None: unknown."""
+    verdict = record.get(lane_binding.VERDICT)
+    if isinstance(verdict, bool):
+        return verdict
+    if lane_binding.binding_of(view.get("body")) is None:
+        return lane_binding.legacy_counts(view)
+    return None
+
+
+def _lane_comment(
+    lane: str,
+    login: object,
+    record: Mapping[str, Any],
+    view: Mapping[str, Any],
+    posted: bool = False,
+) -> bool:
     """A Claude App comment untagged or tagged for `lane`, or a
-    github-actions[bot] comment whose footer names `lane`."""
+    github-actions[bot] comment whose footer names `lane` and that the
+    lane-binding check accepts (`_actions_verdict`). With `posted` (whether
+    the lane may have posted it, `lane_posted`), the footer alone will do:
+    a run lost before it uploaded its records leaves its comments unproven,
+    and reading them as not posted could trade that run's verdict away.
+    `record` is the comment as read and `view` its lane-binding view."""
+    body = str(view.get("body") or "")
     if login in CLAUDE_APP_LOGINS:
         tag = LANE_TAG_RE.search(body)
         return tag is None or tag[1] == lane
-    return login in ACTIONS_LOGINS and _footer_lane(body) == lane
+    if login not in ACTIONS_LOGINS or _footer_lane(body) != lane:
+        return False
+    return posted or _actions_verdict(record, view) is True
+
+
+def _lane_body(login: object, body: str) -> str:
+    """The body a parser reads: a github-actions[bot] comment's without its
+    binding line."""
+    return lane_binding.without_binding(body) if login in ACTIONS_LOGINS else body
 
 
 # The lane whose findings hold the merge only at its top tier, CRITICAL
@@ -1346,14 +1384,17 @@ def lane_posted(
                 if _marker_rewritten(lane, head, comment, within, end is None):
                     return True
             continue
-        if _lane_comment(lane, login, body) and within(comment.get("created_at")):
+        view = lane_binding.issue_comment_view(comment)
+        if _lane_comment(lane, login, comment, view, posted=True) and within(
+            comment.get("created_at")
+        ):
             return True
     if not isinstance(threads, list | tuple):
         return True
     for thread in threads:
         if not isinstance(thread, Mapping):
             return True
-        if _lane_thread(lane, thread) and within(
+        if _lane_thread(lane, thread, posted=True) and within(
             thread["comments"][0].get("createdAt")
         ):
             return True
@@ -1573,10 +1614,11 @@ def _summary_comments(
             user, comment.get("edit")
         ):
             raise Unbound("comment-edited")
-        if not _lane_comment(lane, user.get("login"), body):
+        view = lane_binding.issue_comment_view(comment)
+        if not _lane_comment(lane, user.get("login"), comment, view):
             continue
         if created is not None:
-            found.append((created, body))
+            found.append((created, _lane_body(user.get("login"), body)))
     return found
 
 
@@ -1825,7 +1867,14 @@ def _open_findings(
             held += 1
         else:
             continue
-        severities = SEVERITY_RE.findall(str(thread["comments"][0].get("body") or ""))
+        # `_lane_thread` read the first comment's author as a mapping.
+        first_comment = thread["comments"][0]
+        severities = SEVERITY_RE.findall(
+            _lane_body(
+                first_comment["author"].get("login"),
+                str(first_comment.get("body") or ""),
+            )
+        )
         if len(severities) != 1 or severities[0] == "CRITICAL":
             critical += 1
     # Inline findings with no thread left, counted like summary findings:
@@ -1987,9 +2036,10 @@ def _time(value: Any) -> datetime | None:
     return parsed if parsed.tzinfo is not None else None
 
 
-def _lane_thread(lane: str, thread: Mapping[str, Any]) -> bool:
+def _lane_thread(lane: str, thread: Mapping[str, Any], posted: bool = False) -> bool:
     """A thread the Claude App opened, untagged or tagged for `lane`, or
-    github-actions[bot] opened with `lane`'s footer last."""
+    github-actions[bot] opened with `lane`'s footer last and accepted
+    (`_lane_comment`, whose `posted` this passes)."""
     comments = thread.get("comments")
     if not isinstance(comments, list | tuple):
         raise Unbound("evidence-error")
@@ -2005,4 +2055,10 @@ def _lane_thread(lane: str, thread: Mapping[str, Any]) -> bool:
     # the lane's.
     if author.get("login") in LANE_AUTHORS and _edited_by_another(author, first):
         raise Unbound("comment-edited")
-    return _lane_comment(lane, author.get("login"), str(first.get("body") or ""))
+    return _lane_comment(
+        lane,
+        author.get("login"),
+        first,
+        lane_binding.review_comment_view(first),
+        posted,
+    )

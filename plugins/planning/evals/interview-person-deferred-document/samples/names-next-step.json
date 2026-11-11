@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Next: /planning:plan for the purge job. Alongside it, /planning:interview document turns the retention-window question into a document Dana fills in.",
+      "why": "next pipeline step beside the document"
+    },
+    {
+      "answer": "Run planning:design for the purge job's data model, and planning:interview document for Dana.",
+      "why": "a design next step without the slash"
+    },
+    {
+      "answer": "Start with `/discovery:explore` on the ticket store; send Dana /planning:interview document in parallel.",
+      "why": "an exploration next step in backticks"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Run /planning:interview document so Dana can answer the retention-window question.",
+      "why": "partial: document only, no next step for the work"
+    },
+    {
+      "answer": "Run /planning:interview document for Dana, and once she answers, run /planning:plan.",
+      "why": "partial: the next step waits on the document instead of running beside it"
+    },
+    {
+      "answer": "Run /planning:interview document for Dana. Don't run /planning:plan yet.",
+      "why": "contradictory: names the next step only to hold it"
+    },
+    {
+      "answer": "Send /planning:interview document to Dana and wait until she replies before /planning:plan.",
+      "why": "partial: the next step is deferred until the reply"
+    }
+  ]
+}

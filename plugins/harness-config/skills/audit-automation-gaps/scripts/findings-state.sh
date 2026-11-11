@@ -9,12 +9,6 @@
 # artifact `--implement` has nothing to read and the operator re-runs the whole
 # audit to recover what was already decided.
 #
-# NAMING. `findings-state.sh`, not `findings.sh`: this is the state store for one
-# component, the same role `audit-pass`'s `scripts/run-state.sh` fills for that
-# skill, and it is the file this one is modeled on. `emit-findings.sh` in
-# `audit-instructions` is a different job (composing a report body from scanner
-# output) and deliberately resolves no home of its own.
-#
 # KEYING, WHICH IS NOT OPTIONAL. Everything is written under
 #
 #   <plugin-data>/audit-automation-gaps/<state-key>/
@@ -85,13 +79,6 @@
 # (`audit/scripts/*.sh`, `audit-permission-state/scripts/permission-state.sh`): a
 # findings payload is a JSON document, and a half-checked document in an artifact
 # `--implement` is the only reader of is worse than a refusal naming the tool.
-# The requirement is checked by the two subcommands that touch a payload, `write`
-# and `read`, and by neither `paths` nor `list`, which compute a path and serve
-# the history file with `cat`. Checking it is not optional in `read`: it parses
-# the stored envelope before serving it, so an absent `jq` is a failed command
-# that a caller cannot tell from a document that did not parse, and reporting
-# that as exit 5 tells an operator their verdicts were corrupted when the
-# artifact is intact and the machine is short a tool.
 #
 # Usage:
 #   findings-state.sh paths --plugin-data <dir> [--root <path>]
@@ -122,18 +109,15 @@ set -uo pipefail
 
 PROG="findings-state.sh"
 
-# The component segment of rule 1's `<component>/<state-key>/<filename>`. It is
-# the skill's own directory name, so a second component writing under the same
-# plugin data root cannot collide with this one.
+# Rule 1's `<component>` segment: the skill's own directory name.
 COMPONENT="audit-automation-gaps"
 
-# Bumped when the on-disk envelope changes shape. `read` hands the whole envelope
-# back with this field intact, so a later `--implement` can refuse an artifact it
-# does not understand instead of misreading one.
+# Bumped when the on-disk envelope changes shape, so `--implement` can refuse an
+# artifact it does not understand.
 SCHEMA_VERSION=1
 
-# The vocabularies the payload is checked against. Categories are the skill's own
-# `argument-hint` filter tokens; verdicts are its three Phase 2 outcomes.
+# Categories are the skill's `argument-hint` filter tokens; verdicts are its
+# three Phase 2 outcomes.
 CATEGORIES='["hooks","mcp","skills","subagents","scheduled"]'
 VERDICTS='["PASS","CONDITIONAL","REJECT"]'
 
@@ -141,24 +125,20 @@ EXIT_PAYLOAD=3
 EXIT_NO_ARTIFACT=4
 EXIT_STATE=5
 
-# Staged files the cleanup trap removes. Globals rather than locals because the
-# trap body runs after the function that created them has returned.
+# Globals because the EXIT trap runs after the creating function returns.
+# RESERVED_TARGET is the name claimed with O_EXCL, released by the trap if its
+# envelope never landed.
 TMP_PAYLOAD=""
 TMP_ENVELOPE=""
 TMP_LATEST=""
-# The findings name this run claimed with O_EXCL. Held for the same reason: the
-# trap has to be able to release a name whose envelope never landed, or a failed
-# run would burn a suffix and leave a zero-byte file behind.
 RESERVED_TARGET=""
 
-# Set by parse_common_args and the resolvers below.
+# "Was the flag given?" is tracked apart from its value, so `--run-id ""` is
+# rejected rather than treated as omitted (which would serve the newest run).
 ARG_PLUGIN_DATA=""
 ARG_ROOT=""
 ARG_RUN_ID=""
 ARG_FINDINGS=""
-# "Was the flag given?" is tracked separately from its value. `--run-id ""` must
-# be a rejected argument, not a silently omitted one: treating it as omitted
-# would quietly serve the newest run to a caller that asked for a specific id.
 ARG_RUN_ID_GIVEN=0
 ARG_FINDINGS_GIVEN=0
 PLUGIN_DATA=""
@@ -168,17 +148,11 @@ HISTORY_FILE=""
 LATEST_FILE=""
 
 cleanup_tmp() {
-  if [[ -n "$TMP_PAYLOAD" ]]; then
-    rm -f "$TMP_PAYLOAD"
-  fi
-  if [[ -n "$TMP_ENVELOPE" ]]; then
-    rm -f "$TMP_ENVELOPE"
-  fi
-  if [[ -n "$TMP_LATEST" ]]; then
-    rm -f "$TMP_LATEST"
-  fi
-  # Only ever an EMPTY reservation: once the envelope has landed on it the name
-  # is cleared, so a published findings file is never removed from here.
+  local f
+  for f in "$TMP_PAYLOAD" "$TMP_ENVELOPE" "$TMP_LATEST"; do
+    [[ -z "$f" ]] || rm -f "$f"
+  done
+  # Only an EMPTY reservation: the name is cleared once the envelope lands.
   if [[ -n "$RESERVED_TARGET" ]] && [[ ! -s "$RESERVED_TARGET" ]]; then
     rm -f "$RESERVED_TARGET"
   fi
@@ -191,18 +165,15 @@ die() {
   exit 2
 }
 
-# Exit 5: the persisted state is not usable. Separate from `die` because the
-# caller did nothing wrong and, for `read` and `list`, separate from exit 4
-# because state this script cannot read is not state that is not there.
+# Exit 5: the persisted state is unusable. The caller did nothing wrong (not 2),
+# and state this script cannot read is not state that is absent (not 4).
 die_state() {
   printf '%s: %s\n' "$PROG" "$1" >&2
   exit "$EXIT_STATE"
 }
 
-# Refuse a damaged pointer BEFORE anything is published. `write` owns three
-# artifacts (the findings file, the history line, the pointer) and a failure
-# discovered after the first one has landed is the orphan this checks away: a
-# findings file on disk that `read` and `list` then report as absent.
+# Refuse a damaged history file or pointer BEFORE anything is published, so a
+# failure cannot leave a findings file that `read` and `list` report as absent.
 preflight_state_file() {
   local path="$1" label="$2"
   if [[ -e "$path" ]] && [[ ! -f "$path" ]]; then
@@ -265,18 +236,10 @@ require_jq() {
   fi
 }
 
-# A run id becomes a FILENAME under the plugin's own tree. Accept only a plain
-# segment: no separators, no leading dot. `lib/state-key.sh` validates its half
-# of the same door (a remote URL that would become traversing directory
-# components); the regex below is the other half, and it is the regex, not the
-# `..` arm after it, that stops traversal: a segment with no `/` cannot climb.
-#
-# WHAT THE `..` ARM ACTUALLY GUARDS, since it is not traversal. A dot run is
-# refused so the id stays a plain readable segment on disk and in the envelope,
-# and so the check survives as the second half of the door if the regex is ever
-# loosened to admit a separator. It is deliberately stricter than the
-# `--plugin-data` rule below, which refuses only a real `..` PATH COMPONENT: a
-# directory may legitimately be named `a..b`, a run id may not.
+# A run id becomes a filename, so accept only a plain segment: the regex (no
+# separator, no leading dot) is what stops traversal. The `..` arm keeps the id a
+# plain readable segment and survives if the regex is ever loosened; it is
+# stricter than the `--plugin-data` rule, which refuses only a `..` component.
 validate_run_id() {
   local id="$1"
   if [[ -z "$id" ]]; then
@@ -299,27 +262,17 @@ require_absolute_path() {
   esac
 }
 
-# Sets PLUGIN_DATA. A GLOBAL RATHER THAN A PRINTED VALUE, deliberately: `die`
-# must terminate the script, and a `$(...)` capture would confine that exit to a
-# subshell while the caller carried on with an empty path. The same reasoning
-# governs derive_state_key and resolve_locations below.
+# The resolvers set globals rather than print, because `die` inside a `$(...)`
+# capture would exit only the subshell and the caller would carry on.
 #
-# An exported value is honored only where one genuinely exists (a hook context).
-# The refusal names WHY the placeholder is unavailable, because "CLAUDE_PLUGIN_DATA
-# is unset" sends a reader looking for an environment bug that is not there.
+# Sets PLUGIN_DATA, which must be absolute. A `..` path component is refused,
+# but `a..b` is a legal directory name.
 resolve_plugin_data() {
-  local value="$1"
-  if [[ -z "$value" ]]; then
-    value="${CLAUDE_PLUGIN_DATA:-}"
-  fi
+  local value="${1:-${CLAUDE_PLUGIN_DATA:-}}"
   if [[ -z "$value" ]]; then
     die "--plugin-data is required: \${CLAUDE_PLUGIN_DATA} is not exported to the Bash tool, so pass the path substituted into the skill text"
   fi
   require_absolute_path "--plugin-data" "$value"
-  # A `..` PATH COMPONENT is the traversal, and it is the only thing refused
-  # here. A directory named `a..b` is a legal name and is accepted; the older
-  # substring test refused one, and the message it printed claimed a traversal
-  # the path did not contain.
   case "$value" in
   .. | ../* | ..[\\]* | *[/\\].. | *[/\\]..[/\\]*)
     die "--plugin-data must not contain a '..' path component: $value"
@@ -329,8 +282,7 @@ resolve_plugin_data() {
   PLUGIN_DATA="$value"
 }
 
-# Sets STATE_KEY by RUNNING the shared library (rule 1a). Nothing here
-# reimplements the scheme, and nothing composes a path from a placeholder.
+# Sets STATE_KEY by RUNNING the shared library (rule 1a), never reimplementing it.
 derive_state_key() {
   local root="$1" plugin_root state_key_lib
   plugin_root="${CLAUDE_PLUGIN_ROOT:-$(cd "${BASH_SOURCE[0]%/*}/../../.." && pwd)}"
@@ -351,14 +303,10 @@ derive_state_key() {
   fi
 }
 
-# The physical repo root for the derived key, recorded in the envelope as an
-# operator-facing breadcrumb. It is NOT the key, and nothing reads it back to
-# decide attribution; the key does that.
+# The repo root, recorded in the envelope as an operator breadcrumb only; the
+# key, not this, decides attribution.
 derive_repo_root() {
-  local here="${1:-}"
-  if [[ -z "$here" ]]; then
-    here="."
-  fi
+  local here="${1:-.}"
   (cd "$here" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null | tr -d '\r') || true
 }
 
@@ -371,17 +319,10 @@ resolve_locations() {
   LATEST_FILE="$BASE_DIR/latest"
 }
 
-# The jq program that judges a payload. It returns one line per problem and
-# nothing at all for a conforming document, so the caller needs no exit-code
-# contract from jq beyond "it parsed".
-#
-# WHAT IT REQUIRES, and why each field is here rather than left to the caller:
-# `candidates` is the verdict table; `evidence` is what backed each verdict and
-# is the half an operator cannot reconstruct from the table alone; `plan` is
-# required on PASS and CONDITIONAL because that is precisely what `--implement`
-# reads back. An empty `candidates` array is legal: the skill's own quality
-# principles make a clean bill of health a valid outcome, and persisting that is
-# a result, not an absence.
+# The jq program that judges a payload: one line per problem, nothing for a
+# conforming document. `candidates` is the verdict table, `evidence` what backed
+# each verdict, and `plan` (on PASS and CONDITIONAL) what `--implement` reads
+# back. An empty `candidates` array is a legal clean bill of health.
 payload_problems_program() {
   cat <<JQ
 def fields: ["id","candidate","category","verdict"];
@@ -439,13 +380,9 @@ validate_payload() {
     jq . "$file" 2>&1 >/dev/null | head -5 >&2
     exit "$EXIT_PAYLOAD"
   fi
-  # EXACTLY ONE DOCUMENT, because publication can only carry one. `jq` accepts a
-  # stream of concatenated documents and the check below would walk all of them,
-  # but the envelope is composed from the FIRST. A two-document stream whose
-  # second half holds the real verdicts would otherwise validate in full, report
-  # success, and persist only the empty first half: a confident success that
-  # stored none of the verdicts. Refusing is the honest half of the choice
-  # because merging would have to invent a rule for conflicting keys.
+  # EXACTLY ONE DOCUMENT: jq would validate every document in a stream, but the
+  # envelope is composed from the first, so a later document's verdicts would be
+  # silently dropped.
   documents=$(jq -s 'length' "$file" 2>/dev/null)
   if [[ "$documents" != "1" ]]; then
     printf '%s: the findings payload must be exactly one JSON document, and this stream carries %s.\n' \
@@ -506,11 +443,8 @@ cmd_paths() {
     die "paths takes only --plugin-data and --root"
   fi
   resolve_locations "$ARG_PLUGIN_DATA" "$ARG_ROOT"
-  printf 'plugin_data=%s\n' "$PLUGIN_DATA"
-  printf 'state_key=%s\n' "$STATE_KEY"
-  printf 'dir=%s\n' "$BASE_DIR"
-  printf 'history=%s\n' "$HISTORY_FILE"
-  printf 'latest=%s\n' "$LATEST_FILE"
+  printf 'plugin_data=%s\nstate_key=%s\ndir=%s\nhistory=%s\nlatest=%s\n' \
+    "$PLUGIN_DATA" "$STATE_KEY" "$BASE_DIR" "$HISTORY_FILE" "$LATEST_FILE"
 }
 
 cmd_write() {
@@ -524,19 +458,11 @@ cmd_write() {
   fi
   resolve_locations "$ARG_PLUGIN_DATA" "$ARG_ROOT"
 
-  # WRITE IS THE ONLY SUBCOMMAND THAT CREATES ANYTHING, so containment is
-  # established here. Every path segment below the plugin data root is already
-  # constrained: COMPONENT is a literal, the state key is validated by
-  # lib/state-key.sh (which hashes any identity that is not a plain lowercase
-  # segment path), and the run id is validated above. So the directory is
-  # derived, never accepted from a caller, and there is no caller-supplied run
-  # directory to contain.
-  #
-  # DISCLOSED RESIDUAL: a symlink planted INSIDE the plugin's own data directory
-  # could still redirect the write, and this does not resolve physical paths to
-  # catch that. An attacker with write access there can write the findings file
-  # directly, so the guard would be moot; recorded rather than implied, because
-  # an unstated limit reads as no limit.
+  # Every segment below the plugin data root is constrained (COMPONENT is a
+  # literal, lib/state-key.sh validates the key, the run id is validated above),
+  # so the directory is derived, never caller-supplied. RESIDUAL: a symlink
+  # planted inside the plugin's own data directory could redirect the write;
+  # anyone able to plant one could write the findings file directly anyway.
   mkdir -p "$BASE_DIR" || die "cannot create the findings directory: $BASE_DIR"
 
   TMP_PAYLOAD="$BASE_DIR/.payload.$$"
@@ -552,40 +478,25 @@ cmd_write() {
 
   validate_payload "$TMP_PAYLOAD"
 
-  local run_id
-  if [[ "$ARG_RUN_ID_GIVEN" -eq 1 ]]; then
-    run_id="$ARG_RUN_ID"
-  else
+  local run_id="$ARG_RUN_ID"
+  if [[ "$ARG_RUN_ID_GIVEN" -eq 0 ]]; then
     run_id=$(now_stamp)
   fi
 
   preflight_state_file "$HISTORY_FILE" "the history file"
   preflight_state_file "$LATEST_FILE" "the latest pointer"
 
-  # NEVER OVERWRITE, WHICH MEANS NEVER RACE. Two runs in the same second, or a
-  # caller reusing an id, get a suffix instead of silently replacing a verdict
-  # set the operator may have already approved items from. The id actually
-  # written is reported back so the caller records the one on disk rather than
-  # the one it asked for.
-  #
-  # The search and the publish are ONE atomic reservation per run: each candidate
-  # name is claimed by creating it under `set -C`, which is an O_EXCL open, so
-  # two concurrent writers cannot both believe they won the same name. A
-  # check-then-`mv` would leave a window between them in which the second writer
-  # destroys the first verdict set and both report success.
-  local target="" candidate="" suffix=1
+  # NEVER OVERWRITE. Each candidate name is reserved by an O_EXCL create under
+  # `set -C`, so a same-second run or a reused id gets the next suffix rather
+  # than racing a check-then-`mv`. The id actually written is reported back.
+  local target="" candidate="$run_id" suffix=1
   while :; do
-    if [[ "$suffix" -eq 1 ]]; then
-      candidate="$run_id"
-    else
-      candidate="$run_id-$suffix"
-    fi
     target="$BASE_DIR/findings-$candidate.json"
     if (set -C && : >"$target") 2>/dev/null; then
       break
     fi
-    # The claim can fail for a reason that is not "somebody holds this name", and
-    # walking 99 suffixes to report a cap that is not the problem would bury it.
+    # A claim that failed for another reason than a held name is reported as
+    # itself, not buried under the suffix cap.
     if [[ ! -e "$target" ]]; then
       die "cannot reserve the findings file: $target"
     fi
@@ -593,6 +504,7 @@ cmd_write() {
     if [[ "$suffix" -gt 99 ]]; then
       die_state "all 99 suffixed findings names are taken for run id: $run_id"
     fi
+    candidate="$run_id-$suffix"
   done
   run_id="$candidate"
   RESERVED_TARGET="$target"
@@ -628,29 +540,23 @@ cmd_write() {
           findings: $p
         }' >"$TMP_ENVELOPE" || die "cannot compose the findings envelope"
 
-  # Atomic publish onto the name this run reserved: a reader never observes a
-  # half-written findings file, and a crash mid-write leaves the reservation
-  # rather than a truncated JSON document `--implement` would fail to parse.
+  # Atomic publish onto the reserved name: a reader never sees a half-written
+  # findings file.
   mv -f "$TMP_ENVELOPE" "$target" || rollback_publish "cannot publish the findings file: $target"
   TMP_ENVELOPE=""
 
-  # The history line is derived FROM the published envelope, so the two can never
-  # disagree about counts or timestamps. A failure here rolls the findings file
-  # back out rather than leaving one the history does not mention.
+  # The history line is derived from the published envelope, so the two never
+  # disagree.
   local line
   line=$(jq -c '{schema_version, run_id, written_at, state_key, file, counts}' "$target") ||
     rollback_publish "cannot compose the history line, so the findings file was rolled back: $target"
   printf '%s\n' "$line" >>"$HISTORY_FILE" ||
     rollback_publish "cannot append to the history file, so the findings file was rolled back: $HISTORY_FILE"
-  # Committed from here: the run is on disk and in the history, so a later
-  # failure is REPORTED rather than rolled back over a record that now exists.
+  # Committed: a later failure is reported, not rolled back.
   RESERVED_TARGET=""
 
-  # `latest` is a pointer, not the artifact. Written after the findings file, so
-  # a failure never leaves it naming a run that does not exist, and REPLACED
-  # rather than copied into: `mv` swaps the name atomically, where `cp` would
-  # write through whatever the name already is and let a reader see a half
-  # pointer.
+  # `latest` is written last, so it never names a missing run, and replaced with
+  # `mv` so a reader never sees a half-written pointer.
   TMP_LATEST="$LATEST_FILE.$$"
   printf '%s\n' "$run_id" >"$TMP_LATEST" ||
     die_state "run $run_id is published and recorded, but the latest pointer could not be staged. Read it with --run-id $run_id: $LATEST_FILE"
@@ -658,9 +564,7 @@ cmd_write() {
     die_state "run $run_id is published and recorded, but the latest pointer could not be replaced. Read it with --run-id $run_id: $LATEST_FILE"
   TMP_LATEST=""
 
-  printf 'run_id=%s\n' "$run_id"
-  printf 'state_key=%s\n' "$STATE_KEY"
-  printf 'path=%s\n' "$target"
+  printf 'run_id=%s\nstate_key=%s\npath=%s\n' "$run_id" "$STATE_KEY" "$target"
 }
 
 no_artifact() {
@@ -671,33 +575,29 @@ no_artifact() {
   exit "$EXIT_NO_ARTIFACT"
 }
 
-# Findings files with no pointer at them are an INCOMPLETE PUBLISH, and saying
-# "nothing is persisted" over the top of them is the same lie in a different
-# costume: the verdicts are right there on disk. Called only on the paths that
-# were about to report absence, so a healthy tree never pays for it.
+# Findings files with no pointer at them are an INCOMPLETE PUBLISH, not an
+# absence. Called only on paths about to report absence.
 refuse_orphans() {
-  local missing="$1" file count=0
+  local missing="$1" file orphans=()
   for file in "$BASE_DIR"/findings-*.json; do
     if [[ -e "$file" ]]; then
-      count=$((count + 1))
+      orphans+=("${file##*/}")
     fi
   done
-  if [[ "$count" -eq 0 ]]; then
+  if [[ "${#orphans[@]}" -eq 0 ]]; then
     return 0
   fi
   printf '%s: %s is missing, but %d findings file(s) exist under %s. This is an INCOMPLETE PUBLISH, not an absence:\n' \
-    "$PROG" "$missing" "$count" "$BASE_DIR" >&2
-  for file in "$BASE_DIR"/findings-*.json; do
-    if [[ -e "$file" ]]; then
-      printf '%s:   %s\n' "$PROG" "${file##*/}" >&2
-    fi
+    "$PROG" "$missing" "${#orphans[@]}" "$BASE_DIR" >&2
+  for file in "${orphans[@]}"; do
+    printf '%s:   %s\n' "$PROG" "$file" >&2
   done
   printf '%s: read one directly with --run-id <id>, taking the id from the file name.\n' "$PROG" >&2
   exit "$EXIT_STATE"
 }
 
-# `-f` alone answers "can this be served?" with a yes for a readable regular
-# file and a no for everything else, and the two nos are not the same answer.
+# A path that exists but is not a readable regular file is exit 5, never an
+# absence.
 require_readable_file() {
   local path="$1" label="$2"
   if [[ -e "$path" ]] && [[ ! -f "$path" ]]; then
@@ -710,13 +610,7 @@ require_readable_file() {
 
 cmd_read() {
   parse_common_args "read" "$@"
-  # THE SAME PREREQUISITE CHECK `write` USES, and for a sharper reason here.
-  # `read` parses the stored envelope with `jq` before serving it, and a machine
-  # without `jq` fails that command with exit 127. Without this gate the failure
-  # is indistinguishable from a document that did not parse, so a perfectly
-  # valid persisted run is reported as damaged state under exit 5 and the
-  # operator is told an external writer corrupted their verdicts. A missing tool
-  # is a missing prerequisite: it exits 2 and names `jq`.
+  # Without this a missing jq would read as an unparsable envelope (exit 5).
   require_jq
   if [[ "$ARG_FINDINGS_GIVEN" -eq 1 ]]; then
     die "read does not take --findings"
@@ -733,10 +627,7 @@ cmd_read() {
     no_artifact
   fi
 
-  local run_id=""
-  if [[ "$ARG_RUN_ID_GIVEN" -eq 1 ]]; then
-    run_id="$ARG_RUN_ID"
-  fi
+  local run_id="$ARG_RUN_ID"
   if [[ -z "$run_id" ]]; then
     require_readable_file "$LATEST_FILE" "the latest pointer"
     if [[ ! -f "$LATEST_FILE" ]]; then
@@ -747,10 +638,8 @@ cmd_read() {
     if [[ -z "$run_id" ]]; then
       die_state "the latest pointer is empty, so no run can be served by default: $LATEST_FILE"
     fi
-    # VALIDATED EVEN THOUGH THIS SCRIPT WROTE IT. The pointer is a file on disk
-    # under a directory anything with write access can reach, so a poisoned
-    # `latest` is a caller-supplied run id by another route, and the name below
-    # is built from it.
+    # Validated even though this script wrote it: a poisoned `latest` is a
+    # caller-supplied run id by another route.
     validate_run_id "$run_id"
   fi
 
@@ -763,12 +652,8 @@ cmd_read() {
   if [[ ! -s "$target" ]]; then
     die_state "the findings file for run id $run_id is empty, so there is nothing to serve (a write may be in flight, or it was truncated): $target"
   fi
-  # PARSED BEFORE IT IS SERVED, even though this script wrote it. Publication is
-  # staged and renamed, so this script cannot leave a corrupt file behind, but
-  # the tree is an ordinary directory that a foreign writer or a stray editor
-  # can reach. Serving bytes that do not parse would hand the caller something
-  # unusable under exit 0, which is the opposite of the promise exit 5 makes:
-  # state that exists but cannot be trusted is reported, never returned.
+  # Parsed before it is served: a foreign writer can reach this tree, and state
+  # that cannot be trusted is reported under exit 5, never returned under 0.
   if ! jq -e 'type == "object"' "$target" >/dev/null 2>&1; then
     die_state "the findings file for run id $run_id is not a JSON object, so it cannot be trusted (something outside this script wrote it): $target"
   fi
@@ -785,15 +670,10 @@ cmd_list() {
   if [[ -e "$BASE_DIR" ]] && [[ ! -d "$BASE_DIR" ]]; then
     die_state "the findings directory exists but is not a directory, so nothing here can be listed: $BASE_DIR"
   fi
-  # A history file that exists but cannot be read is reported as itself, not as
-  # an empty listing: "no persisted runs" would send a caller off to re-run the
-  # whole audit over a verdict set that is sitting right there.
   require_readable_file "$HISTORY_FILE" "the history file"
 
-  # An empty listing is an ANSWER, not a failure: "this project has no persisted
-  # runs" is exactly what a caller deciding whether to audit or to implement
-  # needs, so stdout is empty and the exit code stays 0. Only `read`, which was
-  # asked for a specific artifact, treats absence as exit 4.
+  # An empty listing is an answer: empty stdout, exit 0. Only `read`, asked for
+  # a specific artifact, treats absence as exit 4.
   if [[ ! -f "$HISTORY_FILE" ]]; then
     refuse_orphans "the history file"
     printf '%s: no persisted runs for this project (state key %s)\n' "$PROG" "$STATE_KEY" >&2

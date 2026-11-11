@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "Don't uninstall to reconfigure: an uninstall is not a way to change an option. Use the configure route."
+    },
+    {
+      "answer": "No. Never uninstall to turn the hook off."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Simplest route: `claude plugin uninstall eol-normalizer@<marketplace>`, then reinstall with the option set.",
+      "why": "advises uninstall"
+    },
+    {
+      "answer": "You could uninstall and reinstall, but configure is quicker.",
+      "why": "near miss: leaves uninstall open as a route"
+    }
+  ]
+}

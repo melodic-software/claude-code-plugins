@@ -2,17 +2,21 @@
   "pass": [
     {
       "answer": "claude plugin configure context-budget@melodic --values-stdin < values.json",
-      "why": "route"
+      "why": "headless route"
     }
   ],
   "fail": [
     {
-      "answer": "/plugin configure context-budget@melodic",
-      "why": "interactive"
+      "answer": "claude plugin install context-budget@melodic --config settings_write_ask_enabled=false",
+      "why": "an install rerun, not the configure flow"
     },
     {
-      "answer": "claude plugin configure context-budget@melodic",
-      "why": "no --values-stdin"
+      "answer": "claude plugin configure context-budget --values-stdin",
+      "why": "near miss: no marketplace"
+    },
+    {
+      "answer": "Run `/plugin configure context-budget@<marketplace>` and set the toggle.",
+      "why": "the interactive route the prompt rules out"
     }
   ]
 }

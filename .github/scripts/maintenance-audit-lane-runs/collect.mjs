@@ -43,6 +43,28 @@ export function createBudget(limit) {
   };
 }
 
+// A REST call against env's API and token that spends one unit of budget per
+// request. A GET answered 404 and any 204 return null; any other failure
+// throws an error carrying the HTTP status.
+export function budgetedCall(env, budget) {
+  return async (method, path, body) => {
+    budget.spend();
+    const response = await guardedFetch(`${env.GITHUB_API_URL}${path}`, {
+      method,
+      headers: {
+        accept: "application/vnd.github+json",
+        authorization: `Bearer ${env.GITHUB_TOKEN}`,
+        "x-github-api-version": "2022-11-28",
+        ...(body ? { "content-type": "application/json" } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (response.status === 404 && method === "GET") return null;
+    if (!response.ok) throw Object.assign(new Error(`${method} ${path}: HTTP ${response.status}`), { status: response.status });
+    return response.status === 204 ? null : response.json();
+  };
+}
+
 const ranked = (runs, keep) => {
   const groups = new Map();
   for (const r of runs) groups.set(r.path, [...(groups.get(r.path) ?? []), r.id]);

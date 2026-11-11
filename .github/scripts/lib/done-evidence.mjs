@@ -56,14 +56,23 @@ export async function doneEvidence(github, repo, reason, issueNumber) {
     return false;
   }
   const tied = (commit, at) => Date.parse(at) > opened && closesIssue(String(commit?.commit?.message ?? ""), issueNumber);
+  // Whether `sha` is on the default branch: its compare with the branch reads
+  // ahead (the branch moved past it) or identical.
+  const onBase = async (sha) => {
+    const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(sha)}...${encodeURIComponent(base)}`).catch(() => null);
+    return comparison?.status === "ahead" || comparison?.status === "identical";
+  };
   for (const pr of prs) {
     if (
       await github("GET", `${repo}/pulls/${pr}`)
         .then(
           async (pull) =>
             Boolean(pull?.merged_at) &&
-            pull.base?.ref === base &&
             /^[0-9a-f]{40}$/.test(pull.merge_commit_sha ?? "") &&
+            // An upper layer of a native stack keeps the lower layer's branch
+            // as its base when the stack lands together; its merge commit on
+            // the default branch is what counts.
+            (pull.base?.ref === base || (await onBase(pull.merge_commit_sha))) &&
             tied(await github("GET", `${repo}/commits/${pull.merge_commit_sha}`), pull.merged_at),
         )
         .catch(() => false)
@@ -72,9 +81,8 @@ export async function doneEvidence(github, repo, reason, issueNumber) {
     }
   }
   for (const sha of shas) {
-    const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(sha)}...${encodeURIComponent(base)}`).catch(() => null);
     if (
-      (comparison?.status === "ahead" || comparison?.status === "identical") &&
+      (await onBase(sha)) &&
       (await github("GET", `${repo}/commits/${encodeURIComponent(sha)}`)
         .then((commit) => tied(commit, commit?.commit?.committer?.date))
         .catch(() => false))

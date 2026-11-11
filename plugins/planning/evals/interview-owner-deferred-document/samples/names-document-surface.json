@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Next: /planning:plan for the export change. In parallel, run /planning:interview document to send the SSH key question to the partner's ops lead.",
+      "why": "names the document surface with its slash"
+    },
+    {
+      "answer": "Run planning:interview document for the deferred key-type question.",
+      "why": "names the skill without the slash"
+    },
+    {
+      "answer": "Next: /planning:plan, and run `/planning:interview document` for the ops lead's SSH key question.",
+      "why": "document in backticks"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Next: /planning:plan. The SSH key type stays in Deferred questions until the partner replies.",
+      "why": "no document hand-off"
+    },
+    {
+      "answer": "Email the partner's ops lead and ask which key type they accept, then run /planning:plan.",
+      "why": "advises asking but never names the skill"
+    },
+    {
+      "answer": "Next: /planning:plan. No need for /planning:interview document; email the ops lead.",
+      "why": "negated document"
+    },
+    {
+      "answer": "Run /planning:plan without /planning:interview document.",
+      "why": "without the document"
+    }
+  ]
+}

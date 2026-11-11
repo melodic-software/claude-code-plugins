@@ -125,7 +125,10 @@ jobs:
       review: ${{ steps.select.outputs.review || steps.files.outputs.review }}
       pr-number: ${{ steps.gate.outputs.pr-number }}
       head-sha: ${{ steps.gate.outputs.head-sha }}
-      base-sha: ${{ steps.gate.outputs.base-sha }}
+      # The PR's own base, the review's diff base: for a stack layer the
+      # layer below, so the review reads this layer's change alone. Code
+      # comes from .base, the main checkout, never from it.
+      base-sha: ${{ steps.gate.outputs.pr-base-sha }}
       judged: ${{ steps.judged.outputs.judged }}
       held: ${{ steps.select.outputs.held }}
       main-sha: ${{ steps.main.outputs.main-sha }}
@@ -792,6 +795,7 @@ jobs:
         env:
           PROCEED: ${{ steps.kill.outputs.proceed }}
           REASON: ${{ steps.kill.outputs.reason }}
+          CAUSE: ${{ steps.kill.outputs.cause }}
           LANE_SWITCH: ${{ vars[matrix.switch] }}
           UPSTREAM_DEGRADED: ${{ steps.upstream.outputs.degraded }}
         run: |
@@ -803,7 +807,7 @@ jobs:
             echo "::error::an upstream outage stops this review; the lost-run reconciler re-runs it once GitHub Actions is operational"
             exit 1
           else
-            echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
+            echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable} cause ${CAUSE:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
           fi
 
       # The upstream run's actors, the re-runner and the PR author must all be
@@ -889,7 +893,7 @@ jobs:
           GATE_REVIEW: ${{ steps.select.outputs.review }}
           GATE_PR: ${{ steps.gate.outputs.pr-number }}
           GATE_HEAD: ${{ steps.gate.outputs.head-sha }}
-          GATE_BASE: ${{ steps.gate.outputs.base-sha }}
+          GATE_BASE: ${{ steps.gate.outputs.pr-base-sha }}
         run: |
           if [ "$CARRIED" = true ]; then
             proceed=$CARRIED_PROCEED review=$CARRIED_REVIEW pr=$CARRIED_PR head=$CARRIED_HEAD base=$CARRIED_BASE
@@ -1741,6 +1745,7 @@ jobs:
         env:
           PROCEED: ${{ steps.kill.outputs.proceed }}
           REASON: ${{ steps.kill.outputs.reason }}
+          CAUSE: ${{ steps.kill.outputs.cause }}
           LANE_SWITCH: ${{ vars[matrix.switch] }}
           UPSTREAM_DEGRADED: ${{ steps.upstream.outputs.degraded }}
         run: |
@@ -1752,7 +1757,7 @@ jobs:
             echo "::error::an upstream outage stops this review; the lost-run reconciler re-runs it once GitHub Actions is operational"
             exit 1
           else
-            echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
+            echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable} cause ${CAUSE:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
           fi
 
       # The upstream run's actors, the re-runner and the PR author must all be
@@ -1832,7 +1837,7 @@ jobs:
           GATE_REVIEW: ${{ steps.select.outputs.review }}
           GATE_PR: ${{ steps.gate.outputs.pr-number }}
           GATE_HEAD: ${{ steps.gate.outputs.head-sha }}
-          GATE_BASE: ${{ steps.gate.outputs.base-sha }}
+          GATE_BASE: ${{ steps.gate.outputs.pr-base-sha }}
         run: |
           if [ "$CARRIED" = true ]; then
             proceed=$CARRIED_PROCEED review=$CARRIED_REVIEW pr=$CARRIED_PR head=$CARRIED_HEAD base=$CARRIED_BASE
@@ -2658,6 +2663,7 @@ jobs:
         env:
           PROCEED: ${{ steps.kill.outputs.proceed }}
           REASON: ${{ steps.kill.outputs.reason }}
+          CAUSE: ${{ steps.kill.outputs.cause }}
           LANE_SWITCH: ${{ vars[matrix.switch] }}
           UPSTREAM_DEGRADED: ${{ steps.upstream.outputs.degraded }}
         run: |
@@ -2669,7 +2675,7 @@ jobs:
             echo "::error::an upstream outage stops this review; the lost-run reconciler re-runs it once GitHub Actions is operational"
             exit 1
           else
-            echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
+            echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable} cause ${CAUSE:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
           fi
 
       # The upstream run's actors, the re-runner and the PR author must all be
@@ -2749,7 +2755,7 @@ jobs:
           GATE_REVIEW: ${{ steps.select.outputs.review }}
           GATE_PR: ${{ steps.gate.outputs.pr-number }}
           GATE_HEAD: ${{ steps.gate.outputs.head-sha }}
-          GATE_BASE: ${{ steps.gate.outputs.base-sha }}
+          GATE_BASE: ${{ steps.gate.outputs.pr-base-sha }}
         run: |
           if [ "$CARRIED" = true ]; then
             proceed=$CARRIED_PROCEED review=$CARRIED_REVIEW pr=$CARRIED_PR head=$CARRIED_HEAD base=$CARRIED_BASE

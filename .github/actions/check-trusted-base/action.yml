@@ -1,11 +1,13 @@
 name: Check Trusted Base
 description: >
-  Fail unless the gated PR targets the default branch and its base SHA is on
-  the default branch, then check out the trusted base in the base checkout:
-  that SHA in mode pr-base, the default branch tip in mode default-tip. Only a
-  PR into the default branch runs, and only from a base the default branch
-  already holds: a PR into another branch could otherwise choose the actions,
-  config and trusted-actor list it is judged by. Contract:
+  Fail unless the gated PR targets the default branch, or is a layer of a
+  native stack whose stack targets it, and its base SHA is on the default
+  branch, then check out the trusted base in the base checkout: that SHA in
+  mode pr-base, the default branch tip in mode default-tip. A stack layer's
+  gated base SHA is the stack base's, never the lower layer's head. Only a
+  base the default branch already holds is checked out: a PR into another
+  branch could otherwise choose the actions, config and trusted-actor list it
+  is judged by. Contract:
   docs/conventions/pr-pipeline/pr-run-activity.md, run job step 4. An
   issues event has no PR and trusts the default branch tip, in mode
   default-tip only.
@@ -49,6 +51,7 @@ runs:
       env:
         EVENT_NAME: ${{ github.event_name }}
         EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+        EVENT_STACK_BASE_REF: ${{ github.event.pull_request.stack.base.ref }}
         DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         BASE_SHA: ${{ inputs.base-sha }}
         PR_NUMBER: ${{ inputs.pr-number }}
@@ -74,12 +77,17 @@ runs:
         else
           if [ "$EVENT_NAME" = pull_request ]; then
             base_ref=$EVENT_BASE_REF
+            stack_base_ref=$EVENT_STACK_BASE_REF
           else
-            base_ref=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .base.ref) ||
+            refs=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.base.ref, (.stack.base.ref // "")') ||
               fail "could not read the PR's base branch"
+            base_ref=$(sed -n 1p <<<"$refs")
+            stack_base_ref=$(sed -n 2p <<<"$refs")
           fi
-          [ "$base_ref" = "$DEFAULT_BRANCH" ] ||
-            fail "the PR targets a branch other than the default branch; lanes run only on PRs into the default branch"
+          # A stack layer targets the layer below; its stack's base must be
+          # the default branch, and the gate passed that stack base's SHA.
+          [ "$base_ref" = "$DEFAULT_BRANCH" ] || [ "$stack_base_ref" = "$DEFAULT_BRANCH" ] ||
+            fail "the PR targets a branch other than the default branch; lanes run only on PRs into the default branch or layers of a stack into it"
           [[ $BASE_SHA =~ ^[0-9a-f]{40}$ ]] || fail "the gated base SHA is malformed"
           git -C "$BASE_PATH" merge-base --is-ancestor "$BASE_SHA" "refs/remotes/origin/$DEFAULT_BRANCH" ||
             fail "the gated base SHA is not on the default branch"

@@ -264,7 +264,7 @@ plugins/domain-driven-design/skills/*/SKILL.md
 plugins/dometrain/README.md
 plugins/dometrain/CHANGELOG.md
 plugins/dometrain/skills/*/SKILL.md
-plugins/dometrain/skills/sync/context/*.md
+plugins/dometrain/skills/update/context/*.md
 plugins/education/README.md
 plugins/education/CHANGELOG.md
 plugins/education/skills/*/SKILL.md
@@ -378,7 +378,6 @@ plugins/planning/reference/*.md
 plugins/planning/skills/*/SKILL.md
 plugins/planning/skills/*/context/*.md
 plugins/planning/skills/*/templates/*.md
-plugins/planning/skills/questionnaire/templates/questionnaire.md
 plugins/planning/skills/design-handoff/evals/fixtures/*.md
 plugins/planning/skills/interview/evals/fixtures/*/*.md
 # The playbooks plugin was purged whole; the Boris and model-adaptation chapters

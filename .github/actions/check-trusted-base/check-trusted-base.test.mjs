@@ -60,7 +60,7 @@ before(() => {
   const bin = path.join(root, "bin");
   mkdirSync(bin);
   const gh = path.join(bin, "gh");
-  writeFileSync(gh, '#!/usr/bin/env bash\nprintf "%s\\n" "$FAKE_BASE_REF"\n');
+  writeFileSync(gh, '#!/usr/bin/env bash\nprintf "%s\\n%s\\n" "$FAKE_BASE_REF" "$FAKE_STACK_BASE_REF"\n');
   chmodSync(gh, 0o755);
   env.PATH = `${bin}:${env.PATH}`;
 });
@@ -133,6 +133,50 @@ test("default-tip reads the PR's base branch on a workflow_dispatch", () => {
   const bad = run({ MODE: "default-tip", BASE_SHA: sha.A, EVENT_NAME: "workflow_dispatch", EVENT_BASE_REF: "", FAKE_BASE_REF: "side" });
   assert.equal(bad.status, 1);
   assert.equal(bad.output, "");
+});
+
+// A layer of a native stack targets the layer below; it runs only when its
+// stack's base is the default branch, and the gate passes the stack base's SHA,
+// so the trusted checkout is a default-branch commit, never the lower layer.
+
+test("pr-base accepts a stack layer whose stack targets the default branch and checks out the stack base SHA", () => {
+  const r = run({ BASE_SHA: sha.B, EVENT_BASE_REF: "side", EVENT_STACK_BASE_REF: "main" });
+  assert.equal(r.status, 0, r.log);
+  assert.equal(r.output, `commit=${sha.B}\n`);
+  assert.equal(r.head, sha.B);
+});
+
+test("a stack layer whose base SHA is the lower layer's head fails: lane scripts never load from it", () => {
+  const r = run({ BASE_SHA: sha.D, EVENT_BASE_REF: "side", EVENT_STACK_BASE_REF: "main" });
+  assert.equal(r.status, 1);
+  assert.match(r.log, /not on the default branch/);
+  assert.equal(r.output, "");
+  assert.equal(r.head, sha.C);
+});
+
+test("a stack layer whose stack targets another branch fails", () => {
+  const r = run({ BASE_SHA: sha.A, EVENT_BASE_REF: "side", EVENT_STACK_BASE_REF: "release" });
+  assert.equal(r.status, 1);
+  assert.match(r.log, /other than the default branch/);
+  assert.equal(r.output, "");
+});
+
+test("default-tip accepts a stack layer on the default branch and checks out the tip", () => {
+  const r = run({ MODE: "default-tip", BASE_SHA: sha.A, EVENT_BASE_REF: "side", EVENT_STACK_BASE_REF: "main" });
+  assert.equal(r.status, 0, r.log);
+  assert.equal(r.output, `commit=${sha.C}\n`);
+});
+
+test("a workflow_dispatch reads the stack base from the PR", () => {
+  const ok = run({ BASE_SHA: sha.A, EVENT_NAME: "workflow_dispatch", EVENT_BASE_REF: "", FAKE_BASE_REF: "side", FAKE_STACK_BASE_REF: "main" });
+  assert.equal(ok.status, 0, ok.log);
+  assert.equal(ok.output, `commit=${sha.A}\n`);
+  const bad = run({ BASE_SHA: sha.A, EVENT_NAME: "workflow_dispatch", EVENT_BASE_REF: "", FAKE_BASE_REF: "side", FAKE_STACK_BASE_REF: "release" });
+  assert.equal(bad.status, 1);
+  assert.equal(bad.output, "");
+  const plain = run({ BASE_SHA: sha.A, EVENT_NAME: "workflow_dispatch", EVENT_BASE_REF: "", FAKE_BASE_REF: "side", FAKE_STACK_BASE_REF: "" });
+  assert.equal(plain.status, 1);
+  assert.equal(plain.output, "");
 });
 
 test("an issues event in default-tip mode trusts the default branch tip with no PR", () => {

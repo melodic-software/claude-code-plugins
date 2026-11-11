@@ -1,5 +1,33 @@
 # Changelog for the PR pipeline convention
 
+## [9.21.1] - 2026-11-11
+
+### Fixed
+
+- `pr-run-activity.md` names step 3 (`check-trusted-trigger`, reason `untrusted-base`) as where a PR into a non-default base that is not a native stack layer gets its failure check, not step 4.
+
+## [9.21.0] - 2026-11-11
+
+### Changed
+
+- A layer of a native GitHub stack whose stack base is the default branch now runs its lanes (owner decision Q40). `check-trusted-trigger` and `check-trusted-base` accept it, and the gate's `base-sha` for it is `pull_request.stack.base.sha`, a default-branch commit, so every script, action, config and list still loads from the default branch and never from the layer below. A new gate output, `pr-base-sha`, keeps the PR's own base SHA as a diff base only; pr-review-main diffs a layer against it, so the review reads that layer's change alone. ci-status reads its hold config at the default branch tip for such a layer. A PR into any other branch outside such a stack, and a stack into another branch, still stop with `untrusted-base`.
+
+## [9.20.2] - 2026-11-11
+
+### Changed
+
+- The scan jobs that hold the scan-carrier key (pr-run-activity-read.yml, upstream-apply-changelog.yml, maintenance-tidy-code-upkeep.yml) name their environment as `{ name: pr-pipeline-scan-carrier, deployment: false }`: the job still gets the environment's secret under its main-only branch policy, and GitHub records no deployment. `scripts/check-read-caller-keys.sh` now accepts only that exact form on the read workflow's `scan` job.
+
+### Fixed
+
+- The issue lane's already-done evidence (`done-evidence.mjs`) now counts a merged pull request whose merge commit is on the default branch even when its `base.ref` is another branch: an upper layer of a native stack keeps the lower layer's branch as its base when the stack lands together. Its merge commit must still close the issue.
+
+## [9.20.1] - 2026-11-11
+
+### Fixed
+
+- `setup-runner-isolation` no longer stalls on a slow Ubuntu mirror's index refresh. It installs bubblewrap and socat from the image's own package lists first, and runs `apt-get update` only when that fails (three tries), all within 540 s. It drops the apt timeout overrides that delayed the image's failover to `archive.ubuntu.com`, and now fails red when either `bwrap` or `socat` is missing, not only `bwrap`.
+
 ## [9.20.0] - 2026-11-11
 
 ### Added

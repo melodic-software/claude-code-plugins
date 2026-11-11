@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/repo/.claude/ai-briefing/sources.md"}}]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "/repo/.claude/ai-briefing/sources.md", "content": "- https://example.com/feed"}}],
+      "why": "check wrote the profile file"
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Set `bash_format_lint_gitignored` to `true` with `/plugin configure`, or headless with `claude plugin configure --values-stdin`, or a `claude plugin install --config` rerun as the fallback. It takes effect in a fresh session."
+      "answer": "Set `bash_format_lint_gitignored` to `true` with `/plugin configure bash-format@<marketplace>`; from a headless session use a headless route from the marketplace's plugin-reconfiguration convention. Rerun check in a fresh session to see the new value."
     }
   ],
   "fail": [

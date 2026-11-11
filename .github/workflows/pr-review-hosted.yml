@@ -207,9 +207,10 @@ jobs:
         if: steps.kill.outputs.proceed != 'true' || vars.CLAUDE_REVIEW_DISABLED == 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
+          CAUSE: ${{ steps.kill.outputs.cause }}
           LANE_SWITCH: ${{ vars.CLAUDE_REVIEW_DISABLED }}
         run: |
-          echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable}, CLAUDE_REVIEW_DISABLED: ${LANE_SWITCH:-unset})"
+          echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable} cause ${CAUSE:-unreadable}, CLAUDE_REVIEW_DISABLED: ${LANE_SWITCH:-unset})"
 
       # A skip fails this job, so the run is a failed first attempt: the
       # lost-run reconciler re-runs it once GitHub Actions is operational
@@ -385,6 +386,7 @@ jobs:
         plugins/source-control/skills/babysit-prs/scripts/babysit_evidence_comment.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py
+        plugins/source-control/skills/babysit-prs/scripts/babysit_lane_binding.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py
@@ -468,6 +470,7 @@ jobs:
         .github/scripts/pr-unblock/earlier-fail-notes.mjs
         .github/scripts/pr-unblock/limit-stop.mjs
         .github/scripts/lib/lane-outcome.mjs
+        .github/scripts/lib/lane-binding.mjs
         .github/scripts/pr-unblock/dispatch-record.mjs
         .github/scripts/pr-unblock/verify-cap.mjs
         .github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs

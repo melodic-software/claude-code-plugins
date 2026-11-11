@@ -456,7 +456,7 @@ export const HOLD_LANES = [
   { lane: "work-resolve-issue", workflow: "work-resolve-issue.yml", jobs: ["report-outcome / run", "pick-slot"], area: "Issue lane (work-resolve-issue)" },
   // The 24 hours to 2026-11-05T22:00Z had 165 green runs, a mean of 6.9 an
   // hour over the default cap of 6, and a peak of 51; 20 covers every hour
-  // but that one, whose rest later runs read, at 2 calls a run.
+  // but that one, whose rest later runs read.
   { lane: "work-unblock", workflow: "work-unblock.yml", jobs: ["label-unblocked"], area: "Unblock lane (work-unblock)", holdRuns: 20 },
   // A failed Refine pass reds its run, so this lane's red runs are read too,
   // for record-passes's refine-failed warning.
@@ -469,13 +469,13 @@ export const HOLD_LANES = [
   },
   // One run per triaged issue: the 7 days to 2026-11-05 had a mean of 9.9
   // green runs per 65-minute window and a peak of 49; 40 leaves 2 of 168
-  // windows over it, at 2 calls a run (one jobs read, one annotations read).
+  // windows over it.
   { lane: "intake-triage", workflow: "intake-triage.yml", jobs: ["apply-verdict"], area: "Intake lane (intake-triage apply-verdict)", holdRuns: 40 },
   // One run per checks run: the 24 hours to 2026-11-06T12:00Z had 504 green
   // runs, a peak of 58 created in one hour and 267 in one 7-hour created span.
   // 80 a window and 5 list pages leave headroom over both; only a job whose
-  // `Note the hold` step ran has its annotations read, so a run costs one
-  // jobs read, plus one annotations read when it held (`holdStep`).
+  // `Note the hold` step ran has its annotations read (`holdStep`), so a run
+  // costs one REST jobs read for the steps.
   {
     lane: "pr-verify",
     workflow: "pr-verify.yml",
@@ -507,8 +507,7 @@ export const HOLD_LANES = [
   // one wake per pr-verify pass, a share of pr-verify's runs, and one per
   // label removal, a count not measured (UNVERIFIED); pr-verify's 80 a window
   // and 5 list pages are taken as the cover. No step runs only on a hold, so
-  // each green job's annotations are read: a jobs read and up to 2
-  // annotation reads a run.
+  // each green job's annotations are read.
   { lane: "pr-merge", workflow: "pr-merge.yml", jobs: ["merge", "enable-auto-merge"], area: "Merge lane (pr-merge lane token)", holdRuns: 80, listPages: 5 },
 ];
 
