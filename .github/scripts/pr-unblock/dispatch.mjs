@@ -867,6 +867,9 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
     log(`::warning::the open pull request listing could not be read (${error.message}); nothing dispatched, a later run retries`);
     return 0;
   }
+  // The burn-rate pacer paces the next scheduled tick only after a run that
+  // listed (pr-unblock-dispatch.yml `Mark this tick's work done`).
+  appendFileSync(env.GITHUB_OUTPUT, "listed=true\n");
   const { record, text } = readRecord(env.DISPATCH_RECORD);
   pruneRecord(record, new Set(listed.map((node) => node.headRefOid)));
   // The human-gated label another lane's escalation may leave on for

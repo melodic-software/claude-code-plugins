@@ -4,12 +4,12 @@ The audit's default deliverable: what the report must contain, in what order, an
 rules that keep it honest. The report is read-only and is the durable asset. The fix path, when
 it exists, is a separate explicitly-invoked override.
 
-## Framing: smart zone, not dollars
+## Framing: light zone, not dollars
 
 The report leads with **reclaimed reasoning space**: the share of the context window the fixed
 payload occupies and what measured trims would return to the model's working room. Cost per
 million tokens is never the lead and never a required line. When the `context-guard` plugin is
-installed, its zone vocabulary (smart/acceptable/dumb bands) may frame the headline; absent it,
+installed, its zone vocabulary (light/moderate/heavy bands) may frame the headline; absent it,
 report the payload as a percentage of the measured window (`totalTokens` / `maxTokens` in sdk
 mode; the displayed fraction in cli-parse mode).
 
@@ -21,7 +21,7 @@ mode; the displayed fraction in cli-parse mode).
    settings, not the operator's machine. When the state key is `nonrepo` (the working directory
    is not a git checkout), project settings, `.mcp.json`, and `CLAUDE.md` discovery are outside
    the measured tree, so the reported total is a floor for a session opened inside a project.
-2. **Headline.** Fixed payload as tokens and as a share of the window; one sentence of smart-zone
+2. **Headline.** Fixed payload as tokens and as a share of the window; one sentence of light-zone
    framing. The deferred pool is stated beside it as *recurring request weight outside the
    window*. That dual-ledger sentence appears exactly once.
 3. **Category totals.** The measured category table from the baseline snapshot, as measured.

@@ -35,7 +35,7 @@ for (const c of cases as Case[]) {
 type Snap = { context_window: { context_window_size?: number }; bands?: { auto_compact_window?: unknown } }
 const lowered = (cases as Case[]).filter(c => typeof (c.snapshot as Snap | null)?.bands?.auto_compact_window === 'number')
 test('fixture: the shared file holds a lowered-window case', () => {
-  expect(lowered.some(c => c.word !== 'smart')).toBe(true)
+  expect(lowered.some(c => c.word !== 'light')).toBe(true)
 })
 for (const c of lowered) {
   test(`fixture, as the mod resolves it: ${c.name}`, () => {
@@ -54,7 +54,7 @@ const fresh = (capturedAt: string) =>
 test('captured_at: a calendar-invalid value that would normalize into the window reads unknown', () => {
   const marchSecond = Date.parse('2026-03-02T00:00:30Z') / 1000
   expect(resolveZone({ sid: 's1', snapshot: fresh('2026-02-30T00:00:00Z'), zones: null, nowSec: marchSecond }).word).toBe('unknown')
-  expect(resolveZone({ sid: 's1', snapshot: fresh('2026-03-02T00:00:00Z'), zones: null, nowSec: marchSecond }).word).toBe('smart')
+  expect(resolveZone({ sid: 's1', snapshot: fresh('2026-03-02T00:00:00Z'), zones: null, nowSec: marchSecond }).word).toBe('light')
   const nextMinute = Date.parse('2026-10-04T00:00:30Z') / 1000
   expect(resolveZone({ sid: 's1', snapshot: fresh('2026-10-03T23:59:60Z'), zones: null, nowSec: nextMinute }).word).toBe('unknown')
   expect(resolveZone({ sid: 's1', snapshot: fresh('2026-10-03T24:00:00Z'), zones: null, nowSec: nextMinute }).word).toBe('unknown')
@@ -62,5 +62,5 @@ test('captured_at: a calendar-invalid value that would normalize into the window
 
 test('staleness: 600 s old is fresh, 601 s old and 61 s in the future are not', () => {
   const at = (offset: number) => resolveZone({ sid: 's1', snapshot: fresh(iso(NOW + offset)), zones: null, nowSec: NOW }).word
-  expect([at(-600), at(-601), at(60), at(61)]).toEqual(['smart', 'unknown', 'smart', 'unknown'])
+  expect([at(-600), at(-601), at(60), at(61)]).toEqual(['light', 'unknown', 'light', 'unknown'])
 })

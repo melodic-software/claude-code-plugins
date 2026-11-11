@@ -4,11 +4,13 @@
 # team-file: a tracked docs/conventions/rendered-views.yaml setting file.
 # personal-file: an untracked, gitignored docs/conventions/rendered-views.local.yaml setting file,
 # and no team file.
+# diagram-target-file: an untracked, gitignored docs/conventions/visualization.local.yaml setting
+# diagram_target: excalidraw, and no team file.
 set -euo pipefail
 set -o noclobber
-mode="${1:?mode: team-file or personal-file}"
+mode="${1:?mode: team-file, personal-file or diagram-target-file}"
 case "${mode}" in
-team-file | personal-file) ;;
+team-file | personal-file | diagram-target-file) ;;
 *) echo "unknown mode: ${mode}" >&2 && exit 2 ;;
 esac
 
@@ -59,6 +61,11 @@ case "${mode}" in
 team-file)
   printf 'medium: file\n' >docs/conventions/rendered-views.yaml
   g add README.md docs/conventions/rendered-views.yaml
+  ;;
+diagram-target-file)
+  printf 'docs/conventions/visualization.local.yaml\n' >.gitignore
+  printf 'diagram_target: excalidraw\n' >docs/conventions/visualization.local.yaml
+  g add README.md .gitignore
   ;;
 *) # personal-file; the mode was checked above
   printf 'docs/conventions/rendered-views.local.yaml\n' >.gitignore

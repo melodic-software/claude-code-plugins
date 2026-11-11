@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "diagram_target: excalidraw unavailable (no excalidraw server connected); using auto\n\n```mermaid\nflowchart TD\n  A[User requests reset] --> B[Email one-time token]\n  B --> C[Set new password]\n  C --> D[Revoke all sessions]\n```"
+    },
+    {
+      "answer": "```text\ndiagram_target: excalidraw -> auto\n```\n\n```text\nrequest reset -> email token -> set password -> revoke every session\n```",
+      "why": "the diagram is the second fence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "diagram_target: excalidraw unavailable; using auto. The user asks for a reset, gets a token, sets a password, and sessions are revoked.",
+      "why": "no fence, the steps only in prose"
+    },
+    {
+      "answer": "```mermaid\nflowchart TD\n  A[Request reset] --> B[Set password]\n```\nThe token is emailed first, and sessions are revoked at the end.",
+      "why": "prose after the fence names both steps"
+    }
+  ]
+}

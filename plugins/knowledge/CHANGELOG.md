@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.3.14] - 2026-11-10
+
+### Fixed
+
+- video-digest auto-caption transcripts no longer repeat a one- or two-word line that a rolling caption carries into its next cue
+
 ## [1.3.13] - 2026-11-10
 
 ### Changed

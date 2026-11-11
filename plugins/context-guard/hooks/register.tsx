@@ -1,9 +1,9 @@
 import type { EngineInterface, PromptOrigin, Register, Timer } from 'claude-code'
-import { followWindow, ofWindow, RANK, readBands, resolveZone, tokenShape, type Bands, type TokenShape, type Zone } from './zone.ts'
+import { alias, followWindow, ofWindow, RANK, readBands, resolveZone, tokenShape, type Bands, type TokenShape, type Zone } from './zone.ts'
 
 const CONTRACT_DIR = 'context-guard'
 const PREFIX = 'context-guard: '
-const NEXT_ZONE: Partial<Record<Zone, Zone>> = { smart: 'acceptable', acceptable: 'dumb' }
+const NEXT_ZONE: Partial<Record<Zone, Zone>> = { light: 'moderate', moderate: 'heavy' }
 const SESSION_ID = /^[A-Za-z0-9_-]+$/
 const PERSON_ORIGINS = ['composer', 'bridge']
 const REOFFER_MS = 5_000
@@ -51,10 +51,10 @@ type Snapshot = {
   zone?: Zone | 'unknown'
   evidence_degraded?: boolean
   bands?: {
-    smart_max_used_percentage: number
-    acceptable_max_used_percentage: number
-    smart_max_tokens: number | null
-    acceptable_max_tokens: number | null
+    light_max_used_percentage: number
+    moderate_max_used_percentage: number
+    light_max_tokens: number | null
+    moderate_max_tokens: number | null
     auto_compact_window?: number
   }
 }
@@ -172,9 +172,11 @@ export const parseSettings = (zones: string | null): Settings => {
     // malformed: every mod key takes its default
   }
   const margin = typeof z.approach_margin === 'number' ? z.approach_margin : NaN
-  const actionsIn = (typeof z.actions === 'object' && z.actions !== null ? z.actions : {}) as Record<string, unknown>
+  const actionsRaw = typeof z.actions === 'object' && z.actions !== null && !Array.isArray(z.actions) ? (z.actions as Record<string, unknown>) : {}
+  // The old zone names (actions.smart, .acceptable, .dumb) read for one release as the new ones.
+  const actionsIn = alias(alias(alias(actionsRaw, 'light', 'smart'), 'moderate', 'acceptable'), 'heavy', 'dumb')
   const actions: Partial<Record<Zone, Rule>> = {}
-  for (const zone of ['smart', 'acceptable', 'dumb'] as const) {
+  for (const zone of ['light', 'moderate', 'heavy'] as const) {
     const rule = asRule(actionsIn[zone])
     if (rule) actions[zone] = rule
   }
@@ -216,13 +218,13 @@ const newSession = (restate: Session['restate']): Session => ({
 
 // Records what the reading crossed since the last one as pending events. Each zone is reported once
 // per cycle: a zone's line fires when the session first reaches it, a dip below a boundary changes
-// nothing, and only a return to smart opens a new cycle.
+// nothing, and only a return to light opens a new cycle.
 export const recordReading = (s: Session, reading: Reading, settings: Settings) => {
   s.reading = reading
   const { zone, percent } = reading
   if (zone === undefined) return
   if (s.restate) {
-    // A compacted session has no figures until the next API response, so its dumb zone is forced:
+    // A compacted session has no figures until the next API response, so its heavy zone is forced:
     // the line says the reading is unavailable, and the restatement waits for the figures.
     if (reading.degraded && percent === undefined && reading.tokens === undefined) {
       if (!s.awaiting) s.pending.push({ kind: 'restate', zone, degraded: true, unavailable: true })
@@ -230,7 +232,7 @@ export const recordReading = (s: Session, reading: Reading, settings: Settings) 
       return
     }
     s.awaiting = false
-    if (zone !== 'smart') s.pending.push({ kind: 'restate', zone, degraded: reading.degraded })
+    if (zone !== 'light') s.pending.push({ kind: 'restate', zone, degraded: reading.degraded })
     s.restate = false
     s.armed = Math.max(s.armed, RANK[zone])
     s.last = zone
@@ -240,7 +242,7 @@ export const recordReading = (s: Session, reading: Reading, settings: Settings) 
   if (RANK[zone] > s.armed) {
     s.pending.push({ kind: 'crossing', from: s.last ?? 'unobserved', zone, degraded: reading.degraded, armedBefore: s.armed })
     s.armed = RANK[zone]
-  } else if (zone === 'smart' && s.armed > 0) {
+  } else if (zone === 'light' && s.armed > 0) {
     s.armed = 0
     s.fired.clear()
     s.approached.clear()
@@ -258,7 +260,7 @@ export const recordReading = (s: Session, reading: Reading, settings: Settings) 
   // shape when its edge sits below the percentage edge, else the percentage shape. The margin is in
   // percentage points, of the window in the token shape.
   if (settings.margin <= 0) return
-  const { smart, acceptable } = settings.bands
+  const { light, moderate } = settings.bands
   const tok = reading.token
   const near = (edgePercent: number, edgeTokens: number | undefined) => {
     if (tok !== undefined && edgeTokens !== undefined && (percent === undefined || edgeTokens < (edgePercent * tok.size) / 100)) {
@@ -267,8 +269,8 @@ export const recordReading = (s: Session, reading: Reading, settings: Settings) 
     return percent !== undefined && percent >= edgePercent - settings.margin && percent <= edgePercent
   }
   const boundaries = [
-    { key: 'acceptable', toward: 'acceptable', near: s.armed < 1 && near(smart, tok?.smart) },
-    { key: 'dumb', toward: 'dumb', near: s.armed < 2 && near(acceptable, tok?.acceptable) },
+    { key: 'moderate', toward: 'moderate', near: s.armed < 1 && near(light, tok?.light) },
+    { key: 'heavy', toward: 'heavy', near: s.armed < 2 && near(moderate, tok?.moderate) },
     ...settings.thresholds.map(t => ({
       key: `t${t.at_percent}`,
       toward: 'an operator threshold',
@@ -283,8 +285,8 @@ export const recordReading = (s: Session, reading: Reading, settings: Settings) 
   }
 }
 
-// The verdict as Claude and the person read it: acceptable zone (2 of 3), dumb zone (3 of 3, compacted).
-const verdictText = (zone: Zone, degraded: boolean) => `${zone} zone (${RANK[zone] + 1} of 3${degraded && zone === 'dumb' ? ', compacted' : ''})`
+// The verdict as Claude and the person read it: moderate zone (2 of 3), heavy zone (3 of 3, compacted).
+const verdictText = (zone: Zone, degraded: boolean) => `${zone} zone (${RANK[zone] + 1} of 3${degraded && zone === 'heavy' ? ', compacted' : ''})`
 
 const dataText = (r: Reading | undefined, cfg: Config) => {
   const items: string[] = []
@@ -326,7 +328,7 @@ export const renderEvent = (e: Event, s: Session, cfg: Config, settings: Setting
   }
 }
 
-// Follows the verdict lines once per carrier past smart. The verdict alone pushed Claude toward
+// Follows the verdict lines once per carrier past light. The verdict alone pushed Claude toward
 // handoffs and terse delegation, so the line names the durable-state step and leaves the rest a choice.
 const OPTIONS =
   'context-guard: options: record decisions and pending items in a durable file, then continue, /compact, or hand off with /session-flow:handoff, as you and the user choose. A zone never calls for terser output, fewer agents, or lower quality.'
@@ -336,7 +338,7 @@ const OPTIONS =
 const renderAll = (events: Event[], s: Session, cfg: Config, settings: Settings) => {
   const lines = [...new Set(events.map(e => renderEvent(e, s, cfg, settings)))]
   const verdicts = lines.filter(l => !lines.some(o => o !== l && o.startsWith(l)))
-  return events.some(e => e.zone !== 'smart' && !(e.kind === 'restate' && e.unavailable)) ? [...verdicts, OPTIONS] : verdicts
+  return events.some(e => e.zone !== 'light' && !(e.kind === 'restate' && e.unavailable)) ? [...verdicts, OPTIONS] : verdicts
 }
 
 // Appends lines to what Claude reads and writes each to the debug log, so the log holds what Claude was told.
@@ -436,23 +438,23 @@ async function refresh($: EngineInterface, st: State) {
   if (!s.compacted && home !== undefined && SESSION_ID.test(sid)) {
     s.compacted = await $.fs.exists(`${home}/.claude/${CONTRACT_DIR}/context/${sid}.compacted`).catch(() => false)
   }
-  const zone = s.compacted ? 'dumb' : word === 'unknown' ? undefined : word
+  const zone = s.compacted ? 'heavy' : word === 'unknown' ? undefined : word
   const token = tokenShape(body.context_window, body.cli_version, settings.bands)
   body.zone = zone ?? 'unknown'
   body.evidence_degraded = s.compacted
   body.bands = {
-    smart_max_used_percentage: settings.bands.smart,
-    acceptable_max_used_percentage: settings.bands.acceptable,
-    smart_max_tokens: token?.smart ?? null,
-    acceptable_max_tokens: token?.acceptable ?? null,
+    light_max_used_percentage: settings.bands.light,
+    moderate_max_used_percentage: settings.bands.moderate,
+    light_max_tokens: token?.light ?? null,
+    moderate_max_tokens: token?.moderate ?? null,
     ...(follows ? { auto_compact_window: compactWindow } : {}),
   }
   const reading: Reading = { zone, degraded: s.compacted, percent: c.percent, tokens: c.tokens, window: c.window, token }
   recordReading(s, reading, settings)
   // A reading with no figures (usage gone at exit, or between responses) never replaces one that had them.
   if (body.context_window.used_percentage !== null || s.body === undefined || s.body.context_window.used_percentage === null) s.body = body
-  // The kept figures still publish a compaction seen since: degraded, and dumb.
-  else if (s.compacted) s.body = { ...s.body, zone: 'dumb', evidence_degraded: true }
+  // The kept figures still publish a compaction seen since: degraded, and heavy.
+  else if (s.compacted) s.body = { ...s.body, zone: 'heavy', evidence_degraded: true }
   st.reading = reading
   const band = bandText(reading)
   if (band !== st.band) {
@@ -475,7 +477,7 @@ async function operatorHolds($: EngineInterface, st: State, cfg: Config) {
 const toastText = (from: string, to: string) => `${from} → ${to} · continue, /compact, /clear or handoff`
 const menuLine = (from: string, to: string) =>
   `context-guard: ${from} → ${to} · options: continue, /compact, /clear, or /session-flow:handoff then /clear · more: /context-guard`
-const menuZone = (zone: Zone, degraded: boolean) => (degraded && zone === 'dumb' ? 'dumb (compacted)' : zone)
+const menuZone = (zone: Zone, degraded: boolean) => (degraded && zone === 'heavy' ? 'heavy (compacted)' : zone)
 const noticeShows = (st: State, surface: string) => st.notice !== undefined && (st.notice.kind === 'operator' || surface !== 'terminal')
 
 // The lines a carrier attaches now, consumed; none when none is due or operator mode holds them.
@@ -483,7 +485,7 @@ const noticeShows = (st: State, surface: string) => st.notice !== undefined && (
 // correlation keys (docs/contracts/hook-telemetry, "Correlation keys").
 type Fire = { event: string; startMs: number; toolUseId?: unknown; agentId?: unknown }
 const PLAIN_ID = /^[A-Za-z0-9._-]+$/
-const RANK_WORD = ['smart', 'acceptable', 'dumb'] as const
+const RANK_WORD = ['light', 'moderate', 'heavy'] as const
 
 // The launcher harness-ops keeps in its plugin data directory, <config dir>/plugins/data/<id>,
 // for the reserved sink value: of the harness-ops-* directories that hold one, the launcher
@@ -596,7 +598,7 @@ async function takeLines($: EngineInterface, st: State, cfg: Config, fire: Fire)
 
 // Shows the person the last crossing among events not yet shown: a toast, a transcript line and the
 // crossing notice. Each crossing is shown once. A handed-off suggestion already reached the person,
-// and a crossing from 'unobserved' (a first reading already past smart) is never shown.
+// and a crossing from 'unobserved' (a first reading already past light) is never shown.
 function showCrossing($: EngineInterface, st: State, cfg: Config, events: Event[]) {
   const due = events.filter((e): e is Crossing => e.kind === 'crossing' && !e.handedOff && !e.shown)
   const crossed = due.at(-1)
@@ -650,7 +652,7 @@ function stopTimer(timer: Timer | undefined) {
 // The band row: context-guard: <zone> <n>%. The zone comes before the figure, so a cut row still shows it.
 export const bandText = (r: Reading | undefined) => {
   if (r?.percent === undefined) return `${PREFIX}-`
-  const zone = r.zone === undefined ? '' : `${r.degraded && r.zone === 'dumb' ? 'dumb, compacted' : r.zone} `
+  const zone = r.zone === undefined ? '' : `${r.degraded && r.zone === 'heavy' ? 'heavy, compacted' : r.zone} `
   return `${PREFIX}${zone}${r.percent}%`
 }
 
@@ -674,11 +676,11 @@ async function statusText($: EngineInterface, st: State, cfg: Config) {
       : `${w.used_percentage}% of a ${w.context_window_size}-token window used (${w.total_input_tokens ?? '?'} tokens)`
   const home = await homeDir($)
   const zones = home === undefined ? 'zones.json: no home directory' : `${home}/.claude/${CONTRACT_DIR}/zones.json (${st.zonesText === null ? 'absent' : 'present'})`
-  const { smart, acceptable } = settings.bands
+  const { light, moderate } = settings.bands
   const t = tokenShape(w, body.cli_version, settings.bands)
   const bands = t
-    ? `Bands (the worse decides): smart up to ${smart}% and ${t.smart} tokens, acceptable up to ${acceptable}% and ${t.acceptable} tokens`
-    : `Bands: smart up to ${smart}%, acceptable up to ${acceptable}%`
+    ? `Bands (the worse decides): light up to ${light}% and ${t.light} tokens, moderate up to ${moderate}% and ${t.moderate} tokens`
+    : `Bands: light up to ${light}%, moderate up to ${moderate}%`
   const acw = body.bands?.auto_compact_window
   const follows = acw === undefined ? '' : ` (percentages of the window, following a ${acw}-token auto-compact window)`
   return [
@@ -703,10 +705,10 @@ async function statusJson($: EngineInterface, st: State, cfg: Config) {
     total_output_tokens: w.total_output_tokens ?? null,
     context_window_size: w.context_window_size,
     bands: {
-      smart_max_used_percentage: settings.bands.smart,
-      acceptable_max_used_percentage: settings.bands.acceptable,
-      smart_max_tokens: t?.smart ?? null,
-      acceptable_max_tokens: t?.acceptable ?? null,
+      light_max_used_percentage: settings.bands.light,
+      moderate_max_used_percentage: settings.bands.moderate,
+      light_max_tokens: t?.light ?? null,
+      moderate_max_tokens: t?.moderate ?? null,
       ...(body.bands?.auto_compact_window === undefined ? {} : { auto_compact_window: body.bands.auto_compact_window }),
     },
     approach_margin: settings.margin,
@@ -772,7 +774,7 @@ async function registerSurfaces($: EngineInterface, st: State) {
     $.tool.register({
       name: 'status',
       description:
-        "Returns this session's context-window reading as JSON: `zone` (smart, acceptable, dumb or unknown; the worse of the percent and token bands decides it), `used_percentage`, input and output token totals, `context_window_size`, the band edges and approach margin in force, `evidence_degraded` (true after a compaction, which forces the zone to dumb). Figures come from the last API response: before the first response and right after a compaction, `used_percentage` and the token totals are null and the zone is unknown (dumb after a compaction), and they never include text added since that response, so they change only when a response arrives. With the model_notices option on (off by default), context-guard also adds a line to the next prompt or tool result when the zone worsens or nears a boundary. Read-only.",
+        "Returns this session's context-window reading as JSON: `zone` (light, moderate, heavy or unknown; the worse of the percent and token bands decides it), `used_percentage`, input and output token totals, `context_window_size`, the band edges and approach margin in force, `evidence_degraded` (true after a compaction, which forces the zone to heavy). Figures come from the last API response: before the first response and right after a compaction, `used_percentage` and the token totals are null and the zone is unknown (heavy after a compaction), and they never include text added since that response, so they change only when a response arrives. With the model_notices option on (off by default), context-guard also adds a line to the next prompt or tool result when the zone worsens or nears a boundary. Read-only.",
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     }),
     $.command.register({
@@ -817,7 +819,7 @@ export const register: Register = (on, options) => {
     }
     await registerSurfaces($, st)
     // A fresh load mid-session (a reload, a worker respawn, an enable, a --resume launch): the
-    // earlier lines already reached Claude, so only a verdict past smart is restated.
+    // earlier lines already reached Claude, so only a verdict past light is restated.
     if ((await $.session.turns()) > 0) {
       const s = await current($, st)
       s.pending = []

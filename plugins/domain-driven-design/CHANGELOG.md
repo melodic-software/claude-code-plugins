@@ -3,6 +3,26 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0] - 2026-11-10
+
+### Added
+
+- Glossary contract: a term is used bare inside its own bounded context and qualified by its context wherever contexts meet (the glossary index, integration code, cross-context docs).
+- Glossary contract: a concept tenants rename on their own screens keeps one model term, recorded as `Shown to users as: configurable per tenant`; tenant words are configuration, never synonyms or `Avoid:` words.
+- `curate` weighs candidate terms in order: domain experts, then the code's existing usage, then published domain standards as inputs, never authority, researched through `/discovery:research` when none is known. Users' differing words go on `Shown to users as:`.
+
+## [0.7.0] - 2026-11-10
+
+### Added
+
+- `audit` proposes entries to prune, grouped by kind with a one-line reason: an implementation entry (a table, column, component, file or route), a term too general to carry project meaning, a canonical term no longer used, and a phrase one existing term already covers. A plain request such as "prune the glossary" or "the glossary feels bloated" routes to `audit`, which stays read-only.
+- `curate` removes or merges entries a person accepted, one group at a time and only on a yes; unattended it writes nothing.
+- Glossary contract: one counting method for every count `audit` and `curate` give (identifiers split at camelCase, PascalCase and snake_case boundaries, whole words, case-insensitive, with the number of files), and a rule that ADRs and docs use a term but never redefine it.
+
+### Changed
+
+- `curate`'s hand-off to `/docs-hygiene:rename-references` groups hits by layer: accepted ADR text takes the new term while ADR file names and numbers stay unchanged, and a stored database value is a decision, either a phased expand, migrate and contract migration or an explicit mapping, recorded with `/architecture:record-decision`.
+
 ## [0.6.0] - 2026-11-10
 
 ### Added

@@ -3,6 +3,12 @@
 All notable changes to the `gaming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.21] - 2026-11-10
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [0.10.20] - 2026-11-10
 
 ### Changed

@@ -313,7 +313,7 @@ it.
 
 The audit's deliverable follows the report contract at
 [`${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/report.md`](reference/report.md): stamp first,
-smart-zone headline (reclaimed reasoning space, never cost), measured category totals, the ranked
+light-zone headline (reclaimed reasoning space, never cost), measured category totals, the ranked
 per-tool table with incomparable rows carrying reasons instead of numbers, lever findings grouped
 by honesty category with citations and emitted config, route-outs, then degradations and caveats.
 Persist it to `<data-dir>/reports/<UTC-timestamp>-audit.md`, one file per run, and present it

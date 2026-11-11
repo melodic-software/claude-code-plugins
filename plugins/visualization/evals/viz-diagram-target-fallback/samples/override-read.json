@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Skill", "input": { "skill": "visualization:visualize" } },
+        { "tool": "Read", "input": { "file_path": "/workspace/docs/conventions/visualization.local.yaml" } }
+      ],
+      "why": "the skill, then the personal override"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Skill", "input": { "skill": "visualization:visualize" } },
+        { "tool": "Read", "input": { "file_path": "/workspace/docs/conventions/visualization.yaml" } }
+      ],
+      "why": "only the team file, which does not exist"
+    },
+    {
+      "answer": [],
+      "why": "no tool calls"
+    }
+  ]
+}

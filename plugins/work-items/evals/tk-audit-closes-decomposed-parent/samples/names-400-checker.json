@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "#400 stays open. Comment: <!-- work-items:parent-close outcome=open --> Finish line: in use, checked by the support lead via the weekly ticket report; the support lead closes it once that check passes.",
+      "why": "names the checker"
+    },
+    {
+      "answer": "The support lead checks the in use Finish line, so #400 is left open.",
+      "why": "checker before the number"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#400 stays open: its children are closed but it is not done yet.",
+      "why": "no checker named"
+    },
+    {
+      "answer": "",
+      "why": "empty run"
+    }
+  ]
+}

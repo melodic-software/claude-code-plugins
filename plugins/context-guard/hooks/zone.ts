@@ -2,22 +2,22 @@
 // rule and malformed-file notices over the same snapshot and zones.json text. The shared fixture
 // (scripts/context-zone.fixtures.mjs) holds the two equal; the reader contract is the authority.
 
-export type Word = 'smart' | 'acceptable' | 'dumb' | 'unknown'
+export type Word = 'light' | 'moderate' | 'heavy' | 'unknown'
 export type Zone = Exclude<Word, 'unknown'>
-export type Bands = { smart: number; acceptable: number; tokens: [number, number, number][] }
+export type Bands = { light: number; moderate: number; tokens: [number, number, number][] }
 
 export const STALENESS_SECONDS = 600
 const TOKEN_SEMANTICS_MIN_VERSION = '2.1.132'
 export const DEFAULT_BANDS: Bands = {
-  smart: 50,
-  acceptable: 75,
+  light: 50,
+  moderate: 75,
   tokens: [
     [200_000, 100_000, 150_000],
     [1_000_000, 128_000, 500_000],
   ],
 }
-export const RANK: Record<Zone, number> = { smart: 0, acceptable: 1, dumb: 2 }
-const ZONES: Zone[] = ['smart', 'acceptable', 'dumb']
+export const RANK: Record<Zone, number> = { light: 0, moderate: 1, heavy: 2 }
+const ZONES: Zone[] = ['light', 'moderate', 'heavy']
 
 type Json = Record<string, unknown>
 const isObject = (v: unknown): v is Json => typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -37,20 +37,37 @@ const parse = (text: string): { ok: true; value: unknown } | { ok: false } => {
 // reads all but token_bands.
 const KNOWN_KEYS = ['token_bands', 'actions', 'approach_margin', 'thresholds']
 
+// An old key name, read for one release as its new name; the new name wins when both are set,
+// and the old key is dropped either way.
+export const alias = (o: Json, next: string, old: string): Json => {
+  const { [old]: was, ...rest } = o
+  return orNull(rest[next]) === null && orNull(was) !== null ? { ...rest, [next]: was } : rest
+}
+
+// zones.json with the old band key names (smart_max_*, acceptable_max_*) read as the new ones.
+const normalize = (z: unknown): unknown => {
+  if (!isObject(z)) return z
+  const o = alias(alias(z, 'light_max_used_percentage', 'smart_max_used_percentage'), 'moderate_max_used_percentage', 'acceptable_max_used_percentage')
+  const tb = orNull(o.token_bands)
+  if (!isObject(tb)) return o
+  const rows = Object.entries(tb).map(([k, v]) => [k, isObject(v) ? alias(alias(v, 'light_max_tokens', 'smart_max_tokens'), 'moderate_max_tokens', 'acceptable_max_tokens') : v])
+  return { ...o, token_bands: Object.fromEntries(rows) }
+}
+
 // zones.json: each shape validated on its own, a malformed one falls back with its notice.
 export const readBands = (zones: string | null): { bands: Bands; notices: string[] } => {
   if (zones === null) return { bands: DEFAULT_BANDS, notices: [] }
   const parsed = parse(zones)
   if (!parsed.ok) return { bands: DEFAULT_BANDS, notices: ['percent', 'token_bands'] }
-  const z = parsed.value
+  const z = normalize(parsed.value)
   const bands: Bands = { ...DEFAULT_BANDS }
   const notices: string[] = []
-  const s = isObject(z) ? orNull(z.smart_max_used_percentage) : null
-  const a = isObject(z) ? orNull(z.acceptable_max_used_percentage) : null
-  if (isNumber(s) && isNumber(a) && s > 0 && s < a && a <= 100) {
-    bands.smart = s
-    bands.acceptable = a
-  } else if (!(isObject(z) && s === null && a === null && Object.keys(z).every(k => KNOWN_KEYS.includes(k)))) {
+  const l = isObject(z) ? orNull(z.light_max_used_percentage) : null
+  const m = isObject(z) ? orNull(z.moderate_max_used_percentage) : null
+  if (isNumber(l) && isNumber(m) && l > 0 && l < m && m <= 100) {
+    bands.light = l
+    bands.moderate = m
+  } else if (!(isObject(z) && l === null && m === null && Object.keys(z).every(k => KNOWN_KEYS.includes(k)))) {
     notices.push('percent')
   }
   const tb = isObject(z) ? orNull(z.token_bands) : null
@@ -60,13 +77,13 @@ export const readBands = (zones: string | null): { bands: Bands; notices: string
       entries.length > 0 &&
       entries.every(([key, v]) => {
         if (!/^[0-9]+$/.test(key) || !isObject(v)) return false
-        const sm = orNull(v.smart_max_tokens)
-        const am = orNull(v.acceptable_max_tokens)
-        return isNumber(sm) && isNumber(am) && sm > 0 && sm < am && am <= Number(key)
+        const lt = orNull(v.light_max_tokens)
+        const mt = orNull(v.moderate_max_tokens)
+        return isNumber(lt) && isNumber(mt) && lt > 0 && lt < mt && mt <= Number(key)
       })
     if (valid) {
       bands.tokens = entries
-        .map(([key, v]) => [Number(key), (v as Json).smart_max_tokens as number, (v as Json).acceptable_max_tokens as number] as [number, number, number])
+        .map(([key, v]) => [Number(key), (v as Json).light_max_tokens as number, (v as Json).moderate_max_tokens as number] as [number, number, number])
         .sort((x, y) => x[0] - y[0])
     } else {
       notices.push('token_bands')
@@ -88,7 +105,7 @@ const versionAtLeast = (candidate: string, min: string) => {
   return true
 }
 
-const band = (value: number, smart: number, acceptable: number): Zone => (value <= smart ? 'smart' : value <= acceptable ? 'acceptable' : 'dumb')
+const band = (value: number, light: number, moderate: number): Zone => (value <= light ? 'light' : value <= moderate ? 'moderate' : 'heavy')
 export const worse = (a: Zone, b: Zone): Zone => (RANK[a] >= RANK[b] ? a : b)
 
 // A strict YYYY-MM-DDTHH:MM:SSZ that names a real instant, refusing values a lenient parser
@@ -105,7 +122,7 @@ const epochOf = (capturedAt: string): number | undefined => {
   return back === capturedAt ? ms / 1000 : undefined
 }
 
-export type TokenShape = { used: number; size: number; smart: number; acceptable: number }
+export type TokenShape = { used: number; size: number; light: number; moderate: number }
 
 // The token shape of one snapshot body: occupancy, window size and the band row's edges;
 // undefined when it is not computable.
@@ -119,15 +136,15 @@ export const tokenShape = (w: Json, cliVersion: unknown, bands: Bands): TokenSha
   ) return undefined
   const used = input + output
   const row = bands.tokens.filter(([cls]) => cls <= size).at(-1)
-  return used <= size && row !== undefined ? { used, size, smart: row[1], acceptable: row[2] } : undefined
+  return used <= size && row !== undefined ? { used, size, light: row[1], moderate: row[2] } : undefined
 }
 
 // The zone of one snapshot body, both shapes, worse wins; undefined when neither is computable.
 export const zoneOfWindow = (w: Json, cliVersion: unknown, bands: Bands): Zone | undefined => {
   const p = orNull(w.used_percentage)
-  const pz = isNumber(p) && p >= 0 && p <= 100 ? band(p, bands.smart, bands.acceptable) : undefined
+  const pz = isNumber(p) && p >= 0 && p <= 100 ? band(p, bands.light, bands.moderate) : undefined
   const t = tokenShape(w, cliVersion, bands)
-  const tz = t && band(t.used, t.smart, t.acceptable)
+  const tz = t && band(t.used, t.light, t.moderate)
   return pz && tz ? worse(pz, tz) : (pz ?? tz)
 }
 
@@ -141,8 +158,8 @@ export const ofWindow = (percent: number, window: number, compactWindow: number 
 // shell resolver does.
 export const followWindow = (bands: Bands, window: number, compactWindow: number | undefined): Bands => ({
   ...bands,
-  smart: ofWindow(bands.smart, window, compactWindow),
-  acceptable: ofWindow(bands.acceptable, window, compactWindow),
+  light: ofWindow(bands.light, window, compactWindow),
+  moderate: ofWindow(bands.moderate, window, compactWindow),
 })
 
 const windowSize = (w: Json) => {

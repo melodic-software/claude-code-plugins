@@ -169,6 +169,9 @@ jobs:
       # The pool and reset a rate limit stopped this job's GITHUB_TOKEN calls on,
       # if one did: the merge and enable-auto-merge jobs then send nothing.
       rate-limited: ${{ steps.post-merge.outputs.rate-limited || steps.cover.outputs.stop || steps.dispatch.outputs.stop || steps.rerun.outputs.stop || steps.alert.outputs.stop }}
+      # `true` when the burn-rate pacer paces this schedule tick: the merge and
+      # enable-auto-merge jobs then skip their sweep at job level.
+      paced: ${{ steps.pace.outputs.paced }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
@@ -205,6 +208,36 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # The base config's limits.api, in resolve-config's output shape, for
+      # the pacer; a failed read leaves rate-limits.json's defaults.
+      - name: Read the pace override from the base config
+        if: steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        run: |
+          yq -o=json '{"limits": {"api": (.limits.api // {})}}' .base/docs/conventions/pr-pipeline.yaml >"$RUNNER_TEMP/pace-config.json"
+
+      # A schedule tick's sweep (the merge and enable-auto-merge jobs) skips
+      # while the GITHUB_TOKEN pool's remaining at reset, projected at this
+      # window's burn rate, is under limits.api github-token pace
+      # (pr-pipeline.yaml over rate-limits.json; 0 is off), and only when the
+      # previous scheduled run's merge job marked a clean sweep, so the next
+      # tick always sweeps. This job's own steps never wait on it: the post-merge
+      # check, cover dispatch, re-run and alert run on every tick. The skip is
+      # at job level, so a paced tick's jobs read completed, never waiting, to
+      # an earlier run's superseded check, which then does its own work. Any
+      # other event, or a read that fails, runs as before
+      # (.github/actions/log-api-budget/pace.mjs).
+      - name: Pace the tick on the GITHUB_TOKEN burn rate
+        id: pace
+        if: steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        env:
+          RESOLVED_CONFIG: ${{ runner.temp }}/pace-config.json
+          GITHUB_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          PACE_WORK_STEP: Mark this tick's work done
+        run: node .base/.github/actions/log-api-budget/pace.mjs
 
       # Live as the merge job reads it: the lane's own PRs not report-only,
       # or Dependabot PRs enforced.
@@ -909,11 +942,13 @@ jobs:
     # keep pushing real runs out of the queue, and a bot's event does not wait
     # in it only to stop at the who step (a bot is never a listed human). A
     # PR-scoped dispatch (inputs.pr) only arms, so it skips this job and with
-    # it dispatch-full-run and gate-check.
+    # it dispatch-full-run and gate-check. A schedule tick the pacer paces
+    # (post-merge-dispatch's paced output) skips it; the next tick sweeps.
     if: >-
       !cancelled()
       && github.ref == 'refs/heads/main' && github.event_name != 'push'
       && !inputs.pr
+      && needs.post-merge-dispatch.outputs.paced != 'true'
       && (github.event_name != 'pull_request_target'
       || (github.event.pull_request.head.repo.full_name == github.repository
       && github.event.sender.type != 'Bot'))
@@ -2201,6 +2236,13 @@ jobs:
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/pr-merge/release-eval-hold.mjs
 
+      # A green sweep that listed the open pull requests (a held listing
+      # writes held, never listed) and ran the gate. The pacer paces the next
+      # scheduled tick only after this step (.github/actions/log-api-budget/pace.mjs).
+      - name: Mark this tick's work done
+        if: steps.candidates.outputs.listed == 'true' && steps.gate.outcome == 'success'
+        run: echo "the merge sweep listed and gated its candidates"
+
       # A lane token held on a rate limit (rate-limit-hold-ok), kept as the
       # lane-hold-pr-merge artifact for monitor signal 13
       # (lane-hold-marker.mjs); merge and enable-auto-merge share the name.
@@ -2312,10 +2354,12 @@ jobs:
     # kind it arms, and only when a person sent the event (a bot is never a
     # listed human at the who step): any other event's job is skipped before
     # it joins the group, so its check reads skipped, never pending behind the
-    # queue.
+    # queue. A schedule tick the pacer paces (post-merge-dispatch's paced
+    # output) skips it; a PR-scoped dispatch, which skips that job, never is.
     if: >-
       !cancelled()
       && github.ref == 'refs/heads/main' && github.event_name != 'push'
+      && needs.post-merge-dispatch.outputs.paced != 'true'
       && (github.event_name != 'pull_request_target'
       || (github.event.pull_request.head.repo.full_name == github.repository
       && format('{0}', github.event.pull_request.user.id) == vars.AUTOMATION_LANES_APP_SENDER_ID

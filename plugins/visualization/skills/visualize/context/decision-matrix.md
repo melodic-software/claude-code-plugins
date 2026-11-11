@@ -96,7 +96,8 @@ a plain file stays unrendered.
 A canvas server's tools return an MCP App, an interactive view for the host to render. Which hosts
 render one, Claude Code included, is read live from the pointer below. Our rule: in the Claude Code
 terminal the skill draws locally; on Claude Desktop or claude.ai it may draw on a connected canvas,
-under the `hosted_canvas` setting.
+under the `hosted_canvas` setting. A `diagram_target` of `excalidraw` or `tldraw` asks for that canvas
+and never widens this rule: where it would not draw, the skill falls back to `auto`.
 
 - **Pointer**: when deciding whether this session's surface renders a canvas, fetch
   [Add an interactive UI to your MCP server: See the UI render in Claude](https://claude.com/docs/connectors/building/mcp-apps/quickstart#see-the-ui-render-in-claude)

@@ -55,12 +55,8 @@ run_marker_state_to() {
     return 0
   fi
   read -r stamp <"$file" 2>/dev/null || true
-  if [[ ! "$stamp" =~ ^[0-9]+$ ]]; then
-    __rm_state=live
-    return 0
-  fi
   printf -v now '%(%s)T' -1
-  if ((now - stamp > RUN_MARKER_IDLE_SECONDS)); then
+  if [[ "$stamp" =~ ^[0-9]+$ ]] && ((now - stamp > RUN_MARKER_IDLE_SECONDS)); then
     __rm_state=stale
   else
     __rm_state=live

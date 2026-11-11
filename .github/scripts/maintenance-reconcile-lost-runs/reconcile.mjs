@@ -1717,12 +1717,15 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
     }
 
     let result = { items: [], failed: 0 };
+    // A full plan that read every listing; the kill switch, an Actions outage
+    // or a failed listing leaves it false (the pacer's marker reads it).
+    let clean = false;
     const write = () => {
       writeFileSync(env.PLAN_PATH, JSON.stringify(result));
       // A Verdict re-run leaves a pr-feedback-deferred record, so the plan
       // names it first (DEFERRAL_MARKER): the tick reads per-head records only
       // while one is listed.
-      const outputs = { ...recordOutputs(result.items), deferral: result.items.some((item) => item.kind === "verdict") ? "true" : "" };
+      const outputs = { ...recordOutputs(result.items), deferral: result.items.some((item) => item.kind === "verdict") ? "true" : "", clean: clean ? "true" : "" };
       if (outputs["record-1"] !== "") {
         writeFileSync(env.RECORD_PATH, JSON.stringify(result.items.filter(recorded)));
       }
@@ -1799,6 +1802,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
     if (result.items.some(recorded) && !env.RECORD_PATH) {
       throw new Error("RECORD_PATH is not set");
     }
+    clean = result.failed === 0;
     write();
     if (env.SETTLED_PATH) {
       writeFileSync(env.SETTLED_PATH, JSON.stringify({ version: SETTLED_VERSION, repository: repo, runs: [...new Map(settle.map((r) => [r.id, r])).values()], jobs, passes, held_since: new Date(heldSince).toISOString() }));

@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "| Snapshot | PASS | captured 40 s ago, inside the 10-minute window; zone smart |"
+      "answer": "| Snapshot | PASS | captured 40 s ago, inside the 10-minute window; zone light |"
     },
     {
       "answer": "| Snapshot | INFO | absent; mods are off in this session, so nothing writes it |"

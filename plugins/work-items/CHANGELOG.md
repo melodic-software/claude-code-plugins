@@ -3,6 +3,21 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.9.0] - 2026-11-10
+
+### Added
+
+- `/work-items:work`: the dispatch brief tells the implementation worker to look up the project's glossary before naming new code and to return each domain term it coins for the PR body's `## Glossary candidates` section.
+
+- A parent issue that `/work-items:decompose` split into plain issues, with no spec container, now
+  gets closed. Once every child is closed, the new "Decomposed parent close" ritual in the issue
+  conventions reads the parent's Finish line. A `merged` Finish line closes the parent as
+  completed. Otherwise the parent stays open with one marked comment that says what is still open:
+  a child closed as not planned with no carrier among the other children, a missing Finish line,
+  or a `released` or `in use` check and the person who runs it. `/work-items:track done` runs the ritual for the parent of each item it
+  closes. `/work-items:track audit` runs it for every parent, which covers children a merged pull
+  request closed. Decompose's "leave the parent untouched" rule now points at the ritual.
+
 ## [12.8.8] - 2026-11-10
 
 ### Changed
