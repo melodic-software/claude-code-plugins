@@ -969,6 +969,23 @@ MULTILINE_SECRET_FILE="$TEST_TMPDIR/multiline-secret"
 printf 'line-one\nline-two\n' >"$MULTILINE_SECRET_FILE"
 TTY_LONG_MULTILINE="$(tty_fixture long-multiline "$LONG_SECRET" "$MULTILINE_SECRET_FILE")"
 TTY_LONG_UTF8="$(tty_fixture long-utf8 "$(printf 'é%.0s' $(seq "$UTF8_CHARS"))" '')"
+CRLF_SECRET_FILE="$TEST_TMPDIR/crlf-secret"
+printf '%s\r\n' "${LONG_SECRET}tail" >"$CRLF_SECRET_FILE"
+TTY_LONG_CRLF="$(tty_fixture long-crlf "$LONG_SECRET" "$CRLF_SECRET_FILE")"
+
+for platform in darwin23:1023 linux-gnu:4095 msys:4095; do
+  got="$(env WIZARD_TEST_TTY=/dev/null OSTYPE="${platform%%:*}" bash -c \
+    'source "$1"; printf %s "$_WIZARD_LINE_MAX"' _ "$LIB")"
+  assert_contains "the line limit on ${platform%%:*} is ${platform#*:} bytes" "$got" "${platform#*:}"
+done
+
+out="$(
+  case_run "$TTY_LONG_CRLF" <<'BODY'
+ask_secret TOKEN "Paste the secret:"
+printf 'len=%s\n' "${#TOKEN}"
+BODY
+)"
+assert_contains "a one-line file with a CRLF ending is read, its CR dropped" "$out" "len=$((LINE_MAX + 4))"
 
 out="$(
   case_run "$TTY_LONG_MULTILINE" <<'BODY'

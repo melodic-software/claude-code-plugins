@@ -395,6 +395,7 @@ ask_secret() {
     if [[ -n "$__wiz_path" ]]; then
       [[ -f "$__wiz_path" && -r "$__wiz_path" ]] || fatal "cannot read file $__wiz_path for $__wiz_key, aborting"
       __wiz_input=$(<"$__wiz_path")
+      __wiz_input=${__wiz_input%$'\r'}
       [[ "$__wiz_input" != *[$'\n\r']* ]] ||
         fatal "file $__wiz_path holds more than one line; $__wiz_key must be one line (for a multi-line key such as a PEM file, store its path instead), aborting"
     fi
