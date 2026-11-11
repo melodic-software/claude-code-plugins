@@ -40,7 +40,7 @@ function clock(epochSeconds) {
 }
 
 function cacheLine(payload, color) {
-  const pc = payload && typeof payload === "object" ? payload.prompt_cache : undefined;
+  const pc = payload?.prompt_cache;
   if (!pc || typeof pc !== "object" || Array.isArray(pc)) return "";
   if (pc.caching_observed === false) return paint("2", "cache not reported", color);
   if (typeof pc.warm !== "boolean") return "";
@@ -78,11 +78,8 @@ function wire(settingsText) {
   } catch {
     return { error: "settings.json is not valid JSON; nothing printed" };
   }
-  const current =
-    settings && typeof settings.statusLine === "object" && settings.statusLine
-      ? settings.statusLine
-      : null;
-  const existing = current && typeof current.command === "string" ? current.command : "";
+  const current = typeof settings?.statusLine === "object" ? settings.statusLine : null;
+  const existing = typeof current?.command === "string" ? current.command : "";
   if (existing.includes("cache-line.mjs")) {
     return { statusLine: current, note: "already wired; no change" };
   }

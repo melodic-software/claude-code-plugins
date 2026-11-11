@@ -95,13 +95,12 @@ fi
 marker='{"compacted_at":"'"$(hook::json_escape "$ts")"'","trigger":"'"$TRIGGER"'","hook_event_name":"PostCompact"}'
 target="$CTX_DIR/$SESSION.compacted"
 tmp="$CTX_DIR/$SESSION.compacted.tmp.$$"
-# Track the write-and-rename result explicitly: telemetry status must reflect
-# whether the marker was actually recorded, not just whether the hook ran.
-# marker_ok stays 0 (and status reports "error") whenever the temp-file write,
-# the atomic rename, or the contract path itself leaves consumers without a
+# Telemetry status reflects whether the marker was actually recorded, not just
+# whether the hook ran: it stays "error" whenever the temp-file write, the
+# atomic rename, or the contract path itself leaves consumers without a
 # readable marker — operators must never be told "ok" for a marker consumers
 # will never see.
-marker_ok=0
+telemetry_status="error"
 if printf '%s\n' "$marker" >"$tmp" 2>/dev/null; then
   # A directory at the contract path makes `mv` SUCCEED by moving the temp
   # file inside it, stranding the marker where no consumer looks. Refuse the
@@ -109,7 +108,7 @@ if printf '%s\n' "$marker" >"$tmp" 2>/dev/null; then
   # it afterwards, which would leave the temp file littered in that
   # directory).
   if [[ ! -d "$target" ]] && mv -f "$tmp" "$target" 2>/dev/null; then
-    marker_ok=1
+    telemetry_status="ok"
   else
     rm -f "$tmp" 2>/dev/null
   fi
@@ -122,10 +121,8 @@ fi
 find "$CTX_DIR" -maxdepth 1 -name '*.compacted' -mmin +20160 -exec rm -f {} + 2>/dev/null || true
 
 # SIDE-EFFECT-ONLY contract still holds: PostCompact has no decision control,
-# so this always exits 0 regardless of marker_ok — only the telemetry status
-# reports the real outcome.
-telemetry_status="ok"
-((marker_ok)) || telemetry_status="error"
+# so this always exits 0 whatever the marker write did — only the telemetry
+# status reports the real outcome.
 hook::emit_telemetry "post-compact-mark" "PostCompact" "$telemetry_status" "$START_EPOCH" \
   '{"trigger":"'"$TRIGGER"'"}'
 exit 0
