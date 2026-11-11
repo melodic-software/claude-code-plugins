@@ -180,8 +180,11 @@ export async function run({ env = process.env, now = Date.now(), actions, github
   }
 
   const kept = await previousState({ repo, runId: env.GITHUB_RUN_ID, actions, download });
-  const published = parseLevel(value);
-  const previous = kept ?? (published ? { level: published.level } : null);
+  // With no kept state, a published value still in force is the previous
+  // level, as the readers see it once live; an expired or malformed one is
+  // none, so decide() starts from the default.
+  const live = effectiveLevel({ value, settings: { ...settings, shadow: false }, now });
+  const previous = kept ?? (live.reason === "published" ? { level: live.published } : null);
   const demand = await demandOf({ actions, repo, applied: applied.level });
   const decision = decide(previous, parsedReadings(env.LANE_READINGS), demand, limits);
   const next = encodeLevel(decision.level, Math.floor(now / 1000) + settings["valid-minutes"] * 60);

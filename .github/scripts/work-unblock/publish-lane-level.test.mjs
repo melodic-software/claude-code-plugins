@@ -127,6 +127,13 @@ test("with no kept state the published level is the previous one; with neither, 
   assert.deepEqual(none.decision, { level: 3, streak: 0, holdUntil: 0, reason: "missing-data" });
 });
 
+test("an expired, malformed or too-far published value is no previous level: decide() starts from the default", async () => {
+  for (const value of [`4@${NOW_S}`, `4@${NOW_S - 3600}`, "4", `4@${NOW_S + 9001}`]) {
+    const { decision } = await decideWith({ vars: { CLAUDE_LANE_LEVEL: value }, readings: "" });
+    assert.deepEqual(decision, { level: 3, streak: 0, holdUntil: 0, reason: "missing-data" }, value);
+  }
+});
+
 test("demand: every unfinished status counts; past the applied level they wait for a slot, and none waiting with fewer running than L is no demand", async () => {
   // 1 in progress + 1 queued = 2 unfinished, under the applied 3.
   const idle = await decideWith({ state: { level: 3, streak: 1, holdUntil: 0 }, active: 1 });

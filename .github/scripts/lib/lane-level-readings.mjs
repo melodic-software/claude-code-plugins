@@ -22,35 +22,42 @@ import { pathToFileURL } from "node:url";
 const POOL_OF_RESOURCE = Object.freeze({ core: "lanes-app", graphql: "graphql" });
 const NUMBER = /^\d+$/;
 
+// A field the response's headers did not carry (`na`) is null, so a refusal
+// with no rate-limit headers still counts as a signal.
+const field = (value) => (NUMBER.test(value ?? "") ? Number(value) : null);
+
 function parse(line) {
   const [status, limit, remaining, used, reset, resource, route] = line.trim().split(" ");
-  if (route === "rate_limit" || ![status, limit, remaining, used, reset].every((field) => NUMBER.test(field ?? ""))) {
+  if (route === "rate_limit" || field(status) === null) {
     return null;
   }
-  return { status: Number(status), limit: Number(limit), remaining: Number(remaining), used: Number(used), reset: Number(reset), resource };
+  return { status: Number(status), limit: field(limit), remaining: field(remaining), used: field(used), reset: field(reset), resource };
 }
 
+const isReading = ({ limit, remaining, used, reset }) => [limit, remaining, used, reset].every((value) => value !== null);
+
 // { at, pools, signals, reset? } for decide(), or null when no line is a
-// reading. `at` is epoch seconds.
+// reading or a limit signal. `at` is epoch seconds.
 export function readingsOf(text, { at }) {
   const lines = String(text ?? "").split("\n").map(parse).filter(Boolean);
-  if (lines.length === 0) {
+  const readings = lines.filter(isReading);
+  const refused = lines.filter(({ status, remaining }) => status === 429 || (status === 403 && remaining === 0));
+  if (readings.length === 0 && refused.length === 0) {
     return null;
   }
   const pools = {};
-  for (const { limit, used, resource } of lines) {
+  for (const { limit, used, resource } of readings) {
     const pool = POOL_OF_RESOURCE[resource];
     if (pool && limit > 0 && used >= (pools[pool]?.used ?? -1)) {
       pools[pool] = { used, limit };
     }
   }
-  const refused = lines.filter(({ status, remaining }) => status === 429 || (status === 403 && remaining === 0));
-  const signals = refused.map(({ status }) => String(status));
+  const resets = refused.map(({ reset }) => reset).filter((reset) => reset !== null);
   return {
     at,
     pools,
-    signals,
-    ...(refused.length > 0 ? { reset: Math.max(...refused.map(({ reset }) => reset)) } : {}),
+    signals: refused.map(({ status }) => String(status)),
+    ...(resets.length > 0 ? { reset: Math.max(...resets) } : {}),
   };
 }
 
