@@ -8,6 +8,9 @@ import { bodyDigest, LANE_WORKFLOWS, RECORD_FILE, RECORD_PREFIX } from "./lane-b
 
 export const HEAD = "a".repeat(40);
 export const RUN = 4242;
+// The pull request's head branch and repository the fake runs ran on.
+export const BRANCH = "feature/x";
+export const REPOSITORY = "o/r";
 
 // A body as the lane posts it: text, the binding, a blank line, the footer.
 export const bound = (text, { run = RUN, sha = HEAD, lane = "claude-review" } = {}) =>
@@ -72,8 +75,9 @@ export function zipOf(files) {
   return Buffer.concat([...locals, dir, end]);
 }
 
-// A fake Actions API: runs by id, each with artifacts { name, expired, entries }.
-export function fakeActions(runs) {
+// A fake Actions API: runs by id, each with artifacts { name, expired, entries };
+// the pull request's head is BRANCH in REPOSITORY unless `pull` says otherwise.
+export function fakeActions(runs, pull = { head: { ref: BRANCH, repo: { full_name: REPOSITORY } } }) {
   const calls = [];
   const blobs = new Map();
   let next = 1;
@@ -85,11 +89,24 @@ export function fakeActions(runs) {
   }
   return {
     calls,
+    getPull: async (pr) => {
+      calls.push(["pull", pr]);
+      return pull;
+    },
     getRun: async (id) => {
       calls.push(["run", id]);
       const run = runs[id];
       if (!run) throw Object.assign(new Error("Not Found"), { status: 404 });
-      return { id: Number(id), path: run.path, head_sha: run.head_sha ?? HEAD, created_at: run.created_at, updated_at: run.updated_at };
+      return {
+        id: Number(id),
+        path: run.path,
+        head_sha: run.head_sha ?? HEAD,
+        head_branch: run.head_branch ?? BRANCH,
+        head_repository: { full_name: run.head_repository ?? REPOSITORY },
+        status: run.status ?? "completed",
+        created_at: run.created_at,
+        updated_at: run.updated_at,
+      };
     },
     listArtifacts: async (id) => {
       calls.push(["artifacts", id]);

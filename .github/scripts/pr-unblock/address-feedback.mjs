@@ -45,7 +45,7 @@ import { appendFileSync, lstatSync, readdirSync, readFileSync, writeFileSync } f
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { laneChecker, laneFooter, withoutBinding } from "../lib/lane-binding.mjs";
+import { FOOTER as LANE_FOOTER, laneChecker, laneFooter, withoutBinding } from "../lib/lane-binding.mjs";
 import { commentItems, FAILING, gateSource, laneHold, latestRuns, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "./retry-fetch.mjs";
 import { copyPathsOf, isProtectedPath, namedInScope, prPathsOf, sharedCopyPairs } from "./thread-scope.mjs";
@@ -236,7 +236,6 @@ export function staleVerifyNotes(threads, head, { supersededHead } = {}) {
 // finding. Any workflow's token posts as github-actions[bot], so the comments
 // reach these readers through bindLaneRows, which keeps the footer only on a
 // comment bound to the lane's own run.
-const LANE_FOOTER = /^`?claude-lane: (claude-review|claude-security-review)`?$/;
 const lastLine = (body) =>
   String(body ?? "")
     .split("\n")
@@ -334,10 +333,10 @@ export function laneReader(env, { fetch } = {}) {
     const refuse = async () => {
       throw new Error("ARTIFACT_READ_TOKEN is not set, so a lane comment's binding cannot be checked");
     };
-    return { getRun: refuse, listArtifacts: refuse, download: refuse };
+    return { getPull: refuse, getRun: refuse, listArtifacts: refuse, download: refuse };
   }
   const reads = createGitHubApi({ token: env.ARTIFACT_READ_TOKEN, repository: env.GITHUB_REPOSITORY, apiUrl: env.GITHUB_API_URL ?? "https://api.github.com", graphqlUrl: "", fetch });
-  return { getRun: reads.getRun, listArtifacts: reads.listArtifacts, download: reads.downloadArtifact };
+  return { getPull: reads.getPull, getRun: reads.getRun, listArtifacts: reads.listArtifacts, download: reads.downloadArtifact };
 }
 
 // The security-review lane's ratings, lowest first (security-review SKILL.md,
@@ -1732,6 +1731,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     },
     compare: async (base, head) => requestData(`${repo}/compare/${base}...${head}`),
     getRun: async (id) => requestData(`${repo}/actions/runs/${id}`),
+    getPull: async (pr) => requestData(`${repo}/pulls/${pr}`),
     // Every artifact of a run, page by page until total_count.
     async listArtifacts(id) {
       const artifacts = [];

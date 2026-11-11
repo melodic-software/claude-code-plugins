@@ -829,11 +829,13 @@ const ARTIFACT_PAGES = 10;
 
 // lane-binding's checker for pull request `pr`: `read` (a createGitHub
 // client whose token holds actions: read) reads the run and its artifact
-// listing, `download` an artifact's zip bytes. `laneReads` ({ getRun,
-// listArtifacts, download }) replaces those reads.
+// listing and the pull request, `download` an artifact's zip bytes.
+// `laneReads` ({ getPull, getRun, listArtifacts, download }) replaces those
+// reads.
 export function restLaneChecker({ read, download, repo, pr, laneReads }) {
   return laneChecker({
     pr,
+    getPull: (number) => read("GET", `/repos/${repo}/pulls/${number}`),
     getRun: (id) => read("GET", `/repos/${repo}/actions/runs/${id}`),
     listArtifacts: async (id) => {
       const all = [];
@@ -1820,7 +1822,13 @@ export async function main({ env = process.env, github, checks, verify, reader, 
     // The review lanes' runs and comment records, read with the job token
     // (actions: read); one checker per pull request.
     const download = artifactDownload({ token: env.CHECKS_TOKEN, repo, apiUrl: env.GITHUB_API_URL || undefined });
-    const checkerFor = (number) => restLaneChecker({ read: checks, download, repo, pr: number, laneReads });
+    const checkers = new Map();
+    const checkerFor = (number) => {
+      if (!checkers.has(number)) {
+        checkers.set(number, restLaneChecker({ read: checks, download, repo, pr: number, laneReads }));
+      }
+      return checkers.get(number);
+    };
     verify ??= pythonVerify(env);
     const reads = { left: NATIVE_READS_PER_RUN };
     // The job's own token reads branch activity, check runs and main's

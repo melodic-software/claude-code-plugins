@@ -16,8 +16,10 @@ Every attempt's record counts, so a re-run's comments stay bound.
 
 A comment without a binding counts while LEGACY_CUTOFF is None, then only
 when posted at or before it and never edited. A comment no live record
-lists, of a run with an expired record, is proved by time instead: posted
-between the run's creation and its last update. Reads that fail raise, so a caller fails
+lists, of a run with an expired record or of a finished run that uploaded
+none, is proved by time instead: posted between the run's creation and its
+last update, and never edited. A run still going that has uploaded no record yet raises, so
+the caller reads again later. Reads that fail raise, so a caller fails
 closed rather than dropping a comment it could not check.
 """
 
@@ -34,6 +36,9 @@ from typing import Any
 
 RECORD_PREFIX = "claude-lane-comments-"
 RECORD_FILE = "comments.jsonl"
+# The largest record read: far above one run's comments, small enough that a
+# crafted archive cannot exhaust memory.
+MAX_RECORD_BYTES = 4 << 20
 # The last time a comment with no binding can be the lane's (ISO 8601), or
 # None while the lanes do not yet write bindings.
 LEGACY_CUTOFF: str | None = None
@@ -130,9 +135,16 @@ def zip_entry(data: bytes, name: str) -> bytes | None:
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             try:
-                return archive.read(name)
+                info = archive.getinfo(name)
             except KeyError:
                 return None
+            if info.file_size > MAX_RECORD_BYTES:
+                raise ValueError(f"{name} is over {MAX_RECORD_BYTES} bytes")
+            with archive.open(info) as handle:
+                data = handle.read(MAX_RECORD_BYTES + 1)
+            if len(data) > MAX_RECORD_BYTES:
+                raise ValueError(f"{name} is over {MAX_RECORD_BYTES} bytes")
+            return data
     except (zipfile.BadZipFile, NotImplementedError, OSError, EOFError) as exc:
         raise ValueError(f"zip archive unread: {exc}") from exc
 
@@ -199,20 +211,32 @@ Check = Callable[[Mapping[str, Any]], bool]
 def lane_checker(
     *,
     pr: int,
+    get_pull: Callable[[int | None], Mapping[str, Any]],
     get_run: Callable[[str], Mapping[str, Any]],
     list_artifacts: Callable[[str], list[Mapping[str, Any]]],
     download: Callable[[Any], bytes],
     workflows: Mapping[str, str],
     cutoff: str | None = LEGACY_CUTOFF,
 ) -> Check:
-    """A checker for one pull request's lane comments. `get_run(id)` reads
-    /actions/runs/<id>, `list_artifacts(id)` that run's artifacts (every
+    """A checker for one pull request's lane comments. `get_pull(pr)` reads
+    /pulls/<pr>, `get_run(id)` reads /actions/runs/<id>, `list_artifacts(id)` that run's artifacts (every
     page), `download(artifact id)` an artifact's zip bytes; `workflows` maps
     each lane to its caller workflow path. Each run is read once, a failed
     read included. `check(view)`, a view from `issue_comment_view` or
     `review_comment_view`, is True when the comment is its footer lane's
-    own; a comment with no lane footer is not a lane comment."""
+    own; a comment with no lane footer is not a lane comment. A run counts
+    only when it ran on the pull request's own head branch: a pull_request
+    run takes its workflow from the head, so a run of another branch could
+    have written any record. The pull request is read once, and only for a
+    comment that carries a binding."""
     runs: dict[str, tuple[Any, BaseException | None]] = {}
+    pulls: list[Mapping[str, Any]] = []
+
+    def head() -> Mapping[str, Any]:
+        if not pulls:
+            pulls.append(get_pull(number))
+        found = pulls[0].get("head") if isinstance(pulls[0], Mapping) else None
+        return found if isinstance(found, Mapping) else {}
     number = _int(pr)
 
     def read_run(run_id: str) -> Any:
@@ -229,7 +253,7 @@ def lane_checker(
                 for artifact in live:
                     data = zip_entry(download(artifact.get("id")), RECORD_FILE)
                     entries.extend(record_entries(None if data is None else data.decode("utf-8")))
-                runs[run_id] = ((run, entries, len(live) < len(records)), None)
+                runs[run_id] = ((run, entries, len(live) < len(records), not records), None)
             except Exception as exc:  # noqa: BLE001 - kept and raised on each check
                 runs[run_id] = (None, exc)
         found, failure = runs[run_id]
@@ -246,12 +270,21 @@ def lane_checker(
         if binding is None:
             return legacy_counts(comment, cutoff)
         run_id, sha = binding
-        run, entries, expired = read_run(run_id)
+        run, entries, expired, unrecorded = read_run(run_id)
         if (
             not isinstance(run, Mapping)
             or str(run.get("id")) != run_id
             or run.get("path") != workflows.get(lane)
             or run.get("head_sha") != sha
+        ):
+            return False
+        pull_head = head()
+        repo = pull_head.get("repo") if isinstance(pull_head.get("repo"), Mapping) else {}
+        run_repo = run.get("head_repository") if isinstance(run.get("head_repository"), Mapping) else {}
+        if (
+            not isinstance(run.get("head_branch"), str)
+            or run.get("head_branch") != pull_head.get("ref")
+            or run_repo.get("full_name") != repo.get("full_name")
         ):
             return False
         digest = body_digest(body)
@@ -265,10 +298,13 @@ def lane_checker(
             and e.get("sha256") == digest
             for e in entries
         )
-        if listed or not expired:
+        if unrecorded and run.get("status") != "completed":
+            raise RuntimeError(f"lane run {run_id} has not uploaded its comment record yet")
+        if listed or not (expired or unrecorded):
             return listed
         at = _time(comment.get("createdAt"))
         start, end = _time(run.get("created_at")), _time(run.get("updated_at"))
-        return None not in (at, start, end) and start <= at <= end  # type: ignore[operator]
+        in_window = None not in (at, start, end) and start <= at <= end  # type: ignore[operator]
+        return in_window and not was_edited(comment)
 
     return check

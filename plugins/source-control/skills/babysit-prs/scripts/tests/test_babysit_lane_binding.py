@@ -25,6 +25,9 @@ WORKFLOWS = {
 }
 
 
+BRANCH = "feature/x"
+REPOSITORY = "o/r"
+
 def bound(text: str, *, run: int = RUN, sha: str = HEAD, lane: str = "claude-review") -> str:
     """A body as the lane posts it: text, the binding, a blank line, the footer."""
     return f"{text}\n<!-- claude-lane-run id={run} sha={sha} -->\n\nclaude-lane: {lane}"
@@ -73,6 +76,10 @@ class FakeActions:
                 text = "\n".join(json.dumps(e) for e in artifact["entries"])
                 self.blobs[artifact["id"]] = zip_of({lb.RECORD_FILE: text})
 
+    def get_pull(self, pr: int | None) -> dict[str, Any]:
+        self.calls.append(("pull", 0))
+        return {"head": {"ref": BRANCH, "repo": {"full_name": REPOSITORY}}}
+
     def get_run(self, run_id: str) -> dict[str, Any]:
         self.calls.append(("run", int(run_id)))
         run = self.runs.get(int(run_id))
@@ -82,6 +89,9 @@ class FakeActions:
             "id": int(run_id),
             "path": run["path"],
             "head_sha": run.get("head_sha", HEAD),
+            "head_branch": run.get("head_branch", BRANCH),
+            "head_repository": {"full_name": run.get("head_repository", REPOSITORY)},
+            "status": run.get("status", "completed"),
             "created_at": run.get("created_at"),
             "updated_at": run.get("updated_at"),
         }
@@ -100,6 +110,7 @@ class FakeActions:
     def checker(self, pr: int = 7) -> Any:
         return lb.lane_checker(
             pr=pr,
+            get_pull=self.get_pull,
             get_run=self.get_run,
             list_artifacts=self.list_artifacts,
             download=self.download,
@@ -272,12 +283,25 @@ class CheckerTests(unittest.TestCase):
         self.assertTrue(check(comment(second, id=12)))
         self.assertFalse(check(comment(first, id=13, createdAt="2026-11-04T00:00:00Z")))
 
-    def test_a_run_with_no_records_does_not_prove_by_time(self) -> None:
+    def test_a_finished_run_with_no_record_proves_by_time_and_a_running_one_raises(self) -> None:
         body = bound("finding")
-        api = FakeActions(
-            {RUN: {"path": WORKFLOWS["claude-review"], "created_at": "2026-11-01T00:00:00Z", "updated_at": "2026-11-02T00:00:00Z"}}
-        )
-        self.assertFalse(api.checker()(comment(body)))
+        window = {"created_at": "2026-11-01T00:00:00Z", "updated_at": "2026-11-02T00:00:00Z"}
+        check = FakeActions({RUN: {"path": WORKFLOWS["claude-review"], **window}}).checker()
+        self.assertTrue(check(comment(body, createdAt="2026-11-01T12:00:00Z")))
+        self.assertFalse(check(comment(body, id=12, createdAt="2026-11-03T00:00:00Z")))
+        self.assertFalse(check(comment(body, id=13, createdAt="2026-11-01T12:00:00Z", lastEditedAt="2026-11-05T00:00:00Z")))
+        running = FakeActions({RUN: {"path": WORKFLOWS["claude-review"], "status": "in_progress", **window}}).checker()
+        with self.assertRaisesRegex(RuntimeError, "not uploaded its comment record yet"):
+            running(comment(body))
+
+    def test_a_run_of_another_branch_or_repository_does_not_bind(self) -> None:
+        body = bound("finding")
+        self.assertFalse(FakeActions({RUN: lane_run([record_entry(body)], head_branch="other")}).checker()(comment(body)))
+        self.assertFalse(FakeActions({RUN: lane_run([record_entry(body)], head_repository="x/r")}).checker()(comment(body)))
+
+    def test_a_record_over_the_size_cap_raises(self) -> None:
+        with self.assertRaisesRegex(ValueError, "over"):
+            lb.zip_entry(zip_of({lb.RECORD_FILE: "x" * (lb.MAX_RECORD_BYTES + 1)}), lb.RECORD_FILE)
 
     def test_a_record_without_the_file_lists_nothing(self) -> None:
         body = bound("finding")
@@ -314,6 +338,7 @@ class CheckerTests(unittest.TestCase):
         self.assertEqual(api.calls, [])
         cutoff = lb.lane_checker(
             pr=7,
+            get_pull=api.get_pull,
             get_run=api.get_run,
             list_artifacts=api.list_artifacts,
             download=api.download,

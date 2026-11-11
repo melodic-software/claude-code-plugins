@@ -505,6 +505,7 @@ export async function bindComments(nodes, check) {
 // lane-binding.mjs's readers through gh, for one repository.
 function actionsReaders(repo) {
   return {
+    getPull: (pr) => ghJson(["api", `repos/${repo}/pulls/${pr}`]),
     getRun: (id) => ghJson(["api", `repos/${repo}/actions/runs/${id}`]),
     listArtifacts: (id) => {
       const all = [];

@@ -399,7 +399,9 @@ describe("a footed post counts only when the run its binding names recorded it",
       if (url.endsWith("/graphql")) {
         return json({ data: { repository: { pullRequest: { reviewThreads: page([boundThread()]), reviews: page([]), comments: page([]) } } } });
       }
-      let m = /\/repos\/o\/r\/actions\/runs\/(\d+)$/u.exec(url);
+      let m = /\/repos\/o\/r\/pulls\/(\d+)$/u.exec(url);
+      if (m) return json(await actions.getPull(Number(m[1])));
+      m = /\/repos\/o\/r\/actions\/runs\/(\d+)$/u.exec(url);
       if (m) return json(await actions.getRun(m[1]));
       m = /\/repos\/o\/r\/actions\/runs\/(\d+)\/artifacts\?per_page=100&page=(\d+)$/u.exec(url);
       if (m) {

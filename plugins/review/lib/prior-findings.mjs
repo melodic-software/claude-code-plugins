@@ -126,6 +126,7 @@ export function restReaders({ api, repository, token, fetchImpl }) {
     return res.json();
   };
   return {
+    getPull: (pr) => read(`pulls/${pr}`),
     getRun: (id) => read(`actions/runs/${id}`),
     listArtifacts: async (id) => {
       const all = [];

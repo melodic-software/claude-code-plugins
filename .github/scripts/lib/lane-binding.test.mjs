@@ -149,3 +149,32 @@ test("a comment of an attempt whose record expired is proved by time while a lat
   assert.equal(await check({ kind: "review_comment", id: 2, body: second }), true);
   assert.equal(await check({ kind: "review_comment", id: 3, body: first, createdAt: "2026-04-01T00:00:00Z" }), false);
 });
+
+test("a run of another branch does not bind, whatever its record says", async () => {
+  // A pull request whose head edits the caller runs that copy and can record
+  // anything; its run's branch is its own, never this pull request's.
+  const body = bound("From another pull request.");
+  const fake = api({ [RUN]: { path: PATH, head_branch: "other", artifacts: [{ name: "claude-lane-comments-claude-review-1", entries: [entry(body)] }] } });
+  assert.equal(await laneChecker({ pr: 7, ...fake })({ kind: "review_comment", id: 11, body }), false);
+  const fork = api({ [RUN]: { path: PATH, head_repository: "someone/r", artifacts: [{ name: "claude-lane-comments-claude-review-1", entries: [entry(body)] }] } });
+  assert.equal(await laneChecker({ pr: 7, ...fork })({ kind: "review_comment", id: 11, body }), false);
+  // The pull request is read once, and not for a legacy comment.
+  const legacy = api({});
+  await laneChecker({ pr: 7, ...legacy })({ kind: "review_comment", id: 1, body: "x\n\nclaude-lane: claude-review" });
+  assert.deepEqual(legacy.calls, []);
+});
+
+test("a finished run with no record proves its comments by time; one still running throws", async () => {
+  const body = bound("Posted before the job was lost.");
+  const lost = api({ [RUN]: { path: PATH, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T01:00:00Z", artifacts: [] } });
+  const check = laneChecker({ pr: 7, ...lost });
+  assert.equal(await check({ kind: "review_comment", id: 11, body, createdAt: "2026-01-01T00:30:00Z" }), true);
+  assert.equal(await check({ kind: "review_comment", id: 12, body, createdAt: "2026-01-01T00:30:00Z", lastEditedAt: "2026-02-01T00:00:00Z" }), false);
+  const running = api({ [RUN]: { path: PATH, status: "in_progress", artifacts: [] } });
+  await assert.rejects(laneChecker({ pr: 7, ...running })({ kind: "review_comment", id: 11, body }), /not uploaded its comment record yet/);
+});
+
+test("zipEntry refuses a record over the size cap", () => {
+  const big = zipOf({ "comments.jsonl": "x".repeat((4 << 20) + 1) });
+  assert.throws(() => zipEntry(big, "comments.jsonl"), /over/);
+});

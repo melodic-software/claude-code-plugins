@@ -18,8 +18,10 @@
 // A comment without a binding was posted before the lanes wrote one: it counts
 // while LEGACY_CUTOFF is null, then only when posted at or before it and never
 // edited. A comment no live record lists, of a run with an expired record
-// (artifact retention), is proved by time instead: posted between the run's
-// creation and its last update. Reads that fail throw, so a caller fails closed and re-runs rather
+// (artifact retention) or of a finished run that uploaded none (a job lost
+// before its upload step), is proved by time instead: posted between the
+// run's creation and its last update, and never edited. A run still going that has uploaded no
+// record yet throws, so the caller reads again later. Reads that fail throw, so a caller fails closed and re-runs rather
 // than dropping a comment it could not check.
 //
 // Node builtins only: ci-workflows' settled-threads step loads the review
@@ -37,6 +39,9 @@ export const LANE_WORKFLOWS = Object.freeze({
 });
 export const RECORD_PREFIX = "claude-lane-comments-";
 export const RECORD_FILE = "comments.jsonl";
+// The largest record read: far above one run's comments, small enough that a
+// crafted archive cannot exhaust memory.
+export const MAX_RECORD_BYTES = 4 << 20;
 // The last time a comment with no binding can be the lane's (ISO 8601), or
 // null while the lanes do not yet write bindings.
 export const LEGACY_CUTOFF = null;
@@ -45,7 +50,8 @@ export const LEGACY_CUTOFF = null;
 // edit (GraphQL's lastEditedAt is exact and wins when present).
 const EDIT_SLACK_MS = 60_000;
 
-const FOOTER = /^`?claude-lane: (claude-review|claude-security-review)`?$/;
+// A lane footer line, trimmed: the one pattern every reader matches it with.
+export const FOOTER = /^`?claude-lane: (claude-review|claude-security-review)`?$/;
 export const BINDING = /^<!-- claude-lane-run id=([1-9][0-9]{0,19}) sha=([0-9a-f]{40}) -->$/;
 
 const lines = (body) => String(body ?? "").replace(/\r\n/g, "\n").split("\n");
@@ -131,11 +137,14 @@ export function zipEntry(zip, name) {
     if (buf.toString("utf8", at + 46, at + 46 + nameLength) === name) {
       const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
       const data = buf.subarray(start, start + size);
+      if (buf.readUInt32LE(at + 24) > MAX_RECORD_BYTES) {
+        throw new Error(`${name} is over ${MAX_RECORD_BYTES} bytes`);
+      }
       if (method === 0) {
         return data;
       }
       if (method === 8) {
-        return inflateRawSync(data);
+        return inflateRawSync(data, { maxOutputLength: MAX_RECORD_BYTES });
       }
       throw new Error(`zip method ${method} is not read`);
     }
@@ -159,14 +168,23 @@ export function recordEntries(text) {
     });
 }
 
-// A checker for one pull request's lane comments. `getRun(id)` reads
-// /actions/runs/<id>, `listArtifacts(id)` that run's artifacts (every page),
-// `download(artifactId)` an artifact's zip bytes. Each run is read once.
+// A checker for one pull request's lane comments. `getPull(pr)` reads
+// /pulls/<pr>, `getRun(id)` /actions/runs/<id>, `listArtifacts(id)` that
+// run's artifacts (every page), `download(artifactId)` an artifact's zip
+// bytes. The pull request and each run are read once, and only for a comment
+// that carries a binding. A run counts only when it ran on the pull request's
+// own head branch: a pull_request run takes its workflow from the head, so a
+// run of another branch could have written any record.
 // `check({ kind, id, body, createdAt, updatedAt, lastEditedAt })` resolves
 // true when the comment is its footer lane's own. A comment with no lane
 // footer is not a lane comment: false.
-export function laneChecker({ pr, getRun, listArtifacts, download, workflows = LANE_WORKFLOWS, cutoff = LEGACY_CUTOFF }) {
+export function laneChecker({ pr, getPull, getRun, listArtifacts, download, workflows = LANE_WORKFLOWS, cutoff = LEGACY_CUTOFF }) {
   const runs = new Map();
+  let pull;
+  const readPull = () => {
+    pull ??= getPull(Number(pr));
+    return pull;
+  };
   const readRun = (runId) => {
     if (!runs.has(runId)) {
       runs.set(
@@ -180,7 +198,7 @@ export function laneChecker({ pr, getRun, listArtifacts, download, workflows = L
             const bytes = zipEntry(await download(artifact.id), RECORD_FILE);
             entries.push(...recordEntries(bytes?.toString("utf8")));
           }
-          return { run, entries, expired: live.length < records.length };
+          return { run, entries, expired: live.length < records.length, unrecorded: records.length === 0 };
         })(),
       );
     }
@@ -195,8 +213,16 @@ export function laneChecker({ pr, getRun, listArtifacts, download, workflows = L
     if (binding === null) {
       return legacyCounts(comment, cutoff);
     }
-    const { run, entries, expired } = await readRun(binding.runId);
-    if (String(run?.id) !== binding.runId || run?.path !== workflows[lane] || run?.head_sha !== binding.sha) {
+    const { run, entries, expired, unrecorded } = await readRun(binding.runId);
+    const head = (await readPull())?.head;
+    if (
+      String(run?.id) !== binding.runId ||
+      run?.path !== workflows[lane] ||
+      run?.head_sha !== binding.sha ||
+      typeof run?.head_branch !== "string" ||
+      run.head_branch !== head?.ref ||
+      run.head_repository?.full_name !== head?.repo?.full_name
+    ) {
       return false;
     }
     const digest = bodyDigest(comment.body);
@@ -209,10 +235,13 @@ export function laneChecker({ pr, getRun, listArtifacts, download, workflows = L
         e.id === Number(comment.id) &&
         e.sha256 === digest,
     );
-    if (listed || !expired) {
+    if (unrecorded && run.status !== "completed") {
+      throw new Error(`lane run ${binding.runId} has not uploaded its comment record yet`);
+    }
+    if (listed || !(expired || unrecorded)) {
       return listed;
     }
     const at = Date.parse(comment.createdAt ?? "");
-    return Date.parse(run.created_at) <= at && at <= Date.parse(run.updated_at);
+    return Date.parse(run.created_at) <= at && at <= Date.parse(run.updated_at) && !wasEdited(comment);
   };
 }

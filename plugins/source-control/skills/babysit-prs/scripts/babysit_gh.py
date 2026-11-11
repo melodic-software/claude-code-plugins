@@ -2566,11 +2566,12 @@ def lane_binding_checker(
     env_overrides: Mapping[str, str] | None = None,
 ) -> lane_binding.Check:
     """A `babysit_lane_binding.lane_checker` for one pull request's lane
-    comments, reading runs, their artifacts and the record zips over REST
-    with `env_overrides`. It reads only for a comment that carries a
-    binding; a failed read raises."""
+    comments, reading the pull request, runs, their artifacts and the record
+    zips over REST with `env_overrides`. It reads only for a comment that
+    carries a binding; a failed read raises."""
     return lane_binding.lane_checker(
         pr=number,
+        get_pull=lambda pr: json_object(_api_read(f"repos/{repo}/pulls/{pr}", env_overrides)),
         get_run=lambda run_id: json_object(
             _api_read(f"repos/{repo}/actions/runs/{run_id}", env_overrides)
         ),
