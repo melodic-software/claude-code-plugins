@@ -113,8 +113,8 @@ claude -p -n <name> --settings '{"crossSessionInbound":"accept"}' "<standing ins
     live.
   - **As of**: 2026-11-04
   - **Recheck trigger**: that section changes what keeps a `-p` run open after its turn.
-- Do not start it with `--bare`: a bare session receives nothing (the pointer is beside the hub's
-  `--bare` bullet).
+- Do not start it with `--bare`: a bare session receives nothing (the pointer is in the hub's
+  Pointer bullet after its `--bare` bullet).
 
 ## Multi-turn and the open pipe
 
@@ -174,7 +174,7 @@ For a session that outlives the hop, the target lane's own supervisor hosts it:
   continues a finished one.
 - `claude --bg --exec '<cmd>'` runs a shell job the same way, for a script that must survive the
   hop. Untested.
-- Read agent view's limits before relying on a background session to stay up.
+- Where agent view's background sessions run, and when they stop: its limits section.
   - **Pointer**: [Agent view: Limitations](https://code.claude.com/docs/en/agent-view#limitations),
     fetched live.
   - **As of**: 2026-11-10
