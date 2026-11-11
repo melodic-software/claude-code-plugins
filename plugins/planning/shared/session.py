@@ -1923,12 +1923,11 @@ class Session:
             # estimate only moves earlier.
             if "lastFocus" in body:
                 at = now - body["lastFocus"]
-                if "focusAt" not in old:
-                    pass
-                elif "focusId" not in body and "focusId" not in old:
-                    at = min(old["focusAt"], at)
-                elif body.get("focusId") == old.get("focusId"):
-                    at = old["focusAt"]
+                if "focusAt" in old:
+                    if "focusId" not in body and "focusId" not in old:
+                        at = min(old["focusAt"], at)
+                    elif body.get("focusId") == old.get("focusId"):
+                        at = old["focusAt"]
                 beat["focusAt"] = at
                 if "focusId" in body:
                     beat["focusId"] = body["focusId"]
@@ -1994,10 +1993,8 @@ class Session:
                 raise DomainError(409, "wrong-status", "Restore or admit this person first.", status=person["status"]["kind"])
             if person["role"] != role:
                 person["role"] = role
-                if role == "leader":
-                    self._notify(target, "role", "You are now a leader: you can lock answers, mark rounds ready and place proposals.", actor=pid)
-                else:
-                    self._notify(target, "role", "You are no longer a leader.", actor=pid)
+                note = "You are now a leader: you can lock answers, mark rounds ready and place proposals." if role == "leader" else "You are no longer a leader."
+                self._notify(target, "role", note, actor=pid)
             return {"role": role}
 
     def set_trust(self, pid, body):
@@ -2205,6 +2202,9 @@ class Session:
         def own(voter, ref):
             return ref_author(ref) == voter
 
+        def merged(by):  # voter -> choice with src's entry under dst, unless dst has one of its own
+            return {swap(v): x for v, x in by.items() if not (v == src and dst in by)}
+
         for qid, cards in st["cards"].items():
             for card in [c for c in cards if c["kind"] == "person" and c["pid"] == src]:
                 old = card_ref(card)
@@ -2218,12 +2218,7 @@ class Session:
                     card["pid"] = dst
                 moved[(qid, old)] = card_ref({**card, "pid": dst})
         for qid, by in st["votes"].items():
-            fixed = {}
-            for voter, ref in by.items():
-                ref = moved.get((qid, ref), ref)
-                if voter == src and dst in by:
-                    continue
-                fixed[swap(voter)] = ref
+            fixed = merged({v: moved.get((qid, r), r) for v, r in by.items()})
             st["votes"][qid] = {v: r for v, r in fixed.items() if not own(v, r)}
         for qid, by in st.get("backs", {}).items():
             union = {}
@@ -2253,10 +2248,8 @@ class Session:
             for ref, by in by_card.items():
                 ref = moved.get((qid, ref), ref)
                 into = fixed.setdefault(ref, {})
-                for voter, reaction in by.items():
-                    if voter == src and dst in by:
-                        continue
-                    into.setdefault(swap(voter), reaction)
+                for voter, reaction in merged(by).items():
+                    into.setdefault(voter, reaction)
             st["reactions"][qid] = {r: {v: x for v, x in by.items() if not own(v, r)} for r, by in fixed.items()}
         for qid, lst in st.get("disagreements", {}).items():
             kept = {}
@@ -2290,14 +2283,8 @@ class Session:
             for s in lst:
                 s["pid"] = swap(s["pid"])
             authors = {s["id"]: s["pid"] for s in lst}
-            by = st["suggestionVotes"].get(qid, {})
-            fixed = {}
-            for voter, sid in by.items():
-                if voter == src and dst in by:
-                    continue
-                fixed[swap(voter)] = sid
             if qid in st["suggestionVotes"]:
-                st["suggestionVotes"][qid] = {v: s for v, s in fixed.items() if authors.get(s) != v}
+                st["suggestionVotes"][qid] = {v: s for v, s in merged(st["suggestionVotes"][qid]).items() if authors.get(s) != v}
         for rec in [*st["proposals"], *st["chat"], *st["requests"], *st["uploads"], *st["annotations"]]:
             rec["pid"] = swap(rec["pid"])
         for u in st["uploads"]:
@@ -2427,22 +2414,20 @@ class Session:
             return {"round": r["n"]}
 
     def cancel_round(self, pid, body):
-        _body(body)
-        with self._tx():
-            r = self._step("cancel", pid)
-            self._event("round-cancelled", round=r["n"], sentSeq=r["status"]["eventSeq"])
-            r["status"] = {"kind": "open"}
-            return {"round": r["n"]}
+        return self._reopen_round(pid, body, "cancel", "round-cancelled")
 
     def reset_round(self, pid, body):
         """POST /api/round/reset: `working` back to `open`, the only exit when Claude's session died.
 
         Writes `round-reset`, so a session that is still alive learns why its `open-round` is refused.
         """
+        return self._reopen_round(pid, body, "reset", "round-reset")
+
+    def _reopen_round(self, pid, body, action, event):
         _body(body)
         with self._tx():
-            r = self._step("reset", pid)
-            self._event("round-reset", round=r["n"], sentSeq=r["status"]["eventSeq"])
+            r = self._step(action, pid)
+            self._event(event, round=r["n"], sentSeq=r["status"]["eventSeq"])
             r["status"] = {"kind": "open"}
             return {"round": r["n"]}
 
@@ -2485,14 +2470,13 @@ class Session:
         kind = _choice(r, "kind", ("image", "quote", "link", "diagram")) if isinstance(r, dict) else None
         if kind is None:
             raise _bad(field, f"{field} must be an image, quote, link or diagram reference.")
-        if kind == "diagram":
-            out = {"kind": "diagram", "asset": self._asset(r.get("asset"), f"{field}.asset", pattern=SVG_ASSET), "alt": _text(r, "alt")}
-            caption = _text(r, "caption", optional=True)
-            return {**out, **({"caption": caption} if caption else {})}
-        if kind == "image":
-            out = {"kind": "image", "asset": self._asset(r.get("asset"), f"{field}.asset", image=True)}
-            if r.get("rect") is not None:
-                out["rect"] = _rect(r["rect"], f"{field}.rect")
+        if kind in ("diagram", "image"):
+            if kind == "diagram":
+                out = {"kind": "diagram", "asset": self._asset(r.get("asset"), f"{field}.asset", pattern=SVG_ASSET), "alt": _text(r, "alt")}
+            else:
+                out = {"kind": "image", "asset": self._asset(r.get("asset"), f"{field}.asset", image=True)}
+                if r.get("rect") is not None:
+                    out["rect"] = _rect(r["rect"], f"{field}.rect")
             caption = _text(r, "caption", optional=True)
             return {**out, **({"caption": caption} if caption else {})}
         if kind == "quote":
@@ -2913,10 +2897,7 @@ class Session:
     def _drop_card(self, qid, card):
         ref = card_ref(card)
         self.state["cards"][qid].remove(card)
-        votes = self.state["votes"].get(qid, {})
-        for voter in [v for v, r in votes.items() if r == ref]:
-            votes.pop(voter)
-        self._unback(qid, ref)
+        self._unback(qid, ref)  # drops its votes too
         self.state["reactions"].get(qid, {}).pop(ref, None)
         by_q = self.state.get("disagreements", {})
         if qid in by_q:
@@ -3047,19 +3028,9 @@ class Session:
                         card["editedAfterVotes"] = mine["editedAfterVotes"]
                     if votes and (old_text != text or mine.get("attachments") != card.get("attachments")):
                         card["editedAfterVotes"] = votes
-                if info or (mine and mine.get("deviceInfo")):
-                    card["deviceInfo"] = info or mine["deviceInfo"]
-                card["view"] = view
-                if late:
-                    card["late"] = late
-                self._carry(mine or self._take_cleared(qid, pid, device), card)
-                self._keep_hidden_across_devices(qid, pid, card)
-                if mine:
-                    cards[cards.index(mine)] = card
-                    if self._is_other(mine):
-                        self._unback(qid, card_ref(card))
-                else:
-                    cards.append(card)
+                self._place_card(qid, pid, device, card, mine, info, view, late)
+                if mine and self._is_other(mine):
+                    self._unback(qid, card_ref(card))
                 if q["format"]["kind"] != "text":
                     st["votes"].get(qid, {}).pop(pid, None)  # off a text question the vote is the pick
                 self._unpass(qid, pid)
@@ -3121,17 +3092,7 @@ class Session:
                     card["editedAfterVotes"] = mine["editedAfterVotes"]
                 if backers and chose_other and mine["text"] != text:
                     card["editedAfterVotes"] = backers
-                if info or (mine and mine.get("deviceInfo")):
-                    card["deviceInfo"] = info or mine["deviceInfo"]
-                card["view"] = view
-                if late:
-                    card["late"] = late
-                self._carry(mine or self._take_cleared(qid, pid, device), card)
-                self._keep_hidden_across_devices(qid, pid, card)
-                if mine:
-                    cards[cards.index(mine)] = card
-                else:
-                    cards.append(card)
+                self._place_card(qid, pid, device, card, mine, info, view, late)
                 if was_other and not chose_other:
                     self._unback(qid, card_ref(card))
                 self._unpass(qid, pid)
@@ -3176,6 +3137,22 @@ class Session:
         if option and option not in known:
             raise DomainError(400, "no-such-option", "No such option on this question.")
         return "pick", ({"pick": option} if option else {})
+
+    def _place_card(self, qid, pid, device, card, mine, info, view, late):
+        """The last steps of an answer or pick: the card takes its device info, view, late mark and moderation
+        marks, then replaces `mine` or joins the question's cards."""
+        if info or (mine and mine.get("deviceInfo")):
+            card["deviceInfo"] = info or mine["deviceInfo"]
+        card["view"] = view
+        if late:
+            card["late"] = late
+        self._carry(mine or self._take_cleared(qid, pid, device), card)
+        self._keep_hidden_across_devices(qid, pid, card)
+        cards = self._cards(qid)
+        if mine:
+            cards[cards.index(mine)] = card
+        else:
+            cards.append(card)
 
     def _attach(self, card, pid, body, mine):
         """C44: the uploads an answer or pick carries. `attachments`, when sent, replaces the list: ids of the
