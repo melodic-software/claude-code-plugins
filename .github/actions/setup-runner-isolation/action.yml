@@ -15,53 +15,17 @@ inputs:
 runs:
   using: composite
   steps:
-    # One cache entry per hosted image: the debs apt picks depend only on the
-    # image's package lists, and an entry nobody restores is evicted after 7 days.
-    - name: Key the package cache
-      id: debs-key
-      if: inputs.install-subprocess-isolation == 'true'
-      shell: bash
-      run: |
-        if [ -n "${ImageOS:-}" ] && [ -n "${ImageVersion:-}" ]; then
-          echo "key=runner-isolation-debs-$ImageOS-$ImageVersion-$(uname -m)" >>"$GITHUB_OUTPUT"
-        fi
-
-    - name: Restore the package cache
-      id: debs-restore
-      if: steps.debs-key.outputs.key != ''
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-      with:
-        path: ${{ runner.temp }}/isolation-debs/*.deb
-        key: ${{ steps.debs-key.outputs.key }}
-
     # claude-code-action puts the OAuth token in Claude's env; without
     # CLAUDE_CODE_SUBPROCESS_ENV_SCRUB every Bash child inherits it. The
     # scrub's sandbox needs bubblewrap and socat, and the action installs it
     # only for allowed_non_write_users.
     - name: Install subprocess isolation
-      id: install
       if: inputs.install-subprocess-isolation == 'true'
       shell: bash
       run: |
-        dir="$RUNNER_TEMP/isolation-debs"
-        mkdir -p "$dir/partial"
+        # No Actions cache: actions/cache unpacks with tar -P while sudo still
+        # works, so whoever writes an entry could write any runner-owned file.
         have() { command -v bwrap >/dev/null && command -v socat >/dev/null; }
-        # A cache entry is writable by any run on the branch, so a cached deb is
-        # installed only when it is byte for byte the candidate apt would pick
-        # from the image's own signed package lists.
-        verified() {
-          local deb pkg cand want n=0
-          for deb in "$dir"/*.deb; do
-            [ -f "$deb" ] || return 1
-            pkg=$(dpkg-deb -f "$deb" Package) || return 1
-            [[ $pkg =~ ^[a-z0-9][a-z0-9.+-]+$ ]] || return 1
-            cand=$(apt-cache policy "$pkg" | awk '/Candidate:/ {print $2; exit}')
-            want=$(apt-cache show "$pkg=$cand" 2>/dev/null | awk '/^SHA256:/ {print $2; exit}')
-            [ -n "$want" ] && [ "$(sha256sum "$deb" | cut -d' ' -f1)" = "$want" ] || return 1
-            n=$((n + 1))
-          done
-          [ "$n" -gt 0 ]
-        }
         # The image's own apt settings fail over from its Azure mirror to
         # archive.ubuntu.com in seconds; every call shares one 540 s budget.
         deadline=$((SECONDS + 540))
@@ -70,20 +34,10 @@ runs:
           [ "$left" -gt 0 ] || return 1
           timeout "$((left < 180 ? left : 180))" sudo apt-get -o DPkg::Lock::Timeout=60 "$@"
         }
-        install() { apt_get install -y --no-install-recommends "$@" bubblewrap socat; }
-        if ! have && verified; then
-          apt_get install -y --no-install-recommends --no-download "$dir"/*.deb ||
-            echo "the cached packages did not install; falling back to apt"
-        fi
+        install() { apt_get install -y --no-install-recommends bubblewrap socat; }
         # The image's lists need only the package files; an index refresh,
-        # the slow part of a stalled mirror, runs only when they are stale. Only
-        # files picked from the image's lists are cached, so a restore verifies.
-        if ! have; then
-          rm -f "$dir"/*.deb
-          if install -o "Dir::Cache::archives=$dir/"; then
-            echo "save=true" >>"$GITHUB_OUTPUT"
-          fi
-        fi
+        # the slow part of a stalled mirror, runs only when they are stale.
+        have || install || true
         for i in 1 2 3; do
           have && break
           apt_get update -qq && install && break
@@ -98,14 +52,6 @@ runs:
           echo "::error::bubblewrap or socat is not installed; Claude Code cannot scrub its subprocess environment"
           exit 1
         fi
-
-    # Saved before head code runs, so the entry holds only what apt fetched.
-    - name: Save the package cache
-      if: steps.install.outputs.save == 'true' && steps.debs-key.outputs.key != '' && steps.debs-restore.outputs.cache-hit != 'true'
-      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-      with:
-        path: ${{ runner.temp }}/isolation-debs/*.deb
-        key: ${{ steps.debs-key.outputs.key }}
 
     # Removes the documented route from head code to the job's secrets in
     # runner memory (harden-runner's disable-sudo does the same): the docker
