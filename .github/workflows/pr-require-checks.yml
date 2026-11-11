@@ -124,11 +124,9 @@ concurrency:
 # carries the pull-request contract (title, do-not-merge label, issue linkage)
 # as steps of that one check.
 #
-# JOBS ARE NAMED <verb>-<domain>, AND THE JOB ID IS THE CHECK NAME. The verb
-# says what a job does: `lint` runs linters over source, `check` holds a
-# repository contract across files, `test` executes code. The domain says over
-# what: `repo`, `shell`, `plugins`, `catalog`, `skills`, or the ecosystem a test job runs
-# (`bash`, `python`, `node`). One marker, `mark-lanes`, one resolver,
+# JOB NAMES FOLLOW THE ORG NAMING LINT (melodic-software/standards
+# components/github-actions-conventions), which `check-workflow-naming` runs.
+# One marker, `mark-lanes`, one resolver,
 # `select-tests`, eleven working jobs,
 # `lint-repo`, `lint-shell`, `check-plugins`, `check-catalog`, `check-skills`, `test-bash`,
 # `test-python`, `test-node`, `check-managed-files`, `check-tests` and `check-workflow-naming`, and one aggregate, job `ci-status`, whose

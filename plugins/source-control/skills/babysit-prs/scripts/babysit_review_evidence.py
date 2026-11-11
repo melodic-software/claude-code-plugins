@@ -763,9 +763,9 @@ WORKFLOW_NAME_WORDS = {
 
 def workflow_display_name(stem: str) -> str:
     """A lowercase file stem's workflow `name:`: hyphens to spaces, Title
-    Case, listed words as `WORKFLOW_NAME_WORDS` spells them.
-    `.github/actions/resolve-config/callers.test.mjs` holds the same rule over
-    this repository's workflow files."""
+    Case, listed words as `WORKFLOW_NAME_WORDS` spells them, the rule
+    melodic-software/standards' github-actions-conventions naming lint
+    enforces on this repository's workflow files."""
     return " ".join(
         WORKFLOW_NAME_WORDS.get(word, word.capitalize()) for word in stem.split("-")
     )
