@@ -115,10 +115,12 @@ with your own edit tools.
    stop here and report.
 4. **Actions.** When `actions[]` holds `copy` items, run
    `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" copy --scope <scope>` (plus the same
-   `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused` or
-   `blocked` per entry; `refused` means a locally edited copy, which the `modified` decision
-   covers, and `blocked` means another tool owns the local hooks directory, which the
-   `hooks-path-owned` decision covers.
+   `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused`,
+   `blocked`, `unsafe-path` or `stage-failed` per entry; `refused` means a locally edited copy or
+   dispatcher, which the `modified` decision covers, `blocked` that another tool owns the local
+   hooks directory, which the `hooks-path-owned` decision covers, `unsafe-path` the decision of
+   that name, and `stage-failed` that `git add` failed on a shared install: report it, since the
+   team would not receive the files.
 5. **Decisions.** Read [reference/git-hook-decisions.md](reference/git-hook-decisions.md) for
    what each kind asks of you, apply each one, then rerun `plan` until only the decisions you
    chose to leave remain.
@@ -195,4 +197,5 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Install `goimports`. Installation is always the consumer's own choice and command, at the
   machine level, never a project dependency this skill records.
-- Download or execute tools during `check` or `apply`.
+- Download tools, or run any during `check` or `apply` beyond the read-only `goimports -h` probe
+  and the `install.mjs` commands named above.
