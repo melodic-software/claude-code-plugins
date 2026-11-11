@@ -635,7 +635,8 @@ class Flow {
     }
   }
 
-  // Where the value `node` evaluates to goes next.
+  // Where the value `node` evaluates to goes next. forwards() climbs optional
+  // chains too (its ChainExpression case), so no separate check is needed here.
   value(node) {
     let parent = this.parents.get(node);
     while (forwards(parent, node)) {
