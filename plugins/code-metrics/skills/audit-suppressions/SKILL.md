@@ -154,7 +154,7 @@ The marker catalog follows each tool's own directive syntax, read from these pag
   [RuboCop, source code directives](https://docs.rubocop.org/rubocop/latest/usage/source_code_directives.html);
   [Java `SuppressWarnings`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/SuppressWarnings.html);
   [istanbul, ignoring code for coverage](https://github.com/istanbuljs/nyc#parsing-hints-ignoring-lines);
-  [c8, ignoring lines](https://github.com/bcoe/c8#ignoring-all-lines-after-a-comment);
+  [c8, ignoring lines](https://github.com/bcoe/c8#ignoring-uncovered-lines-functions-and-blocks);
   [coverage.py, excluding code](https://coverage.readthedocs.io/en/latest/excluding.html);
   [Stryker, disable mutants](https://stryker-mutator.io/docs/stryker-js/disable-mutants/);
   [Bandit, suppressing individual lines](https://bandit.readthedocs.io/en/latest/config.html#suppressing-individual-lines);

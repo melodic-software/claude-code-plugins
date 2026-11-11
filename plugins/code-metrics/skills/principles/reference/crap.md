@@ -94,8 +94,9 @@ complexity run and `cov` from a coverage artifact that already exists. The join 
 because every one of them can change a number:
 
 1. **The artifact's own per-function region wins** when it carries one, either the function's own
-   line map or its start and end lines: coverage.py JSON `functions` regions (7.6.0 and later),
-   lcov 2.2 `FNL`/`FNA` leaders that carry an end line, and Cobertura `method` regions. The row
+   line map or its start and end lines: coverage.py JSON `functions` regions, lcov `FNL`/`FNA`
+   leaders that carry an end line, and Cobertura `method` regions (each format's versions are its
+   row in [`reference/collectors.md`](../../../reference/collectors.md)). The row
    records `cov_source: artifact-region`. A Go cover profile is not one of these: its blocks are
    statement counts over line ranges, it names no function, and it says which lines carry the
    statements in no block at all, so a Go function has neither a region nor executable lines to

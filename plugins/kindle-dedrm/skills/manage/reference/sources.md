@@ -48,7 +48,7 @@ If Amazon revokes the URL, this skill is significantly compromised. An alternate
 | Releases API | `https://api.github.com/repos/Satsuoni/DeDRM_tools/releases` |
 | Purpose | DeDRM_plugin.zip + KFX extractors |
 | Drift signal | Latest pre-release tag differs from `reference/versions.md` pin |
-| Last-fetched | 2026-05-10 |
+| Last-fetched | 2026-07-19 |
 | Pinned tag | See `reference/versions.md`, "DeDRM_tools (Satsuoni fork)". That file is the single home for the pin and its SHA256 |
 | Auth | None for public read |
 
@@ -94,7 +94,7 @@ Avoid Microsoft Store version (sandboxed, blocks file access). `Run_keyfinder.ba
 [OK]      Kindle for PC installer URL          (HEAD 200, 285 MB unchanged)
 [OK]      DeDRM_tools latest pre-release       (tag matches the pin in versions.md)
 [OK]      Kindle_Key_Finder zip URL            (HEAD 200 on the pinned direct URL)
-[NOTE]    Tutorial article                     (slug resolves; body paywalled, not diffable)
+[STALE]   Tutorial article                     (HTTP 404; article moved again)
 [OK]      Local downloads                      (SHA256 matches versions.md for files present)
 ```
 

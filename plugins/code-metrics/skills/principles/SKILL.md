@@ -10,12 +10,15 @@ metadata:
 
 # Code metrics knowledge base
 
-The five `audit-*` skills in this plugin print numbers with their provenance and stop. This skill
-says what each number means, where its reference value came from, and where reading it as a verdict
-goes wrong. It renders no verdict of its own, and neither does the plugin: a reference is a value to
-count against, never a bar, and no skill here emits a finding, a severity, or an exit-code gate,
-because a finding needs a measured corpus sweep behind it and none has been run. Reference files in
-`reference/` are source-attributed; the sections below answer the common questions without a load.
+The `audit` skill and its `audit-*` siblings in this plugin print numbers with their provenance and
+stop. This skill says what each number means, where its reference value came from, and where reading
+it as a verdict goes wrong. It renders no verdict of its own, and neither does the plugin: a
+reference is a value to count against, never a bar, and no skill here turns a measured number into a
+finding, a severity, or an exit-code gate, because a finding needs a measured corpus sweep behind it
+and none has been run. The one findings file the plugin writes, from
+`audit-suppressions --findings`, holds suppressions missing a reason or a rule id, not measured
+numbers. Reference files in `reference/` are source-attributed; the sections below answer the
+common questions without a load.
 
 ## Routing table
 

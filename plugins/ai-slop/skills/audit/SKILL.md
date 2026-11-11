@@ -154,20 +154,28 @@ The target `user-scope` audits the user-level markdown files Claude Code loads, 
 list to step 2 as `detect.sh --list-targets --paths-file <list>`. Run the rest of the audit, or
 the fix flow, under [Non-repository targets](#non-repository-targets).
 
-- The surfaces are the user-level markdown files the
-  [`.claude` directory docs](https://code.claude.com/docs/en/claude-directory) name:
-  `CLAUDE.md`, `rules/`, skills that hold `SKILL.md` with their supporting files, `commands/`,
-  `agents/`, and top-level `output-styles/*.md`; `memory` adds `projects/*/memory/` and
-  `agent-memory/*/`. The root is `CLAUDE_CONFIG_DIR` when set and non-empty, else
-  `~/.claude`. Verified 2026-09-25 against that page: it lists these user-level files and
-  states that with `CLAUDE_CONFIG_DIR` set, every `~/.claude` path on the page lives under that
-  directory instead. Recheck when the page adds, moves, or drops a user-level markdown surface,
-  or changes what `CLAUDE_CONFIG_DIR` relocates.
+- The surfaces are these user-level markdown files: `CLAUDE.md`, `rules/`, skills that hold
+  `SKILL.md` with their supporting files, `commands/`, `agents/`, and top-level
+  `output-styles/*.md`; `memory` adds `projects/*/memory/` and `agent-memory/*/`. The root is
+  `CLAUDE_CONFIG_DIR` when set and non-empty, else `~/.claude`.
+  - **Pointer**: when checking which user-level files Claude Code loads and what
+    `CLAUDE_CONFIG_DIR` relocates, fetch
+    [Explore the directory](https://code.claude.com/docs/en/claude-directory#explore-the-directory),
+    [File reference](https://code.claude.com/docs/en/claude-directory#file-reference) and the
+    `CLAUDE_CONFIG_DIR` row of [Variables](https://code.claude.com/docs/en/env-vars#variables) live.
+  - **As of**: 2026-11-10
+  - **Recheck trigger**: those sections add, move, or drop a user-level markdown surface, or change
+    what `CLAUDE_CONFIG_DIR` relocates.
 - `@path` imports are not followed. Pass an imported file as an explicit path target.
-- `memory` lists the default auto memory location only. Any settings scope can move it with
-  `autoMemoryDirectory` ([memory docs](https://code.claude.com/docs/en/memory)); the script
-  warns when the user `settings.json` sets it, and a relocated directory is passed as a path
+- `memory` lists the default auto memory location only; the script warns when the user
+  `settings.json` sets `autoMemoryDirectory`, and a relocated directory is passed as a path
   target.
+  - **Pointer**: when auto memory may live somewhere else, fetch
+    [`autoMemoryDirectory`](https://code.claude.com/docs/en/settings-reference#automemorydirectory)
+    and [Storage location](https://code.claude.com/docs/en/memory#storage-location) live.
+  - **As of**: 2026-11-10
+  - **Recheck trigger**: either section changes the default auto memory location or which settings
+    scopes can move it.
 - A symlink is followed only to a readable regular `.md` file inside the config root, and
   that file is listed once. A symlinked directory is not walked, and a link pointing outside
   the root is skipped; the script names each on stderr. Pass a skipped link's target as an

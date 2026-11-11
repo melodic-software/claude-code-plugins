@@ -1,7 +1,7 @@
 # Fix Workflow
 
 Apply fixes for audit findings. Requires a prior audit, and reads findings from **the path SKILL.md
-resolves in "Report location"**, `audit/<state-key>/last-audit.md` under the plugin data directory.
+resolves in "Derive the report location before writing or reading"**, `audit/<state-key>/last-audit.md` under the plugin data directory.
 Derive the key there; do not restate a path here.
 
 `<skill-dir>` in the commands below is the parent of this file's `context/` directory. SKILL.md
