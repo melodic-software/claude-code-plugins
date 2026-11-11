@@ -248,6 +248,66 @@ test("limits.api github-token start-gate in the resolved config overrides the de
   assert.equal((await runMain(OFF, rateLimitResponse({ headers: headersOf(5000, 0, RESET) }), { resolved: off })).outputs.cause, "ok", "0 turns it off");
 });
 
+test("budget false makes no /rate_limit call and keeps switch-only semantics", async () => {
+  const empty = () => rateLimitResponse({ headers: headersOf(5000, 0, RESET) });
+  const off = await runMain({ ...OFF, BUDGET_CHECK: "false" }, empty);
+  assert.equal(off.calls.length, 0, "no budget call");
+  assert.deepEqual(off.outputs, { proceed: "true", reason: "ok", cause: "ok" }, "an empty pool does not stop it");
+  assert.ok(!off.lines.some((line) => line.includes("start-gate")), "no start-gate notice or warning");
+  for (const [org, repo, cause] of [
+    ["true", "false", "switch"],
+    ["false", undefined, "switch"],
+    ["true@2026-11-11T13:00:00Z", "false", "expiry"],
+  ]) {
+    const { calls, outputs } = await runMain({ KILL_SWITCH_VALUE: org, REPO_KILL_SWITCH_VALUE: repo, BUDGET_CHECK: "false" }, empty);
+    assert.deepEqual([calls.length, outputs], [0, { proceed: "false", reason: "kill-switch", cause }], `${org} / ${repo}`);
+  }
+  // Any other value reads the budget.
+  for (const value of ["true", "", "FALSE"]) {
+    const { calls, outputs } = await runMain({ ...OFF, BUDGET_CHECK: value }, empty);
+    assert.deepEqual([calls.length, outputs.cause], [1, "budget"], `BUDGET_CHECK=${JSON.stringify(value)}`);
+  }
+});
+
+// Gates in jobs that run after a model turn and consume its output read the
+// switches only; start gates before a model turn read the budget.
+const gateOf = (file, job) => {
+  const lines = readFileSync(fileURLToPath(new URL(`../../workflows/${file}`, import.meta.url)), "utf8").split("\n");
+  const jobsAt = lines.indexOf("jobs:");
+  const start = lines.findIndex((line, i) => i > jobsAt && line === `  ${job}:`);
+  assert.ok(start > 0, `${file}: job ${job}`);
+  const end = lines.findIndex((line, i) => i > start && /^ {2}[a-z][a-z0-9-]*:$/.test(line));
+  const body = lines.slice(start, end < 0 ? undefined : end);
+  const uses = body.findIndex((line) => line.includes("uses: ./.base/.github/actions/check-kill-switch"));
+  assert.ok(uses > 0, `${file} ${job}: gate`);
+  const next = body.findIndex((line, i) => i > uses && /^ {6}- /.test(line));
+  return body.slice(uses, next < 0 ? undefined : next).join("\n");
+};
+const POST_MODEL = [
+  ["pr-run-activity-write.yml", "run"],
+  ["intake-triage.yml", "apply-verdict"],
+  ["intake-triage.yml", "apply-refinement"],
+  ["maintenance-audit-lane-runs.yml", "judge-handoffs"],
+  ["maintenance-audit-lane-runs.yml", "judge-subscription-handoffs"],
+  ["maintenance-audit-lane-runs.yml", "file"],
+  ["maintenance-measure-skill-edit.yml", "push-branch"],
+  ["maintenance-measure-skill-edit.yml", "publish"],
+  ["maintenance-tidy-code-upkeep.yml", "push-branches"],
+  ["maintenance-tidy-code-upkeep.yml", "publish"],
+  ["upstream-apply-changelog.yml", "push-branches"],
+  ["upstream-apply-changelog.yml", "publish"],
+  ["pr-unblock.yml", "adjudicate-feedback"],
+];
+
+test("gates after a model turn skip the budget; start gates before one read it", () => {
+  for (const [file, job] of POST_MODEL) {
+    assert.match(gateOf(file, job), /^ {10}budget: "false"$/m, `${file} ${job}`);
+  }
+  for (const [file, job] of [["pr-run-activity-read.yml", "broker-check"], ["pr-run-activity-read.yml", "run"], ["intake-triage.yml", "refine-issue"], ["work-unblock.yml", "label-unblocked"]]) {
+    assert.doesNotMatch(gateOf(file, job), /budget:/, `${file} ${job}`);
+  }
+});
+
 test("a failed budget read proceeds", async () => {
   const { outputs, lines } = await runMain(OFF, new Error("socket hang up"));
   assert.deepEqual(outputs, { proceed: "true", reason: "ok", cause: "ok" });

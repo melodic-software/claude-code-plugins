@@ -41,6 +41,16 @@ and a read lane's broker check, while one exists.
 | `value` | empty | The org switch, normally `${{ vars.CLAUDE_LANES_DISABLED }}` |
 | `repo-value` | empty | The repository switch, normally `${{ vars.CLAUDE_LANES_REPO_DISABLED }}` |
 | `token` | `${{ github.token }}` | The token whose GET /rate_limit answer is the budget reading |
+| `budget` | `true` | `false` skips the budget read, so the gate checks the switches only |
+
+A gate in a job that runs after a model turn and consumes its output sets `budget: "false"`, so a
+low budget never throws that turn's work away; the rate guard's `stop-floor` stays its backstop.
+Those gates are the write runner's (`pr-run-activity-write.yml` `run`), intake-triage's
+`apply-verdict` and `apply-refinement`, maintenance-audit-lane-runs' `judge-handoffs`,
+`judge-subscription-handoffs` and `file`, the `push-branch(es)` and `publish` jobs of
+maintenance-measure-skill-edit, maintenance-tidy-code-upkeep and upstream-apply-changelog, and
+pr-unblock's `adjudicate-feedback`. A model leg that takes over after an earlier leg handed off
+starts a fresh turn, so its gate still reads the budget.
 
 ## Outputs
 

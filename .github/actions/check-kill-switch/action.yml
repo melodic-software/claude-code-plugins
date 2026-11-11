@@ -30,6 +30,14 @@ inputs:
       to the job's GITHUB_TOKEN.
     required: false
     default: ${{ github.token }}
+  budget:
+    description: >
+      `false` skips the budget read: the gate checks the switches only. Set
+      on a gate that runs after a model turn, so a low budget never throws
+      that turn's work away; the rate guard's stop-floor is its backstop.
+      Any other value reads the budget.
+    required: false
+    default: "true"
 
 outputs:
   proceed:
@@ -52,4 +60,5 @@ runs:
         KILL_SWITCH_VALUE: ${{ inputs.value }}
         REPO_KILL_SWITCH_VALUE: ${{ inputs.repo-value }}
         BUDGET_TOKEN: ${{ inputs.token }}
+        BUDGET_CHECK: ${{ inputs.budget }}
       run: node "$GITHUB_ACTION_PATH/check-kill-switch.mjs"

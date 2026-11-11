@@ -520,6 +520,8 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          # After a model turn: switches only, so a low budget never drops its work.
+          budget: "false"
 
       # The broker mints only for a listed human, or github-actions[bot] on a
       # dispatch (intake-reenter.yml, the triage sweep), and a re-run only for
@@ -2048,6 +2050,8 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          # After a model turn: switches only, so a low budget never drops its work.
+          budget: "false"
 
       - name: Check who started the run
         id: who

@@ -1269,6 +1269,8 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          # After a model turn: switches only, so a low budget never drops its work.
+          budget: "false"
 
       - name: Resolve the config
         id: config
@@ -1398,6 +1400,8 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          # After a model turn: switches only, so a low budget never drops its work.
+          budget: "false"
 
       - name: Resolve the config
         id: config

@@ -512,6 +512,8 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          # After a model turn: switches only, so a low budget never drops its work.
+          budget: "false"
 
       - name: Download the handoff markers
         id: download
@@ -910,6 +912,8 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          # After a model turn: switches only, so a low budget never drops its work.
+          budget: "false"
 
       - name: Download the handoff markers
         id: download
@@ -1214,6 +1218,8 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          # After a model turn: switches only, so a low budget never drops its work.
+          budget: "false"
 
       - name: Download the units
         if: steps.kill.outputs.proceed == 'true'

@@ -11,7 +11,9 @@
 //   is still ahead. A read that fails or cannot be read proceeds with a
 //   warning; the rate guard's stop-floor (log-api-budget/rate-guard.mjs) is
 //   the backstop. GitHub counts this call against the secondary limit, not the
-//   primary one, so it is made once, with no retry.
+//   primary one, so it is made once, with no retry. BUDGET_CHECK=false (the
+//   action's `budget: false`, set on gates that run after a model turn) skips
+//   the read, so a low budget never throws finished model work away.
 //
 // Every stop is reason=kill-switch; cause says which: switch, expiry (a
 // `true@<time>` still ahead), budget, or ok when the lane proceeds.
@@ -135,7 +137,7 @@ export function writeOutputs(outputs, outputPath = process.env.GITHUB_OUTPUT) {
 
 export async function main(env = process.env, { fetchImpl = fetch, now = Date.now, log = (line) => console.log(line) } = {}) {
   let result = checkKillSwitch(env.KILL_SWITCH_VALUE, env.REPO_KILL_SWITCH_VALUE, now());
-  if (result.proceed === "true") {
+  if (result.proceed === "true" && env.BUDGET_CHECK !== "false") {
     const share = await startGateShare(env.RESOLVED_CONFIG, log);
     const budget = await checkBudget({ token: env.BUDGET_TOKEN, api: env.GITHUB_API_URL || undefined, share, now: now() / 1000, fetchImpl });
     log(budget.line);
