@@ -1,4 +1,0 @@
-schema_version: "1.1"
-name: plan-reviewer-cut-low-notes-since
-context:
-  scaffold_script: scaffold.sh

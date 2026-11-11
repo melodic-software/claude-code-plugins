@@ -1,8 +1,0 @@
----
-type: regex
-pattern: '^## Plan[\s\S]*?(?:regression|\btest_\w+|\btests?\b)'
-flags: mi
-target:
-  source: file
-  path: .work/overnight-shifts/PLAN.md
----
