@@ -125,16 +125,17 @@ Never invoked, named only as a fix owner or as a step for the user:
 them live when a command's output, or the files you find, do not match the entry. The
 `permissions` and `instructions` entries fetch theirs in every run.
 
-- **Pointer**: [git update-index, `--test-untracked-cache` and UNTRACKED CACHE](https://git-scm.com/docs/git-update-index)
-- **As of**: 2026-10-03
+- **Pointer**: [git update-index `--test-untracked-cache`](https://git-scm.com/docs/git-update-index#Documentation/git-update-index.txt---test-untracked-cache)
+  and [UNTRACKED CACHE](https://git-scm.com/docs/git-update-index#_untracked_cache)
+- **As of**: 2026-11-10
 - **Recheck trigger**: a git release changes what that option tests or its exit codes.
 
 - **Pointer**: [gh repo view](https://cli.github.com/manual/gh_repo_view) JSON fields
 - **As of**: 2026-10-03
 - **Recheck trigger**: a gh release drops or renames `nameWithOwner` in `gh repo view --json`.
 
-- **Pointer**: [GitHub REST, list jobs for a workflow run](https://docs.github.com/en/rest/actions/workflow-jobs)
-- **As of**: 2026-10-03
+- **Pointer**: [GitHub REST, list jobs for a workflow run](https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run)
+- **As of**: 2026-11-10
 - **Recheck trigger**: the job or step objects drop `created_at`, `started_at` or `completed_at`.
 
 - **Pointer**: [gh run list](https://cli.github.com/manual/gh_run_list) and [gh pr list](https://cli.github.com/manual/gh_pr_list) JSON fields

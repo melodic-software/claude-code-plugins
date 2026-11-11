@@ -18,7 +18,12 @@ invocation:
 - Uncommitted .md files (sample, first 10; empty = none matched or the probe returned nothing), `git status --porcelain | grep -E '\.md"?$' | head -10`
 
 The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
-bounds nothing: the Bash tool returns the full output into context before anything can be decided.
+limits only what is read after the command returns, never what it returns.
+
+- **Pointer**: when deciding how much command output reaches context, fetch
+  [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits) live. **As of**:
+  2026-11-10. **Recheck trigger**: that section changes how much output arrives inline or what
+  arrives in place of output past the inline limit.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls, not pre-compute lines.
@@ -63,7 +68,7 @@ single-file skill is never flagged for lacking spokes.
 - **Pointer**: when sizing a CLAUDE.md, fetch
   [Write effective instructions](https://code.claude.com/docs/en/memory#write-effective-instructions)
   live. For the `missing-toc` bands, the pages
-  [Structure longer reference files with a table of contents](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#structure-longer-reference-files-with-a-table-of-contents)
+  [Structure longer reference files with a table of contents](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#structure-longer-reference-files-with-table-of-contents)
   and skill-creator's
   [Progressive Disclosure](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md#progressive-disclosure)
   disagree on the TOC threshold; fetch both live when placing a file in a band.
@@ -206,7 +211,7 @@ carries its own as-of date and recheck trigger.
 - [Claude Code memory docs: Write effective instructions](https://code.claude.com/docs/en/memory#write-effective-instructions). CLAUDE.md/rules loading, CLAUDE.md size target, fact-vs-procedure routing
 - [Claude Code large-codebases docs: Layer CLAUDE.md files by directory](https://code.claude.com/docs/en/large-codebases#layer-claude-md-files-by-directory) and [Centralize conventions when layering stops scaling](https://code.claude.com/docs/en/large-codebases#centralize-conventions-when-layering-stops-scaling). Root-orients / per-directory layering, escalation ladder. As of: 2026-10-11. Recheck trigger: either section is removed or renamed, or changes when it moves conventions from per-directory files to a central home
 - [Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices). Hub-and-spoke patterns, pointer rules, observed-navigation diagnostics, TOC guidance
-- [Agent Skills spec](https://agentskills.io/specification). Frontmatter limits, one-level-deep rule, ~100-token metadata
+- [Agent Skills spec](https://agentskills.io/specification). Frontmatter limits, one-level-deep rule, metadata cost
 - [Progressive disclosure patterns](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#progressive-disclosure-patterns). Mutual-exclusivity split rule (correlate with [Anthropic engineering: Agent Skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills))
 - [How Skills work](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#how-skills-work). Just-in-time retrieval, pointer doctrine (correlate with [Anthropic engineering: context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents))
 - [skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator). Approaching-the-limit split trigger, TOC guidance

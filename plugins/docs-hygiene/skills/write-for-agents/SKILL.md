@@ -45,9 +45,8 @@ staged for a skim.
 
 Three vehicles shape the system prompt: a subagent definition's body, an output style, and the
 launch flags that replace or append to it (`--system-prompt`, `--append-system-prompt`, and their
-`-file` forms). CLAUDE.md files, rules, and skill bodies reach the model as conversation content in
-the user turn: write them as instructions read in the conversation, stating the rule, its scope,
-and its reason. A rule that must hold at system-prompt level goes in a subagent body, an output
+`-file` forms). Write CLAUDE.md files, rules, and skill bodies as instructions read in the
+conversation, not as system prompt, stating the rule, its scope, and its reason. A rule that must hold at system-prompt level goes in a subagent body, an output
 style, or a launch flag.
 
 - **Pointer**: for how CLAUDE.md content is delivered, see
@@ -115,9 +114,12 @@ A task-shaped or long-run instruction also names the whole task's finish line an
 - **Stop and ask** only when nothing can move without the human, or before a destructive,
   hard-to-undo, or outward action. Never pair a keep-going rule with turning off permission prompts
   or confirmation gates.
-- **Long runs** keep the task list in a file, ticked as items finish, since compaction summarizes
-  the scrollback; reuse a ledger the workflow already has. The final report opens with what is
+- **Long runs** keep the task list in a file, ticked as items finish, so the list never depends
+  on the scrollback; reuse a ledger the workflow already has. The final report opens with what is
   blocked on the human, then what changed and what was found.
+  **Pointer**: when judging what a long run loses to compaction, fetch
+  [What survives compaction](https://code.claude.com/docs/en/context-window#what-survives-compaction)
+  live. **As of**: 2026-11-10. **Recheck trigger**: that section changes what compaction keeps.
 
 ## Split by sequence; choose invocation by the rubric
 
@@ -137,9 +139,8 @@ the specific styles to leave out ("no hero banner, no pill-shaped buttons"),
 since "avoid a generic look" swaps one default for another.
 
 Ask for outcomes, not thinking. Whether a "think carefully" line helps depends on the target model,
-so follow `/harness-config:audit-instructions` criterion I8-f for the model the text will run on:
-it drops these lines for Opus 5.5, where depth is the effort setting's job and a quick answer is
-a lower effort level first, "Answer directly." second. A line telling the model to think less or
+so follow `/harness-config:audit-instructions` criterion I8-f for the model the text will run on.
+A line telling the model to think less or
 not at all is I8-c's, scoped per model the same way. Never ask the model to show or reproduce
 its reasoning in the reply, which some models decline; ask for what the reader needs, such as the
 rationale in two or three sentences or the evidence as a list.
