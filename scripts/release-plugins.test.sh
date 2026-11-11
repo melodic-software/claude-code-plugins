@@ -257,6 +257,100 @@ Intro.
 - First.'
 rm -rf "$f"
 
+# --- whole bullet blocks are compared, children included --------------------------
+base_fixture f
+add_fragment "$f" beta a-11111111 patch "### Changed
+
+- Item.
+  - Child one."
+add_fragment "$f" beta b-22222222 patch "### Changed
+
+- Item.
+  - Child one."
+run_release "$f" >/dev/null 2>&1
+expect_file "two identical blocks with the same children collapse to one block" \
+  "$f/plugins/beta/CHANGELOG.md" '# Changelog
+
+Intro.
+
+## [0.4.1] - 2026-10-04
+
+### Changed
+
+- Item.
+  - Child one.
+
+## [0.0.1] - 2026-01-01
+
+### Added
+
+- First.'
+rm -rf "$f"
+
+base_fixture f
+add_fragment "$f" beta a-11111111 patch "### Changed
+
+- Item.
+  - Child one."
+add_fragment "$f" beta b-22222222 patch "### Changed
+
+- Item.
+  - Child two."
+run_release "$f" >/dev/null 2>&1
+expect_file "the same first line with different children keeps both blocks" \
+  "$f/plugins/beta/CHANGELOG.md" '# Changelog
+
+Intro.
+
+## [0.4.1] - 2026-10-04
+
+### Changed
+
+- Item.
+  - Child one.
+
+- Item.
+  - Child two.
+
+## [0.0.1] - 2026-01-01
+
+### Added
+
+- First.'
+rm -rf "$f"
+
+base_fixture f
+add_fragment "$f" beta a-11111111 patch "### Changed
+
+- Item.
+  - Child one."
+add_fragment "$f" beta b-22222222 patch "### Changed
+
+- Item.
+  - Child one.
+- Other."
+run_release "$f" >/dev/null 2>&1
+expect_file "a dropped duplicate's children do not attach to the first occurrence" \
+  "$f/plugins/beta/CHANGELOG.md" '# Changelog
+
+Intro.
+
+## [0.4.1] - 2026-10-04
+
+### Changed
+
+- Item.
+  - Child one.
+
+- Other.
+
+## [0.0.1] - 2026-01-01
+
+### Added
+
+- First.'
+rm -rf "$f"
+
 # --- nothing pending ---------------------------------------------------------------
 base_fixture f
 out="$(run_release "$f" 2>&1)"

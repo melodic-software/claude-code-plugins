@@ -10,8 +10,8 @@
 #   2. one `## [<new>] - <date>` entry goes above the newest version heading of
 #      plugins/<plugin>/CHANGELOG.md, merging the fragments' bodies section by
 #      section (Keep a Changelog order) in the order the fragments were
-#      committed, keeping only the first of identical top-level bullets within
-#      one section;
+#      committed, keeping only the first of identical bullet blocks (the `- `
+#      line with its indented lines) within one section;
 #   3. `version` changes in plugin.json only;
 #   4. every fragment of the plugin, `none` included, is deleted.
 # A listed convention (scripts/lib/changelog-fragments.sh) has no plugin.json:
@@ -196,15 +196,21 @@ for name in "${plugins[@]}"; do
   for path in "${released[@]}"; do
     changelog_fragments::body "$path" && printf '\f\n'
   done | awk -v head="## [$new] - $date" -v sections="$CF_SECTIONS" '
+      function endblock(   k) {
+        if (blk == "") return
+        k = blk; sub(/\n+$/, "", k)
+        if (!isb || !((cur SUBSEP k) in seen)) { if (isb) seen[cur, k] = 1; buf = buf blk }
+        blk = ""
+      }
       function flush() {
+        endblock()
         sub(/^\n+/, "", buf); sub(/\n+$/, "", buf)
         if (cur != "" && buf != "") text[cur] = (cur in text) ? text[cur] "\n\n" buf : buf
         buf = ""
       }
       $0 == "\f" { flush(); cur = ""; next }
       /^###[ \t]/ { flush(); cur = $0; sub(/^###[ \t]+/, "", cur); sub(/[ \t]+$/, "", cur); next }
-      cur != "" && /^- / && ((cur SUBSEP $0) in seen) { next }
-      cur != "" { if ($0 ~ /^- /) seen[cur, $0] = 1; buf = buf $0 "\n" }
+      cur != "" { if ($0 ~ /^- /) { endblock(); isb = 1 } else if (blk == "") isb = 0; blk = blk $0 "\n" }
       END {
         flush()
         print head
