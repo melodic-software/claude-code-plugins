@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "git -C \"$(git rev-parse --show-toplevel)\" grep -nE '\\b(T\u004fDO|FI\u0058ME|H\u0041CK|\u0058XX)\\b' -- ':!*.min.*' ':!*node_modules*' | tr -d '\\r'"
+            "command": "git -C \"/tmp/scan-todos-repo\" grep -nE '\\b(T\u004fDO|FI\u0058ME|H\u0041CK|\u0058XX)\\b' -- ':!*.min.*' ':!*node_modules*' | tr -d '\\r'"
           }
         }
       ],
@@ -46,7 +46,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "git -C \"$(git rev-parse --show-toplevel)\" grep -nE '\\b(T\u004fDO|FI\u0058ME|H\u0041CK|\u0058XX)\\b' -- ':!*.min.*' ':!*node_modules*' | tr -d '\\r'"
+            "command": "git -C \"/tmp/scan-todos-repo\" grep -nE '\\b(T\u004fDO|FI\u0058ME|H\u0041CK|\u0058XX)\\b' -- ':!*.min.*' ':!*node_modules*' | tr -d '\\r'"
           }
         },
         {

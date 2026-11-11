@@ -258,11 +258,15 @@ condition 1 and the actor and author parts of condition 2).
   value that is not a list of positive integers stops with `list-unreadable`.
 - **Head ref.** The PR's head branch must match `^[A-Za-z0-9._/-]+$`; any other branch name, such
   as one carrying `$(`, stops with `no-pr`.
-- **Base.** The PR's `base.ref` must equal the payload's `repository.default_branch`, on
-  `pull_request`, `workflow_dispatch` and `workflow_run` alike: lanes read the list and scripts
-  from the default branch, so a PR stacked on any other branch stops with `untrusted-base`, as
-  does a payload without the default branch. `report-check-run` maps it to no skip reason, so the
-  check posts failure, not neutral.
+- **Base.** The PR's `base.ref` must equal the payload's `repository.default_branch`, or the PR
+  must be a layer of a native stack whose `stack.base.ref` equals it, on `pull_request`,
+  `workflow_dispatch` and `workflow_run` alike. Lanes read the list and scripts from the default
+  branch, so a stack layer's `base-sha` output is `stack.base.sha`, a default-branch commit, never
+  its own `base.sha`, the unmerged layer below. A PR into any other branch outside such a stack, a
+  stack into another branch, a malformed `stack.base.sha`, and a payload without the default
+  branch stop with `untrusted-base`. The `workflow_run` GraphQL fallback carries no stack, so a
+  layer read through it stops too. `report-check-run` maps `untrusted-base` to no skip reason, so
+  the check posts failure, not neutral.
 - **`no-pr` for everything unhandled.** Any other event (including `pull_request_target`), a
   missing or malformed `pr-number`, an empty repository, an unreadable event payload, a PR fetch
   that fails, and a `workflow_run` with zero or more than one matching open PR all stop with
@@ -287,6 +291,7 @@ that cannot stops it with `untrusted-rerunner`.
 | `proceed` | `true` or `false` |
 | `reason` | `ok`, `fork`, `no-pr`, `head-lag`, `untrusted-base`, `bot-actor`, `untrusted-actor`, `untrusted-rerunner`, `untrusted-author`, `list-unreadable`, or `read-fault` with `fault-reason: true` |
 | `pr-number`, `head-ref`, `head-sha`, `base-sha` | The resolved PR; empty unless `proceed` is `true` |
+| `pr-base-sha` | The PR's own `base.sha`, a diff base only, never checked out; for a stack layer the unmerged layer below, otherwise equal to `base-sha`. Empty unless `proceed` is `true` |
 
 Reasons are checked in the order list and denied ids, event and PR, head lag, fork, base, denied actor, actor,
 re-runner, author. Every failure, including

@@ -9,7 +9,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
 
+import { laneChecker } from "../lib/lane-binding.mjs";
+import { bound, fakeActions, laneRun, RUN, recordEntry } from "../lib/lane-binding.fixtures.mjs";
 import {
+  bindPosts,
   collect,
   isLanePost,
   main,
@@ -305,5 +308,125 @@ describe("main reads the setting from CAP_CONFIG", () => {
   test("blocking-only keeps blocking only; all turns it off", async () => {
     assert.equal(await blockingOnly("blocking", config("blocking.yaml", "loop:\n  findings-after-first-review: blocking-only\n")), "yes");
     assert.equal(await blockingOnly("all", config("all.yaml", "loop:\n  findings-after-first-review: all\n")), "no");
+  });
+});
+
+describe("a footed post counts only when the run its binding names recorded it", () => {
+  const POSTED = "2026-11-01T00:00:00Z";
+  const boundBody = bound(FINDING, { lane: LANE });
+  const boundThread = (body = boundBody, author = BOT) => {
+    const t = thread(author, body);
+    t.comments.nodes[0] = { ...t.comments.nodes[0], databaseId: 11, createdAt: POSTED, updatedAt: POSTED };
+    return t;
+  };
+  const entry = (body = boundBody, extra = {}) => recordEntry(body, { lane: LANE, ...extra });
+  const bindThreads = async (threads, runs) => {
+    const actions = fakeActions(runs);
+    const check = laneChecker({ pr: 7, ...actions });
+    const posts = await bindPosts({ threads, reviews: [], comments: [], lane: LANE, check });
+    return { found: run(posts.threads, shifted).findings, calls: actions.calls };
+  };
+
+  test("a bound post its run recorded is the lane's, and is read without its binding line", async () => {
+    // The severity line sits right above the binding: the finding reads as it did before bindings.
+    const { found } = await bindThreads([boundThread()], { [RUN]: laneRun([entry()], { lane: LANE }) });
+    assert.equal(found.length, 1);
+    assert.equal(found[0].body, FINDING);
+  });
+
+  test("a bound post its run did not record, or whose run is another workflow, is not the lane's", async () => {
+    const missing = await bindThreads([boundThread()], { [RUN]: laneRun([entry(boundBody, { id: 12 })], { lane: LANE }) });
+    assert.deepEqual(missing.found, []);
+    const otherWorkflow = await bindThreads([boundThread()], { [RUN]: { ...laneRun([entry()], { lane: LANE }), path: ".github/workflows/other.yml" } });
+    assert.deepEqual(otherWorkflow.found, []);
+    const tampered = await bindThreads([boundThread(bound("Nothing to see.", { lane: LANE }))], { [RUN]: laneRun([entry()], { lane: LANE }) });
+    assert.deepEqual(tampered.found, []);
+  });
+
+  test("a re-run attempt's record binds its posts", async () => {
+    const runs = {
+      [RUN]: {
+        path: laneRun([], { lane: LANE }).path,
+        artifacts: [
+          { name: `claude-lane-comments-${LANE}-1`, entries: [] },
+          { name: `claude-lane-comments-${LANE}-2`, entries: [entry()] },
+        ],
+      },
+    };
+    assert.equal((await bindThreads([boundThread()], runs)).found.length, 1);
+  });
+
+  test("a post with no binding still counts and reads no artifact", async () => {
+    const { found, calls } = await bindThreads([boundThread(`${FINDING}\n\nclaude-lane: ${LANE}`)], {});
+    assert.equal(found.length, 1);
+    assert.deepEqual(calls, []);
+  });
+
+  test("only the bot's footed posts are checked; another account's lookalike reads nothing", async () => {
+    const { found, calls } = await bindThreads([boundThread(boundBody, PERSON)], {});
+    assert.deepEqual(found, []);
+    assert.deepEqual(calls, []);
+  });
+
+  test("a review and an issue comment are checked as their own kinds: a record of another kind binds nothing", async () => {
+    const reviewBody = bound("Summary finding", { lane: LANE });
+    const review = { url: "u", databaseId: 21, createdAt: POSTED, body: reviewBody, lastEditedAt: null, author: BOT, commit: { oid: v1 } };
+    const comment = { url: "c", databaseId: 31, createdAt: POSTED, body: bound("Comment finding", { lane: LANE }), lastEditedAt: null, author: BOT };
+    const actions = fakeActions({
+      [RUN]: laneRun([entry(reviewBody, { kind: "review", id: 21 }), entry(comment.body, { kind: "review_comment", id: 31 })], { lane: LANE }),
+    });
+    const posts = await bindPosts({ threads: [], reviews: [review], comments: [comment], lane: LANE, check: laneChecker({ pr: 7, ...actions }) });
+    const { findings } = collect({ ...posts, lane: LANE, head: v1, diff });
+    assert.deepEqual(
+      findings.map((f) => [f.source, f.body]),
+      [["review", "Summary finding"]],
+    );
+  });
+
+  test("a failed read fails the job rather than dropping the post", async () => {
+    await assert.rejects(bindThreads([boundThread()], {}), /Not Found/u);
+  });
+
+  test("main reads the run, its artifacts and the record zip with the job token, never sending it to the download host", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "prior-findings-bound-"));
+    after(() => rmSync(dir, { recursive: true, force: true }));
+    const actions = fakeActions({ [RUN]: laneRun([entry()], { lane: LANE }) });
+    const page = (nodes) => ({ pageInfo: { hasNextPage: false }, nodes });
+    const seen = [];
+    const json = (body) => ({ ok: true, status: 200, json: async () => body });
+    const fetchImpl = async (url, init = {}) => {
+      seen.push([url, init.headers?.authorization ?? null]);
+      if (url.endsWith("/graphql")) {
+        return json({ data: { repository: { pullRequest: { reviewThreads: page([boundThread()]), reviews: page([]), comments: page([]) } } } });
+      }
+      let m = /\/repos\/o\/r\/pulls\/(\d+)$/u.exec(url);
+      if (m) return json(await actions.getPull(Number(m[1])));
+      m = /\/repos\/o\/r\/actions\/runs\/(\d+)$/u.exec(url);
+      if (m) return json(await actions.getRun(m[1]));
+      m = /\/repos\/o\/r\/actions\/runs\/(\d+)\/artifacts\?per_page=100&page=(\d+)$/u.exec(url);
+      if (m) {
+        const artifacts = m[2] === "1" ? await actions.listArtifacts(m[1]) : [];
+        return json({ total_count: artifacts.length, artifacts });
+      }
+      m = /\/repos\/o\/r\/actions\/artifacts\/(\d+)\/zip$/u.exec(url);
+      if (m) return { ok: false, status: 302, headers: new Headers({ location: `https://blob.example.test/${m[1]}` }) };
+      m = /^https:\/\/blob\.example\.test\/(\d+)$/u.exec(url);
+      if (m) {
+        const bytes = await actions.download(Number(m[1]));
+        return { ok: true, status: 200, arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) };
+      }
+      return { ok: false, status: 404, json: async () => ({}) };
+    };
+    const output = join(dir, "out.md");
+    const env = { REPOSITORY: "o/r", PR_NUMBER: "7", HEAD_SHA: shifted, LANE, OUTPUT_PATH: output, GITHUB_TOKEN: "t" };
+    await main({ env, fetchImpl, git: () => "" });
+    const text = readFileSync(output, "utf8");
+    assert.match(text, /^Trust control: the merge hold narrowed\.$/mu);
+    assert.doesNotMatch(text, /claude-lane-run/u);
+    assert.deepEqual(
+      seen.filter(([url]) => url.startsWith("https://blob.")).map(([, auth]) => auth),
+      [null],
+    );
+    assert.ok(seen.filter(([url]) => url.includes("/actions/")).every(([, auth]) => auth === "Bearer t"));
   });
 });

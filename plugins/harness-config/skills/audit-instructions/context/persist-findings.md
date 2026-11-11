@@ -101,9 +101,10 @@ needs its evidence present: a one-line scope note is one line that bounds the su
 owner record is named at the site, a CHANGELOG is a CHANGELOG. A candidate the lane cannot place
 inside an exemption on that evidence goes on the `--from-lane` stream.
 
-The model lane's criteria carve-outs still apply **before** persistence: emphasis guarding a
-destructive, security, or permission gate, a stated hard precondition, and a document *about* the
-pattern are not findings (reference/criteria.md, I28). The scanner over-produces by design; drop
+The model lane's criteria carve-outs still apply **before** persistence: a stated hard precondition
+and a document *about* the pattern are not findings (reference/criteria.md, I28). Only the
+precondition itself is exempt: an emphasis marker attached to it (`You MUST resolve the ID first`)
+is still a finding, and so is emphasis guarding a destructive, security, or permission gate. The scanner over-produces by design; drop
 those candidates from the scan output handed to `--from` rather than emitting and retracting.
 
 **Count what you drop.** Removing those rows before the writer sees them would make the exclusion

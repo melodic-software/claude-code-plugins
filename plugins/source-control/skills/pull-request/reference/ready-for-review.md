@@ -12,7 +12,10 @@ Read it there; this phase cites it and never states a different one.
 
 ## 2.5.1 Refuse without a pull request
 
-Set `BRANCH` to the current branch and look up its PR number into `PR_NUMBER`
+Resolve the repository once with `scripts/target-repo.sh` and report the `target repository:` line
+it prints; a non-zero exit stops the phase with its stderr reported. Every later forge read and
+write in this phase targets that repository, even when the PR number came with the invocation. Then set
+`BRANCH` to the current branch and look up its PR number on that repository into `PR_NUMBER`
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#find-the-pr-for-the-branch)).
 
 Empty: stop and report; there is nothing to flip and no head a reviewer can reach. Route to

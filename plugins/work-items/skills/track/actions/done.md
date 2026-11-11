@@ -21,13 +21,15 @@ Close a work item with a completion comment.
 1. **Check if recurring.** Read the item's body and labels (adapter: "View item"). When it carries the resolved `recurring-maintenance` label (`config.role_labels["recurring-maintenance"]` from the binding, default `recurring`) and its body has a `<!-- recurring-schedule id=<id> -->` line ([`reference/issue-conventions.md`](../../../reference/issue-conventions.md) "Recurring marker"), check that `<id>` against `.github/recurring-schedule.json`; the title plays no part. Skip gracefully when the repo has no recurring schedule:
 
 ```bash
-SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+SCHEDULE="<project root>/.github/recurring-schedule.json"
 if [[ -f "$SCHEDULE" ]]; then
   jq --arg id "<id from the marker>" '[.items[] | select(.id == $id)] | length' "$SCHEDULE"
 else
   echo 0  # no recurring schedule configured
 fi
 ```
+
+`<project root>` is the literal path [`tracker-seam.md`](../../../reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet.
 
 If it's a recurring item, warn: "This is a recurring item. Did you mean `/work-items:track recheck` instead?" Proceed only if the user confirms.
 

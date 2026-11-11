@@ -3,6 +3,18 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0] - 2026-11-11
+
+### Changed
+
+- `/prototype:pressure-test` and `/prototype:explore-directions` say they raise fidelity for a question discussion cannot settle, and that the cheapest artifact that answers the question wins.
+
+## [0.24.15] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [0.24.14] - 2026-11-11
 
 ### Changed

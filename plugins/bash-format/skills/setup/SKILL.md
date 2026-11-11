@@ -60,10 +60,14 @@ Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never G
 The format pass (the batch row and the pre-commit rewrite) and the lint pass (the pre-commit
 ShellCheck findings) are independent; report each separately.
 
-When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
-INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
+When the plugin's toggle is disabled, every prerequisite absence except `node` downgrades from
+FAIL to INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
 disabled plugin is not broken. Report the probes informationally and note that re-enabling
-restores the FAIL semantics.
+restores the FAIL semantics. A missing `node` stays FAIL in either state: every hook row launches
+`node`, and the gate runs inside `hooks/exec-bash.mjs`. A tool the git pre-commit entry needs keeps
+the grade it gets with the toggle on while that entry is installed (step 12 reports it as a `tool`
+line beside an `ok`, `stale` or `modified` entry): the entry runs at commit outside Claude Code
+and reads no toggle.
 
 1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`).
 2. **`node`.** The pre-computed `node` row. FAIL if absent: every hook row launches through

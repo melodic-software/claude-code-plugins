@@ -188,12 +188,12 @@ import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { tokenRefusal } from "../pr-merge/refire-refused.mjs";
-import { anyListed, fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, MARKER_AUTHOR_ID, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, readTriggers, REQUEST_HISTORY_QUERY, requestHistoryOf, requestSkip, requestSkipLine, restMentions, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { anyListed, fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, laneReader, MARKER_AUTHOR_ID, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, readTriggers, REQUEST_HISTORY_QUERY, requestHistoryOf, requestSkip, requestSkipLine, restMentions, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom, VERIFY_NOTE_MARKER, withLaneBinding } from "./address-feedback.mjs";
 
 // fix-ci-dispatch.mjs imports HOLD_LINE from here.
 export { HOLD_LINE, NO_ADOPTION, ownerAdoption, ownerAuthored };
 import { commentItems, gateSource, listLabelEvents, prHold, reviewReader } from "./gate-source.mjs";
-import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
+import { emptyRecord, isHandled, markHandled, readRecord, RUN_ID, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, KILL_SWITCH_STOP, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 import { FAIL as VERIFY_FAIL, final as capFinal, deadlineWarning, verifyReader } from "./verify-cap.mjs";
@@ -219,7 +219,8 @@ export const DEFAULTS = Object.freeze({
   // claude[bot], which posted reviews before both lanes moved to pr-review-cli
   // (.github/standards/trusted-actors/trusted-actors.json). pr-review-cli posts
   // as github-actions[bot]; threadAuthors accepts those comments only when the
-  // lane footer is their last line.
+  // lane footer is their last line, which withLaneBinding keeps only on a
+  // comment bound to its lane's run.
   reviewerId: 209825114,
   // github-actions[bot], which writes the reviewed-head markers.
   markerAuthorId: 41898282,
@@ -228,7 +229,6 @@ export const DEFAULTS = Object.freeze({
 });
 
 const SHA = /^[0-9a-f]{40}$/;
-const RUN_ID = /^[1-9][0-9]{0,14}$/;
 const WORKFLOW_PATH = /^\.github\/workflows\/[a-z0-9][a-z0-9-]{0,80}\.ya?ml$/;
 
 // Why an owner PR is not adopted for a round now, or "": as fix-ci adopts one
@@ -1432,7 +1432,7 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $af
           id isResolved
           comments(first: 100) {
             nodes {
-              author { login ... on Bot { databaseId } ... on User { databaseId } }
+              databaseId author { login ... on Bot { databaseId } ... on User { databaseId } }
               createdAt body lastEditedAt
               editor { ... on Bot { databaseId } ... on User { databaseId } }
               pullRequestReview { author { ... on Bot { databaseId } ... on User { databaseId } } commit { oid } submittedAt }
@@ -1654,7 +1654,7 @@ export async function resolveFeedbackSlot({ number, head, env, github, settings 
 // Writes run-id, the dispatched run, as a step output (a tick's later sends as
 // run-id-2 to run-id-<SWEEP_TICK_CAP>); the workflow records each with its
 // upstream run id as an artifact on this run.
-export async function main(env, { api, github, resolveSlot, verifyCapped, log = (line) => console.log(line), now = Date.now() } = {}) {
+export async function main(env, { api, actions, github, resolveSlot, verifyCapped, log = (line) => console.log(line), now = Date.now() } = {}) {
   for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_OUTPUT", "GITHUB_EVENT_PATH", "APP_SENDER_ID"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
@@ -1662,15 +1662,20 @@ export async function main(env, { api, github, resolveSlot, verifyCapped, log = 
   }
   const budget = api ? null : budgetedFetch({ log });
   const { record, text } = readRecord(env.DISPATCH_RECORD);
+  // Every comment read binds the review lanes' comments to their runs
+  // (address-feedback.mjs withLaneBinding), read with ARTIFACT_READ_TOKEN.
   const client = shareWorkflowRuns(
-    api ??
-    createGitHubApi({
-      token: env.GITHUB_TOKEN,
-      repository: env.GITHUB_REPOSITORY,
-      apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
-      graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
-      fetch: budget.fetch,
-    }),
+    withLaneBinding(
+      api ??
+        createGitHubApi({
+          token: env.GITHUB_TOKEN,
+          repository: env.GITHUB_REPOSITORY,
+          apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
+          graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+          fetch: budget.fetch,
+        }),
+      actions ?? laneReader(env, { fetch: budget?.fetch }),
+    ),
   );
   let upstream = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8")).workflow_run;
   const common = {

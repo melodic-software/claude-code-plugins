@@ -15,14 +15,15 @@
 // or a 403 among them, still ends the step red.
 //
 // Environment: GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_OUTPUT, PR_NUMBER,
-// APP_SENDER_ID, ACTIVITY, TRACKER_CONFIG (default .base/docs/conventions/work-items.yaml).
+// APP_SENDER_ID, ACTIVITY, TRACKER_CONFIG (default .base/docs/conventions/work-items.yaml),
+// ARTIFACT_READ_TOKEN (actions: read; the review lanes' comment records).
 
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { isFault } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { createGitHubApi, humanGatedLabelFrom, need, positive } from "./address-feedback.mjs";
+import { createGitHubApi, humanGatedLabelFrom, laneReader, need, positive, withLaneBinding } from "./address-feedback.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
 
 const ACTIVITY = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
@@ -31,7 +32,7 @@ const ACTIVITY = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 // carry the status on a plain Error. What the read found is unknown, not wrong.
 export const readFault = (error) => isFault(error) || error?.status >= 500 || error?.status === 429;
 
-export async function main(env, { api, log = (line) => console.log(line) } = {}) {
+export async function main(env, { api, actions, log = (line) => console.log(line) } = {}) {
   need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "PR_NUMBER", "APP_SENDER_ID", "ACTIVITY"]);
   const pr = positive(env.PR_NUMBER, "PR_NUMBER");
   const appId = positive(env.APP_SENDER_ID, "APP_SENDER_ID");
@@ -39,16 +40,20 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     throw new Error("ACTIVITY is not an activity name");
   }
   const gateLabel = humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/docs/conventions/work-items.yaml");
-  const client =
+  // The review lanes' hold comments count only when bound to their runs,
+  // read with ARTIFACT_READ_TOKEN (address-feedback.mjs withLaneBinding).
+  const client = withLaneBinding(
     api ??
-    createGitHubApi({
-      token: env.GITHUB_TOKEN,
-      repository: env.GITHUB_REPOSITORY,
-      apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
-      graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
-      // Each answer's rate-limit reading, for the job-end api-budget notice.
-      fetch: rateLimitLatch.guard(globalThis.fetch),
-    });
+      createGitHubApi({
+        token: env.GITHUB_TOKEN,
+        repository: env.GITHUB_REPOSITORY,
+        apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
+        graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+        // Each answer's rate-limit reading, for the job-end api-budget notice.
+        fetch: rateLimitLatch.guard(globalThis.fetch),
+      }),
+    actions ?? laneReader(env),
+  );
   // prHold reads a failed review read as a person's hold; a fault there is
   // kept here, so it holds the step instead.
   let fault = false;

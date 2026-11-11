@@ -153,10 +153,9 @@ The property that makes a recurring run worth having is that it **stops re-servi
 first cycle establishes a baseline and reports no deltas; every later cycle reports only what moved,
 filtered through a noise budget with per-class rules, and a cycle where nothing moved is one line.
 Recurrence changes nothing about the read-only boundary: no cadence reaches `realign`, and verdict
-changes queue for a human rather than being acted on. That queue is always in the report; **routing
-it durably to a work-item tracker is opt-in**, because a tracker that refuses to file on inferred
-intent needs an authorization an unattended cycle has nobody to give. The operator setting
-`queue_route: auto` in tracked config is that authorization.
+changes queue for a human rather than being acted on. That queue is always in the report, with a
+draft work item a human or the triage lane can file; the lane never files one itself, because
+`work-items:track` accepts no other skill's steps as authorization to file.
 
 ## Where the artifacts land
 

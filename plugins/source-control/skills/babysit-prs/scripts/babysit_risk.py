@@ -332,6 +332,7 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_evidence_comment.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py", "enforcement"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_lane_binding.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "trust"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py", "trust"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py", "enforcement"),
