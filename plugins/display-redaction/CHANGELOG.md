@@ -5,6 +5,12 @@ All notable changes to the `display-redaction` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.14] - 2026-11-11
+
+### Changed
+
+- The README options reference lists its upstream documentation as pointers only, with no as-of date or recheck trigger.
+
 ## [0.1.13] - 2026-11-11
 
 ### Changed

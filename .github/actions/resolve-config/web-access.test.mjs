@@ -12,9 +12,12 @@ import { Rejection, resolve } from "./resolve.mjs";
 const read = (relative) => readFileSync(new URL(relative, import.meta.url), "utf8");
 const json = (relative) => JSON.parse(read(relative));
 
-const run = (fixDocs) => {
+const run = (fixDocs, { handsOnPatch = true } = {}) => {
   const doc = parse(read("./fixtures/valid.yaml"));
   Object.assign(doc.activities["fix-prose"], fixDocs);
+  if (!handsOnPatch) {
+    delete doc.activities["fix-prose"]["applied-by"];
+  }
   return resolve(
     {
       config: stringify(doc),
@@ -33,10 +36,10 @@ const run = (fixDocs) => {
     },
   );
 };
-const selected = (fixDocs) => run(fixDocs).selected;
-const rejected = (fixDocs) =>
+const selected = (fixDocs, options) => run(fixDocs, options).selected;
+const rejected = (fixDocs, options) =>
   assert.throws(
-    () => run(fixDocs),
+    () => run(fixDocs, options),
     (error) => {
       assert.ok(error instanceof Rejection, `expected a Rejection, got ${error}`);
       assert.equal(error.code, "invalid-config", error.message);
@@ -80,12 +83,12 @@ for (const domains of ["all", [], ["*"], ["any"], ["code.claude.com,x"], ["Code.
 
 // Only the runner that stages edit tools grants the web, so a read skill that
 // hands on no patch cannot ask for it (README.md, Activities, web-access).
-test("web-access on with effect read and no applied-by.patch fails the schema", () => {
-  rejected({ effect: "read", "reads-untrusted": true, "web-access": { enabled: true, domains: "any" } });
+test("web-access on with no applied-by.patch fails the schema", () => {
+  rejected({ "reads-untrusted": true, "web-access": { enabled: true, domains: "any" } }, { handsOnPatch: false });
 });
 
-test("web-access off with effect read validates", () => {
-  assert.doesNotThrow(() => selected({ effect: "read", "web-access": { enabled: false } }));
+test("web-access off with no applied-by.patch validates", () => {
+  assert.doesNotThrow(() => selected({ "web-access": { enabled: false } }, { handsOnPatch: false }));
 });
 
 test("web-access with an unknown key fails the schema", () => {

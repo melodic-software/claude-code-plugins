@@ -1892,8 +1892,7 @@ ps::has_unprovable_env_write() {
     *) ;;
     esac
   done
-  ((write_head && dyn_cd)) && return 0
-  return 1
+  ((write_head && dyn_cd))
 }
 
 # True (0) when every git invocation in the text is a built-in INTERROGATOR, read
@@ -2052,9 +2051,7 @@ ps::might_write_via_python3() {
   # construct and falls through to the token test, so a non-python launch stays
   # allowed. (ps::might_invoke_git models this with a narrower per-parameter regex;
   # a matching hardening there is tracked separately, out of this PR's scope.)
-  if ps::has_launcher "$recovered" && [[ "$blanked" == *'$'* || "$blanked" == *'('* ]]; then
-    return 0
-  fi
+  ps::has_launcher "$recovered" && [[ "$blanked" == *'$'* || "$blanked" == *'('* ]] && return 0
   # A call `&` / dot-source `.` of a DOUBLE-QUOTED target that INTERPOLATES a
   # variable or subexpression (`& "$env:PYTHON_BIN" …`, `& "$(…)" …`) runs a
   # COMPUTED program that could resolve to python3. blank_quoted_spans_to erases the
@@ -2220,9 +2217,7 @@ ps::classify_git_command() {
     # is not a proof. Return 2 even when another trigger fired first (shape 9:
     # `{` plus a commented opener used to return 1 and skip the FLAG-keyed
     # readers that only run on rc 2). Attribution of the first trigger is kept.
-    if ((PS_REDUCTION_UNTRUSTED)); then
-      return 2
-    fi
+    ((PS_REDUCTION_UNTRUSTED)) && return 2
     #
     # A BLANKED EXPANDABLE HERE-STRING SUSPENDS THE PROOF. `@"` … `"@` is
     # evaluated where it is written, so `$( … )` in its body is a command
@@ -2392,26 +2387,17 @@ ps::_skip_statement_tail_to() {
         ps::_skip_double_quote_to __st_i "$__st_cmd" "$__st_i"
         continue
       fi
-      if [[ "$__st_c" == ';' || "$__st_c" == $'\n' ]]; then
+      # `|` and `||` both end this pipeline element / statement. A bare `&` is
+      # the call operator (or background) and stays part of this statement.
+      if [[ "$__st_c" == ';' || "$__st_c" == $'\n' || "$__st_c" == '|' ]] ||
+        [[ "$__st_c" == '&' && "${__st_cmd:__st_i+1:1}" == '&' ]]; then
         printf -v "$1" '%s' "$__st_i"
         return 0
       fi
-      if [[ "$__st_c" == '|' ]]; then
-        # `|` and `||` both end this pipeline element / statement.
-        printf -v "$1" '%s' "$__st_i"
-        return 0
-      fi
-      if [[ "$__st_c" == '&' && "${__st_cmd:__st_i+1:1}" == '&' ]]; then
-        printf -v "$1" '%s' "$__st_i"
-        return 0
-      fi
-      # Bare `&` is the call operator (or background) — part of this statement.
     fi
     case "$__st_c" in
-    '{') __st_depth=$((__st_depth + 1)) ;;
-    '}') ((__st_depth > 0)) && __st_depth=$((__st_depth - 1)) ;;
-    '(') __st_depth=$((__st_depth + 1)) ;;
-    ')') ((__st_depth > 0)) && __st_depth=$((__st_depth - 1)) ;;
+    '{' | '(') __st_depth=$((__st_depth + 1)) ;;
+    '}' | ')') ((__st_depth > 0)) && __st_depth=$((__st_depth - 1)) ;;
     *) ;;
     esac
     __st_i=$((__st_i + 1))
@@ -2487,58 +2473,49 @@ ps::_bash_ready_to() {
 # Blank dynamic-invocation or launcher statements in CMD. KIND is `dynamic` or
 # `launcher`. Writes PS_SAFE_COMMAND.
 ps::_blank_cmd_statements() {
-  local cmd="$1" kind="$2" n=${#1} i=0 out="" c rest lc matched end word j
+  local cmd="$1" kind="$2" n=${#1} i=0 out="" c lc end blank_from j
   while ((i < n)); do
     c="${cmd:i:1}"
-    if [[ "$c" == "'" ]]; then
-      ps::_skip_single_quote_to end "$cmd" "$i"
+    if [[ "$c" == "'" || "$c" == '"' ]]; then
+      if [[ "$c" == "'" ]]; then
+        ps::_skip_single_quote_to end "$cmd" "$i"
+      else
+        ps::_skip_double_quote_to end "$cmd" "$i"
+      fi
       out+="${cmd:i:end-i}"
       i=$end
       continue
     fi
-    if [[ "$c" == '"' ]]; then
-      ps::_skip_double_quote_to end "$cmd" "$i"
-      out+="${cmd:i:end-i}"
-      i=$end
-      continue
-    fi
-    matched=0
+    # Where the blanked statement's tail scan starts; -1 when nothing matched.
+    blank_from=-1
     if ps::_at_command_position "$cmd" "$i"; then
-      rest="${cmd:i}"
-      lc="${rest,,}"
+      lc="${cmd:i}"
+      lc="${lc,,}"
       case "$kind" in
       dynamic)
         if [[ "$lc" =~ ^(iex|invoke-expression)([^a-z0-9_-]|$) ]]; then
-          if [[ "$lc" == iex* ]]; then word=3; else word=18; fi
           # iex / Invoke-Expression — blank through end of this pipeline element.
-          ps::_skip_statement_tail_to end "$cmd" $((i + word))
-          i=$end
-          out+=" "
-          matched=1
+          if [[ "$lc" == iex* ]]; then blank_from=$((i + 3)); else blank_from=$((i + 18)); fi
         elif [[ "$c" == '&' || "$c" == '.' ]]; then
           # Call / dot-source of a STRING LITERAL — same dynamic-invocation shape.
           j=$((i + 1))
           while ((j < n)) && [[ "${cmd:j:1}" == [[:space:]] ]]; do j=$((j + 1)); done
           if ((j < n)) && [[ "${cmd:j:1}" == "'" || "${cmd:j:1}" == '"' ]]; then
-            ps::_skip_statement_tail_to end "$cmd" "$i"
-            i=$end
-            out+=" "
-            matched=1
+            blank_from=$i
           fi
         fi
         ;;
       launcher)
         if [[ "$lc" =~ ^(start-process|saps|start|pwsh|powershell|cmd|wsl)(\.exe)?([^a-z0-9_-]|$) ]]; then
-          ps::_skip_statement_tail_to end "$cmd" "$i"
-          i=$end
-          out+=" "
-          matched=1
+          blank_from=$i
         fi
         ;;
       *) ;;
       esac
     fi
-    if ((matched)); then
+    if ((blank_from >= 0)); then
+      ps::_skip_statement_tail_to i "$cmd" "$blank_from"
+      out+=" "
       continue
     fi
     out+="$c"
@@ -2554,14 +2531,12 @@ ps::_blank_special_construct_regions() {
   local cmd="$1" n=${#1} i=0 out="" c end depth open close
   while ((i < n)); do
     c="${cmd:i:1}"
-    if [[ "$c" == "'" ]]; then
-      ps::_skip_single_quote_to end "$cmd" "$i"
-      out+="${cmd:i:end-i}"
-      i=$end
-      continue
-    fi
-    if [[ "$c" == '"' ]]; then
-      ps::_skip_double_quote_to end "$cmd" "$i"
+    if [[ "$c" == "'" || "$c" == '"' ]]; then
+      if [[ "$c" == "'" ]]; then
+        ps::_skip_single_quote_to end "$cmd" "$i"
+      else
+        ps::_skip_double_quote_to end "$cmd" "$i"
+      fi
       out+="${cmd:i:end-i}"
       i=$end
       continue
@@ -2617,7 +2592,7 @@ ps::_blank_special_construct_regions() {
 # Blank from an unbalanced here-string opener through end of input. Writes
 # PS_SAFE_COMMAND (prefix before the hanging opener, if any).
 ps::_blank_unbalanced_herestring_tail() {
-  local cmd="$1" line out="" pending="" in_hs=0 hs_quote="" first2 closer
+  local cmd="$1" line out="" pending="" in_hs=0 hs_quote=""
   local -a hs_lines=()
   # Mirror ps::blank_herestrings' opener detection; once an opener has no closer,
   # drop it and everything after (extent unknown — trailing code may be inside).
@@ -2625,9 +2600,7 @@ ps::_blank_unbalanced_herestring_tail() {
   for line in "${hs_lines[@]}"; do
     line="${line%$'\r'}"
     if ((in_hs)); then
-      first2="${line:0:2}"
-      closer="${hs_quote}@"
-      if [[ "$first2" == "$closer" ]]; then
+      if [[ "${line:0:2}" == "${hs_quote}@" ]]; then
         out+="${pending}${line:2}"$'\n'
         pending=""
         in_hs=0
@@ -2755,14 +2728,13 @@ ps::print_sink_token_line() {
   # The no-token family: every token-granted sink round spends the caller's
   # shared attempt budget, and a sixth grantable trigger pushes a four-round
   # command past the cap, where the caller refuses.
-  if [[ "$PS_SINK_TRIGGER" == herestring-comment-char ||
-        "$PS_SINK_TRIGGER" == herestring-opener-untrusted ||
-        "$PS_SINK_TRIGGER" == herestring-comment-span ||
-        "$PS_SINK_TRIGGER" == herestring-orphan-closer ||
-        "$PS_SINK_TRIGGER" == bare-cr ]]; then
+  case "$PS_SINK_TRIGGER" in
+  herestring-comment-char | herestring-opener-untrusted | herestring-comment-span | herestring-orphan-closer | bare-cr)
     echo "No allow token exists for this shape; rewrite it." >&2
     return
-  fi
+    ;;
+  *) ;;
+  esac
   echo "False positive: the user adds ps-unparsable-${PS_SINK_TRIGGER:-<trigger>} to block_dangerous_git_allow; it clears $1 too." >&2
 }
 
@@ -3048,10 +3020,7 @@ ps::write_bypass() {
     # A module-qualified producer (`Microsoft.PowerShell.Utility\Write-Output`)
     # is the same cmdlet — compare its basename.
     head="${head##*\\}"
-    case "$seg" in
-    '>'*) return 0 ;; # leading literal (string stripped away) was the producer
-    *) ;;
-    esac
+    [[ "$seg" == '>'* ]] && return 0 # leading literal (string stripped away) was the producer
     case "$head" in
     # Producer cmdlets for EVERY stream — a non-success stream redirected to a
     # file (`Write-Error secret 2> creds.txt`, `Write-Warning x 3> f`) writes

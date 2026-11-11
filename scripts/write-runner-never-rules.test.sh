@@ -8,10 +8,6 @@
 # Reads the workflow as YAML (the runner-policy `yaml` package, which CI
 # installs for check-read-caller-keys.test.sh) and asserts on step order,
 # conditions and step bodies. What it cannot assert from this file:
-#   - The skill's own allowed-tools Bash grant (its SKILL.md) and its token:
-#     with a contents-write token the model could push or run head code
-#     itself. The backstops are the App's missing `workflows` permission and
-#     ADR 0055's accepted residual, not this file.
 #   - That apply-patch.mjs refuses every workflow change a merge pushes;
 #     apply-patch.test.mjs owns that.
 # test-scope: .github/workflows/pr-run-activity-write.yml .github/actions/resolve-config/activity-rules.json .github/actions/collect-base-activity/action.yml .github/scripts/merge-base/run-prepare.sh .github/scripts/apply-patch/apply-patch.mjs .github/actions/resolve-config/patch-rules.json .github/standards/runner-policy/package.json
@@ -47,14 +43,13 @@ const mint = at((s) => s.id === "lane-token");
 const body = (s) => `${s.run ?? ""}${s.with?.script ?? ""}`;
 const after = steps.slice(checkout + 1);
 
-// Clause 1: no force-push. The promote step moves a skill's lane branch;
-// apply-patch.mjs moves the PR branch for a patch, a merge's included.
+// Clause 1: no force-push. apply-patch.mjs moves the PR branch for a patch, a
+// merge's included; no step of the workflow moves a ref itself.
 const applyPatch = readFileSync(".github/scripts/apply-patch/apply-patch.mjs", "utf8");
-const updates = steps.flatMap((s) => body(s).match(/updateRef\([^)]*\)/g) ?? []);
-say(updates.length >= 1, `the run job updates refs through updateRef (${updates.length} calls)`);
+const updates = steps.flatMap((s) => body(s).match(/(update|create)Ref\(/g) ?? []);
+say(updates.length === 0, `no step of the run job creates or updates a ref itself (${updates.length} calls)`);
 say(/write: \(api, ref, commit\) => api\.updateRef\(`heads\/\$\{ref\}`, commit, false\)/.test(applyPatch)
   && !/updateRef\([^)]*true\)/.test(applyPatch), "apply-patch.mjs moves the PR branch with force: false");
-say(updates.every((u) => /force: false/.test(u)), "every updateRef call passes force: false");
 say(!steps.some((s) => /git\s+push|--force|\+refs\//.test(body(s))), "no step runs git push or a forced refspec"); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 say(!steps.some((s) => /(update|create)Ref\(/.test(body(s)) && /Ref\([^)]*force:\s*true/.test(body(s))), // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   "no ref update sets force: true");
@@ -118,15 +113,14 @@ const offenders = after.filter((s) => s.run && headRun.test(s.run)).map((s) => s
 say(offenders.length === 0, `no run step after the head checkout runs head code (${offenders.join(", ") || "none"})`);
 const script = byId("act-script").run ?? "";
 say(/"\$RUNNER_TEMP\/base-script\/\$\(basename "\$SCRIPT"\)"/.test(script), "a script activity runs from its base copy");
-const skill = byId("act-skill");
-const args = String(skill.with?.claude_args ?? "");
-// The action admits the lanes App, which the trigger gate passes only on its
-// app field write, and github-actions only on a dispatcher-sent run the gate
-// verified; never '*'. cant-fail-ok: the allowed_bots value is the contract.
-say(skill.with?.allowed_bots === "${{ inputs.dispatcher-run-id != '' && 'melodic-automation-lanes[bot],github-actions' || 'melodic-automation-lanes[bot]' }}",
-  `the skill admits the lanes App, and github-actions only with a dispatcher-run-id (got ${JSON.stringify(skill.with?.allowed_bots)})`);
-say(/--setting-sources user/.test(args) && /--permission-mode dontAsk/.test(args) && !/bypass/i.test(args),
-  "the skill loads user settings only, under dontAsk");
+// No model runs beside the lane token: no step runs claude-code-action or
+// takes a Claude credential, and a skill fails red before the mint.
+say(!steps.some((s) => /claude-code-action/.test(s.uses ?? "")) && !/secrets\./.test(JSON.stringify(wf.jobs.run)) && !wf.on.workflow_call.secrets,
+  "the write runner runs no model and takes no secret");
+const refuseSkill = at((s) => s.name === "Assert a skill runs in the read runner");
+say(refuseSkill >= 0 && refuseSkill < mint && String(steps[refuseSkill].if ?? "") === "steps.config.outcome == 'success' && steps.config.outputs.kind == 'skill'"
+  && /exit 1/.test(steps[refuseSkill].run ?? ""),
+  "a skill fails red before the mint");
 const stage = readFileSync(".github/actions/collect-base-activity/action.yml", "utf8");
 // The five exceptions: an activity's `checks`, each a read-only base-copy
 // wrapper the skill may run with no arguments; its `verify-scripts`, each a
@@ -152,13 +146,12 @@ say(/chmod -R a-w "\$VERIFY_DIR"/.test(stage) && /disallowed="\$\{disallowed:\+\
 const refuse = at((s) => s.name === "Assert review-threads runs in the read runner");
 say(refuse >= 0 && refuse < mint && /steps\.config\.outputs\.prepare == 'review-threads'/.test(steps[refuse].if ?? "") && /exit 1/.test(steps[refuse].run ?? ""),
   "a review-threads activity fails red before the mint");
-say(!steps.some((s) => ["feedback-select", "feedback-collect"].includes(s.id)) && !("THREAD_FILE" in (byId("promote").env ?? {})),
+say(!steps.some((s) => ["feedback-select", "feedback-collect"].includes(s.id)),
   "the write runner keeps no review threads and collects no replies");
 say(/proceed != 'false'/.test(byId("head-recheck").if ?? ""), "a select step that does not proceed skips the mint");
 const runSteps = JSON.stringify(steps);
 say(!/resolveReviewThread|\/replies['"`]|record-round/.test(runSteps) && !/feedback-round/.test(JSON.stringify(steps.map((s) => s.id))),
   "no step of the write runner replies on or resolves a review thread");
-const promoteScript = String(byId("promote").with?.script ?? "");
 say(byId("act-script").env?.RUN_SHA256 === "${{ inputs.review-run-sha256 }}",
   "the reply script gets the SHA-256 of the run.json the caller's select job wrote");
 // "Re-run failed jobs" on the reply job alone bumps github.run_attempt but
@@ -187,13 +180,13 @@ say(/:\?\*:dependency-invalid \| :\?\*:dependency-fix-not-landed\)/.test(byId("a
   && /:\?\*:dependency-fix-refused\)/.test(byId("act-script").run ?? ""),
   "a script escalates with the verdict script's reasons only in dependency-verdict mode");
 // dependency-review runs on the read runner, after its caller's select job:
-// this file refuses it before the mint, selects nothing, promotes no fix and
-// collects no verdict; apply-patch pushes the fix under the dependency-review row.
+// this file refuses it before the mint, selects nothing and collects no
+// verdict; apply-patch pushes the fix under the dependency-review row.
 const refuseDependency = at((s) => s.name === "Assert dependency-review runs in the read runner");
 say(refuseDependency >= 0 && refuseDependency < mint && /steps\.config\.outputs\.prepare == 'dependency-review'/.test(steps[refuseDependency].if ?? "") && /exit 1/.test(steps[refuseDependency].run ?? ""),
   "a dependency-review activity fails red before the mint");
-say(!steps.some((s) => ["dependency-select", "dependency-collect"].includes(s.id)) && !/DEPENDENCY_REVIEW|CLASSIFY_SHA256|inFixScope|fixRefusal/.test(promoteScript),
-  "the write runner selects no dependency pull request, promotes no dependency fix and collects no verdict");
+say(!steps.some((s) => ["dependency-select", "dependency-collect"].includes(s.id)),
+  "the write runner selects no dependency pull request and collects no verdict");
 // apply-patch runs from a base copy, so each sibling-directory module it or
 // its predicates import must be copied beside it.
 const siblingImports = ["apply-patch.mjs", "predicates.mjs"].flatMap((file) =>
@@ -246,13 +239,9 @@ say(octokitCallers.length === 0, `no github-script step calls getOctokit (${octo
 say(applyPatch.indexOf("await target.held(api, number,", applyPatch.indexOf("async function pushMerge")) < applyPatch.indexOf("await api.createCommit(message, tree, [headSha, merge.baseSha])"),
   "apply-patch.mjs re-reads the PR's holds before creating a merge commit");
 const holdLabel = byId("hold-label").run ?? "";
-const promoteEnv = byId("promote").env ?? {};
 say(/\.base\/docs\/conventions\/work-items\.yaml/.test(holdLabel) && /labels-absent/.test(holdLabel) && /echo "labels=\$labels"/.test(holdLabel)
-  && /^\$\{\{ steps\.hold-label\.outputs\.labels \}\}$/.test(String(promoteEnv.HOLD_LABELS))
-  && String(promoteEnv.READ_TOKEN) === "${{ github.token }}"
-  && /^\$\{\{ steps\.hold-label\.outputs\.labels \}\}$/.test(String(byId("act-script").env?.HOLD_LABELS))
-  && /^\$\{\{ steps\.gate\.outputs\.pr-number \}\}$/.test(String(promoteEnv.PR_NUMBER)),
-  "the hold labels are resolved from the base before the head checkout and reach the promote step with the read-only token and the apply-patch script");
+  && /^\$\{\{ steps\.hold-label\.outputs\.labels \}\}$/.test(String(byId("act-script").env?.HOLD_LABELS)),
+  "the hold labels are resolved from the base before the head checkout and reach the apply-patch script");
 
 // Issue mode runs its skill in the read runner, which holds no lane token:
 // these checks read that file. Only the skill run collects the outcome, and

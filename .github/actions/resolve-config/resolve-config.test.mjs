@@ -211,12 +211,13 @@ test("a valid config writes ResolvedConfig and the selected activity's outputs",
 test("a mutate-branch activity can commit; args stay in the file only", async () => {
   const { env } = workspace();
   env.LANE = "pr-refine";
-  env.ACTIVITY = "fix-prose";
+  env.ACTIVITY = "apply-prose";
+  env.PREPARE_SUPPORTED = "true";
   assert.equal(await main({ env, github: noApi }), 0);
   const outputs = readOutputs(env.GITHUB_OUTPUT);
   assert.deepEqual(
-    [outputs.contents, outputs["can-commit"], outputs.skill, outputs.gating],
-    ["write", "true", "ai-slop:audit", "advisory"],
+    [outputs.contents, outputs["can-commit"], outputs.script, outputs.gating],
+    ["write", "true", ".github/scripts/apply-patch/apply-patch.mjs", "advisory"],
   );
   assert.equal(Object.hasOwn(outputs, "args"), false);
 });
@@ -227,10 +228,11 @@ const withPermissionMode = (mode) => {
   const { env } = workspace();
   env.LANE = "pr-refine";
   env.ACTIVITY = "fix-prose";
+  env.APPLIED_BY_SUPPORTED = "patch";
   const path = join(env.BASE_PATH, CONFIG_PATH);
   if (mode !== undefined) {
     const config = readFileSync(path, "utf8");
-    const set = config.replace("    reads-untrusted: false\nlanes:", `    reads-untrusted: false\n    permission-mode: ${mode}\nlanes:`);
+    const set = config.replace("    reads-untrusted: false\n  apply-prose:", `    reads-untrusted: false\n    permission-mode: ${mode}\n  apply-prose:`);
     assert.notEqual(set, config);
     writeFileSync(path, set);
   }
@@ -279,7 +281,7 @@ test("a script's checkout output is head unless the leaf sets base; a skill has 
 
 test("checkout fails the schema on a skill or with a value other than head or base", async (t) => {
   await assertFailsRed(t, withCheckout("pr"), /checkout/);
-  await assertFailsRed(t, withCheckout("base", { activity: "fix-prose", after: /    reads-untrusted: false\n(?=lanes:)/ }), /checkout|script/);
+  await assertFailsRed(t, withCheckout("base", { activity: "fix-prose", after: /    reads-untrusted: false\n(?=  apply-prose:)/ }), /checkout|script/);
 });
 
 test("without an activity only enabled and slots are output", async () => {
@@ -524,8 +526,8 @@ test("changed-paths holds the head's changed files minus removed ones and the ba
   writeFileSync(
     config,
     readFileSync(config, "utf8").replace(
-      "    effect: mutate-branch\n",
-      "    effect: mutate-branch\n    inputs: [changed-paths]\n",
+      "      patch: apply-prose\n",
+      "      patch: apply-prose\n    inputs: [changed-paths]\n",
     ),
   );
   mkdirSync(join(env.BASE_PATH, ".github"), { recursive: true });
@@ -535,6 +537,7 @@ test("changed-paths holds the head's changed files minus removed ones and the ba
   );
   env.LANE = "pr-refine";
   env.ACTIVITY = "fix-prose";
+  env.APPLIED_BY_SUPPORTED = "patch";
   const files = [
     { filename: "docs/kept.md", status: "modified" },
     { filename: "docs/gone.md", status: "removed" },
@@ -631,12 +634,13 @@ function withPredicate(env, predicate) {
   writeFileSync(
     config,
     readFileSync(config, "utf8").replace(
-      "    effect: mutate-branch\n",
-      `    effect: mutate-branch\n    applies-when: ${JSON.stringify(predicate)}\n`,
+      "      patch: apply-prose\n",
+      `      patch: apply-prose\n    applies-when: ${JSON.stringify(predicate)}\n`,
     ),
   );
   env.LANE = "pr-refine";
   env.ACTIVITY = "fix-prose";
+  env.APPLIED_BY_SUPPORTED = "patch";
 }
 
 test("labels come from the pull_request payload without an API call", async () => {
@@ -748,12 +752,13 @@ function withPrepare(env, extra = "") {
   writeFileSync(
     config,
     readFileSync(config, "utf8").replace(
-      "    effect: mutate-branch\n",
-      `    effect: mutate-branch\n    prepare: merge-base\n${extra}`,
+      "      patch: apply-prose\n",
+      `      patch: apply-prose\n    prepare: merge-base\n${extra}`,
     ),
   );
   env.LANE = "pr-refine";
   env.ACTIVITY = "fix-prose";
+  env.APPLIED_BY_SUPPORTED = "patch";
 }
 
 test("a leaf's prepare mode is a step output, set only when the leaf declares one", async () => {
