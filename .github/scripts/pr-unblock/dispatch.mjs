@@ -55,7 +55,7 @@ import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, RUN_ID, s
 import { laneReader, withLaneBinding } from "./address-feedback.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
 import { runTitle, shareWorkflowRuns } from "./feedback-dispatch.mjs";
-import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel } from "./fix-ci-dispatch.mjs";
+import { adoptableOwnerIds, DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel } from "./fix-ci-dispatch.mjs";
 import { TRACKER_BINDING_PATH, trackerBindingText } from "../pr-merge/merge-holds.mjs";
 import { HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
 import { anyHandles, cappedAt, headLagStop, laneStop, limitStop, pendingStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
@@ -884,15 +884,15 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
   // human-gated label is read only when owners are adopted; an unreadable
   // tracker config holds the adopted owner PRs alone, as a failure.
   // With `adoption.idle-hours` set (as pr-merge requires), every account on
-  // the base's trusted-actors list is adoptable, by id, but Dependabot:
-  // review-dependency owns its red PRs.
+  // the base's trusted-actors list is adoptable, by id, but the bot authors
+  // fix-ci-dispatch.mjs adoptableOwnerIds leaves out.
   let fixes = { dispatched: [], failed: 1 };
   let ownerIds = [];
   let holdLabels = CI_FIX_DEFAULTS.holdLabels;
   let ownersHeld = "";
   if (adoption["idle-hours"] !== undefined) {
     try {
-      ownerIds = [...loadTrustedList(`${basePath(env)}/${TRUSTED_ACTORS_PATH}`).ids].filter((id) => id !== DEPENDABOT_ID);
+      ownerIds = adoptableOwnerIds(loadTrustedList(`${basePath(env)}/${TRUSTED_ACTORS_PATH}`).ids);
       holdLabels = [...new Set([...holdLabels, baseHumanGatedLabel(env)])];
     } catch (error) {
       log(`::error::cannot read the base trusted-actors list or the human-gated label from the base tracker binding (${error.message}); no adopted PR gets fix-ci`);

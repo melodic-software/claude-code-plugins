@@ -57,6 +57,7 @@ import { postingAttempt } from "../../actions/report-check-run/posting-run.mjs";
 import { emptyRecord, isHandled, markHandled, sendDispatch } from "./dispatch-record.mjs";
 import { STOP_RESOLVED } from "./escalation-routes.mjs";
 import { HOLD_LINE, runTitle } from "./feedback-dispatch.mjs";
+import { DEFAULTS as DOCS_FIX_DEFAULTS } from "./fix-docs-dispatch.mjs";
 import { failingChecks } from "./fix-ci-context.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
 import { HEAD_LAG_STOP, KILL_SWITCH_STOP, killSwitchStop, laneStop, releasesHead } from "./limit-stop.mjs";
@@ -98,6 +99,15 @@ const MAX_PAGES = 20;
 // The tracker's human-gated label from the binding's JSON text, as
 // pr-merge.yml resolves it: config.role_labels["human-gated"] trimmed, or
 // needs-human when the file is absent (null) or maps none. Invalid JSON throws.
+// The trusted accounts whose idle PRs fix-ci adopts: every one but the authors
+// fix-docs also leaves alone (Dependabot, whose red PRs review-dependency owns;
+// the release and standards-sync Apps, whose PRs carry generated or synced
+// files that a lane commit breaks: check-managed-files refuses a sync PR
+// commit by any other author).
+export function adoptableOwnerIds(trustedIds, excludedAuthorIds = DOCS_FIX_DEFAULTS.excludedAuthorIds) {
+  return [...trustedIds].filter((id) => !excludedAuthorIds.includes(id));
+}
+
 export function humanGatedLabel(text) {
   if (text === null) {
     return "needs-human";
