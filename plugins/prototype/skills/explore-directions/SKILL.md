@@ -36,9 +36,8 @@ bounds nothing: the Bash tool returns the command's complete output into context
 anything to decide about.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+separate body Bash calls rather than pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
+"The pre-compute block runs as one shell invocation").
 
 ## Pre-computed context
 

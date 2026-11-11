@@ -24,15 +24,13 @@ invocation:
 The pipe is the bound and belongs in the command: a read-time cap ("read only the first 30
 entries") bounds nothing, because the Bash tool returns the full output into context first. Treat a
 failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body calls, not a pre-compute: the harness composes a pre-computed block into one shell
-invocation, and a worktree-isolated agent refuses a git-bearing compound command, which would make
-this skill uninvocable from inside a worktree. The dated record for the composition half is the
-[gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation". The Bash shapes an isolated session accepts at
+separate body calls, not a pre-compute, so this skill stays invocable from inside a worktree
+([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
+"The pre-compute block runs as one shell invocation"). The Bash shapes an isolated session accepts at
 body time and in subagents are in [reference/gather-block.md](reference/gather-block.md),
 "Accepted command shapes for body-time and subagent Bash".
 
-The refusal is documented isolation enforcement, so the constraint is durable. Our rules: treat a
+The refusal that record names is documented isolation enforcement, so the constraint is durable. Our rules: treat a
 refused compound command as unverifiable, not as proof it would have reached the main checkout;
 rewrite it as plain, separate commands; expect a delegated worker to inherit the same refusal; and
 never use PowerShell, whose coverage is narrower, as a route around the git-redirect or
