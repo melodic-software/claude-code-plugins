@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, isContentWrite, poolOf, RateLimitStop } from "./rate-guard.mjs";
+import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, FILE_ONLY_FIELDS, isContentWrite, poolOf, RateLimitStop } from "./rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
@@ -105,9 +105,16 @@ test("the schema states no limits.api default: rate-limits.json holds the only c
   }
   assert.deepEqual(Object.keys(defaults).sort(), Object.keys(entries).sort());
   for (const [name, fields] of Object.entries(defaults)) {
-    const allowed = Object.keys(schema.$defs[name === "content-creation" ? "api-content-pool" : "api-pool"].properties);
+    const allowed = [...Object.keys(schema.$defs[name === "content-creation" ? "api-content-pool" : "api-pool"].properties), ...FILE_ONLY_FIELDS];
     assert.deepEqual(Object.keys(fields).filter((field) => !allowed.includes(field)), [], name);
   }
+  // A file-only field is one the config cannot set: no pool's schema names it.
+  for (const pool of pools) {
+    for (const field of FILE_ONLY_FIELDS) {
+      assert.equal(field in pool.properties, false, field);
+    }
+  }
+  assert.equal(defaults["github-token"]["start-gate"], 0.1, "start-gate stays valid in rate-limits.json");
 });
 
 // github-token plans to a limit-cap of 1,000, the figure GitHub documents for

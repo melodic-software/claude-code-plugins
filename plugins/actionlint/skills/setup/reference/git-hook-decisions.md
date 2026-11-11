@@ -11,7 +11,7 @@ owns.
 |---|---|
 | `lefthook-config`, `husky-config` | Merge `snippet` into `file`, keeping the user's own jobs, comments and order; create the file when absent. For a TOML or JSON lefthook config, write the same job in that format. |
 | `lefthook-install` | Run `lefthook install` so the manager's hooks exist in this clone. |
-| `husky-install` | Tell the user to run the project's install (husky sets `core.hooksPath` on `npm install`). |
+| `husky-install` | Tell the user to run the project's install so husky's hooks exist in this clone. |
 | `husky-shared-only` | Say husky has no per-clone hooks and offer `scope=shared`. |
 | `shared-entries` | Comes before `hooks-path`: `files` are repository paths under `.githooks/` that `hooks-path` may also run, though this plugin did not install them (other markers, this plugin's own marker with the script it names when that script is not the copy `copy` writes, `*.pre-checks` hooks, other hook files, tracked `.githooks/local/` files). Show the user the list and what each marker or hook runs, and run `hooks-path` only on their yes. |
 | `hooks-path` | Plain shared hooks: run `command` in this clone, and tell the user every clone runs it once. |

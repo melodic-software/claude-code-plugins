@@ -212,7 +212,8 @@ test("the workflow_call outputs the run and broker-check jobs set, and their sou
   };
   const brokerCheck = {
     allowed: "${{ steps.broker.outcome == 'success' && steps.broker.outputs.allowed == 'true' }}",
-    "skip-reason": "${{ steps.broker.outputs.skip-reason }}",
+    // Since 5599e627fc, a start-gate budget stop also sets skip-reason budget.
+    "skip-reason": "${{ steps.kill.outputs.cause == 'budget' && 'budget' || steps.broker.outputs.skip-reason }}",
     attempt: "${{ github.run_attempt }}",
     lease: "${{ steps.lease.outputs.lease }}",
     "lease-comment-id": "${{ steps.lease.outputs.lease-comment-id }}",

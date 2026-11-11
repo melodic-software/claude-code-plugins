@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "With the pre-commit entry installed, the missing actionlint stays FAIL even with the toggle off: the entry runs at commit outside Claude Code and never reads actionlint_enabled."
+    },
+    {
+      "answer": "Installed entry: FAIL. The git hook does not read the toggle, so an agent's commit would still fail asking for actionlint.",
+      "why": "names the toggle-independence of the entry"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Still INFO: the toggle is off, so nothing runs.",
+      "why": "downgrades a tool the installed entry needs"
+    },
+    {
+      "answer": "With the entry installed it is FAIL.",
+      "why": "near miss: no reason"
+    }
+  ]
+}

@@ -44,10 +44,11 @@ probes via Bash and report a PASS/FAIL/INFO table with one remediation line per 
 Read each option value from this text; never put a `${user_config.*}` string in a shell command.
 Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
 
-When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
-INFO. The hooks exit through their enabled-gate before probing anything, so a deliberately
+When the plugin's toggle is disabled, every prerequisite absence except `node` downgrades from
+FAIL to INFO. The hooks exit through their enabled-gate before probing anything, so a deliberately
 disabled plugin is not broken. Report the probes informationally and note that re-enabling
-restores the FAIL semantics.
+restores the FAIL semantics. A missing `node` stays FAIL in either state: every hook row launches
+`node`, and the gate runs inside `hooks/exec-bash.mjs`.
 
 1. **Bash version.** Check against the floor, Bash 3.2 or newer (`${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/check-lib.sh`).
 2. **`node`.** Probe via Bash: `command -v node`, then `node --version` when it resolves. FAIL if
@@ -158,33 +159,27 @@ Run `check`, then for each finding point at the resolution. This skill installs 
   settings file at or below the project root opts the repo in, but this skill does not write
   it. The settings file is the executed-adjacent trust boundary above; the choice and the edit
   belong to the consumer.
-- toggle off: reconfigure through Claude Code's native flow, per the marketplace's
-  plugin-reconfiguration convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
-  which owns the verified-version record): interactive `/plugin configure powershell-format@<marketplace>`
-  any time. Headless, preferred: run
-  `claude plugin configure powershell-format@<marketplace> --values-stdin < values.json` from the
-  project the plugin is installed in, with `values.json` holding
-  `{"powershell_format_enabled": "true"}` (every value a string, booleans included; keys left out
-  keep their saved values). PowerShell reserves `<`, so there pipe the file instead:
-  `Get-Content values.json | claude plugin configure powershell-format@<marketplace> --values-stdin`.
-  Headless fallback, for a Claude Code release without
-  `plugin configure`: rerun
-  `claude plugin install powershell-format@<marketplace> -s <scope> --config powershell_format_enabled=true`
-  (repeatable per key). Against an already-installed plugin it prints `already installed` and
-  still writes the value. Do **not** uninstall to reconfigure: that drops the plugin's entire
-  stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
-  manifest default. Either route stores the value in user settings. `claude plugin configure` has
-  no scope flag and finds only an install visible from the working directory. For the rerun, `-s`
-  defaults to `user`; pass the scope `claude plugin list` reports, and run from that project's
-  directory for a `project`/`local` scope, or the rerun adds a second install record at the scope
-  passed and enables the plugin there; from the home directory pass `user`. Check each route's own
-  failure signal: `claude plugin configure` rejects a bad value with exit 1 and saves nothing, but
-  stores an empty string as `""`; the rerun prints a warning for a rejected value yet exits 0, so
-  read its output. This skill never writes user settings or `pluginConfigs`. Afterwards rerun
-  `check` in a **fresh session**. The rendered `${user_config.*}` and the hook's
-  `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check` still reports
-  the OLD value; report the observed effective value, never an unobserved change.
+- toggle off: set `powershell_format_enabled` to `true` through Claude Code's native flow,
+  interactively with `/plugin configure powershell-format@<marketplace>` or by a headless route,
+  as the marketplace's plugin-reconfiguration convention gives them in
+  [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
+  (it owns the verified-version record). Apply the scope and failure-signal caveats in its
+  [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
+  Read both sections and print what they give, the fallback route, its behavior on an
+  already-installed plugin and the scope to pass included, rather than only naming them, and
+  leave out the verified-version record.
+  Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
+  writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**, since a
+  same-session `check` can still show the old value, and report the observed effective value,
+  never an unobserved change.
+
+  - **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+    when a saved value applies, fetch
+    [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+    live.
+  - **As of**: 2026-11-11
+  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+    refused value, or when a saved value applies.
 
 After pointing at a remediation, re-run the relevant `check` probe live via Bash and report its
 actual result. Never claim resolved on the reader's report that they installed something.

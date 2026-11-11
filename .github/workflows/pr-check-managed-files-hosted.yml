@@ -41,10 +41,15 @@ on:
       - .editorconfig
       - .editorconfig-checker.json
       - .gitattributes
+      - .github/ISSUE_TEMPLATE/agent-ready.yml
+      - .github/ISSUE_TEMPLATE/bug-report.yml
+      - .github/ISSUE_TEMPLATE/feature-request.yml
+      - .github/ISSUE_TEMPLATE/task.yml
       - .github/actionlint.yaml
       - .github/standards/dependabot-policy/policy.json
       - .github/standards/github-actions-conventions/vocabulary.json
       - .github/standards/github-actions-conventions/vocabulary.schema.json
+      - .github/standards/issue-body-contract/contract.json
       - .github/standards/pyright/pyrightconfig.json
       - .github/standards/runner-policy/package-lock.json
       - .github/standards/runner-policy/package.json
@@ -69,6 +74,7 @@ on:
       - .shellcheckrc
       - REVIEW.md
       - _typos.toml
+      - docs/contracts/issue-body/contract.json
       - docs/conventions/source-control/commit-convention.yml
       - docs/standards/README.md
       - docs/standards/bulk-mutation.md

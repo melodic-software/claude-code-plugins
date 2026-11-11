@@ -193,7 +193,7 @@ import { anyListed, fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest,
 // fix-ci-dispatch.mjs imports HOLD_LINE from here.
 export { HOLD_LINE, NO_ADOPTION, ownerAdoption, ownerAuthored };
 import { commentItems, gateSource, listLabelEvents, prHold, reviewReader } from "./gate-source.mjs";
-import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
+import { emptyRecord, isHandled, markHandled, readRecord, RUN_ID, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, KILL_SWITCH_STOP, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 import { FAIL as VERIFY_FAIL, final as capFinal, deadlineWarning, verifyReader } from "./verify-cap.mjs";
@@ -229,7 +229,6 @@ export const DEFAULTS = Object.freeze({
 });
 
 const SHA = /^[0-9a-f]{40}$/;
-const RUN_ID = /^[1-9][0-9]{0,14}$/;
 const WORKFLOW_PATH = /^\.github\/workflows\/[a-z0-9][a-z0-9-]{0,80}\.ya?ml$/;
 
 // Why an owner PR is not adopted for a round now, or "": as fix-ci adopts one

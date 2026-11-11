@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Set biome_format_lint_gitignored to true with `/plugin configure biome-format@<marketplace>` or `claude plugin configure biome-format@<marketplace> --values-stdin`."
+      "answer": "Set biome_format_lint_gitignored to true with `/plugin configure biome-format@<marketplace>`, or headless by a route from the marketplace's plugin-reconfiguration convention."
     }
   ],
   "fail": [

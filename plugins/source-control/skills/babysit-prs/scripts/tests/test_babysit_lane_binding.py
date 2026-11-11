@@ -7,6 +7,7 @@ from __future__ import annotations
 import io
 import json
 import pathlib
+import re
 import sys
 import unittest
 import zipfile
@@ -26,6 +27,12 @@ WORKFLOWS = {
 
 
 BRANCH = "feature/x"
+# The cutoff the JavaScript port holds: both ports must name the same one.
+JS_CUTOFF = re.search(
+    r'^export const LEGACY_CUTOFF = (?:null|"([^"]+)");$',
+    (pathlib.Path(__file__).resolve().parents[6] / ".github/scripts/lib/lane-binding.mjs").read_text(encoding="utf-8"),
+    re.M,
+)[1]
 REPOSITORY = "o/r"
 
 def bound(text: str, *, run: int = RUN, sha: str = HEAD, lane: str = "claude-review") -> str:
@@ -73,7 +80,8 @@ class FakeActions:
             for artifact in run.get("artifacts", []):
                 artifact["id"] = next_id
                 next_id += 1
-                text = "\n".join(json.dumps(e) for e in artifact["entries"])
+                closed = [] if artifact.get("complete") is False else [{"complete": True}]
+                text = "\n".join(json.dumps(e) for e in [*artifact["entries"], *closed])
                 self.blobs[artifact["id"]] = zip_of({lb.RECORD_FILE: text})
 
     def get_pull(self, pr: int | None) -> dict[str, Any]:
@@ -159,9 +167,10 @@ class ParsingTests(unittest.TestCase):
         self.assertFalse(lb.was_edited({"createdAt": at}))
 
     def test_an_unbound_comment_counts_with_no_cutoff_then_only_by_it_and_unedited(self) -> None:
-        self.assertIsNone(lb.LEGACY_CUTOFF)
+        self.assertEqual(lb.LEGACY_CUTOFF, JS_CUTOFF)
         old = {"createdAt": "2026-10-01T00:00:00Z"}
         self.assertTrue(lb.legacy_counts(old))
+        self.assertTrue(lb.legacy_counts({"createdAt": "2027-01-01T00:00:00Z"}, None))
         self.assertTrue(lb.legacy_counts(old, "2026-10-02T00:00:00Z"))
         self.assertFalse(lb.legacy_counts({"createdAt": "2026-10-03T00:00:00Z"}, "2026-10-02T00:00:00Z"))
         self.assertFalse(lb.legacy_counts({**old, "lastEditedAt": "2026-10-01T00:00:00Z"}, "2026-10-02T00:00:00Z"))
@@ -306,6 +315,16 @@ class CheckerTests(unittest.TestCase):
         self.assertTrue(lost(comment(second, id=12, createdAt="2026-11-01T12:00:00Z")))
         whole = FakeActions({RUN: lane_run([record_entry(first)], **window)}).checker()
         self.assertFalse(whole(comment(second, id=12, createdAt="2026-11-01T12:00:00Z")))
+
+    def test_an_attempt_whose_record_was_cut_off_is_proved_by_time(self) -> None:
+        body = bound("posted before the record closed")
+        window = {"created_at": "2026-11-01T00:00:00Z", "updated_at": "2026-11-02T00:00:00Z"}
+        run = lane_run([], **window)
+        run["artifacts"][0]["complete"] = False
+        check = FakeActions({RUN: run}).checker()
+        self.assertTrue(check(comment(body, createdAt="2026-11-01T12:00:00Z")))
+        closed = FakeActions({RUN: lane_run([], **window)}).checker()
+        self.assertFalse(closed(comment(body, createdAt="2026-11-01T12:00:00Z")))
 
     def test_a_run_of_another_branch_or_repository_does_not_bind(self) -> None:
         body = bound("finding")
