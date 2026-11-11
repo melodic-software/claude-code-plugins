@@ -16,10 +16,12 @@ Claim a work item through the seam (assignee + lease record).
 
    ```bash
    TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
-   [[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
+   [[ -f "$TRACKER" ]] || TRACKER="<project root>/tools/work-item-tracker/work-item-tracker.sh"
    "$TRACKER" get-item "<id>"
    "$TRACKER" reclaim "<id>"
    ```
+
+   `<project root>` is the literal path [`tracker-seam.md`](../../../reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet and each later one in this file.
 
    If the item is still assigned to another user after reclaim, its lease is live. Warn: "Item `<id>` held by {assignee} (live lease). Proceed anyway? (yes / pick different)". Without the reclaim, `claim` would back off (exit 7) on the stale assignee before evaluating lease expiry.
 
@@ -31,7 +33,7 @@ Claim a work item through the seam (assignee + lease record).
 
    ```bash
    TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
-   [[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
+   [[ -f "$TRACKER" ]] || TRACKER="<project root>/tools/work-item-tracker/work-item-tracker.sh"
    "$TRACKER" claim "<id>"
    ```
 

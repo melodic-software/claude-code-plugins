@@ -96,17 +96,21 @@ section() {
   printf '\n===== %s =====\n' "$1"
 }
 
+run_block_lint() {
+  section "autoMode block lint"
+  if [[ "$critique" -eq 1 ]]; then
+    bash "$HERE/automode-block-lint.sh" --critique
+  else
+    bash "$HERE/automode-block-lint.sh"
+  fi
+}
+
 rc=0
 
 # The autoMode block lint reads the CLI, not stdin, so it is the one stage that
 # needs no inventory. Run it alone when it is all that was asked for.
 if [[ "$want_scopes" -eq 0 && "$want_entry" -eq 0 && "$want_lint" -eq 0 && "$want_managed" -eq 0 && "$want_block" -eq 1 ]]; then
-  section "autoMode block lint"
-  if [[ "$critique" -eq 1 ]]; then
-    bash "$HERE/automode-block-lint.sh" --critique || rc=$?
-  else
-    bash "$HERE/automode-block-lint.sh" || rc=$?
-  fi
+  run_block_lint || rc=$?
   exit "$rc"
 fi
 
@@ -131,9 +135,8 @@ if [[ "$want_scopes" -eq 1 ]]; then
   exit 0
 fi
 
-# The merge is the spine for the entry diff, so compute it once when either is
-# wanted and print it only when the effective set was actually asked for.
-merged=""
+# The merge is the spine for the entry diff, so it runs only when the entry diff
+# was asked for.
 if [[ "$want_entry" -eq 1 ]]; then
   if merged="$(printf '%s\n' "$records" | bash "$HERE/permission-merge.sh")"; then
     section "Effective set"
@@ -144,20 +147,18 @@ if [[ "$want_entry" -eq 1 ]]; then
     rc=$?
     echo "ERROR: the merge stage failed (exit $rc)." >&2
   fi
-fi
 
-if [[ "$want_entry" -eq 1 && -n "$merged" ]]; then
-  section "Auto-mode entry diff"
-  # --diff-only carries the inventory's NOTEs and the merge's CAVEATs through, so
-  # that a standalone run never hides an unreadable scope behind a summary of
-  # zeros. Here the two sections above already printed them verbatim, so drop the
-  # duplicates and keep this stage's own records. The stage keeps its honesty
-  # when invoked directly; this caller just refuses to say it all three times.
-  entry_filter() { grep -vE '^(NOTE:|MANAGED-NOTE:|LINT-NOTE:|CAVEAT:)' || true; }
-  if [[ "$oracle" -eq 1 ]]; then
-    printf '%s\n' "$merged" | bash "$HERE/automode-entry-diff.sh" --diff-only --oracle | entry_filter || rc=$?
-  else
-    printf '%s\n' "$merged" | bash "$HERE/automode-entry-diff.sh" --diff-only | entry_filter || rc=$?
+  if [[ -n "$merged" ]]; then
+    section "Auto-mode entry diff"
+    # --diff-only carries the inventory's NOTEs and the merge's CAVEATs through, so
+    # that a standalone run never hides an unreadable scope behind a summary of
+    # zeros. Here the two sections above already printed them verbatim, so drop the
+    # duplicates and keep this stage's own records. The stage keeps its honesty
+    # when invoked directly; this caller just refuses to say it all three times.
+    entry_args=(--diff-only)
+    [[ "$oracle" -eq 1 ]] && entry_args+=(--oracle)
+    printf '%s\n' "$merged" | bash "$HERE/automode-entry-diff.sh" "${entry_args[@]}" |
+      { grep -vE '^(NOTE:|MANAGED-NOTE:|LINT-NOTE:|CAVEAT:)' || true; } || rc=$?
   fi
 fi
 
@@ -172,12 +173,7 @@ if [[ "$want_managed" -eq 1 ]]; then
 fi
 
 if [[ "$want_block" -eq 1 ]]; then
-  section "autoMode block lint"
-  if [[ "$critique" -eq 1 ]]; then
-    bash "$HERE/automode-block-lint.sh" --critique || rc=$?
-  else
-    bash "$HERE/automode-block-lint.sh" || rc=$?
-  fi
+  run_block_lint || rc=$?
 fi
 
 exit "$rc"

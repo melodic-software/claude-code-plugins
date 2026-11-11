@@ -7,9 +7,17 @@ and `gh` facts behind them.
 
 ## Find the PR for the branch
 
+The repository is resolved once, before the PR, and every read and write below targets it
+([target repository](../README.md#target-repository)): the writes name it, and the exported
+`GH_REPO` carries it to every other `gh` call, the scripts' included. A shell that runs a later
+block runs this block's first two lines first. A non-zero exit from `target-repo.sh` ends the phase with its stderr
+reported.
+
 ```bash
+REPO=$(bash "<skill-dir>/scripts/target-repo.sh") || exit 1
+export GH_REPO="$REPO"
 BRANCH=$(git branch --show-current)
-PR_NUMBER=$(gh pr view "$BRANCH" --json number -q '.number' 2>/dev/null)
+PR_NUMBER=$(gh pr view "$BRANCH" -R "$REPO" --json number -q '.number' 2>/dev/null)
 ```
 
 ## Read the draft flag
@@ -86,7 +94,7 @@ DECISION_HEAD=$(jq -r .head_sha <<<"$DECISION") || exit 1
 [ -n "$DECISION_HEAD" ] && [ "$DECISION_HEAD" != unknown ] || exit 1
 
 UPDATED=0
-if gh api --method PUT "repos/{owner}/{repo}/pulls/$PR_NUMBER/update-branch" \
+if gh api --method PUT "repos/$REPO/pulls/$PR_NUMBER/update-branch" \
   -f expected_head_sha="$DECISION_HEAD" >/dev/null; then
   for _ in $(seq 12); do   # 12 polls x 5 s = 60 s
     NOW=$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid')
@@ -158,7 +166,7 @@ REQUESTED=$(gh pr view "$PR_NUMBER" --json reviewRequests -q '.reviewRequests | 
   echo '```text'
   cat "$RANGE_DIFF_FILE"
   echo '```'
-} | gh pr comment "$PR_NUMBER" --body-file -
+} | gh pr comment "$PR_NUMBER" -R "$REPO" --body-file -
 ```
 
 ## Read the diff
@@ -194,7 +202,7 @@ build posts nothing:
 LOGIN=$(gh api user --jq .login) || exit 1
 COMMENT=$(bash "<skill-dir>/scripts/ready-skip-comment.sh" --login "$LOGIN" \
   --reason "$REASON" --step code-review) || exit 1
-printf '%s\n' "$COMMENT" | gh pr comment "$PR_NUMBER" --body-file -
+printf '%s\n' "$COMMENT" | gh pr comment "$PR_NUMBER" -R "$REPO" --body-file -
 ```
 
 `check-ready-holds.sh` reads the title, body, labels and closing issue references, never
@@ -256,7 +264,7 @@ RUNS_BEFORE=$(gh run list --commit "$HEAD_SHA" --event pull_request -L 100 \
 [ "$HEAD_MATCH" = 1 ] &&
   [ "$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid')" = "$HEAD_SHA" ] &&
   bash "<skill-dir>/scripts/verify-gate.sh" check --head "$HEAD_SHA" &&
-  gh pr ready "$PR_NUMBER"
+  gh pr ready "$PR_NUMBER" -R "$REPO"
 ```
 
 The two head tests exit 1 when the PR's head on GitHub is not `HEAD_SHA`: the wait never saw it
@@ -276,7 +284,7 @@ route, guarded the same way:
 [ "$HEAD_MATCH" = 1 ] &&
   [ "$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid')" = "$HEAD_SHA" ] &&
   bash "<skill-dir>/scripts/verify-gate.sh" check --head "$HEAD_SHA" &&
-  gh api --method POST "repos/{owner}/{repo}/pulls/$PR_NUMBER/ccr/ready_for_review"
+  gh api --method POST "repos/$REPO/pulls/$PR_NUMBER/ccr/ready_for_review"
 ```
 
 Or the GitHub MCP `update_pull_request` call with `draft: false`. It is a tool call, so a shell
@@ -316,7 +324,7 @@ help:
 ```bash
 RUNS_BEFORE=$(gh run list --commit "$HEAD_SHA" --event pull_request -L 100 \
   --json databaseId -q 'map(.databaseId)') || RUNS_BEFORE='[]'
-gh pr ready "$PR_NUMBER" --undo && gh pr ready "$PR_NUMBER" && ready_run_seen
+gh pr ready "$PR_NUMBER" -R "$REPO" --undo && gh pr ready "$PR_NUMBER" -R "$REPO" && ready_run_seen
 ```
 
 Exit 0 after the toggle means a new run appeared; report it as "a new run appeared", never as a

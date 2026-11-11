@@ -93,7 +93,7 @@ accepted with the layered gates above, and surface 6 is first-party.
 ### Review record: `dometrain` (ACCEPT, 2026-07-22)
 
 Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review. Since 0.5.0 the
-plugin ships no server and no `userConfig`; the sync script stays in `dometrain`.
+plugin ships no server and no `userConfig`; the update script stays in `dometrain`.
 
 **This record is stale, and a re-review is owed (recorded 2026-08-28).** The plugin ships `0.2.7`.
 Eleven releases landed between the reviewed version and the shipping one, and no record says
@@ -102,9 +102,9 @@ Answering it takes a review, so it cannot be settled either way by reading this 
 review runs, the ACCEPT below describes `0.1.0` and states nothing about what a consumer installs
 today. The re-review was not performed when this note was written; it is logged as owed.
 
-- **Code execution (1).** None. No hooks; `sync/scripts/update.sh` is not wired to any event
-  and is not model-reachable: `sync/SKILL.md` carries `disable-model-invocation: true`, so it
-  runs only on a maintainer's explicit `/dometrain:sync` invocation.
+- **Code execution (1).** None. No hooks; `update/scripts/update.sh` is not wired to any event
+  and is not model-reachable: `update/SKILL.md` carries `disable-model-invocation: true`, so it
+  runs only on a maintainer's explicit `/dometrain:update` invocation.
 - **MCP servers (2).** The remote server itself: third-party (Dometrain-hosted), `http`
   transport, Bearer auth via `userConfig.dometrain_api_key` (never hardcoded), `defaultEnabled:
   false`. **Data egress / prompt-injection:** search queries and lesson IDs are sent to
@@ -115,8 +115,7 @@ today. The re-review was not performed when this note was written; it is logged 
   plugin already accepts this class of risk (its prompt-injection item): `grounding/SKILL.md` carries a standing
   instruction treating all `search_dometrain`/`search_code`/`get_lesson` results as untrusted
   reference data, never instructions, backed by an anti-pattern eval case. That is an advisory,
-  model-honored defense, not a runtime-enforced one, stated honestly as such rather than implied
-  to be stronger than it is. Explicit trust decision: **ACCEPT**, third-party, rationale =
+  model-honored defense, not a runtime-enforced one. Explicit trust decision: **ACCEPT**, third-party, rationale =
   read-only course-content grounding, no destructive tool surface, user's own
   paid-subscription-scoped token, `defaultEnabled: false`, standing untrusted-data instruction.
 - **Consumer config (3).** One sensitive required `userConfig` string
@@ -126,9 +125,9 @@ today. The re-review was not performed when this note was written; it is logged 
   fetch reaches `raw.githubusercontent.com`, a documented, justified outbound call (criterion 5),
   not a `../` reach-out.
 - **Data egress (5).** Two channels: (a) the MCP server itself, covered under (2); (b)
-  `sync/scripts/update.sh`'s fetch of Dometrain's public GitHub-raw skill content, read-only
-  and never model-reachable: `sync/SKILL.md`'s `disable-model-invocation: true` means only a
-  human explicitly running `/dometrain:sync` fires it, never the model on its own initiative and
+  `update/scripts/update.sh`'s fetch of Dometrain's public GitHub-raw skill content, read-only
+  and never model-reachable: `update/SKILL.md`'s `disable-model-invocation: true` means only a
+  human explicitly running `/dometrain:update` fires it, never the model on its own initiative and
   never from the installed plugin cache absent that explicit human action. No data leaves beyond
   the anonymous GET itself. No telemetry.
 - **Provenance & third-party trust (6).** First-party plugin manifest/config (Melodic Software
@@ -136,7 +135,7 @@ today. The re-review was not performed when this note was written; it is logged 
   trust delegation, covered under (2)) and Dometrain's own public skill content as a
   vendored/reviewed text dependency (covered under (4)/(5)). Every sync is human-reviewed
   before a baseline refresh, never auto-applied, so the trust surface is bounded by that review
-  gate, not blind ingestion. Note: this plugin's `grounding`/`sync` skill split is a stronger
+  gate, not blind ingestion. Note: this plugin's `grounding`/`update` skill split is a stronger
   enforcement of that boundary than this repo's existing `context7:lookup` precedent, which
   bundles an equivalent `update` action into a model-invocable skill, a pre-existing gap flagged
   during this review, not remediated here, tracked separately.
@@ -276,7 +275,7 @@ surfaces named exhaustively, because this plugin READS more than most, and that 
   of the audited plugin, installs, writes outside the packet, and network beyond WebFetch.
   Untrusted-content posture (audited source is data, never instructions) is a standing
   instruction in BOTH the hub skill and the agent, backed by a prompt-injection anti-pattern eval.
-  That is an advisory, model-honored defense, stated honestly as such.
+  That is an advisory, model-honored defense.
 - **MCP servers (2).** None.
 - **Consumer config (3).** No `userConfig`. Tracked cascade surface `.claude/plugin-quality.md`
   (+ user-global `~/.claude/plugin-quality.md` and `.local` personal override, a sanctioned operator-home

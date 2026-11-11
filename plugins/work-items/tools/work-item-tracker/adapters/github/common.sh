@@ -186,8 +186,9 @@ wit_run_gh_native() {
   WIT_GH_NATIVE_TRY=1 wit_run_gh "$@"
 }
 
-# wit_resolve_repo <--repo value or empty> — echo owner/repo (explicit override or
-# derived from the CWD git remote per CONTRACT.md "Setup (binding file)").
+# wit_resolve_repo <--repo value or empty> — echo owner/repo: the explicit override, else
+# gh's own resolution for the CWD (GH_REPO, the `gh repo set-default` remote, else gh's
+# first remote by name, not necessarily origin) per CONTRACT.md "Setup (binding file)".
 wit_resolve_repo() {
   local explicit="${1:-}"
   if [[ -n "$explicit" ]]; then

@@ -245,7 +245,8 @@ the broker request, and no other permission; it never holds `checks: write` or `
    the run's own record, so a re-run started by an account not on the list, by a denied account,
    or with no readable triggering actor stops with `untrusted-rerunner`, and that check is a
    failure: a re-run cannot turn an earlier red check on the same SHA neutral. A PR whose base is
-   not the default branch stops with `untrusted-base`, also a failure. The write file also
+   not the default branch stops with `untrusted-base`, also a failure, unless it is a layer of a
+   native stack whose stack base is the default branch. The write file also
    denies `AUTOMATION_LANES_APP_SENDER_ID`, so the lanes App bot as sender or `workflow_run` actor
    stops it with `bot-actor` (neutral) and one write activity never chains into the next. The read
    file denies nothing, so a `workflow_run` read lane still runs after a bot push; the bot's own
@@ -282,9 +283,12 @@ the broker request, and no other permission; it never holds `checks: write` or `
    dispatcher run is still going. The checks are in the gate's README. Only
    with a `dispatcher-run-id` does the skill step pass claude-code-action
    `allowed_bots: github-actions`, which otherwise refuses a run a bot started.
-4. `check-trusted-base` asserts the PR targets the default branch and fails red otherwise. On `pull_request` the base
-   branch is the event's `pull_request.base.ref`; on any other event (`workflow_dispatch`,
-   `workflow_run`) it is read from the PR with the job's `GITHUB_TOKEN`. It then fails red unless
+4. `check-trusted-base` asserts the PR targets the default branch, or is a layer of a native stack
+   whose stack base is the default branch, and fails red otherwise. On `pull_request` the base
+   branch and stack base are the event's `pull_request.base.ref` and `pull_request.stack.base.ref`;
+   on any other event (`workflow_dispatch`, `workflow_run`) they are read from the PR with the
+   job's `GITHUB_TOKEN`. For a stack layer the gate's `base-sha` is the stack base's SHA, never the
+   unmerged layer below. It then fails red unless
    the gate's `base-sha` is an ancestor of the default branch tip (`git merge-base --is-ancestor`),
    and checks that SHA out in `.base`. Nothing the PR's base branch chose runs before this check.
    With `trusted-base: default-tip` (`mode: default-tip`) it checks out the
@@ -330,9 +334,12 @@ the broker request, and no other permission; it never holds `checks: write` or `
    `plugins/source-control/scripts/resolve-version-bump-conflict.sh` to
    `$RUNNER_TEMP/merge-base-bin`, recording each copy's SHA-256 as a step output, and read
    `loop.no-progress` from the resolved config.
-9. `setup-runner-isolation`: for a skill, installs bubblewrap and socat with `apt-get` (three tries) and, where
-   `/proc/sys/kernel/apparmor_restrict_unprivileged_userns` exists, sets it to `0`. It fails red
-   if `bwrap` is not on `PATH` afterwards. The skill step needs it for subprocess isolation (below).
+9. `setup-runner-isolation`: for a skill, installs bubblewrap and socat and, where
+   `/proc/sys/kernel/apparmor_restrict_unprivileged_userns` exists, sets it to `0`. It installs
+   with `apt-get` from the image's own package lists, else after `apt-get update` (three tries),
+   all within 540 s, under the image's own mirror failover settings. It uses no Actions cache: the
+   cache unpacks archives with absolute paths while sudo still works. It fails red if `bwrap` or `socat` is not on `PATH` afterwards. The skill step
+   needs them for subprocess isolation (below).
 10. Removes sudo and docker access for the rest of the job: `/var/run/docker.sock` becomes
    root-only and the runner user's `/etc/sudoers.d/runner` entry is deleted. It fails red if
    `sudo -n true` still succeeds or the socket is still open to the runner user.
@@ -367,8 +374,12 @@ the broker request, and no other permission; it never holds `checks: write` or `
     activity that did not clean up, not a control against a hostile one: the activity holds the
     token and can write the runner's files.
 
-A stacked PR, one whose base is not the default branch, gets a failure check from step 4. Retarget
-it to the default branch to run its lanes.
+A layer of a native stack whose stack base is the default branch runs its lanes like a PR into the
+default branch: the gate trusts the stack base's SHA, and every script, action, config and list
+still comes from the default branch, never from the layer below. Any other PR whose base is not
+the default branch, including a branch that only targets another PR's branch without a native
+stack, gets a failure check from step 3 (`untrusted-base`); retarget it to the default branch to
+run its lanes.
 
 Its outputs are `base-sha`, `head-sha`, `pr-number`, `gate-reason`, `can-commit` and
 `act-outcome`, plus, in the write file, `head-ref`, `escalation-reason` and
@@ -1599,7 +1610,9 @@ parents, message and trailer, and the row's escalation reasons.
 ## The scan job
 
 Read file: runs after the run job (and in issue mode the issue-fields job) when the run job
-succeeded or failed, unless the run was cancelled or the call handed off, on a fresh `ubuntu-24.04` VM, in the `pr-pipeline-scan-carrier` environment. It
+succeeded or failed, unless the run was cancelled or the call handed off, on a fresh `ubuntu-24.04` VM, in the `pr-pipeline-scan-carrier` environment with `deployment: false`, which keeps the
+environment's secret and branch policy and records no deployment
+([Using environments without deployments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments#using-environments-without-deployments)). It
 holds `contents: read`, one secret (`SCAN_CARRIER_PRIVATE_KEY`, that environment's, which each
 caller passes by name as `scan-carrier-private-key`, read by its open step alone), no `id-token`, no cache, and nothing from the run job but its outputs. run-claude-cli's
 contract puts the reporting and uploads of a lane that grants unrestricted Bash in a downstream
@@ -1921,7 +1934,7 @@ other than `${{ github.event.repository.default_branch }}` or a `with` key other
 `./.base/.github/actions/open-lane-output` with `private-key: ${{ secrets.scan-carrier-private-key }}`
 exactly; a job that calls the read file passes it by name only,
 `scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}` in its `secrets` map; and only
-the `scan` job may name an `environment`, `pr-pipeline-scan-carrier`. The one second holder (owner
+the `scan` job may name an `environment`, exactly `{ name: pr-pipeline-scan-carrier, deployment: false }`. The one second holder (owner
 decision, 2026-11-02) is `upstream-apply-changelog.yml`'s `scan` job: one `open` step, the same
 action and exact `private-key`, after the main-only gate job, with `contents: read` alone, no
 id-token and a read-only cache; the environment admits main only. The third holder ([owner

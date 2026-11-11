@@ -593,6 +593,24 @@ lib/publish-gate.mjs
 # duplication audit: the root canonical and the copies.
 lib/publish-gate.mjs -> plugins/*/lib/publish-gate.mjs
 
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# .github/scripts/lib/lane-binding.mjs. The review and work-items plugins
+# carry the generated copies.
+lib/lane-binding.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# .github/scripts/lib/lane-binding.fixtures.mjs. The review and work-items
+# plugins carry the generated copies for their tests.
+lib/lane-binding.fixtures.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the canonical and the copies.
+.github/scripts/lib/lane-binding.mjs -> plugins/*/lib/lane-binding.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the canonical fixtures and the copies.
+.github/scripts/lib/lane-binding.fixtures.mjs -> plugins/*/lib/lane-binding.fixtures.mjs
+
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: lib/telemetry-body-gate.sh, the body checks the lane
 # telemetry upserts share, and its generated copies.

@@ -554,6 +554,9 @@ jobs:
     # 0058), bounded by the broker's one mint per job. So no step runs PR-head
     # code: the job runs only base scripts, never a skill.
     permissions:
+      # The review lanes' comment records, read with ARTIFACT_READ_TOKEN by a
+      # script that judges their comments (address-feedback.mjs laneReader).
+      actions: read
       contents: read
       pull-requests: read
       id-token: write
@@ -1361,6 +1364,8 @@ jobs:
           RESOLVED: ${{ runner.temp }}/resolved-config.json
           HUMAN_GATE: ${{ steps.config.outputs.prepare == 'apply-patch' && inputs.patch-human-gate || '' }}
           GITHUB_TOKEN: ${{ github.token }}
+          # The review lanes' comment records (actions: read).
+          ARTIFACT_READ_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
@@ -1584,6 +1589,8 @@ jobs:
           SCRIPT: ${{ steps.config.outputs.script }}
           RESOLVED: ${{ runner.temp }}/resolved-config.json
           LANE_TOKEN: ${{ steps.lane-token.outputs.token }}
+          # The job's own token, for the review lanes' comment records only.
+          ARTIFACT_READ_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           HEAD_SHA: ${{ inputs.issue-number != '' && steps.issue-start.outputs.sha || steps.gate.outputs.head-sha }}
           BASE_SHA: ${{ steps.trusted-base.outputs.commit }}

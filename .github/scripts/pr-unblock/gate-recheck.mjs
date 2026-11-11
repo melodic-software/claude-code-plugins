@@ -12,18 +12,19 @@
 //
 // Environment: GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_OUTPUT, PR_NUMBER,
 // HEAD_SHA, APP_SENDER_ID, LABEL, ACTIVITY; BASE_PATH and TRUSTED_ACTORS as
-// address-feedback.mjs ownerAdoption reads them.
+// address-feedback.mjs ownerAdoption reads them; ARTIFACT_READ_TOKEN
+// (actions: read; the review lanes' comment records).
 
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { createGitHubApi, need, ownerAdoption, ownerAuthored, positive, SHA } from "./address-feedback.mjs";
+import { createGitHubApi, laneReader, need, ownerAdoption, ownerAuthored, positive, SHA, withLaneBinding } from "./address-feedback.mjs";
 import { commentItems, gateSource, prHold, reviewReader } from "./gate-source.mjs";
 
 const ACTIVITY = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 
-export async function main(env, { api, adoption, log = (line) => console.log(line) } = {}) {
+export async function main(env, { api, actions, adoption, log = (line) => console.log(line) } = {}) {
   need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "PR_NUMBER", "HEAD_SHA", "APP_SENDER_ID", "LABEL", "ACTIVITY"]);
   const pr = positive(env.PR_NUMBER, "PR_NUMBER");
   const appId = positive(env.APP_SENDER_ID, "APP_SENDER_ID");
@@ -33,16 +34,20 @@ export async function main(env, { api, adoption, log = (line) => console.log(lin
   if (!ACTIVITY.test(env.ACTIVITY)) {
     throw new Error("ACTIVITY is not an activity name");
   }
-  const client =
+  // The review lanes' hold comments count only when bound to their runs,
+  // read with ARTIFACT_READ_TOKEN (address-feedback.mjs withLaneBinding).
+  const client = withLaneBinding(
     api ??
-    createGitHubApi({
-      token: env.GITHUB_TOKEN,
-      repository: env.GITHUB_REPOSITORY,
-      apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
-      graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
-      // Each answer's rate-limit reading, for the job-end api-budget notice.
-      fetch: rateLimitLatch.guard(globalThis.fetch),
-    });
+      createGitHubApi({
+        token: env.GITHUB_TOKEN,
+        repository: env.GITHUB_REPOSITORY,
+        apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
+        graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+        // Each answer's rate-limit reading, for the job-end api-budget notice.
+        fetch: rateLimitLatch.guard(globalThis.fetch),
+      }),
+    actions ?? laneReader(env),
+  );
   const isLanesApp = (user) => user?.id === appId && user?.type === "Bot";
   // address-feedback's select reads the issue comments and label events (a
   // pull-requests: read token may), the other selects the REST issue timeline.

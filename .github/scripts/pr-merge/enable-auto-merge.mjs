@@ -231,7 +231,8 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub, errorLabel, GitHubError, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { DEQUEUE_MUTATION, humanGatedLabelFrom, leaveQueueOnHold, QUEUE_ENTRY_QUERY, quote } from "../pr-unblock/address-feedback.mjs";
+import { laneChecker } from "../lib/lane-binding.mjs";
+import { bindTimeline, DEQUEUE_MUTATION, humanGatedLabelFrom, laneReader, leaveQueueOnHold, QUEUE_ENTRY_QUERY, quote } from "../pr-unblock/address-feedback.mjs";
 import {
   lines as bodyLines,
   foreignMarker,
@@ -924,9 +925,11 @@ export function liftBlocker({ timeline, reviewComments = [], reviews = [], label
   return speaker === undefined ? null : `${speaker.user?.login ?? "an account"} spoke or labeled after ${label} went on`;
 }
 
-// liftBlocker over `number`'s timeline, review comments and reviews.
-async function liftBlocked(github, repo, number, options) {
-  const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
+// liftBlocker over `number`'s timeline, review comments and reviews. The
+// timeline's review-lane comments count only when `check` (lane-binding.mjs
+// laneChecker) binds them to their lane's run.
+export async function liftBlocked(github, repo, number, options, check) {
+  const timeline = await bindTimeline(await paginate(github, `/repos/${repo}/issues/${number}/timeline`), check);
   const { labeled, since } = labelHistory(timeline, options.label);
   if (!isApp(labeled?.actor, options.login) || Number.isNaN(since)) {
     return liftBlocker({ timeline, ...options });
@@ -1741,7 +1744,7 @@ async function listPulls(github, owner, name) {
   throw new ListingFull(`more than ${MAX_PAGES * 100} open pull requests into main`);
 }
 
-export async function main({ env = process.env, github, actions, verify, room, close, whole, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now, mainInputs, mergeRisk, evidence } = {}) {
+export async function main({ env = process.env, github, actions, laneReads, verify, room, close, whole, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now, mainInputs, mergeRisk, evidence } = {}) {
   try {
     const repo = REPO.exec(env.GITHUB_REPOSITORY ?? "");
     if (!repo) {
@@ -2315,7 +2318,10 @@ export async function main({ env = process.env, github, actions, verify, room, c
             if (lift) {
               let kept;
               try {
-                kept = await liftBlocked(github, repo[0], pull.number, { label: humanGated, login: env.LANES_BOT_LOGIN, humans, head: pull.headRefOid });
+                // The review lanes' run records, on the job token (actions: read).
+                const reads = laneReads ?? laneReader({ ARTIFACT_READ_TOKEN: env.BABYSIT_VERIFY_GH_TOKEN, GITHUB_REPOSITORY: repo[0], GITHUB_API_URL: env.GITHUB_API_URL });
+                const check = laneChecker({ pr: pull.number, ...reads });
+                kept = await liftBlocked(github, repo[0], pull.number, { label: humanGated, login: env.LANES_BOT_LOGIN, humans, head: pull.headRefOid }, check);
                 if (kept === null && write) {
                   const fresh = await github("GET", `/repos/${repo[0]}/pulls/${pull.number}`);
                   kept = fresh?.head?.sha === pull.headRefOid ? null : `its head moved to ${fresh?.head?.sha ?? "an unread head"}`;

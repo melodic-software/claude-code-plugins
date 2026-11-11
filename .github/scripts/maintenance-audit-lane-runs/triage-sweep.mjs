@@ -13,9 +13,9 @@
 //   dispatch passes), or an issue work-unblock handed back after its lane PR
 //   ended or unparked to needs-triage once a blocker closed; or
 // - /work-items:decompose published it born triaged in `status: ready`, with
-//   no agent-ready, admission-deferred or hold and no open blocker: nothing
-//   ran admission on it, and intake's dispatch runs it (a dispatch skips the
-//   born-triaged gate).
+//   no agent-ready, admission-deferred or hold, no open blocker and no open
+//   sub-issue: intake's dispatch runs it (a dispatch skips the born-triaged
+//   gate), including once a wait admission left on it has cleared.
 //
 // The needs-triage floor label is no triage label: it lands on open whether
 // or not intake runs. github-actions[bot] issues are left out: the lane
@@ -25,7 +25,10 @@
 // dispatches, and nor do the first 24 whose verdict stopped on a GitHub 5xx,
 // a network error or a deferred triage) the sweep sets its Work status to
 // needs-triage (write-status.mjs) and rewrites that comment to hand it to a
-// maintainer, listing the runs. It files no issue. No model. The count is per triage cycle: a work-unblock
+// maintainer, listing the runs. That write first reads the field fresh and
+// leaves any state but unset or needs-triage (or ready, on an issue listed
+// at status: ready), so an issue admitted
+// since the listing is never demoted. It files no issue. No model. The count is per triage cycle: a work-unblock
 // hand-back comment the lanes App posted after the state comment's last edit
 // starts a new cycle with no runs, in the same comment. An issue still at
 // needs-triage whose own state comment hands it off is skipped
@@ -87,6 +90,11 @@ const HAND_BACK = /^(?:<!-- work-unblock handed triage #[1-9][0-9]* -->|<!-- wor
 // The visible text of the hand-off comment, which the search matches.
 const HANDED_TEXT = "so the sweep no longer dispatches it";
 const FLOOR = "needs-triage";
+// The Work status states a hand-off may replace (null for unset): untriaged,
+// and ready only on an issue the listing saw at status: ready (bornReady),
+// since admission and work-unblock also write ready.
+const HAND_OFF_FROM = [null, FLOOR];
+const BORN_HAND_OFF_FROM = [...HAND_OFF_FROM, "ready"];
 // Labels a verdict or a person leaves: an issue with one is triaged.
 const TRIAGED = /^(needs-human|needs-spec|needs-owner-decision|needs-reporter-info|agent-ready|admission-deferred)$|^status: /;
 // What keeps a born-triaged `status: ready` issue out of admission on purpose.
@@ -95,13 +103,18 @@ const ADMISSION_HOLDS = new Set(["agent-ready", "admission-deferred", "needs-hum
 // An issue's lowercased label names; `labels`, when given, stands in for its
 // own (as its Work status field decides them, statusListing).
 const names = (i, labels) => (labels ?? (i.labels ?? []).map((l) => l.name)).map((n) => String(n ?? "").toLowerCase());
+// An open sub-issue makes admission wait (admit.mjs openSubIssues), so it
+// would only send the issue back at status: ready. Admission's own wait
+// comment is not consulted: admission edits it in place, so it can outlive
+// the wait it describes and would park a cleared issue for good.
 const bornReady = (i, labels) =>
   String(i.body ?? "")
     .trimEnd()
     .endsWith(BORN_TRIAGED_MARKER) &&
   labels.includes("status: ready") &&
   !labels.some((n) => ADMISSION_HOLDS.has(n)) &&
-  !(i.issue_dependencies_summary?.blocked_by > 0);
+  !(i.issue_dependencies_summary?.blocked_by > 0) &&
+  !((i.sub_issues_summary?.total ?? 0) > (i.sub_issues_summary?.completed ?? 0));
 
 // `statusLabels` (statusListing) maps an issue number to its label names as
 // its Work status field decides them; an issue it leaves out is judged by its
@@ -350,18 +363,26 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
     issues.push(...batch);
     if (batch.length < 100) break;
   }
-  const result = { candidates: 0, dispatched: [], handed: [], handedOff: [], held: [], waiting: [], failed: [], truncated: null };
+  const result = { candidates: 0, dispatched: [], handed: [], handedOff: [], held: [], left: [], waiting: [], failed: [], truncated: null };
   const selected = selectCandidates({ issues, now, authorIds, statusLabels });
   const atFloor = (i) => names(i, statusLabels.get(i.number)).includes(FLOOR);
   const filed = selected.length > 0 ? await handedOff(call, repo, appId) : new Set();
   const candidates = selected.filter((i) => !(filed.has(i.number) && atFloor(i)));
   result.candidates = candidates.length;
   // A hold a person set since the listing stands (write-status.mjs keepHold):
-  // the issue is held, so it is neither handed off nor recorded.
-  const handOff = async (number) => {
-    const held = (await setStatus(number, FLOOR, { keepHold: true }))?.outcome === "held";
-    if (held) result.held.push(number);
-    return !held;
+  // the issue is held, so it is neither handed off nor recorded. So does any
+  // state past triage the field reads now (HAND_OFF_FROM): the listing can
+  // read field events stale, and the issue may have been admitted since.
+  const listedReady = (i) => names(i, statusLabels.get(i.number)).includes("status: ready");
+  const handOff = async (issue) => {
+    const { number } = issue;
+    const written = await setStatus(number, FLOOR, { keepHold: true, from: listedReady(issue) ? BORN_HAND_OFF_FROM : HAND_OFF_FROM });
+    if (written?.outcome === "held") result.held.push(number);
+    if (written?.outcome === "moved") {
+      result.left.push(number);
+      console.log(`triage-sweep: #${number} left as is: its Work status is ${written.state}`);
+    }
+    return written?.outcome !== "held" && written?.outcome !== "moved";
   };
   // Issues the sweep already handed off cost their reads and do not count
   // toward MAX_CHECKED, so they cannot starve the issues behind them.
@@ -384,7 +405,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
       if (full) {
         if (atFloor(issue)) continue;
         checked += 1;
-        if (await handOff(number)) result.handedOff.push(number);
+        if (await handOff(issue)) result.handedOff.push(number);
         continue;
       }
       const state = readState(comments, appId);
@@ -470,7 +491,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
         }
         // The state first, then the record that stops later passes: a failed
         // record leaves the issue for the next pass, which sets it again.
-        if (!(await handOff(number))) continue;
+        if (!(await handOff(issue))) continue;
         await writeState(call, repo, number, state, { runs: state.runs, filed: HANDED, repoUrl, details: runs, reached: known });
         result.handed.push(number);
       }
@@ -551,7 +572,7 @@ async function main() {
   const lines = [
     "### Triage sweep",
     "",
-    `Candidates: ${result.candidates}. Dispatched: ${numbers(result.dispatched)}. Handed to a maintainer after ${ATTEMPTS} runs that reached intake or ${RUN_LIMIT} dispatches: ${numbers(result.handed)}. Handed off for too many comments: ${numbers(result.handedOff)}. Held by a person's hold: ${numbers(result.held)}. Waiting on a run: ${numbers(result.waiting)}. Calls: ${budget.used}.`,
+    `Candidates: ${result.candidates}. Dispatched: ${numbers(result.dispatched)}. Handed to a maintainer after ${ATTEMPTS} runs that reached intake or ${RUN_LIMIT} dispatches: ${numbers(result.handed)}. Handed off for too many comments: ${numbers(result.handedOff)}. Held by a person's hold: ${numbers(result.held)}. Left as is past triage: ${numbers(result.left)}. Waiting on a run: ${numbers(result.waiting)}. Calls: ${budget.used}.`,
     "",
     ...(result.truncated ? [`- ${result.truncated}`] : []),
     ...result.failed.map((f) => `- failed #${f.number}: ${f.error}`),

@@ -237,9 +237,9 @@ skill reports the path either way.
 
 ## Configuration
 
-This plugin has no `userConfig`. It adapts to your project through your
-project's own context: its glossary (if any), its architecture decision records,
-and its work-artifact convention. There is nothing to hand-edit in the plugin.
+The plugin options are listed under Options reference below. Beyond them, the
+plugin adapts to your project through your project's own context: its glossary
+(if any), its architecture decision records, and its work-artifact convention.
 The map keys are consumer-side, not plugin-side; see Consumer configuration
 above.
 

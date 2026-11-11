@@ -16,12 +16,14 @@ For each tier, emit the corresponding query:
 - **Recurring tiers (1, 4):** filter the schedule locally:
 
   ```bash
-  SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+  SCHEDULE="<project root>/.github/recurring-schedule.json"
   if [[ -f "$SCHEDULE" ]]; then
     jq --arg today "$(date +%Y-%m-%d)" \
       '[.items[] | select(.next_due != null and .next_due <where_expr> $today)] | sort_by(.<sort-by>)' "$SCHEDULE"
   fi
   ```
+
+  `<project root>` is the literal path [`tracker-seam.md`](../../../reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet and each later one in this file.
 
   where `<where_expr>` is `<=` (current/overdue) or `>` (not-yet-due) per the tier's `where` field.
   A schedule row carries no priority: a recurring candidate's priority is its open recurring
@@ -33,7 +35,7 @@ For each tier, emit the corresponding query:
 
   ```bash
   TRACKER="<plugin-root>/tools/work-item-tracker/work-item-tracker.sh"
-  [[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
+  [[ -f "$TRACKER" ]] || TRACKER="<project root>/tools/work-item-tracker/work-item-tracker.sh"
   "$TRACKER" list-frontier --autonomous
   ```
 
@@ -54,9 +56,9 @@ For tier 1 and tier 4 (recurring candidates), cross-reference against open items
 **Standing-item preconditions (tiers 1 and 4).** After Step 2 has cross-referenced every row in the tier once against existing items (a read only) and ranked them, and before the due-recurring create path and claim, evaluate any `precondition` on the top-ranked candidate's schedule row; when it skips that candidate, evaluate the next one in rank order ([`reference/standing-item-preconditions.md`](../../../reference/standing-item-preconditions.md)):
 
 ```bash
-SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+SCHEDULE="<project root>/.github/recurring-schedule.json"
 EVAL="<plugin-root>/scripts/evaluate-schedule-precondition.sh"
-[[ -f "$EVAL" ]] || EVAL="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/plugins/work-items/scripts/evaluate-schedule-precondition.sh"
+[[ -f "$EVAL" ]] || EVAL="<project root>/plugins/work-items/scripts/evaluate-schedule-precondition.sh"
 "$EVAL" "$SCHEDULE" "<schedule-item-id>"   # add --operator-confirmed when the operator affirmed
 ```
 

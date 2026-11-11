@@ -8,7 +8,8 @@ When invoked with `review`:
 2. Evaluate against the [plan template](plan-template.md). Is anything missing?
 3. Check alignment with the consuming project's conventions (its `CLAUDE.md` and rules)
 4. Assess whether the blast radius was properly evaluated
-5. Present findings: what's strong, what's missing, what needs revision
+5. Within appetite? When the Brief records an appetite, check the plan's scope fits it (SKILL.md Step 2 "Appetite fit")
+6. Present findings: what's strong, what's missing, what needs revision
 
 This is complementary to `/planning:devils-advocate`. Review checks completeness and convention alignment; stress-test checks assumptions and failure modes.
 

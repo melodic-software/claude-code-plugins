@@ -42,7 +42,7 @@ if [[ -n ${FAKE_REFUSE:-} && "$*" =~ $FAKE_REFUSE ]]; then
 fi
 slurp() { [[ -f "$FAKE/$1" ]] && printf '[%s]\n' "$(cat "$FAKE/$1")" || echo '[[]]'; }
 case "$*" in
-  "repo view --json nameWithOwner"*) echo example-org/app ;;
+  "api repos/{owner}/{repo} --jq .full_name") echo "${GH_REPO:-upstream-org/app}" ;;
   "repo view "*) cat "$FAKE/repo" ;;
   "pr list "*) cat "$FAKE/dependents" ;;
   *"/protection/required_status_checks")
@@ -482,6 +482,15 @@ git -C "$WC" fetch -q origin main 2>/dev/null
 reset_fake "$(git -C "$WC" rev-parse HEAD)"
 LABEL="other merge" run "$WC" --pr 7 --repo example-org/merged-other
 expect "base_merged: a merge of another branch" base_merged no
+
+########################################################################
+# No --repo: the repository comes from GH_REPO, not gh's recorded default
+########################################################################
+WC="$WORKDIR/app"
+reset_fake "$SHA"
+GH_REPO=example-org/app LABEL="GH_REPO" run "$WC" --pr 7
+assert_contains "GH_REPO: the pull request is read from GH_REPO's repository" "$(cat "$FAKE/calls")" "api repos/example-org/app/pulls/7"
+expect "GH_REPO: head_sha read" head_sha "$SHA"
 
 ########################################################################
 # Refused reads: every field unknown, nothing fails
