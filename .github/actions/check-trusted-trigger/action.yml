@@ -198,7 +198,7 @@ outputs:
     description: The PR head SHA; empty unless proceed is `true`.
     value: ${{ steps.check.outputs.head-sha }}
   base-sha:
-    description: The PR base SHA; empty unless proceed is `true`.
+    description: The PR base SHA, or for a layer of a native stack into the default branch the stack base's SHA; empty unless proceed is `true`.
     value: ${{ steps.check.outputs.base-sha }}
 
 runs:
