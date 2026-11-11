@@ -9,7 +9,7 @@ metadata:
   cadence: weekly
 ---
 
-**Arguments.** `[--unattended] [root]`. `root` is the tree to audit and reaches the engine as `--root`; it defaults to `$CLAUDE_CONFIG_DIR`, else `~/.claude`. Always pass `--csv` to the engine. `--unattended`, anywhere in the arguments, is the caller declaring that nobody is present: the skill takes it out before reading `root`, never passes it to the engine script (whose parser does not accept it) and never reads it as a root path; under it the suggestion is recorded in the report instead of asked. The bare word `unattended` is neither this flag nor a root: stop and name `--unattended`.
+**Arguments.** `[--unattended] [root]`. `root` is the tree to audit and reaches the engine as `--root`; it defaults to `$CLAUDE_CONFIG_DIR`, else `~/.claude`. Always pass `--csv` to the engine. `--unattended`, anywhere in the arguments, is the caller declaring that nobody is present: the skill takes it out before reading `root`, never passes it to the engine script (whose parser does not accept it) and never reads it as a root path; under it the suggestion is omitted. The bare word `unattended` is neither this flag nor a root: stop and name `--unattended`.
 
 ## Purpose
 
@@ -236,7 +236,7 @@ Relay the sentence below to the user and do not run `/doctor` yourself: it is re
 
 If /doctor is available in your session (gate basis: **Boundary, the bundled `doctor` skill** above), run it for the quick health-and-fix pass this read-only inventory does not perform.
 
-**`--unattended`:** record this suggestion in the report's final section; do not ask.
+**`--unattended`:** omit the suggestion and do not run `/doctor`.
 
 ## Next
 
