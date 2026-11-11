@@ -3,6 +3,14 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.24] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- The audit-performance skill makes no `/doctor` suggestion under `--unattended`, since `/doctor` is reserved for the person to run.
+
 ## [8.12.23] - 2026-11-11
 
 ### Changed
