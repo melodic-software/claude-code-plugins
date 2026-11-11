@@ -71,7 +71,6 @@ notice takes. The rule rests on a negative: we found no file-change or diff surf
 output channels, so a benign reflow and a wrong dictionary rewrite arrive identically.
 
 - **Pointer**: for the hook output fields, see <https://code.claude.com/docs/en/hooks#json-output>.
-- **As of**: 2026-08-10
 - **Recheck trigger**: a Claude Code release that adds a file-change or diff surface to the hook
   output schema, whether a fourth output field or such a payload on one of
   [the three](#the-three-surfaces), which would make this rule's disclosure requirement redundant.
@@ -88,9 +87,7 @@ count, or the disclosure becomes the noise problem it was meant to prevent.
 
 - **Exit-2 blocking paths.** A block already delivers its reason, so repeating it on
   `systemMessage` is redundant, not more observable. Pointer: for where the blocking message goes,
-  see <https://code.claude.com/docs/en/hooks#exit-code-2>. As of: 2026-10-04. Recheck trigger:
-  that section changes what a `PreToolUse` block shows or which text becomes its reason. A
-  blocking hook may still carry a `systemMessage` (see above), but only for content that meets the
+  see <https://code.claude.com/docs/en/hooks#exit-code-2>. A blocking hook may still carry a `systemMessage` (see above), but only for content that meets the
   carve-out below, never for the reason itself.
 - **Legitimate advisory findings *the model can act on*.** A hook that surfaces a finding to Claude
   for it to act on (e.g. a lint result, a suggested fix) belongs on `additionalContext` only. That
@@ -139,17 +136,15 @@ unguarded `hook::emit_skip_notice` call on a broad-matcher hook is a conformance
 notice fires once per session; the model notice fires once per agent, because a non-fork subagent
 does not share the parent's context and would otherwise never see why the hook skipped. A fork
 inherits only what fired before it spawned
-([subagents: how forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents),
-as of 2026-11-01; recheck when that section changes what a fork inherits), so it gets its own
-notice too. Neither renews. The
+([subagents: how forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents)),
+so it gets its own notice too. Neither renews. The
 text says the notice will not repeat this session, never that the skip lasts the session: the hook
 probes again on every call. A plugin README states the cadence as "once per session". A missing
 external binary keeps the same cadence, with the install route in its user notice.
 
 **Important exit-code caveat:** a bare `echo "..." >&2; exit 0` skip is **not a notice**; only
 stdout JSON carries one. Pointer: for where exit-0 stderr goes, see
-<https://code.claude.com/docs/en/hooks#exit-code-0>. As of: 2026-10-04. Recheck trigger: that
-section starts showing exit-0 stderr in the transcript or to the model. `scripts/check-silent-skips.sh` **still treats a bare
+<https://code.claude.com/docs/en/hooks#exit-code-0>. `scripts/check-silent-skips.sh` **still treats a bare
 stderr write as a sanctioned visibility signal as of this doc's introduction.** That is incorrect
 for the exit-0 skip shapes the gate inspects, and the gate does not yet enforce the rule this doc
 states. **Gate correction is pending**, scoped into the same fleet-adoption follow-up PR (against
@@ -201,9 +196,6 @@ Three cap decisions, each with the section that owns the figure.
    this is where the next reader should find the answer.
    - **Pointer**: for the field and its limits, see
      <https://code.claude.com/docs/en/hooks#annotate-a-result-for-the-auto-mode-classifier>.
-   - **As of**: 2026-09-05
-   - **Recheck trigger**: that section changes the field's cap, its sharing rule, or the events
-     that accept it.
 
 ### 3. OTel-style telemetry envelope
 
@@ -221,8 +213,7 @@ for the precise rule and why. The guard mods emit on fewer outcomes, under a
 `OTEL_*` exporter configuration, so it cannot emit real OpenTelemetry. The file-sink envelope is
 the only telemetry surface we give a hook; this is a constraint, not an oversight. Pointer: for
 which subprocesses get no `OTEL_*` variables, see
-<https://code.claude.com/docs/en/monitoring-usage#administrator-configuration>. As of: 2026-10-01.
-Recheck trigger: that section starts passing `OTEL_*` variables to hook subprocesses.
+<https://code.claude.com/docs/en/monitoring-usage#administrator-configuration>.
 
 **Deferred: `prompt_id` correlation.** Carrying the hook input's `prompt_id` in the envelope would
 let external tooling correlate a hook's local envelope with the same turn's real OTel stream.
@@ -308,9 +299,7 @@ carrying the exact text sent, so the debug log holds what the model read.
   agent-actionable content to the user channel).
 - **Not a UI feature, but "no verbose surface exists" is the wrong reason.** Verbose surfaces do
   exist, and the hooks reference names one that carries background-hook output. Pointer: for that
-  surface, see <https://code.claude.com/docs/en/hooks#how-async-hooks-execute>. As of: 2026-08-11.
-  Recheck trigger: that section stops naming a surface that carries background-hook output.
-  Alongside it are the `verbose` and `viewMode` settings, the `--verbose` flag,
+  surface, see <https://code.claude.com/docs/en/hooks#how-async-hooks-execute>. Alongside it are the `verbose` and `viewMode` settings, the `--verbose` flag,
   `CLAUDE_CODE_DEBUG_LOG_LEVEL=verbose` for hook matcher counts, and `--include-hook-events` for
   the stream-json event feed.
 

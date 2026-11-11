@@ -45,7 +45,6 @@ Dropped or held, each needing the user's go-ahead before it runs:
 
 - Correlate with `https://claude.dev/blog/spending-your-effort` (published 2026-09-25, digested
   and dual-verified 2026-09-29). It is never the pointer where a docs section covers the topic.
-  Recheck trigger: the post is revised, or a later claude.dev post on effort supersedes it.
 - Pointer for effort levels in Claude Code: [Model configuration](https://code.claude.com/docs/en/model-config),
   sections named per row, read 2026-10-02.
 - Pointers for hook input fields, prompt caching, skill substitutions and telemetry: the Claude
@@ -57,12 +56,7 @@ Dropped or held, each needing the user's go-ahead before it runs:
 
 **Topic** names the item with an ID other files cite; **Ours** is what this repository now does
 and where; **Pointer** is the docs section a reader checks live, followed by the post section as
-correlate note. Shared for every row:
-
-- **As of**: 2026-10-02
-- **Recheck trigger**: the pointed-to section is renamed or removed, stops covering its topic, or
-  its effort table's rows or columns change; for a row whose topic no docs page covers, a docs page
-  starting to cover it.
+correlate note.
 
 ## Decisions
 

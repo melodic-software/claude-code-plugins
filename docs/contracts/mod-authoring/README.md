@@ -110,9 +110,6 @@ app is a user-scope change and needs the user's approval.
   [events: approve or refuse a tool call before the user is asked](https://code.claude.com/docs/en/plugins/mods/events#approve-or-refuse-a-tool-call-before-the-user-is-asked);
   for `CLAUDE_CODE_PLUGIN_DIRS`, see
   [reference: settings and environment variables](https://code.claude.com/docs/en/plugins/mods/reference#settings-and-environment-variables).
-- **As of**: 2026-10-03, Claude Code 2.1.288. `--bg` sessions and the Desktop app were not probed.
-- **Recheck trigger**: the where-mods-run table changes a row, the minimum version changes, or the
-  settings-hooks section changes where plugin `PreToolUse` hooks run.
 
 The switches that stop installed mods differ from those that stop built-in mods. When a mod passes
 `claude plugin test` and does nothing on a machine with managed settings or a Team or Enterprise
@@ -127,9 +124,6 @@ mod.
   [admin: allow only your organization's mods](https://code.claude.com/docs/en/plugins/mods/admin#allow-only-your-organization%E2%80%99s-mods);
   for the guard's messages, see
   [troubleshoot: messages from the built-in guard](https://code.claude.com/docs/en/plugins/mods/troubleshoot#messages-from-the-built-in-guard).
-- **As of**: 2026-10-25, Claude Code 2.1.310
-- **Recheck trigger**: a linked section moves, or `claude plugin test` starts reporting the
-  organization's mod policy.
 
 ## Packaging in this repository
 
@@ -159,9 +153,6 @@ first: `$.process` is declared CLI only, and `session.start` does not fire again
   `session.start`, see
   [reference: session](https://code.claude.com/docs/en/plugins/mods/reference#session) and
   [interface: load a saved value again after `/clear`](https://code.claude.com/docs/en/plugins/mods/interface#load-a-saved-value-again-after-clear).
-- **As of**: 2026-10-03, Claude Code 2.1.288 (the public types file's first line names 2.1.277)
-- **Recheck trigger**: a pin bump whose types change the `process` doc comment, or the Session table
-  changes its `session.start` row.
 
 ## The `tool.call` context rule
 
@@ -201,6 +192,3 @@ plugin troubleshooting page.
   [events: handle a hook that fails](https://code.claude.com/docs/en/plugins/mods/events#handle-a-hook-that-fails);
   for plugin load problems, see
   [troubleshoot plugins](https://code.claude.com/docs/en/plugins/troubleshooting).
-- **As of**: 2026-10-25, Claude Code 2.1.310
-- **Recheck trigger**: a linked section moves, or the troubleshoot page stops titling its sections
-  with the line texts.

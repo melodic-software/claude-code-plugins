@@ -69,8 +69,7 @@ cache-diagnostics UI; a second real need for API-cost tooling in this marketplac
      [Cache miss reason types](https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics#cache-miss-reason-types);
      no fetched doc covers the Console request-comparison UI the article shows. Checked:
      cache-diagnostics doc, usage-cost-api doc, two web searches. Unchecked: the Console
-     product itself (needs a login). As of: 2026-09-09. Recheck trigger: a docs page starts
-     covering the Console request-comparison UI, or someone checks the Console itself.
+     product itself (needs a login).
   3. **Benchmark numbers are vendor-internal.** The article's benchmark figures are single-pool
      Anthropic measurements with no published artifact to reproduce from, so no figure is
      recorded here. Posture recommended by the research run: adopt mechanisms, cite numbers
@@ -88,9 +87,6 @@ cache-diagnostics UI; a second real need for API-cost tooling in this marketplac
        [Mid-conversation system messages](https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages)
        (on both pages the status and availability notes sit under the page title, in no section
        of their own).
-     - **As of**: 2026-10-01
-     - **Recheck trigger**: any of the three pages changes the feature's release status, its
-       supported platforms, or its supported models.
   5. **Corroboration verdict (fresh-context verifier, 2026-09-09).** Every accepted row is
      HIGH confidence and five live spot checks matched current sources; four rows rest on a
      single evidence pool because no independent second pool exists publicly:

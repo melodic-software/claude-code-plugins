@@ -22,30 +22,19 @@ below. That chapter is not written by this record.
 - **Pointer**: when a `G` row needs the guide's wording or measurement, fetch the anchored section of
   [Prompting Claude Fable 5.2](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2)
   live.
-- **As of**: 2026-11-09 (fetched whole as markdown; upstream publishes no per-page content date)
-- **Recheck trigger**: the guide changes a section a `take` or `adapt` row links, or a guide for a
-  later Fable version is published.
 
 - **Pointer**: when a `W` row needs the release's API or behavior change, fetch the anchored section
   of [What's new in Claude Fable 5.2](https://platform.claude.com/docs/en/models/fable-5-2/whats-new-fable-5-2)
   live. Row W1 cites the text above the first heading, which has no anchor, so it links the page top.
-- **As of**: 2026-11-09 (fetched whole as markdown)
-- **Recheck trigger**: the page adds or drops a breaking change or a behavior difference.
 
 - **Pointer**: when a row needs Claude Code's own handling of Fable 5.2 (alias, default effort,
   fallback), fetch [Model configuration](https://code.claude.com/docs/en/model-config) at the
   anchor the row names, live.
-- **As of**: 2026-11-09, read against Claude Code 2.1.321
-- **Recheck trigger**: the "Work with Fable", "Adjust effort level" or "Automatic model fallback"
-  section changes what it says about Fable 5.2.
 
 - **Pointer**: when an `A` row needs the post's tip, fetch
   <https://x.com/alexalbert__/status/2119869724247077229> live (Alex Albert, Anthropic staff,
   posted 2026-11-09). Each `A` row names the docs section that covers its topic as the main
-  pointer, with the post as the correlate; for row A1, no docs page covers the topic as of
-  2026-11-09.
-- **As of**: 2026-11-09
-- **Recheck trigger**: the post is edited or deleted, or a docs page starts covering the A1 topic.
+  pointer, with the post as the correlate; for row A1, no docs page covers the topic.
 
 Not read: the [Fable 5.2 migration guide](https://platform.claude.com/docs/en/models/fable-5-2/migration-guide)
 and the linked feature pages (preserved thinking, effort, refusals and fallback). No row claims
@@ -154,6 +143,4 @@ terms govern it, and carries no license. This record copies no upstream text and
 it links every section it relies on.
 
 - **Pointer**: when the license of any source is in question, fetch each source page above live;
-  no license statement was found on any of them as of 2026-11-09.
-- **As of**: 2026-11-09
-- **Recheck trigger**: a source gains a license statement or is republished under one.
+  no license statement was found on any of them.

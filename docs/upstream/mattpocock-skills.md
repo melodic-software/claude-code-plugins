@@ -150,9 +150,8 @@ Two `writing-for-agents` strands from lane 5, tracked on events, never on dates.
   invariant", owns the rule, so it no longer depends on upstream and the upstream-release trigger
   is retired.
   - **Pointer**: when a skill must reach another skill, fetch
-    [the skills page](https://code.claude.com/docs/en/skills) live and read what
-    `disable-model-invocation` removes.
-  - **As of**: 2026-08-17
+    [skills: control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill)
+    live and read what `disable-model-invocation` removes.
   - **Recheck trigger**: a repository review or audit finds a new Skill-tool or operative
     slash-command invocation of a `disable-model-invocation: true` target.
 
@@ -181,9 +180,6 @@ Two `writing-for-agents` strands from lane 5, tracked on events, never on dates.
   upstream's in the Claude desktop and web apps.
   - **Pointer**: when a user-invoked skill is missing from the listing on desktop or web, read
     upstream issue [#693](https://github.com/mattpocock/skills/issues/693) live.
-  - **As of**: 2026-10-04 (issue open)
-  - **Recheck trigger**: the issue changes state. The drift script reads trees, not issues, so this
-    trigger is watched by hand.
 - **Codex sidecar policy** (the `allow_implicit_invocation: false` line). Corrected 2026-10-04:
   this matters without a Codex target from us, because Codex discovers `.claude-plugin/plugin.json`
   and its skill parser ignores `disable-model-invocation`, so our user-invoked skills (75 in 62
@@ -303,7 +299,7 @@ Our decisions, owned by `/session-flow:workflow` and the skills it routes to:
 - **Pointer**: for the main flow and on-ramps, read upstream `skills/engineering/ask-matt/SKILL.md`
   at HEAD live; for where wayfinder sits, `docs/engineering/wayfinder.md` at HEAD; for the
   session-start rule, <https://x.com/mattpocockuk/status/2108216899439894574>. No upstream docs
-  page covers the quick-change rule as of 2026-10-10.
+  page covers the quick-change rule.
 - **As of**: 2026-11-03 (`4ae2317`; since `49dd158` these paths changed only by the fresh-context
   line in `wayfinder`)
 - **Recheck trigger**: this page's recheck trigger fires for `ask-matt`, `grill-with-docs` or

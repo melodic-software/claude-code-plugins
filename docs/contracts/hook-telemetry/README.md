@@ -67,9 +67,6 @@ single command.
 - **Pointer**: when checking where Claude Code expands `${VAR}` references in configuration, fetch
   [MCP § Environment variable expansion in `.mcp.json`](https://code.claude.com/docs/en/mcp#environment-variable-expansion-in-mcp-json)
   live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: the docs start describing `${VAR}` expansion in `settings.json` `env`
-  values.
 
 ## The envelope (common fields)
 

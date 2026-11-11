@@ -688,11 +688,9 @@ Catalog these per migration; they are the usual failures when an in-repo skill b
     the path [resolves against the repository's main checkout](https://code.claude.com/docs/en/plugins/org#require-plugins-per-repository),
     so every git worktree shares it, with no separate `marketplace add` step. The marketplace
     registers only in a folder the collaborator trusted: after the trust dialog in an interactive
-    session and, in a `-p` run, only in a folder already trusted (as of 2026-10-30; recheck when
-    that section changes where the path resolves or the trust rule). A cloud session
+    session and, in a `-p` run, only in a folder already trusted. A cloud session
     [doesn't load the plugins the repository's settings turn on](https://code.claude.com/docs/en/plugins/install#install-a-plugin)
-    (Cloud session tab, as of 2026-10-30; recheck when that tab says repository-enabled plugins
-    load).
+    (Cloud session tab).
     See [`docs/cloud-sessions.md`](cloud-sessions.md) "Plugins in sessions on this repo".
 
 ## Per-plugin migration gate

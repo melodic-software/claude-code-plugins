@@ -225,8 +225,7 @@ Stated deviations from the docs and precedent (Q38):
   set and `ANTHROPIC_DEFAULT_SONNET_MODEL` is not, because this repository does not trust the
   `sonnet` alias to name the current Sonnet there. When checking what the alias resolves to on a
   provider, fetch [Model configuration: Model aliases](https://code.claude.com/docs/en/model-config#model-aliases)
-  live (as of 2026-11-03; recheck trigger: that section changes a provider's `sonnet` target or
-  how to pin it).
+  live.
 
 Q42 outcome, from the plan approval gate: **keep**. These 12 rows of
 `plugins/harness-config/skills/audit-instructions/reference/criteria.md` overlap `/doctor

@@ -78,17 +78,16 @@ output.
 
 Mermaid is not one of the system key's values. This convention offers a C4 dialect only once its
 maintainers document the C4 syntax as stable and a reader of the key can emit it. Mermaid meets
-neither condition as of the date below. No reader of the key can emit it: the architecture
+neither condition. No reader of the key can emit it: the architecture
 plugin's resolver fixes the system set to `likec4` and `c4-plantuml`, and neither
 `/planning:design` nor the four C4 map views' render scripts have a mermaid C4 path. Adding the
 value would mean a resolver change and five emitters, which no consumer has asked for. The
 landscape keeps its mermaid default and its `C4Context` output without a focal system, since
-mermaid offers no dedicated landscape type as of the same date. The decision depends on mermaid's
+mermaid offers no dedicated landscape type. The decision depends on mermaid's
 C4 docs, so it carries a record per [`upstream-drift`](../upstream-drift/README.md):
 
 - **Pointer**: when deciding whether mermaid can be a system-key value or whether the landscape's
   mermaid output shape should change, fetch <https://mermaid.js.org/syntax/c4.html> live.
-- **As of**: 2026-11-04
 - **Recheck trigger**: Any of these observable events: the pointer page, or a sibling mermaid C4
   syntax page linked from it, documents the C4 syntax as stable; mermaid documents a dedicated
   landscape diagram type; or an issue in this repository asks for mermaid C4 output from a reader

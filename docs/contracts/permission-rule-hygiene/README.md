@@ -35,8 +35,6 @@ particular session starts in is not something the convention tracks.
 - **Pointer**: when you need to know which mode a given session starts in, fetch
   [permission modes: which mode a session starts in](https://code.claude.com/docs/en/permission-modes#which-mode-a-session-starts-in)
   live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: that section stops starting interactive sessions in auto mode by default.
 - **Source conflict**: the first release that starts sessions in auto mode, between the
   [changelog](https://code.claude.com/docs/en/changelog) (v2.1.284 entry) and that section. Recheck
   trigger: either is revised on that point.
@@ -260,7 +258,7 @@ Two consequences for anyone writing a guarded helper today:
   empty string ([Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)).
 - **Do not assume the operator can pre-approve the helper.** `bash` is not one of the
   [wrappers Claude Code strips](https://code.claude.com/docs/en/permissions#process-wrappers)
-  before matching (as of 2026-10-07; recheck when that section's wrapper list changes), so a rule for a `bash <path> …` command has to name `bash`, making it
+  before matching, so a rule for a `bash <path> …` command has to name `bash`, making it
   interpreter-led, i.e. anti-pattern 1. The documented drop categories clearly reach the
   wildcarded-target form (`Bash(bash <path>*)`); whether they reach a fixed-path form
   (`Bash(bash <fixed-path>:*)`) is not stated, so that shape is an anti-pattern on convention grounds

@@ -37,28 +37,22 @@ Dropped or held:
 - Correlate with
   `https://claude.com/resources/articles/building-agents-when-to-fold-subagents-into-your-main-agent-loop`
   (published 2026-10-22, digested and dual-verified 2026-10-24 after three correction rounds). It
-  is never the pointer where a docs section covers the topic. Recheck trigger: the article is
-  revised, or a later claude.com or claude.dev post on folding subagents supersedes it.
+  is never the pointer where a docs section covers the topic.
 - Pointers: the Claude Code and Claude Platform docs sections named per row, read 2026-10-24.
-- Where no docs page covers a topic, the row says so and links the post as the correlate note, and
-  its recheck trigger includes a docs page starting to cover it.
+- Where no docs page covers a topic, the row says so and links the post as the correlate note.
 
 ## Row schema
 
 **Topic** names the item with an ID other files cite; **Ours** is what this repository does or
 decided and where; **Verdict** is our reading of the article's claim (`documented`,
 `vendor-claimed`, `contradicted`, `watch`, `not ours`); **Pointer** is the docs section a reader
-checks live, followed by any correlate note. Shared for every row:
-
-- **As of**: 2026-10-24
-- **Recheck trigger**: the pointed-to section is renamed or removed or stops covering its topic;
-  for a row whose topic no docs page covers, a docs page starting to cover it.
+checks live, followed by any correlate note.
 
 ## Decisions
 
 | Topic | Ours | Verdict | Pointer |
 |---|---|---|---|
-| F1 single-agent-loop-kit | Not referenced anywhere here and no native-surfaces row: it is a Claude Platform migration kit, not a Claude Code surface. Revisit if Claude Code ships or documents it. | not ours | When a task migrates a Platform agent, read [anthropics/single-agent-loop-kit](https://github.com/anthropics/single-agent-loop-kit) live; no docs page covers the kit as of 2026-10-24 |
+| F1 single-agent-loop-kit | Not referenced anywhere here and no native-surfaces row: it is a Claude Platform migration kit, not a Claude Code surface. Revisit if Claude Code ships or documents it. | not ours | When a task migrates a Platform agent, read [anthropics/single-agent-loop-kit](https://github.com/anthropics/single-agent-loop-kit) live; no docs page covers the kit |
 | F2 skill-creator as a trimming tool | `/skill-quality:check` and `/playbooks:skill-authoring` keep their own scope; we do not treat skill-creator as a tool that trims or deduplicates skills. | vendor-claimed, contradicted | When deciding what skill-creator does, fetch [Run evals with skill-creator](https://code.claude.com/docs/en/skills#run-evals-with-skill-creator) live |
 | F3 `/skill-doctor` as a deletion tool | We read `/skill-doctor` as a report a person acts on, not a tool that removes skills; [native-surfaces.md](../native-surfaces.md) already carries its row. | vendor-claimed, contradicted | When deciding what `/skill-doctor` covers, fetch [Find unused skills](https://code.claude.com/docs/en/skills#find-unused-skills) live |
 | F4 Task budget as a loop stop | Our turn-limit and stop guidance is unchanged; a task budget is not treated as a stop condition, and not as a Claude Code feature. | vendor-claimed, contradicted | When a loop design leans on task budgets, fetch [Task budgets are advisory, not enforced](https://platform.claude.com/docs/en/build-with-claude/task-budgets#task-budgets-are-advisory-not-enforced) and [Feature support](https://platform.claude.com/docs/en/build-with-claude/task-budgets#feature-support) live |

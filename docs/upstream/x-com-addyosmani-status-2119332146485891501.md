@@ -15,13 +15,8 @@ the correlate.
 
 - **Pointer**: when a row's idea needs its upstream wording, fetch the docs section its **Stated**
   link names live; correlate with <https://x.com/addyosmani/status/2119332146485891501> (an X
-  Article has no section anchors, so each row names the article section it comes from). For the
-  rows no docs page covers (management framing, metrics, what not to build), no docs page covers
-  the topic as of 2026-11-09.
-- **As of**: 2026-11-09, read against Claude Code 2.1.319
-- **Recheck trigger**: the post is edited or deleted, the best-practices page's "What you can stop
-  doing" or "Let Claude run without you" section changes, or a Claude Code docs page starts covering
-  a row that now points at the post: re-audit the rows that cite it.
+  Article has no section anchors, so each row names the article section it comes from). No docs
+  page covers the management-framing, metrics and what-not-to-build rows.
 
 ## Attribution table
 
@@ -82,6 +77,4 @@ The post carries no license; X's terms govern the post itself. This record copie
 and takes ideas only. The docs pages it points at are Anthropic's and are linked, not copied.
 
 - **Pointer**: when the post's license is in question, fetch
-  <https://x.com/addyosmani/status/2119332146485891501> live; none found as of 2026-11-09.
-- **As of**: 2026-11-09
-- **Recheck trigger**: the post gains a license statement or is republished under one.
+  <https://x.com/addyosmani/status/2119332146485891501> live; none found.

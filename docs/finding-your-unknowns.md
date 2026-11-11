@@ -224,8 +224,7 @@ Two more from Addy Osmani's "Critical thinking when agents do the work"
 (`https://x.com/addyosmani/status/2117512471930167377`, published 2026-11-03), both
 BEHAVIORAL under ADR 0025; the dispositions are in
 [the upstream record](upstream/x-com-addyosmani-status-2117512471930167377.md). The page
-returned HTTP 402 to an unattended fetch on 2026-11-03, so no snapshot or hash is recorded.
-Recheck trigger: a raw retrieval, which records its date and hash here.
+returned HTTP 402 to an unattended fetch, so no snapshot or hash is recorded.
 
 - **Prediction-first** (delegation, BEHAVIORAL): before handing a non-trivial task to an
   agent, write the answer you expect, then compare it with what comes back. Evidence: the
@@ -246,14 +245,14 @@ participant chose to consult the AI, about half of the faulty ones. The authors 
 setting, a single task and a single exposure as limits, and suggest feedback, aligned incentives
 and uncertainty cues as remedies; neither practice above is tested, and Study 3 gave feedback
 only together with per-question rewards. No journal publication or independent replication was
-found as of 2026-11-09. Recheck trigger: a journal version or a replication appears.
+found.
 
 ## Sources and citation shape
 
 Citations in this doc use: URL, ISO retrieval date, and `sha256:<hex64>` over the raw
 snapshot bytes captured at retrieval. Content drift produces a new citation, never an
 in-place hash edit. Recheck trigger: a re-retrieval whose hash differs from the recorded one.
-No Claude docs page covers this methodology as of 2026-10-01, so the author's posts stay the
+No Claude docs page covers this methodology, so the author's posts stay the
 sources, each read at its link.
 
 - **S1**: "A field guide to Claude Fable 5: Finding your unknowns", Thariq Shihipar,
@@ -270,8 +269,7 @@ sources, each read at its link.
   copy: "Using Claude Code: The unreasonable effectiveness of HTML", Thariq Shihipar, Anthropic
   blog, published 2026-05-20
   (correlate with `https://claude.dev/blog/using-claude-code-the-unreasonable-effectiveness-of-html/`)
-  (read 2026-10-30 through a summarizing fetch, so no hash is recorded). Recheck trigger: a raw
-  retrieval, which records its date and hash here.
+  (read through a summarizing fetch, so no hash is recorded).
 - **S3**: HTML-effectiveness examples index (20 demos, 9 categories, plus the 11-demo
   "Know your unknowns" sub-collection). `https://thariqs.github.io/html-effectiveness`
   (retrieved 2026-08-31,

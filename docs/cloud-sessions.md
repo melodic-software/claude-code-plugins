@@ -285,8 +285,8 @@ from the two together (see
   Code process starts, before SessionStart hook effects land, and is not re-read afterwards; the
   hooks reference's only same-session pickup is
   [`reloadSkills`](https://code.claude.com/docs/en/hooks#reload-skills-that-a-hook-installs), whose
-  section names skill directories and not a plugin install, and whether it reaches one is unprobed
-  (as of 2026-11-04; recheck when that section names plugins). Neither `/plugin`
+  section names skill directories and not a plugin install, and whether it reaches one is unprobed.
+  Neither `/plugin`
   ([terminal-only commands](https://code.claude.com/docs/en/claude-code-on-the-web#manage-context))
   nor `--plugin-dir` exists in cloud sessions to force one. On an
   ephemeral VM this is a chicken-and-egg problem, because every fresh session re-installs after its registry is

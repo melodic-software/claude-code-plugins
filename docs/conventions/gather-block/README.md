@@ -27,8 +27,7 @@ calls, one command per call, where each is screened on its own.
   command-shape check.
   [Errors: command blocked by the worktree isolation checks](https://code.claude.com/docs/en/errors#command-blocked-by-the-worktree-isolation-checks)
   lists the refusal reasons, including which expansions are refused in a command that never names
-  git. **Pointer:** both sections. **As of:** 2026-10-17. **Recheck trigger:** a re-fetch of
-  either section that drops the command-shape check or changes the expansions it names.
+  git. **Pointer:** both sections.
 - [`scripts/check-skill-precompute-compose.sh`](../../../scripts/check-skill-precompute-compose.sh)
   in this repository is the gate that encodes the observed behavior. It refuses a skill whose
   pre-compute block holds a git command together with more than one injection line, which is the

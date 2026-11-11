@@ -39,12 +39,7 @@ plugin. Each row below names the file a decision landed in.
 **Topic** names the item with an ID other files cite; **Ours** is what this repository now does
 and where, or why it changed nothing; **Pointer** is the section to fetch live when re-deriving
 the row. A post section appears only where no docs page covers the topic, as a correlate; `none`
-marks an in-repo decision with no upstream section. Shared for every row:
-
-- **As of**: 2026-10-02
-- **Recheck trigger**: the pointed-to section is renamed or removed, or stops covering its topic;
-  a docs page starts covering a topic whose pointer is the post (move the pointer there); or a
-  later claude.dev post on claude.ai performance.
+marks an in-repo decision with no upstream section.
 
 ## Decisions
 
@@ -91,9 +86,6 @@ marks an in-repo decision with no upstream section. Shared for every row:
   Prompting Claude Opus 5's
   [Task scope and over-verification](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#task-scope-and-over-verification)
   section disagree on Claude's default task scope. The guide wins: rows F22 and F28 follow it.
-  - **As of**: 2026-10-02
-  - **Recheck trigger**: either section changes its scope statement, or the Opus 5.5 prompting
-    guide starts covering task scope.
 
 The delta pass found no other conflict between the post and an official page.
 

@@ -72,8 +72,8 @@ them turns every next over-fire into a committed regression test. A hook is prec
 
    Verification record. Claim: as stated. Basis: the `CLAUDE_PROJECT_DIR` prefix check and temp-tree
    exclusion in `hook::read_file_path` (`lib/hook-utils.sh`, lines 1596-1626), where the git-work-tree test
-   sits only in the branch for an unset project dir, and rule 6's fail-toward-acting clause. As of:
-   2026-09-30. Recheck: a format hook starts rewriting non-project files under a home root.
+   sits only in the branch for an unset project dir, and rule 6's fail-toward-acting clause.
+   Recheck: a format hook starts rewriting non-project files under a home root.
 
 ## The discipline
 
@@ -107,7 +107,6 @@ on that row would drop every Write silently.
 - **Basis:** the dated probe in `plugins/context-budget/README.md` (the paragraph starting "The
   registration carries no `if` filter") and #3680; for permission rules,
   [permissions § What `Read` and `Edit` rules cover](https://code.claude.com/docs/en/permissions#what-read-and-edit-rules-cover).
-- **As of:** 2026-10-29.
 - **Recheck:** a Claude Code release note saying a hook `if` `Edit(...)` rule matches Write tool
   calls. Re-probe before adding an `if` gate to the context-budget row.
 

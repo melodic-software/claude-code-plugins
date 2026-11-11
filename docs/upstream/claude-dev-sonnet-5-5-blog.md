@@ -36,9 +36,7 @@ slice missed.
 **Topic** names the item with an ID other files cite; **Ours** is what this repository now does
 and where; **Pointer** is the docs section a reader checks live. Shared for every row:
 
-- **As of**: 2026-10-01
-- **Recheck trigger**: the pointed-to section is renamed or removed, stops covering its topic, or
-  the next Sonnet release.
+- **Recheck trigger**: the next Sonnet release.
 
 ## Decisions
 
