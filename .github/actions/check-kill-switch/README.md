@@ -21,8 +21,8 @@ With both switches proceeding, the gate makes one GET /rate_limit with `token` a
 pool from the `x-ratelimit-limit`, `-remaining` and `-reset` headers, or from the body's
 `resources.core` when a header is missing. It stops the lane while remaining is under
 `limits.api.github-token.start-gate` of the limit (default 0.1, in
-[`rate-limits.json`](../log-api-budget/rate-limits.json); `pr-pipeline.yaml` overrides it where
-the job's `RESOLVED_CONFIG` names a resolved config) and the reset is still ahead. A read that
+[`rate-limits.json`](../log-api-budget/rate-limits.json); `pr-pipeline.yaml` overrides it only where
+the job's env sets `RESOLVED_CONFIG`, which no workflow does for this gate yet) and the reset is still ahead. A read that
 fails, times out or carries no reading proceeds with a warning; the rate guard's `stop-floor` is
 the backstop. GitHub counts GET /rate_limit against the secondary limit, not the primary one, so
 the gate makes it once, with no retry, and not at all when a switch already stops. Each read
