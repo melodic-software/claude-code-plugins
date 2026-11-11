@@ -3,6 +3,12 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.8] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [1.1.7] - 2026-11-11
 
 ### Changed

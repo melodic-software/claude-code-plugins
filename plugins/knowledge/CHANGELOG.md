@@ -4,6 +4,16 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.4.3] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- **Bump the npm-minor-patch group in /plugins/knowledge/skills/course-digest/extraction with 2 updates** (#15332).
+  - `playwright` 1.64.1→1.65.0
+  - `vitest` 5.0.5→5.1.0
+
 ## [1.4.2] - 2026-11-11
 
 ### Changed

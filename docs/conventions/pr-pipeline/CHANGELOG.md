@@ -1,5 +1,15 @@
 # Changelog for the PR pipeline convention
 
+## [9.20.2] - 2026-11-11
+
+### Changed
+
+- The scan jobs that hold the scan-carrier key (pr-run-activity-read.yml, upstream-apply-changelog.yml, maintenance-tidy-code-upkeep.yml) name their environment as `{ name: pr-pipeline-scan-carrier, deployment: false }`: the job still gets the environment's secret under its main-only branch policy, and GitHub records no deployment. `scripts/check-read-caller-keys.sh` now accepts only that exact form on the read workflow's `scan` job.
+
+### Fixed
+
+- The issue lane's already-done evidence (`done-evidence.mjs`) now counts a merged pull request whose merge commit is on the default branch even when its `base.ref` is another branch: an upper layer of a native stack keeps the lower layer's branch as its base when the stack lands together. Its merge commit must still close the issue.
+
 ## [9.20.1] - 2026-11-11
 
 ### Fixed

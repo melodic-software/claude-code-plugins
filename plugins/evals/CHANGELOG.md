@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.18.4] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [0.18.3] - 2026-11-10
 
 ### Changed
