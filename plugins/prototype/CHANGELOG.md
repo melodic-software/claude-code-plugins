@@ -3,6 +3,12 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.13] - 2026-11-11
+
+### Changed
+
+- `/prototype:explore-directions --unattended` no longer suggests or attempts `/design`, a command only the person can run. It builds the mockup without asking.
+
 ## [0.24.12] - 2026-11-11
 
 ### Changed
