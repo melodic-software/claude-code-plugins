@@ -52,7 +52,6 @@ if hook::gitignored_out_of_scope false "$FILE"; then
 fi
 
 # shellcheck disable=SC2016  # jq programs, not shell expansions
-# shellcheck disable=SC2016  # jq programs, not shell expansions
 hook::jq_fields "$INPUT" '.tool_name' '.session_id' '.agent_id // ""' '.tool_use_id' \
   '.cwd' '.transcript_path' '.tool_response.type? // ""' \
   '.tool_response | objects | has("structuredPatch") | tostring' \
@@ -141,13 +140,14 @@ fi
 # ponytail: patch line numbers go stale if another PostToolUse hook reformats
 # the file before this read; the scan then scopes to shifted blocks.
 SCANNER="${TEST_SCAN_SCANNER:-$HOOK_DIR/../skills/audit/scripts/cant-fail-scan.sh}"
-testing::run_scanner "${TEST_SCAN_TIMEOUT:-8}" "$out_file" --file "$FILE" "${scope[@]}" --blocks --brief
+scan_timeout="${TEST_SCAN_TIMEOUT:-8}"
+testing::run_scanner "$scan_timeout" "$out_file" --file "$FILE" "${scope[@]}" --blocks --brief
 rc=$SCAN_RC
 
 if ((rc != 0)); then
   state_write null
   why="scanner exited $rc"
-  ((rc > 128)) && why="scanner timed out after ${TEST_SCAN_TIMEOUT:-8}s"
+  ((rc > 128)) && why="scanner timed out after ${scan_timeout}s"
   # A config the scanner refuses is the agent's to fix: log the resolver's or
   # loader's own message and name it, at its file and line, in the context.
   cfg_err=""
