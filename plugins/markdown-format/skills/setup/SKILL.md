@@ -176,11 +176,13 @@ repository's own package manager**, resolved in order: lockfile (`pnpm-lock.yaml
 neither signal is present. With no `package.json`, an ambiguous multi-lockfile state, or a lockfile that
 contradicts `packageManager`, stop with manager-specific guidance instead of guessing.
 Never introduce a competing lockfile. The change is stated before running. For a Yarn repository, don't infer the linker. Ask
-the repo's own Yarn: run `yarn config get nodeLinker` in the repo. `pnp` (Berry's default
-when unset) → skip the install and give guidance, because Plug'n'Play generates a loader file,
-not the `node_modules/.bin` shim the hook resolves; install `markdownlint-cli2` on
-`PATH` or switch the linker. `node-modules`/`pnpm`, or Yarn Classic (which has no such
-setting and always materializes `node_modules`) → install. The
+the repo's own Yarn: run `yarn config get nodeLinker` in the repo. `pnp` → skip the install
+and give guidance, because Plug'n'Play generates a loader file, not the `node_modules/.bin`
+shim the hook resolves; install `markdownlint-cli2` on `PATH` or switch the linker.
+`node-modules`/`pnpm`, or Yarn Classic → install. For the setting's values and default, fetch
+[`nodeLinker`](https://yarnpkg.com/configuration/yarnrc#nodeLinker) live (as of 2026-11-10;
+recheck when its default or values change, or a linker other than `pnp` stops writing
+`node_modules/.bin`). The
 verify-after-remediation rule below is the backstop when an install still yields no
 usable shim. After ANY remediation, re-run the
 relevant `check` probe live via Bash (a pre-computed row predates the remediation) and report
