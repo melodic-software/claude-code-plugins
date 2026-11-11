@@ -166,7 +166,8 @@ layer.
 
 Its values:
 
-- `auto`: the `plan-reviewer` agent always; `/planning:devils-advocate` in plan-review mode when
+- `auto`: the `plan-reviewer` agent when Step 3b's blast radius is HIGH or CRITICAL, a trigger
+  matches, or the user asks for a review; `/planning:devils-advocate` in plan-review mode when
   Step 3b's blast radius is MEDIUM or higher or a trigger matches.
 - `reviewer`: the `plan-reviewer` agent only, whatever the blast radius.
 - `devils-advocate`: `/planning:devils-advocate` only, whatever the blast radius.

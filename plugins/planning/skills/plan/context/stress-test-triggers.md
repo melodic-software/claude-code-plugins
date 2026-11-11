@@ -1,6 +1,6 @@
 # Stress-Test Trigger Criteria
 
-When to invoke `/planning:devils-advocate` on a plan under `plan_stress_test`'s `auto`; the other values decide without these criteria (SKILL.md Step 3b). The goal is to catch plans that carry enough risk to warrant systematic adversarial review, without stress-testing every trivial change.
+When to invoke `/planning:devils-advocate` on a plan under `plan_stress_test`'s `auto`, where a matching trigger, or a HIGH or CRITICAL blast radius, also runs the Step 3 `plan-reviewer`; the other values decide without these criteria (SKILL.md Step 3b). The goal is to catch plans that carry enough risk to warrant systematic adversarial review, without stress-testing every trivial change.
 
 ## Always stress-test when ANY of these match
 
