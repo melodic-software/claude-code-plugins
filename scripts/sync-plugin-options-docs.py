@@ -75,7 +75,6 @@ INSTALL_DOCS = "https://code.claude.com/docs/en/plugins/cli-reference#plugin-ins
 SESSION_DOCS = "https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session"
 USER_CONFIG_DOCS = "https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration"
 PLUGIN_CONFIGS_DOCS = "https://code.claude.com/docs/en/settings-reference#pluginconfigs"
-POINTERS_AS_OF = "2026-11-04"
 
 
 def render(plugin: str, marketplace: str, options: dict) -> str:
@@ -168,9 +167,6 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         "- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)",
         "- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)",
         "- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)",
-        "",
-        f"As of {POINTERS_AS_OF}. Recheck trigger: one of these sections moves, or a Claude Code",
-        "release note changes how plugin options are set or stored.",
         "",
         END,
     ]

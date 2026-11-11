@@ -1,0 +1,18 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "paraphrase",
+      "tier": "llm-suspected",
+      "span": { "start_line": 3, "end_line": 9 }
+    }
+  ],
+  "notes": {
+    "shape": "c05's paraphrase with a pointer bullet to the source page added after it. The pointer stores no upstream value and carries no as-of date or trigger.",
+    "carve_outs": "Copy carve-out 2 does NOT apply. A link is never a carve-out: a pointer record needs no stamp only because it restates nothing from its source, and these paragraphs restate the whole page. The pointer's missing stamp is not a finding; the paraphrase beside it is judged by the criteria as if the link were absent. Owned content does not apply, for c05's reason.",
+    "rubric": "C1 and C2 hold as in c05. C3 holds: a bare link names where the facts came from but is not attribution of restated text, and the carve-out it might have reached is closed by the rubric's 'A link is never a carve-out'. C4 holds: replace the paragraphs with the pointer and a reader loses nothing that is not on the other side of it.",
+    "measured": "Same local paragraphs and source as c05, so fingerprint.mjs at k=5 gives containment 0.0, jaccard 0.0, no matched spans.",
+    "tier_reason": "llm-suspected, permanently, as for c05: no lexical evidence is possible for a paraphrase.",
+    "carries": "Pins that removing the stamp requirement from pointer records did not widen copy carve-out 2. A run that declines this case as a conforming record has laundered a paraphrase through a link."
+  }
+}

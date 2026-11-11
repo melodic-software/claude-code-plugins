@@ -1,5 +1,5 @@
 ---
-description: "Skill and agent bodies point at the live upstream source for any volatile specific instead of restating it, recorded as pointer, as-of date and recheck trigger, and name their successor in a `## Next` section; read before editing any skill body"
+description: "Skill and agent bodies point at the live upstream source for any volatile specific instead of restating it, recorded as our decision plus a section-anchored pointer (an as-of date and recheck trigger only on a stored value), and name their successor in a `## Next` section; read before editing any skill body"
 paths:
   - "plugins/*/skills/**"
   - "plugins/*/agents/**"
@@ -15,16 +15,22 @@ error string, schema or benchmark figure. The body states our decision in our ow
 name the topic, never what the page says about it) and records where to read the specific live,
 in the links-only record the
 [upstream-drift convention](../../docs/contracts/upstream-drift/README.md#required-parts)
-defines: pointer to the exact section or issue, as-of date, recheck trigger. A body that needs the specific
-at run time fetches it from the pointer.
+defines: our decision and a pointer to the exact section or issue, with the situation in which to
+fetch it where that helps. A pointer carries no as-of date and no recheck trigger: the link checks
+catch a dead link or moved anchor, and whoever fetches the link reads its current content. A body
+that needs the specific at run time fetches it from the pointer.
+
+A stored upstream value (a recorded default, limit, version gate, price, error string, or probe
+observation, kept in a code constant, data file, table of measured values or observation record)
+keeps an as-of date and a recheck trigger, because the value itself goes stale.
 
 A record never cures a restatement: restated text with an as-of stamp or `Claim/Basis` block
 beside it is still the defect, fixed by deleting the restated value and keeping the pointer. Older
 `Claim/Basis` records in nearby files are not precedent (#5684 converts them). The record is also
 defective when a docs-page pointer lacks the section anchor (an upstream issue or probe needs
 none), a blog post is the pointer where a docs section covers the topic (it goes beside the
-pointer as a "correlate with" note), a probe observation names no probe, or the as-of date or
-trigger is missing.
+pointer as a "correlate with" note), a probe observation names no probe, or a stored value lacks
+its as-of date or trigger.
 
 ## Successor sections
 

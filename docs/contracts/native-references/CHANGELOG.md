@@ -6,6 +6,17 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
+## [3.6.0] - 2026-11-11
+
+Minor: guidance change. No required part of the description phrase, no canonical gate token and no
+enforceability verdict changes.
+
+- **Boundary reference records follow upstream-drift 5.0.0.** A record in a skill's Boundary
+  reference file, a suggest sentence's basis record, and the Boundary section's sixth property now
+  carry our decision and a section-anchored pointer; an as-of date and recheck trigger only where a
+  row keeps a stored value. The table form for a pointer row is `| Decision | Pointer |`. Overlap
+  store rows keep their recheck triggers: they are structured stored values.
+
 ## [3.5.0] - 2026-11-11
 
 Minor: guidance change. No required part of the description phrase, no canonical gate token and no

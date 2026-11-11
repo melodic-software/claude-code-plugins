@@ -140,8 +140,10 @@ the reviewer to confirm the description still names that intent, or to restore t
   missing from the registry warns. `/playbooks:skill-authoring` (`## Metadata`) owns the rule.
 - No history references in the `SKILL.md` body (advisory). A bare `#N` such as `See PR #1234` or
   `TODO(#9)` warns with its line numbers. Code spans, fenced blocks, a cross-repo
-  `owner/repo#N`, link anchors, and any block of lines that carries an as-of date and a recheck
-  trigger (a pointer record) are exempt. Reference files are not checked.
+  `owner/repo#N`, link anchors, a bare `#N` whose block of lines also cites N upstream (as
+  `owner/repo#N` or an `/issues/N` or `/pull/N` URL, the way a pointer record names its upstream
+  bug), and any block that carries an as-of date and a recheck trigger (a stored-value record) are
+  exempt. Reference files are not checked.
   `/playbooks:skill-authoring` (`## History and provenance`) owns the rule.
 - Skill size (advisory). A `description` over the `description_warn` setting (default 419
   characters) or a `SKILL.md` body (the lines after the frontmatter) over 160 lines warns: 419 and
@@ -332,8 +334,5 @@ For a Claude Code release without `plugin configure`, see [Plugin install](https
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
 - [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
-
-As of 2026-11-04. Recheck trigger: one of these sections moves, or a Claude Code
-release note changes how plugin options are set or stored.
 
 <!-- END GENERATED: plugin options -->
