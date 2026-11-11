@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/docs/adr/0003-cache-order-totals-in-redis.md",
+            "content": "# 3. Cache order totals in Redis\n"
+          }
+        }
+      ],
+      "why": "one local record after 0002"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "nothing recorded"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/platform-docs/docs/adr/0003-cache-order-totals-in-redis.md",
+            "content": "# 3. Cache order totals in Redis\n"
+          }
+        }
+      ],
+      "why": "the sibling repository's directory"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/docs/adr/0001-cache-order-totals-in-redis.md",
+            "content": "# 1. Cache order totals in Redis\n"
+          }
+        }
+      ],
+      "why": "numbered from an empty directory, not after the local records"
+    }
+  ]
+}
