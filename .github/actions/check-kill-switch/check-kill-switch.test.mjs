@@ -354,6 +354,10 @@ const GATES = {
     "push-branches": "switch",
     publish: "switch",
   },
+  // The issue lane's budget is read at broker-check's first call (START_CALLS),
+  // the one place label-unblocked reads a budget stop from; admit and pick-slot
+  // check the switches only.
+  "work-resolve-issue.yml": { admit: "switch", "pick-slot": "switch" },
   "work-unblock.yml": { "label-unblocked": "start", "publish-lane-level": "switch", "sync-status": "switch" },
 };
 
@@ -369,21 +373,21 @@ const START_CALLS = {
 };
 
 test("only the issue lane's first-call read-runner calls pass start-gate", () => {
+  const passing = {};
   for (const file of readdirSync(WORKFLOWS).filter((name) => name.endsWith(".yml"))) {
     const lines = readFileSync(path.join(WORKFLOWS, file), "utf8").split("\n");
     const starting = [];
-    let calls = 0;
     let job = null;
     lines.forEach((line, i) => {
       const id = /^ {2}([a-z][a-z0-9-]*):$/.exec(line);
       if (id) job = id[1];
       if (!/^ {4}uses: \.\/\.github\/workflows\/pr-run-activity-read\.yml\b/.test(line)) return;
-      calls += 1;
       const next = lines.findIndex((other, j) => j > i && /^ {2}[a-z]/.test(other));
       if (/^ {6}start-gate: true$/m.test(lines.slice(i, next < 0 ? undefined : next).join("\n"))) starting.push(job);
     });
-    if (calls) assert.deepEqual(starting, START_CALLS[file] ?? [], file);
+    if (starting.length) passing[file] = starting;
   }
+  assert.deepEqual(passing, START_CALLS);
 });
 
 // Each gate step in a workflow: its job and the step's text.
