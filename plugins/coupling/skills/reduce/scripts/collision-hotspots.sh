@@ -141,13 +141,10 @@ while IFS= read -r path; do
     [[ "$base" == $glob ]] && hit=1
   done
   for glob in "${excludes[@]}"; do
-    if [[ "$glob" == */* ]]; then
-      # shellcheck disable=SC2053
-      [[ "$path" == $glob ]] && hit=1
-    else
-      # shellcheck disable=SC2053
-      [[ "$base" == $glob ]] && hit=1
-    fi
+    target="$base"
+    [[ "$glob" == */* ]] && target="$path"
+    # shellcheck disable=SC2053
+    [[ "$target" == $glob ]] && hit=1
   done
   ((hit)) && excluded+="$path"$'\n'
 done < <(jq -r '[.[] | (.files // [])[].path] | unique | .[]' <<<"$listing")
