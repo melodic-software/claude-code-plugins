@@ -104,7 +104,7 @@ const bash = ($: any, agentId?: string) => $.tool.call({ tool: 'Bash', command: 
 const prompt = ($: any, kind = 'sdk', extra: object = {}) =>
   $.prompt.submit({ text: 'go', wait: false, origin: { kind }, ...extra })
 const OPTIONS =
-  "rate-limit-guard: options: continue at the same model, effort and review depth; the user can switch accounts (https://github.com/melodic-software/claude-code-account-rotation); or schedule work for after the reset. Usage never calls for lowering model, effort or review depth; whether to stop or pause is the user's call, or an opted-in loop lane's floor."
+  "rate-limit-guard: options: continue at the same model, effort and review depth; the user can switch accounts (https://github.com/melodic-software/claude-code-account-rotation); or schedule work for after the reset. /usage shows what is using the plan (https://code.claude.com/docs/en/costs#track-your-costs). Usage never calls for lowering model, effort or review depth; whether to stop or pause is the user's call, or an opted-in loop lane's floor."
 // The verdict lines; the options line that follows them is asserted on its own.
 const ownLines = (context: readonly string[] | undefined) => (context ?? []).filter(c => c.startsWith('rate-limit-guard:') && c !== OPTIONS)
 const optionLines = (context: readonly string[] | undefined) => (context ?? []).filter(c => c === OPTIONS)
@@ -449,7 +449,7 @@ test('operator mode: a typed turn holds the line and offers it at turn end with 
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   // Written out once in full, so the offer helper's join is pinned against a literal.
   const offered =
-    "FYI, rate-limit-guard: 5-hour window at or above 95% (96% used), resets at 2026-10-03 21:00 UTC. options: continue at the same model, effort and review depth; the user can switch accounts (https://github.com/melodic-software/claude-code-account-rotation); or schedule work for after the reset. Usage never calls for lowering model, effort or review depth; whether to stop or pause is the user's call, or an opted-in loop lane's floor."
+    "FYI, rate-limit-guard: 5-hour window at or above 95% (96% used), resets at 2026-10-03 21:00 UTC. options: continue at the same model, effort and review depth; the user can switch accounts (https://github.com/melodic-software/claude-code-account-rotation); or schedule work for after the reset. /usage shows what is using the plan (https://code.claude.com/docs/en/costs#track-your-costs). Usage never calls for lowering model, effort or review depth; whether to stop or pause is the user's call, or an opted-in loop lane's floor."
   expect(offer(EDGE_5H)).toBe(offered)
   expect(w.suggested).toEqual([offered])
   for (const surface of ['terminal', 'desktop', 'vscode'] as const) {
