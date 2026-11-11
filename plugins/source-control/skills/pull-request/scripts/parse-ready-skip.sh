@@ -19,7 +19,6 @@ set -uo pipefail
 
 # shellcheck source=pre-ready-steps.sh
 source "$(dirname "${BASH_SOURCE[0]}")/pre-ready-steps.sh"
-STEPS=("${PRE_READY_STEPS[@]}")
 
 die() {
   printf 'parse-ready-skip: %s\n' "$2" >&2
@@ -61,12 +60,12 @@ IFS=, read -r -a items <<<"$skip,"
 ((${#items[@]})) || die 2 "--skip names no step"
 for item in "${items[@]}"; do
   [[ -n "$item" ]] || die 2 "--skip has an empty step name"
-  [[ " ${STEPS[*]} " == *" $item "* ]] || die 2 "unknown step $(printf '%q' "$item"); the steps are ${STEPS[*]}"
+  [[ " ${PRE_READY_STEPS[*]} " == *" $item "* ]] || die 2 "unknown step $(printf '%q' "$item"); the steps are ${PRE_READY_STEPS[*]}"
   [[ "$given" != *" $item "* ]] || die 2 "step $item is given twice"
   given+="$item "
 done
 
 printf 'reason\t%s\n' "$reason"
-for step in "${STEPS[@]}"; do
+for step in "${PRE_READY_STEPS[@]}"; do
   [[ "$given" != *" $step "* ]] || printf 'skip\t%s\n' "$step"
 done
