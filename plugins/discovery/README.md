@@ -139,7 +139,8 @@ committed, the memory root self-ignores. `<memory_dir>` is `.work/` unless your 
 instructions declare another root.
 `/discovery:setup check` reports read-only whether the session can run the dispatch design, prints
 the gate allow rules to paste into `~/.claude/settings.json`, and validates
-`docs/conventions/discovery.yaml`. `/discovery:setup apply` writes that file and nothing else: it
+`docs/conventions/discovery.yaml`. `/discovery:setup apply` writes that file, plus, on an explicit yes, a convention-home region in
+the instruction file and an ignore line in `.gitignore`: it
 validates against the schema first and shows the diff and asks before changing an existing file.
 
 **`explore_output`.** A repository sets it for everyone in `docs/conventions/discovery.yaml`

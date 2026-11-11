@@ -79,26 +79,32 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
    than proven, and say so. A `FINDING` is a gap to report, not a neutral absence. The rules:
    - JS/TS: `jest/valid-expect` (eslint-plugin-jest), `vitest/valid-expect` (`@vitest/eslint-plugin`),
      `playwright/missing-playwright-await` and `playwright/no-focused-test` (eslint-plugin-playwright).
-     Each is in its plugin's recommended config. Verified 2026-09-29 against the plugins' README and
-     rule pages (github.com/jest-community/eslint-plugin-jest, vitest-dev/eslint-plugin-vitest,
-     playwright-community/eslint-plugin-playwright); recheck when a plugin release note moves one of
-     these rules out of its recommended config or renames it.
-   - C#: `xUnit2021` (xunit.analyzers, which the `xunit` 2.3+ and `xunit.v3` packages bring in;
-     `xunit.core` alone does not) and `NUnit2009` (NUnit.Analyzers, a separate package the `nunit`
-     template adds). Verified 2026-09-29 against xunit.net/xunit.analyzers/rules/xUnit2021, the
-     xunit.analyzers README and the NUnit2009 page in nunit/docs; recheck when an xunit or NUnit
-     release note changes how the analyzers are packaged.
-   - Python: ruff `PLR0124`, `PT011` and `F631`. Ruff's default rule set holds `PLR0124` and `F631`
-     but not `PT011`; a `select` replaces the defaults and selectors match by prefix. Verified
-     2026-09-29 against docs.astral.sh/ruff/default-rules and /linter (only part of the default list
-     was read); recheck when a ruff release note changes the default rule set.
+     Which config each sits in is its rule page's to state:
+     [jest/valid-expect](https://github.com/jest-community/eslint-plugin-jest/blob/main/docs/rules/valid-expect.md),
+     [vitest/valid-expect](https://github.com/vitest-dev/eslint-plugin-vitest/blob/main/docs/rules/valid-expect.md),
+     [playwright/missing-playwright-await](https://github.com/playwright-community/eslint-plugin-playwright/blob/main/docs/rules/missing-playwright-await.md),
+     [playwright/no-focused-test](https://github.com/playwright-community/eslint-plugin-playwright/blob/main/docs/rules/no-focused-test.md).
+     As of 2026-11-10; recheck when a plugin release note moves one of these rules out of its
+     recommended config or renames it.
+   - C#: `xUnit2021` (xunit.analyzers, which the check counts as present through an `xunit` or
+     `xunit.v3` reference) and `NUnit2009` (NUnit.Analyzers, which the check requires as its own
+     reference). Packaging: [xUnit2021](https://xunit.net/xunit.analyzers/rules/xUnit2021) and
+     [NUnit2009](https://docs.nunit.org/articles/nunit-analyzers/NUnit2009.html). As of 2026-11-10;
+     recheck when an xunit or NUnit release note changes how the analyzers are packaged.
+   - Python: ruff `PLR0124`, `PT011` and `F631`. The check counts `PLR0124` and `F631` as on with no
+     `select`, `PT011` as off, and a `select` as replacing the defaults with prefix matching
+     (`setup.sh` `ruff_rule`). Pointer: [ruff settings § lint.select](https://docs.astral.sh/ruff/settings/#lint_select)
+     and the rule pages for [PLR0124](https://docs.astral.sh/ruff/rules/comparison-with-itself/),
+     [PT011](https://docs.astral.sh/ruff/rules/pytest-raises-too-broad/) and
+     [F631](https://docs.astral.sh/ruff/rules/assert-tuple/). As of 2026-11-10; recheck when a ruff
+     release note changes the default rule set.
    - Bash, PowerShell and Go: no maintained rule.
 3. **instruction**: the optional line, naming the one file Claude Code loads at the repository
    root: `CLAUDE.md`, else `.claude/CLAUDE.md`, else `CLAUDE.local.md`, else `AGENTS.md`, else `CLAUDE.md` in
-   `${CLAUDE_CONFIG_DIR:-~/.claude}`. `CLAUDE.local.md` always loads. By default Claude Code reads `AGENTS.md`
-   only when no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` exists. Verified 2026-09-30
-   against code.claude.com/docs/en/memory; recheck when a Claude Code release note changes the
-   Project instructions default or which files count. Offer it; do not paste it anywhere.
+   `${CLAUDE_CONFIG_DIR:-~/.claude}` (the script's order). Which files load, and when `AGENTS.md` is
+   read: [memory § When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md).
+   As of 2026-11-10; recheck when a Claude Code release note changes the Project instructions
+   default or which files count. Offer it; do not paste it anywhere.
 4. **hook-entry**: a `none:` line saying test-quality findings come from `/testing:audit`, not a
    per-edit hook, then, when a consumer glob matches no shipped `test-weaken` row, a line naming
    those globs: the audit scans them, `test-weaken` skips them. No settings entry is printed.
