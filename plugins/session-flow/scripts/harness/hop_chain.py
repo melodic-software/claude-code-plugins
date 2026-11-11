@@ -1142,7 +1142,7 @@ def _skipped_rows(run: int, after_hop: int, sessions: int, model: str) -> list[H
     rows = []
     for hop in range(after_hop + 1, sessions + 1):
         row = HopRow(run=run, hop=hop, session_id="", model=model, subtype="not_run")
-        row.checks = {name: "FAIL" for name in CHECKS}
+        row.checks = dict.fromkeys(CHECKS, "FAIL")
         row.reasons.append(f"hop {after_hop} produced no rails text; the chain stopped")
         rows.append(row)
     return rows
@@ -1167,10 +1167,8 @@ def cleanup(session_ids: list[str], projects_root: Path, fixtures: list[Path]) -
         if not session_id:
             continue
         for hit in transcript_paths(session_id, projects_root):
-            try:
+            with contextlib.suppress(OSError):
                 os.remove(hit)
-            except OSError:
-                pass
         for sibling in glob.glob(str(projects_root / "*" / session_id)):
             path = Path(sibling)
             if path.is_dir():
@@ -1274,13 +1272,17 @@ def generate_chain(root: Path, hops: int, shape: int = 2) -> list[Path]:
     return files
 
 
-def cmd_budget(cfg: argparse.Namespace) -> int:
+def make_work_dir(cfg: argparse.Namespace, prefix: str) -> Path:
+    """`--work-dir` when given, else a fresh temp dir named by `prefix`."""
     work_dir = (
-        Path(cfg.work_dir)
-        if cfg.work_dir
-        else Path(tempfile.mkdtemp(prefix="hop-chain-budget-"))
+        Path(cfg.work_dir) if cfg.work_dir else Path(tempfile.mkdtemp(prefix=prefix))
     )
     work_dir.mkdir(parents=True, exist_ok=True)
+    return work_dir
+
+
+def cmd_budget(cfg: argparse.Namespace) -> int:
+    work_dir = make_work_dir(cfg, "hop-chain-budget-")
     root = work_dir / "budget"
     rmtree(root)
     try:
@@ -1427,6 +1429,10 @@ def _record(
     }
 
 
+def _tool_use(block_id: str, name: str, tool_input: dict) -> dict:
+    return {"type": "tool_use", "id": block_id, "name": name, "input": tool_input}
+
+
 def _write_jsonl(path: Path, records: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="\n") as fh:
@@ -1461,132 +1467,56 @@ def make_fake_runner(defects: dict[int, set[str]]):
         handoff_dir = memory / "handoffs"
         previous = sorted(handoff_dir.glob(HANDOFF_GLOB))
 
-        prelude: list[dict] = [
-            _record(call.session_id, now, [{"type": "text", "text": "doing step 1"}])
-        ]
+        prelude: list[dict] = []
+
+        def step(*blocks: dict) -> None:
+            prelude.append(_record(call.session_id, now, list(blocks)))
+
+        def write_block(block_id: str, name: str) -> dict:
+            write = {"file_path": (handoff_dir / name).as_posix(), "content": "free-hand"}
+            return _tool_use(block_id, "Write", write)
+
+        def skill_block(block_id: str) -> dict:
+            return _tool_use(
+                block_id, "Skill", {"skill": SKILL_NAME, "args": f"file hop{call.hop}"}
+            )
+
+        step({"type": "text", "text": "doing step 1"})
         if previous:
             # What a real resume hop does first: the rails text opens
             # `Read @<...>/handoffs/<file>.md`, before any Skill call.
-            prelude.append(
-                _record(
-                    call.session_id,
-                    now,
-                    [
-                        {
-                            "type": "tool_use",
-                            "id": "toolu_read_pred",
-                            "name": "Read",
-                            "input": {"file_path": previous[-1].as_posix()},
-                        }
-                    ],
+            step(
+                _tool_use(
+                    "toolu_read_pred", "Read", {"file_path": previous[-1].as_posix()}
                 )
             )
         handoffs = handoff_dir.as_posix()
         for probe, (tool_name, tool_input) in SHELL_PROBES.items():
-            if probe not in flags:
-                continue
-            prelude.append(
-                _record(
-                    call.session_id,
-                    now,
-                    [
-                        {
-                            "type": "tool_use",
-                            "id": f"toolu_{probe}",
-                            "name": tool_name,
-                            "input": {
-                                k: v.format(handoffs=handoffs)
-                                for k, v in tool_input.items()
-                            },
-                        }
-                    ],
-                )
-            )
+            if probe in flags:
+                filled = {k: v.format(handoffs=handoffs) for k, v in tool_input.items()}
+                step(_tool_use(f"toolu_{probe}", tool_name, filled))
         if "write_before_skill" in flags:
-            prelude.append(
-                _record(
-                    call.session_id,
-                    now,
-                    [
-                        {
-                            "type": "tool_use",
-                            "id": "toolu_early",
-                            "name": "Write",
-                            "input": {
-                                "file_path": (handoff_dir / "early.md").as_posix(),
-                                "content": "free-hand",
-                            },
-                        }
-                    ],
-                )
-            )
+            step(write_block("toolu_early", "early.md"))
         if "write_and_skill_in_one_record" in flags:
             # Both blocks in ONE assistant message, the Write first. The disk fallback
             # cannot catch this: the file is created after this record is logged.
-            prelude.append(
-                _record(
-                    call.session_id,
-                    now,
-                    [
-                        {
-                            "type": "tool_use",
-                            "id": "toolu_same_record_write",
-                            "name": "Write",
-                            "input": {
-                                "file_path": (
-                                    handoff_dir / "same-record.md"
-                                ).as_posix(),
-                                "content": "free-hand",
-                            },
-                        },
-                        {
-                            "type": "tool_use",
-                            "id": "toolu_same_record_skill",
-                            "name": "Skill",
-                            "input": {
-                                "skill": SKILL_NAME,
-                                "args": f"file hop{call.hop}",
-                            },
-                        },
-                    ],
-                )
+            step(
+                write_block("toolu_same_record_write", "same-record.md"),
+                skill_block("toolu_same_record_skill"),
             )
         if "foreign_skill_naming_ours_in_args" in flags:
             # A Skill call to some OTHER skill whose args merely mention this
             # one. Structurally it is not our skill, so it must not satisfy
             # skill_order; only the `skill` key decides.
-            prelude.append(
-                _record(
-                    call.session_id,
-                    now,
-                    [
-                        {
-                            "type": "tool_use",
-                            "id": "toolu_foreign_skill",
-                            "name": "Skill",
-                            "input": {"skill": "other:skill", "args": SKILL_NAME},
-                        }
-                    ],
+            step(
+                _tool_use(
+                    "toolu_foreign_skill",
+                    "Skill",
+                    {"skill": "other:skill", "args": SKILL_NAME},
                 )
             )
         elif "no_skill" not in flags:
-            prelude.append(
-                _record(
-                    call.session_id,
-                    now,
-                    [
-                        {
-                            "type": "tool_use",
-                            "id": "toolu_skill",
-                            "name": "Skill",
-                            "input": {
-                                "skill": SKILL_NAME,
-                                "args": f"file hop{call.hop}",
-                            },
-                        }
-                    ],
-                )
-            )
+            step(skill_block("toolu_skill"))
         # The transcript must exist before `new` runs: `new` resolves it by glob
         # and bakes the path into frontmatter, and --strict-transcript then holds
         # the file to it.
@@ -1631,15 +1561,14 @@ def make_fake_runner(defects: dict[int, set[str]]):
                 call.session_id,
                 after,
                 [
-                    {
-                        "type": "tool_use",
-                        "id": "toolu_write",
-                        "name": "Write",
-                        "input": {
+                    _tool_use(
+                        "toolu_write",
+                        "Write",
+                        {
                             "file_path": path.as_posix(),
                             "content": "handoffs/ save-point",
                         },
-                    }
+                    )
                 ],
             ),
             _record(call.session_id, after, [{"type": "text", "text": resume}]),
@@ -1853,6 +1782,20 @@ def _seed_decoys(projects_root: Path) -> list[Path]:
     return decoys
 
 
+def _cleanup_problem(
+    session_ids: list[str], projects_root: Path, decoys: list[Path]
+) -> str:
+    """Why cleanup missed one of the harness's transcripts or removed a decoy;
+    empty when it did neither."""
+    for session_id in session_ids:
+        if session_id and transcript_paths(session_id, projects_root):
+            return f"cleanup left transcript {session_id}"
+    for decoy in decoys:
+        if not decoy.is_file():
+            return f"cleanup deleted the decoy transcript {decoy.name}"
+    return ""
+
+
 def _run_case(base: argparse.Namespace, case: Case) -> tuple[bool, str]:
     work_dir = Path(tempfile.mkdtemp(prefix=f"hop-chain-dry-{case.name}-"))
     projects_root = work_dir / "projects"
@@ -1913,12 +1856,9 @@ def _run_case(base: argparse.Namespace, case: Case) -> tuple[bool, str]:
                 f"{len(copies)} transcript copies kept, expected {want_copies}",
             )
         # Cleanup deleted exactly the harness's own session ids.
-        for session_id in outcome.session_ids:
-            if session_id and transcript_paths(session_id, projects_root):
-                return False, f"cleanup left transcript {session_id}"
-        for decoy in decoys:
-            if not decoy.is_file():
-                return False, f"cleanup deleted the decoy transcript {decoy.name}"
+        problem = _cleanup_problem(outcome.session_ids, projects_root, decoys)
+        if problem:
+            return False, problem
         if not decoy_dir.is_dir():
             return False, "cleanup deleted the decoy session directory"
         return True, ""
@@ -1981,30 +1921,20 @@ def check_main_level_orchestration() -> tuple[bool, str]:
         session_ids = [row.split("\t")[session_column] for row in rows]
         if len(set(session_ids)) != 8:
             return False, "session ids are not unique per hop"
-        for session_id in session_ids:
-            if transcript_paths(session_id, projects_root):
-                return False, f"cleanup left transcript {session_id}"
-        for decoy in decoys:
-            if not decoy.is_file():
-                return False, f"cleanup deleted the decoy transcript {decoy.name}"
-        return True, ""
+        problem = _cleanup_problem(session_ids, projects_root, decoys)
+        return not problem, problem
     finally:
         rmtree(work_dir)
 
 
 def cmd_dry_run(cfg: argparse.Namespace) -> int:
     failures = 0
-    for case in DRY_RUN_CASES:
-        ok, detail = _run_case(cfg, case)
-        if ok:
-            print(f"PASS: {case.name}")
-        else:
-            failures += 1
-            print(f"FAIL: {case.name}: {detail}")
-    for name, check in (
+    checks = [(case.name, lambda c=case: _run_case(cfg, c)) for case in DRY_RUN_CASES]
+    checks += [
         ("child_env_carries_only_the_allowlist", check_child_env),
         ("main_level_live_orchestration", check_main_level_orchestration),
-    ):
+    ]
+    for name, check in checks:
         ok, detail = check()
         if ok:
             print(f"PASS: {name}")
@@ -2140,12 +2070,7 @@ def main(argv: list[str] | None = None, runner_factory=live_runner) -> int:
         if cfg.projects_root
         else Path.home() / ".claude" / "projects"
     )
-    work_dir = (
-        Path(cfg.work_dir)
-        if cfg.work_dir
-        else Path(tempfile.mkdtemp(prefix="hop-chain-"))
-    )
-    work_dir.mkdir(parents=True, exist_ok=True)
+    work_dir = make_work_dir(cfg, "hop-chain-")
     started = time.time()
     outcome = execute_chain(cfg, runner_factory(cfg), projects_root, work_dir)
     print(f"elapsed: {time.time() - started:.0f}s")
