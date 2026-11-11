@@ -24,7 +24,7 @@
         {
           "tool": "Edit",
           "input": {
-            "file_path": "/opt/p/skills/sync/vendor/SKILL.md",
+            "file_path": "/opt/p/skills/update/vendor/SKILL.md",
             "old_string": "a",
             "new_string": "b"
           }

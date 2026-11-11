@@ -9,7 +9,7 @@ summary	scripts/generate-cheatsheet.mjs (cheat-sheet row text); check-skill.sh c
 cadence	scripts/generate-cheatsheet.mjs (cheat-sheet cadence column)
 upstream-version	vendored skills' scripts/update.sh (/playbooks:boris, /playbooks:skill-authoring, /playwright:playwright); check-skill.sh checks 8 and 9
 upstream-sha	/playwright:playwright scripts/update.sh; check-skill.sh checks 8 and 9
-synced	vendored skills' scripts/update.sh (/context7:lookup, /dometrain:sync, /playbooks:boris, /playbooks:skill-authoring, /playwright:playwright); check-skill.sh checks 9 and 17
+synced	vendored skills' scripts/update.sh (/context7:lookup, /dometrain:update, /playbooks:boris, /playbooks:skill-authoring, /playwright:playwright); check-skill.sh checks 9 and 17
 discipline-batch	/discipline:sweep-all (agent-read batch tier)
 discipline-batch-rank	/discipline:sweep-all (agent-read batch order)
 category	check-skill.sh check 16

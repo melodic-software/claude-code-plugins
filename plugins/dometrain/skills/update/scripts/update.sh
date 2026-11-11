@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
-# dometrain sync — drift check for Dometrain's upstream dometrain-grounding skill content.
+# dometrain update — drift check for Dometrain's upstream dometrain-grounding skill content.
 #
 # Modes:
-#   (default)             report only — diff upstream against the vendored baseline
-#   --refresh-baseline    overwrite the vendor snapshot with current upstream
+#   --check (default)     report only — diff upstream against the vendored baseline
+#   --apply               overwrite the vendor snapshot with current upstream
 #                         (maintainer-only: run in a working clone, never the installed cache)
 #
 # No CLI to install/upgrade here (unlike context7's ctx7 package) — only vendored prose to diff.
 #
 # Exit codes (the shared drift-check contract):
-#   0 — no drift, or --refresh-baseline completed
+#   0 — no drift, or --apply completed
 #   1 — drift: upstream differs from the vendored baseline, or the baseline is missing
 #   2 — unverifiable: curl or diff missing, fetch or write failure, or usage
 
 set -uo pipefail
 
-MODE="${1:-report}"
+MODE="${1:---check}"
 case "$MODE" in
-report | --refresh-baseline) ;;
+--check | --apply) ;;
 *)
-  echo "✖ Unknown mode: $MODE (expected report or --refresh-baseline)" >&2
+  echo "✖ Unknown mode: $MODE (expected --check or --apply)" >&2
   exit 2
   ;;
 esac
@@ -77,12 +77,12 @@ curl_err=$(curl -fsSL "$UPSTREAM_URL" -o "$tmpfile" 2>&1 >/dev/null) || {
 
 if [[ ! -f "$BASELINE" ]]; then
   echo "  ↳ No baseline at $BASELINE"
-  if [[ "$MODE" == "--refresh-baseline" ]]; then
+  if [[ "$MODE" == "--apply" ]]; then
     save_baseline seed
     echo "  ✓ Baseline seeded ($(wc -c <"$BASELINE") bytes)"
     exit 0
   fi
-  echo "  ↳ Drift: no baseline yet (plugin maintainers, in a working clone: run with --refresh-baseline to seed it; see context/update.md)"
+  echo "  ↳ Drift: no baseline yet (plugin maintainers, in a working clone: run with --apply to seed it; see context/update.md)"
   exit 1
 fi
 
@@ -107,10 +107,10 @@ if ((diff_lines > 60)); then
 fi
 echo ""
 
-if [[ "$MODE" == "--refresh-baseline" ]]; then
+if [[ "$MODE" == "--apply" ]]; then
   save_baseline refresh
   echo "  ✓ Baseline refreshed to match current upstream"
-  echo "  ↳ Re-add the attribution comment (see context/update.md) — --refresh-baseline"
+  echo "  ↳ Re-add the attribution comment (see context/update.md) — --apply"
   echo "    overwrites with raw upstream content, which never carries it."
   TODAY=$(date -u +%Y-%m-%d)
   sed -i.bak -E "s/^( *synced: ).*/\1\"$TODAY\"/" "$GROUNDING_SKILL_MD" && rm -f "$GROUNDING_SKILL_MD.bak"
@@ -122,7 +122,7 @@ echo "  ↳ To integrate (plugin maintainers, in a working clone):"
 echo "      1. Review the diff above and decide what to port into:"
 echo "           $GROUNDING_SKILL_MD"
 echo "      2. Preserve this plugin's customizations (see context/update.md)"
-echo "      3. After integration, re-run this script with --refresh-baseline"
+echo "      3. After integration, re-run this script with --apply"
 summary "↳ Drift detected. See sections above." \
-  "Next: review the diff, port relevant changes, then --refresh-baseline."
+  "Next: review the diff, port relevant changes, then --apply."
 exit 1

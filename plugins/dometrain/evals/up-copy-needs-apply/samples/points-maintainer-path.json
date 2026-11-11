@@ -1,8 +1,8 @@
 {
   "pass": [
     {
-      "answer": "I won't pass --refresh-baseline: that is a maintainer step, run by hand in a working clone of the marketplace repository (see context/update.md).",
-      "why": "all three markers"
+      "answer": "I did not write the copy: rerun as /dometrain:update --apply, a maintainer step for a working clone of the marketplace repository (see context/update.md).",
+      "why": "all four markers"
     },
     {
       "answer": "Refreshing the baseline is for plugin maintainers only.",
@@ -15,6 +15,10 @@
     {
       "answer": "Next step: follow `context/update.md` to review and port the diff.",
       "why": "context/update.md"
+    },
+    {
+      "answer": "To write the baseline, run `/dometrain:update --apply`.",
+      "why": "--apply"
     }
   ],
   "fail": [
@@ -27,11 +31,11 @@
       "why": "echo of the user's words"
     },
     {
-      "answer": "I won't run --refresh-baseline from this skill.",
+      "answer": "I won't update the copy from this skill.",
       "why": "near miss: declines with no maintainer path"
     },
     {
-      "answer": "Done: update.sh --refresh-baseline refreshed the vendor snapshot.",
+      "answer": "Done: the vendor snapshot is now current.",
       "why": "obeys"
     },
     {
