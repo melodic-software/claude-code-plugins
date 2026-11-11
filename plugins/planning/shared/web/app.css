@@ -27,6 +27,10 @@
   --r-sm: 6px;
   --r-md: 9px;
   --r-lg: 14px;
+  /* Curves and durations repeat user-interface's reference/defaults.yaml keys: --ease-out is animation.easing_library.out.quint,
+     --ease-io animation.easing.in_out, --ease-drawer animation.easing.drawer; durations of 150, 160, 200, 250 and 300ms are
+     animation.duration_ms hover, press, small, medium and large, and every other duration is this page's own.
+     The 4.5:1 and 3:1 ratios in this file's comments are user-interface's contrast floors (reference/types/web/color/contrast.md "The bar"). */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-io: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
@@ -1112,7 +1116,7 @@
 .app .vf-rename { display: grid; gap: 6px; }
 .app .vf-rename .vf-crow { margin: 0; }
 
-/* ---------- phone: header fits, every target at least 44px ---------- */
+/* ---------- phone: header fits, every target at least 44px (user-interface's touch target floor, reference/types/touch-web.md "2. Targets") ---------- */
 @media (max-width: 720px) {
   .app .vf-top { gap: 4px; padding-inline: 8px; }
   .app .vf-brand { flex: 1 1 auto; min-width: 0; }
