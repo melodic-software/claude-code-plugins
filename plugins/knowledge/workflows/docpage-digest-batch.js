@@ -539,6 +539,7 @@ function decide(ev) {
 }
 
 const shownVerdict = r => (!r ? null : r.saw.fail || r.saw.high ? 'FAIL' : r.code ? r.code : r.value.verdict)
+const gatesPassOf = ev => (ev.pin && ev.pin.value ? ev.pin.value.gatesPass : null)
 
 // SKILL.md "Untrusted-source discipline" gives digest and verification agents its rule verbatim,
 // so RULE is that rule as written there; the spine after it names this workflow's surfaces. Both
@@ -635,7 +636,7 @@ async function digestAndVerify(ev) {
   )))
   const dead = s.units.filter((u, k) => !digests[k] || digests[k].code)
   ev.deadUnits = dead.map(u => u.unit)
-  ev.digests = dead.length ? { code: (digests[s.units.indexOf(dead[0])] || { code: 'digest-no-result' }).code } : { ok: true }
+  ev.digests = dead.length ? { code: (digests.find(d => !d || d.code) || { code: 'digest-no-result' }).code } : { ok: true }
   if (dead.length) return ev
   const models = s.units.map((u, k) => ({ unit: u.unit, mapped: s.mapped || 'none', reported: digests[k].value.model }))
 
@@ -702,7 +703,7 @@ async function close(ev) {
     'and the handoff.' +
     fence('slice', slice) + fence('checklist', at.checklist) + fence('handoff', at.handoff) +
     fence('verification-status', status) +
-    fence('run-record', { gatesPass: ev.pin && ev.pin.value ? ev.pin.value.gatesPass : null, a: shownVerdict(ev.a), b: shownVerdict(ev.b), verifierB: ev.verifierB || null, modelMatch: ev.modelMatch || null, deadUnits: ev.deadUnits || [] }),
+    fence('run-record', { gatesPass: gatesPassOf(ev), a: shownVerdict(ev.a), b: shownVerdict(ev.b), verifierB: ev.verifierB || null, modelMatch: ev.modelMatch || null, deadUnits: ev.deadUnits || [] }),
     { label: ev.label + ':close', phase: 'Close', schema: CLOSE_SCHEMA, ...opts(R.worker) },
     parseClose,
   )
@@ -727,7 +728,7 @@ function result(url, i, ev) {
     verification: d.verification,
     a: shownVerdict(ev.a),
     b: shownVerdict(ev.b),
-    gatesPass: ev.pin && ev.pin.value ? ev.pin.value.gatesPass : null,
+    gatesPass: gatesPassOf(ev),
     deadUnits: ev.deadUnits || [],
     modelMatch: ev.modelMatch || null,
     verifierB: ev.verifierB || null,
