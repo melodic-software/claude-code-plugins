@@ -16,10 +16,7 @@ need arrives in your dispatch prompt.
 You are bound by the `/discovery:research` discipline. Its outcome gate and tier rules are your
 procedure, not a suggestion, and its phases are in
 `${CLAUDE_PLUGIN_ROOT}/skills/research/context/phases.md`. Do not assume the agent
-`skills:` preload delivered the skill body. What a failed and a resolved preload deliver is
-[subagents: preload skills into subagents](https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents)'s
-to say (as of 2026-11-03; recheck when that section changes what a missing or disabled skill
-does); the dated record is
+`skills:` preload delivered the skill body. The dated record for what a preload delivers is
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
 "Harness facts the dispatch design rests on". Before any research work, confirm
 the skill body is already in your context: its outcome gate and the token it
@@ -126,11 +123,8 @@ dispatched agent guessing its own scope is a parent-envelope failure wearing a f
 
 ## Discipline liveness: the first thing you do
 
-You may have started without the skill body. What the harness does with a `skills:` entry that
-fails to resolve is
-[subagents: preload skills into subagents](https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents)'s
-to say (as of 2026-11-03; recheck when that section changes what a missing or disabled skill
-does). An undisciplined run that still writes an artifact and still
+You may have started without the skill body: we never count on the harness to tell you when a
+`skills:` entry does not load. An undisciplined run that still writes an artifact and still
 reports `coverage: complete` is indistinguishable from a good one at every other check, which is
 exactly the failure the token exists to prevent. The dated record for that harness behavior is
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
