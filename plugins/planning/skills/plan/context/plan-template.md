@@ -61,6 +61,8 @@ Process criteria: <criterion ids no behavior shows; omit when none>
 
 ### Approach
 
+Appetite fit: <one line on how the approach fits the Brief's appetite; omit when there is no Brief or the appetite is `not assessed`>
+
 #### Steps
 
 1. <Step with rationale>
@@ -148,6 +150,8 @@ The Brief above it still carries the Goal with its Finish line, and its Acceptan
 ### Behavior
 
 - B1: <one observable claim, one sentence> (AC1)
+
+**Appetite fit**: <one line; omit when there is no Brief or the appetite is `not assessed`>
 
 **Steps**:
 1. <step>

@@ -65,7 +65,8 @@ question, not a logic/state question, and belongs to the other facet: invoke
 ## Does the question need a running model?
 
 Use this skill when acting on a running model would settle the question sooner than reading code or
-arguing about it. In the loans case:
+arguing about it. It raises fidelity (how concrete the artifact is) for a question discussion
+cannot settle; the cheapest artifact that answers the question wins. In the loans case:
 
 | What is in doubt | Loans example | Use this skill? |
 |---|---|---|
