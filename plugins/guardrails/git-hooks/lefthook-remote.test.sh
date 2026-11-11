@@ -159,22 +159,24 @@ if command -v jq >/dev/null 2>&1; then
   git -C "$REPO" config checks.guardrails.reference-verify.declined true
   git -C "$REPO" push -q origin main >/dev/null 2>&1
   expect "pre-push: with the entry declined, the same push passes" 0 "$?"
+  # Both pre-push jobs read the refs on stdin in one push: each must report its own finding, from
+  # a branch with no upstream, where a job without the refs finds no range and passes.
+  git -C "$REPO" config --unset checks.guardrails.reference-verify.declined
+  git -C "$REPO" switch -q main
+  # shellcheck disable=SC2016 # the backticks are Markdown, not a substitution
+  printf 'Run `/alpha:gone`.\n' >"$REPO/LATER.md"
+  printf 'b\ntoken=ghp_%s\n' "$(printf 'B%.0s' {1..36})" >"$REPO/later.md"
+  git -C "$REPO" add LATER.md later.md
+  git -C "$REPO" commit -q --no-verify -m "ABC-5: later" >/dev/null 2>&1
+  git -C "$REPO" switch -q -c side-content
+  err="$(git -C "$REPO" push origin main 2>&1)"
+  expect "pre-push: both stdin jobs block in one push, each from the refs on stdin" "1|yes|yes" \
+    "$?|$(grep -q 'LATER.md:1: skill-reference-verify' <<<"$err" && echo yes)|$(grep -q 'later.md:2: secret or credential pattern' <<<"$err" && echo yes)"
 elif [[ "${GUARDRAILS_REQUIRE_LEFTHOOK:-}" == 1 ]]; then
   expect "jq is on PATH for the pre-push case" yes no
 else
   echo "SKIP: jq not on PATH -- the pre-push case skipped"
 fi
-
-# The second pre-push job gets the refs on stdin too: pushed from a branch with no upstream, so
-# without them it would find no range and pass.
-git -C "$REPO" switch -q main
-printf 'b\ntoken=ghp_%s\n' "$(printf 'B%.0s' {1..36})" >"$REPO/later.md"
-git -C "$REPO" add later.md
-git -C "$REPO" commit -q --no-verify -m "ABC-5: later" >/dev/null 2>&1
-git -C "$REPO" switch -q -c side-content
-err="$(git -C "$REPO" push origin main 2>&1)"
-expect "pre-push: the second stdin job blocks a pushed token, from the refs on stdin" "1|yes" \
-  "$?|$(grep -q 'later.md:2: secret or credential pattern' <<<"$err" && echo yes)"
 
 # The consumer tracks main: a new commit there reaches it on the next lefthook install.
 CACHED="$REPO/.git/info/lefthook-remotes/claude-code-plugins-main/plugins/guardrails/git-hooks/lefthook-remote.yml"
