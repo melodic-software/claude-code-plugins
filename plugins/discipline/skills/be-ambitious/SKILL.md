@@ -159,9 +159,10 @@ when the question is whether finished work is sound.
   is revised or a study of persona prompts in coding agents appears.
 - **Every raised request carries the scope fence.** Topic: vendor guidance
   on overeager scope. Pointer:
-  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#overeagerness>.
-  As of 2026-10-16. Recheck when that section changes, including when the
-  models it names are no longer current.
+  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#say-who-owns-the-code>.
+  As of 2026-11-10. Recheck when that section changes how a scope-limiting
+  rule interacts with broader instructions, or when the model it is written
+  for is no longer current.
 - **A hard target never outranks the specification.** The abort line always
   travels with it. Topic: impossible tasks and specification-first prompts.
   Pointers:

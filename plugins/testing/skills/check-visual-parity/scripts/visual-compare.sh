@@ -270,15 +270,13 @@ has_children() {
 # read_layer <name> <label> <where> <file> [--ref <ref>]: validate one layer
 # and record it when it sets pixels.
 read_layer() {
-  local name="$1" label="$2" where="$3" file="$4" ref=() scalar items pixels reason
+  local name="$1" label="$2" where="$3" file="$4" scalar items pixels reason
   shift 4
-  ref=("$@")
-  local failed="$label: the shared reader could not read this layer; this layer is dropped"
-  scalar="$(pcv "$where" "${ref[@]}" "$file" pixel_tolerance)" ||
-    {
-      warn "$label: does not parse as YAML; this layer is dropped"
-      return
-    }
+  local ref=("$@") failed="$label: the shared reader could not read this layer; this layer is dropped"
+  scalar="$(pcv "$where" "${ref[@]}" "$file" pixel_tolerance)" || {
+    warn "$label: does not parse as YAML; this layer is dropped"
+    return
+  }
   items="$(pcv "$where" "${ref[@]}" --list "$file" pixel_tolerance)" || {
     warn "$failed"
     return
@@ -299,6 +297,16 @@ read_layer() {
     return 0
   fi
   add_layer "$name" "$label" "pixel_tolerance.pixels" "$pixels" "$reason"
+}
+
+# read_tree_layer <name> <file> <repo>: read_layer for a working-tree file,
+# skipped when it, or a directory above it inside <repo>, is a symlink.
+read_tree_layer() {
+  if under_link "$2" "$3"; then
+    warn "skipping a layer that is a symlink or under a symlinked directory: $2"
+  elif [[ -f "$2" ]]; then
+    read_layer "$1" "$2" "$3" "$2"
+  fi
 }
 
 # add_layer <name> <label> <key> <pixels> <reason>
@@ -363,18 +371,9 @@ cmd_config() {
     fi
   else
     team_name="team (working tree, no origin)"
-    if under_link "$repo/$file" "$repo"; then
-      warn "skipping a layer that is a symlink or under a symlinked directory: $repo/$file"
-    elif [[ -f "$repo/$file" ]]; then
-      read_layer team "$repo/$file" "$repo" "$repo/$file"
-    fi
+    read_tree_layer team "$repo/$file" "$repo"
   fi
-  file="$repo/.claude/testing.local.yaml"
-  if under_link "$file" "$repo"; then
-    warn "skipping a layer that is a symlink or under a symlinked directory: $file"
-  elif [[ -f "$file" ]]; then
-    read_layer personal-override "$file" "$repo" "$file"
-  fi
+  read_tree_layer personal-override "$repo/.claude/testing.local.yaml" "$repo"
   file="${HOME:-}/.claude/testing.yaml"
   [[ -z "${HOME:-}" || ! -f "$file" ]] || read_layer user-global "$file" "$repo" "$file"
   # An unrendered ${user_config.pixel_tolerance}, or an empty one, is unset.

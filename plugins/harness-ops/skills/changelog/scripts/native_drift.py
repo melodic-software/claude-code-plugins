@@ -58,6 +58,7 @@ LANE_CLASS = {
     "bundled_workflows": "bundled-workflow",
     "plugin_backed": "plugin-backed-builtin",
 }
+CLASS_LANE = {klass: lane for lane, klass in LANE_CLASS.items()}
 MARKERS = ("hidden", "gated", "model-invocation-disabled")
 VERSION_DRIFT = re.compile(r"^cli (\S+) differs from the last validated build (\S+)")
 RENAME_MIN_SIMILARITY = 0.6
@@ -279,6 +280,7 @@ def summarize(inventory: Any, detect: Any) -> dict[str, Any]:
         if isinstance(inventory.get("integrity"), dict)
         else {}
     )
+    plugin_backed = inventory.get("plugin_backed") or {}
     surfaces: dict[str, dict[str, Any]] = {}
     for lane, klass in LANE_CLASS.items():
         payload = inventory.get(lane)
@@ -298,7 +300,7 @@ def summarize(inventory: Any, detect: Any) -> dict[str, Any]:
             surfaces[lane] = {
                 n: surface_record(klass, registrations(e))
                 for n, e in payload.items()
-                if n not in (inventory.get("plugin_backed") or {})
+                if n not in plugin_backed
             }
     docs = inventory.get("docs_crosscheck")
     docs_block = None
@@ -313,15 +315,15 @@ def summarize(inventory: Any, detect: Any) -> dict[str, Any]:
     candidates: list[str] | None = None
     detect_block = None
     if isinstance(detect, dict):
-        candidates = []
-        threshold = (detect.get("discovery") or {}).get("threshold")
         detect_block = {
             "status": (detect.get("integrity") or {}).get("status"),
-            "threshold": threshold,
+            "threshold": (detect.get("discovery") or {}).get("threshold"),
         }
-        for c in detect.get("candidates") or []:
-            if isinstance(c, dict):
-                candidates.append(candidate_key(c))
+        candidates = [
+            candidate_key(c)
+            for c in detect.get("candidates") or []
+            if isinstance(c, dict)
+        ]
     lanes = integrity.get("lanes") if isinstance(integrity.get("lanes"), dict) else {}
     undetermined = integrity.get("undetermined")
     unresolved = (
@@ -424,17 +426,8 @@ def diff_surfaces(
         return out
 
     before, after = flat(prev), flat(cur)
-    changes: dict[str, list[dict[str, Any]]] = {
-        k: []
-        for k in (
-            "added",
-            "removed",
-            "renamed",
-            "reclassified",
-            "invocability",
-            "markers",
-        )
-    }
+    kinds = ("added", "removed", "renamed", "reclassified", "invocability", "markers")
+    changes: dict[str, list[dict[str, Any]]] = {k: [] for k in kinds}
     for name in sorted(before.keys() & after.keys()):
         (lane_a, a), (lane_b, b) = before[name], after[name]
         if lane_a != lane_b:
@@ -531,7 +524,7 @@ def evaluate_row(
     native = row.get("native") or {}
     name, klass = native.get("name"), native.get("class")
     lanes = cur.get("integrity", {}).get("lanes") or {}
-    home = {c: lane for lane, c in LANE_CLASS.items()}.get(klass)
+    home = CLASS_LANE.get(klass)
     if home is None or lanes.get(home) == "broken":
         return None
     rec = find(cur, name)

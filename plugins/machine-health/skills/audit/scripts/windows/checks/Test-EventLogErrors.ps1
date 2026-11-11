@@ -81,8 +81,7 @@ $CheckBody = {
     }
 
     $bugCheckEvents = @($signalEvents | Where-Object {
-            $_.ProviderName -eq 'Microsoft-Windows-WER-SystemErrorReporting' -or
-            $_.ProviderName -eq 'Microsoft-Windows-Kernel-BugCheck' -or
+            $_.ProviderName -in 'Microsoft-Windows-WER-SystemErrorReporting', 'Microsoft-Windows-Kernel-BugCheck' -or
             ($_.ProviderName -eq 'Microsoft-Windows-Kernel-Power' -and $_.Id -eq 41)
         })
 
@@ -100,8 +99,8 @@ $CheckBody = {
             [pscustomobject]@{
                 provider_and_id = $_.Name
                 count           = $_.Count
-                first_seen      = if ($first) { $first.ToString('o') } else { $null }
-                last_seen       = if ($last) { $last.ToString('o') } else { $null }
+                first_seen      = $first ? $first.ToString('o') : $null
+                last_seen       = $last ? $last.ToString('o') : $null
             }
         }
 

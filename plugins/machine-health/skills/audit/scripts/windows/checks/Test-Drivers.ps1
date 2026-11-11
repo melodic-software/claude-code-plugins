@@ -116,14 +116,11 @@ function Invoke-DriversCheck {
             }
         }
         $ciEvents = @($ciEvents | Where-Object { $_.TimeCreated -ge $ciCutoff })
-        $platformVersion = $null
-        if ($ciEvents.Count -gt 0) { $platformVersion = Get-ActiveDefenderPlatformVersion }
-        $platformEventCount = @($ciEvents | Where-Object {
+        $platformVersion = $ciEvents.Count -gt 0 ? (Get-ActiveDefenderPlatformVersion) : $null
+        $platformEvents, $ciEvents = $ciEvents.Where({
                 Test-DefenderPlatformEvent -EventRecord $_ -PlatformVersion $platformVersion
-            }).Count
-        $ciEvents = @($ciEvents | Where-Object {
-                -not (Test-DefenderPlatformEvent -EventRecord $_ -PlatformVersion $platformVersion)
-            })
+            }, 'Split')
+        $platformEventCount = $platformEvents.Count
         $ciNewest = $ciEvents | Sort-Object TimeCreated -Descending | Select-Object -First 1
 
         # Age signal: stays INFO only. Many OEM drivers are old-but-correct.
@@ -191,27 +188,28 @@ function Invoke-DriversCheck {
         # Severity rubric: pnputil problem devices + pending driver updates upgrade
         # severity even past the existing signing + age rules. One run's CodeIntegrity
         # reading caps at WARN; CRIT needs the repeat Invoke-TrendAnalysis checks.
+        $hasPendingUpdates = $null -ne $pendingDriverUpdates -and $pendingDriverUpdates.Count -gt 0
         $severity = 'OK'
         if ($ciEvents.Count -gt 0 -or $unsignedInStore.Count -gt 0 -or $problemDevices.Count -gt 0) {
             $severity = 'WARN'
-        } elseif (($null -ne $pendingDriverUpdates -and $pendingDriverUpdates.Count -gt 0) -or
-            $oldSignedCount -gt 0) {
+        } elseif ($hasPendingUpdates -or $oldSignedCount -gt 0) {
             $severity = 'INFO'
         }
 
-        $summaryParts = [System.Collections.Generic.List[string]]::new()
-        $summaryParts.Add("$($drivers.Count) drivers")
-        $summaryParts.Add("$($unsignedInStore.Count) unsigned in store")
         $ciPart = "$($ciEvents.Count) CodeIntegrity event(s) in 7d"
         if ($platformEventCount -gt 0) {
             $ciPart += " ($platformEventCount under the active Defender platform folder excluded)"
         }
-        $summaryParts.Add($ciPart)
-        $summaryParts.Add("$oldSignedCount signed >3yr old")
+        $summaryParts = [System.Collections.Generic.List[string]]@(
+            "$($drivers.Count) drivers"
+            "$($unsignedInStore.Count) unsigned in store"
+            $ciPart
+            "$oldSignedCount signed >3yr old"
+        )
         if ($problemDevices.Count -gt 0) {
             $summaryParts.Add("$($problemDevices.Count) device(s) with problem codes")
         }
-        if ($null -ne $pendingDriverUpdates -and $pendingDriverUpdates.Count -gt 0) {
+        if ($hasPendingUpdates) {
             $summaryParts.Add("$($pendingDriverUpdates.Count) driver update(s) pending")
         }
         if ($vendorClis.Count -gt 0) {

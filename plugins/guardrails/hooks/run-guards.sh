@@ -587,25 +587,32 @@ run_guards::counted_text() { # <command> -> _rg_counted
   [[ $m =~ $re_reparse || ${m//\\/} =~ $re_reparse || $m =~ $re_dot ]] || _rg_counted=$out$rest
 }
 
-if ((RUN_GUARDS_MAX_SUBST && RUN_GUARDS_STDIN_RC == 0)); then
+# The command both caps read: an unprimed payload is counted and measured
+# whole, which no command inside it can exceed.
+RUN_GUARDS_OVERLONG=0
+if ((RUN_GUARDS_STDIN_RC == 0 && (RUN_GUARDS_MAX_SUBST || RUN_GUARDS_MAX_CMD))); then
   if ((RUN_GUARDS_PRIMED)); then
     _rg_text="${RUN_GUARDS_FIELD['.tool_input.command']-}"
   else
     _rg_text=$RUN_GUARDS_INPUT
   fi
+  # Over-length (AGGREGATION above). Measured in this shell's locale, as each
+  # guard measures its own ${#COMMAND}.
+  ((RUN_GUARDS_MAX_CMD && ${#_rg_text} > RUN_GUARDS_MAX_CMD)) && RUN_GUARDS_OVERLONG=1
+fi
+
+if ((RUN_GUARDS_MAX_SUBST && RUN_GUARDS_STDIN_RC == 0)); then
   _rg_data=""
   run_guards::count_subst "$_rg_text"
   # The quote-aware recount runs only for a Bash command already past the cap
   # that holds a single quote or a heredoc, and not for one past
   # --max-command-len, which the guards refuse unread.
-  if ((_rg_subst > RUN_GUARDS_MAX_SUBST && RUN_GUARDS_PRIMED)) &&
-    [[ "${RUN_GUARDS_FIELD['.tool_name']-}" == Bash && ($_rg_text == *"'"* || $_rg_text == *'<<'*) ]] &&
-    ! ((RUN_GUARDS_MAX_CMD && ${#_rg_text} > RUN_GUARDS_MAX_CMD)); then
+  if ((_rg_subst > RUN_GUARDS_MAX_SUBST && RUN_GUARDS_PRIMED && !RUN_GUARDS_OVERLONG)) &&
+    [[ "${RUN_GUARDS_FIELD['.tool_name']-}" == Bash && ($_rg_text == *"'"* || $_rg_text == *'<<'*) ]]; then
     run_guards::counted_text "$_rg_text"
     run_guards::count_subst "$_rg_counted"
     unset _rg_counted
   fi
-  unset _rg_text
   unset -f run_guards::count_subst run_guards::counted_text
   if ((_rg_subst > RUN_GUARDS_MAX_SUBST)); then
     echo "BLOCKED: $_rg_subst command or process substitutions, over the $RUN_GUARDS_MAX_SUBST the guards can check in time. Split the command, or run the work from a script file." >&2
@@ -618,19 +625,7 @@ if ((RUN_GUARDS_MAX_SUBST && RUN_GUARDS_STDIN_RC == 0)); then
   fi
   unset _rg_subst _rg_data
 fi
-
-# Over-length (AGGREGATION above). Measured in this shell's locale, as each
-# guard measures its own ${#COMMAND}.
-RUN_GUARDS_OVERLONG=0
-if ((RUN_GUARDS_MAX_CMD && RUN_GUARDS_STDIN_RC == 0)); then
-  if ((RUN_GUARDS_PRIMED)); then
-    _rg_cmd="${RUN_GUARDS_FIELD['.tool_input.command']-}"
-    ((${#_rg_cmd} > RUN_GUARDS_MAX_CMD)) && RUN_GUARDS_OVERLONG=1
-    unset _rg_cmd
-  elif ((${#RUN_GUARDS_INPUT} > RUN_GUARDS_MAX_CMD)); then
-    RUN_GUARDS_OVERLONG=1
-  fi
-fi
+unset _rg_text
 
 # The cache in front of the library's extractor. The miss path is the
 # library's own function under its second name, so nothing is copied here.
@@ -947,10 +942,16 @@ run_guards::record() {
     local __rg_t1=$EPOCHREALTIME
     printf 'run-guards: %5d ms rc=%d %s\n' "$(((${__rg_t1/./} - ${RUN_GUARDS_T0/./}) / 1000))" "$__rg_rc" "${__rg_path##*/}" >&2
   fi
-  if ((__rg_rc == 2)); then
+  run_guards::fold_rc "$__rg_rc"
+}
+
+# run_guards::fold_rc <rc>: fold one status into RC (AGGREGATION above).
+run_guards::fold_rc() {
+  local __rg_v="$1"
+  if ((__rg_v == 2)); then
     RC=2
-  elif ((__rg_rc != 0 && RC != 2 && __rg_rc > RC)); then
-    RC=$__rg_rc
+  elif ((__rg_v != 0 && RC != 2 && __rg_v > RC)); then
+    RC=$__rg_v
   fi
 }
 
@@ -980,10 +981,9 @@ run_guards::guard_done() {
 # Never returns. A guard that ends through `exit` has been unwound back to the
 # `source` below (see `exit`), so every guard starts on this frame's stack.
 run_guards::run_from() {
-  local __rg_i __rg_rc
+  local __rg_i __rg_rc __rg_path
   for ((__rg_i = $1; __rg_i < ${#GUARDS[@]}; __rg_i++)); do
     RUN_GUARDS_CUR=$__rg_i
-    local __rg_path
     case "${GUARDS[__rg_i]}" in
     */*) __rg_path="${GUARDS[__rg_i]}" ;;
     *) __rg_path="$HOOK_DIR/${GUARDS[__rg_i]}" ;;
@@ -1065,12 +1065,7 @@ run_guards::run_rest() {
     OUTS+=("$__rg_doc")
   done
   if [[ "$__rg_rest" =~ ^RC=([0-9]+)$ ]]; then
-    __rg_doc=${BASH_REMATCH[1]}
-    if ((__rg_doc == 2)); then
-      RC=2
-    elif ((__rg_doc != 0 && RC != 2 && __rg_doc > RC)); then
-      RC=$__rg_doc
-    fi
+    run_guards::fold_rc "${BASH_REMATCH[1]}"
   else
     echo "BLOCKED: guardrails could not finish checking this call: the guards after ${GUARDS[$1 - 1]##*/} reported no verdict. Split the command into simpler steps." >&2
     RC=2

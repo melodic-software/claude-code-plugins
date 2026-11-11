@@ -33,7 +33,7 @@ function mask_js(s,    out, i, c, c2, n, inclass, j, w) {
     if (S_bc) { if (c2 == "*/") { S_bc = 0; out = out "  "; i += 2 } else { out = out " "; i++ }; continue }
     if (S_tpl) {
       if (c == "\\") { out = out "  "; i += 2; continue }
-      if (c == "`") { S_tpl = 0; out = out " "; i++; last_sig = "`"; continue }
+      if (c == "`") { S_tpl = 0; last_sig = c }
       out = out " "; i++; continue
     }
     if (S_str) {

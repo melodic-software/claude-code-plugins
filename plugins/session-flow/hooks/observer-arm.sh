@@ -41,17 +41,16 @@ INPUT="$(cat)"
 # absence on demand, and SessionStart output would fire this notice every start.
 command -v jq >/dev/null 2>&1 || exit 0
 
-SOURCE="$(printf '%s' "$INPUT" | jq -r '.source // ""' 2>/dev/null)"
-case "$SOURCE" in
+input_field() { printf '%s' "$INPUT" | jq -r ".$1 // \"\"" 2>/dev/null; }
+
+case "$(input_field source)" in
 startup | resume) ;;
 *) exit 0 ;;
 esac
+[[ -z "$(input_field agent_type)" ]] || exit 0
 
-AGENT_TYPE="$(printf '%s' "$INPUT" | jq -r '.agent_type // ""' 2>/dev/null)"
-[[ -z "$AGENT_TYPE" ]] || exit 0
-
-TRANSCRIPT="$(printf '%s' "$INPUT" | jq -r '.transcript_path // ""' 2>/dev/null)"
-SESSION_ID="$(printf '%s' "$INPUT" | jq -r '.session_id // ""' 2>/dev/null)"
+TRANSCRIPT="$(input_field transcript_path)"
+SESSION_ID="$(input_field session_id)"
 [[ -n "$TRANSCRIPT" && -n "$SESSION_ID" ]] || exit 0
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -61,18 +60,10 @@ PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # in-session agent -- so a consumer relying on a prose-documented root should use the
 # manual `arm` (which resolves it in-session). Anchor the root to the project dir so
 # the detached observer (which will not share this cwd) resolves it.
-MEMORY_DIR="${CLAUDE_PROJECT_DIR:-$PWD}/.work"
-LEDGER_DIR="$MEMORY_DIR/running-retros"
+LEDGER_DIR="${CLAUDE_PROJECT_DIR:-$PWD}/.work/running-retros"
 
 # Transient observations are machine-local plugin state, never the consumer repo.
 WORK_DIR="${CLAUDE_PLUGIN_DATA:-${TEMP:-${TMPDIR:-/tmp}}}/session-flow-observer"
-
-# Empty model or effort = observer.py reads the plugin.json userConfig default.
-MODEL="${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL:-}"
-EFFORT="${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_EFFORT:-}"
-IDLE="${CLAUDE_PLUGIN_OPTION_OBSERVER_IDLE_SECONDS:-900}"
-POLL="${CLAUDE_PLUGIN_OPTION_OBSERVER_POLL_SECONDS:-5}"
-MAX="${CLAUDE_PLUGIN_OPTION_OBSERVER_MAX_SECONDS:-86400}"
 
 # shellcheck source=../lib/python-probe.sh
 source "$PLUGIN_ROOT/lib/python-probe.sh"
@@ -84,9 +75,14 @@ python_probe::floor_interpreter_to PY
 ARM="$PLUGIN_ROOT/skills/running-retro/scripts/arm_observer.py"
 [[ -f "$ARM" ]] || exit 0
 
+# An empty model or effort makes observer.py read the plugin.json userConfig default.
 args=(--transcript "$TRANSCRIPT" --work-dir "$WORK_DIR" --ledger-dir "$LEDGER_DIR"
-  --session-id "$SESSION_ID" --plugin-root "$PLUGIN_ROOT" --model "$MODEL" --effort "$EFFORT"
-  --idle-seconds "$IDLE" --poll-seconds "$POLL" --max-seconds "$MAX")
+  --session-id "$SESSION_ID" --plugin-root "$PLUGIN_ROOT"
+  --model "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL:-}"
+  --effort "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_EFFORT:-}"
+  --idle-seconds "${CLAUDE_PLUGIN_OPTION_OBSERVER_IDLE_SECONDS:-900}"
+  --poll-seconds "${CLAUDE_PLUGIN_OPTION_OBSERVER_POLL_SECONDS:-5}"
+  --max-seconds "${CLAUDE_PLUGIN_OPTION_OBSERVER_MAX_SECONDS:-86400}")
 [[ "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED:-true}" == "true" ]] && args+=(--analysis)
 [[ "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_BARE:-false}" == "true" ]] && args+=(--bare)
 

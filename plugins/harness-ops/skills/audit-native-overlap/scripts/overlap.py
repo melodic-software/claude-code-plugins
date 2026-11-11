@@ -1321,18 +1321,15 @@ def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
 
 def _body_has_native_step(body: str, name: str) -> bool:
     """True when the body has `## Native step: <name> (<class>)` for this surface."""
-    for match in NATIVE_STEP_HEADING_RE.finditer(body):
-        if match.group(1).strip() == name:
-            return True
-    return False
+    return any(
+        match.group(1).strip() == name
+        for match in NATIVE_STEP_HEADING_RE.finditer(body)
+    )
 
 
 def _body_has_suggest_sentence(body: str, name: str) -> bool:
     """True when the body has the suggest sentence shape for this surface."""
-    for match in SUGGEST_SHAPE_RE.finditer(body):
-        if match.group(1) == name:
-            return True
-    return False
+    return any(match.group(1) == name for match in SUGGEST_SHAPE_RE.finditer(body))
 
 
 def _presence_descriptions(plugins_dir: Path) -> list[tuple[str, str]]:
@@ -1397,6 +1394,13 @@ def check_presence_mentions(repo: Path) -> list[str]:
 # ---------------------------------------------------------------------------
 # Subcommands
 # ---------------------------------------------------------------------------
+
+
+def _failed(problems: list[str]) -> bool:
+    """Print each problem as an error; True when there was any."""
+    for problem in problems:
+        _fail(problem)
+    return bool(problems)
 
 
 def build_native_index(
@@ -1528,10 +1532,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
     if not isinstance(pairs_data, dict) or pairs_data.get("schema") != PAIRS_SCHEMA:
         _fail(f"canonical-pairs `schema` must be {PAIRS_SCHEMA}")
         return 1
-    pair_problems = validate_pairs(pairs_data)
-    if pair_problems:
-        for problem in pair_problems:
-            _fail(problem)
+    if _failed(validate_pairs(pairs_data)):
         return 1
 
     # A malformed integrity block reads as an empty one: every field below then
@@ -1553,6 +1554,9 @@ def cmd_detect(args: argparse.Namespace) -> int:
         entry = lanes.get(lane)
         return entry if isinstance(entry, dict) else None
 
+    def lane_broken(lane: str) -> bool:
+        return (lane_state(lane) or {}).get("status") == "broken"
+
     components = scan_components(repo)
     known_skills = set(components["skills"])
     known_agents = set(components["agents"])
@@ -1570,11 +1574,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
         if not lanes_in_play:
             return None, []  # session-provided and marketplace rows have no lane
         notes: list[str] = []
-        broken = [
-            lane
-            for lane in sorted(lanes_in_play)
-            if (lane_state(lane) or {}).get("status") == "broken"
-        ]
+        broken = [lane for lane in sorted(lanes_in_play) if lane_broken(lane)]
         for lane in broken:
             problems = (lane_state(lane) or {}).get("problems") or []
             notes.append(
@@ -1604,19 +1604,20 @@ def cmd_detect(args: argparse.Namespace) -> int:
             "invocable_by": who["invocable_by"],
         }
 
-    key_of = pair_key
     corpus = load_components(repo)
     surfaces = native_surfaces(lane_payloads)
     component_text = {(c.plugin, c.name, c.kind): c.description for c in corpus}
 
+    def native_text(registrations: list[dict[str, Any]] | None) -> str | None:
+        if registrations is None:
+            return None
+        return discover.scored_text(registrations)
+
     def fingerprints(
         key: tuple[str, str, str, str], registrations: list[dict[str, Any]] | None
     ) -> dict[str, str | None]:
-        native_text = (
-            discover.scored_text(registrations) if registrations is not None else None
-        )
         return {
-            "native": fingerprint(native_text),
+            "native": fingerprint(native_text(registrations)),
             "component": fingerprint(component_text.get(key[1:])),
         }
 
@@ -1631,10 +1632,9 @@ def cmd_detect(args: argparse.Namespace) -> int:
         if entry is None or key in store_verdicts:
             return False, None
         examined.add(key)
-        native_text = (
-            discover.scored_text(registrations) if registrations is not None else None
+        drift = dismissal_drift(
+            entry, native_text(registrations), component_text.get(key[1:])
         )
-        drift = dismissal_drift(entry, native_text, component_text.get(key[1:]))
         dismissed = {
             "reason": entry.get("reason"),
             "as_of": entry.get("as_of"),
@@ -1667,8 +1667,8 @@ def cmd_detect(args: argparse.Namespace) -> int:
         # registration the native index holds.
         out: dict[tuple[str, str, str, str], Any] = {}
         for s, c, score, matched in scored:
-            key = key_of(s.name, {"plugin": c.plugin, "skill": c.name, "kind": c.kind})
-            out.setdefault(key, (s, score, matched))
+            component = {"plugin": c.plugin, "skill": c.name, "kind": c.kind}
+            out.setdefault(pair_key(s.name, component), (s, score, matched))
         return out
 
     # Seeds read their score from every scored pair, so a seed below the
@@ -1684,17 +1684,16 @@ def cmd_detect(args: argparse.Namespace) -> int:
         native = pair.get("native", {})
         component = pair.get("component", {})
         target = f"{component.get('plugin')}:{component.get('skill')}"
-        seen = native_index.get(native.get("name"))
+        name = native.get("name")
+        seen = native_index.get(name)
         evidence: list[str] = []
         if seen is None:
             evidence.append(
-                f"`{native.get('name')}` is absent from this extraction - absence from "
+                f"`{name}` is absent from this extraction - absence from "
                 "the extraction is a statement about the extraction, not the product"
             )
         else:
-            evidence.append(
-                f"`{native.get('name')}` present in the extraction as {seen['class']}"
-            )
+            evidence.append(f"`{name}` present in the extraction as {seen['class']}")
             evidence.extend(registration_evidence(registrations_of(seen["entry"])))
         # The lane a candidate's re-derivability depends on: the seeded class
         # when the name is absent from the extraction, the observed class when
@@ -1717,7 +1716,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
             evidence.append(f"target `{target}` not found in the repo tree at {repo}")
         if pair.get("why"):
             evidence.append(f"seeded rationale: {pair['why']}")
-        key = key_of(native.get("name"), component)
+        key = pair_key(name, component)
         scores.pop(key, None)
         _surface, score, matched = seed_scores.get(key, (None, None, None))
         klass = (seen or {}).get("class", native.get("class"))
@@ -1726,7 +1725,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
         if suppress:
             continue
         evidence.extend(resurfaced_evidence(resurfaced))
-        block = native_block(native.get("name"), klass, seen)
+        block = native_block(name, klass, seen)
         block["seeded_class"] = native.get("class")
         candidates.append(
             {
@@ -1889,17 +1888,17 @@ def cmd_detect(args: argparse.Namespace) -> int:
         ]
         report_integrity["lanes"] = {
             lane: {
-                "status": (lane_state(lane) or {}).get("status", "unknown"),
+                "status": state.get("status", "unknown"),
                 "counts_are": (
                     "not reportable"
-                    if (lane_state(lane) or {}).get("status") == "broken"
+                    if state.get("status") == "broken"
                     else "floors"
-                    if (lane_state(lane) or {}).get("status") != "ok" or run_wide
+                    if state.get("status") != "ok" or run_wide
                     else "totals"
                 ),
             }
             for lane in LANE_ORDER
-            if lane_state(lane) is not None
+            if (state := lane_state(lane)) is not None
         }
 
     report = {
@@ -1944,11 +1943,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
         _fail("inventory integrity is broken - no native-side counts are reportable")
         return 1
     if status != "ok":
-        broken_lanes = [
-            lane
-            for lane in LANE_ORDER
-            if (lane_state(lane) or {}).get("status") == "broken"
-        ]
+        broken_lanes = [lane for lane in LANE_ORDER if lane_broken(lane)]
         detail = (
             f"; lane(s) {', '.join(broken_lanes)} broken, their counts are not "
             "reportable and their candidates are marked re_derivable: false"
@@ -1967,10 +1962,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
     if error is not None:
         _fail(error)
         return 1
-    problems = validate_store(store)
-    if problems:
-        for problem in problems:
-            _fail(problem)
+    if _failed(validate_store(store)):
         return 1
     rows = store["rows"]
     dismissals = store.get("dismissals") or []
@@ -2023,9 +2015,7 @@ def cmd_self_check(args: argparse.Namespace) -> int:
         _fail(error)
         return 1
     problems.extend(validate_store(store))
-    if problems:
-        for problem in problems:
-            _fail(problem)
+    if _failed(problems):
         print(f"SELF-CHECK broken: {len(problems)} problem(s) in {store_path}")
         return 1
 
@@ -2154,9 +2144,7 @@ def cmd_self_check(args: argparse.Namespace) -> int:
                 "checked"
             )
 
-    if problems:
-        for problem in problems:
-            _fail(problem)
+    if _failed(problems):
         print(
             f"SELF-CHECK broken: {len(problems)} problem(s), {len(rows)} row(s) checked"
         )
@@ -2182,10 +2170,7 @@ def cmd_dismiss(args: argparse.Namespace) -> int:
     if error is not None:
         _fail(error)
         return 1
-    problems = validate_store(store)
-    if problems:
-        for problem in problems:
-            _fail(problem)
+    if _failed(validate_store(store)):
         return 1
     inventory, error = load_json(Path(args.inventory))
     if error is not None:
@@ -2257,10 +2242,7 @@ def cmd_dismiss(args: argparse.Namespace) -> int:
     dismissals.append(entry)
     dismissals.sort(key=lambda d: pair_key(d["native"]["name"], d["component"]))
     store["dismissals"] = dismissals
-    problems = validate_store(store)
-    if problems:
-        for problem in problems:
-            _fail(problem)
+    if _failed(validate_store(store)):
         return 1
     store_path.write_text(
         json.dumps(store, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
@@ -2416,13 +2398,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.view is None:
         args.view = str(repo / "docs" / "native-surfaces.md")
 
-    if args.command == "detect":
-        return cmd_detect(args)
-    if args.command == "generate":
-        return cmd_generate(args)
-    if args.command == "dismiss":
-        return cmd_dismiss(args)
-    return cmd_self_check(args)
+    commands = {
+        "detect": cmd_detect,
+        "generate": cmd_generate,
+        "dismiss": cmd_dismiss,
+        "self-check": cmd_self_check,
+    }
+    return commands[args.command](args)
 
 
 if __name__ == "__main__":

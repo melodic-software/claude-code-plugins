@@ -39,6 +39,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from itertools import zip_longest
 from typing import Any
 
 UNRESOLVED_SOURCES = frozenset({"partial", "unresolved"})
@@ -78,9 +79,8 @@ def _unresolved(value: Any, source: Any) -> bool:
         return True
     if source in AS_WRITTEN_SOURCES:
         return False
-    if isinstance(value, list):
-        return any(isinstance(v, str) and ELLIPSIS in v for v in value)
-    return isinstance(value, str) and ELLIPSIS in value
+    items = value if isinstance(value, list) else [value]
+    return any(isinstance(v, str) and ELLIPSIS in v for v in items)
 
 
 def _scalar(value: Any) -> bool:
@@ -113,9 +113,7 @@ def _diff(
             if not _same_scalars(old, new):
                 out.append(_change(pointer, old, new, src_old, src_new))
             return
-        for i in range(max(len(old), len(new))):
-            a = old[i] if i < len(old) else _MISSING
-            b = new[i] if i < len(new) else _MISSING
+        for i, (a, b) in enumerate(zip_longest(old, new, fillvalue=_MISSING)):
             child = f"{pointer}/{i}"
             if a is _MISSING or b is _MISSING:
                 out.append(_change(child, a, b))
@@ -183,9 +181,13 @@ def compare(old: Any, new: Any, allow: list[dict] | None = None) -> dict:
     }
 
 
-def _load_allow(path: str) -> list[dict]:
+def _read_json(path: str) -> Any:
     with open(path, encoding="utf-8") as fh:
-        data = json.load(fh)
+        return json.load(fh)
+
+
+def _load_allow(path: str) -> list[dict]:
+    data = _read_json(path)
     if not isinstance(data, list) or not all(
         isinstance(e, dict)
         and isinstance(e.get("pointer"), str)
@@ -240,10 +242,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--json", action="store_true", help="print the result as JSON")
     args = ap.parse_args(argv)
     try:
-        with open(args.before, encoding="utf-8") as fh:
-            old = json.load(fh)
-        with open(args.after, encoding="utf-8") as fh:
-            new = json.load(fh)
+        old, new = _read_json(args.before), _read_json(args.after)
         allow = _load_allow(args.allow) if args.allow else []
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)

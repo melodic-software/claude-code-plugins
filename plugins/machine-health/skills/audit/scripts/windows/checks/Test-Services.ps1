@@ -67,7 +67,7 @@ $CheckBody = {
 
     foreach ($svc in $stoppedAutoServices) {
         $win32 = $win32ByName[$svc.Name]
-        $delayed = if ($win32) { [bool]$win32.DelayedAutoStart } else { $false }
+        $delayed = [bool]($win32 -and $win32.DelayedAutoStart)
         $triggerStart = Test-ServiceTriggerStart -Name $svc.Name
 
         $entry = [pscustomobject]@{
@@ -88,6 +88,7 @@ $CheckBody = {
         }
     }
 
+    $uptimeMinutes = $uptime ? [int]$uptime.TotalMinutes : $null
     $severity = 'OK'
     $summary = 'No unexpected stopped Automatic services.'
     if ($unexpectedStopped.Count -gt 0) {
@@ -95,9 +96,8 @@ $CheckBody = {
         $summary = "$($unexpectedStopped.Count) Automatic service(s) stopped."
     } elseif ($delayedPending.Count -gt 0) {
         $severity = 'INFO'
-        $uptimeMin = $uptime ? [int]$uptime.TotalMinutes : 0
         $summary = ("$($delayedPending.Count) delayed-auto service(s) not yet started; " +
-            "uptime $uptimeMin min.")
+            "uptime $($uptimeMinutes ?? 0) min.")
     } elseif ($triggerStartStopped.Count -gt 0) {
         $summary = "$($triggerStartStopped.Count) trigger-start service(s) idle (expected)."
     }
@@ -106,7 +106,7 @@ $CheckBody = {
         stopped_auto_services = $unexpectedStopped
         trigger_start_stopped = $triggerStartStopped
         delayed_pending       = $delayedPending
-        uptime_minutes        = $uptime ? [int]$uptime.TotalMinutes : $null
+        uptime_minutes        = $uptimeMinutes
     }
 
     $result = New-HealthResult -Id $id -Category $category -Os 'windows' `

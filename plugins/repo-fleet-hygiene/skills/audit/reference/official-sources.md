@@ -82,9 +82,12 @@ Each entry: claim, basis, as-of date, recheck trigger.
 - [`gh api graphql`](https://cli.github.com/manual/gh_api): aliased `repository` /
   `pullRequests(headRefName:, first:, states:)` queries for exact-name merged-PR evidence; `--jq`
   flattens alias pages. Never use the search API's `head:` qualifier (prefix semantics).
-- [GitHub GraphQL rate limits](https://docs.github.com/en/graphql/overview/rate-limits-and-node-limits-for-the-graphql-api):
-  5,000-point/hour primary limit, 500,000 nodes per call, `first`/`last` ∈ 1–100. Measured cost for
-  the collector's aliased merged-PR page stays 1 (nodeCount equals the alias count, ≤100 per page).
+- GitHub GraphQL limits: the measured cost for the collector's aliased merged-PR page stays 1
+  (nodeCount equals the alias count, ≤100 per page). Pointer: when sizing a query, fetch the
+  [primary rate limit](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#primary-rate-limit)
+  and [node limit](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#node-limit)
+  live. As of: 2026-11-10. Recheck trigger: either section lowers a limit below the collector's
+  measured page.
 - [`gh repo view`](https://cli.github.com/manual/gh_repo_view) and
   [`gh api`](https://cli.github.com/manual/gh_api): repository-qualified JSON/API lookup and
   formatted output.

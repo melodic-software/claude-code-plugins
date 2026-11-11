@@ -48,7 +48,8 @@ it goes into an `ops.json` written with the Write tool and run through `apply`.
 - Answers should come in across hours rather than in one sitting.
 
 Offer it in one line and start only on the owner's yes: it opens a public link from this machine.
-`share` itself is that yes. One session serves one audience; a topic can run several at once (a
+`share` itself is that yes. It is not for regulated or confidential topics until guests sign in:
+anyone with the link can read the page. One session serves one audience; a topic can run several at once (a
 designer session and a product owner session), each with its own data dir and link.
 
 ## Start

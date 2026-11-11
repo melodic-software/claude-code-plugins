@@ -83,7 +83,7 @@ name is not a way past it either: the gate does not look at the proxy.
 | Ubisoft Connect: no per-game anti-cheat field | The registry record carries `InstallDir` only (https://github.com/JosefNemec/PlayniteExtensions/blob/master/source/Libraries/UplayLibrary/UplayLibrary.cs); Ubisoft names anti-cheat per title in news posts, such as BattlEye for Rainbow Six Siege (https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/2EdHOzjBrQqQYDxalAitW8/rainbow-six-siege-understanding-anticheat), not in a field | 2026-09-23 | Ubisoft adds a per-game anti-cheat field |
 | Xbox app: no per-game anti-cheat field | The readable record is the package's `appxmanifest.xml` identity and display name (https://github.com/erri120/GameFinder/blob/master/src/GameFinder.StoreHandlers.Xbox/XboxHandler.cs, `ParseAppManifest`) | 2026-09-23 | Microsoft adds an anti-cheat disclosure to the Store or the Xbox app |
 
-Either row being wrong only makes the plugin stricter than it needs to be: a launcher with no source reads `unknown`, which asks for an acknowledgement.
+Any row being wrong only makes the plugin stricter than it needs to be: a launcher with no source reads `unknown`, which asks for an acknowledgement.
 
 EA's kernel-level EA Javelin Anticheat reaches the status through AreWeAntiCheatYet's `EA
 anticheat` entries. EA publishes a count of protected titles, not a list, so the plugin keeps no

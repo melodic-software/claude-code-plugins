@@ -232,7 +232,7 @@ it, as **Availability is never assumed** below says; records in
 [reference/native-recap.md](reference/native-recap.md)), you can run it instead of or alongside this
 skill. Make the offer at the end
 of the briefing, or at the start when the ask names only the current conversation. Prefer this
-skill whenever durable or off-thread state matters. When the caller passes `--unattended`, the run records the offer in its output instead of asking; without that flag
+skill whenever durable or off-thread state matters. When the caller passes `--unattended`, the run makes no offer; without that flag
 it asks.
 
 **Mutation gate.** Neither writes files. This skill never runs `/recap` on the person's behalf.

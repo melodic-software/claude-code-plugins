@@ -53,12 +53,12 @@
       "id": 6,
       "name": "leading-unattended-flag-then-quick-mode",
       "prompt": "/session-flow:retro --unattended quick",
-      "expected_output": "The `--unattended` flag is taken out first, though it comes before the mode, and only gates the /export step: the suggestion is recorded in the output and not asked. The mode is then read from the remainder, so `quick` selects the abbreviated quick pass rather than session.",
+      "expected_output": "The `--unattended` flag is taken out first, though it comes before the mode, and only gates the user-only built-ins: no /export or /insights suggestion is made at all, in the output or as a question. The mode is then read from the remainder, so `quick` selects the abbreviated quick pass rather than session.",
       "files": [],
       "expectations": [
         "`--unattended` is taken out before the mode is read, and `quick` is then selected as the mode (abbreviated pass, not session)",
-        "The /export step records the suggestion in the output and does not ask the operator",
-        "`--unattended` is not read as a mode and does not change anything other than the /export step"
+        "The response neither suggests /export or /insights nor asks the operator about them",
+        "`--unattended` is not read as a mode and does not change anything other than dropping the /export and /insights suggestions"
       ]
     },
     {

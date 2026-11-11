@@ -17,29 +17,31 @@ import { resolveTempSession } from "../lib/temp-session-paths.js";
 import { watchStatePath } from "./watch-state.js";
 
 /**
+ * @param {string|undefined} dir
+ * @returns {string[]} empty when the directory is unset or gone
+ */
+function listDir(dir) {
+  return dir && fs.existsSync(dir) ? fs.readdirSync(dir) : [];
+}
+
+/**
  * @param {string|undefined} workDir
  * @returns {boolean}
  */
 function workDirComplete(workDir) {
-  if (!workDir || !fs.existsSync(workDir)) return false;
-  const entries = fs.readdirSync(workDir);
+  const entries = listDir(workDir);
   // Any `.vtt` (including the `*-orig.vtt` auto-caption) counts — recovery
   // rebuilds transcript from it, matching resolveWorkArtifacts' fallback.
-  return (
-    entries.some((n) => n.endsWith(".mp4")) &&
-    entries.some((n) => n.endsWith(".vtt")) &&
-    entries.some((n) => n.endsWith(".info.json"))
-  );
+  return [".mp4", ".vtt", ".info.json"].every((ext) => entries.some((n) => n.endsWith(ext)));
 }
 
 /**
  * @param {string|undefined} dir
  * @param {(name: string) => boolean} matches
- * @returns {number} 0 when the directory is unset or gone
+ * @returns {number}
  */
 function countMatchingFiles(dir, matches) {
-  if (!dir || !fs.existsSync(dir)) return 0;
-  return fs.readdirSync(dir).filter(matches).length;
+  return listDir(dir).filter(matches).length;
 }
 
 /**
@@ -105,10 +107,11 @@ export function detectRecoverableBootstrap(sliceDir) {
  * resolved for this process when it names this plugin.
  *
  * @param {string} sliceDir
+ * @param {ReturnType<typeof detectRecoverableBootstrap>} [detection] - a detection
+ *   already run for `sliceDir`
  * @returns {string}
  */
-export function formatRecoverCommand(sliceDir) {
-  const detection = detectRecoverableBootstrap(sliceDir);
+export function formatRecoverCommand(sliceDir, detection = detectRecoverableBootstrap(sliceDir)) {
   if (!detection.recoverable || !detection.tempSession) {
     return "";
   }
@@ -134,7 +137,7 @@ export function runDetectRecoverableBootstrapCli(argv) {
   const result = detectRecoverableBootstrap(sliceDir);
   const payload = {
     ...result,
-    recoverCommand: result.recoverable ? formatRecoverCommand(sliceDir) : null,
+    recoverCommand: result.recoverable ? formatRecoverCommand(sliceDir, result) : null,
   };
 
   if (asJson) {

@@ -43,9 +43,7 @@ if [[ "${1:-}" == "--push" ]]; then
 fi
 
 BRANCH="${1:-}"
-if [[ -z "$BRANCH" ]]; then
-  BRANCH="$(git branch --show-current 2>/dev/null | tr -d '\r')"
-fi
+[[ -n "$BRANCH" ]] || BRANCH="$(git branch --show-current 2>/dev/null | tr -d '\r')"
 
 # Read a remote-name config key, normalizing the CRLF a Git-for-Windows config
 # read can carry. A "." value names the local repo rather than a remote, so it
@@ -63,14 +61,9 @@ if [[ $PUSH -eq 1 ]]; then
   # overrides remote.pushDefault, which overrides branch.<name>.remote for the
   # push destination.
   REMOTE=$(remote_config "branch.${BRANCH}.pushRemote")
-  if [[ -z "$REMOTE" ]]; then
-    REMOTE=$(remote_config "remote.pushDefault")
-  fi
+  [[ -n "$REMOTE" ]] || REMOTE=$(remote_config "remote.pushDefault")
 fi
-
-if [[ -z "$REMOTE" ]]; then
-  REMOTE=$(remote_config "branch.${BRANCH}.remote")
-fi
+[[ -n "$REMOTE" ]] || REMOTE=$(remote_config "branch.${BRANCH}.remote")
 
 if [[ -z "$REMOTE" ]]; then
   mapfile -t REMOTES < <(git remote)

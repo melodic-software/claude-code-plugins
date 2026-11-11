@@ -80,10 +80,9 @@ function Get-WindowsDiscoveryProbe {
             })
     }
 
-    $certPath = 'Cert:\CurrentUser\My'
     $certs = @()
     try {
-        $certs = @(Get-ChildItem -Path $certPath -ErrorAction SilentlyContinue)
+        $certs = @(Get-ChildItem -Path 'Cert:\CurrentUser\My' -ErrorAction SilentlyContinue)
     } catch {
         Write-Verbose "Cert store enum failed: $($_.Exception.Message)"
     }

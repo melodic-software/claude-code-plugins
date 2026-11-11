@@ -3,6 +3,15 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.1.20] - 2026-11-11
+
+### Changed
+
+- The `setup` skill's trigger adapters no longer restate GitHub, routines and Slack
+  documentation: each keeps the skill's own trigger rule and links the exact upstream sections to
+  read live, with an as-of date and a recheck trigger naming what would make the rule wrong. No
+  behavior change.
+
 ## [4.1.19] - 2026-11-10
 
 ### Changed

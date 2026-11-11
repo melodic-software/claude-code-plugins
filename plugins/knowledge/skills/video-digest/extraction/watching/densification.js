@@ -56,17 +56,14 @@ export function findDensificationWindows(
   const windows = [];
 
   for (const cue of cues) {
-    for (const signal of signals) {
-      if (!signal.pattern.test(cue.text)) continue;
-
-      windows.push({
-        startSec: Math.max(0, cue.startSec - paddingSec),
-        endSec: cue.endSec + paddingSec,
-        densityMultiplier: signal.multiplier ?? defaultMultiplier,
-        reason: signal.reason,
-      });
-      break;
-    }
+    const signal = signals.find(({ pattern }) => pattern.test(cue.text));
+    if (!signal) continue;
+    windows.push({
+      startSec: Math.max(0, cue.startSec - paddingSec),
+      endSec: cue.endSec + paddingSec,
+      densityMultiplier: signal.multiplier ?? defaultMultiplier,
+      reason: signal.reason,
+    });
   }
 
   return mergeOverlappingWindows(windows);

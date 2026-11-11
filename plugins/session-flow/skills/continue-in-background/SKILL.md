@@ -430,7 +430,7 @@ gated, per the same paragraph and records), you can run it to copy this session 
 session. If /subtask is available in your session (gate basis: gated, per the same paragraph and
 records), you can run it for a side task whose result should come back here. Prefer this skill
 when the continuation should start clean from a durable save-point. When the caller passes
-`--unattended`, the run records the offer in its output instead of asking;
+`--unattended`, the run makes no offer;
 without that flag it asks.
 
 **Mutation gate.** This skill writes the save-point and launches one session, only on explicit

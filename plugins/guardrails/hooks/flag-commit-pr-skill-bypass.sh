@@ -236,12 +236,12 @@ strip_literals() {
       line="${line%%<<*}${line#*"${BASH_REMATCH[0]}"}"
       in_heredoc=1
     fi
-    # One `sed` per line, not two: the expressions apply in order, so the
-    # double-quote strip still sees the single-quote-stripped line.
-    line=$(printf '%s' "$line" | sed -E -e "s/'[^']*'//g" -e 's/"([^"\\]|\\.)*"//g')
     result+="${line}"$'\n'
   done < <(printf '%s\n' "$cmd") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
-  printf '%s' "${result%$'\n'}"
+  # One `sed` over every kept line: sed edits line by line, so a span never
+  # joins two lines. The expressions apply in order, so the double-quote strip
+  # sees the single-quote-stripped line.
+  printf '%s' "${result%$'\n'}" | sed -E -e "s/'[^']*'//g" -e 's/"([^"\\]|\\.)*"//g'
 }
 
 STRIPPED_LC="$(strip_literals "$COMMAND")"
@@ -267,11 +267,7 @@ fi
 # Once per session and agent: the agent that was told once does not need the
 # same pointer on its next PR.
 if hook::notice_once guardrails-gh-pr-create "$INPUT" && [[ "$HOOK_NOTICE_TO_MODEL" == 1 ]]; then
-  CONTEXT=""
-  for m in "${MESSAGES[@]}"; do
-    CONTEXT+="$m "
-  done
-  hook::emit_channels PreToolUse "${CONTEXT% }" ""
+  hook::emit_channels PreToolUse "${MESSAGES[*]}" ""
 fi
 
 emit_tel

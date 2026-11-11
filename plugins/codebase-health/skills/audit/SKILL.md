@@ -23,11 +23,9 @@ returns is in [Output limits](https://code.claude.com/docs/en/tools-reference#ou
 As of: 2026-10-11. Recheck trigger: that section changes what a valid result returns.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines, so a worktree-isolated session screens each
-git read on its own. The dated record for why a pre-compute block that carries git is refused is
-kept by `/source-control:worktree`, in its gather-block reference under "The pre-compute block
-runs as one shell invocation". Relay as of 2026-10-11; recheck when that skill drops or renames
-that section.
+separate body Bash calls rather than pre-compute lines
+([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
+"The pre-compute block runs as one shell invocation").
 
 Pointer for how injected commands run:
 [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).

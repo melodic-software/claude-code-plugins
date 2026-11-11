@@ -267,11 +267,9 @@ ip_discover_rules() {
       printf '%s\t%s\n' "$real" "${found_file#"$root"/}" >>"$seen_file"
     done < <(find -L "$rules_dir" -type f -name '*.md' 2>/dev/null)
     # -L on the OUTER find too. Without it, a `.claude/rules` that is ITSELF a
-    # symlink — the documented layout for sharing a whole rule set across
-    # projects — is `-type l`, never matches `-type d`, and the inner scan below
-    # is never even reached. The first fix here followed symlinks *inside* the
-    # tree and missed the tree root, which is a strictly worse failure: an
-    # entire shared rule set silently invisible.
+    # symlink (the documented layout for sharing a whole rule set across
+    # projects) is `-type l`, never matches `-type d`, and its whole rule set
+    # is silently invisible.
   done < <(find -L "$root" -type d -name rules -path '*/.claude/rules' \
     -not -path '*/.git/*' -not -path '*/node_modules/*' 2>/dev/null)
 
@@ -522,14 +520,11 @@ ip_index_target_loaded() {
   # Otherwise it must be reachable from an entry point on its OWN path, which
   # for a nested target is not the root alone: a `svc/CLAUDE.md` beside a
   # `svc/AGENTS.md` displaces it exactly as a root one would, and reading only
-  # the root triple made this verdict disagree with the wiring gate about the
-  # same tree. An absolute target is outside this root's tree, so its path
+  # the root triple would make this verdict disagree with the wiring gate about
+  # the same tree. An absolute target is outside this root's tree, so its path
   # cannot be walked and the root is all there is to check.
   local target_dir="."
-  case "$target" in
-  /*) ;;
-  *) target_dir="$(dirname "$target")" ;;
-  esac
+  [[ "$target" == /* ]] || target_dir="$(dirname "$target")"
 
   local entry blocker=""
   while IFS= read -r entry; do
@@ -547,17 +542,12 @@ ip_index_target_loaded() {
   # reading AGENTS.md directly needs a Claude Code version and a session kind
   # this function cannot see, and a CLAUDE.md above the repository root would
   # block it invisibly from here.
-  if [[ -z "$blocker" ]]; then
-    case "$target" in
-    # `*/AGENTS.md` already covers every nested spelling, `.claude/AGENTS.md`
-    # included; only the bare root name needs its own pattern.
-    AGENTS.md | */AGENTS.md)
-      printf 'NATIVE\t%s is not blocked: no CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md on its path, so Claude Code reads it directly where AGENTS.md support is available\n' \
-        "$target"
-      return 0
-      ;;
-    *) ;;
-    esac
+  # `*/AGENTS.md` already covers every nested spelling, `.claude/AGENTS.md`
+  # included; only the bare root name needs its own pattern.
+  if [[ -z "$blocker" && ("$target" == AGENTS.md || "$target" == */AGENTS.md) ]]; then
+    printf 'NATIVE\t%s is not blocked: no CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md on its path, so Claude Code reads it directly where AGENTS.md support is available\n' \
+      "$target"
+    return 0
   fi
 
   printf 'UNREACHABLE\t%s is not imported by any memory file on its path%s\n' \

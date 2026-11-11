@@ -182,8 +182,7 @@ export const resolveZone = (args: {
 }): { word: Word; notices: string[] } => {
   const unknown = (notices: string[] = []) => ({ word: 'unknown' as const, notices })
   if (!/^[A-Za-z0-9_-]+$/.test(args.sid) || args.snapshot === null) return unknown()
-  const read = readBands(args.zones)
-  const { notices } = read
+  const { bands: read, notices } = readBands(args.zones)
   const parsed = parse(args.snapshot)
   if (!parsed.ok || !isObject(parsed.value)) return unknown(notices)
   const s = parsed.value
@@ -195,7 +194,7 @@ export const resolveZone = (args: {
   if (at === undefined) return unknown(notices)
   const age = args.nowSec - at
   if (age < -60 || age > STALENESS_SECONDS) return unknown(notices)
-  const bands = args.follow ? args.follow(read.bands) : followWindow(read.bands, windowSize(w), publishedWindow(s))
+  const bands = args.follow ? args.follow(read) : followWindow(read, windowSize(w), publishedWindow(s))
   const zone = zoneOfWindow(w, s.cli_version, bands)
   return zone === undefined ? unknown(notices) : { word: zone, notices }
 }

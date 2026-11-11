@@ -35,10 +35,11 @@ export function synthesisDestName(sourceFile, timestampSec, knownDestBySource = 
   if (knownDestBySource[sourceFile]) {
     return knownDestBySource[sourceFile];
   }
-  if (timestampSec == null || !Number.isFinite(timestampSec)) {
-    return `untimed-${sourceStem(sourceFile)}.png`;
-  }
-  return `at-${formatTimestampSlug(timestampSec)}-${sourceStem(sourceFile)}.png`;
+  const prefix =
+    timestampSec == null || !Number.isFinite(timestampSec)
+      ? "untimed"
+      : `at-${formatTimestampSlug(timestampSec)}`;
+  return `${prefix}-${sourceStem(sourceFile)}.png`;
 }
 
 /**

@@ -99,9 +99,9 @@ You write the results, not the sub-agent, so register ids stay contiguous.
   there and states the fact, else `not-found`. This is how `/planning:audit-answers` checks
   answers: a validator that never saw the reasoning. A `not-found` item is not settled; it falls
   through to the next line as a register row.
-- **decision:** never settled from facts, whatever the session believes was decided earlier.
-  The self-answer step never resolves a decision (loop.md "Self-answer gate"), so a sweep's
-  `decision` item always takes the next line.
+- **decision:** never settled from facts, whatever the session believes was decided earlier, so
+  a sweep's `decision` item always takes the next line. When a quoted prior owner ruling covers
+  it, that row is written `answered` with `answered-from-decision:` (loop.md "Self-answer gate").
 - **decision, person, and an unanswered tenant or fact:** a register row at the next contiguous
   `Q<N>`, written `open` and
   asked in the next round with a recommendation. A `person` item the user cannot answer, and a

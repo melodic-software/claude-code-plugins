@@ -22,12 +22,10 @@ The pipe is the bound and belongs in the command. A read-time cap ("read only th
 bounds nothing: the Bash tool returns the command's complete output into context before there is
 anything to decide about.
 
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. A
-worktree-isolated session refuses a compound command that contains git, which is why each call
-above stays on its own. The dated record for that refusal, and for the pre-compute composition that
-makes it bite, is the
-[gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation".
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Each call
+above stays on its own
+([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
+"The pre-compute block runs as one shell invocation").
 
 ## Variables
 
@@ -291,8 +289,8 @@ Known traps, seeded from the research this skill was grounded on:
   (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/hotspots.md`) runs first; a window the history does not cover downgrades churn to a
   recorded evidence gap. Confidently-wrong rankings from partial history are worse than no
   ranking.
-- **Never call the Actions `/timing` endpoint**. GitHub marks it as closing down; the dated record
-  for that, and for the documented 1,000-result bound behind the windowing rule, is in
+- **Never call the Actions `/timing` endpoint**. GitHub is retiring it; the dated record
+  for that, and for the documented result cap behind the windowing rule, is in
   `${CLAUDE_PLUGIN_ROOT}/skills/find/context/ci-health.md`. CI health iterates `/actions/runs` by `created` date windows (never deep
   pagination) and derives failure ratios, duration trends, and `run_attempt` retries per that file.
 - **Unattended is declared, never detected.** There is no supported way to observe

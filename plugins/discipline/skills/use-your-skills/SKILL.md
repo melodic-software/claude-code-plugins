@@ -20,13 +20,12 @@ skills already available.
 
 ## The discipline this re-anchors
 
-A skill listing is loaded into context so the model knows what is available:
-every **model-invocable** skill's name (always) and its description (subject to
-the listing budget), with the full body loading only when the skill is invoked
-([Skills docs](https://code.claude.com/docs/en/skills), fetched 2026-08-10;
-recheck when that page stops describing the listing as name-plus-description
-with the body loaded on invocation, or when a release note changes what the
-skill listing carries).
+A skill listing is loaded into context so the model knows which
+**model-invocable** skills are available; what the listing carries for each
+skill, and when the full body loads:
+[Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill),
+as of 2026-11-10; recheck when that section changes what the listing carries
+or when a skill's body enters context.
 A **manual-only** skill never reaches the model's listing; which frontmatter
 makes a skill manual-only, and which only hides it from the `/` menu while
 leaving it model-visible:

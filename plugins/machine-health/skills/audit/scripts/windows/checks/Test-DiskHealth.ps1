@@ -67,17 +67,12 @@ $CheckBody = {
             Where-Object { $_.DriveType -eq 'Fixed' -and $_.FileSystem -in 'NTFS', 'ReFS' -and $_.DriveLetter } |
             ForEach-Object {
                 $sizeGB = if ($_.Size) { [math]::Round($_.Size / 1GB, 1) } else { 0 }
-                $freeGB = if ($_.SizeRemaining) {
-                    [math]::Round($_.SizeRemaining / 1GB, 1)
-                } else { 0 }
+                $freeGB = if ($_.SizeRemaining) { [math]::Round($_.SizeRemaining / 1GB, 1) } else { 0 }
                 $usedPct = if ($_.Size -gt 0) {
                     [math]::Round((($_.Size - $_.SizeRemaining) / $_.Size) * 100, 1)
                 } else { 0 }
                 $freePct = 100 - $usedPct
-
-                $sev = 'OK'
-                if ($freePct -lt 5) { $sev = 'CRIT' }
-                elseif ($freePct -lt 15) { $sev = 'WARN' }
+                $sev = if ($freePct -lt 5) { 'CRIT' } elseif ($freePct -lt 15) { 'WARN' } else { 'OK' }
 
                 $allSeverities.Add($sev)
                 $volumes.Add([pscustomobject]@{
@@ -97,11 +92,9 @@ $CheckBody = {
     try {
         Get-PhysicalDisk -ErrorAction Stop | ForEach-Object {
             $disk = $_
-            $healthSev = 'OK'
-            if ($disk.HealthStatus -ne 'Healthy') { $healthSev = 'CRIT' }
-            if ($disk.OperationalStatus -and $disk.OperationalStatus -notin @('OK', 'Online')) {
-                $healthSev = 'CRIT'
-            }
+            $unhealthy = $disk.HealthStatus -ne 'Healthy' -or
+                ($disk.OperationalStatus -and $disk.OperationalStatus -notin @('OK', 'Online'))
+            $healthSev = $unhealthy ? 'CRIT' : 'OK'
 
             $counter = Get-PhysicalDiskReliability -Disk $disk
 
@@ -166,9 +159,7 @@ $CheckBody = {
     if (-not (Test-IsElevated)) {
         $adminFields = @('temp_c', 'wear_pct', 'read_errors', 'write_errors')
         $adminNote = 'SMART temp/wear counters require admin; re-run elevated for full coverage.'
-        if ($summary) {
-            $summary = "$summary (SMART skipped -- run elevated for wear/temp)"
-        }
+        $summary = "$summary (SMART skipped -- run elevated for wear/temp)"
     }
 
     $result = New-HealthResult -Id $id -Category $category -Os 'windows' `

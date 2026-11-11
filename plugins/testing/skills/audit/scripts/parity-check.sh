@@ -63,7 +63,7 @@ EOF
 # dump_engine <scripts-dir> <lang> <out>: the pre-adapter engine takes
 # LANG_ID; the adapter engine takes an adapter id and the loaded table.
 dump_engine() {
-  local dir="$1" lang="$2" out="$3" id table
+  local dir="$1" lang="$2" out="$3" id table vars
   if [[ -r "$dir/adapter-load.awk" ]]; then
     case "$lang" in
     js) id=js-jest ;;
@@ -74,12 +74,11 @@ dump_engine() {
     esac
     table="$WORK/table.$$"
     awk -f "$dir/adapter-load.awk" "$dir"/../adapters/*.yaml >"$table" || return 2
-    awk -v ADAPTER="$id" -v ADAPTER_TABLE="$table" -f "$dir/mask-js.awk" \
-      -f "$dir/cant-fail-scan.awk" -f "$WORK/dump.awk" /dev/null >"$out"
+    vars=(-v ADAPTER="$id" -v ADAPTER_TABLE="$table")
   else
-    awk -v LANG_ID="${lang%-vitest}" -f "$dir/mask-js.awk" -f "$dir/cant-fail-scan.awk" \
-      -f "$WORK/dump.awk" /dev/null >"$out"
+    vars=(-v LANG_ID="${lang%-vitest}")
   fi
+  awk "${vars[@]}" -f "$dir/mask-js.awk" -f "$dir/cant-fail-scan.awk" -f "$WORK/dump.awk" /dev/null >"$out"
 }
 
 failed=0
@@ -112,8 +111,7 @@ for bin in gawk mawk; do
     fi
   done
 
-  for root in "$FIX"/config "$FIX"/exempt "$FIX"/mock-only "$FIX"/negative \
-    "$FIX"/positive "$FIX"/sanity "$REPO"; do
+  for root in "$FIX"/{config,exempt,mock-only,negative,positive,sanity} "$REPO"; do
     label="fixtures/${root##*/}"
     [[ "$root" == "$REPO" ]] && label="(repo tree)"
     rc_base=0

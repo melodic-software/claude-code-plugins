@@ -68,7 +68,14 @@ export async function extractAnchorFrames(
 ) {
   mkdirSync(outputDir, { recursive: true });
   const inputPath = resolveSpawnInputPath(videoPath);
-  const remote = REMOTE_VIDEO_INPUT.test(inputPath);
+  const spawnInputPath = normalizeSpawnPath(inputPath);
+  const inputArgsPrefix = [
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-y",
+    ...(REMOTE_VIDEO_INPUT.test(inputPath) ? ["-user_agent", "Mozilla/5.0"] : []),
+  ];
   /** @type {FrameCandidate[]} */
   const frames = [];
 
@@ -101,24 +108,18 @@ export async function extractAnchorFrames(
 
     const file = anchorFrameFileName(index + 1, timestampSec);
     const outputPath = join(outputDir, file);
-    /** @type {string[]} */
-    const args = ["-hide_banner", "-loglevel", "error", "-y"];
-
-    if (remote) {
-      args.push("-user_agent", "Mozilla/5.0");
-    }
-
-    args.push(
+    const args = [
+      ...inputArgsPrefix,
       "-ss",
       String(timestampSec),
       "-i",
-      normalizeSpawnPath(inputPath),
+      spawnInputPath,
       "-frames:v",
       "1",
       "-vf",
       `scale=${scale}`,
       normalizeSpawnPath(outputPath),
-    );
+    ];
 
     const result = await spawn("ffmpeg", args, {});
     if (!result.success || !existsSync(outputPath)) continue;

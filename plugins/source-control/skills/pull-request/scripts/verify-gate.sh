@@ -46,14 +46,9 @@ shift
 HEAD_SHA="" RESULT=""
 while (($# > 0)); do
   case "$1" in
-  --head)
-    (($# >= 2)) || die 1 "--head needs a value"
-    HEAD_SHA="$2"
-    shift 2
-    ;;
-  --result)
-    (($# >= 2)) || die 1 "--result needs a value"
-    RESULT="$2"
+  --head | --result)
+    (($# >= 2)) || die 1 "$1 needs a value"
+    if [[ "$1" == --head ]]; then HEAD_SHA="$2"; else RESULT="$2"; fi
     shift 2
     ;;
   *) die 1 "unknown argument $(printf '%q' "$1") (use --help)" ;;
@@ -63,8 +58,8 @@ done
 
 dir="${READY_VERIFY_DIR:-}"
 if [[ -z "$dir" ]]; then
-  common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || die 2 "not in a git repository, and READY_VERIFY_DIR is unset"
-  dir="$common/ready-verify"
+  dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || die 2 "not in a git repository, and READY_VERIFY_DIR is unset"
+  dir+=/ready-verify
 fi
 file="$dir/$HEAD_SHA"
 

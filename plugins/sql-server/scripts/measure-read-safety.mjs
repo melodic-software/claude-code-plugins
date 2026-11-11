@@ -31,14 +31,26 @@ const ROWS = 200_000;
 const LOCKED_ID = 150_000;
 const READER_USER = 'measure_reader';
 const BASELINE_APP = 'measure-baseline';
+const WRITER_APP = 'measure-writer';
+const READER_AUTH = { type: 'sql-login', user: { env: 'MEASURE_SQL_USER' }, password: { env: 'MEASURE_SQL_PASSWORD' } };
 const SCAN = 'SELECT MAX(LEN(payload)) AS longest FROM dbo.items;';
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 const now = () => performance.now();
 const password = () => `Aa1!${randomBytes(18).toString('base64url')}`;
+const hasMarkers = (text) => text.includes(START) && text.includes(END);
+
+// The error fn throws or rejects with, or undefined when it completes.
+async function failureOf(fn) {
+  try {
+    await fn();
+  } catch (error) {
+    return error;
+  }
+}
 
 // Who a session is, from its program name.
-const role = (program) => (program === APP_NAME ? 'agent' : program === 'measure-writer' ? 'writer' : program ? 'other' : 'system');
+const role = (program) => (program === APP_NAME ? 'agent' : program === WRITER_APP ? 'writer' : program ? 'other' : 'system');
 // What a waiting task waits on. sys.dm_os_waiting_tasks reports a negative
 // blocking_session_id for an owner SQL Server cannot name (-2 orphaned
 // distributed transaction, -3 deferred recovery, -4 and -5 latch owner), and
@@ -84,8 +96,7 @@ async function measure() {
   const docPath = resolve(values.doc ?? DEFAULT_DOC);
   const runs = Number(values.runs ?? 3);
   if (!Number.isInteger(runs) || runs < 1) throw new Error('--runs takes a whole number of at least 1');
-  const doc = readFileSync(docPath, 'utf8');
-  if (!doc.includes(START) || !doc.includes(END)) throw new Error(`${docPath} has no results markers`);
+  if (!hasMarkers(readFileSync(docPath, 'utf8'))) throw new Error(`${docPath} has no results markers`);
 
   const name = `sql-server-measure-${randomBytes(4).toString('hex')}`;
   const work = mkdtempSync(join(tmpdir(), 'sql-server-measure-'));
@@ -126,7 +137,7 @@ async function measure() {
 
     // Re-read: the run takes minutes, and an edit to the prose around the block meanwhile must survive.
     const current = readFileSync(docPath, 'utf8');
-    if (!current.includes(START) || !current.includes(END)) throw new Error(`${docPath} lost its results markers during the run`);
+    if (!hasMarkers(current)) throw new Error(`${docPath} lost its results markers during the run`);
     const block = `${START}\n${lines.join('\n')}\n${END}`;
     const updated = current.slice(0, current.indexOf(START)) + block + current.slice(current.indexOf(END) + END.length);
     writeFileSync(docPath, updated);
@@ -172,6 +183,11 @@ class Lab {
     return new Promise((done, fail) => connection.connect((error) => (error ? fail(error) : done(connection))));
   }
 
+  // A raw session as the reader, outside the executor.
+  connectReader() {
+    return this.connect({ appName: BASELINE_APP, database: DB, user: READER_USER, pass: this.reader });
+  }
+
   run(connection, sql) {
     return new Promise((done, fail) => {
       const rows = [];
@@ -200,7 +216,7 @@ class Lab {
 
   // Holds an exclusive row lock from a writer session until released.
   async holdRowLock(id = LOCKED_ID) {
-    const writer = await this.connect({ appName: 'measure-writer', database: DB });
+    const writer = await this.connect({ appName: WRITER_APP, database: DB });
     await this.run(writer, `BEGIN TRAN; UPDATE dbo.items SET payload = REPLICATE(N'y', 100) WHERE id = ${id};`);
     let released = false;
     return async () => {
@@ -280,7 +296,7 @@ function registration(lab, limits) {
     server: '127.0.0.1',
     port: lab.port,
     databases: [DB],
-    auth: { type: 'sql-login', user: { env: 'MEASURE_SQL_USER' }, password: { env: 'MEASURE_SQL_PASSWORD' } },
+    auth: READER_AUTH,
     limits,
   };
 }
@@ -308,12 +324,7 @@ async function blockedRead(lab, limits, holdMs) {
   const releaser = setTimeout(release, holdMs);
   const executor = await executorFor(lab, limits);
   const began = now();
-  let error;
-  try {
-    await executor.query({ database: DB, sql: SCAN });
-  } catch (caught) {
-    error = caught;
-  }
+  const error = await failureOf(() => executor.query({ database: DB, sql: SCAN }));
   const blockedMs = Math.round(now() - began);
   clearTimeout(releaser);
   await release();
@@ -328,15 +339,10 @@ async function blockedRead(lab, limits, holdMs) {
 // kept open: what the discard rule guards against.
 async function keptOpenAfterCancel(lab, xactAbort) {
   const release = await lab.holdRowLock();
-  const connection = await lab.connect({ appName: BASELINE_APP, database: DB, user: READER_USER, pass: lab.reader });
+  const connection = await lab.connectReader();
   const cancel = setTimeout(() => connection.cancel(), 2_000);
   const began = now();
-  let error;
-  try {
-    await lab.run(connection, `SET XACT_ABORT ${xactAbort ? 'ON' : 'OFF'}; BEGIN TRAN; ${SCAN}`);
-  } catch (caught) {
-    error = caught;
-  }
+  const error = await failureOf(() => lab.run(connection, `SET XACT_ABORT ${xactAbort ? 'ON' : 'OFF'}; BEGIN TRAN; ${SCAN}`));
   const blockedMs = Math.round(now() - began);
   clearTimeout(cancel);
   await release();
@@ -349,25 +355,15 @@ async function keptOpenAfterCancel(lab, xactAbort) {
 async function openedTransaction(lab, viaExecutor) {
   const sql = 'BEGIN TRAN; SELECT TOP (1) id FROM dbo.items;';
   if (!viaExecutor) {
-    const connection = await lab.connect({ appName: BASELINE_APP, database: DB, user: READER_USER, pass: lab.reader });
-    let error;
-    try {
-      await lab.run(connection, sql);
-    } catch (caught) {
-      error = caught;
-    }
+    const connection = await lab.connectReader();
+    const error = await failureOf(() => lab.run(connection, sql));
     const open = await lab.openTransactions(BASELINE_APP);
     connection.close();
     await lab.openTransactions(BASELINE_APP);
     return { outcome: outcome(error), open };
   }
   const executor = await executorFor(lab, DEFAULT_LIMITS);
-  let error;
-  try {
-    await executor.query({ database: DB, sql });
-  } catch (caught) {
-    error = caught;
-  }
+  const error = await failureOf(() => executor.query({ database: DB, sql }));
   const open = await lab.openTransactions(APP_NAME);
   await executor.close();
   return { outcome: outcome(error), open };
@@ -375,9 +371,9 @@ async function openedTransaction(lab, viaExecutor) {
 
 // How long a writer waits on a reader transaction under each isolation level.
 async function writerWaitUnder(lab, level, holdMs) {
-  const reader = await lab.connect({ appName: BASELINE_APP, database: DB, user: READER_USER, pass: lab.reader });
+  const reader = await lab.connectReader();
   await lab.run(reader, `SET TRANSACTION ISOLATION LEVEL ${level}; BEGIN TRAN; SELECT COUNT(*) FROM dbo.items WHERE id <= 1000;`);
-  const writer = await lab.connect({ appName: 'measure-writer', database: DB });
+  const writer = await lab.connect({ appName: WRITER_APP, database: DB });
   let committed;
   const commit = setTimeout(() => {
     committed = lab.run(reader, 'COMMIT;');
@@ -404,7 +400,7 @@ async function cappedRead(lab, rowCap) {
 
 async function guardOverhead(lab) {
   const executor = await executorFor(lab, DEFAULT_LIMITS);
-  const raw = await lab.connect({ appName: BASELINE_APP, database: DB, user: READER_USER, pass: lab.reader });
+  const raw = await lab.connectReader();
   const time = async (fn, n = 50) => {
     await fn();
     const began = now();
@@ -478,14 +474,14 @@ async function topology(lab, { work, reader }, processes) {
         server: '127.0.0.1',
         port: lab.port,
         databases: [DB],
-        auth: { type: 'sql-login', user: { env: 'MEASURE_SQL_USER' }, password: { env: 'MEASURE_SQL_PASSWORD' } },
+        auth: READER_AUTH,
       },
     },
   }));
   const sql = 'SELECT COUNT_BIG(*) AS n FROM dbo.items AS a CROSS JOIN (SELECT TOP (40) id FROM dbo.items) AS b WHERE (a.id + b.id) % 7 = 0;';
 
   // A writer updating single rows in autocommit throughout, timing each.
-  const writer = await lab.connect({ appName: 'measure-writer', database: DB });
+  const writer = await lab.connect({ appName: WRITER_APP, database: DB });
   let writing = true;
   const writes = [];
   let writerError;
@@ -499,7 +495,7 @@ async function topology(lab, { work, reader }, processes) {
   })().catch((error) => {
     writerError = error;
   });
-  const stopSampler = lab.sampler([APP_NAME, 'measure-writer'], 50);
+  const stopSampler = lab.sampler([APP_NAME, WRITER_APP], 50);
   const children = [];
   const began = now();
   let latencies;
@@ -618,12 +614,8 @@ async function runAll(lab, { image, digest, reader, work, runs }) {
   out.push(`- Writer holds a row lock ${d.lockTimeoutMs + 5_000} ms: ${lockForced.outcome} after ${lockForced.blockedMs} ms; open transactions after timeout: ${lockForced.open}`);
   const slow = await executorFor(lab, d);
   const began = now();
-  let slowError;
-  try {
-    await slow.query({ database: DB, sql: 'SELECT COUNT_BIG(*) AS n FROM dbo.items AS a CROSS JOIN dbo.items AS b WHERE (a.id + b.id) % 7 = 0;' });
-  } catch (caught) {
-    slowError = caught;
-  }
+  const slowError = await failureOf(() =>
+    slow.query({ database: DB, sql: 'SELECT COUNT_BIG(*) AS n FROM dbo.items AS a CROSS JOIN dbo.items AS b WHERE (a.id + b.id) % 7 = 0;' }));
   const slowMs = Math.round(now() - began);
   const slowOpen = await lab.openTransactions(APP_NAME);
   await slow.close();

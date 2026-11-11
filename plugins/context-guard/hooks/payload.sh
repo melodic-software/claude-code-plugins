@@ -5,9 +5,9 @@
 # Windows/MSYS pipes (~40KB/s byte-at-a-time delivery) times out on exactly
 # the payloads these hooks exist for — PostCompact carries the full
 # compact_summary (measured: ~80KB payloads already lost). This reader's
-# drain loop: read -N
-# buffers in 1MiB blocks until EOF with a per-block 5s timeout, so a stalled
-# pipe is still bounded while a large healthy payload arrives whole. Bash
+# drain loop: read -N buffers in 1MiB blocks until EOF with a per-block 5s
+# timeout, so a stalled pipe is still bounded while a large healthy payload
+# arrives whole. Bash
 # below 4.1 (macOS ships 3.2) lacks -N and falls back to the delimiter form,
 # which already reads to EOF fast on native POSIX pipes.
 #
@@ -29,8 +29,8 @@
 # path. It would not save a process: via `_to` the loop is `read` builtins and
 # costs zero. What it would save is the `<<<` here-string the caller then needs
 # to re-feed the payload, which bash spills to a temp file at or above 64KiB.
-# The loop is kept anyway,
-# because the bounded `read -t 5` below is the property that caps a stalled
+# The loop is kept anyway, because the bounded `read -t 5` below is the
+# property that caps a stalled
 # pipe: a slow reader truncates at five seconds instead of blocking to the
 # harness timeout, which is the exact symptom #3508 is about. Disk I/O on
 # oversized payloads is the smaller cost of the two.

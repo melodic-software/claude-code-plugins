@@ -3,6 +3,25 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.13] - 2026-11-11
+
+### Changed
+
+- `/prototype:explore-directions --unattended` no longer suggests or attempts `/design`, a command only the person can run. It builds the mockup without asking.
+
+## [0.24.12] - 2026-11-11
+
+### Changed
+
+- `pressure-test` and `explore-directions` point at the live Claude Code docs sections for Bash
+  output limits, what persists between Bash calls, the design canvas lifecycle and skill name
+  precedence, and at the `ClaudeDesign` probe record for where writes are refused, instead of
+  restating them. No behavior change.
+
+- The `explore-directions` and `pressure-test` skills now cite the gather-block convention record, "The pre-compute block runs as one shell
+  invocation", instead of restating how the harness runs the pre-compute block. No behavior
+  change.
+
 ## [0.24.11] - 2026-11-09
 
 ### Changed

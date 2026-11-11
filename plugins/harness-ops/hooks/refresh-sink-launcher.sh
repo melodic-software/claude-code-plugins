@@ -13,9 +13,9 @@
 # Rewritten only when that content changes, through a temp file renamed into
 # place, so a symlink at the launcher path is replaced, never followed;
 # otherwise only touched, because producers pick the newest launcher when
-# several harness-ops installs keep one. A
-# launcher whose sink is gone (its install was removed) deletes itself and
-# exits 0, so a producer moves on to the next harness-ops install.
+# several harness-ops installs keep one. A launcher whose sink is gone (its
+# install was removed) deletes itself and exits 0, so a producer moves on to
+# the next harness-ops install.
 #
 # Prints nothing: SessionStart stdout becomes context. Never fails the session.
 set -uo pipefail
@@ -53,9 +53,6 @@ fi
 
 mkdir -p -- "$data" 2>/dev/null || exit 0
 tmp=$(mktemp "$data/.hook-telemetry-sink.XXXXXX" 2>/dev/null) || exit 0
-if printf '%s' "$content" >"$tmp" 2>/dev/null && chmod 755 "$tmp" 2>/dev/null &&
-  mv -f -- "$tmp" "$launcher" 2>/dev/null; then
-  exit 0
-fi
-rm -f -- "$tmp" 2>/dev/null
+{ printf '%s' "$content" >"$tmp" 2>/dev/null && chmod 755 "$tmp" 2>/dev/null &&
+  mv -f -- "$tmp" "$launcher" 2>/dev/null; } || rm -f -- "$tmp" 2>/dev/null
 exit 0

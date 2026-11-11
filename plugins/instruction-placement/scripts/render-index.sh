@@ -24,13 +24,9 @@
 # files before injecting them, so the markers cost no context while remaining
 # visible on disk to this script.
 #
-# Subcommands:
-#   render              print the block to stdout
-#   check --file F      compare F's block against a fresh render
-#   write --file F      replace F's block in place (creates it at end if absent)
-#   reachable --file F  does anything in this repository stop Claude Code
-#                       loading F?
-#   wiring              does every nested AGENTS.md the index lists actually load?
+# Subcommands, usage and exit codes: usage() below, or --help. Beyond that
+# text: `reachable` exits 0 for LOADED or NATIVE, and exit 2 also means an
+# unusable path (a --root or --file die() rejects), not only a usage error.
 #
 # `reachable` exists because a CLAUDE.md is read INSTEAD of the AGENTS.md beside
 # it. A repository carrying both with no import between them gets an index
@@ -60,21 +56,6 @@
 # CLAUDE.md files brings it in. A blocked, unimported nested AGENTS.md is
 # indexed, in sync, and never loaded; `check` cannot see the difference because
 # it compares text, not wiring.
-#
-# Usage:
-#   render-index.sh render [--root <dir>]
-#   render-index.sh check --file <path> [--root <dir>]
-#   render-index.sh write --file <path> [--root <dir>]
-#   render-index.sh reachable --file <path> [--root <dir>]
-#   render-index.sh wiring [--root <dir>]
-#   render-index.sh --help
-#
-# Exit: 0 success / in sync / target loaded or unblocked / no nested AGENTS.md
-#         blocked and unimported
-#       1 check found drift, write failed, target unreachable, or a nested
-#         AGENTS.md blocked and unimported
-#       2 usage error or unusable path
-#       3 check found no index block in the file
 
 set -uo pipefail
 
@@ -189,10 +170,8 @@ rule_title() {
 # form `["src/*.{ts,tsx}"]` on the brace comma turns one correct glob into two
 # broken ones.
 #
-# The join inserts ", " between globs in one pass. The earlier form — `paste
-# -sd,` then a global `s/,/, /` pad — hit the same brace-comma bug on output,
-# rendering `{ts,tsx}` as `{ts, tsx}`; only the commas the join itself inserts
-# may be padded. (`paste -sd', '` cannot do it: -d cycles single characters.)
+# The join pads only the commas it inserts, so `{ts,tsx}` keeps its brace comma
+# unpadded. (`paste -sd', '` cannot do it: -d cycles single characters.)
 rule_globs() {
   ip_parse_paths "$1" | awk 'NR > 1 { printf ", " } { printf "%s", $0 } END { if (NR) printf "\n" }'
 }
@@ -290,11 +269,7 @@ PREAMBLE
     # "these exist, go read them" contract at a bounded cost. What was collapsed
     # is stated rather than silently dropped: a truncated index that reads as
     # complete is the failure mode here.
-    # One ordering, reused by all three uses below. The listed head and the
-    # grouped tail are two halves of the SAME sort, so they read it from one
-    # place. Spawn effect, measured rather than assumed: this removes one `sort`
-    # from the grouped-tail path (which sorted the same rows twice) and costs a
-    # subshell on the <=MAX_ROWS path, where one sort already sufficed.
+    # The listed head and the grouped tail are two halves of the same sort.
     local sorted
     sorted="$(printf '%s\n' "${rows[@]}" | LC_ALL=C sort)"
     if ((${#rows[@]} <= MAX_ROWS)); then
@@ -331,6 +306,9 @@ normalize_drive_path() {
   fi
   printf '%s' "$p"
 }
+
+# True for a POSIX-absolute path or a drive-letter one (`C:/repo`, `C:\repo`).
+is_abs_path() { [[ "$1" == /* || "$1" =~ ^[A-Za-z]:[\\/] ]]; }
 
 # ---------------------------------------------------------------------------
 # Main
@@ -400,23 +378,16 @@ fi
 #
 # A drive-letter path is ABSOLUTE. `git rev-parse --show-toplevel` answers
 # `C:/repo` under Git Bash, so that spelling is what a caller on Windows hands
-# `--file` and `--root` on every Windows write. Testing only the leading `/`
-# read it as relative and joined it to the calling directory, producing
-# `/d/cwd/C:/repo/AGENTS.md` -- unreadable, so `check` died, the hook swallowed
-# the error and exited 0. The production check was a no-op for every Windows
-# user until this test was widened.
-if [[ -n "$TARGET" && "$TARGET" != /* && ! "$TARGET" =~ ^[A-Za-z]:[\\/] ]]; then
+# `--file` and `--root`. Read as relative, it would join to the calling
+# directory as `/d/cwd/C:/repo/AGENTS.md`, which `check` cannot read.
+if [[ -n "$TARGET" ]] && ! is_abs_path "$TARGET"; then
+  anchor="$PWD"
   if ((ROOT_GIVEN)); then
     # A relative --root is itself anchored to the caller's cwd, so resolve it
     # before joining or the target stays relative past the `cd` below.
-    root_abs="$ROOT"
-    if [[ "$root_abs" != /* && ! "$root_abs" =~ ^[A-Za-z]:[\\/] ]]; then
-      root_abs="$PWD/$root_abs"
-    fi
-    TARGET="${root_abs%/}/$TARGET"
-  else
-    TARGET="$PWD/$TARGET"
+    if is_abs_path "$ROOT"; then anchor="${ROOT%/}"; else anchor="$PWD/${ROOT%/}"; fi
   fi
+  TARGET="$anchor/$TARGET"
 fi
 
 cd "$ROOT" || die "cannot enter --root: $ROOT"
@@ -535,7 +506,6 @@ if [[ "$SUBCOMMAND" == "wiring" ]]; then
   exit "$wiring_rc"
 fi
 
-
 BLOCK="$(render_block)"
 
 case "$SUBCOMMAND" in
@@ -595,13 +565,19 @@ write)
       "$TARGET" "$begin_count" >&2
     exit 1
   fi
+  if [[ "$begin_count" -eq 1 ]] && ! grep -qF "$END_MARKER" "$TARGET"; then
+    rm -f "$tmp"
+    printf 'ERROR: %s has a begin marker with no end marker; refusing to guess its extent\n' \
+      "$TARGET" >&2
+    exit 1
+  fi
+  if [[ "$begin_count" -eq 0 ]] && block_is_empty "$BLOCK"; then
+    rm -f "$tmp"
+    printf 'NO-INDEX-NEEDED\t%s\tno path-scoped rules and no nested instruction files; an always-loaded block saying so is pure cost\n' \
+      "$TARGET"
+    exit 0
+  fi
   if [[ "$begin_count" -eq 1 ]]; then
-    if ! grep -qF "$END_MARKER" "$TARGET"; then
-      rm -f "$tmp"
-      printf 'ERROR: %s has a begin marker with no end marker; refusing to guess its extent\n' \
-        "$TARGET" >&2
-      exit 1
-    fi
     if block_is_empty "$BLOCK"; then
       # Nothing to index: drop the block rather than replacing it with one that
       # announces its own emptiness, and drop the blank line that separated it
@@ -628,11 +604,6 @@ write)
         !skipping { print }
       ' "$TARGET" >"$tmp"
     fi
-  elif block_is_empty "$BLOCK"; then
-    rm -f "$tmp"
-    printf 'NO-INDEX-NEEDED\t%s\tno path-scoped rules and no nested instruction files; an always-loaded block saying so is pure cost\n' \
-      "$TARGET"
-    exit 0
   else
     cat "$TARGET" >"$tmp"
     # Separate the appended block from whatever precedes it.

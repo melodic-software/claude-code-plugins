@@ -214,21 +214,17 @@ if ((${#EXPECT[@]} > 0)); then
     # fails to match a loaded `.../rules/csharp.md`.
     want_norm="${want#./}"
     want_norm="${want_norm//\\//}"
-    matched=0
+    state=MISSING
     while IFS= read -r loaded; do
       [[ -n "$loaded" ]] || continue
       loaded="${loaded//\\//}"
       if [[ "$loaded" == "$want_norm" || "$loaded" == */"$want_norm" ]]; then
-        matched=1
+        state=MET
         break
       fi
     done <<<"$loaded_files"
-    if ((matched == 1)); then
-      printf 'EXPECTED\t%s\tMET\n' "$want"
-    else
-      printf 'EXPECTED\t%s\tMISSING\n' "$want"
-      MISSING=$((MISSING + 1))
-    fi
+    printf 'EXPECTED\t%s\t%s\n' "$want" "$state"
+    [[ "$state" == MET ]] || MISSING=$((MISSING + 1))
   done
 fi
 

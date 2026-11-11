@@ -167,7 +167,7 @@ $CheckBody = {
             $notesParts.Add("$($history.SkippedRecords) Defender event record(s) could not be parsed.")
         }
         if ($coverageGap) {
-            $notesParts.Add("The Defender event log does not reach back the full $recentDays days (oldest record: $(if ($oldestText) { $oldestText } else { 'unreadable' })); older detections are not visible.")
+            $notesParts.Add("The Defender event log does not reach back the full $recentDays days (oldest record: $($oldestText ?? 'unreadable')); older detections are not visible.")
         }
         $noteAppend = $notesParts.Count -gt 0 ? ($notesParts -join ' ') : $null
 

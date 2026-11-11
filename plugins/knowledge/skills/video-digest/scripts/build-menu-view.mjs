@@ -149,12 +149,16 @@ function fail(message, code) {
   process.exit(code);
 }
 
+function errorText(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function runCheck(path) {
   let html;
   try {
     html = readFileSync(path, "utf8");
   } catch (error) {
-    fail(error instanceof Error ? error.message : String(error), 2);
+    fail(errorText(error), 2);
   }
   const verdict = validateRenderedPage(html);
   if (!verdict.ok) fail(verdict.failures.join(","), 1);
@@ -165,7 +169,7 @@ function runBuild() {
   try {
     model = JSON.parse(readFileSync(0, "utf8"));
   } catch (error) {
-    fail(`invalid JSON (${error instanceof Error ? error.message : String(error)})`, 2);
+    fail(`invalid JSON (${errorText(error)})`, 2);
   }
   if (!model || typeof model !== "object" || Array.isArray(model)) {
     fail("JSON root must be an object", 2);

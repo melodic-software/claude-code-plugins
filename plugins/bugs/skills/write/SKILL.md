@@ -217,7 +217,9 @@ When the defect is in Claude Code itself (the CLI, a built-in command, a bundled
 the person: If /bug is available in your session (gate basis: the records in
 [context/native-bug.md](context/native-bug.md#the-built-in-bug-command-verification-record)), you
 can run it instead of or alongside this skill. When the caller passes `--unattended`, the run records the offer in its output instead of asking; without that flag it
-asks. Never run `/bug` on the person's behalf: whether to run it is the person's decision.
+asks. Never run `/bug` on the person's behalf: it sends material from this session to someone
+outside this repository (what it includes and where it goes: the `/bug` row above), and only the
+person decides what goes and where.
 Never assume `/bug` is
 present in their host.
 
