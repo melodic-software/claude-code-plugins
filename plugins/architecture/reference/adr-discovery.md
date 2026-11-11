@@ -14,12 +14,14 @@ A declaration is the strongest evidence, because it states intent rather than re
 
 - A `.adr-dir` file at the repository root. Its content is the directory.
 - A path named in the project's `CLAUDE.md`, `AGENTS.md`, `.claude/rules/`, or a documented docs
-  convention.
+  convention, when it resolves inside the current repository.
 - A standards index entry that names where decisions live.
 - A `README.md` or a template file inside a candidate directory: `adr-template.md`, `template.md`,
   `0000-template.md`, `NNNN-template.md`.
 
-A declared directory that does not exist yet still wins. Create it and say why.
+A declared directory inside the current repository that does not exist yet still wins. Create it
+and say why. A declared path that resolves outside the current repository (another repository, a
+parent directory) is ignored for discovery and never created or written.
 
 ## Rung 2. Existing directory
 
