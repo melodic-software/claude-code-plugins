@@ -2,24 +2,30 @@
 
 Every planning skill that asks a person questions runs this step on each candidate question
 before the person sees it. Facts are the agent's; decisions are the user's. The step answers
-facts and never settles a tradeoff: a question with real tradeoffs goes to the user whatever the
-sources say, and what the sources found only grounds its recommendation.
+facts and never settles a tradeoff itself: a question with real tradeoffs goes to the user
+whatever the sources say, and what the sources found only grounds its recommendation. The one
+exception is a decision the owner already made: a quoted ruling answers it, and a decided question
+is not asked again.
 
 ## Sources, cheapest first
 
 Stop at the first source that settles the fact. A slow lookup goes to a sub-agent without
 blocking the round; only the questions downstream of it wait.
 
-1. **Codebase** (tags `codebase`, `docs`, `history`). The working tree (Grep, Read, Glob). Docs
+1. **Prior owner decisions** (tag `decision`). The repository's declared owner-decisions record
+   (the one its agent instructions name, wherever it lives) and earlier interview ledgers on the
+   same topic. Only a quoted ruling that covers this question counts; a ruling a later one
+   overrides, or one that covers a neighboring question, settles nothing.
+2. **Codebase** (tags `codebase`, `docs`, `history`). The working tree (Grep, Read, Glob). Docs
    beyond the nearest anchor: the repository's ADRs (`docs/adr/` or its declared ADR home),
    design docs, and READMEs. History for this question, not only recent commits: `git log -S`
    for the term, `git log --follow` and `git blame -L` for the file, and the pull requests and
    issues those commits link (`gh pr view`, `gh issue view`). A named external repository
    through its host.
-2. **Connected tools** (tags `mcp:<server>`, `cli:<tool>`). MCP servers connected in this
+3. **Connected tools** (tags `mcp:<server>`, `cli:<tool>`). MCP servers connected in this
    session (a tracker, chat, docs, a cloud console) and authenticated CLIs. Read-only calls
    only: a lookup never creates, edits, posts, or sends anything.
-3. **Research** (tag `research`). A researchable external fact: a vendor default, a documented
+4. **Research** (tag `research`). A researchable external fact: a vendor default, a documented
    limit, a supported option, a current version. Use `/discovery:research` or `/context7:lookup`
    when enabled, else fetch the official docs. Official docs first; note the date or version.
 
@@ -42,7 +48,10 @@ Each candidate question ends in exactly one:
   `<tag>` one of the tags above. It gets no question row; the skill's ledger, where it keeps
   one, records it as a fact with the same tag and basis. Questions that depended on it can be
   asked now.
-- **Needs the user.** A decision, or a fact no source settled. It is asked the skill's usual
+- **Answered by a prior decision.** State the ruling instead of asking, as
+  `Decided (answered-from-decision): <the ruling, quoted>. Basis: <record and location>`. It is
+  recorded like an answered fact. The user can reopen it, which asks it the usual way.
+- **Needs the user.** A decision no prior ruling covers, or a fact no source settled. It is asked the skill's usual
   way.
 - **Needs access.** The fact sits in a named system that is not connected in this session: one
   the user mentioned ("we use Microsoft Teams") or the repository points at. Offer to connect

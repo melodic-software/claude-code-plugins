@@ -521,11 +521,12 @@ done
 # Only the ADR handoff changed: the Domain-aware ADR bullet now points at round step 8, loop.md adds item 8 Decision record (sweep becomes 9), and eval 18 is renamed to the ADR-candidate fallback. No line about silent resolution, gaps, constraint rows or process changes was touched, and cases 15 and 16 are unchanged.
 # Re-audit: the wayfind pointer says map of decision items instead of decision map (wayfind's own vocabulary rule); the no-silent-resolve rule is untouched.
 # Stance gains only a scenario-walk bullet among the domain-aware behaviors, which offers scenarios and never resolves a question on its own; Step 3 gains a closing summary placed before the recap, and the confirmation gate, register gate and procedure check are untouched, so the restatement still waits for an explicit confirm
+# A decision whose evidence leaves only one viable answer is named on the round header Settled by evidence line with its Basis and an answered-from-evidence register row the user can reopen by id, and a quoted prior owner ruling answers its question as an answered-from-decision fact; every decision with a live alternative is still asked, so the auto-guard still never folds a user choice, and the lock, STOP-on-gap, no-silent-resolve and blocker defenses are byte-identical
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "a00dda2efde22f6c23df82cb71aaf4b074ddb24acab2d8c816d410daaf9f8906"
+  "be7246a1b1a228bc04dcb998b9d29308e21bfb82ac987264185f437c7cfaecd8"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -571,11 +572,12 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # Phase 3 of #14733 eval fix: the Stance intake line also says an unattended run, lock included, still writes the Brief and ends on the Stopped line only for a contradicted recorded Intent or Vision or a critical security issue, and the Unattended path paragraph limits not settled yet to an item naming a release or in-use outcome; both narrow when a run stops, resolve no row, and rungs 1-5, the lock STOP line, the auto-guard and no-silent-resolve lines are byte-identical
 # Phase 3 of #14733 retry: the Stance intake line drops its unattended sentence, and the Unattended path stop paragraph now exits the way rung 3 records a blocker (a blocked USER-RESERVED row, Finish line not settled yet, no Step 4 lock or gate) with the Stopped line limited to the two stop classes, so every other blocker keeps rung 3 and its own last line; it resolves no row, and rungs 1-5, the lock STOP line, the auto-guard and no-silent-resolve lines are byte-identical
 # Gates: one added sentence routes an unattended stop at the instance question or Finish line to loop.md Unattended path; the lock STOP-on-gap halt is unchanged for every other gap. Unattended path and register: an unattended release or in-use item now exits like the stop path (blocked USER-RESERVED row, no lock or gate, Blocked: last line, owner Q13); rungs 1-5, the auto-guard and no-silent-resolve lines are byte-identical and nothing is resolved silently.
+# A decision whose evidence leaves only one viable answer is named on the round header Settled by evidence line with its Basis and an answered-from-evidence register row the user can reopen by id, and a quoted prior owner ruling answers its question as an answered-from-decision fact; every decision with a live alternative is still asked, so the auto-guard still never folds a user choice, and the lock, STOP-on-gap, no-silent-resolve and blocker defenses are byte-identical
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "d074f63452cfb3fbd1b2da1ac96db8203a7a63670cd9322bed8a56e7cf246959"
+  "f3a176dbcd93d306b5b021aeabc1ce49fe8db081b285da7895a1aec6b0c2e69d"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate `lock` line ("`lock` confirms the problem … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -775,11 +777,12 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
 # Only the ADR handoff changed: the Domain-aware ADR bullet now points at round step 8, loop.md adds item 8 Decision record (sweep becomes 9), and eval 18 is renamed to the ADR-candidate fallback. No line about silent resolution, gaps, constraint rows or process changes was touched, and cases 15 and 16 are unchanged.
 # does-NOT-do: only the ADR fallback wording changed (by hand -> ADR candidate in the register row); the fudge-prohibition bullet is untouched and byte-pinned. loop.md Step 2: only item 8 changed, replacing the record-decision outcome claim and saying how its skip offer is answered (asked in me/auto, taken in lock or unattended); no constraint-ledger row or process-change line moved.
 # Review fixes only: Step 3's ADR verdict line adds the passing part and the declined-under-ask case, and the overrule notes that under ask it is the answer; loop.md item 8 asks record-decision to name the part a recorded decision passes. No constraint-ledger row, process-change definition, confirmation gate, register gate or procedure check changed
+# A decision whose evidence leaves only one viable answer is named on the round header Settled by evidence line with its Basis and an answered-from-evidence register row the user can reopen by id, and a quoted prior owner ruling answers its question as an answered-from-decision fact; every decision with a live alternative is still asked, so the auto-guard still never folds a user choice, and the lock, STOP-on-gap, no-silent-resolve and blocker defenses are byte-identical
 pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, process-change definition)" \
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "4edcf7128d4e13f95205a36e07716753540ed8a4b9f8a3fde0a10115e1c203b6"
+  "a3adb27fc8d59b371ccdd3478654305b5d098a63b8b5aa61f4bebc7daca9bd2b"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
