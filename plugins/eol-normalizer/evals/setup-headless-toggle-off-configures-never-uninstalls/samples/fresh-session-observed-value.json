@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Then start a fresh session and rerun `/eol-normalizer:setup check`: a check in this same session still shows the old value, because the option is injected at load. Go by what that check reports."
+      "answer": "Then start a fresh session and rerun `/eol-normalizer:setup check`: a check in this same session can still show the old value. Go by what that check reports."
     }
   ],
   "fail": [

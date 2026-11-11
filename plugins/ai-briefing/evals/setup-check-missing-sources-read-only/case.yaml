@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: setup-check-missing-sources-read-only
+graders:
+  - name: sources-fail-routes-apply
+    type: regex
+    pattern: 'sources\.md[^\n]{0,200}?\bapply\b|\bapply\b[^\n]{0,200}?sources\.md'
+    flags: 'i'
+    target: last_message
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

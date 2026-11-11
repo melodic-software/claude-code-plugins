@@ -46,6 +46,14 @@ reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md -> plugins/*/reference/pr-scope-budget.md
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# docs/contracts/plugin-reconfiguration/README.md.
+reference/plugin-reconfiguration.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the canonical contract and the copies.
+docs/contracts/plugin-reconfiguration/README.md -> plugins/*/reference/plugin-reconfiguration.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/managed-scope.sh.
 lib/managed-scope.sh
 
@@ -592,6 +600,24 @@ lib/publish-gate.mjs
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/publish-gate.mjs -> plugins/*/lib/publish-gate.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# .github/scripts/lib/lane-binding.mjs. The review and work-items plugins
+# carry the generated copies.
+lib/lane-binding.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# .github/scripts/lib/lane-binding.fixtures.mjs. The review and work-items
+# plugins carry the generated copies for their tests.
+lib/lane-binding.fixtures.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the canonical and the copies.
+.github/scripts/lib/lane-binding.mjs -> plugins/*/lib/lane-binding.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the canonical fixtures and the copies.
+.github/scripts/lib/lane-binding.fixtures.mjs -> plugins/*/lib/lane-binding.fixtures.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: lib/telemetry-body-gate.sh, the body checks the lane

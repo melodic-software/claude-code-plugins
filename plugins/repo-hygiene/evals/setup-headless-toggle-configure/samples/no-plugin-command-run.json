@@ -70,6 +70,18 @@
         }
       ],
       "why": "inside echo"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude plugin configure --help 2>&1 | head -40",
+            "description": "Show configure flags"
+          }
+        }
+      ],
+      "why": "a read-only --help probe"
     }
   ],
   "fail": [
@@ -83,7 +95,7 @@
           }
         }
       ],
-      "why": "uninstall resets every option (setup:142-144)"
+      "why": "uninstall to reconfigure"
     },
     {
       "answer": [

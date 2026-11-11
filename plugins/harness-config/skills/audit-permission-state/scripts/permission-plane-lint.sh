@@ -114,9 +114,8 @@ function value_of(b,   c) {
 # Specifier body of Tool(specifier). Parentheses inside the specifier are
 # literal and one nesting level is accepted, so Edit(./Finance (2024)/**) is one
 # rule. spec_status is ok, bare, trailing, or unclosed. Trailing text
-# such as Bash(ls) x is the malformed Tool(content) rule; stripping the last
-# character and calling the rest the body is what used to hide it.
-function specifier_body(text,   i, n, depth, ch, start) {
+# such as Bash(ls) x is the malformed Tool(content) rule.
+function specifier_body(text,   i, n, depth, ch, start, rest) {
   spec_status = "bare"
   start = index(text, "(")
   if (start == 0) return ""
@@ -125,18 +124,10 @@ function specifier_body(text,   i, n, depth, ch, start) {
   for (i = start; i <= n; i++) {
     ch = substr(text, i, 1)
     if (ch == "(") depth++
-    else if (ch == ")") {
-      depth--
-      if (depth == 0) {
-        spec_rest = substr(text, i + 1)
-        gsub(/^[ \t]+/, "", spec_rest)
-        if (spec_rest != "") {
-          spec_status = "trailing"
-          return substr(text, start + 1, i - start - 1)
-        }
-        spec_status = "ok"
-        return substr(text, start + 1, i - start - 1)
-      }
+    else if (ch == ")" && --depth == 0) {
+      rest = substr(text, i + 1)
+      spec_status = (rest ~ /^[ \t]*$/) ? "ok" : "trailing"
+      return substr(text, start + 1, i - start - 1)
     }
   }
   spec_status = "unclosed"
@@ -302,17 +293,11 @@ END {
     # A Windows-style path in a rule: rule paths are normalized to POSIX form
     # before matching, so `C:\Users\alice` never matches anything.
     #
-    # This check has been wrong in BOTH directions. It first tested for a doubled
-    # backslash -- the JSON SOURCE spelling -- which `jq -r` decodes away, so it
-    # was dead in the real pipeline. Testing a bare backslash instead made it
-    # worse than dead: backslashes are ordinary in shell rules (`Bash(echo \n *)`,
-    # a regex `sed 's/\./_/g'`, an escape inside a quoted string), so every one
-    # became a severity-`error` finding carrying Windows-path advice, and the one
-    # true finding drowned.
-    #
-    # So the test is on SHAPE, not on the character: a drive-letter prefix
-    # (`C:\`) or a UNC prefix (`\\host`), the two forms that are actually a
-    # Windows path. A backslash anywhere else is somebody escaping something.
+    # The test is on SHAPE, not on the backslash: a drive-letter prefix (`C:\`)
+    # or a UNC prefix (`\\host`), the two forms that are actually a Windows path.
+    # Backslashes are ordinary in shell rules (`Bash(echo \n *)`, a regex
+    # `sed 's/\./_/g'`), and a doubled one is the JSON source spelling that
+    # `jq -r` has already decoded.
     drive = match(body, /(^|[^A-Za-z0-9])[A-Za-z]:\\/)
     unc = (index(body, "\\\\") == 1) || (index(body, "(\\\\") > 0)
     if (drive > 0)
@@ -335,40 +320,25 @@ END {
     # like `Bash(git:* push)`, the colon is treated as a literal character" --
     # not about the parameter form, where a mid-body `*` is documented and
     # working: "WebFetch rules use a `domain:` prefix and match against the
-    # hostname… supports `*` wildcards." Firing on `WebFetch(domain:*.example.com)`
-    # called a documented working rule broken.
-    # The exemption is by GRAMMAR, not by a list of parameter names. The page
+    # hostname… supports `*` wildcards."
+    #
+    # The exemption is by GRAMMAR, not by a list of parameter names: the page
     # says parameter matching works "on any tool" for "any scalar parameter the
-    # tool accepts" -- open-ended by construction -- and "the value supports `*`
-    # as a wildcard that matches any sequence of characters". A hardcoded
-    # allowlist could only ever chase that: it exempted WebFetch/domain and then
-    # flagged `Agent(model:*-haiku)`, a documented parameter form whose wildcard
-    # happens to land mid-value.
+    # tool accepts", and "the value supports `*` as a wildcard that matches any
+    # sequence of characters", so `Agent(model:*-haiku)` is a working rule.
     #
-    # So: in a deny or ask rule, an `identifier:value` body IS the parameter
-    # form and the mid-pattern rule does not apply to it. In an allow rule it
-    # cannot be the parameter form at all -- an allow rule uses the specifier
-    # syntax its own tool defines -- so a command-prefix reading is the only one
-    # and the check still applies.
-    # ...and the value must carry NO SPACE. "Each rule names one parameter" and
-    # its value is a single scalar, so a parameter value never has
-    # space-separated trailing words -- while the literal-colon command wildcard
-    # is precisely a command prefix FOLLOWED BY MORE WORDS.
+    # So: in a deny or ask rule, an `identifier:value` body whose value carries
+    # NO SPACE is the parameter form and the mid-pattern rule does not apply to
+    # it. "Each rule names one parameter" and its value is a single scalar,
+    # while the literal-colon command wildcard is a command prefix FOLLOWED BY
+    # MORE WORDS, so `deny Bash(git:* push)` -- the literal-colon example on the
+    # page -- still fires. A DENY in this form fails OPEN: the operator
+    # believes they blocked `git push` and did not.
     #
-    # Without this, `git` parses as an identifier and `deny Bash(git:* push)` --
-    # the OWN literal-colon example the page gives -- went silent. That is
-    # worse than the false positive it replaced: an ALLOW in this form fails closed (the
-    # operator is denied something they thought they had), a DENY in this form
-    # fails OPEN (they believe they blocked `git push` and did not). The space is a
-    # property of the grammar, so it does not reintroduce the name allowlist.
-    #
-    # In an ALLOW rule the same shape is exempted for a different reason: it is
-    # already reported by C6-allowParam, which explains it correctly (an allow
-    # rule cannot use the parameter form at all). Letting colonStar fire too
-    # gave one rule two findings with two mechanics, and for a tool that takes
-    # no command prefixes -- `Agent` -- the colonStar explanation is simply
-    # wrong. The rule does not do what it looks like either way; only one of
-    # the two says why.
+    # In an ALLOW rule the parameter form is not available at all, so the check
+    # applies, except to a shape C6-allowParam already reports with the right
+    # mechanic (the colonStar explanation is wrong for `Agent`, which takes no
+    # command prefixes).
     # A body that starts with `*` and holds no space has no command prefix to
     # misread: the colon in `PowerShell(*env:*lefthook*)` is the literal `$env:`
     # it means to match. A space brings back the prefix-then-words shape
@@ -376,14 +346,15 @@ END {
     cs = index(body, ":*")
     mid_colon_star = (cs > 0 && cs + 1 < length(body) && !(substr(body, 1, 1) == "*" && body !~ /[ \t]/))
     is_param_shape = (pfx ~ /^[A-Za-z_][A-Za-z0-9_]*$/) && (value_of(body) !~ /[ \t]/)
-    param_form = (kind != "allow") ? is_param_shape \
-      : (is_param_shape && (tool SUBSEP pfx) in param_only)
-    if (mid_colon_star && !param_form && !((tool SUBSEP pfx) in documented_param))
+    is_param_only = (tool SUBSEP pfx) in param_only
+    is_documented = (tool SUBSEP pfx) in documented_param
+    param_form = is_param_shape && (kind != "allow" || is_param_only)
+    if (mid_colon_star && !param_form && !is_documented)
       finding("error", "C6-colonStar", scope, text " — the :* prefix form is only recognized at the END of a pattern; here the colon is a literal character and the * a wildcard, so the rule matches only commands containing that literal colon (Bash(git:* push) matches git:<anything> push), not what it looks like it matches")
     # Mid-pattern `:*` with no trailing space is structurally identical to a live
     # parameter form (`Agent(model:*-haiku)`). Once the space is gone nothing in
     # the rule text distinguishes them; silence is fail-open on deny/ask rules.
-    if (mid_colon_star && kind != "allow" && is_param_shape && !((tool SUBSEP pfx) in documented_param) && !((tool SUBSEP pfx) in param_only))
+    if (mid_colon_star && kind != "allow" && is_param_shape && !is_documented && !is_param_only)
       finding("warning", "C6-colonStarAmbiguous", scope, text " — mid-pattern :* with no trailing space is indistinguishable from a documented parameter form; this rule may be a literal-colon command wildcard or a parameter wildcard — verify which you intended")
 
     # Parameter form is `Tool(param:value)`. Two distinct defects live here.
@@ -402,7 +373,7 @@ END {
       # `Bash(npm:*)` is a command prefix), so this fires only where the shape
       # is unambiguously the parameter form: a known top-level parameter name
       # on a tool whose own syntax is a path or a command.
-      else if (kind == "allow" && (tool SUBSEP pfx) in param_only)
+      else if (kind == "allow" && is_param_only)
         finding("warning", "C6-allowParam", scope, text " — parameter matching is documented for deny and ask rules only; an allow rule uses the specifier syntax its own tool defines, so this grant may not take effect as written")
     }
 

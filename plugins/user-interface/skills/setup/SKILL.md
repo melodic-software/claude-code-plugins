@@ -97,31 +97,29 @@ remediation line per FAIL or WARN. Write nothing except the userConfig file abov
 6. Re-run the read and `check`, and report the stored value and its provenance from the new table,
    never from the write. A key that now shows an error is reverted to its previous text.
 
-The userConfig layer is not a file this skill writes. To change a `css_*` option, send the user to
-Claude Code's native flow, per the marketplace's plugin-reconfiguration convention
-(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#verified-version-record>,
-which owns the verified-version record): interactive `/plugin configure user-interface@<marketplace>`
-any time. Headless, preferred (a release that has `plugin configure`; the convention's routes
-name the floor): `claude plugin configure user-interface@<marketplace> --values-stdin < values.json`,
-with `values.json` holding `{"css_important": "allow"}` and every value, booleans included,
-written as a JSON string. Headless fallback (an older release):
-`claude plugin install user-interface@<marketplace> -s <scope> --config css_important=allow`
-(repeatable per key), rerun against the installed plugin. Do **not** uninstall to reconfigure.
-Run either route from the project the plugin is installed in. For the rerun, pass the scope
-`claude plugin list` reports; from the home directory, where the list can label one settings file
-both `user` and `project`, pass `user`. Check each route's own failure signal: read both its exit
-code and its output before reporting a value saved. The convention's
-[caveats section](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries)
-records why for each of these rules; this skill does not restate it. Pointer: when what a route
-prints, rejects, stores or resets is in doubt, fetch
-[plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
-[§ plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install) and
-[§ What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps)
-live. As of: 2026-11-10. Recheck: either convention heading is renamed, or one of those sections
-changes how a route reports a rejected value, what a rerun at another scope adds, or what an
-uninstall deletes. The rendered `${user_config.*}` values are fixed when this skill loads,
-so rerun `check` in a **fresh session** and report the provenance it observes, never an unobserved
-change. The plugin README's Options section lists every option. Pointer:
+The userConfig layer is not a file this skill writes. To change a `css_*` option (for example
+`css_important` to `allow`), send the user to Claude Code's native flow, interactively with
+`/plugin configure user-interface@<marketplace>` or by a headless route, as the marketplace's
+plugin-reconfiguration convention gives them in
+[§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
+(it owns the verified-version record). Apply the scope and failure-signal caveats in its
+[§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
+Read both sections and print what they give, the fallback route, its behavior on an
+already-installed plugin and the scope to pass included, rather than only naming them, and
+leave out the verified-version record.
+Never uninstall to reconfigure; that section links what an uninstall deletes. Afterwards rerun
+`check` in a **fresh session**, since a same-session `check` can still show the old value, and
+report the provenance it observes, never an unobserved change.
+
+- **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+  when a saved value applies, fetch
+  [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+  refused value, or when a saved value applies.
+
+The plugin README's Options section lists every option. Pointer:
 <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>. As of: 2026-11-04.
 Recheck: that section changes how an option is edited or where its value is stored.
 

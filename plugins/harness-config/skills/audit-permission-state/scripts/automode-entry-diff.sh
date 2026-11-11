@@ -242,15 +242,13 @@ while read -r rec kind scopes_field _basis rule; do
     # operator a live grant is already suspended.
     monitor_seen=1
     verdict="dropped class=monitor"
-  elif [[ "$rule" == "Bash" || "$rule" == "PowerShell" ]]; then
+  elif [[ "$rule" == "Bash" || "$rule" == "PowerShell" ]] || rule_matches "$rule" "$CCPERM_P1_BLANKET_ERE"; then
     # A bare tool name is the WHOLE-TOOL grant -- strictly broader than
     # Bash(*), which this same run classifies as blanket. Reporting it as
     # surviving auto mode while dropping the narrower form would be backwards
     # in the direction that matters: it tells an operator their broadest shell
     # grant is safe. The Agent branch above already handles its own bare form;
     # this is the same rule for the two shell tools.
-    verdict="dropped class=blanket"
-  elif rule_matches "$rule" "$CCPERM_P1_BLANKET_ERE"; then
     verdict="dropped class=blanket"
   elif rule_matches "$rule" "$CCPERM_P1_INTERP_ERE|$CCPERM_P1_SCRIPTGLOB_ERE"; then
     verdict="dropped class=interpreter-wildcard"
@@ -422,7 +420,6 @@ fi
 # exactly — a disagreement in EITHER direction is a finding.
 predicted_sorted="$(printf '%s' "$predicted_dropped" | LC_ALL=C sort -u)"
 while IFS= read -r rule; do
-  [[ -n "$rule" ]] || continue
   in_pred=0
   in_orc=0
   grep -qxF "$rule" <<<"$predicted_sorted" && in_pred=1

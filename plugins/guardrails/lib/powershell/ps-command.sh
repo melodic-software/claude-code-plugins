@@ -204,19 +204,11 @@ ps::_mark_untrusted() {
 }
 
 # True when TEXT contains a CR not immediately followed by LF. PowerShell ends
-# a statement at a bare CR; this library splits on LF only. The glob answers
-# "no CR at all" without the per-character walk, which is every command that
-# carries no CR.
+# a statement at a bare CR; this library splits on LF only. Deleting every CRLF
+# pair leaves exactly the CRs that no LF follows.
 ps::has_bare_cr() {
-  local s="$1" i n next
-  [[ "$s" == *$'\r'* ]] || return 1
-  n=${#s}
-  for ((i = 0; i < n; i++)); do
-    [[ "${s:i:1}" == $'\r' ]] || continue
-    next="${s:i+1:1}"
-    [[ "$next" == $'\n' ]] || return 0
-  done
-  return 1
+  local s="${1//$'\r\n'/}"
+  [[ "$s" == *$'\r'* ]]
 }
 
 # True when a PreToolUse JSON payload encodes a bare CR: a literal CR byte not
@@ -408,7 +400,7 @@ ps::blank_herestrings() {
   # matched no call site in any measuring probe and fell through ALLOWED (#2928).
   ps::normalize_token_separating_spaces "$1"
   local cmd="$PS_NORMALIZED"
-  local line out="" pending="" in_hs=0 hs_quote="" first2 rest closer prefix
+  local line out="" pending="" in_hs=0 hs_quote="" first2 prefix
   local saw_block_comment=0
   local -a hs_lines=()
   PS_HERESTRING_UNBALANCED=0
@@ -431,18 +423,14 @@ ps::blank_herestrings() {
     # without turning an INTERIOR bare CR into a line break.
     line="${line%$'\r'}"
     if ((in_hs)); then
-      first2="${line:0:2}"
-      closer="${hs_quote}@" # '@ or "@
-      if [[ "$first2" == "$closer" ]]; then
-        # Column-zero closer. Keep the text after the two-char closer on the same
-        # logical line as the opener's prefix + placeholder.
-        rest="${line:2}"
-        out+="${pending}${rest}"$'\n'
+      if [[ "${line:0:2}" == "${hs_quote}@" ]]; then
+        # Column-zero closer ('@ or "@). Keep the text after the two-char closer
+        # on the same logical line as the opener's prefix + placeholder.
+        out+="${pending}${line:2}"$'\n'
         pending=""
         in_hs=0
         hs_quote=""
-      else
-        if [[ "$hs_quote" == '"' && "$line" == *"\$("* ]]; then
+      elif [[ "$hs_quote" == '"' && "$line" == *"\$("* ]]; then
         # A body line about to be DROPPED from an expandable here-string, and it
         # carries a command position. The needle is the two characters `$(`,
         # spelled `\$(` inside a QUOTED pattern segment so it matches literally
@@ -453,8 +441,7 @@ ps::blank_herestrings() {
         # trailing text in the output, where every later scan can still see it:
         # only what the drop removes is hidden, and only that may raise the
         # trigger.
-          PS_HERESTRING_EXPANDABLE_SUBEXPR=1
-        fi
+        PS_HERESTRING_EXPANDABLE_SUBEXPR=1
       fi
       # A body line (no column-zero closer) is dropped.
       continue
@@ -487,7 +474,7 @@ ps::blank_herestrings() {
       # placeholder about to replace it stands for text that can contain a
       # command position. `@'` opens a verbatim body and stands for inert text.
       [[ "$hs_quote" == '"' ]] && PS_HERESTRING_EXPANDABLE=1
-      pending="${line%??}${PS_HERESTRING_PLACEHOLDER}"
+      pending="${prefix}${PS_HERESTRING_PLACEHOLDER}"
       in_hs=1
       continue
     fi
@@ -601,20 +588,16 @@ ps::_walk_quoted_spans_to() {
       for ((__wq_j = __wq_i + 1; __wq_j < __wq_n; __wq_j++)); do
         __wq_c="${__wq_text:__wq_j:1}"
         [[ "$__wq_c" == $'\n' ]] && break
-        # Ambiguous escape context in a double-quoted span — stop looking and
-        # fall through to the delete-nothing branch below.
-        if [[ "$__wq_q" == '"' && "$__wq_c" == '`' ]]; then
+        # Ambiguous escape context: a backtick in a double-quoted span, or a
+        # DOUBLED quote, PowerShell's other escape for a delimiter (`'it''s'`,
+        # `"say ""hi"""`), so this candidate closer may not be one. Stop looking
+        # and fall through to the delete-nothing branch below.
+        if [[ "$__wq_q" == '"' && "$__wq_c" == '`' ]] ||
+          [[ "$__wq_c" == "$__wq_q" && "${__wq_text:__wq_j+1:1}" == "$__wq_q" ]]; then
           for (( ; __wq_j < __wq_n; __wq_j++)); do [[ "${__wq_text:__wq_j:1}" == $'\n' ]] && break; done
           break
         fi
         if [[ "$__wq_c" == "$__wq_q" ]]; then
-          # A DOUBLED quote is PowerShell's other escape for a delimiter
-          # (`'it''s'`, `"say ""hi"""`), so this candidate closer may not be one.
-          # Same resolution as the backtick: refuse the question, delete nothing.
-          if [[ "${__wq_text:__wq_j+1:1}" == "$__wq_q" ]]; then
-            for (( ; __wq_j < __wq_n; __wq_j++)); do [[ "${__wq_text:__wq_j:1}" == $'\n' ]] && break; done
-            break
-          fi
           __wq_found=1
           break
         fi
@@ -1366,35 +1349,25 @@ ps::computed_call_has_positional_write_signal() {
         ((depth < 0)) && depth=0
         continue
       fi
-      if [[ "$tok" == -* ]]; then
-        break
-      fi
+      [[ "$tok" == -* ]] && break
       count=$((count + 1))
-      # One bracketed operand, however many words it spans — a subexpression
-      # `(Join-Path …)` or a script block `{ … }`. Braces are tracked alongside
-      # parens because the operand region no longer truncates at the first `}`
-      # (review of #2848); without this a multi-word script-block operand would
-      # be counted one word at a time.
-      if [[ "$tok" == [\(\{]* ]]; then
-        depth=$((${#opens} - ${#closes}))
-        ((depth < 0)) && depth=0
-        continue
-      fi
       # A token that merely CONTAINS brackets — `${scope:name}`, `logs[0].txt` —
       # is a single operand. Only an unbalanced one opens a multi-word span.
       depth=$((${#opens} - ${#closes}))
       ((depth < 0)) && depth=0
-      ((depth > 0)) && continue
-      if [[ "$tok" != \$* && "$tok" != @* && "$tok" != \{* ]]; then
+      # One bracketed operand, however many words it spans, a subexpression
+      # `(Join-Path …)` or a script block `{ … }`, is never a visible literal.
+      # Braces are tracked alongside parens because the operand region no
+      # longer truncates at the first `}` (review of #2848); without this a
+      # multi-word script-block operand would be counted one word at a time.
+      if [[ "$tok" == [\(\{]* ]] || ((depth > 0)); then
+        continue
+      fi
+      if [[ "$tok" != \$* && "$tok" != @* ]]; then
         count_lit=$((count_lit + 1))
       fi
     done
-    if ((count >= 2 && count_lit >= 1)); then
-      return 0
-    fi
-    if ((piped == 1 && count >= 1)); then
-      return 0
-    fi
+    ((count >= 2 && count_lit >= 1 || piped == 1 && count >= 1)) && return 0
   done
   return 1
 }

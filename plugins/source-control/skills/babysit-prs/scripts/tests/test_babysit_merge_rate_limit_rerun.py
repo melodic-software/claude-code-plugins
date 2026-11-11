@@ -438,6 +438,24 @@ class LostReviewRerun(unittest.TestCase):
                 )
                 self.assertEqual(posts, [])
 
+    def test_a_lost_run_whose_bound_comment_is_unproven_is_left_to_a_person(
+        self,
+    ) -> None:
+        # The lost run may never have uploaded the record that would prove
+        # it, so its footer alone holds the re-run, with no artifact read.
+        summary = {
+            "id": 2,
+            "user": {"login": "github-actions[bot]", "type": "Bot"},
+            "created_at": "2026-10-09T09:58:00Z",
+            "body": f"Review summary\n<!-- claude-lane-run id={RUN_ID} sha={HEAD} -->"
+            "\n\nclaude-lane: claude-review",
+        }
+        report, posts = self._lost(comments=[summary])
+        self.assertFalse(report["rerun"])
+        self.assertTrue(report["reason"].startswith(merge.LEFT_TO_A_PERSON), report)
+        self.assertEqual(posts, [])
+        self.assertFalse(any("artifacts" in " ".join(args) for args in self.reads))
+
     def test_a_lost_run_whose_lane_rewrote_its_marker_is_left_to_a_person(
         self,
     ) -> None:

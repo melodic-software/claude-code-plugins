@@ -31,7 +31,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadRules, webHostsFrom } from "../intake-triage/admit.mjs";
 import { timeLimitNoted } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { linkedIssues } from "../pr-verify/resolve-pr.mjs";
-import { anyListed, countedFetch, createGitHubApi, humanGatedLabelFrom, keepThreads, need, positive, readTriggers, reviewedHeads, reviewerIdFrom, reviewerIdsFrom, SHA, trustedHumansFrom } from "./address-feedback.mjs";
+import { anyListed, countedFetch, createGitHubApi, humanGatedLabelFrom, keepThreads, laneReader, need, positive, readTriggers, reviewedHeads, reviewerIdFrom, reviewerIdsFrom, SHA, trustedHumansFrom, withLaneBinding } from "./address-feedback.mjs";
 import { failingChecks, prHold, reviewReader } from "./gate-source.mjs";
 import { ACTIONS_APP_ID, retryRung, stopSkip } from "./escalation-routes.mjs";
 import { FIX_TRAILER as FEEDBACK_TRAILER } from "./publish-feedback.mjs";
@@ -345,7 +345,7 @@ async function webHostsOf(env) {
   return env.ISSUE_LANE_WEB_HOSTS === undefined ? fromBase("issueLaneWebHostsFromBase", env) : webHostsFrom(env.ISSUE_LANE_WEB_HOSTS);
 }
 
-export async function main(env, { api, log = (line) => console.log(line) } = {}) {
+export async function main(env, { api, actions, log = (line) => console.log(line) } = {}) {
   need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "PR_NUMBER", "APP_SENDER_ID", "CONTEXT_FILE"]);
   const pr = positive(env.PR_NUMBER, "PR_NUMBER");
   const appId = positive(env.APP_SENDER_ID, "APP_SENDER_ID");
@@ -357,15 +357,20 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   const reviewerId = reviewerIdFrom(trustedActors);
   const reviewerIds = reviewerIdsFrom(env.REVIEWER_IDS);
   const trustedHumans = trustedHumansFrom(trustedActors);
-  const client =
+  // The review lanes' findings and hold comments count only when bound to
+  // their runs, read with ARTIFACT_READ_TOKEN (address-feedback.mjs withLaneBinding).
+  const fetch = api ? undefined : await countedFetch();
+  const client = withLaneBinding(
     api ??
-    createGitHubApi({
-      token: env.GITHUB_TOKEN,
-      repository: env.GITHUB_REPOSITORY,
-      apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
-      graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
-      fetch: await countedFetch(),
-    });
+      createGitHubApi({
+        token: env.GITHUB_TOKEN,
+        repository: env.GITHUB_REPOSITORY,
+        apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
+        graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+        fetch,
+      }),
+    actions ?? laneReader(env, { fetch }),
+  );
   const humanGatedLabel = humanGatedLabelFrom(env.TRACKER_CONFIG || `${basePath(env)}/docs/conventions/work-items.yaml`);
   // linkedIssues takes check-trusted-trigger's github(method, path, body)
   // client: one that throws on GraphQL errors, and one that keeps them for
