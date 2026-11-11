@@ -3483,11 +3483,7 @@ def same_open_object(left: os.stat_result, right: os.stat_result) -> bool:
 
 def same_removal_identity(path: Path, entry: dict[str, Any]) -> bool:
     """Allow expected directory metadata churn while preserving object identity."""
-    try:
-        info = path.lstat()
-    except OSError:
-        return False
-    return same_stat_identity(info, entry)
+    return same_identity(path, entry)
 
 
 def marker_exists(path: Path, errors: list[str]) -> bool:
@@ -3509,8 +3505,7 @@ def discover_current_repositories(
     errors: list[str] = []
     current = candidate if candidate.is_dir() else candidate.parent
     while True:
-        git_marker = current / ".git"
-        if marker_exists(git_marker, errors):
+        if marker_exists(current / ".git", errors):
             marker_roots.add(current)
         if any(marker_exists(current / name, errors) for name in (".hg", ".svn")):
             errors.append(f"{current}: non-Git VCS state is not independently verified")
@@ -3682,6 +3677,9 @@ def verify_github_remote_head(
     return confirmed, detail
 
 
+GIT_SHA_RE = re.compile(r"[0-9a-fA-F]{40,64}")
+
+
 def local_head_shas(repo: Path) -> tuple[list[dict[str, str]], str | None]:
     """Return every local branch head, plus a detached HEAD when present."""
     branches = run_git(
@@ -3695,7 +3693,7 @@ def local_head_shas(repo: Path) -> tuple[list[dict[str, str]], str | None]:
             name, sha = line.split("\t", 1)
         except ValueError:
             return [], "local-heads-unverified"
-        if not re.fullmatch(r"[0-9a-fA-F]{40,64}", sha):
+        if not GIT_SHA_RE.fullmatch(sha):
             return [], "local-heads-unverified"
         heads.append({"name": name, "sha": sha.casefold()})
     symbolic = run_git(repo, "symbolic-ref", "-q", "HEAD")
@@ -3704,7 +3702,7 @@ def local_head_shas(repo: Path) -> tuple[list[dict[str, str]], str | None]:
     if symbolic.returncode == 1:
         detached = run_git(repo, "rev-parse", "--verify", "HEAD^{commit}")
         sha = detached.stdout.strip()
-        if detached.returncode != 0 or not re.fullmatch(r"[0-9a-fA-F]{40,64}", sha):
+        if detached.returncode != 0 or not GIT_SHA_RE.fullmatch(sha):
             return [], "local-heads-unverified"
         heads.append({"name": "HEAD", "sha": sha.casefold()})
     unique = {(item["name"], item["sha"]): item for item in heads}
@@ -3716,7 +3714,7 @@ def stash_shas(repo: Path) -> tuple[list[str], str | None]:
     if stashes.returncode != 0:
         return [], "stashes-unverified"
     result = [value.casefold() for value in stashes.stdout.splitlines() if value]
-    if not all(re.fullmatch(r"[0-9a-fA-F]{40,64}", value) for value in result):
+    if not all(GIT_SHA_RE.fullmatch(value) for value in result):
         return [], "stashes-unverified"
     return result, None
 
@@ -4016,11 +4014,12 @@ def execution_blockers() -> list[str]:
     if os_key() != "linux":
         return [PLATFORM_BLOCKER]
     required = (os.open, os.stat, os.unlink, os.rmdir)
-    if not all(function in os.supports_dir_fd for function in required):
-        return ["dirfd-anchoring-unavailable"]
-    if os.scandir not in os.supports_fd:
-        return ["dirfd-anchoring-unavailable"]
-    if not hasattr(os, "O_DIRECTORY") or not hasattr(os, "O_NOFOLLOW"):
+    if (
+        not all(function in os.supports_dir_fd for function in required)
+        or os.scandir not in os.supports_fd
+        or not hasattr(os, "O_DIRECTORY")
+        or not hasattr(os, "O_NOFOLLOW")
+    ):
         return ["dirfd-anchoring-unavailable"]
     _, error = linux_mount_points()
     return ["mount-state-unverified"] if error else []
@@ -4108,9 +4107,13 @@ def candidate_handle_state(
     return "clear", None
 
 
-def snapshot_digest(snapshot: dict[str, Any]) -> str:
-    canonical = json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode()
+def canonical_sha256(value: Any) -> str:
+    canonical = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(canonical).hexdigest()
+
+
+def snapshot_digest(snapshot: dict[str, Any]) -> str:
+    return canonical_sha256(snapshot)
 
 
 def approval_token(snapshot: dict[str, Any], plan: dict[str, Any]) -> str:
@@ -4120,9 +4123,7 @@ def approval_token(snapshot: dict[str, Any], plan: dict[str, Any]) -> str:
         "tier": plan.get("tier"),
         "candidates": plan.get("candidates"),
     }
-    return hashlib.sha256(
-        json.dumps(material, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()[:24]
+    return canonical_sha256(material)[:24]
 
 
 def resolve_snapshot_target(snapshot: dict[str, Any]) -> tuple[Path, set[Path]]:
@@ -4187,14 +4188,18 @@ def resolve_snapshot_target(snapshot: dict[str, Any]) -> tuple[Path, set[Path]]:
     return target, known_mounts
 
 
+def snapshot_truncated_paths(snapshot: dict[str, Any]) -> set[str]:
+    return {
+        value for value in snapshot.get("truncated_paths", []) if isinstance(value, str)
+    }
+
+
 def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
     baseline_exact_names = baseline_protected_names()
     target, known_mounts = resolve_snapshot_target(snapshot)
     entries = entry_map(snapshot)
     candidates = validate_plan(plan, entries)
-    truncated_paths = {
-        value for value in snapshot.get("truncated_paths", []) if isinstance(value, str)
-    }
+    truncated_paths = snapshot_truncated_paths(snapshot)
     exact_names = baseline_exact_names | set(
         snapshot.get("policy", {}).get("protected_exact_names", [])
     )
@@ -4339,7 +4344,7 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
         outcome = "manual-handoff-lane"
     else:
         outcome = "blocked"
-    payload = {
+    return {
         "status": "blocked" if blocked else "ready-for-explicit-approval",
         "outcome": outcome,
         "tier": plan["tier"],
@@ -4357,7 +4362,6 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             "snapshot. Re-preview after any change."
         ),
     }
-    return payload
 
 
 def removal_sort_key(relative: str) -> tuple[int, str]:
@@ -4421,6 +4425,18 @@ def emptied_container_order(
     return ordered
 
 
+def lstat_failure_verdict(relative: str, exc: OSError) -> dict[str, Any]:
+    """The verdict for a path whose ``lstat`` raised ``exc``."""
+    if isinstance(exc, FileNotFoundError):
+        return {"path": relative, "verdict": "gone", "reasons": ["no-longer-present"]}
+    reason = (
+        "needs-elevation"
+        if isinstance(exc, PermissionError)
+        else "filesystem-state-unverified"
+    )
+    return {"path": relative, "verdict": "contested", "reasons": [reason]}
+
+
 def verify_emptied_container(
     target: Path,
     relative: str,
@@ -4443,20 +4459,8 @@ def verify_emptied_container(
     contested: set[str] = set()
     try:
         info = path.lstat()
-    except FileNotFoundError:
-        return {"path": relative, "verdict": "gone", "reasons": ["no-longer-present"]}
-    except PermissionError:
-        return {
-            "path": relative,
-            "verdict": "contested",
-            "reasons": ["needs-elevation"],
-        }
-    except OSError:
-        return {
-            "path": relative,
-            "verdict": "contested",
-            "reasons": ["filesystem-state-unverified"],
-        }
+    except OSError as exc:
+        return lstat_failure_verdict(relative, exc)
     # Object identity, not stat identity: a directory's mtime and size change
     # every time a child is added or removed, and removing this container's
     # children is the whole premise. same_stat_identity would report the
@@ -4518,6 +4522,16 @@ def verify_emptied_container(
     }
 
 
+def failed_vcs_evidence(blocker: str, **extra: str) -> dict[str, Any]:
+    """A failed VCS-evidence result: every gate failed, for one ``blocker``."""
+    return {
+        "status": "failed",
+        "gates": {name: {"status": "failed"} for name in VCS_EVIDENCE_GATE_NAMES},
+        "blockers": [blocker],
+        **extra,
+    }
+
+
 def handoff_verify(
     snapshot: dict[str, Any],
     approved: list[str],
@@ -4536,9 +4550,7 @@ def handoff_verify(
     exact_names = baseline_protected_names() | set(
         snapshot.get("policy", {}).get("protected_exact_names", [])
     )
-    truncated_paths = {
-        value for value in snapshot.get("truncated_paths", []) if isinstance(value, str)
-    }
+    truncated_paths = snapshot_truncated_paths(snapshot)
     globs = snapshot_protection_globs(snapshot)
     verdicts: list[dict[str, Any]] = []
     containers: list[dict[str, Any]] = []
@@ -4566,32 +4578,8 @@ def handoff_verify(
             }
             try:
                 path.lstat()
-            except FileNotFoundError:
-                verdicts.append(
-                    {
-                        "path": relative,
-                        "verdict": "gone",
-                        "reasons": ["no-longer-present"],
-                    }
-                )
-                continue
-            except PermissionError:
-                verdicts.append(
-                    {
-                        "path": relative,
-                        "verdict": "contested",
-                        "reasons": ["needs-elevation"],
-                    }
-                )
-                continue
-            except OSError:
-                verdicts.append(
-                    {
-                        "path": relative,
-                        "verdict": "contested",
-                        "reasons": ["filesystem-state-unverified"],
-                    }
-                )
+            except OSError as exc:
+                verdicts.append(lstat_failure_verdict(relative, exc))
                 continue
             candidate_protections = hard_protection(
                 path, target, exact_names, known_mounts
@@ -4634,34 +4622,24 @@ def handoff_verify(
                 except (OSError, HygieneError):
                     current_paths = expected_paths
                     contested.add("filesystem-state-unverified")
-            if candidate_evidence and evidence_inventory_eligible:
-                try:
-                    evidence_result = verify_vcs_checkout_evidence(
-                        target,
-                        path,
-                        current_paths,
-                        candidate_evidence,
-                        approved,
+            if candidate_evidence:
+                if evidence_inventory_eligible:
+                    try:
+                        evidence_result = verify_vcs_checkout_evidence(
+                            target,
+                            path,
+                            current_paths,
+                            candidate_evidence,
+                            approved,
+                        )
+                    except (OSError, subprocess.SubprocessError, HygieneError) as exc:
+                        evidence_result = failed_vcs_evidence(
+                            "vcs-evidence-state-unverified", error=str(exc)
+                        )
+                else:
+                    evidence_result = failed_vcs_evidence(
+                        "vcs-evidence-non-git-truncation"
                     )
-                except (OSError, subprocess.SubprocessError, HygieneError) as exc:
-                    evidence_result = {
-                        "status": "failed",
-                        "gates": {
-                            name: {"status": "failed"}
-                            for name in VCS_EVIDENCE_GATE_NAMES
-                        },
-                        "blockers": ["vcs-evidence-state-unverified"],
-                        "error": str(exc),
-                    }
-                contested.update(evidence_result["blockers"])
-            elif candidate_evidence:
-                evidence_result = {
-                    "status": "failed",
-                    "gates": {
-                        name: {"status": "failed"} for name in VCS_EVIDENCE_GATE_NAMES
-                    },
-                    "blockers": ["vcs-evidence-non-git-truncation"],
-                }
                 contested.update(evidence_result["blockers"])
             evidence_verified = (
                 evidence_result is not None and evidence_result["status"] == "verified"
