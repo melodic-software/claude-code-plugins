@@ -12,7 +12,8 @@ names a source, not a mistake, so section 1's exceptions do not lift the thresho
    `CLAUDE.md`, `AGENTS.md`, a rule under a repository's `.claude/rules/`) is never a target, because
    the excerpts come from every project on this machine.
    - **Pointer**: for the user-level instruction and rule locations, see
-     <https://code.claude.com/docs/en/memory>; for user output styles, see
+     <https://code.claude.com/docs/en/memory#choose-where-to-put-claude-md-files> and
+     <https://code.claude.com/docs/en/memory#user-level-rules>; for user output styles, see
      <https://code.claude.com/docs/en/output-styles#create-a-custom-output-style>.
    - **As of**: 2026-10-04
    - **Recheck trigger**: either page moves the user-level location of instructions, rules or

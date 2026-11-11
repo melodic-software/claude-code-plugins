@@ -141,11 +141,12 @@ CLAUDE.md line is advisory and a hook is deterministic.
 ## InstructionsLoaded hook
 
 To debug which instruction files load, when and why (path-scoped rules, lazy-loaded subdirectory
-files), the audit points to the `InstructionsLoaded` hook. It only observes: it cannot block
-loading or change content.
+files), the audit points to the `InstructionsLoaded` hook, for debugging only.
 
 - **Pointer**: [`InstructionsLoaded`](https://code.claude.com/docs/en/hooks#instructionsloaded) and
   [Troubleshoot memory issues](https://code.claude.com/docs/en/memory#troubleshoot-memory-issues).
+- **As of**: 2026-11-10
+- **Recheck trigger**: the hook section says the hook can block loading or change what loads.
 
 ## Specificity
 
@@ -340,9 +341,8 @@ The audit models an `AGENTS.md` as loading either directly, where no `CLAUDE.md`
 `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it displaces it and
 `AGENTS.md` support is available, or through a `CLAUDE.md` that imports or symlinks it, on that
 `CLAUDE.md`'s row. Read directly, it differs from a `CLAUDE.md` in the ways the pointer lists;
-imported, it behaves as part of its `CLAUDE.md`. No hooks setting makes direct
-support unavailable: the loader is a built-in mod, and the audit never counts `disableAllHooks` or
-`allowManagedHooksOnly` against it. The model assumes the default value of the setting that chooses
+imported, it behaves as part of its `CLAUDE.md`. The audit never counts `disableAllHooks` or
+`allowManagedHooksOnly` against direct support. The model assumes the default value of the setting that chooses
 which instruction files load; a repository on another value is outside it, and the audit says so
 rather than pricing it, the same stated assumption `scripts/lib/agents-md.sh` carries.
 

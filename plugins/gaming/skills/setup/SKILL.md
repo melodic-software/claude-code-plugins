@@ -26,7 +26,7 @@ Bash then fails with `bad substitution` before pwsh starts.
 |---|---|---|
 | **`<data-dir>`** | `${user_config.data_dir}` when non-empty and not still showing the unexpanded token; otherwise the output of the default command below. Changing it after an apply is a MOVE of the directory, not a reconfiguration: every manifest stays at the old root | `-DataDir '<data-dir>'` on every call |
 | **`<runtime-dll>`** | `${user_config.runtime_dll}` when set; otherwise `<data-dir>\runtime\nvngx_dlssnr.dll` | `-RuntimeDll` ONLY when the option is set. Passing the default path marks it configured, and `provision -Runtime` then refuses a failing file without scanning |
-| **`<runtime-source>`** | `${user_config.runtime_source}` when set; otherwise none | `-RuntimeSource` ONLY when set. A path or a plain `https://` URL. The value is stored in plain text in `settings.json`, so a URL with a query string (where signed-URL credentials live) is refused. A private store is synced to a path by the user's own tooling |
+| **`<runtime-source>`** | `${user_config.runtime_source}` when set; otherwise none | `-RuntimeSource` ONLY when set. A path or a plain `https://` URL. A URL with a query string (where signed-URL credentials live) is refused, because this option is not stored as a secret: [manifest reference § Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored), as of 2026-11-10, recheck when that section changes where non-sensitive values go. A private store is synced to a path by the user's own tooling |
 
 The default `data_dir` follows OneDrive Known Folder Move, which `$env:USERPROFILE\Documents`
 does not:
@@ -151,7 +151,7 @@ anywhere but the three sources `provision -Runtime` tries.
 | Known-good runtime: `nvngx_dlssnr.dll` 310.8.0.0, SHA-256 `E16BCF15E16E13F527491CDF7845B2FE6521A738D8F7C9C721866A8496E1FC8E` | `$ModelHash` in the script, hashed from a working install | 2026-09-22 | `/gaming:dlss5 refetch` reports a different runtime version, or an NVIDIA-signed runtime fails the hash |
 | Default fork pin: `wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass` tag `v0.8.3`, asset `OptiScaler-NR-v0.8.3.zip`, SHA-256 `3F2D26FB136D964A394BF50896D082156173153A2A55B88E1995277B4DABE3C8` | `gh api repos/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/releases`; the hash matches the release's own `.sha256` sidecar | 2026-09-24 | a new non-prerelease on that repo, or `refetch` reports a tag change |
 | Fallback fork pin: `Dagherbou/OptiScaler_DLSSNR` tag `v0.2.0-patch1` (a prerelease), asset `OptiScaler-DLSSNR-v0.2.0-onimusha-fix.zip`, SHA-256 `5DB547216FA8A7DBD8AB0A193DA1E3BCE0EA4BD71F91189AFA4ED2EDE8BB9561` | `gh api repos/Dagherbou/OptiScaler_DLSSNR/releases`; the release publishes no checksum, so the hash is a local-copy attestation | 2026-09-21 | a new release on that repo, or `refetch` reports a tag change |
-| DLSS 5 officially supports RTX 50-series GPUs only | https://www.nvidia.com/en-us/geforce/news/dlss-5-3d-guided-neural-rendering/ | 2026-09-20 | NVIDIA ships DLSS 5 support for another GPU series |
+| Step 2 FAILs a GPU outside the RTX 50 series, the series NVIDIA's launch post names | https://www.nvidia.com/en-us/geforce/news/dlss-5-3d-guided-neural-rendering/ | 2026-11-10 | NVIDIA ships DLSS 5 support for another GPU series |
 
 ## Next
 

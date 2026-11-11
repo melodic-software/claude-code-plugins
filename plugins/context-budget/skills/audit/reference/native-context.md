@@ -6,7 +6,7 @@ makes it worth checking again. Nothing here asserts the command is present in an
 
 | Claim | Basis | As of | Recheck when |
 |---|---|---|---|
-| `/context` is a built-in command: "Visualize current context usage as a colored grid", argument hint `[all]`, gated | The `/harness-ops:inventory` extraction of the installed 2.1.285 binary, 2026-09-29 (`builtin_commands` lane) | 2026-09-29 | A release renames or removes the command, or changes its description or gate |
+| `/context` is a built-in command and gated; its description and argument hint are held in the probe record, not here | Probe: the `/context` records in `docs/native-surfaces/records.json` (the `/harness-ops:inventory` extraction of the installed 2.1.285 binary, 2026-09-29, `builtin_commands` lane) | 2026-09-29 | A release renames or removes the command, or changes its description or gate |
 | It is user-invocable only; model invocation is disabled (command type `local-jsx`) | The same extraction (`user_invocable` true, `model_invocable` false) | 2026-09-29 | A release makes it model-invocable |
 | We read what it shows and what its argument does live, never from a copy here | The `/context [all]` row in [commands § All commands](https://code.claude.com/docs/en/commands#all-commands) | 2026-10-11 | The row changes its description or arguments |
 | We treat it as current-session only: nothing in its description measures a fresh session's startup payload or compares two configurations | The description and docs row above | 2026-10-11 | A release widens it to startup cost or a before/after comparison |

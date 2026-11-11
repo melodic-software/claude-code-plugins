@@ -45,15 +45,20 @@ paths this skill names, with the `Read` tool; never Glob or Grep the plugin dire
    use jq. Remediation: install jq (<https://jqlang.org/download/>).
 2. **`node`**. Read the pre-computed `node` value. FAIL when it is `absent`: the PostCompact marker
    row in `${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json` runs `node hooks/exec-bash.mjs`, and the module
-   writes each snapshot by running `node lib/write-snapshot.mjs`, and Claude Code's native binary
-   neither ships nor uses Node (<https://code.claude.com/docs/en/setup>). Without `node` on `PATH`
-   the marker does not launch and no snapshot is written, so file readers read `unknown`; report
-   that a hook that fails to launch is non-blocking, so nothing else says so. The module's zone
-   lines, band row and status tool do not need `node`. Remediation: install Node.js
-   (<https://nodejs.org/en/download>) and restart Claude Code. The Node claim was verified
-   2026-09-29 against the setup page above; recheck when a Claude Code release note says the
-   native binary bundles Node or runs hooks without it, or when that page stops saying the native
-   binary needs no Node.
+   writes each snapshot by running `node lib/write-snapshot.mjs`, and installing Claude Code does
+   not put `node` on `PATH` for them (pointer below). Without `node` on `PATH` the marker does not
+   launch and no snapshot is written, so file readers read `unknown`; report that the marker cannot
+   launch (how Claude Code treats a hook that cannot start:
+   [Hooks, "Exit code output"](https://code.claude.com/docs/en/hooks#exit-code-output), as of
+   2026-11-10; recheck when that section stops treating a hook that cannot start as a non-blocking
+   error), since nothing else says so. The module's zone lines, band row and status tool do not
+   need `node`. Remediation: install Node.js (<https://nodejs.org/en/download>) and restart Claude
+   Code.
+   - **Pointer**: [Set up, "Install with npm"](https://code.claude.com/docs/en/setup#install-with-npm),
+     for whether the installed `claude` binary uses Node.
+   - **As of**: 2026-11-10.
+   - **Recheck trigger**: that section, or a release note, says the binary bundles Node or runs
+     hooks with it.
 3. **Module state.** The module loads only where mods can.
    - **This session**: the module registers `mcp__context-guard__status` when the session starts.
      Look for that name in your own tool list, deferred tool names included. Present → PASS, the
@@ -239,8 +244,11 @@ where those files live, see
 
 ## Uninstalling
 
-Uninstalling the plugin removes the cache directory, so the module stops and nothing writes new
-snapshots. The operator's directory `~/.claude/context-guard/` (`zones.json`, the snapshots, the
+Once the plugin is uninstalled the module stops and nothing writes new snapshots (what an uninstall
+removes:
+[Plugins CLI reference, "What an uninstall deletes and keeps"](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps),
+as of 2026-11-10; recheck when that section stops removing the plugin's installed files). The
+operator's directory `~/.claude/context-guard/` (`zones.json`, the snapshots, the
 compaction markers and, after `apply cache-line`, `cache-line.mjs`) stays. Removing it is safe once
 the operator's `statusLine` no longer runs `cache-line.mjs`: restore the command `--after` wrapped,
 or drop the bare segment, first. Readers then read `unknown` and take their conservative path.

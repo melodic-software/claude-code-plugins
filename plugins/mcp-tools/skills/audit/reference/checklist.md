@@ -38,13 +38,13 @@ pointer, not decided here. C4 ignores the session-level override
 `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH`, which the server author does not control.
 
 - **Pointer**: when grading C4 or revisiting its number, fetch
-  <https://code.claude.com/docs/en/changelog> (versions 2.1.295 and 2.1.296) and
+  <https://code.claude.com/docs/en/changelog#2-1-295> and <https://code.claude.com/docs/en/changelog#2-1-296> and
   <https://code.claude.com/docs/en/mcp#tool-search-for-mcp-server-authors> live; for the override,
   <https://code.claude.com/docs/en/env-vars#variables>.
 - **Source conflict**: the mcp page
   (<https://code.claude.com/docs/en/mcp#tool-search-for-mcp-server-authors>) and the env-vars page
   (<https://code.claude.com/docs/en/env-vars#variables>) disagree with changelog 2.1.295 and
-  2.1.296 (<https://code.claude.com/docs/en/changelog>) on the MCP description and instructions
+  2.1.296 (<https://code.claude.com/docs/en/changelog#2-1-295>, <https://code.claude.com/docs/en/changelog#2-1-296>) on the MCP description and instructions
   length limits.
 - **As of**: 2026-10-10
 - **Recheck trigger**: the mcp page changes its stated default or states a limit per load path, or
@@ -127,7 +127,7 @@ When auditing SOURCE, accept each SDK's native spelling of these hints as satisf
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|
 | C12 | **readOnlyHint set on read-only tools** | SPEC-OPTIONAL | WARN | Tools that only read (list, get, search, check) should declare `readOnlyHint: true`. Missing on a read-only tool = warn |
-| C13 | **destructiveHint appropriate on destructive tools** | SPEC-OPTIONAL | WARN | This check takes the spec's default for `destructiveHint` as `true`. Verify a tool that deletes/removes/purges is genuinely destructive (default appropriate), or a non-destructive tool overrides to `false` |
+| C13 | **destructiveHint appropriate on destructive tools** | SPEC-OPTIONAL | WARN | This check takes `destructiveHint` as `true` when a tool omits it ([spec schema: `ToolAnnotations.destructiveHint`](https://modelcontextprotocol.io/specification/2026-07-28/schema#toolannotations-destructivehint), as of 2026-11-10; recheck when the spec revision this checklist pins changes). Verify a tool that deletes/removes/purges is genuinely destructive (default appropriate), or a non-destructive tool overrides to `false` |
 | C14 | **idempotentHint set on idempotent tools** | SPEC-OPTIONAL | info | Tools safe to call repeatedly with the same args (set operations, upserts) should declare `idempotentHint: true`. Missing = info |
 
 ## 5. Granularity (C15)

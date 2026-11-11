@@ -150,22 +150,17 @@ settings file's `env` block, which applies to every session and the subprocesses
 
 ## Out of scope for this skill (verified, deliberate)
 
-- **Transcripts / history / shell snapshots / sessions.** This skill treats transcripts and shell
-  snapshots as cleaned at startup by `cleanupPeriodDays` (its default and minimum are read at the
-  pointer), and the other two
-  as not: `history.jsonl` persists until deleted, and `sessions/` is cleared per session rather
-  than by age. Purging any of them is a different concern. The official per-project wipe is
+- **Transcripts / history / shell snapshots / sessions.** None of these is this skill's to purge;
+  purging any of them is a different concern. Which of them the age-based sweep cleans and which
+  stay until deleted is read at the pointers below. The official per-project wipe is
   `claude purge`; read its deletion plan and flags on the page.
 
-  We read the age-based sweep as covering per-session data files (transcripts, `shell-snapshots/`,
-  `debug/`, `tasks/`, `file-history/` and similar), not the `sessions/` directory, which holds one
-  file per running session, removed when that session exits, with crash leftovers cleared on the
-  next launch. `history.jsonl` sits among the paths kept until deleted.
-
-  - **Pointer**: [`cleanupPeriodDays`](https://code.claude.com/docs/en/settings-reference#cleanupperioddays),
-    [Cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically),
-    [Kept until you delete them](https://code.claude.com/docs/en/claude-directory#kept-until-you-delete-them).
-  - **As of**: 2026-10-11
+  - **Pointer**: when a user asks how long any of these files lasts, fetch
+    [`cleanupPeriodDays`](https://code.claude.com/docs/en/settings-reference#cleanupperioddays),
+    [Cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)
+    and [Kept until you delete them](https://code.claude.com/docs/en/claude-directory#kept-until-you-delete-them)
+    live.
+  - **As of**: 2026-11-10
   - **Recheck trigger**: either claude-directory section moves a path between the cleaned and kept
     lists, or the `cleanupPeriodDays` default or minimum changes.
 
@@ -195,10 +190,15 @@ settings file's `env` block, which applies to every session and the subprocesses
   - **As of**: 2026-10-10
   - **Recheck trigger**: either source changes what it says about the former command name.
 
-  We record `CLAUDE_CODE_SKIP_PROMPT_HISTORY` as the true "no session persistence" lever, since it
-  stops transcripts and prompt history being written, and the complement to deleting the files
-  after the fact. Recorded for that contrast; this skill acts on neither. Pointer:
-  [Plaintext storage](https://code.claude.com/docs/en/claude-directory#plaintext-storage).
+  We record `CLAUDE_CODE_SKIP_PROMPT_HISTORY` as the true "no session persistence" lever, the
+  complement to deleting the files after the fact. Recorded for that contrast; this skill acts on
+  neither.
+
+  - **Pointer**: when a user asks what the variable stops being written, fetch
+    [Plaintext storage](https://code.claude.com/docs/en/claude-directory#plaintext-storage) live.
+  - **As of**: 2026-11-10
+  - **Recheck trigger**: that section drops the variable or stops naming it as the way to keep
+    sessions from being written to disk.
 
 - **Claude Desktop / claude.ai account memory.** That is a server-side account store, not
   local files, so this skill cannot delete it and only gives direction (see
