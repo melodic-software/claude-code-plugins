@@ -61,17 +61,11 @@ set -uo pipefail
 export LC_ALL=C
 
 # Kill switch FIRST, above every source: a disabled guard must not pay to parse
-# hook-utils.sh before finding out it is off. Inlined rather than read through
-# hook::is_enabled because the library IS the cost the hoist avoids;
-# scripts/check-killswitch-hoist.sh pins this line to that helper's semantics
-# and fails a guard that sources anything ahead of it.
+# hook-utils.sh. scripts/check-killswitch-hoist.sh pins this line to
+# hook::is_enabled's semantics.
 [[ "${CLAUDE_PLUGIN_OPTION_PR_LINKAGE_MCP_GATE_ENABLED:-true}" == "true" ]] || exit 0
-# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
-# subshell for every command substitution even when the body is a builtin
-# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
-# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
-# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
-# no-op and dirname answers `.`.
+# Parameter expansion, not `dirname`: a command substitution forks, which is a
+# process on Windows Git Bash. A bare filename strips to itself, so it means `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
@@ -84,44 +78,20 @@ hook::buffer_stdin_to INPUT || exit 0
 
 hook::require jq "PreToolUse" "source-control" "$INPUT"
 
-# Every payload field this gate reads, in ONE jq process (#3509). The per-field
-# form this replaced ran `printf '%s' "$INPUT" | jq -r … 2>/dev/null` five times
-# plus a sixth `jq -e` for the has("body") probe — measured with
-# `strace -f -e trace=clone,clone3,fork,vfork,execve`, 3-4 forks and 1-2 execs
-# EACH, all six asking about the same buffered string. One hook::jq_fields call
-# answers all of them for 3 forks and 1 exec.
+# Every payload field this gate reads, in ONE jq process, fenced by
+# pr-linkage-spawn-budget.test.sh. `has("body")` comes back "true"/"false", or
+# "" when `.tool_input` is missing, which allows.
 #
-# Reading every field up front means owner/repo/body are extracted before the
-# tool-name and scope guards would have short-circuited. Nothing observable
-# reorders: the reads have no side effects, they come out of one process either
-# way, and each guard below still exits exactly where it did.
+# The batch CR-strips every value, and a CR alone between a negation and its
+# closing keyword is a word break: stripping it glues the two into one word that
+# is no closer, turning a BLOCK into an ALLOW. So the batch also reports whether
+# the raw body holds a CR, and a block below re-reads such a body losslessly.
+# `tostring` keeps that probe total over every JSON type, since one erroring
+# filter fails the whole batch.
 #
-# `has("body")` rides along as the string "true"/"false" — the probe's own jq -e
-# is what the boolean replaces, and a missing `.tool_input` makes the whole
-# filter null, which hook::jq_fields renders "" (neither "true" nor the empty
-# check below passes, so an absent tool_input still ALLOWS as before).
-#
-# BODY IS DELIBERATELY NOT TAKEN FROM THIS BATCH. hook::jq_fields CR-strips
-# every value it returns, and the validator only strips a CR at end of line; a
-# body carrying a MID-LINE CR would therefore be judged against different text
-# than before, and stripping can be the permissive direction — a CR alone between
-# a negation and its closing keyword is a word break, and dropping it glues the
-# two into one word that is no closer at all, turning a BLOCK into an ALLOW.
-# The batch reports whether the raw body holds a CR at all and the next block
-# re-reads it losslessly only in that case, which no real payload hits.
-#
-# THE CR PROBE IS TOTAL OVER EVERY JSON TYPE. `contains` errors on a non-string,
-# and one erroring filter fails the WHOLE batch. `tostring` first makes the
-# probe total; the value the batch hands back is already tostring'ed by
-# hook::jq_fields, so a body of `5`, `true`, `{"a":1}` or `["x"]` is judged as
-# the same text the per-field reader rendered.
-#
-# A batch that STILL fails — a `tool_input` or a payload root that is not an
-# object — falls back to the per-field reads this batch replaced rather than
-# allowing outright: that reader's verdict, blocks included, is the reference
-# this gate is held to, so a batch failure can no longer turn a BLOCK into an
-# ALLOW. Every filter here is total over an object tool_input, so the fallback
-# is unreachable on any path the spawn budget fences and costs nothing there.
+# A batch that still fails (a `tool_input` or payload root that is not an
+# object) falls back to one jq read per field rather than allowing, so a batch
+# failure cannot turn a BLOCK into an ALLOW.
 read_fields_singly() {
   local f v
   HOOK_JQ_FIELDS=()
@@ -133,7 +103,7 @@ read_fields_singly() {
     v=$(printf '%s' "$INPUT" | jq -r "$f" 2>/dev/null)
     HOOK_JQ_FIELDS+=("$v")
   done
-  # `.cwd` alone was `tr -d '\r'`-cleaned by the per-field reader.
+  # Of these fields, only `.cwd` is CR-stripped on this path.
   HOOK_JQ_FIELDS[1]="${HOOK_JQ_FIELDS[1]//$'\r'/}"
 }
 hook::jq_fields "$INPUT" \
@@ -149,18 +119,11 @@ HAS_BODY="${HOOK_JQ_FIELDS[4]}"
 BODY_HAS_CR="${HOOK_JQ_FIELDS[5]}"
 BODY="${HOOK_JQ_FIELDS[6]}"
 
-# chomp <var> — strip trailing newlines from the named variable. `$( )` did
-# that for every per-field read, so an `"owner": "acme-corp\n"` or a tool name
-# with a trailing newline compared EQUAL in the exact-match guards below and
-# was gated; hook::jq_fields hands values back with trailing newlines intact,
-# and without this both would slip past those guards. Applied to the four
-# fields the per-field reader chomped plus the body, so each is byte-identical
-# to its `$(jq -r …)` whenever it carries no CR. In-shell, no fork.
-#
-# CR is the one place these four fields are now STRICTER than the per-field
-# reader: it left a CR inside `tool_name`, `owner` or `repo` in place, so such
-# a value never matched and the call was allowed; hook::jq_fields strips it,
-# the value matches, and the body is judged. Accepted as the safer direction.
+# chomp <var> — strip trailing newlines from the named variable, in-shell, as
+# `$(jq -r …)` would have: hook::jq_fields keeps them, and an
+# `"owner": "acme-corp\n"` would otherwise slip past the exact-match guards. The
+# batch's CR strip lets a CR-carrying tool, owner or repo match, which the
+# per-field fallback does not: the stricter direction, so the body is judged.
 chomp() {
   local __v="${!1}"
   while [[ "$__v" == *$'\n' ]]; do __v="${__v%$'\n'}"; done
@@ -194,16 +157,12 @@ GATE_FILE=""
 # sibling directory (`pr-contract-foo`) out.
 gate_re='\.github/actions/(pr-contract|pr-require-checks/check-contract)([@[:space:]]|$)'
 for candidate in "$REPO_ROOT"/.github/workflows/*.yml "$REPO_ROOT"/.github/workflows/*.yaml; do
-  # An unmatched glob is left as its literal pattern; skipping non-files is the
-  # local fix, because `shopt -s nullglob` would leak a shell option out of a
-  # hook that never set one.
+  # An unmatched glob stays literal; skipped here rather than leaking
+  # `shopt -s nullglob` out of the hook.
   [[ -f "$candidate" ]] || continue
-  # Fork-free read, not `grep`: one spawn per workflow file is exactly the cost
-  # pr-linkage-spawn-budget.test.sh fences (#3509). `read -r -d ''` returns 1
-  # at EOF with no NUL — the normal case — and `wf` holds the bytes either way.
-  # Cleared first: if the redirect itself fails (an unreadable file), `read`
-  # never runs and `wf` would otherwise still hold the PREVIOUS candidate's
-  # bytes, naming the wrong workflow as the gate.
+  # Fork-free read, not `grep` (pr-linkage-spawn-budget.test.sh). `read -d ''`
+  # returns 1 at EOF, yet `wf` holds the bytes. Cleared first so an unreadable
+  # file does not keep the previous candidate's bytes.
   wf=""
   IFS= read -r -d '' wf <"$candidate"
   [[ "$wf" =~ $gate_re ]] || continue
@@ -219,12 +178,8 @@ done
 # payload missing owner/repo — the target is undeterminable and the call is
 # allowed: imposing this checkout's policy on a repository it was never proven
 # to be is the worse failure (see FAIL-OPEN above).
-# The redirect sits on the enclosing GROUP, not inside the substitution: bash
-# elides the extra fork and execs in the substitution's own subshell only when
-# the command carries no redirection of its own, so `$(git … 2>/dev/null)` cost
-# two forks for one program where this costs one (#3509). The group holds
-# exactly one command, so nothing beyond that git call is silenced; `|| ORIGIN=""`
-# reproduces what the old `|| true` produced, an empty ORIGIN on failure.
+# The redirect sits on the group, not inside the substitution: bash execs git in
+# the substitution's subshell only when git carries no redirection of its own.
 { ORIGIN=$(git -C "$REPO_ROOT" remote get-url origin) || ORIGIN=""; } 2>/dev/null
 [[ -n "$ORIGIN" && -n "$T_OWNER" && -n "$T_REPO" ]] || exit 0
 norm="${ORIGIN%/}"
@@ -234,16 +189,10 @@ norm="${norm//:/\/}"
 
 # An update that carries no body leaves the body CI already validated
 # untouched.
-if ((IS_UPDATE)); then
-  [[ "$HAS_BODY" == "true" ]] || exit 0
-fi
+((IS_UPDATE)) && [[ "$HAS_BODY" != "true" ]] && exit 0
 
-# The batched BODY is already correct for every payload the batch reported no
-# CR in — the strip had nothing to remove, so the value is byte-identical to
-# what the dedicated `jq -r` returned. Only a body that DOES carry a CR is
-# re-read losslessly, at the cost of the one jq process this whole batch exists
-# to avoid; see the note on the hook::jq_fields call above for why that
-# direction is the unsafe one to guess at.
+# Only a body carrying a CR differs from its batched value; re-read it losslessly
+# (see the note on the hook::jq_fields call above).
 if [[ "$BODY_HAS_CR" == "true" ]]; then
   BODY=$(printf '%s' "$INPUT" | jq -r '.tool_input.body // ""' 2>/dev/null)
 fi
@@ -255,9 +204,7 @@ fi
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
-  # hook::json_str_object_to, not `jq -n --arg`: the library builder is
-  # documented byte-identical to that jq form for an all-string object, and
-  # costs neither the fork nor the exec (#3509). Both fields are strings.
+  # Byte-identical to `jq -n --arg` for an all-string object, with no spawn.
   local data
   hook::json_str_object_to data outcome "$1" tool "$TOOL"
   hook::emit_telemetry "pr-linkage-mcp-gate" "PreToolUse" "${2:-$1}" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"

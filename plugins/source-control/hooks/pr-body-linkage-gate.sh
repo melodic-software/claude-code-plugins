@@ -104,17 +104,11 @@ set -uo pipefail
 export LC_ALL=C
 
 # Kill switch FIRST, above every source: a disabled guard must not pay to parse
-# hook-utils.sh before finding out it is off. Inlined rather than read through
-# hook::is_enabled because the library IS the cost the hoist avoids;
-# scripts/check-killswitch-hoist.sh pins this line to that helper's semantics
-# and fails a guard that sources anything ahead of it.
+# hook-utils.sh. scripts/check-killswitch-hoist.sh pins this line to
+# hook::is_enabled's semantics.
 [[ "${CLAUDE_PLUGIN_OPTION_PR_BODY_LINKAGE_GATE_ENABLED:-true}" == "true" ]] || exit 0
-# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
-# subshell for every command substitution even when the body is a builtin
-# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
-# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
-# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
-# no-op and dirname answers `.`.
+# Parameter expansion, not `dirname`: a command substitution forks, which is a
+# process on Windows Git Bash. A bare filename strips to itself, so it means `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
@@ -126,36 +120,15 @@ hook::buffer_stdin_to INPUT || exit 0
 
 hook::require jq "PreToolUse" "source-control" "$INPUT"
 
-# Both payload fields in ONE jq process (#3509). The per-field form this
-# replaced was `printf '%s' "$INPUT" | jq -r … 2>/dev/null | tr -d '\r'` twice
-# over: measured with `strace -f -e trace=clone,clone3,fork,vfork,execve`, each
-# such pipeline costs 4 forks and 2 execs, so reading two fields cost 8 forks and
-# 4 execs to answer two questions about one buffered string. hook::jq_fields
-# answers both in 3 forks and 1 exec, and CR-strips each value exactly as the
-# `tr -d '\r'` it replaces did.
-#
-# `.cwd` is now read BEFORE the applicability pre-filter rather than after it.
-# That reorders nothing observable — both values come out of the same process,
-# neither read has a side effect, and the filter still gates every line below —
-# and it is what makes the single process possible.
-#
-# `|| exit 0` matches the value the per-field form produced when jq failed or
-# rejected the payload: an empty COMMAND, which the next line already turned
-# into an ALLOW. HOOK_JQ_FIELDS_NUL is deliberately NOT consulted: this gate's
-# declared posture is FAIL-OPEN on extraction (see the header), and both the old
-# and new readers strip NUL bytes from the value identically, so failing closed
-# on the flag would be a new verdict rather than a preserved one.
+# Both payload fields in ONE read, each value CR-stripped: fewer spawns than one
+# jq per field, fenced by pr-linkage-spawn-budget.test.sh. A failed read allows, and
+# HOOK_JQ_FIELDS_NUL is not consulted: this gate fails open on extraction.
 hook::jq_fields "$INPUT" '.tool_input.command' '.cwd' || exit 0
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 HOOK_CWD="${HOOK_JQ_FIELDS[1]}"
-# hook::jq_fields CR-strips but does not chomp trailing newlines. The per-field
-# reader this replaced was `$(jq … | tr -d '\r')`, which stripped them via
-# command substitution. A cwd that still carries a trailing newline fails
-# `git -C` in hook::repo_root, the gate file is never found, and a relative
-# `--body-file` joins onto a path that does not exist — both fail-open. Same
-# in-shell chomp the MCP sibling applies to HOOK_CWD (and its other exact-match
-# fields). The validator is sourced after the applicability pre-filter, so the
-# loop is inline rather than `linkage::chomp_to`.
+# hook::jq_fields keeps trailing newlines, and a cwd ending in one fails `git -C`
+# and every relative `--body-file` join. Inline because the validator, with its
+# linkage::chomp_to, is sourced only past the pre-filter.
 while [[ "$HOOK_CWD" == *$'\n' ]]; do HOOK_CWD="${HOOK_CWD%$'\n'}"; done
 [[ -n "$COMMAND" ]] || exit 0
 # Applicability pre-filter before any repo I/O or parsing. `gh` must appear as
@@ -181,17 +154,12 @@ GATE_FILE=""
 # sibling directory (`pr-contract-foo`) out.
 gate_re='\.github/actions/(pr-contract|pr-require-checks/check-contract)([@[:space:]]|$)'
 for candidate in "$REPO_ROOT"/.github/workflows/*.yml "$REPO_ROOT"/.github/workflows/*.yaml; do
-  # An unmatched glob is left as its literal pattern; skipping non-files is the
-  # local fix, because `shopt -s nullglob` would leak a shell option out of a
-  # hook that never set one.
+  # An unmatched glob stays literal; skipped here rather than leaking
+  # `shopt -s nullglob` out of the hook.
   [[ -f "$candidate" ]] || continue
-  # Fork-free read, not `grep`: this scan is on the path of every `gh pr` call,
-  # and one spawn per workflow file is exactly the cost
-  # pr-linkage-spawn-budget.test.sh fences (#3509). `read -r -d ''` returns 1
-  # at EOF with no NUL — the normal case — and `wf` holds the bytes either way.
-  # Cleared first: if the redirect itself fails (an unreadable file), `read`
-  # never runs and `wf` would otherwise still hold the PREVIOUS candidate's
-  # bytes, naming the wrong workflow as the gate.
+  # Fork-free read, not `grep` (pr-linkage-spawn-budget.test.sh). `read -d ''`
+  # returns 1 at EOF, yet `wf` holds the bytes. Cleared first so an unreadable
+  # file does not keep the previous candidate's bytes.
   wf=""
   IFS= read -r -d '' wf <"$candidate"
   [[ "$wf" =~ $gate_re ]] || continue
@@ -209,9 +177,7 @@ DIR_CHANGED=0
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
-  # hook::json_str_object_to, not `jq -n --arg`: the library builder is
-  # documented byte-identical to that jq form for an all-string object, and
-  # costs neither the fork nor the exec (#3509). Both fields are strings.
+  # Byte-identical to `jq -n --arg` for an all-string object, with no spawn.
   local data
   hook::json_str_object_to data outcome "$1" form "$FORM"
   hook::emit_telemetry "pr-body-linkage-gate" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
@@ -234,12 +200,9 @@ source "$HOOK_DIR/pr-linkage-validator.sh"
 # more than one, which of them reaches `gh` is not statically knowable, and
 # judging the wrong text would block a compliant call.
 #
-# Out-variable rather than stdout, and linkage::split_lines rather than
-# `< <(printf …)`, for the reason spelled out under PROCESS BUDGET in
-# pr-linkage-validator.sh (sourced above): the two together cost this function
-# 2 forks per call and 0 execs, which is pure Windows spawn latency (#3509).
-# linkage::chomp_to reproduces the trailing-newline strip `$( )` performed.
-# <dest> is cleared first, so every `return 1` path leaves it empty.
+# Writes <dest> rather than stdout, per PROCESS BUDGET and TRAILING-NEWLINE
+# CONTRACT in pr-linkage-validator.sh, and clears it first, so every `return 1`
+# path leaves it empty.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 sole_heredoc_body_to() {
   local __pbl_dest="$1" text="$2" line delim="" in_hd=0 t out="" count=0 li=0
@@ -551,8 +514,7 @@ check_segment() {
             split_from=$((i + 1))
             ((WRAP_ATE_NEXT)) && split_from=$((i + 2))
             reparse="$WRAP_VAL"
-            # `printf -v`, not `$(printf %q …)`: the substitution forks once per
-            # remaining operand for a builtin that needs no subshell (#3509).
+            # `printf -v`: a `$(printf %q …)` would fork per operand.
             for ((k = split_from; k < n; k++)); do
               printf -v qword '%q' "${w[k]}"
               reparse+=" $qword"
@@ -637,12 +599,8 @@ check_segment() {
       parse_short_cluster "$word" "$next" "$have_next"
       case "$SHORT_KIND" in
       repo) return 0 ;;
-      body)
-        body_flag="body"
-        body_val="$SHORT_VAL"
-        ;;
-      file)
-        body_flag="file"
+      body | file)
+        body_flag="$SHORT_KIND"
         body_val="$SHORT_VAL"
         ;;
       *) ;;
@@ -667,13 +625,7 @@ check_segment() {
       local path="$body_val"
       [[ "$path" == /* || "$path" =~ ^[A-Za-z]:[\\/] ]] || path="${HOOK_CWD:-$REPO_ROOT}/$path"
       [[ -r "$path" && -f "$path" ]] || return 0
-      # `$(<file)`, not `$(cat -- file)`: bash reads the file itself, so this
-      # costs neither a fork nor an exec where `cat` cost one of each (#3509).
-      # It strips trailing newlines exactly as the `cat` substitution did, and
-      # needs no `--` guard because a redirection target is never option-parsed.
-      # The [[ -r && -f ]] probe above still owns the readability verdict; on the
-      # residual race where the file vanishes between probe and read, both forms
-      # yield an empty body, a non-zero status, and one stderr line.
+      # `$(<file)`, not `cat`: bash reads the file itself, with no fork or exec.
       body=$(<"$path") || return 0
       FORM="body-file"
     fi
