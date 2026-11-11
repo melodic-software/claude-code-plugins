@@ -3886,6 +3886,9 @@ const PRE_MODEL_LIMITED = {
   ],
 };
 const AFTER_RESET = Date.parse("2026-10-16T12:31:00Z");
+// A rate-limit stop's records name the GitHub API rate limit and the reset, never the broker.
+const limitCause = (reset) => `The work-resolve-issue run that \`agent-ready\` started stopped on GitHub's API rate limit before any model turn; the limit reset at ${reset}.`;
+const limitRefired = (reset) => [`POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: refireComment(KEY, limitCause(reset)) })}`, ...restarted(30)];
 
 test("a run a GitHub rate-limit stop failed before any model turn is re-fired as a failed mint once the reset it names has passed, from one log", async () => {
   for (const [job, jobs] of Object.entries(PRE_MODEL_LIMITED)) {
@@ -3899,7 +3902,7 @@ test("a run a GitHub rate-limit stop failed before any model turn is re-fired as
       assert.deepEqual(logReads(early.calls), [`GET /repos/${REPO}/actions/jobs/${LIMIT_ID}/logs`], name);
       const due = stalledRun({ jobs, logs });
       assert.equal(await sweep({ github: due.github, actions: due.actions, now: AFTER_RESET }), 0, name);
-      assert.deepEqual(writes(due.calls), refired(30), `${name}: not re-fired after the reset`);
+      assert.deepEqual(writes(due.calls), limitRefired(RESET), `${name}: not re-fired after the reset`);
       assert.ok(!writes(due.calls).some((call) => call.includes("needs-human")), name);
     }
   }
@@ -3911,15 +3914,16 @@ test("a rate-limit stop before any model turn is on the failed-mint bound and ba
   // Two re-fires on these workflow files: a failed run waits 3 hours, a failed mint goes again.
   const again = stalledRun({ jobs, logs, ...earlierPumps(2) });
   assert.equal(await sweep({ github: again.github, actions: again.actions }), 0);
-  assert.deepEqual(writes(again.calls), refired(30));
-  // Past the bound: the failed-mint backoff, 24 hours after the run ended at 10:05.
-  const mintCause = "The work-resolve-issue run that `agent-ready` started could not get its lane token, or the token broker's leave to run.";
+  assert.deepEqual(writes(again.calls), limitRefired("2026-10-16T10:51:58Z"));
+  // Past the bound: the failed-mint backoff, 24 hours after the run ended at 10:05, its record naming the rate limit.
   const over = stalledRun({ jobs, logs, ...earlierPumps(3) });
   assert.equal(await sweep({ github: over.github, actions: over.actions }), 0);
   assert.deepEqual(writes(over.calls), []);
   const due = stalledRun({ jobs, logs, ...earlierPumps(3) });
   assert.equal(await sweep({ github: due.github, actions: due.actions, now: Date.parse("2026-10-17T10:05:00Z") }), 0);
-  assert.deepEqual(writes(due.calls), [`POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: infraComment(KEY, mintCause, 4) })}`, ...restarted(30)]);
+  const backoffRecord = writes(due.calls);
+  assert.deepEqual(backoffRecord, [`POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: infraComment(KEY, limitCause("2026-10-16T10:51:58Z"), 4) })}`, ...restarted(30)]);
+  assert.ok(!backoffRecord[0].includes("broker"), backoffRecord[0]);
   // An early reset still waits limits.reset-clamp-min after the run ended.
   const recent = stalledRun({ jobs, logs, ended: "2026-10-16T11:30:00Z" });
   assert.equal(await sweep({ github: recent.github, actions: recent.actions }), 0);
@@ -4029,6 +4033,26 @@ test("an admit or pick-slot kill-switch skip is a breaker trip at broker-check, 
   const admitted = stalledRun({ jobs: ran(ADMIT_KILLED, "admit"), conclusion: "success", blockedBy: { 30: [issue(31)] } });
   assert.equal(await sweep({ github: admitted.github, actions: admitted.actions }), 0);
   assert.deepEqual(writes(admitted.calls), []);
+});
+
+// With the switch off, a failed admit install also leaves `Check the trigger`
+// skipped, and a failed pick-slot can leave `Check the WIP cap` skipped: each
+// job ends red, so the run is a failed run, never a kill-switch trip.
+test("an admit whose install failed, or a pick-slot that failed, with its gated step skipped is a failed run, not a breaker trip", async () => {
+  const failedJob = (jobs, name, edit) => jobs.map((item) => (item.name === name ? { ...item, conclusion: "failure", steps: item.steps.map(edit) } : item));
+  for (const [name, jobs] of [
+    ["admit install failed", failedJob(ADMIT_KILLED, "admit", (step) => (step.name === "Install resolve-config's packages" ? { ...step, conclusion: "failure" } : step))],
+    ["pick-slot failed", failedJob(PICK_SLOT_KILLED, "pick-slot", (step) => step)],
+  ]) {
+    // The failed-run path: re-fired at once with its plain record, no breaker record.
+    const fresh = stalledRun({ jobs, conclusion: "failure" });
+    assert.equal(await sweep({ github: fresh.github, actions: fresh.actions }), 0, name);
+    assert.deepEqual(writes(fresh.calls), refired(30), name);
+    // Re-fired twice on these workflow files already: a failed run waits the failed-again hours, a breaker trip would not.
+    const again = stalledRun({ jobs, conclusion: "failure", ...earlierPumps(2) });
+    assert.equal(await sweep({ github: again.github, actions: again.actions }), 0, name);
+    assert.deepEqual(writes(again.calls), [], name);
+  }
 });
 
 test("a green run whose stale stop did not run, or a stop step outside resolve-issue, is not re-fired", async () => {

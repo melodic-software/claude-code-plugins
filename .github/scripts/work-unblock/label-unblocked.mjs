@@ -208,8 +208,10 @@
 // refused job's log names the reason (the jobs listing reads the same for a
 // workflow-modified refusal). So is a run whose broker-check `Check the kill
 // switch` step saw a kill switch on and skipped the broker ask, or whose admit
-// or pick-slot job's own `Check the kill switch` did and skipped its first API
-// step (`Check the trigger`, `Check the WIP cap`): that run ends green, and
+// or pick-slot job's own `Check the kill switch` did and the job ended green
+// with its gated steps skipped (admit's `Install resolve-config's packages`
+// and `Check the trigger`, pick-slot's `Check the WIP cap`; a failed install
+// is a failed run, not the switch): that run ends green, and
 // the jobs listing alone shows it; both count as trips at broker-check. A
 // trip at broker-check ran no model, and the sweep runs only with the kill
 // switch off, so the first sweep after the switch clears re-fires it; a trip at a mint ran the model and is
@@ -388,8 +390,9 @@ const UNTRUSTED_STEP = "Stop on untrusted provenance";
 const BROKER_STEP = "Ask the broker whether the lane may run";
 // broker-check's step before BROKER_STEP, which skips it while a kill switch is on.
 // admit and pick-slot run it first too, and while a switch is on skip their
-// first API step: TRIGGER_STEP in admit, WIP_STEP in pick-slot.
+// gated steps: INSTALL_STEP and TRIGGER_STEP in admit, WIP_STEP in pick-slot.
 const KILL_STEP = "Check the kill switch";
+const INSTALL_STEP = "Install resolve-config's packages";
 const TRIGGER_STEP = "Check the trigger";
 const WIP_STEP = "Check the WIP cap";
 // The steps that run a model: the read runner's legs and its reused-branch
@@ -1578,6 +1581,9 @@ const strandedCause = {
 };
 
 const MINT_CAUSE = `The work-resolve-issue run that \`${LABEL}\` started could not get its lane token, or the token broker's leave to run.`;
+// A rate-limit stop's cause, naming the latest reset (ms) its stop lines named.
+const rateLimitCause = (reset) =>
+  `The work-resolve-issue run that \`${LABEL}\` started stopped on GitHub's API rate limit before any model turn; the limit reset at ${new Date(reset).toISOString().replace(/\.\d{3}Z$/, "Z")}.`;
 
 // The record of a re-fire after a kill-switch refusal, posted before the
 // label moves, once per re-fire. It names the refused run and when it ended,
@@ -1713,8 +1719,9 @@ export function sharedLaneRuns(actions, repo) {
 // MINT_STEP, so its broker ask is the one the broker can fail), had the broker
 // refuse it for the kill switch at broker-check or a mint (failed, or stopped
 // green with its STOPPED notice: at broker-check, BROKER_STEP succeeded and
-// LEASE_STEP skipped), or had broker-check skip its broker ask, admit its
-// TRIGGER_STEP or pick-slot its WIP_STEP for the kill switch (`breaker`), or,
+// LEASE_STEP skipped), or had broker-check skip its broker ask, a green admit
+// its INSTALL_STEP and TRIGGER_STEP or a green pick-slot its WIP_STEP for the
+// kill switch (`breaker`), or,
 // with no MODEL_STEP run, had admit, pick-slot or a call's broker-check or run
 // job fail on a RATE_LIMITED last line (`mint-failed`, with `reset` the latest
 // reset named), was skipped by the WIP
@@ -1761,7 +1768,13 @@ async function didNoWork(jobsOf, refusalOf, runs) {
     // Any call's broker-check: a later leg asks the broker again for its slot.
     const calls = RESOLVE_CALLS.flatMap(named);
     const killedBefore = (step) => (job) => endedAt(job, KILL_STEP, "success") && endedAt(job, step, "skipped");
-    const killed = calls.some(killedBefore(BROKER_STEP)) || named("admit").some(killedBefore(TRIGGER_STEP)) || named("pick-slot").some(killedBefore(WIP_STEP));
+    // admit's first gated step is INSTALL_STEP: a failed install also skips
+    // TRIGGER_STEP, and that job fails, so only a green job with both skipped
+    // is the switch. pick-slot's gated WIP_STEP follows only continue-on-error
+    // steps, so a green job with it skipped is the switch too.
+    const switchedOff = (...steps) => (job) => job.conclusion === "success" && steps.every((step) => killedBefore(step)(job));
+    const killed =
+      calls.some(killedBefore(BROKER_STEP)) || named("admit").some(switchedOff(INSTALL_STEP, TRIGGER_STEP)) || named("pick-slot").some(switchedOff(WIP_STEP));
     // A failed job before any model turn: admit, pick-slot, or a call's
     // broker-check or run job, in a run where no model step ran.
     const modelRan = jobs.some((job) => (job.steps ?? []).some((step) => MODEL_STEP.test(String(step?.name)) && step.conclusion && step.conclusion !== "skipped"));
@@ -2286,12 +2299,12 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
     // attempt, and the cap and restarts-per-run bound it.
     const fired = firedOn(key).length;
     if (stalled === "mint-failed" && !recorded && fired >= limits["limit-stops-per-issue"]) {
-      return backoff(key, ended, MINT_CAUSE, hoursFor["failed-mint"]);
+      return backoff(key, ended, reset ? rateLimitCause(reset) : MINT_CAUSE, hoursFor["failed-mint"]);
     }
     const trip = stalled === "breaker" ? { run: refused.id, ended: Date.parse(refused.updated_at) || ended } : undefined;
     // Trips sort by when their run ended, not when they fell due, so the sweeps
     // after the switch clears drain them oldest first whatever their waits.
-    return { reason: null, resets: trip ? ended : due, refire: key, recorded, stall: stalled, trip };
+    return { reason: null, resets: trip ? ended : due, refire: key, recorded, stall: stalled, trip, ...(reset && { cause: rateLimitCause(reset) }) };
   }
   if (!stale && !runs.some((run) => FAILED.has(run.conclusion)) && !(await stoppedMint(jobsOf, runs)) && !(await cancelledBeforeWork(jobsOf, runs))) {
     return stranded(ended, "its lane run did not fail", "no-report");
