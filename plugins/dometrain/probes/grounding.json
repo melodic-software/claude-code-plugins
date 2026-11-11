@@ -2,7 +2,7 @@
   "skill": "dometrain:grounding",
   "plugin": "dometrain",
   "skill_dir": "plugins/dometrain/skills/grounding",
-  "ranking_note": "Authored from the before description at commit b9ae6bbaed, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Siblings dometrain:setup and dometrain:sync are disable-model-invocation: true, so they cannot compete and are not listed; probes about the MCP connection and upstream drift still test that grounding stays quiet on their requests. The competitors live in other plugins: knowledge:course-digest takes a Dometrain course URL to extract lesson by lesson, knowledge:video-digest a public talk, context7:lookup current library API docs, and discovery:research multi-source external research. Plugin eval loads only this plugin, so near-miss negatives test quietness, not competitor wins.",
+  "ranking_note": "Authored from the before description at commit b9ae6bbaed, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Siblings dometrain:setup and dometrain:update are disable-model-invocation: true, so they cannot compete and are not listed; probes about the MCP connection and upstream drift still test that grounding stays quiet on their requests. The competitors live in other plugins: knowledge:course-digest takes a Dometrain course URL to extract lesson by lesson, knowledge:video-digest a public talk, context7:lookup current library API docs, and discovery:research multi-source external research. Plugin eval loads only this plugin, so near-miss negatives test quietness, not competitor wins.",
   "competitors": [
     "knowledge:course-digest",
     "knowledge:video-digest",

@@ -3165,24 +3165,6 @@
         "class": "builtin-tool"
       },
       "component": {
-        "plugin": "dometrain",
-        "skill": "sync",
-        "kind": "skill"
-      },
-      "reason": "DesignSync syncs a local component library with a claude.ai/design design-system project; ours checks the dometrain grounding skill's vendored content for upstream drift. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.285",
-      "date": "2026-10-01",
-      "fingerprint": {
-        "native": "b1369bb52790e1bd680ba754947bb48f",
-        "component": "5b3d22b2a6abfbb09f051eb1a46cff01"
-      }
-    },
-    {
-      "native": {
-        "name": "DesignSync",
-        "class": "builtin-tool"
-      },
-      "component": {
         "plugin": "repo-fleet-hygiene",
         "skill": "sync",
         "kind": "skill"
