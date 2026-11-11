@@ -875,6 +875,24 @@ test("live config: no live slot resolves an actions permission", () => {
   );
 });
 
+// Owner decision Q113 (a): the lane level publisher is the one grant that may
+// write repository Variables, beside every other scope read.
+test("live config: only work-unblock's publish-lane-level resolves Variables write, with every other scope read", () => {
+  const doc = parse(FILES.config);
+  const holders = [];
+  for (const lane of Object.keys(doc.lanes)) {
+    const { lane: resolved } = resolve(FILES, { lane, configPath: CONFIG_PATH, basePath: ".base", facts: FACTS });
+    for (const slot of resolved.slots) {
+      if (slot.grant["actions-variables"] !== undefined) holders.push(`${lane}/${slot.name}`);
+    }
+  }
+  assert.deepEqual(holders, ["work-unblock/publish-lane-level"]);
+  assert.deepEqual(resolveGrant(FILES, { lane: "work-unblock", activity: "publish-lane-level", configPath: CONFIG_PATH }), {
+    effect: "mutate-variable",
+    grant: { contents: "read", "pull-requests": "read", issues: "read", "actions-variables": "write" },
+  });
+});
+
 // release-publish-plugins.yml owns and rebuilds release/plugins; run
 // 41065454536's re-fire push there answered 422 and failed the merge job.
 test("live config: pr-merge's re-fire step skips the release branch release-publish-plugins.yml rebuilds", () => {
