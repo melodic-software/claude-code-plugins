@@ -44,7 +44,11 @@ close the newer as an audited duplicate).
 
 A platform event workflow (marked example, GitHub Actions class: `on: issues` types
 `labeled`/`assigned`, `on: issue_comment` type `created` for @-mention forms,
-`on: pull_request`, where the workflow file must exist on the default branch to fire):
+`on: pull_request`, with the workflow file on the default branch; for which branch's file an event
+runs, see
+[Events that trigger workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#issues),
+as of 2026-11-10, rechecked when that section changes which branch's workflow file an issue event
+runs):
 
 1. Filter to the signal condition (`<trigger-label>` applied, assignment to
    `<automation-identity>`, @-mention token).
@@ -112,10 +116,10 @@ work class, claims an item or merges. Admission still decides what the drain may
 only shortens the wait. The job runs no model step.
 
 Token and secrets: the job token needs `contents: read` (to read the policy file) and the
-always-granted `metadata: read` (the permission endpoint); declare `permissions: contents: read`
-and nothing else. The routine token is exposed only to the step that fires, after step 2 passes.
-Labels need the triage role or higher, and triage maps to `read`, so a triage user's label does
-not kick. The drain applies the same bar at admission: it reads who last applied the
+metadata permission the permission endpoint needs (see "Permission values" below); declare
+`permissions: contents: read` and nothing else. The routine token is exposed only to the step that
+fires, after step 2 passes. A triage user's label does not kick: step 2 admits only `admin` or
+`write`, and how roles map to those values is in "Permission values" below. The drain applies the same bar at admission: it reads who last applied the
 autonomous-eligible role label, never a `work-class:` label, and refuses the item unless that
 labeler holds `write` or higher (the
 `work-items` plugin's `/work-items:work-loop`, "Admission gate").
@@ -130,26 +134,26 @@ Vendor facts this shape depends on:
 
 - **Permission values.** Pointer:
   [Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user)
-  (`admin`, `write`, `read`, `none`; maintain maps to `write`, triage to `read`) and the
-  "Metadata" section of
+  and the "Metadata" section of
   [Permissions required for fine-grained personal access tokens](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens).
   As of: 2026-10-04. Recheck trigger: the endpoint's role mapping or required permission changes.
-- **Routine triggers.** Pointer: "Add an API trigger" and "Supported events" on
-  [Routines](https://code.claude.com/docs/en/routines), which the page now calls scheduled tasks
-  (the `/fire` endpoint; `text` arrives as untrusted data; GitHub triggers cover pull request,
-  release and issue events). As of: 2026-10-31. Recheck trigger: the supported GitHub events
-  change, or `/fire` leaves its beta header.
+- **Routine triggers.** Pointer:
+  [Add an API trigger](https://code.claude.com/docs/en/routines#add-an-api-trigger) and
+  [Supported events](https://code.claude.com/docs/en/routines#supported-events). As of:
+  2026-11-10. Recheck trigger: the supported GitHub events change, or `/fire` leaves its beta
+  header.
 - **App actions on a user's behalf.** Pointer:
-  [Authenticating with a GitHub App on behalf of a user](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-with-a-github-app-on-behalf-of-a-user)
-  (requests made with a user access token are attributed to that user; an installation token
-  attributes them to the App). As of: 2026-10-04. Recheck trigger: GitHub changes how user
-  access token activity is attributed.
+  [Authenticating with a GitHub App on behalf of a user](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-with-a-github-app-on-behalf-of-a-user).
+  As of: 2026-10-04. Recheck trigger: GitHub changes how user access token activity is
+  attributed.
 
 ## temporal: scheduled drain + poll-detector
 
-Two shapes on the same scheduled surface (marked example: `schedule` cron, with a shortest
-interval of 5 minutes, delays under load, and 60-day public-repo auto-disable, plus
-`workflow_dispatch` for manual kicks):
+Two shapes on the same scheduled surface (marked example: `schedule` cron, whose interval floor,
+delays and auto-disable rules are in
+[schedule](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule),
+as of 2026-11-10, rechecked when that section changes them, plus `workflow_dispatch` for manual
+kicks):
 
 - **Drain** (dispatch, not an adapter): invoke the work-item queue capability's autonomous
   drain mode via the invocation-adapter seam, where the seam lease claims race-safely; the drain
@@ -203,12 +207,11 @@ and `signal.producer_identity`; `channel-feed` carries only the ordinary feed si
 
 Vendor facts this shape depends on, for Slack, where Claude ships as two separate products:
 
-- **Claude Tag.** Pointer: [Work with Claude Tag](https://claude.com/docs/claude-tag/overview)
-  (Claude in Slack channels with admin-governed access; Team and Enterprise plans only; public
-  beta). As of: 2026-10-31. Recheck trigger: Claude Tag leaves public beta, or the plans that
-  include it change.
+- **Claude Tag.** Pointer:
+  [Plans that include Claude Tag](https://claude.com/docs/claude-tag/overview#plans-that-include-claude-tag).
+  As of: 2026-11-10. Recheck trigger: Claude Tag leaves public beta, or the plans that include it
+  change.
 - **Claude Code in Slack, the earlier version.** Pointer:
-  [Claude Code in Slack](https://code.claude.com/docs/en/slack) (answers channel @mentions only
-  from Pro, Max and Ultra accounts, in a Slack workspace no organization has connected to Claude
-  Tag; each session runs under the mentioning user's own account). As of: 2026-10-31. Recheck
-  trigger: the page retires this version, or the plans or workspaces it answers change.
+  [Access and permissions](https://code.claude.com/docs/en/slack#access-and-permissions). As of:
+  2026-11-10. Recheck trigger: the page retires this version, or the plans or workspaces it
+  answers change.
