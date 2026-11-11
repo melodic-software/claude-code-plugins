@@ -19,9 +19,11 @@ combined into a single invocation:
 - Working tree status (empty = clean), `git status --porcelain | head -20`
 - Repository root, `git rev-parse --show-toplevel`
 
-The pipe is the bound and belongs in the command. A read-time cap bounds
-nothing: the Bash tool returns the command's complete output into context before
-there is anything to decide about.
+The pipe is the bound and belongs in the command. A read-time cap comes too late for whatever the
+command has already returned inline. What a result returns inline, and when it arrives as a saved
+file instead, is [Tools reference § Output
+limits](https://code.claude.com/docs/en/tools-reference#output-limits) (as of 2026-11-11; recheck
+when that section changes what a valid result returns inline).
 
 Treat a failure as an unknown value and carry on.
 

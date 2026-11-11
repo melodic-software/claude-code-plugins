@@ -23,8 +23,10 @@ invocation:
 With `--worktree <path>`, run both as `git -C <path> ...` ("Shared inputs").
 
 The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
-bounds nothing: the Bash tool returns the command's complete output into context before there is
-anything to decide about.
+comes too late for whatever the command has already returned inline. What a result returns inline,
+and when it arrives as a saved file instead, is [Tools reference § Output
+limits](https://code.claude.com/docs/en/tools-reference#output-limits) (as of 2026-11-11; recheck
+when that section changes what a valid result returns inline).
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines. Pointer: the
