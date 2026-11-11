@@ -119,4 +119,15 @@ run -- >/dev/null 2>&1
 [[ $? -eq 2 ]]
 check $? "a missing base ref is a usage error (exit 2)"
 
+# A file moved and edited in one change is a rename to git; its new path still
+# goes to lychee --dump, and only its added line counts.
+moved_base="$(g rev-parse HEAD)"
+mkdir -p "$repo/docs/guide"
+g mv docs/a.md docs/guide/a.md
+printf 'Moved [x](https://moved.test/m#f).\n' >>"$repo/docs/guide/a.md"
+g commit -q -am move
+out="$(run STUB_DUMP=$'https://kept.test/a\nhttps://moved.test/m#f' -- --list "$moved_base")"
+grep -qx 'docs/guide/a.md' "$TMP_ROOT/dump-args" && [[ $out == 'https://moved.test/m#f' ]]
+check $? "a moved and edited file's added link is kept" "out=$out args=$(cat "$TMP_ROOT/dump-args")"
+
 test_harness::report

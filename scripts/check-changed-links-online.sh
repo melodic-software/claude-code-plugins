@@ -37,7 +37,7 @@ fi
 paths=(-- '*.md'
   ':(exclude)plugins/attribution/skills/audit/evals/fixtures/golden/**'
   ':(exclude)scripts/fixtures/hooks-lifecycle-table.md')
-if ! files_out=$(git diff --name-only --diff-filter=AM "$base...HEAD" "${paths[@]}") ||
+if ! files_out=$(git diff --name-only --diff-filter=AMRC "$base...HEAD" "${paths[@]}") ||
   ! added=$(git diff -U0 --no-color --no-ext-diff --dst-prefix=b/ "$base...HEAD" "${paths[@]}"); then
   echo "$me: could not read the diff against $base" >&2
   exit 2
