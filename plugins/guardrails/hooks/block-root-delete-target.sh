@@ -6891,34 +6891,6 @@ rdt_ps_quote_gap() {
 }
 hook::_c_locale rdt_ps_quote_gap && rdt_ps_lit_kept=0
 
-# rdt_ps_param_to <var> <token>: canonical Remove-Item parameter name, empty
-# when the token is not a unique prefix of one. Token includes the leading
-# dash; a :value suffix is ignored for the name.
-rdt_ps_param_to() {
-  local __name="${2#-}"
-  __name="${__name%%:*}"
-  __name="${__name,,}"
-  local __hit="" __hits=0 __p
-  for __p in confirm credential debug erroraction errorvariable exclude filter \
-    force include informationaction informationvariable literalpath outbuffer \
-    outvariable pipelinevariable path recurse stream usetransaction verbose \
-    warningaction warningvariable whatif; do
-    if [[ "$__p" == "$__name" ]]; then
-      printf -v "$1" '%s' "$__p"
-      return 0
-    fi
-    if [[ -n "$__name" && "$__p" == "$__name"* ]]; then
-      __hit="$__p"
-      __hits=$((__hits + 1))
-    fi
-  done
-  if ((__hits == 1)); then
-    printf -v "$1" '%s' "$__hit"
-  else
-    printf -v "$1" '%s' ""
-  fi
-}
-
 # rdt_ps_cmd_split_to <nameref> <text>: cmd.exe-ish whitespace split of one /c
 # operand. Double quotes group; a backslash is literal; an empty quoted span
 # is an empty word.
@@ -7086,14 +7058,10 @@ rdt_ps_cmd_rd() {
   done
   ((__rec)) || return 0
   ((__del && ${#__paths[@]} == 0)) && return 0
-  if ((${#__paths[@]} == 0)); then
-    rdt_block "empty-operand"
-  fi
+  ((${#__paths[@]})) || rdt_block "empty-operand"
   local __p
   for __p in "${__paths[@]}"; do
-    if [[ -z "$__p" ]]; then
-      rdt_block "empty-operand"
-    fi
+    [[ -n "$__p" ]] || rdt_block "empty-operand"
     rdt_ps_operand "$__p"
   done
 }
@@ -7200,23 +7168,23 @@ rdt_ps_cmd_from() {
   done
 }
 
-# rdt_ps_ri_args <start-index>: argv after a Remove-Item family command word,
-# passed as the remainder of the statement array in "$@".
+# rdt_ps_ri_check <word>...: the words after a Remove-Item family command word.
 # shellcheck disable=SC2016,SC2329  # literal `$(` grouping; invoked from rdt_ps_statement
 rdt_ps_ri_check() {
   local -a __w=("$@")
-  local __i=0 __rec=0 __param __raw __att __vm
+  local __i=0 __rec=0 __param __att __vm
   local -a __paths=()
   while ((__i < ${#__w[@]})); do
     local __v="${__w[__i]}"
     if [[ "$__v" == -* && "$__v" != - ]]; then
-      rdt_ps_param_to __param "$__v"
-      __raw="${__v#-}"
-      __raw="${__raw%%:*}"
-      __raw="${__raw,,}"
-      if [[ "$__raw" == "rf" || "$__raw" == "fr" ]]; then
-        __rec=1
-      fi
+      rdt_ps_pick_to __param "$__v" confirm credential debug erroraction errorvariable \
+        exclude filter force include informationaction informationvariable literalpath \
+        outbuffer outvariable pipelinevariable path recurse stream usetransaction verbose \
+        warningaction warningvariable whatif
+      case "${__v,,}" in
+      -rf | -fr | -rf:* | -fr:*) __rec=1 ;;
+      *) ;;
+      esac
       case "$__param" in
       recurse)
         if [[ "$__v" == *:* ]]; then
@@ -7280,29 +7248,14 @@ rdt_ps_ri_check() {
     return 0
   fi
   ((__rec)) || return 0
-  if ((${#__paths[@]} == 0)); then
-    rdt_block "empty-operand"
-  fi
+  ((${#__paths[@]})) || rdt_block "empty-operand"
   for __p in "${__paths[@]}"; do
-    if [[ -z "$__p" ]]; then
-      rdt_block "empty-operand"
-    fi
+    [[ -n "$__p" ]] || rdt_block "empty-operand"
     # The walker's placeholder for a `( )` grouping or a `{ }` scriptblock
     # named as a target: what it evaluates to is not known.
     [[ "$__p" == "(" || "$__p" == "{" ]] && rdt_block "pipeline-target" "$__p"
     rdt_ps_operand "$__p"
   done
-}
-
-# rdt_ps_rest <i>: remaining words of "$@" from index <i>, possibly empty.
-rdt_ps_rest() {
-  local __off="$1"
-  shift
-  if ((__off < $#)); then
-    rdt_ps_ri_check "${@:__off+1}"
-  else
-    rdt_ps_ri_check
-  fi
 }
 
 # rdt_ps_take: the argument that starts at __w[__i] in the caller, joined
@@ -7874,22 +7827,12 @@ rdt_ps_statement() {
   __cmd="${__cmd%.exe}"
   __i=$((__i + 1))
   case "$__cmd" in
-  remove-item | ri | rm | del | erase)
-    rdt_ps_rest "$__i" ${__w[@]+"${__w[@]}"}
-    ;;
+  remove-item | ri | rm | del | erase) rdt_ps_ri_check "${__w[@]:__i}" ;;
   rd | rmdir)
-    rdt_ps_rest "$__i" ${__w[@]+"${__w[@]}"}
-    if ((__i < ${#__w[@]})); then
-      rdt_ps_cmd_rd "$__cmd" "${__w[@]:__i}"
-    else
-      rdt_ps_cmd_rd "$__cmd"
-    fi
+    rdt_ps_ri_check "${__w[@]:__i}"
+    rdt_ps_cmd_rd "$__cmd" "${__w[@]:__i}"
     ;;
-  cmd)
-    if ((__i < ${#__w[@]})); then
-      rdt_ps_cmd_from "${__w[@]:__i}"
-    fi
-    ;;
+  cmd) rdt_ps_cmd_from "${__w[@]:__i}" ;;
   robocopy)
     if ((__i < ${#__w[@]})); then
       rdt_ps_robocopy_check "${__w[@]:__i}"
