@@ -220,7 +220,7 @@ given, and one disposal venue does not exist.
   the chain as drafted was **factually wrong**: the fresh-context phase verifier fires at *every
   phase boundary* (a loop) while confirm → quality-gate → pull-request fires *once at completion*,
   and that verifier is dispatched by `implementation:implement-dispatch`, not `implement` —
-  writing it down canonically would have laundered the error into an SSOT. Also: READMEs are
+  writing it down canonically would have recorded the wrong chain as the single source of truth. Also: READMEs are
   human-facing and graded on a different bar by docs hygiene; `plugin-philosophy.md:474-476`
   routes a cross-plugin concern to a `docs/conventions/` owner doc rather than a plugin README;
   converting the inline mentions to citations would **strip the presence gates from the invocation
@@ -237,7 +237,7 @@ given, and one disposal venue does not exist.
   `verification`'s **own** chaining table (`skills/confirm/SKILL.md:125,128`) already fires on
   "review gate passes" → suggest `confirm`, then PR after CONFIRMED. The skill that renders the
   verdict, the skill that lists the sequence, and the plugin that opens the PR all agreed;
-  `implement`'s handoff step was the lone dissenter. Landed: a new owner doc
+  `implement`'s handoff step alone put review, verification and the PR in a different order. Landed: a new owner doc
   `docs/contracts/pre-pr-ordering/` with a registry row in `plugin-philosophy.md` (the registry's
   own trigger — "a new cross-plugin convention lands in an owner doc before a second plugin adopts
   it" — had already fired); `pre-pr.md` cites the owner for the order and keeps ownership of what
