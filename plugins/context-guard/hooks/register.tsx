@@ -490,7 +490,6 @@ const menuLine = (from: string, to: string) =>
 const menuZone = (zone: Zone, degraded: boolean) => (degraded ? `${zone} (compacted)` : zone)
 const noticeShows = (st: State, surface: string) => st.notice !== undefined && (st.notice.kind === 'operator' || surface !== 'terminal')
 
-// The lines a carrier attaches now, consumed; none when none is due or operator mode holds them.
 // One fire of a hook, for its telemetry envelope: the event, when it started, and the optional
 // correlation keys (docs/contracts/hook-telemetry, "Correlation keys").
 type Fire = { event: string; startMs: number; toolUseId?: unknown; agentId?: unknown }
@@ -579,6 +578,7 @@ const mergeRestated = (pending: Event[]): Event[] => {
   })
 }
 
+// The lines a carrier attaches now, consumed; none when none is due or operator mode holds them.
 async function takeLines($: EngineInterface, st: State, cfg: Config, fire: Fire): Promise<string[]> {
   const s = st.sessions.get(await $.session.id())
   if (s === undefined) return []
@@ -705,7 +705,6 @@ async function statusJson($: EngineInterface, st: State, cfg: Config) {
   const { s, body, settings } = await refresh($, st)
   await showPending($, st, cfg)
   const w = body.context_window
-  const t = tokenShape(w, body.cli_version, settings.bands)
   return JSON.stringify({
     source: 'the last API response',
     zone: s.reading?.zone ?? 'unknown',
@@ -714,13 +713,8 @@ async function statusJson($: EngineInterface, st: State, cfg: Config) {
     total_input_tokens: w.total_input_tokens ?? null,
     total_output_tokens: w.total_output_tokens ?? null,
     context_window_size: w.context_window_size,
-    bands: {
-      light_max_used_percentage: settings.bands.light,
-      moderate_max_used_percentage: settings.bands.moderate,
-      light_max_tokens: t?.light ?? null,
-      moderate_max_tokens: t?.moderate ?? null,
-      ...(body.bands?.auto_compact_window === undefined ? {} : { auto_compact_window: body.bands.auto_compact_window }),
-    },
+    // refresh publishes the edges in force on the body it returns.
+    bands: body.bands,
     approach_margin: settings.margin,
   })
 }
