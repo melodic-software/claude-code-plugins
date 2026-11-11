@@ -44,10 +44,11 @@ probes via Bash and report a PASS/FAIL/INFO table with one remediation line per 
 Read each option value from this text; never put a `${user_config.*}` string in a shell command.
 Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
 
-When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
-INFO. The hooks exit through their enabled-gate before probing anything, so a deliberately
+When the plugin's toggle is disabled, every prerequisite absence except `node` downgrades from
+FAIL to INFO. The hooks exit through their enabled-gate before probing anything, so a deliberately
 disabled plugin is not broken. Report the probes informationally and note that re-enabling
-restores the FAIL semantics.
+restores the FAIL semantics. A missing `node` stays FAIL in either state: every hook row launches
+`node`, and the gate runs inside `hooks/exec-bash.mjs`.
 
 1. **Bash version.** Check against the floor, Bash 3.2 or newer (`${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/check-lib.sh`).
 2. **`node`.** Probe via Bash: `command -v node`, then `node --version` when it resolves. FAIL if

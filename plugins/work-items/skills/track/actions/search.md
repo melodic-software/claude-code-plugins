@@ -15,7 +15,7 @@ Full-text search across work items (open and closed).
 1. **Search recurring schedule** (skip gracefully when the repo has no recurring schedule):
 
 ```bash
-SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+SCHEDULE="<project root>/.github/recurring-schedule.json"
 [[ -f "$SCHEDULE" ]] && jq --arg q "<query>" '
   [.items[] | select(
     (.id | ascii_downcase | contains($q | ascii_downcase)) or
@@ -25,6 +25,8 @@ SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurr
   )]
 ' "$SCHEDULE"
 ```
+
+`<project root>` is the literal path [`tracker-seam.md`](../../../reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet.
 
 1. **Present results grouped by source:**
 

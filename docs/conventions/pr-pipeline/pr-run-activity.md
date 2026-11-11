@@ -376,7 +376,8 @@ A layer of a native stack whose stack base is the default branch runs its lanes 
 default branch: the gate trusts the stack base's SHA, and every script, action, config and list
 still comes from the default branch, never from the layer below. Any other PR whose base is not
 the default branch, including a branch that only targets another PR's branch without a native
-stack, gets a failure check from step 4; retarget it to the default branch to run its lanes.
+stack, gets a failure check from step 3 (`untrusted-base`); retarget it to the default branch to
+run its lanes.
 
 Its outputs are `base-sha`, `head-sha`, `pr-number`, `gate-reason`, `can-commit` and
 `act-outcome`, plus, in the write file, `head-ref`, `escalation-reason` and

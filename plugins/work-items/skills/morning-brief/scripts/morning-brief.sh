@@ -20,8 +20,8 @@
 # head does not contain its base tip, or whose comparison was not read, carries
 # an UNVERIFIED line.
 #
-# Owner/repo is derived from `gh repo view`, or from the checkout's `origin`
-# remote when that call is unavailable; never hardcoded, so the tool is
+# Owner/repo is derived from `gh repo view` (gh's own repository resolution), or
+# from the checkout's `origin` remote when that call is unavailable; never hardcoded, so the tool is
 # reusable across repos.
 #
 # Degraded-mode contract. Every section is one of three states: data, empty,
@@ -763,9 +763,10 @@ if ((ANY_LIVE)) && ! have gh; then
 fi
 
 # --- Resolve the target repo --------------------------------------------------
-# `gh repo view` first (the checkout's default remote as gh sees it). When that
-# call is unavailable, the `origin` remote of the current checkout is the same
-# derivation without the network round-trip.
+# `gh repo view` first: GH_REPO, else the remote `gh repo set-default` recorded,
+# else gh's first remote by name, which is not necessarily origin. When that call
+# is unavailable, the `origin` remote is the fallback; in a fork checkout the two
+# can name different repositories.
 repo_from_git_remote() {
   local url
   url="$(git remote get-url origin 2>/dev/null | tr -d '\r')" || return 1

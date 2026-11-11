@@ -12,7 +12,7 @@
 
 ## The shape
 
-One question shape serves all three lanes. The schema is
+One question shape serves all four lanes. The schema is
 `<plugin-root>/shared/schema/question-shape.schema.json`; `<plugin-root>` is the placeholder
 SKILL.md "Spoke paths" defines.
 
@@ -47,6 +47,7 @@ SKILL.md's "Recommended answers" owns both rules.
 | terminal | SKILL.md's per-question template: `Q<N>:` is `text`, the `Context:` block and `Source:` block are `context`, `My recommendation:` (with its reason), `Origin:`, `Basis:`, and `Flips if:` and `Checked against:` when shown, are `recommendation` and `basis`, `Alternatives:` lists `alternatives` |
 | page | the round file fields in [`surface.md`](surface.md): `title` is `text`, `context` is `context` (the card shows it above the recommendation), `facts` carries the `Checked against:` line, then any `Source:` block; `commits` holds the `Commits you to:` parts; at least two alternatives |
 | shared | the fields above as written, plus `purpose`, `format`, `answerScope` and `references` ([`lane-shared.md`](lane-shared.md)); two or three alternatives |
+| document | the template in [`../templates/document.md`](../templates/document.md): `### Q<N>:` is `text`, then `Context:`, `My recommendation:` or `Withheld:`, `Basis:` and `Alternatives:`, with an answer stub under each question ([`lane-document.md`](lane-document.md)) |
 
 ## Context
 

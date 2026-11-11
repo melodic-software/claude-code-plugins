@@ -205,10 +205,16 @@ value (named by file, key and value; the personal override when it set the value
 - Optional `docs` (either layer): a free-form self-describing pointer naming what the file
   is and where its contract lives, so the binding file explains itself to a teammate who
   finds it. `/work-items:setup` writes it by default; the seam never reads it.
-- Owner/repo are NEVER recorded in the binding. They are derived at runtime from the working
-  directory's git remote (`gh api repos/{owner}/{repo}`). Verbs that need a repo
-  context accept an explicit `--repo <owner>/<repo>` override (conformance, cross-repo
-  tooling).
+- Owner/repo are NEVER recorded in the binding. They are derived at runtime by `gh`'s own
+  repository resolution for the working directory (`gh api repos/{owner}/{repo}`): `GH_REPO`
+  first, then the remote `gh repo set-default` recorded, then, with no default and no terminal,
+  the first remote in gh's order by remote name, which is not necessarily `origin`. In a fork
+  checkout (an `origin` fork beside an `upstream` remote), the repo therefore follows the gh
+  default, and a stock `gh repo clone` of a fork records `upstream`; `/work-items:setup check`
+  reports when the remotes name more than one repository. Verbs that need a repo context accept an
+  explicit `--repo <owner>/<repo>` override (conformance, cross-repo tooling). Pointer:
+  [`gh repo set-default`](https://cli.github.com/manual/gh_repo_set-default); as of 2026-11-11
+  (gh 2.103.3); recheck when a gh release changes how commands pick the base repository.
 - No binding found → exit `3` and stderr points here; the seam runs no inline wizard. The
   `work-items` plugin's setup skill (`/work-items:setup`) seeds this file, provider + non-secret
   config, as the once-per-repo binding step.

@@ -50,11 +50,13 @@ this layout (marker line, blank line, plan text); a different layout takes a new
 
 1. **Post or edit**, a WRITE through the adapter's identity policy. Before either command, check
    that `<N>` (the item number) and `<CID>` (the comment ID) each match `^[0-9]+$`; stop on any other
-   value. The body always goes as a file:
+   value. `<owner>/<repo>` is the repository the item id names (`github:<owner>/<repo>#<N>`),
+   written out rather than left to `gh`, which in a fork checkout can resolve to upstream. The body
+   always goes as a file:
 
    ```bash
-   gh issue comment <N> --body-file <file>
-   gh api --method PATCH "repos/{owner}/{repo}/issues/comments/<CID>" -F body=@<file>
+   gh issue comment <N> -R <owner>/<repo> --body-file <file>
+   gh api --method PATCH "repos/<owner>/<repo>/issues/comments/<CID>" -F body=@<file>
    ```
 
    - none found: post a new comment (the first command);

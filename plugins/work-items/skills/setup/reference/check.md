@@ -34,7 +34,8 @@ check.
    key outside `schema_version`, `provider`, `config` and `docs`, or the legacy file parses as JSON.
    It carries `schema_version` and a `provider`, and that provider resolves to a bundled
    adapter (`github`, `local-markdown`) or a consumer-local one at
-   `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/adapters/<provider>/`.
+   `<project root>/tools/work-item-tracker/adapters/<provider>/` ([`tracker-seam.md`](../../../reference/tracker-seam.md)
+   "Project root").
    A seeded provider (`jira`, `gitea`, `linear`) resolves only through that consumer-local copy: with
    none there it is FAIL, remediation `/work-items:setup apply`, which copies the seed. `config.lease_ttl_hours` is
    present, `local-markdown` additionally carries `config.storage_dir`, and `jira` additionally carries
@@ -58,7 +59,29 @@ check.
    check is the wrong gate), so an unrelated stale credential cannot skip the probe and let the
    very binding this exists to catch go unreported. Verdict on *why* the call failed
    rather than on failure alone:
-   - Resolves → INFO naming the `owner/repo` the seam will address.
+   - Resolves → INFO naming the `owner/repo` the seam will address. Then check that this is the
+     repository the user means: in a fork checkout the repository gh resolves can be upstream, and
+     the tracker is the fork. Run `gh repo set-default --view` and list the distinct GitHub
+     `owner/repo` values the remotes' fetch URLs name (`git remote -v`; the ssh and https forms of
+     one repository, with or without `.git`, compared case-insensitively, are one). Judge
+     `--view` by what it prints on stdout, never by its exit code:
+     - One distinct repository → nothing to add.
+     - Two or more, and `--view` printed no repository on stdout and its stderr reports that no
+       default is set → FAIL: the seam's repository is gh's guess.
+     - Two or more, and the default `--view` printed is not the fork → FAIL. The fork is the
+       tracker in a fork checkout; it is normally the repository `origin` names, and
+       `gh api repos/<owner>/<repo> --jq .parent.full_name` on it names its upstream.
+     - Two or more, and the default is the fork → INFO naming it.
+     - Any other `--view` output (gh missing, a gh without `--view`, an error) → INFO, naming the
+       message verbatim, for the reason the last bullet below gives.
+
+     The remediation for either FAIL is to print, with the fork filled in,
+     `gh repo set-default <owner>/<repo>`, and to say that the user confirms the repository first;
+     `check` never runs it. Pointer: the
+     [`gh repo set-default`](https://cli.github.com/manual/gh_repo_set-default) and
+     [`gh repo clone`](https://cli.github.com/manual/gh_repo_clone) manuals for how gh picks and
+     records the default and what `--view` prints; as of 2026-11-11 (gh 2.103.3); recheck when a
+     gh release changes how commands pick the base repository or what `--view` prints.
    - No remote, or no remote pointing at a known GitHub host → FAIL: nothing here can derive a repo,
      so every repo-scoped verb that is not handed the CONTRACT's explicit `--repo <owner>/<repo>`
      override fails at call time. Remediation is `/work-items:setup apply` with a user present,
