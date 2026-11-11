@@ -487,7 +487,7 @@ installed. The measurements below carry the conditions they were taken under.
   returns a hook-issued `ask` for the canonical engine `apply` and `handoff-apply` calls (same
   `permissionDecision: "ask"` as the PowerShell deletion lane; how each permission mode treats it:
   [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control),
-  [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode)
+  [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
   and [dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode),
   as of 2026-10-11; recheck when any of those sections changes whether a hook `ask` prompts in a
   mode).

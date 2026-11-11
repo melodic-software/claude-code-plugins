@@ -104,7 +104,7 @@ Prefer AFK. Mark HITL only when the vertical slice genuinely needs judgment (arc
 
 The human-gated label (default `needs-human`) is what keeps an item out of autonomous pickup: `list-frontier --autonomous` excludes it (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Verbs (core public surface)"). Merely omitting the autonomous-eligible label does NOT; an unlabeled HITL item would still be claimable by `/work-items:work`. An HITL item wants the human-gated label set AND the autonomous-eligible one (default `agent-ready`) omitted.
 
-**Investigation tickets, decisions, not deliverables.** When the source still carries unresolved unknowns (open design questions, unvalidated approaches, fuzzy scope), emit **investigation tickets** alongside, or ahead of. Build vertical slices. An investigation ticket resolves ONE decision and records the resolution as a closing comment; it produces no production code. Type each by the skill that resolves it:
+**Investigation tickets, decisions, not deliverables.** When the source still carries unresolved unknowns (open design questions, unvalidated approaches, fuzzy scope), emit **investigation tickets** alongside, or ahead of, the build vertical slices. An investigation ticket resolves ONE decision and records the resolution as a closing comment; it produces no production code. Type each by the skill that resolves it:
 
 | Investigation type | Resolves | Routes to |
 |--------------------|----------|-----------|
@@ -113,7 +113,7 @@ The human-gated label (default `needs-human`) is what keeps an item out of auton
 | interview | Scope/contract ambiguity only the user can settle | `/planning:interview` |
 | design | Type, contract, module-boundary, topology, or data-model unknown | `/planning:design` |
 
-A build vertical slice waiting on an unresolved decision names that investigation ticket as a blocker (its `--blocked-by` edge and its `## Depends on` body list). Investigation tickets are HITL by default (their output is a decision a human confirms). Label them `needs-human`, never `agent-ready`.
+A build vertical slice waiting on an unresolved decision names that investigation ticket as a blocker (its `--blocked-by` edge and its `## Depends on` body list). Investigation tickets are HITL by default (their output is a decision a human confirms). Label them with the human-gated role label, never the autonomous-eligible one.
 
 ### 2b. Wide refactors: expand, migrate, contract
 

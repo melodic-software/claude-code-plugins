@@ -33,11 +33,11 @@ A self-hosted, forge-shaped provider with no lease support:
     "add-recurrence": false, "capabilities": true
   },
   "features": {
-    "cross_repo_edges": false, "sub_items": false, "leases": false, "labels": true
+    "cross_repo_edges": true, "sub_items": false, "leases": false, "labels": true
   },
   "limits": {
     "sub_items_per_parent": 0, "sub_item_depth": 0,
-    "dependencies_per_type": 50, "list_items_max": 1000
+    "dependencies_per_type": null, "list_items_max": 1000
   },
   "change_link": { "branch_pattern": "^[a-z]+/(routine-issue-)?([0-9]+)-" },
   "deferrals": [
@@ -161,8 +161,7 @@ The manifest is a promise the core routes on, so these are refusals, not warning
 - `verbs["list-items"]` and `limits.list_items_max` must agree.
 - `link-blocks: true` needs a non-zero `dependencies_per_type`.
 
-One note, not a refusal: `list-items: false` is coherent, since the `jira` seed is
-consume-only, but `list-frontier` can then never succeed, so no work-selection flow will
+One note, not a refusal: `list-items: false` is coherent for a consume-only provider, but `list-frontier` can then never succeed, so no work-selection flow will
 find anything. The generator says so on stderr.
 
 ## What the spec does *not* control

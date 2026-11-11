@@ -119,7 +119,7 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   probe need the guard's absolute Python interpreter as `<hook-python>`, and every engine call
   needs its authorized `--data-root`; bare `python`/`python3` is rejected because Bash aliases and
   functions can replace them. The expansion of a typed `/disk-hygiene:clean` normally carries a `disk-hygiene guard values`
-  note (a Skill-tool load does not) naming `hook_python` (the `<hook-python>`), `engine` (the engine path) and `data_root` (every
+  note (which loads fire the hook that adds it: [UserPromptExpansion](https://code.claude.com/docs/en/hooks#userpromptexpansion), as of 2026-11-10; recheck when that section changes which invocations fire the event) naming `hook_python` (the `<hook-python>`), `engine` (the engine path) and `data_root` (every
   `--data-root` value), resolved by the guard's own code; use them from the first call. Only when the
   note is absent, submit the probe once with bare `python`: the guard denies that read-only call and names its interpreter. Rerun the probe with that interpreter and
   take `data_root` from the probe's `data_root` field. Never submit a scan to learn either value.
@@ -141,9 +141,8 @@ What a valid answer must *name* is per question, because a target prompt has no 
 name and cannot be held to a bar built for one.
 
 **Question surface.** Prefer `AskUserQuestion`: its answer is the user's own and cannot be
-fabricated. It is not always usable: a deny rule or tool restriction can hide it, and a permission
-mode can leave it visible while every call fails ([dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode),
-as of 2026-10-11; recheck when that section changes which tools it denies). Fall back to the same
+fabricated. It is not always usable ([dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode),
+as of 2026-11-10; recheck when that section changes which tools it denies). Fall back to the same
 question asked inline as a numbered choice whenever the tool is absent, denied, **or otherwise
 unusable**. Including a denial discovered only by calling it; a denied call is an unanswered
 question, never an answer. Then wait for the reply.
@@ -218,13 +217,12 @@ re-verification checks a candidate with no live-I/O value left to give would oth
 fan-out worker receives a bounded subtree and returns evidence only (see
 [fan-out-worker-brief.md](reference/fan-out-worker-brief.md)). The parent owns classification, the
 single report, every approval, preview, and all execution. Do not let workers delete or prepare approvals.
-The skill-frontmatter Bash/PowerShell belt does not apply inside those subagents, so a worker
-still runs Bash, `gh`, and `curl` without it. Our probe on Claude Code 2.1.285 (Linux), recorded in
-[#5565](https://github.com/melodic-software/claude-code-plugins/pull/5565), observed this: after `/disk-hygiene:clean` loaded, the session's `git --version` was denied by the belt and a
-subagent's `git --version` ran. **Pointer:** when checking which hooks apply inside subagents, fetch
+Do not count on the skill-frontmatter Bash/PowerShell belt inside those subagents. Our probe on
+Claude Code 2.1.285 (Linux), recorded in [#5565](https://github.com/melodic-software/claude-code-plugins/pull/5565), observed the difference: after `/disk-hygiene:clean` loaded, the session's `git --version` was denied
+by the belt and a subagent's `git --version` ran. **Pointer:** when checking which hooks apply inside subagents, fetch
 [Define hooks for subagents](https://code.claude.com/docs/en/sub-agents#define-hooks-for-subagents)
 and [Hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents)
-live. **As of:** 2026-10-11. **Recheck trigger:** either section documents subagent inheritance of
+live. **As of:** 2026-11-10. **Recheck trigger:** either section documents subagent inheritance of
 skill-frontmatter hooks, or a release note names that reach. Enforcing "workers return evidence only" in a hook that fires for
 subagents is parked: a plugin-level gate that reached subagents would be a new
 hook surface, not a SKILL.md sentence. Do not treat a worker PowerShell recycle or delete as
@@ -480,14 +478,14 @@ and what the guard does when no Python resolves → "Hook launch form".
   relying on it, and add an explicit `permissions.ask` rule for those spellings, or change mode,
   when they show it would not. **Pointer:** when checking how a hook `ask` or a `permissions.ask`
   rule behaves in each mode, fetch [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control),
-  [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode) and
+  [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode) and
   [dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode)
   live. **As of:** 2026-11-06. **Recheck trigger:** a section changes whether either kind of `ask`
   prompts in a mode, or a release note names hook permission decisions.
   The lane is a raised bar, not fail-closed; its flagged set is enumerated, so an
   unflagged mutation spelling passes it. The engine's own containment and the Bash lane remain
   the deletion authority, except inside the opt-in elevated script, which no guard sees.
-- A `permissions.allow` rule cannot remove the deletion prompts. Those prompts are hook `ask` verdicts, which force a prompt; the engine's read-only scan, preview, and `handoff-verify` calls already get hook `allow`, so an allow rule adds nothing there. Do not reach for a broad interpreter allow rule either. **Pointer:** when checking which allow rules survive auto mode, fetch [How auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions) live. **As of:** 2026-10-11. **Recheck trigger:** that section changes which allow rules it drops, or a release note names auto-mode rule handling.
+- A `permissions.allow` rule cannot remove the deletion prompts. Those prompts are hook `ask` verdicts; the engine's read-only scan, preview, and `handoff-verify` calls already get hook `allow`, so an allow rule adds nothing there. Do not reach for a broad interpreter allow rule either. **Pointer:** when checking how a hook `ask` combines with an allow rule, fetch [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control) live; for which allow rules survive auto mode, [How auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions). **As of:** 2026-11-10. **Recheck trigger:** either section changes how a hook `ask` meets an allow rule or which allow rules auto mode drops, or a release note names auto-mode rule handling.
 - The guard rejects `~` anywhere in a Bash command as a shell-expansion character, which includes
   Windows 8.3 short names (`SOMEUS~1`). Always pass long-form paths; the guard's own disclosures
   are already long-form.

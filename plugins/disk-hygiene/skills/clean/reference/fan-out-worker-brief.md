@@ -15,8 +15,10 @@ each as a literal absolute path.
 
 ## Bash contract (instructions to you; the belt may not enforce them in a subagent)
 
-The session's skill-frontmatter belt is not reliably active inside a subagent, so nothing here is
-enforced for you by that belt. The plugin-level engine gate still checks any call that names the
+Do not count on the session's skill-frontmatter belt to enforce anything here
+([Define hooks for subagents](https://code.claude.com/docs/en/sub-agents#define-hooks-for-subagents),
+as of 2026-11-10; recheck when that section documents subagent inheritance of skill-frontmatter
+hooks). The plugin-level engine gate still checks any call that names the
 engine. Follow the contract yourself.
 
 Make every engine call a **single** invocation of the engine with no shell chaining, redirection,

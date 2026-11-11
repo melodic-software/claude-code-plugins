@@ -15,7 +15,7 @@ role-label passes above it ask their own:
   the one command that resolves it. Writing an invented binding is worse than not binding: every seam
   verb then resolves a provider the repo did not choose.
 
-Applied to the three passes:
+Applied to each pass:
 
 | pass | unattended resolution |
 | --- | --- |

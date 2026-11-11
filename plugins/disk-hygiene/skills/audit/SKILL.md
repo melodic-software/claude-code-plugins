@@ -115,15 +115,14 @@ Run when the findings warrant removal and the user wants it; it takes the same t
 
 - The argument-free probe is not one of the calls the engine-gate adjudicates, so a session in a
   permission mode that asks may hold it for a person. That is the "waiting for a person" stop in
-  step 1, not a reason to skip the probe. **Claim:** a headless session in the default permission
-  mode denies the probe and a `--bg` session parks it, because no hook adjudicates it.
-  **Basis:** the three probe lanes on
+  step 1, not a reason to skip the probe. The three probe lanes on
   [#5516](https://github.com/melodic-software/claude-code-plugins/issues/5516) (headless default
-  denied, `--bg` default parked, headless `bypassPermissions` denied), run on Claude Code 2.1.285;
-  correlate with [Available modes](https://code.claude.com/docs/en/permission-modes#available-modes)
-  and [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control).
-  **As of:** 2026-10-11. **Recheck:** a Claude Code release changes how permission modes treat Bash
-  calls no hook adjudicates.
+  denied, `--bg` default parked, headless `bypassPermissions` denied) ran on Claude Code 2.1.285.
+  **Pointer:** when checking how a mode treats a Bash call no hook adjudicates, fetch
+  [Available modes](https://code.claude.com/docs/en/permission-modes#available-modes) and
+  [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control)
+  live. **As of:** 2026-11-10. **Recheck trigger:** a Claude Code release changes how permission
+  modes treat Bash calls no hook adjudicates.
 - Under an inline `--plugin-dir` load the probe can report `data_root` as `null` even though the
   plugin data directory exists. Stop as step 1 says; do not substitute a guessed path. **Claim:** the
   guard derives `data_root` only from the `<plugins>/cache/<marketplace>/<name>` install layout or a

@@ -121,21 +121,17 @@ every confirmation gate apply exactly as before. Removing anything the inventory
   `swap.vhdx`. The image still keeps `virtual-disk` and the block, so nothing becomes deletable and
   reclaimable bytes stay 0. This is a reporting caveat; it adds no reason code.
 
-  **Claim:** on Windows, `Get-DiskImage` answers `attached` plus the drive letter for a VHDX
-  mounted on the host and `detached` for the WSL and Docker disks above, and errors (exit 1, so
-  `virtual-disk-attach-unverified`) for an `initrd.img`; what it returns for a `.vmdk`, `.vdi`, or
-  `.qcow2` has not been observed. The image keeps `virtual-disk` and the block either way.
-  **Basis:** the operator's probe on melo-desk-001 (Windows 11 Pro 10.0.26200, Windows PowerShell
-  5.1, disk-hygiene 0.34.3),
+  The image keeps `virtual-disk` and the block whatever the cmdlet answers. **Probe:** the
+  operator's probe on a Windows 11 Pro host (10.0.26200, Windows PowerShell 5.1, disk-hygiene
+  0.34.3),
   `https://github.com/melodic-software/claude-code-plugins/issues/5228#issuecomment-5922688274`:
   `Dev.vhdx` backing `D:` read `attached` plus `D:`; the Running distro's `ext4.vhdx`,
-  `docker_data.vhdx`, and `swap.vhdx` read `detached`; `initrd.img` errored with exit 1. Also the
-  cmdlet's page
-  `https://learn.microsoft.com/en-us/powershell/module/storage/get-diskimage?view=windowsserver2025-ps`,
-  fetched whole as rendered HTML: "Gets one or more disk image objects (virtual hard disk or ISO)"
-  and "reports whether the specified ISO or VHD file is currently attached"; it names no VMDK,
-  VDI, QCOW2, or IMG. None of `.vmdk`, `.vdi`, `.qcow2` was present on that host. **As of:**
-  2026-09-30. **Recheck:** a Windows host with a `.vmdk`, `.vdi`, or `.qcow2`, or a WSL-aware
+  `docker_data.vhdx`, and `swap.vhdx` read `detached`; `initrd.img` errored with exit 1 (so
+  `virtual-disk-attach-unverified`). None of `.vmdk`, `.vdi`, `.qcow2` was present on that host,
+  so what it returns for them is unobserved. **Pointer:** when checking which image formats and
+  states the cmdlet reports, fetch
+  [Get-DiskImage, Description](https://learn.microsoft.com/en-us/powershell/module/storage/get-diskimage#description)
+  live. **As of:** 2026-11-10. **Recheck:** a Windows host with a `.vmdk`, `.vdi`, or `.qcow2`, or a WSL-aware
   attach check that reports a WSL or Docker disk as held open, or that page naming more image
   formats;
 - exact file identity and complete descendant set unchanged since snapshot;
@@ -189,17 +185,16 @@ can be proven quiescent, not by how much space would be reclaimed.
 ## Handle semantics and honest scope
 
 On Windows, the probe opens with `DELETE` access and a zero share mode, which conflicts with any
-existing handle that does not share delete. A zero desired access skips the share check, so the probe
-never uses it. `FILE_FLAG_BACKUP_SEMANTICS` lets the same probe run on directories. Sharing violations are `locked`;
+existing handle that does not share delete. The probe never uses a zero desired access (record
+below). `FILE_FLAG_BACKUP_SEMANTICS` lets the same probe run on directories. Sharing violations are `locked`;
 access/privilege failures are `needs-elevation`; other errors are unverified.
 
-Verification record for the Win32 open semantics. **Claim:** `CreateFileW` with zero desired access
-succeeds on a file another process holds open without sharing, while `DELETE` access with a zero
-share mode fails with a sharing violation. **Basis:** the `dwDesiredAccess` entry of
-`https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew`, which says a
-zero value queries metadata "without accessing that file or device" and names no share check, and a
-native run on Windows with Python 3.14.7 that held a file open: the zero-access open returned a
-handle and the `DELETE` open failed with a sharing violation. **As of:** 2026-10-01. **Recheck:**
+Verification record for the Win32 open semantics. **Probe:** a native run on Windows with Python
+3.14.7 that held a file open: the zero-access open returned a handle and the `DELETE` open failed
+with a sharing violation. **Pointer:** when checking which access values the share check covers,
+fetch the `dwDesiredAccess` and `dwShareMode` entries under
+[CreateFileW, Parameters](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew#parameters)
+live. **As of:** 2026-11-10. **Recheck:**
 when that page's `dwDesiredAccess` or `dwShareMode` text changes, or when
 `WindowsHandleProbeNativeTests` in `test_hygiene.py` fails on a Windows runner.
 
@@ -257,7 +252,7 @@ still mutates nothing. It deliberately does not apply platform execution blocker
 it exists exactly where `execution-platform-unsupported` blocks the engine lane, and it has no
 deletion capability of any kind: the model deletes only verdict-`clear` paths in the manual lane,
 per item, under the hook-issued `ask` the PowerShell guard returns. Add a `permissions.ask`
-rule for the deletion spellings if that prompt must appear in `auto` and `bypassPermissions`;
+rule for the deletion spellings if that prompt must appear in `bypassPermissions`;
 leave `dontAsk` first, because that mode auto-denies an `ask` rule instead of prompting.
 
 ### Standalone Git checkout evidence
@@ -370,7 +365,10 @@ shapes. It rejects every Bash expansion family, glob/word-splitting input, redir
 escape, and compound-command form before validating arguments. Canonical script-path comparison uses
 the host platform's path case rules; POSIX path identity is never case-folded. A `--data-root` value
 is accepted only when it matches the plugin data directory the guard derives from
-`${CLAUDE_PLUGIN_ROOT}`, the only substitution a skill-frontmatter hook receives, passed to the
+`${CLAUDE_PLUGIN_ROOT}` (the one placeholder the belt's `args` carry; which placeholders a
+skill-frontmatter hook gets: [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
+and the PR #1014 probe, as of 2026-11-10; recheck when that section changes what a skill hook
+substitutes), passed to the
 guard as `--plugin-root` and mapped to `<plugins>/data/<id>` per the documented
 [persistent-data-directory](https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data)
 layout, either from the root's `<plugins>/cache` layout or, for a plugin loaded in place from a
@@ -393,10 +391,10 @@ denied call to learn them, and the guard's denials need not repeat them. It gran
 nothing and leaves the skill on the kill-switch probe, whose `hook_python` and `data_root` fields
 come from the guard's `launch_disclosure` for the probe's install root. The note and the skill
 belt now share the same three channels, so a `--plugin-dir` session with no marketplace proof
-reports `data_root: none` on both sides. Verified 2026-09-27 against https://code.claude.com/docs/en/hooks ("UserPromptExpansion":
-typing `/skillname` fires it, it matches on `command_name`, and `additionalContext` reaches Claude
-alongside the expanded prompt); recheck when that section changes, or if a release note names the
-event. Whether `command_name` carries the leading `/` was not observed, so the matcher admits both.
+reports `data_root: none` on both sides. **Pointer:** when checking which invocations fire the
+event, what its matcher reads, and where `additionalContext` goes, fetch
+[UserPromptExpansion](https://code.claude.com/docs/en/hooks#userpromptexpansion) live. **As of:** 2026-11-10.
+**Recheck trigger:** that section changes, or a release note names the event. Whether `command_name` carries the leading `/` was not observed, so the matcher admits both.
 
 The hook is the chosen primary delivery path for both values. The one denied bare-python probe in
 the no-hook path is an accepted residual: the probe cannot supply `hook_python` to itself.
@@ -454,21 +452,16 @@ directory-marketplace derivation. There is no environment-variable channel. A re
 can set `CLAUDE_PLUGIN_DATA`, so treating that value as authority would let repository content
 point generated state and the belt's admitted `--data-root` at an attacker-chosen directory.
 
-**User-scope `extraKnownMarketplaces` is declined.** The settings-reference key registers
-additional marketplaces "so that people who open the repository, or everyone your managed
-settings reach, get the marketplace without adding it themselves"
-([extraKnownMarketplaces](https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces)).
-Scope is `Any file`. Project-scope entries were
+**User-scope `extraKnownMarketplaces` is declined.** Project-scope entries were
 already declined because repository content is hostile to this guard. User-scope is declined too:
 the key's documented purpose is repo-or-org registration, and distinguishing user-scope from
 project-scope in a skill-frontmatter hook would add a settings-merge parser this belt does not
 need. The directory channel stays pinned to harness-written `known_marketplaces.json`.
-**Claim:** `extraKnownMarketplaces` is not a trusted directory-marketplace channel for this
-guard, at any settings scope. **Basis:** settings-reference
-[`extraKnownMarketplaces`](https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces)
-(scope Any file; project entries honored after workspace trust). **As of:** 2026-10-07.
-**Recheck:** when that key's scope stops including project files, or when a release note says only
-the user can write it.
+`extraKnownMarketplaces` is not a trusted directory-marketplace channel for this guard, at any
+settings scope. **Pointer:** when checking the key's purpose and which settings files can set it,
+fetch [`extraKnownMarketplaces`](https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces)
+live. **As of:** 2026-11-10. **Recheck trigger:** that key's scope stops including project files,
+or a release note says only the user can write it.
 
 **A settings-declared marketplace reaching `known_marketplaces.json` is accepted.** We assume a
 trusted repository's `.claude/settings.json` can put an entry in the file the directory channel
@@ -501,42 +494,36 @@ marketplace install, or register the checkout as a local-directory marketplace
 marketplace's data root. Setting `CLAUDE_PLUGIN_DATA` in the launch shell is not a recovery: a
 paid `claude -p` probe of whether that export reaches a skill-frontmatter hook was not run, and
 even if it did the value would be the same repo-injectable channel the belt dropped.
-**Claim:** whether a launch-shell `CLAUDE_PLUGIN_DATA` reaches a skill-frontmatter hook is
-unmeasured; the recovery hint therefore does not recommend it. **Basis:** decision not to run
-the paid probe in #4669; hooks.md says both hook forms export `CLAUDE_PLUGIN_DATA` on the
-spawned process (the paragraph on exec and shell form); plugin manifest reference "Where each
-variable resolves" lists hook commands as exporting it and skill/command/agent content as
-not applicable, and does not say a launch-shell export survives into a skill-frontmatter
-hook. Fetched 2026-10-07 as `https://code.claude.com/docs/en/hooks.md` and
-`https://code.claude.com/docs/en/plugins/manifest-reference.md`. **As of:** 2026-10-07. **Recheck:**
-a live probe with version and platform, or a hooks.md / manifest-reference sentence that
-states the skill-frontmatter inheritance.
+Whether a launch-shell `CLAUDE_PLUGIN_DATA` reaches a skill-frontmatter hook is unmeasured (the
+paid probe was not run, #4669), so the recovery hint does not recommend it. **Pointer:** when
+checking which processes receive `CLAUDE_PLUGIN_DATA`, fetch
+[Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form) and
+[Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves) live. **As of:**
+2026-11-10. **Recheck trigger:** a live probe with version and platform, or either section states
+whether a launch-shell export reaches a skill-frontmatter hook.
 
 Verification records for the directory channel:
 
-- **Claim:** a plugin loaded in place from a local-directory marketplace hands its hook processes a
-  `CLAUDE_PLUGIN_ROOT` pointing at the source directory. **Basis:** plugins reference,
-  [plugin caching and file resolution](https://code.claude.com/docs/en/plugins/loading#in-place-and-copied-plugins):
-  "For a plugin loaded in place from a local-directory marketplace, ... The plugin's hook processes
-  and MCP and LSP servers receive a `CLAUDE_PLUGIN_ROOT` that points at the source directory."
-  **As of:** 2026-09-24, Claude Code 2.1.282. **Recheck:** when that page stops carrying the sentence,
-  or a release note changes in-place loading.
-- **Claim:** the data directory is `~/.claude/plugins/data/{id}/`, `{id}` being the plugin identifier
-  with characters outside `[A-Za-z0-9_-]` replaced by `-`. **Basis:** plugins reference,
-  [persistent data directory](https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data):
-  "`{id}` is the plugin identifier with characters outside `a-z`, `A-Z`, `0-9`, `_`, and `-` replaced
-  by `-`". **As of:** 2026-09-24, Claude Code 2.1.282. **Recheck:** when that section's id rule
-  changes, or a release note names the plugin data directory.
-- **Claim:** the docs now list the top-level fields of each `known_marketplaces.json` entry
-  (`source`, `installLocation`, among others) and say one file serves every project, and that a local
-  `file` or `directory` marketplace's `installLocation` is the path the user gave; they do not specify
-  the nested `source` object as it is stored in this file, or promise the format stays stable. The
-  guard's coupling is to those documented fields plus the `directory` source shape the marketplace
-  reference defines for settings. **Basis:**
+- The guard takes an in-place plugin's root from the `CLAUDE_PLUGIN_ROOT` its hook receives.
+  **Pointer:** when checking where that variable points for a plugin loaded in place from a
+  local-directory marketplace, fetch
+  [In-place and copied plugins](https://code.claude.com/docs/en/plugins/loading#in-place-and-copied-plugins)
+  live. **As of:** 2026-11-10. **Recheck trigger:** that section changes what an in-place plugin's
+  hook processes receive, or a release note changes in-place loading.
+- The guard maps a plugin id to its data directory by the documented rule. **Pointer:** when
+  checking the data path and how the id is sanitized, fetch
+  [Path variables and persistent data](https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data)
+  live. **As of:** 2026-11-10. **Recheck trigger:** that section's id rule changes, or a release
+  note names the plugin data directory.
+- The guard couples to the documented top-level fields of a `known_marketplaces.json` entry
+  (`source`, `installLocation`) and assumes the nested `source` object is stored in the
+  `directory` source shape the marketplace reference defines for settings. The docs do not specify
+  that stored form, so a change to it makes data-root resolution fail closed. **Pointer:**
+  when checking those fields, fetch
   [Check which stage a plugin reached](https://code.claude.com/docs/en/plugins/loading#check-which-stage-a-plugin-reached),
   [Find plugins on disk](https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk), and
-  [Marketplace sources](https://code.claude.com/docs/en/plugins/marketplace-reference#marketplace-sources).
-  **As of:** 2026-10-07, Claude Code 2.1.292. **Recheck:** when those sections rename or drop the
+  [Marketplace sources](https://code.claude.com/docs/en/plugins/marketplace-reference#marketplace-sources)
+  live. **As of:** 2026-11-10. **Recheck trigger:** when those sections rename or drop the
   `source` or `installLocation` field, document the stored `source` object, or a release note changes
   `known_marketplaces.json`.
 
@@ -576,16 +563,14 @@ and both
 resolve `disk_hygiene_enabled` the same single way: by reading it from `pluginConfigs` in the
 `settings.json` files, through the shared `lib/killswitch_config.py` reader (the same read the setup
 skill's `kill_switch_probe.py` reports). Neither surface takes the value from the process environment.
-Claude Code honors that key only from user, managed, and `--settings` scope, and a project or
-local `.claude/settings.json` is ignored, so a hostile repo cannot flip it. That scoping is verified
-2026-09-06 against Claude Code 2.1.263 and the plugins reference, whose statement now lives at
-`https://code.claude.com/docs/en/settings-reference#pluginconfigs` (read 2026-11-04), which gives
-`pluginConfigs` the scope "User or managed" and states that project and local entries are ignored.
-The settings guide
-(`https://code.claude.com/docs/en/settings#change-a-setting-for-one-session`) says `--settings` "can set
-any key your user settings file can set", so `--settings` is a read source too (as of 2026-11-04). Recheck
-when the settings guide stops letting `--settings` set user-scope keys, or the `pluginConfigs` scope
-changes, or when that page stops carrying the ignored-project-scope statement. The **user** file is located
+The design counts on project and local `.claude/settings.json` being unable to set that key, so a
+hostile repo cannot flip it, and knows a `--settings` file can set it too. **Pointer:** when
+checking which scopes `pluginConfigs` is honored from and what `--settings` can set, fetch
+[`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) and
+[Change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session)
+live. **As of:** 2026-11-10. **Recheck trigger:** the `pluginConfigs` scope changes, that section
+stops ignoring project and local entries, or the settings guide stops letting `--settings` set
+user-scope keys. The **user** file is located
 from `${CLAUDE_PLUGIN_ROOT}` (the plugin's true install path, which a repo cannot forge): the
 `plugins/cache` layout's sibling `settings.json`, or for a local-directory marketplace install
 `<config>/settings.json` under the account-record config dir above. It is **never** located
@@ -608,8 +593,10 @@ the two surfaces reach different lanes. The **always-on engine gate** enforces i
 engine invocation **whether or not the clean skill is active**; it defers (no output) on any command that
 does not reference the engine, so it does **not** see PowerShell deletion spellings. Those are enforced by
 the **skill-frontmatter belt** (`powershell_decision`), denied outright in audit-only, **while a clean run
-is open**. A skill's `allowed-tools` and `disallowed-tools` grants clear on the user's next message, but
-its `hooks` stay registered for the rest of the process, so the belt decides for itself when it applies.
+is open**. The belt does not rely on the harness to unregister it when the skill's turn ends
+([Hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents), as of 2026-11-10; recheck
+when that section changes how long a skill's hooks stay registered), so it decides for itself when
+it applies.
 
 **When a run is open.** The belt keeps one marker per session id, `clean-runs/<session_id>.json` under
 the plugin data directory. Admitting a `preview` writes it, and so does admitting an `apply` or
@@ -704,21 +691,21 @@ narrowing on it would gate a contributor's work on their own tree. **Residual:**
 cache-resident one, remains outside the prefix, as it is outside every identity check the gate
 makes.
 
-The gate must never carry a bare `${user_config.disk_hygiene_enabled}` argument. The declared
-userConfig `default` is not implemented upstream (#46477 / #39455 / #39827), so an
-unset-but-defaulted token is neither substituted nor exported as `CLAUDE_PLUGIN_OPTION_*`, and
-its presence **drops the whole engine-gate hook**: on a default install the gate would never run
-at all. Reading settings directly needs no `default` substitution. **Recheck** the tamper and
+The gate must never carry a bare `${user_config.disk_hygiene_enabled}` argument: an
+unset-but-defaulted token would **drop the whole engine-gate hook**, so on a default install the
+gate would never run at all. **Pointer:** upstream #46477, #39455 and #39827, and
+[Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value). **As of:** 2026-11-10.
+**Recheck trigger:** any of the three issues closes, or that section documents the declared
+`default` reaching an unset token. Reading settings directly needs no `default` substitution. **Recheck** the tamper and
 scoping premises against the dated `pluginConfigs` record under "Kill-switch enforcement" above.
 
 PreToolUse hooks with a `Bash|PowerShell` matcher fire for the PowerShell tool (payload
 `tool_name` is literally `PowerShell`, confirmed by a live block through that tool); there is no harness
-firing divergence. That firing is verified 2026-09-06 against Claude Code 2.1.263 and the hooks reference
-at `https://code.claude.com/docs/en/hooks`, whose matcher table says a `PreToolUse` matcher filters on
-tool name and whose Windows example uses that exact `Bash|PowerShell` matcher. Recheck when that page
-drops the example, or when a release note names hook matchers. Read `tool_name` from the stdin payload,
-never from an env var. `CLAUDE_TOOL_NAME`
-does not exist. Where both surfaces see the same command their verdicts are idempotent. The gate defers
+firing divergence. **Pointer:** when checking what a `PreToolUse` matcher filters on and which input
+fields a hook receives, fetch [Matcher patterns](https://code.claude.com/docs/en/hooks#matcher-patterns) and
+[PreToolUse input](https://code.claude.com/docs/en/hooks#pretooluse-input) live. **As of:** 2026-11-10. **Recheck
+trigger:** either section changes, or a release note names hook matchers. Read `tool_name` from the
+stdin payload, never from an env var. Where both surfaces see the same command their verdicts are idempotent. The gate defers
 instantly (no output) for any command that does not reference the
 engine, so it never taxes unrelated work; its coverage marker is the engine script name, a belt against
 casual invocation, not an authority (renaming the script evades the gate but not the engine's own
@@ -733,8 +720,9 @@ the engine gate on `PreToolUse`, its detector on `Stop`, and the skill-frontmatt
 skill's frontmatter. In each, `command` is `node` and `args` names `hooks/exec-bash.mjs`, then
 `hooks/run-python-hook.sh` and that script's arguments. Bare `"command": "bash"` resolves to the WSL
 relay `System32\bash.exe` and `"command": "python3"` resolves to the zero-length `WindowsApps` stub,
-so those spellings are not used: the launch would die and, a failed hook launch being non-blocking,
-the guard would silently enforce nothing. There is no shell in exec form. The bound is that `args`
+so those spellings are not used: the launch would die and the guard would silently enforce
+nothing (what a failed launch does to the call: [Block the action when a hook fails](https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails),
+as of 2026-11-10; recheck when that section changes the default outcome of a failed launch). There is no shell in exec form. The bound is that `args`
 are fixed literals in the plugin's own `hooks.json` or SKILL.md frontmatter, with no model-, repo-,
 or session-supplied text interpolated into them. Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` and,
 on a plugin hook, `${CLAUDE_PLUGIN_DATA}` as plain strings before spawn. The belt's bound is the
@@ -744,8 +732,10 @@ sole placeholder its `args` carry and the `--authorized-data-root` channel stays
 
 **Guard launch/runtime failures are surfaced, not silently indistinguishable from approval.** A
 `PreToolUse` hook that fails to launch, or launches and then exits non-zero, denies
-nothing unless its row sets `"onFailure": "block"` (only the two `hygiene.py` rows do, on Claude
-Code 2.1.295 or later), because Claude Code treats a non-blocking hook result as approval, so "the guard denied nothing because
+nothing unless its row sets `"onFailure": "block"` (only the two `hygiene.py` rows do; what that
+field changes, and from which release: [Block the action when a hook fails](https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails)
+and [Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes), as of 2026-11-10; recheck when either
+section changes how a failed or non-zero hook is treated), so "the guard denied nothing because
 it approved" and "the guard denied nothing because it never ran, or ran and silently died" looked
 identical from outside the harness. `skills/clean/scripts/guard_launch_monitor.py` closes that gap with a
 second, independent hook registered on `Stop` in `hooks/hooks.json` (deliberately not `PreToolUse`, so
@@ -770,23 +760,21 @@ Python reports the blind spot instead of hiding it. What every surface still sha
 and the bash that `hooks/exec-bash.mjs` starts: all are exec form with `"command": "node"`, so a
 host where `node` is missing, or where that launcher resolves no bash, takes the guard and
 its detector down together with nothing left to report it. The two plugin-level `hygiene.py` rows
-set `"onFailure": "block"`, so on Claude Code 2.1.295 or later that failure denies an engine call
-instead of letting it run unchecked. When the shell starts but no Python resolves, the launcher answers for the
+set `"onFailure": "block"`, so that failure denies an engine call instead of letting it run
+unchecked (the release floor is in the record above). When the shell starts but no Python resolves, the launcher answers for the
 guard on the call itself (#3861), mirroring the watchdog's "could not decide" rule: the belt denies
 every call (exit 2), the engine gate denies any payload naming `hygiene.py` or carrying nothing, and
 the `/disk-hygiene:clean` expansion is blocked so the belt never loads. The engine gate's
 marker-free commands differ from the watchdog: they proceed unchecked with a once-per-session
 `systemMessage` notice to the user rather than an `ask`. The Stop detector is kept as the end-of-turn
-backstop. Verified 2026-09-28 against Claude Code 2.1.280 at
-<https://code.claude.com/docs/en/hooks> (exit 2 blocks a PreToolUse call whatever stdout carries;
-exit 0 with no `permissionDecision` proceeds through the normal permission flow; what a hook `ask`
-does in auto mode is read at
-[PreToolUse `ask` decisions in auto mode](https://code.claude.com/docs/en/hooks#pretooluse-ask-decisions-in-auto-mode),
-as of 2026-11-04) and, re-read 2026-10-24,
-<https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs> (in a
-`-p` run with no permission host a request that would prompt is denied); recheck when either page
-changes PreToolUse exit-code or `ask` semantics, or that headless section changes what a `-p` run
-with no permission host does with a request that would prompt. The README states each surface in one table. The launch shape is asserted by
+backstop. **Pointer:** when checking what each exit code does to a `PreToolUse` call, what a hook
+`ask` does in auto mode, and what a `-p` run with no permission host does with a request that
+would prompt, fetch [Exit code 2 behavior per event](https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event),
+[PreToolUse `ask` decisions in auto mode](https://code.claude.com/docs/en/hooks#pretooluse-ask-decisions-in-auto-mode) and
+[Turn off permission prompts in unattended runs](https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs)
+live. **As of:** 2026-11-10. **Recheck trigger:** either page changes PreToolUse exit-code or `ask`
+semantics, or that headless section changes what a `-p` run with no permission host does with a
+request that would prompt. The README states each surface in one table. The launch shape is asserted by
 `hooks/run-python-hook.test.sh` and `test_hygiene.py`, the no-interpreter posture by the former, and
 both are verified as step 1 of `/disk-hygiene:setup check`.
 
@@ -1140,9 +1128,12 @@ shipped lane has not run end to end; treat that part as documented intent, not o
 
 ## Primary references
 
-Verified 2026-07-16 (recheck when the hooks page changes the `PreToolUse` decision output or the
-skills page changes skill-scoped hooks): [Claude skills](https://code.claude.com/docs/en/skills),
-[PreToolUse hooks](https://code.claude.com/docs/en/hooks),
+As of 2026-11-10 for the Claude Code sections, 2026-07-16 for the rest (recheck when the hooks
+page changes the `PreToolUse` decision output or skill-scoped hooks, or the skills page changes the
+`hooks` frontmatter field):
+[Skill frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference),
+[PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control),
+[Hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents),
 [GNU Bash shell expansions](https://www.gnu.org/software/bash/manual/html_node/Shell-Expansions.html),
 [Python 3.11 `os`](https://docs.python.org/3.11/library/os.html),
 [Python 3.11 `os.path`](https://docs.python.org/3.11/library/os.path.html),
