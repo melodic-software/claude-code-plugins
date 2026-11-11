@@ -189,6 +189,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+CANARY_HOME_ROOT="${CANARY_HOME_ROOT:-${HOME:-/tmp}/.cache}"
+
 [[ ${#REPOS[@]} -gt 0 ]] || {
   echo "cutover-check: at least one --repo is required" >&2
   exit 2
@@ -297,23 +299,14 @@ trap 'rm -f "$ACTION_MAP"; rm -rf "$PLAN_OUT"; clean_canary_dirs' EXIT INT TERM
 # collides (`/repos/foo-bar` and `/repos/foo_bar` normalize the same), and the
 # second plan then overwrites the first, so one repository is graded twice and
 # the other not at all.
-repo_plan() {
-  local repo="$1" i=0
-  for i in "${!REPOS[@]}"; do
-    [[ "${REPOS[$i]}" == "$repo" ]] && {
-      printf '%s/%s.plan' "$PLAN_OUT" "$i"
-      return 0
-    }
-  done
-  printf '%s/unknown.plan' "$PLAN_OUT"
-}
+repo_plan() { printf '%s/%s.plan' "$PLAN_OUT" "$1"; }
 
 # A repository that cannot be planned yields no ACTION and no PATHDET rows, and
 # both conditions that read them would pass on the silence. A named site the
 # check cannot see is a usage error, not a clean result.
-for repo in "${REPOS[@]}"; do
-  bash "$PLAN_MIGRATION" --root "$repo" >"$(repo_plan "$repo")" 2>/dev/null || {
-    echo "cutover-check: cannot plan $repo: not a git repository, or unreadable" >&2
+for i in "${!REPOS[@]}"; do
+  bash "$PLAN_MIGRATION" --root "${REPOS[$i]}" >"$(repo_plan "$i")" 2>/dev/null || {
+    echo "cutover-check: cannot plan ${REPOS[$i]}: not a git repository, or unreadable" >&2
     exit 2
   }
 done
@@ -375,7 +368,7 @@ condition_1() {
     esac
   fi
 
-  local ev="$ENV_VARS_FILE" body="" heading_found=0 bullet_found=0 complete=1 state=""
+  local ev="$ENV_VARS_FILE" body="" heading_found=0 bullet_found=0 state=""
   if [[ -z "$ev" ]]; then
     # The bullet's absence is a [MET] verdict, so the page must be fresh and
     # whole: --max-age 0 asks the server every time and a failed fetch is
@@ -393,10 +386,9 @@ condition_1() {
   # is a page that may have been cut off mid-list. Absence of the bullet is
   # only evidence when the whole list arrived.
   if [[ -n "$ev" && -s "$ev" ]] && ! grep -qF "$ENV_VARS_TAIL_MARKER" "$ev"; then
-    complete=0
     note "env-vars: the body never reaches '$ENV_VARS_TAIL_MARKER'; it is truncated or restructured"
-  fi
-  if [[ -n "$ev" && -s "$ev" ]] && ((complete == 1)); then
+    note "env-vars: page not read (fetch failed or file empty)"
+  elif [[ -n "$ev" && -s "$ev" ]]; then
     body="$(awk -v h="$ENV_VARS_HEADING" '$0 == h { f = 1; next } f && /^## / { exit } f' "$ev" | tr -d '\r')"
     [[ -n "$body" ]] && heading_found=1
     case "$body" in
@@ -464,14 +456,16 @@ action_cli_version_live() {
 }
 
 condition_2() {
-  local repo kind row pin action owner name ref ver src pins=0 below=0 unknown=0 rows
+  local i repo plan kind row pin action owner name ref ver src pins=0 below=0 unknown=0 rows
   echo "Condition 2: every claude-code-action pin installs CLI $CLI_FLOOR or later, and the CI canary is on record"
 
-  for repo in "${REPOS[@]}"; do
+  for i in "${!REPOS[@]}"; do
+    repo="${REPOS[$i]}"
+    plan="$(repo_plan "$i")"
     # A plan with no ACTION row at all is a plan that did not run this scan.
     # "Checked, and there is none" arrives as an explicit NONE row, so silence
     # is a defect and never an absence of pins.
-    rows="$(awk -F'\t' '$1 == "ACTION"' "$(repo_plan "$repo")")"
+    rows="$(awk -F'\t' '$1 == "ACTION"' "$plan")"
     if [[ -z "$rows" ]]; then
       note "$repo: the plan carries no ACTION row; the pin scan did not report"
       unknown=$((unknown + 1))
@@ -539,7 +533,7 @@ condition_2() {
         unknown=$((unknown + 1))
         note "$repo: pin $ref is not in the release map in $SOURCES_MD, and base-action/action.yml could not be read with a CLAUDE_CODE_VERSION at that ref"
       fi
-    done <"$(repo_plan "$repo")"
+    done <"$plan"
   done
   note "CI canary: run $CI_CANARY_RUN on record, as of ${CI_CANARY_ASOF:-unknown}"
   if ((pins == 0)); then
@@ -557,6 +551,27 @@ condition_2() {
   fi
   met "$pins pin(s) at or above CLI $CLI_FLOOR, and the lone-AGENTS.md CI canary passed in run $CI_CANARY_RUN"
   return 0
+}
+
+# canary_dir <root> <note prefix> <what the probe writes> makes a scratch
+# directory under <root>, outside any working tree, into CANARY_DIR. It is
+# registered before any file is written, so an interrupt between the two leaves
+# nothing behind either way.
+canary_dir() {
+  local root="$1" prefix="$2"
+  mkdir -p "$root" 2>/dev/null || {
+    note "${prefix}cannot create $root"
+    return 2
+  }
+  if (cd "$root" && git rev-parse --show-toplevel >/dev/null 2>&1); then
+    note "${prefix}$root is inside a git repository; $3 and must not do that in a working tree"
+    return 2
+  fi
+  CANARY_DIR="$(mktemp -d "$root/cutover-canary.XXXXXX" 2>/dev/null)" || {
+    note "${prefix}cannot create a scratch directory under $root"
+    return 2
+  }
+  CANARY_DIRS+=("$CANARY_DIR")
 }
 
 # --- Condition 3 ----------------------------------------------------------
@@ -580,21 +595,8 @@ condition_2() {
 # proof.
 canary_leg() {
   local root="$1" label="$2" dir token line reply rc=0
-  mkdir -p "$root" 2>/dev/null || {
-    note "$label: cannot create $root"
-    return 2
-  }
-  if (cd "$root" && git rev-parse --show-toplevel >/dev/null 2>&1); then
-    note "$label: $root is inside a git repository; a canary writes an AGENTS.md and must not do that in a working tree"
-    return 2
-  fi
-  dir="$(mktemp -d "$root/cutover-canary.XXXXXX" 2>/dev/null)" || {
-    note "$label: cannot create a scratch directory under $root"
-    return 2
-  }
-  # Registered before the file is written, so an interrupt between the two
-  # leaves nothing behind either way.
-  CANARY_DIRS+=("$dir")
+  canary_dir "$root" "$label: " "a canary writes an AGENTS.md" || return 2
+  dir="$CANARY_DIR"
   token="CUTOVER-$$-${RANDOM}"
   line="Canary token: $token. Whoever quotes this line has loaded the project instructions."
   printf '%s\n' "$line" >"$dir/AGENTS.md"
@@ -628,12 +630,11 @@ condition_3() {
     unreach "--skip-canary: the canary did not run"
     return 2
   fi
-  local home_root="$CANARY_HOME_ROOT" alt_root="$CANARY_ALT_ROOT" rc_home=0 rc_alt=0
-  [[ -n "$home_root" ]] || home_root="${HOME:-/tmp}/.cache"
+  local alt_root="$CANARY_ALT_ROOT" rc_home=0 rc_alt=0
   if [[ -z "$alt_root" ]]; then
     if [[ -d "/d" ]]; then alt_root="/d/scratch"; else alt_root="${TMPDIR:-/tmp}"; fi
   fi
-  canary_leg "$home_root" "home cwd" || rc_home=$?
+  canary_leg "$CANARY_HOME_ROOT" "home cwd" || rc_home=$?
   canary_leg "$alt_root" "second-path cwd" || rc_alt=$?
 
   if ((rc_home == 2 || rc_alt == 2)); then
@@ -664,19 +665,8 @@ condition_3() {
 WRITE_PROBE_FILE="sub/canary.txt"
 write_probe_leg() {
   local root="$1" dir token root_line sub_line reply rc=0 wrote=0
-  mkdir -p "$root" 2>/dev/null || {
-    note "cannot create $root"
-    return 2
-  }
-  if (cd "$root" && git rev-parse --show-toplevel >/dev/null 2>&1); then
-    note "$root is inside a git repository; the probe writes AGENTS.md files and must not do that in a working tree"
-    return 2
-  fi
-  dir="$(mktemp -d "$root/cutover-canary.XXXXXX" 2>/dev/null)" || {
-    note "cannot create a scratch directory under $root"
-    return 2
-  }
-  CANARY_DIRS+=("$dir")
+  canary_dir "$root" "" "the probe writes AGENTS.md files" || return 2
+  dir="$CANARY_DIR"
   mkdir -p "$dir/sub"
   token="NESTED-$$-${RANDOM}"
   root_line="Root token: $token. Whoever quotes this line has loaded the root instructions."
@@ -715,18 +705,15 @@ write_probe_leg() {
 write_probe() {
   echo "Nested write trigger (reported, not graded; shim-droppable.md condition G reads it)"
   if ((SKIP_CANARY == 1)); then
-    printf '  [UNREACH] %s\n' "--skip-canary: the probe did not run"
-    WRITE_PROBE_RESULT="UNREACH"
+    unreach "--skip-canary: the probe did not run"
     return 0
   fi
   if ((SKIP_WRITE_PROBE == 1)); then
-    printf '  [UNREACH] %s\n' "--skip-write-probe: the probe did not run"
-    WRITE_PROBE_RESULT="UNREACH"
+    unreach "--skip-write-probe: the probe did not run"
     return 0
   fi
-  local home_root="$CANARY_HOME_ROOT" rc=0
-  [[ -n "$home_root" ]] || home_root="${HOME:-/tmp}/.cache"
-  write_probe_leg "$home_root" || rc=$?
+  local rc=0
+  write_probe_leg "$CANARY_HOME_ROOT" || rc=$?
   case "$rc" in
   0)
     printf '  [LOADS]   %s\n' "a sub/ AGENTS.md with no shim loaded on Write"
@@ -736,10 +723,7 @@ write_probe() {
     printf '  [NO-LOAD] %s\n' "a sub/ AGENTS.md with no shim did not load on Write; a nested shim carries that load"
     WRITE_PROBE_RESULT="NO-LOAD"
     ;;
-  *)
-    printf '  [UNREACH] %s\n' "the probe could not measure; that is not a load"
-    WRITE_PROBE_RESULT="UNREACH"
-    ;;
+  *) unreach "the probe could not measure; that is not a load" ;;
   esac
   return 0
 }
@@ -771,14 +755,16 @@ ack_lookup() {
 }
 
 condition_4() {
-  local repo ack kind row path rest text acked=0 unacked=0 unreadable=0 rows
+  local i repo plan ack kind row path rest text acked=0 unacked=0 unreadable=0 rows
   echo "Condition 4: no repository locates a path by the existence of CLAUDE.md"
   note "scope: every tracked file except *.md and each repository's own acknowledgement list,"
   note "which quotes a detector on every line by design; no other path convention is exempt"
 
-  for repo in "${REPOS[@]}"; do
+  for i in "${!REPOS[@]}"; do
+    repo="${REPOS[$i]}"
+    plan="$(repo_plan "$i")"
     ack="$repo/.claude/cutover-pathdet-ack.txt"
-    rows="$(awk -F'\t' '$1 == "PATHDET"' "$(repo_plan "$repo")")"
+    rows="$(awk -F'\t' '$1 == "PATHDET"' "$plan")"
     if [[ -z "$rows" ]]; then
       note "$repo: the plan carries no PATHDET row; the detection scan did not report"
       unreadable=$((unreadable + 1))
@@ -807,7 +793,7 @@ condition_4() {
         unacked=$((unacked + 1))
         note "$repo: UNACKNOWLEDGED $path:${rest%%:*}: $text"
       fi
-    done <"$(repo_plan "$repo")"
+    done <"$plan"
   done
 
   if ((unreadable > 0)); then
@@ -841,18 +827,14 @@ grade() { # <condition number> <its exit status>
   echo
 }
 
-rc=0
-condition_1 || rc=$?
-grade 1 "$rc"
-rc=0
-condition_2 || rc=$?
-grade 2 "$rc"
-rc=0
-condition_3 || rc=$?
-grade 3 "$rc"
-rc=0
-condition_4 || rc=$?
-grade 4 "$rc"
+condition_1
+grade 1 "$?"
+condition_2
+grade 2 "$?"
+condition_3
+grade 3 "$?"
+condition_4
+grade 4 "$?"
 write_probe
 echo
 

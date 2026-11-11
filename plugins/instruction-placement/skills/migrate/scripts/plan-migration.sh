@@ -234,7 +234,7 @@ ours_agents_bytes() {
     *) ;;
     esac
   done
-  if [[ "$dir" == "." ]]; then file_bytes "AGENTS.md"; else file_bytes "$dir/AGENTS.md"; fi
+  file_bytes "$dir/AGENTS.md"
 }
 
 # Classify a CLAUDE.md by how far it is from the target shape, which is a file
@@ -329,7 +329,6 @@ instruction_dirs() {
 while IFS= read -r dir; do
   [[ -n "$dir" ]] || continue
   claude="$dir/CLAUDE.md"
-  [[ "$dir" == "." ]] && claude="CLAUDE.md"
   cb="$(file_bytes "$claude")"
   ab="$(ours_agents_bytes "$dir")"
 
@@ -364,13 +363,10 @@ while IFS= read -r dir; do
   # what a session working in this directory would carry.
   cum=0
   walk="$dir"
-  chain=("$walk")
-  while [[ "$walk" != "." && "$walk" != "/" ]]; do
+  while :; do
+    cum=$((cum + $(ours_agents_bytes "$walk")))
+    [[ "$walk" != "." && "$walk" != "/" ]] || break
     walk="$(dirname "$walk")"
-    chain+=("$walk")
-  done
-  for step in "${chain[@]}"; do
-    cum=$((cum + $(ours_agents_bytes "$step")))
   done
   verdict="OK"
   [[ "$cum" -gt "$CODEX_PROJECT_DOC_BUDGET" ]] && verdict="OVER"
@@ -486,11 +482,9 @@ native_path() {
 
 if [[ -n "$HOME_DIR" ]]; then
   for suppressor in "$HOME_DIR/CLAUDE.md" "$HOME_DIR/CLAUDE.local.md"; do
-    if [[ -f "$suppressor" ]]; then
-      printf 'SUPPRESS\t%s\tyes\n' "$(native_path "$suppressor")"
-    else
-      printf 'SUPPRESS\t%s\tno\n' "$(native_path "$suppressor")"
-    fi
+    exists="no"
+    [[ -f "$suppressor" ]] && exists="yes"
+    printf 'SUPPRESS\t%s\t%s\n' "$(native_path "$suppressor")" "$exists"
   done
 fi
 
@@ -536,13 +530,8 @@ BENIGN_COMMENT=':[0-9]+:[[:space:]]*(#|//|\*|--|<!--|;)'
 # the ones they do not: a test flag, a name containing exist/stat/access/file,
 # a `Path.`/`os.`-shaped call, a finder, or a method called ON the name. The
 # window is generous (60 characters) so `File.Exists(Path.Combine(dir, "..."))`
-# and `[[ -e "$root/CLAUDE.md" ]]` both land.
-#
-# It stops short of reporting EVERY mention, which was measured at 519 rows
-# here against 54 for this pattern. Nearly all of the difference is writes,
-# reads and English prose in eval files, and an acknowledgement list of 519
-# rows is one nobody reads: it gets rubber-stamped, which fails the same way
-# under-reporting does. A false positive here costs one line in that list.
+# and `[[ -e "$root/CLAUDE.md" ]]` both land. Nearly all of the 519-row
+# difference above is writes, reads and English prose in eval files.
 PATHDET_PATTERN='(\[\[|\[|\(|^|[[:space:];&|]|!)[[:space:]]*-(e|f|s|r|h|L|name)[[:space:]][^;&|]{0,60}CLAUDE\.md'
 PATHDET_PATTERN="$PATHDET_PATTERN"'|([Ee]xists?|EXISTS|[Ii]s_?[Ff]ile|[Ii]sFile|[Ss]tat|[Tt]est-[Pp]ath|[Aa]ccess(Sync)?|existsSync|statSync|[Ff]ile[Ee]xists|[Pp]ath\.[a-z]+|[Ff]ind[A-Za-z]*[Rr]oot|[Ll]ocate)[^;]{0,60}CLAUDE\.md'
 # A bare assignment of the name to a variable: the lookup itself may be lines
@@ -634,18 +623,16 @@ printf 'RULES\t%s\t%s\t%s\n' "$rules_total" "$rules_unscoped" "$rules_unscoped_b
 # Pointer targets go to the documentation home the repository already keeps.
 # Detection only: the skill creates `docs/` solely where there is nothing to
 # find, and never relocates an existing home.
-docs_home="absent"
+docs_home="docs"
+docs_state="absent"
 for candidate in docs doc documentation Documentation; do
   if [[ -d "$candidate" ]] && git ls-files --error-unmatch "$candidate" >/dev/null 2>&1; then
     docs_home="$candidate"
+    docs_state="found"
     break
   fi
 done
-if [[ "$docs_home" == "absent" ]]; then
-  printf 'DOCSHOME\tdocs\tabsent\n'
-else
-  printf 'DOCSHOME\t%s\tfound\n' "$docs_home"
-fi
+printf 'DOCSHOME\t%s\t%s\n' "$docs_home" "$docs_state"
 
 # --- ACTION ---------------------------------------------------------------
 # Every claude-code-action pin. The pin decides the CLI version CI installs,
