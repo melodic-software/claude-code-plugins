@@ -14,8 +14,7 @@ group's file list as its target, in place of spawning the simplifier agent. This
 discovery, filtering, grouping, ordering, verification, and report around it. One mutating pass
 runs per group, never both. `docs` mode keeps the simplifier agent, since `simplify` has no
 factual-staleness pass, and records `State: skipped (docs mode)`. Repo mode never invokes
-`simplify` ([context/repo-mode.md](context/repo-mode.md) gives the reasons) and records
-`State: skipped (repo mode)`. Pointer for how an invoked skill's body stays in context:
+`simplify` ([context/repo-mode.md](context/repo-mode.md) gives the reasons). Pointer for how an invoked skill's body stays in context:
 [Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle). As of:
 2026-11-10. Recheck trigger: that section changes when an invoked skill's body leaves context.
 
@@ -45,7 +44,7 @@ calling the group fully simplified.
 
 ```text
 Native step: simplify
-State: ran | resolved but degraded (<disclosure>) | did not resolve in this session (<axis>) | invocation refused (<reason>) | identity mismatch | skipped (docs mode | repo mode | unattended) | mutation detected after a scoped invocation
+State: ran | resolved but degraded (<disclosure>) | did not resolve in this session (<axis>) | invocation refused (<reason>) | identity mismatch | skipped (docs mode | unattended) | mutation detected after a scoped invocation
 Scope: <file groups the step ran over, or none>
 Outside-scope changes: none | <paths>
 ```
