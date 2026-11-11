@@ -24,7 +24,9 @@
 # files before injecting them, so the markers cost no context while remaining
 # visible on disk to this script.
 #
-# Subcommands, usage and exit codes: usage() below, or --help.
+# Subcommands, usage and exit codes: usage() below, or --help. Beyond that
+# text: `reachable` exits 0 for LOADED or NATIVE, and exit 2 also means an
+# unusable path (a --root or --file die() rejects), not only a usage error.
 #
 # `reachable` exists because a CLAUDE.md is read INSTEAD of the AGENTS.md beside
 # it. A repository carrying both with no import between them gets an index
