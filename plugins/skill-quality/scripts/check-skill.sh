@@ -457,9 +457,8 @@ elif ((${#DISPATCH_BAD_PATHS[@]} > 0)); then
   printf 'Error: skills root does not exist: %s\n' "${DISPATCH_BAD_PATHS[*]}" >&2
   exit 2
 elif (($# > 1)); then
-  # Deliberate behavior change: the body below reads $1 and would silently drop
-  # every later positional, which is the silent omission the root form exists to
-  # kill.
+  # The body below reads only $1 and would silently drop every later
+  # positional, the silent omission the root form exists to kill.
   printf 'Error: more than one skill name given: %s\n' "$*" >&2
   printf 'Pass one <skill-name>, or one or more skills roots.\n' >&2
   exit 2
@@ -687,6 +686,14 @@ fm_listing_triggers() {
     "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$fm")")"
 }
 
+# The frontmatter of the SKILL.md under repo-relative skill dir "$1" at
+# BASE_REF. Returns 1 when the base ref has no such file.
+base_ref_fm() {
+  git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$1/SKILL.md" 2>/dev/null || return 1
+  git -C "$REPO_ROOT" show "$BASE_REF:$1/SKILL.md" 2>/dev/null | skill_frontmatter::extract
+  return 0
+}
+
 if [[ ! -d "$SKILL_DIR" ]]; then
   # A `plugin:skill` argument is a common miss: the operator wants to gate a
   # marketplace-INSTALLED skill, but this checker resolves a bare skill name
@@ -868,21 +875,21 @@ check_25() {
   fi
 }
 
-# CHECK_SKILL_ONLY=25 reads the two frontmatter fields check 25 needs, runs
-# check 25 alone, and prints the usual summary. The marketplace's whole-corpus
-# verb-contract gate sets it: it reads only check-25 lines, and the other
-# checks cost minutes across every skill.
+# Read once here: check 25 and checks 1-3 below all use these.
+FRONTMATTER="$(skill_frontmatter::extract <"$SKILL_MD")"
+CUR_DESC="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$FRONTMATTER")")"
+CUR_WTU="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$FRONTMATTER")")"
+
+# CHECK_SKILL_ONLY=25 runs check 25 alone and prints the usual summary. The
+# marketplace's whole-corpus verb-contract gate sets it: it reads only check-25
+# lines, and the other checks cost minutes across every skill.
 if [[ "${CHECK_SKILL_ONLY:-}" == 25 ]]; then
-  FRONTMATTER="$(skill_frontmatter::extract <"$SKILL_MD")"
-  CUR_DESC="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$FRONTMATTER")")"
-  CUR_WTU="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$FRONTMATTER")")"
   check_25
   summarize
 fi
 
 # --- Check 1: frontmatter parses; description present; declared name matches --
 
-FRONTMATTER="$(skill_frontmatter::extract <"$SKILL_MD")"
 if [[ -z "$FRONTMATTER" ]]; then
   err "no YAML frontmatter block found (expected content between two '---' fences)"
 else
@@ -1020,8 +1027,6 @@ fi
 # combined length must include it whenever when_to_use is populated, or this
 # check under-counts by 3 and can pass an entry that actually overflows.
 JOINER_LEN=0
-CUR_DESC="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$FRONTMATTER")")"
-CUR_WTU="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$FRONTMATTER")")"
 # Working-tree listing triggers, compared against the base ref by check 3.
 CUR_TRIG="$(listing_triggers "$CUR_DESC" "$CUR_WTU")"
 DESC_LEN=${#CUR_DESC}
@@ -1039,9 +1044,8 @@ fi
 # --- Check 2b: description field alone <= DESC_FIELD_CAP codepoints ----------
 # The spec's per-FIELD maximum, distinct from check 2's listing-entry cap: a
 # description can sit under 1536 combined and still breach 1024 on its own. The
-# Skills API rejects that at upload; nothing local does (see DESC_FIELD_CAP above),
-# so before this gate a breach was only ever found by an audit, after the edit that
-# caused it had shipped. Three bands now:
+# Skills API rejects that at upload; nothing local does (see DESC_FIELD_CAP above).
+# Three bands:
 #
 #   > cap                       FAIL (spec breach), unless the skill is on the
 #                               recorded baseline, which downgrades it to WARN
@@ -1090,15 +1094,13 @@ fi
 
 # The base-ref SKILL.md frontmatter, read ONCE for the three checks that need it
 # (3 trigger preservation, 8 vendor-sync pairing, 9 stale-tracking metadata).
-# Each used to re-run the same `cat-file -e` existence probe and the same
-# `git show | extract` pipeline over the same blob. HAVE_BASE_FM carries the
-# probe's answer, so "no base-ref version (new skill)" stays distinct from a
-# base-ref file whose frontmatter block is empty.
+# HAVE_BASE_FM carries the existence probe's answer, so "no base-ref version
+# (new skill)" stays distinct from a base-ref file whose frontmatter block is
+# empty.
 HAVE_BASE_FM=0
 BASE_FM=""
-if [[ "$HAVE_GIT" == 1 ]] && git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; then
+if [[ "$HAVE_GIT" == 1 ]] && BASE_FM="$(base_ref_fm "$SKILL_REL")"; then
   HAVE_BASE_FM=1
-  BASE_FM="$(git -C "$REPO_ROOT" show "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)"
 fi
 
 if [[ "$HAVE_GIT" != 1 ]]; then
@@ -1124,17 +1126,16 @@ elif [[ "$HAVE_BASE_FM" == 1 ]]; then
       # A sibling's working-tree listing text is the same for every missing
       # phrase, so read and parse each SKILL.md once here rather than once per
       # phrase (the per-phrase scan below then only walks the cached arrays).
-      # Glob order is preserved, so the first-genuine-host tie-break is unchanged.
+      # Glob order sets the first-genuine-host tie-break.
       SIB_NAMES=()
       SIB_TRIGS=()
       for other_md in "$SKILLS_ROOT"/*/SKILL.md; do
-        [[ -f "$other_md" ]] || continue
-        [[ "$other_md" == "$SKILL_MD" ]] && continue
+        [[ -f "$other_md" && "$other_md" != "$SKILL_MD" ]] || continue
         sib_path="${other_md%/SKILL.md}"
         SIB_NAMES+=("${sib_path##*/}")
         SIB_TRIGS+=("$(fm_listing_triggers "$(skill_frontmatter::extract <"$other_md")")")
       done
-      LOST=""
+      LOST=()
       while IFS= read -r phrase; do
         [[ -n "$phrase" ]] || continue
         MOVE_HOST=""
@@ -1142,12 +1143,10 @@ elif [[ "$HAVE_BASE_FM" == 1 ]]; then
           grep -qxF -- "$phrase" <<<"${SIB_TRIGS[$sib_i]}" || continue
           OTHER_NAME="${SIB_NAMES[$sib_i]}"
           OTHER_REL="${SKILLS_REL_PARENT:+$SKILLS_REL_PARENT/}$OTHER_NAME"
-          if git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$OTHER_REL/SKILL.md" 2>/dev/null; then
-            OTHER_BASE_TRIG="$(fm_listing_triggers \
-              "$(git -C "$REPO_ROOT" show "$BASE_REF:$OTHER_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)")"
+          if OTHER_BASE_FM="$(base_ref_fm "$OTHER_REL")"; then
             # Sibling already carried the phrase at BASE_REF: coincidental
             # overlap, not a move — keep looking for a genuine host.
-            grep -qxF -- "$phrase" <<<"$OTHER_BASE_TRIG" && continue
+            grep -qxF -- "$phrase" <<<"$(fm_listing_triggers "$OTHER_BASE_FM")" && continue
           fi
           MOVE_HOST="$OTHER_NAME"
           break
@@ -1155,18 +1154,16 @@ elif [[ "$HAVE_BASE_FM" == 1 ]]; then
         if [[ -n "$MOVE_HOST" ]]; then
           warn "trigger phrase $phrase moved to sibling skill '$MOVE_HOST' — listing coverage preserved, confirm the move is deliberate"
         else
-          LOST="${LOST}${phrase}"$'\n'
+          LOST+=("$phrase")
         fi
       done <<<"$MISSING"
-      if [[ -n "$LOST" ]]; then
+      if ((${#LOST[@]} > 0)); then
         # Advisory, never a FAIL: a dropped phrase is often a deliberate
         # consolidation of near-synonym triggers into a named intent category,
         # which a hard failure would block. The warning names each phrase so
         # the reviewer confirms the description still routes that intent, or
         # restores the phrase.
-        LOST_LIST="$(printf '%s' "$LOST" | tr '\n' ' ')"
-        LOST_LIST="${LOST_LIST% }"
-        warn "dropped trigger keyword(s) vs $BASE_REF: $LOST_LIST. Confirm the description still names each intent these phrases carried (deliberate consolidation), or restore them"
+        warn "dropped trigger keyword(s) vs $BASE_REF: ${LOST[*]}. Confirm the description still names each intent these phrases carried (deliberate consolidation), or restore them"
       fi
     else
       note "all $(printf '%s\n' "$BASE_TRIG" | grep -c .) base-ref trigger phrase(s) preserved"
@@ -1268,8 +1265,7 @@ while IFS= read -r ref; do
     # under more than one sibling names the first deterministically.
     REF_HOST=""
     for other_md in "$SKILLS_ROOT"/*/SKILL.md; do
-      [[ -f "$other_md" ]] || continue
-      [[ "$other_md" == "$SKILL_MD" ]] && continue
+      [[ -f "$other_md" && "$other_md" != "$SKILL_MD" ]] || continue
       if [[ -e "${other_md%/SKILL.md}/$check_ref" ]]; then
         REF_HOST="${other_md%/SKILL.md}"
         REF_HOST="${REF_HOST##*/}"
