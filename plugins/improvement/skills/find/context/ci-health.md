@@ -68,8 +68,9 @@ buckets (record at the end of the list below). Use the documented `created` date
     limit (the `per_page` parameter), read
     [List workflow runs for a repository](https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository).
   - **As of**: 2026-11-10
-  - **Recheck trigger**: that section drops the per-search cap, stops applying it to `created`, or
-    changes the `per_page` maximum.
+  - **Recheck trigger**: that section drops the per-search cap, stops applying it to `created`,
+    changes the `per_page` maximum, or a page past the cap starts returning an error instead of an
+    empty list.
 
 ## Metrics
 
