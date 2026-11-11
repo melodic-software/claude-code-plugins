@@ -39,20 +39,21 @@ When invoked with no arguments, help the user figure out what they need. Don't d
 ### Step 1: Check for existing boards
 
 **Miro availability gate:** this step needs the first-party `miro` plugin, a separately enabled
-plugin that bundles a local-stdio MCP server. Its tools resolve under one of two prefixes: normally
-`mcp__plugin_miro_miro__` when the plugin provides the server, or `mcp__miro__` when the same server
-is configured directly at user or project scope. A bare `miro_*` name does not resolve. Look for a
-callable tool whose name ends in `__miro_list_boards` under either prefix; match that
-Miro-specific tool name, not a server that merely happens to be called `miro`. If none is
+plugin that bundles a local-stdio MCP server. Its tools carry a prefix Claude Code assigns, which
+differs between the plugin-provided server and the same server configured directly at user or
+project scope. Look for a callable tool whose name ends in `__miro_list_boards` under any prefix;
+match that Miro-specific tool name, not a server that merely happens to be called `miro`. If none is
 callable, skip board discovery entirely and go straight to Step 2. Do not error. Reference-only
 guidance (every `--<format>` action) works with no Miro at all. Every `miro_*` tool named below
 denotes that tool under whichever prefix the gate found.
 
-- **Pointer**: when the prefixes above need re-deriving, fetch
+- **Pointer**: when the prefix format needs re-deriving, fetch
   [Plugin-provided MCP servers](https://code.claude.com/docs/en/mcp#plugin-provided-mcp-servers)
+  and
+  [Server names, tool names, and reloads](https://code.claude.com/docs/en/plugins/components#server-names-tool-names-and-reloads)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section changes the MCP tool-name format.
+- **As of**: 2026-11-10
+- **Recheck trigger**: either section changes the MCP tool-name format.
 
 When Miro IS available, query it for recent boards with that prefix's `miro_list_boards`. Look for boards with EventStorming-related names (containing "Big Picture", "Process Model", "Design-Level", "EventStorming", or domain-specific names from prior sessions). Sort by last modified.
 

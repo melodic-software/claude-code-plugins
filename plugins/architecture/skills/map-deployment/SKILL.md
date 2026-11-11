@@ -50,8 +50,8 @@ parsing the topic doc yourself. The ladder is a resolution order, not a task lis
    file.
 3. The printed home is repo-relative: join it to the root, then pass
    `<root>/<home>/authoring-formats/README.md` to the resolver.
-4. Layer order is one layer deep: an explicit `--dialect` argument, then the team convention doc,
-   then the documented default. There is no personal override.
+4. Layer order is one layer deep: an explicit `--dialect` argument, then the team convention doc.
+   There is no personal override.
 5. `diagram_dialect.system` has NO default. Allowed values are `likec4` and `c4-plantuml`. When it
    is unset, emit no C4 deployment view. The record is still written.
 6. Degrade soft, and say so. No pointer, no doc, no key, or an unrecognized value (mermaid
@@ -307,34 +307,27 @@ its report line is printed. Procedure:
 
 ## Gotchas
 
-- **C4 scopes a deployment diagram to one environment.** Scope is one or more software systems within a
-  single deployment environment. Deployment nodes are where instances run, and they nest.
-  Infrastructure nodes such as networks and ingress are supporting elements. Basis:
-  <https://c4model.com/diagrams/deployment>. As of: 2026-09-29. Recheck when that page changes the
-  scope or the primary elements. This skill writes one fenced block with every environment inside
-  it as its own deployment environment; `--env` narrows the block to one. The diff is a table, not a picture.
-- **C4-PlantUML deployment syntax: read against the README, never run.** Claim: the block uses
-  `!include <C4/C4_Deployment>`, `Deployment_Node(alias, label, ?type, ?descr, ...)` with a `{ }`
-  body for nesting, `Container(alias, label, ?techn, ?descr, ...)`, and `Rel(from, to, label,
-  ...)`. Basis: <https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md>, which shows
-  the stdlib include only for `C4_Container` and says the released `C4_...` files ship in the
-  stdlib, so the `C4_Deployment` stdlib name is inferred. As of: 2026-09-29. Recheck when that
-  README changes those signatures or the include path, or when a host with Java can run PlantUML
-  over a rendered block. No PlantUML run has parsed this output. `Rel` is drawn from a
-  container to a network node its placement names, and from a Kubernetes Service or Ingress node to
-  a container in the record's `relationships`.
-- **LikeC4 deployment syntax: parsed by the CLI.** Claim: deployment node kinds are declared as
-  `deploymentNode <kind>` in `specification`, nodes nest in `deployment { ... }`, a model element
-  is placed with `instanceOf` inside its compute node, a relationship is written
-  `<env>.<node> -> <env>.<node>.<instance> '<label>'`, and `deployment view <name> { include
-  <env>.** }` draws one environment. Basis: <https://likec4.dev/dsl/deployment/model/>
-  (its Deployment relationships section),
-  <https://likec4.dev/dsl/deployment/views/>, plus `likec4@1.59.4 validate` exiting 0 on the
-  golden blocks in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/` (`deployment-compose.c4`,
-  `deployment-kubernetes.c4`, `deployment-ecs-shared.c4`), which `collect-deployment.test.sh` diffs
-  against. As of:
-  2026-09-29. Recheck when either page changes that syntax or a newer `likec4` release ships: set
-  `LIKEC4_VALIDATE=1` when running the test to re-run the CLI.
+- **C4 scopes a deployment diagram to one environment.** This skill writes one fenced block with
+  every environment inside it as its own deployment environment; `--env` narrows the block to
+  one. The diff is a table, not a picture. Pointer: when checking a deployment view's scope or
+  elements, fetch [C4 deployment diagram § Scope](https://c4model.com/diagrams/deployment#scope) and [§ Primary and supporting elements](https://c4model.com/diagrams/deployment#primary-and-supporting-elements)
+  live. As of: 2026-11-10. Recheck trigger: that page changes the scope or the primary elements.
+- **C4-PlantUML deployment syntax: read against the README, never run.** The renderer writes the
+  macros. The `C4_Deployment` include name is our inference from the README's container
+  example. No PlantUML run has parsed this output. `Rel` is drawn from a container to a network
+  node its placement names, and from a Kubernetes Service or Ingress node to a container in the
+  record's `relationships`. Pointer: when checking the macros or the include the renderer
+  writes, fetch [C4-PlantUML README § Deployment diagram](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#deployment-diagram) and
+  [§ Including the C4-PlantUML library](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#including-the-c4-plantuml-library) live. As of: 2026-11-10. Recheck trigger: that README changes the deployment macros or the
+  include path, or a host with Java can run PlantUML over a rendered block.
+- **LikeC4 deployment syntax: parsed by the CLI.** The record is a probe: `likec4@1.59.4
+  validate` exits 0 on the golden blocks in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/`
+  (`deployment-compose.c4`, `deployment-kubernetes.c4`, `deployment-ecs-shared.c4`), which
+  `collect-deployment.test.sh` diffs against. Pointer: when checking the syntax the collector
+  writes, fetch [LikeC4 deployment model § Deployment nodes](https://likec4.dev/dsl/deployment/model/#deployment-nodes),
+  [§ Deployed instances](https://likec4.dev/dsl/deployment/model/#deployed-instances), [§ Deployment relationships](https://likec4.dev/dsl/deployment/model/#deployment-relationships)
+  and [deployment views § View definition](https://likec4.dev/dsl/deployment/views/#view-definition) live. As of: 2026-11-10. Recheck trigger: any of those sections changes that syntax, or a
+  newer `likec4` release ships: set `LIKEC4_VALIDATE=1` when running the test to re-run the CLI.
 - **Labels cannot leave the block.** Quotes, backticks, backslashes, and line breaks are stripped
   from labels, `@` prints as `(at)`, and every identifier is prefixed and numbered, so a hostile
   name cannot close the fence, end the diagram, or collide with a keyword.
@@ -367,22 +360,25 @@ its report line is printed. Procedure:
   Claim: `AWS::ECS::Service` takes `Cluster`, `DesiredCount`, `ServiceName`, and `TaskDefinition`.
   Basis: <https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ecs-service.html>.
   As of: 2026-09-30. Recheck when any of those pages changes a form or property name.
-- **CloudFormation parameters and secrets.** Claim: `NoEcho: true` masks a parameter's value in
-  describe calls, and `Default` is the value used when none is given. Basis:
-  <https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html>.
-  Claim: a dynamic reference is written `{{resolve:secretsmanager:...}}` (likewise `ssm` and
-  `ssm-secure`). Basis: <https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/dynamic-references.html>
-  and its `secretsmanager` page. Claim: a parameter file is either the `ParameterKey`/`ParameterValue`
+- **CloudFormation parameters and secrets.** The redaction and resolution rules above read
+  `NoEcho`, `Default` and the `{{resolve:...}}` forms. Pointer: when checking what those mean or
+  how a dynamic reference is written, fetch
+  [Parameters § Properties](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html#parameters-section-structure-properties)
+  and
+  [Dynamic references](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/dynamic-references.html#dynamic-references)
+  live. As of: 2026-11-10. Recheck trigger: either section changes the parameter properties or
+  the dynamic-reference syntax. Claim: a parameter file is either the `ParameterKey`/`ParameterValue`
   array or a template configuration file with a top-level `Parameters` object. Basis:
   <https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-using-cli-parameters.html>. No
   document names a per-environment file convention, so the pairing rules above are this skill's own.
   As of: 2026-09-30. Recheck when those pages change the syntax or add a parameter file shape.
-- **Pulumi YAML program and stack shape.** Claim: `runtime` is a string (`runtime: nodejs`) or an
-  object (`name`, `options`), and a YAML program keeps `resources`, `variables`, and `outputs` in
-  `Pulumi.yaml`. Basis: <https://www.pulumi.com/docs/concepts/projects/project-file/>. Claim: `config`
-  items take `type`, `default`, and `secret`, a scalar is shorthand for `default`, `${...}` interpolates
-  with `pulumi.stack` and `pulumi.project`, and `fn::toJSON`, `fn::secret`, and `fn::join` exist. Basis:
-  <https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/>. Claim:
+- **Pulumi YAML program and stack shape.** The reader maps the project file's `runtime`, the
+  program's `resources`, `variables` and `outputs`, `config` items, `${...}` interpolation and the
+  `fn::toJSON`, `fn::secret` and `fn::join` forms. Pointer: when checking those forms, fetch
+  [project file § Attributes](https://www.pulumi.com/docs/concepts/projects/project-file/#attributes), [§ Runtime options](https://www.pulumi.com/docs/concepts/projects/project-file/#runtime-options),
+  and the YAML language reference's [§ Config](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#config), [§ Interpolation](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#interpolation),
+  [§ Built-in variables](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#built-in-variables), [§ fn::toJSON](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#fntojson),
+  [§ fn::secret](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#fnsecret) and [§ fn::join](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#fnjoin) live. As of: 2026-11-10. Recheck trigger: any of those sections changes a key or a form. Claim:
   `Pulumi.<stack>.yaml` holds a `config` map keyed `[<namespace>:]<key>`, the project name is the default
   namespace, and an encrypted value is `secure: <ciphertext>`. Basis:
   <https://www.pulumi.com/docs/concepts/config/> and
@@ -410,33 +406,31 @@ its report line is printed. Procedure:
   the resource, its image `unresolved:<expression>` or `unresolved:containers`. Every other resource
   type, and a site whose fx version does not read `DOCKER|` (listed as `Microsoft.Web/sites`), is
   listed under `## Unmapped resources`.
-- **Bicep module and parameter file forms.** Claim: a local module path is relative (with or
-  without `./`) and may be a `.bicep` file or an ARM JSON template; `br:`, `br/<alias>:`, `ts:`,
-  and `ts/<alias>:` are registry and template-spec sources. A `.bicepparam` links its template with
-  `using '<path>'` or `using none`, and may `extends` another. Basis:
-  <https://learn.microsoft.com/azure/azure-resource-manager/bicep/modules>,
-  <https://learn.microsoft.com/azure/azure-resource-manager/bicep/parameter-files>. As of:
-  2026-09-29. Recheck when either page changes a path form or the `using` statement.
-- **ARM expressions are bracketed strings.** Claim: a string that starts with `[` and ends with `]`
-  is an expression, `[[` escapes a literal, and a parameters-file value is always literal. Basis:
-  <https://learn.microsoft.com/azure/azure-resource-manager/templates/template-expressions>. As of:
-  2026-09-29. Recheck when that page changes the escape rule.
-- **A nested child resource carries one type segment.** Claim: a child declared inside its parent
-  (a Bicep `resource` in the parent body, an ARM `resources` array in the parent) writes its type
-  as a single segment such as `slots`, and its full type is the parent's full type plus that
-  segment (`Microsoft.Web/sites/slots`). Basis:
-  <https://learn.microsoft.com/azure/azure-resource-manager/bicep/child-resource-name-type> and
-  <https://learn.microsoft.com/azure/azure-resource-manager/templates/child-resource-name-type>.
-  As of: 2026-09-30. Recheck when either page changes the single-segment rule or the nesting depth.
+- **Bicep module and parameter file forms.** The reader tells a local module path from a registry
+  or template-spec source, and pairs a `.bicepparam` file with its template through its `using`
+  line. Pointer: when checking which module paths are local or how a parameters file names
+  its template, fetch [Bicep modules § Path to a module](https://learn.microsoft.com/azure/azure-resource-manager/bicep/modules#path-to-a-module)
+  ([§ Local file](https://learn.microsoft.com/azure/azure-resource-manager/bicep/modules#local-file), [§ File in registry](https://learn.microsoft.com/azure/azure-resource-manager/bicep/modules#file-in-registry), [§ File in template spec](https://learn.microsoft.com/azure/azure-resource-manager/bicep/modules#file-in-template-spec))
+  and [parameter files § Define parameters file](https://learn.microsoft.com/azure/azure-resource-manager/bicep/parameter-files#define-parameters-file) and [§ Extendable parameters file](https://learn.microsoft.com/azure/azure-resource-manager/bicep/parameter-files#extendable-parameters-file)
+  live. As of: 2026-11-10. Recheck trigger: either page changes a path form or the `using` statement.
+- **ARM expressions are bracketed strings.** The reader resolves only `[parameters('<name>')]`
+  and reads `[[` as a literal. Pointer: when checking the expression and escape rules, fetch
+  [template expressions § Escape characters](https://learn.microsoft.com/azure/azure-resource-manager/templates/template-expressions#escape-characters)
+  live. As of: 2026-11-10. Recheck trigger: that section changes the escape rule.
+- **A nested child resource carries one type segment.** The reader lists a child nested in its
+  parent under the parent's full type plus the child's segment (`Microsoft.Web/sites/slots`).
+  Pointer: when checking how a nested child writes its type, fetch
+  [Bicep child resource name and type § Within parent resource](https://learn.microsoft.com/azure/azure-resource-manager/bicep/child-resource-name-type#within-parent-resource) and
+  [ARM child resource name and type § Within parent resource](https://learn.microsoft.com/azure/azure-resource-manager/templates/child-resource-name-type#within-parent-resource)
+  live. As of: 2026-11-10. Recheck trigger: either section changes the single-segment rule or the nesting depth.
 - **A slot with its own image is placed on its site's plan.** A `DOCKER|` slot places as
   `<site>/<slot>` on the site's App Service plan, naming it by its full resource name, whether it is
   nested in the site or names it with a Bicep `parent`. **Pointer**: when deciding how a child's full
   name is written, or where a slot runs, fetch
-  [Bicep child resource name and type](https://learn.microsoft.com/azure/azure-resource-manager/bicep/child-resource-name-type),
-  [ARM child resource name and type](https://learn.microsoft.com/azure/azure-resource-manager/templates/child-resource-name-type)
-  and [App Service plans](https://learn.microsoft.com/azure/app-service/overview-hosting-plans)
-  live. **As of**: 2026-10-04. **Recheck trigger**: a read of any of those pages diverges from the
-  placement above.
+  [Bicep child resource name and type § Full resource name outside parent](https://learn.microsoft.com/azure/azure-resource-manager/bicep/child-resource-name-type#full-resource-name-outside-parent),
+  [ARM child resource name and type § Outside parent resource](https://learn.microsoft.com/azure/azure-resource-manager/templates/child-resource-name-type#outside-parent-resource) and
+  [App Service plans § Considerations for running and scaling an app](https://learn.microsoft.com/azure/app-service/overview-hosting-plans#considerations-for-running-and-scaling-an-app)
+  live. **As of**: 2026-11-10. **Recheck trigger**: a read of any of those sections diverges from the placement above.
 - **Terraform values are resolved, never evaluated.** `var.X` resolves from a module call argument,
   then the root's tfvars files, then the variable `default`, and `${var.X}` inside a string the
   same way. A variable declared `sensitive = true`, or named for a credential, is redacted wherever
@@ -451,15 +445,15 @@ its report line is printed. Procedure:
   `unresolved:container_definitions`. A resource with an empty body (`resource "aws_s3_bucket" "b" {}`)
   is placed or listed as unmapped like any other. A `.tf.json` block type or label written as an
   array of objects (`"resource": [{...}]`) reads like the object form.
-- **Only `./` and `../` sources are local.** Claim: a local module source uses the `./` or `../`
-  prefix, and every other source is a registry, VCS, or remote address. Basis:
-  <https://developer.hashicorp.com/terraform/language/block/module>. As of: 2026-09-29. Recheck
-  when that page changes how a local path is written.
-- **Auto-loaded tfvars rank below the environment's file.** Claim: Terraform auto-loads
-  `terraform.tfvars`, `terraform.tfvars.json`, and `*.auto.tfvars(.json)`, which outrank
-  `terraform.tfvars`. A `-var-file` (the `<env>.tfvars` here) outranks them all, and a variable
-  `default` ranks lowest. Basis: <https://developer.hashicorp.com/terraform/language/values/variables>.
-  As of: 2026-09-29. Recheck when that page changes the precedence list.
+- **Only `./` and `../` sources are local.** The reader treats only those module sources as
+  local. Pointer: when checking how a local module path is written, fetch
+  [module block § Local paths](https://developer.hashicorp.com/terraform/language/block/module#local-paths)
+  live. As of: 2026-11-10. Recheck trigger: that section changes how a local path is written.
+- **Auto-loaded tfvars rank below the environment's file.** The reader ranks the environment's
+  `<env>.tfvars` above the auto-loaded tfvars files, and a variable `default` lowest. Pointer:
+  when checking Terraform's precedence, fetch
+  [input variables § Assign values to variables](https://developer.hashicorp.com/terraform/language/values/variables#assign-values-to-variables)
+  live. As of: 2026-11-10. Recheck trigger: that section changes the precedence list.
 - **A `.tf.json` block may be an array of objects at any level.** Claim: each label level of a
   block (a resource's type and name) and its body may be a JSON object or a JSON array of objects,
   so `"resource": [{"aws_s3_bucket": {"b": {}}}]` declares the same resource as the object form.

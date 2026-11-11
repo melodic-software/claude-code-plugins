@@ -199,29 +199,32 @@ hand-written; the shared medium resolver decides the destination, with this plug
 
 ## Gotchas
 
-- **Scope is one software system.** A system context diagram draws that system in the center,
-  with people and the other software systems directly connected to it. Primary element: the
-  software system in scope. Supporting elements: people and those other software systems. Basis:
-  <https://c4model.com/diagrams/system-context>. As of: 2026-09-29. Recheck when that page changes
-  the scope, the primary element, or the supporting elements.
-- **C4-PlantUML context syntax: read against the README, never run.** Claim: the `plantuml`
-  block uses `!include <C4/C4_Context>`, `Person(alias, label, ?descr, ...)`,
-  `System(alias, label, ?descr, ...)`, `System_Ext(alias, label, ?descr, ...)`, and
-  `Rel(from, to, label, ...)`. Basis:
-  <https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md>, which shows the stdlib
-  include only for `C4_Container` and says the released `C4_...` files ship in the stdlib, so the
-  `C4_Context` stdlib name is inferred. As of: 2026-09-29. Recheck when that README changes those
-  signatures or the include path, or when a host with Java can run PlantUML over a rendered
-  block. No PlantUML run has parsed this output.
-- **LikeC4 context syntax: parsed by the CLI.** Claim: the `likec4` block declares `person` (with
-  `style { shape person }`), `softwareSystem`, and `externalSystem` (with `style { color muted }`)
-  kinds, three elements assigned as `name = kind "title" "description"`, relationships
-  `a -> b "label"`, and a `views` block with `view context` holding `title` and `include *`.
-  Basis: <https://likec4.dev/dsl/specification/>, <https://likec4.dev/dsl/model/>,
-  <https://likec4.dev/dsl/views/>, and <https://likec4.dev/dsl/styling/>, plus `likec4@1.59.4
-  validate` exiting 0 on the golden block in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/`
-  (`context.c4`), which `render-context.test.sh` diffs against. As of: 2026-09-29. Recheck when any of those pages changes that syntax or a newer
-  `likec4` release ships: set `LIKEC4_VALIDATE=1` when running the test to re-run the CLI.
+- **Scope is one software system.** The view centers that one system and draws the people and
+  systems connected to it. Pointer: when checking a context view's scope or elements, fetch
+  [C4 system context diagram § Scope](https://c4model.com/diagrams/system-context#scope),
+  [§ Primary elements](https://c4model.com/diagrams/system-context#primary-elements) and
+  [§ Supporting elements](https://c4model.com/diagrams/system-context#supporting-elements) live.
+  As of: 2026-11-10. Recheck trigger: that page changes the scope, the primary element, or the
+  supporting elements.
+- **C4-PlantUML context syntax: read against the README, never run.** The renderer writes the
+  macros. The `C4_Context` include name is our inference from the README's container example.
+  No PlantUML run has parsed this output. Pointer: when checking the macros or the include the
+  renderer writes, fetch
+  [C4-PlantUML README § System Context & System Landscape diagrams](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#system-context--system-landscape-diagrams)
+  and
+  [§ Including the C4-PlantUML library](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#including-the-c4-plantuml-library)
+  live. As of: 2026-11-10. Recheck trigger: that README changes the context macros or the
+  include path, or a host with Java can run PlantUML over a rendered block.
+- **LikeC4 context syntax: parsed by the CLI.** The record is a probe: `likec4@1.59.4 validate`
+  exits 0 on the golden block in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/` (`context.c4`),
+  which `render-context.test.sh` diffs against. Pointer: when checking the syntax the renderer
+  writes, fetch
+  [LikeC4 specification § Element kind](https://likec4.dev/dsl/specification/#element-kind),
+  [model § Element](https://likec4.dev/dsl/model/#element),
+  [views § View definition](https://likec4.dev/dsl/views/#view-definition) and
+  [styling § Shape](https://likec4.dev/dsl/styling/#shape) live. As of: 2026-11-10. Recheck
+  trigger: any of those sections changes that syntax, or a newer `likec4` release ships: set
+  `LIKEC4_VALIDATE=1` when running the test to re-run the CLI.
 - **Actors are not derived.** The system-context page lists people as supporting elements and does
   not describe reading them from configuration. This skill records an actor only from an
   operator-stated `--actors` file. A non-interactive run passes no file, and the artifact says so.
