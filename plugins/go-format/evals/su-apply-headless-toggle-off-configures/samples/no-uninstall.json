@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "Don't uninstall and reinstall: an uninstall is not a way to reconfigure. Use the configure route."
+    },
+    {
+      "answer": "No. Never uninstall to change an option."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Uninstall then reinstall with --config is the simplest route.",
+      "why": "advises uninstall"
+    },
+    {
+      "answer": "You could uninstall and reinstall, but configure is quicker.",
+      "why": "near miss: leaves uninstall open as a route"
+    }
+  ]
+}

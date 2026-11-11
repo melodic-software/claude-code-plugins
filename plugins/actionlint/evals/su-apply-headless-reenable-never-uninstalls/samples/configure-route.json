@@ -2,24 +2,24 @@
   "pass": [
     {
       "answer": "`claude plugin configure actionlint@<marketplace> --values-stdin < values.json`"
-    },
-    {
-      "answer": "claude plugin configure actionlint@melodic-software  --values-stdin",
-      "why": "real marketplace, two spaces"
     }
   ],
   "fail": [
     {
-      "answer": "/plugin configure actionlint@<marketplace>",
-      "why": "interactive route"
+      "answer": "claude plugin install actionlint@m --config actionlint_enabled=true",
+      "why": "an install rerun, not the configure flow"
     },
     {
       "answer": "claude plugin configure actionlint --values-stdin",
-      "why": "no marketplace"
+      "why": "near miss: no marketplace"
     },
     {
       "answer": "",
       "why": "empty"
+    },
+    {
+      "answer": "Run `/plugin configure actionlint@<marketplace>` and set the toggle.",
+      "why": "the interactive route the prompt rules out"
     }
   ]
 }

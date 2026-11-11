@@ -1920,7 +1920,7 @@ PIN_LINE = re.compile(r"^<!-- babysit-merge-pin sha=([0-9a-f]{40}) -->$")
 # A pull request's merge and the agent identity's pin read-back over its first
 # 100 comments; a longer thread proves no read-back.
 LIFT_PULL = (
-    "number merged mergedAt baseRefName headRefOid mergeCommit{oid} "
+    "number merged mergedAt baseRefName stack{baseRefName} headRefOid mergeCommit{oid} "
     "repository{nameWithOwner} comments(first:100){pageInfo{hasNextPage} "
     "nodes{author{__typename login} body createdAt lastEditedAt}}"
 )
@@ -2523,7 +2523,13 @@ def _lift(
         if (
             pull.get("__typename") != "PullRequest"
             or not pull.get("merged")
-            or pull.get("baseRefName") != "main"
+            # Into main, or an upper layer of a native stack into main, which
+            # keeps the lower layer's branch as its base when the stack lands.
+            or "main"
+            not in (
+                pull.get("baseRefName"),
+                json_object(pull.get("stack")).get("baseRefName"),
+            )
             or str(json_object(pull.get("repository")).get("nameWithOwner") or "").casefold()
             != f"{owner}/{name}".casefold()
             or not SHA_RE.fullmatch(oid)

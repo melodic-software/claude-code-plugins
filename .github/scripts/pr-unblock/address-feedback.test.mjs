@@ -1115,7 +1115,7 @@ test("past the fresh fixer's round, a write-access fix request still runs one mo
 
 test("model-job check runs count toward the fresh fixer's bound as round markers do", async () => {
   const runs = (n) => Object.fromEntries(Array.from({ length: n }, (_, i) => [String(i + 1).repeat(40), [check(at(10))]]));
-  const reviewComments = [comment(100, ACTIONS_BOT, { body: CODE_FINDING })];
+  const reviewComments = [comment(100, ACTIONS_BOT, { body: CODE_FINDING, created_at: at(0) })];
   const reviews = [{ id: 10, user: { id: ACTIONS_BOT }, commit_id: HEAD }];
   const after = (n) =>
     select({ api: fakeApi({ reviewComments, reviews, checks: runs(n) }), pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, maxRounds: 3 });
@@ -1204,7 +1204,7 @@ test("main select writes outputs and the thread file; escalation writes no threa
   // At the bound (a cap of 1 plus the fresh fixer's round) the neutral checks
   // carry the round count.
   const bound = fakeApi({
-    reviewComments: [comment(100, ACTIONS_BOT, { body: CODE_FINDING })],
+    reviewComments: [comment(100, ACTIONS_BOT, { body: CODE_FINDING, created_at: at(0) })],
     reviews: [{ id: 10, user: { id: ACTIONS_BOT }, commit_id: HEAD }],
     issueComments: [
       { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) },
@@ -1383,12 +1383,14 @@ test("listActivity rejects when a later page answers an error, never returning t
 });
 
 // apply-dependency-verdict.mjs runs from $RUNNER_TEMP/base-script, a copy of
-// this directory, with merge-holds.mjs staged beside it in $RUNNER_TEMP/pr-merge
+// this directory, with the shared modules in $RUNNER_TEMP/lib and
+// merge-holds.mjs staged beside it in $RUNNER_TEMP/pr-merge
 // (collect-base-activity).
 test("listActivity loads its cursor reader from the staged layout a script activity runs in", async () => {
   const root = tempDir("base-activity-");
   try {
     cpSync(dirname(fileURLToPath(import.meta.url)), join(root, "base-script"), { recursive: true });
+    cpSync(fileURLToPath(new URL("../lib", import.meta.url)), join(root, "lib"), { recursive: true });
     mkdirSync(join(root, "pr-merge"));
     cpSync(fileURLToPath(new URL("../pr-merge/merge-holds.mjs", import.meta.url)), join(root, "pr-merge", "merge-holds.mjs"));
     const { createGitHubApi: staged } = await import(pathToFileURL(join(root, "base-script", "address-feedback.mjs")).href);

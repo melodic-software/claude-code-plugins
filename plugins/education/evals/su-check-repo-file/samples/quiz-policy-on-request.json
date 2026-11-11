@@ -5,7 +5,7 @@
       "why": "table row"
     },
     {
-      "answer": "- quiz_policy: on-request (default)\n- report library: plugin data (report_library_dir unset)\n- workspace root: workspace_root unset, ladder applies\n- PASS explain_starting_rung: peer\n- explain_starting_rung resolves to peer (repository layer)\n\nValues are injected at skill load, so a userConfig change shows only in a new session.\n",
+      "answer": "- quiz_policy: on-request (default)\n- report library: plugin data (report_library_dir unset)\n- workspace root: workspace_root unset, ladder applies\n- PASS explain_starting_rung: peer\n- explain_starting_rung resolves to peer (repository layer)\n\nA userConfig change shows only in a new session.\n",
       "why": "list item"
     }
   ],

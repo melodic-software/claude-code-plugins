@@ -5,6 +5,30 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.5] - 2026-11-11
+
+### Changed
+
+- The README options reference lists its upstream documentation as pointers only, with no as-of date or recheck trigger.
+
+## [5.0.4] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [5.0.3] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [5.0.2] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [5.0.1] - 2026-11-11
 
 ### Changed

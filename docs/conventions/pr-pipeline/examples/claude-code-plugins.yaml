@@ -5,7 +5,9 @@ activities:
   simplify:
     skill: code-tidying:batch-simplify
     args: --unattended            # a lane run has nobody to answer an ask
-    effect: mutate-branch
+    effect: read                  # a skill never holds a write token
+    applied-by:
+      patch: apply-patch
     gating: advisory
     reads-untrusted: false
     inputs: [base-sha, head-sha, changed-paths]
@@ -41,13 +43,13 @@ activities:
     inputs: [head-sha, changed-paths]
   claude:
     skill: review:code-review
-    effect: publish-artifact
+    effect: read
     gating: gate
     reads-untrusted: true
     inputs: [pr, base-sha, head-sha]
   review-security:
     skill: review:security-review
-    effect: publish-artifact
+    effect: read
     gating: gate
     reads-untrusted: true
     inputs: [pr, base-sha, head-sha]
@@ -60,7 +62,7 @@ activities:
     inputs: [pr, issue, head-sha]
   explain:
     skill: review:explain-change
-    effect: publish-artifact
+    effect: read
     gating: advisory
     reads-untrusted: true
     inputs: [pr, base-sha, head-sha]
@@ -115,7 +117,7 @@ activities:
     inputs: [head-sha]
   sweep-comments:
     skill: review:fanout
-    effect: mutate-tracker
+    effect: read
     gating: advisory
     reads-untrusted: true
     inputs: [pr]
@@ -125,6 +127,8 @@ lanes:
     stage: refine
     slots:
       - activity: simplify
+      - activity: apply-patch
+        needs: [simplify]
   pr-run-checks:
     stage: verify
     slots:

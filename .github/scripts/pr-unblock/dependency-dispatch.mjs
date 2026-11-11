@@ -24,7 +24,7 @@
 // can release it.
 
 import { DEPENDABOT_ID, DEPENDABOT_LOGIN, RED } from "./dependency-classify.mjs";
-import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
+import { emptyRecord, isHandled, markHandled, sendDispatch } from "./dispatch-record.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { anyHandles, headLagStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
 import { ciStatusOf, classifyPull, commitFilesReader, gateCheckRuns } from "./review-dependency.mjs";
@@ -41,8 +41,6 @@ export const DEFAULTS = Object.freeze({
   // Judgment: one model run per PR, a few Dependabot PRs open at a time.
   maxDispatch: 2,
 });
-
-const RUN_ID = /^[1-9][0-9]{0,14}$/;
 
 // The neutral titles review-dependency-not-run posts from the select job's
 // skip reasons (review-dependency.mjs select): no verdict job follows them,
@@ -182,23 +180,17 @@ export async function dispatchDependencyReviews({
       log(`refire: #${node.number}: head ${node.headRefOid}'s ${checkName} was stopped head-lag; sending it again`);
     }
     sent += 1;
-    try {
-      const { workflowRunId } = await api.dispatchWorkflow({
-        workflow,
-        ref: `refs/heads/${base}`,
-        inputs: { "pr-number": String(node.number), activity: "review-dependency", "dispatcher-run-id": String(runId) },
-      });
-      const id = String(workflowRunId);
-      if (!RUN_ID.test(id)) {
-        failed += 1;
-        log(`::error::#${node.number}: dispatch returned no valid workflow_run_id`);
-        continue;
-      }
-      dispatched.push({ number: node.number, workflowRunId: id });
-      log(`dispatched review-dependency #${node.number} head ${node.headRefOid} workflow_run_id=${id}`);
-    } catch (error) {
+    const id = await sendDispatch(api, log, {
+      workflow,
+      base,
+      node,
+      label: "review-dependency ",
+      inputs: { "pr-number": String(node.number), activity: "review-dependency", "dispatcher-run-id": String(runId) },
+    });
+    if (id === null) {
       failed += 1;
-      log(`::error::#${node.number}: dispatch failed: ${error.message}`);
+    } else {
+      dispatched.push({ number: node.number, workflowRunId: id });
     }
   }
   return { dispatched, failed };

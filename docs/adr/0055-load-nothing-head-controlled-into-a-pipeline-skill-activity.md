@@ -193,3 +193,28 @@ and push unsigned commits that bypass the signed-commit tool, as the convention'
 [Trust-root paths](../conventions/pr-pipeline/README.md#trust-root-paths) lists; and a lane commit
 can change instruction files the PR author's local session later loads. The contract is
 [`pr-run-activity.md`](../conventions/pr-pipeline/pr-run-activity.md#skill-activities).
+
+## Addendum (2026-11-11): a native stack layer into the default branch is trusted
+
+Owner decision Q40 (2026-11-11) amends decision 1. A PR that is a layer of a native GitHub stack
+runs its lanes when the stack's base (`pull_request.stack.base.ref`) is the default branch, and
+the lanes still load every script, action, config and list from the default branch, never from the
+layer's base branch. The trust property moves from "the PR targets the default branch" to "lane
+code is read from the default branch".
+
+- `check-trusted-trigger` accepts such a layer and outputs `stack.base.sha` as its `base-sha`,
+  never the layer's `base.sha`, which is the lower layer's unmerged head; `check-trusted-base`
+  accepts the layer and still fails unless that SHA is on the default branch. A branch that only
+  targets another PR's branch, with no native stack, and a stack into any other branch stay
+  `untrusted-base`.
+- ci-status reads its hold config at the default branch tip for such a layer, as for a PR into
+  the default branch.
+- Evidence, in `melodic-software/pr-pipeline-sandbox` stack
+  329: on layer
+  [#328](https://github.com/melodic-software/pr-pipeline-sandbox/pull/328), run
+  [43067581568](https://github.com/melodic-software/pr-pipeline-sandbox/actions/runs/43067581568)
+  printed `base.ref` the lower branch, `base.sha` the lower layer's head, `stack.base.ref` `main`,
+  `stack.base.sha` main's tip and `github.base_ref` `main`. The REST pull, the commit's pull list
+  and GraphQL `PullRequest.stack` carry the stack as well; the GraphQL type has no base SHA.
+- The run [37222032673](https://github.com/melodic-software/pr-pipeline-sandbox/actions/runs/37222032673)
+  evidence above still holds for a PR into a non-default branch that is not such a layer.

@@ -353,8 +353,9 @@ run_case "a read workflow job with no permissions map fails" 1 \
 # workflow, from line 15, a scan job whose environment is on line 16 and whose
 # open-lane-output step's private-key input is on line 23.
 append_scan_job() {
+  local carrier_env='{ name: pr-pipeline-scan-carrier, deployment: false }'
   printf '  scan:\n    environment: %s\n    permissions:\n      contents: read\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: ./.base/.github/actions/open-lane-output\n        with:\n          private-key: %s\n' \
-    "${1:-pr-pipeline-scan-carrier}" "${2:-\${{ secrets.scan-carrier-private-key \}\}}" >>"$READ"
+    "${1:-$carrier_env}" "${2:-\${{ secrets.scan-carrier-private-key \}\}}" >>"$READ"
 }
 # shellcheck disable=SC2016  # literal workflow expressions, never expanded
 CARRIER='${{ secrets.scan-carrier-private-key }}'
@@ -397,14 +398,34 @@ run_case "any other secret as the open step's private-key fails" 1 \
 
 run_case "another environment on the scan job fails" 1 \
   "append_scan_job other-env" \
-  "$READ:16: names an environment other than pr-pipeline-scan-carrier on the read workflow's scan job"
+  "$READ:16: names an environment other than pr-pipeline-scan-carrier with deployment: false on the read workflow's scan job"
+
+run_case "the carrier environment by bare name, which records a deployment, fails" 1 \
+  "append_scan_job pr-pipeline-scan-carrier" \
+  "$READ:16: names an environment other than pr-pipeline-scan-carrier with deployment: false"
+
+run_case "another environment in the mapping form on the scan job fails" 1 \
+  "append_scan_job '{ name: other-env, deployment: false }'" \
+  "$READ:16: names an environment other than pr-pipeline-scan-carrier with deployment: false"
+
+run_case "the carrier environment with a quoted deployment value fails" 1 \
+  "append_scan_job '{ name: pr-pipeline-scan-carrier, deployment: \"false\" }'" \
+  "$READ:16: names an environment other than pr-pipeline-scan-carrier with deployment: false"
+
+run_case "the carrier environment with deployment: true fails" 1 \
+  "append_scan_job '{ name: pr-pipeline-scan-carrier, deployment: true }'" \
+  "$READ:16: names an environment other than pr-pipeline-scan-carrier with deployment: false"
+
+run_case "the carrier environment with an extra key fails" 1 \
+  "append_scan_job '{ name: pr-pipeline-scan-carrier, deployment: false, url: x }'" \
+  "$READ:16: names an environment other than pr-pipeline-scan-carrier with deployment: false"
 
 run_case "the carrier environment on any other job fails" 1 \
-  "rewrite awk '{ print } NR == 8 { print \"    environment: pr-pipeline-scan-carrier\" }' && append_scan_job" \
+  "rewrite awk '{ print } NR == 8 { print \"    environment: { name: pr-pipeline-scan-carrier, deployment: false }\" }' && append_scan_job" \
   "$READ:9: names an environment other than pr-pipeline-scan-carrier"
 
 run_case "an environment in a read caller fails" 1 \
-  "printf '  deploy:\n    environment: pr-pipeline-scan-carrier\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo hi\n' >>$CALLER" \
+  "printf '  deploy:\n    environment: { name: pr-pipeline-scan-carrier, deployment: false }\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo hi\n' >>$CALLER" \
   "$CALLER:12: names an environment other than pr-pipeline-scan-carrier"
 
 run_case "a read workflow that references the key fails" 1 \

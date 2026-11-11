@@ -41,7 +41,7 @@ section of it. This skill's own docs sit under `${CLAUDE_PLUGIN_ROOT}/skills/del
 `overengineering:audit`'s boundary.
 
 **It never invokes or enters `overengineering:realign`**: not on a moved verdict, not on a finding
-already accepted, not when a route is unavailable, not when the operator asks inside this run.
+already accepted, not when the operator asks inside this run.
 Realign needs a per-item human acceptance given as the item is presented, and a scheduled lane has
 nobody to give one. Name realign as the next step and stop; the operator invokes it in their own
 session.
@@ -49,7 +49,8 @@ session.
 **It never writes a `Status`.** Realign owns every status transition (`findings-artifact.md`,
 "Status transitions are owned by realign"); this lane reports that one moved.
 
-Three writes are sanctioned, and only these:
+Two writes are sanctioned, and only these; the lane files no work item (see "Queued for the
+human"):
 
 1. **The spine baseline** at the home resolved below, written **at the end of the cycle** from this
    run's post-audit spine. Memory tier, self-ignored, branch-keyed and ephemeral, with the same
@@ -57,8 +58,6 @@ Three writes are sanctioned, and only these:
    identity writes none.
 2. **The findings artifact, written by the composed audit** under its own contract. This lane does
    not write or edit it.
-3. **One queue route**, only under an opt-in `queue_route: auto`, then presence, and never on a quiet
-   cycle (see "Queued for the human").
 
 Right after the home resolves and before invoking the audit, say: *"Read-only pass; realign is never
 entered. Files written: the spine baseline at `<resolved path>`, at the end of this cycle, plus
@@ -177,39 +176,19 @@ the same head.
 
 **The quiet cycle.** When nothing clears the budget, say so in one line, print the counts table, and
 **stop**: no restated surface, no counted classes as rows, no summary of what is still open, no
-route. The lane always reports something, even when quiet.
+draft item. The lane always reports something, even when quiet.
 
 ## Queued for the human
 
-A verdict change is never acted on here. It is **queued**, which means two things:
+A verdict change is never acted on here. It is **queued** in the report: a `## Queued for the
+human` section, one row per surfaced verdict change: finding id, verdict pair (`<was>` → `<now>`),
+current status, layer, and the one act it invites, `overengineering:realign <finding-id>`. Rule-5
+flags lead.
 
-**1. In the report, always.** A `## Queued for the human` section, one row per surfaced verdict
-change: finding id, verdict pair (`<was>` → `<now>`), current status, layer, and the one act it
-invites, `overengineering:realign <finding-id>`. Rule-5 flags lead.
-
-**2. Routed to a tracker, only under opt-in `queue_route`, then presence.** The route is a
-notification carrying ids and verdict pairs, never an instruction to change anything. Read
-`queue_route` (`consumer-config.md`, under `delta_noise_budget`) **before** probing for a tracker.
-Record the route decision and the presence answer in the report.
-
-The durable route needs `queue_route: auto` in tracked config; unset means report-only.
-`work-items:track` files only on explicit user authorization, so an unattended cycle has none of its
-own; the tracked `auto` setting is that authorization, given once by a human.
-
-| `queue_route` | Condition | What the lane does |
-|---|---|---|
-| unset (the default, `inline`) | No probe is made | Decline the route, naming the absent opt-in. The report's section is the queue, and say no durable route exists, so it lives only as long as this output |
-| `inline`, set explicitly | No probe is made | As above, naming the operator's setting as the reason |
-| `auto` | `work-items:track` is installed and a tracker is reachable through it | Maintain **one** open queue item per branch with the current queued rows, naming the tracked `queue_route: auto` as the authorization |
-| `auto` | No tracker reachable | Decline the route, naming the absence; the report's section is the queue |
-
-A taken route follows four rules:
-
-- **One item per branch, updated in place.** A re-run replaces its rows; never a second item or a
-  cycle log.
-- **A quiet cycle does not touch the item.** No "nothing changed" comment.
-- **A row whose finding is no longer `OPEN` is removed, not restated.**
-- **The lane never closes the item.** Closing is the human's act.
+The lane files no work item. `work-items:track add` decides what authorizes filing, and no other
+skill's steps count, so a cycle proposes and a human or the triage lane files. When the queue is
+not empty, end the section with a draft item (a title, and the queued rows as its body) that
+`/work-items:track add` can take as written.
 
 ## The report
 
@@ -223,8 +202,7 @@ This lane adds one short delta view and no third record, in order:
 3. **Evidence availability**: `unchanged`, or the tiers that moved, first when it moved.
 4. **The counts table**: one row per delta class, listed / counted / omitted.
 5. **The listed rows**, in the cap's rank order.
-6. **`## Queued for the human`**, always, with the route decision and the presence answer (or that
-   presence was not consulted).
+6. **`## Queued for the human`**, always, ending with the draft item when the queue is not empty.
 7. **The next step, named and not taken**: `overengineering:realign` executes accepted findings
    behind an explicit per-item human gate.
 

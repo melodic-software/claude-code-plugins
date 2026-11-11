@@ -23,6 +23,7 @@
 
 import { readFileSync } from "node:fs";
 
+import { FOOTER as LANE_FOOTER } from "../lib/lane-binding.mjs";
 import { escalationActivity } from "./escalation-routes.mjs";
 
 export const ESCALATION = "<!-- work-items:escalation lane=pr-unblock kind=escalated -->";
@@ -41,7 +42,6 @@ export const LANE_STOPPED = /^<!-- pr-unblock:lane-stopped activity=[a-z]+(?:-[a
 // A review lane's hold comment opens a line with this marker.
 const REVIEW_HOLD = "<!-- claude-lane-hold lane=";
 export const HOLD_LINE = /^<!-- claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) criteria=[a-z-]+(?:,[a-z-]+)* -->$/;
-const LANE_FOOTER = /^`?claude-lane: (?:claude-review|claude-security-review)`?$/;
 // check-signed-commits' escalation comment opens with this line; its report
 // job posts it with GITHUB_TOKEN, as github-actions[bot].
 export const SIGNED_COMMITS_HOLD = "<!-- check-signed-commits hold -->";

@@ -411,7 +411,7 @@ jobs:
         run: |
           fonts=$(fc-list ':charset=23f8' family file)
           if ! grep -q NotoSansSymbols2 <<<"$fonts"; then
-            # As setup-runner-isolation: each apt call is bounded, so a stalled
+            # Each apt call is bounded, so a stalled
             # mirror or held dpkg lock retries inside the step timeout instead
             # of outlasting it (both attempts, the sleep and the repair take
             # at most 285 s of its 300). sudo resets the environment, so the

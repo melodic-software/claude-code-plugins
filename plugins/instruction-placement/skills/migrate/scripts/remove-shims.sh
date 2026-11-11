@@ -165,13 +165,14 @@ echo
 echo "What removing the shims costs (reference/sources.md, 'What shim removal costs'):"
 if [[ -f "$SOURCES_MD" ]]; then
   # The record's decision is the paragraph directly above its Pointer line, so
-  # the price is that paragraph and the pointer, up to the As of line.
+  # the price is that paragraph and the pointer bullet with its indented
+  # continuation lines; the next bullet, blank line or heading ends it.
   tr -d '\r' <"$SOURCES_MD" |
     awk '/^## What shim removal costs/ { f = 1; next }
          !f { next }
-         /^## / || /^- \*\*As of\*\*/ { exit }
-         /^- \*\*Pointer\*\*/ { for (i = 1; i <= n; i++) print "  " para[i]; print ""; p = 1 }
-         p { print "  " $0; next }
+         /^## / { exit }
+         p { if (/^[[:space:]]*$/ || /^[^[:space:]]/) exit; print "  " $0; next }
+         /^- \*\*Pointer\*\*/ { for (i = 1; i <= n; i++) print "  " para[i]; print ""; p = 1; print "  " $0; next }
          /^[[:space:]]*$/ { gap = 1; next }
          { if (gap) { n = 0; gap = 0 } para[++n] = $0 }'
 else

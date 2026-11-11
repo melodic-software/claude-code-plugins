@@ -59,6 +59,9 @@ function fakeApi(overrides = {}) {
     path,
     line: 1,
     body: `finding ${id}\n\nclaude-lane: claude-review`,
+    // Before LEGACY_CUTOFF, so it counts with no binding.
+    created_at: "2026-10-01T00:00:00Z",
+    updated_at: "2026-10-01T00:00:00Z",
     html_url: `https://github.com/o/r/pull/42#discussion_r${id}`,
   });
   let prBody = overrides.prBody ?? null;
@@ -1623,15 +1626,17 @@ test("lineChanged reads a patch's new-side hunks", async () => {
 });
 
 // collect-base-activity runs a script activity from a copy of its own
-// directory under $RUNNER_TEMP, so every import must resolve inside it.
-test("the script loads from a copy of its own directory alone", async () => {
-  const copy = tempDir("base-script-");
+// directory under $RUNNER_TEMP, beside a copy of the shared ../lib modules, so
+// every import must resolve inside those two.
+test("the script loads from a copy of its own directory and the shared lib alone", async () => {
+  const root = tempDir("base-activity-");
   try {
-    cpSync(dirname(fileURLToPath(import.meta.url)), copy, { recursive: true });
-    const module = await import(pathToFileURL(join(copy, "publish-feedback.mjs")).href);
+    cpSync(dirname(fileURLToPath(import.meta.url)), join(root, "base-script"), { recursive: true });
+    cpSync(fileURLToPath(new URL("../lib", import.meta.url)), join(root, "lib"), { recursive: true });
+    const module = await import(pathToFileURL(join(root, "base-script", "publish-feedback.mjs")).href);
     assert.equal(typeof module.main, "function");
   } finally {
-    rmSync(copy, { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true });
   }
 });
 

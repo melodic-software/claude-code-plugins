@@ -2269,17 +2269,19 @@ guide reverses it; the Sonnet 5 and Opus 4.8 literalism sections corroborate the
 - **Detect:** two arms of one defect, prompting written against undertriggering that no longer
   exists:
   1. **Forced-compliance emphasis** on tool, skill, or behavior triggering, such as `CRITICAL:`,
-     `You MUST use`, `IMPORTANT:`, or all-caps imperative runs, where the emphasis exists to make a
-     trigger fire rather than to mark a genuine gate.
+     `You MUST use`, `IMPORTANT:`, or all-caps imperative runs, whether the emphasis exists to make
+     a trigger fire or to mark a gate.
   2. **Blanket tool defaults**, such as "Default to using [tool]" or "If in doubt, use [tool]",
      where a targeted condition was the intent.
-- **Must NOT flag: emphasis guarding a high-consequence area.** That is a safety gate, a
-  destructive or irreversible action, a security or permission boundary, or an external contract,
-  the same carve-out set the Stopping condition applies; a loud marker on the step where being
-  wrong is expensive is design, not scar tissue. **Must NOT flag: a stated hard precondition.** An
-  ordering an API genuinely requires ("resolve the ID first; the call fails without it") is a
-  fact, however emphatically set. **Must NOT flag: a document *about* the pattern**, on the same
-  audience test I8-b applies. This row is the canonical instance.
+- **High-consequence areas:** emphasis there is still flagged. A safety gate, a destructive or
+  irreversible action, a security or permission boundary, or an external contract keeps its
+  directive in plain words with its scope and reason; the marker is downgraded like any other. A
+  rule there that must hold every time belongs in a hook, deny rule or CI check, not a louder line
+  ([ADR 0098](../../../../../docs/adr/0098-state-instruction-rules-in-plain-words-without-emphasis-markers.md)).
+  Not flagged: a stated hard precondition. An ordering an API genuinely requires ("resolve
+  the ID first; the call fails without it") is a fact and stays; emphasis set on it is still
+  downgraded. Not flagged: a document *about* the pattern, on the same audience test I8-b
+  applies. This row is the canonical instance.
 - **Remediate:** for arm 1, normal conditional phrasing: "Use this tool when …". For arm 2, replace
   the blanket default with the condition it was standing in for: "Use [tool] when <the condition
   the default stood in for>." Verify per Deletion tiers (a consequential removal needs a
@@ -2341,7 +2343,8 @@ guide reverses it; the Sonnet 5 and Opus 4.8 literalism sections corroborate the
   covers are **not** mechanically selected, recorded here rather than left as a silent gap: a
   **whole bolded sentence** used as a shout, and a **general all-caps imperative run** beyond the
   fixed marker list. Both are too common in ordinary technical prose to select without a false-
-  positive rate that would swamp the relay. Bold lead-ins are this repo's house style, and
+  positive rate that would swamp the relay. A bold list-item label or a defined term at its first
+  use is structure, not a shout (ADR 0098), and a regex cannot tell it from a bolded rule;
   all-caps runs collide with acronyms, file names, and env vars. The model lane still judges them
   under this row; only the deterministic scanner withholds. Widening either is a calibration
   change that lands in the scanner with fixtures.
@@ -2688,10 +2691,12 @@ is `/skill-quality:check`'s; this row covers the agents it does not read.
   "added in #N", "fixed by PR 1234", or an incident narrative ("after the lane stalled in
   September") that explains why a line exists instead of stating the rule.
 - **Must NOT flag:** a code span; a cross-repository `owner/repo#N`, which names an upstream
-  record; a `TODO(#N)` marker; fenced or indented code; any line inside a pointer-record block,
-  meaning a paragraph or bullet run that carries an as-of date and a recheck trigger anywhere in
-  it. These are the exemptions `/skill-quality:check` applies to skills, so one line gets one verdict on
-  either surface.
+  record; a `TODO(#N)` marker; fenced or indented code; a bare `#N` whose paragraph or bullet run
+  also cites N upstream, as `owner/repo#N` or an `/issues/N` or `/pull/N` URL (a pointer record
+  naming its upstream bug); any line inside a stored-value record block, meaning a paragraph or
+  bullet run that carries an as-of date and a recheck trigger anywhere in it. These are the
+  exemptions `/skill-quality:check` applies to skills, so one line gets one verdict on either
+  surface.
 - **Pre-scan:** `instruction-scan.sh` seeds the number forms as `I40` rows on `agents/*.md` paths
   only, with the exemptions above; incident narratives are lane-only.
 - **Remediate:** state the rule in the present tense and move the history to the CHANGELOG, an ADR,

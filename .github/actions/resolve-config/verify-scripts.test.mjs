@@ -20,9 +20,12 @@ const FILES = {
   activityRules: json("./activity-rules.json"),
 };
 
-const run = (fixDocs) => {
+const run = (fixDocs, { handsOnPatch = true } = {}) => {
   const doc = parse(read("./fixtures/valid.yaml"));
   Object.assign(doc.activities["fix-prose"], fixDocs);
+  if (!handsOnPatch) {
+    delete doc.activities["fix-prose"]["applied-by"];
+  }
   return resolve(
     { ...FILES, config: stringify(doc) },
     {
@@ -34,9 +37,9 @@ const run = (fixDocs) => {
     },
   );
 };
-const rejected = (fixDocs) =>
+const rejected = (fixDocs, options) =>
   assert.throws(
-    () => run(fixDocs),
+    () => run(fixDocs, options),
     (error) => {
       assert.ok(error instanceof Rejection, `expected a Rejection, got ${error}`);
       assert.equal(error.code, "invalid-config", error.message);
@@ -78,8 +81,8 @@ for (const path of [
 
 // Only the runner that stages edit tools grants them, so a read skill that
 // hands on no patch would list them for nothing.
-test("verify-scripts with effect read and no applied-by.patch fails the schema", () => {
-  rejected({ effect: "read", "verify-scripts": ["scripts/check-x.sh"] });
+test("verify-scripts with no applied-by.patch fails the schema", () => {
+  rejected({ "verify-scripts": ["scripts/check-x.sh"] }, { handsOnPatch: false });
 });
 
 // The read runner stages them under prepare: ci-context too, as base copies the
@@ -89,16 +92,12 @@ test("checks on a prepare: ci-context skill fail the schema", () => {
   rejected({ effect: "read", prepare: "ci-context", "applied-by": { patch: "apply-patch" }, checks: ["scripts/check-x.sh"] });
 });
 
-// A skill with an effect other than read runs in the write runner's run job,
-// which holds the lane token and id-token: write, and claude-code-action writes
-// that token into the checkout's .git/config, so the schema refuses the scripts
-// that run checkout code there (pr-run-activity.md, Skill activities).
-for (const script of ["scripts/run-test-file.sh", "plugins/skill-quality/scripts/check-skill.sh"]) {
-  test(`verify-scripts listing ${script} on a write-effect skill fails the schema`, () => {
-    rejected({ "verify-scripts": [script] });
-    rejected({ "verify-scripts": ["scripts/check-x.sh", script] });
-  });
-}
+// The read runner, which holds no write credential, may run scripts that run
+// checkout code.
+test("verify-scripts may list scripts that run checkout code", () => {
+  const list = ["scripts/run-test-file.sh", "plugins/skill-quality/scripts/check-skill.sh"];
+  assert.deepEqual(run({ "verify-scripts": list }).selected["verify-scripts"], list);
+});
 
 test("an empty or repeating verify-scripts list fails the schema", () => {
   rejected({ "verify-scripts": [] });

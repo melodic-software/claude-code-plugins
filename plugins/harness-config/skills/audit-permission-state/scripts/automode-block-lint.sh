@@ -88,6 +88,14 @@ esac
 
 note() { printf 'BLOCK-NOTE: %s\n' "$1"; }
 
+# end_lane <status> <note>: the lane read nothing, so it says why and ends with
+# an all-zero summary carrying that status.
+end_lane() {
+  note "$2"
+  echo "automode summary findings=0 sections=0 status=$1"
+  exit 0
+}
+
 # The lane is optional as a whole: a missing runtime degrades it visibly and
 # leaves every other stage of the skill intact. That is the documented contract
 # for an optional feature, and the alternative -- failing the run -- would make
@@ -99,19 +107,13 @@ for candidate in python3 python; do
     break
   fi
 done
-if [[ -z "$PY" ]]; then
-  note "autoMode block lane SKIPPED: python3 is not on PATH. This lane needs a non-strict JSON parser because 'claude auto-mode config' emits raw control characters inside string values, which no line-oriented POSIX filter can repair. Every other stage of this skill is unaffected."
-  echo "automode summary findings=0 sections=0 status=skipped"
-  exit 0
-fi
+[[ -n "$PY" ]] || end_lane skipped "autoMode block lane SKIPPED: python3 is not on PATH. This lane needs a non-strict JSON parser because 'claude auto-mode config' emits raw control characters inside string values, which no line-oriented POSIX filter can repair. Every other stage of this skill is unaffected."
 
 CONFIG_FIXTURE="${AUTOMODE_CONFIG_FIXTURE:-}"
 DEFAULTS_FIXTURE="${AUTOMODE_DEFAULTS_FIXTURE:-}"
 
 if [[ -z "$CONFIG_FIXTURE" || -z "$DEFAULTS_FIXTURE" ]] && ! command -v claude >/dev/null 2>&1; then
-  note "autoMode block lane SKIPPED: 'claude' is not on PATH, so the classifier's own rule lists cannot be read. Every other stage of this skill is unaffected."
-  echo "automode summary findings=0 sections=0 status=skipped"
-  exit 0
+  end_lane skipped "autoMode block lane SKIPPED: 'claude' is not on PATH, so the classifier's own rule lists cannot be read. Every other stage of this skill is unaffected."
 fi
 
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/automode-lint.XXXXXX")" || {
@@ -134,16 +136,10 @@ capture() {
   [[ -s "$out" ]]
 }
 
-if ! capture "$tmp/config.json" "$CONFIG_FIXTURE" config; then
-  note "autoMode block lane produced no usable output: 'claude auto-mode config' returned nothing readable. This is NOT a clean bill -- the block was not read. Exit status from that command is known to be 0 even when it produces nothing, so it is deliberately not consulted here."
-  echo "automode summary findings=0 sections=0 status=unavailable"
-  exit 0
-fi
-if ! capture "$tmp/defaults.json" "$DEFAULTS_FIXTURE" defaults; then
-  note "autoMode block lane produced no usable output: 'claude auto-mode defaults' returned nothing readable, so a \$defaults omission cannot be judged."
-  echo "automode summary findings=0 sections=0 status=unavailable"
-  exit 0
-fi
+capture "$tmp/config.json" "$CONFIG_FIXTURE" config ||
+  end_lane unavailable "autoMode block lane produced no usable output: 'claude auto-mode config' returned nothing readable. This is NOT a clean bill -- the block was not read. Exit status from that command is known to be 0 even when it produces nothing, so it is deliberately not consulted here."
+capture "$tmp/defaults.json" "$DEFAULTS_FIXTURE" defaults ||
+  end_lane unavailable "autoMode block lane produced no usable output: 'claude auto-mode defaults' returned nothing readable, so a \$defaults omission cannot be judged."
 
 "$PY" - "$tmp/config.json" "$tmp/defaults.json" <<'PYEOF'
 import json
@@ -228,12 +224,7 @@ def label_of(entry):
     # the first '[' when one precedes the colon.
     if not isinstance(entry, str):
         return ""
-    colon = entry.find(":")
-    bracket = entry.find("[")
-    cut = colon if colon != -1 else len(entry)
-    if bracket != -1 and (colon == -1 or bracket < colon):
-        cut = bracket
-    return entry[:cut].strip()
+    return re.split(r"[:\[]", entry, maxsplit=1)[0].strip()
 
 
 def subject_of(entry):
@@ -257,9 +248,7 @@ customized = []
 for _s in present:
     _cur = entries(config, _s)
     _base = entries(defaults, _s)
-    _added = any(e not in _base for e in _cur)
-    _removed = any(e not in _cur for e in _base)
-    if _added or _removed:
+    if any(e not in _base for e in _cur) or any(e not in _cur for e in _base):
         customized.append(_s)
 if present:
     if customized:
@@ -364,9 +353,10 @@ if unusable_sections:
         "check could examine them. The findings below cover the remaining sections "
         "only." % ", ".join(sorted(set(unusable_sections)))
     )
-    print("automode summary findings=%d sections=%d status=partial" % (findings, len(present)))
-else:
-    print("automode summary findings=%d sections=%d status=read" % (findings, len(present)))
+print(
+    "automode summary findings=%d sections=%d status=%s"
+    % (findings, len(present), "partial" if unusable_sections else "read")
+)
 PYEOF
 
 [[ "$critique" == 1 ]] || exit 0

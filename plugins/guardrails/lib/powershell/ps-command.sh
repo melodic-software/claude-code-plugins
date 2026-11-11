@@ -204,19 +204,11 @@ ps::_mark_untrusted() {
 }
 
 # True when TEXT contains a CR not immediately followed by LF. PowerShell ends
-# a statement at a bare CR; this library splits on LF only. The glob answers
-# "no CR at all" without the per-character walk, which is every command that
-# carries no CR.
+# a statement at a bare CR; this library splits on LF only. Deleting every CRLF
+# pair leaves exactly the CRs that no LF follows.
 ps::has_bare_cr() {
-  local s="$1" i n next
-  [[ "$s" == *$'\r'* ]] || return 1
-  n=${#s}
-  for ((i = 0; i < n; i++)); do
-    [[ "${s:i:1}" == $'\r' ]] || continue
-    next="${s:i+1:1}"
-    [[ "$next" == $'\n' ]] || return 0
-  done
-  return 1
+  local s="${1//$'\r\n'/}"
+  [[ "$s" == *$'\r'* ]]
 }
 
 # True when a PreToolUse JSON payload encodes a bare CR: a literal CR byte not
@@ -408,7 +400,7 @@ ps::blank_herestrings() {
   # matched no call site in any measuring probe and fell through ALLOWED (#2928).
   ps::normalize_token_separating_spaces "$1"
   local cmd="$PS_NORMALIZED"
-  local line out="" pending="" in_hs=0 hs_quote="" first2 rest closer prefix
+  local line out="" pending="" in_hs=0 hs_quote="" first2 prefix
   local saw_block_comment=0
   local -a hs_lines=()
   PS_HERESTRING_UNBALANCED=0
@@ -431,18 +423,14 @@ ps::blank_herestrings() {
     # without turning an INTERIOR bare CR into a line break.
     line="${line%$'\r'}"
     if ((in_hs)); then
-      first2="${line:0:2}"
-      closer="${hs_quote}@" # '@ or "@
-      if [[ "$first2" == "$closer" ]]; then
-        # Column-zero closer. Keep the text after the two-char closer on the same
-        # logical line as the opener's prefix + placeholder.
-        rest="${line:2}"
-        out+="${pending}${rest}"$'\n'
+      if [[ "${line:0:2}" == "${hs_quote}@" ]]; then
+        # Column-zero closer ('@ or "@). Keep the text after the two-char closer
+        # on the same logical line as the opener's prefix + placeholder.
+        out+="${pending}${line:2}"$'\n'
         pending=""
         in_hs=0
         hs_quote=""
-      else
-        if [[ "$hs_quote" == '"' && "$line" == *"\$("* ]]; then
+      elif [[ "$hs_quote" == '"' && "$line" == *"\$("* ]]; then
         # A body line about to be DROPPED from an expandable here-string, and it
         # carries a command position. The needle is the two characters `$(`,
         # spelled `\$(` inside a QUOTED pattern segment so it matches literally
@@ -453,8 +441,7 @@ ps::blank_herestrings() {
         # trailing text in the output, where every later scan can still see it:
         # only what the drop removes is hidden, and only that may raise the
         # trigger.
-          PS_HERESTRING_EXPANDABLE_SUBEXPR=1
-        fi
+        PS_HERESTRING_EXPANDABLE_SUBEXPR=1
       fi
       # A body line (no column-zero closer) is dropped.
       continue
@@ -487,7 +474,7 @@ ps::blank_herestrings() {
       # placeholder about to replace it stands for text that can contain a
       # command position. `@'` opens a verbatim body and stands for inert text.
       [[ "$hs_quote" == '"' ]] && PS_HERESTRING_EXPANDABLE=1
-      pending="${line%??}${PS_HERESTRING_PLACEHOLDER}"
+      pending="${prefix}${PS_HERESTRING_PLACEHOLDER}"
       in_hs=1
       continue
     fi
@@ -601,20 +588,16 @@ ps::_walk_quoted_spans_to() {
       for ((__wq_j = __wq_i + 1; __wq_j < __wq_n; __wq_j++)); do
         __wq_c="${__wq_text:__wq_j:1}"
         [[ "$__wq_c" == $'\n' ]] && break
-        # Ambiguous escape context in a double-quoted span — stop looking and
-        # fall through to the delete-nothing branch below.
-        if [[ "$__wq_q" == '"' && "$__wq_c" == '`' ]]; then
+        # Ambiguous escape context: a backtick in a double-quoted span, or a
+        # DOUBLED quote, PowerShell's other escape for a delimiter (`'it''s'`,
+        # `"say ""hi"""`), so this candidate closer may not be one. Stop looking
+        # and fall through to the delete-nothing branch below.
+        if [[ "$__wq_q" == '"' && "$__wq_c" == '`' ]] ||
+          [[ "$__wq_c" == "$__wq_q" && "${__wq_text:__wq_j+1:1}" == "$__wq_q" ]]; then
           for (( ; __wq_j < __wq_n; __wq_j++)); do [[ "${__wq_text:__wq_j:1}" == $'\n' ]] && break; done
           break
         fi
         if [[ "$__wq_c" == "$__wq_q" ]]; then
-          # A DOUBLED quote is PowerShell's other escape for a delimiter
-          # (`'it''s'`, `"say ""hi"""`), so this candidate closer may not be one.
-          # Same resolution as the backtick: refuse the question, delete nothing.
-          if [[ "${__wq_text:__wq_j+1:1}" == "$__wq_q" ]]; then
-            for (( ; __wq_j < __wq_n; __wq_j++)); do [[ "${__wq_text:__wq_j:1}" == $'\n' ]] && break; done
-            break
-          fi
           __wq_found=1
           break
         fi
@@ -1366,35 +1349,25 @@ ps::computed_call_has_positional_write_signal() {
         ((depth < 0)) && depth=0
         continue
       fi
-      if [[ "$tok" == -* ]]; then
-        break
-      fi
+      [[ "$tok" == -* ]] && break
       count=$((count + 1))
-      # One bracketed operand, however many words it spans — a subexpression
-      # `(Join-Path …)` or a script block `{ … }`. Braces are tracked alongside
-      # parens because the operand region no longer truncates at the first `}`
-      # (review of #2848); without this a multi-word script-block operand would
-      # be counted one word at a time.
-      if [[ "$tok" == [\(\{]* ]]; then
-        depth=$((${#opens} - ${#closes}))
-        ((depth < 0)) && depth=0
-        continue
-      fi
       # A token that merely CONTAINS brackets — `${scope:name}`, `logs[0].txt` —
       # is a single operand. Only an unbalanced one opens a multi-word span.
       depth=$((${#opens} - ${#closes}))
       ((depth < 0)) && depth=0
-      ((depth > 0)) && continue
-      if [[ "$tok" != \$* && "$tok" != @* && "$tok" != \{* ]]; then
+      # One bracketed operand, however many words it spans, a subexpression
+      # `(Join-Path …)` or a script block `{ … }`, is never a visible literal.
+      # Braces are tracked alongside parens because the operand region no
+      # longer truncates at the first `}` (review of #2848); without this a
+      # multi-word script-block operand would be counted one word at a time.
+      if [[ "$tok" == [\(\{]* ]] || ((depth > 0)); then
+        continue
+      fi
+      if [[ "$tok" != \$* && "$tok" != @* ]]; then
         count_lit=$((count_lit + 1))
       fi
     done
-    if ((count >= 2 && count_lit >= 1)); then
-      return 0
-    fi
-    if ((piped == 1 && count >= 1)); then
-      return 0
-    fi
+    ((count >= 2 && count_lit >= 1 || piped == 1 && count >= 1)) && return 0
   done
   return 1
 }
@@ -1919,8 +1892,7 @@ ps::has_unprovable_env_write() {
     *) ;;
     esac
   done
-  ((write_head && dyn_cd)) && return 0
-  return 1
+  ((write_head && dyn_cd))
 }
 
 # True (0) when every git invocation in the text is a built-in INTERROGATOR, read
@@ -2079,9 +2051,7 @@ ps::might_write_via_python3() {
   # construct and falls through to the token test, so a non-python launch stays
   # allowed. (ps::might_invoke_git models this with a narrower per-parameter regex;
   # a matching hardening there is tracked separately, out of this PR's scope.)
-  if ps::has_launcher "$recovered" && [[ "$blanked" == *'$'* || "$blanked" == *'('* ]]; then
-    return 0
-  fi
+  ps::has_launcher "$recovered" && [[ "$blanked" == *'$'* || "$blanked" == *'('* ]] && return 0
   # A call `&` / dot-source `.` of a DOUBLE-QUOTED target that INTERPOLATES a
   # variable or subexpression (`& "$env:PYTHON_BIN" …`, `& "$(…)" …`) runs a
   # COMPUTED program that could resolve to python3. blank_quoted_spans_to erases the
@@ -2247,9 +2217,7 @@ ps::classify_git_command() {
     # is not a proof. Return 2 even when another trigger fired first (shape 9:
     # `{` plus a commented opener used to return 1 and skip the FLAG-keyed
     # readers that only run on rc 2). Attribution of the first trigger is kept.
-    if ((PS_REDUCTION_UNTRUSTED)); then
-      return 2
-    fi
+    ((PS_REDUCTION_UNTRUSTED)) && return 2
     #
     # A BLANKED EXPANDABLE HERE-STRING SUSPENDS THE PROOF. `@"` … `"@` is
     # evaluated where it is written, so `$( … )` in its body is a command
@@ -2419,26 +2387,17 @@ ps::_skip_statement_tail_to() {
         ps::_skip_double_quote_to __st_i "$__st_cmd" "$__st_i"
         continue
       fi
-      if [[ "$__st_c" == ';' || "$__st_c" == $'\n' ]]; then
+      # `|` and `||` both end this pipeline element / statement. A bare `&` is
+      # the call operator (or background) and stays part of this statement.
+      if [[ "$__st_c" == ';' || "$__st_c" == $'\n' || "$__st_c" == '|' ]] ||
+        [[ "$__st_c" == '&' && "${__st_cmd:__st_i+1:1}" == '&' ]]; then
         printf -v "$1" '%s' "$__st_i"
         return 0
       fi
-      if [[ "$__st_c" == '|' ]]; then
-        # `|` and `||` both end this pipeline element / statement.
-        printf -v "$1" '%s' "$__st_i"
-        return 0
-      fi
-      if [[ "$__st_c" == '&' && "${__st_cmd:__st_i+1:1}" == '&' ]]; then
-        printf -v "$1" '%s' "$__st_i"
-        return 0
-      fi
-      # Bare `&` is the call operator (or background) — part of this statement.
     fi
     case "$__st_c" in
-    '{') __st_depth=$((__st_depth + 1)) ;;
-    '}') ((__st_depth > 0)) && __st_depth=$((__st_depth - 1)) ;;
-    '(') __st_depth=$((__st_depth + 1)) ;;
-    ')') ((__st_depth > 0)) && __st_depth=$((__st_depth - 1)) ;;
+    '{' | '(') __st_depth=$((__st_depth + 1)) ;;
+    '}' | ')') ((__st_depth > 0)) && __st_depth=$((__st_depth - 1)) ;;
     *) ;;
     esac
     __st_i=$((__st_i + 1))
@@ -2514,58 +2473,49 @@ ps::_bash_ready_to() {
 # Blank dynamic-invocation or launcher statements in CMD. KIND is `dynamic` or
 # `launcher`. Writes PS_SAFE_COMMAND.
 ps::_blank_cmd_statements() {
-  local cmd="$1" kind="$2" n=${#1} i=0 out="" c rest lc matched end word j
+  local cmd="$1" kind="$2" n=${#1} i=0 out="" c lc end blank_from j
   while ((i < n)); do
     c="${cmd:i:1}"
-    if [[ "$c" == "'" ]]; then
-      ps::_skip_single_quote_to end "$cmd" "$i"
+    if [[ "$c" == "'" || "$c" == '"' ]]; then
+      if [[ "$c" == "'" ]]; then
+        ps::_skip_single_quote_to end "$cmd" "$i"
+      else
+        ps::_skip_double_quote_to end "$cmd" "$i"
+      fi
       out+="${cmd:i:end-i}"
       i=$end
       continue
     fi
-    if [[ "$c" == '"' ]]; then
-      ps::_skip_double_quote_to end "$cmd" "$i"
-      out+="${cmd:i:end-i}"
-      i=$end
-      continue
-    fi
-    matched=0
+    # Where the blanked statement's tail scan starts; -1 when nothing matched.
+    blank_from=-1
     if ps::_at_command_position "$cmd" "$i"; then
-      rest="${cmd:i}"
-      lc="${rest,,}"
+      lc="${cmd:i}"
+      lc="${lc,,}"
       case "$kind" in
       dynamic)
         if [[ "$lc" =~ ^(iex|invoke-expression)([^a-z0-9_-]|$) ]]; then
-          if [[ "$lc" == iex* ]]; then word=3; else word=18; fi
           # iex / Invoke-Expression — blank through end of this pipeline element.
-          ps::_skip_statement_tail_to end "$cmd" $((i + word))
-          i=$end
-          out+=" "
-          matched=1
+          if [[ "$lc" == iex* ]]; then blank_from=$((i + 3)); else blank_from=$((i + 18)); fi
         elif [[ "$c" == '&' || "$c" == '.' ]]; then
           # Call / dot-source of a STRING LITERAL — same dynamic-invocation shape.
           j=$((i + 1))
           while ((j < n)) && [[ "${cmd:j:1}" == [[:space:]] ]]; do j=$((j + 1)); done
           if ((j < n)) && [[ "${cmd:j:1}" == "'" || "${cmd:j:1}" == '"' ]]; then
-            ps::_skip_statement_tail_to end "$cmd" "$i"
-            i=$end
-            out+=" "
-            matched=1
+            blank_from=$i
           fi
         fi
         ;;
       launcher)
         if [[ "$lc" =~ ^(start-process|saps|start|pwsh|powershell|cmd|wsl)(\.exe)?([^a-z0-9_-]|$) ]]; then
-          ps::_skip_statement_tail_to end "$cmd" "$i"
-          i=$end
-          out+=" "
-          matched=1
+          blank_from=$i
         fi
         ;;
       *) ;;
       esac
     fi
-    if ((matched)); then
+    if ((blank_from >= 0)); then
+      ps::_skip_statement_tail_to i "$cmd" "$blank_from"
+      out+=" "
       continue
     fi
     out+="$c"
@@ -2581,14 +2531,12 @@ ps::_blank_special_construct_regions() {
   local cmd="$1" n=${#1} i=0 out="" c end depth open close
   while ((i < n)); do
     c="${cmd:i:1}"
-    if [[ "$c" == "'" ]]; then
-      ps::_skip_single_quote_to end "$cmd" "$i"
-      out+="${cmd:i:end-i}"
-      i=$end
-      continue
-    fi
-    if [[ "$c" == '"' ]]; then
-      ps::_skip_double_quote_to end "$cmd" "$i"
+    if [[ "$c" == "'" || "$c" == '"' ]]; then
+      if [[ "$c" == "'" ]]; then
+        ps::_skip_single_quote_to end "$cmd" "$i"
+      else
+        ps::_skip_double_quote_to end "$cmd" "$i"
+      fi
       out+="${cmd:i:end-i}"
       i=$end
       continue
@@ -2644,7 +2592,7 @@ ps::_blank_special_construct_regions() {
 # Blank from an unbalanced here-string opener through end of input. Writes
 # PS_SAFE_COMMAND (prefix before the hanging opener, if any).
 ps::_blank_unbalanced_herestring_tail() {
-  local cmd="$1" line out="" pending="" in_hs=0 hs_quote="" first2 closer
+  local cmd="$1" line out="" pending="" in_hs=0 hs_quote=""
   local -a hs_lines=()
   # Mirror ps::blank_herestrings' opener detection; once an opener has no closer,
   # drop it and everything after (extent unknown — trailing code may be inside).
@@ -2652,9 +2600,7 @@ ps::_blank_unbalanced_herestring_tail() {
   for line in "${hs_lines[@]}"; do
     line="${line%$'\r'}"
     if ((in_hs)); then
-      first2="${line:0:2}"
-      closer="${hs_quote}@"
-      if [[ "$first2" == "$closer" ]]; then
+      if [[ "${line:0:2}" == "${hs_quote}@" ]]; then
         out+="${pending}${line:2}"$'\n'
         pending=""
         in_hs=0
@@ -2782,14 +2728,13 @@ ps::print_sink_token_line() {
   # The no-token family: every token-granted sink round spends the caller's
   # shared attempt budget, and a sixth grantable trigger pushes a four-round
   # command past the cap, where the caller refuses.
-  if [[ "$PS_SINK_TRIGGER" == herestring-comment-char ||
-        "$PS_SINK_TRIGGER" == herestring-opener-untrusted ||
-        "$PS_SINK_TRIGGER" == herestring-comment-span ||
-        "$PS_SINK_TRIGGER" == herestring-orphan-closer ||
-        "$PS_SINK_TRIGGER" == bare-cr ]]; then
+  case "$PS_SINK_TRIGGER" in
+  herestring-comment-char | herestring-opener-untrusted | herestring-comment-span | herestring-orphan-closer | bare-cr)
     echo "No allow token exists for this shape; rewrite it." >&2
     return
-  fi
+    ;;
+  *) ;;
+  esac
   echo "False positive: the user adds ps-unparsable-${PS_SINK_TRIGGER:-<trigger>} to block_dangerous_git_allow; it clears $1 too." >&2
 }
 
@@ -3075,10 +3020,7 @@ ps::write_bypass() {
     # A module-qualified producer (`Microsoft.PowerShell.Utility\Write-Output`)
     # is the same cmdlet — compare its basename.
     head="${head##*\\}"
-    case "$seg" in
-    '>'*) return 0 ;; # leading literal (string stripped away) was the producer
-    *) ;;
-    esac
+    [[ "$seg" == '>'* ]] && return 0 # leading literal (string stripped away) was the producer
     case "$head" in
     # Producer cmdlets for EVERY stream — a non-success stream redirected to a
     # file (`Write-Error secret 2> creds.txt`, `Write-Warning x 3> f`) writes

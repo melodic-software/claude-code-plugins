@@ -3,6 +3,49 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.33] - 2026-11-11
+
+### Changed
+
+- `/harness-ops:changelog` reads a fired recheck trigger as a `correct` signal only for a stored value (a recorded default, limit, version gate or measured observation); for a pointer, which carries no trigger, the feature grep is the signal.
+- The README options reference lists its upstream documentation as pointers only, with no as-of date or recheck trigger.
+
+## [8.12.32] - 2026-11-11
+
+### Changed
+
+- The setup skill's reconfiguration guidance keeps its decisions (reconfigure through the native configure flow, never uninstall to reconfigure, recheck in a fresh session) and now points at the plugin-reconfiguration convention's "The routes" and "Caveats" sections and the plugin CLI reference's `plugin configure` section instead of restating the headless command, its version floor and failure signals, and drops any claim that option values are fixed at session start or skill load, which the docs do not state.
+- The plugin now ships a generated copy of the plugin-reconfiguration convention at `reference/plugin-reconfiguration.md`, and its skills link that copy by relative path, so an agent without network access can read the routes and caveats the skills point at.
+- The setup skill tells the agent to read the convention's routes and caveats sections and print what they give (the fallback route, its behavior on an already-installed plugin and the scope to pass), leaving out the verified-version record, rather than only naming the sections.
+
+## [8.12.31] - 2026-11-11
+
+### Changed
+
+- The changelog skill's classification rubric now makes a security-relevant item a decision row only when a surface that runs today is exposed in the mode the item names. Without that exposure it is a note naming the condition that would make it a row, so a theoretical risk no longer becomes a question for the user.
+
+## [8.12.30] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.29] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.28] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+### Fixed
+
+- `/harness-ops:audit-install-state` and `/harness-ops:audit-skill-visibility` under `--unattended` omit the `/doctor` and `/skill-doctor` suggestions instead of recording them in the report, as `/harness-ops:audit-performance` already does: an unattended run neither suggests nor runs a command reserved for the person.
+
 ## [8.12.27] - 2026-11-11
 
 ### Changed

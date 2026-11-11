@@ -13,7 +13,6 @@ The skills of `plugins/planning`. Each one is driven with `<plugin-dir>` set to 
 - `interview`: Interview in frontier rounds until the task contract is locked.
 - `plan`: Produce a structured implementation plan with an approval gate.
 - `prd`: Lock product intent. Problem, users, success metrics. Before planning.
-- `questionnaire`: Turn a decision someone else must answer into an async questionnaire.
 - `setup`: Verify and configure the planning plugin for this repository. No plain-words entry.
 - `wayfind`: Chart a too-big, foggy effort as a decision map worked one decision at a time.
 

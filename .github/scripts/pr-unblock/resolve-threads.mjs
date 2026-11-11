@@ -31,6 +31,8 @@
 //
 // Environment:
 //   GH_TOKEN           the lane token (contents: write, pull-requests: read)
+//   ARTIFACT_READ_TOKEN the job's own token (actions: read), for the lane
+//                      comments' run records only (address-feedback.mjs laneReader)
 //   GITHUB_REPOSITORY  owner/repo
 //   PR_NUMBER          the gated pull request
 //   APP_SENDER_ID      the lanes App bot's user id
@@ -47,6 +49,7 @@ import {
   isReviewerComment,
   isVerifierRoot,
   laneOf,
+  laneReader,
   need,
   ownerPull,
   positive,
@@ -55,6 +58,7 @@ import {
   securitySignals,
   securityState,
   trustedHumansFrom,
+  withLaneBinding,
 } from "./address-feedback.mjs";
 import { adjudicable, isCritical } from "./adjudicate-feedback.mjs";
 import { isResolvingAnswer } from "./publish-feedback.mjs";
@@ -160,18 +164,23 @@ export async function resolveThreads({ api, pr, appId, reviewerId, reviewerIds =
   return { skipReason: "", resolved };
 }
 
-export async function main(env, { api, log = (line) => console.log(line) } = {}) {
+export async function main(env, { api, actions, log = (line) => console.log(line) } = {}) {
   need(env, ["GH_TOKEN", "GITHUB_REPOSITORY", "PR_NUMBER", "APP_SENDER_ID", "TRUSTED_ACTORS", "SKIP_REASON_FILE"]);
+  const pr = positive(env.PR_NUMBER, "PR_NUMBER");
   const { skipReason } = await resolveThreads({
-    api:
+    // The lane comments' bindings are read with ARTIFACT_READ_TOKEN, never
+    // the lane token (laneReader).
+    api: withLaneBinding(
       api ??
-      createGitHubApi({
-        token: env.GH_TOKEN,
-        repository: env.GITHUB_REPOSITORY,
-        apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
-        graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
-      }),
-    pr: positive(env.PR_NUMBER, "PR_NUMBER"),
+        createGitHubApi({
+          token: env.GH_TOKEN,
+          repository: env.GITHUB_REPOSITORY,
+          apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
+          graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+        }),
+      actions ?? laneReader(env),
+    ),
+    pr,
     appId: positive(env.APP_SENDER_ID, "APP_SENDER_ID"),
     reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
     reviewerIds: reviewerIdsFrom(env.REVIEWER_IDS),

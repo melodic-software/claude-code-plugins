@@ -3740,6 +3740,163 @@ test("a later leg's broker-check refused or skipped for the kill switch is a bre
   }
 });
 
+// The run a start-gate budget stop leaves (pr-run-activity-read.yml): the
+// first call's broker-check ran its kill-switch step, its `Stop on a low
+// GITHUB_TOKEN budget until <reset>` step (named with the gate's reset
+// output), and skipped the broker ask and the lease, ending green with
+// skip-reason budget. That skip-reason skips the call's run job, so its
+// issue-fields, scan and summary jobs skip too, and report skips with no lease
+// held. No handoff, no scan output: work-resolve-issue's later calls,
+// apply-issue-patch and report-outcome all skip, and the run ends green.
+const epoch = (at) => Date.parse(at) / 1000;
+const budgetStep = (name = `Stop on a low GITHUB_TOKEN budget until ${epoch("2026-10-16T10:30:00Z")}`) => ({ name, conclusion: "success" });
+const skippedJob = (name) => ({ name, conclusion: "skipped", steps: [] });
+const budgetStopped = (step = budgetStep()) => [
+  ADMITTED,
+  pickSlot,
+  {
+    name: "resolve-issue / broker-check",
+    conclusion: "success",
+    steps: [
+      { name: "Check the kill switch", conclusion: "success" },
+      step,
+      { name: "Ask the broker whether the lane may run", conclusion: "skipped" },
+      { name: "Claim the issue with a lane lease", conclusion: "skipped" },
+    ],
+  },
+  skippedJob("resolve-issue / broker-allowed"),
+  skippedJob("resolve-issue / run"),
+  skippedJob("resolve-issue / issue-fields"),
+  skippedJob("resolve-issue / scan"),
+  skippedJob("resolve-issue / summary"),
+  skippedJob("resolve-issue / report"),
+  { name: "resolve-issue-handoff", conclusion: "success", steps: [{ name: "Read whether the call handed off", conclusion: "success" }] },
+  skippedJob("resolve-issue-subscription"),
+  skippedJob("resolve-issue-fallback"),
+  skippedJob("apply-issue-patch"),
+  skippedJob("report-skip"),
+  skippedJob("report-outcome"),
+];
+const BUDGET_STOPPED = budgetStopped();
+const BUDGET_RECORD = `${BREAKER_MARKER}\n<!-- work-unblock cause=budget -->\n`;
+const budgeted = (calls) => {
+  tripped(calls);
+  assert.ok(postedBody(calls).startsWith(BUDGET_RECORD), postedBody(calls));
+};
+const switched = (calls) => {
+  tripped(calls);
+  assert.ok(!postedBody(calls).includes("cause=budget"), postedBody(calls));
+};
+
+test("a run its start gate stopped on the GITHUB_TOKEN budget re-fires once its window has reset, with a budget record, read from the job listing alone", async () => {
+  // The sweep runs at 12:00; the run ended at 11:58.
+  const ended = "2026-10-16T11:58:00Z";
+  const reset = budgetStopped(budgetStep(`Stop on a low GITHUB_TOKEN budget until ${epoch("2026-10-16T12:30:00Z")}`));
+  const before = stalledRun({ jobs: reset, conclusion: "success", ended });
+  assert.equal(await sweep({ github: before.github, actions: before.actions }), 0);
+  assert.deepEqual(writes(before.calls), [], "no record and no re-fire before the reset");
+  for (const now of ["2026-10-16T12:30:00Z", "2026-10-16T12:45:00Z"]) {
+    const after = stalledRun({ jobs: reset, conclusion: "success", ended });
+    assert.equal(await sweep({ github: after.github, actions: after.actions, now: Date.parse(now) }), 0);
+    budgeted(after.calls);
+    assert.deepEqual(logReads(after.calls), []);
+  }
+  // A step name with no readable reset, bare or with its expression left
+  // unevaluated, is still a budget stop and waits an hour after the run ended.
+  for (const name of ["Stop on a low GITHUB_TOKEN budget", "Stop on a low GITHUB_TOKEN budget until ${{ steps.kill.outputs.reset }}"]) {
+    const unnamed = budgetStopped(budgetStep(name));
+    const early = stalledRun({ jobs: unnamed, conclusion: "success", ended });
+    assert.equal(await sweep({ github: early.github, actions: early.actions, now: Date.parse("2026-10-16T12:57:59Z") }), 0);
+    assert.deepEqual(writes(early.calls), [], name);
+    const due = stalledRun({ jobs: unnamed, conclusion: "success", ended });
+    assert.equal(await sweep({ github: due.github, actions: due.actions, now: Date.parse("2026-10-16T12:58:00Z") }), 0);
+    budgeted(due.calls);
+  }
+  // The same listing without the budget step is a switch trip, re-fired at once.
+  const plain = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success", ended });
+  assert.equal(await sweep({ github: plain.github, actions: plain.actions }), 0);
+  switched(plain.calls);
+});
+
+test("a budget stop step that skipped is no budget stop", async () => {
+  const skipped = { ...budgetStep(), conclusion: "skipped" };
+  const jobs = [ADMITTED, pickSlot, { ...KILL_SKIPPED[2], steps: [KILL_SKIPPED[2].steps[0], skipped, KILL_SKIPPED[2].steps[1]] }, ...KILL_SKIPPED.slice(3)];
+  const { github, actions, calls } = stalledRun({ jobs, conclusion: "success" });
+  assert.equal(await sweep({ github, actions }), 0);
+  switched(calls);
+});
+
+// limits.limit-stops-per-issue is 3: three switch trips make the fourth wait
+// the flat kill-switch hours; three budget stops do not.
+test("budget stops never count toward limits.limit-stops-per-issue or wait the kill-switch hours", async () => {
+  const switchTrips = await afterSweeps(3, KILL_SKIPPED);
+  const fourthSwitch = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success", ...switchTrips });
+  assert.equal(await sweep({ github: fourthSwitch.github, actions: fourthSwitch.actions }), 0);
+  assert.deepEqual(writes(fourthSwitch.calls), [], "a fourth switch trip waits");
+
+  // Five budget records, as separate comments, each followed by its re-add.
+  const budgetStops = history(Array.from({ length: 5 }, (_, index) => breakerComment(KEY, { repo: REPO, run: 4100 + index, ended: Date.parse("2026-10-16T05:00:00Z"), budget: true })));
+  const afterBudget = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success", ...budgetStops });
+  assert.equal(await sweep({ github: afterBudget.github, actions: afterBudget.actions }), 0);
+  switched(afterBudget.calls);
+
+  const budgetAfterSwitch = stalledRun({ jobs: BUDGET_STOPPED, conclusion: "success", ...switchTrips });
+  assert.equal(await sweep({ github: budgetAfterSwitch.github, actions: budgetAfterSwitch.actions }), 0);
+  budgeted(budgetAfterSwitch.calls);
+});
+
+test("a later budget stop edits the issue's one budget record in place, never posting a second", async () => {
+  const once = await afterSweeps(1, BUDGET_STOPPED);
+  const recordId = once.comments.at(-1).id;
+  const again = stalledRun({ jobs: budgetStopped(budgetStep(`Stop on a low GITHUB_TOKEN budget until ${epoch("2026-10-16T11:30:00Z")}`)), conclusion: "success", ...once });
+  assert.equal(await sweep({ github: again.github, actions: again.actions }), 0);
+  const done = writes(again.calls);
+  assert.ok(done[0].startsWith(`PATCH /repos/${REPO}/issues/comments/${recordId} `), done[0]);
+  assert.ok(done[0].includes("cause=budget"), done[0]);
+  assert.ok(!done.some((call) => call.startsWith(`POST /repos/${REPO}/issues/30/comments `)), done.join("\n"));
+  assert.deepEqual(done.slice(1), restarted(30));
+  // A switch trip after it posts its own record: only budget records are edited.
+  const switchAfter = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success", ...once });
+  assert.equal(await sweep({ github: switchAfter.github, actions: switchAfter.actions }), 0);
+  switched(switchAfter.calls);
+});
+
+// One re-fire of a failed run on these workflow files (06:00), then two budget
+// stops on the one budget record (re-added 07:00 and 10:00), then a failed run
+// ending at 10:05: the backoff counts one re-fire, so it waits 6 hours, not 12.
+test("an edited budget record keeps each budget re-fire its own, so none counts toward a later backoff", async () => {
+  const failedLater = [ADMITTED, pickSlot, BROKER_ALLOWED, { name: "resolve-issue / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "success" }] }];
+  const unlabeled = (at) => ({ event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: at });
+  const first = { id: 71, body: breakerComment(KEY, { repo: REPO, run: 4100, ended: Date.parse("2026-10-16T06:50:00Z"), budget: true }), user: LANES_BOT, created_at: "2026-10-16T07:00:00Z" };
+  const before = [added("2026-10-16T05:00:00Z", OWNER), unlabeled("2026-10-16T06:00:00Z"), added("2026-10-16T06:00:01Z"), unlabeled("2026-10-16T07:00:00Z"), added("2026-10-16T07:00:01Z")];
+  const second = stalledRun({ jobs: BUDGET_STOPPED, conclusion: "success", comments: [note(), refireNote(KEY, "2026-10-16T06:00:00Z"), first], events: [...before.slice(0, -1), added(LABELED_AT)] });
+  assert.equal(await sweep({ github: second.github, actions: second.actions }), 0);
+  const patch = writes(second.calls)[0];
+  assert.ok(patch.startsWith(`PATCH /repos/${REPO}/issues/comments/71 `), patch);
+  const edited = { ...first, body: JSON.parse(patch.slice(patch.indexOf(" {") + 1)).body, updated_at: "2026-10-16T09:59:59Z" };
+  const history = {
+    comments: [note(), refireNote(KEY, "2026-10-16T06:00:00Z"), edited],
+    events: [...before, unlabeled("2026-10-16T09:59:59Z"), added(LABELED_AT)],
+  };
+  const early = stalledRun({ jobs: failedLater, ...history });
+  assert.equal(await sweep({ github: early.github, actions: early.actions, now: Date.parse("2026-10-16T16:04:59Z") }), 0);
+  assert.deepEqual(writes(early.calls), [], "one re-fire waits 6 hours");
+  const due = stalledRun({ jobs: failedLater, ...history });
+  assert.equal(await sweep({ github: due.github, actions: due.actions, now: Date.parse("2026-10-16T16:05:00Z") }), 0);
+  const done = writes(due.calls);
+  assert.ok(done[0].startsWith(`POST /repos/${REPO}/issues/30/comments `), done.join("\n"));
+  assert.ok(done[0].includes("has re-fired it 2 time(s)"), done[0]);
+  assert.deepEqual(done.slice(1), restarted(30));
+});
+
+test("the budget record says it never counts toward the per-issue bound", () => {
+  const body = breakerComment(KEY, { repo: REPO, run: 5030, ended: Date.parse("2026-10-16T10:05:00Z"), budget: true });
+  assert.ok(body.startsWith(BUDGET_RECORD), body);
+  assert.ok(body.includes(REFUSED_LINK), body);
+  assert.ok(body.includes("never counts toward limits.limit-stops-per-issue"), body);
+  assert.ok(!breakerComment(KEY, { repo: REPO, run: 5030, ended: 0 }).includes("cause=budget"));
+});
+
 test("a green run whose kill-switch check did not run, or whose broker ask ran, is no breaker trip", async () => {
   const [kill, ask] = KILL_SKIPPED[2].steps;
   const check = (steps) => ({ ...KILL_SKIPPED[2], steps });
@@ -3843,6 +4000,218 @@ test("a broker-check breaker trip is not re-fired while the issue lane is paused
   }
 });
 
+// A GitHub API rate-limit stop before any model turn. Each line is a stop
+// line's shape as its writer prints it: rate-guard.mjs's hit-the-limit line
+// (run 42976925201's run-checks line, its reset moved to this test's day),
+// rate-guard.mjs's stop-floor line (rate-guard.test.mjs's stop-floor
+// expectation), and api-budget.bash's api_budget_refuse line, each the failed
+// step's last line.
+const LIMIT_ID = 120990000001;
+const RESET = "2026-10-16T12:30:00Z";
+const STOP_LINES = {
+  "hit the limit": `GET https://api.github.com/repos/${REPO}/issues/30 hit GitHub's core API rate limit (status 403): no call to it before ${RESET} (x-ratelimit-reset); this step fails`,
+  "stop floor": `GET https://api.github.com/repos/${REPO}/issues/30 left GitHub's core API 97 of 5000 requests, at or under its stop-floor share 0.02 (status 200): no call to it before ${RESET} (x-ratelimit-reset); this step fails`,
+  "api-budget.bash": `'gh api repos/${REPO}/issues/30' hit GitHub's core API rate limit: no call to it before ${RESET} (x-ratelimit-reset); the call returns 1`,
+};
+const limitLog = (line) =>
+  ["2026-10-16T10:02:00.0000000Z ##[group]Run node .base/.github/scripts/work-resolve-issue/check-blockers.mjs", `2026-10-16T10:02:01.0000000Z ##[error]${line}`, "2026-10-16T10:02:01.1000000Z ##[error]Process completed with exit code 1.", ""].join("\n");
+const failedAt = (name, steps) => ({ id: LIMIT_ID, name, conclusion: "failure", runner_id: 13, started_at: "2026-10-16T10:01:00Z", steps });
+const SKIPPED_REST = [
+  { name: "resolve-issue", conclusion: "skipped", steps: [] },
+  { name: "report-outcome", conclusion: "skipped", steps: [] },
+];
+const PRE_MODEL_LIMITED = {
+  admit: [failedAt("admit", [{ name: "Check the kill switch", conclusion: "success" }, { name: "Check the trigger", conclusion: "success" }, { name: "Wait for open blockers", conclusion: "failure" }]), { name: "pick-slot", conclusion: "skipped", steps: [] }, ...SKIPPED_REST],
+  "pick-slot": [ADMITTED, failedAt("pick-slot", [{ name: "Check the WIP cap", conclusion: "success" }, { name: "Resolve the issue dimensions' timeout", conclusion: "failure" }]), ...SKIPPED_REST],
+  "broker-check": [
+    ADMITTED,
+    pickSlot,
+    failedAt("resolve-issue / broker-check", [
+      { name: "Check the kill switch", conclusion: "success" },
+      { name: "Ask the broker whether the lane may run", conclusion: "success" },
+      { name: "Claim the issue with a lane lease", conclusion: "failure" },
+    ]),
+    { name: "resolve-issue / run", conclusion: "skipped", steps: [] },
+    { name: "report-outcome", conclusion: "skipped", steps: [] },
+  ],
+  "a call's run job": [
+    ADMITTED,
+    pickSlot,
+    BROKER_ALLOWED,
+    failedAt("resolve-issue / run", [{ name: "Resolve the config", conclusion: "failure" }, { name: "Run the skill on the API key", conclusion: "skipped" }]),
+    { name: "report-outcome", conclusion: "skipped", steps: [] },
+  ],
+};
+const AFTER_RESET = Date.parse("2026-10-16T12:31:00Z");
+// A rate-limit stop's records name the GitHub API rate limit and the reset, never the broker.
+const limitCause = (reset) => `The work-resolve-issue run that \`agent-ready\` started stopped on GitHub's API rate limit before any model turn; the limit reset at ${reset}.`;
+const limitRefired = (reset) => [`POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: refireComment(KEY, limitCause(reset)) })}`, ...restarted(30)];
+
+test("a run a GitHub rate-limit stop failed before any model turn is re-fired as a failed mint once the reset it names has passed, from one log", async () => {
+  for (const [job, jobs] of Object.entries(PRE_MODEL_LIMITED)) {
+    for (const [wording, line] of Object.entries(STOP_LINES)) {
+      const name = `${job}, ${wording}`;
+      const logs = { [LIMIT_ID]: limitLog(line) };
+      // 12:00 is past the hour after the 10:05 end, but before the 12:30 reset.
+      const early = stalledRun({ jobs, logs });
+      assert.equal(await sweep({ github: early.github, actions: early.actions }), 0, name);
+      assert.deepEqual(writes(early.calls), [], `${name}: re-fired before the reset`);
+      assert.deepEqual(logReads(early.calls), [`GET /repos/${REPO}/actions/jobs/${LIMIT_ID}/logs`], name);
+      const due = stalledRun({ jobs, logs });
+      assert.equal(await sweep({ github: due.github, actions: due.actions, now: AFTER_RESET }), 0, name);
+      assert.deepEqual(writes(due.calls), limitRefired(RESET), `${name}: not re-fired after the reset`);
+      assert.ok(!writes(due.calls).some((call) => call.includes("needs-human")), name);
+    }
+  }
+});
+
+test("a rate-limit stop before any model turn is on the failed-mint bound and backoff, not the failed-run one", async () => {
+  const jobs = PRE_MODEL_LIMITED.admit;
+  const logs = { [LIMIT_ID]: limitLog(STOP_LINES["hit the limit"].replace(RESET, "2026-10-16T10:51:58Z")) };
+  // Two re-fires on these workflow files: a failed run waits 3 hours, a failed mint goes again.
+  const again = stalledRun({ jobs, logs, ...earlierPumps(2) });
+  assert.equal(await sweep({ github: again.github, actions: again.actions }), 0);
+  assert.deepEqual(writes(again.calls), limitRefired("2026-10-16T10:51:58Z"));
+  // Past the bound: the failed-mint backoff, 24 hours after the run ended at 10:05, its record naming the rate limit.
+  const over = stalledRun({ jobs, logs, ...earlierPumps(3) });
+  assert.equal(await sweep({ github: over.github, actions: over.actions }), 0);
+  assert.deepEqual(writes(over.calls), []);
+  const due = stalledRun({ jobs, logs, ...earlierPumps(3) });
+  assert.equal(await sweep({ github: due.github, actions: due.actions, now: Date.parse("2026-10-17T10:05:00Z") }), 0);
+  const backoffRecord = writes(due.calls);
+  assert.deepEqual(backoffRecord, [`POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: infraComment(KEY, limitCause("2026-10-16T10:51:58Z"), 4) })}`, ...restarted(30)]);
+  assert.ok(!backoffRecord[0].includes("broker"), backoffRecord[0]);
+  // An early reset still waits limits.reset-clamp-min after the run ended.
+  const recent = stalledRun({ jobs, logs, ended: "2026-10-16T11:30:00Z" });
+  assert.equal(await sweep({ github: recent.github, actions: recent.actions }), 0);
+  assert.deepEqual(writes(recent.calls), []);
+});
+
+// Run 42976995398: the subscription leg ran the model, then
+// run-checks and apply-issue-patch's trigger check failed. The same stop line
+// in a pre-model job of a run where a model step ran is no rate-limit stop.
+test("a rate-limit stop line in a run where a model step ran is not did-no-work: no log is read and the failed-run re-fire is unchanged", async () => {
+  const modelRan = [
+    ADMITTED,
+    pickSlot,
+    { ...BROKER_ALLOWED, name: "resolve-issue-subscription / broker-check" },
+    { name: "resolve-issue-subscription / run", conclusion: "success", steps: [{ name: "Run the skill on the OAuth token", conclusion: "success" }] },
+    { ...failedAt("resolve-issue-fallback / broker-check", [{ name: "Claim the issue with a lane lease", conclusion: "failure" }]), id: LIMIT_ID + 1 },
+    { name: "apply-issue-patch / run", conclusion: "failure", steps: [{ name: "Check the trigger", conclusion: "failure" }, { name: "Request the lane token", conclusion: "skipped" }] },
+    failedAt("run-checks", [{ name: "Resolve the config", conclusion: "failure" }]),
+  ];
+  const summarized = [
+    ...PRE_MODEL_LIMITED["broker-check"].slice(0, 3),
+    { name: "resolve-issue-subscription / summary", conclusion: "success", steps: [{ name: "Summarize the reused branch on the OAuth token", conclusion: "success" }] },
+  ];
+  for (const [name, jobs] of [
+    ["the model ran", modelRan],
+    ["the summary pass ran", summarized],
+  ]) {
+    const line = limitLog(STOP_LINES["hit the limit"]);
+    const { github, actions, calls } = stalledRun({ jobs, logs: { [LIMIT_ID]: line, [LIMIT_ID + 1]: line } });
+    assert.equal(await sweep({ github, actions }), 0, name);
+    assert.deepEqual(logReads(calls), [], name);
+    // The failed-run path re-fires it at once, inside the reset.
+    assert.deepEqual(writes(calls), refired(30), name);
+  }
+});
+
+test("a pre-model failure whose log cannot be read, or whose last line is no rate-limit stop, keeps the failed-run re-fire", async () => {
+  const notStop = limitLog("GET https://api.github.com/repos/o/r/issues/30 failed with status 502");
+  const earlierLine = ["2026-10-16T10:02:00.0000000Z ##[error]" + STOP_LINES["hit the limit"], notStop].join("\n");
+  for (const [name, logs] of [
+    ["no log", {}],
+    ["another error", { [LIMIT_ID]: notStop }],
+    ["a stop line before the step's last line", { [LIMIT_ID]: earlierLine }],
+    ["over the size cap", { [LIMIT_ID]: `${"x".repeat(2 * 1024 * 1024)}\n${limitLog(STOP_LINES["hit the limit"])}` }],
+  ]) {
+    const { github, actions, calls } = stalledRun({ jobs: PRE_MODEL_LIMITED.admit, logs });
+    assert.equal(await sweep({ github, actions }), 0, name);
+    assert.deepEqual(writes(calls), refired(30), name);
+    // Past the per-version re-fire it waits the failed-again hours, as a failed run does.
+    const again = stalledRun({ jobs: PRE_MODEL_LIMITED.admit, logs, ...earlierPumps(2) });
+    assert.equal(await sweep({ github: again.github, actions: again.actions }), 0, name);
+    assert.deepEqual(writes(again.calls), [], name);
+  }
+});
+
+// admit and pick-slot check the kill switch first; a switch that is on skips
+// their first API step and ends the run green with every later job skipped.
+const ADMIT_KILLED = [
+  {
+    name: "admit",
+    conclusion: "success",
+    steps: [
+      { name: "Check the kill switch", conclusion: "success" },
+      { name: "Install resolve-config's packages", conclusion: "skipped" },
+      { name: "Check the trigger", conclusion: "skipped" },
+      { name: "Wait for open blockers", conclusion: "skipped" },
+    ],
+  },
+  { name: "pick-slot", conclusion: "skipped", steps: [] },
+  ...SKIPPED_REST,
+];
+const PICK_SLOT_KILLED = [
+  ADMITTED,
+  {
+    name: "pick-slot",
+    conclusion: "success",
+    steps: [
+      { name: "Check the kill switch", conclusion: "success" },
+      { name: "Check the WIP cap", conclusion: "skipped" },
+      { name: "Hold on an unknown WIP cap", conclusion: "skipped" },
+    ],
+  },
+  { name: "report-skip", conclusion: "skipped", steps: [] },
+  ...SKIPPED_REST,
+];
+
+test("an admit or pick-slot kill-switch skip is a breaker trip at broker-check, read from the job listing alone and re-fired at the first sweep", async () => {
+  for (const [name, jobs] of [
+    ["admit", ADMIT_KILLED],
+    ["pick-slot", PICK_SLOT_KILLED],
+  ]) {
+    const { github, actions, calls } = stalledRun({ jobs, conclusion: "success" });
+    assert.equal(await sweep({ github, actions }), 0, name);
+    tripped(calls);
+    assert.deepEqual(logReads(calls), [], name);
+    const recent = stalledRun({ jobs, conclusion: "success", ended: "2026-10-16T11:58:00Z" });
+    assert.equal(await sweep({ github: recent.github, actions: recent.actions }), 0, name);
+    tripped(recent.calls);
+  }
+  // The same jobs with their API steps run are no trip: pick-slot's is a WIP
+  // cap skip, re-fired with a plain record, and admit's a blocker-gate skip,
+  // which waits while its blocker is open.
+  const ran = (jobs, job) => jobs.map((item) => (item.name === job ? { ...item, steps: item.steps.map((step) => ({ ...step, conclusion: "success" })) } : item));
+  const capped = stalledRun({ jobs: ran(PICK_SLOT_KILLED, "pick-slot"), conclusion: "success" });
+  assert.equal(await sweep({ github: capped.github, actions: capped.actions }), 0);
+  assert.deepEqual(writes(capped.calls), refired(30));
+  const admitted = stalledRun({ jobs: ran(ADMIT_KILLED, "admit"), conclusion: "success", blockedBy: { 30: [issue(31)] } });
+  assert.equal(await sweep({ github: admitted.github, actions: admitted.actions }), 0);
+  assert.deepEqual(writes(admitted.calls), []);
+});
+
+// With the switch off, a failed admit install also leaves `Check the trigger`
+// skipped, and a failed pick-slot can leave `Check the WIP cap` skipped: each
+// job ends red, so the run is a failed run, never a kill-switch trip.
+test("an admit whose install failed, or a pick-slot that failed, with its gated step skipped is a failed run, not a breaker trip", async () => {
+  const failedJob = (jobs, name, edit) => jobs.map((item) => (item.name === name ? { ...item, conclusion: "failure", steps: item.steps.map(edit) } : item));
+  for (const [name, jobs] of [
+    ["admit install failed", failedJob(ADMIT_KILLED, "admit", (step) => (step.name === "Install resolve-config's packages" ? { ...step, conclusion: "failure" } : step))],
+    ["pick-slot failed", failedJob(PICK_SLOT_KILLED, "pick-slot", (step) => step)],
+  ]) {
+    // The failed-run path: re-fired at once with its plain record, no breaker record.
+    const fresh = stalledRun({ jobs, conclusion: "failure" });
+    assert.equal(await sweep({ github: fresh.github, actions: fresh.actions }), 0, name);
+    assert.deepEqual(writes(fresh.calls), refired(30), name);
+    // Re-fired twice on these workflow files already: a failed run waits the failed-again hours, a breaker trip would not.
+    const again = stalledRun({ jobs, conclusion: "failure", ...earlierPumps(2) });
+    assert.equal(await sweep({ github: again.github, actions: again.actions }), 0, name);
+    assert.deepEqual(writes(again.calls), [], name);
+  }
+});
+
 test("a green run whose stale stop did not run, or a stop step outside resolve-issue, is not re-fired", async () => {
   for (const [name, jobs] of [
     ["stop step skipped", [ADMITTED, pickSlot, BROKER_ALLOWED, staleRunJob("skipped")]],
@@ -3876,6 +4245,15 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   assert.ok(steps(caller["pick-slot"]).includes("Check the WIP cap"));
   assert.ok(steps(caller.admit).includes("Wait for open blockers"));
   assert.ok(steps(caller.admit).includes("Stop on untrusted provenance"));
+  // A kill-switch skip in admit or pick-slot is read as its first API step skipped after the check.
+  for (const [id, step] of [
+    ["admit", "Check the trigger"],
+    ["pick-slot", "Check the WIP cap"],
+  ]) {
+    const names = steps(caller[id]);
+    assert.ok(names.indexOf("Check the kill switch") >= 0 && names.indexOf("Check the kill switch") < names.indexOf(step), id);
+    assert.match(caller[id], new RegExp(String.raw`^ {6}- name: ${step}\n(?: {8}.*\n)*? {8}if: steps\.kill\.outputs\.proceed (?:== 'true'|!= 'false')\n`, "m"), id);
+  }
   // Every call of the read runner is a leg stoppedStale reads.
   const calls = Object.keys(caller).filter((id) => /^ {4}uses: \.\/\.github\/workflows\/pr-run-activity-read\.yml\b/m.test(caller[id]));
   assert.deepEqual(calls, ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"]);
@@ -3890,6 +4268,21 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   assert.ok(checkSteps.indexOf("Stop on an open blocker") > checkSteps.indexOf("Claim the issue with a lane lease"));
   assert.ok(read.run !== undefined);
   assert.ok(steps(read.run).includes("Stop on stale workflow files"));
+  // broker-check's budget step follows its kill-switch step, runs exactly on a
+  // budget stop, and carries the gate's reset in its name; its gate reads the
+  // budget. The model job's gate checks the switches only.
+  const budgetName = "Stop on a low GITHUB_TOKEN budget until ${{ steps.kill.outputs.reset }}";
+  const checkNamed = steps(read["broker-check"]);
+  assert.equal(checkNamed.indexOf(budgetName), checkNamed.indexOf("Check the kill switch") + 1);
+  assert.match(read["broker-check"], /^ {6}- name: Stop on a low GITHUB_TOKEN budget until \$\{\{ steps\.kill\.outputs\.reset \}\}\n {8}if: steps\.kill\.outputs\.cause == 'budget'\n/m);
+  // Its gate reads the budget on a starting caller's first call, and a budget
+  // stop sets skip-reason budget, which skips the run job.
+  assert.match(read["broker-check"], /^ {10}budget: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop'\) && 'true' \|\| 'false' \}\}$/m);
+  assert.match(read["broker-check"], /^ {6}skip-reason: \$\{\{ steps\.kill\.outputs\.cause == 'budget' && 'budget' \|\| steps\.broker\.outputs\.skip-reason \}\}$/m);
+  assert.match(read.run, /^ {6}&& needs\.broker-check\.outputs\.skip-reason == ''$/m);
+  assert.match(caller["resolve-issue"], /^ {6}start-gate: true$/m);
+  assert.ok(!steps(read.run).some((name) => name.startsWith("Stop on a low GITHUB_TOKEN budget")));
+  assert.doesNotMatch(read.run, /^ {10}budget:/m);
   for (const id of ["broker-check", "run"]) {
     assert.doesNotMatch(read[id], /^ {4}name:/m, `read runner job ${id} keeps its id as its name`);
   }

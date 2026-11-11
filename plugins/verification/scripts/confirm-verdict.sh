@@ -121,9 +121,7 @@ if [[ "$CMD" == record ]]; then
   fi
   mkdir -p "$dir" || die 2 "cannot create $dir"
   tmp=$(mktemp "$dir/.$HEAD_SHA.XXXXXX") || die 2 "cannot write in $dir"
-  if ! {
-    printf 'verdict: %s\n' "$VERDICT" && { ((${#items[@]} == 0)) || printf '%s\n' "${items[@]}"; }
-  } >"$tmp" || ! mv -f "$tmp" "$file"; then
+  if ! printf '%s\n' "verdict: $VERDICT" ${items[@]+"${items[@]}"} >"$tmp" || ! mv -f "$tmp" "$file"; then
     rm -f "$tmp"
     die 2 "cannot write $file"
   fi

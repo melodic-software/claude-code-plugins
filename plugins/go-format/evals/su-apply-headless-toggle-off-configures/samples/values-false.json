@@ -4,22 +4,18 @@
       "answer": "`{\"go_format_enabled\": \"false\"}`"
     },
     {
-      "answer": "{\"go_format_enabled\":\"false\"}",
-      "why": "no space"
+      "answer": "Set go_format_enabled to false.",
+      "why": "key and value in prose"
     }
   ],
   "fail": [
     {
-      "answer": "{\"go_format_enabled\": false}",
-      "why": "unquoted boolean; every value is a string"
-    },
-    {
-      "answer": "go_format_enabled=false",
-      "why": "the --config form, not the JSON"
-    },
-    {
       "answer": "{\"go_format_enabled\": \"true\"}",
       "why": "wrong value"
+    },
+    {
+      "answer": "{\"go_format\": \"false\"}",
+      "why": "near miss: wrong key"
     }
   ]
 }

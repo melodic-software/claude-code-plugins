@@ -18,7 +18,7 @@ A skip item leaves no row and no line; only the count in the read summary shows 
 
 - Grep finds the item's feature, field, event or flag in a component, and the item changes what is true about it
 - A bug the component documents as a quirk is fixed upstream, or a deprecation or removal hits something the component uses
-- A recheck trigger on a component fires
+- A recheck trigger on a component's stored value (a recorded default, limit, version gate or measured observation) fires. A pointer carries no trigger; the feature grep above is its signal
 
 The row names the claim as the component states it (false) and as the item states it (true). A row without both halves is not a correct row.
 
@@ -46,6 +46,7 @@ A changelog line alone does not meet the bar.
 ### note and skip
 
 - Security fixes and model-specific changes are never skip. Check the repo's trust posture and model-routing docs; the result is correct, adopt or note
+- A security-relevant change that would add a mechanism (an adopt row) is a decision row only when a surface that runs today is exposed in the mode the item names; name that surface and mode. Otherwise it is a note that names the condition that would make it a row. A theoretical risk with no running exposure never becomes a question for the user. A correct row is never demoted: a component's false security claim is always fixed
 - A fix for a feature the repo does not use is skip, unless it unblocks something the repo declined for lack of that fix, which is adopt
 - A deprecation of something the repo does not use is skip
 - An experimental feature is note unless it solves a problem a component works around, which is adopt with defer pending probe
