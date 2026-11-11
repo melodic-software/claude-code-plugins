@@ -121,14 +121,16 @@ boundary.
    items in an attended session, a summary of what the artifacts already carry is paid for
    nothing, so we clear rather than compact; lanes keep their own routing. After two failed
    corrections we clear and restate the problem rather than carry those attempts forward.* In an
-   attended session whose failed attempts were made through file-edit tools, offer `/rewind` first,
-   choosing "Restore code and conversation" or "Restore code", not "Summarize from here": it keeps the reads from before the
-   attempts, which a clear discards. It does not restore files only shell commands changed or most
-   subagent edits, and file snapshots are kept for a bounded time. Never offer it as a safety net
-   for orchestrated work.
+   attended session whose failed attempts were made through file-edit tools, offer `/rewind` first
+   with an option that restores code, never a summarize option: it keeps the reads from before the
+   attempts, which a clear discards. Before offering it, read the restore options, limitations and
+   snapshot retention at the pointers below, and tell the user what this rewind would leave
+   unrestored. Never offer it as a safety net for orchestrated work.
 
-   - **Pointer**: for what `/rewind` restores and how long snapshots are kept, see
-     <https://code.claude.com/docs/en/checkpointing>
+   - **Pointer**: restore options
+     <https://code.claude.com/docs/en/checkpointing#rewind-and-summarize>; what is not restored
+     <https://code.claude.com/docs/en/checkpointing#limitations>; snapshot retention
+     <https://code.claude.com/docs/en/checkpointing#automatic-tracking>
    - **As of**: 2026-11-11
    - **Recheck trigger**: the checkpointing page changes its restore options, its Bash or
      subagent limitations, or its snapshot retention

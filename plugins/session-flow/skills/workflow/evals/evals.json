@@ -426,7 +426,7 @@
       "id": 36,
       "name": "failed-file-edit-attempts-offer-rewind-first",
       "prompt": "/workflow continue — I am at the keyboard. You edited src/parser.ts twice with your edit tool to fix the same failing test and corrected course twice; it still fails. How should I continue?",
-      "expected_output": "Two failed corrections on one issue answer question 4. Because the attempts were made through file-edit tools in an attended session, the router offers `/rewind` first with a restore option (not 'Summarize from here'), which keeps the reads from before the attempts, and states its limits in the same breath: files changed only by shell commands and most subagent edits are not restored, and snapshots are kept for a bounded time. `/clear` stays the fallback.",
+      "expected_output": "Two failed corrections on one issue answer question 4. Because the attempts were made through file-edit tools in an attended session, the router offers `/rewind` first with a restore option (not 'Summarize from here'), which keeps the reads from before the attempts, and states its limits in the same breath, read from the checkpointing page rather than recalled: files changed only by shell commands and most subagent edits are not restored, and snapshots are kept for a bounded time. `/clear` stays the fallback.",
       "files": [],
       "expectations": [
         "It offers `/rewind` before `/clear`",
