@@ -38,9 +38,11 @@ subdirectory). The binding lives in the convention home, which the repository bi
 region of `AGENTS.md` or `CLAUDE.md`:
 
 ```bash
-ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
+ROOT="<project root>"
 bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "$ROOT"
 ```
+
+`<project root>` is the literal path [`tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet; the same holds wherever `<project root>` appears below.
 
 Exit `0` prints the home; exit `1` (no pointer) means `docs/conventions`. Exit `4` (the repository
 declined a home) or `5` (the root is `$HOME`, an ancestor of it, or not a git work tree) means no home
@@ -477,7 +479,7 @@ token resolving in a supporting file or in the Bash tool.
 - Author a provider adapter. The seam bundles `github` and `local-markdown`, and setup only copies
   the `jira`, `gitea`, or `linear` seed (step 4 of "Provider binding"); any other adapter lives in the
   consuming repo at
-  `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/adapters/<provider>/`, not written by setup.
+  `<project root>/tools/work-item-tracker/adapters/<provider>/`, not written by setup.
 - Store secrets, the binding is tracked in git and carries non-secret config only (a provider token is
   referenced by name from inside its adapter, never written here).
 - Write machine-local state, the binding and schedule live in the consumer's tracked tree, never in

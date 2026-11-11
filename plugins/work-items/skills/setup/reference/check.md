@@ -34,7 +34,8 @@ check.
    key outside `schema_version`, `provider`, `config` and `docs`, or the legacy file parses as JSON.
    It carries `schema_version` and a `provider`, and that provider resolves to a bundled
    adapter (`github`, `local-markdown`) or a consumer-local one at
-   `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/adapters/<provider>/`.
+   `<project root>/tools/work-item-tracker/adapters/<provider>/` ([`tracker-seam.md`](../../../reference/tracker-seam.md)
+   "Project root").
    A seeded provider (`jira`, `gitea`, `linear`) resolves only through that consumer-local copy: with
    none there it is FAIL, remediation `/work-items:setup apply`, which copies the seed. `config.lease_ttl_hours` is
    present, `local-markdown` additionally carries `config.storage_dir`, and `jira` additionally carries
