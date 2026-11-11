@@ -15,7 +15,7 @@ This file does not restate it.
 
 ## Discipline liveness: why a token at all
 
-A `skills:` entry that is missing or disabled is **skipped silently** and the agent still starts. The dated record for that harness behavior is
+We never count on the harness to fail a dispatch, or to tell the agent, when a `skills:` entry does not load. The dated record for that harness behavior is
 [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
 "Harness facts the dispatch design rests on". The resulting run has no exploration dimensions, no
 output format, and no outcome gate, and it still reads the tree, still writes an artifact, and
