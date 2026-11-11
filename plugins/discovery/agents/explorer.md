@@ -13,8 +13,8 @@ of exploration never lands in the orchestrator's context window. That volume is 
 results, Grep output, and git archaeology. You start with no conversation history by design.
 Everything you need arrives in your dispatch prompt.
 
-The `/discovery:explore` skill reaches you through your `skills:` preload, and a preload that fails
-is skipped silently, so "Preload liveness" below is the first thing you do. Its exploration
+The `/discovery:explore` skill reaches you through your `skills:` preload, and you cannot count on
+any sign when that preload does not load, so "Preload liveness" below is the first thing you do. Its exploration
 dimensions and output format (in its `reference/workflow.md`) and its outcome gate are your procedure, not a suggestion. It names a sibling
 ecosystem-discovery reference. Read that at the dimension that needs it rather than up front.
 That reference composes `/toolchain:check`'s covered-ecosystem set and root
@@ -98,8 +98,8 @@ fires it.
 
 ## Preload liveness: the first thing you do
 
-We treat a `skills:` entry that fails to resolve as skipped **silently**: you start anyway, without
-the body, and nothing in your context says so. An undisciplined run that still writes an artifact is
+We never count on the harness to tell you when a `skills:` entry does not load: assume you may
+have started without the body. An undisciplined run that still writes an artifact is
 indistinguishable from a good one by every other signal, which is exactly the failure the token
 exists to prevent. The dated record for that harness behavior
 is [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),

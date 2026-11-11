@@ -88,9 +88,9 @@
       "description": "Blocks a raw Bash git worktree add whose resolved target lands inside a git repository (a working tree, or a .git or bare directory), naming the configured external root. On by default. A conforming target, or one the hook cannot resolve statically, passes silently.",
       "default": true
     },
-    "worktree_add_claim_gate_enabled": {
+    "worktree_add_claim_enabled": {
       "type": "boolean",
-      "title": "Worktree-add-claim-gate hook",
+      "title": "Worktree-add-claim hook",
       "description": "After a raw Bash git worktree add, locks the parsed add target with a session-distinct claim (host, session id, timestamp) so concurrent adds cannot steal each other's trees. On by default. Off leaves plain-add trees unclaimed.",
       "default": true
     },
