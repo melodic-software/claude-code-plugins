@@ -3,7 +3,7 @@ name: la-compaction-resume-and-cloud
 graders:
   - name: compaction-not-reset
     type: regex
-    pattern: 'compact\w*[^\n]{0,250}\b(?:not a (?:fresh |true |real |clean )?(?:reset|context|start)|isn[’'']?t a (?:fresh |true |real |clean )?(?:reset|context|start)|lossy|summar\w*)|\b(?:lossy|summar\w*)[^\n]{0,200}compact'
+    pattern: 'compact\w*[^\n]{0,250}\b(?:not a (?:fresh |true |real |clean )?(?:reset|context|start)|isn[’'']?t a (?:fresh |true |real |clean )?(?:reset|context|start)|lossy|(?:summary|summaries|summari[sz]\w*))|\b(?:lossy|(?:summary|summaries|summari[sz]\w*))[^\n]{0,200}compact'
     flags: 'i'
     target: last_message
   - name: declines-resume-bg

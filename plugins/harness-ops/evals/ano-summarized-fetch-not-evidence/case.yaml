@@ -3,7 +3,7 @@ name: ano-summarized-fetch-not-evidence
 graders:
   - name: fetch-answer-is-summary
     type: regex
-    pattern: '\bsummar\w*|\bsmall(?:er)? model\b|\bparaphras\w*|\bmodel[’'']?s? (?:answer|reading|summary)\b|\bnot the (?:raw )?page\b'
+    pattern: '\b(?:summary|summaries|summari[sz]\w*)|\bsmall(?:er)? model\b|\bparaphras\w*|\bmodel[’'']?s? (?:answer|reading|summary)\b|\bnot the (?:raw )?page\b'
     flags: 'i'
     target: last_message
   - name: absence-not-evidence
