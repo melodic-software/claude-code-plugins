@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": ".work/slugify-max-length/PLAN.md"}}],
+      "why": "no agent dispatched"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Agent", "input": {"subagent_type": "planning:plan-reviewer", "description": "Review plan", "prompt": "Review .work/slugify-max-length/PLAN.md"}}],
+      "why": "dispatched the plan-reviewer"
+    }
+  ]
+}
