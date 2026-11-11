@@ -34,14 +34,18 @@ runs:
           [ "$left" -gt 0 ] || return 1
           timeout "$((left < 180 ? left : 180))" sudo apt-get -o DPkg::Lock::Timeout=60 "$@"
         }
-        install() { apt_get install -y --no-install-recommends bubblewrap socat; }
+        apt_install() { apt_get install -y --no-install-recommends bubblewrap socat; }
+        # A killed install can leave dpkg half-configured, which fails the next try.
+        repair() { timeout 40 sudo dpkg --configure -a || true; }
         # The image's lists need only the package files; an index refresh,
         # the slow part of a stalled mirror, runs only when they are stale.
-        have || install || true
+        have || apt_install || repair
         for i in 1 2 3; do
           have && break
-          apt_get update -qq && install && break
+          [ "$SECONDS" -lt "$deadline" ] || break
+          apt_get update -qq && apt_install && break
           echo "apt-get attempt $i failed or timed out"
+          repair
           if [ "$i" -lt 3 ]; then sleep $((i * 10)); fi
         done
         # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor.

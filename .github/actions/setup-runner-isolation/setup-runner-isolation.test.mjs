@@ -6,6 +6,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const ACTION = new URL("./action.yml", import.meta.url);
@@ -52,7 +53,7 @@ function run({ apt, preinstalled = [] }) {
   const state = path.join(root, "state");
   for (const dir of [bin, state]) mkdirSync(dir, { recursive: true });
   for (const tool of TOOLS) symlinkSync(execFileSync("bash", ["-c", `command -v ${tool}`], { encoding: "utf8" }).trim(), path.join(bin, tool));
-  const stubs = { sudo: sh('exec "$@"'), sleep: sh(":"), sysctl: sh(":"), "apt-get": APT_GET };
+  const stubs = { sudo: sh('exec "$@"'), sleep: sh(":"), sysctl: sh(":"), dpkg: sh(":"), "apt-get": APT_GET };
   for (const tool of preinstalled) stubs[tool] = sh(":");
   for (const [name, body] of Object.entries(stubs)) {
     writeFileSync(path.join(bin, name), body);
@@ -123,7 +124,7 @@ test("the inline-apt pattern matches a known inline install line", () => {
 });
 
 test("no workflow or other action installs bubblewrap or socat with its own apt block", () => {
-  const github = new URL("../../", import.meta.url).pathname;
+  const github = fileURLToPath(new URL("../../", import.meta.url));
   const files = [
     ...readdirSync(path.join(github, "workflows")).filter((f) => f.endsWith(".yml")).map((f) => path.join(github, "workflows", f)),
     ...readdirSync(path.join(github, "actions"))
