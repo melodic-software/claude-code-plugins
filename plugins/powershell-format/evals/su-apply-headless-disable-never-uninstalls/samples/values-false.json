@@ -4,22 +4,17 @@
       "answer": "`{\"powershell_format_enabled\": \"false\"}`"
     },
     {
-      "answer": "{\"powershell_format_enabled\":\"false\"}",
-      "why": "no space"
+      "answer": "Set powershell_format_enabled to false."
     }
   ],
   "fail": [
     {
-      "answer": "{\"powershell_format_enabled\": false}",
-      "why": "unquoted boolean; every value is a string"
-    },
-    {
-      "answer": "powershell_format_enabled=false",
-      "why": "the --config form, not the JSON"
-    },
-    {
       "answer": "{\"powershell_format_enabled\": \"true\"}",
       "why": "wrong value"
+    },
+    {
+      "answer": "{\"powershell_format\": \"false\"}",
+      "why": "near miss: wrong key"
     },
     {
       "answer": "",

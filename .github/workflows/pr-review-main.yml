@@ -795,6 +795,7 @@ jobs:
         env:
           PROCEED: ${{ steps.kill.outputs.proceed }}
           REASON: ${{ steps.kill.outputs.reason }}
+          CAUSE: ${{ steps.kill.outputs.cause }}
           LANE_SWITCH: ${{ vars[matrix.switch] }}
           UPSTREAM_DEGRADED: ${{ steps.upstream.outputs.degraded }}
         run: |
@@ -806,7 +807,7 @@ jobs:
             echo "::error::an upstream outage stops this review; the lost-run reconciler re-runs it once GitHub Actions is operational"
             exit 1
           else
-            echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
+            echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable} cause ${CAUSE:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
           fi
 
       # The upstream run's actors, the re-runner and the PR author must all be
@@ -1744,6 +1745,7 @@ jobs:
         env:
           PROCEED: ${{ steps.kill.outputs.proceed }}
           REASON: ${{ steps.kill.outputs.reason }}
+          CAUSE: ${{ steps.kill.outputs.cause }}
           LANE_SWITCH: ${{ vars[matrix.switch] }}
           UPSTREAM_DEGRADED: ${{ steps.upstream.outputs.degraded }}
         run: |
@@ -1755,7 +1757,7 @@ jobs:
             echo "::error::an upstream outage stops this review; the lost-run reconciler re-runs it once GitHub Actions is operational"
             exit 1
           else
-            echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
+            echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable} cause ${CAUSE:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
           fi
 
       # The upstream run's actors, the re-runner and the PR author must all be
@@ -2661,6 +2663,7 @@ jobs:
         env:
           PROCEED: ${{ steps.kill.outputs.proceed }}
           REASON: ${{ steps.kill.outputs.reason }}
+          CAUSE: ${{ steps.kill.outputs.cause }}
           LANE_SWITCH: ${{ vars[matrix.switch] }}
           UPSTREAM_DEGRADED: ${{ steps.upstream.outputs.degraded }}
         run: |
@@ -2672,7 +2675,7 @@ jobs:
             echo "::error::an upstream outage stops this review; the lost-run reconciler re-runs it once GitHub Actions is operational"
             exit 1
           else
-            echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
+            echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable} cause ${CAUSE:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
           fi
 
       # The upstream run's actors, the re-runner and the PR author must all be

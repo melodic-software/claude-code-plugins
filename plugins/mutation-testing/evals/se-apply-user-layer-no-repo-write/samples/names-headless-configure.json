@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "Headless: claude plugin configure mutation-testing@melodic-software --values-stdin < values.json"
+    },
+    {
+      "answer": "Or run `claude plugin configure mutation-testing@<marketplace>` with the values on stdin."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run /plugin configure mutation-testing@<marketplace> and set operators and max_mutants.",
+      "why": "interactive route only; names no headless configure route"
+    },
+    {
+      "answer": "claude plugin configure mutation-testing --values-stdin",
+      "why": "near miss: no marketplace"
+    }
+  ]
+}

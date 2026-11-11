@@ -82,6 +82,17 @@ on:
         required: false
         type: string
         default: ""
+      start-gate:
+        description: >-
+          `true` for a caller whose call starts new work (the issue lane):
+          broker-check's kill-switch gate then also stops on a low
+          GITHUB_TOKEN budget, on the first call in the slot only (fallback
+          empty or `credit-stop`); a call that takes over a handed-off turn,
+          and every call of a caller that leaves this `false`, checks the
+          switches only.
+        type: boolean
+        required: false
+        default: false
       fallback:
         description: >-
           Empty for the first call, which runs on claude-api-key and hands off
@@ -412,7 +423,8 @@ on:
       skip-reason:
         description: >-
           `kill-switch` when the broker refused the check because a lanes kill
-          switch is on, so no lane ran; empty otherwise.
+          switch is on, `budget` when broker-check's start gate stopped on a
+          low GITHUB_TOKEN budget, so no lane ran; empty otherwise.
         value: ${{ jobs.broker-check.outputs.skip-reason }}
       lease:
         description: >-
@@ -438,7 +450,9 @@ jobs:
   # neutral. A broker kill-switch refusal (a switch turned on after this run
   # read its variables) also ends green, with skip-reason kill-switch, which
   # skips the run job and every job after it but report, which posts the
-  # check neutral on a pull_request run. Any other broker answer but an allow, or none, fails this
+  # check neutral on a pull_request run. A start-gate stop on a low
+  # GITHUB_TOKEN budget ends green the same way, with skip-reason budget, and
+  # report posts the same neutral kill-switch check. Any other broker answer but an allow, or none, fails this
   # job, which skips the run job and fails the check. issues: write is for the issue
   # lease alone, posted before any model turn (CONTRACT.md "Lease protocol").
   broker-check:
@@ -456,7 +470,7 @@ jobs:
     # so the run job also checks that the allow came from its own attempt.
     outputs:
       allowed: ${{ steps.broker.outcome == 'success' && steps.broker.outputs.allowed == 'true' }}
-      skip-reason: ${{ steps.broker.outputs.skip-reason }}
+      skip-reason: ${{ steps.kill.outputs.cause == 'budget' && 'budget' || steps.broker.outputs.skip-reason }}
       attempt: ${{ github.run_attempt }}
       lease: ${{ steps.lease.outputs.lease }}
       lease-comment-id: ${{ steps.lease.outputs.lease-comment-id }}
@@ -519,6 +533,19 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          # A first call that starts new work also stops on a low GITHUB_TOKEN
+          # budget; a handed-off or fallback leg checks the switches only.
+          budget: ${{ inputs.start-gate && (inputs.fallback == '' || inputs.fallback == 'credit-stop') && 'true' || 'false' }}
+
+      # work-unblock's sweep reads this step's name and conclusion from the
+      # job listing (label-unblocked.mjs BUDGET_STEP): a stop on the
+      # GITHUB_TOKEN budget re-fires after the window's reset the name
+      # carries, without counting as a kill-switch trip.
+      - name: Stop on a low GITHUB_TOKEN budget until ${{ steps.kill.outputs.reset }}
+        if: steps.kill.outputs.cause == 'budget'
+        env:
+          RESET: ${{ steps.kill.outputs.reset }}
+        run: echo "::notice::the start gate stopped this run on a low GITHUB_TOKEN budget until $RESET (epoch seconds)"
 
       # The broker repeats the kill switch, including the repository-variable
       # shadow this job cannot see, and checks the job's OIDC claims.
@@ -3933,7 +3960,7 @@ jobs:
           API_HEAD: ${{ steps.pr-head.outputs.sha }}
           PR_MISMATCH: ${{ steps.pr-head.outputs.pr-mismatch }}
           TRUSTED_SKIP: ${{ needs.broker-check.outputs.allowed != 'true' }}
-          BROKER_STOP: ${{ needs.broker-check.outputs.skip-reason == 'kill-switch' }}
+          BROKER_STOP: ${{ needs.broker-check.outputs.skip-reason == 'kill-switch' || needs.broker-check.outputs.skip-reason == 'budget' }}
           POST_DECLINE: ${{ inputs.post-decline }}
         run: |
           out() { printf 'post=true\nsha=%s\nforged=%s\n' "$1" "$2" >>"$GITHUB_OUTPUT"; }
@@ -3943,7 +3970,9 @@ jobs:
             valid "$gated" || gated=$EVENT_HEAD
             if [ "$TRUSTED_SKIP" = true ] || [ "$POST_DECLINE" = false ] || ! valid "$gated"; then
               out "" false
-              # The broker's kill-switch refusal skipped the run job: neutral.
+              # The broker's kill-switch refusal, or broker-check's budget
+              # stop, skipped the run job: neutral, under the skip-reason
+              # enum's kill-switch.
               if [ "$BROKER_STOP" = true ]; then echo "not-run-reason=kill-switch" >>"$GITHUB_OUTPUT"; fi
             else
               out "$gated" false
@@ -4065,7 +4094,7 @@ jobs:
       # post, warns and leaves the job green. A broker kill-switch refusal ran
       # no lane, so it posts none.
       - name: Post the lane run report comment
-        if: always() && needs.broker-check.outputs.skip-reason != 'kill-switch'
+        if: always() && needs.broker-check.outputs.skip-reason != 'kill-switch' && needs.broker-check.outputs.skip-reason != 'budget'
         continue-on-error: true
         env:
           LANE: ${{ inputs.lane }}

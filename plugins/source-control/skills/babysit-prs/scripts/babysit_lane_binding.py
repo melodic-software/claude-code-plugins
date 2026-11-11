@@ -42,9 +42,11 @@ RECORD_FILE = "comments.jsonl"
 # The largest record read: far above one run's comments, small enough that a
 # crafted archive cannot exhaust memory.
 MAX_RECORD_BYTES = 4 << 20
-# The last time a comment with no binding can be the lane's (ISO 8601), or
-# None while the lanes do not yet write bindings.
-LEGACY_CUTOFF: str | None = None
+# The last time a comment with no binding can be the lane's (ISO 8601): 48
+# hours after the lanes began writing bindings, so a run that started before
+# then, and a re-run of one within the lost-run reconciler's 24-hour lookback,
+# still posts comments that count.
+LEGACY_CUTOFF: str | None = "2026-11-13T22:24:32Z"
 # A REST comment carries no edit time, only updated_at, which a review's
 # batch sets up to a second after created_at; a gap past this counts as an
 # edit (GraphQL's lastEditedAt is exact and wins when present).

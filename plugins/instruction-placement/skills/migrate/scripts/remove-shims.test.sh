@@ -254,7 +254,7 @@ OUT=$(bash "$SCRIPT" --root "$READY" --installed-plugins "$TMP/installed-current
 assert_eq "no --confirm exits 1" 1 "$rc"
 assert_contains "and prints what removal costs" "$OUT" "InstructionsLoaded"
 assert_contains "and prints the record's pointer" "$OUT" "  - **Pointer**: "
-assert_not_contains "and stops before the as-of date" "$OUT" "**As of**"
+assert_not_contains "and stops at the end of the pointer bullet" "$OUT" "**As of**"
 assert_contains "and says it is not confirmed" "$OUT" "Not confirmed"
 assert_eq "and the repository is untouched" "" "$(cd "$READY" && git status --porcelain)"
 
@@ -295,6 +295,27 @@ OUT=$(bash "$PRICE_STUB/scripts/remove-shims.sh" --root "$READY" --installed-plu
 GOT_PRICE="$(printf '%s\n' "$OUT" |
   awk '/^What removing the shims costs/ { f = 1 } /^  Nested AGENTS.md files/ || /^Not confirmed/ { exit } f')"
 assert_eq "the price is exactly the decision and its pointer" "$EXPECTED_PRICE" "$GOT_PRICE"
+
+# A pointer record carries no as-of date or trigger: the pointer bullet's own
+# end (a blank line here) ends the price, so the paragraph after it is left out.
+cat >"$PRICE_STUB/reference/sources.md" <<'EOF'
+# Sources
+
+## What shim removal costs
+
+The decision, first line,
+and its second line.
+
+- **Pointer**: for the topic, see <https://example.com/page#section>;
+  a continuation line.
+
+A note after the record the price never reaches.
+EOF
+OUT=$(bash "$PRICE_STUB/scripts/remove-shims.sh" --root "$READY" --installed-plugins \
+  "$TMP/installed-current.json" --claude-bin "$TMP/bin/claude-met")
+GOT_PRICE="$(printf '%s\n' "$OUT" |
+  awk '/^What removing the shims costs/ { f = 1 } /^  Nested AGENTS.md files/ || /^Not confirmed/ { exit } f')"
+assert_eq "an unstamped pointer record's price ends at the pointer bullet" "$EXPECTED_PRICE" "$GOT_PRICE"
 
 # A nested AGENTS.md adds the write-trigger loss to the price, before any
 # confirmation and before the probe that measures it has run.

@@ -29,6 +29,8 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)" || exit 1
+# shellcheck source=lib/python-probe.sh
+. "$SCRIPT_DIR/lib/python-probe.sh" || exit 1
 cd "${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}" || exit 1
 foreign=0
 [[ "$(pwd -P)" == "$(cd "$SCRIPT_DIR/.." && pwd -P)" ]] || foreign=1
@@ -97,11 +99,10 @@ fi
 
 # --- native-overlap registry: generated-view drift + freshness self-check ----
 #
-# The engine is Python, so the interpreter is resolved through the repo's
-# candidate loop rather than a bare `python3` call: a zero-length candidate
-# under a WindowsApps path component is the Store's App Execution Alias stub,
-# and executing it opens the Microsoft Store or hangs instead of running an
-# interpreter.
+# The engine is Python, so the interpreter is resolved through
+# scripts/lib/python-probe.sh rather than a bare `python3` call: that probe
+# skips the Store's zero-length WindowsApps alias stub, which opens the
+# Microsoft Store or hangs instead of running an interpreter.
 if runs_checked_code "native-overlap registry"; then
   OVERLAP="plugins/harness-ops/skills/audit-native-overlap/scripts/overlap.py"
   OVERLAP_FLOOR="$(sed -n 's/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\1.\2/p' "$OVERLAP")"
@@ -110,18 +111,7 @@ if runs_checked_code "native-overlap registry"; then
     exit 2
   fi
   OVERLAP_PYTHON=""
-  for candidate in python3 python; do
-    resolved="$(command -v "$candidate" 2>/dev/null)" || continue
-    lower="$(printf '%s' "$resolved" | tr '[:upper:]' '[:lower:]')"
-    if [[ "$lower" == *windowsapps* && ! -s "$resolved" ]]; then
-      continue
-    fi
-    if "$candidate" -c "import sys; floor = tuple(int(part) for part in '$OVERLAP_FLOOR'.split('.')); raise SystemExit(0 if sys.version_info >= floor else 1)" 2>/dev/null; then
-      OVERLAP_PYTHON="$candidate"
-      break
-    fi
-  done
-  if [[ -z "$OVERLAP_PYTHON" ]]; then
+  if ! python_probe::find_to OVERLAP_PYTHON "$OVERLAP_FLOOR" 2>/dev/null; then
     echo "error: Python ${OVERLAP_FLOOR}+ not found (tried python3, python) — the native-overlap registry checks cannot run" >&2
     exit 2
   fi

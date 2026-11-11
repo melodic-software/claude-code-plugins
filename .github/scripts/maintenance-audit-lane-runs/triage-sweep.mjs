@@ -44,15 +44,11 @@ import { pathToFileURL } from "node:url";
 
 import { BORN_TRIAGED_MARKER, humanIds } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { createBudget } from "./collect.mjs";
+import { budgetedCall, createBudget } from "./collect.mjs";
 import { UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
-import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { loadTrustedActors, statusLabels as labelsByField } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 
-// Every GitHub call goes through the rate guard (rate-guard.mjs); the fetch
-// is read at call time, so a test's stub is guarded too.
-const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, init);
 const outOfBudget = (error) => /call budget/.test(error.message);
 
 export const MAX_DISPATCHES = 5;
@@ -530,22 +526,7 @@ async function writeState(call, repo, number, state, next) {
 async function main() {
   const env = process.env;
   const budget = createBudget(Number(env.CALL_BUDGET ?? 120));
-  const call = async (method, path, body) => {
-    budget.spend();
-    const response = await guardedFetch(`${env.GITHUB_API_URL}${path}`, {
-      method,
-      headers: {
-        accept: "application/vnd.github+json",
-        authorization: `Bearer ${env.GITHUB_TOKEN}`,
-        "x-github-api-version": "2022-11-28",
-        ...(body ? { "content-type": "application/json" } : {}),
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    if (response.status === 404 && method === "GET") return null;
-    if (!response.ok) throw new Error(`${method} ${path}: HTTP ${response.status}`);
-    return response.status === 204 ? null : response.json();
-  };
+  const call = budgetedCall(env, budget);
   const list = JSON.parse(readFileSync(env.TRUSTED_ACTORS_PATH, "utf8"));
   const authorIds = new Set(humanIds(list).split(",").filter(Boolean));
   const appId = /^[1-9][0-9]*$/.test(env.LANES_APP_ID ?? "") ? env.LANES_APP_ID : null;
