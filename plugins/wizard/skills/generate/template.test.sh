@@ -953,6 +953,93 @@ assert_contains "... and prints its prompt" "$out" "Paste the secret:"
 assert_not_contains "... and prints its own newline so the next output is not glued on" \
   "$out" "Paste the secret: len="
 
+LINE_MAX="$(case_run "$TTY_EOF" <<'BODY'
+printf "%s" "$_WIZARD_LINE_MAX"
+BODY
+)"
+UTF8_CHARS=$(((LINE_MAX + 2) / 2))
+LONG_SECRET="$(printf "a%.0s" $(seq "$LINE_MAX"))"
+WHOLE_SECRET_FILE="$TEST_TMPDIR/whole-secret"
+printf '%s\n' "${LONG_SECRET}tail" >"$WHOLE_SECRET_FILE"
+TTY_LONG_FILE="$(tty_fixture long-file "$LONG_SECRET" "$WHOLE_SECRET_FILE")"
+TTY_LONG_KEEP="$(tty_fixture long-keep "$LONG_SECRET" '')"
+TTY_LONG_MISSING="$(tty_fixture long-missing "$LONG_SECRET" "$TEST_TMPDIR/no-such-file")"
+TTY_SHORT="$(tty_fixture short "${LONG_SECRET%a}")"
+MULTILINE_SECRET_FILE="$TEST_TMPDIR/multiline-secret"
+printf 'line-one\nline-two\n' >"$MULTILINE_SECRET_FILE"
+TTY_LONG_MULTILINE="$(tty_fixture long-multiline "$LONG_SECRET" "$MULTILINE_SECRET_FILE")"
+TTY_LONG_UTF8="$(tty_fixture long-utf8 "$(printf 'é%.0s' $(seq "$UTF8_CHARS"))" '')"
+CRLF_SECRET_FILE="$TEST_TMPDIR/crlf-secret"
+printf '%s\r\n' "${LONG_SECRET}tail" >"$CRLF_SECRET_FILE"
+TTY_LONG_CRLF="$(tty_fixture long-crlf "$LONG_SECRET" "$CRLF_SECRET_FILE")"
+
+for platform in darwin23:1023 linux-gnu:4095 msys:4095; do
+  got="$(env WIZARD_TEST_TTY=/dev/null OSTYPE="${platform%%:*}" bash -c \
+    'source "$1"; printf %s "$_WIZARD_LINE_MAX"' _ "$LIB")"
+  assert_contains "the line limit on ${platform%%:*} is ${platform#*:} bytes" "$got" "${platform#*:}"
+done
+
+out="$(
+  case_run "$TTY_LONG_CRLF" <<'BODY'
+ask_secret TOKEN "Paste the secret:"
+printf 'len=%s\n' "${#TOKEN}"
+BODY
+)"
+assert_contains "a one-line file with a CRLF ending is read, its CR dropped" "$out" "len=$((LINE_MAX + 4))"
+
+out="$(
+  case_run "$TTY_LONG_MULTILINE" <<'BODY'
+(ask_secret TOKEN "Paste the secret:")
+printf 'rc=%s\n' "$?"
+BODY
+)"
+assert_contains "... and a file of more than one line aborts, since a .env value is one line" \
+  "$out" "holds more than one line"
+assert_contains "... nonzero" "$out" "rc=1"
+
+out="$(
+  LC_ALL=C.UTF-8 case_run "$TTY_LONG_UTF8" <<'BODY'
+ask_secret TOKEN "Paste the secret:"
+BODY
+)"
+assert_contains "the line limit counts bytes, so a multibyte secret at the limit warns" \
+  "$out" "$((UTF8_CHARS * 2)) bytes"
+
+out="$(
+  case_run "$TTY_LONG_FILE" <<'BODY'
+ask_secret TOKEN "Paste the secret:"
+printf 'len=%s tail=%s\n' "${#TOKEN}" "${TOKEN: -4}"
+BODY
+)"
+assert_contains "ask_secret warns when a secret reaches the line limit" "$out" "probably cut off"
+assert_contains "... and reads the whole value from the file given" "$out" "len=$((LINE_MAX + 4)) tail=tail"
+
+out="$(
+  case_run "$TTY_LONG_KEEP" <<'BODY'
+ask_secret TOKEN "Paste the secret:"
+printf 'len=%s\n' "${#TOKEN}"
+BODY
+)"
+assert_contains "... and Enter keeps the pasted value" "$out" "len=$LINE_MAX"
+
+out="$(
+  case_run "$TTY_LONG_MISSING" <<'BODY'
+(ask_secret TOKEN "Paste the secret:")
+printf 'rc=%s\n' "$?"
+BODY
+)"
+assert_contains "... and an unreadable file aborts" "$out" "cannot read file"
+assert_contains "... nonzero" "$out" "rc=1"
+
+out="$(
+  case_run "$TTY_SHORT" <<'BODY'
+ask_secret TOKEN "Paste the secret:"
+printf 'len=%s\n' "${#TOKEN}"
+BODY
+)"
+assert_not_contains "a secret under the line limit gets no warning" "$out" "probably cut off"
+assert_contains "... and is kept" "$out" "len=$((LINE_MAX - 1))"
+
 # Echo suppression is a terminal-driver property, so a file-backed fd 3 cannot
 # observe it: with or without -s nothing is echoed here. The flags are therefore
 # pinned at the source, which is where the regression would actually land.

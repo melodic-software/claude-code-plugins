@@ -3913,6 +3913,35 @@ def _set_bug_type(owner: str, name: str, number: int) -> None:
         print(f"Issue Type not set: {exc}", file=sys.stderr)
 
 
+def _filer_notes(
+    owner: str, name: str, number: Any, filers: Collection[str]
+) -> list[Any]:
+    """The bodies of issue `number`'s comments whose author's login key is
+    one of `filers`."""
+    return [
+        c.get("body")
+        for c in _paginated(
+            f"repos/{owner}/{name}/issues/{number}/comments?per_page=100",
+            f"#{number} comments",
+        )
+        if _login_key(json_object(c.get("user")).get("login")) in filers
+    ]
+
+
+def _post_comment(owner: str, name: str, number: Any, body: str) -> None:
+    _write(
+        [
+            "api",
+            "-X",
+            "POST",
+            f"repos/{owner}/{name}/issues/{number}/comments",
+            "-f",
+            f"body={body}",
+        ],
+        f"comment on #{number}",
+    )
+
+
 def file_quarantines(
     repo: str,
     quarantines: Iterable[Quarantine],
@@ -3965,30 +3994,13 @@ def file_quarantines(
             continue
         number = issue.get("number")
         if "notes" not in issue:
-            issue["notes"] = [
-                c.get("body")
-                for c in _paginated(
-                    f"repos/{owner}/{name}/issues/{number}/comments?per_page=100",
-                    f"#{number} comments",
-                )
-                if _login_key(json_object(c.get("user")).get("login")) in keys
-            ]
+            issue["notes"] = _filer_notes(owner, name, number, keys)
         note = f"{QUARANTINE_NOTE}{q.run_url}"
         if f"- Failing run: {q.run_url}" in _lines(issue.get("body")) or any(
             note in _lines(b) for b in issue["notes"]
         ):
             continue
-        _write(
-            [
-                "api",
-                "-X",
-                "POST",
-                f"repos/{owner}/{name}/issues/{number}/comments",
-                "-f",
-                f"body={note}",
-            ],
-            f"comment on #{number}",
-        )
+        _post_comment(owner, name, number, note)
         report["comments"].append(number)
         issue["notes"].append(note)
 
@@ -4145,10 +4157,9 @@ def remediate(
     # `models.issue-status`, read when the first record is filed or matched open.
     status: Any = _UNREAD
     try:
-        filers = {_login_key(f) for f in (agent_identity, *DEMOTION_FILERS)}
-        existing = _demotion_issues(
-            owner, name, (agent_identity, *DEMOTION_FILERS), state="all"
-        )
+        filer_logins = (agent_identity, *DEMOTION_FILERS)
+        filers = {_login_key(f) for f in filer_logins}
+        existing = _demotion_issues(owner, name, filer_logins, state="all")
         role_label = label or _role_label(owner, name)
         # One record per marker (signal, SHA); every distinct sighting under it
         # is checked against that record, so a second red run on a closed
@@ -4240,15 +4251,7 @@ def remediate(
                                 _hold_record(owner, name, number, status)
                         except (policy.PolicyReadError, PostMergeWriteError) as exc:
                             report["errors"].append(f"demotion issue: {exc}")
-                comments = _paginated(
-                    f"repos/{owner}/{name}/issues/{number}/comments?per_page=100",
-                    f"#{number} comments",
-                )
-                notes_by_issue[number] = [
-                    c.get("body")
-                    for c in comments
-                    if _login_key(json_object(c.get("user")).get("login")) in filers
-                ]
+                notes_by_issue[number] = _filer_notes(owner, name, number, filers)
             notes = notes_by_issue[number]
             if _recorded(failure, match, notes):
                 continue
@@ -4268,19 +4271,10 @@ def remediate(
                 )
                 report["reopened"].append(number)
                 records[failure.marker] = {**match, "state": "open"}
-            _write(
-                [
-                    "api",
-                    "-X",
-                    "POST",
-                    f"repos/{owner}/{name}/issues/{number}/comments",
-                    "-f",
-                    f"body={FAILURE_NOTE}{_sighting(failure)}",
-                ],
-                f"comment on #{number}",
-            )
+            note = f"{FAILURE_NOTE}{_sighting(failure)}"
+            _post_comment(owner, name, number, note)
             report["comments"].append(number)
-            notes.append(f"{FAILURE_NOTE}{_sighting(failure)}")
+            notes.append(note)
     except (PostMergeReadError, PostMergeWriteError) as exc:
         report["errors"].append(f"demotion issue: {exc}")
 
@@ -4615,18 +4609,25 @@ def default_floor(
         repo, agent_identity=identity, self_logins=self_logins
     )
     floor = policy.merged_since_floor(repo, head, demotion)
-    times = (demotion.newest_created, demotion.cleared_at)
-    newest, cleared = (t.isoformat() if t else None for t in times)
     return floor, {
         "mainSha": head,
         "configSha": config,
-        "demotion": {
-            "active": demotion.active,
-            "reason": demotion.reason,
-            "records": list(demotion.records),
-            "newestCreated": newest,
-            "clearedAt": cleared,
-        },
+        "demotion": _demotion_report(demotion),
+    }
+
+
+def _demotion_report(demotion: policy.Demotion) -> dict[str, Any]:
+    """The demotion record as the report's `shared` binding states it."""
+    newest, cleared = (
+        t.isoformat() if t else None
+        for t in (demotion.newest_created, demotion.cleared_at)
+    )
+    return {
+        "active": demotion.active,
+        "reason": demotion.reason,
+        "records": list(demotion.records),
+        "newestCreated": newest,
+        "clearedAt": cleared,
     }
 
 
@@ -4721,9 +4722,7 @@ def _verifying_runs_unchanged(
         )
 
     owner, name = _split_repo(repo)
-    floor = quote(
-        f">={created.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}", safe=""
-    )
+    floor = quote(f">={_stamp(created)}", safe="")
     for workflow in (FULL_RUN_WORKFLOW, CANARY_WORKFLOW):
         try:
             payload = json_object(
@@ -4837,12 +4836,11 @@ def _quarantine_touched(repo: str, since: datetime) -> bool:
     closed or edited at or after `since`, in one listing; a full page counts
     as touched. A read that fails raises `PostMergeReadError`."""
     owner, name = _split_repo(repo)
-    stamp = since.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     issues = json_array(
         _read(
             [
                 "api",
-                f"repos/{owner}/{name}/issues?state=all&since={stamp}&per_page=100",
+                f"repos/{owner}/{name}/issues?state=all&since={_stamp(since)}&per_page=100",
             ],
             "issues changed since the report",
         )
@@ -4995,8 +4993,7 @@ def read_shared(path: str) -> policy.SharedPostMerge | None:
     None when it is missing, malformed, unreadable as a verdict, or has no
     `shared` binding (a `--since` or `--branch` run)."""
     try:
-        with open(path, encoding="utf-8") as handle:
-            payload = json_object(json.load(handle))
+        payload = _read_json_object(path)
         shared = json_object(payload.get("shared"))
         record = json_object(shared.get("demotion"))
         times = [record.get("newestCreated"), record.get("clearedAt")]
@@ -5025,11 +5022,7 @@ def read_shared(path: str) -> policy.SharedPostMerge | None:
         demotion = policy.Demotion(
             record["active"], fields[3], tuple(records), newest, cleared
         )
-        report = {
-            k: v
-            for k, v in payload.items()
-            if k not in ("since", "shared", UNREADABLE_KEY)
-        }
+        report = _report_fields(payload)
         return policy.SharedPostMerge(
             main_sha=fields[0],
             config_sha=fields[1],
@@ -5057,22 +5050,13 @@ def write_shared(path: str, shared: policy.SharedPostMerge) -> bool:
     the new one, never part of one. The pr-merge job runs its candidates one
     after another, so there is no concurrent writer. Best effort: a failure is
     logged, the old file stays, and the caller's verdict stands."""
-    demotion = shared.demotion
-    times = (demotion.newest_created, demotion.cleared_at)
-    newest, cleared = (t.isoformat() if t else None for t in times)
     payload = {
         **shared.gate.report,
         "since": shared.floor.isoformat(),
         "shared": {
             "mainSha": shared.main_sha,
             "configSha": shared.config_sha,
-            "demotion": {
-                "active": demotion.active,
-                "reason": demotion.reason,
-                "records": list(demotion.records),
-                "newestCreated": newest,
-                "clearedAt": cleared,
-            },
+            "demotion": _demotion_report(shared.demotion),
             "identity": shared.identity,
             "policyFloor": (
                 shared.policy_floor.isoformat() if shared.policy_floor else None
@@ -5104,8 +5088,22 @@ def _replace_json(path: str, payload: Mapping[str, Any]) -> bool:
     return True
 
 
+def _read_json_object(path: str) -> dict[str, Any]:
+    """The JSON object in the file at `path` (an empty one for any other
+    value); raises `OSError` or `ValueError`."""
+    with open(path, encoding="utf-8") as handle:
+        return json_object(json.load(handle))
+
+
 # The run report's record of a gate's own check that came back unreadable.
 UNREADABLE_KEY = "unreadableRecompute"
+
+
+def _report_fields(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """A run report's verdict fields: all but its floor and shared bindings."""
+    return {
+        k: v for k, v in payload.items() if k not in ("since", "shared", UNREADABLE_KEY)
+    }
 
 
 def _unreadable(report: Mapping[str, Any]) -> bool:
@@ -5127,8 +5125,7 @@ def _unreadable_at(
     `floor` for this identity and lane within `SHARED_MAX_AGE`, or None: the
     gate's own (`UNREADABLE_KEY`), else the job's check the file holds."""
     try:
-        with open(path, encoding="utf-8") as handle:
-            payload = json_object(json.load(handle))
+        payload = _read_json_object(path)
     except (OSError, ValueError):
         return None
     shared = json_object(payload.get("shared"))
@@ -5139,11 +5136,7 @@ def _unreadable_at(
         "identity": shared.get("identity"),
         "laneMergesOnly": shared.get("laneMergesOnly"),
         "computedAt": shared.get("computedAt"),
-        "report": {
-            k: v
-            for k, v in payload.items()
-            if k not in ("since", "shared", UNREADABLE_KEY)
-        },
+        "report": _report_fields(payload),
     }
     now = datetime.now(UTC)
     for record in (json_object(payload.get(UNREADABLE_KEY)), job):
@@ -5190,8 +5183,7 @@ def reuse_unreadable(
         answer = post_merge(floor, identity)
         if _unreadable(answer.report):
             try:
-                with open(path, encoding="utf-8") as handle:
-                    payload = json_object(json.load(handle))
+                payload = _read_json_object(path)
             except (OSError, ValueError):
                 payload = {}
             payload[UNREADABLE_KEY] = {
@@ -5215,37 +5207,41 @@ def _since(value: str) -> datetime:
     return parsed
 
 
+def _print_json(payload: Any, indent: int | None = 2) -> None:
+    json.dump(payload, sys.stdout, indent=indent)
+    sys.stdout.write("\n")
+
+
+def _acting_login() -> str | None:
+    """The session's acting login, or None when it cannot be read."""
+    try:
+        return policy.read_acting_login()
+    except policy.PolicyReadError:
+        return None
+
+
 def _preflight(repo: str, identity: str | None, self_logins: Collection[str]) -> int:
     """The merge gate's identity rule and credential chokepoint alone: a lane
     writes nothing unless both pass. With no identity given, the one the
     repository configures on its default branch is checked (push-branch.sh's
     lane path). Pushes are bound to the identity at push time by
     scripts/lane-push.sh, not here."""
-    report: dict[str, Any]
     if identity is None:
         try:
             identity = policy.resolve(repo).agent_identity
         except policy.PolicyReadError as exc:
-            report = {"ok": False, "error": f"config-unreadable: {exc}"}
-            json.dump(report, sys.stdout, indent=2)
-            sys.stdout.write("\n")
+            _print_json({"ok": False, "error": f"config-unreadable: {exc}"})
             return 2
-    try:
-        acting = policy.read_acting_login()
-    except policy.PolicyReadError:
-        acting = None
-    resolved = policy.resolve_identity(identity, acting, self_logins)
+    resolved = policy.resolve_identity(identity, _acting_login(), self_logins)
     refusal = resolved.reason
     if refusal is None and resolved.login:
         credentials = policy.credential_refusal(resolved.login)
         refusal = f"credentials:{credentials}" if credentials else None
-    report = (
+    _print_json(
         {"ok": False, "error": refusal}
         if refusal
         else {"ok": True, "identity": resolved.login}
     )
-    json.dump(report, sys.stdout, indent=2)
-    sys.stdout.write("\n")
     return 2 if refusal else 0
 
 
@@ -5262,6 +5258,12 @@ def _lane_alerted(repo: str, branch: str, run_id: int) -> int:
     return 0 if alerted else EXIT_NOT_ALERTED
 
 
+def _check_lines(path: str) -> frozenset[str]:
+    """The non-blank lines of a checks file, stripped."""
+    with open(path, encoding="utf-8") as handle:
+        return frozenset(line.strip() for line in handle if line.strip())
+
+
 def _judge_run(args: argparse.Namespace) -> int:
     """`--judge-run`: which of one red full run's newly failing checks demote
     (`_Context.demoting`), with the identity read from the default branch
@@ -5270,12 +5272,12 @@ def _judge_run(args: argparse.Namespace) -> int:
     --file-quarantine."""
     report: dict[str, Any] = {"ok": False}
     try:
-        with open(args.checks_file, encoding="utf-8") as handle:
-            checks = frozenset(line.strip() for line in handle if line.strip())
-        kept: frozenset[str] = frozenset()
-        if args.baseline_checks_file:
-            with open(args.baseline_checks_file, encoding="utf-8") as handle:
-                kept = frozenset(line.strip() for line in handle if line.strip())
+        checks = _check_lines(args.checks_file)
+        kept: frozenset[str] = (
+            _check_lines(args.baseline_checks_file)
+            if args.baseline_checks_file
+            else frozenset()
+        )
         identity = args.agent_identity or (
             policy.read_config_at(
                 args.repo, policy._default_branch_head(args.repo)[1]
@@ -5331,8 +5333,7 @@ def _judge_run(args: argparse.Namespace) -> int:
     except (OSError, PostMergeReadError, policy.PolicyReadError) as exc:
         report = {"ok": False, "error": f"unreadable: {exc}"}
         code = EXIT_UNREADABLE
-    json.dump(report, sys.stdout, indent=2)
-    sys.stdout.write("\n")
+    _print_json(report)
     return code
 
 
@@ -5371,15 +5372,14 @@ def _settle_from(repo: str, path: str, identity: str) -> int:
     exits 0 and a post that failed, or a report that cannot be read, is a
     warning; the next check lists the merge again."""
     try:
-        report = json_object(json.loads(Path(path).read_text(encoding="utf-8")))
+        report = _read_json_object(path)
     except (OSError, ValueError) as exc:
         report = {"error": f"{type(exc).__name__}: {exc}"}
     if report.get("readable") is True:
         posted, warnings = settle(repo, anchor_covered(repo, identity, report), identity)
     else:
         posted, warnings = [], [f"settle-unposted: no readable report at {path}"]
-    json.dump({"settled": posted, "warnings": warnings}, sys.stdout, indent=2)
-    sys.stdout.write("\n")
+    _print_json({"settled": posted, "warnings": warnings})
     return 0
 
 
@@ -5524,18 +5524,14 @@ def main(argv: list[str] | None = None) -> int:
     # Only a dedicated App identity can be judged, and only that identity may
     # remediate: its dispatches, re-runs and filed issues are what the check
     # and the demotion record count.
-    acting = args.agent_identity
-    if args.remediate or args.settle_from:
-        try:
-            acting = policy.read_acting_login()
-        except policy.PolicyReadError:
-            acting = None
+    acting = (
+        _acting_login() if args.remediate or args.settle_from else args.agent_identity
+    )
     refusal = policy.resolve_identity(
         args.agent_identity, acting, args.self_login
     ).reason
     if refusal:
-        json.dump({"ok": False, "error": refusal}, sys.stdout, indent=2)
-        sys.stdout.write("\n")
+        _print_json({"ok": False, "error": refusal})
         return 2
     if args.settle_from:
         return _settle_from(args.repo, args.settle_from, args.agent_identity)
@@ -5563,8 +5559,7 @@ def main(argv: list[str] | None = None) -> int:
                     "policyFloor": since.isoformat(),
                 }
         except policy.PolicyReadError as exc:
-            json.dump({"ok": False, "error": f"floor unreadable: {exc}"}, sys.stdout)
-            sys.stdout.write("\n")
+            _print_json({"ok": False, "error": f"floor unreadable: {exc}"}, indent=None)
             return EXIT_UNREADABLE
         # Only the lane's own check on the default branch reads the anchor;
         # a full check, an explicit --since and --judge-run never do.
@@ -5587,18 +5582,15 @@ def main(argv: list[str] | None = None) -> int:
             stop_uncovered=args.stop_uncovered,
         )
     except UncoveredMergeStop as stop:
-        json.dump(
+        _print_json(
             {
                 "ok": False,
                 "readable": False,
                 "stopped": "uncovered-merge",
                 "number": stop.number,
                 "since": since.isoformat(),
-            },
-            sys.stdout,
-            indent=2,
+            }
         )
-        sys.stdout.write("\n")
         return EXIT_UNCOVERED
     report = verdict.report()
     report["since"] = since.isoformat()
@@ -5635,8 +5627,7 @@ def main(argv: list[str] | None = None) -> int:
         report["remediation"]["errors"] = errors + report["remediation"]["errors"]
         if report["remediation"]["errors"]:
             code = EXIT_WRITE_FAILED
-    json.dump(report, sys.stdout, indent=2)
-    sys.stdout.write("\n")
+    _print_json(report)
     return code
 
 
