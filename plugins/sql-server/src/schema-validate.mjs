@@ -35,10 +35,8 @@ export function compileSchema(root) {
 }
 
 function checkKeywords(schema, at) {
-  if (typeof schema !== 'object' || schema === null) {
-    if (typeof schema === 'boolean') return;
-    throw new Error(`schema at ${at} is not an object or boolean`);
-  }
+  if (typeof schema === 'boolean') return;
+  if (typeof schema !== 'object' || schema === null) throw new Error(`schema at ${at} is not an object or boolean`);
   for (const [key, sub] of Object.entries(schema)) {
     if (ANNOTATIONS.has(key)) continue;
     if (!KEYWORDS.has(key)) throw new Error(`schema keyword ${key} at ${at} is not supported`);
@@ -80,11 +78,11 @@ function equal(a, b) {
 
 function validate(root, schema, value, path, errors) {
   if (schema === true) return;
+  const at = path || '/';
   if (schema === false) {
-    errors.push(`${path || '/'}: not allowed`);
+    errors.push(`${at}: not allowed`);
     return;
   }
-  const at = path || '/';
   if (schema.$ref) validate(root, resolveRef(root, schema.$ref), value, path, errors);
   if (schema.type && !typeMatches(schema.type, value)) {
     errors.push(`${at}: must be ${schema.type}`);

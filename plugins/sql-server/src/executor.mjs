@@ -149,6 +149,12 @@ const toJson = (value) => {
 
 const toObjects = ({ columns, rows }) => rows.map((row) => Object.fromEntries(columns.map((column, i) => [column, row[i]])));
 
+// run stops at a capped result set, so the sets after it are missing; they read as empty.
+const NO_ROWS = Object.freeze({ columns: [], rows: [], truncated: false });
+const padSets = (sets, count) => Array.from({ length: count }, (_, i) => sets[i] ?? NO_ROWS);
+const anyTruncated = (sets) => sets.some((set) => set.truncated);
+const displayName = (schema, name) => (schema === undefined ? name : `${schema}.${name}`);
+
 /**
  * @param {ReturnType<typeof import('./registration.mjs').bindRegistration>} registration
  * @param {object} [options]
@@ -239,15 +245,17 @@ export function createTediousExecutor(
     }
   }
 
+  function discardIdle(entry) {
+    idle.splice(idle.indexOf(entry), 1);
+    discard(entry);
+  }
+
   function release(entry) {
     if (closed || broken.has(entry.connection)) {
       discard(entry);
       return;
     }
-    entry.timer = setTimeout(() => {
-      idle.splice(idle.indexOf(entry), 1);
-      discard(entry);
-    }, idleTimeoutMs);
+    entry.timer = setTimeout(() => discardIdle(entry), idleTimeoutMs);
     entry.timer.unref?.();
     idle.push(entry);
     wake();
@@ -257,10 +265,7 @@ export function createTediousExecutor(
     for (;;) {
       if (closed) throw new Error('the executor is closed');
       // The server can end an idle session; such a connection is never handed out.
-      for (const entry of idle.filter((candidate) => broken.has(candidate.connection))) {
-        idle.splice(idle.indexOf(entry), 1);
-        discard(entry);
-      }
+      idle.filter((entry) => broken.has(entry.connection)).forEach(discardIdle);
       const reusable = idle.findIndex((entry) => entry.database === database);
       if (reusable >= 0) {
         const [entry] = idle.splice(reusable, 1);
@@ -368,14 +373,15 @@ export function createTediousExecutor(
 
     async listObjects({ database, schema }) {
       const params = { schema };
-      const [schemas, objects = { columns: [], rows: [], truncated: false }] = await run(database, [
+      const sets = await run(database, [
         { sql: LIST_SCHEMAS, params },
         { sql: LIST_OBJECTS, params },
       ]);
+      const [schemas, objects] = padSets(sets, 2);
       return {
         schemas: toObjects(schemas).map((row) => row.schema),
         objects: toObjects(objects),
-        truncated: schemas.truncated || objects.truncated,
+        truncated: anyTruncated(sets),
       };
     },
 
@@ -386,15 +392,15 @@ export function createTediousExecutor(
         { sql: DESCRIBE_KEYS, params },
         { sql: DESCRIBE_INDEXES, params },
       ]);
-      const [columns, keys, indexes] = [0, 1, 2].map((i) => sets[i] ?? { columns: [], rows: [], truncated: false });
+      const [columns, keys, indexes] = padSets(sets, 3);
       if (columns.rows.length === 0) {
-        throw new Error(`${database} has no table or view named ${schema === undefined ? name : `${schema}.${name}`} that this login can see`);
+        throw new Error(`${database} has no table or view named ${displayName(schema, name)} that this login can see`);
       }
       return {
         columns: toObjects(columns),
         keys: toObjects(keys),
         indexes: toObjects(indexes),
-        truncated: sets.some((set) => set.truncated),
+        truncated: anyTruncated(sets),
       };
     },
 
@@ -404,17 +410,17 @@ export function createTediousExecutor(
         { sql: PREVIEW_CASCADES, params },
         { sql: PREVIEW_TRIGGERS, params },
       ]);
-      const [reached, triggers] = [0, 1].map((i) => sets[i] ?? { columns: [], rows: [], truncated: false });
+      const [reached, triggers] = padSets(sets, 2);
       const tables = toObjects(reached);
       const target = tables.find((row) => row.depth === 0);
       if (target === undefined) {
-        throw new Error(`${database} has no table named ${schema === undefined ? name : `${schema}.${name}`} that this login can see`);
+        throw new Error(`${database} has no table named ${displayName(schema, name)} that this login can see`);
       }
       return {
         table: target.table,
         cascades: tables.filter((row) => row.depth > 0),
         triggers: toObjects(triggers),
-        truncated: sets.some((set) => set.truncated),
+        truncated: anyTruncated(sets),
       };
     },
 

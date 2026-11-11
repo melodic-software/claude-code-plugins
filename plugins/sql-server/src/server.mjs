@@ -4,7 +4,7 @@
 // 2025-11-25. Either way the tools capability declares listChanged false and
 // tools/list returns the same fixed list (ADR 0086 section 2).
 import { createInterface } from 'node:readline';
-import { TOOLS, ToolInputError, callTool } from './tools.mjs';
+import { TOOLS, TOOL_NAMES, ToolInputError, callTool } from './tools.mjs';
 
 export const PROTOCOL_VERSION = '2026-07-28';
 export const LEGACY_PROTOCOL_VERSION = '2025-11-25';
@@ -94,7 +94,7 @@ export function createServer({ databases, executor, writeExecutor, serverInfo = 
         return complete({ tools: TOOLS });
       case 'tools/call': {
         const { name } = params;
-        if (typeof name !== 'string' || !TOOLS.some((tool) => tool.name === name)) {
+        if (!TOOL_NAMES.includes(name)) {
           throw new RpcError(ERROR_CODES.invalidParams, `Unknown tool: ${String(name)}`);
         }
         try {
