@@ -469,10 +469,15 @@ function workflowJobs(name) {
   return jobs;
 }
 
+// The write runner runs no model.
+test("pr-run-activity-write.yml: no job runs claude-code-action or run-claude-cli", () => {
+  assert.deepEqual([...workflowJobs("pr-run-activity-write.yml")].filter(([, job]) => job.model).map(([name]) => name), []);
+});
+
 // claude-code-action passes the job's GITHUB_TOKEN to the model, and a
 // run-claude-cli job's other steps hold it, so a job that runs either holds
 // contents and pull-requests read and no issues permission.
-for (const file of ["pr-run-activity-write.yml", "pr-run-activity-read.yml"]) {
+for (const file of ["pr-run-activity-read.yml"]) {
   test(`${file}: no model job holds issues or a contents or pull-requests write`, () => {
     const jobs = [...workflowJobs(file)];
     const models = jobs.filter(([, job]) => job.model);

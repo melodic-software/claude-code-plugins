@@ -163,8 +163,9 @@
 #  28. Every metadata key is listed in scripts/metadata-registry.txt with the
 #      consumer that reads it (WARN on a key missing from it)
 #  29. No bare `#N` history reference in the SKILL.md body (WARN; code spans,
-#      fenced blocks, cross-repo owner/repo#N, link anchors, and pointer-record
-#      blocks carrying an as-of date and a recheck trigger are exempt)
+#      fenced blocks, cross-repo owner/repo#N, link anchors, a #N its block
+#      cites upstream, and stored-value blocks carrying an as-of date and a
+#      recheck trigger are exempt)
 #  30. Skill size: description above the description_warn setting (default
 #      419; description_target, default 250, prints as INFO) or body above 160
 #      lines (Pocock's measured max; his medians print as INFO), SKILL.md above the
@@ -2535,11 +2536,26 @@ fi
 # inside a tracked-work marker; the test file holds the concrete shapes.
 # The frontmatter is not read, and reference files are not checked.
 # Exempt: code spans and fenced code blocks; a cross-repo `owner/repo#N`
-# (anything glued to the `#` on the left); link anchors and URLs; and every
-# line of a pointer-record block, meaning a run of non-blank lines that carries
-# an as-of date and a recheck trigger somewhere in it, so an upstream bug cited
-# as a recheck condition stays.
+# (anything glued to the `#` on the left); link anchors and URLs; a bare `#N`
+# whose block (a run of non-blank lines) also cites N upstream, as `owner/repo#N`
+# or an `/issues/N` or `/pull/N` URL, so a pointer record can name its upstream
+# bug once in full and then by number; and every line of a stored-value record
+# block, one that carries an as-of date and a recheck trigger somewhere in it.
 HIST_HITS="$(awk '
+  function cited(num, lower) {
+    return lower ~ ("[a-z0-9_.-]+/[a-z0-9_.-]+#" num "([^0-9]|$)") ||
+      lower ~ ("/(issues|pull)/" num "([^0-9]|$)")
+  }
+  # 1 when the line holds a bare #N the block does not cite upstream.
+  function own_ref(s, lower,   m) {
+    while (match(s, /(^|[^A-Za-z0-9_\/.&#-])#[0-9]+([^A-Za-z0-9_-]|$)/)) {
+      m = substr(s, RSTART, RLENGTH)
+      gsub(/[^0-9]/, "", m)
+      if (!cited(m, lower)) return 1
+      s = substr(s, RSTART + RLENGTH)
+    }
+    return 0
+  }
   function flush(   i, s, lower) {
     if (n == 0) return
     lower = tolower(blk)
@@ -2550,7 +2566,7 @@ HIST_HITS="$(awk '
         gsub(/\]\([^)]*\)/, "]", s)
         gsub(/<[^>]*>/, "", s)
         gsub(/https?:\/\/[^[:space:]]*/, "", s)
-        if (s ~ /(^|[^A-Za-z0-9_\/.&#-])#[0-9]+([^A-Za-z0-9_-]|$)/) print num[i]
+        if (own_ref(s, lower)) print num[i]
       }
     }
     n = 0

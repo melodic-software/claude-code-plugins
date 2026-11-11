@@ -5546,6 +5546,15 @@ hist_case hist-pointer-block quiet "check 29 stays quiet inside a multi-line poi
 - **As of**: 2026-10-01; #98193 open.
 - **Recheck trigger**: #98193 closes or changes state, the monitoring page documents which requests skip `api_request`, or `compare` reports `events short` on a store recorded after a fix shipped.
 EOF
+hist_case hist-pointer-unstamped quiet "check 29 stays quiet on a bare #N its unstamped pointer record cites upstream" <<'EOF'
+- **Pointer**: for missing `api_request` events, see anthropics/claude-code#98193; when #98193 closes, read <https://code.claude.com/docs/en/monitoring-usage#api-request-event>.
+EOF
+hist_case hist-pointer-url quiet "check 29 stays quiet on a bare #N its block cites by issue URL" <<'EOF'
+- **Pointer**: [the missing-events report](https://github.com/anthropics/claude-code/issues/98193); when #98193 closes, recheck `compare`.
+EOF
+hist_case hist-pointer-own warn "check 29 WARNs on a bare #N its unstamped block does not cite upstream" <<'EOF'
+- **Pointer**: see anthropics/claude-code#98193; this rule came from #1234.
+EOF
 hist_case hist-code-span quiet "check 29 stays quiet on #N inside a code span" <<'EOF'
 The add-side is `/code-tidying:tidy #14`.
 EOF

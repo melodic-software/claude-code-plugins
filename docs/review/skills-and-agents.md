@@ -1,8 +1,9 @@
 # Skills and agents
 
 - Skill and agent bodies never restate a volatile upstream specific (behavior, limit, default,
-  version), even with a stamp; they point at the exact section, and the pointer carries an as-of
-  date and recheck trigger: [rule](../../.claude/rules/skill-bodies-state-current-rules.md).
+  version), even with a stamp; they point at the exact section, and the pointer carries no as-of
+  date or recheck trigger (a stored value keeps both):
+  [rule](../../.claude/rules/skill-bodies-state-current-rules.md).
 - Skill and agent text meets the skill standard, and a cut to an existing skill ships only with
   eval evidence of no loss, except a restated upstream fact swapped for a pointer:
   [skill criteria](../../plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md). A PR

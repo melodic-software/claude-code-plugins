@@ -1,4 +1,4 @@
-# Upstream drift: verification stamps and recheck triggers
+# Upstream drift: pointers, stored values and recheck triggers
 
 This contract moved to [`docs/contracts/upstream-drift/`](../../contracts/upstream-drift/README.md). This page keeps its
 headings so links from installed plugin versions still reach each section.

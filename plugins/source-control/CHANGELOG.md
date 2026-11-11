@@ -3,6 +3,29 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.0.5] - 2026-11-11
+
+### Changed
+
+- The setup skill's reconfiguration guidance keeps its decisions (reconfigure through the native configure flow, never uninstall to reconfigure, recheck in a fresh session) and now points at the plugin-reconfiguration convention's "The routes" and "Caveats" sections and the plugin CLI reference's `plugin configure` section instead of restating the headless command, its version floor and failure signals, and drops any claim that option values are fixed at session start or skill load, which the docs do not state.
+- The plugin now ships a generated copy of the plugin-reconfiguration convention at `reference/plugin-reconfiguration.md`, and its skills link that copy by relative path, so an agent without network access can read the routes and caveats the skills point at.
+- The setup skill tells the agent to read the convention's routes and caveats sections and print what they give (the fallback route, its behavior on an already-installed plugin and the scope to pass), leaving out the verified-version record, rather than only naming the sections.
+
+### Fixed
+
+- set the lane comment legacy cutoff
+
+  The review lanes write run bindings since ci-workflows#1071 merged
+  (2026-11-11T22:24:32Z). LEGACY_CUTOFF is now 48 hours later,
+  2026-11-13T22:24:32Z, in both ports: a lane comment with no binding counts
+  only when posted at or before it and never edited. The 48 hours cover a run
+  that resolved the reusable before the merge, and a re-run of one within the
+  lost-run reconciler's 24-hour lookback.
+
+  The clear-escalations test of an edited hold with no binding now expects
+  it to read as no lane's; fixtures for unbound lane comments carry dates
+  before the cutoff.
+
 ## [10.0.4] - 2026-11-11
 
 ### Fixed

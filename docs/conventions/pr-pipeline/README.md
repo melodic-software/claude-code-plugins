@@ -676,10 +676,11 @@ Every lane:
   runs per item: each comment, review reply and linked issue is checked by its own author, not by
   the PR's. Web pages and CI logs are untrusted wherever they came from and stay data. The
   trusted-actor list is one central standards component that every lane reads.
-- Runs Claude Code with `--permission-mode dontAsk` and the tools its skill needs to do its job: a
-  write-effect skill can change, commit and push any file in the repository with its token
-  ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). It gets the write access its job
-  needs through a short-lived, job-scoped App token, revoked when the job ends. Local lanes keep
+- Runs Claude Code with `--permission-mode dontAsk` and the tools its skill needs to do its job,
+  always in the read runner with no GitHub token: a skill's effect is `read`, and the config
+  reader refuses any other. Its change reaches the branch only through a script activity
+  ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)), which gets the write access its
+  job needs through a short-lived, job-scoped App token, revoked when the job ends. Local lanes keep
   auto mode (AGENTS.md). Capability is never removed for safety: a lane's scope comes from how
   granular its activity is, the PR is the review step, and safety comes from who can trigger a
   lane, token lifetime and scope, workflow execution protections, the kill switch, and a
@@ -756,12 +757,12 @@ Each leaf declares:
   `read`, or `applied-by.patch`"; the effect half goes once the last skill leaves
   `pr-run-activity-write.yml`.
 - `checks` (optional, `skill` only): repository check scripts, each `scripts/<name>.sh` with its
-  flags fixed, that the skill may run. The runner that gives the skill its edit tools (the write
-  runner, or the read runner for a skill that hands on a patch) runs each from the base copy
+  flags fixed, that the skill may run. The read runner gives a skill that hands on a patch its edit
+  tools and runs each from the base copy
   against the checkout, so no head code runs, and tells the skill to fix what
   a check reports before it reports done
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The schema refuses `checks`,
-  `self-checks`, `verify-scripts` and `web-access` turned on for any other skill (effect `read`
+  `self-checks`, `verify-scripts` and `web-access` turned on for any other skill (one
   without `applied-by.patch`, or with `prepare: ci-context`), where they would do nothing, except
   `verify-scripts` under `prepare: ci-context`, which the read runner stages as a base copy the
   skill is told to run in place of the checkout's; its Bash, Edit and Write stay open, so review
@@ -769,25 +770,20 @@ Each leaf declares:
 - `self-checks` (optional, `skill` only): the same shape as `checks`, run and fixed by the skill
   through the same wrapper before it commits or hands its change on. Advisory: unlike `checks`, no
   runner job reruns them, so a failure the skill cannot fix still opens the PR and is named in its
-  report. A script in both lists fails red. On a skill whose effect is not `read`, whose run job
-  holds the lane token and `id-token: write`, neither list may name a script that runs the
-  checkout's test files (`affected-tests.sh`, `run-outside-node-suites.sh`, `selection-audit.sh`,
-  `check-guardrails-ps-differential.sh`, `run-test-file.sh`); `check-affected.sh --tests` stays
-  allowed, since from the base copy it skips the branch's tests.
+  report. A script in both lists fails red.
 - `verify-scripts` (optional, `skill` only): exact repository-relative paths of scripts, each `scripts/<name>.sh`, `plugins/<plugin>/scripts/<name>.sh` or
   `plugins/<plugin>/skills/<skill>/scripts/<name>.sh`, that the skill may run with any arguments
   but a path outside the checkout. The runner that gives the skill its edit tools runs each from a read-only base copy of its plugin (or of `scripts/`) against
   the checkout, with `GH_TOKEN` and `GITHUB_TOKEN` unset. No Bash process above it holds
-  the token either: the write runner's settings clear it, and the read runner's run-claude-cli steps set
-  neither token ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The arguments are the model's, so
+  the token either: the read runner's run-claude-cli steps set neither token ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The arguments are the model's, so
   a script that changes files, runs code from the checkout or reaches the network hands the run
   that power: list one only when it limits itself, as `scripts/run-test-file.sh` (one test file
   inside the checkout), `scripts/git-mv-rm.sh` (`git mv` and `git rm` inside the checkout) and
   `scripts/new-changelog-fragment.sh` (new files under the checkout's `.changes/` only) do,
   or when the run may hold that power, as `plugins/skill-quality/scripts/check-skill.sh` (each
   checked skill's `scripts/*.test.sh` and the checkout's markdownlint) does. Those two run checkout
-  code, so the schema refuses them on a skill whose effect is not `read`: its run job holds the
-  lane token and `id-token: write`.
+  code, which the read runner's run job may, since it holds neither the lane token nor
+  `id-token: write`.
 - `web-access` (optional, `skill` only, off when absent): `enabled` and `domains`, either `any` or
   a list of host names (`*.` allowed as a prefix). When on, the skill may search the web, fetch
   those domains, and run the research skills, wherever the runner gives it its edit tools
@@ -814,15 +810,15 @@ Each leaf declares:
   token broker grants to work-unblock's `publish-lane-level` alone (owner decision Q113 (a)). The
   runner derives ordering from it, takes the token grant from
   [`effect-grants.json`](../../../.github/actions/resolve-config/effect-grants.json), and fails a
-  `read` activity that leaves the working tree dirty unless it hands its change on as a patch. An
-  activity that runs head code (tests, linters, builds) takes effect `read`, because a
-  write-effect activity must not execute head code. To change the branch it hands its change on
+  `read` activity that leaves the working tree dirty unless it hands its change on as a patch. A
+  skill's effect is always `read`: the schema and the config reader refuse any other, so no model
+  runs beside the lane token. An activity that runs head code (tests, linters, builds) takes effect
+  `read`, because a write-effect activity must not execute head code. To change the branch it hands its change on
   to a `prepare: apply-patch` script with no model and no head code, named in its
   `applied-by.patch`, as fix-docs and fix-ci do with `apply-patch`.
 - `gating`: `gate` feeds `ci-status`; `advisory` is reported only. `ci-status` stays the only
-  required check. A `gate` skill activity must not execute head code, since its verdict is read
-  in the same job after the skill ran; tests, linters and builds that gate run as a `script`
-  activity or under a separate design.
+  required check. Tests, linters and builds that gate run as a `script` activity or under a
+  separate design.
 - `reads-untrusted`: whether it reads issue, PR, comment, web or CI-log text, or PR head files,
   which can quote such text. Ingested text is data, never instructions
   ([`untrusted-content`](../../contracts/untrusted-content/README.md)).

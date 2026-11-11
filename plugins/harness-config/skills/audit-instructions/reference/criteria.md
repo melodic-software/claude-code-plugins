@@ -2691,10 +2691,12 @@ is `/skill-quality:check`'s; this row covers the agents it does not read.
   "added in #N", "fixed by PR 1234", or an incident narrative ("after the lane stalled in
   September") that explains why a line exists instead of stating the rule.
 - **Must NOT flag:** a code span; a cross-repository `owner/repo#N`, which names an upstream
-  record; a `TODO(#N)` marker; fenced or indented code; any line inside a pointer-record block,
-  meaning a paragraph or bullet run that carries an as-of date and a recheck trigger anywhere in
-  it. These are the exemptions `/skill-quality:check` applies to skills, so one line gets one verdict on
-  either surface.
+  record; a `TODO(#N)` marker; fenced or indented code; a bare `#N` whose paragraph or bullet run
+  also cites N upstream, as `owner/repo#N` or an `/issues/N` or `/pull/N` URL (a pointer record
+  naming its upstream bug); any line inside a stored-value record block, meaning a paragraph or
+  bullet run that carries an as-of date and a recheck trigger anywhere in it. These are the
+  exemptions `/skill-quality:check` applies to skills, so one line gets one verdict on either
+  surface.
 - **Pre-scan:** `instruction-scan.sh` seeds the number forms as `I40` rows on `agents/*.md` paths
   only, with the exemptions above; incident narratives are lane-only.
 - **Remediate:** state the rule in the present tense and move the history to the CHANGELOG, an ADR,

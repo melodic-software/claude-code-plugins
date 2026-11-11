@@ -275,7 +275,9 @@ const FETCH_RULE =
   ' Fetch pages only on the hosts of the sources listed, and never put repository content into an address.'
 const POINTER_RULE =
   ' The rule being audited: a body that depends on a volatile upstream specific points at the live source ' +
-  'instead of restating it, and records the pointer, an as-of date and a recheck trigger. Files under ' +
+  'instead of restating it, with a section-anchored link that needs no as-of date or recheck trigger. A ' +
+  'stored upstream value (a recorded default, limit, version gate or price) keeps an as-of date and a ' +
+  'recheck trigger beside its pointer. Files under ' +
   'docs/upstream/, changelogs and eval fixtures are deliberate snapshots and out of scope.'
 
 // ---- Fetch stage ----
@@ -427,7 +429,7 @@ const CLAIMS_SCHEMA = {
           file: { type: 'string' },
           line: { type: 'integer', minimum: 1 },
           quote: { type: 'string', description: 'the exact repository text, at most about 300 characters' },
-          pointer: { type: 'string', description: 'the pointer, as-of date and recheck trigger recorded beside it, verbatim, or empty' },
+          pointer: { type: 'string', description: 'the pointer recorded beside it, with any as-of date and recheck trigger, verbatim, or empty' },
         },
         required: ['file', 'line', 'quote'],
       },
@@ -517,7 +519,7 @@ function readPrompt(u) {
     'model resolution, depth or concurrency caps, dynamic workflows (availability, size guidance, concurrency, ' +
     'usage-limit behavior, per-agent model and effort), and the environment variables or settings for any of ' +
     'these, plus agent frontmatter that pins a model. Quote each exactly with its file and line number, and ' +
-    'copy any pointer, as-of date and recheck trigger recorded beside it. Skip a mere mention that makes no ' +
+    'copy any pointer recorded beside it, with any as-of date and recheck trigger. Skip a mere mention that makes no ' +
     'claim. Return at most ' + CLAIM_CAP + ', most specific first. Do not judge whether they are true.' +
     READ_ONLY + fence('area', u.area) + fence('files', u.files)
 }
@@ -525,8 +527,8 @@ function checkPrompt(u, claims, extra) {
   return 'Stage: find. Read-only drift audit of claims a separate reader lifted from one area of a repository; ' +
     'you cannot read the files and do not need to. Check each claim against ' +
     'what they say now; do not rely on memory. Report a claim only when it is one of: stale (contradicts the ' +
-    'source now), copied-current (restates a volatile upstream fact correctly but with no pointer, as-of date ' +
-    'and recheck trigger), unpointed-judgment (states a model or effort recommendation as fact with no basis), ' +
+    'source now), copied-current (restates a volatile upstream fact correctly but with no pointer to its ' +
+    'source, or is a stored value with no as-of date and recheck trigger), unpointed-judgment (states a model or effort recommendation as fact with no basis), ' +
     'hardcoded-model-pin (pins a model in a way that defeats aliases or current guidance). Skip a claim whose ' +
     'pointer record still matches its source. Key each finding by its claim id.' +
     POINTER_RULE + READ_ONLY + FETCH_RULE +
