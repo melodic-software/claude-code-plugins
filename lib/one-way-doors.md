@@ -8,7 +8,8 @@ rates them high.
   undoing it needs a data migration, a coordinated release or a rewrite (a stored format, a public
   contract or API, a module boundary, a vendor commitment), or it has already acted outside the
   code (data rewritten or deleted, a migration applied, a message, email or webhook sent, a package
-  published, a third-party call with a lasting effect).
+  published, a third-party call with a lasting effect, or something exposed outside the trust
+  boundary, such as a deployed vulnerability, a leaked secret or personal data).
 - **Two-way door**: undoing it is a code-only change, such as reverting the commit.
 
 When the evidence cannot settle the call, treat it as a one-way door.
