@@ -23,9 +23,10 @@ invocation:
 - Current branch, `git branch --show-current`
 - Working tree status (empty = clean), `git status --porcelain | head -10`
 
-The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
-bounds nothing: the Bash tool returns the command's complete output into context before there is
-anything to decide about.
+The pipe is the bound and belongs in the command: a read-time cap ("read only the first 10 entries")
+comes after the command has already returned its output inline. What a result returns inline, and
+when it arrives as a saved file instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits)
+(as of 2026-11-10; recheck when that section changes what a valid result returns inline).
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
@@ -137,8 +138,9 @@ Constraints (the same set as explore-directions' HTML mockup substrate):
   path and never inside the repo. On Unix/Linux/Git Bash, create a private run directory and
   write the page inside it, echoing the directory in the same call:
   `d=$(mktemp -d "${TMPDIR:-/tmp}/pressure-test-XXXXXX"); echo "$d"`, then write to
-  `<echoed dir>/pressure-test.html`. Echo it because shell state does not survive between Bash
-  calls. Keep the temp root in the positional template with the `XXXXXX` trailing, and give the
+  `<echoed dir>/pressure-test.html`. Echo it: whether a shell variable carries to the next Bash
+  call is [Tools reference § What persists between commands](https://code.claude.com/docs/en/tools-reference#what-persists-between-commands)
+  (as of 2026-11-10; recheck when that section says shell variables persist). Keep the temp root in the positional template with the `XXXXXX` trailing, and give the
   page a fixed name inside the generated directory, the mktemp dialect traps behind those two
   rules (GNU vs BSD `-p`/`-t` divergence, trailing-X-only substitution on BSD/macOS) are unpacked
   in [`explore-directions`](../explore-directions/SKILL.md)'s HTML mockup substrate section; the
