@@ -320,7 +320,8 @@ decision, a pointer to the section defining the gate, the as-of date, the rechec
 surface covers everything the skill does, and at the end when coverage is partial. A
 model-disabled bundled skill is suggested as `/<name>` exactly as a built-in command is. The
 wording is "reserved for the person to run", never "cannot be invoked" as an absolute. An
-unattended run records the sentence in output.
+unattended run neither suggests nor attempts a surface reserved for the person: it drops the
+sentence.
 
 The suggest token `is available in your session (` differs from the route token `resolves in
 this session` by design: the route token is a condition the model observes in its listing, and

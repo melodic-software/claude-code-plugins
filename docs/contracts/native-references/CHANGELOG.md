@@ -6,6 +6,14 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
+## [3.5.0] - 2026-11-11
+
+Minor: guidance change. No required part of the description phrase, no canonical gate token and no
+enforceability verdict changes.
+
+- **An unattended run drops the suggest sentence.** It neither suggests nor attempts a surface
+  reserved for the person, where it used to record the sentence in its output (owner decision).
+
 ## [3.4.3] - 2026-10-31
 
 Patch: clarification. No required part of the description phrase, no canonical gate token and no
