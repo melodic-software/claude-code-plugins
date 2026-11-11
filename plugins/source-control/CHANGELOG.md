@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.0.0] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+### Removed
+
+- The `worktree_create_gate_enabled` option. Its only off position made the WorktreeCreate gate refuse, so every harness-driven worktree creation failed. The gate now always runs; a stored `false` is ignored. To stop the gate placing worktrees, disable the plugin.
+
 ## [9.0.1] - 2026-11-11
 
 ### Fixed
