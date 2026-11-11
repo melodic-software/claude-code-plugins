@@ -187,10 +187,10 @@
       "id": 16,
       "name": "same-task-degraded-zone-compacts-with-focus",
       "prompt": "/workflow continue — context-guard's `mcp__context-guard__status` reports the zone word as heavy and the window is getting full. The plan in PLAN.md is half implemented; the next step is phase 3 of the same plan, editing the same files. This session has not been compacted.",
-      "expected_output": "Two failed corrections on the same issue answer question 4: the router recommends `/clear` and a fresh start with a sharper prompt, because the session's context is now part of the problem. When the failed attempts were file edits in an attended session it may offer `/rewind` with a restore option first.",
+      "expected_output": "The next work is the related next task: it uses this stage's artifact and files and serves the same goal. It is not unrelated (question 4), it does not leave the session and is not a finished plan moving into execution (question 5), so the router falls through to question 6 and recommends `/compact <focus>`, typed by the user, with a focus naming what the summary must keep (the plan path, the current phase, the files in play).",
       "files": [],
       "expectations": [
-        "It recommends `/clear`, or `/rewind` with a restore option first followed by `/clear` as the alternative",
+        "It recommends `/compact` with a focus argument, not a bare `/compact`",
         "The suggested focus names concrete state to keep, such as the plan path and the next phase",
         "It does NOT recommend a handoff or `/clear` for this same-task continuation",
         "It leaves `/compact` for the human to type rather than claiming to run it"
@@ -212,10 +212,10 @@
       "id": 18,
       "name": "two-failed-corrections-clears",
       "prompt": "/workflow continue — I have corrected you twice on the same failing parser test and it is still wrong. How should I continue?",
-      "expected_output": "Two failed corrections on the same issue answer question 4: the router recommends `/clear` and a fresh start with a sharper prompt, because the session's context is now part of the problem.",
+      "expected_output": "Two failed corrections on the same issue answer question 4: the router recommends `/clear` and a fresh start with a sharper prompt, because the session's context is now part of the problem. When the failed attempts were file edits in an attended session it may offer `/rewind` with a restore option first.",
       "files": [],
       "expectations": [
-        "It recommends `/clear`",
+        "It recommends `/clear`, or `/rewind` with a restore option first followed by `/clear` as the alternative",
         "It cites the two failed corrections on one issue as the evidence",
         "It does NOT recommend compacting or handing off this context"
       ]

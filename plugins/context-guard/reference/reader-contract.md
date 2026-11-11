@@ -320,8 +320,9 @@ skill's module check), none of the following runs except the PostCompact marker.
   carries a session id. Beside the
   crossings the module sends one approach line per boundary per cycle (`approach_margin`
   percentage points before it), one line per `thresholds` entry passed, and the verdict restated
-  once, only when it is past `light`, after a compaction (not a `precompute` one), after an
-  in-process resume, and on a reload or a worker respawn (a load with earlier turns). Each line
+  once after a compaction (not a `precompute` one) at any zone, and, only when it is past
+  `light`, after an in-process resume and on a reload or a worker respawn (a load with earlier
+  turns). Each line
   sent is also written as sent to the debug log. Lines due
   at one carrier: a crossing or restatement recorded before a pending restatement merges into it;
   a crossing recorded after it is the newer verdict and replaces it. After

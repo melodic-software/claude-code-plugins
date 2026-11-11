@@ -113,7 +113,7 @@ boundary.
    reasoning is not the reasoning; this never overrides a degraded zone, where the questions
    below choose the route.*
 4. **Is this session's context disposable: the next work is unrelated and nothing from this
-   session carries over to anything, the next work item's durable artifacts (its ticket, spec, plan
+   session carries over to anything, in an attended session the next work item's durable artifacts (its ticket, spec, plan
    or decomposed item on disk) already hold everything it needs, or two corrections on the same
    issue have already failed?** → `/clear`. *The cheapest reset, asked before any writing
    mechanism: capturing state nothing needs is pure cost. Unrelated work is work that neither uses
@@ -122,7 +122,7 @@ boundary.
    nothing, so we clear rather than compact; lanes keep their own routing. After two failed
    corrections we clear and restate the problem rather than carry those attempts forward.* In an
    attended session whose failed attempts were made through file-edit tools, offer `/rewind` first,
-   with a restore option rather than "Summarize from here": it keeps the reads from before the
+   choosing "Restore code and conversation" or "Restore code", not "Summarize from here": it keeps the reads from before the
    attempts, which a clear discards. It does not restore files only shell commands changed or most
    subagent edits, and file snapshots are kept for a bounded time. Never offer it as a safety net
    for orchestrated work.
@@ -170,7 +170,8 @@ leaving.
   marker (the rule above).
 - a finished spec or plan → execution moves to a fresh session (question 5).
 - implementation → review runs in fresh context, for example a reviewer subagent.
-- the next work item, when its durable artifacts hold everything it needs → `/clear` (question 4).
+- in an attended session, the next work item, when its durable artifacts hold everything it needs
+  → `/clear` (question 4).
 - two failed corrections on one issue → `/rewind` to a restore point first when the attempts were
   file edits in an attended session, else `/clear` (question 4).
 
