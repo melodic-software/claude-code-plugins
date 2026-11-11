@@ -13,10 +13,9 @@
 //   dispatch passes), or an issue work-unblock handed back after its lane PR
 //   ended or unparked to needs-triage once a blocker closed; or
 // - /work-items:decompose published it born triaged in `status: ready`, with
-//   no agent-ready, admission-deferred or hold, no open blocker, no open
-//   sub-issue and no admission comment of the lanes App's but a retriage note:
-//   nothing ran admission on it, and intake's dispatch runs it (a dispatch
-//   skips the born-triaged gate).
+//   no agent-ready, admission-deferred or hold, no open blocker and no open
+//   sub-issue: intake's dispatch runs it (a dispatch skips the born-triaged
+//   gate), including once a wait admission left on it has cleared.
 //
 // The needs-triage floor label is no triage label: it lands on open whether
 // or not intake runs. github-actions[bot] issues are left out: the lane
@@ -46,7 +45,6 @@ import { pathToFileURL } from "node:url";
 import { BORN_TRIAGED_MARKER, humanIds } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createBudget } from "./collect.mjs";
-import { ADMIT_MARKER } from "../lib/admission-comment.mjs";
 import { UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { loadTrustedActors, statusLabels as labelsByField } from "../../actions/resolve-config/read-status.mjs";
@@ -115,13 +113,6 @@ const bornReady = (i, labels) =>
   !labels.some((n) => ADMISSION_HOLDS.has(n)) &&
   !(i.issue_dependencies_summary?.blocked_by > 0) &&
   !((i.sub_issues_summary?.total ?? 0) > (i.sub_issues_summary?.completed ?? 0));
-
-// Whether admission already ran on the issue and left it waiting: the lanes
-// App's admission comment (edited in place), unless it is the retriage note
-// that hands the issue back (HAND_BACK).
-export const admissionWaiting = (comments, appId = null) =>
-  appId !== null &&
-  comments.some((c) => String(c.user?.id) === String(appId) && String(c.body ?? "").startsWith(ADMIT_MARKER) && !HAND_BACK.test(String(c.body ?? "")));
 
 // `statusLabels` (statusListing) maps an issue number to its label names as
 // its Work status field decides them; an issue it leaves out is judged by its
@@ -370,7 +361,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
     issues.push(...batch);
     if (batch.length < 100) break;
   }
-  const result = { candidates: 0, dispatched: [], handed: [], handedOff: [], held: [], left: [], parked: [], waiting: [], failed: [], truncated: null };
+  const result = { candidates: 0, dispatched: [], handed: [], handedOff: [], held: [], left: [], waiting: [], failed: [], truncated: null };
   const selected = selectCandidates({ issues, now, authorIds, statusLabels });
   const atFloor = (i) => names(i, statusLabels.get(i.number)).includes(FLOOR);
   const filed = selected.length > 0 ? await handedOff(call, repo, appId) : new Set();
@@ -406,11 +397,6 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
         comments.push(...batch);
         full = batch.length === 100;
         if (!full) break;
-      }
-      // Only bornReady lets an issue at status: ready through selectCandidates.
-      if (listedReady(issue) && admissionWaiting(comments, appId)) {
-        result.parked.push(number);
-        continue;
       }
       // Past the pages read, the state comment may be hidden: a person
       // decides, so the state is set once.
@@ -584,7 +570,7 @@ async function main() {
   const lines = [
     "### Triage sweep",
     "",
-    `Candidates: ${result.candidates}. Dispatched: ${numbers(result.dispatched)}. Handed to a maintainer after ${ATTEMPTS} runs that reached intake or ${RUN_LIMIT} dispatches: ${numbers(result.handed)}. Handed off for too many comments: ${numbers(result.handedOff)}. Held by a person's hold: ${numbers(result.held)}. Left as is past triage: ${numbers(result.left)}. Waiting on admission: ${numbers(result.parked)}. Waiting on a run: ${numbers(result.waiting)}. Calls: ${budget.used}.`,
+    `Candidates: ${result.candidates}. Dispatched: ${numbers(result.dispatched)}. Handed to a maintainer after ${ATTEMPTS} runs that reached intake or ${RUN_LIMIT} dispatches: ${numbers(result.handed)}. Handed off for too many comments: ${numbers(result.handedOff)}. Held by a person's hold: ${numbers(result.held)}. Left as is past triage: ${numbers(result.left)}. Waiting on a run: ${numbers(result.waiting)}. Calls: ${budget.used}.`,
     "",
     ...(result.truncated ? [`- ${result.truncated}`] : []),
     ...result.failed.map((f) => `- failed #${f.number}: ${f.error}`),

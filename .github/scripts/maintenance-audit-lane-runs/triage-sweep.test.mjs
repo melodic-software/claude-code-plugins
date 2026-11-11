@@ -560,10 +560,10 @@ test("a hand-off a person's late hold answers held writes no record and is not c
 // demote it. The hand-off's own field read decides, through the job's writer.
 test("an agent-ready issue the listing read stale as needs-triage is left as is at hand-off, and a fresh needs-triage one is handed off", async () => {
   const runs = { 11: { status: "completed", conclusion: "success" }, 22: { status: "completed", conclusion: "success" } };
-  const handOffPass = async (fields, listed = ["needs-triage"]) => {
+  const handOffPass = async (fields, listed = ["needs-triage"], extra = []) => {
     const issues = [issue(1, { body: "Fix it.\n\n<!-- work-items:born-triaged -->" })];
     const { set } = await statusWriter({ env: { BASE_PATH: ROOT }, github: fieldWorld(issues, fields), repository: "o/r" });
-    const gh = fakeGitHub({ issues, comments: { 1: [{ id: 5, user: BOT, body: renderState({ runs: [11, 22], filed: null, runUrl: "u" }) }] }, runs });
+    const gh = fakeGitHub({ issues, comments: { 1: [{ id: 5, user: BOT, body: renderState({ runs: [11, 22], filed: null, runUrl: "u" }) }, ...extra] }, runs });
     const stale = new Map([[1, listed]]);
     const result = await runSweep({ call: gh.call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), setStatus: set, statusLabels: stale });
     return { result, writes: gh.writes };
@@ -587,6 +587,14 @@ test("an agent-ready issue the listing read stale as needs-triage is left as is 
   const handed = await handOffPass(born, ["status: ready"]);
   assert.deepEqual(handed.result.handed, [1]);
   assert.deepEqual(born[1].state, "needs-triage");
+  // Listed at status: ready, admitted since after an old admission wait: still never demoted.
+  const admitted = { 1: { state: "agent-ready", setter: APP } };
+  const oldWait = { id: 6, user: { login: "melodic-automation-lanes[bot]", id: APP }, body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: sub-issue #9 is open.` };
+  const late = await handOffPass(admitted, ["status: ready"], [oldWait]);
+  assert.deepEqual(late.result.left, [1]);
+  assert.deepEqual(late.result.handed, []);
+  assert.deepEqual(admitted[1], { state: "agent-ready", setter: APP }, "agent-ready is not demoted");
+  assert.deepEqual(late.writes, [], "no hand-off record");
 });
 
 test("a run still in progress holds the issue for a later pass", async () => {
@@ -1166,24 +1174,19 @@ test("readState starts a new cycle on the lanes App's re-triage admission commen
   assert.deepEqual(readState([state, admissionAt({ login: "other-app[bot]", id: OUTSIDER }, retriage, "2026-10-18T08:00:00Z")], String(APP)).runs, [11, 22], "another App");
 });
 
-// #14801: admission ran on a born-triaged tracker and left it waiting at
-// status: ready on its open sub-issues, so dispatching intake again only loops.
-test("a born-triaged issue admission left waiting is not dispatched; its retriage note, or another account's admission text, still is", async () => {
-  const born = (number) => issue(number, { body: "Fix it.\n\n<!-- work-items:born-triaged -->", labels: [{ name: "status: ready" }] });
+// #14801: a born-triaged tracker waits in admission while a sub-issue is open,
+// so the sweep leaves it; admission edits its wait comment in place and never
+// clears it, so once the sub-issues close the stale comment must not hold it.
+test("a born-triaged issue is dispatched once its sub-issues close, whatever admission's old wait comment says", async () => {
+  const wait = admissionAt(LANES, "Not admitted to the issue lane yet: sub-issue #9 is open.", "2026-10-18T08:00:00Z");
+  const born = (number, subs) => issue(number, { body: "Fix it.\n\n<!-- work-items:born-triaged -->", labels: [{ name: "status: ready" }], sub_issues_summary: subs });
   const gh = fakeGitHub({
-    issues: [born(1), born(2), born(3), issue(4)],
-    comments: {
-      1: [admissionAt(LANES, "Not admitted to the issue lane yet: sub-issue #9 is open.", "2026-10-18T08:00:00Z")],
-      2: [admissionAt(LANES, retriage, "2026-10-18T08:00:00Z")],
-      3: [admissionAt({ login: "someone", id: OUTSIDER }, "Not admitted to the issue lane yet: sub-issue #9 is open.", "2026-10-18T08:00:00Z")],
-      // An untriaged issue is dispatched whatever admission said before.
-      4: [admissionAt(LANES, "Not admitted to the issue lane yet: sub-issue #9 is open.", "2026-10-18T08:00:00Z")],
-    },
+    issues: [born(1, { total: 1, completed: 1, percent_completed: 100 }), born(2, { total: 1, completed: 0, percent_completed: 0 })],
+    comments: { 1: [wait], 2: [{ ...wait, id: 8 }] },
   });
   const result = await sweep(gh);
-  assert.deepEqual(result.parked, [1]);
-  assert.deepEqual(result.dispatched, [2, 3, 4]);
-  assert.ok(!gh.writes.some((w) => w.path.includes("/issues/1/")), "nothing written on the waiting issue");
+  assert.deepEqual(result.dispatched, [1], "sub-issue closed: dispatched; sub-issue open: left to admission");
+  assert.ok(!gh.writes.some((w) => w.path.includes("/issues/2/")), "nothing written on the issue still waiting");
 });
 
 test("handedInComments counts the lanes App's re-triage admission comment by its last edit", () => {
