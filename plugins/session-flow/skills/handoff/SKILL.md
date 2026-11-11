@@ -250,7 +250,8 @@ reason stated. Never a hand-written handoff file when the script could have run.
 
 This skill's delivery step is the engine's default exit: the rails resume prompt with the
 "`/clear`, then copy everything between the dashed lines" instruction above the top rail. The user
-types `/clear` and pastes; nothing is launched on their behalf.
+types `/clear` and pastes; nothing is launched on their behalf. A forked side task is pasted into a
+new session with no `/clear` (the hard rule's exceptions).
 
 ## Late events after emit
 
@@ -481,7 +482,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   the opt-in `chore(wip):` commit of tracked work on a user's pause request ("WIP commit on an
   explicit pause" above); the handoff file itself is never committed
 - **Does not invoke `/clear`**. The user types `/clear`. The skill produces the save-point, emits
-  the resume prompt, and stops
+  the resume prompt, and stops (for a forked side task, only the side task stops)
 - **Does not launch a background agent**. Background delegation is the sibling
   `/session-flow:continue-in-background` skill, and it fires only on the user's explicit request
 - **Does not continue executing the underlying task**, per the hard rule above. Prompt-only does
