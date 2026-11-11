@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [1.1.2] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [1.1.1] - 2026-11-11
 
 ### Changed
