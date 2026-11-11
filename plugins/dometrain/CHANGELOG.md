@@ -3,6 +3,15 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.17] - 2026-11-11
+
+### Changed
+
+- The grounding skill points at the Dometrain MCP README's Tools, Notes and Troubleshooting sections
+  for ranking, quota and `429` behavior instead of restating them, including the quota-note
+  threshold (also kept in the vendored upstream skill `/dometrain:sync` diffs against). No behavior
+  change.
+
 ## [0.8.16] - 2026-11-09
 
 ### Changed
