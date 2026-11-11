@@ -77,7 +77,7 @@ import { stopSkip } from "../pr-unblock/escalation-routes.mjs";
 import { NOTE_ID, sharedCopyPairs, THREAD_ID, threadTrailerLines } from "../pr-unblock/thread-scope.mjs";
 import { PREDICATES } from "./predicates.mjs";
 import { PROTECTED_REFUSALS, segments } from "./protected-paths.mjs";
-import { retryFetch } from "./retry-fetch.mjs";
+import { retryFetch } from "../lib/retry-fetch.mjs";
 
 export { segments } from "./protected-paths.mjs";
 
