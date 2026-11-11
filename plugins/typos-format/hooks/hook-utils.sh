@@ -3521,11 +3521,7 @@ hook::env_s_split() {
     '"')
       ((i++))
       while ((i < n)) && [[ "${s:i:1}" != '"' ]]; do
-        if [[ "${s:i:1}" == '\' ]] && ((i + 1 < n)); then
-          word+="${s:i+1:1}"
-          ((i += 2))
-          continue
-        fi
+        [[ "${s:i:1}" == '\' ]] && ((i + 1 < n)) && ((i++))
         word+="${s:i:1}"
         ((i++))
       done
@@ -3613,8 +3609,7 @@ hook::shell_c_operand() {
     *) break ;;
     esac
   done
-  ((has_c)) || return 1
-  ((i < n)) || return 1
+  ((has_c && i < n)) || return 1
   HOOK_SHELL_C_OPERAND="${w[i]}"
   return 0
 }
@@ -3696,11 +3691,8 @@ hook::wsl_operand() {
           ((++nb))
           continue
         fi
-        if [[ "$ch" == '"' ]]; then
-          printf -v bs '%*s' "$((2 * nb + 1))" ''
-        else
-          printf -v bs '%*s' "$nb" ''
-        fi
+        [[ "$ch" == '"' ]] && nb=$((2 * nb + 1))
+        printf -v bs '%*s' "$nb" ''
         enc+="${bs// /\\}$ch"
         nb=0
       done
@@ -3807,9 +3799,7 @@ hook::git_resolve_index() {
           # (-u/-C/-S) reaches its own branch; peel into a scratch copy, leaving
           # HOOK_GIT_RESOLVED_WORDS as the caller matches on it.
           etok="${w[i]}"
-          if [[ "$etok" == -[!-]* ]]; then
-            while [[ "$etok" =~ ^-[i0v](.+)$ ]]; do etok="-${BASH_REMATCH[1]}"; done
-          fi
+          while [[ "$etok" =~ ^-[i0v](.+)$ ]]; do etok="-${BASH_REMATCH[1]}"; done
           case "$etok" in
           --)
             ((i++))
@@ -3841,20 +3831,17 @@ hook::git_resolve_index() {
           # substitutes only the operand's own words, so the argv's byte count
           # strictly decreases — a self-referential `env -S '-S -S'` runs out
           # rather than looping.
-          -S | --split-string)
-            local sval=""
-            ((i + 1 < n)) && sval="${w[i + 1]}"
+          -S* | --split-string | --split-string=*)
+            local sval skip=1
+            if [[ "$etok" == -S || "$etok" == --split-string ]]; then
+              sval="${w[i + 1]-}"
+              skip=2
+            else
+              sval="${etok#-S}"
+              sval="${sval#--split-string=}"
+            fi
             hook::env_s_split "$sval"
-            w=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+2}")
-            n=${#w[@]}
-            i=0
-            continue
-            ;;
-          -S* | --split-string=*)
-            local sval="${etok#-S}"
-            sval="${sval#--split-string=}"
-            hook::env_s_split "$sval"
-            w=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+1}")
+            w=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+skip}")
             n=${#w[@]}
             i=0
             continue
@@ -3872,7 +3859,6 @@ hook::git_resolve_index() {
             ((i++))
             ;;
           -u | --unset) ((i += 2)) ;;
-          -*) ((i++)) ;;
           *) ((i++)) ;;
           esac
         elif [[ "${w[i]}" == *=* ]]; then
@@ -3895,14 +3881,10 @@ hook::git_resolve_index() {
       while ((i < n)) && [[ "${w[i]}" == -* ]]; do
         case "${w[i]}" in
         -n | --adjustment) ((i += 2)) ;;
-        --adjustment=*) ((i++)) ;;
-        -*) ((i++)) ;;
-        *) break ;;
+        *) ((i++)) ;;
         esac
       done
-      if ((i < n)) && [[ "${w[i]}" =~ ^-?[0-9]+$ ]]; then
-        ((i++))
-      fi
+      ((i < n)) && [[ "${w[i]}" =~ ^-?[0-9]+$ ]] && ((i++))
       continue
       ;;
     sudo)
@@ -3917,9 +3899,7 @@ hook::git_resolve_index() {
       local sudo_ci=-1 stok
       while ((i < n)) && [[ "${w[i]}" == -* ]]; do
         stok="${w[i]}"
-        if [[ "$stok" == -[!-]* ]]; then
-          while [[ "$stok" =~ ^-[ABbeEHKklnPsSvV](.+)$ ]]; do stok="-${BASH_REMATCH[1]}"; done
-        fi
+        while [[ "$stok" =~ ^-[ABbeEHKklnPsSvV](.+)$ ]]; do stok="-${BASH_REMATCH[1]}"; done
         case "$stok" in
         -D | --chdir)
           ((i + 1 < n)) && hook::wrapper_chdir_record sudo_ci "${w[i + 1]}"
@@ -3934,7 +3914,6 @@ hook::git_resolve_index() {
           ((i++))
           ;;
         -u | -g | -h | -p | -C | -R | -T | --user | --group) ((i += 2)) ;;
-        -*) ((i++)) ;;
         *) ((i++)) ;;
         esac
       done
@@ -3945,14 +3924,10 @@ hook::git_resolve_index() {
       while ((i < n)) && [[ "${w[i]}" == -* ]]; do
         case "${w[i]}" in
         -s | --signal | -k | --kill-after) ((i += 2)) ;;
-        --preserve-status | --foreground | --verbose) ((i++)) ;;
-        -*) ((i++)) ;;
-        *) break ;;
+        *) ((i++)) ;;
         esac
       done
-      if ((i < n)) && [[ "${w[i]}" =~ ^[0-9]+([.][0-9]+)?(s|m|h|d)?$ ]]; then
-        ((i++))
-      fi
+      ((i < n)) && [[ "${w[i]}" =~ ^[0-9]+([.][0-9]+)?(s|m|h|d)?$ ]] && ((i++))
       continue
       ;;
     # eval concatenates and re-executes its arguments, so for the unquoted
@@ -3964,13 +3939,9 @@ hook::git_resolve_index() {
     # only PRINT the command's path/description — nothing runs — so a git
     # word behind them is a probe, not an invocation: bail out.
     command | exec | builtin | eval | !)
-      local is_command=0
-      [[ "${tok##*/}" == "command" ]] && is_command=1
       ((i++))
       while ((i < n)) && [[ "${w[i]}" == -* && "${w[i]}" != "--" ]]; do
-        if ((is_command)) && [[ "${w[i]}" == -*[vV]* ]]; then
-          return 1
-        fi
+        [[ "${tok##*/}" == command && "${w[i]}" == -*[vV]* ]] && return 1
         [[ "${w[i]}" == "-a" ]] && ((i++))
         ((i++))
       done
@@ -3979,9 +3950,7 @@ hook::git_resolve_index() {
       ;;
     time)
       ((i++))
-      if ((i < n)) && [[ "${w[i]}" == "-p" ]]; then
-        ((i++))
-      fi
+      ((i < n)) && [[ "${w[i]}" == "-p" ]] && ((i++))
       continue
       ;;
     # Compound-command reserved words at the execution position: a command
@@ -4027,7 +3996,7 @@ hook::git_resolve_subcommand() {
   local gi="$1"
   shift
   local -a w=("$@")
-  local nseg=${#w[@]} j gw
+  local nseg=${#w[@]} j gw kind
   HOOK_GIT_SUB=""
   HOOK_GIT_SUB_IDX=-1
   HOOK_GIT_CONFIG_VALUES=()
@@ -4037,28 +4006,17 @@ hook::git_resolve_subcommand() {
   while ((j < nseg)); do
     gw="${w[j]}"
     case "$gw" in
-    -c | --config)
-      ((j + 1 < nseg)) && {
-        HOOK_GIT_CONFIG_VALUES+=("${w[j + 1]}")
-        HOOK_GIT_CONFIG_VALUE_KINDS+=("inline")
-      }
-      ((j += 2))
-      ;;
-    --config-env)
-      ((j + 1 < nseg)) && {
-        HOOK_GIT_CONFIG_VALUES+=("${w[j + 1]}")
-        HOOK_GIT_CONFIG_VALUE_KINDS+=("env")
-      }
-      ((j += 2))
-      ;;
-    --config=*)
-      HOOK_GIT_CONFIG_VALUES+=("${gw#*=}")
-      HOOK_GIT_CONFIG_VALUE_KINDS+=("inline")
-      ((j++))
-      ;;
-    --config-env=*)
-      HOOK_GIT_CONFIG_VALUES+=("${gw#*=}")
-      HOOK_GIT_CONFIG_VALUE_KINDS+=("env")
+    -c | --config | --config-env | --config=* | --config-env=*)
+      kind="inline"
+      [[ "$gw" == --config-env* ]] && kind="env"
+      if [[ "$gw" == *=* ]]; then
+        HOOK_GIT_CONFIG_VALUES+=("${gw#*=}")
+      elif ((++j < nseg)); then
+        HOOK_GIT_CONFIG_VALUES+=("${w[j]}")
+      else
+        break
+      fi
+      HOOK_GIT_CONFIG_VALUE_KINDS+=("$kind")
       ((j++))
       ;;
     -C | --git-dir | --work-tree | --namespace | --super-prefix | --attr-source | --exec-path)
@@ -4300,16 +4258,11 @@ hook::git_effective_dir_to() {
   shift
   local base="${HOOK_EFFECTIVE_BASE:-${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}}" i n=$# arg
   local -a a=("$@")
-  for ((i = 0; i < n; i++)); do
-    arg="${a[i]}"
-    if [[ "$arg" == "-C" ]] && ((i + 1 < n)); then
-      if [[ "${a[i + 1]}" == /* || "${a[i + 1]}" =~ ^[A-Za-z]:[\/] ]]; then
-        base="${a[i + 1]}"
-      else
-        base="$base/${a[i + 1]}"
-      fi
-      ((i++))
-    fi
+  for ((i = 0; i + 1 < n; i++)); do
+    [[ "${a[i]}" == "-C" ]] || continue
+    arg="${a[++i]}"
+    [[ "$arg" == /* || "$arg" =~ ^[A-Za-z]:[\/] ]] || arg="$base/$arg"
+    base="$arg"
   done
   _ed_out="$base"
 }
@@ -4987,7 +4940,7 @@ hook::bash_parse_segments_shfmt() {
     HOOK_BPS_FAIL="an extglob pattern, which shfmt and bash do not read the same way"
     hook::_bps_refuse
   fi
-  local __hu_s __hu_w=0 __hu_r=0 __hu_a __hu_c __hu_x
+  local __hu_s __hu_w=0 __hu_r=0 __hu_a __hu_c __hu_x __hu_hm
   local -a __hu_argv=()
   for ((__hu_s = 0; __hu_s < ${#__hu_ac[@]}; __hu_s++)); do
     __hu_a=${__hu_ac[__hu_s]}
@@ -5024,11 +4977,9 @@ hook::bash_parse_segments_shfmt() {
     hook::bash_parse_segments_shfmt "$__hu_x" "$__hu_bcb" "$__hu_bsoft" || return 1
     # A joined body is read as `: <<D` then its joined text, so that one body is
     # the joined form of a body the first tree holds.
-    if [[ "$__hu_x" == ': <<'* ]]; then
-      hook::_bps_hd_check joined "$__hu_x" || return 1
-    else
-      hook::_bps_hd_check none "$__hu_x" || return 1
-    fi
+    __hu_hm=none
+    [[ "$__hu_x" == ': <<'* ]] && __hu_hm=joined
+    hook::_bps_hd_check "$__hu_hm" "$__hu_x" || return 1
   done
   # Set last: a callback's own parse would overwrite it.
   # shellcheck disable=SC2034  # result global is consumed by the sourcing guard
@@ -5143,9 +5094,7 @@ hook::findings_to() {
   [[ -n "$__hu_ft_fd" ]] && hook::findings_encode_to "$__hu_ft_fd" "$__hu_ft_raw"
   if ((__hu_ft_delta)); then
     local __hu_ft_s __hu_ft_a __hu_ft_dir __hu_ft_key __hu_ft_prev=""
-    if ((__hu_ft_n == 0)); then
-      __hu_ft_ctx=""
-    fi
+    ((__hu_ft_n)) || __hu_ft_ctx=""
     hook::session_agent_to __hu_ft_s __hu_ft_a "$__hu_ft_in"
     if hook::_state_dir_to __hu_ft_dir finding-digests; then
       hook::_file_key_to __hu_ft_key "$__hu_ft_file"
