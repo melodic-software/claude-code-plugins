@@ -3,6 +3,16 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.9] - 2026-11-11
+
+### Changed
+
+- The Miro gates no longer spell out the MCP tool prefixes, and the session-archive and persona
+  notes no longer restate Claude Code behavior: each links the upstream section to read live. The
+  plugin-data link points at the section's current anchor. The simulation guide's persona
+  template, temporal-milestone and value-round lines now use the board's declared colors (red hot
+  spots, dark_green milestones, pink value destroyed). No behavior change.
+
 ## [0.7.8] - 2026-11-10
 
 ### Changed

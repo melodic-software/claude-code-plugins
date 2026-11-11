@@ -3,6 +3,13 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.24] - 2026-11-11
+
+### Changed
+
+- The `reach` skill's auto mode link uses the section id the permission-modes page renders now.
+  No behavior change.
+
 ## [0.2.23] - 2026-11-10
 
 ### Fixed

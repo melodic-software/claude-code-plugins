@@ -3,6 +3,13 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.13.1] - 2026-11-11
+
+### Changed
+
+- The `babysit-prs` safety reference's auto mode link uses the section id the permission-modes
+  page renders now. No behavior change.
+
 ## [8.13.0] - 2026-11-10
 
 ### Added

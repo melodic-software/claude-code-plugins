@@ -3,6 +3,12 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.17] - 2026-11-11
+
+### Changed
+
+- The audit skill and its references describe the cadence as monthly or on-demand instead of weekly, say checks receive no history (the orchestrator applies trend after them), and scope the no-prompts guardrail to the run so it no longer contradicts the elevated pass's yes. Restated upstream behavior (the Bash tool and plugin variables, the foreground limit, the KEV schema fields, `DISABLE_AUTOUPDATER`, `--bare`, browser off-store handling, `CreateEnvironmentBlock`) is replaced by pointers with as-of dates and recheck triggers, and the setup skill's auto mode link points at its current section. No behavior change.
+
 ## [0.26.16] - 2026-11-10
 
 ### Changed
