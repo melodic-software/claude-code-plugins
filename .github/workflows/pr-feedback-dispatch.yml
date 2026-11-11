@@ -188,8 +188,9 @@ jobs:
         if: steps.kill.outputs.proceed != 'true' && github.event.workflow_run.conclusion == 'success'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
+          CAUSE: ${{ steps.kill.outputs.cause }}
         run: |
-          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); the verdict is applied when the lost-run reconciler re-runs this job"
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); the verdict is applied when the lost-run reconciler re-runs this job"
           exit 1
 
       - name: Download the verdict
@@ -404,8 +405,9 @@ jobs:
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
+          CAUSE: ${{ steps.kill.outputs.cause }}
         run: |
-          echo "::notice::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); nothing dispatched"
+          echo "::notice::the lanes kill switch stops this run (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing dispatched"
 
       # The script resolves the pr-unblock lane's address-feedback slot with
       # the base's resolve-config once it has found the PR and its head, and

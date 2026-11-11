@@ -208,10 +208,10 @@
 // agent-ready or a run last reported, waits the kill-switch
 // limits.stranded-backoff-hours after the run ended, flat, never doubled,
 // with no cap on trips and no fail route. A run whose start gate stopped it
-// on the GITHUB_TOKEN budget (BUDGET_STEP green in a call's broker-check or
-// model job, from the jobs listing) is a breaker trip at broker-check whose
-// record carries BUDGET_TAG: it never counts toward that bound or that wait,
-// and re-fires on the next sweep. A sweep re-fires breaker trips,
+// on the GITHUB_TOKEN budget (BUDGET_STEP green in a call's broker-check,
+// from the jobs listing) is a breaker trip at broker-check whose record
+// carries BUDGET_TAG: it never counts toward that bound or that wait, and
+// re-fires once the window reset its step names has passed. A sweep re-fires breaker trips,
 // oldest run end first, only while the work-resolve-issue runs not yet
 // finished (five status listings, read once a sweep that has one) are under
 // limits.refire-queue-per-slot times the lane's SLOTS, within
@@ -379,9 +379,10 @@ const UNTRUSTED_STEP = "Stop on untrusted provenance";
 const BROKER_STEP = "Ask the broker whether the lane may run";
 // broker-check's step before BROKER_STEP, which skips it while a kill switch is on.
 const KILL_STEP = "Check the kill switch";
-// The read runner's step, in broker-check and in its model job, that runs
-// exactly when KILL_STEP stopped on the GITHUB_TOKEN budget (cause budget).
-const BUDGET_STEP = "Stop on a low GITHUB_TOKEN budget";
+// broker-check's step that runs exactly when KILL_STEP stopped on the
+// GITHUB_TOKEN budget (cause budget). Its name carries the window's reset,
+// in epoch seconds, from the gate's reset output.
+const BUDGET_STEP = /^Stop on a low GITHUB_TOKEN budget(?: until (.*))?$/;
 // The second line of a breaker record whose stop was a budget stop.
 const BUDGET_TAG = "<!-- work-unblock cause=budget -->";
 // A raw job log line, its timestamp first, whose rest matches the pattern `rest`.
@@ -1720,6 +1721,8 @@ async function didNoWork(jobsOf, refusalOf, runs) {
   // A run the switches stopped makes the trip a switch trip, whatever other
   // run a budget stop stopped.
   let switched = false;
+  // The latest window reset a budget stop names, in ms.
+  let resetAt = null;
   const atLeast = (kind, run, at, budget = false) => {
     switched ||= kind === "breaker" && !budget;
     if (rank[kind] > (rank[stalled] ?? 0)) {
@@ -1746,8 +1749,17 @@ async function didNoWork(jobsOf, refusalOf, runs) {
     const named = (name) => namedJobs(jobs, name);
     // Any call's broker-check: a later leg asks the broker again for its slot.
     const calls = RESOLVE_CALLS.flatMap(named);
-    // A budget stop, at broker-check or in the model job: no model ran.
-    const budget = calls.some((job) => endedAt(job, BUDGET_STEP, "success"));
+    // A budget stop at broker-check: no model ran.
+    const budgetSteps = calls.flatMap((job) => (job?.steps ?? []).filter((step) => step?.conclusion === "success" && BUDGET_STEP.test(String(step?.name))));
+    const budget = budgetSteps.length > 0;
+    for (const step of budgetSteps) {
+      // A name whose reset is not a plain epoch second names none.
+      const until = BUDGET_STEP.exec(step.name)[1] ?? "";
+      const seconds = /^[0-9]{1,12}$/.test(until) ? Number(until) : 0;
+      if (seconds > 0) {
+        resetAt = Math.max(resetAt ?? 0, seconds * 1000);
+      }
+    }
     const killed = budget || calls.some((job) => endedAt(job, KILL_STEP, "success") && endedAt(job, BROKER_STEP, "skipped"));
     const checked = calls.find((job) => failedAt(job, BROKER_STEP));
     const checkStopped = calls.find((job) => job.conclusion === "success" && endedAt(job, BROKER_STEP, "success") && endedAt(job, LEASE_STEP, "skipped"));
@@ -1789,7 +1801,8 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       atLeast(outage ? "outage" : "blocked");
     }
   }
-  return stalled && { stalled, run: tripped, stage, budget: stalled === "breaker" && !switched };
+  const budget = stalled === "breaker" && !switched;
+  return stalled && { stalled, run: tripped, stage, budget, resetAt: budget ? resetAt : null };
 }
 
 // The reason the broker refused `job`, from its log: the failed step's last
@@ -2206,14 +2219,15 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
   // A stale stop ran no model; a failed mint in its re-fire job is no failed
   // mint of the lane's, so it skips the did-no-work clock below.
   const stale = await stoppedStale(jobsOf, runs);
-  const { stalled, run: refused, stage, budget } = (!stale && (await didNoWork(jobsOf, refusalReader(jobLog, repo, carry), runs))) || {};
+  const { stalled, run: refused, stage, budget, resetAt } = (!stale && (await didNoWork(jobsOf, refusalReader(jobLog, repo, carry), runs))) || {};
   if (stalled) {
     // Breaker trips since a listed human last added agent-ready or a run last
     // reported; past limits.limit-stops-per-issue of them, a flat wait of the
     // kill-switch hours that never doubles: a trip is the lanes' load, not the
     // issue's fault (owner decision Q109). A stop on the GITHUB_TOKEN budget is
-    // no trip: it neither counts nor waits, and re-fires on the next sweep,
-    // which itself runs only while its own start gate reads the budget clear.
+    // no trip: it never counts, and re-fires once the window it read has
+    // reset (the reset its step names, else an hour after the run ended, a
+    // primary window's length), so it re-fires once per stop, never per sweep.
     const from = Math.max(
       Number.NEGATIVE_INFINITY,
       ...events.filter((event) => isLabel(event, "labeled") && humans.has(event.actor?.id)).map((event) => Date.parse(event.created_at)),
@@ -2230,10 +2244,11 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
     // next sweep, which reads the page again.
     const outage = stalled === "outage";
     const clamp = (stalled === "breaker" && stage === "check") || (outage && (await upstreamClear())) ? 0 : limits["reset-clamp-min"];
-    const due = ended + (over >= 0 ? hoursFor["kill-switch"] : clamp) * HOUR_MS;
+    const due = budget ? (resetAt ?? ended + HOUR_MS) : ended + (over >= 0 ? hoursFor["kill-switch"] : clamp) * HOUR_MS;
     if (now < due) {
-      const why =
-        stalled === "breaker"
+      const why = budget
+        ? "the start gate stopped its lane run on a low GITHUB_TOKEN budget"
+        : stalled === "breaker"
           ? `the broker refused its lane run for the lanes kill switch (trip ${trips + 1})`
           : outage
             ? "the upstream-status stop skipped its lane run, and the status page does not read clear"

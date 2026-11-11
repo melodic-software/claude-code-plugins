@@ -92,12 +92,15 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          # Starts new work: also stop on a low GITHUB_TOKEN budget.
+          budget: "true"
 
       - name: Report the kill switch
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
-        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing read or deleted"
+          CAUSE: ${{ steps.kill.outputs.cause }}
+        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing read or deleted"
 
       # cleanup.mjs reads the branch-cleanup leaf through the base's
       # resolve-config, which needs its dependencies.
@@ -184,7 +187,8 @@ jobs:
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
-        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing deleted"
+          CAUSE: ${{ steps.kill.outputs.cause }}
+        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing deleted"
 
       # The delete stage checks the list against the configured cap.
       - name: Install resolve-config's dependencies

@@ -176,13 +176,13 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-
       - name: Stop when the kill switch is on
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
+          CAUSE: ${{ steps.kill.outputs.cause }}
         run: |
-          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable})"
           exit 1
 
       # Only whether each secret is set reaches the action, never its value.
@@ -592,8 +592,9 @@ jobs:
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
+          CAUSE: ${{ steps.kill.outputs.cause }}
         run: |
-          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable})"
           exit 1
 
       # Only whether each secret is set reaches the action, never its value.
@@ -966,8 +967,9 @@ jobs:
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
+          CAUSE: ${{ steps.kill.outputs.cause }}
         run: |
-          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable})"
           exit 1
 
       # Only whether each secret is set reaches the action, never its value.

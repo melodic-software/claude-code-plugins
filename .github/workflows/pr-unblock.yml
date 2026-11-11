@@ -2014,8 +2014,6 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-          # After a model turn: switches only, so a low budget never drops its work.
-          budget: "false"
 
       # The select job's thread file and the scan job's replies, from the one
       # leg the reply job reads; prepare checks each against its writer's SHA-256.

@@ -251,7 +251,6 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-
       # Skips the run while Actions or npm installs report a degraded component,
       # with a logged reason; fails open (.github/actions/check-upstream-status).
       - name: Check upstream status
@@ -265,8 +264,9 @@ jobs:
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
+          CAUSE: ${{ steps.kill.outputs.cause }}
         run: |
-          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable})"
           exit 1
 
       - name: Stop while upstream is degraded
@@ -1096,8 +1096,9 @@ jobs:
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
+          CAUSE: ${{ steps.kill.outputs.cause }}
         run: |
-          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable})"
           exit 1
 
       - name: Stop while upstream is degraded
@@ -1881,8 +1882,9 @@ jobs:
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
+          CAUSE: ${{ steps.kill.outputs.cause }}
         run: |
-          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable})"
           exit 1
 
       - name: Stop while upstream is degraded

@@ -519,13 +519,18 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          # Starts new work: also stop on a low GITHUB_TOKEN budget.
+          budget: "true"
 
-      # work-unblock's sweep reads this step's conclusion from the job listing
-      # (label-unblocked.mjs BUDGET_STEP): a stop on the GITHUB_TOKEN budget
-      # re-fires without counting as a kill-switch trip.
-      - name: Stop on a low GITHUB_TOKEN budget
+      # work-unblock's sweep reads this step's name and conclusion from the
+      # job listing (label-unblocked.mjs BUDGET_STEP): a stop on the
+      # GITHUB_TOKEN budget re-fires after the window's reset the name
+      # carries, without counting as a kill-switch trip.
+      - name: Stop on a low GITHUB_TOKEN budget until ${{ steps.kill.outputs.reset }}
         if: steps.kill.outputs.cause == 'budget'
-        run: echo "::notice::the start gate stopped this run on a low GITHUB_TOKEN budget"
+        env:
+          RESET: ${{ steps.kill.outputs.reset }}
+        run: echo "::notice::the start gate stopped this run on a low GITHUB_TOKEN budget until $RESET (epoch seconds)"
 
       # The broker repeats the kill switch, including the repository-variable
       # shadow this job cannot see, and checks the job's OIDC claims.
@@ -879,11 +884,6 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-
-      # As in broker-check: work-unblock's sweep reads it from the job listing.
-      - name: Stop on a low GITHUB_TOKEN budget
-        if: steps.kill.outputs.cause == 'budget'
-        run: echo "::notice::the start gate stopped this run on a low GITHUB_TOKEN budget"
 
       # A broker-check allow from an earlier attempt, reused by "Re-run failed
       # jobs", or a broker-check that skipped the broker because its own kill

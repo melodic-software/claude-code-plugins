@@ -185,12 +185,15 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          # Starts new work: also stop on a low GITHUB_TOKEN budget.
+          budget: "true"
 
       - name: Report the kill switch
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
-        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing read or labeled"
+          CAUSE: ${{ steps.kill.outputs.cause }}
+        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing read or labeled"
 
       # The base config's limits.api, in resolve-config's output shape, for
       # the pacer; a failed read leaves rate-limits.json's defaults.
@@ -506,7 +509,8 @@ jobs:
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
-        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); no level decided or published"
+          CAUSE: ${{ steps.kill.outputs.cause }}
+        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); no level decided or published"
 
       - name: Resolve the config
         id: config
@@ -705,7 +709,8 @@ jobs:
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
-        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing read or written"
+          CAUSE: ${{ steps.kill.outputs.cause }}
+        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing read or written"
 
       # The broker mints on a label event only for a listed human (the
       # trusted-actor list on main, by id), so anyone else stops here quietly,

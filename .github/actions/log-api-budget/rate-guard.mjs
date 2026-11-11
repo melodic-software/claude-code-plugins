@@ -78,7 +78,8 @@ const SHARE = (value) => typeof value === "number" && value >= 0 && value <= 1;
 const COUNT = (value) => Number.isInteger(value) && value >= 1;
 // pace, optional, is pace.mjs's share for timer-driven lanes; stop-floor,
 // optional, the share of the header's limit left at which the latch stops;
-// start-gate, optional, check-kill-switch's share under which a lane does not start.
+// start-gate, optional, check-kill-switch's share under which a lane does not
+// start, which that gate reads from rate-limits.json alone.
 const FIELDS = { plan: (value) => SHARE(value) && value > 0, "writer-pause": SHARE, breaker: SHARE, "read-floor": SHARE, "stop-floor": SHARE, "limit-cap": COUNT, pace: SHARE, "start-gate": SHARE };
 const CONTENT_FIELDS = { ...FIELDS, "per-minute": COUNT, "per-hour": COUNT };
 const REQUIRED = ["plan", "writer-pause", "breaker", "read-floor"];

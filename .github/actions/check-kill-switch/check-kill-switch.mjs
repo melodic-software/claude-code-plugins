@@ -1,51 +1,36 @@
-// Start gate for CI lanes. Two manual switches, then the GITHUB_TOKEN budget:
+// Gate for CI lanes: two manual switches, then, on a gate that starts new
+// work, the GITHUB_TOKEN budget.
 //
 // - The org switch and the repository switch each proceed only on exactly
-//   `false`. `true@<time>` (`true@2026-11-11T18:00:00Z`, UTC, seconds, `Z`)
-//   stops until that time and then proceeds; any other value, a malformed time
-//   included, stops (fail closed).
-// - With both switches proceeding, one GET /rate_limit with the job's token
-//   reads the core pool: x-ratelimit-limit, -remaining and -reset when the
-//   response carries all three, else the body's resources.core. The lane stops
-//   while remaining < limits.api github-token start-gate x limit and the reset
-//   is still ahead. A read that fails or cannot be read proceeds with a
-//   warning; the rate guard's stop-floor (log-api-budget/rate-guard.mjs) is
-//   the backstop. GitHub counts this call against the secondary limit, not the
-//   primary one, so it is made once, with no retry. BUDGET_CHECK=false (the
-//   action's `budget: false`, set on gates that run after a model turn) skips
-//   the read, so a low budget never throws finished model work away.
+//   `false`. Unset, empty and every other value stop the lane (fail closed).
+// - With BUDGET_CHECK=true (the action's `budget: "true"`, set only on gates
+//   that start new work) and both switches proceeding, one GET /rate_limit
+//   with the job's token reads the core pool: x-ratelimit-limit, -remaining
+//   and -reset when the response carries all three, else the body's
+//   resources.core. The lane stops while remaining < start-gate x limit and
+//   the reset is still ahead; start-gate is github-token's entry in
+//   ../log-api-budget/rate-limits.json. A read that fails or cannot be read,
+//   or a share that cannot be read, proceeds with a warning; the rate guard's
+//   stop-floor (log-api-budget/rate-guard.mjs) is the backstop. GitHub counts
+//   this call against the secondary limit, not the primary one, so it is made
+//   once, with no retry. A gate that finishes or judges existing work leaves
+//   the budget off, so a low budget never throws that work away.
 //
-// Every stop is reason=kill-switch; cause says which: switch, expiry (a
-// `true@<time>` still ahead), budget, or ok when the lane proceeds.
+// Every stop is reason=kill-switch; cause says which: switch, budget, or ok
+// when the lane proceeds. A budget stop also writes reset, the epoch second
+// the reading's window resets.
 import { randomUUID } from "node:crypto";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-// rate-limits.json's github-token start-gate, used when log-api-budget is not
-// in the job's checkout (check-kill-switch.test.mjs holds the two equal).
-export const START_GATE_SHARE = 0.1;
 const READ_TIMEOUT_MS = 10_000;
-const TIMED = /^true@(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ)$/;
+const RATE_LIMITS = new URL("../log-api-budget/rate-limits.json", import.meta.url);
 
-// One switch value at `now` (ms): ok, switch, or expiry while its time is ahead.
-export function switchCause(value, now = Date.now()) {
-  if (value === "false") {
-    return "ok";
-  }
-  const time = TIMED.exec(value ?? "")?.[1];
-  const until = time ? Date.parse(time) : Number.NaN;
-  // Date.parse rolls 2026-02-30 over to March; only a real date round-trips.
-  if (!Number.isFinite(until) || new Date(until).toISOString() !== time.replace("Z", ".000Z")) {
-    return "switch";
-  }
-  return now < until ? "expiry" : "ok";
-}
-
-export function checkKillSwitch(value, repoValue, now = Date.now()) {
-  const causes = [switchCause(value, now), switchCause(repoValue, now)];
-  const cause = causes.includes("switch") ? "switch" : causes.includes("expiry") ? "expiry" : "ok";
-  return cause === "ok" ? { proceed: "true", reason: "ok", cause } : { proceed: "false", reason: "kill-switch", cause };
+export function checkKillSwitch(value, repoValue) {
+  return value === "false" && repoValue === "false"
+    ? { proceed: "true", reason: "ok", cause: "ok" }
+    : { proceed: "false", reason: "kill-switch", cause: "switch" };
 }
 
 // Whether `reading` ({ limit, remaining, reset }, reset in epoch seconds) is
@@ -73,8 +58,8 @@ export function readingOf(headers, body) {
 const clean = (text) => String(text).replace(/[\r\n%:]/g, " ");
 const show = (fields) => Object.entries(fields ?? {}).map(([name, value]) => `${name}=${clean(value ?? "na")}`).join(" ");
 
-// The budget half of the gate: { stop, line } where line is the run's one
-// notice or warning. Never throws.
+// The budget half of the gate: { stop, reset, line } where line is the run's
+// one notice or warning. Never throws.
 export async function checkBudget({ token, api = "https://api.github.com", share, now = Date.now() / 1000, fetchImpl = fetch } = {}) {
   if (!token) {
     return { stop: false, line: "::warning title=start-gate::no token to read the GITHUB_TOKEN budget; the lane proceeds" };
@@ -95,6 +80,7 @@ export async function checkBudget({ token, api = "https://api.github.com", share
     const coreFields = core && { limit: core.limit, remaining: core.remaining, reset: core.reset, used: core.used };
     return {
       stop,
+      reset: reading.reset,
       line:
         `::notice title=start-gate::github-token start-gate=${share} decided from ${reading.source}: limit=${reading.limit} remaining=${reading.remaining} reset=${reading.reset} stop=${stop}; ` +
         `body core ${core ? show(coreFields) : "absent"}; headers ${show(header)}`,
@@ -104,16 +90,18 @@ export async function checkBudget({ token, api = "https://api.github.com", share
   }
 }
 
-// limits.api github-token start-gate, from RESOLVED_CONFIG over rate-limits.json
-// (rate-guard.mjs apiLimitsOrBuiltIn), or START_GATE_SHARE when that module is
-// not in the job's checkout.
-async function startGateShare(resolvedPath, log) {
+// github-token's start-gate share from rate-limits.json, the only copy, or
+// null with a warning when it cannot be read.
+export function startGateShare(path = RATE_LIMITS, log = (line) => console.log(line)) {
   try {
-    const { apiLimitsOrBuiltIn } = await import(new URL("../log-api-budget/rate-guard.mjs", import.meta.url));
-    return apiLimitsOrBuiltIn({ resolvedPath: resolvedPath ?? "", log })["github-token"]["start-gate"] ?? START_GATE_SHARE;
+    const share = JSON.parse(readFileSync(path, "utf8"))?.["github-token"]?.["start-gate"];
+    if (typeof share !== "number" || share < 0 || share > 1) {
+      throw new Error("github-token start-gate is not a share from 0 to 1");
+    }
+    return share;
   } catch (error) {
-    log(`::warning title=start-gate::rate-guard.mjs could not be loaded (${clean(error?.code ?? error?.message)}); start-gate share ${START_GATE_SHARE}`);
-    return START_GATE_SHARE;
+    log(`::warning title=start-gate::rate-limits.json gave no start-gate share (${clean(error?.code ?? error?.message)}); the lane proceeds without a budget read`);
+    return null;
   }
 }
 
@@ -135,18 +123,20 @@ export function writeOutputs(outputs, outputPath = process.env.GITHUB_OUTPUT) {
   appendFileSync(outputPath, text);
 }
 
-export async function main(env = process.env, { fetchImpl = fetch, now = Date.now, log = (line) => console.log(line) } = {}) {
-  let result = checkKillSwitch(env.KILL_SWITCH_VALUE, env.REPO_KILL_SWITCH_VALUE, now());
-  if (result.proceed === "true" && env.BUDGET_CHECK !== "false") {
-    const share = await startGateShare(env.RESOLVED_CONFIG, log);
-    const budget = await checkBudget({ token: env.BUDGET_TOKEN, api: env.GITHUB_API_URL || undefined, share, now: now() / 1000, fetchImpl });
-    log(budget.line);
-    if (budget.stop) {
-      result = { proceed: "false", reason: "kill-switch", cause: "budget" };
+export async function main(env = process.env, { fetchImpl = fetch, now = Date.now, log = (line) => console.log(line), rateLimits = RATE_LIMITS } = {}) {
+  let result = { ...checkKillSwitch(env.KILL_SWITCH_VALUE, env.REPO_KILL_SWITCH_VALUE), reset: "" };
+  if (result.proceed === "true" && env.BUDGET_CHECK === "true") {
+    const share = startGateShare(rateLimits, log);
+    if (share !== null) {
+      const budget = await checkBudget({ token: env.BUDGET_TOKEN, api: env.GITHUB_API_URL || undefined, share, now: now() / 1000, fetchImpl });
+      log(budget.line);
+      if (budget.stop) {
+        result = { proceed: "false", reason: "kill-switch", cause: "budget", reset: String(budget.reset) };
+      }
     }
   }
   writeOutputs(result, env.GITHUB_OUTPUT);
-  log(`check-kill-switch: proceed=${result.proceed} reason=${result.reason} cause=${result.cause}`);
+  log(`check-kill-switch: proceed=${result.proceed} reason=${result.reason} cause=${result.cause}${result.reset ? ` reset=${result.reset}` : ""}`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

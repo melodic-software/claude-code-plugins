@@ -114,6 +114,8 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          # Starts new work: also stop on a low GITHUB_TOKEN budget.
+          budget: "true"
 
       - name: Check upstream status
         id: upstream
@@ -137,6 +139,7 @@ jobs:
         env:
           KILL: ${{ steps.kill.outputs.proceed }}
           KILL_REASON: ${{ steps.kill.outputs.reason }}
+          KILL_CAUSE: ${{ steps.kill.outputs.cause }}
           DEGRADED: ${{ steps.upstream.outputs.degraded }}
           DEGRADED_REASON: ${{ steps.upstream.outputs.reason }}
           WHO: ${{ steps.who.outputs.proceed }}
@@ -147,7 +150,7 @@ jobs:
             echo "::error::$1: $2"
             exit 1
           }
-          [ "$KILL" = true ] || stop kill-switch "the lanes kill switch is on (reason: ${KILL_REASON:-unreadable})"
+          [ "$KILL" = true ] || stop kill-switch "the lanes start gate stops this run (reason: ${KILL_REASON:-unreadable}, cause: ${KILL_CAUSE:-unreadable})"
           [ "$DEGRADED" != true ] || stop upstream-degraded "${DEGRADED_REASON}; dispatch again once it recovers"
           [ "$WHO" = true ] || stop untrusted-dispatcher "the dispatcher is not a listed human (reason: ${WHO_REASON:-unreadable})"
 
@@ -332,8 +335,9 @@ jobs:
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
+          CAUSE: ${{ steps.kill.outputs.cause }}
         run: |
-          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable})"
           exit 1
 
       # Under the workspace: --restricted confines the file tools to it.
@@ -1091,8 +1095,6 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-          # After a model turn: switches only, so a low budget never drops its work.
-          budget: "false"
 
       - name: Resolve the config
         id: config
@@ -1241,8 +1243,6 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-          # After a model turn: switches only, so a low budget never drops its work.
-          budget: "false"
 
       - name: Resolve the config
         id: config

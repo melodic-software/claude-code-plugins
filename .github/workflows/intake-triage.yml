@@ -216,6 +216,8 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          # Starts new work: also stop on a low GITHUB_TOKEN budget.
+          budget: "true"
 
       # Skips the run while Actions or npm installs report a degraded component,
       # with a logged reason; fails open (.github/actions/check-upstream-status).
@@ -230,8 +232,9 @@ jobs:
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
+          CAUSE: ${{ steps.kill.outputs.cause }}
         run: |
-          echo "::notice::the lanes kill switch stops this triage and the needs-triage label (reason: ${REASON:-unreadable})"
+          echo "::notice::the lanes kill switch stops this triage and the needs-triage label (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable})"
 
   # The floor label, on an issues event only: a dispatch asks for triage. A
   # failed or skipped born-triaged gate (always skipped on a reopen) leaves
@@ -520,8 +523,6 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-          # After a model turn: switches only, so a low budget never drops its work.
-          budget: "false"
 
       # The broker mints only for a listed human, or github-actions[bot] on a
       # dispatch (intake-reenter.yml, the triage sweep), and a re-run only for
@@ -718,6 +719,8 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          # Starts new work: also stop on a low GITHUB_TOKEN budget.
+          budget: "true"
 
       # The same actors apply-verdict writes for, so a run whose verdict the
       # broker would not write starts no model either.
@@ -2050,8 +2053,6 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-          # After a model turn: switches only, so a low budget never drops its work.
-          budget: "false"
 
       - name: Check who started the run
         id: who

@@ -139,6 +139,8 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          # Starts new work: also stop on a low GITHUB_TOKEN budget.
+          budget: "true"
 
       # Skips the run while Actions or npm installs report a degraded component,
       # with a logged reason; fails open (.github/actions/check-upstream-status).
@@ -153,8 +155,9 @@ jobs:
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
+          CAUSE: ${{ steps.kill.outputs.cause }}
         run: |
-          echo "::notice::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); nothing dispatched"
+          echo "::notice::the lanes kill switch stops this run (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing dispatched"
 
       # A push or scheduled run on its first attempt was started by the event
       # itself. A hand run, or any re-run, is checked against the base list:
@@ -421,6 +424,8 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          # Starts new work: also stop on a low GITHUB_TOKEN budget.
+          budget: "true"
 
       # refine-event-dispatch.mjs reads the base config's `limits` through the
       # base's resolve-config, which needs its dependencies.

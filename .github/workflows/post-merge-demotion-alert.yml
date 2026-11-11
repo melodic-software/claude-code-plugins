@@ -1531,7 +1531,8 @@ jobs:
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
-        run: echo "::notice::the lanes kill switch stops this report (reason ${REASON:-unreadable}); nothing read or written"
+          CAUSE: ${{ steps.kill.outputs.cause }}
+        run: echo "::notice::the lanes kill switch stops this report (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing read or written"
 
       # report.mjs reads the red-main leaf through the base's resolve-config,
       # which needs its dependencies.

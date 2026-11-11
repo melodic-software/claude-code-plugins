@@ -284,8 +284,9 @@ function importClosure(entry) {
 }
 
 // The kill-switch job reads the action from the default branch with a
-// read-only token and passes it the org and repository switches.
-function assertKillSwitchJob(gate) {
+// read-only token and passes it the org and repository switches; a gate
+// that starts new work also passes budget "true".
+function assertKillSwitchJob(gate, { starts = false } = {}) {
   assert.deepEqual(gate.permissions, { contents: "read" });
   const checkout = gate.steps.find((step) => step.uses?.startsWith("actions/checkout@"));
   assertMainTip(gate.steps, checkout);
@@ -297,6 +298,7 @@ function assertKillSwitchJob(gate) {
   assert.deepEqual(kill.with, {
     value: "${{ vars.CLAUDE_LANES_DISABLED }}",
     "repo-value": "${{ vars.CLAUDE_LANES_REPO_DISABLED }}",
+    ...(starts && { budget: "true" }),
   });
 }
 
@@ -349,7 +351,7 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
   assert.equal(intake.with["claude-args"], "${{ needs.born-triaged.outputs.claude-args }}");
   assert.deepEqual(intake.needs, ["born-triaged", "kill-switch"]);
   const killSwitch = jobs["kill-switch"];
-  assertKillSwitchJob(killSwitch);
+  assertKillSwitchJob(killSwitch, { starts: true });
   const killRuns = (event, action, ref = "refs/heads/main") =>
     evaluate(killSwitch.if, { "github.event_name": event, "github.event.action": action, "github.ref": ref });
   assert.equal(killRuns("issues", "opened"), true);

@@ -1074,7 +1074,8 @@ jobs:
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
-        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing checked or merged"
+          CAUSE: ${{ steps.kill.outputs.cause }}
+        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing checked or merged"
 
       # The token broker gives this lane its merge token only when the person
       # behind the run is a listed human (trusted-actors.json on main), matched

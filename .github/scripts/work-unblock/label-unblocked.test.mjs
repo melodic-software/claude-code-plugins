@@ -3741,17 +3741,12 @@ test("a later leg's broker-check refused or skipped for the kill switch is a bre
 });
 
 // broker-check's start gate stopped on the GITHUB_TOKEN budget (cause budget):
-// its `Stop on a low GITHUB_TOKEN budget` step ran and the broker ask skipped.
-const budgetStep = { name: "Stop on a low GITHUB_TOKEN budget", conclusion: "success" };
-const BUDGET_STOPPED = [ADMITTED, pickSlot, { ...KILL_SKIPPED[2], steps: [KILL_SKIPPED[2].steps[0], budgetStep, KILL_SKIPPED[2].steps[1]] }, ...KILL_SKIPPED.slice(3)];
-// broker-check allowed, then the model job's own start gate stopped on the budget.
-const RUN_BUDGET_STOPPED = [
-  ADMITTED,
-  pickSlot,
-  BROKER_ALLOWED,
-  { name: "resolve-issue / run", conclusion: "success", steps: [{ name: "Check the kill switch", conclusion: "success" }, budgetStep, { name: "Assert the broker allowed this attempt", conclusion: "skipped" }] },
-  { name: "report-outcome", conclusion: "skipped", steps: [] },
-];
+// its `Stop on a low GITHUB_TOKEN budget until <reset>` step ran, named with
+// the gate's reset output, and the broker ask skipped.
+const epoch = (at) => Date.parse(at) / 1000;
+const budgetStep = (name = `Stop on a low GITHUB_TOKEN budget until ${epoch("2026-10-16T10:30:00Z")}`) => ({ name, conclusion: "success" });
+const budgetStopped = (step = budgetStep()) => [ADMITTED, pickSlot, { ...KILL_SKIPPED[2], steps: [KILL_SKIPPED[2].steps[0], step, KILL_SKIPPED[2].steps[1]] }, ...KILL_SKIPPED.slice(3)];
+const BUDGET_STOPPED = budgetStopped();
 const BUDGET_RECORD = `${BREAKER_MARKER}\n<!-- work-unblock cause=budget -->\n`;
 const budgeted = (calls) => {
   tripped(calls);
@@ -3762,22 +3757,38 @@ const switched = (calls) => {
   assert.ok(!postedBody(calls).includes("cause=budget"), postedBody(calls));
 };
 
-test("a run its start gate stopped on the GITHUB_TOKEN budget re-fires at once with a budget record, read from the job listing alone", async () => {
-  for (const jobs of [BUDGET_STOPPED, RUN_BUDGET_STOPPED]) {
-    // Ended two minutes before the sweep: no wait.
-    const { github, actions, calls } = stalledRun({ jobs, conclusion: "success", ended: "2026-10-16T11:58:00Z" });
-    assert.equal(await sweep({ github, actions }), 0);
-    budgeted(calls);
-    assert.deepEqual(logReads(calls), []);
+test("a run its start gate stopped on the GITHUB_TOKEN budget re-fires once its window has reset, with a budget record, read from the job listing alone", async () => {
+  // The sweep runs at 12:00; the run ended at 11:58.
+  const ended = "2026-10-16T11:58:00Z";
+  const reset = budgetStopped(budgetStep(`Stop on a low GITHUB_TOKEN budget until ${epoch("2026-10-16T12:30:00Z")}`));
+  const before = stalledRun({ jobs: reset, conclusion: "success", ended });
+  assert.equal(await sweep({ github: before.github, actions: before.actions }), 0);
+  assert.deepEqual(writes(before.calls), [], "no record and no re-fire before the reset");
+  for (const now of ["2026-10-16T12:30:00Z", "2026-10-16T12:45:00Z"]) {
+    const after = stalledRun({ jobs: reset, conclusion: "success", ended });
+    assert.equal(await sweep({ github: after.github, actions: after.actions, now: Date.parse(now) }), 0);
+    budgeted(after.calls);
+    assert.deepEqual(logReads(after.calls), []);
   }
-  // The same listing without the budget step is a switch trip.
-  const plain = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success", ended: "2026-10-16T11:58:00Z" });
+  // A step name with no readable reset, bare or with its expression left
+  // unevaluated, is still a budget stop and waits an hour after the run ended.
+  for (const name of ["Stop on a low GITHUB_TOKEN budget", "Stop on a low GITHUB_TOKEN budget until ${{ steps.kill.outputs.reset }}"]) {
+    const unnamed = budgetStopped(budgetStep(name));
+    const early = stalledRun({ jobs: unnamed, conclusion: "success", ended });
+    assert.equal(await sweep({ github: early.github, actions: early.actions, now: Date.parse("2026-10-16T12:57:59Z") }), 0);
+    assert.deepEqual(writes(early.calls), [], name);
+    const due = stalledRun({ jobs: unnamed, conclusion: "success", ended });
+    assert.equal(await sweep({ github: due.github, actions: due.actions, now: Date.parse("2026-10-16T12:58:00Z") }), 0);
+    budgeted(due.calls);
+  }
+  // The same listing without the budget step is a switch trip, re-fired at once.
+  const plain = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success", ended });
   assert.equal(await sweep({ github: plain.github, actions: plain.actions }), 0);
   switched(plain.calls);
 });
 
 test("a budget stop step that skipped is no budget stop", async () => {
-  const skipped = { ...budgetStep, conclusion: "skipped" };
+  const skipped = { ...budgetStep(), conclusion: "skipped" };
   const jobs = [ADMITTED, pickSlot, { ...KILL_SKIPPED[2], steps: [KILL_SKIPPED[2].steps[0], skipped, KILL_SKIPPED[2].steps[1]] }, ...KILL_SKIPPED.slice(3)];
   const { github, actions, calls } = stalledRun({ jobs, conclusion: "success" });
   assert.equal(await sweep({ github, actions }), 0);
@@ -3960,12 +3971,16 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   assert.ok(checkSteps.indexOf("Stop on an open blocker") > checkSteps.indexOf("Claim the issue with a lane lease"));
   assert.ok(read.run !== undefined);
   assert.ok(steps(read.run).includes("Stop on stale workflow files"));
-  // The budget step follows the kill switch's step and runs exactly on a budget stop.
-  for (const id of ["broker-check", "run"]) {
-    const named = steps(read[id]);
-    assert.equal(named.indexOf("Stop on a low GITHUB_TOKEN budget"), named.indexOf("Check the kill switch") + 1, id);
-    assert.match(read[id], /^ {6}- name: Stop on a low GITHUB_TOKEN budget\n {8}if: steps\.kill\.outputs\.cause == 'budget'\n/m, id);
-  }
+  // broker-check's budget step follows its kill-switch step, runs exactly on a
+  // budget stop, and carries the gate's reset in its name; its gate reads the
+  // budget. The model job's gate checks the switches only.
+  const budgetName = "Stop on a low GITHUB_TOKEN budget until ${{ steps.kill.outputs.reset }}";
+  const checkNamed = steps(read["broker-check"]);
+  assert.equal(checkNamed.indexOf(budgetName), checkNamed.indexOf("Check the kill switch") + 1);
+  assert.match(read["broker-check"], /^ {6}- name: Stop on a low GITHUB_TOKEN budget until \$\{\{ steps\.kill\.outputs\.reset \}\}\n {8}if: steps\.kill\.outputs\.cause == 'budget'\n/m);
+  assert.match(read["broker-check"], /^ {10}budget: "true"$/m);
+  assert.ok(!steps(read.run).some((name) => name.startsWith("Stop on a low GITHUB_TOKEN budget")));
+  assert.doesNotMatch(read.run, /^ {10}budget:/m);
   for (const id of ["broker-check", "run"]) {
     assert.doesNotMatch(read[id], /^ {4}name:/m, `read runner job ${id} keeps its id as its name`);
   }
