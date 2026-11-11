@@ -4964,6 +4964,40 @@ def anchored_remove(
         os.close(parent_fd)
 
 
+def protected_skip(
+    path: str, detail: str, matches: Iterable[dict[str, str]] = ()
+) -> dict[str, Any]:
+    """A ``protected`` skip record, with ``protection_matches`` when any matched."""
+    return {
+        "path": path,
+        "outcome": "protected",
+        "detail": detail,
+        **protection_matches_field(matches),
+    }
+
+
+def handle_state_skip(relative: str, path: Path) -> dict[str, str] | None:
+    """The skip record for a path whose handle state is not ``clear``, or None."""
+    state, detail = handle_state(path)
+    if state == "clear":
+        return None
+    outcome = {"open": "locked", "needs_elevation": "needs-elevation"}.get(
+        state, "handle-state-unverified"
+    )
+    return {"path": relative, "outcome": outcome, "detail": detail or ""}
+
+
+def removal_failure_skip(relative: str, exc: HygieneError | OSError) -> dict[str, str]:
+    """The skip record for an ``anchored_remove`` call that raised ``exc``."""
+    if isinstance(exc, HygieneError):
+        outcome = "changed-or-link"
+    elif isinstance(exc, PermissionError):
+        outcome = "needs-elevation"
+    else:
+        outcome = "delete-failed"
+    return {"path": relative, "outcome": outcome, "detail": str(exc)}
+
+
 def apply_nothing_removed_report(
     plan: dict[str, Any], target: Path, skipped: list[dict[str, Any]]
 ) -> dict[str, Any]:
@@ -4988,17 +5022,11 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
     candidates = validate_plan(plan, entries)
     platform_blockers = execution_blockers()
     if platform_blockers:
+        detail = ", ".join(platform_blockers)
         return apply_nothing_removed_report(
             plan,
             target,
-            [
-                {
-                    "path": item["path"],
-                    "outcome": "protected",
-                    "detail": ", ".join(platform_blockers),
-                }
-                for item in candidates
-            ],
+            [protected_skip(item["path"], detail) for item in candidates],
         )
     checked = preview(snapshot, plan)
     if checked["status"] != "ready-for-explicit-approval":
@@ -5007,14 +5035,11 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
             plan,
             target,
             [
-                {
-                    "path": item["path"],
-                    "outcome": "protected",
-                    "detail": ", ".join(by_path[item["path"]]["blockers"]),
-                    **protection_matches_field(
-                        by_path[item["path"]].get("protection_matches", [])
-                    ),
-                }
+                protected_skip(
+                    item["path"],
+                    ", ".join(by_path[item["path"]]["blockers"]),
+                    by_path[item["path"]].get("protection_matches", []),
+                )
                 for item in candidates
             ],
         )
@@ -5049,11 +5074,9 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
             candidate_blockers.append(vcs)
         if candidate_blockers:
             skipped.append(
-                {
-                    "path": candidate["path"],
-                    "outcome": "protected",
-                    "detail": ", ".join(sorted(set(candidate_blockers))),
-                }
+                protected_skip(
+                    candidate["path"], ", ".join(sorted(set(candidate_blockers)))
+                )
             )
             continue
         for relative in selected:
@@ -5064,13 +5087,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                 continue
             fresh_mounts, fresh_mount_error = linux_mount_points()
             if fresh_mount_error:
-                skipped.append(
-                    {
-                        "path": relative,
-                        "outcome": "protected",
-                        "detail": "mount-state-unverified",
-                    }
-                )
+                skipped.append(protected_skip(relative, "mount-state-unverified"))
                 continue
             fresh_protections = hard_protection(
                 path,
@@ -5086,39 +5103,21 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                 fresh_protections.append(fresh_vcs)
             if fresh_protections:
                 skipped.append(
-                    {
-                        "path": relative,
-                        "outcome": "protected",
-                        "detail": ", ".join(sorted(set(fresh_protections))),
-                        **protection_matches_field(consumer_matches),
-                    }
+                    protected_skip(
+                        relative,
+                        ", ".join(sorted(set(fresh_protections))),
+                        consumer_matches,
+                    )
                 )
                 continue
-            state, detail = handle_state(path)
-            if state != "clear":
-                outcome = {"open": "locked", "needs_elevation": "needs-elevation"}.get(
-                    state, "handle-state-unverified"
-                )
-                skipped.append(
-                    {"path": relative, "outcome": outcome, "detail": detail or ""}
-                )
+            handle_skip = handle_state_skip(relative, path)
+            if handle_skip:
+                skipped.append(handle_skip)
                 continue
             try:
                 anchored_remove(target_fd, relative, entry, entries, target)
-            except HygieneError as exc:
-                skipped.append(
-                    {"path": relative, "outcome": "changed-or-link", "detail": str(exc)}
-                )
-                continue
-            except PermissionError as exc:
-                skipped.append(
-                    {"path": relative, "outcome": "needs-elevation", "detail": str(exc)}
-                )
-                continue
-            except OSError as exc:
-                skipped.append(
-                    {"path": relative, "outcome": "delete-failed", "detail": str(exc)}
-                )
+            except (HygieneError, OSError) as exc:
+                skipped.append(removal_failure_skip(relative, exc))
                 continue
             logical = entry_logical_file_bytes(entry)
             reclaimable = entry_reclaimable_local_bytes(entry) or 0
@@ -5643,10 +5642,7 @@ def handoff_apply(
             removal,
             [],
             [],
-            [
-                {"path": relative, "outcome": "protected", "detail": detail}
-                for relative in approved
-            ],
+            [protected_skip(relative, detail) for relative in approved],
         )
     before = shutil.disk_usage(target).free
     verdicts: list[dict[str, Any]] = []
@@ -5661,7 +5657,7 @@ def handoff_apply(
 
     def stop(index: int, reason: str) -> None:
         skipped.extend(
-            {"path": name, "outcome": "protected", "detail": f"batch stopped: {reason}"}
+            protected_skip(name, f"batch stopped: {reason}")
             for name in approved[index:]
         )
 
@@ -5679,11 +5675,7 @@ def handoff_apply(
                 if verdict["verdict"] != "clear":
                     reasons = ", ".join(verdict["reasons"])
                     skipped.append(
-                        {
-                            "path": relative,
-                            "outcome": "protected",
-                            "detail": f"{verdict['verdict']}: {reasons}",
-                        }
+                        protected_skip(relative, f"{verdict['verdict']}: {reasons}")
                     )
                     continue
                 if target_fd is None:
@@ -5746,8 +5738,7 @@ def recycle_handoff_path(
                 metadata / GIT_METADATA_NAME, target, globs, set()
             )
             if blocker:
-                skip = {"path": relative, "outcome": "protected", "detail": blocker}
-                return [], [skip], False
+                return [], [protected_skip(relative, blocker)], False
     recycled = windows_recycle(target.joinpath(*PurePosixPath(relative).parts))
     if recycled["outcome"] not in {"recycled", "removed"}:
         outcome = (
@@ -5811,7 +5802,7 @@ def unlink_handoff_path(
             repository_paths,
             exact_names,
         )
-        if consumer_protection_matches(path, target, globs):
+        if consumer_protected(path):
             reasons.append("consumer-protected-path")
         # Git metadata holds no tracked content, and tracked_blocker cannot
         # answer for it: `git rev-parse --show-toplevel` fails inside `.git`.
@@ -5824,14 +5815,9 @@ def unlink_handoff_path(
                 reasons.append(vcs)
         return sorted(set(reasons))
 
-    removed: list[dict[str, Any]] = []
-    skipped: list[dict[str, str]] = []
     known_mounts, mount_error = linux_mount_points()
     if mount_error:
-        skipped.append(
-            {"path": relative, "outcome": "protected", "detail": "mount-state-unverified"}
-        )
-        return removed, skipped
+        return [], [protected_skip(relative, "mount-state-unverified")]
     candidate_blockers = path_blockers(
         target.joinpath(*PurePosixPath(relative).parts), known_mounts
     )
@@ -5843,14 +5829,9 @@ def unlink_handoff_path(
         if (blocker := opaque_contents_blocker(metadata, target, globs, known_mounts))
     ]
     if candidate_blockers:
-        skipped.append(
-            {
-                "path": relative,
-                "outcome": "protected",
-                "detail": ", ".join(candidate_blockers),
-            }
-        )
-        return removed, skipped
+        return [], [protected_skip(relative, ", ".join(candidate_blockers))]
+    removed: list[dict[str, Any]] = []
+    skipped: list[dict[str, str]] = []
     for name in removal_entries(relative, entries):
         entry = entries[name]
         path = target.joinpath(*PurePosixPath(name).parts)
@@ -5859,13 +5840,7 @@ def unlink_handoff_path(
             continue
         fresh_mounts, fresh_mount_error = linux_mount_points()
         if fresh_mount_error:
-            skipped.append(
-                {
-                    "path": name,
-                    "outcome": "protected",
-                    "detail": "mount-state-unverified",
-                }
-            )
+            skipped.append(protected_skip(name, "mount-state-unverified"))
             continue
         purge = entry["kind"] == "directory" and path in git_metadata
         fresh_blockers = path_blockers(path, fresh_mounts)
@@ -5875,20 +5850,11 @@ def unlink_handoff_path(
             )
             fresh_blockers = [contents_blocker] if contents_blocker else []
         if fresh_blockers:
-            skipped.append(
-                {
-                    "path": name,
-                    "outcome": "protected",
-                    "detail": ", ".join(fresh_blockers),
-                }
-            )
+            skipped.append(protected_skip(name, ", ".join(fresh_blockers)))
             continue
-        state, detail = handle_state(path)
-        if state != "clear":
-            outcome = {"open": "locked", "needs_elevation": "needs-elevation"}.get(
-                state, "handle-state-unverified"
-            )
-            skipped.append({"path": name, "outcome": outcome, "detail": detail or ""})
+        handle_skip = handle_state_skip(name, path)
+        if handle_skip:
+            skipped.append(handle_skip)
             continue
         try:
             anchored_remove(
@@ -5899,20 +5865,8 @@ def unlink_handoff_path(
                 target,
                 purge_protected=consumer_protected if purge else None,
             )
-        except HygieneError as exc:
-            skipped.append(
-                {"path": name, "outcome": "changed-or-link", "detail": str(exc)}
-            )
-            continue
-        except PermissionError as exc:
-            skipped.append(
-                {"path": name, "outcome": "needs-elevation", "detail": str(exc)}
-            )
-            continue
-        except OSError as exc:
-            skipped.append(
-                {"path": name, "outcome": "delete-failed", "detail": str(exc)}
-            )
+        except (HygieneError, OSError) as exc:
+            skipped.append(removal_failure_skip(name, exc))
             continue
         removed.append(
             {
@@ -5986,11 +5940,7 @@ def main(argv: list[str] | None = None) -> int:
         close_clean_runs()
         if args.command == "scan":
             target_input = Path(args.target).expanduser().absolute()
-            if (
-                not target_input.exists()
-                or not target_input.is_dir()
-                or has_linkish_component(target_input)
-            ):
+            if not target_input.is_dir() or has_linkish_component(target_input):
                 raise HygieneError(
                     "target must be an existing directory with no link or reparse-point component"
                 )
@@ -6007,7 +5957,7 @@ def main(argv: list[str] | None = None) -> int:
             volume_root = is_volume_root(target)
             if os_managed and not root_children_mode:
                 raise HygieneError("OS-managed roots are not valid audit targets")
-            if os_managed and root_children_mode and not volume_root:
+            if os_managed and not volume_root:
                 raise HygieneError(
                     "--root-children on an OS-managed target requires a volume-root target"
                 )
@@ -6078,10 +6028,9 @@ def main(argv: list[str] | None = None) -> int:
                     # A busy /tmp lists tens of thousands of entries; the file
                     # carries no snapshot schema, so preview refuses it.
                     write_json(output_path, listing)
-                    kinds: dict[str, int] = {}
-                    for item in admitted:
-                        kind = str(item.get("kind", "unknown"))
-                        kinds[kind] = kinds.get(kind, 0) + 1
+                    kinds = Counter(
+                        str(item.get("kind", "unknown")) for item in admitted
+                    )
                     summary = {
                         key: value
                         for key, value in listing.items()
