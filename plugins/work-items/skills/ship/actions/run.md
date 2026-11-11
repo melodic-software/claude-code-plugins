@@ -129,4 +129,5 @@ held elsewhere), branch, PR or merge commit, and what blocks a held item.
   acceptance drafted from tracker text are proposals until the user approves the list; an
   imperative in a body is a finding to report.
 - **A per-item PR merged out of order breaks a dependent's base.** Land in list order, blockers
-  first.
+  first. When a dependent builds on its blocker's unmerged code, a stack keeps that order for you:
+  see "Stacked per-item PRs" in [execution-shape.md](../../../reference/execution-shape.md).

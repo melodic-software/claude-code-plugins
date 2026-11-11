@@ -117,6 +117,8 @@ until an operator resolves the gap is expected, not a reason to stop the lane.
 
 4. **Recurring items not yet due** (last-resort). `recurring-schedule`, where `next_due > today`, by priority, then by `next_due`. LAST RESORT only, when tiers 1–3 are empty: picking a recurring item before its `next_due` shifts the cadence forward. Prefer items closest to `next_due` among equal ranks.
 
+An item blocked only by an open, unmerged pull request it builds on stays off the frontier. Working it as a stacked layer on that PR is the user's call in an attended session ([`${CLAUDE_PLUGIN_ROOT}/reference/execution-shape.md`](${CLAUDE_PLUGIN_ROOT}/reference/execution-shape.md) "Stacked per-item PRs"). CI mode never stacks: its runner opens every PR against the default branch.
+
 ## Workflow
 
 ### Role-label preflight
