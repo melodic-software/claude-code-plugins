@@ -302,6 +302,25 @@ assert_contains "single-plugin root: agent frontmatter is parsed" "$OUT_SOLO" "a
 assert_contains "single-plugin root: command frontmatter is parsed" "$OUT_SOLO" "commands/run.md allowed-tools"
 assert_eq "single-plugin root: every grant is audited" "3" "$(run "$D6F" --count)"
 
+# --- Case 6f2: nested .claude/skills inside the user plugins dir does not load
+# Claude Code 2.1.321 stopped loading `.claude/skills` folders inside
+# ~/.claude/plugins; the plugin's own skills/ there still load.
+H6F2="$TEST_TMPDIR/plugins-home"
+P6F2="$H6F2/.claude/plugins/cache/acme/tools/1.0.0"
+mkdir -p "$P6F2/.claude-plugin" "$P6F2/skills/deploy" "$P6F2/.claude/skills/inner"
+printf '{"name":"tools"}\n' >"$P6F2/.claude-plugin/plugin.json"
+printf '%s' "$GRANT" >"$P6F2/skills/deploy/SKILL.md"
+printf '%s' "$GRANT" >"$P6F2/.claude/skills/inner/SKILL.md"
+for root6f2 in "$P6F2" "$H6F2/.claude/plugins"; do
+  OUT_PLUG=$(run_with_home "$root6f2" "$H6F2")
+  assert_not_contains "plugins dir: nested .claude/skills is not audited ($root6f2)" "$OUT_PLUG" ".claude/skills/inner/SKILL.md"
+  assert_contains "plugins dir: plugin skill is still audited ($root6f2)" "$OUT_PLUG" "skills/deploy/SKILL.md allowed-tools"
+  assert_contains "plugins dir: exclusion is counted ($root6f2)" "$OUT_PLUG" "1 excluded as non-loadable"
+done
+OUT_PLUG_CFG=$(run_with_config_dir "$P6F2" "$H6F2/.claude" "$ISOLATED_HOME")
+assert_not_contains "plugins dir under CLAUDE_CONFIG_DIR: nested skill is not audited" "$OUT_PLUG_CFG" ".claude/skills/inner/SKILL.md"
+assert_contains "same tree outside the plugins dir: nested skill is audited" "$(run "$P6F2")" ".claude/skills/inner/SKILL.md"
+
 # --- Case 6g: every candidate excluded is a coverage warning, not a clean bill
 # A healthy user or project settings scope keeps the denominator above zero, so
 # NOTHING TO AUDIT never prints; the run must still not claim the clean bill.

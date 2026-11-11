@@ -78,10 +78,13 @@ live grants under nested `.claude/skills/` paths, which we treat as live grants 
 Code can load them during a session (Pointer: when deciding whether a nested `.claude/skills/`
 directory is loadable, fetch
 [skills: load skills in monorepos and subdirectories](https://code.claude.com/docs/en/skills#discovery-from-parent-and-nested-directories)
-live. As of: 2026-11-10. Recheck trigger: that section stops loading nested skill directories in
-some session shape). The
+live, with the [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md)
+2.1.321 entry that stops `.claude/skills/` folders inside `~/.claude/plugins` from loading. As of:
+2026-11-11. Recheck trigger: that section stops loading nested skill directories in another session
+shape, or states its own rule for the plugins directory). The
 detector instead applies a **loadability model**: only frontmatter at documented discovery paths is
-audited, meaning project or nested `.claude/skills/<name>/SKILL.md`, plugin `skills/<name>/SKILL.md`, and
+audited, meaning project or nested `.claude/skills/<name>/SKILL.md` outside the user plugins
+directory (`${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/`), plugin `skills/<name>/SKILL.md`, and
 the parallel agents/commands paths. A plugin root is `plugins/<name>/`, or any directory at or below
 the scan root that holds `.claude-plugin/plugin.json`, which covers an installed cache root
 (`cache/<marketplace>/<plugin>/<version>/`) and a single-plugin repository
