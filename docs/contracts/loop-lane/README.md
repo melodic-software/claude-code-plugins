@@ -1328,10 +1328,9 @@ hook `ask` in a lane. This subsection holds which mode each lane runs in.
 - **Recheck trigger:** that page's `--permission-prompts` row changes.
 
 **Launch options.** An unattended Claude Code launch passes this set, drawn from what the lanes
-launcher builds. The lanes launcher and session-flow's headless helper each cite this table; other
-headless launchers adopt it when next touched. A flag whose effect no probe has shown stays out of
-the table. The lanes launcher also passes `--permission-prompts none` on `--bg` launches; that use
-stays until a probe settles the UNVERIFIED bullet above.
+launcher builds. Other headless launchers adopt it when next touched. A flag whose effect no probe
+has shown stays out of the table. The lanes launcher also passes `--permission-prompts none` on
+`--bg` launches; that use stays until a probe settles the UNVERIFIED bullet above.
 
 | Option | Applies to | Value |
 |---|---|---|
