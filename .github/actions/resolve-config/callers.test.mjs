@@ -1439,9 +1439,20 @@ test("work-resolve-issue.yml: a WIP cap check that fails holds pick-slot green w
   assert.equal(wip["continue-on-error"], true, "a failed cap check holds green");
   const hold = pick.steps.find((item) => item.name === "Hold on an unknown WIP cap");
   assert.ok(pick.steps.indexOf(hold) > pick.steps.indexOf(wip), "the hold notice follows the check");
-  for (const [capped, runs] of [["", true], ["true", false], ["false", false]]) {
-    assert.equal(evaluate(hold.if, { "steps.wip.outputs.capped": capped }), runs, `hold notice on capped ${JSON.stringify(capped)}`);
+  // A kill-switch check that could not run sets no proceed and holds as before;
+  // a switch that is on skips the check and every hold.
+  for (const proceed of ["true", ""]) {
+    for (const [capped, runs] of [["", true], ["true", false], ["false", false]]) {
+      const context = { "steps.kill.outputs.proceed": proceed, "steps.wip.outputs.capped": capped };
+      assert.equal(evaluate(hold.if, context), runs, `hold notice on proceed ${JSON.stringify(proceed)}, capped ${JSON.stringify(capped)}`);
+    }
+    assert.equal(evaluate(wip.if, { "steps.kill.outputs.proceed": proceed }), true, `cap check on proceed ${JSON.stringify(proceed)}`);
   }
+  assert.equal(evaluate(wip.if, { "steps.kill.outputs.proceed": "false" }), false, "the switch on skips the cap check");
+  assert.equal(evaluate(hold.if, { "steps.kill.outputs.proceed": "false", "steps.wip.outputs.capped": "" }), false, "the switch on names no hold");
+  const marker = pick.steps.find((item) => item.id === "hold-marker");
+  assert.equal(evaluate(marker.if, { "steps.kill.outputs.proceed": "false", "steps.wip.outputs.held": "", "steps.wip.outputs.capped": "" }), false, "the switch on marks no hold");
+  assert.equal(evaluate(marker.if, { "steps.kill.outputs.proceed": "", "steps.wip.outputs.held": "", "steps.wip.outputs.capped": "" }), true, "an unknown cap marks the hold");
   assert.match(hold.run, /^echo "::notice title=WIP cap hold::/);
   assert.equal(hold["continue-on-error"], undefined);
   // A held run reads no more config, so an unreadable base config cannot fail

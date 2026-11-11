@@ -3,6 +3,16 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.22.3] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+### Fixed
+
+- `/planning:wayfind` work: every edit to the map body (Decisions-so-far, Out-of-scope, Not-yet-specified, superseded lines) is applied to a copy of the body read right before the write, then read back and re-applied if another session's write dropped it. Before, two sessions graduating items on one map could overwrite each other's index lines.
+
 ## [2.22.2] - 2026-11-11
 
 ### Changed

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "# Claims glossary\n\n**Policyholder**\n\nThe party that owns the insurance contract.\n\nAvoid: account owner\n\n**Claimant**\n\nA policyholder or third party who files a claim.\n",
+      "why": "existing entry intact"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Claims glossary\n\n**Claimant**\n\nA policyholder or third party who files a claim.\n",
+      "why": "file overwritten, Policyholder lost"
+    }
+  ]
+}
