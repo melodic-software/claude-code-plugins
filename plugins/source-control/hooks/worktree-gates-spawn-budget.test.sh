@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Spawn-budget regression tests for the three worktree gates (#3510).
+# Spawn-budget regression tests for the three worktree hooks (#3510).
 #
 # WHY strace AND NOT xtrace OR A PATH SHIM. The cost these gates were paying is
 # a FORK THAT NEVER EXECS: a command substitution whose body carries a
@@ -127,7 +127,7 @@ assert_exact() {
 }
 
 CONTAIN="$SCRIPT_DIR/worktree-add-containment-gate.sh"
-CLAIM="$SCRIPT_DIR/worktree-add-claim-gate.sh"
+CLAIM="$SCRIPT_DIR/worktree-add-claim.sh"
 CREATE="$SCRIPT_DIR/worktree-create-gate.sh"
 
 # ── containment gate (PreToolUse:Bash — the hook in #3510) ──────────────────
@@ -151,7 +151,7 @@ assert_exact "containment, git -C <repo> add (names root)" "$CONTAIN" \
 assert_exact "containment, add into a working tree" "$CONTAIN" \
   "$(payload "$REPO" "git worktree add sub/nested" PreToolUse)" 23 7
 
-# ── claim gate (PostToolUse:Bash) ───────────────────────────────────────────
+# ── claim hook (PostToolUse:Bash) ───────────────────────────────────────────
 assert_budget "claim, non-add command" "$CLAIM" \
   "$(payload "$OUTSIDE" 'git worktree list' PostToolUse)" 7 2
 
