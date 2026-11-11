@@ -2,14 +2,9 @@
 # finding-identity.sh — §1's derivations, plus the emitter guard every record
 # passes before `run-state.sh partial append` writes it.
 #
-# WHY THIS EXISTS. `reference/finding-identity.md` pins `anchor/v1`
-# normalization, the duplicate discriminator, and `finding_id` in full, and then
-# left every one of them to be performed by the model on each run. An
-# underspecified derivation is a different anchor per implementation; a fully
-# specified one performed by hand is a different anchor per RUN, which is the
-# same defect with a longer fuse. A pass in that state emitted a record typed as
-# a finding carrying `"identity": null` and no `finding_id/v1` — a hard error
-# under assertion 1.3 that a validating emitter would have refused at the append.
+# `reference/finding-identity.md` pins `anchor/v1` normalization, the duplicate
+# discriminator, and `finding_id` in full. Performed by hand, a fully specified
+# derivation still yields a different anchor per RUN, so it runs as code.
 #
 # WHAT IT COMPUTES.
 #
@@ -109,13 +104,12 @@ Exit 2 is a usage error. Exit 4 is the guard's verdict that the record violates
 EOF
 }
 
+# Callers run require_sha256 first, so one of the two is present.
 sha256_stdin() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum | cut -d' ' -f1
-  elif command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 | cut -d' ' -f1
   else
-    printf 'MISSING-SHA256'
+    shasum -a 256 | cut -d' ' -f1
   fi
 }
 
@@ -267,52 +261,33 @@ cmd_anchor() {
 # `sites` is a SET, canonically sorted by the byte ordering of
 # `surface 0x1F anchor`, because an ordered pair hashes X-versus-Y differently
 # from Y-versus-X and the same conflict would then be reported twice.
+# The sites arrive already validated by cmd_finding_id.
 sorted_site_fields() {
-  local site surface anchor
+  local site
   for site in "$@"; do
-    surface="${site%%=*}"
-    anchor="${site#*=}"
-    if [[ "$surface" == "$site" ]]; then
-      die "--site must be <surface>=<anchor>: $site"
-    fi
-    [[ -n "$surface" ]] || die "--site has an empty surface: $site"
-    [[ -n "$anchor" ]] || die "--site has an empty anchor: $site"
-    printf '%s%s%s\n' "$surface" "$US" "$anchor"
+    printf '%s%s%s\n' "${site%%=*}" "$US" "${site#*=}"
   done | LC_ALL=C sort
 }
 
 cmd_finding_id() {
-  local check="" claim="" sites=() arg
+  local check="" claim="" sites=()
   while [[ $# -gt 0 ]]; do
-    arg="$1"
-    case "$arg" in
-    --check)
-      [[ $# -ge 2 ]] || die "--check needs a value"
-      check="$2"
-      shift 2
-      ;;
-    --claim)
-      [[ $# -ge 2 ]] || die "--claim needs a value"
-      claim="$2"
-      shift 2
-      ;;
-    --site)
-      [[ $# -ge 2 ]] || die "--site needs a value"
-      sites+=("$2")
-      shift 2
-      ;;
-    *) die "unknown argument: $arg" ;;
+    case "$1" in
+    --check) check="${2-}" ;;
+    --claim) claim="${2-}" ;;
+    --site) sites+=("${2-}") ;;
+    *) die "unknown argument: $1" ;;
     esac
+    [[ $# -ge 2 ]] || die "$1 needs a value"
+    shift 2
   done
   [[ -n "$check" ]] || die "--check is required"
   [[ -n "$claim" ]] || die "--claim is required"
   [[ ${#sites[@]} -ge 1 ]] || die "at least one --site is required"
   require_sha256
 
-  # Validated HERE rather than inside sorted_site_fields: that runs in a
-  # pipeline and a process substitution, where a `die` exits only the subshell
-  # and this function would hash a body built from nothing. A refusal that does
-  # not reach the exit code is not one.
+  # Validated HERE, not in sorted_site_fields: that runs in a process
+  # substitution, where a `die` exits only the subshell.
   local site surface anchor
   for site in "${sites[@]}"; do
     surface="${site%%=*}"
@@ -334,22 +309,15 @@ cmd_finding_id() {
 }
 
 cmd_group_id() {
-  local check="" claim="" arg
+  local check="" claim=""
   while [[ $# -gt 0 ]]; do
-    arg="$1"
-    case "$arg" in
-    --check)
-      [[ $# -ge 2 ]] || die "--check needs a value"
-      check="$2"
-      shift 2
-      ;;
-    --claim)
-      [[ $# -ge 2 ]] || die "--claim needs a value"
-      claim="$2"
-      shift 2
-      ;;
-    *) die "unknown argument: $arg" ;;
+    case "$1" in
+    --check) check="${2-}" ;;
+    --claim) claim="${2-}" ;;
+    *) die "unknown argument: $1" ;;
     esac
+    [[ $# -ge 2 ]] || die "$1 needs a value"
+    shift 2
   done
   [[ -n "$check" ]] || die "--check is required"
   [[ -n "$claim" ]] || die "--claim is required"
@@ -363,18 +331,17 @@ cmd_group_id() {
 # The emitter guard. Refusals print one line naming the violated rule, so the
 # lane that produced the record can be fixed rather than the record patched.
 cmd_validate_record() {
-  local record="" have=0 arg
+  local record="" have=0
   while [[ $# -gt 0 ]]; do
-    arg="$1"
-    case "$arg" in
+    case "$1" in
     --record)
-      [[ $# -ge 2 ]] || die "--record needs a value"
-      record="$2"
+      record="${2-}"
       have=1
-      shift 2
       ;;
-    *) die "unknown argument: $arg" ;;
+    *) die "unknown argument: $1" ;;
     esac
+    [[ $# -ge 2 ]] || die "$1 needs a value"
+    shift 2
   done
   [[ "$have" -eq 1 ]] || die "--record is required"
   command -v python3 >/dev/null 2>&1 ||

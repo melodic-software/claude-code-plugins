@@ -3,18 +3,11 @@
 # where a run's state lives, the lease that tells a live run from an abandoned
 # one, and the append-only partial `--resume` reads.
 #
-# WHY THIS EXISTS. `reference/run-state-and-resumability.md` specifies a lease
-# (path, contents, refresh discipline, a two-sided liveness window, a `released`
-# tombstone) and an epoch-scoped append-only partial, and
-# `reference/report-location-and-schema.md` §7 makes `--resume` read that partial
-# rather than the report. Until this script, all of it was prose: the skill
-# shipped no `scripts/` directory at all, while its four sibling audit skills in
-# this plugin each ship one with tests, and `lib/state-key.sh` — whose own header
-# says the scheme is "`audit-pass`'s, reused rather than reinvented" — was called
-# by three OTHER skills and never by the one that specified it. A contract that
-# reads as enforced while nothing enforces it is the defect; this closes the half
-# a script can close, and the skill's own §3 now states plainly which clauses
-# remain model discipline rather than mechanism.
+# `reference/run-state-and-resumability.md` specifies the lease (path, contents,
+# refresh discipline, a two-sided liveness window, a `released` tombstone) and
+# the epoch-scoped append-only partial that `--resume` reads
+# (`reference/report-location-and-schema.md` §7). This enforces the half a
+# script can; the skill's §3 states which clauses remain model discipline.
 #
 # WHAT IT DOES NOT DO, deliberately. Stale-lease adoption (`owner_epoch`
 # compare-and-set) and report assembly (highest-epoch, highest-terminated-attempt
@@ -243,14 +236,7 @@ require_int_at_least_one() {
 # the check exists to protect. The residual is disclosed instead of hidden.
 record_is_json_object() {
   local s="$1"
-  case "$s" in
-  '{'*) : ;;
-  *) return 1 ;;
-  esac
-  case "$s" in
-  *'}') : ;;
-  *) return 1 ;;
-  esac
+  [[ "$s" == '{'*'}' ]] || return 1
 
   if command -v jq >/dev/null 2>&1; then
     printf '%s' "$s" | jq -e 'type == "object"' >/dev/null 2>&1
@@ -316,11 +302,38 @@ lease_field() {
   done <"$file"
 }
 
-# Replace the lease atomically: a reader never observes a half-written lease,
+# Read the lease fields a rewrite carries forward into LEASE_* globals.
+read_lease() {
+  local file="$1/lease"
+  LEASE_RUN_ID=$(lease_field "$file" run_id)
+  LEASE_EPOCH=$(lease_field "$file" owner_epoch)
+  LEASE_STARTED=$(lease_field "$file" started_at)
+  LEASE_STALE_AFTER=$(lease_field "$file" stale_after_s)
+  LEASE_SKEW_GRACE=$(lease_field "$file" skew_grace_s)
+  LEASE_HEARTBEAT=$(lease_field "$file" heartbeat_at)
+}
+
+# write_lease <dir> <state> <released_at> <heartbeat_at> <heartbeat_at_iso>,
+# every other field from the LEASE_* globals; released_at is written only for
+# the `released` state. Replaced atomically: a reader never observes a half-written lease,
 # and a crash mid-write leaves the previous lease intact rather than a truncated
 # one that would classify as unreadable.
-write_lease_atomic() {
-  local dir="$1" body="$2" tmp
+write_lease() {
+  local dir="$1" state="$2" released_at="$3" heartbeat="$4" heartbeat_iso="$5"
+  local tmp body
+  body="run_id=$LEASE_RUN_ID
+pid=$$
+state=$state
+owner_epoch=$LEASE_EPOCH
+started_at=$LEASE_STARTED
+"
+  [[ "$state" != released ]] || body+="released_at=$released_at
+"
+  body+="heartbeat_at=$heartbeat
+heartbeat_at_iso=$heartbeat_iso
+stale_after_s=$LEASE_STALE_AFTER
+skew_grace_s=$LEASE_SKEW_GRACE
+"
   tmp="$dir/.lease.$$"
   printf '%s' "$body" >"$tmp" || die "cannot write lease under: $dir"
   mv -f "$tmp" "$dir/lease" || die "cannot replace lease under: $dir"
@@ -384,12 +397,9 @@ cmd_paths() {
     esac
   done
 
-  if [[ -z "$plugin_data" ]]; then
-    plugin_data="${CLAUDE_PLUGIN_DATA:-}"
-  fi
-  if [[ -z "$plugin_data" ]]; then
+  plugin_data="${plugin_data:-${CLAUDE_PLUGIN_DATA:-}}"
+  [[ -n "$plugin_data" ]] ||
     die "--plugin-data is required: \${CLAUDE_PLUGIN_DATA} is not exported to the Bash tool, so pass the path substituted into the skill text"
-  fi
   require_absolute_path "--plugin-data" "$plugin_data"
 
   validate_run_id "$run_id"
@@ -397,18 +407,10 @@ cmd_paths() {
   local plugin_root state_key_lib state_key
   plugin_root="${CLAUDE_PLUGIN_ROOT:-$(cd "${BASH_SOURCE[0]%/*}/../../.." && pwd)}"
   state_key_lib="$plugin_root/lib/state-key.sh"
-  if [[ ! -f "$state_key_lib" ]]; then
-    die "cannot find lib/state-key.sh at: $state_key_lib"
-  fi
+  [[ -f "$state_key_lib" ]] || die "cannot find lib/state-key.sh at: $state_key_lib"
 
-  if [[ -n "$root" ]]; then
-    state_key=$(bash "$state_key_lib" --root "$root")
-  else
-    state_key=$(bash "$state_key_lib")
-  fi
-  if [[ -z "$state_key" ]]; then
-    die "lib/state-key.sh produced no state key"
-  fi
+  state_key=$(bash "$state_key_lib" ${root:+--root "$root"})
+  [[ -n "$state_key" ]] || die "lib/state-key.sh produced no state key"
 
   printf 'plugin_data=%s\n' "$plugin_data"
   printf 'state_key=%s\n' "$state_key"
@@ -471,12 +473,9 @@ cmd_lease_acquire() {
   # bare audit writes nothing into the target: passing the target root here would
   # have broken that promise silently. So the run directory must lie under
   # `<plugin-data>/runs/`, which is the only tree this script may write.
-  if [[ -z "$plugin_data" ]]; then
-    plugin_data="${CLAUDE_PLUGIN_DATA:-}"
-  fi
-  if [[ -z "$plugin_data" ]]; then
+  plugin_data="${plugin_data:-${CLAUDE_PLUGIN_DATA:-}}"
+  [[ -n "$plugin_data" ]] ||
     die "--plugin-data is required so --run-dir can be checked for containment; pass the same value given to 'paths'"
-  fi
   require_absolute_path "--plugin-data" "$plugin_data"
   require_absolute_path "--run-dir" "$run_dir"
   case "$run_dir" in
@@ -530,16 +529,12 @@ cmd_lease_acquire() {
   local now iso
   now=$(now_epoch)
   iso=$(now_iso)
-  write_lease_atomic "$run_dir" "run_id=$run_id
-pid=$$
-state=active
-owner_epoch=$epoch
-started_at=$iso
-heartbeat_at=$now
-heartbeat_at_iso=$iso
-stale_after_s=$stale_after
-skew_grace_s=$skew_grace
-"
+  LEASE_RUN_ID="$run_id"
+  LEASE_EPOCH="$epoch"
+  LEASE_STARTED="$iso"
+  LEASE_STALE_AFTER="$stale_after"
+  LEASE_SKEW_GRACE="$skew_grace"
+  write_lease "$run_dir" active "" "$now" "$iso"
   printf '%s\n' "$run_dir/lease"
 }
 
@@ -547,17 +542,11 @@ cmd_lease_heartbeat() {
   parse_run_dir_arg "lease heartbeat" "$@"
   local run_dir="$RUN_DIR"
   require_run_dir "$run_dir"
-  if [[ ! -f "$run_dir/lease" ]]; then
-    die "no lease to refresh at: $run_dir/lease"
-  fi
+  [[ -f "$run_dir/lease" ]] || die "no lease to refresh at: $run_dir/lease"
 
-  local run_id epoch started stale_after skew_grace previous now next
-  run_id=$(lease_field "$run_dir/lease" run_id)
-  epoch=$(lease_field "$run_dir/lease" owner_epoch)
-  started=$(lease_field "$run_dir/lease" started_at)
-  stale_after=$(lease_field "$run_dir/lease" stale_after_s)
-  skew_grace=$(lease_field "$run_dir/lease" skew_grace_s)
-  previous=$(lease_field "$run_dir/lease" heartbeat_at)
+  local previous now next
+  read_lease "$run_dir"
+  previous="$LEASE_HEARTBEAT"
   now=$(now_epoch)
 
   # max(now, previous): a clock adjustment that rewinds must not make a live run
@@ -568,18 +557,7 @@ cmd_lease_heartbeat() {
     next="$previous"
   fi
 
-  local next_iso
-  next_iso=$(now_iso)
-  write_lease_atomic "$run_dir" "run_id=$run_id
-pid=$$
-state=active
-owner_epoch=$epoch
-started_at=$started
-heartbeat_at=$next
-heartbeat_at_iso=$next_iso
-stale_after_s=$stale_after
-skew_grace_s=$skew_grace
-"
+  write_lease "$run_dir" active "" "$next" "$(now_iso)"
   printf '%s\n' "$next"
 }
 
@@ -587,35 +565,17 @@ cmd_lease_release() {
   parse_run_dir_arg "lease release" "$@"
   local run_dir="$RUN_DIR"
   require_run_dir "$run_dir"
-  if [[ ! -f "$run_dir/lease" ]]; then
-    die "no lease to release at: $run_dir/lease"
-  fi
+  [[ -f "$run_dir/lease" ]] || die "no lease to release at: $run_dir/lease"
 
-  local run_id epoch started stale_after skew_grace heartbeat heartbeat_iso iso
-  run_id=$(lease_field "$run_dir/lease" run_id)
-  epoch=$(lease_field "$run_dir/lease" owner_epoch)
-  started=$(lease_field "$run_dir/lease" started_at)
-  stale_after=$(lease_field "$run_dir/lease" stale_after_s)
-  skew_grace=$(lease_field "$run_dir/lease" skew_grace_s)
-  heartbeat=$(lease_field "$run_dir/lease" heartbeat_at)
+  local heartbeat_iso
+  read_lease "$run_dir"
   heartbeat_iso=$(lease_field "$run_dir/lease" heartbeat_at_iso)
-  iso=$(now_iso)
 
   # The tombstone, not a deletion. A run that finished normally while
   # deliberately leaving a lane incomplete — the /doctor handoff is exactly this
   # — would otherwise look live for the whole staleness window, and the operator
   # who does the fastest correct thing is the one refused.
-  write_lease_atomic "$run_dir" "run_id=$run_id
-pid=$$
-state=released
-owner_epoch=$epoch
-started_at=$started
-released_at=$iso
-heartbeat_at=$heartbeat
-heartbeat_at_iso=$heartbeat_iso
-stale_after_s=$stale_after
-skew_grace_s=$skew_grace
-"
+  write_lease "$run_dir" released "$(now_iso)" "$LEASE_HEARTBEAT" "$heartbeat_iso"
   printf '%s\n' "released"
 }
 
@@ -755,14 +715,9 @@ cmd_partial_append() {
   printf '%s\n' "$record" >>"$file" || die "cannot append to: $file"
   printf '%s\n' "$file"
 
-  # THE FENCE IS ENFORCED BY THE EXIT CODE, NOT BY THE MESSAGE. A diagnostic on
-  # stderr saying "this run must abort" is a control announcing a state it never
-  # establishes: it depends on the caller noticing a substring, and it is
-  # indistinguishable in form from any other diagnostic. `classify` already puts
-  # its machine-actionable answer on stdout for exactly that reason. So a fenced
-  # append exits EXIT_FENCED — the record IS written (to the writer's own file,
-  # so nothing interleaves) and the caller is told, in the one channel it cannot
-  # miss, that it has been superseded and must stop dispatching.
+  # THE FENCE IS ENFORCED BY THE EXIT CODE, NOT BY THE MESSAGE: a stderr line
+  # depends on the caller noticing a substring. The record IS written, to the
+  # writer's own file, and the exit tells the caller to stop dispatching.
   if [[ "$fenced" -eq 1 ]]; then
     return "$EXIT_FENCED"
   fi
