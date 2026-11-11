@@ -594,14 +594,21 @@ lib/publish-gate.mjs
 lib/publish-gate.mjs -> plugins/*/lib/publish-gate.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
-# .github/scripts/lib/lane-binding.mjs and its fixtures. The review and
-# work-items plugins carry the generated copies.
+# .github/scripts/lib/lane-binding.mjs. The review and work-items plugins
+# carry the generated copies.
 lib/lane-binding.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# .github/scripts/lib/lane-binding.fixtures.mjs. The review and work-items
+# plugins carry the generated copies for their tests.
 lib/lane-binding.fixtures.mjs
 
-# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster lines for the
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the canonical and the copies.
 .github/scripts/lib/lane-binding.mjs -> plugins/*/lib/lane-binding.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the canonical fixtures and the copies.
 .github/scripts/lib/lane-binding.fixtures.mjs -> plugins/*/lib/lane-binding.fixtures.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
