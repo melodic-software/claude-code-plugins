@@ -12,7 +12,14 @@ param(
     # orchestrator dispatches argument-less (Get-CheckArgument default) and the
     # defaults are the rubric's figures.
     [long]$TaskOutputWarnBytes = 1GB,
+    # Walk budget. The orchestrator kills a check at 90s and check-result.schema.json
+    # caps duration_ms at 90000, so an unbounded walk of a multi-gigabyte tree does not
+    # merely time out -- it emits a schema-invalid result. Stop at 60s, keep the partial
+    # figures, and report UNKNOWN per the rubric's timeout row.
     [int]$BudgetSeconds = 60,
+    # The task-output listing runs first on the same clock and stops at its own cap,
+    # so a tree too large to walk still gets its largest files named and the walk
+    # keeps the rest of the budget.
     [int]$TaskOutputBudgetSeconds = 20
 )
 
@@ -20,16 +27,6 @@ Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 
-# Walk budget. The orchestrator kills a check at 90s and check-result.schema.json
-# caps duration_ms at 90000, so an unbounded walk of a multi-gigabyte tree does not
-# merely time out -- it emits a schema-invalid result. Stop at 60s, keep the partial
-# figures, and report UNKNOWN per the rubric's timeout row.
-$budgetSeconds = $BudgetSeconds
-
-# The task-output listing runs first on the same clock and stops at its own cap,
-# so a tree too large to walk still gets its largest files named and the walk
-# keeps the rest of the budget.
-$taskOutputBudgetSeconds = $TaskOutputBudgetSeconds
 $taskOutputTopCount = 5
 
 function Resolve-ClaudeTempRoot {
@@ -65,14 +62,10 @@ function Resolve-ClaudeTempRoot {
         @{ Base = $env:LOCALAPPDATA; Child = 'Temp\claude'; Source = 'LOCALAPPDATA/Temp/claude' }
     )
 
-    $candidates = [System.Collections.Generic.List[pscustomobject]]::new()
-    foreach ($b in $bases) {
-        if ([string]::IsNullOrWhiteSpace($b.Base)) { continue }
-        $candidates.Add([pscustomobject]@{
-                Path   = (Join-Path $b.Base $b.Child)
-                Source = $b.Source
-            })
-    }
+    $candidates = @(foreach ($b in $bases) {
+            if ([string]::IsNullOrWhiteSpace($b.Base)) { continue }
+            [pscustomobject]@{ Path = (Join-Path $b.Base $b.Child); Source = $b.Source }
+        })
 
     foreach ($c in $candidates) {
         $item = Get-Item -LiteralPath $c.Path -Force -ErrorAction SilentlyContinue
@@ -431,27 +424,22 @@ $CheckBody = {
         $summaryCap = 240
 
         $walk = Measure-TempRootTree -Root $root.Path -Stopwatch $sw -BudgetSeconds $budgetSeconds -Now $now
-        $totalBytes = $walk.Bytes
-        $fileCount = $walk.FileCount
         $sessionCount = $walk.SessionCount
-        $largestSessionBytes = $walk.LargestSessionBytes
         $oldestAgeDays = $walk.OldestAgeDays
         $unreadable = $walk.UnreadableCount
         $truncated = $walk.Truncated
-
-        $totalGb = [math]::Round($totalBytes / 1GB, 2)
-        $largestGb = [math]::Round($largestSessionBytes / 1GB, 2)
+        $totalGb = [math]::Round($walk.Bytes / 1GB, 2)
 
         $detail = @{
             root_path               = $root.Path
             root_source             = $root.Source
             root_exists             = $true
-            total_bytes             = $totalBytes
+            total_bytes             = $walk.Bytes
             total_gb                = $totalGb
-            file_count              = $fileCount
+            file_count              = $walk.FileCount
             session_dir_count       = $sessionCount
             project_key_count       = $walk.ProjectKeyCount
-            largest_session_gb      = $largestGb
+            largest_session_gb      = [math]::Round($walk.LargestSessionBytes / 1GB, 2)
             oldest_session_age_days = $oldestAgeDays
             unreadable_dir_count    = $unreadable
             scan_truncated          = $truncated
@@ -492,6 +480,8 @@ $CheckBody = {
                 "Task-output listing budget of ${taskOutputBudgetSeconds}s exceeded after " +
                 "$($taskOutputs.Count) outputs; no per-file verdict is possible."
             }
+            $outcome = @{ RanSuccessfully = $false; ErrorMessage = $reason }
+            $severity = 'UNKNOWN'
             $summary = "Claude Code temp-root scan incomplete; measured at least $totalGb GB " +
             "across $sessionCount session dirs."
             $tail = if ($taskOutputs.Truncated) {
@@ -499,18 +489,6 @@ $CheckBody = {
             } elseif ($taskOutputOver) {
                 ' Task-output listing complete.'
             } else { '' }
-            if ($taskOutputOver) {
-                $finding = Format-TaskOutputFinding -Largest $largestTaskOutputs `
-                    -OverCount $taskOutputs.OverCount -Root $root.Path `
-                    -MaxLength ($summaryCap - $summary.Length - $tail.Length - 1)
-                $summary += " $finding"
-            }
-            $summary += $tail
-            $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-                -Severity 'UNKNOWN' -Summary $summary `
-                -Commands $commands -Detail $detail -NeedsAdmin $false `
-                -RanSuccessfully $false `
-                -ErrorMessage $reason
         } else {
             # Severity ladder (most severe first). This check never emits CRIT: the
             # tree is reclaimable cache with no data-loss or security consequence, and
@@ -525,28 +503,29 @@ $CheckBody = {
             # loses its oldest entry is the unpruned-growth signal this check exists for.
             # The per-file arm is independent too: one runaway task output is the
             # file to remove, and a total-size verdict alone never names it.
-            $severity = 'OK'
-            if ($totalGb -ge 5 -or $oldestAgeDays -ge 14 -or $taskOutputOver) {
-                $severity = 'WARN'
+            $outcome = @{ RanSuccessfully = $true }
+            $severity = if ($totalGb -ge 5 -or $oldestAgeDays -ge 14 -or $taskOutputOver) {
+                'WARN'
             } elseif ($totalGb -ge 1) {
-                $severity = 'INFO'
-            }
+                'INFO'
+            } else { 'OK' }
 
             $summary = "Claude Code temp root $totalGb GB across $sessionCount session dirs " +
-            "($fileCount files); oldest $oldestAgeDays d."
+            "($($walk.FileCount) files); oldest $oldestAgeDays d."
             $tail = if ($severity -eq 'WARN') { ' Route removal to disk-hygiene:clean.' } else { '' }
-            if ($taskOutputOver) {
-                $finding = Format-TaskOutputFinding -Largest $largestTaskOutputs `
-                    -OverCount $taskOutputs.OverCount -Root $root.Path `
-                    -MaxLength ($summaryCap - $summary.Length - $tail.Length - 1)
-                $summary += " $finding"
-            }
-            $summary += $tail
-
-            $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-                -Severity $severity -Summary $summary -Commands $commands -Detail $detail `
-                -NeedsAdmin $false -RanSuccessfully $true
         }
+
+        if ($taskOutputOver) {
+            $finding = Format-TaskOutputFinding -Largest $largestTaskOutputs `
+                -OverCount $taskOutputs.OverCount -Root $root.Path `
+                -MaxLength ($summaryCap - $summary.Length - $tail.Length - 1)
+            $summary += " $finding"
+        }
+        $summary += $tail
+
+        $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
+            -Severity $severity -Summary $summary -Commands $commands -Detail $detail `
+            -NeedsAdmin $false @outcome
     }
 }
 . (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')
