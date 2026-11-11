@@ -74,6 +74,15 @@ require_value() { # <flag> <value>
   exit 3
 }
 
+set_opt() { # <flag> <value>
+  case "$1" in
+  --plugin) WANT_PLUGINS+=("$2") ;;
+  --repo) REPO="$2" ;;
+  --max-worktrees) MAX_WORKTREES="$2" ;;
+  *) ;;
+  esac
+}
+
 INSTALLED_JSON="${MACHINE_BEHAVIOR_INSTALLED_JSON:-$HOME/.claude/plugins/installed_plugins.json}"
 
 REPO=""
@@ -81,31 +90,13 @@ MAX_WORKTREES=50
 declare -a WANT_PLUGINS=()
 while (($#)); do
   case "$1" in
-  --plugin)
+  --plugin | --repo | --max-worktrees)
     require_value "$1" "${2:-}"
-    WANT_PLUGINS+=("$2")
+    set_opt "$1" "$2"
     shift 2
     ;;
-  --plugin=*)
-    WANT_PLUGINS+=("${1#*=}")
-    shift
-    ;;
-  --repo)
-    require_value "$1" "${2:-}"
-    REPO="$2"
-    shift 2
-    ;;
-  --repo=*)
-    REPO="${1#*=}"
-    shift
-    ;;
-  --max-worktrees)
-    require_value "$1" "${2:-}"
-    MAX_WORKTREES="$2"
-    shift 2
-    ;;
-  --max-worktrees=*)
-    MAX_WORKTREES="${1#*=}"
+  --plugin=* | --repo=* | --max-worktrees=*)
+    set_opt "${1%%=*}" "${1#*=}"
     shift
     ;;
   -h | --help)
@@ -236,7 +227,7 @@ plugin_versions() {
   rows="$(jq -r --argjson want "$want_json" '
     (.plugins // {})
     | to_entries
-    | map({name: (.key | sub("@.*$"; "")), versions: [.value[].version] | unique})
+    | map({name: (.key | sub("@.*$"; "")), versions: [.value[].version]})
     | group_by(.name)
     | map({name: .[0].name, versions: (map(.versions) | add | unique)})
     | (if ($want | length) > 0 then map(select(.name as $n | $want | index($n))) else . end)
