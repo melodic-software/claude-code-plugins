@@ -222,8 +222,8 @@ Constraints:
 
 ### Design-canvas alternative (bundled `design` skill, run by the person)
 
-When the intent selector lands on the HTML mockup substrate and `medium` allows it (resolve it first per [reference/medium.md](reference/medium.md)), tell the user before building that
-the design canvas is an alternative they can run themselves; this skill builds the HTML mockup
+When the intent selector lands on the HTML mockup substrate and `medium` allows it (resolve it first per [reference/medium.md](reference/medium.md)), tell the user before building, except
+under `--unattended`, that the design canvas is an alternative they can run themselves; this skill builds the HTML mockup
 either way and never invokes `design`. Read [reference/design-canvas.md](reference/design-canvas.md)
 before making the offer: it holds the two options, the lifecycle difference the offer names, the
 capture discipline, and the verification record for the `design` registration.
