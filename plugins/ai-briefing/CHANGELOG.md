@@ -3,6 +3,13 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.9] - 2026-11-11
+
+### Changed
+
+- **Bump playwright from 1.64.1 to 1.65.0 in /plugins/ai-briefing/skills/generate/output/build in the npm-minor-patch group** (#15330).
+  - `playwright` 1.64.1→1.65.0
+
 ## [1.0.8] - 2026-11-09
 
 ### Changed
