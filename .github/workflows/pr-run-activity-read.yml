@@ -84,7 +84,7 @@ on:
         default: ""
       start-gate:
         description: >-
-          `true` for a caller whose call starts new work (the issue lane, pr-refine):
+          `true` for a caller whose call starts new work (the issue lane):
           broker-check's kill-switch gate then also stops on a low
           GITHUB_TOKEN budget, on the first call in the slot only (fallback
           empty or `credit-stop`); a call that takes over a handed-off turn,

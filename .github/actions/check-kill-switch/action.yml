@@ -5,7 +5,8 @@ description: >
   proceeds only on exactly `false`; unset, empty and every other value stop.
   With budget "true" and both switches off, one GET /rate_limit stops the
   lane while the core pool's remaining is under rate-limits.json's
-  github-token start-gate share of its limit; a failed read proceeds. Every
+  github-token start-gate share of its limit, or when the read is refused
+  (403, 429, retry-after, remaining 0); any other failed read proceeds. Every
   stop is proceed=false reason=kill-switch, with cause switch or budget.
   Always exits 0: the model step's `if:` reads the output, so a missing
   output also keeps the lane stopped.

@@ -9,8 +9,10 @@
 //   and -reset when the response carries all three, else the body's
 //   resources.core. The lane stops while remaining < start-gate x limit and
 //   the reset is still ahead; start-gate is github-token's entry in
-//   ../log-api-budget/rate-limits.json. A read that fails or cannot be read,
-//   or a share that cannot be read, proceeds with a warning; the rate guard's
+//   ../log-api-budget/rate-limits.json. A refused read (403, 429, retry-after
+//   or x-ratelimit-remaining 0) stops, since more calls would be refused too.
+//   A read that fails otherwise (transport, timeout, 5xx, 401) or cannot be
+//   parsed, or a share that cannot be read, proceeds with a warning; the rate guard's
 //   stop-floor (log-api-budget/rate-guard.mjs) is the backstop. GitHub counts
 //   this call against the secondary limit, not the primary one, so it is made
 //   once, with no retry. A gate that finishes or judges existing work leaves
@@ -58,6 +60,29 @@ export function readingOf(headers, body) {
 const clean = (text) => String(text).replace(/[\r\n%:]/g, " ");
 const show = (fields) => Object.entries(fields ?? {}).map(([name, value]) => `${name}=${clean(value ?? "na")}`).join(" ");
 
+const DEFAULT_WAIT_S = 60;
+const whole = (value) => (/^\d+$/.test(value ?? "") ? Number(value) : Number.NaN);
+
+// A response that says the token is already limited (403, 429, retry-after, or
+// no requests remaining) stops the lane rather than proceeding into more calls
+// that would be refused too. Its reset is always ahead of now: the header's
+// reset, else now + retry-after, else now + 60.
+function refusal(response, now) {
+  const { status, headers } = response;
+  const header = (name) => headers?.get?.(name) ?? null;
+  const [retryAfter, remaining, headerReset] = [header("retry-after"), header("x-ratelimit-remaining"), header("x-ratelimit-reset")];
+  if (status !== 403 && status !== 429 && retryAfter === null && remaining !== "0") {
+    return null;
+  }
+  const wait = Number.isFinite(whole(retryAfter)) ? whole(retryAfter) : DEFAULT_WAIT_S;
+  const reset = whole(headerReset) > now ? whole(headerReset) : Math.ceil(now + wait);
+  return {
+    stop: true,
+    reset,
+    line: `::warning title=start-gate::the GITHUB_TOKEN budget read was refused (HTTP ${status} ${show({ "retry-after": retryAfter, remaining, reset: headerReset })}); the lane stops until ${reset}`,
+  };
+}
+
 // The budget half of the gate: { stop, reset, line } where line is the run's
 // one notice or warning. Never throws.
 export async function checkBudget({ token, api = "https://api.github.com", share, now = Date.now() / 1000, fetchImpl = fetch } = {}) {
@@ -69,6 +94,10 @@ export async function checkBudget({ token, api = "https://api.github.com", share
       headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28" },
       signal: AbortSignal.timeout(READ_TIMEOUT_MS),
     });
+    const refused = refusal(response, now);
+    if (refused) {
+      return refused;
+    }
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -127,7 +156,7 @@ export async function main(env = process.env, { fetchImpl = fetch, now = Date.no
   let result = { ...checkKillSwitch(env.KILL_SWITCH_VALUE, env.REPO_KILL_SWITCH_VALUE), reset: "" };
   if (result.proceed === "true" && env.BUDGET_CHECK === "true") {
     const share = startGateShare(rateLimits, log);
-    if (share !== null) {
+    if (share) {
       const budget = await checkBudget({ token: env.BUDGET_TOKEN, api: env.GITHUB_API_URL || undefined, share, now: now() / 1000, fetchImpl });
       log(budget.line);
       if (budget.stop) {

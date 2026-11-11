@@ -137,8 +137,34 @@ test("the budget read falls back to the body's resources.core when a header is m
   assert.match(result.line, /headers limit=5000 remaining=na /);
 });
 
+// GitHub answers an exhausted token with 403 or 429, x-ratelimit-remaining 0
+// and, for a secondary limit, retry-after in seconds; another call would be
+// refused too, so each stops with a reset still ahead.
+const REFUSED_READS = [
+  ["a 403 with the window's reset", () => rateLimitResponse({ status: 403, headers: headersOf(5000, 0, RESET) }), RESET],
+  ["a 429 with retry-after 30", () => rateLimitResponse({ status: 429, headers: { "retry-after": "30" } }), NOW_S + 30],
+  ["a bare 403", () => rateLimitResponse({ status: 403 }), NOW_S + 60],
+  ["a bare 429", () => rateLimitResponse({ status: 429 }), NOW_S + 60],
+  ["a 200 with retry-after 120", () => rateLimitResponse({ headers: { "retry-after": "120" } }), NOW_S + 120],
+  ["a 200 with remaining 0 and a reset already past", () => rateLimitResponse({ headers: headersOf(5000, 0, NOW_S - 5) }), NOW_S + 60],
+  // remaining 0 outranks the 5xx rule: the pool is spent whatever the status.
+  ["a 500 with remaining 0", () => rateLimitResponse({ status: 500, headers: headersOf(5000, 0, RESET) }), RESET],
+];
+
+for (const [label, answer, reset] of REFUSED_READS) {
+  test(`a budget read that meets ${label} stops with a future reset and makes no other call`, async () => {
+    const { calls, fetchImpl } = recordingFetch(answer);
+    const result = await checkBudget({ token: "t", share: 0.1, now: NOW_S, fetchImpl });
+    assert.equal(result.stop, true);
+    assert.equal(result.reset, reset);
+    assert.equal(calls.length, 1, "no retry");
+    assert.match(result.line, new RegExp(`^::warning title=start-gate::the GITHUB_TOKEN budget read was refused \\(HTTP \\d+ .*\\); the lane stops until ${reset}$`));
+  });
+}
+
 const FAILED_READS = [
-  ["a 500", () => rateLimitResponse({ status: 500, headers: headersOf(5000, 0, RESET) }), /HTTP 500/],
+  ["a 500", () => rateLimitResponse({ status: 500 }), /HTTP 500/],
+  ["a 503 with headers to spare", () => rateLimitResponse({ status: 503, headers: headersOf(5000, 4000, RESET) }), /HTTP 503/],
   ["a 401", () => rateLimitResponse({ status: 401 }), /HTTP 401/],
   ["a network error", new Error("connect ECONNREFUSED"), /connect ECONNREFUSED/],
   ["no headers and no body reading", () => new Response("not json", { status: 200 }), /neither the headers nor the body/],
@@ -194,6 +220,14 @@ const OFF = { KILL_SWITCH_VALUE: "false", REPO_KILL_SWITCH_VALUE: "false" };
 const START = { ...OFF, BUDGET_CHECK: "true" };
 const empty = () => rateLimitResponse({ headers: headersOf(5000, 0, RESET) });
 
+for (const status of [403, 429]) {
+  test(`a start gate whose budget read meets a ${status} stops with cause budget after one call`, async () => {
+    const { calls, outputs } = await runMain(START, () => rateLimitResponse({ status }));
+    assert.equal(calls.length, 1, "no retry");
+    assert.deepEqual(outputs, { proceed: "false", reason: "kill-switch", cause: "budget", reset: String(NOW_S + 60) });
+  });
+}
+
 test("by default the gate checks the switches only and makes no /rate_limit call", async () => {
   for (const value of [undefined, "", "false", "FALSE", "yes"]) {
     const { calls, lines, outputs } = await runMain({ ...OFF, BUDGET_CHECK: value }, empty);
@@ -229,7 +263,8 @@ test("the share is rate-limits.json's github-token start-gate", async () => {
   const half = { "github-token": { "start-gate": 0.5 } };
   assert.equal((await runMain(START, rateLimitResponse({ headers: headersOf(5000, 2499, RESET) }), { rateLimits: half })).outputs.cause, "budget");
   assert.equal((await runMain(START, rateLimitResponse({ headers: headersOf(5000, 2500, RESET) }), { rateLimits: half })).outputs.cause, "ok");
-  assert.equal((await runMain(START, empty, { rateLimits: { "github-token": { "start-gate": 0 } } })).outputs.cause, "ok", "0 turns it off");
+  const off = await runMain(START, empty, { rateLimits: { "github-token": { "start-gate": 0 } } });
+  assert.deepEqual([off.outputs.cause, off.calls.length], ["ok", 0], "0 turns it off: no read");
   assert.equal(startGateShare(fileURLToPath(new URL("../log-api-budget/rate-limits.json", import.meta.url)), () => {}), 0.1, "the shipped value");
 });
 
@@ -297,7 +332,7 @@ const GATES = {
   // only on a call that is the first in its slot (FIRST_CALL).
   "pr-run-activity-read.yml": { "broker-check": "first-call", run: "switch" },
   "pr-run-activity-write.yml": { run: "switch" },
-  "pr-unblock-dispatch.yml": { dispatch: "start", refine: "start" },
+  "pr-unblock-dispatch.yml": { dispatch: "switch", refine: "switch" },
   "pr-unblock.yml": {
     "resolve-conflicts-select": "switch",
     "sync-shared-copies-select": "switch",
@@ -325,15 +360,15 @@ const GATES = {
 const FIRST_CALL = /^ {10}budget: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop'\) && 'true' \|\| 'false' \}\}$/m;
 
 // The read-runner calls that pass start-gate, by workflow and job: the issue
-// lane and pr-refine start new work; pr-unblock fixes existing PRs and passes
-// none. Each listed call's handed-off and fallback legs read no budget
-// through FIRST_CALL's fallback test.
+// lane's key leg and its subscription leg, which is the slot's first call
+// when the key leg was skipped (fallback credit-stop). pr-unblock and
+// pr-refine fix existing PRs and pass none, nor does the fallback leg, which
+// never makes a first call.
 const START_CALLS = {
-  "work-resolve-issue.yml": ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"],
-  "pr-refine.yml": ["fix-docs", "fix-docs-subscription", "fix-docs-fallback"],
+  "work-resolve-issue.yml": ["resolve-issue", "resolve-issue-subscription"],
 };
 
-test("only the issue lane's and pr-refine's read-runner calls pass start-gate", () => {
+test("only the issue lane's first-call read-runner calls pass start-gate", () => {
   for (const file of readdirSync(WORKFLOWS).filter((name) => name.endsWith(".yml"))) {
     const lines = readFileSync(path.join(WORKFLOWS, file), "utf8").split("\n");
     const starting = [];
@@ -388,6 +423,123 @@ test("every gate in the workflows is classified, and only start gates read the b
     for (const job of Object.keys(jobs)) {
       assert.ok(seen.has(`${file} ${job}`), `${file} ${job}: classified but has no gate`);
     }
+  }
+});
+
+// The steps of each job in a workflow, as text, by job id.
+function stepsByJob(file) {
+  const lines = readFileSync(path.join(WORKFLOWS, file), "utf8").split("\n");
+  const jobsAt = lines.indexOf("jobs:");
+  const jobs = {};
+  let job = null;
+  let step = null;
+  lines.forEach((line, i) => {
+    const id = i > jobsAt && /^ {2}([a-z][a-z0-9-]*):$/.exec(line);
+    if (id) {
+      job = id[1];
+      jobs[job] = [];
+      step = null;
+    } else if (job && /^ {6}- /.test(line)) {
+      step = [line];
+      jobs[job].push(step);
+    } else if (step && /^ {0,5}\S/.test(line)) {
+      step = null;
+    } else if (step) {
+      step.push(line);
+    }
+  });
+  return Object.fromEntries(Object.entries(jobs).map(([name, steps]) => [name, steps.map((text) => text.join("\n"))]));
+}
+
+const KILL_STEP = /^\s*(?:-\s+)?uses:\s*["']?[^\s"'#]*actions\/check-kill-switch\b/m;
+const budgetJobs = () =>
+  Object.entries(GATES).flatMap(([file, jobs]) =>
+    Object.entries(jobs)
+      .filter(([, kind]) => kind === "start" || kind === "first-call")
+      .map(([job]) => ({ file, job, steps: stepsByJob(file)[job] })),
+  );
+
+test("budget jobs are found", () => {
+  const jobs = budgetJobs();
+  assert.ok(jobs.length >= 15, `${jobs.length} budget jobs`);
+  for (const { file, job, steps } of jobs) {
+    assert.ok(steps?.some((step) => KILL_STEP.test(step)), `${file} ${job}: its steps hold the gate`);
+  }
+});
+
+// Split `text` on `separator` outside parentheses.
+function splitTop(text, separator) {
+  const parts = [""];
+  let depth = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    if (depth === 0 && text.startsWith(separator, i)) {
+      parts.push("");
+      i += separator.length - 1;
+      continue;
+    }
+    depth += text[i] === "(" ? 1 : text[i] === ")" ? -1 : 0;
+    parts[parts.length - 1] += text[i];
+  }
+  return parts.map((part) => part.trim());
+}
+
+// Whether a step `if:` is false on a budget stop: every top-level disjunct
+// has a conjunct that needs the gate to proceed, the cause not to be budget,
+// or a success or a non-empty output from a step that was skipped.
+function falseOnBudget(condition, skipped) {
+  const falseAtom = (atom) => {
+    if (/^steps\.kill\.outputs\.proceed == 'true'$|^steps\.kill\.outputs\.cause != 'budget'$/.test(atom)) return true;
+    const ref = /^steps\.([a-z0-9-]+)\.(?:(?:outcome|conclusion) == 'success'|outputs\.[a-z0-9-]+ == '[^']+')$/.exec(atom);
+    return Boolean(ref && skipped.has(ref[1]));
+  };
+  const text = condition.replace(/^\$\{\{|\}\}$/g, "").replace(/\s+/g, " ").trim();
+  return text !== "" && splitTop(text, "||").every((disjunct) => splitTop(disjunct, "&&").some(falseAtom));
+}
+
+test("a budget stop ends neutral: no step it runs fails the job or writes ::error", () => {
+  for (const { file, job, steps } of budgetJobs()) {
+    const skipped = new Set();
+    for (const step of steps.slice(steps.findIndex((s) => KILL_STEP.test(s)) + 1)) {
+      const condition = /^ {8}if: (?:>-\n)?([\s\S]*?)\n {8}[a-z-]+:/m.exec(`${step}\n        end:`)?.[1] ?? "";
+      if (falseOnBudget(condition, skipped)) {
+        const id = /^ {8}id: ([a-z0-9-]+)$/m.exec(step)?.[1];
+        if (id) skipped.add(id);
+        continue;
+      }
+      const name = /name: (.*)/.exec(step)?.[1] ?? step.split("\n")[0];
+      assert.doesNotMatch(step, /::error|\bexit 1\b/, `${file} ${job} "${name}" runs on a budget stop and fails it`);
+    }
+  }
+});
+
+test("the budget-stop reading of a step condition", () => {
+  const skipped = new Set(["broker"]);
+  assert.equal(falseOnBudget("steps.kill.outputs.proceed == 'true'", skipped), true);
+  assert.equal(falseOnBudget("steps.kill.outputs.cause != 'budget'", skipped), true);
+  assert.equal(falseOnBudget("steps.broker.outcome == 'success' && inputs.x != ''", skipped), true, "a skipped step's success");
+  assert.equal(falseOnBudget("steps.other.outcome == 'success'", skipped), false, "a step that ran");
+  assert.equal(falseOnBudget("steps.kill.outputs.proceed != 'true'", skipped), false, "the stop report runs");
+  assert.equal(falseOnBudget("always()", skipped), false);
+  assert.equal(falseOnBudget("", skipped), false, "no condition runs");
+  assert.equal(falseOnBudget("steps.broker.outputs.allowed == 'true' || inputs.force", skipped), false, "one disjunct may hold");
+  assert.equal(falseOnBudget("inputs.a == '' && (inputs.b == '' || steps.kill.outputs.proceed == 'true')", skipped), false, "a parenthesized disjunction may hold");
+});
+
+// check-kill-switch reads the share from ../log-api-budget/rate-limits.json
+// beside it; a sparse checkout without that directory turns the read off.
+test("every budget job checks out log-api-budget beside the gate", () => {
+  for (const { file, job, steps } of budgetJobs()) {
+    const gate = steps.find((step) => KILL_STEP.test(step));
+    const root = /uses:\s*\.\/(.*?)\.github\/actions\/check-kill-switch/.exec(gate)?.[1]?.replace(/\/$/, "") ?? "";
+    const checkout = steps.find((step) => /uses: actions\/checkout@/.test(step) && (/^ {10}path: (.*)$/m.exec(step)?.[1]?.trim() ?? "") === root);
+    assert.ok(checkout, `${file} ${job}: a checkout at "${root}" holds the gate`);
+    const sparse = /^ {10}sparse-checkout: \|\n((?: {12}.*\n?)+)/m.exec(checkout)?.[1];
+    if (sparse === undefined) continue;
+    const covers = sparse
+      .split("\n")
+      .map((entry) => entry.trim().replace(/^\//, "").replace(/\/\**$/, ""))
+      .some((entry) => entry && ".github/actions/log-api-budget/".startsWith(`${entry}/`));
+    assert.ok(covers, `${file} ${job}: its sparse checkout lists .github/actions/log-api-budget/`);
   }
 });
 

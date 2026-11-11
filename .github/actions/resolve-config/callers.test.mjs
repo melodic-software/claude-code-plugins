@@ -8194,11 +8194,14 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
   const { fallback, "fallback-ready": fallbackReady, ...same } = sub.with;
   assert.deepEqual(same, firstSame, "the fallback call runs the same activity on the same inputs");
   assert.deepEqual(sub.concurrency, jobs["resolve-issue"].concurrency, "in the same slot");
-  // The third call: the same inputs on the fallback token, in the same slot.
+  // The third call: the same inputs on the fallback token, in the same slot,
+  // without start-gate, since it never makes the slot's first call.
   const third = jobs["resolve-issue-fallback"];
   const { fallback: thirdFallback, ...thirdSame } = third.with;
   assert.equal(thirdFallback, "fallback");
-  assert.deepEqual(thirdSame, firstSame, "the third call runs the same activity on the same inputs");
+  const { "start-gate": firstStartGate, ...firstUngated } = firstSame;
+  assert.equal(firstStartGate, true, "the first call starts new work");
+  assert.deepEqual(thirdSame, firstUngated, "the third call runs the same activity on the same inputs, switches only");
   assert.deepEqual(third.concurrency, jobs["resolve-issue"].concurrency, "in the same slot");
   // The handoff job: the default branch tip's handoff-evidence.sh on
   // read-only tokens, no secret, as every pr-unblock handoff job runs it.

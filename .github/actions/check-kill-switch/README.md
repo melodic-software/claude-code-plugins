@@ -11,10 +11,14 @@ With `budget: "true"` and both switches proceeding, the gate makes one GET /rate
 or from the body's `resources.core` when a header is missing. It stops the lane while remaining
 is under github-token's `start-gate` share of the limit and the reset is still ahead. The share
 is read from [`rate-limits.json`](../log-api-budget/rate-limits.json) alone (0.1); no
-`pr-pipeline.yaml` field overrides it. A read that fails, times out or carries no reading, or a
-share that cannot be read, proceeds with a warning; the rate guard's `stop-floor` is the
-backstop. GitHub counts GET /rate_limit against the secondary limit, not the primary one, so the
-gate makes it once, with no retry, and not at all when a switch already stops. Each read logs one
+`pr-pipeline.yaml` field overrides it. A share of 0 turns the read off. A refused read (403, 429,
+a `retry-after` header, or `x-ratelimit-remaining: 0`) stops the lane with cause `budget`, since
+more calls would be refused too; its reset is `x-ratelimit-reset`, else now plus `retry-after`,
+else now plus 60 seconds. A read that fails otherwise (a transport error, a timeout, a 5xx or a
+401) or carries no reading, or a share that cannot be read, proceeds with a warning; the rate
+guard's `stop-floor` is the backstop. GitHub counts GET /rate_limit against the secondary limit,
+not the primary one, so the gate makes it once, with no retry, and not at all when a switch
+already stops. Each read logs one
 `start-gate` notice with the body's core block and the response's rate-limit headers, so the two
 can be compared.
 
@@ -33,14 +37,18 @@ and a read lane's broker check, while one exists.
 | `token` | `${{ github.token }}` | The token whose GET /rate_limit answer is the budget reading |
 
 Set `budget: "true"` only on a gate that starts new work: the read runner's `broker-check` on the
-first call of a caller that passes `start-gate: true` (the issue lane and pr-refine; pr-unblock
-fixes existing pull requests and passes none), a workflow's first gate on a schedule or event that begins a run's work (intake triage and its
-refine select, the audit, cleanup, recurring-issue, skill-edit, signals, reconcile, tidy,
-mutation and changelog ticks, the pr-unblock dispatcher, and the work-unblock sweep). A gate
-that finishes or judges existing work keeps the default, so a low budget never throws that work
-away: reviews, merges, verdicts and verify notes, writes after a model turn, and model legs that
-take over a handed-off turn. Evals, which a person or a pull request starts, keep it too. `check-kill-switch.test.mjs` classifies
-every gate in `.github/workflows` and fails on one it does not know.
+first call of a caller that passes `start-gate: true` (the issue lane only), and a workflow's
+first gate on a schedule or event that begins a run's work (intake triage and its refine select,
+the audit, cleanup, recurring-issue, skill-edit, signals, reconcile, tidy, mutation and changelog
+ticks, and the work-unblock sweep). A gate that finishes or judges existing work keeps the
+default, so a low budget never throws that work away: reviews, merges, verdicts and verify notes,
+writes after a model turn, model legs that take over a handed-off turn or run as the fallback,
+and the pr-unblock legs (its dispatcher and pr-refine), which fix existing pull requests. Evals,
+which a person or a pull request starts, keep it too. A budget stop ends the run neutral: a
+notice, no failed step. A job that sets `budget: "true"` checks out fully or lists
+`.github/actions/log-api-budget/` in its sparse checkout, where the share is read.
+`check-kill-switch.test.mjs` classifies every gate in `.github/workflows` and fails on one it
+does not know.
 
 ## Outputs
 

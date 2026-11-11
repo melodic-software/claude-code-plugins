@@ -169,10 +169,8 @@ jobs:
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
-          CAUSE: ${{ steps.kill.outputs.cause }}
-          WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
         run: |
-          echo "::error::${WHY} this run (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); no verdict until the lost-run reconciler re-runs it"
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); no verdict until the lost-run reconciler re-runs it"
           exit 1
 
       # The resolver reads only, and skips on its own reads every run it
@@ -2248,10 +2246,8 @@ jobs:
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
-          CAUSE: ${{ steps.kill.outputs.cause }}
-          WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
         run: |
-          echo "::error::${WHY} this run (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); no verdict until the lost-run reconciler re-runs it"
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); no verdict until the lost-run reconciler re-runs it"
           exit 1
 
       # The resolver reads only, and skips on its own reads every run it
@@ -4182,10 +4178,8 @@ jobs:
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
-          CAUSE: ${{ steps.kill.outputs.cause }}
-          WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
         run: |
-          echo "::error::${WHY} this run (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); no verdict until the lost-run reconciler re-runs it"
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); no verdict until the lost-run reconciler re-runs it"
           exit 1
 
       # The resolver reads only, and skips on its own reads every run it
