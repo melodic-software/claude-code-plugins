@@ -90,9 +90,9 @@ without Claude Code. Node.js (step 5) is a FAIL either way too.
 5. **Node.js.** Run `node --version` via Bash. A `command -v node` hit is not enough: a
    version-manager shim or a shell function resolves there yet cannot run the launcher. FAIL when
    the command is absent or exits non-zero: the hook rows run `node hooks/exec-bash.mjs` and the
-   installer is a node script. Verification record. Claim: Claude Code's native binary neither
-   ships nor uses Node. Basis: [Set up](https://code.claude.com/docs/en/setup). As of 2026-09-29.
-   Recheck when a re-read of that page no longer says the native install does not use Node.
+   installer is a node script. Node is a prerequisite separate from Claude Code. Pointer:
+   [Install with npm](https://code.claude.com/docs/en/setup#install-with-npm). As of: 2026-11-10.
+   Recheck trigger: that section says the installed `claude` binary runs Node itself.
 6. **Git pre-commit entry.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
    from the repository. Each line is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined` is
    INFO (this clone said no; silent at session start), and `missing`, `stale` or `modified` is a
@@ -120,10 +120,11 @@ with your own edit tools.
 4. **Actions.** When `actions[]` holds `copy` items, run
    `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" copy --scope <scope>` (plus the same
    `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused`,
-   `unsafe-path` or `stage-failed` per entry; `refused` means a locally edited copy or dispatcher,
-   which the `modified` decision covers, `unsafe-path` the decision of that name, and
-   `stage-failed` that `git add` failed on a shared install: report it, since the team would not
-   receive the files.
+   `blocked`, `unsafe-path` or `stage-failed` per entry; `refused` means a locally edited copy or
+   dispatcher, which the `modified` decision covers, `blocked` that another tool owns the local
+   hooks directory, which the `hooks-path-owned` decision covers, `unsafe-path` the decision of
+   that name, and `stage-failed` that `git add` failed on a shared install: report it, since the
+   team would not receive the files.
 5. **Decisions.** Read [reference/git-hook-decisions.md](reference/git-hook-decisions.md) for
    what each kind asks of you, apply each one, then rerun `plan` until only the decisions you
    chose to leave remain.
@@ -188,4 +189,5 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Install `typos`. Installation is always the consumer's own choice and command, at the
   machine level, never a project dependency this skill records.
-- Download or execute tools during `check` or `apply`.
+- Download tools, or run any during `check` or `apply` beyond the read-only `typos --version` and
+  `node --version` probes and the `install.mjs` commands named above.

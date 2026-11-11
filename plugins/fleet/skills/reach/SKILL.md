@@ -149,8 +149,8 @@ dated measurement and how to re-measure it). When a script can do the job, run t
     [Run Claude Code programmatically: Background tasks at exit](https://code.claude.com/docs/en/headless#background-tasks-at-exit)
     live. **As of**: 2026-11-04. **Recheck trigger**: that section changes what keeps a `-p` run
     open after its turn.
-- `--bare` cuts per-turn cost but binds no inbox socket, so a bare session cannot receive messages
-  or be listed. Use it for prompts, never for a receiver.
+- Use `--bare` for prompts, never for a receiver: a bare session cannot receive messages or be
+  listed.
 - Remote Control is interactive only: `-p --remote-control` does not connect. Keep it out of
   headless recipes.
 - Session names belong to the target lane, and a listing shows only its own lane. List first, then
@@ -160,16 +160,17 @@ dated measurement and how to re-measure it). When a script can do the job, run t
   behavior in [reference/relay.md § Verified behavior](reference/relay.md#verified-behavior); when
   one stops holding, fetch
   [Control inbound messages](https://code.claude.com/docs/en/cross-session-messaging#control-inbound-messages),
-  [Non-interactive sessions](https://code.claude.com/docs/en/cross-session-messaging#non-interactive-sessions)
+  [Non-interactive sessions](https://code.claude.com/docs/en/cross-session-messaging#non-interactive-sessions),
+  [Start faster with bare mode](https://code.claude.com/docs/en/headless#start-faster-with-bare-mode)
   and [CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags) live. **As of**:
-  2026-10-18 for the two cross-session sections; 2026-10-11 for the CLI flags. **Recheck
+  2026-11-10. **Recheck
   trigger**: a release note names `crossSessionInbound`, `--bare`, `--bg`, `--session-id` or
   Remote Control, or a route fails its hop check.
 
 ## Accounts are per lane
 
 Each lane signs into its own claude.ai account so one lane's usage never draws down another's (on
-melo-desk-001 WSL and Windows differ; the laptop's WSL lane uses a third). So:
+the desktop, WSL and Windows differ; the laptop's WSL lane uses a third). So:
 
 - **Same lane.** Sessions find each other through files and sockets; the peer tools work.
 - **Other lane, same machine.** WSL and Windows register under different homes and socket types;

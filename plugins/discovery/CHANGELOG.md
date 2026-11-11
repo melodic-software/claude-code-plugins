@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [1.7.5] - 2026-11-11
+
+### Changed
+
+- The `blindspot` view template names user-interface's `typography.measure_ch` beside its 65ch reading column. No rendered value changes.
+
 ## [1.7.4] - 2026-11-11
 
 ### Changed

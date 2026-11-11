@@ -50,8 +50,7 @@ Official contracts:
    - **Pointer**: for where a plugin MCP server's startup error is recorded, see
      <https://code.claude.com/docs/en/plugins/troubleshooting#server-is-configured-but-never-connects>
      and <https://code.claude.com/docs/en/debug-your-config#check-mcp-servers>.
-   - **As of**: 2026-10-24 (the first section says `claude --debug`, the second `claude --debug=mcp`;
-     both name the log at `~/.claude/debug/<session-id>.txt`)
+   - **As of**: 2026-10-24
    - **Recheck trigger**: either section changing where server stderr is shown or the debug flag
      that captures it.
 
@@ -99,9 +98,11 @@ installing at `project` leaves the marketplace declaration out of the project's 
 settings, so a fresh clone or CI agent carries the enabled plugin with no registered marketplace
 to resolve it from.
 
-**The enable step is not optional.** This plugin ships `defaultEnabled: false`, so it installs
-DISABLED. The install seeds the token but leaves the MCP server, and therefore every `miro` tool,
-unavailable until it is enabled ([Default enablement](https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled)).
+**The enable step is not optional.** This plugin ships `defaultEnabled: false`, so no `miro` tool
+is available until the enable step runs. Pointer: [Default
+enablement](https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled). As of:
+2026-11-10. Recheck trigger: that section says an install enables a plugin that ships
+`defaultEnabled: false`.
 Passing the scope to `claude plugin enable` explicitly keeps the sequence deterministic in CI. A
 bootstrap that stops after `install` looks
 successful and delivers no tools.
