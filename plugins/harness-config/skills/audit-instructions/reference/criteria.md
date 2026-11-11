@@ -2356,9 +2356,10 @@ I19 from benchmark figures to every dated claim about a harness, a tool, an upst
 measurement.
 
 - **Detect:** a claim carrying an as-of date ("verified 2026-07-13", "as of 2.1.240") but no
-  observable event that would re-open it. The record is the decision, a pointer to the exact
-  source section, an as-of date, and a recheck trigger beside the decision; a dated stamp that
-  lacks the trigger is the finding, whether or not its pointer is present.
+  observable event that would re-open it. A pointer record (the decision and a pointer to the
+  exact source section) carries no stamp. A stored value, a recorded number or string copied or
+  measured from upstream, carries an as-of date and a recheck trigger beside it; a dated stamp
+  that lacks the trigger is the finding, whether or not its pointer is present.
 - **Must NOT flag:** a dated stamp whose trigger lives in a named owner record the site points at
   ("recheck per `reference/parent-contract.md`"); a CHANGELOG entry or ADR, which are history by
   design; a date that is data (a release date in a table) rather than a verification stamp.
