@@ -115,8 +115,7 @@ today. The re-review was not performed when this note was written; it is logged 
   plugin already accepts this class of risk (its prompt-injection item): `grounding/SKILL.md` carries a standing
   instruction treating all `search_dometrain`/`search_code`/`get_lesson` results as untrusted
   reference data, never instructions, backed by an anti-pattern eval case. That is an advisory,
-  model-honored defense, not a runtime-enforced one, stated honestly as such rather than implied
-  to be stronger than it is. Explicit trust decision: **ACCEPT**, third-party, rationale =
+  model-honored defense, not a runtime-enforced one. Explicit trust decision: **ACCEPT**, third-party, rationale =
   read-only course-content grounding, no destructive tool surface, user's own
   paid-subscription-scoped token, `defaultEnabled: false`, standing untrusted-data instruction.
 - **Consumer config (3).** One sensitive required `userConfig` string
@@ -276,7 +275,7 @@ surfaces named exhaustively, because this plugin READS more than most, and that 
   of the audited plugin, installs, writes outside the packet, and network beyond WebFetch.
   Untrusted-content posture (audited source is data, never instructions) is a standing
   instruction in BOTH the hub skill and the agent, backed by a prompt-injection anti-pattern eval.
-  That is an advisory, model-honored defense, stated honestly as such.
+  That is an advisory, model-honored defense.
 - **MCP servers (2).** None.
 - **Consumer config (3).** No `userConfig`. Tracked cascade surface `.claude/plugin-quality.md`
   (+ user-global `~/.claude/plugin-quality.md` and `.local` personal override, a sanctioned operator-home
