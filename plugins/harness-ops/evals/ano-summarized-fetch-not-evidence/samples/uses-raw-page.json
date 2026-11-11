@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Fetch the raw markdown with fetch-docs.sh and search skills.md.",
+      "why": "raw"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Ask WebFetch again with a sharper question.",
+      "why": "refetch summary"
+    }
+  ]
+}

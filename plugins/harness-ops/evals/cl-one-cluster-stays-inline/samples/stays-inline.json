@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Verify repo-side row facts",
+            "prompt": "check paths",
+            "subagent_type": "Explore"
+          }
+        }
+      ],
+      "why": "local verifier only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Explore 2.1.260-261",
+            "prompt": "grep surfaces",
+            "subagent_type": "Explore"
+          }
+        }
+      ],
+      "why": "explorer"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Research compaction",
+            "prompt": "docs",
+            "subagent_type": "claude-code-guide"
+          }
+        }
+      ],
+      "why": "researcher"
+    }
+  ]
+}

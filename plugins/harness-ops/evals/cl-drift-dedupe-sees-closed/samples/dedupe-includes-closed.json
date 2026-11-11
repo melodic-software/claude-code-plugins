@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Yes. It runs `gh issue list --state all`, so closed issues are included.",
+      "why": "flag"
+    },
+    {
+      "answer": "Yes, the search covers closed issues as well.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No, it only sees open issues.",
+      "why": "wrong"
+    }
+  ]
+}

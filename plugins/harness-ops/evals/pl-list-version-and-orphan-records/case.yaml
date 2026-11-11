@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: pl-list-version-and-orphan-records
+graders:
+  - name: list-is-not-loaded-version
+    type: regex
+    pattern: '\b(?:not|isn[’'']?t|doesn[’'']?t|does not|never|no)\b[^.\n]{0,80}\b(?:loaded|loads?|running|in effect|effective|what(?:[’'']s| is) (?:loaded|running))\b|\bproject[- ]scope\b[^.\n]{0,100}\b(?:wins|takes precedence|is what (?:loads|runs))'
+    flags: 'i'
+    target: last_message
+  - name: prune-is-dependency-axis
+    type: regex
+    pattern: '\bprune\b[^\n]{0,200}\bdependenc|\bdependenc[^\n]{0,200}\bprune\b'
+    flags: 'i'
+    target: last_message
+  - name: names-prune-version-floor
+    type: regex
+    pattern: '2\.1\.121\b'
+    target: last_message

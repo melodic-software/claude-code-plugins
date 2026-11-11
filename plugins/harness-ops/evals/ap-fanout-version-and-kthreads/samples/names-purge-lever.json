@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Use `claude purge <path>` to remove one project's entry.",
+      "why": "lever"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Edit ~/.claude.json by hand and delete old projects.",
+      "why": "hand edit"
+    }
+  ]
+}

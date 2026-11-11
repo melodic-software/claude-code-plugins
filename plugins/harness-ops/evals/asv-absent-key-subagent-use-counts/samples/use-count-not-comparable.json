@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No. Every hook dispatch counts as a use, so hook-only plugins dominate.",
+      "why": "hooks count"
+    },
+    {
+      "answer": "Those numbers are not comparable across plugin shapes.",
+      "why": "not comparable"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, guardrails is your most used plugin.",
+      "why": "wrong"
+    }
+  ]
+}

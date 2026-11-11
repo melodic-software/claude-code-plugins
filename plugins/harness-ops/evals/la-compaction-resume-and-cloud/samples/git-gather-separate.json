@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git rev-parse --show-toplevel",
+            "description": "root"
+          }
+        }
+      ],
+      "why": "single"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git remote get-url origin && git rev-parse --show-toplevel",
+            "description": "gather"
+          }
+        }
+      ],
+      "why": "chained"
+    }
+  ]
+}

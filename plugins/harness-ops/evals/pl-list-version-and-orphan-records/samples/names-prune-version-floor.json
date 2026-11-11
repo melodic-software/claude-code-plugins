@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Also, `prune` needs Claude Code 2.1.121 or later; 2.1.110 is below it.",
+      "why": "floor"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Your version is fine for prune.",
+      "why": "no floor"
+    },
+    {
+      "answer": "prune needs 2.1.163.",
+      "why": "wrong floor"
+    }
+  ]
+}

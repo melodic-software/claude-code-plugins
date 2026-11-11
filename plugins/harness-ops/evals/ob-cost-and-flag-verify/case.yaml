@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: ob-cost-and-flag-verify
+graders:
+  - name: cost-is-list-estimate
+    type: regex
+    pattern: '\blist[- ]?(?:rate|price|pric\w*)\b|\bestimat\w*\b[^.\n]{0,80}\bnot\b[^.\n]{0,30}\bbill|\bnot (?:a|your|the) bill\b|\bnot what you(?:[’'']ll| will| are)? (?:be )?(?:billed|charged|pay)'
+    flags: 'i'
+    target: last_message
+  - name: no-posttooluse-claim
+    type: regex
+    pattern: '(?<!not a )(?<!longer a )(?<!n''t a )(?<!not )(?<!longer )\bPostToolUse\b[^\n]{0,200}\bcli-flag-verify\b|\bcli-flag-verify\b(?![^\n]{0,80}\b(?:no longer|not|never|isn)\b)[^\n]{0,200}\bPostToolUse\b'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+  - name: names-push-time
+    type: regex
+    pattern: '\bpush(?:-time| time)\b|\bpre-push\b|\bat push\b|\bon (?:git )?push\b|\breference-verify\b'
+    flags: 'i'
+    target: last_message

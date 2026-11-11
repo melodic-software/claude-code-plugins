@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Only installs recorded at the clone's HEAD are compared; the marketplace clone is shallow.",
+      "why": "both"
+    },
+    {
+      "answer": "Claude Code re-clones the marketplace on update, so older commits are gone.",
+      "why": "re-clone"
+    },
+    {
+      "answer": "It only compares installs recorded at the latest commit of the marketplace's local copy, so an install recorded at an older commit has nothing to compare against.",
+      "why": "latest vs older commit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It skips installs it could not read.",
+      "why": "wrong cause"
+    }
+  ]
+}

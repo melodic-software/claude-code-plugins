@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No. `defaultEnabled` does not decide an absent key at runtime, so notes-kit is disabled.",
+      "why": "direct"
+    },
+    {
+      "answer": "Its skills won't load: the plugin is treated as disabled with no enabledPlugins entry.",
+      "why": "treated as disabled"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, defaultEnabled: true turns it on.",
+      "why": "wrong"
+    }
+  ]
+}

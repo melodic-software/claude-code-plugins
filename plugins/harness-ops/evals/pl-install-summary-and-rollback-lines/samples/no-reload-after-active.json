@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "1. No. `Plugin is now active.` means it is already live; no reload.",
+      "why": "already live"
+    },
+    {
+      "answer": "You don't need to run /reload-plugins after that line.",
+      "why": "don't need"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, run /reload-plugins to load it.",
+      "why": "wrong"
+    },
+    {
+      "answer": "Run /reload-plugins --force to be safe.",
+      "why": "force"
+    }
+  ]
+}

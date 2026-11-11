@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No. Auto-compaction summarizes older history in place; it is not a reset.",
+      "why": "summary"
+    },
+    {
+      "answer": "Compaction isn't a fresh context, so keep restarts.",
+      "why": "isn't fresh"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, compaction gives it a fresh context.",
+      "why": "wrong"
+    }
+  ]
+}

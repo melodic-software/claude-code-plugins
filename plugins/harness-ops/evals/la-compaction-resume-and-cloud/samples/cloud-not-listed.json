@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "No. `claude agents --json` only lists sessions running on this machine, not cloud sessions.",
+      "why": "only this machine"
+    },
+    {
+      "answer": "No. That command lists only sessions on this machine.",
+      "why": "lists only"
+    },
+    {
+      "answer": "No. `claude agents --json` does not list cloud sessions.",
+      "why": "direct"
+    },
+    {
+      "answer": "Cloud lanes are not listed there; the launcher keeps a marker.",
+      "why": "cloud first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, it shows cloud lanes too.",
+      "why": "wrong"
+    }
+  ]
+}

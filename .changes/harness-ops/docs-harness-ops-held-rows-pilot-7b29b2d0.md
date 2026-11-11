@@ -1,0 +1,10 @@
+---
+bump: patch
+---
+
+### Changed
+
+- `plugins`: the shallow-clone reason for comparing only installs at the clone's HEAD points at the host-marketplace section that describes the re-clone, instead of restating it beside an unanchored link.
+- `lanes`: the cloud-session note points at agent view's "List sessions as JSON" section, and the schtasks payload limit points at the `/tr` row the config already cites.
+- `audit-skill-visibility`: the usage-counters reference names the binary reading the plugin-use definition rests on, and drops an unsourced polling rate and public-report remark.
+- Nine eval cases cover held re-audit rows across `changelog`, `plugins`, `audit-skill-visibility`, `lanes`, `audit-performance`, `observability` and `audit-native-overlap`.

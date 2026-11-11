@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "It passes `--limit 1000`, so 200 open issues do not crowd it out.",
+      "why": "limit"
+    },
+    {
+      "answer": "The default of 30 would miss it, which is why the limit is raised.",
+      "why": "default 30"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, it searches closed issues.",
+      "why": "no limit"
+    }
+  ]
+}

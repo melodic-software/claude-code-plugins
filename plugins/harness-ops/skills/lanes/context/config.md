@@ -123,8 +123,9 @@ marketplace repository; this section covers only what the launcher does.
   has changes, the lane's telemetry cannot be read (no numeric `telemetry.issue`, or a
   `telemetry.repo` other than origin's), or the lane requests the lane-stop gate. A not-yet-honored
   `execution_target_fallback` from an authorized author in the lane's telemetry moves one launch to
-  today's launch. `claude agents --json` does not list cloud sessions, so the
-  launcher writes `<data-dir>/lanes/<repo-key>/<name>-cloud-launch`: `start` skips a lane while it
+  today's launch. `claude agents --json` lists the sessions on this machine
+  ([List sessions as JSON](https://code.claude.com/docs/en/agent-view#list-sessions-as-json)), not
+  cloud sessions, so the launcher writes `<data-dir>/lanes/<repo-key>/<name>-cloud-launch`: `start` skips a lane while it
   stands, and `restart` sends a new session (archive the earlier one at claude.ai).
 - **`cloud-routine`, `cloud-project`.** Setup steps are printed and nothing launches; `restart`
   leaves a running local session of the lane up. A lane whose stage may read untrusted input gets no
@@ -165,7 +166,8 @@ prompt file is not snapshotted: each run still reads it from the checkout's prom
 lane can rewrite its next scheduled prompt, but that prompt runs under the same pinned permission
 mode the lane already has, so the rewrite gives it no privilege it lacks. Calling a short
 script keeps the Windows `/TR` payload to `"<bash>" "<script>"`; a lane whose payload would pass
-schtasks' 262-character limit is refused, so pass a shorter `--data-dir`. A scheduled
+the `/tr` length limit (the `/tr` row at the pointer below) is refused, so pass a shorter
+`--data-dir`. A scheduled
 lane's name must be letters, digits, `.`, `_` or `-`, because it names the script and the task.
 Registering an entry is the operator's step. Run the `schtasks` lines from cmd.exe, as
 [restart-consumer.md](restart-consumer.md) explains for its own entries.

@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: ap-fanout-version-and-kthreads
+graders:
+  - name: subagents-carry-fanout
+    type: regex
+    pattern: '(?:hook|statusline|status line)\w*[^\n]{0,200}\b(?:each|every|per)\b[^.\n]{0,40}(?:sub-?agent|child)|\b(?:each|every|per)\b[^.\n]{0,40}sub-?agent[^\n]{0,200}(?:hook|statusline|status line)'
+    flags: 'i'
+    target: last_message
+  - name: version-fixes-slowdowns
+    type: regex
+    pattern: '\breleases?\b[^\n]{0,160}\bfix\w*[^\n]{0,120}\b(?:slow\w*|lag|cpu|regression\w*|quadratic|keystroke)|\bfix\w*[^\n]{0,120}\b(?:slowdown|lag|cpu|regression|quadratic|keystroke)\w*[^\n]{0,160}\breleases?\b'
+    flags: 'i'
+    target: last_message
+  - name: names-purge-lever
+    type: regex
+    pattern: 'claude purge\b'
+    flags: 'i'
+    target: last_message
+  - name: names-kthread-flag
+    type: regex
+    pattern: 'PF_KTHREAD|/proc/[^\s]*stat\b[^\n]{0,120}\bflags?\b|\bflags? field\b'
+    flags: 'i'
+    target: last_message

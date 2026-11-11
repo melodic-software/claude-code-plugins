@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "No. `plugin list` output is not what's loaded here; the project-scope 4.1.0 wins in this repo.",
+      "why": "direct"
+    },
+    {
+      "answer": "4.2.0 isn't necessarily the version running in this repo.",
+      "why": "isn't running"
+    },
+    {
+      "answer": "**2. No, 4.2.0 is not what loads in this repo; 4.1.0 is.**",
+      "why": "not what loads"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, 4.2.0 is what this repo uses.",
+      "why": "wrong"
+    }
+  ]
+}

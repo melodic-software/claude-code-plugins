@@ -540,11 +540,9 @@ state from a healthy one. It reports and never repairs; see
 [stale-records-cache-content.md](stale-records-cache-content.md).
 
 **A marketplace clone has been observed shallow, so most installs are not checked most of the time.** The clone
-under `installLocation` carried a `.git/shallow` file when this was measured, and Claude Code
-re-clones the marketplace on update (see
-[Host and maintain a marketplace](https://code.claude.com/docs/en/plugins/host-marketplace.md); read
-2026-10-25; the page states the re-clone and says nothing about shallowness or clone depth, so the
-shallow shape is our observation, not the page's). An install recorded at an older commit usually
+under `installLocation` carried a `.git/shallow` file when this was measured (our observation; the
+docs say nothing about clone depth), and an update replaces the clone rather than deepening it (see
+[What background auto-update does with credentials](https://code.claude.com/docs/en/plugins/host-marketplace#what-background-auto-update-does-with-credentials)). An install recorded at an older commit usually
 has no object in the clone to compare against, so the check compares only installs recorded at the
 clone's HEAD and reports the rest as `not-at-head`, counted `not checked (recorded at an older
 commit)` rather than unverifiable, on a fleet with nothing wrong with it. Observed 2026-10-04

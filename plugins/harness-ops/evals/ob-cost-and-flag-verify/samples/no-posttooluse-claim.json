@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "cli-flag-verify runs at push time in the reference-verify git hook, not after each edit.",
+      "why": "push time"
+    },
+    {
+      "answer": "It is no longer a PostToolUse hook: cli-flag-verify moved to push time.",
+      "why": "negated"
+    },
+    {
+      "answer": "The cli-flag-verify check is not a PostToolUse hook anymore.",
+      "why": "not a"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The cli-flag-verify PostToolUse hook fires after each Write or Edit.",
+      "why": "stale"
+    },
+    {
+      "answer": "Look for PostToolUse events from cli-flag-verify in the hook log.",
+      "why": "stale reverse"
+    }
+  ]
+}
