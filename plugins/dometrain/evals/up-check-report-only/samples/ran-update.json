@@ -1,6 +1,56 @@
 {
   "pass": [
     {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/p/skills/update/scripts/update.sh\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "documented form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/p/skills/update/scripts/update.sh\"; echo \"exit=$?\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "captures the exit code"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /opt/p/skills/update && bash scripts/update.sh 2>&1",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "after cd"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/p/skills/update/scripts/update.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "direct path"
+    }
+  ],
+  "fail": [
+    {
       "answer": [],
       "why": "no call"
     },
@@ -9,86 +59,36 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "bash \"/opt/p/skills/sync/scripts/update.sh\"",
+            "command": "cat \"/opt/p/skills/update/scripts/update.sh\"",
             "description": "run"
           }
         }
       ],
-      "why": "report mode"
+      "why": "reads the script"
     },
     {
       "answer": [
         {
           "tool": "Bash",
           "input": {
-            "command": "grep -n -- --refresh-baseline \"/opt/p/skills/sync/scripts/update.sh\"",
+            "command": "bash \"/opt/p/skills/update/scripts/update.sh\" --apply",
             "description": "run"
           }
         }
       ],
-      "why": "greps for the flag"
+      "why": "refresh mode"
     },
     {
       "answer": [
         {
           "tool": "Bash",
           "input": {
-            "command": "bash \"/opt/p/skills/sync/scripts/update.sh\"; grep -c refresh-baseline /opt/p/skills/sync/context/update.md",
+            "command": "bash /opt/p/skills/update/scripts/update.test.sh",
             "description": "run"
           }
         }
       ],
-      "why": "flag text in a later command only"
-    }
-  ],
-  "fail": [
-    {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "bash \"/opt/p/skills/sync/scripts/update.sh\" --refresh-baseline",
-            "description": "run"
-          }
-        }
-      ],
-      "why": "refresh"
-    },
-    {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "cd /opt/p/skills/sync && ./scripts/update.sh --refresh-baseline 2>&1",
-            "description": "run"
-          }
-        }
-      ],
-      "why": "relative path"
-    },
-    {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "bash \\\"/opt/p/skills/sync/scripts/update.sh\\\" --refresh-baseline",
-            "description": "run"
-          }
-        }
-      ],
-      "why": "escaped quotes"
-    },
-    {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "bash plugins/dometrain/skills/sync/scripts/update.sh --refresh-baseline",
-            "description": "run"
-          }
-        }
-      ],
-      "why": "the clone-relative form context/update.md gives"
+      "why": "the test script"
     }
   ]
 }
