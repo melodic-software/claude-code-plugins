@@ -56,8 +56,6 @@ component documents.
 - **Pointer**: WAI-ARIA Authoring Practices Guide, Developing a Keyboard Interface, "Keyboard
   Navigation Inside Components",
   <https://www.w3.org/WAI/ARIA/apg/practices/keyboard-interface/#keyboardnavigationinsidecomponents>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the guide changes its Tab or arrow-key conventions for composite widgets.
 
 **Audit: Blocking.** An action that works only with a mouse, or focus that cannot leave a region
 other than an open modal. A `<div onClick>` or `<span onClick>` "button" is the `forms` concern's
@@ -164,9 +162,6 @@ code change cannot: here, the focus trap to build or the primitive to adopt.
   WAI-ARIA Authoring Practices Guide, Dialog (Modal) pattern, "Keyboard Interaction" (focus returns
   to the element that opened the dialog),
   <https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/#keyboardinteraction>
-- **As of**: 2026-10-29
-- **Recheck trigger**: MDN changes what `showModal()` does to focus, Escape or the rest of the
-  page, or the pattern changes where focus goes on close.
 
 **Audit: Blocking.** A modal that does not move focus into itself, lets Tab reach the page behind,
 ignores Escape, or leaves focus on `<body>` when it closes; a hand-rolled modal where the project
@@ -209,9 +204,6 @@ controls in the tab order.
 
 - **Pointer**: HTML Living Standard, "The inert attribute",
   <https://html.spec.whatwg.org/multipage/interaction.html#the-inert-attribute>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the standard changes what an inert subtree does to focus, events or the
-  accessibility tree.
 
 **Audit: Blocking.** A closed drawer, menu, collapsed panel or off-screen carousel slide whose
 controls Tab still reaches.
@@ -345,9 +337,6 @@ library in use: its live region renders once, empty, before the first toast.
 - **Pointer**: MDN, ARIA live regions, "Live regions" (establish the region before updating it;
   initial markup is the most reliable),
   <https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Guides/Live_regions#live_regions>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the guide changes when a live region must exist or how `role="status"` and
-  `role="alert"` are announced.
 
 **Audit: Important.** A toast, inline confirmation, result count or post-submit error that appears
 with no live region, or a live region mounted together with its first message.
@@ -379,8 +368,6 @@ hidden; the page warns before it expires and offers a simple way to extend it.
 
 - **Pointer**: WCAG 2.2, Success Criterion 2.2.1 Timing Adjustable, the "Extend" option,
   <https://www.w3.org/TR/WCAG22/#timing-adjustable>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the criterion changes its warn-and-extend option or its exceptions.
 
 Pause on `visibilitychange`:
 
@@ -409,8 +396,6 @@ toasts that don't pause on hover or focus.
 - **Pointer**: MDN, `visibilitychange` event, "Usage notes" (fires as hidden on a tab switch,
   minimize, or a switch to another app on mobile),
   <https://developer.mozilla.org/en-US/docs/Web/API/Document/visibilitychange_event#usage_notes>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the page changes when the event fires or which property reports the state.
 
 **Audit: Important.** A toast countdown or undo window that keeps running while the tab is hidden,
 a toast that does not pause on hover or focus, or an authentication or session-expiry timer that
@@ -433,8 +418,6 @@ this choice of modifier label.
 
 - **Pointer**: MDN, `Navigator.platform`, "Determining the modifier key for the user's platform",
   <https://developer.mozilla.org/en-US/docs/Web/API/Navigator/platform#determining_the_modifier_key_for_the_users_platform>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the page deprecates `navigator.platform` or changes its modifier-key example.
 
 **Audit: Suggestion.** A shortcut hint that shows `⌘` or `Cmd` on every platform, or a binding that
 listens for only one of `metaKey` and `ctrlKey`.
@@ -469,8 +452,6 @@ toolbar button), says why it is unavailable and does nothing when activated.
 - **Pointer**: WAI-ARIA Authoring Practices Guide, Developing a Keyboard Interface, "Focusability of
   disabled controls",
   <https://www.w3.org/WAI/ARIA/apg/practices/keyboard-interface/#focusabilityofdisabledcontrols>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the guide changes which disabled controls stay focusable.
 
 **Audit: Important.** A control styled as disabled that still fires its action, or one that stays
 focusable while disabled with nothing saying why.

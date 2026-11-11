@@ -125,8 +125,6 @@ leads, and the review checklist below checks only what was built.
 `corner-shape` is experimental and not supported everywhere; read its status before relying on it.
 
 - **Pointer**: <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/corner-shape>
-- **As of**: 2026-10-10
-- **Recheck trigger**: the page drops its experimental flag or marks the property Baseline.
 
 ## Review checklist
 

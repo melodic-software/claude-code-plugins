@@ -99,9 +99,6 @@ The floor holds in every medium. A medium may raise it, never lower it.
 - **Pointer**: WCAG 2.2 Understanding 2.3.3 Animation from Interactions,
   <https://www.w3.org/WAI/WCAG22/Understanding/animation-from-interactions.html>, read with the
   WCAG 2.2 errata, <https://www.w3.org/WAI/WCAG22/errata/>
-- **As of**: 2026-10-11
-- **Recheck trigger**: the Understanding page or a new erratum changes what motion animation
-  excludes.
 
 ## Plain-language copy
 

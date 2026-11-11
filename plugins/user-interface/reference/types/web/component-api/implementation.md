@@ -140,8 +140,6 @@ in that form.
 - **Pointer**: <https://react.dev/reference/react/forwardRef#reference> (the notice that opens the
   page, above that section); correlate with
   <https://react.dev/learn/manipulating-the-dom-with-refs#accessing-another-components-dom-nodes>
-- **As of**: 2026-10-29
-- **Recheck trigger**: a React release changes how a component receives a ref.
 
 ## Spreading remaining props
 

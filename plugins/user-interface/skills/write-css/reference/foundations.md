@@ -4,8 +4,7 @@ The project's design system, tokens and conventions override everything in this 
 `{{key}}` placeholder as [`values.md`](../../../reference/values.md) says. Other numbers in the
 examples illustrate the technique.
 
-Each `Baseline:` line links the live compat entry; never copy version numbers from it. As of
-2026-10-11; recheck when that entry's Baseline status changes or the project's browser target moves.
+Each `Baseline:` line links the live compat entry; never copy version numbers from it.
 
 Contents: `the-reset`, `logical-properties`, `oklch-color`,
 `one-set-of-color-tokens-for-light-and-dark`, `fluid-sizes-with-clamp`,
@@ -18,7 +17,7 @@ Why: one base stylesheet removes the layout, font and touch defaults that every 
 Baseline: [`text-wrap`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/text-wrap#browser_compatibility),
 [`scrollbar-gutter`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/scrollbar-gutter#browser_compatibility),
 [`interpolate-size`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/interpolate-size#browser_compatibility);
-the rest is widely available. As of 2026-10-11, recheck on a status change.
+the rest is widely available.
 
 Start a new project with it. In an existing project add one rule at a time and look at the result:
 `min-width: 0` and the font rules change how things already render.
@@ -105,8 +104,6 @@ Rules:
   performance note),
   <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/text-wrap-style#values> and
   <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/text-wrap-style#selecting_a_value>
-- **As of**: 2026-10-29
-- **Recheck trigger**: either section changes what `pretty` is intended for or what it costs.
 
 ## Logical properties: `logical-properties`
 
@@ -115,7 +112,6 @@ right-to-left and vertical text.
 
 Baseline: [`margin-inline`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/margin-inline#browser_compatibility),
 [`inset-inline`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/inset-inline#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use them in place of every left, right, top and bottom: spacing, borders, offsets, alignment.
 
@@ -147,7 +143,6 @@ lightness steps look equal.
 
 Baseline: [`oklch()`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/color_value/oklch#browser_compatibility),
 [`color-mix()`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/color_value/color-mix#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Write colors in `oklch()` and derive every related color from a base with
 `color-mix(in oklch, …)`. Never hardcode a second hex or `rgba()` for a hover, tint or transparent
@@ -175,7 +170,7 @@ Why: each token holds both values, so there is no second variable block under a 
 `.dark` class to drift out of sync.
 
 Baseline: [`light-dark()`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/color_value/light-dark#browser_compatibility);
-the image form has its own compat row. As of 2026-10-29, recheck on a status change.
+the image form has its own compat row.
 
 Use it in an app with two designed themes. A single-theme app declares its one scheme instead (the
 `theming` concern), and a project with its own theme mechanism keeps it.
@@ -204,16 +199,12 @@ Rules:
 
 - **Pointer**: MDN, `light-dark()`, "Syntax" (the color and image forms),
   <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/color_value/light-dark#syntax>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the page changes the forms it accepts, or the image form's compat row
-  reaches Baseline.
 
 ## Fluid sizes with `clamp()`: `fluid-sizes-with-clamp`
 
 Why: one declaration that grows with the screen replaces a ladder of breakpoint overrides.
 
 Baseline: [`clamp()`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/clamp#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it for anything that should grow with the screen, starting with font sizes and section
 spacing.
@@ -244,7 +235,6 @@ Why: six numbers describe every size and the browser derives the steps, replacin
 size table and a generator someone must rerun.
 
 Baseline: [`pow()`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/pow#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it when a design has more than two or three font sizes.
 

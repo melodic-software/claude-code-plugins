@@ -176,8 +176,7 @@ Changes, oldest first, one line each:
 
 - **Pointer**: for which worktrees `remove` accepts, see
   [git-worktree `remove`](https://git-scm.com/docs/git-worktree#Documentation/git-worktree.txt-remove).
-  **As of**: 2026-10-04 (ignored-only output was also checked by hand: removal succeeds). **Recheck
-  trigger**: that section changes what counts as a clean worktree.
+  Ignored-only output was also checked by hand: removal succeeds.
 
 ## Boundary
 

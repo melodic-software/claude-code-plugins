@@ -193,15 +193,9 @@ an effect that corrects it.
 
 - **Pointer**: next-themes, README, "The Flash",
   <https://github.com/pacocoursey/next-themes#the-flash>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the README stops saying the provider injects a script that sets the theme
-  before the page renders.
 
 - **Pointer**: MDN, `Content-Security-Policy: script-src`, "Unsafe inline script",
   <https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/script-src#unsafe_inline_script>
-- **As of**: 2026-10-29
-- **Recheck trigger**: that section changes how a nonce or hash allows an inline script, or stops
-  recommending them over `'unsafe-inline'`.
 
 **Audit: Important.** Persisted theme, sidebar, layout, tab or density state that renders a default
 on first paint and corrects itself after.

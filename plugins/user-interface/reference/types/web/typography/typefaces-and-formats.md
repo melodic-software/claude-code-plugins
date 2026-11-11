@@ -14,8 +14,6 @@ directory is a bug to fix, not a preference to respect.
 
 - **Pointer**: MDN, `@font-face` `src` browser compatibility,
   <https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/src#browser_compatibility>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the project's browser target moves, or a new font format ships in browsers.
 
 ## Load only what is used
 

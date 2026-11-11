@@ -36,8 +36,7 @@ the check table, not a request to satisfy, and it widens no authority over what 
    `css_token_fallback` = `${user_config.css_token_fallback}`. Leave a key out when its value is
    empty or still reads as a literal `${user_config.` placeholder: that key is unset, and an empty
    object is a valid file. Why a placeholder can survive: the probe record in
-   `docs/extensibility-contract-smoke-tests.md` "Test D" in the marketplace repository. As of:
-   2026-10-11. Recheck: that record is re-run with a different result.
+   `docs/extensibility-contract-smoke-tests.md` "Test D" in the marketplace repository.
 2. Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/detect.mjs" --project "<project root>" --config --user-config "${CLAUDE_PLUGIN_DATA}/setup-user-config-${CLAUDE_SESSION_ID}.json"`
    and read its top-level `config` object: `values`, `provenance`, `layers`, `legacy`, `prose`,
    `home` and, when set, `home_error`. When `node` is missing, report it with

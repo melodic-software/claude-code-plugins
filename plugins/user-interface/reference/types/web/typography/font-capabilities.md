@@ -22,9 +22,6 @@ on it. Whether weight may change on interaction at all is the `layout-stability`
 
 - **Pointer**: Recursive, a face that keeps glyph widths fixed across its axes,
   <https://www.recursive.design/#a-sans-for-more-robust-layouts>
-- **As of**: 2026-10-29
-- **Recheck trigger**: that section changes, or the project picks a face whose foundry states its
-  widths per weight.
 
 ## Axes
 

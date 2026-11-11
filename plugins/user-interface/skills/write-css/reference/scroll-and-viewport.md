@@ -4,8 +4,7 @@ The project's design system, tokens and conventions override everything in this 
 `{{key}}` placeholder as [`values.md`](../../../reference/values.md) says. Other numbers in the
 examples illustrate the technique.
 
-Each `Baseline:` line links the live compat entry; never copy version numbers from it. As of
-2026-10-11; recheck when that entry's Baseline status changes or the project's browser target moves.
+Each `Baseline:` line links the live compat entry; never copy version numbers from it.
 
 Contents: `carousel-on-native-scroll`, `scroll-area-between-a-fixed-header-and-footer`,
 `styles-that-apply-only-when-a-scroller-overflows`, `anchor-targets-that-clear-a-sticky-header`,
@@ -21,7 +20,6 @@ any script loads.
 
 Baseline: [`scroll-snap-type`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/scroll-snap-type#browser_compatibility),
 [`::scroll-button()`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/::scroll-button#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it for any horizontal row of cards.
 
@@ -93,7 +91,6 @@ footer stay put.
 Baseline: [`scrollbar-gutter`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/scrollbar-gutter#browser_compatibility),
 [`overscroll-behavior`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/overscroll-behavior#browser_compatibility),
 [`dvh`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/length#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it for the body of a modal, a chat list, a drawer or a sidebar.
 
@@ -136,7 +133,6 @@ Why: a scroll timeline only runs when there is something to scroll, so the edges
 replacing a `ResizeObserver` comparing `scrollWidth` with `clientWidth`.
 
 Baseline: [`animation-timeline`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/animation-timeline#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it on any row that may or may not fit: tabs, a toolbar, a table wrapper.
 
@@ -202,7 +198,6 @@ Why: scroll padding stops an in-page link target from landing under a fixed or s
 
 Baseline: [`scroll-padding-block-start`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/scroll-padding-block-start#browser_compatibility),
 [`scroll-margin-block-start`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/scroll-margin-block-start#browser_compatibility).
-As of 2026-10-29, recheck on a status change.
 
 Use it on any page with in-page links and a fixed or sticky header.
 
@@ -233,7 +228,6 @@ fixed UI along; turning it off keeps app-like pages still.
 
 Baseline: [`overscroll-behavior`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/overscroll-behavior#browser_compatibility),
 [`any-pointer`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@media/any-pointer#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it on app-like pages with fixed UI, such as a sidebar or a sticky header.
 
@@ -272,7 +266,6 @@ Why: safe-area insets keep fixed bars and sheets out from under a phone's notch 
 indicator.
 
 Baseline: [`env()`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/env#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it on fixed headers, bottom bars, toasts and sheets in anything that should feel like an app on
 a phone. Add `viewport-fit=cover` to the viewport meta tag, then pad those elements by the
@@ -308,7 +301,6 @@ Why: `100vh` is the tallest the viewport gets, so on a phone with the URL bar sh
 and a bottom-pinned control sits under the bar.
 
 Baseline: [`dvh`, `svh`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/length#browser_compatibility).
-As of 2026-10-29, recheck on a status change.
 
 Use it on app shells, drawers, heroes and first screens.
 
@@ -340,7 +332,6 @@ Why: `touch-action` tells the browser which pans it keeps, so a swipe on a carou
 sheet no longer also scrolls the page.
 
 Baseline: [`touch-action`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/touch-action#browser_compatibility).
-As of 2026-10-29, recheck on a status change.
 
 Use it on any element with a hand-built gesture: a carousel driven by script, a drag-to-dismiss
 sheet, a slider, a canvas.
@@ -372,7 +363,6 @@ Rules:
 Why: one element wider than the viewport makes the whole page pan sideways on a phone.
 
 Baseline: [`overflow-wrap`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/overflow-wrap#browser_compatibility).
-As of 2026-10-29, recheck on a status change.
 
 Use it on cards with user text, `<pre>` blocks, tables and anything with a fixed width.
 
@@ -398,7 +388,6 @@ a code block, matches it to the surface without replacing the page's.
 
 Baseline: [`::-webkit-scrollbar`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/::-webkit-scrollbar#browser_compatibility),
 [`scrollbar-color`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/scrollbar-color#browser_compatibility).
-As of 2026-10-29, recheck on a status change.
 
 Never replace the page scrollbar. Customize scrollbars only inside small elements like code blocks:
 `spacing.xs` wide, a black thumb at `color.overlay_alpha`, `radius.s` radius.
@@ -429,7 +418,6 @@ Why: when items animate past their container's edge and `overflow: hidden` would
 animation, a mask fades them out at the edge instead of clipping the whole container.
 
 Baseline: [`mask-image`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/mask-image#browser_compatibility).
-As of 2026-10-29, recheck on a status change.
 
 Use it on a menu, tab panel or carousel whose items slide in and out while something else inside
 must stay unclipped.

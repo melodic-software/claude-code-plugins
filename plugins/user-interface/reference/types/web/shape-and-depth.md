@@ -31,8 +31,6 @@ to the gap. Recipe: `concentric-nested-radius`.
 
 - **Pointer**: CSS Backgrounds and Borders 3, corner shaping,
   <https://www.w3.org/TR/css-backgrounds-3/#corner-shaping>
-- **As of**: 2026-10-29
-- **Recheck trigger**: that section changes how it derives the padding-edge or content-edge radius.
 
 The inner radius is computed, never copied:
 

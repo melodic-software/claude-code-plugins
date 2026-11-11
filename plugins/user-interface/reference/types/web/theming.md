@@ -62,9 +62,6 @@ two-theme app declares `light dark`.
 - **Pointer**: MDN, `color-scheme`, what the used color scheme changes (canvas, scrollbars, form
   controls) and the `<meta name="color-scheme">` tag,
   <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/color-scheme#syntax>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the page changes which parts of the browser UI follow `color-scheme`, or
-  what the meta tag prevents on load.
 
 Hunt for: `<meta name="color-scheme">` and the CSS `color-scheme` property; a dark-only app with
 neither; a light-only app declaring `light dark`.

@@ -40,7 +40,6 @@ trades away width that reading actually uses. `pretty` is the exception for long
 Sometimes a manual break wins.
 
 Baseline: [`text-wrap`](https://developer.mozilla.org/en-US/docs/Web/CSS/text-wrap#browser_compatibility).
-As of 2026-10-29, recheck on a status change.
 
 ## Overflow protection
 
