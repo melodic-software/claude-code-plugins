@@ -21,11 +21,12 @@ from any subdirectory:
 
 ```bash
 TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
-[[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
+[[ -f "$TRACKER" ]] || TRACKER="<project root>/tools/work-item-tracker/work-item-tracker.sh"
 "$TRACKER" <verb>
 ```
 
-The executable snippets in each action resolve `"$TRACKER"` that way, then invoke it. Three entry
+`<project root>` is the literal path [Project root](#project-root) resolves. The executable
+snippets in each action resolve `"$TRACKER"` that way, then invoke it. Three entry
 invariants are checked before an invocation's first verb. The first two, `jq` and the seam script,
 have **no recovery path**, so each stops with its remediation rather than failing mid-action. The
 third, the provider **binding**, is discharged differently: a missing binding blocks only seam
@@ -76,6 +77,18 @@ enumeration, frontier selection, single-item fetch. Operations without a core ve
 search, aggregation, close, label/comment edits) are provider-specific; for the bound GitHub adapter
 their mechanics live in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`. The
 skill core stays provider-portable and inlines no provider commands.
+
+## Project root
+
+A snippet's `<project root>` is `$CLAUDE_PROJECT_DIR` when it is set, else the repository root.
+Resolve it in its own Bash calls before the snippet runs: `printenv CLAUDE_PROJECT_DIR`, and when
+that prints nothing, `git rev-parse --show-toplevel`. Spell the printed path out literally in the
+snippet. Never embed `$(git rev-parse --show-toplevel)` in another command, so a worktree-isolated
+session can run the snippet as written.
+
+- **Pointer**: [Worktrees, "How Claude Code enforces isolation"](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation); probe [#6929](https://github.com/melodic-software/claude-code-plugins/issues/6929).
+- **As of**: 2026-11-11
+- **Recheck trigger**: a Claude Code release in which a command with an embedded `$(git rev-parse --show-toplevel)` runs from a worktree-isolated session.
 
 ## Operation routing
 

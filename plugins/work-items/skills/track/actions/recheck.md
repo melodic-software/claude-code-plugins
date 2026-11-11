@@ -20,7 +20,7 @@ Update a recurring item's `last_checked` and `next_due` dates after completing a
 1. **Find the item in the recurring schedule:**
 
 ```bash
-SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+SCHEDULE="<project root>/.github/recurring-schedule.json"
 if [[ -f "$SCHEDULE" ]]; then
   jq --arg q "<query>" '
     .items[] | select(.id == $q or (.title | ascii_downcase | contains($q | ascii_downcase)))
@@ -28,13 +28,15 @@ if [[ -f "$SCHEDULE" ]]; then
 fi
 ```
 
+`<project root>` is the literal path [`tracker-seam.md`](../../../reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet and each later one in this file.
+
 If multiple matches, present them and ask the user to clarify.
 
 1. **Evaluate any `precondition` on the matched row** before mutating dates or closing the issue ([`${CLAUDE_PLUGIN_ROOT}/reference/standing-item-preconditions.md`](${CLAUDE_PLUGIN_ROOT}/reference/standing-item-preconditions.md)):
 
 ```bash
 EVAL="${CLAUDE_PLUGIN_ROOT}/scripts/evaluate-schedule-precondition.sh"
-[[ -f "$EVAL" ]] || EVAL="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/plugins/work-items/scripts/evaluate-schedule-precondition.sh"
+[[ -f "$EVAL" ]] || EVAL="<project root>/plugins/work-items/scripts/evaluate-schedule-precondition.sh"
 "$EVAL" "$SCHEDULE" "<matched-id>"   # add --operator-confirmed when the operator affirmed
 ```
 

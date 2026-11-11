@@ -43,9 +43,11 @@ is not installed, STOP before any claim and tell the user to install it; `run` h
 
    ```bash
    TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
-   [[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
+   [[ -f "$TRACKER" ]] || TRACKER="<project root>/tools/work-item-tracker/work-item-tracker.sh"
    "$TRACKER" capabilities
    ```
+
+   `<project root>` is the literal path [`tracker-seam.md`](../../../reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet.
 
    When `list-sub-items` (the verb behind `list-frontier --parent`) or `claim` is unsupported, or
    the seam cannot run, STOP and name it: without race-safe claims a run is not safe. An unsupported `renew-lease` or `release` is reported and the run continues; leases it
