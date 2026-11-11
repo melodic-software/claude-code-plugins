@@ -70,11 +70,11 @@ RC=$?
 miss=""
 for i in $(seq 1 $N); do
   for s in a b; do
-    cnt="$(printf '%s\n' "$OUT" | grep -c "\"obs_id\":\"c$i-$s\"")"
+    cnt="$(grep -c "\"obs_id\":\"c$i-$s\"" <<<"$OUT")"
     [[ "$cnt" == 1 ]] || miss="$miss c$i-$s(x$cnt)"
   done
 done
-total="$(printf '%s\n' "$OUT" | grep -c '^{')"
+total="$(grep -c '^{' <<<"$OUT")"
 if [[ $RC -eq 0 && -z "$miss" && "$total" -eq $((N * 2)) ]]; then
   pass "read.sh returns every appended row exactly once"
 else

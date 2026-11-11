@@ -35,8 +35,9 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** JSON text with every control, format (bidirectional and zero-width included) and separator character escaped. */
 function show(value) {
+  // split("") yields UTF-16 code units, so an astral character becomes its two \u escapes.
   return JSON.stringify(value).replace(UNSAFE, (c) =>
-    [...Array(c.length).keys()].map((i) => `\\u${c.charCodeAt(i).toString(16).padStart(4, "0")}`).join(""),
+    c.split("").map((unit) => `\\u${unit.charCodeAt(0).toString(16).padStart(4, "0")}`).join(""),
   );
 }
 
