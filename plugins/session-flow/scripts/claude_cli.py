@@ -18,9 +18,7 @@ _CLAUDE_VERSION_CACHE: tuple[int, int, int] | None | bool = False
 def parse_claude_version(text: str) -> tuple[int, int, int] | None:
     """First X.Y.Z in `claude --version` output, or None."""
     match = re.search(r"(\d+)\.(\d+)\.(\d+)", text)
-    if not match:
-        return None
-    return tuple(int(part) for part in match.groups())
+    return tuple(map(int, match.groups())) if match else None
 
 
 def claude_version_at_least(claude: str, floor: tuple[int, int, int]) -> bool:
@@ -41,10 +39,7 @@ def claude_version_at_least(claude: str, floor: tuple[int, int, int]) -> bool:
             )
         except (OSError, subprocess.TimeoutExpired):
             _CLAUDE_VERSION_CACHE = None
-    cached = _CLAUDE_VERSION_CACHE
-    if not isinstance(cached, tuple):
-        return False
-    return cached >= floor
+    return isinstance(_CLAUDE_VERSION_CACHE, tuple) and _CLAUDE_VERSION_CACHE >= floor
 
 
 def permission_prompts_args(claude: str) -> list[str]:
