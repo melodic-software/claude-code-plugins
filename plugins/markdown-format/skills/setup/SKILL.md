@@ -60,6 +60,9 @@ When the plugin's toggle is disabled, every prerequisite absence except Node.js 
 downgrades from FAIL to INFO. The hook and the `SessionStart` probe both exit through the
 enabled gate before probing anything, so a deliberately disabled plugin is not broken.
 Node.js stays FAIL: Claude Code must spawn `node` for the hook row before that gate can run.
+A tool the git pre-commit entry needs keeps the grade it gets with the toggle on while that entry
+is installed (item 9 reports it as a `tool` line beside an `ok`, `stale` or `modified` entry): the
+entry runs at commit outside Claude Code and reads no toggle.
 Report the probes informationally and note that re-enabling restores the FAIL semantics.
 
 1. **Node.js.** Every hook row starts through `node hooks/exec-bash.mjs`, so without

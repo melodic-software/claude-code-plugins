@@ -59,7 +59,10 @@ When the plugin's toggle is disabled, every prerequisite absence except Node.js 
 downgrades from FAIL to INFO. The hook exits through its enabled-gate before probing
 anything, so a deliberately disabled plugin is not broken. Report those probes
 informationally and note that re-enabling restores the FAIL semantics. Node.js stays FAIL
-when disabled: the runner must start `node` before `exec-bash.mjs` can evaluate the gate.
+when disabled: the runner must start `node` before `exec-bash.mjs` can evaluate the gate. A tool
+the git pre-commit entry needs keeps the grade it gets with the toggle on while that entry is
+installed (step 8 reports it as a `tool` line beside an `ok`, `stale` or `modified` entry): the
+entry runs at commit outside Claude Code and reads no toggle.
 
 1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the batch hook then does nothing,

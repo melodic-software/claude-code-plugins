@@ -1115,7 +1115,7 @@ test("past the fresh fixer's round, a write-access fix request still runs one mo
 
 test("model-job check runs count toward the fresh fixer's bound as round markers do", async () => {
   const runs = (n) => Object.fromEntries(Array.from({ length: n }, (_, i) => [String(i + 1).repeat(40), [check(at(10))]]));
-  const reviewComments = [comment(100, ACTIONS_BOT, { body: CODE_FINDING })];
+  const reviewComments = [comment(100, ACTIONS_BOT, { body: CODE_FINDING, created_at: at(0) })];
   const reviews = [{ id: 10, user: { id: ACTIONS_BOT }, commit_id: HEAD }];
   const after = (n) =>
     select({ api: fakeApi({ reviewComments, reviews, checks: runs(n) }), pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, maxRounds: 3 });
@@ -1204,7 +1204,7 @@ test("main select writes outputs and the thread file; escalation writes no threa
   // At the bound (a cap of 1 plus the fresh fixer's round) the neutral checks
   // carry the round count.
   const bound = fakeApi({
-    reviewComments: [comment(100, ACTIONS_BOT, { body: CODE_FINDING })],
+    reviewComments: [comment(100, ACTIONS_BOT, { body: CODE_FINDING, created_at: at(0) })],
     reviews: [{ id: 10, user: { id: ACTIONS_BOT }, commit_id: HEAD }],
     issueComments: [
       { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) },

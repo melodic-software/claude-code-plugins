@@ -54,10 +54,11 @@ one remediation line per FAIL. Do not modify anything.
 Read each option value from this text; never put a `${user_config.*}` string in a shell command.
 Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
 
-When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
-INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
-disabled plugin is not broken. Report the probes informationally and note that re-enabling
-restores the FAIL semantics.
+When the plugin's toggle is disabled, every prerequisite absence except Node.js (step 3)
+downgrades from FAIL to INFO. The hook exits through its enabled-gate before probing anything, so
+a deliberately disabled plugin is not broken. Report the probes informationally and note that
+re-enabling restores the FAIL semantics. A missing Node.js stays FAIL in either state: every hook
+row launches `node`, and the gate runs only after `hooks/exec-bash.mjs` starts.
 
 1. **Bash version**. Check `${BASH_VERSION}` against the hook's documented floor (README
    Requirements: Bash 3.2+). INFO when below 5.0: `EPOCHREALTIME` is unset there, so the

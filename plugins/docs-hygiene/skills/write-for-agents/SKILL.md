@@ -158,15 +158,23 @@ Good: The summary is at most three sentences. Name each test command you ran wit
       pass and fail counts.
 ```
 
-Strict means precise, not loud. Keep firm words (never, always) for a hard limit no hook
-enforces, since that is the one rule that must not bend to context, and write no all-caps
-emphasis: reframe the line and give its reason instead. A firm word anywhere else is a flag to
-reconsider, not a ban.
+Strict means precise, not loud. State each rule in plain words with its scope and reason, and
+write no all-caps and no marker words (`IMPORTANT`, `MUST`, `NEVER`, `ALWAYS`, `CRITICAL`) to make
+it stick. A plain firm word (never, always) stays when the sentence gives the rule's scope and
+reason. A rule that must hold every time belongs in a hook, deny rule or CI check; a line that
+keeps getting missed means the file needs to be shorter. Bold is structure only: a list-item label
+or a defined term at its first use, never a whole sentence or a rule
+([ADR 0098](../../../../docs/adr/0098-state-instruction-rules-in-plain-words-without-emphasis-markers.md)).
 
 - **Pointer**: skill-creator,
   [How to think about improvements](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md#how-to-think-about-improvements).
 - **As of**: 2026-10-29
 - **Recheck trigger**: that section moves or changes its guidance on emphasis.
+
+- **Pointer**: Claude Code best practices,
+  [What you can stop doing](https://code.claude.com/docs/en/best-practices#what-you-can-stop-doing).
+- **As of**: 2026-11-11
+- **Recheck trigger**: that section changes its guidance on emphasis or on where a missed rule goes.
 
 ## Leading words
 

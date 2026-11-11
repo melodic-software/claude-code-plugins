@@ -3,6 +3,12 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.4] - 2026-11-11
+
+### Changed
+
+- `implement-dispatch`'s item-list mode says a caller may open a dependent item as a stacked PR on its blocker's branch, pointing at the source-control plugin's `reference/stacked-prs.md` for when to stack; the skill itself never cuts a worker from another worker's branch.
+
 ## [0.38.3] - 2026-11-11
 
 ### Changed

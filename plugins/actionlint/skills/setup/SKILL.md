@@ -62,7 +62,9 @@ When the plugin's toggle is disabled, every prerequisite absence except `node` d
 FAIL to INFO. The Claude Code hooks exit through their enabled-gate before probing anything, so a
 deliberately disabled plugin is not broken. Report those probes informationally and note that
 re-enabling restores the FAIL semantics. A missing `node` stays FAIL: the launcher runs before the
-enabled-gate.
+enabled-gate. A tool the git pre-commit entry needs keeps the grade it gets with the toggle on while
+that entry is installed (step 7 reports it as a `tool` line beside an `ok`, `stale` or `modified`
+entry): the entry runs at commit outside Claude Code and reads no toggle.
 
 1. **Bash version.** Check against the floor, Bash 3.2 or newer (README Requirements).
 2. **`node`.** The pre-computed `node` row. FAIL if absent, even when the toggle is off: every

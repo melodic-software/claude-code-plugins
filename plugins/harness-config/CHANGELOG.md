@@ -5,6 +5,18 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.5.7] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [3.5.6] - 2026-11-11
+
+### Fixed
+
+- `/harness-config:audit-permission-grants` no longer audits `allowed-tools` in a nested `.claude/skills/<name>/SKILL.md` inside the user plugins directory (`${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/`), which Claude Code 2.1.321 stopped loading. It counts them as excluded, non-loadable files. The scan root's own `.claude/skills/` and a plugin's own `skills/<name>/SKILL.md` there are still audited.
+
 ## [3.5.5] - 2026-11-11
 
 ### Changed

@@ -204,3 +204,12 @@ test("withoutLaneFooters drops the binding and every trailing footer", () => {
   assert.equal(withoutLaneFooters("x\n\n`claude-lane: claude-security-review`\n"), "x");
   assert.equal(withoutLaneFooters("x"), "x");
 });
+
+test("an attempt whose record was cut off before it closed is proved by time", async () => {
+  const body = bound("Posted before the record closed.");
+  const window = { created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-02T00:00:00Z" };
+  const cut = api({ [RUN]: { path: PATH, ...window, artifacts: [{ name: "claude-lane-comments-claude-review-1", complete: false, entries: [] }] } });
+  assert.equal(await laneChecker({ pr: 7, ...cut })({ kind: "review_comment", id: 11, body, createdAt: "2026-01-01T12:00:00Z" }), true);
+  const closed = api({ [RUN]: { path: PATH, ...window, artifacts: [{ name: "claude-lane-comments-claude-review-1", entries: [] }] } });
+  assert.equal(await laneChecker({ pr: 7, ...closed })({ kind: "review_comment", id: 11, body, createdAt: "2026-01-01T12:00:00Z" }), false);
+});

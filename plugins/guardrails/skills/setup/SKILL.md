@@ -61,7 +61,10 @@ PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 When every guard's toggle is disabled, every prerequisite absent or below its floor, but `node`
 (step 3), downgrades from FAIL to INFO. Each guard exits through its enabled-gate before probing
 anything, so a deliberately disabled plugin is not broken. Report the probes informationally and
-note that re-enabling restores the FAIL semantics.
+note that re-enabling restores the FAIL semantics. A tool a git-hook entry needs keeps the grade it
+gets with a guard on while that entry is installed (step 5 reports it as a `tool` line beside an
+`ok`, `stale` or `modified` entry): the entries run at commit or push outside Claude Code and read
+no toggle.
 
 1. **Bash 5.0+.** The guards' documented runtime floor (Git Bash on native Windows).
    Probe the bash the hooks run: the one `${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs` resolves
