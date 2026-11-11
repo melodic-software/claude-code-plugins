@@ -4,26 +4,17 @@
       "answer": "`claude plugin configure biome-format@<marketplace> --values-stdin < values.json`"
     },
     {
-      "answer": "claude plugin configure biome-format@melodic-software  --values-stdin",
-      "why": "real marketplace, two spaces"
-    },
-    {
-      "answer": "claude plugin configure --values-stdin biome-format@melodic-software",
-      "why": "the flag before the target"
+      "answer": "Interactively, run `/plugin configure biome-format@<marketplace>`."
     }
   ],
   "fail": [
     {
-      "answer": "/plugin configure biome-format@<marketplace>",
-      "why": "interactive route"
+      "answer": "claude plugin install biome-format@m --config biome_format_enabled=false",
+      "why": "an install rerun, not the configure flow"
     },
     {
       "answer": "claude plugin configure biome-format --values-stdin",
-      "why": "no marketplace"
-    },
-    {
-      "answer": "claude plugin configure biome-format@<marketplace>",
-      "why": "near miss: no --values-stdin"
+      "why": "near miss: no marketplace"
     }
   ]
 }

@@ -18,6 +18,12 @@ the tool's path when present, or `absent` when missing:
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
 `command -v` probe via Bash instead.
 
+- **Pointer**: for the placeholder a skipped load-time command leaves, fetch
+  [skills § Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: the placeholder text changes.
+
 `git` is probed in the body, not here ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
 "The pre-compute block runs as one shell invocation").
 
@@ -112,29 +118,24 @@ after everything passes changes nothing and reports "already configured":
 - **Missing `node`:** install Node.js (<https://nodejs.org/en/download>) and put it on `PATH`. Until
   then the destructive guard is not enforced.
 - **Missing Git Bash on Windows:** install Git for Windows; nothing in this plugin runs without it.
-- **Toggle off (or on):** reconfigure through Claude Code's native flow, per the marketplace's
-  plugin-reconfiguration convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
-  which owns the verified-version record): interactive `/plugin configure repo-hygiene@<marketplace>`
-  any time. Headless, preferred (Claude Code 2.1.285 or later):
-  `claude plugin configure repo-hygiene@<marketplace> --values-stdin < values.json`, with
-  `values.json` holding `{"clean_destructive_guard_enabled": "true"}` (every value a string,
-  booleans included; keys left out keep their saved values). Headless fallback (an older
-  release): `claude plugin install repo-hygiene@<marketplace> -s <scope> --config clean_destructive_guard_enabled=true`
-  (repeatable per key); against an already-installed plugin it prints `already installed` and
-  still writes the value. Do **not** uninstall to reconfigure: that drops this plugin's entire
-  stored `pluginConfigs` entry, resetting every option in the README's Options reference (`${CLAUDE_PLUGIN_ROOT}/README.md`, read with Read if needed) to its
-  manifest default. Scope: the value always lands in user settings. Run either route from the
-  project the plugin is installed in (`configure` has no scope flag). For the rerun, `-s`
-  defaults to `user`, so pass the scope `claude plugin list` reports, or the rerun adds a second
-  install record at the scope passed and enables the plugin there; from the home directory, where
-  the list can label one settings file both `user` and `project`, pass `user`. Check each route's own failure
-  signal: `configure` rejects a bad value with exit 1 and saves nothing, but stores an empty
-  string as `""`; the rerun prints a warning for a rejected value yet exits 0, so read its output.
-  This skill never writes user settings or `pluginConfigs`. Afterwards rerun
-  `check` in a **fresh session**. The rendered token is injected at skill load, so a same-session
-  `check` still reports the OLD value; report the observed effective toggle value, never an
-  unobserved change.
+- **Toggle off (or on):** set `clean_destructive_guard_enabled` to `true` or `false` through
+  Claude Code's native flow, interactively with `/plugin configure repo-hygiene@<marketplace>` or
+  by a headless route, as the marketplace's plugin-reconfiguration convention gives them in
+  [§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+  (it owns the verified-version record). Apply the scope and failure-signal caveats in its
+  [§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+  Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
+  writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**, since a
+  same-session `check` can still show the old value, and report the observed effective toggle
+  value, never an unobserved change.
+
+  - **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+    when a saved value applies, fetch
+    [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+    live.
+  - **As of**: 2026-11-11
+  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+    refused value, or when a saved value applies.
 
 ## What this skill does NOT do
 

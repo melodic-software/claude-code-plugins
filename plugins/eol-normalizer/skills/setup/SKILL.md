@@ -20,6 +20,12 @@ shows the tool's path when present, or `absent` when missing:
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
 `command -v` probe via Bash instead.
 
+- **Pointer**: for the placeholder a skipped load-time command leaves, fetch
+  [skills § Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: the placeholder text changes.
+
 `git` is probed in the body, not here ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
 "The pre-compute block runs as one shell invocation").
 
@@ -90,38 +96,24 @@ tool, so `apply` installs nothing and writes nothing. It only points:
 
 - missing `node` / `jq` / Bash / git: platform install instructions from the README Requirements
   section; this skill never installs system packages.
-- toggle off: reconfigure through Claude Code's native flow, per the marketplace's
-  plugin-reconfiguration convention, which owns the verified-version record
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>):
-  interactive `/plugin configure eol-normalizer@<marketplace>` any time. Headless, preferred on
-  Claude Code 2.1.285 or later:
-  `claude plugin configure eol-normalizer@<marketplace> --values-stdin < values.json`, where
-  `values.json` holds `{"eol_normalizer_enabled": "true"}` (every value a string, booleans
-  included; keys left out keep their saved values). Headless fallback, before 2.1.285:
-  `claude plugin install eol-normalizer@<marketplace> -s <scope> --config eol_normalizer_enabled=true`
-  (repeatable per key). Do **not** uninstall to reconfigure: uninstalling drops this plugin's
-  entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
-  to its manifest default. `claude plugin configure` has no scope flag, so run it from the project the plugin is installed
-  in. For the rerun, `-s` defaults to `user`; pass the scope `claude plugin list` reports for this plugin, and for a
-  `project` or `local` scope run from that project's directory, so the rerun matches the existing
-  install record; from the home directory pass `user`. `-s` places the install record and
-  `enabledPlugins`, and a rerun at another scope adds an install record at that scope and enables
-  the plugin there. Whichever route ran, read both its exit code and its output before reporting
-  the value saved: the two routes signal a rejected value differently. This skill never writes user
-  settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered
-  `${user_config.*}` is injected at skill load and each hook receives its
-  `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a same-session `check`
-  still reports the OLD value; report the observed effective value, never an unobserved change.
+- toggle off: set `eol_normalizer_enabled` to `true` through Claude Code's native flow,
+  interactively with `/plugin configure eol-normalizer@<marketplace>` or by a headless route, as the
+  marketplace's plugin-reconfiguration convention gives them in
+  [§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+  (it owns the verified-version record). Apply the scope and failure-signal caveats in its
+  [§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+  Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
+  writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**, since a
+  same-session `check` can still show the old value, and report the observed effective value,
+  never an unobserved change.
 
-  - **Pointer**: when checking how a route reports a rejected value, what the rerun prints, the
-    `-s` default, where the value is stored, or what an uninstall deletes, fetch
-    [§ plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
-    [§ plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install),
-    [§ Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
-    and [§ What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps)
-    live. **As of**: 2026-11-10. **Recheck trigger**: one of those sections changes how a route
-    reports a rejection, the rerun's output, the `-s` default, where a value is stored, or what an
-    uninstall deletes.
+  - **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+    when a saved value applies, fetch
+    [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+    live.
+  - **As of**: 2026-11-11
+  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+    refused value, or when a saved value applies.
 - no `eol=` policy: this is the opt-out, not a defect. Point at the repository's own
   `.gitattributes` as the place to declare policy; this skill never writes `.gitattributes`,
   because that would impose a repo-wide line-ending policy the plugin has no mandate to

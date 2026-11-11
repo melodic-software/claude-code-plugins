@@ -142,33 +142,24 @@ implement it by reference, do not restate it. Plugin-side notes only:
 
 `use_ask_user_question` is a native `userConfig` boolean (default `false`) governing whether the
 pipeline skills' question rounds render through `AskUserQuestion` or as inline prose. It is not a
-consumer-project file this skill writes. Reconfigure through Claude Code's native flow, per the
-marketplace's plugin-reconfiguration convention
-(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
-which owns the verified-version record): interactive `/plugin configure planning@<marketplace>` any
-time. Headless, preferred: run
-`claude plugin configure planning@<marketplace> --values-stdin < values.json` from the project the
-plugin is installed in, with `values.json` holding `{"use_ask_user_question": "true"}`: every
-value, booleans included, written as a JSON string. Headless
-fallback, for a Claude Code release without `plugin configure`: rerun
-`claude plugin install planning@<marketplace> -s <scope> --config use_ask_user_question=true`
-(repeatable per key). Do **not** uninstall to reconfigure. For the rerun, pass the scope
-`claude plugin list` reports, run from that project's directory for a `project`/`local` scope, and
-from the home directory pass `user`. Check each route's own failure signal: read both its exit
-code and its output before reporting a value saved. This skill never writes Claude Code user
-settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**: a same-session
-`check` can still report the old value, so report the observed effective value, never an
-unobserved change.
+consumer-project file this skill writes. Reconfigure `use_ask_user_question` through Claude
+Code's native flow, interactively with `/plugin configure planning@<marketplace>` or by a headless
+route, as the marketplace's plugin-reconfiguration convention gives them in
+[§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+(it owns the verified-version record). Apply the scope and failure-signal caveats in its
+[§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
+writes Claude Code user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh
+session**, since a same-session `check` can still show the old value, and report the observed
+effective value, never an unobserved change.
 
-- **Pointer**: for the upstream specifics, fetch live
-  [§ plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
-  [§ plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install),
-  [§ What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps),
-  [§ Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
-  and [§ Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value).
-- **As of**: 2026-11-10
-- **Recheck trigger**: one of those sections changes how a route takes or rejects a value, what an
-  uninstall deletes, what `-s` places, or when a saved value takes effect.
+- **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+  when a saved value applies, fetch
+  [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+  refused value, or when a saved value applies.
 
 ### Verify after remediation
 

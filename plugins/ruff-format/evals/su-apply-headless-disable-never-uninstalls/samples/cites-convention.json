@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "The headless routes are in the marketplace's plugin-reconfiguration convention, § The routes."
+    },
+    {
+      "answer": "See docs/contracts/plugin-reconfiguration/README.md."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "See the docs for claude plugin configure.",
+      "why": "names no convention"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

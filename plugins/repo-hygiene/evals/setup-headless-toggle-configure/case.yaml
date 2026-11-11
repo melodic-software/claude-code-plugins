@@ -3,24 +3,15 @@ name: setup-headless-toggle-configure
 graders:
   - name: configure-route
     type: regex
-    pattern: 'claude plugin configure repo-hygiene@\S+\s+--values-stdin'
+    pattern: '(?:/plugin|claude plugin) configure repo-hygiene@\S+'
     target: last_message
-  - name: string-true-value
+  - name: value-true
     type: regex
-    pattern: '"clean_destructive_guard_enabled"\s*:\s*"true"'
+    pattern: '\bclean_destructive_guard_enabled\b[^\n]{0,40}?\btrue\b'
     target: last_message
-  - name: fallback-after-configure
-    type: regex
-    pattern: 'claude plugin configure repo-hygiene@\S+\s+--values-stdin[\s\S]*?claude plugin install repo-hygiene@\S+[^\n]*?--config[ =]clean_destructive_guard_enabled=true\b'
-    target: last_message
-  - name: already-installed-still-writes
-    type: regex
-    pattern: '\balready installed\b[^\n]{0,160}\b(?:still|also)\b[^\n]{0,40}\bwrites?\b|\bstill writes?\b[^\n]{0,160}\balready installed\b'
-    flags: 'i'
-    target: last_message
-  - name: no-uninstall-with-reason
+  - name: no-uninstall
     type: llm
-    criteria: 'The reply does not tell the user to uninstall the plugin (for example claude plugin uninstall, then reinstall) in order to reconfigure it, and says why: uninstalling drops the plugin''s whole stored pluginConfigs entry and resets every option to its manifest default.'
+    criteria: 'The reply does not tell the user to uninstall the plugin (for example claude plugin uninstall, then reinstall) in order to reconfigure it, and rules uninstalling out as a way to reconfigure.'
     focus: last_message
   - name: cites-reconfiguration-convention
     type: regex
@@ -32,13 +23,9 @@ graders:
     pattern: '\b2\.1\.(?!285\b)\d{3}\b'
     match: not_contains
     target: last_message
-  - name: scope-rule
-    type: llm
-    criteria: 'The reply says both routes run from the project the plugin is installed in (claude plugin configure has no scope flag); that for the install rerun the -s flag defaults to user, so the user passes the scope claude plugin list reports for this plugin, or the rerun adds a second install record at the scope passed; and that the value itself lands in user settings.'
-    focus: last_message
   - name: fresh-session-observed-value
     type: llm
-    criteria: 'The reply does not claim the guard is now on. It tells the user to rerun check in a fresh session, because the toggle value is rendered when the skill loads and a same-session check still reports the old value, and to report the effective value that check observes.'
+    criteria: 'The reply does not claim the guard is now on. It tells the user to rerun check in a fresh session, since a same-session check can still report the old value, and to report the effective value that check observes.'
     focus: last_message
   - name: no-plugin-command-run
     type: tool_used

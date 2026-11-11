@@ -24,6 +24,8 @@ consumer-run.
   claude plugin configure <plugin>@<marketplace> --values-stdin < values.json
   ```
 
+  PowerShell reserves `<`, so pipe the file there instead:
+  `Get-Content values.json | claude plugin configure <plugin>@<marketplace> --values-stdin`.
   `values.json` holds `{"KEY": "VALUE"}`; every value is a string, booleans included (`"true"`,
   `"false"`), and keys left out keep their saved values. Without `--values-stdin` the command
   lists each option as `set` or `not set` and prints no values; `--json` adds the option schema
@@ -136,10 +138,17 @@ newer release is verified.
 
 ## The short form setups print
 
-A setup skill states, in its own words but without restating the verified-version record: the
-routes, preferred headless route first, the four caveats above, and a citation of this doc as the
-owner of the verification record. Canonical citation (installed plugins cannot read this
-repository's working tree, so cite the published URL):
+A setup skill states the decisions in its own words: reconfigure through the native flow
+(naming `/plugin configure <plugin>@<marketplace>`), never uninstall to reconfigure, never write
+user settings or `pluginConfigs`, and recheck in a fresh session, reporting only an observed
+value. For the headless routes and the scope and failure-signal caveats it cites
+[The routes](#the-routes) and
+[Caveats every setup skill's short form carries](#caveats-every-setup-skills-short-form-carries)
+by heading, and it carries a pointer record to
+[plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure).
+It restates neither the commands' flags and version floor nor the verified-version record.
+Canonical citation (installed plugins cannot read this repository's working tree, so cite the
+published URL):
 
 <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>
 

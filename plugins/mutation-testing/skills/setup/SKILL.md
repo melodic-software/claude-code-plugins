@@ -231,16 +231,28 @@ Steps 1 to 10 are the `team` flow. The other two layers change what is written:
   the effort cap, do not say the effort cap now applies: say the saved cap stays in force, since
   leaving the key out keeps it, and that clearing it is done in
   `/plugin configure mutation-testing@<marketplace>`. When this repository's team or local file already sets `operators` or `max-mutants`,
-  say that file overrides the user value here. Then name how to save them:
-  `/plugin configure mutation-testing@<marketplace>`, or headless
-  `claude plugin configure mutation-testing@<marketplace> --values-stdin < values.json` with
-  `values.json` holding only the keys the user settled: `{"operators": "<value>"}`, plus
-  `"max_mutants": "<value>"` only when the user chose a cap (never write an empty or invented
-  cap), per the marketplace's plugin-reconfiguration convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes>,
-  which records what a key left out does; as of 2026-11-10, recheck when that heading is renamed
-  or the record changes what an omitted key does).
-  Never write `pluginConfigs` or any settings file yourself. Say that steps 7 to 10 were skipped
+  say that file overrides the user value here. Then name how to save them through Claude Code's
+  native flow: interactively with `/plugin configure mutation-testing@<marketplace>`, or by a
+  headless route as the marketplace's plugin-reconfiguration convention gives them in
+  [§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+  (it owns the verified-version record, and what a key left out does), with the scope and
+  failure-signal caveats in its
+  [§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+  Save only the keys the user settled: `operators`, plus `max_mutants` only when the user chose a
+  cap (never an empty or invented cap). Never uninstall to reconfigure; that section links what an
+  uninstall deletes. A `check` in a **fresh session** shows the saved value, since a same-session
+  `check` can still show the old one; report only an observed value, never an unobserved change.
+  Never write `pluginConfigs` or any settings file yourself.
+
+  - **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+    when a saved value applies, fetch
+    [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+    live.
+  - **As of**: 2026-11-11
+  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+    refused value, or when a saved value applies.
+
+  Say that steps 7 to 10 were skipped
   because nothing in the repository was written, so `git status` is unchanged, and that a
   repository's tool, diff target, mutate paths and test command still come from its team or local
   file or the audit's fallback.

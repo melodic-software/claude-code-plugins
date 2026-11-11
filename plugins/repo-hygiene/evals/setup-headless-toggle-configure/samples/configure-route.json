@@ -2,14 +2,19 @@
   "pass": [
     {
       "answer": "claude plugin configure repo-hygiene@melodic --values-stdin < values.json"
+    },
+    {
+      "answer": "Interactively, run `/plugin configure repo-hygiene@<marketplace>`."
     }
   ],
   "fail": [
     {
-      "answer": "claude plugin configure repo-hygiene@melodic"
+      "answer": "claude plugin install repo-hygiene@m --config clean_destructive_guard_enabled=true",
+      "why": "an install rerun, not the configure flow"
     },
     {
-      "answer": "/plugin configure"
+      "answer": "/plugin configure",
+      "why": "near miss: no plugin id"
     }
   ]
 }

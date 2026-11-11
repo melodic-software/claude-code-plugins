@@ -111,26 +111,27 @@ successful and delivers no tools.
 time) is the recommended rotation path regardless. It masks input, unlike anything passed on the
 command line (see the security note below).
 
-Headless, per the marketplace's plugin-reconfiguration convention
-(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
-which owns the verified-version record), the preferred route is
-`claude plugin configure miro@<marketplace> --values-stdin < values.json`, run from the project the
-plugin is installed in, with `values.json` holding `{"miro_api_token": "<token>"}`. It accepts a
-`sensitive` option and keeps the token off the command line; delete `values.json` afterwards, or
-pipe the object in from your secrets manager. It has no scope flag, finds only an install visible
-from the working directory, and rejects a bad value with exit 1 and saves nothing, but stores an
-empty string as `""`. The fallback, for a Claude Code release without `plugin configure`, is a
-`claude plugin install … -s <scope> --config` rerun at the scope `claude plugin list` reports
-(`user` from the home directory; another scope adds an install record there): against an
-already-installed plugin it prints `already installed` and still writes the value, and a rejected
-value prints a warning yet exits 0, so read its output. That record covers only a non-sensitive
-option, so do not rely on the rerun for `miro_api_token`. Either way, confirm the new token with
+Headless, use a route the marketplace's plugin-reconfiguration convention gives in
+[§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+(it owns the verified-version record), and apply the scope and failure-signal caveats in its
+[§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+For `miro_api_token`, take the preferred `claude plugin configure miro@<marketplace>` route, which
+keeps the token off the command line: delete its values file afterwards, or pipe the value in from
+your secrets manager. Do not rely on the install-rerun fallback for the token, since that
+convention's record covers only a non-sensitive option. Either way, confirm the new token with
 `verify-api` in a **fresh session** (or after `/reload-plugins`, as step 3 says); a session that
-has done neither still holds the old one, so never report an unobserved rotation. Do **not**
-uninstall to rotate either: uninstalling drops the stored token and this
-plugin's entire stored `pluginConfigs` entry, resetting every option in the README's Options
-reference to its manifest default, and it can drop the `enabledPlugins` entry as well; a
-`defaultEnabled: false` plugin reinstalls DISABLED, so a rotation ending at `install` delivers no tools.
+has done neither can still hold the old one, so never report an unobserved rotation. Never
+uninstall to rotate either; that section links what an uninstall deletes, and a
+`defaultEnabled: false` plugin reinstalls DISABLED, so a rotation ending at `install` delivers no
+tools.
+
+- **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+  when a saved value applies, fetch
+  [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+  refused value, or when a saved value applies.
 
 **Security note:** passing the token as a CLI argument records it in shell history
 (`.bash_history`, `.zsh_history`) and briefly exposes it in the process table

@@ -334,35 +334,26 @@ route to the finding-suppression convention, never a new consumer-side file.
 ### Babysit config
 
 `/source-control:babysit-prs` is configured through the plugin's native `userConfig`, which Claude
-Code owns (`pluginConfigs`), this skill never hand-edits it. It documents and walks the sanctioned
-routes:
+Code owns (`pluginConfigs`), this skill never hand-edits it. Reconfigure through Claude Code's
+native flow, interactively with `/plugin configure source-control@<marketplace>` (or the `/plugin`
+dialog → source-control → configure) or by a headless route, as the marketplace's
+plugin-reconfiguration convention gives them in
+[§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+(it owns the verified-version record). Apply the scope and failure-signal caveats in its
+[§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+Never uninstall to reconfigure; that section links what an uninstall deletes. The multi-value keys
+(`babysit_watched_owners`, `babysit_self_logins`, `babysit_review_bot_logins`,
+`babysit_extra_bot_logins`) take comma-joined values, and the convention's record has not verified
+its preferred headless route for `multiple` options, so set them through the interactive dialog or
+the install-rerun route.
 
-- **Interactive:** `/plugin configure source-control@<marketplace>` (or the `/plugin` dialog → source-control →
-  configure), any time. Claude Code prompts per key using the manifest's types and defaults.
-- **Headless / CI, preferred (Claude Code 2.1.285 or later):** from the project the plugin is
-  installed in, `claude plugin configure source-control@<marketplace> --values-stdin < values.json`,
-  with `values.json` holding `{"KEY": "VALUE"}`: every value a string, booleans included, and keys
-  left out keep their saved values.
-- **Headless / CI, fallback (an older release):** rerun the install with the new values:
-  `claude plugin install source-control@<marketplace> -s <scope> --config KEY=VALUE` (repeatable
-  per key). Against an already-installed plugin it prints `already installed` **and still writes
-  the value**.
-
-Both routes follow the marketplace's plugin-reconfiguration convention
-(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
-which owns the verified-version record). For the rerun, multi-value keys (`babysit_watched_owners`,
-`babysit_self_logins`, `babysit_review_bot_logins`, `babysit_extra_bot_logins`) are supplied
-comma-joined; the convention's record has not verified `configure` for these `multiple` options, so
-prefer the rerun or the interactive dialog for them. Do **not** uninstall to reconfigure:
-uninstalling drops this plugin's entire stored `pluginConfigs` entry, resetting every option in the
-README's Options reference to its manifest default. Scope: the value always lands in user settings.
-Run either route from the project the plugin is installed in (`configure` has no scope flag). For
-the rerun, `-s` defaults to `user`, so pass the scope `claude plugin list` reports for this plugin:
-a rerun at another scope adds an install record at that scope and enables the plugin there
-(measured in both directions). From the home directory, where the list can label one settings file
-both `user` and `project`, pass `user`. Check each route's own
-failure signal: `configure` rejects a bad value with exit 1 and saves nothing, but stores an empty
-string as `""`; the rerun prints a warning for a rejected value yet exits 0, so read its output.
+- **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+  when a saved value applies, fetch
+  [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+  refused value, or when a saved value applies.
 
 When an uninstall is warranted for a reason other than reconfiguring (troubleshooting, changing
 scopes, reinstalling a version), pass `--keep-data`. Uninstalling from the **last remaining scope**

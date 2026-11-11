@@ -78,31 +78,24 @@ markdownlint-cli2` in the repository or a global install, then rerun `check`. Wi
 `/docs-hygiene:compress` stops at its entry point before touching a file. No other skill in this
 plugin needs the binary.
 
-To change the `userConfig` value, reconfigure through Claude Code's native flow per the
-plugin-reconfiguration convention
-(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
-which owns the verified-version record): `/plugin configure docs-hygiene@<marketplace>`
-interactively. Headless, preferred on Claude Code 2.1.285 or later:
-`claude plugin configure docs-hygiene@<marketplace> --values-stdin < values.json`, where
-`values.json` holds `{"compress_articles": "<value>"}`. Headless fallback, before 2.1.285: rerun
-`claude plugin install docs-hygiene@<marketplace> -s <scope> --config compress_articles=<value>`.
+To change the `userConfig` value of `compress_articles`, reconfigure through Claude Code's native
+flow, interactively with `/plugin configure docs-hygiene@<marketplace>` or by a headless route, as
+the marketplace's plugin-reconfiguration convention gives them in
+[§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+(it owns the verified-version record). Apply the scope and failure-signal caveats in its
+[§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
+writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**, since a
+same-session `check` can still show the old value, and report the observed effective value, never
+an unobserved change.
 
-- Never uninstall to reconfigure.
-- Scope: `claude plugin configure` has no scope flag, so run it from the project the plugin is
-  installed in. For the rerun, pass the scope `claude plugin list` reports (from the home directory
-  pass `user`); a rerun at another scope adds an install record there and enables the plugin.
-- Rendered values are injected at skill load, so rerun `check` in a fresh session after a change
-  and report the observed value, never an unobserved change.
-- Whichever route ran, read both its exit code and its output before reporting the value saved:
-  the two routes signal a rejected value differently.
-- **Pointer**: when checking how a route reports a rejected value, what the rerun prints, where the
-  value is stored, or what an uninstall deletes, fetch
-  [§ plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
-  [§ plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install),
-  [§ Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
-  and [§ What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps)
-  live. **As of**: 2026-11-10. **Recheck trigger**: one of those sections changes how a route
-  reports a rejection, the rerun's output, where a value is stored, or what an uninstall deletes.
+- **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+  when a saved value applies, fetch
+  [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+  refused value, or when a saved value applies.
 
 To set the value for the whole repository instead, use `apply`.
 

@@ -3,24 +3,15 @@ name: su-headless-toggle-configure
 graders:
   - name: configure-route
     type: regex
-    pattern: 'claude plugin configure context-budget@\S+\s+--values-stdin'
+    pattern: '(?:/plugin|claude plugin) configure context-budget@\S+'
     target: 'last_message'
   - name: string-false-value
     type: regex
-    pattern: '"settings_write_ask_enabled"\s*:\s*"false"'
+    pattern: '\bsettings_write_ask_enabled\b[^\n]{0,40}?\bfalse\b'
     target: 'last_message'
-  - name: fallback-after-configure
-    type: regex
-    pattern: 'claude plugin configure context-budget@\S+\s+--values-stdin[\s\S]*?claude plugin install context-budget@\S+[^\n]*?--config[ =]settings_write_ask_enabled=false\b'
-    target: 'last_message'
-  - name: already-installed-still-writes
-    type: regex
-    pattern: '\balready installed\b[^\n]{0,160}\b(?:still|also)\b[^\n]{0,40}\bwrites?\b|\bstill writes?\b[^\n]{0,160}\balready installed\b'
-    flags: 'i'
-    target: 'last_message'
-  - name: no-uninstall-with-reason
+  - name: no-uninstall
     type: llm
-    criteria: 'The reply does not tell the user to uninstall the plugin (for example claude plugin uninstall, then reinstall) in order to reconfigure it, and says why: uninstalling drops the plugin''s whole stored pluginConfigs entry and resets every option in the README Options reference to its manifest default.'
+    criteria: 'The reply does not tell the user to uninstall the plugin (for example claude plugin uninstall, then reinstall) in order to reconfigure it, and rules uninstalling out as a way to reconfigure.'
     focus: 'last_message'
   - name: cites-reconfiguration-convention
     type: regex
@@ -33,13 +24,9 @@ graders:
     flags: 'i'
     match: 'not_contains'
     target: 'last_message'
-  - name: scope-rule
-    type: llm
-    criteria: 'The reply says the value lands in user settings whichever route writes it; that claude plugin configure has no scope flag, so it is run from the project the plugin is installed in; that for the install rerun the user passes the scope claude plugin list reports for this install (user, project or local), because -s places enabledPlugins and a different scope adds an install record and enables the plugin there; and that from the home directory, where one settings file can be labeled both user and project, the scope to pass is user.'
-    focus: 'last_message'
   - name: fresh-session-observed-value
     type: llm
-    criteria: 'The reply does not claim the checkpoint is now off. It tells the user to rerun check in a fresh session, because the toggle value is injected when the skill loads and a same-session check still reports the old value, and to report the effective value that check observes.'
+    criteria: 'The reply does not claim the checkpoint is now off. It tells the user to rerun check in a fresh session, because a same-session check can still report the old value, and to report the effective value that check observes.'
     focus: 'last_message'
   - name: no-plugin-command-run
     type: tool_used

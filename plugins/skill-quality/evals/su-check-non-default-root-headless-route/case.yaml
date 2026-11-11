@@ -14,21 +14,13 @@ graders:
     min: 0
     max: 0
     arm: both
-  - name: configure-values-stdin
+  - name: configure-route
     type: regex
-    pattern: 'claude plugin configure skill-quality@\S*\s+--values-stdin\b'
+    pattern: '(?:/plugin|claude plugin) configure skill-quality@\S+'
     target: last_message
   - name: values-skills-root
     type: regex
-    pattern: '"skills_root"\s*:\s*"'
-    target: last_message
-  - name: install-config-fallback
-    type: regex
-    pattern: 'claude plugin install skill-quality@[^\n]*?--config\s+skills_root='
-    target: last_message
-  - name: scope-from-plugin-list
-    type: regex
-    pattern: '\bclaude plugin list\b'
+    pattern: '\bskills_root\b[^\n]{0,40}?\bpackages/agent/skills\b'
     target: last_message
   - name: names-reconfiguration-convention
     type: regex
@@ -40,15 +32,10 @@ graders:
     pattern: '\b(?:fresh|new|next)\s+(?:Claude(?: Code)?\s+)?session\b|\brestart\w*\s+(?:Claude(?: Code)?|the session|your session)\b'
     flags: 'i'
     target: last_message
-  - name: uninstall-reason
-    type: regex
-    pattern: '\bmanifest defaults?\b|\breset\w*\s+(?:every|all)\s+(?:\w+\s+)?options?\b|\bdrops?\s+(?:the\s+)?(?:whole|entire|stored)\b[^\n]{0,40}\b(?:config\w*|options?|pluginConfigs)\b'
-    flags: 'i'
-    target: last_message
   - name: routes-through-claude-code
     type: llm
     focus: last_message
-    criteria: "PASS only if the reply verifies packages/agent/skills as the skills root with its skill count, without asking the user to confirm first; routes the persistent skills_root change through Claude Code's plugin configuration, giving `claude plugin configure skill-quality@<marketplace> --values-stdin` with a values file setting skills_root as the preferred headless route, run from the project the plugin is installed in, and a `claude plugin install skill-quality@<marketplace> --config skills_root=<dir>` rerun against the already-installed plugin, passing the scope `claude plugin list` reports, as the fallback (interactive /plugin configure may also be named); points at the marketplace's plugin-reconfiguration convention for the verified-version record; never prescribes `claude plugin uninstall` to reconfigure and says why (it resets every option to its manifest default, dropping the stored configuration); and says to verify by rerunning check in a fresh session. Explaining the one-run CHECK_SKILL_SKILLS_ROOT override is optional. FAIL if it edits or proposes editing settings.json, settings.local.json or pluginConfigs directly, says it changed the setting itself, exports or persists CHECK_SKILL_SKILLS_ROOT (a shell profile, settings env or .envrc), prescribes uninstall then reinstall, or leaves out any route requirement above."
+    criteria: "PASS only if the reply verifies packages/agent/skills as the skills root with its skill count, without asking the user to confirm first; routes the persistent skills_root change through Claude Code's native configure flow for skill-quality@<marketplace> (interactive /plugin configure or a headless route), setting skills_root to packages/agent/skills; points at the marketplace's plugin-reconfiguration convention for the headless routes; never prescribes `claude plugin uninstall` to reconfigure; and says to verify by rerunning check in a fresh session. Explaining the one-run CHECK_SKILL_SKILLS_ROOT override is optional. FAIL if it edits or proposes editing settings.json, settings.local.json or pluginConfigs directly, says it changed the setting itself, exports or persists CHECK_SKILL_SKILLS_ROOT (a shell profile, settings env or .envrc), prescribes uninstall then reinstall, or leaves out any route requirement above."
   - name: no-write
     type: tool_used
     tool: Write

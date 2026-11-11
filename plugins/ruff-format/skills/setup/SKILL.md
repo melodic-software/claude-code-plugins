@@ -22,6 +22,12 @@ the tool's path when present, or `absent` when missing:
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
 `command -v` probe via Bash instead.
 
+- **Pointer**: for the placeholder a skipped load-time command leaves, fetch
+  [skills § Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: the placeholder text changes.
+
 ## Purpose
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
@@ -180,29 +186,24 @@ only points:
 
 - missing `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
-- toggle off: reconfigure through Claude Code's native flow, per the marketplace's
-  plugin-reconfiguration convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
-  which owns the verified-version record): interactive `/plugin configure ruff-format@<marketplace>`
-  any time. Headless, preferred (Claude Code 2.1.285 or later):
-  `claude plugin configure ruff-format@<marketplace> --values-stdin < values.json`, with
-  `values.json` holding `{"ruff_format_enabled": "false"}` (every value a string, booleans
-  included; keys left out keep their saved values). Headless fallback (an older release):
-  `claude plugin install ruff-format@<marketplace> -s <scope> --config ruff_format_enabled=false`
-  (repeatable per key); against an already-installed plugin it prints `already installed` and
-  still writes the value. Do **not** uninstall to reconfigure: that drops this plugin's entire
-  stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
-  manifest default. Scope: the value always lands in user settings. Run either route from the
-  project the plugin is installed in (`configure` has no scope flag). For the rerun, `-s`
-  defaults to `user`, so pass the scope `claude plugin list` reports, or the rerun adds a second
-  install record at the scope passed and enables the plugin there; from the home directory, where
-  the list can label one settings file both `user` and `project`, pass `user`. Check each route's own failure
-  signal: `configure` rejects a bad value with exit 1 and saves nothing, but stores an empty
-  string as `""`; the rerun prints a warning for a rejected value yet exits 0, so read its output.
-  This skill never writes user settings or `pluginConfigs`. Afterwards rerun
-  `check` in a **fresh session**. The rendered `${user_config.*}` is injected at skill load and
-  each hook's `CLAUDE_PLUGIN_OPTION_*` is fixed at session start, so a same-session `check` still
-  reports the OLD value; report the observed effective value, never an unobserved change.
+- toggle off: set `ruff_format_enabled` to `false` through Claude Code's native flow,
+  interactively with `/plugin configure ruff-format@<marketplace>` or by a headless route, as the
+  marketplace's plugin-reconfiguration convention gives them in
+  [§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+  (it owns the verified-version record). Apply the scope and failure-signal caveats in its
+  [§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+  Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
+  writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**, since a
+  same-session `check` can still show the old value, and report the observed effective value,
+  never an unobserved change.
+
+  - **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+    when a saved value applies, fetch
+    [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+    live.
+  - **As of**: 2026-11-11
+  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+    refused value, or when a saved value applies.
 - no Ruff config: offer to create a minimal Ruff config in the repository root only when
   explicitly asked. The plugin imposes no rules of its own.
 

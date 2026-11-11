@@ -153,34 +153,25 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 Not `apply` surface: Claude Code owns the storage, and this contract forbids setup to write
 `pluginConfigs`, so `check` reports the observed value and routes the change. Reconfigure through
-Claude Code's native flow, per the marketplace's
-[plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md)
-(which owns the verified-version record): interactive `/plugin configure code-tidying@<marketplace>`
-any time. Headless, preferred on Claude Code 2.1.285 or later, run from the project the plugin is
-installed in (it has no scope flag):
-
-```shell
-claude plugin configure code-tidying@<marketplace> --values-stdin < values.json
-```
-
-with `values.json` holding `{"hard_exclusions": "advisory"}` (every value a string; keys left out
-keep their saved values). It rejects a bad value with exit 1 and saves nothing, but stores an empty
-string as `""`. Headless fallback, before 2.1.285:
-
-```shell
-claude plugin install code-tidying@<marketplace> -s <scope> --config hard_exclusions=advisory
-```
-
-Against an installed plugin this prints `already installed` and still writes the value. Pass the
-scope `claude plugin list` reports, or the rerun adds an install record at the scope passed and
-enables the plugin there; from the home directory pass `user`. A rejected value prints a warning
-yet exits 0, so read the output. Either route stores the value in user settings. Do not uninstall
-to reconfigure: that drops this plugin's entire stored `pluginConfigs` entry, resetting every
-option in the README's Options reference to its manifest default. The running
-session is not re-read, so rerun `check` in a fresh session before expecting the new behavior, and
-report the observed value. `hard_exclusions` takes `enforce` (default, every GLOBAL HARD path
-entry blocks) or `advisory` (every one is reported and none blocks); any other value is read as
+Claude Code's native flow, interactively with `/plugin configure code-tidying@<marketplace>` or by
+a headless route, as the marketplace's plugin-reconfiguration convention gives them in
+[§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+(it owns the verified-version record). Apply the scope and failure-signal caveats in its
+[§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
+writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**, since a
+same-session `check` can still show the old value, and report the observed effective value, never
+an unobserved change. `hard_exclusions` takes `enforce` (default, every GLOBAL HARD path entry
+blocks) or `advisory` (every one is reported and none blocks); any other value is read as
 `enforce`. The full option table is in the plugin README.
+
+- **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+  when a saved value applies, fetch
+  [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+  refused value, or when a saved value applies.
 
 ## Output
 
@@ -200,9 +191,11 @@ names it and the globs it lifts.
 
 ## Gotchas
 
-- **Do not uninstall to reconfigure.** It drops this plugin's entire stored `pluginConfigs`
-  entry; the install command's `already installed` short-circuit is about the install, not the
-  config write.
+- **Do not uninstall to reconfigure.** The plugin-reconfiguration convention's
+  [§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries)
+  links what an uninstall deletes, and
+  [§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+  covers what an install rerun does to stored options.
 - **A copied bundled section is frozen** at its copy-time value, while an omitted one keeps
   inheriting bundled improvements. Write only the sections that diverge.
 - **Gitignoring a path the team already tracks does not make it personal**: indexed files remain

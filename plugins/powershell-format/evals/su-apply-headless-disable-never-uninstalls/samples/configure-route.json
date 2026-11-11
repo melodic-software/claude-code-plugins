@@ -4,18 +4,17 @@
       "answer": "`claude plugin configure powershell-format@<marketplace> --values-stdin < values.json`"
     },
     {
-      "answer": "claude plugin configure powershell-format@melodic-software  --values-stdin",
-      "why": "real marketplace, two spaces"
+      "answer": "Interactively, run `/plugin configure powershell-format@<marketplace>`."
     }
   ],
   "fail": [
     {
-      "answer": "/plugin configure powershell-format@<marketplace>",
-      "why": "interactive route"
+      "answer": "claude plugin install powershell-format@m --config powershell_format_enabled=false",
+      "why": "an install rerun, not the configure flow"
     },
     {
       "answer": "claude plugin configure powershell-format --values-stdin",
-      "why": "no marketplace"
+      "why": "near miss: no marketplace"
     },
     {
       "answer": "",

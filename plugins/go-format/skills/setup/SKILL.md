@@ -26,6 +26,12 @@ tool's path when present, or `absent` when missing:
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
 `command -v` probe via Bash instead.
 
+- **Pointer**: for the placeholder a skipped load-time command leaves, fetch
+  [skills § Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: the placeholder text changes.
+
 ## Purpose
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
@@ -155,38 +161,24 @@ re-verifying. For everything else `apply` only points:
   toolchain: https://go.dev/dl/).
 - missing `node` / `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
-- toggle off: the marketplace's plugin-reconfiguration convention owns the routes, the caveats,
-  the measured CLI behavior (including that a rerun against an already-installed plugin still
-  writes the value) and its verification record
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>).
-  Consumer-run routes, `go_format_lint_gitignored` set the same way:
-  - Interactive: `/plugin configure go-format@<marketplace>`.
-  - Headless, preferred on Claude Code 2.1.285 or later:
-    `claude plugin configure go-format@<marketplace> --values-stdin < values.json`, where
-    `values.json` holds `{"go_format_enabled": "false"}` (every value a string, booleans included;
-    keys left out keep their saved values).
-  - Headless fallback, before 2.1.285:
-    `claude plugin install go-format@<marketplace> -s <scope> --config go_format_enabled=false`.
+- toggle off: set `go_format_enabled` to `false` (and `go_format_lint_gitignored` the same way)
+  through Claude Code's native flow, interactively with `/plugin configure go-format@<marketplace>`
+  or by a headless route, as the marketplace's plugin-reconfiguration convention gives them in
+  [§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+  (it owns the verified-version record). Apply the scope and failure-signal caveats in its
+  [§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+  Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
+  writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**, since a
+  same-session `check` can still show the old value, and report the observed effective value,
+  never an unobserved change.
 
-  Print these four caveats with them:
-  - Never uninstall to reconfigure: it drops this plugin's entire stored `pluginConfigs` entry and
-    resets every option to its manifest default.
-  - Scope. The option value always lands in user settings, whichever route writes it.
-    `claude plugin configure` has no scope flag, so run it from the project the plugin is
-    installed in. For the rerun, pass the scope `claude plugin list` reports for this plugin, and
-    for a `project` or `local` scope run from that project's directory, so the rerun matches the
-    existing install record. `-s` places the install record and `enabledPlugins`, and a rerun at
-    another scope adds an install record at that scope and enables the plugin there. When the
-    working directory is the home directory, project scope and user scope are the same settings
-    file, so the list can label that one file as both `user` and `project`: pass `user`.
-  - Observation is next-session: a same-session `check` still reports the OLD value, so rerun
-    `check` in a **fresh session** and report the observed effective value, never an unobserved
-    change.
-  - Check each route's own failure signal: `--values-stdin` rejects a bad value with exit 1 and
-    saves nothing, but stores an empty string as `""`; the `--config` rerun prints a warning for a
-    rejected value yet exits 0, so read its output, not its exit code.
-
-  This skill never writes user settings or `pluginConfigs`.
+  - **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+    when a saved value applies, fetch
+    [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+    live.
+  - **As of**: 2026-11-11
+  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+    refused value, or when a saved value applies.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 

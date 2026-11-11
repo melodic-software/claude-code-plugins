@@ -4,18 +4,17 @@
       "answer": "`claude plugin configure ruff-format@<marketplace> --values-stdin < values.json`"
     },
     {
-      "answer": "claude plugin configure ruff-format@melodic-software  --values-stdin",
-      "why": "real marketplace, two spaces"
+      "answer": "Interactively, run `/plugin configure ruff-format@<marketplace>`."
     }
   ],
   "fail": [
     {
-      "answer": "/plugin configure ruff-format@<marketplace>",
-      "why": "interactive route"
+      "answer": "claude plugin install ruff-format@m --config ruff_format_enabled=false",
+      "why": "an install rerun, not the configure flow"
     },
     {
       "answer": "claude plugin configure ruff-format --values-stdin",
-      "why": "no marketplace"
+      "why": "near miss: no marketplace"
     },
     {
       "answer": "",

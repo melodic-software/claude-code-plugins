@@ -4,22 +4,18 @@
       "answer": "claude plugin configure eol-normalizer@<marketplace> --values-stdin < values.json"
     },
     {
-      "answer": "Run `claude plugin configure eol-normalizer@melodic-software  --values-stdin` with the JSON on stdin.",
-      "why": "real marketplace, two spaces"
+      "answer": "Interactively, run `/plugin configure eol-normalizer@melodic-software`.",
+      "why": "native interactive route, real marketplace"
     }
   ],
   "fail": [
     {
       "answer": "claude plugin configure eol-normalizer --values-stdin",
-      "why": "no marketplace"
-    },
-    {
-      "answer": "/plugin configure eol-normalizer@m",
-      "why": "interactive route"
+      "why": "near miss: no marketplace"
     },
     {
       "answer": "claude plugin install eol-normalizer@m --config eol_normalizer_enabled=false",
-      "why": "fallback only"
+      "why": "an install rerun, not the configure flow"
     },
     {
       "answer": "",

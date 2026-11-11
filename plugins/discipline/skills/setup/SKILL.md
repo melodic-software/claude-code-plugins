@@ -102,25 +102,23 @@ Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#u
    `sweep-all` preflights this itself and degrades when the fan-out cannot inherit; that runbook owns the behavior; report the prerequisite here only so an unavailable
    fan-out reads as expected rather than as a misconfiguration, and do not restate what
    the degraded pass does.
-8. To change or clear any personal option, direct the user to Claude Code's native flow, per the
-   marketplace's plugin-reconfiguration convention, which owns the verified-version record
-   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>):
-   interactive `/plugin configure discipline@<marketplace>` any time. Headless, preferred on
-   Claude Code 2.1.285 or later:
-   `claude plugin configure discipline@<marketplace> --values-stdin < values.json`, where
-   `values.json` holds `{"<key>": "<value>"}` (every value a string, booleans
-   included; keys left out keep their saved values). Headless fallback, before 2.1.285: rerun
-   `claude plugin install discipline@<marketplace> -s <scope> --config <key>=<value>` (repeatable
-   per key); against an already-installed plugin it prints `already installed` and still writes
-   the value. Never uninstall to reconfigure: that drops the whole stored `pluginConfigs` entry,
-   resetting every option to its manifest default. Scope: the option value lands in user settings
-   whichever route writes it. `claude plugin configure` has no scope flag, so run it from the
-   project the plugin is installed in. For the rerun, pass the scope `claude plugin list` reports
-   for this plugin (from the home directory pass `user`); a rerun at another scope adds an install
-   record there and enables the plugin. Check each route's own failure signal: `--values-stdin`
-   rejects a bad value with exit 1 and saves nothing, but stores an empty string as `""`; the
-   `--config` rerun prints a warning for a rejected value yet exits 0, so read its output. Claude
-   Code owns persistence. Do not hand-edit any `pluginConfigs` key.
+8. To change or clear any personal option, direct the user to Claude Code's native flow,
+   interactively with `/plugin configure discipline@<marketplace>` or by a headless route, as the
+   marketplace's plugin-reconfiguration convention gives them in
+   [§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+   (it owns the verified-version record). Apply the scope and failure-signal caveats in its
+   [§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+   Never uninstall to reconfigure; that section links what an uninstall deletes. Claude Code owns
+   persistence: this skill never writes user settings or `pluginConfigs`, and never hand-edits any
+   `pluginConfigs` key.
+
+   - **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+     when a saved value applies, fetch
+     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+     live.
+   - **As of**: 2026-11-11
+   - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+     refused value, or when a saved value applies.
 9. Tell the user to rerun `check` after reconfiguration **in a fresh session**, and report the
    OBSERVED effective values from that fresh run, never an unobserved change. Substitution of the
    rendered `${user_config.*}` values is documented at

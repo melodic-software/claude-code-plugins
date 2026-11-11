@@ -6,13 +6,13 @@
     "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?node(?:\\.exe)?(?:\\\\\\\"|')?(?:\\s|\\\\\\\\\\\\n)+(?:-[^\\s\\\"\\\\]+(?:\\s|\\\\\\\\\\\\n)+)*(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\']|\\\\\\\\)*install\\.mjs(?:\\\\\\\"|')?(?:\\s|\\\\\\\\\\\\n)+verify\\b"
   ],
   "configure-route": [
-    "claude plugin configure guardrails@\\S+\\s+--values-stdin"
+    "(?:/plugin|claude plugin) configure guardrails@\\S+"
   ],
   "values-false": [
-    "\\\"block_cd_prefix_enabled\\\"\\s*:\\s*\\\"false\\\""
+    "\\bblock_cd_prefix_enabled\\b[^\\n]{0,40}?\\bfalse\\b"
   ],
-  "fallback-after-configure": [
-    "claude plugin configure guardrails@\\S+\\s+--values-stdin[\\s\\S]*?claude plugin install guardrails@\\S+[^\\n]*?--config[ =]block_cd_prefix_enabled=false\\b"
+  "cites-convention": [
+    "\\bplugin[- ]reconfiguration\\b"
   ],
   "names-install-git-hooks": [
     "\\bapply install-git-hooks(?![\\w-]|\\.\\w)"

@@ -197,32 +197,24 @@ tool or an OS capability, so `apply` installs nothing and writes nothing, it onl
 - missing git (worktree targets): platform install instructions.
 - missing `node` or no bash the launcher accepts: the platform's own install channel for Node.js
   or Git for Windows, or on Windows `CLAUDE_CODE_GIT_BASH_PATH` naming an existing `bash.exe`.
-- toggle off: reconfigure through Claude Code's native flow, per the marketplace's
-  plugin-reconfiguration convention, which owns the verified-version record
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>):
-  interactive `/plugin configure disk-hygiene@<marketplace>` any time. Headless, preferred on
-  Claude Code 2.1.285 or later:
-  `claude plugin configure disk-hygiene@<marketplace> --values-stdin < values.json`, where
-  `values.json` holds `{"disk_hygiene_enabled": "true"}` (every value a string, booleans
-  included; keys left out keep their saved values). Headless fallback, before 2.1.285:
-  `claude plugin install disk-hygiene@<marketplace> -s <scope> --config disk_hygiene_enabled=true`
-  (repeatable per key); the convention above records how it behaves against an installed plugin. Do **not** uninstall to
-  reconfigure: this skill never trades the operator's saved options for a reconfigure. For what an
-  uninstall removes, fetch
-  [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps)
-  live (as of 2026-11-03; recheck when that section changes what it deletes). The value always
-  lands in user settings, whichever route writes it.
-  `claude plugin configure` has no scope flag, so run it from the project the plugin is installed
-  in. For the rerun, `-s` defaults to `user`; pass the scope `claude plugin list` reports for this
-  plugin (from the home directory pass `user`), and run from that project's directory for a `project`/`local` scope, or the rerun adds a
-  second install record at the scope passed and enables the plugin there. Check each route's own
-  failure signal: `--values-stdin` rejects a bad value with exit 1 and saves nothing, but stores
-  an empty string as `""`; the `--config` rerun prints a warning for a rejected value yet exits 0,
-  so read its output. This skill never writes user settings or
-  `pluginConfigs`. Afterwards rerun `check` in a **fresh session**: a same-session `check` can still
-  report the OLD value (when a saved value reaches skill content and hook environments:
-  [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value), as of 2026-11-10; recheck when
-  that section changes when a saved value takes effect); report the observed effective value, never an unobserved change.
+- toggle off: set `disk_hygiene_enabled` to `true` through Claude Code's native flow,
+  interactively with `/plugin configure disk-hygiene@<marketplace>` or by a headless route, as the
+  marketplace's plugin-reconfiguration convention gives them in
+  [§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+  (it owns the verified-version record). Apply the scope and failure-signal caveats in its
+  [§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+  Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
+  writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**, since a
+  same-session `check` can still show the old value, and report the observed effective value,
+  never an unobserved change.
+
+  - **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+    when a saved value applies, fetch
+    [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+    live.
+  - **As of**: 2026-11-11
+  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+    refused value, or when a saved value applies.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 

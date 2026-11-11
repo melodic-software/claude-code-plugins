@@ -83,7 +83,7 @@
           }
         }
       ],
-      "why": "uninstall resets every option (setup:142-144)"
+      "why": "uninstall to reconfigure"
     },
     {
       "answer": [

@@ -27,6 +27,12 @@ shows `present`, `absent`, or `unavailable` when the plugin data directory canno
 A `node` or `claude` row reading `[shell command execution disabled by policy]` carries no result:
 run that probe via Bash instead. The SDK row is never re-probed: read it as `unavailable`.
 
+- **Pointer**: for the placeholder a skipped load-time command leaves, fetch
+  [skills § Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: the placeholder text changes.
+
 ## Purpose
 
 Check-only setup under the Check-only carve-out (`docs/plugin-philosophy.md` "Setup is explicit
@@ -110,30 +116,25 @@ Close by pointing at each resolution. A rerun after everything passes changes no
   New-Item -ItemType Directory -Force -Path "${CLAUDE_PLUGIN_DATA}\sdk" | Out-Null; npm install --prefix "${CLAUDE_PLUGIN_DATA}\sdk" @anthropic-ai/claude-agent-sdk <!-- portability-ok: Windows path, not a shell regex -->
   ```
 
-- **Toggle off (or on):** reconfigure through Claude Code's native flow, per the
-  [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md),
-  which owns the verified-version record: interactive
-  `/plugin configure context-budget@<marketplace>`. Headless, preferred on Claude Code 2.1.285 or
-  later: `claude plugin configure context-budget@<marketplace> --values-stdin < values.json`, where
-  `values.json` holds `{"settings_write_ask_enabled": "true"}` (every value a string, booleans
-  included; keys left out keep their saved values). Headless fallback, before 2.1.285:
-  `claude plugin install context-budget@<marketplace> -s <scope> --config settings_write_ask_enabled=true`
-  (repeatable per key). Print these commands; never run either, because both write `pluginConfigs`.
-  - Against an installed plugin the `--config` rerun prints `already installed` **and still writes
-    the value**.
-  - Do **not** uninstall to reconfigure: that drops the plugin's whole `pluginConfigs` entry,
-    resetting every option in the README's Options reference to its manifest default.
-  - The value lands in user settings whichever route writes it. `claude plugin configure` has no
-    scope flag, so run it from the project the plugin is installed in. For the rerun, pass the
-    scope `claude plugin list` reports for this install (`user`, `project` or `local`). `-s`
-    places `enabledPlugins`; a different scope adds an install record and enables the plugin
-    there. From the home directory the list can label one settings file as both `user` and
-    `project`; pass `user`.
-  - Check each route's own failure signal: `--values-stdin` rejects a bad value with exit 1 and
-    saves nothing, but stores an empty string as `""`; the `--config` rerun prints a warning for a
-    rejected value yet exits 0, so read its output.
-  - Afterwards rerun `check` in a **fresh session**: a same-session `check` still reports the old
-    value. Report the observed value, never an unobserved change.
+- **Toggle off (or on):** set `settings_write_ask_enabled` through Claude Code's native flow,
+  interactively with `/plugin configure context-budget@<marketplace>` or by a headless route, as
+  the marketplace's plugin-reconfiguration convention gives them in
+  [§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+  (it owns the verified-version record). Print the route for the operator; never run a headless
+  route, because each writes `pluginConfigs`, which this skill never writes, nor user settings.
+  Apply the scope and failure-signal caveats in its
+  [§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+  Never uninstall to reconfigure; that section links what an uninstall deletes. Afterwards rerun
+  `check` in a **fresh session**, since a same-session `check` can still show the old value, and
+  report the observed effective value, never an unobserved change.
+
+  - **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+    when a saved value applies, fetch
+    [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+    live.
+  - **As of**: 2026-11-11
+  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+    refused value, or when a saved value applies.
 
 ## Next
 

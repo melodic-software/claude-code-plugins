@@ -6,16 +6,20 @@
     {
       "answer": "claude plugin configure --values-stdin typos-format@melodic-software < values.json",
       "why": "flag first"
+    },
+    {
+      "answer": "Interactively, run `/plugin configure typos-format@<marketplace>`.",
+      "why": "interactive route"
     }
   ],
   "fail": [
     {
-      "answer": "Run `/plugin configure typos-format@melodic-software`.",
-      "why": "near miss: interactive"
+      "answer": "claude plugin install typos-format@melodic-software --config typos_format_enabled=false",
+      "why": "an install rerun, not the configure flow"
     },
     {
-      "answer": "claude plugin configure typos-format@melodic-software",
-      "why": "near miss: no --values-stdin"
+      "answer": "claude plugin configure typos-format --values-stdin",
+      "why": "near miss: no marketplace"
     }
   ]
 }

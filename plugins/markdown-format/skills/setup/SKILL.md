@@ -22,6 +22,12 @@ the tool's path when present, or `absent` when missing:
 A row missing, reading as literal command text, or reading `[shell command execution
 disabled by policy]` carries no result: run that tool's `command -v` probe via Bash instead.
 
+- **Pointer**: for the placeholder a skipped load-time command leaves, fetch
+  [skills § Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: the placeholder text changes.
+
 ## Purpose
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
@@ -191,31 +197,24 @@ install command's exit code alone. For everything else `apply` only points:
 
 - missing `jq` / Bash / Node.js: platform install instructions from the README Requirements section;
   this skill never installs system packages.
-- toggle off: reconfigure through Claude Code's native flow, per the marketplace's
-  plugin-reconfiguration convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
-  which owns the verified-version record): interactive `/plugin configure markdown-format@<marketplace>`
-  any time. Headless, preferred: run
-  `claude plugin configure markdown-format@<marketplace> --values-stdin < values.json` from the
-  project the plugin is installed in, with `values.json` holding
-  `{"markdown_format_enabled": "true"}` (every value a string, booleans included; keys left out
-  keep their saved values). Headless fallback, for a Claude Code release without
-  `plugin configure`: rerun
-  `claude plugin install markdown-format@<marketplace> -s <scope> --config markdown_format_enabled=true`
-  (repeatable per key). Against an already-installed plugin it prints `already installed` and
-  still writes the value. Do **not** uninstall to reconfigure: that drops the plugin's entire
-  stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
-  manifest default. Either route stores the value in user settings. `claude plugin configure` has
-  no scope flag and finds only an install visible from the working directory. For the rerun, pass
-  the scope `claude plugin list` reports for this plugin, and for a `project` or `local` scope run
-  from that project's directory, so the rerun matches the existing install record; from the home
-  directory pass `user`. Check each route's own failure signal: `claude plugin configure` rejects a
-  bad value with exit 1 and saves nothing, but stores an empty string as `""`; the rerun prints a
-  warning for a rejected value yet exits 0, so read its output. This skill never writes user
-  settings or `pluginConfigs`. Afterwards rerun
-  `check` in a **fresh session**. The rendered `${user_config.*}` and the hook's
-  `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check` still reports
-  the OLD value; report the observed effective value, never an unobserved change.
+- toggle off: set `markdown_format_enabled` to `true` through Claude Code's native flow,
+  interactively with `/plugin configure markdown-format@<marketplace>` or by a headless route, as
+  the marketplace's plugin-reconfiguration convention gives them in
+  [§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+  (it owns the verified-version record). Apply the scope and failure-signal caveats in its
+  [§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+  Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
+  writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**, since a
+  same-session `check` can still show the old value, and report the observed effective value,
+  never an unobserved change.
+
+  - **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+    when a saved value applies, fetch
+    [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+    live.
+  - **As of**: 2026-11-11
+  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+    refused value, or when a saved value applies.
 - no markdownlint config: this is why the plugin does nothing here, so lead with it rather
   than leaving it as a footnote under the passing prerequisites. Then offer to create a
   minimal `.markdownlint-cli2.jsonc` in the repository root only when explicitly asked.

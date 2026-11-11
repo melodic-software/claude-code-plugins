@@ -4,22 +4,17 @@
       "answer": "`claude plugin configure desktop-notification@<marketplace> --values-stdin < values.json`"
     },
     {
-      "answer": "claude plugin configure desktop-notification@melodic-software  --values-stdin",
-      "why": "real marketplace, two spaces"
+      "answer": "Interactively, run `/plugin configure desktop-notification@<marketplace>`."
     }
   ],
   "fail": [
     {
-      "answer": "/plugin configure desktop-notification@<marketplace>",
-      "why": "interactive route"
+      "answer": "claude plugin install desktop-notification@m --config desktop_notification_enabled=false",
+      "why": "an install rerun, not the configure flow"
     },
     {
       "answer": "claude plugin configure desktop-notification --values-stdin",
-      "why": "no marketplace"
-    },
-    {
-      "answer": "",
-      "why": "empty"
+      "why": "near miss: no marketplace"
     }
   ]
 }

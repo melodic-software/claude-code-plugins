@@ -4,26 +4,17 @@
       "answer": "`claude plugin configure bash-format@<marketplace> --values-stdin < values.json`"
     },
     {
-      "answer": "claude plugin configure bash-format@melodic-software  --values-stdin",
-      "why": "real marketplace, two spaces"
-    },
-    {
-      "answer": "claude plugin configure --values-stdin bash-format@melodic-software",
-      "why": "the flag before the target"
+      "answer": "Interactively, run `/plugin configure bash-format@<marketplace>`."
     }
   ],
   "fail": [
     {
-      "answer": "/plugin configure bash-format@<marketplace>",
-      "why": "interactive route"
+      "answer": "claude plugin install bash-format@m --config bash_format_enabled=false",
+      "why": "an install rerun, not the configure flow"
     },
     {
       "answer": "claude plugin configure bash-format --values-stdin",
-      "why": "no marketplace"
-    },
-    {
-      "answer": "claude plugin configure bash-format@<marketplace>",
-      "why": "near miss: no --values-stdin"
+      "why": "near miss: no marketplace"
     }
   ]
 }
