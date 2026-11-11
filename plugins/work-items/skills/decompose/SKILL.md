@@ -149,7 +149,7 @@ Show the user the draft items, numbered. **work the frontier** (unblocked items 
 
 - **Title**: short descriptive name; read the house style ([`${CLAUDE_PLUGIN_ROOT}/reference/issue-house-style.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-house-style.md)) before drafting these titles and hold them to it
 - **Type**: HITL / AFK, with a `Basis:` for the call: `verified` with the `file:line` or source section it rests on, or `judgment` (not for a consequential call: cross-repo, shared infrastructure, irreversible, or security). A consequential call the source cannot settle is withheld: mark the item HITL and emit an investigation ticket naming the evidence that would settle it. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md#basis-label)
-- **Blocked by**: which other items (by number) must complete first
+- **Blocked by**: which other items (by number) must complete first. A chain where each item builds on the one before can ship as stacked PRs instead of waiting for each merge ([execution-shape.md](${CLAUDE_PLUGIN_ROOT}/reference/execution-shape.md) "Stacked per-item PRs")
 - **User stories covered**: which user stories this addresses (if PRD source)
 - **Criteria carried**: the criterion ids this item carries, from Step 2's criterion trace
 - **Demo**: what someone runs or sees after merge to show this item works, from Step 2's Proof on its own check (a prefactor: the check showing behavior is unchanged; an investigation ticket: the decision it records)

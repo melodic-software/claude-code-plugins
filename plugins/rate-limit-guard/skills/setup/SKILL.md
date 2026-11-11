@@ -18,6 +18,12 @@ tool's path when present, or `absent` when missing:
 A row reading `[shell command execution disabled by policy]` carries no result: run the
 `command -v node` probe via Bash instead.
 
+- **Pointer**: for the placeholder a skipped load-time command leaves, fetch
+  [skills § Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: the placeholder text changes.
+
 ## Purpose
 
 Check-only setup under the Check-only carve-out (`docs/plugin-philosophy.md` "Setup is explicit
@@ -27,33 +33,25 @@ and no `apply` is offered because there is nothing it could conformingly write. 
 qualify it:
 
 - **Native `userConfig`**: eight options whose only stored home is the `pluginConfigs` setup must
-  never write. Reconfigure through Claude Code's native flow, per the marketplace's
-  plugin-reconfiguration convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#verified-version-record>,
-  which owns the verified-version record): interactive `/plugin configure
-  rate-limit-guard@<marketplace>` any time. Headless, preferred: run `claude plugin configure
-  rate-limit-guard@<marketplace> --values-stdin < values.json` from the project the plugin is
-  installed in, with `values.json` holding `{"<key>": "<value>"}` and every value, booleans
-  included, written as a JSON string. Headless fallback, for a Claude Code release without
-  `plugin configure`: rerun `claude plugin install rate-limit-guard@<marketplace> -s <scope>
-  --config <key>=<value>` (repeatable per key) against the installed plugin. Do **not** uninstall
-  to reconfigure. For the rerun, pass the scope `claude plugin list` reports and run from that
-  project's directory for a `project`/`local` scope; from the home directory pass `user`. Check
-  each route's own failure signal: read both its exit code and its output before reporting a
-  value saved. Afterwards rerun `check` in a **fresh session**: a same-session `check` still
-  renders the old value (see the `check` note on rendered values below), so report the observed
-  value, never an unobserved change. The convention's
-  [caveats section](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries)
-  records why for each of these rules; this skill does not restate it.
-  - **Pointer**: when what a route prints, rejects, stores or resets is in doubt, fetch
-    [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
-    [§ plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install) and
-    [§ What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps)
+  never write. Reconfigure through Claude Code's native flow, interactively with
+  `/plugin configure rate-limit-guard@<marketplace>` or by a headless route, as the marketplace's
+  plugin-reconfiguration convention gives them in
+  [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
+  (it owns the verified-version record). Apply the scope and failure-signal caveats in its
+  [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
+  Read both sections and print what they give, the fallback route, its behavior on an
+  already-installed plugin and the scope to pass included, rather than only naming them, and
+  leave out the verified-version record.
+  Never uninstall to reconfigure; that section links what an uninstall deletes. Afterwards rerun
+  `check` in a **fresh session**, since a same-session `check` can still show the old value, and
+  report the observed effective value, never an unobserved change.
+  - **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+    when a saved value applies, fetch
+    [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
-  - **As of**: 2026-11-10
-  - **Recheck trigger**: either convention heading is renamed, or one of those sections changes
-    how a route reports a rejected value, what a rerun at another scope adds, or what an
-    uninstall deletes.
+  - **As of**: 2026-11-11
+  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+    refused value, or when a saved value applies.
 - **External prerequisites**: `node` and the Claude Code version, which `check` probes and whose
   install is the person's.
 
@@ -170,10 +168,15 @@ line.
      it. Report the value as invalid and the default as what runs. A value of the wrong type (text
      for a number or a switch) stops the module loading: report it with step 2's row.
    - Every option except `rate_limit_guard_enabled` acts only where step 2 found the mod running.
-   - The rendered values are injected when this skill loads, and the module reads its options when
-     it loads; Claude Code reloads a module when its options change, so a changed value acts from
-     the next event. The StopFailure hook reads its value at session start. Report the observed
-     value, never an unobserved change.
+   - A change made now is observed only in a **fresh session**: rerun this check there and report
+     the observed value, never an unobserved change.
+
+     - **Pointer**: for when a saved value reaches skill content and hook processes, fetch
+       [plugins manifest reference § Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
+       live.
+     - **As of**: 2026-11-11
+     - **Recheck trigger**: that section changes where or when a saved value is substituted or
+       exported.
 
 ## Uninstalling
 

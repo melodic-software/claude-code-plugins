@@ -90,7 +90,8 @@ count_answer() {
 }
 
 load() {
-  [[ -n "$REPO" ]] || REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null | tr -d '\r')
+  # gh api's placeholders follow GH_REPO; gh repo view with no argument ignores it.
+  [[ -n "$REPO" ]] || REPO=$(api 'repos/{owner}/{repo}' --jq .full_name)
   if [[ -n "$PR" ]]; then
     PULL=$(api "repos/$REPO/pulls/$PR")
     COMMITS=$(paged "repos/$REPO/pulls/$PR/commits")

@@ -214,74 +214,47 @@ fi
 notes=()
 note() { notes+=("$1"); }
 
-# Classify one JSON surface. A path that exists but is not a regular file, or is
-# not readable, is unreadable rather than absent: the caller must be able to tell
-# "there is no policy here" from "I could not look".
+# Classify one JSON surface. A path that exists but is not a readable regular
+# file is unreadable, not absent.
 json_status() {
   local f="$1"
-  [[ -n "$f" ]] || {
+  if [[ -z "$f" ]]; then
     printf 'not-probed'
-    return
-  }
-  [[ -e "$f" ]] || {
+  elif [[ ! -e "$f" ]]; then
     printf 'absent'
-    return
-  }
-  if [[ ! -f "$f" || ! -r "$f" ]]; then
+  elif [[ ! -f "$f" || ! -r "$f" ]]; then
     printf 'unreadable'
-    return
-  fi
-  if [[ "$have_jq" -eq 0 ]]; then
+  elif [[ "$have_jq" -eq 0 ]]; then
     printf 'skipped'
-    return
-  fi
-  if ! "$jq_bin" -e 'type == "object"' "$f" >/dev/null 2>&1; then
+  elif ! "$jq_bin" -e 'type == "object"' "$f" >/dev/null 2>&1; then
     printf 'invalid-json'
-    return
+  else
+    printf 'present'
   fi
-  printf 'present'
 }
 
 # Classify one directory scope before anything walks it. A symlink to a
-# directory IS a directory here and is walked; a dangling symlink, a plain file
-# in a directory's place, or a directory this uid cannot open is unreadable, so
-# the count next to it is a status word instead of the 0 that would read as a
-# real absence.
+# directory is walked; a dangling symlink, a file in a directory's place, or a
+# directory this uid cannot open is unreadable.
 dir_status() {
   local d="$1"
-  [[ -n "$d" ]] || {
+  if [[ -z "$d" ]]; then
     printf 'not-probed'
-    return
-  }
-  if [[ -d "$d" ]]; then
-    if [[ -r "$d" && -x "$d" ]]; then
-      printf 'present'
-    else
-      printf 'unreadable'
-    fi
-    return
-  fi
-  if [[ -e "$d" || -L "$d" ]]; then
+  elif [[ -d "$d" && -r "$d" && -x "$d" ]]; then
+    printf 'present'
+  elif [[ -e "$d" || -L "$d" ]]; then
     printf 'unreadable'
-    return
+  else
+    printf 'absent'
   fi
-  printf 'absent'
 }
 
-# The only tree walk in this script. Start points come first, then a literal --,
-# then the find expression.
-#
-#   -H            follows a symlinked START POINT, so a .claude/skills that is a
-#                 symlink to the real tree is descended. Without it find refuses
-#                 to descend the start point and reports nothing, which is the
-#                 "0 produced by not looking" this file exists to prevent. Only
-#                 the start point is followed, so a symlink loop inside the tree
-#                 still cannot trap the walk.
-#   prune         .git carries a hooks/ directory whose *.sample files are not
-#                 anybody's hook scripts, and a vendored node_modules tree can
-#                 carry any layout at all. Both are pruned from every walk.
-#   -print0       a path may contain a newline. Line-delimited output would turn
-#                 one such file into two records and lose the real one.
+# The only tree walk: start points, a literal --, then the find expression.
+#   -H       descends a symlinked START POINT only, so a symlink loop inside the
+#            tree cannot trap the walk.
+#   prune    .git/hooks/*.sample files are nobody's hook scripts, and a vendored
+#            node_modules tree can carry any layout.
+#   -print0  a newline inside a path cannot split one record into two.
 find0() {
   local dirs=()
   while [[ "$#" -gt 0 && "$1" != "--" ]]; do
@@ -293,8 +266,8 @@ find0() {
   find -H "${dirs[@]}" \( -name .git -o -name node_modules \) -prune -o \( "$@" \) -print0 2>/dev/null
 }
 
-# Counts a NUL-delimited stream on stdin. wc -l would count newlines, which are
-# legal inside a path and would therefore over-count.
+# Counts a NUL-delimited stream on stdin; wc -l would over-count a path holding
+# a newline.
 count0() { tr -cd '\000' | wc -c | tr -d ' '; }
 
 # A settings file names its hook block under the `hooks` key; a plugin manifest
@@ -305,10 +278,8 @@ SETTINGS_HANDLERS_JQ='[(.hooks // {}) | to_entries[] | .value[]? | (.hooks // []
 PLUGIN_EVENTS_JQ='def hk: if has("hooks") then .hooks else . end; [hk | to_entries[] | select((.value | type) == "array" and (.value | length) > 0) | .key] | length'
 PLUGIN_HANDLERS_JQ='def hk: if has("hooks") then .hooks else . end; [hk | to_entries[] | .value[]? | (.hooks // []) | length] | add // 0'
 
-# Runs one jq program over one file and prints its number. A jq that could not
-# run, or a program whose result is not a plain non-negative integer, prints
-# NOTHING and returns 1, so a hooks key holding a string, a number, a boolean
-# or an array never reads as "present, no hooks".
+# Runs one jq program over one file and prints its number. A failed run, or a
+# result that is not a non-negative integer, prints NOTHING and returns 1.
 jq_num() {
   local program="$1" file="$2" out
   out="$("$jq_bin" -r "$program" "$file" 2>/dev/null)" || return 1
@@ -318,9 +289,8 @@ jq_num() {
   esac
 }
 
-# The jq type of one expression, or the empty string when jq could not run. An
-# array answers most of the count programs without erroring, so the type has to
-# be asked directly rather than inferred from a query that happened to succeed.
+# The jq type of one expression, or empty when jq could not run. Asked directly
+# because an array answers most count programs without erroring.
 jq_type() { "$jq_bin" -r "$1 | type" "$2" 2>/dev/null; }
 
 # Discovered plugin roots. `.claude-plugin/plugin.json` is the documented marker,
@@ -332,20 +302,16 @@ while IFS= read -r -d '' manifest; do
 done < <(find -H . -maxdepth 4 \( -name .git -o -name node_modules \) -prune -o \
   -type f -path '*/.claude-plugin/plugin.json' -print0 2>/dev/null)
 
-# Walks every discovered plugin root, or emits nothing when this repository ships
-# no plugins.
+# Walks every discovered plugin root, or emits nothing when there is none.
 find0_plugin_roots() {
   [[ "${#plugin_roots[@]}" -gt 0 ]] || return 0
   find0 "${plugin_roots[@]}" -- "$@"
 }
 
-# With no plugin root, find0_plugin_roots emits nothing and count0 answers 0, so
-# the empty case needs no arm of its own.
 count_in_plugin_roots() { find0_plugin_roots "$@" | count0; }
 
-# Counts files under one directory scope whose status was classified first. Only
-# a scope that was actually walked gets a number; anything else gets its status
-# word, so a count in this output is always a measurement.
+# Counts files under one classified directory scope: a number only for a scope
+# actually walked, else its status word.
 count_dir() {
   local status="$1" dir="$2"
   shift 2
@@ -435,19 +401,17 @@ settings_hook_counts() {
     shc_status=unreadable
     shc_events=0
     shc_handlers=0
-    return 0
   fi
   return 0
 }
 
 settings_row() {
-  local label="$1" file="$2" declaring
+  local label="$1" file="$2" declaring=0
   settings_hook_counts "$file"
   if [[ "$shc_status" != "present" ]]; then
     row "$label" "$shc_status" standing 1 - - "$file"
     return
   fi
-  declaring=0
   [[ "$shc_events" -gt 0 ]] && declaring=1
   row "$label" "$shc_status" standing 1 "$declaring" "$shc_handlers" "$file"
 }
@@ -512,8 +476,8 @@ managed_policy_row() {
     note "managed-settings.d exists at $dropin_dir with ${#drops[@]} drop-in file(s); they merge on top of managed-settings.json and are counted in the managed-policy row above. That row counts registrations read, so a handler written identically in two of these files is one entry in force and two there."
   fi
 
-  # Nothing was read, so there is nothing to count and the row carries the base
-  # file's status word exactly as a single-file row would.
+  # Nothing was read: the row carries the base file's status as a single-file
+  # row would.
   if [[ "$read_any" -eq 0 ]]; then
     row managed-policy "$base_status" standing "$probed" - - "$base"
     return

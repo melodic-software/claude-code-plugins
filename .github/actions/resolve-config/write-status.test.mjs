@@ -275,6 +275,35 @@ test("statusWriter set with keepHold and releases replaces only the person's hol
   assert.equal(other.posts().length, 0, "a different person's hold set meanwhile stands");
 });
 
+test("statusWriter set with from reads the field fresh and leaves a state outside from, even when this process wrote the issue", async () => {
+  const app = 337595936;
+  const from = [null, "needs-triage", "ready"];
+  for (const [why, option, outcome] of [
+    ["the lanes App's agent-ready", 84879220, { outcome: "moved", state: "agent-ready" }],
+    ["the lanes App's deferred", 86380004, { outcome: "moved", state: "deferred" }],
+    ["the lanes App's confirmed", 86380002, { outcome: "moved", state: "confirmed" }],
+  ]) {
+    const w = fieldWorld(option, app);
+    assert.deepEqual(await (await writerOver(w.github)).set(7, "needs-triage", { keepHold: true, from }), outcome, why);
+    assert.equal(w.posts().length, 0, `${why} is never replaced`);
+  }
+  for (const [why, option, outcome] of [
+    ["unset", null, "written"],
+    ["the lanes App's ready", 86380003, "written"],
+    ["the lanes App's needs-triage", 84879216, "unchanged"],
+  ]) {
+    const w = fieldWorld(option, app);
+    assert.equal((await (await writerOver(w.github)).set(7, "needs-triage", { keepHold: true, from })).outcome, outcome, why);
+    assert.equal(w.posts().length, outcome === "written" ? 1 : 0, why);
+  }
+  const later = fieldWorld(null);
+  const { set } = await writerOver(later.github);
+  assert.equal((await set(8, "ready")).outcome, "written");
+  later.put(84879220, app);
+  assert.deepEqual(await set(8, "needs-triage", { from }), { outcome: "moved", state: "agent-ready" }, "from alone reads the field again");
+  assert.deepEqual(later.posts().map(([, , body]) => body.issue_field_values[0].value), ["ready"]);
+});
+
 test("statusWriter set with keepHold throws and writes nothing when the field cannot be read", async () => {
   const calls = [];
   const github = async (method, path) => {

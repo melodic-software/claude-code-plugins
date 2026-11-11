@@ -97,8 +97,8 @@ Two things to get right:
 
 A scheduled CI job can run the lane, and the trade is the sharpest of the four.
 
-**What it buys:** a cadence nobody has to remember, and a queue route that reaches a human through
-the forge.
+**What it buys:** a cadence nobody has to remember, with the report reaching a human through the
+forge's run summary.
 
 **What it costs:** a scheduled CI lane *is itself an enforcement-surface item*, one this plugin's
 own audit will later walk, judge on carry cost, and quite possibly recommend retiring. Wire it

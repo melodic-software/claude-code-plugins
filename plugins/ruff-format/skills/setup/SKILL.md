@@ -22,6 +22,12 @@ the tool's path when present, or `absent` when missing:
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
 `command -v` probe via Bash instead.
 
+- **Pointer**: for the placeholder a skipped load-time command leaves, fetch
+  [skills § Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: the placeholder text changes.
+
 ## Purpose
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
@@ -53,7 +59,9 @@ When the plugin's toggle is disabled, every prerequisite absence except Node.js 
 from FAIL to INFO. The hook script exits through its enabled-gate before probing anything, so
 a deliberately disabled plugin is not broken. Node.js stays FAIL: `hooks.json` spawns `node`
 before the script can read the toggle. Report the probes informationally and note that re-enabling
-restores the FAIL semantics.
+restores the FAIL semantics. A tool the git pre-commit entry needs keeps the grade it gets with the
+toggle on while that entry is installed (step 8 reports it as a `tool` line beside an `ok`, `stale`
+or `modified` entry): the entry runs at commit outside Claude Code and reads no toggle.
 
 1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the batch hook then does nothing,
@@ -113,10 +121,12 @@ with your own edit tools.
    stop here and report.
 4. **Actions.** When `actions[]` holds `copy` items, run
    `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" copy --scope <scope>` (plus the same
-   `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused` or
-   `blocked` per entry; `refused` means a locally edited copy, which the `modified` decision
-   covers, and `blocked` means another tool owns the local hooks directory, which the
-   `hooks-path-owned` decision covers.
+   `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused`,
+   `blocked`, `unsafe-path` or `stage-failed` per entry; `refused` means a locally edited copy or
+   dispatcher, which the `modified` decision covers, `blocked` that another tool owns the local
+   hooks directory, which the `hooks-path-owned` decision covers, `unsafe-path` the decision of
+   that name, and `stage-failed` that `git add` failed on a shared install: report it, since the
+   team would not receive the files.
 5. **Decisions.** Read [reference/git-hook-decisions.md](reference/git-hook-decisions.md) for
    what each kind asks of you, apply each one, then rerun `plan` until only the decisions you
    chose to leave remain.
@@ -153,8 +163,9 @@ Principles, in order. They decide every case, whatever the tool:
    manifest and lockfile record it. A bare `pip install` into its environment is state
    the tool's next sync or clean silently removes.
 3. **Never create or mutate an environment.** When no environment exists yet, use the
-   tool's record-only mode when it has one (e.g. `uv add --dev ruff --no-sync`. Plain
-   `uv add` syncs and would create `.venv`) and hand the sync/install step to the
+   tool's record-only mode when it has one (e.g. `uv add --dev ruff --no-sync`; pointer:
+   [`uv add`](https://docs.astral.sh/uv/reference/cli/#uv-add), as of 2026-11-10, recheck trigger:
+   `--no-sync` stops skipping the environment sync) and hand the sync/install step to the
    consumer as their own command; when the tool's add command cannot avoid
    creating/instantiating an environment, don't run it. Give it as guidance instead.
 4. **Only where the hook resolves.** The hook resolves repo-ancestor `.venv` interpreters
@@ -177,29 +188,27 @@ only points:
 
 - missing `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
-- toggle off: reconfigure through Claude Code's native flow, per the marketplace's
-  plugin-reconfiguration convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
-  which owns the verified-version record): interactive `/plugin configure ruff-format@<marketplace>`
-  any time. Headless, preferred (Claude Code 2.1.285 or later):
-  `claude plugin configure ruff-format@<marketplace> --values-stdin < values.json`, with
-  `values.json` holding `{"ruff_format_enabled": "false"}` (every value a string, booleans
-  included; keys left out keep their saved values). Headless fallback (an older release):
-  `claude plugin install ruff-format@<marketplace> -s <scope> --config ruff_format_enabled=false`
-  (repeatable per key); against an already-installed plugin it prints `already installed` and
-  still writes the value. Do **not** uninstall to reconfigure: that drops this plugin's entire
-  stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
-  manifest default. Scope: the value always lands in user settings. Run either route from the
-  project the plugin is installed in (`configure` has no scope flag). For the rerun, `-s`
-  defaults to `user`, so pass the scope `claude plugin list` reports, or the rerun adds a second
-  install record at the scope passed and enables the plugin there; from the home directory, where
-  the list can label one settings file both `user` and `project`, pass `user`. Check each route's own failure
-  signal: `configure` rejects a bad value with exit 1 and saves nothing, but stores an empty
-  string as `""`; the rerun prints a warning for a rejected value yet exits 0, so read its output.
-  This skill never writes user settings or `pluginConfigs`. Afterwards rerun
-  `check` in a **fresh session**. The rendered `${user_config.*}` is injected at skill load and
-  each hook's `CLAUDE_PLUGIN_OPTION_*` is fixed at session start, so a same-session `check` still
-  reports the OLD value; report the observed effective value, never an unobserved change.
+- toggle off: set `ruff_format_enabled` to `false` through Claude Code's native flow,
+  interactively with `/plugin configure ruff-format@<marketplace>` or by a headless route, as the
+  marketplace's plugin-reconfiguration convention gives them in
+  [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
+  (it owns the verified-version record). Apply the scope and failure-signal caveats in its
+  [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
+  Read both sections and print what they give, the fallback route, its behavior on an
+  already-installed plugin and the scope to pass included, rather than only naming them, and
+  leave out the verified-version record.
+  Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
+  writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**, since a
+  same-session `check` can still show the old value, and report the observed effective value,
+  never an unobserved change.
+
+  - **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+    when a saved value applies, fetch
+    [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+    live.
+  - **As of**: 2026-11-11
+  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+    refused value, or when a saved value applies.
 - no Ruff config: offer to create a minimal Ruff config in the repository root only when
   explicitly asked. The plugin imposes no rules of its own.
 

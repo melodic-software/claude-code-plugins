@@ -9,8 +9,10 @@ Resolve the script:
 
 ```bash
 BACKFILL="<plugin-root>/scripts/backfill-capability-tier-labels.sh"
-[[ -f "$BACKFILL" ]] || BACKFILL="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/plugins/work-items/scripts/backfill-capability-tier-labels.sh"
+[[ -f "$BACKFILL" ]] || BACKFILL="<project root>/plugins/work-items/scripts/backfill-capability-tier-labels.sh"
 ```
+
+`<project root>` is the literal path [`tracker-seam.md`](../../../reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet.
 
 1. **Skip when no binding exists.** Nothing is bound yet.
 2. **Skip when the bound provider has no label listing or bulk open-item listing** (`local-markdown`,

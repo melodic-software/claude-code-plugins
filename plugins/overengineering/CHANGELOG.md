@@ -3,6 +3,25 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0] - 2026-11-11
+
+### Changed
+
+- `delta`'s `## Queued for the human` section ends with a draft work item when the queue is not
+  empty, for a human or the triage lane to file with `/work-items:track add`.
+
+### Removed
+
+- The `delta` skill's `queue_route` setting. A cycle no longer files or updates a work item through
+  `work-items:track`, whose `add` action accepts no other skill's steps as authorization to file.
+  A `queue_route` key left in config is ignored.
+
+## [0.10.8] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [0.10.7] - 2026-11-09
 
 ### Changed

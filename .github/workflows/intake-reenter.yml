@@ -157,12 +157,16 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          # Starts new work: also stop on a low GITHUB_TOKEN budget.
+          budget: "true"
 
       - name: Report the kill switch
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
-        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing read or labeled"
+          CAUSE: ${{ steps.kill.outputs.cause }}
+          WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
+        run: echo "::notice::${WHY} this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing read or labeled"
 
       # reenter.mjs reads an issue's Work status field through resolve-config.mjs,
       # whose packages only the resolve-config action installs; this job does

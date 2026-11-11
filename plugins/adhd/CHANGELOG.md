@@ -3,6 +3,18 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.12] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [0.10.11] - 2026-11-11
+
+### Changed
+
+- The shape skill's compaction gotcha points at Claude Code's skill content lifecycle section instead of describing what compaction keeps. No behavior change.
+
 ## [0.10.10] - 2026-11-09
 
 ### Changed

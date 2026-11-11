@@ -24,6 +24,8 @@ consumer-run.
   claude plugin configure <plugin>@<marketplace> --values-stdin < values.json
   ```
 
+  PowerShell reserves `<`, so pipe the file there instead:
+  `Get-Content values.json | claude plugin configure <plugin>@<marketplace> --values-stdin`.
   `values.json` holds `{"KEY": "VALUE"}`; every value is a string, booleans included (`"true"`,
   `"false"`), and keys left out keep their saved values. Without `--values-stdin` the command
   lists each option as `set` or `not set` and prints no values; `--json` adds the option schema
@@ -136,13 +138,24 @@ newer release is verified.
 
 ## The short form setups print
 
-A setup skill states, in its own words but without restating the verified-version record: the
-routes, preferred headless route first, the four caveats above, and a citation of this doc as the
-owner of the verification record. Canonical citation (installed plugins cannot read this
-repository's working tree, so cite the published URL):
-
+A setup skill states the decisions in its own words: reconfigure through the native flow
+(naming `/plugin configure <plugin>@<marketplace>`), never uninstall to reconfigure, never write
+user settings or `pluginConfigs`, and recheck in a fresh session, reporting only an observed
+value. For the headless routes and the scope and failure-signal caveats it cites
+[The routes](#the-routes) and
+[Caveats every setup skill's short form carries](#caveats-every-setup-skills-short-form-carries)
+by heading, tells the agent to read them and print what they give (the fallback route, its
+behavior on an already-installed plugin and the scope to pass included) rather than only name
+them, leaving out the verified-version record, and it carries a pointer record to
+[plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure).
+It restates neither the commands' flags and version floor nor the verified-version record.
+Installed plugins cannot read this repository's working tree, and an agent may have no network,
+so each plugin whose setup skill cites this doc carries a generated copy at
+`reference/plugin-reconfiguration.md` (registered in `scripts/shared-copies.txt`), and the skill
+links that copy by a relative path such as `../../reference/plugin-reconfiguration.md#the-routes`.
+Human-facing text cites the published URL:
 <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>
 
 The setup contract's other fixed step, retired-conventions detection in `check` and gated cleanup
 in `apply`, is conditional on the plugin shipping `retirements.yaml`, and its canonical text lives
-in the [retired-conventions convention](../retired-conventions/README.md#the-two-fixed-setup-lines).
+in the [retired-conventions convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/retired-conventions/README.md#the-two-fixed-setup-lines).

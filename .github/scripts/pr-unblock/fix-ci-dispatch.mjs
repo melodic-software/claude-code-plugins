@@ -54,7 +54,7 @@ import {
   timeLimitNoted,
 } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { postingAttempt } from "../../actions/report-check-run/posting-run.mjs";
-import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
+import { emptyRecord, isHandled, markHandled, sendDispatch } from "./dispatch-record.mjs";
 import { STOP_RESOLVED } from "./escalation-routes.mjs";
 import { HOLD_LINE, runTitle } from "./feedback-dispatch.mjs";
 import { failingChecks } from "./fix-ci-context.mjs";
@@ -93,7 +93,6 @@ const NOTHING_TO_FIX = new Set(["Skipped: not-applicable", STOP_RESOLVED]);
 // The neutral check a run skipped on a held PR posts.
 const HELD_SKIP = "Skipped: awaiting-human";
 
-const RUN_ID = /^[1-9][0-9]{0,14}$/;
 const MAX_PAGES = 20;
 
 // The tracker's human-gated label from the binding's JSON text, as
@@ -528,23 +527,18 @@ export async function dispatchCiFixes({
   let sent = 0;
   const send = async (node, cause) => {
     sent += 1;
-    try {
-      const { workflowRunId } = await api.dispatchWorkflow({
-        workflow,
-        ref: `refs/heads/${base}`,
-        inputs: { "pr-number": String(node.number), activity, "dispatcher-run-id": String(runId) },
-      });
-      const id = String(workflowRunId);
-      if (!RUN_ID.test(id)) {
-        failed += 1;
-        log(`::error::#${node.number}: dispatch returned no valid workflow_run_id`);
-        return;
-      }
-      dispatched.push({ number: node.number, workflowRunId: id });
-      log(`dispatched fix-ci #${node.number} head ${node.headRefOid} workflow_run_id=${id} (cause: ${cause()})`);
-    } catch (error) {
+    const id = await sendDispatch(api, log, {
+      workflow,
+      base,
+      node,
+      label: "fix-ci ",
+      note: () => ` (cause: ${cause()})`,
+      inputs: { "pr-number": String(node.number), activity, "dispatcher-run-id": String(runId) },
+    });
+    if (id === null) {
       failed += 1;
-      log(`::error::#${node.number}: dispatch failed: ${error.message}`);
+    } else {
+      dispatched.push({ number: node.number, workflowRunId: id });
     }
   };
   for (const node of candidates) {

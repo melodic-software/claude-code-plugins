@@ -69,11 +69,13 @@ Coordination through the seam:
 
 ```bash
 TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
-[[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
+[[ -f "$TRACKER" ]] || TRACKER="<project root>/tools/work-item-tracker/work-item-tracker.sh"
 "$TRACKER" get-item "<container-id>"                      # identity, state, parent_id — NOT the body
 "$TRACKER" list-sub-items "<container-id>" --state all    # rollup: closed / open / claimed
 "$TRACKER" list-frontier --parent "<container-id>"        # workable now (open ∧ unblocked ∧ unassigned)
 ```
+
+`<project root>` is the literal path [`tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet.
 
 **The spec text is a separate, provider-mechanic read.** The seam's normalized item object carries
 no `body` field ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)

@@ -40,7 +40,7 @@ CFV_LIB_DIR="${BASH_SOURCE[0]%/*}"
 source "$CFV_LIB_DIR/cli-flag-cache.sh"
 
 usage() {
-  sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,/^$/{s/^# \{0,1\}//;p;}' "${BASH_SOURCE[0]}"
 }
 
 QUIET=false
@@ -71,16 +71,14 @@ while (($# > 0)); do
   esac
 done
 
-ARGS=("$@")
-
-if ((${#ARGS[@]} < 2)); then
+if (($# < 2)); then
   echo "verify-cli-flag: error: expected <bin> [<subcmd>...] --<flag>" >&2
   echo "Run with --help for usage." >&2
   exit 3
 fi
 
 # Last positional must be a --flag token. Everything before it is bin+subcmds.
-FLAG="${ARGS[-1]}"
+FLAG="${!#}"
 if [[ "$FLAG" != --* ]]; then
   echo "verify-cli-flag: error: last argument must start with '--' (got '$FLAG')" >&2
   exit 3
@@ -89,11 +87,8 @@ fi
 # Strip trailing =VALUE if present (e.g. --output-format=json).
 FLAG_NAME="${FLAG%%=*}"
 
-unset 'ARGS[-1]'
-BIN="${ARGS[0]}"
-unset 'ARGS[0]'
-# Remaining ARGS are subcommands. Empty array if none.
-SUBCMDS=("${ARGS[@]}")
+BIN="$1"
+SUBCMDS=("${@:2:$#-2}")
 
 # Verify binary on PATH.
 if ! command -v "$BIN" >/dev/null 2>&1; then
@@ -151,11 +146,8 @@ else
   # a prefix and report a documented flag as unknown. `mv` is atomic within a
   # filesystem: the reader sees the previous whole text or the new whole text.
   CACHE_TMP="$CACHE_FILE.$$.tmp"
-  if printf '%s' "$HELP_OUTPUT" >"$CACHE_TMP" 2>/dev/null; then
-    mv -f "$CACHE_TMP" "$CACHE_FILE" 2>/dev/null || rm -f "$CACHE_TMP" 2>/dev/null || true
-  else
+  printf '%s' "$HELP_OUTPUT" >"$CACHE_TMP" 2>/dev/null && mv -f "$CACHE_TMP" "$CACHE_FILE" 2>/dev/null ||
     rm -f "$CACHE_TMP" 2>/dev/null || true
-  fi
 fi
 
 # The match pattern is the shared definition (cli-flag-cache.sh documents the
@@ -168,9 +160,7 @@ cfv_flag_pattern_to FLAG_PATTERN "$FLAG_NAME"
 # exactly as it did under grep. No pipe, no process, no pipe-capacity window.
 # The --verbose path below still greps, because it wants the line number.
 if [[ "$HELP_OUTPUT" =~ $FLAG_PATTERN ]]; then
-  if $VERBOSE; then
-    printf '%s\n' "$HELP_OUTPUT" | grep -nE "$FLAG_PATTERN" | head -1
-  fi
+  $VERBOSE && grep -m 1 -nE "$FLAG_PATTERN" < <(printf '%s\n' "$HELP_OUTPUT")
   exit 0
 fi
 

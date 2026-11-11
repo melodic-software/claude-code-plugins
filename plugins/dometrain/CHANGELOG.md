@@ -3,6 +3,32 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [0.9.0] - 2026-11-11
+
+### Changed
+
+- **Breaking: the `sync` skill is renamed `/dometrain:update`**, matching the `update` skills in
+  `firecrawl` and `playbooks`. Its script now takes `--check` (the default, a read-only drift
+  report) and `--apply` (refresh the vendored baseline), replacing the bare report mode and
+  `--refresh-baseline`. `/dometrain:update --apply` runs the refresh from a working-tree checkout;
+  it stays human-only (`disable-model-invocation`). Type `/dometrain:update` where you typed the
+  old `sync` command.
+
+## [0.8.17] - 2026-11-11
+
+### Changed
+
+- The grounding skill points at the Dometrain MCP README's Tools, Notes and Troubleshooting sections
+  for ranking, quota and `429` behavior instead of restating them, including the quota-note
+  threshold (also kept in the vendored upstream skill `/dometrain:sync` diffs against). No behavior
+  change.
+
 ## [0.8.16] - 2026-11-09
 
 ### Changed

@@ -185,6 +185,7 @@ const WARN_ALL = WARN_PATTERN && new RegExp(WARN_PATTERN.source, `${WARN_PATTERN
 // is what folds it.
 const folds = (line) => /<[^<>]*>|&#?\w+;|\\u[0-9a-f]{4}|\\[^\sA-Za-z0-9/."']/i.test(line);
 const credential = (label) => ({ block: label, credential: true });
+const blockingIn = (line) => BLOCKING.find(([, re]) => re.test(line))?.[0];
 
 // Each line is judged on its own: every blocking pattern on the raw line,
 // then findSecret (which adds the normalized copy). When findSecret names the
@@ -193,8 +194,8 @@ const credential = (label) => ({ block: label, credential: true });
 // markup or escapes normalize() folds, or whose assignment only the folded
 // copy shows, blocks under HIDDEN: blanking cannot be trusted there.
 const classifyLine = (line) => {
-  const raw = BLOCKING.find(([, re]) => re.test(line));
-  if (raw) return credential(raw[0]);
+  const raw = blockingIn(line);
+  if (raw) return credential(raw);
   const first = findSecret(line);
   if (!first) return {};
   if (first[0] !== WARN_ONLY || !WARN_PATTERN) return credential(first[0]);
@@ -231,11 +232,12 @@ const classify = (text) => {
 //   matches alone. In a diff the pair is hunk lines with their +,
 //   - or space prefix removed and the file headers dropped, or a token split
 //   inside an added hunk would join as "...ab+cd..." and never match.
+const JOINABLE_ALL = JOINABLE.map(([label, re]) => [label, re, new RegExp(re.source, `${re.flags.replace("g", "")}g`)]);
 const straddles = (left, right) => {
   const joined = left + right;
-  for (const [label, re] of JOINABLE) {
+  for (const [label, re, all] of JOINABLE_ALL) {
     if (re.test(left) || re.test(right)) continue;
-    for (const match of joined.matchAll(new RegExp(re.source, `${re.flags.replace("g", "")}g`))) {
+    for (const match of joined.matchAll(all)) {
       if (match.index < left.length && match.index + match[0].length > left.length) return label;
     }
   }
@@ -243,13 +245,14 @@ const straddles = (left, right) => {
 };
 const credentialIn = (text) => {
   for (const line of text.split(/\r?\n/)) {
-    const raw = BLOCKING.find(([, re]) => re.test(line));
-    if (raw) return raw[0];
+    const raw = blockingIn(line);
+    if (raw) return raw;
   }
   const found = firstHit(SECRET_PATTERNS, text);
   return found && found[0] !== WARN_ONLY ? found[0] : null;
 };
 const HUNK_HEADER = /^(?:\+\+\+|---) /;
+const isHunkLine = (line) => /^[-+ ]/.test(line) && !HUNK_HEADER.test(line);
 
 // JSON writes a line break or tab as \n, \r or \t, which leaves a letter where the break was, so a
 // \b-anchored credential right after one has no word boundary. normalize() keeps a backslash
@@ -266,7 +269,7 @@ export function deeperLeak(text, diff = false) {
     if (label) return label;
   }
   let lines = plain.split(/\r?\n/);
-  if (diff) lines = lines.filter((line) => /^[-+ ]/.test(line) && !HUNK_HEADER.test(line)).map((line) => line.slice(1));
+  if (diff) lines = lines.filter(isHunkLine).map((line) => line.slice(1));
   for (let i = 0; i + 1 < lines.length; i += 1) {
     const label = straddles(lines[i], lines[i + 1]);
     if (label) return label;
@@ -406,7 +409,7 @@ export function locateHit(bytes, block, { diff = false } = {}) {
   const escaped = linesOf(decoded).findIndex((line) => linesOf(unescapeBreaks(line)).some((part) => hits(part, normalize(part))));
   if (escaped >= 0) return { line: escaped + 1 };
   let numbered = plain.split(/\r?\n/).map((line, index) => [line, index]);
-  if (diff) numbered = numbered.filter(([line]) => /^[-+ ]/.test(line) && !HUNK_HEADER.test(line)).map(([line, index]) => [line.slice(1), index]);
+  if (diff) numbered = numbered.filter(([line]) => isHunkLine(line)).map(([line, index]) => [line.slice(1), index]);
   for (let i = 0; i + 1 < numbered.length; i += 1) {
     if (hits(numbered[i][0] + numbered[i + 1][0])) return { line: numbered[i][1] + 1 };
   }
@@ -472,25 +475,27 @@ export const VISIBILITIES = Object.freeze(["PUBLIC", "PRIVATE", "INTERNAL", "UNK
 export function publishGate({ explicit, visibility, text, subject = "content", medium = "artifact", requested = "public" }) {
   if (medium === "hosted") return hostedGate({ visibility, text, subject, requested });
   if (explicit) return { medium: "artifact", destination: DESTINATION, reason: "a layer sets medium: artifact" };
-  if (visibility !== "PUBLIC" && visibility !== "NONE") {
-    return { medium: "file", reason: `repository visibility is ${visibility || "unknown"}, not PUBLIC`, opt_in: OPT_IN };
-  }
+  const closed = notPublic(visibility);
+  if (closed) return { medium: "file", reason: closed, opt_in: OPT_IN };
   const secret = findSecret(text);
   if (secret) return { medium: "file", reason: `${subject} line ${secret[1]} looks like a ${secret[0]}`, opt_in: OPT_IN };
-  const source = visibility === "NONE" ? "no repository source" : "public repository";
-  return { medium: "artifact", destination: DESTINATION, reason: `${source} and nothing credential-shaped in the ${subject}` };
+  return { medium: "artifact", destination: DESTINATION, reason: `${sourceOf(visibility)} and nothing credential-shaped in the ${subject}` };
 }
+
+const notPublic = (visibility) =>
+  visibility === "PUBLIC" || visibility === "NONE" ? null : `repository visibility is ${visibility || "unknown"}, not PUBLIC`;
+const sourceOf = (visibility) => (visibility === "NONE" ? "no repository source" : "public repository");
 
 function hostedGate({ visibility, text, subject, requested }) {
   const secret = findSecret(text);
   if (secret) return { medium: "file", reason: `${subject} line ${secret[1]} looks like a ${secret[0]}; a hosted page is refused` };
   const to = (destination, reason) => ({ medium: "hosted", destination, reason });
   if (requested !== "public") return to("private", "the private host was requested");
-  if (visibility !== "PUBLIC" && visibility !== "NONE") return to("private", `repository visibility is ${visibility || "unknown"}, not PUBLIC`);
+  const closed = notPublic(visibility);
+  if (closed) return to("private", closed);
   const machine = findMachine(text);
   if (machine) return to("private", `${subject} line ${machine[1]} names a ${machine[0]}`);
-  const source = visibility === "NONE" ? "no repository source" : "public repository";
-  return to("public", `${source} and nothing credential-, path- or host-shaped in the ${subject}`);
+  return to("public", `${sourceOf(visibility)} and nothing credential-, path- or host-shaped in the ${subject}`);
 }
 
 /** CLI: the argument vector after the script path; returns the exit code. */

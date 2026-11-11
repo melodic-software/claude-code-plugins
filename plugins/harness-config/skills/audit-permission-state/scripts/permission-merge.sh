@@ -219,7 +219,8 @@ function managed_scopes_only(list,   n, i, parts, out) {
 NF >= 3 {
   n_surfaces++
   status = $3
-  if (status == "skipped" || status == "unreadable" || status == "invalid-json") {
+  is_unread = (status == "skipped" || status == "unreadable" || status == "invalid-json")
+  if (is_unread) {
     unread[++n_unread] = $1 " " $2 " (" status ") " $4
     unread_status[n_unread] = status
     unread_scope[n_unread] = $1
@@ -236,7 +237,7 @@ NF >= 3 {
       guard_basis = (guard_basis == "" ? $2 : guard_basis "," $2)
     else if ($2 == "remote-cache" && status == "present")
       remote_cache = 1
-    else if ($2 != "remote-cache" && (status == "skipped" || status == "unreadable" || status == "invalid-json"))
+    else if ($2 != "remote-cache" && is_unread)
       managed_unread = 1
   }
 }
@@ -287,11 +288,10 @@ END {
 
   for (i = 1; i <= n_bare; i++) {
     split(bare_order[i], b, " ")
-    if (b[1] == "deny" && !(b[2] in bare_deny)) continue
-    if (b[1] == "ask" && !(b[2] in bare_ask)) continue
-    if (b[1] == "deny")
-      print "NOTE: deny " b[2] " names the whole tool, which removes " b[2] " from the model context entirely. Every other rule naming that tool is reported inert below — including denies, which are moot rather than weakened."
-    else
+    if (b[1] == "deny") {
+      if (b[2] in bare_deny)
+        print "NOTE: deny " b[2] " names the whole tool, which removes " b[2] " from the model context entirely. Every other rule naming that tool is reported inert below — including denies, which are moot rather than weakened."
+    } else if (b[2] in bare_ask)
       print "NOTE: ask " b[2] " names the whole tool, so every " b[2] " call prompts and no scoped allow for it can take effect."
   }
 

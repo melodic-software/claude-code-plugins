@@ -5,14 +5,14 @@
       "why": "values file"
     },
     {
-      "answer": "```json\n{ \"skills_root\" : \"packages/agent/skills\" }\n```",
-      "why": "spaced"
+      "answer": "Set skills_root to packages/agent/skills.",
+      "why": "key and value in prose"
     }
   ],
   "fail": [
     {
-      "answer": "Set skills_root to packages/agent/skills.",
-      "why": "no values file"
+      "answer": "Set skills_root to your skills directory.",
+      "why": "no value"
     },
     {
       "answer": "/skill-quality:setup check\n\nOur skills live under packages/agent/skills.",

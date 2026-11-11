@@ -22,11 +22,11 @@ tool's path when present, or `absent` when missing:
 A row reading `[shell command execution disabled by policy]` carries no result: run the
 `command -v` probe via Bash instead.
 
-Verification record. Claim: with `disableSkillShellExecution` set, each injected command is
-replaced by the literal `[shell command execution disabled by policy]` and not run. Basis:
-[Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context), which
-documents the setting and the string. As of 2026-09-29. Recheck when a re-read of that section no
-longer names the setting or the string.
+- **Pointer**: for the placeholder a skipped load-time command leaves, fetch
+  [skills § Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: the placeholder text changes.
 
 ## Purpose
 
@@ -90,9 +90,9 @@ without Claude Code. Node.js (step 5) is a FAIL either way too.
 5. **Node.js.** Run `node --version` via Bash. A `command -v node` hit is not enough: a
    version-manager shim or a shell function resolves there yet cannot run the launcher. FAIL when
    the command is absent or exits non-zero: the hook rows run `node hooks/exec-bash.mjs` and the
-   installer is a node script. Verification record. Claim: Claude Code's native binary neither
-   ships nor uses Node. Basis: [Set up](https://code.claude.com/docs/en/setup). As of 2026-09-29.
-   Recheck when a re-read of that page no longer says the native install does not use Node.
+   installer is a node script. Node is a prerequisite separate from Claude Code. Pointer:
+   [Install with npm](https://code.claude.com/docs/en/setup#install-with-npm). As of: 2026-11-10.
+   Recheck trigger: that section says the installed `claude` binary runs Node itself.
 6. **Git pre-commit entry.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
    from the repository. Each line is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined` is
    INFO (this clone said no; silent at session start), and `missing`, `stale` or `modified` is a
@@ -120,10 +120,11 @@ with your own edit tools.
 4. **Actions.** When `actions[]` holds `copy` items, run
    `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" copy --scope <scope>` (plus the same
    `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused`,
-   `unsafe-path` or `stage-failed` per entry; `refused` means a locally edited copy or dispatcher,
-   which the `modified` decision covers, `unsafe-path` the decision of that name, and
-   `stage-failed` that `git add` failed on a shared install: report it, since the team would not
-   receive the files.
+   `blocked`, `unsafe-path` or `stage-failed` per entry; `refused` means a locally edited copy or
+   dispatcher, which the `modified` decision covers, `blocked` that another tool owns the local
+   hooks directory, which the `hooks-path-owned` decision covers, `unsafe-path` the decision of
+   that name, and `stage-failed` that `git add` failed on a shared install: report it, since the
+   team would not receive the files.
 5. **Decisions.** Read [reference/git-hook-decisions.md](reference/git-hook-decisions.md) for
    what each kind asks of you, apply each one, then rerun `plan` until only the decisions you
    chose to leave remain.
@@ -154,29 +155,27 @@ Never claim resolved without re-verifying. For everything else `apply` only poin
 
 - missing Bash / Node.js: platform install instructions from the README Requirements section;
   this skill never installs system packages.
-- toggle off: reconfigure through Claude Code's native flow, per the marketplace's
-  plugin-reconfiguration convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
-  which owns the verified-version record): interactive `/plugin configure typos-format@<marketplace>`
-  any time. Headless, preferred (Claude Code 2.1.285 or later):
-  `claude plugin configure typos-format@<marketplace> --values-stdin < values.json`, with
-  `values.json` holding `{"typos_format_enabled": "false"}` (every value a string, booleans
-  included; keys left out keep their saved values). Headless fallback (an older release):
-  `claude plugin install typos-format@<marketplace> -s <scope> --config typos_format_enabled=false`
-  (repeatable per key); against an already-installed plugin it prints `already installed` and
-  still writes the value. Do **not** uninstall to reconfigure: that drops this plugin's entire
-  stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
-  manifest default. Scope: the value always lands in user settings. Run either route from the
-  project the plugin is installed in (`configure` has no scope flag). For the rerun, `-s`
-  defaults to `user`, so pass the scope `claude plugin list` reports: a rerun at another scope
-  adds an install record at that scope and enables the plugin there (measured in both
-  directions). From the home directory, where the list can label one settings file both `user`
-  and `project`, pass `user`. Check each route's own failure signal: `configure` rejects a bad
-  value with exit 1 and saves nothing, but stores an empty string as `""`; the rerun prints a
-  warning for a rejected value yet exits 0, so read its output. This skill never writes user
-  settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered `${user_config.*}` is injected at skill load and
-  each hook's `CLAUDE_PLUGIN_OPTION_*` is fixed at session start, so a same-session `check` still
-  reports the OLD value; report the observed effective value, never an unobserved change.
+- toggle off: set `typos_format_enabled` to `false` through Claude Code's native flow,
+  interactively with `/plugin configure typos-format@<marketplace>` or by a headless route, as the
+  marketplace's plugin-reconfiguration convention gives them in
+  [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
+  (it owns the verified-version record). Apply the scope and failure-signal caveats in its
+  [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
+  Read both sections and print what they give, the fallback route, its behavior on an
+  already-installed plugin and the scope to pass included, rather than only naming them, and
+  leave out the verified-version record.
+  Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
+  writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**, since a
+  same-session `check` can still show the old value, and report the observed effective value,
+  never an unobserved change.
+
+  - **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+    when a saved value applies, fetch
+    [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+    live.
+  - **As of**: 2026-11-11
+  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+    refused value, or when a saved value applies.
 - no typos config: offer to create a minimal `_typos.toml` in the repository root only when
   explicitly asked. The plugin imposes no rules of its own.
 
@@ -188,4 +187,5 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Install `typos`. Installation is always the consumer's own choice and command, at the
   machine level, never a project dependency this skill records.
-- Download or execute tools during `check` or `apply`.
+- Download tools, or run any during `check` or `apply` beyond the read-only `typos --version` and
+  `node --version` probes and the `install.mjs` commands named above.

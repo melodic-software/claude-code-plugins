@@ -23,6 +23,12 @@ of re-issuing them. The `node` and `jq` rows show the tool's path, or `absent` w
 A row reading `[shell command execution disabled by policy]` carries no result: run that probe via
 Bash instead.
 
+- **Pointer**: for the placeholder a skipped load-time command leaves, fetch
+  [skills § Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: the placeholder text changes.
+
 ## Purpose
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
@@ -48,10 +54,11 @@ one remediation line per FAIL. Do not modify anything.
 Read each option value from this text; never put a `${user_config.*}` string in a shell command.
 Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
 
-When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
-INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
-disabled plugin is not broken. Report the probes informationally and note that re-enabling
-restores the FAIL semantics.
+When the plugin's toggle is disabled, every prerequisite absence except Node.js (step 3)
+downgrades from FAIL to INFO. The hook exits through its enabled-gate before probing anything, so
+a deliberately disabled plugin is not broken. Report the probes informationally and note that
+re-enabling restores the FAIL semantics. A missing Node.js stays FAIL in either state: every hook
+row launches `node`, and the gate runs only after `hooks/exec-bash.mjs` starts.
 
 1. **Bash version**. Check `${BASH_VERSION}` against the hook's documented floor (README
    Requirements: Bash 3.2+). INFO when below 5.0: `EPOCHREALTIME` is unset there, so the
@@ -59,25 +66,18 @@ restores the FAIL semantics.
    failure.
 2. **`jq`**. The pre-computed `jq` row. FAIL if absent: without it the hook can neither classify the
    notification nor emit its terminal sequence, so it drops every notification without a notice.
-   Claim: a Notification hook's output reaches neither the user nor the model, so this check is
-   where a missing jq surfaces.
-   Basis: `https://code.claude.com/docs/en/hooks#notification`, the paragraph after the input
-   example ("Claude Code discards their `systemMessage` and `continue` fields").
-   As of: 2026-10-04.
-   Recheck: that paragraph stops saying Claude Code discards a Notification hook's `systemMessage`.
+   This check is where a missing jq surfaces: the hook cannot report it to the user or the model.
+   Pointer: [Notification](https://code.claude.com/docs/en/hooks#notification). As of: 2026-11-10.
+   Recheck trigger: that section says a Notification hook's output reaches the user or the model.
 3. **Node.js**. The pre-computed `node` row. FAIL if absent: every hook row launches through
-   `node hooks/exec-bash.mjs`, and Claude Code's native binary neither ships nor uses Node, so
-   without it the hook does not launch and no notification fires. The probe runs through the Bash
-   tool, so it works when the launcher cannot. Remediation: install Node.js from
-   `https://nodejs.org/en/download`, or from the platform package manager.
-   Claim: Claude Code's native binary does not invoke Node at runtime, so Node is a separate
-   prerequisite for a hook launched as `node`.
-   Basis: `https://code.claude.com/docs/en/setup`, npm install section ("The installed `claude`
-   binary does not itself invoke Node"), and `https://code.claude.com/docs/en/hooks`, "Exec form
-   and shell form".
-   As of: 2026-09-29.
-   Recheck: the setup page stops saying the binary does not use Node, or the hooks page changes the
-   exec-form `node` example.
+   `node hooks/exec-bash.mjs`, so without it the hook does not launch and no notification fires.
+   The probe runs through the Bash tool, so it works when the launcher cannot. Remediation: install
+   Node.js from `https://nodejs.org/en/download`, or from the platform package manager. Node is a
+   prerequisite separate from Claude Code. Pointer: [Install with
+   npm](https://code.claude.com/docs/en/setup#install-with-npm) and [Exec form and shell
+   form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form). As of: 2026-11-10.
+   Recheck trigger: the setup section says the installed `claude` binary runs Node itself, or the
+   hooks section changes how a hook command launches `node`.
 4. **Per-OS `os_toast` dependency**. Take the current OS family from the pre-computed `uname -s` row
    and probe ONLY that family's requirement (the hook's `case "$(uname -s)"` does exactly this):
    - **Linux**. `command -v notify-send` (libnotify). FAIL only if the `os_toast` channel is
@@ -109,32 +109,27 @@ nothing and writes nothing, so every remediation is a pointer the user acts on:
   section. This skill never installs system packages.
 - **missing `notify-send`** (Linux, `os_toast` enabled). `sudo apt install libnotify-bin`
   (Debian/Ubuntu) or `sudo dnf install libnotify` (Fedora). Guidance only. The user runs it.
-- **a toggle is off**. Reconfigure through Claude Code's native flow, per the marketplace's
-  plugin-reconfiguration convention, which owns the verified-version record
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>):
-  interactive `/plugin configure desktop-notification@<marketplace>` any time. Headless, preferred
-  on Claude Code 2.1.285 or later:
-  `claude plugin configure desktop-notification@<marketplace> --values-stdin < values.json`, where
-  `values.json` holds `{"<key>": "true"}` (every value a string, booleans included; keys left out
-  keep their saved values). Headless fallback, before 2.1.285:
-  `claude plugin install desktop-notification@<marketplace> -s <scope> --config <key>=true`
-  (repeatable per key); against an already-installed plugin it prints `already installed` **and
-  still writes the value**. Do **not** uninstall to reconfigure: uninstalling drops this plugin's
-  entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
-  to its manifest default. The value lands in user settings whichever route writes it.
-  `claude plugin configure` has no scope flag, so run it from the project the plugin is installed
-  in. For the rerun, `-s` defaults to `user`; pass the install scope `claude plugin list` reports
-  for this plugin, and run from that project's directory for a `project`/`local` scope; from the
-  home directory pass `user`. A rerun at
-  another scope adds an install record at that scope and enables the plugin there (measured in
-  both directions). Check each route's own failure signal: `--values-stdin` rejects a bad value
-  with exit 1 and saves nothing, but stores an empty string as `""`; the `--config` rerun prints a
-  warning for a rejected value yet exits 0, so read its output. These options are personal `userConfig`
-  values, so this skill never writes user settings or `pluginConfigs`. Afterwards rerun `check`
-  in a **fresh session**. The rendered `${user_config.*}` is injected at skill load and each
-  hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a
-  same-session `check` still reports the OLD value; report the observed effective value, never an
-  unobserved change.
+- **a toggle is off**. Set that toggle's key to `true` through Claude Code's native flow,
+  interactively with `/plugin configure desktop-notification@<marketplace>` or by a headless route,
+  as the marketplace's plugin-reconfiguration convention gives them in
+  [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
+  (it owns the verified-version record). Apply the scope and failure-signal caveats in its
+  [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
+  Read both sections and print what they give, the fallback route, its behavior on an
+  already-installed plugin and the scope to pass included, rather than only naming them, and
+  leave out the verified-version record.
+  Never uninstall to reconfigure; that section links what an uninstall deletes. These options are
+  personal `userConfig` values, so this skill never writes user settings or `pluginConfigs`.
+  Afterwards rerun `check` in a **fresh session**, since a same-session `check` can still show the
+  old value, and report the observed effective value, never an unobserved change.
+
+  - **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+    when a saved value applies, fetch
+    [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+    live.
+  - **As of**: 2026-11-11
+  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+    refused value, or when a saved value applies.
 
 After the user reports acting on any system-tool remediation, re-run the relevant `check`
 probe live via Bash (a pre-computed row predates the remediation) and report its actual

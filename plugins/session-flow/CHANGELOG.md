@@ -1,5 +1,29 @@
 # Changelog: session-flow plugin
 
+## [7.9.6] - 2026-11-11
+
+### Changed
+
+- `/session-flow:workflow` continuation names the interview's documents for another person (`<memory_dir>/<topic-slug>/document-<recipient-role-slug>.md`) as files that stay where they are.
+
+## [7.9.5] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [7.9.4] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [7.9.3] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [7.9.2] - 2026-11-11
 
 ### Changed

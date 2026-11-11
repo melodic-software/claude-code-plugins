@@ -3,6 +3,72 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.9.4] - 2026-11-11
+
+### Fixed
+
+- count a lane comment record only once it is complete
+
+  The lane now closes each attempt's comment record with a
+  `{"complete":true}` line once its publish and hold steps did not fail
+  (ci-workflows pr-review-cli). The lane-binding checker counts a record as
+  covering its attempt only when it holds that line; an attempt cut off
+  between posting and recording reads as one that left no record, so its
+  comments fall to the time-window check instead of being rejected.
+
+  Test fixtures for lane comments with no binding now carry their
+  createdAt, ready for LEGACY_CUTOFF, which stays null here. The Python
+  test pins its cutoff to the JavaScript port's.
+
+## [12.9.3] - 2026-11-11
+
+### Changed
+
+- `reference/execution-shape.md` adds "Stacked per-item PRs": a chain of items that each build on the one before can ship as a stack under `per-item PRs`, deciding by the source-control plugin's `reference/stacked-prs.md`. `decompose`, `ship run` and `work` point at it; `work` states that CI mode never stacks.
+
+### Fixed
+
+- bind lane comments to their producing run
+
+  Every workflow's job token posts as github-actions[bot], so the
+  `claude-lane: <lane>` footer alone does not show a comment came from a
+  review lane. Readers now accept a github-actions[bot] lane comment only
+  when the run its binding line names (`<!-- claude-lane-run id=<run>
+  sha=<head> -->`, written by ci-workflows' pr-review-cli) is that lane's
+  caller workflow, ran on that head, and lists the comment's kind, id and
+  body digest in one of its `claude-lane-comments-<lane>-<attempt>`
+  artifacts. Every attempt's record counts; a run whose record expired
+  proves its comments by time. A comment that fails reads as one with no
+  footer; one that passes is read without its binding line, so severity
+  and footer parsing is unchanged. Comments with no binding keep counting
+  while LEGACY_CUTOFF is unset; a later change sets it once the lanes
+  write bindings.
+
+  - .github/scripts/lib/lane-binding.mjs, its fixtures and test (copies in
+    the review and work-items plugins), and babysit_lane_binding.py.
+  - pr-unblock: address-feedback, feedback-dispatch, publish-feedback,
+    resolve-threads, lane-hold, gate-recheck, dispatch and fix-ci-context
+    read comments and timelines through withLaneBinding.
+  - pr-merge: clear-escalations (thread roots, hold timelines, and the
+    ci-status filterLaneHolds entry), enable-auto-merge's lift check.
+  - ci-status: hold comments pass through filterLaneHolds from the base.
+  - babysit merge gate, review prior-findings, morning-brief
+    review-precision.
+  - ARTIFACT_READ_TOKEN and `actions: read` where a job reads the records;
+    the library and Python module join the hold floor as enforcement.
+
+- **Work-items snippets no longer embed `$(git rev-parse --show-toplevel)`.** The tracker, schedule, evaluator and backfill path fallbacks in `attend-queue`, `scan-todos`, `setup`, `ship`, `track`, `triage` and `work` now write a literal `<project root>`, which the shared tracker reference's new "Project root" section resolves in its own Bash call (`$CLAUDE_PROJECT_DIR` when set, else the repository root). This is the worktree-isolation rewrite `decompose` and `track add` got for [#6929](https://github.com/melodic-software/claude-code-plugins/issues/6929).
+
+- `setup check` now reports when the remotes name more than one GitHub repository and no `gh repo set-default` is recorded, or the recorded default is not the fork, and prints the `gh repo set-default <owner>/<repo>` fix.
+- The tracker's `CONTRACT.md`, the GitHub adapter and the morning briefing script's comments describe `gh`'s real repository order (`GH_REPO`, the recorded default, then the first remote by name) instead of "the working directory's git remote".
+- Plan comments, schedule reconciliation, label provisioning and the auto-merge disarm name the repository with `-R` instead of leaving it to `gh`.
+
+## [12.9.2] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [12.9.1] - 2026-11-11
 
 ### Changed

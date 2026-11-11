@@ -77,10 +77,10 @@ pre-scoring filters could not match.
   ecosystem's own style guide (rule 1's declared conventions); the
   conflicting primaries are catalogued in
   [`context/sources.md`](context/sources.md).
-- **Claude Code skills are the sharp special case.** For a skill, the
-  DESCRIPTION, not the name, is what drives model-side discovery. So
-  optimize the name for human semantic accuracy, and put the trigger
-  phrases and example requests in the description, not the name. A skill
+- **Claude Code skills are the sharp special case.** Optimize a skill's
+  name for human semantic accuracy, and put the trigger phrases and example
+  requests in the description, not the name (which field drives loading: the
+  Claude Code skills record in [`context/sources.md`](context/sources.md)). A skill
   loadable as primed context at conversation start must also be
   **temporally neutral**: the name has to read valid before any work
   exists, so a candidate that presupposes completed output ("critique your

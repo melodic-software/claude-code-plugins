@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Glob", "input": {"pattern": ".claude/ai-briefing/**"}}]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "/repo/.claude/ai-briefing/sources.md", "old_string": "", "new_string": "x"}}],
+      "why": "check edited a file"
+    }
+  ]
+}

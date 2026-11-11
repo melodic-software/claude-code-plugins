@@ -3,6 +3,25 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0] - 2026-11-11
+
+### Changed
+
+- `/prototype:pressure-test` and `/prototype:explore-directions` say they raise fidelity for a question discussion cannot settle, and that the cheapest artifact that answers the question wins.
+
+## [0.24.15] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [0.24.14] - 2026-11-11
+
+### Changed
+
+- The variant switcher asset and its reference name the user-interface `animation.*` keys behind the highlight's curve and the 250ms and 150ms durations, and the combine decision-block example names the key behind its curve. No rendered value changes.
+- The control panel guide offers user-interface's `animation.easing.*` curves in the easing select when the project names no curves of its own.
+
 ## [0.24.13] - 2026-11-11
 
 ### Changed

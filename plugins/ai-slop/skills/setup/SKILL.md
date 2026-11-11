@@ -16,6 +16,12 @@ layer supplying each effective value; `(detector unavailable)` means it did not 
 When it reads `(detector unavailable)` or `[shell command execution disabled by policy]`, run the
 detector's `--show-config` via Bash or read the three layers directly.
 
+- **Pointer**: for the placeholder a skipped load-time command leaves, fetch
+  [skills § Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: the placeholder text changes.
+
 ## Purpose
 
 The ai-slop detector ships neutral defaults. A consumer repo declares its own exemptions and

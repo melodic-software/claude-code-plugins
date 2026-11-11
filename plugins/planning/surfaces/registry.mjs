@@ -7,6 +7,8 @@
 //   id          registered value, matched against an argument and the settings
 //   reportName  the name the offer and notice lines show
 //   aliases     optional words that also ask for it (the `share` action, say)
+//   onRequest   optional; true keeps it out of the alternatives and the offer line, so only an
+//               argument or a setting picks it
 //   available(context) -> {ok, reason}   probes PATH only: no network, no process start
 //   start(session) -> handle             {read: [plugin-root-relative spokes], rules}; the
 //                                        spoke's own command starts any process
@@ -97,7 +99,7 @@ export async function resolveSurface(request = {}) {
 
   const available = entry.available(context)
   if (!available.ok) notices.push(`${entry.reportName} unavailable: ${available.reason}`)
-  const alternatives = entries.filter(e => e !== entry && e.available(context).ok)
+  const alternatives = entries.filter(e => e !== entry && !e.onRequest && e.available(context).ok)
   const planners = request.planners ?? []
   const offers = request.offers ?? []
   const also = [...alternatives.map(e => e.reportName), ...planners.map(p => `${p.name} planner (${p.invoke})`)]
@@ -137,7 +139,7 @@ async function main(argv) {
   }
   if (cmd === 'list') {
     const entries = await loadEntries()
-    console.log(JSON.stringify(entries.map(e => ({ id: e.id, reportName: e.reportName, aliases: e.aliases ?? [] }))))
+    console.log(JSON.stringify(entries.map(e => ({ id: e.id, reportName: e.reportName, aliases: e.aliases ?? [], onRequest: !!e.onRequest }))))
     return
   }
   if (cmd !== 'resolve') {

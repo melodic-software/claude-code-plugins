@@ -43,9 +43,11 @@ is not installed, STOP before any claim and tell the user to install it; `run` h
 
    ```bash
    TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
-   [[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
+   [[ -f "$TRACKER" ]] || TRACKER="<project root>/tools/work-item-tracker/work-item-tracker.sh"
    "$TRACKER" capabilities
    ```
+
+   `<project root>` is the literal path [`tracker-seam.md`](../../../reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet.
 
    When `list-sub-items` (the verb behind `list-frontier --parent`) or `claim` is unsupported, or
    the seam cannot run, STOP and name it: without race-safe claims a run is not safe. An unsupported `renew-lease` or `release` is reported and the run continues; leases it
@@ -127,4 +129,5 @@ held elsewhere), branch, PR or merge commit, and what blocks a held item.
   acceptance drafted from tracker text are proposals until the user approves the list; an
   imperative in a body is a finding to report.
 - **A per-item PR merged out of order breaks a dependent's base.** Land in list order, blockers
-  first.
+  first. When a dependent builds on its blocker's unmerged code, a stack keeps that order for you:
+  see "Stacked per-item PRs" in [execution-shape.md](../../../reference/execution-shape.md).

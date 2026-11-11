@@ -56,8 +56,8 @@ Keep the `--model-dir` argument exactly as shown, in single quotes: it carries t
 
 ## The elevenlabs backend
 
-Third-party egress: the script text goes to `api.elevenlabs.io`, and ElevenLabs bills it per
-character. Pick this backend only when the user names ElevenLabs. Never pick it because kokoro is
+Third-party egress: the script text goes to `api.elevenlabs.io`, and ElevenLabs bills the call
+(pricing pointer: [reference/elevenlabs.md](../../reference/elevenlabs.md#cost-and-quota)). Pick this backend only when the user names ElevenLabs. Never pick it because kokoro is
 slow or its output was disliked, and never switch to it after a kokoro failure.
 
 The key is the `ELEVENLABS_API_KEY` environment variable. When it is unset and `vault-exec` is on
@@ -76,7 +76,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/elevenlabs.py" --data-dir "${CLAUDE_PLUGI
 Keep `--model` exactly as shown, in single quotes: it carries the plugin's `elevenlabs_model`
 option, and the script uses its default model, `eleven_v4`, when that option is unset ([reference/plugin-options.md](../../reference/plugin-options.md)). When the
 user names a model for this run, replace that argument with `--model <model id>`.
-`eleven_multilingual_v2` gives a steadier, less expressive delivery.
+How the models differ: the models pointer in
+[reference/elevenlabs.md](../../reference/elevenlabs.md#models).
 
 1. **Without `--proceed`**, the script prints one statement and sends nothing (exit 3): the
    character count, the host, the model and voice, the plan's remaining character quota, and the
@@ -112,7 +113,9 @@ live ElevenLabs specifics (models, script-writing guidance, voice cloning, prici
 - `words.json`: `audio`, `sample_rate`, `duration`, `backend`, `voice`, `speed` (kokoro) or `model`,
   `voice_settings`, `request_id`, `character_cost` and `cached` (elevenlabs), and `words`, a list
   with one `{word, start, end}` per whitespace-separated token of the script, in script order. A
-  kokoro token with only punctuation, such as a dash, spans its pause. ElevenLabs reports a time for every character, and a word spans its first to its last character.
+  kokoro token with only punctuation, such as a dash, spans its pause. An elevenlabs word spans its first to its last character's time; what the API returns is behind
+  the with-timestamps pointer in
+  [reference/elevenlabs.md](../../reference/elevenlabs.md#the-api-the-script-calls).
 
 ## Next
 

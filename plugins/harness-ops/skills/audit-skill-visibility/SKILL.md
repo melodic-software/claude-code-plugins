@@ -14,7 +14,7 @@ Relay the sentence below to the user and do not run `/skill-doctor` yourself: it
 
 If /skill-doctor is available in your session (gate basis: **Boundary, the bundled `doctor` skill and `/skill-doctor`** below), run it for the one-shot unused-versus-context-cost report when that is the whole ask.
 
-**Arguments.** `[--unattended] [--installed [dir]] [--plugins-root <dir>] [--render markdown|json]`. `--unattended`, anywhere in the arguments, is the caller declaring that nobody is present: the skill takes it out before reading the rest, never passes it to the engine script (whose parser does not accept it) and never reads it as a root path; under it the suggestion is recorded in the report instead of asked. The bare word `unattended` is neither this flag nor a path: stop and name `--unattended`. Full form: [--unattended] [--installed [dir]] [--plugins-root <dir>] [--context-window <tokens>] [--bytes-per-token 3|4] [--budget-fraction <f>] [--max-desc-chars <n>] [--listing-capture <transcript.jsonl>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins; unpinned, the budget is a band over both windows and both byte estimates
+**Arguments.** `[--unattended] [--installed [dir]] [--plugins-root <dir>] [--render markdown|json]`. `--unattended`, anywhere in the arguments, is the caller declaring that nobody is present: the skill takes it out before reading the rest, never passes it to the engine script (whose parser does not accept it) and never reads it as a root path; under it both suggestions are omitted. The bare word `unattended` is neither this flag nor a path: stop and name `--unattended`. Full form: [--unattended] [--installed [dir]] [--plugins-root <dir>] [--context-window <tokens>] [--bytes-per-token 3|4] [--budget-fraction <f>] [--max-desc-chars <n>] [--listing-capture <transcript.jsonl>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins; unpinned, the budget is a band over both windows and both byte estimates
 
 ## Purpose
 
@@ -471,7 +471,7 @@ Relay the sentence below to the user and do not run `/doctor` yourself: it is re
 
 If /doctor is available in your session (gate basis: **Boundary, the bundled `doctor` skill and `/skill-doctor`** above), run it for the bundled checkup's unused-components pass when you want fixes offered in place.
 
-**`--unattended`:** record both suggestions in the report; do not ask.
+**`--unattended`:** omit both suggestions and run neither `/skill-doctor` nor `/doctor`.
 
 ## Gotchas
 

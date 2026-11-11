@@ -3,6 +3,18 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.4] - 2026-11-11
+
+### Changed
+
+- `implement-dispatch`'s item-list mode says a caller may open a dependent item as a stacked PR on its blocker's branch, pointing at the source-control plugin's `reference/stacked-prs.md` for when to stack; the skill itself never cuts a worker from another worker's branch.
+
+## [0.38.3] - 2026-11-11
+
+### Changed
+
+- The report skill keeps its rule that `preload_token` is the only evidence a preloaded skill reached the agent, and points at the subagents page's "Preload skills into subagents" section for what happens to a `skills:` entry that does not load instead of restating it. Its Agent-result basis link now names the "Subagent output scanning" section. No behavior change.
+
 ## [0.38.2] - 2026-11-11
 
 ### Changed

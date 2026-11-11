@@ -145,15 +145,27 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
+      # A switch that is on skips every API step below and leaves the run
+      # green; work-unblock's sweep reads that skip as a kill-switch trip
+      # (label-unblocked.mjs didNoWork) and re-fires it once the switch clears.
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
       # check-blockers.mjs reads the issue's Work status through
       # resolve-config.mjs, whose packages only the resolve-config action
       # installs; this job does not run it.
       - name: Install resolve-config's packages
+        if: steps.kill.outputs.proceed == 'true'
         timeout-minutes: 3
         run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
 
       - name: Check the trigger
         id: gate
+        if: steps.kill.outputs.proceed == 'true'
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
@@ -264,8 +276,22 @@ jobs:
           path: .base
           persist-credentials: false
 
+      # A switch that is on skips every API step below and leaves the job
+      # green with no `capped`, so resolve-issue skips; work-unblock's sweep
+      # reads that skip as a kill-switch trip (label-unblocked.mjs didNoWork).
+      # A check that cannot run (no checkout) sets no `proceed` and leaves the
+      # hold below as it was; broker-check asks again before any model turn.
+      - name: Check the kill switch
+        id: kill
+        continue-on-error: true
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
       - name: Check the WIP cap
         id: wip
+        if: steps.kill.outputs.proceed != 'false'
         continue-on-error: true
         uses: ./.base/.github/actions/check-wip-cap # zizmor: ignore[self-repository]
         with:
@@ -275,7 +301,7 @@ jobs:
       # The check names its own hold; this names one it could not, when it
       # failed or never ran.
       - name: Hold on an unknown WIP cap
-        if: steps.wip.outputs.capped != 'true' && steps.wip.outputs.capped != 'false'
+        if: steps.kill.outputs.proceed != 'false' && steps.wip.outputs.capped != 'true' && steps.wip.outputs.capped != 'false'
         run: echo "::notice title=WIP cap hold::the WIP cap check did not finish, so the pause is unknown and this run starts no work; work-unblock's next sweep re-fires it and the check reads again"
 
       # The key-credit gate, read before the slot queue: a credit stop inside
@@ -353,7 +379,7 @@ jobs:
       # artifact for monitor signal 13 (lane-hold-marker.mjs).
       - name: Mark the lane hold
         id: hold-marker
-        if: steps.wip.outputs.held == 'true' || (steps.wip.outputs.capped != 'true' && steps.wip.outputs.capped != 'false')
+        if: steps.kill.outputs.proceed != 'false' && (steps.wip.outputs.held == 'true' || (steps.wip.outputs.capped != 'true' && steps.wip.outputs.capped != 'false'))
         continue-on-error: true
         run: mkdir -p "$RUNNER_TEMP/lane-hold" && echo "work-resolve-issue $GITHUB_RUN_ID" >"$RUNNER_TEMP/lane-hold/work-resolve-issue"
       - name: Keep the lane hold marker
@@ -408,6 +434,7 @@ jobs:
       id-token: write
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
+      start-gate: true
       lane: work-resolve-issue
       role: issue-lane
       activity: resolve-issue
@@ -605,6 +632,7 @@ jobs:
       id-token: write
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
+      start-gate: true
       lane: work-resolve-issue
       role: issue-lane
       activity: resolve-issue
@@ -799,6 +827,7 @@ jobs:
       || needs.pick-slot.outputs.skip-reason == 'research-first'
       || needs.pick-slot.outputs.skip-reason == 'probe-first')))
     permissions:
+      actions: read # the write runner's run job reads the review lanes' comment records
       contents: read
       pull-requests: read
       checks: write
@@ -828,6 +857,7 @@ jobs:
       ${{ !cancelled() && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') == 'true'
       && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-patch-state || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-patch-state || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-patch-state || '') == 'written' }}
     permissions:
+      actions: read # the write runner's run job reads the review lanes' comment records
       contents: read
       pull-requests: read
       checks: write
@@ -1250,6 +1280,7 @@ jobs:
       && needs.apply-issue-patch.outputs.skip-reason != 'kill-switch'
       || needs.resolve-issue-stale.outputs.stale == 'true') }}
     permissions:
+      actions: read # the write runner's run job reads the review lanes' comment records
       contents: read
       pull-requests: read
       checks: write

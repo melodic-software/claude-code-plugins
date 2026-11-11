@@ -46,6 +46,12 @@ never in the map.
 chart a prototype item early wherever a cheap artifact would expose a look-or-behave question
 before later decisions depend on it.
 
+**Fidelity** is how concrete an artifact is: words and discussion, sketches or breadboards,
+wireframes, prototypes, working code. Settle each decision item with the cheapest artifact that
+answers its question, never below the level where it answers nothing; a prototype can cost less
+than the discussion it replaces, so the cheapest answering artifact is not always the lowest. That
+artifact sets the item's type (work step 5's table).
+
 ## Flow
 
 - **Interview is the entry.** `/planning:interview` suggests wayfind once an interview passes its
@@ -234,7 +240,11 @@ that charting needs an interactive session. Do not fabricate a map.
    | `wayfind: prototype` | `needs-human` when the user judges it | `/prototype:pressure-test` (behaviour/feasibility) or `/prototype:explore-directions` (design/UX). The item body says which |
    | `wayfind: task` | per item | Direct decision-unblocking work. No feature code, no PR tie. Its resolution records what was done and the facts later items need |
 
-6. **Graduate on every resolution.** Resolved **in scope**: post the resolution as a comment on
+6. **Graduate on every resolution.** Every edit to the map body, here or anywhere in this skill,
+   applies its change to a copy of the body read right before the write, then reads the body back:
+   if the change is missing (another session wrote in between), apply it to that copy and write
+   again.
+   Resolved **in scope**: post the resolution as a comment on
    the item, add its one-line pointer (title linked by URL) to *Decisions-so-far*, then close
    the item (comment → index → close, as one atomic sequence). **Wrongly scoped** (on the tracker
    but not this effort): add one Out-of-scope line linking it, then close it, with no

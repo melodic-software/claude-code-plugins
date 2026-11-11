@@ -101,7 +101,7 @@ Each NO above is a harness denial, not a preference, and the four are recorded o
 
 Built-in Explore is therefore a **scout under a worker, never the worker**. Where it earns its place: the locate-tier legwork inside a larger exploration, per the fan-out rules below. When dispatching one, pass a thoroughness level (`quick`, `medium`, `very thorough`) and restate any convention that bounds the search, because it arrives convention-blind.
 
-**Preload-liveness sentinel.** A dispatched agent receives this body through its `skills:` preload, and a preload that fails to resolve is skipped **silently**. The dated record for that harness behavior is [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), "Harness facts the dispatch design rests on". A dispatched run therefore echoes this token verbatim as `preload_token` in its return payload. The disk fallback Reads this same file, so a matching `preload_token` is file-identity, **not** proof that preload fired:
+**Preload-liveness sentinel.** A dispatched agent receives this body through its `skills:` preload, and we never count on the harness to tell the agent when that preload does not load. The dated record for that harness behavior is [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), "Harness facts the dispatch design rests on". A dispatched run therefore echoes this token verbatim as `preload_token` in its return payload. The disk fallback Reads this same file, so a matching `preload_token` is file-identity, **not** proof that preload fired:
 
 ```text
 discovery-explore-preload-8e2b7d

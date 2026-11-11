@@ -3,6 +3,45 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.0] - 2026-11-11
+
+### Added
+
+- `/planning:interview` gains a fourth question surface, `document`, beside terminal, page and shared session. A decision another person holds becomes a Markdown document they fill in: the interview asks the user only about the send (who it goes to, what they need back), writes each question in the shared question shape under its register `Q<N>` to `<memory_dir>/<topic-slug>/document-<recipient-role-slug>.md`, records each as an `open` row awaiting the recipient, and resolves those rows by id through the normal read-back when the filled document returns. Ask for it with `/planning:interview document <topic>`, or in words ("make a questionnaire for the DBA"). The surface registry takes an `onRequest` entry field, so this surface is never offered beside the others.
+
+### Removed
+
+- The `questionnaire` skill and its eval cases. Its behavior lives in `/planning:interview`'s document surface, and the interview's and `/planning:prd`'s handoffs now recommend `/planning:interview document <topic>` for a question only another person can answer.
+
+## [2.23.0] - 2026-11-11
+
+### Changed
+
+- `/planning:wayfind` names fidelity (how concrete an artifact is, from discussion to working code) and settles each decision item with the cheapest artifact that answers its question, never below the level where it answers nothing; that artifact sets the item's type.
+- The Brief's appetite now acts on the solution side: `/planning:plan` writes an Appetite fit line and cuts scope that does not fit, `/planning:brainstorm` weighs candidates against it, and plan review and the plan-reviewer agent ask whether the plan is within appetite. Nothing changes when there is no Brief or the appetite is not assessed.
+
+## [2.22.4] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [2.22.3] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+### Fixed
+
+- `/planning:wayfind` work: every edit to the map body (Decisions-so-far, Out-of-scope, Not-yet-specified, superseded lines) is applied to a copy of the body read right before the write, then read back and re-applied if another session's write dropped it. Before, two sessions graduating items on one map could overwrite each other's index lines.
+
+## [2.22.2] - 2026-11-11
+
+### Changed
+
+- The interview page's styles name the user-interface key behind each easing curve and each duration on the `animation.duration_ms` ladder, and point the 44px targets and the 4.5:1 and 3:1 contrast ratios at user-interface's floors. The plan, design and brainstorm views name `typography.measure_ch` beside their 65ch reading column. No rendered value changes.
+
 ## [2.22.1] - 2026-11-11
 
 ### Changed

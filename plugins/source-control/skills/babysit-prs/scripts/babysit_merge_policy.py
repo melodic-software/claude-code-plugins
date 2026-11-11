@@ -1920,7 +1920,7 @@ PIN_LINE = re.compile(r"^<!-- babysit-merge-pin sha=([0-9a-f]{40}) -->$")
 # A pull request's merge and the agent identity's pin read-back over its first
 # 100 comments; a longer thread proves no read-back.
 LIFT_PULL = (
-    "number merged mergedAt baseRefName headRefOid mergeCommit{oid} "
+    "number merged mergedAt baseRefName stack{baseRefName} headRefOid mergeCommit{oid} "
     "repository{nameWithOwner} comments(first:100){pageInfo{hasNextPage} "
     "nodes{author{__typename login} body createdAt lastEditedAt}}"
 )
@@ -2523,7 +2523,13 @@ def _lift(
         if (
             pull.get("__typename") != "PullRequest"
             or not pull.get("merged")
-            or pull.get("baseRefName") != "main"
+            # Into main, or an upper layer of a native stack into main, which
+            # keeps the lower layer's branch as its base when the stack lands.
+            or "main"
+            not in (
+                pull.get("baseRefName"),
+                json_object(pull.get("stack")).get("baseRefName"),
+            )
             or str(json_object(pull.get("repository")).get("nameWithOwner") or "").casefold()
             != f"{owner}/{name}".casefold()
             or not SHA_RE.fullmatch(oid)
@@ -6098,24 +6104,22 @@ def _run_max_in_flight(
     if type(cached) is int and cached >= 1:
         return cached, "default-branch"
     owner, name = _split_repo(repo)
-    if head is None:
-        try:
+    try:
+        if head is None:
             head = base_tip(owner, name, branch)
-        except PolicyReadError:
-            return base.max_in_flight, "base"
-    if head == base.base_sha:
-        config = base
-    else:
-        try:
-            config = read_config_at(
+        config = (
+            base
+            if head == base.base_sha
+            else read_config_at(
                 repo,
                 head,
                 lambda path, sha: (
                     _file_at(owner, name, path, sha) if path == CONFIG_PATH else None
                 ),
             )
-        except PolicyReadError:
-            return base.max_in_flight, "base"
+        )
+    except PolicyReadError:
+        return base.max_in_flight, "base"
     if config.error:
         return base.max_in_flight, "base"
     if shared:
@@ -6402,10 +6406,9 @@ def pulumi_dirs_at(repo: str, pr: Mapping[str, Any]) -> tuple[str, ...] | None:
         return None
     return tuple(
         sorted(
-            path.rpartition("/")[0]
-            for path in modes
-            if path.rpartition("/")[2].casefold()
-            in ("pulumi.yaml", "pulumi.yml", "pulumi.json")
+            folder
+            for folder, _, file in (path.rpartition("/") for path in modes)
+            if file.casefold() in ("pulumi.yaml", "pulumi.yml", "pulumi.json")
         )
     )
 
@@ -6421,7 +6424,7 @@ def _tree_entries(
         if listing is not None:
             # Each entry is `<mode> <type> <id>\t<path>`.
             return {
-                path: (meta.split(" ")[0], meta.split(" ")[-1])
+                path: (meta.partition(" ")[0], meta.rpartition(" ")[2])
                 for meta, _, path in (
                     entry.partition("\t") for entry in listing.split("\0") if entry
                 )
@@ -6632,9 +6635,12 @@ def author_reviewed_paths(
     get none, so a lane changing its own powers still waits for a person."""
     user = json_object(pr.get("user"))
     uid = user.get("id")
-    if not verified or user.get("type") != "User" or type(uid) is not int:
-        return frozenset()
-    if uid not in humans:
+    if (
+        not verified
+        or user.get("type") != "User"
+        or type(uid) is not int
+        or uid not in humans
+    ):
         return frozenset()
     gate = [p for p in changed if any(glob_match(g, p) for g in floor.author_review)]
     others = foreign_paths(repo, pr, changed) if gate else frozenset()
@@ -6787,7 +6793,7 @@ def _window_start(at: datetime) -> str:
     at = at.astimezone(UTC)
     if at.microsecond:
         at = at.replace(microsecond=0) + timedelta(seconds=1)
-    return at.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return _stamp(at)
 
 
 @dataclass(frozen=True)
@@ -6863,10 +6869,10 @@ def read_promotion(
     if refusal:
         return Promotion(None, refusal)
     cells = {
-        cell: json_object(state).get("effective")
+        cell: str(json_object(state).get("effective"))
         for cell, state in json_object(result.get("cells")).items()
     }
-    return Promotion({c: str(v) for c, v in cells.items()}, None)
+    return Promotion(cells, None)
 
 
 @dataclass(frozen=True)
@@ -6974,11 +6980,7 @@ def _demotion_changed(
     marker stripped within the second its issue was opened escapes until the
     next fresh `read_demotion`; no code here edits a record's body. A full
     page or an unreadable one counts as changed."""
-    since = (
-        (shared.computed_at - SINCE_CLOCK_MARGIN)
-        .astimezone(UTC)
-        .strftime("%Y-%m-%dT%H:%M:%SZ")
-    )
+    since = _stamp(shared.computed_at - SINCE_CLOCK_MARGIN)
     status, issues = _get(
         f"repos/{owner}/{name}/issues?state=all&since={since}&per_page=100"
     )
@@ -7351,30 +7353,27 @@ def assess(
         try:
             head = base_tip(owner, name, default)
         except PolicyReadError:
-            head = None
+            pass
     demotion = reuse.demotion if reuse else read_demotion(repo, **readers)
     details["demotion"] = {
         "active": demotion.active,
         "reason": demotion.reason,
         "records": list(demotion.records),
     }
+    policy_floor: datetime | None = None
     if reuse:
-        floor = reuse.floor
+        floor, gate = reuse.floor, reuse.gate
     else:
         try:
-            floor = merged_since_floor(repo, history_sha, demotion, authority)
+            policy_floor = merged_since_floor(repo, history_sha, demotion, authority)
         except PolicyReadError as exc:
             return replace(stopped, reason=f"post-merge:floor-unreadable: {exc}")
-    gate = (
-        reuse.gate
-        if reuse
-        else post_merge(floor, resolved.login)
-        if post_merge is not None
-        else PostMergeGate("unchecked", {}, None)
-    )
-    policy_floor = None if reuse else floor
-    if not reuse:
-        floor = gate.floor_from(floor)
+        gate = (
+            post_merge(policy_floor, resolved.login)
+            if post_merge is not None
+            else PostMergeGate("unchecked", {}, None)
+        )
+        floor = gate.floor_from(policy_floor)
     details["mergedSince"] = floor.isoformat()
     details["postMerge"] = dict(gate.report)
     if (
@@ -7498,6 +7497,7 @@ def assess(
         # Read again right before the enqueue (`recheck_lane_issue`).
         inputs["issue_holds"] = issue_hold_labels(config, human_gated)
         inputs["issue_status"] = issue_status_reader(repo, config.issue_status, default)
+        pr_head = str(json_object(pr.get("head")).get("sha") or "")
         eligible = lane_eligibility(
             repo,
             number,
@@ -7508,11 +7508,7 @@ def assess(
             spec_from_body_ids=(*trusted[1], *config.spec_from_body_apps),
             human_gated=human_gated,
             queued_at_head=lambda: lane_queued_at_head(
-                repo,
-                number,
-                base_ref,
-                inputs["identity"],
-                str(json_object(pr.get("head")).get("sha") or ""),
+                repo, number, base_ref, inputs["identity"], pr_head
             ),
             adoption_human_ids=trusted[1],
             ejected_enqueue=lambda: ejected_enqueue(repo, number),
@@ -7520,7 +7516,7 @@ def assess(
                 repo,
                 number,
                 inputs["identity"],
-                str(json_object(pr.get("head")).get("sha") or ""),
+                pr_head,
                 str(pr.get("node_id") or ""),
             ),
             issue_holds=inputs["issue_holds"],
@@ -7648,14 +7644,24 @@ def _moved(
         return "demotion-changed"
     if not runs_unchanged(shared, default):
         return "runs-moved"
-    if probed and shared.demotion != read_demotion(
-        repo,
-        agent_identity=identity,
-        self_logins=shared.self_logins,
-        permission=permission_reader(repo),
+    if probed and shared.demotion != _read_demotion_as(
+        repo, identity, shared.self_logins
     ):
         return "demotion-changed"
     return None
+
+
+def _read_demotion_as(
+    repo: str, identity: str, self_logins: Collection[str]
+) -> Demotion:
+    """`read_demotion` for `identity` with `self_logins` and a fresh
+    `permission_reader`."""
+    return read_demotion(
+        repo,
+        agent_identity=identity,
+        self_logins=self_logins,
+        permission=permission_reader(repo),
+    )
 
 
 def _kept_unverified(
@@ -7694,12 +7700,7 @@ def _recompute_shared(
     computed_at = now or datetime.now(UTC)
     _, head = _default_branch_head(repo, default)
     config_sha = newest_config_commit(repo, head)
-    demotion = read_demotion(
-        repo,
-        agent_identity=identity,
-        self_logins=self_logins,
-        permission=permission_reader(repo),
-    )
+    demotion = _read_demotion_as(repo, identity, self_logins)
     policy_floor = merged_since_floor(repo, head, demotion, PR_MERGE)
     gate = post_merge(policy_floor, identity)
     if gate.report.get("readable") is not True:
@@ -7897,26 +7898,17 @@ def settle_shared(
     # a demotion-changed one when the demotion reads the same (an issue the
     # lane opened that triage edited, most runs); the unverified keep takes
     # that same demotion read when the probe trips.
+    current = False
     try:
-        if not keep:
-            current = False
-        elif unusable == "demotion-changed":
-            current = shared.demotion == read_demotion(
-                repo,
-                agent_identity=identity,
-                self_logins=frozenset(),
-                permission=permission_reader(repo),
-            )
-        elif unusable == "unverified-stale" and runs_unchanged is not None:
+        if keep and unusable == "demotion-changed":
+            current = shared.demotion == _read_demotion_as(repo, identity, frozenset())
+        elif keep and unusable == "unverified-stale" and runs_unchanged is not None:
             note["moved"] = _moved(
                 repo, default, identity, shared, runs_unchanged, reread_demotion=True
             )
             current = note["moved"] is None
-        else:
-            current = False
     except (RuntimeError, ValueError, OSError):
         note["moved"] = "unreadable" if unusable == "unverified-stale" else None
-        current = False
     if current:
         note["answer"] = "kept"
         return shared, None

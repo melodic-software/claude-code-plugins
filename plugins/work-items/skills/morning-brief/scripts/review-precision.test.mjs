@@ -11,7 +11,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { AUTHOR_KINDS, answerBucket, authorKind, bucketOf, compute, normalizeFirstLine, parseArgs, renderMarkdown, reviewsOf, stableStringify } from "./review-precision.mjs";
+import { bound, fakeActions, laneRun, RUN, recordEntry } from "../../../lib/lane-binding.fixtures.mjs";
+import { laneChecker } from "../../../lib/lane-binding.mjs";
+import { AUTHOR_KINDS, answerBucket, authorKind, bindComments, bucketOf, compute, normalizeFirstLine, parseArgs, renderMarkdown, reviewsOf, stableStringify } from "./review-precision.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./review-precision.mjs", import.meta.url));
 const TMP = mkdtempSync(join(tmpdir(), "review-precision-"));
@@ -412,4 +414,74 @@ test("arguments: the default window, and windows before the format are refused",
   const run = spawnSync(process.execPath, [SCRIPT, "--since", "2026-10-01", "--until", "2026-10-05"], { encoding: "utf8" });
   assert.equal(run.status, 2);
   assert.throws(() => parseArgs(["fetch"]), /--out/);
+});
+
+// ---------------------------------------------------------------- lane binding
+
+const BOT_NODE = (body, extra = {}) => ({ databaseId: 11, createdAt: T("10"), lastEditedAt: null, author: { __typename: "Bot", login: "github-actions" }, body, ...extra });
+const FOUND = "Finding: the gate drops the hold.\n\nseverity: HIGH";
+const boundBody = bound(FOUND);
+const bindWith = async (nodes, runs) => {
+  const actions = fakeActions(runs);
+  const out = await bindComments(nodes, laneChecker({ pr: 7, ...actions }));
+  return { out, calls: actions.calls };
+};
+
+test("a bound lane comment its run recorded keeps its footer and reads without its binding line", async () => {
+  const { out } = await bindWith([BOT_NODE(boundBody)], { [RUN]: laneRun([recordEntry(boundBody)]) });
+  assert.equal(out[0].unbound, undefined);
+  assert.equal(out[0].body, `${FOUND}\n\nclaude-lane: claude-review`);
+});
+
+test("a bound lane comment its run did not record, or from another workflow's run, is unbound", async () => {
+  const missing = await bindWith([BOT_NODE(boundBody)], { [RUN]: laneRun([recordEntry(boundBody, { id: 12 })]) });
+  assert.equal(missing.out[0].unbound, true);
+  const other = await bindWith([BOT_NODE(boundBody)], { [RUN]: { ...laneRun([recordEntry(boundBody)]), path: ".github/workflows/other.yml" } });
+  assert.equal(other.out[0].unbound, true);
+});
+
+test("a re-run attempt's record binds; a comment with no binding, or by another account, reads nothing", async () => {
+  const runs = { [RUN]: { path: laneRun([]).path, artifacts: [{ name: "claude-lane-comments-claude-review-1", entries: [] }, { name: "claude-lane-comments-claude-review-2", entries: [recordEntry(boundBody)] }] } };
+  assert.equal((await bindWith([BOT_NODE(boundBody)], runs)).out[0].unbound, undefined);
+  const legacy = await bindWith([BOT_NODE(`${FOUND}\n\nclaude-lane: claude-review`), BOT_NODE(boundBody, { author: { __typename: "User", login: "kyle-sexton" } })], {});
+  assert.deepEqual(legacy.out.map((c) => c.unbound), [undefined, undefined]);
+  assert.deepEqual(legacy.calls, []);
+});
+
+test("a failed run read fails the fetch rather than unbinding the comment", async () => {
+  await assert.rejects(bindWith([BOT_NODE(boundBody)], {}), /Not Found/);
+});
+
+test("an unbound footed root is no finding, and an unbound footed reply is an answer", () => {
+  const snap = {
+    schema: 3,
+    repo: "example/repo",
+    window: { since: "2026-10-27T00:00:00Z", until: "2026-10-29T00:00:00Z" },
+    rounds_cap: { value: 3, source: "x" },
+    truncated: [],
+    prs: [
+      {
+        number: 7,
+        createdAt: T("08"),
+        mergedAt: T("13"),
+        reviews: [],
+        comments: [],
+        threads: [
+          { path: "a.mjs", comments: [{ id: 1, author: "github-actions", author_type: "Bot", createdAt: T("10"), body: `${FOUND}\n\nclaude-lane: claude-review`, lane_bound: false, commit: A, replyTo: null }] },
+          {
+            path: "b.mjs",
+            comments: [
+              { id: 2, author: "github-actions", author_type: "Bot", createdAt: T("10"), body: `${FOUND}\n\nclaude-lane: claude-review`, commit: A, replyTo: null },
+              { id: 3, author: "github-actions", author_type: "Bot", createdAt: T("11"), body: "VALID. Fixed in abcdef1.\n\nclaude-lane: claude-review", lane_bound: false, commit: A, replyTo: 2 },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const stats = compute(snap).prs[0].lanes[CR];
+  assert.equal(stats.findings, 1);
+  assert.equal(stats.outcomes["valid-fixed"], 1);
+  delete snap.prs[0].threads[1].comments[1].lane_bound;
+  assert.equal(compute(snap).prs[0].lanes[CR].outcomes.unanswered, 1);
 });

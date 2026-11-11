@@ -3,6 +3,39 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.24] - 2026-11-11
+
+### Fixed
+
+- The `setup` skill's git-hook decisions reference no longer restates when husky sets `core.hooksPath`; the `husky-install` row keeps its action: tell the user to run the project's install.
+- The `setup` skill's git-hook decisions reference keeps its lefthook `use_stdin` and remote `source_dir` actions but drops the restated lefthook behavior and error string, pointing at lefthook's `use_stdin` and `remotes` docs instead. On lefthook 2.2.2 both pre-push jobs receive the pushed refs, with `parallel` off and on. The row still tells the user, on any other lefthook version, whatever `parallel` is set to, that `pre-push-content` may not receive the refs and could pass a push it never checked.
+- The lefthook remote test now checks that the second pre-push job (`pre-push-content`) also blocks from the refs on stdin, and the `lefthook-remote.yml` comment says so instead of tying stdin to the jobs running in turn.
+- `setup check` no longer downgrades a tool a git-hook entry needs (`jq` for `reference-verify`) to INFO while every guard is off and that entry is installed: the entries run at commit or push outside Claude Code and read no toggle.
+
+## [3.0.23] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [3.0.22] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [3.0.21] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [3.0.20] - 2026-11-11
+
+### Changed
+
+- The setup skill points at the permissions sections for what `Read` deny rules cover and how their patterns match, and the config-hook reference points at git's conditional includes for worktree matching and names all three entries that keep the local and shared scopes. No behavior change.
+
 ## [3.0.19] - 2026-11-11
 
 ### Changed

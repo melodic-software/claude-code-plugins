@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 
+import { bound, fakeActions, laneRun, recordEntry } from "../lib/lane-binding.fixtures.mjs";
 import { main } from "./clear-escalations.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -65,10 +66,12 @@ const baseTimeline = () => [{ event: "labeled", actor: ACTIONS_BOT, label: { nam
 // is a SUGGESTION, so a clear shows the bar is CRITICAL, not any finding.
 // A thread carries its file and the commit its root comment was made on.
 // A thread carries its file, the commit its root comment was made on and the line it names there.
+// Before LEGACY_CUTOFF: a lane comment with no binding still counts.
+const POSTED_AT = "2026-10-01T00:00:00Z";
 const thread = (isResolved, author, body, path = "plugins/x/z.py", commit = HEAD, line = 12) => ({
   isResolved,
   path,
-  comments: { nodes: [{ author, body, originalCommit: { oid: commit }, originalLine: line, originalStartLine: null }] },
+  comments: { nodes: [{ author, body, createdAt: POSTED_AT, lastEditedAt: null, originalCommit: { oid: commit }, originalLine: line, originalStartLine: null }] },
 });
 const securityThread = (severity, isResolved = false, path = undefined, commit = undefined, line = undefined) =>
   thread(isResolved, { __typename: "Bot", login: "github-actions" }, `${severity}\n\nA finding.\n\nclaude-lane: claude-security-review`, path, commit, line);
@@ -177,12 +180,12 @@ function world({ later = {}, timeline = baseTimeline(), threads = baseThreads(),
   return { github, checks, reader, writes: () => calls.filter((call) => call.method !== "GET" && call.path !== "/graphql") };
 }
 
-const run = async (w) => {
+const run = async (w, laneReads = undefined) => {
   const logs = [];
   const original = console.log;
   console.log = (line) => logs.push(line);
   try {
-    const code = await main({ env: ENV, github: w.github, checks: w.checks, reader: w.reader, verify: async () => null });
+    const code = await main({ env: ENV, github: w.github, checks: w.checks, reader: w.reader, verify: async () => null, laneReads });
     return { code, log: logs.join("\n") };
   } finally {
     console.log = original;
@@ -362,4 +365,66 @@ test("a hold other than critical-security needs no inline finding at the held he
     w.writes().map(({ method }) => method),
     ["POST", "DELETE"],
   );
+});
+
+// Lane binding (lib/lane-binding.mjs): a github-actions[bot] thread counts as
+// its lane's only when the run its binding names recorded it.
+const RUN_ID = 4242;
+const boundCritical = (id) => {
+  const body = bound("A finding.\n\nseverity: CRITICAL", { run: RUN_ID, sha: HEAD, lane: "claude-security-review" });
+  const node = thread(false, { __typename: "Bot", login: "github-actions" }, body);
+  node.comments.nodes[0].databaseId = id;
+  return { node, body };
+};
+const entry = (body, id) => recordEntry(body, { lane: "claude-security-review", head: HEAD, id });
+const criticalKept = "1 unresolved claude-security-review finding\\(s\\) at CRITICAL or with no one readable severity";
+
+test("a bound security thread its run recorded counts, its severity read above the binding", async () => {
+  const { node, body } = boundCritical(31);
+  const actions = fakeActions({ [RUN_ID]: laneRun([entry(body, 31)], { lane: "claude-security-review", head_sha: HEAD }) });
+  const w = world({ threads: [...baseThreads(), node] });
+  const { code, log } = await run(w, actions);
+  assert.equal(code, 0);
+  assert.deepEqual(w.writes(), []);
+  assert.match(log, new RegExp(`#7 kept: ${criticalKept}`));
+  assert.deepEqual(actions.calls.filter(([kind]) => kind === "run"), [["run", String(RUN_ID)]]);
+});
+
+test("a bound security thread its run's re-run attempt recorded counts", async () => {
+  const { node, body } = boundCritical(31);
+  const actions = fakeActions({ [RUN_ID]: laneRun([entry(body, 31)], { lane: "claude-security-review", attempt: 2, head_sha: HEAD }) });
+  const w = world({ threads: [...baseThreads(), node] });
+  const { log } = await run(w, actions);
+  assert.match(log, new RegExp(`#7 kept: ${criticalKept}`));
+});
+
+test("a bound thread no record lists, or whose run is another workflow, is no lane's: the hold comes off", async () => {
+  const { node, body } = boundCritical(31);
+  for (const runs of [
+    { [RUN_ID]: laneRun([entry(body, 99)], { lane: "claude-security-review" }) },
+    { [RUN_ID]: { ...laneRun([entry(body, 31)], { lane: "claude-security-review", head_sha: HEAD }), path: ".github/workflows/other.yml" } },
+  ]) {
+    const w = world({ threads: [...baseThreads(), node] });
+    await run(w, fakeActions(runs));
+    assert.deepEqual(
+      w.writes().map(({ method }) => method),
+      ["POST", "DELETE"],
+    );
+  }
+});
+
+test("a bound thread whose run does not read keeps the label and fails the run", async () => {
+  const { node } = boundCritical(31);
+  const w = world({ threads: [...baseThreads(), node] });
+  const { code } = await run(w, fakeActions({}));
+  assert.equal(code, 1);
+  assert.deepEqual(w.writes(), []);
+});
+
+test("legacy threads with no binding read no run", async () => {
+  const actions = fakeActions({});
+  const w = world();
+  await run(w, actions);
+  assert.deepEqual(actions.calls, []);
+  assert.equal(w.writes().at(-1).method, "DELETE");
 });

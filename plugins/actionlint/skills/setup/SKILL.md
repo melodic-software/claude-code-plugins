@@ -24,6 +24,12 @@ tool's path when present, or `absent` when missing:
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
 `command -v` probe via Bash instead.
 
+- **Pointer**: for the placeholder a skipped load-time command leaves, fetch
+  [skills § Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: the placeholder text changes.
+
 ## Purpose
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
@@ -56,7 +62,9 @@ When the plugin's toggle is disabled, every prerequisite absence except `node` d
 FAIL to INFO. The Claude Code hooks exit through their enabled-gate before probing anything, so a
 deliberately disabled plugin is not broken. Report those probes informationally and note that
 re-enabling restores the FAIL semantics. A missing `node` stays FAIL: the launcher runs before the
-enabled-gate.
+enabled-gate. A tool the git pre-commit entry needs keeps the grade it gets with the toggle on while
+that entry is installed (step 7 reports it as a `tool` line beside an `ok`, `stale` or `modified`
+entry): the entry runs at commit outside Claude Code and reads no toggle.
 
 1. **Bash version.** Check against the floor, Bash 3.2 or newer (README Requirements).
 2. **`node`.** The pre-computed `node` row. FAIL if absent, even when the toggle is off: every
@@ -111,10 +119,12 @@ with your own edit tools.
    stop here and report.
 4. **Actions.** When `actions[]` holds `copy` items, run
    `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" copy --scope <scope>` (plus the same
-   `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused` or
-   `blocked` per entry; `refused` means a locally edited copy, which the `modified` decision
-   covers, and `blocked` means another tool owns the local hooks directory, which the
-   `hooks-path-owned` decision covers.
+   `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused`,
+   `blocked`, `unsafe-path` or `stage-failed` per entry; `refused` means a locally edited copy or
+   dispatcher, which the `modified` decision covers, `blocked` that another tool owns the local
+   hooks directory, which the `hooks-path-owned` decision covers, `unsafe-path` the decision of
+   that name, and `stage-failed` that `git add` failed on a shared install: report it, since the
+   team would not receive the files.
 5. **Decisions.** Read [reference/git-hook-decisions.md](reference/git-hook-decisions.md) for
    what each kind asks of you, apply each one, then rerun `plan` until only the decisions you
    chose to leave remain.
@@ -138,32 +148,27 @@ Run `check`, then for each FAIL point at the resolution. This skill installs not
 - missing `actionlint`: platform install guidance from the README Requirements section
   (the [kjanat/actionlint install guide](https://github.com/kjanat/actionlint/blob/v1.17.0/docs/install.md)).
 - missing `node` / Bash: platform install instructions from the README Requirements section.
-- toggle off: reconfigure through Claude Code's native flow, per the marketplace's
-  plugin-reconfiguration convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
-  which owns the verified-version record): interactive
-  `/plugin configure actionlint@<marketplace>` any time. Headless, preferred on Claude Code
-  2.1.285 or later: `claude plugin configure actionlint@<marketplace> --values-stdin < values.json`,
-  where `values.json` holds `{"actionlint_enabled": "true"}` (every value a string, booleans
-  included; keys left out keep their saved values). Headless fallback, before 2.1.285:
-  `claude plugin install actionlint@<marketplace> -s <scope> --config actionlint_enabled=true`
-  (repeatable per key); against an already-installed plugin it prints `already installed`
-  **and still writes the value**. Do **not** uninstall to reconfigure: that drops this plugin's
-  entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
-  to its manifest default. The value lands in user settings whichever route writes it.
-  `claude plugin configure` has no scope flag, so run it from the project the plugin is installed
-  in. For the rerun, `-s` defaults to `user`; pass the scope `claude plugin list` reports for this
-  plugin, and for a `project` or `local` scope run from that project's directory, so the rerun
-  matches the existing install record; from the home directory pass `user`. A rerun at another
-  scope adds an install record at that scope and enables the plugin there. Check each route's own failure signal:
-  `--values-stdin` rejects a bad value with exit 1 and saves nothing, but stores an empty string
-  as `""`; the `--config` rerun prints a warning for a rejected value yet exits 0, so read its
-  output. This skill never writes user settings or `pluginConfigs`.
-  Afterwards rerun `check` in a **fresh session**. The rendered
-  `${user_config.*}` is injected at skill load and each hook receives its
-  `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a same-session
-  `check` still reports the OLD value; report the observed effective value, never an
-  unobserved change.
+- toggle off: set `actionlint_enabled` to `true` through Claude Code's native flow,
+  interactively with `/plugin configure actionlint@<marketplace>` or by a headless route, as the
+  marketplace's plugin-reconfiguration convention gives them in
+  [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
+  (it owns the verified-version record). Apply the scope and failure-signal caveats in its
+  [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
+  Read both sections and print what they give, the fallback route, its behavior on an
+  already-installed plugin and the scope to pass included, rather than only naming them, and
+  leave out the verified-version record.
+  Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
+  writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**, since a
+  same-session `check` can still show the old value, and report the observed effective value,
+  never an unobserved change.
+
+  - **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+    when a saved value applies, fetch
+    [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+    live.
+  - **As of**: 2026-11-11
+  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+    refused value, or when a saved value applies.
 
 After pointing at a remediation, re-run the relevant `check` probe live via Bash (a pre-computed row
 predates the remediation, so never re-read it) and report its actual result. Never claim resolved on
@@ -173,15 +178,15 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 ## Gotchas
 
-- **A userConfig knob is reachable natively only if the manifest declares it.** Per current
-  docs, `claude plugin install --config <key=value>` sets options "declared in the plugin's
-  manifest". An undeclared key silently cannot be set through native plugin configuration (a raw
-  settings `env` block still works).
-- **`--config`'s post-install behavior is undocumented, so the fallback above rests on
-  observation.** The official docs describe `--config` only as a `claude plugin install` flag
-  and say nothing about an already-installed plugin. The verified-version record lives only in
-  the plugin-reconfiguration convention cited in `apply` above. It names which CLI release the
-  still-writes claim was observed on, and which conditions it covered.
+- **A userConfig knob is reachable natively only if the manifest declares it.** An undeclared key
+  silently cannot be set through native plugin configuration (a raw settings `env` block still
+  works). Pointer: the `--config` row in
+  [`plugin install`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install). As of:
+  2026-11-10. Recheck trigger: that row lets `--config` set a key the manifest does not declare.
+- **What each headless route does to stored options is the convention's to state.** Read it in
+  [§ The routes](../../reference/plugin-reconfiguration.md#the-routes),
+  which also holds the verified-version record: which CLI release each behavior was observed on,
+  and under which conditions.
 - **`-shellcheck=` / `-pyflakes=` are deliberate, and the deadlock claim is a local
   observation.** The entry disables actionlint's external run-block linters because each spawns a
   subprocess per `run:` block; the additional "ShellCheck deadlocks on large blocks under the

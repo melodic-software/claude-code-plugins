@@ -26,6 +26,12 @@ tool's path when present, or `absent` when missing:
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
 `command -v` probe via Bash instead.
 
+- **Pointer**: for the placeholder a skipped load-time command leaves, fetch
+  [skills § Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: the placeholder text changes.
+
 ## Purpose
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
@@ -59,7 +65,10 @@ When the plugin's toggle is disabled, every prerequisite absence except `node` d
 FAIL to INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
 disabled plugin is not broken. Report those probes informationally and note that re-enabling
 restores the FAIL semantics. A missing `node` stays FAIL in either state: Claude Code launches
-`node` before the launcher can read the toggle, so both hook rows fail to start.
+`node` before the launcher can read the toggle, so both hook rows fail to start. A tool the git
+pre-commit entry needs keeps the grade it gets with the toggle on while that entry is installed
+(step 9 reports it as a `tool` line beside an `ok`, `stale` or `modified` entry): the entry runs at
+commit outside Claude Code and reads no toggle.
 
 1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the batch hook then does nothing,
@@ -115,10 +124,12 @@ with your own edit tools.
    stop here and report.
 4. **Actions.** When `actions[]` holds `copy` items, run
    `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" copy --scope <scope>` (plus the same
-   `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused` or
-   `blocked` per entry; `refused` means a locally edited copy, which the `modified` decision
-   covers, and `blocked` means another tool owns the local hooks directory, which the
-   `hooks-path-owned` decision covers.
+   `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused`,
+   `blocked`, `unsafe-path` or `stage-failed` per entry; `refused` means a locally edited copy or
+   dispatcher, which the `modified` decision covers, `blocked` that another tool owns the local
+   hooks directory, which the `hooks-path-owned` decision covers, `unsafe-path` the decision of
+   that name, and `stage-failed` that `git add` failed on a shared install: report it, since the
+   team would not receive the files.
 5. **Decisions.** Read [reference/git-hook-decisions.md](reference/git-hook-decisions.md) for
    what each kind asks of you, apply each one, then rerun `plan` until only the decisions you
    chose to leave remain.
@@ -153,38 +164,27 @@ re-verifying. For everything else `apply` only points:
   toolchain: https://go.dev/dl/).
 - missing `node` / `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
-- toggle off: the marketplace's plugin-reconfiguration convention owns the routes, the caveats,
-  the measured CLI behavior (including that a rerun against an already-installed plugin still
-  writes the value) and its verification record
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>).
-  Consumer-run routes, `go_format_lint_gitignored` set the same way:
-  - Interactive: `/plugin configure go-format@<marketplace>`.
-  - Headless, preferred on Claude Code 2.1.285 or later:
-    `claude plugin configure go-format@<marketplace> --values-stdin < values.json`, where
-    `values.json` holds `{"go_format_enabled": "false"}` (every value a string, booleans included;
-    keys left out keep their saved values).
-  - Headless fallback, before 2.1.285:
-    `claude plugin install go-format@<marketplace> -s <scope> --config go_format_enabled=false`.
+- toggle off: set `go_format_enabled` to `false` (and `go_format_lint_gitignored` the same way)
+  through Claude Code's native flow, interactively with `/plugin configure go-format@<marketplace>`
+  or by a headless route, as the marketplace's plugin-reconfiguration convention gives them in
+  [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
+  (it owns the verified-version record). Apply the scope and failure-signal caveats in its
+  [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
+  Read both sections and print what they give, the fallback route, its behavior on an
+  already-installed plugin and the scope to pass included, rather than only naming them, and
+  leave out the verified-version record.
+  Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
+  writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**, since a
+  same-session `check` can still show the old value, and report the observed effective value,
+  never an unobserved change.
 
-  Print these four caveats with them:
-  - Never uninstall to reconfigure: it drops this plugin's entire stored `pluginConfigs` entry and
-    resets every option to its manifest default.
-  - Scope. The option value always lands in user settings, whichever route writes it.
-    `claude plugin configure` has no scope flag, so run it from the project the plugin is
-    installed in. For the rerun, pass the scope `claude plugin list` reports for this plugin, and
-    for a `project` or `local` scope run from that project's directory, so the rerun matches the
-    existing install record. `-s` places the install record and `enabledPlugins`, and a rerun at
-    another scope adds an install record at that scope and enables the plugin there. When the
-    working directory is the home directory, project scope and user scope are the same settings
-    file, so the list can label that one file as both `user` and `project`: pass `user`.
-  - Observation is next-session: a same-session `check` still reports the OLD value, so rerun
-    `check` in a **fresh session** and report the observed effective value, never an unobserved
-    change.
-  - Check each route's own failure signal: `--values-stdin` rejects a bad value with exit 1 and
-    saves nothing, but stores an empty string as `""`; the `--config` rerun prints a warning for a
-    rejected value yet exits 0, so read its output, not its exit code.
-
-  This skill never writes user settings or `pluginConfigs`.
+  - **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+    when a saved value applies, fetch
+    [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+    live.
+  - **As of**: 2026-11-11
+  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+    refused value, or when a saved value applies.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
@@ -195,4 +195,5 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Install `goimports`. Installation is always the consumer's own choice and command, at the
   machine level, never a project dependency this skill records.
-- Download or execute tools during `check` or `apply`.
+- Download tools, or run any during `check` or `apply` beyond the read-only `goimports -h` probe
+  and the `install.mjs` commands named above.

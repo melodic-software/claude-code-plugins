@@ -1,6 +1,6 @@
 ---
-description: "Rounds of numbered, recommended questions that bring a task, proposal, or choice to shared understanding. An engineering task locks a PLAN.md Brief (goal, constraints, acceptance criteria, assumptions). Use when: 'interview me', 'lock the brief', 'spec this task', 'grill me', 'this is underspecified', 'ask me questions first', 'what do you need to know', 'I have an idea', 'help me think this through', 'acceptance criteria', 'how will we know this is done', or before work whose diff is not quick to review and cheap to retry; skip one that is."
-argument-hint: "[me|lock|scope|restate|share|product] [topic]"
+description: "Rounds of numbered, recommended questions that bring a task, proposal, or choice to shared understanding. An engineering task locks a PLAN.md Brief (goal, constraints, acceptance criteria, assumptions); a decision another person holds becomes a document they fill in. Use when: 'interview me', 'lock the brief', 'spec this task', 'grill me', 'this is underspecified', 'ask me questions first', 'what do you need to know', 'I have an idea', 'help me think this through', 'acceptance criteria', 'how will we know this is done', 'make a questionnaire for X', 'I need to ask legal about this', 'send this to someone else to answer', or before work whose diff is not quick to review and cheap to retry; skip one that is."
+argument-hint: "[me|lock|scope|restate|share|document|product] [topic]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Interview in frontier rounds until the task contract is locked
 ---
 
-**Arguments.** `[me|lock|scope|restate|share|product] [topic]`. e.g., /planning:interview, /planning:interview me, /planning:interview lock, /planning:interview scope, /planning:interview restate, /planning:interview share <topic>, /planning:interview product <idea>, /planning:interview <topic>
+**Arguments.** `[me|lock|scope|restate|share|document|product] [topic]`. e.g., /planning:interview, /planning:interview me, /planning:interview lock, /planning:interview scope, /planning:interview restate, /planning:interview share <topic>, /planning:interview document <topic> (a document another person fills in), /planning:interview product <idea>, /planning:interview <topic>
 
 ## Repository context. Gather first
 
@@ -77,6 +77,7 @@ Parse `$ARGUMENTS` to determine the action. Empty argument routes to `auto` (the
 | `scope` / `scope <topic>` | **Ad hoc scope round** | Short scope Q&A before another skill: ledger + register gate; **no** `PLAN.md` Brief; return `Scope decisions:` for the caller |
 | `restate` | **Restate the understanding** | "Say back what you think we're doing", "do we agree on the goal?". Read [`actions/restate.md`](actions/restate.md) and run it: one paragraph of goal, problem and done, then wait for a yes in an interactive session |
 | `share [<topic>]` | **Shared session** | "Run this interview as a shared session", "let the designer and the PO answer together". Same loop and gates; several people answer each round. Resolve the surface with `share` as its argument ("Question lanes" below) |
+| `<surface word> [<topic>]` | **On-request surface** | The first word is the id or an alias of a surface only a request picks (`onRequest` in `node "${CLAUDE_PLUGIN_ROOT}/surfaces/registry.mjs" list`), or the user asks for one in words ("make a questionnaire for the DBA"). Resolve the surface with that word, or for a request in words the surface's id, as its argument ("Question lanes" below), then run `auto` on the topic |
 | `product <idea>` | **Product stress-test** | Reached only by the `product` action, which these idea phrases select when invoking the skill: "should I build this", "is this worth building", "grill me" about a product idea (a "grill me" about a task is `auto`). Skip auto-detect; read [`context/product.md`](context/product.md) and run it: one question per turn from the twenty product principles, then its verdict in place of a Brief |
 | `<topic>` | **`auto` on narrow topic** | "Interview the caching approach". Same intelligent default, narrower scope |
 

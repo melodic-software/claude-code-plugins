@@ -87,9 +87,9 @@ US=$'\x1f'
 RS=$'\x1e'
 
 # Every temp file this script creates is registered here and removed on exit,
-# however the script leaves. `die` is the reason: it is called from eight places
-# that hold a live temp file, and a per-site `rm` before each one is a rule that
-# has to be re-obeyed every time a `die` is added. One trap is obeyed by
+# however the script leaves. `die` is the reason: it is called from places that
+# hold a live temp file, and a per-site `rm` before each one is a rule that has
+# to be re-obeyed every time a `die` is added. One trap is obeyed by
 # construction. Explicit removals elsewhere stay, because freeing a large entry
 # file at the end of a long run beats holding it until exit; `rm -f` twice on one
 # path is harmless.
@@ -131,17 +131,23 @@ A missing path hashes to `deleted`, an unreadable one to `unreadable`.
 EOF
 }
 
-# sha256 of stdin, lowercase hex, no filename suffix. `sha256sum` on GNU,
-# `shasum -a 256` on BSD userland; a host with neither cannot compute the digest
+# The sha256 command, resolved once by `resolve_sha256`: `sha256sum` on GNU,
+# `shasum -a 256` on BSD userland. A host with neither cannot compute the digest
 # at all and says so rather than printing something that looks like one.
-sha256_stdin() {
+SHA256_CMD=()
+resolve_sha256() {
   if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum | cut -d' ' -f1
+    SHA256_CMD=(sha256sum)
   elif command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 | cut -d' ' -f1
+    SHA256_CMD=(shasum -a 256)
   else
     die "no sha256 implementation found (need sha256sum or shasum)"
   fi
+}
+
+# sha256 of stdin, lowercase hex, no filename suffix.
+sha256_stdin() {
+  "${SHA256_CMD[@]}" | cut -d' ' -f1
 }
 
 sha256_string() {
@@ -157,16 +163,10 @@ hash_path() {
     printf '%s' "$SENTINEL_MISSING"
     return 0
   fi
-  if [[ -d "$p" || ! -r "$p" ]]; then
-    printf '%s' "$SENTINEL_UNREADABLE"
-    return 0
+  if [[ ! -d "$p" && -r "$p" ]]; then
+    out=$(sha256_stdin <"$p" 2>/dev/null) || out=""
   fi
-  out=$(sha256_stdin <"$p" 2>/dev/null) || out=""
-  if [[ -z "$out" ]]; then
-    printf '%s' "$SENTINEL_UNREADABLE"
-    return 0
-  fi
-  printf '%s' "$out"
+  printf '%s' "${out:-$SENTINEL_UNREADABLE}"
 }
 
 # Read `<surface>\t<path>` lines, drop excluded surfaces, dedup on the surface
@@ -178,7 +178,7 @@ collect_entries() {
   local list="$1"
   shift
   local excludes=("$@")
-  local line surface path seen_file hashed ex skip
+  local line surface path seen_file ex
 
   mk_temp
   seen_file="$MK_TEMP"
@@ -192,48 +192,29 @@ collect_entries() {
     fi
     [[ -z "$surface" ]] && die "list entry has an empty surface token: $line"
 
-    skip=0
     for ex in ${excludes[0]+"${excludes[@]}"}; do
-      if [[ "$surface" == "$ex" ]]; then
-        skip=1
-        break
-      fi
+      [[ "$surface" == "$ex" ]] && continue 2
     done
-    [[ "$skip" -eq 1 ]] && continue
 
-    if grep -qxF -- "$surface" "$seen_file" 2>/dev/null; then
-      continue
-    fi
+    grep -qxF -- "$surface" "$seen_file" 2>/dev/null && continue
     printf '%s\n' "$surface" >>"$seen_file"
 
-    hashed=$(hash_path "$path")
-    printf '%s\t%s\n' "$surface" "$hashed"
+    printf '%s\t%s\n' "$surface" "$(hash_path "$path")"
   done <"$list"
 
   rm -f "$seen_file"
 }
 
-# Sort by byte order, join into the pinned body, hash it. The body is built by
-# streaming rather than accumulated in a variable, because a large inventory's
-# body exceeds what is comfortable to hold in one shell string.
+# Sort by byte order, join into the pinned body, hash it. The body is streamed
+# straight into the hash rather than accumulated in a variable, because a large
+# inventory's body exceeds what is comfortable to hold in one shell string.
 digest_from_entries() {
-  local entries="$1" body first=1 line surface hashed
-  body=$(mktemp) || die "could not create a temporary file"
-
-  while IFS= read -r line || [[ -n "$line" ]]; do
+  local entries="$1" sep="" line
+  LC_ALL=C sort "$entries" | while IFS= read -r line; do
     [[ -z "$line" ]] && continue
-    surface="${line%%$'\t'*}"
-    hashed="${line#*$'\t'}"
-    if [[ "$first" -eq 1 ]]; then
-      first=0
-    else
-      printf '%s' "$RS" >>"$body"
-    fi
-    printf '%s%s%s' "$surface" "$US" "$hashed" >>"$body"
-  done < <(LC_ALL=C sort "$entries")
-
-  sha256_stdin <"$body"
-  rm -f "$body"
+    printf '%s%s%s%s' "$sep" "${line%%$'\t'*}" "$US" "${line#*$'\t'}"
+    sep="$RS"
+  done | sha256_stdin
 }
 
 read_list_to_temp() {
@@ -345,18 +326,14 @@ cmd_dirty() {
   # change, with the comparability gate then evaluating against incomplete input
   # instead of failing. A bare repo and an unreadable index both take that path.
   local raw err rc=0
-  raw=$(mktemp) || die "could not create a temporary file"
-  # `$raw` already exists, so a failure here has to clean it up: a `die` that
-  # leaves its own temp file behind turns one failure into litter in TMPDIR.
-  err=$(mktemp) || {
-    rm -f "$raw"
-    die "could not create a temporary file"
-  }
+  mk_temp
+  raw="$MK_TEMP"
+  mk_temp
+  err="$MK_TEMP"
   git -C "$target" status --porcelain -z --untracked-files=all >"$raw" 2>"$err" || rc=$?
   if [[ "$rc" -ne 0 ]]; then
     local detail
     detail=$(tr '\n' ' ' <"$err")
-    rm -f "$raw" "$err"
     die "git status failed in $target (exit $rc): ${detail% }"
   fi
   rm -f "$err"
@@ -406,15 +383,11 @@ main() {
   }
   local cmd="$1"
   shift
-  # Checked once, up front. Every other call site is inside a command
-  # substitution, where a `die` exits only the subshell and the run would carry
-  # on with an empty hash that looks like a value.
+  # Resolved once, up front. Every hashing call site is inside a command
+  # substitution or a pipeline, where a `die` exits only the subshell and the run
+  # would carry on with an empty hash that looks like a value.
   case "$cmd" in
-  digest | input-digest | hash-file)
-    if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
-      die "no sha256 implementation found (need sha256sum or shasum)"
-    fi
-    ;;
+  digest | input-digest | hash-file) resolve_sha256 ;;
   *) : ;;
   esac
   case "$cmd" in

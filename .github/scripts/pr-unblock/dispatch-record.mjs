@@ -8,12 +8,35 @@
 // never dispatches on it, so a lost or tampered record costs reads or a skip,
 // not an extra run; a lost fix-docs run list restarts that head's count, at
 // most the cap's runs more. Each entry is validated; anything else in the
-// file is dropped.
+// file is dropped. It also holds the one dispatch sender every dispatcher
+// starts a recorded run with, and the run id form the record accepts.
 
 import { readFileSync, writeFileSync } from "node:fs";
 
 const SHA = /^[0-9a-f]{40}$/;
-const RUN_ID = /^[1-9][0-9]{0,14}$/;
+export const RUN_ID = /^[1-9][0-9]{0,14}$/;
+
+// One workflow dispatch for the PR on `base`: the run id it started, or null
+// when it failed or named no usable id. The dispatched run's gate and the
+// broker refuse a run its dispatcher did not record, so a dispatch with no
+// usable id counts as failed. `label` prefixes the PR in the success line and
+// `errorLabel` the dispatch in the error lines; `note` is read after a
+// success, for the end of its line.
+export async function sendDispatch(api, log, { workflow, base, node, inputs, label = "", errorLabel = "", note = () => "" }) {
+  try {
+    const { workflowRunId } = await api.dispatchWorkflow({ workflow, ref: `refs/heads/${base}`, inputs });
+    const id = String(workflowRunId);
+    if (!RUN_ID.test(id)) {
+      log(`::error::#${node.number}: ${errorLabel}dispatch returned no valid workflow_run_id`);
+      return null;
+    }
+    log(`dispatched ${label}#${node.number} head ${node.headRefOid} workflow_run_id=${id}${note()}`);
+    return id;
+  } catch (error) {
+    log(`::error::#${node.number}: ${errorLabel}dispatch failed: ${error.message}`);
+    return null;
+  }
+}
 // Raised whenever a dispatcher changes which check runs handle a head for
 // good, so a record written under the old rule is read as empty: version 2
 // leaves unrecorded a head a later no-model-turn reply or verdict can release,

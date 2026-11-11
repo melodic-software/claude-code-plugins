@@ -16,7 +16,7 @@ convention setup. The PR lifecycle also resolves merge conflicts.
 - [Hooks](#hooks)
   - [`pr-body-linkage-gate`](#pr-body-linkage-gate)
   - [`pr-linkage-mcp-gate`](#pr-linkage-mcp-gate)
-  - [`worktree-add-claim-gate`](#worktree-add-claim-gate)
+  - [`worktree-add-claim`](#worktree-add-claim)
 - [Works in any repo](#works-in-any-repo)
 - [Install](#install)
 - [Configuration](#configuration)
@@ -274,7 +274,7 @@ Telemetry matches the sibling's: one envelope per run (`ok`/`blocked`,
 `duration_ms`, and the tool name as its only data label), only when
 `HOOK_TELEMETRY_SINK` is set.
 
-### `worktree-add-claim-gate`
+### `worktree-add-claim`
 
 A `PostToolUse` hook on the Bash tool. After a raw `git worktree add` it
 claims **the parsed add target** (same tokenizer / `git -C` / wrapper
@@ -300,7 +300,7 @@ claim's session has no live transcript on this host, which `cleanup` combines
 with a merged or landed branch before offering to remove a locked worktree;
 `stale --batch --repo-dir <repo>` gives the same verdict for each NUL-delimited path on stdin from
 one worktree list and one transcript scan, which is how `cleanup` checks every
-locked candidate at once. Set `worktree_add_claim_gate_enabled` to `false` to turn the hook
+locked candidate at once. Set `worktree_add_claim_enabled` to `false` to turn the hook
 off; the script remains the documented gate.
 
 This hook and its `PreToolUse` sibling `worktree-add-containment-gate` are registered
@@ -316,17 +316,17 @@ what the substitution expands to.
 
 #### Measured cost
 
-The two Bash-matcher worktree gates and the `WorktreeCreate` gate, counted as kernel
+The two Bash-matcher worktree hooks and the `WorktreeCreate` gate, counted as kernel
 process creations rather than wall time: the host that reported these hooks timing out
 pays 0.3-0.9 s per spawn, so wall time there describes contention more than it describes
 the hook. Counted with `strace -f -e trace=clone,clone3,fork,vfork,execve`:
 
 | Path | clone-family | `execve` |
 | --- | --- | --- |
-| Either Bash gate, a `worktree` command that is not an `add` | 7 | 2 |
+| Either Bash hook, a `worktree` command that is not an `add` | 7 | 2 |
 | `worktree-add-containment-gate`, an `add` it allows | 18 | 5 |
 | `worktree-add-containment-gate`, an `add` it blocks | 18-22 | 5-7 |
-| `worktree-add-claim-gate`, a parsed `add` target | 22 | 6 |
+| `worktree-add-claim`, a parsed `add` target | 22 | 6 |
 | `worktree-create-gate`, before it reaches the placement helper | 13 | 4 |
 
 Four of the seven creations on the not-an-`add` path belong to
@@ -498,19 +498,11 @@ target it cannot resolve statically (dynamic path, prior `cd`, unreadable payloa
 The nesting invariant's measurement, disputed arms and expiry live in `skills/worktree/reference/nesting-invariant.md`
 "The nesting invariant, dated measurement".
 
-**`worktree_add_claim_gate_enabled`.** Only the parsed add target is claimed, not every currently
+**`worktree_add_claim_enabled`.** Only the parsed add target is claimed, not every currently
 unlocked linked worktree. Existing lock reasons, including the `worktree-create.sh` helper string,
 are never rewritten. The lock is a claim other agents can read, not a write mutex. With the hook
 off, `scripts/worktree-claim.sh report` still lists unclaimed plain-add trees and `check-enter`
 still surfaces a foreign live claim. The key is an on/off switch only.
-
-**`worktree_create_gate_enabled`.** A WorktreeCreate hook has no "not applicable" channel: measured
-on Claude Code 2.1.228, a non-zero exit and an exit 0 without a path both fail the creation. That
-is why `false` makes the gate refuse out loud, and every harness-driven creation path
-(`claude --worktree`, a subagent with `isolation: "worktree"`, a background session) fails with a
-message naming the real stand-downs. To let Claude Code place worktrees itself, set
-`worktree.bgIsolation` to `"none"` in settings, or disable this plugin. Probe, verbatim harness
-output and the as-of stamp: `skills/worktree/fixtures/README.md`.
 
 **`babysit_self_logins`.** The self set drives self-comment suppression, same-login
 classification, readiness-gate classification rows, the merge-gate self-exemption, and the
@@ -581,8 +573,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `worktree_stale_days` | number<br>*min 1* | `14` | Days since last commit before /worktree status classifies a worktree as stale. Default 14. |
 | `worktree_reap_after_hours` | number<br>*min 1* | `48` | Hours since last commit before /worktree cleanup proposes an already-safe worktree for removal by default. Default 48. |
 | `worktree_add_containment_gate_enabled` | boolean | `true` | Blocks a raw Bash git worktree add whose resolved target lands inside a git repository (a working tree, or a .git or bare directory), naming the configured external root. On by default. A conforming target, or one the hook cannot resolve statically, passes silently. |
-| `worktree_add_claim_gate_enabled` | boolean | `true` | After a raw Bash git worktree add, locks the parsed add target with a session-distinct claim (host, session id, timestamp) so concurrent adds cannot steal each other's trees. On by default. Off leaves plain-add trees unclaimed. |
-| `worktree_create_gate_enabled` | boolean | `true` | Redirects a WorktreeCreate away from Claude Code's default location, which may be inside the repository, to the configured worktree_root. On by default. Off does not hand placement back to Claude Code: the gate refuses and every harness-driven worktree creation fails. |
+| `worktree_add_claim_enabled` | boolean | `true` | After a raw Bash git worktree add, locks the parsed add target with a session-distinct claim (host, session id, timestamp) so concurrent adds cannot steal each other's trees. On by default. Off leaves plain-add trees unclaimed. |
 | `babysit_watched_owners` | string (multiple) | *(none)* | GitHub owners (users or orgs) babysit-prs may act under. Absent: the current repo's owner is inferred per run. |
 | `babysit_self_logins` | string (multiple) | *(none)* | Extra GitHub posting identities (for example a project bot account) added to your gh api user login to form the self set babysit-prs treats as its own. Not a discovery filter. Absent: your gh login alone. |
 | `babysit_intended_write_identity` | string | *(none)* | The single GitHub login babysit-prs's own writes should land under, typically the bot posting identity; a recorded write landing under a different self login surfaces an attribution-drift finding. Set it to one of your self logins. Absent: the check is dormant. |

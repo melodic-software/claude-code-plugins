@@ -3,6 +3,20 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.38] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [0.6.37] - 2026-11-11
+
+### Changed
+
+- `setup` points at the default-enablement section instead of restating what an install does, and drops the restated debug flags beside its existing pointer.
+
+No behavior change.
+
 ## [0.6.36] - 2026-11-11
 
 ### Changed

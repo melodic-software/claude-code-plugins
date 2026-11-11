@@ -76,7 +76,7 @@
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/worktree-add-claim-gate.sh"
+              "${CLAUDE_PLUGIN_ROOT}/hooks/worktree-add-claim.sh"
             ],
             "if": "Bash(*worktree *add*)",
             "timeout": 15,

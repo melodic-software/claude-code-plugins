@@ -38,9 +38,12 @@ scans it with the rest of the rendered body.
 
 ## Steps
 
-1. **Head, body and verdict.** Read the PR's number, URL, head commit and body
-   (`gh pr view <pr> --json number,url,headRefOid,body`). The acceptance criteria are the list
-   items under the body's `## Acceptance criteria` heading, the section
+1. **Head, body and verdict.** Resolve the PR's repository once with `scripts/target-repo.sh`
+   (`--dir <checkout>` out of tree), report the `target repository:` line it prints, and stop on
+   a non-zero exit with its stderr reported; every forge read and write below names that
+   `<owner>/<repo>`. Read the PR's number, URL, head commit and body
+   (`gh pr view <pr> -R <owner>/<repo> --json number,url,headRefOid,body`). The acceptance
+   criteria are the list items under the body's `## Acceptance criteria` heading, the section
    [create.md](create.md) §2.4.1 writes; a body with no such heading, or none under it, has none.
    Then run
    `bash "<skill-dir>/scripts/confirm-verdict.sh" show --head <head>`. Go on only when it prints
@@ -96,10 +99,9 @@ scans it with the rest of the rendered body.
    pattern), never the matched text. A `values:` source that fails or yields no value, or a scan
    that cannot run, posts nothing either.
 6. **One comment per identity.** `gh pr comment --edit-last` edits the last comment of the
-   account `gh` is logged in as, so that account must post nothing else on the PR. Read its login
-   (`gh api user --jq .login`), then its comments on the PR in order
-   (`gh api --paginate repos/{owner}/{repo}/issues/<pr>/comments --jq '.[] | select(.user.login == "<login>") | {id, evidence: (.body | startswith("<!-- evidence-verification -->"))}'`,
-   run from the checkout; `gh api` has no `--repo`, so set `GH_REPO=<owner>/<repo>` out of tree).
+   account `gh` is logged in as, so that account must post nothing else on the PR. Read the login
+   (`gh api user --jq .login`), then its comments on the PR in order, in step 1's repository
+   (`gh api --paginate repos/<owner>/<repo>/issues/<pr>/comments --jq '.[] | select(.user.login == "<login>") | {id, evidence: (.body | startswith("<!-- evidence-verification -->"))}'`).
    When any of the account's comments does not start with the marker
    `<!-- evidence-verification -->`, or more than one does, post nothing: an edit would overwrite
    another comment, or the PR would carry two. Name the account and say the step needs an
@@ -119,7 +121,7 @@ scans it with the rest of the rendered body.
 8. **Post or update** with one call that names each capture to attach:
 
    ```bash
-   gh pr comment <pr> --edit-last --create-if-none --body-file "<body file>" --attach "<capture>" --attach "<capture>"
+   gh pr comment <pr> -R <owner>/<repo> --edit-last --create-if-none --body-file "<body file>" --attach "<capture>" --attach "<capture>"
    ```
 
    It edits the account's last comment, the evidence comment step 6 found, or creates it when
@@ -129,8 +131,8 @@ scans it with the rest of the rendered body.
    found, when there is one, and post a new one, so the PR still carries one evidence comment:
 
    ```bash
-   gh pr comment <pr> --delete-last --yes
-   gh pr comment <pr> --body-file "<body file>" --attach "<capture>"
+   gh pr comment <pr> -R <owner>/<repo> --delete-last --yes
+   gh pr comment <pr> -R <owner>/<repo> --body-file "<body file>" --attach "<capture>"
    ```
 
    With no evidence comment yet, run only the second command. Run the delete exactly as written,

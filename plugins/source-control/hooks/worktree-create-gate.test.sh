@@ -198,37 +198,6 @@ assert_exit "an illegal branch name fails the creation" 1 "$STATUS"
 assert_silent "an illegal name prints no path" "$OUT"
 
 # --------------------------------------------------------------------------
-# Disabled
-#
-# A WorktreeCreate hook that exits 0 without printing a path fails the creation
-# (measured on Claude Code 2.1.228; <https://code.claude.com/docs/en/hooks>,
-# fetched 2026-08-11: "Hook failure or missing path fails creation"), and an
-# exit-0 hook's stderr is dropped (measured: the probe marker was absent on
-# exit 0 and present on exit 3), so Disabled refuses out loud instead.
-# Full four-arm probe: skills/worktree/fixtures/README.md.
-# --------------------------------------------------------------------------
-
-REPO6="$(mkrepo)"
-OUT="$(payload "feat/gate-off" "$REPO6" |
-  CLAUDE_PLUGIN_OPTION_WORKTREE_CREATE_GATE_ENABLED=false \
-    CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>/dev/null)"
-STATUS=$?
-assert_exit "disabled refuses non-zero, because exit 0 without a path fails creation anyway" 1 "$STATUS"
-assert_silent "a refusal prints no path" "$OUT"
-assert_eq "disabled creates nothing" "1" \
-  "$(git -C "$REPO6" worktree list | grep -c .)"
-
-ERR="$(payload "feat/gate-off" "$REPO6" |
-  CLAUDE_PLUGIN_OPTION_WORKTREE_CREATE_GATE_ENABLED=false \
-    CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>&1 >/dev/null)"
-assert_contains "disabled names the option that caused it" "$ERR" "worktree_create_gate_enabled=false"
-assert_contains "disabled names the real harness-side stand-down" "$ERR" 'worktree.bgIsolation'
-assert_contains "disabled states plainly that the option cannot hand placement back" \
-  "$ERR" "cannot hand placement back"
-assert_eq "the remedy leads — a reader acts on the first line, so it must not be the diagnosis" \
-  "1" "$(printf '%s\n' "$ERR" | grep -n 'bgIsolation' | head -n 1 | cut -d: -f1)"
-
-# --------------------------------------------------------------------------
 # The failure message: taxonomy, real exit status, and a remedy on every line 1
 #
 # Every refusal fails the creation identically (any non-zero exit does), so the

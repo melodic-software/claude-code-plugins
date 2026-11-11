@@ -22,6 +22,12 @@ the tool's path when present, or `absent` when missing:
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
 `command -v` probe via Bash instead.
 
+- **Pointer**: for the placeholder a skipped load-time command leaves, fetch
+  [skills § Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: the placeholder text changes.
+
 ## Purpose
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
@@ -53,7 +59,10 @@ When the plugin's toggle is disabled, every prerequisite absence except Node.js 
 downgrades from FAIL to INFO. The hook exits through its enabled-gate before probing
 anything, so a deliberately disabled plugin is not broken. Report those probes
 informationally and note that re-enabling restores the FAIL semantics. Node.js stays FAIL
-when disabled: the runner must start `node` before `exec-bash.mjs` can evaluate the gate.
+when disabled: the runner must start `node` before `exec-bash.mjs` can evaluate the gate. A tool
+the git pre-commit entry needs keeps the grade it gets with the toggle on while that entry is
+installed (step 8 reports it as a `tool` line beside an `ok`, `stale` or `modified` entry): the
+entry runs at commit outside Claude Code and reads no toggle.
 
 1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the batch hook then does nothing,
@@ -119,10 +128,12 @@ with your own edit tools.
    stop here and report.
 4. **Actions.** When `actions[]` holds `copy` items, run
    `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" copy --scope <scope>` (plus the same
-   `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused` or
-   `blocked` per entry; `refused` means a locally edited copy, which the `modified` decision
-   covers, and `blocked` means another tool owns the local hooks directory, which the
-   `hooks-path-owned` decision covers.
+   `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused`,
+   `blocked`, `unsafe-path` or `stage-failed` per entry; `refused` means a locally edited copy or
+   dispatcher, which the `modified` decision covers, `blocked` that another tool owns the local
+   hooks directory, which the `hooks-path-owned` decision covers, `unsafe-path` the decision of
+   that name, and `stage-failed` that `git add` failed on a shared install: report it, since the
+   team would not receive the files.
 5. **Decisions.** Read [reference/git-hook-decisions.md](reference/git-hook-decisions.md) for
    what each kind asks of you, apply each one, then rerun `plan` until only the decisions you
    chose to leave remain.
@@ -152,11 +163,13 @@ lockfile exists, then npm only when neither signal is present. With no `package.
 ambiguous multi-lockfile state, or a lockfile that contradicts `packageManager`, stop with
 manager-specific guidance instead of guessing. Never introduce a competing lockfile. The
 change is stated before running. For a Yarn repository, don't infer the linker. Ask the
-repo's own Yarn: run `yarn config get nodeLinker` in the repo. `pnp` (Berry's default when
-unset) → skip the install and give guidance, because Plug'n'Play generates a loader file,
-not the `node_modules/.bin` shim the hook resolves; install `@biomejs/biome` on `PATH` or
-switch the linker. `node-modules`/`pnpm`, or Yarn Classic (which has no such setting and
-always materializes `node_modules`) → install. The verify-after-remediation rule below is
+repo's own Yarn: run `yarn config get nodeLinker` in the repo. `pnp` → skip the install and
+give guidance, because Plug'n'Play generates a loader file, not the `node_modules/.bin` shim
+the hook resolves; install `@biomejs/biome` on `PATH` or switch the linker.
+`node-modules`/`pnpm`, or Yarn Classic → install. Pointer for the linker values and their
+default: [`nodeLinker`](https://yarnpkg.com/configuration/yarnrc#nodeLinker). As of: 2026-11-10.
+Recheck trigger: that setting gains a value that also yields no `node_modules/.bin` shim. The
+verify-after-remediation rule below is
 the backstop when an install still yields no usable shim. After ANY remediation, re-run the
 relevant `check` probe live via Bash (a pre-computed row predates the remediation) and report
 its actual result. Never claim resolved on the install
@@ -164,32 +177,27 @@ command's exit code alone. For everything else `apply` only points:
 
 - missing `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
-- toggle off: reconfigure through Claude Code's native flow, per the marketplace's
-  plugin-reconfiguration convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
-  which owns the verified-version record): interactive
-  `/plugin configure biome-format@<marketplace>` any time. Headless, preferred on Claude Code
-  2.1.285 or later: `claude plugin configure biome-format@<marketplace> --values-stdin < values.json`,
-  where `values.json` holds `{"biome_format_enabled": "true"}` (every value a string, booleans
-  included; keys left out keep their saved values). Headless fallback, before 2.1.285:
-  `claude plugin install biome-format@<marketplace> -s <scope> --config biome_format_enabled=true`
-  (repeatable per key); against an already-installed plugin it prints `already installed`
-  **and still writes the value**. Do **not** uninstall to reconfigure: that drops this plugin's
-  entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
-  to its manifest default. The value lands in user settings whichever route writes it.
-  `claude plugin configure` has no scope flag, so run it from the project the plugin is installed
-  in. For the rerun, `-s` defaults to `user`; pass the scope `claude plugin list` reports for
-  this plugin, and run from that project's directory for a `project`/`local` scope, or the rerun
-  adds a second install record at the scope passed and enables the plugin there; from the home
-  directory pass `user`. Check each
-  route's own failure signal: `--values-stdin` rejects a bad value with exit 1 and saves nothing,
-  but stores an empty string as `""`; the `--config` rerun prints a warning for a rejected value
-  yet exits 0, so read its output. This skill never writes user settings or
-  `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered
-  `${user_config.*}` is injected at skill load and each hook receives its
-  `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a same-session
-  `check` still reports the OLD value; report the observed effective value, never an
-  unobserved change.
+- toggle off: set `biome_format_enabled` to `true` through Claude Code's native flow,
+  interactively with `/plugin configure biome-format@<marketplace>` or by a headless route, as the
+  marketplace's plugin-reconfiguration convention gives them in
+  [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
+  (it owns the verified-version record). Apply the scope and failure-signal caveats in its
+  [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
+  Read both sections and print what they give, the fallback route, its behavior on an
+  already-installed plugin and the scope to pass included, rather than only naming them, and
+  leave out the verified-version record.
+  Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
+  writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**, since a
+  same-session `check` can still show the old value, and report the observed effective value,
+  never an unobserved change.
+
+  - **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+    when a saved value applies, fetch
+    [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+    live.
+  - **As of**: 2026-11-11
+  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+    refused value, or when a saved value applies.
 - no Biome config: offer to create a minimal `biome.json` in the repository root only when
   explicitly asked. The plugin imposes no rules of its own.
 

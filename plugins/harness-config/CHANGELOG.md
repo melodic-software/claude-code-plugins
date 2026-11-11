@@ -5,6 +5,36 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.5.8] - 2026-11-11
+
+### Changed
+
+- `audit-instructions` I28 no longer exempts emphasis guarding a high-consequence area: the marker is flagged and downgraded, the directive keeps its scope and reason, and a rule that must hold every time is pointed at a hook, deny rule or CI check. A stated hard precondition stays a fact, but emphasis set on it is downgraded. The scanner note no longer calls bold lead-ins house style; a bold list-item label or defined term is structure. The persist-findings carve-out list matches. Recorded in ADR 0098.
+
+## [3.5.7] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [3.5.6] - 2026-11-11
+
+### Fixed
+
+- `/harness-config:audit-permission-grants` no longer audits `allowed-tools` in a nested `.claude/skills/<name>/SKILL.md` inside the user plugins directory (`${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/`), which Claude Code 2.1.321 stopped loading. It counts them as excluded, non-loadable files. The scan root's own `.claude/skills/` and a plugin's own `skills/<name>/SKILL.md` there are still audited.
+
+## [3.5.5] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [3.5.4] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [3.5.3] - 2026-11-11
 
 ### Changed
