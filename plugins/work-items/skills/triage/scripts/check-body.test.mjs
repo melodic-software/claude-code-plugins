@@ -58,6 +58,16 @@ describe("checkBody", () => {
     assert.deepEqual(checkBody(contract, "task", body).empty, []);
   });
 
+  it("counts an allowed-level sub-heading's text toward its parent field", () => {
+    const body = "## Context\n\n### Background\n\nWhy.\n\n## Proposed work\n\n- x\n";
+    assert.deepEqual(checkBody(contract, "task", body).empty, []);
+  });
+
+  it("closes a sub-section at the next parent-level heading", () => {
+    const body = "## Context\n\n### Background\n\nWhy.\n\n## Proposed work\n\n_No response_\n";
+    assert.deepEqual(checkBody(contract, "task", body).empty, ["Proposed work"]);
+  });
+
   it("flags an unknown type", () => {
     assert.equal(checkBody(contract, "epic", "").unknownType, true);
   });

@@ -4,7 +4,8 @@
 // (plugins/work-items/reference/issue-body-contract.json, synced from melodic-software/standards).
 // A field counts as present under a heading at any of the contract's `headingLevels` (`##` from a
 // skill, `###` from an issue form), with text other than the contract's `emptyAnswer` before the
-// next heading at that level or shallower. HTML comments and fenced code do not count.
+// next heading at that level or shallower, deeper sub-sections included. HTML comments and fenced
+// code do not count.
 //
 // Usage: check-body.mjs --type <type> --body-file <path> [--contract <path>]
 // Prints one JSON object: {type, missing: [heading...], empty: [heading...], unknownType}.
@@ -39,23 +40,24 @@ function proseLines(body) {
   });
 }
 
-// Maps each normalized heading at an allowed level to the text under it.
+// Maps each normalized heading at an allowed level to the text under it, its sub-sections' text included.
 export function sections(body, levels) {
   const found = new Map();
-  let open = null;
+  const open = [];
   for (const line of proseLines(body)) {
     const heading = line.match(/^ {0,3}(#{1,6})[ \t]+(.*?)[ \t#]*$/);
     if (heading) {
       const depth = heading[1].length;
-      if (open && depth <= open.depth) open = null;
+      while (open.length && open.at(-1).depth >= depth) open.pop();
       if (levels.includes(depth)) {
-        open = { depth, text: [] };
+        const section = { depth, text: [] };
+        open.push(section);
         const key = normalize(heading[2]);
-        if (!found.has(key)) found.set(key, open.text);
+        if (!found.has(key)) found.set(key, section.text);
       }
       continue;
     }
-    open?.text.push(line);
+    for (const section of open) section.text.push(line);
   }
   return found;
 }
