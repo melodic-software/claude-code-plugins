@@ -61,12 +61,9 @@ The two rows carrying no harness artifact are the ones to read twice:
 
 - **Spec validation's absence is dated, not permanent.** We found no bundled skill for it.
   - **Pointer**: for the bundled-skill rosters, see [Skills: Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills) and [Commands: All commands](https://code.claude.com/docs/en/commands#all-commands).
-  - **As of**: 2026-10-01
   - **Recheck trigger**: a release note adds a bundled skill that checks changes against a spec.
 - **Managed Agents rubrics belong to a different product.** Inside a session, build the equivalent yourself: a fresh-context subagent grades the artifact against the rubric and hands failures back. To start on that product, the bundled `/claude-api` skill has a Managed Agents onboarding subcommand.
   - **Pointer**: for that subcommand, see [Skills: Work on Claude API projects](https://code.claude.com/docs/en/skills#work-on-claude-api-projects).
-  - **As of**: 2026-10-01
-  - **Recheck trigger**: that table drops or renames the onboarding subcommand.
 - **A worked Managed Agents automation checks its own output before reporting it.** It re-checks each item against its live source just before posting, and counts a post as sent only once delivery is confirmed.
   - **Pointer**: for the code, see [Building effective agent automations: Get the code](https://claude.dev/blog/building-effective-agent-automations/#get-the-code) (Lance Martin and CJ Avilla, 2026-10-08), which links the reference implementation, `anthropics/claude-quickstarts` [`managed-agents/daily-brief`](https://github.com/anthropics/claude-quickstarts/tree/main/managed-agents/daily-brief), and gives the `/claude-api managed-agents-onboard <post URL>` walkthrough command; for the two checks, see the same post's [Agent](https://claude.dev/blog/building-effective-agent-automations/#agent) and [Destination](https://claude.dev/blog/building-effective-agent-automations/#destination) sections.
   - **As of**: 2026-10-31

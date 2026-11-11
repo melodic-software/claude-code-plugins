@@ -39,8 +39,6 @@ Same-vendor documentation is the easiest scope error to make, because it never f
 We treat a claude.ai system-prompt sentence as a fact about claude.ai and mobile, never about this harness.
 
 - **Pointer**: for which products those prompts cover, see the [published system prompts](https://platform.claude.com/docs/en/release-notes/system-prompts/overview) index (a single-section page with no heading anchors).
-- **As of**: 2026-10-11
-- **Recheck trigger**: the index stops scoping those prompts to claude.ai and mobile, or a sentence in either worked divergence below reappears in a current entry.
 
 Two worked divergences, both from published claude.ai system-prompt entries we read 2026-08-03, both false about this harness, and both already superseded. They stay examples from that read, not a fresh census:
 
@@ -58,7 +56,6 @@ A vendor's own blog, launch announcement, or engineering post is first-party and
 - RULE: read the owning page even when the post's definition looks complete, because omission is invisible from inside the post. You cannot tell a summary from a whole from the summary alone.
 
 > Worked instance. We take "verification loop" from the [glossary entry](https://code.claude.com/docs/en/glossary#verification-loop) and "agentic loop" from [How Claude Code works](https://code.claude.com/docs/en/how-claude-code-works#the-agentic-loop), never from a post. On our 2026-08-05 read, the glossary entry named capabilities that depend on the term, which a post-length definition of it dropped: a reader with only the post would have the concept right and still miss what depends on it. Read the entry for the current list.
-> As of: 2026-08-05. Recheck trigger: the glossary entry moves, or stops naming capabilities that depend on the term.
 
 ## Point at a per-model matrix; never copy one
 
@@ -72,8 +69,8 @@ Per-model tables, listing which configurations a model accepts, what it defaults
 > Worked instance, dated history from our 2026-08-03 checks. Claude Mythos 5 had its own row in that per-model table. In the Claude Code build we read that day, it was a known model in the registry with full gating machinery and was still not selectable: no alias resolved to it, it was absent from `latest_per_family`, it declared no capabilities, and it exposed no picker row. Its registry entry carried exactly one non-null provider id, `first_party`, beside seven null siblings.
 > Reading its row as an available option would have been the copy error and the surface error at once, and on that read the table gave no signal that the two answers differed.
 > The availability gate was documented on a different page: the [Fable versus Mythos](https://platform.claude.com/docs/en/models/fable-5/overview#fable-vs-mythos) section of the Claude Fable 5 overview. On the same day we checked that the matrix page carried no access-availability signal separating the two models, so the gap was real and not an artifact of reading one page carelessly. Three sources agreed that the row existed, that its availability was gated, and that the gate was closed here, which made that day's registry reading more than one session's observation.
-> The registry half is a record of 2026-08-03, not a current reading: as of 2026-11-02, a Claude model release had fired its recheck trigger and no later Claude Code build's registry had been read. Before stating where Mythos 5 stands in Claude Code today, read the current build's registry.
-> Pointer: the matrix section above and that Fable vs. Mythos section. As of: 2026-08-03 for the local registry reading (history, not rechecked); 2026-11-09 for the overview section and the matrix page, re-read that day with its Mythos 5 row still present. Recheck trigger for the two pointed sections, per the rule above: the next Claude model release, or any Mythos 5 availability announcement. Recheck trigger for the registry reading: about to state Mythos 5's availability in Claude Code, or any Mythos 5 availability announcement. Re-read both sections and the current build's registry before citing this instance as current.
+> The registry half is a record of 2026-08-03, not a current reading: a later Claude model release fired its recheck trigger before any later Claude Code build's registry was read. Before stating where Mythos 5 stands in Claude Code today, read the current build's registry.
+> Pointer: the matrix section above and that Fable vs. Mythos section. As of: 2026-08-03 for the local registry reading (history, not rechecked). Recheck trigger for the registry reading: about to state Mythos 5's availability in Claude Code, or any Mythos 5 availability announcement. Re-read the current build's registry before citing this instance as current.
 
 ## The check / skip decision
 

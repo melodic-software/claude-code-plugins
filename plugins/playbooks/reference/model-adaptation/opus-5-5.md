@@ -77,7 +77,7 @@ task is done, or check in with the person pairing on it. `[CC: prompt-authoring]
 - **Pointer**: when authoring an unattended-run steer, read
   [Unattended agentic runs](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#unattended-agentic-runs)
   live through the docs lookup (`fetch-docs.sh --cache --profile platform`, the fable-5 skill's
-  Chapter routing) and adapt its sample paragraph. No docs page covers scope hedging as of 2026-10-10
+  Chapter routing) and adapt its sample paragraph. No docs page covers scope hedging
   (correlate with <https://claude.dev/blog/how-we-made-claude-ai-faster#steering>).
 - **Recheck trigger**: an official guide or system card covering scope hedging (move the correlate
   beside that page).
@@ -189,8 +189,6 @@ runs where latency is not the constraint. Availability and prices resolve at the
 
 - **Pointer**: for fast mode, see
   [Decide when to use fast mode](https://code.claude.com/docs/en/fast-mode#decide-when-to-use-fast-mode).
-- **As of**: 2026-11-01
-- **Recheck trigger**: the page's opening stops listing this model as supported.
 
 ## API-side, for integrations you author
 

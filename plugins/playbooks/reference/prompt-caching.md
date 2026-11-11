@@ -60,7 +60,7 @@ session does to the cache, read Claude Code's own page instead of applying this 
 - **Pointer**: for per-message effort and its model list, see
   [Change effort mid-conversation](https://platform.claude.com/docs/en/build-with-claude/effort#change-effort-mid-conversation)
   and its "Per-message effort (beta)" subsection (correlate with Cognition's devin-fusion post,
-  2026-06-29, for the compaction-moment practice, which no docs page covers as of 2026-11-01);
+  2026-06-29, for the compaction-moment practice, which no docs page covers);
   for a Claude Code session, see
   [Changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level).
 
@@ -99,8 +99,7 @@ Monitor the cache hit rate, and when requests miss, use the cache diagnostics AP
 of the request to stabilize. Read the page's limitations for its availability by platform and its
 retention window before wiring it in.
 
-A Claude Console request-comparison view for the same data: no docs page covers one as of
-2026-11-01 (correlate with
+A Claude Console request-comparison view for the same data: no docs page covers one (correlate with
 <https://claude.com/blog/reducing-cost-and-improving-performance-with-claude-platform>); recheck
 trigger: a docs page covering a Console view of cache diagnostics, at which point the pointer
 moves there.

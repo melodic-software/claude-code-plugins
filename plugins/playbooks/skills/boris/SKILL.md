@@ -52,7 +52,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Tip | Key Action |
 |-----|------------|
 | Parallel work | Use git worktrees, 3-5 sessions |
-| Model | Boris: Fable 5 for the hardest and longest tasks (Sections 94–95); Opus otherwise (Section 2, historical). As of the 2026-07-24 sync. Fable 5 has since been superseded; for which Fable model the `fable` alias selects, see [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable). For current model choice see the [models overview](https://platform.claude.com/docs/en/models/overview#latest-models-comparison) and [cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task). Re-sync through `/playbooks:update` when upstream publishes tips for a newer model |
+| Model | Boris: Fable 5 for the hardest and longest tasks (Sections 94–95); Opus otherwise (Section 2, historical). Fable 5 has since been superseded; for which Fable model the `fable` alias selects, see [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable). For current model choice see the [models overview](https://platform.claude.com/docs/en/models/overview#latest-models-comparison) and [cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task). Re-sync through `/playbooks:update` when upstream publishes tips for a newer model |
 | Planning | Auto mode plans implicitly on 4.6+; reach for plan mode when you want the written artifact of intent (Section 87) |
 | CLAUDE.md | Add what corrections teach, and prune as you add (Section 4) |
 | Skills | Create for repeated workflows |
@@ -79,7 +79,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | /loop | Schedule recurring session tasks; recurring jobs expire, see [Seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry) |
 | Code Review | Agent-powered PR reviews that catch real bugs |
 | /btw | Ask questions mid-task without breaking flow |
-| /effort | Sets the effort level and the Ultracode toggle; see [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) (as of 2026-10-02; recheck when that section changes) |
+| /effort | Sets the effort level and the Ultracode toggle; see [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) |
 | Remote Control | Spawn new sessions from mobile |
 | Voice Mode | Talk to Claude Code on Desktop |
 | Setup Scripts | Automate cloud environment setup |
@@ -126,7 +126,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Context Minimalism | Minimal prompt + a way to fetch context; over-specifying = micromanaging |
 | Write It Down | On every mistake: rule into CLAUDE.md / skill, not a chat correction |
 | Nested Subagents | Agents spawn agents. Context management primitive; never author a tree needing a specific depth. For the depth ceiling and how to change it, see [nested subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents) |
-| fork: true | Run a skill in its own context window; the tip's key is not the documented field, see [Section 92's amendment](reference/orchestration.md#92-fork-true-runs-a-skill-in-its-own-context-window-experimental) (as of 2026-10-11; recheck when that amendment's pointed skills sections change the field that forks a skill) |
+| fork: true | Run a skill in its own context window; the tip's key is not the documented field, see [Section 92's amendment](reference/orchestration.md#92-fork-true-runs-a-skill-in-its-own-context-window-experimental) |
 | Fable 5 | Historical (Fable 5 launch, Jun 2026): best coding model by a wide margin; trigger-happy safety classifiers. For current standing and price, see the [models overview](https://platform.claude.com/docs/en/models/overview#latest-models-comparison) and [pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing) |
 | Four Unknowns | Known/unknown × known/unknown, the gap between your prompt and the codebase |
 | Blindspot Pass | Ask Claude to surface your unknown unknowns before you write code |

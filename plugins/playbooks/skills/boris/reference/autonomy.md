@@ -104,9 +104,6 @@ Pair with proactive `/compact <hint>` when you feel bad-compact risk.
 >   long-context bullet under
 >   [Capability improvements](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#capability-improvements)
 >   live.
-> - **As of**: 2026-10-11
-> - **Recheck trigger**: that bullet changes its long-context claim, or a later model's guide
->   states a different one.
 
 Docs: [Environment variables](https://code.claude.com/docs/en/env-vars)
 Source: [@trq212 status 2044548257058328723](https://x.com/trq212/status/2044548257058328723)
@@ -292,10 +289,9 @@ Source: [@bcherny status 2044847858634064115](https://x.com/bcherny/status/20448
 > **History:** these three shifts describe Opus 4.7 against Opus 4.6, from the post cited below.
 > Treat them as 4.7-specific, not as guidance for a later model; for a later model, read its own
 > prompting guide. **Pointer**: the post cited below is the only source; no docs page covers
-> Opus 4.7's behavior shifts against 4.6 as of 2026-11-01 (a fetch of
+> Opus 4.7's behavior shifts against 4.6 (a fetch of
 > <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-7>
-> on that date returned 404). **As of:** 2026-11-01. **Recheck trigger:** a docs page starts
-> covering Opus 4.7's behavior changes, at which point this note points there.
+> returned 404).
 
 Upgrading from 4.6? Three changes matter. Don't assume old habits carry over.
 
@@ -371,7 +367,5 @@ Surfaced by @ClaudeDevs on May 12, 2026, described as "shipped recently" (exact 
 
 - **Pointer**: when deciding what ends a goal, fetch
   [How evaluation works](https://code.claude.com/docs/en/goal#how-evaluation-works) live.
-- **As of**: 2026-11-10
-- **Recheck trigger**: that section changes what checks a goal or what clears one.
 
 Source: [@ClaudeDevs status 2054351031279186040](https://x.com/ClaudeDevs/status/2054351031279186040)

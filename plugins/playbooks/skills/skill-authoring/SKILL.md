@@ -222,7 +222,7 @@ live.
 A 2.1.251 probe recorded on
 [#3543](https://github.com/melodic-software/claude-code-plugins/issues/3543) found that
 substitution also reaches fenced code. That reach is not stated in the substitutions section
-as read on 2026-11-10, and this page does not re-probe it. Escape `\$<digit>` in fences of a
+and this page does not re-probe it. Escape `\$<digit>` in fences of a
 skill that admits arguments anyway. Recheck: a current-version probe where a fenced `\$0` stays
 literal with arguments present.
 

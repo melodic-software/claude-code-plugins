@@ -6,7 +6,6 @@ as a target; retire it when it stops.
 
 - **Pointer**: for which flagged requests move to Sonnet 5, see
   [Automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback).
-- **As of**: 2026-10-11
 - **Recheck trigger**: that section no longer names Sonnet 5 as a fallback target.
 
 > **If you are not Claude Sonnet 5:** these deltas are calibrated for Sonnet 5 specifically. They
@@ -58,10 +57,6 @@ at the pointers. `[CC: direct]`
   [Recommended effort levels](https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels);
   for comparing levels across models in Claude Code, see
   [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level).
-- **As of**: 2026-11-01
-- **Recheck trigger**: the pointed sections no longer presenting effort as the control for depth
-  of reasoning on Sonnet 5, no longer saying the scale is calibrated per model, or the effort page
-  dropping its Claude Sonnet 5 entry.
 
 ## Scope
 
@@ -170,9 +165,6 @@ For the first two bullets:
   [More literal instruction following](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#more-literal-instruction-following)
   live for Sonnet 5, and
   [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable) live for Fable.
-- **As of**: 2026-11-01
-- **Recheck trigger**: the Sonnet 5 section no longer asking for stated scope, or the Fable section
-  no longer advising outcome-level, larger tasks.
 
 ## Sources
 
@@ -189,6 +181,3 @@ Re-baselined to the Claude Fable 5.2 author on 2026-11-09: every delta above is 
 this model's own guide, none against a Fable 5.1 behavior, so all are kept unchanged. The
 communication chapter's prompt-authoring note removes narration-suppressing lines
 rather than setting a schedule, so "Progress updates" above stands.
-
-Recheck trigger for the whole chapter: a re-read of any pointed section no longer supporting the
-decision beside it.

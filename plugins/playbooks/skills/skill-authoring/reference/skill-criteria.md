@@ -12,8 +12,7 @@ setting is named as one: a `/skill-quality:check` setting, or a choice of this p
 The deletion test governs every line, in the description, the body, a reference file or an agent:
 could the model already know this, or do the job without it? If so, cut it. Cruft is not length:
 never justify a deletion by character count alone, and never keep a line because it is short
-(per the `claude-api` skill's prompt audit, as of 2026-10-06; recheck when that audit's
-cruft criterion changes). Explaining what the agent already knows doesn't just waste space, it
+(per the `claude-api` skill's prompt audit). Explaining what the agent already knows doesn't just waste space, it
 dilutes the lines that actually matter, because the agent's attention is spread across everything
 you wrote. The agent already knows how to write decent CSS or React; it doesn't know the nuances,
 like increasing the duration of an animation if the object is larger. Domain expertise is what
@@ -375,7 +374,7 @@ recheck trigger. Re-read the pointer before acting on a figure.
 - **Cursor skills docs**: the skill frontmatter fields at
   [Frontmatter fields](https://cursor.com/docs/skills#frontmatter-fields).
 - **Prompt audit**, `shared/prompt-audit.md` in the `claude-api` skill bundled with Claude Code
-  (read at 2.1.292). As of 2026-10-06. Recheck: a Claude Code release changes that file.
+  (read at 2.1.292).
 - **Subagent docs**: [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)
   for the model resolution order and the Agent-tool alias set,
   [Run every subagent on one model](https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model)

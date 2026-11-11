@@ -100,11 +100,9 @@ passed.
   because the harness counts git's own index files as created. Use must-not-call `Write` and `Edit`
   graders instead. Pointer: the `file_exists` row of the grader types table,
   <https://code.claude.com/docs/en/plugin-evals#grader-types>; basis: observed in kept traces at
-  Claude Code 2.1.289. As of: 2026-10-07. Recheck trigger: that section or a release note changes
-  how created files are counted.
+  Claude Code 2.1.289.
 - The eval sandbox denied a skill's read of its plugin config and its writes under `.claude/`, so
   a setup-style skill could not be measured there. Name such cases as unmeasured in the pull
   request rather than reading their scores. Pointer: the OS-level sandbox behavior at
   <https://code.claude.com/docs/en/plugin-evals#grant-tools>; basis: observed at Claude Code
-  2.1.289. As of: 2026-10-07. Recheck trigger: that section or a release note changes eval sandbox
-  permissions.
+  2.1.289.

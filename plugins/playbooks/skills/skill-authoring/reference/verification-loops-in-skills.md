@@ -107,8 +107,7 @@ plugin is present.
   [Develop Skills iteratively with Claude](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#develop-skills-iteratively-with-claude)
   and
   [Observe how Claude navigates Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#observe-how-claude-navigates-skills);
-  for step 3, no docs page covered it as of 2026-08-04, recheck trigger: a docs page covering
-  step 3 (correlate with <https://claude.com/blog/building-verification-loops-in-claude-code-with-skills>).
+  for step 3, no docs page covers it (correlate with <https://claude.com/blog/building-verification-loops-in-claude-code-with-skills>).
 
 ## Validator preference and plan-validate-execute
 

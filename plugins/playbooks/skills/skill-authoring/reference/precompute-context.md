@@ -74,10 +74,6 @@ check refuses aborts the skill load. We therefore:
   ignore it, fetch [Pre-approve tools for a skill](https://code.claude.com/docs/en/skills#pre-approve-tools-for-a-skill);
   for how a rule matches a line joined by `||` or `|`, fetch
   [Compound commands](https://code.claude.com/docs/en/permissions#compound-commands).
-- **As of**: 2026-10-10
-- **Recheck trigger**: the Permission checks on injected commands section changes which permission
-  results abort a render, Pre-approve tools for a skill stops covering injected commands, or the
-  Compound commands section changes how a rule matches each subcommand of a joined line.
 
 ### Defensive fallback is mandatory
 
@@ -119,9 +115,6 @@ cover an `if … fi` compound, so prefer a plain list there too.
   them on the current release; for how the render treats a permission check result, fetch
   [Permission checks on injected commands](https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands)
   live.
-- **As of**: 2026-10-11 (Claude Code 2.1.296)
-- **Recheck trigger**: a Claude Code release note changes which Bash shapes the permission check
-  can analyze, or that section starts naming syntax the check refuses.
 
 ### Bind the fallback to the probe, not to the pipeline
 
@@ -201,8 +194,6 @@ must never assert a bare `empty = none`.
   [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
   live; the probe row is under "Probe evidence" in
   [pull request #7068](https://github.com/melodic-software/claude-code-plugins/pull/7068).
-- **As of**: 2026-10-11 (Claude Code 2.1.296)
-- **Recheck trigger**: that section starts naming the shell options injections run under.
 
 ### Windows / `shell:` awareness
 
@@ -227,10 +218,6 @@ skill that reaches the PowerShell tool because bash is unavailable.
   how the render treats a permission check result, fetch
   [Permission checks on injected commands](https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands)
   live.
-- **As of**: 2026-11-04 (Claude Code 2.1.316)
-- **Recheck trigger**: a Claude Code release note changes how a `shell: powershell` injection is
-  permission-checked, or the Permission checks on injected commands section starts naming which rule
-  form covers a PowerShell-run injection.
 
 ## Mechanics not to get wrong (pointers, not copies)
 

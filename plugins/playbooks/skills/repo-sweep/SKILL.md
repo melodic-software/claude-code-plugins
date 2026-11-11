@@ -46,9 +46,7 @@ under "Accepted command shapes for body-time and subagent Bash".
 
 - **Pointer**: when deciding which Bash forms an isolated session accepts, fetch
   <https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation> live.
-- **As of**: 2026-10-11 (section and release notes through 2.1.296)
-- **Recheck trigger**: that section or a release note changes which Bash forms an isolated
-  session accepts, or a live isolated session runs the three forms.
+- **Recheck trigger**: a live isolated session runs the three forms.
 
 ## Scripts
 
@@ -158,9 +156,7 @@ After the last step, to update the branch from its base, verify, and mark the sw
   - **Pointer**: when deciding whether a running session has picked up an updated plugin, fetch
     [When auto-update runs](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs)
     live.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: that section changes when a running session applies an update, or a
-    plugin env var exposes the loaded version.
+  - **Recheck trigger**: a plugin env var exposes the loaded version.
 - One session per sweep. `tick.sh` verifies its own write but takes no lock; two sessions ticking
   one PR body can lose a tick.
 - An override exists only while a skill hardcodes its own branch, PR, or commit structure and

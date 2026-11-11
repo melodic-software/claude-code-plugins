@@ -239,7 +239,7 @@ limitations at the pointer; for which models fast mode supports, read the fast m
 - **Pointer**: see
   [Cache limitations](https://platform.claude.com/docs/en/build-with-claude/prompt-caching#cache-limitations),
   [Speed up responses with fast mode](https://code.claude.com/docs/en/fast-mode) (the supported
-  model list sits in the page's opening, which has no section anchor as of 2026-11-11), and, for
+  model list sits in the page's opening, which has no section anchor), and, for
   the
   tier,
   [Capability tiers](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#3-capability-tiers).
@@ -262,10 +262,6 @@ docs on Claude Code delivery.
   [Compare models](https://platform.claude.com/docs/en/models/overview#latest-models-comparison)
   section and the launch post's model-choice table disagree
   (correlate with <https://claude.dev/blog/building-with-claude-sonnet-5-5#choosing-between-sonnet-55-and-opus-55>).
-
-- **As of**: 2026-10-01
-- **Recheck trigger**: any section named above changing, or a docs page replacing the post on
-  either topic.
 
 ## What carries from the Sonnet 5 chapter, and what does not
 

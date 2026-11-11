@@ -145,8 +145,6 @@ Use for large code migrations and other parallelizable work.
   [Run sessions in parallel](https://code.claude.com/docs/en/best-practices#run-sessions-in-parallel)
   (under [Let Claude run without you](https://code.claude.com/docs/en/best-practices#let-claude-run-without-you)).
   Boris's "dozens, hundreds, even thousands" from the thread no longer matches that page.
-- **As of**: 2026-10-30
-- **Recheck trigger**: that section changes the subagent range or how `/batch` fans out.
 
 See also: [Section 30: /batch](workflows.md#30-batch-parallel-code-migrations)
 

@@ -55,8 +55,6 @@ From Thariq Shihipar + Sid Bidasaria (the engineers who built them): the default
 
 - **Pointer**: the three failure modes are defined in the blog post's
   [Why dynamic workflows](https://claude.dev/blog/a-harness-for-every-task-dynamic-workflows-in-claude-code#why-dynamic-workflows).
-- **As of**: 2026-10-18 (post published 2026-06-02)
-- **Recheck trigger**: that section adds, renames or removes a failure mode.
 
 ## 82. Workflow Primitives, and Dynamic vs Static
 
@@ -64,8 +62,6 @@ A dynamic workflow is a JavaScript file built from `agent()`, `parallel()` (barr
 
 - **Pointer**: for the dynamic-versus-static argument, see the blog post's
   [Dynamic vs static workflows](https://claude.dev/blog/a-harness-for-every-task-dynamic-workflows-in-claude-code#dynamic-vs-static-workflows).
-- **As of**: 2026-10-18
-- **Recheck trigger**: that section changes the comparison or the model it names.
 
 ## 83. The Six Workflow Patterns Claude Composes
 
@@ -73,8 +69,6 @@ A dynamic workflow is a JavaScript file built from `agent()`, `parallel()` (barr
 
 - **Pointer**: for the pattern list, see the blog post's
   [Helpful patterns when using dynamic workflows](https://claude.dev/blog/a-harness-for-every-task-dynamic-workflows-in-claude-code#helpful-patterns-when-using-dynamic-workflows).
-- **As of**: 2026-10-18
-- **Recheck trigger**: that section adds, renames or removes a pattern.
 
 ## 84. Workflow Use Cases: Often Better for Non-Coding Work
 
@@ -82,12 +76,10 @@ Thariq: sometimes more useful for non-technical work. Migrations/refactors (Bun'
 
 - **Pointer**: for the use-case list, see the blog post's
   [Use cases](https://claude.dev/blog/a-harness-for-every-task-dynamic-workflows-in-claude-code#use-cases).
-- **As of**: 2026-10-18
-- **Recheck trigger**: that section adds, renames or removes a use case.
 
 ## 85. Pair Workflows with /goal, /loop, and Token Budgets
 
-`/goal` sets the exit condition, the workflow does the parallel work, `/loop` keeps it going. Cap token spend by prompting a budget directly; the example prompt is in Thariq and Sid's [Token usage budgets](https://claude.dev/blog/a-harness-for-every-task-dynamic-workflows-in-claude-code#token-usage-budgets) (published 2026-06-02, as of 2026-10-11). The docs' [Cost](https://code.claude.com/docs/en/workflows#cost) section does not document prompted budgets; recheck when it does. When a long run eats limits faster than expected, `/usage` breaks down which skills/MCPs/plugins are spending. "Quick workflow" works for small jobs (fast adversarial review of one assumption). When NOT: most traditional coding tasks don't need a panel of 5 reviewers.
+`/goal` sets the exit condition, the workflow does the parallel work, `/loop` keeps it going. Cap token spend by prompting a budget directly; the example prompt is in Thariq and Sid's [Token usage budgets](https://claude.dev/blog/a-harness-for-every-task-dynamic-workflows-in-claude-code#token-usage-budgets) (published 2026-06-02). The docs' [Cost](https://code.claude.com/docs/en/workflows#cost) section does not document prompted budgets. When a long run eats limits faster than expected, `/usage` breaks down which skills/MCPs/plugins are spending. "Quick workflow" works for small jobs (fast adversarial review of one assumption). When NOT: most traditional coding tasks don't need a panel of 5 reviewers.
 
 ## 86. Saving and Sharing Workflows
 
@@ -128,8 +120,6 @@ Mark a skill to run in its own context window (the documented field is in the am
 >   [Run skills in a subagent](https://code.claude.com/docs/en/skills#run-skills-in-a-subagent)
 >   and the [frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference)
 >   live.
-> - **As of**: 2026-10-11
-> - **Recheck trigger**: either section adds, renames or removes the field that forks a skill.
 
 ## 93. The Dynamic-Workflows Trigger Is Now "use a workflow"
 
@@ -149,8 +139,6 @@ Specs and pricing are upstream-owned and not restated here.
   cutoff, fetch [Claude Fable 5 specifications](https://platform.claude.com/docs/en/models/fable-5/overview#specifications)
   live (the Compare models table lists only current models); for its rates, fetch
   [Model pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing) live.
-- **As of**: 2026-11-09
-- **Recheck trigger**: a new frontier-model release, or either section is renamed or moved.
 
 <!-- ai-slop-ignore: verbatim Karpathy quotation --> Karpathy: "SOTA on everything by a margin… a major-version-bump-deserving step change… You can give it a lot more ambitious tasks — the model 'gets it' and it will just go."
 
