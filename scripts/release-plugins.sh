@@ -208,9 +208,13 @@ for name in "${plugins[@]}"; do
         if (cur != "" && buf != "") text[cur] = (cur in text) ? text[cur] "\n\n" buf : buf
         buf = ""
       }
-      $0 == "\f" { flush(); cur = ""; next }
+      $0 == "\f" { flush(); cur = ""; fence = 0; next }
       /^###[ \t]/ { flush(); cur = $0; sub(/^###[ \t]+/, "", cur); sub(/[ \t]+$/, "", cur); next }
-      cur != "" { if ($0 ~ /^- /) { endblock(); isb = 1 } else if (blk == "") isb = 0; blk = blk $0 "\n" }
+      cur != "" {
+        if (!fence && $0 ~ /^- /) { endblock(); isb = 1 } else if (blk == "") isb = 0
+        if ($0 ~ /^[ \t]*(```|~~~)/) fence = !fence
+        blk = blk $0 "\n"
+      }
       END {
         flush()
         print head

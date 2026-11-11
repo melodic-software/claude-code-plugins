@@ -257,6 +257,38 @@ Intro.
 - First.'
 rm -rf "$f"
 
+# --- dash lines inside a fenced example are not bullets ---------------------------
+base_fixture f
+add_fragment "$f" beta a-11111111 patch '### Changed
+
+```yaml
+- retry
+- retry
+- finish
+```'
+run_release "$f" >/dev/null 2>&1
+expect_file "repeated dash lines inside a fence are kept" \
+  "$f/plugins/beta/CHANGELOG.md" '# Changelog
+
+Intro.
+
+## [0.4.1] - 2026-10-04
+
+### Changed
+
+```yaml
+- retry
+- retry
+- finish
+```
+
+## [0.0.1] - 2026-01-01
+
+### Added
+
+- First.'
+rm -rf "$f"
+
 # --- whole bullet blocks are compared, children included --------------------------
 base_fixture f
 add_fragment "$f" beta a-11111111 patch "### Changed
