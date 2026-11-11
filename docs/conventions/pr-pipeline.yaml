@@ -634,6 +634,26 @@ activities:
     reads-untrusted: false
     # The labeled issue; the hourly sweep takes none and lists open issues.
     inputs: [issue]
+  publish-lane-level:
+    # Hourly, after the label-unblocked sweep: decides the issue lane's next
+    # concurrency level from the sweep's lanes App rate-limit readings, the
+    # lane's runs in progress and the last decision
+    # (.github/scripts/lib/lane-level.mjs), and publishes it as
+    # `<level>@<valid-until>` in the repository variable
+    # limits.lane-level.variable names, which pick-slot and label-unblocked
+    # read (.github/scripts/lib/lane-level-value.mjs). With
+    # limits.lane-level.shadow set it logs the level and writes nothing. A
+    # script, no model. .github/workflows/work-unblock.yml runs it.
+    script: .github/scripts/work-unblock/publish-lane-level.mjs
+    # Writes that one variable, never another (the script refuses any other
+    # name), with the Variables write lane-rules.json adds; it reads nothing
+    # else with the token.
+    effect: mutate-variable
+    gating: advisory
+    # Reads only rate-limit headers and run counts, no free text.
+    reads-untrusted: false
+    # The hourly sweep's readings; no issue or pull request.
+    inputs: []
   apply-verdict:
     # After intake triage, writes its verdict as the lanes App: the Size,
     # Complexity and Uncertainty issue fields (never a work-class label), and
@@ -869,6 +889,8 @@ lanes:
       # Started by a status label added or removed, and by the hourly sweep,
       # in its own job of work-unblock.yml.
       - activity: sync-status
+      # Hourly only, in its own job of work-unblock.yml after label-unblocked.
+      - activity: publish-lane-level
   # Started by intake triage on an opened issue or its dispatch
   # (.github/workflows/intake-triage.yml).
   intake-triage:
@@ -1203,7 +1225,7 @@ limits:
   # on a lane workflow change.
   restarts-per-run: 10
   # Kill-switch re-fires keep the issue lane's unfinished runs at this many
-  # per slot (SLOTS in work-resolve-issue.yml) and no more: after the switch
+  # per slot (SLOTS, the effective lane level: lane-level below) and no more: after the switch
   # clears, each sweep, a finished run's included, tops the queue back up,
   # oldest stranded first, so the lane stays full without a flood (owner
   # decision Q109).
@@ -1253,7 +1275,7 @@ limits:
   # for a person like this file; add an `api:` entry here only to override one.
   # The adaptive lane level L (owner decision Q111, 2026-11-10): the issue
   # lane's concurrency .github/scripts/lib/lane-level.mjs would pick each
-  # window. Nothing reads it yet; SLOTS stays 3. L steps up 1 after
+  # window; SLOTS stays default while shadow is set. L steps up 1 after
   # clean-windows windows in a row with no limit signal, lane demand and room
   # (peak share used x (L+1)/L at most api.<pool>.plan, no pool at or under
   # api.<pool>.writer-pause left), and halves on any limit signal the lanes
@@ -1266,6 +1288,17 @@ limits:
     default: 3
     clean-windows: 2
     pools: [lanes-app]
+    # Phase B (owner decision Q113 (a)): work-unblock's hourly
+    # publish-lane-level job publishes L as `<level>@<valid-until>` in the
+    # repository variable `variable` names, valid for valid-minutes, and
+    # pick-slot and label-unblocked read it (lib/lane-level-value.mjs; empty,
+    # expired or malformed reads as default). While shadow is true the job
+    # mints no token and writes nothing, the readers keep default, and both
+    # log the level they would use. variable must end in _LANE_LEVEL, so it
+    # can never name a lanes kill switch.
+    shadow: true
+    variable: CLAUDE_LANE_LEVEL
+    valid-minutes: 150
 
 wip:
   # Cap = lane PRs merged per hour over the window times this target.

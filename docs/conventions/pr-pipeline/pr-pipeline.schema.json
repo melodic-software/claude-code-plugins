@@ -235,7 +235,7 @@
         "lane-level": {
           "type": "object",
           "additionalProperties": false,
-          "description": "The adaptive lane level L, the issue lane's concurrency .github/scripts/lib/lane-level.mjs picks per window (owner decision Q111); nothing reads it yet. L steps up 1 after clean-windows windows in a row with no limit signal, lane demand (runs waiting or every slot running) and room in each pool (peak share used x (L+1)/L at most api.<pool>.plan, and more than api.<pool>.writer-pause left), halves on any limit signal the lanes App's own calls meet (a breaker trip is not one), and stays within floor and ceiling; a floor above the ceiling is rejected. Missing data holds L.",
+          "description": "The adaptive lane level L, the issue lane's concurrency .github/scripts/lib/lane-level.mjs picks per window (owner decision Q111), published and read under shadow, variable and valid-minutes. L steps up 1 after clean-windows windows in a row with no limit signal, lane demand (runs waiting or every slot running) and room in each pool (peak share used x (L+1)/L at most api.<pool>.plan, and more than api.<pool>.writer-pause left), halves on any limit signal the lanes App's own calls meet (a breaker trip is not one), and stays within floor and ceiling; a floor above the ceiling is rejected. Missing data holds L.",
           "properties": {
             "floor": { "type": "integer", "minimum": 1, "maximum": 10, "default": 2, "description": "Lowest level; a step down never goes below it." },
             "ceiling": { "type": "integer", "minimum": 1, "maximum": 10, "default": 4, "description": "Highest level; a level above it is read as it." },
@@ -248,7 +248,10 @@
               "items": { "enum": ["github-token", "lanes-app", "graphql", "owner-token"] },
               "default": ["lanes-app"],
               "description": "The api pools whose room a step up needs; each takes plan and writer-pause from api."
-            }
+            },
+            "shadow": { "type": "boolean", "default": true, "description": "True: work-unblock's publish-lane-level job logs the level it decides, mints no token and writes nothing, and pick-slot and label-unblocked keep default while logging the published level they would use." },
+            "variable": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*_LANE_LEVEL$", "default": "CLAUDE_LANE_LEVEL", "description": "The repository variable the level is published in as <level>@<valid-until>; it must end in _LANE_LEVEL, so it can never name a lanes kill switch." },
+            "valid-minutes": { "type": "integer", "minimum": 60, "maximum": 1440, "default": 150, "description": "How long a published value holds; past it the readers use default. Above an hour, so one missed hourly run keeps the last level." }
           }
         }
       }
@@ -945,10 +948,11 @@
             "read",
             "mutate-branch",
             "mutate-tracker",
+            "mutate-variable",
             "publish-artifact",
             "merge"
           ],
-          "description": "What the activity may change. The runner derives ordering and the token grant from it and checks that a read activity left the tree clean, unless the activity hands its change on as a patch."
+          "description": "What the activity may change. The runner derives ordering and the token grant from it and checks that a read activity left the tree clean, unless the activity hands its change on as a patch. mutate-variable reads everything and writes only what its lane's activity grant adds: repository Variables, for work-unblock's publish-lane-level alone."
         },
         "gating": {
           "enum": ["gate", "advisory"],
