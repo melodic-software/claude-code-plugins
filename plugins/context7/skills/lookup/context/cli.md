@@ -25,7 +25,7 @@ export CONTEXT7_API_KEY="<your-key>"
 
 Set it wherever your project manages local environment variables (shell profile, a gitignored local settings file, or your secret manager). Never commit the key.
 
-**Prefer the env var over `ctx7 login`.** `login` triggers browser OAuth and writes a token to `~/.ctx7/`. The env-var approach is simpler, cross-machine-portable, and doesn't pollute the user profile. If `login` was run anyway, it's harmless but redundant. Delete `~/.ctx7/` to revert.
+**Prefer the env var over `ctx7 login`.** How `login` authenticates and where it keeps its token is [Context7 CLI § Authentication](https://context7.com/docs/clients/cli#authentication) (as of 2026-11-10; recheck when that section changes how `login` stores a token). The env-var approach is simpler, cross-machine-portable, and doesn't pollute the user profile. If `login` was run anyway, it's harmless but redundant. Delete `~/.ctx7/` to revert.
 
 ## Commands
 
@@ -77,7 +77,7 @@ the two steps.
 | `--json` | Structured JSON output (vs. formatted text). Useful for scripts / `jq` extraction |
 | `--language <name>` | `docs` only: passed with the user's language when the installed CLI lists it; the probe and its pointer record are in [lookup.md](lookup.md#step-2-query-documentation) |
 
-**No `--tokens`, `--limit`, `--format`, or `--verbose` flag exists.** Default content depth is server-controlled. For more content per call, prefer MCP (`mcp__context7__query-docs`); the measured ratio is in [mcp.md](mcp.md).
+**For more content per call, prefer MCP.** Which flags `docs` takes is [Context7 CLI § Query Library Documentation](https://context7.com/docs/clients/cli#query-library-documentation) (as of 2026-11-10; recheck when that section adds a depth or token flag). Use MCP (`mcp__context7__query-docs`); the measured ratio is in [mcp.md](mcp.md).
 
 ### Setup / install flags (why this plugin doesn't use them)
 
@@ -94,7 +94,7 @@ the two steps.
 | `CONTEXT7_API_KEY` | Higher rate limits + priority |
 | `CTX7_TELEMETRY_DISABLED` | Set to `1` to disable the CLI's anonymous usage telemetry |
 
-The CLI sends anonymous usage telemetry **by default** (see the Telemetry section of Context7's CLI docs at context7.com/docs/clients/cli). In privacy-sensitive environments, disable it per invocation (`CTX7_TELEMETRY_DISABLED=1 ctx7 docs ...`) or permanently by exporting the variable in your shell profile.
+Whether and what the CLI sends as telemetry is [Context7 CLI § Telemetry](https://context7.com/docs/clients/cli#telemetry) (as of 2026-11-10; recheck when that section changes the default or the opt-out variable). In privacy-sensitive environments, disable it per invocation (`CTX7_TELEMETRY_DISABLED=1 ctx7 docs ...`) or permanently by exporting the variable in your shell profile.
 
 ## Windows Git Bash gotcha (REQUIRED for `docs`)
 
