@@ -155,11 +155,19 @@ test("the base config's adoption section lets fix-ci adopt an idle owner PR", as
   owner.commits.nodes[0].commit.committedDate = idle;
   assert.equal(parse(LIVE).adoption["idle-hours"], 2, "the live config adopts a trusted person after 2 hours");
   assert.deepEqual(await run(LIVE, [owner]), { code: 0, dispatched: ["40", "61"] });
-  // Every trusted-actors.json entry is adoptable: the release App, a Bot, at once.
+  // Another trusted Bot is adoptable at once (a Bot never waits out idle-hours).
+  const bot = ciFixPull(64);
+  bot.author = { __typename: "Bot", databaseId: 209825114 };
+  bot.updatedAt = "2026-10-17T11:59:00Z";
+  assert.deepEqual(await run(LIVE, [bot]), { code: 0, dispatched: ["40", "64"] });
+  // The release and standards-sync Apps' PRs carry generated or synced files a lane commit breaks: never adopted.
   const release = ciFixPull(65);
   release.author = { __typename: "Bot", databaseId: 337859524 };
   release.updatedAt = "2026-10-17T11:59:00Z";
-  assert.deepEqual(await run(LIVE, [release]), { code: 0, dispatched: ["40", "65"] });
+  assert.deepEqual(await run(LIVE, [release]), { code: 0, dispatched: ["40"] });
+  const sync = ciFixPull(68);
+  sync.author = { __typename: "Bot", databaseId: 300666570 };
+  assert.deepEqual(await run(LIVE, [sync]), { code: 0, dispatched: ["40"] });
   // Dependabot's red PR is review-dependency's, never fix-ci's.
   const dependabot = ciFixPull(67);
   dependabot.author = { __typename: "Bot", databaseId: 49699333 };
