@@ -210,7 +210,7 @@ jobs:
     needs: admit
     if: github.event.issue_field.id == 48484079 && github.event.issue_field_value.option.id == 84879220 && needs.admit.outputs.proceed == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 7
     # No step here uses a cache; read keeps an issues run from saving one.
     cache-mode: read
     permissions:
@@ -229,7 +229,7 @@ jobs:
       timeout-minutes: ${{ steps.dimensions.outputs.timeout-minutes }}
       issue-dimensions: ${{ steps.dimensions.outputs.issue-dimensions }}
       skip-reason: ${{ steps.dimensions.outputs.skip-reason }}
-      skip-key: ${{ steps.credit.outputs.skip-key }}
+      skip-key: ${{ steps.credit.outcome == 'success' && steps.credit.outputs.skip-key || '' }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -285,6 +285,9 @@ jobs:
       # in its own broker-check. On a skip, resolve-issue-subscription runs
       # with fallback credit-stop, and its broker-check writes the skipped key
       # leg's lane record and re-checks the blockers in the slot.
+      # The decision now comes before the first slot wait, so a window that
+      # expires during that wait still sends the run to the subscription,
+      # which costs plan capacity, not correctness.
       - name: Read the key's credit history
         id: credit
         if: steps.wip.outputs.capped == 'false'
@@ -436,7 +439,7 @@ jobs:
   # no outcome.
   resolve-issue-handoff:
     needs: [admit, pick-slot, resolve-issue]
-    if: ${{ !cancelled() && needs.admit.outputs.proceed == 'true' && (needs.resolve-issue.result != 'skipped' || needs.pick-slot.outputs.skip-key == 'true') }}
+    if: ${{ !cancelled() && needs.admit.outputs.proceed == 'true' && (needs.resolve-issue.result != 'skipped' || needs.pick-slot.result == 'success' && needs.pick-slot.outputs.skip-key == 'true') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -589,7 +592,7 @@ jobs:
     if: >-
       ${{ !cancelled() && github.event.issue_field.id == 48484079 && github.event.issue_field_value.option.id == 84879220 && needs.admit.outputs.proceed == 'true'
       && needs.pick-slot.outputs.capped == 'false'
-      && (needs.resolve-issue-handoff.outputs.handed-off == 'true' || needs.pick-slot.outputs.skip-key == 'true' && needs.resolve-issue.result == 'skipped') }}
+      && (needs.resolve-issue-handoff.outputs.handed-off == 'true' || needs.pick-slot.result == 'success' && needs.pick-slot.outputs.skip-key == 'true' && needs.resolve-issue.result == 'skipped') }}
     concurrency:
       group: work-resolve-issue-slot-${{ needs.pick-slot.outputs.slot }}
       queue: max

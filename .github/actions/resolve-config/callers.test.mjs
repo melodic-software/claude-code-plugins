@@ -2064,7 +2064,7 @@ test("work-resolve-issue.yml: every job that gets the issue lane's credential or
       ...AGENT_READY_FIELD,
       "needs.admit.outputs.proceed": "true",
       "needs.pick-slot.outputs.capped": "false",
-      "needs.pick-slot.outputs.skip-key": "",
+      "needs.pick-slot.result": "success", "needs.pick-slot.outputs.skip-key": "",
       "needs.resolve-issue.result": "success",
       "needs.resolve-issue-handoff.outputs.handed-off": "true",
       "needs.resolve-issue-handoff.outputs.fallback-ready": "true",
@@ -8174,7 +8174,7 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
       ...AGENT_READY_FIELD,
       "needs.admit.outputs.proceed": "true",
       "needs.pick-slot.outputs.capped": "false",
-      "needs.pick-slot.outputs.skip-key": "",
+      "needs.pick-slot.result": "success", "needs.pick-slot.outputs.skip-key": "",
       "needs.resolve-issue.result": "success",
       "needs.resolve-issue-handoff.outputs.handed-off": handedOff,
       ...overrides,
@@ -8204,12 +8204,12 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
   // gate as every job that touches a Claude secret does.
   assert.deepEqual(handoff.needs, ["admit", "pick-slot", "resolve-issue"]);
   for (const [result, runs] of [["success", true], ["failure", true], ["skipped", false]]) {
-    assert.equal(evaluate(handoff.if, { "needs.admit.outputs.proceed": "true", "needs.pick-slot.outputs.skip-key": "", "needs.resolve-issue.result": result }), runs, result);
+    assert.equal(evaluate(handoff.if, { "needs.admit.outputs.proceed": "true", "needs.pick-slot.result": "success", "needs.pick-slot.outputs.skip-key": "", "needs.resolve-issue.result": result }), runs, result);
   }
-  assert.equal(evaluate(handoff.if, { "needs.admit.outputs.proceed": "false", "needs.pick-slot.outputs.skip-key": "", "needs.resolve-issue.result": "success" }), false, "unadmitted");
+  assert.equal(evaluate(handoff.if, { "needs.admit.outputs.proceed": "false", "needs.pick-slot.result": "success", "needs.pick-slot.outputs.skip-key": "", "needs.resolve-issue.result": "success" }), false, "unadmitted");
   // A key the gate skipped: the job still runs, for the fallback token alone.
-  assert.equal(evaluate(handoff.if, { "needs.admit.outputs.proceed": "true", "needs.pick-slot.outputs.skip-key": "true", "needs.resolve-issue.result": "skipped" }), true, "a gate-skipped key");
-  assert.equal(evaluate(handoff.if, { "needs.admit.outputs.proceed": "false", "needs.pick-slot.outputs.skip-key": "true", "needs.resolve-issue.result": "skipped" }), false, "a gate-skipped key, unadmitted");
+  assert.equal(evaluate(handoff.if, { "needs.admit.outputs.proceed": "true", "needs.pick-slot.result": "success", "needs.pick-slot.outputs.skip-key": "true", "needs.resolve-issue.result": "skipped" }), true, "a gate-skipped key");
+  assert.equal(evaluate(handoff.if, { "needs.admit.outputs.proceed": "false", "needs.pick-slot.result": "success", "needs.pick-slot.outputs.skip-key": "true", "needs.resolve-issue.result": "skipped" }), false, "a gate-skipped key, unadmitted");
   assert.deepEqual(handoff.permissions, { actions: "read", contents: "read" });
   assert.deepEqual(handoff.outputs, { "handed-off": "${{ steps.handoff.outputs.handed-off }}", "fallback-ready": "${{ steps.fallback.outputs.ready }}" });
   assert.equal(handoff.steps.length, 5);
@@ -8279,7 +8279,10 @@ test("work-resolve-issue.yml: a key the key-credit gate holds off starts no reso
   assert.equal(caller["resolve-issue"].with["key-credit-job"], "resolve-issue", "the marker the key call reads");
   assert.equal(credit["continue-on-error"], true, "a failed read runs the key");
   assert.equal(pick.permissions.actions, "read");
-  assert.equal(pick.outputs["skip-key"], "${{ steps.credit.outputs.skip-key }}");
+  // Only a read that succeeded skips the key: one that set skip-key and then failed runs it.
+  for (const [outcome, set, skips] of [["success", "true", "true"], ["success", "false", "false"], ["failure", "true", ""], ["failure", "", ""], ["skipped", "", ""]]) {
+    assert.equal(evaluate(pick.outputs["skip-key"], { "steps.credit.outcome": outcome, "steps.credit.outputs.skip-key": set }), skips, `${outcome} with skip-key ${JSON.stringify(set)}`);
+  }
   for (const [capped, reads] of [["false", true], ["true", false], ["", false]]) {
     assert.equal(evaluate(credit.if, { "steps.wip.outputs.capped": capped }), reads, `reads at capped ${JSON.stringify(capped)}`);
   }
@@ -8292,10 +8295,12 @@ test("work-resolve-issue.yml: a key the key-credit gate holds off starts no reso
   // `innerSkip` the key call's own credit read in its broker-check, and
   // `handsOff` whether the key call handed off. Returns each call started,
   // with its fallback input, and the handoff read's state.
-  const runOf = ({ gate, innerSkip = "", handsOff = false }) => {
-    const ctx = { ...AGENT_READY_FIELD, "needs.admit.outputs.proceed": "true", "needs.pick-slot.outputs.capped": "false", "needs.pick-slot.outputs.skip-key": gate };
+  // `pick` is pick-slot's result: a job with no status function in its if
+  // runs only when every job it needs succeeded.
+  const runOf = ({ gate, innerSkip = "", handsOff = false, pick = "success" }) => {
+    const ctx = { ...AGENT_READY_FIELD, "needs.admit.outputs.proceed": "true", "needs.pick-slot.result": pick, "needs.pick-slot.outputs.capped": "false", "needs.pick-slot.outputs.skip-key": gate };
     const calls = [];
-    const keyRuns = evaluate(caller["resolve-issue"].if, ctx);
+    const keyRuns = pick === "success" && evaluate(caller["resolve-issue"].if, ctx);
     ctx["needs.resolve-issue.result"] = keyRuns ? "success" : "skipped";
     if (keyRuns) calls.push({ id: "resolve-issue", fallback: "", innerSkip });
     const handoffRuns = evaluate(caller["resolve-issue-handoff"].if, ctx);
@@ -8320,6 +8325,11 @@ test("work-resolve-issue.yml: a key the key-credit gate holds off starts no reso
     };
   };
   assert.deepEqual(runOf({ gate: "true" }), { calls: ["resolve-issue-subscription:credit-stop"], rechecks: 1, records: 1, handoffRuns: true, reads: false }, "a key held off");
+  // A pick-slot that set skip-key and then failed (a later step, or its
+  // timeout) picked no slot: no call may start on an empty slot group.
+  for (const pick of ["failure", "cancelled"]) {
+    assert.deepEqual(runOf({ gate: "true", pick }), { calls: [], rechecks: 0, records: 0, handoffRuns: false, reads: false }, `a held-off key with pick-slot ${pick}`);
+  }
   for (const gate of ["false", ""]) {
     const name = gate === "" ? "a failed gate read" : "a key the gate passed";
     assert.deepEqual(runOf({ gate }), { calls: ["resolve-issue:"], rechecks: 1, records: 0, handoffRuns: true, reads: true }, `${name}, the key did the work`);
