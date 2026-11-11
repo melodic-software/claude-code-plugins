@@ -300,7 +300,7 @@ glob_to_ere() {
   exit 2
 }
 
-case "${1:-}" in
+case "$1" in
 -h | --help)
   usage
   exit 0
@@ -374,12 +374,10 @@ TRACKED_TOTAL=$(wc -l <"$TRACKED_FILE" | tr -d ' ')
 declare -a SOURCES=() BUDGET_KEYS=() PATTERNS=()
 FM_BAD=0
 if [[ "$SUBCOMMAND" == "validate" ]]; then
-  cli_i=0
-  for g in "${CLI_GLOBS[@]}"; do
+  for cli_i in "${!CLI_GLOBS[@]}"; do
     SOURCES+=("<cli>")
     BUDGET_KEYS+=("<cli>#$cli_i")
-    cli_i=$((cli_i + 1))
-    PATTERNS+=("$g")
+    PATTERNS+=("${CLI_GLOBS[cli_i]}")
   done
 else
   while IFS= read -r rule; do
@@ -429,41 +427,36 @@ for idx in "${!PATTERNS[@]}"; do
     #   Recheck trigger: that section changes a project rule's base directory.
     UNIVERSE="$TRACKED_FILE"
     UNIVERSE_TOTAL="$TRACKED_TOTAL"
-    case "$source" in
-    */.claude/rules/*)
+    if [[ "$source" == */.claude/rules/* ]]; then
       UNIVERSE="$BASE_TRACKED_FILE"
       IP_BASE="${source%%/.claude/rules/*}/" awk '
         index($0, ENVIRON["IP_BASE"]) == 1 { print substr($0, length(ENVIRON["IP_BASE"]) + 1) }
       ' "$TRACKED_FILE" >"$BASE_TRACKED_FILE"
       UNIVERSE_TOTAL=$(($(wc -l <"$BASE_TRACKED_FILE")))
-      ;;
-    *) ;;
-    esac
+    fi
   fi
 
   if ! brackets_valid "$pattern"; then
     status="bad-bracket"
+  elif ! expansions_raw="$(expand_braces "$pattern")"; then
+    status="over-budget"
   else
-    if ! expansions_raw="$(expand_braces "$pattern")"; then
-      status="over-budget"
-    else
-      # A read loop rather than `mapfile`: mapfile is bash 4+, and macOS still
-      # ships bash 3.2 as /bin/bash, where this script must still run.
-      while IFS= read -r one_expansion; do
-        expansions+=("$one_expansion")
-      done <<<"$expansions_raw"
-      expanded_count=${#expansions[@]}
+    # A read loop rather than `mapfile`: mapfile is bash 4+, and macOS still
+    # ships bash 3.2 as /bin/bash, where this script must still run.
+    while IFS= read -r one_expansion; do
+      expansions+=("$one_expansion")
+    done <<<"$expansions_raw"
+    expanded_count=${#expansions[@]}
 
-      # Charge this pattern against its rule's running total. A brace-free
-      # pattern expands to one and does not count, per the same documentation.
-      if ((expanded_count > 1)); then
-        RUNNING_EXPANDED=$((RUNNING_EXPANDED + expanded_count))
-        if ((RUNNING_EXPANDED > MAX_EXPANDED)); then
-          status="over-budget"
-        fi
+    # Charge this pattern against its rule's running total. A brace-free
+    # pattern expands to one and does not count, per the same documentation.
+    if ((expanded_count > 1)); then
+      RUNNING_EXPANDED=$((RUNNING_EXPANDED + expanded_count))
+      if ((RUNNING_EXPANDED > MAX_EXPANDED)); then
+        status="over-budget"
       fi
     fi
-    if [[ "$status" != "over-budget" && ${#expansions[@]} -gt 0 ]]; then
+    if [[ "$status" != "over-budget" ]]; then
       # Union of matches across every expansion, counted once per file.
       match_count=$(
         for exp in "${expansions[@]}"; do

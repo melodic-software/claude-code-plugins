@@ -287,8 +287,6 @@ fi
 # the line accounting for fences and frontmatter is done once and cannot drift
 # between the three record types.
 # ---------------------------------------------------------------------------
-RULE_COUNT=0
-
 emit_file_facts() {
   local file="$1"
   # The path comes in through ENVIRON rather than `awk -v`: POSIX has -v process
@@ -481,7 +479,10 @@ emit_identity() {
 
   local want=$((10#$ID_START)) idx=-1 i
   for ((i = 0; i < ${#starts[@]}; i++)); do
-    [[ "${starts[i]}" -eq "$want" ]] && idx=$i
+    if ((starts[i] == want)); then
+      idx=$i
+      break
+    fi
   done
   ((idx >= 0)) || id_die "no section starts at line $want in $ID_FILE"
 
@@ -529,6 +530,7 @@ for f in "${FILES[@]}"; do
 done
 
 # Existing rule inventory, from the shared discovery layer.
+RULE_COUNT=0
 while IFS= read -r rule; do
   [[ -z "$rule" ]] && continue
   # One parser, shared with glob-tools.sh and render-index.sh. A private copy
