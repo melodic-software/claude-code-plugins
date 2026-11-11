@@ -9,7 +9,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "bash \"/opt/p/skills/sync/scripts/update.sh\"",
+            "command": "bash \"/opt/p/skills/update/scripts/update.sh\"",
             "description": "run"
           }
         }
@@ -21,7 +21,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "grep -n -- --refresh-baseline \"/opt/p/skills/sync/scripts/update.sh\"",
+            "command": "grep -n -- --apply \"/opt/p/skills/update/scripts/update.sh\"",
             "description": "run"
           }
         }
@@ -33,7 +33,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "bash \"/opt/p/skills/sync/scripts/update.sh\"; grep -c refresh-baseline /opt/p/skills/sync/context/update.md",
+            "command": "bash \"/opt/p/skills/update/scripts/update.sh\"; grep -c -- --apply /opt/p/skills/update/context/update.md",
             "description": "run"
           }
         }
@@ -47,7 +47,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "bash \"/opt/p/skills/sync/scripts/update.sh\" --refresh-baseline",
+            "command": "bash \"/opt/p/skills/update/scripts/update.sh\" --apply",
             "description": "run"
           }
         }
@@ -59,7 +59,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "cd /opt/p/skills/sync && ./scripts/update.sh --refresh-baseline 2>&1",
+            "command": "cd /opt/p/skills/update && ./scripts/update.sh --apply 2>&1",
             "description": "run"
           }
         }
@@ -71,12 +71,24 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "bash \\\"/opt/p/skills/sync/scripts/update.sh\\\" --refresh-baseline",
+            "command": "bash \\\"/opt/p/skills/update/scripts/update.sh\\\" --apply",
             "description": "run"
           }
         }
       ],
       "why": "escaped quotes"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash plugins/dometrain/skills/update/scripts/update.sh --apply",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the clone-relative form context/update.md gives"
     }
   ]
 }

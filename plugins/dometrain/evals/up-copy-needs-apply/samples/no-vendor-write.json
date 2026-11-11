@@ -35,7 +35,7 @@
         {
           "tool": "Write",
           "input": {
-            "file_path": "/opt/p/skills/sync/vendor/SKILL.md",
+            "file_path": "/opt/p/skills/update/vendor/SKILL.md",
             "content": "x"
           }
         }

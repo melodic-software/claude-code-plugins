@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "bash \"/opt/p/skills/sync/scripts/update.sh\"",
+            "command": "bash \"/opt/p/skills/update/scripts/update.sh\"",
             "description": "run"
           }
         }
@@ -17,7 +17,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "bash \"/opt/p/skills/sync/scripts/update.sh\"; echo \"exit=$?\"",
+            "command": "bash \"/opt/p/skills/update/scripts/update.sh\"; echo \"exit=$?\"",
             "description": "run"
           }
         }
@@ -29,7 +29,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "cd /opt/p/skills/sync && bash scripts/update.sh 2>&1",
+            "command": "cd /opt/p/skills/update && bash scripts/update.sh 2>&1",
             "description": "run"
           }
         }
@@ -41,7 +41,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "/opt/p/skills/sync/scripts/update.sh",
+            "command": "/opt/p/skills/update/scripts/update.sh",
             "description": "run"
           }
         }
@@ -59,7 +59,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "cat \"/opt/p/skills/sync/scripts/update.sh\"",
+            "command": "cat \"/opt/p/skills/update/scripts/update.sh\"",
             "description": "run"
           }
         }
@@ -71,7 +71,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "bash \"/opt/p/skills/sync/scripts/update.sh\" --refresh-baseline",
+            "command": "bash \"/opt/p/skills/update/scripts/update.sh\" --apply",
             "description": "run"
           }
         }
@@ -83,7 +83,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "bash /opt/p/skills/sync/scripts/update.test.sh",
+            "command": "bash /opt/p/skills/update/scripts/update.test.sh",
             "description": "run"
           }
         }

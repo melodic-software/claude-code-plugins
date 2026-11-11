@@ -9,8 +9,8 @@ usage surface. Upstream is advisory: watch for changes, evaluate, port anything 
 ## The check action
 
 ```bash
-# Report drift (no changes made) — the only mode /dometrain:sync ever runs
-bash "<skill-dir>/scripts/update.sh"
+# Report drift (no changes made) — the default mode of /dometrain:update
+bash "<skill-dir>/scripts/update.sh" --check
 ```
 
 The script does three things:
@@ -27,7 +27,7 @@ frontmatter). The human in the loop decides what to port.
 
 ## Roles: consumer vs plugin maintainer
 
-- **Consumers** run `/dometrain:sync` for report-only drift visibility. A drift finding is input
+- **Consumers** run `/dometrain:update` (`--check`, the default) for report-only drift visibility. A drift finding is input
   for an issue or PR against this plugin's marketplace repository. Do not patch the installed
   copy, which is an ephemeral cache overwritten on plugin update.
 - **Plugin maintainers** port upstream changes in a working clone of the marketplace repository
@@ -36,21 +36,23 @@ frontmatter). The human in the loop decides what to port.
   plugin cache in a normal session, which is exactly where this must not run):
 
   ```bash
-  bash plugins/dometrain/skills/sync/scripts/update.sh --refresh-baseline
+  bash plugins/dometrain/skills/update/scripts/update.sh --apply
   ```
 
+  `/dometrain:update --apply` runs the same command when the session loads the plugin from that
+  clone (`--plugin-dir`).
+
   **`UPSTREAM_URL` tracks `master`, not a pinned commit.** A pinned URL makes `check` compare the
-  baseline against the same frozen commit forever, so `/dometrain:sync` can never detect real drift
+  baseline against the same frozen commit forever, so `/dometrain:update` can never detect real drift
   once Dometrain's `master` moves. The integrity gate is the human diff review a maintainer performs
-  before choosing to run `--refresh-baseline`; a URL pin adds ceremony without adding protection
+  before choosing to run `--apply`; a URL pin adds ceremony without adding protection
   beyond that.
 
   This overwrites `vendor/SKILL.md` with current upstream (re-add the attribution comment
-  afterward, since `--refresh-baseline` writes raw upstream content, which never carries it) and
+  afterward, since `--apply` writes raw upstream content, which never carries it) and
   stamps `synced:` in `grounding/SKILL.md`'s frontmatter. It writes next to the script itself,
-  so run it only in a working clone, never in the installed plugin cache. This flag is a raw
-  CLI argument typed directly by a maintainer; `sync/SKILL.md`'s own dispatch never constructs
-  or exposes it, so there is no model-reachable path to it.
+  so run it only in a working clone, never in the installed plugin cache. The skill is
+  `disable-model-invocation`, so `--apply` runs only when a maintainer types it.
 
 ## What to preserve when integrating upstream changes
 
@@ -59,7 +61,7 @@ When porting upstream additions, **keep** this plugin's customizations:
 | Customization | Where it lives | Why |
 |---|---|---|
 | Frontmatter shape | `grounding/SKILL.md` | Plugin conventions (`user-invocable`, `argument-hint`, `disable-model-invocation`, `metadata`) |
-| The `grounding`/`sync` skill split | Both skills | `/dometrain:sync` must stay non-model-reachable |
+| The `grounding`/`update` skill split | Both skills | `/dometrain:update` must stay non-model-reachable |
 | Standing untrusted-data instruction | `grounding/SKILL.md` | Prompt-injection defense this plugin adds; upstream's own skill doesn't carry it |
 | Tool-source pointer | `grounding/SKILL.md`, README | Names the user-scope `dometrain` server as the way to get the tools, absent from upstream's bundled server |
 

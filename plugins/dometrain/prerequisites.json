@@ -44,14 +44,14 @@
       "kind": "cli",
       "need": "optional",
       "for": [
-        "skill:sync"
+        "skill:update"
       ],
       "detect": {
         "any": [
           "curl"
         ]
       },
-      "degrade": "Without curl, /dometrain:sync cannot fetch the upstream source to compare, and stops.",
+      "degrade": "Without curl, /dometrain:update cannot fetch the upstream source to compare, and stops.",
       "install": {
         "docs": "https://curl.se/download.html",
         "brew": "curl",
