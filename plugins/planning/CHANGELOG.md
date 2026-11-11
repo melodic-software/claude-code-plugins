@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.21.0] - 2026-11-11
+
+### Changed
+
+- `/planning:interview`: the closing summary lists the glossary group first. A new or renamed term becomes the first step after the interview: the glossary change, and for a rename `/docs-hygiene:rename-references`, land as their own reviewed change before `/planning:plan` and `/work-items:decompose`, so the spec and tickets name only the settled terms.
+
 ## [2.20.0] - 2026-11-10
 
 ### Changed
