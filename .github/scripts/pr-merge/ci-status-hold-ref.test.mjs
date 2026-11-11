@@ -29,12 +29,15 @@ function runScript() {
   return body.map((l) => l.slice(indent)).join("\n");
 }
 
-function run(vars) {
+const STACK_BASE = "3".repeat(40);
+
+// `tipFails` makes the git stand-in's ls-remote fail, as an outage would.
+function run(vars, { tipFails = false } = {}) {
   const root = tempDir("hold-ref-");
   const bin = path.join(root, "bin");
   mkdirSync(bin);
   const git = path.join(bin, "git");
-  writeFileSync(git, `#!/usr/bin/env bash\nprintf '%s\\trefs/heads/main\\n' ${TIP}\n`);
+  writeFileSync(git, tipFails ? "#!/usr/bin/env bash\nexit 128\n" : `#!/usr/bin/env bash\nprintf '%s\\trefs/heads/main\\n' ${TIP}\n`);
   chmodSync(git, 0o755);
   const output = path.join(root, "output");
   writeFileSync(output, "");
@@ -50,6 +53,7 @@ function run(vars) {
       BASE_SHA: EVENT_BASE,
       BASE_REF: "main",
       STACK_BASE_REF: "",
+      STACK_BASE_SHA: "",
       ...vars,
     },
   });
@@ -66,6 +70,24 @@ test("a stack layer whose stack targets the default branch reads the tip, not th
   const r = run({ BASE_REF: "feat/lower-layer", STACK_BASE_REF: "main" });
   assert.equal(r.status, 0, r.log);
   assert.equal(r.output, `sha=${TIP}\n`);
+});
+
+test("a pull request into the default branch falls back to its base SHA when the tip is unreadable", () => {
+  const r = run({}, { tipFails: true });
+  assert.equal(r.status, 0, r.log);
+  assert.equal(r.output, `sha=${EVENT_BASE}\n`);
+});
+
+test("a stack layer falls back to the stack base SHA, never the layer below, when the tip is unreadable", () => {
+  const r = run({ BASE_REF: "feat/lower-layer", STACK_BASE_REF: "main", STACK_BASE_SHA: STACK_BASE }, { tipFails: true });
+  assert.equal(r.status, 0, r.log);
+  assert.equal(r.output, `sha=${STACK_BASE}\n`);
+});
+
+test("a stack layer with an unreadable tip and no stack base SHA fails", () => {
+  const r = run({ BASE_REF: "feat/lower-layer", STACK_BASE_REF: "main" }, { tipFails: true });
+  assert.equal(r.status, 1, r.log);
+  assert.equal(r.output, "");
 });
 
 test("a pull request into another branch, in no stack, keeps the event's base SHA", () => {

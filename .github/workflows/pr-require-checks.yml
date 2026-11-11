@@ -5274,6 +5274,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
           STACK_BASE_REF: ${{ github.event.pull_request.stack.base.ref }}
+          STACK_BASE_SHA: ${{ github.event.pull_request.stack.base.sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
         run: |
@@ -5285,12 +5286,22 @@ jobs:
           sha=$BASE_SHA
           if [ "$EVENT" = pull_request ] && [ -n "$DEFAULT_BRANCH" ] &&
             { [ "$BASE_REF" = "$DEFAULT_BRANCH" ] || [ "$STACK_BASE_REF" = "$DEFAULT_BRANCH" ]; }; then
+            # A stack layer's fallback is the stack base, a default-branch
+            # commit, never its own base, the unmerged layer below.
+            fallback=$BASE_SHA
+            if [ "$BASE_REF" != "$DEFAULT_BRANCH" ]; then
+              fallback=$STACK_BASE_SHA
+            fi
             tip=$(GIT_TERMINAL_PROMPT=0 timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY" "refs/heads/$DEFAULT_BRANCH" |
               awk -v ref="refs/heads/$DEFAULT_BRANCH" '$2 == ref { print $1 }') || tip=
             if [[ $tip =~ $hex ]]; then
               sha=$tip
+            elif [[ $fallback =~ $hex ]]; then
+              echo "::warning::could not read the tip of $DEFAULT_BRANCH, so the hold config falls back to the base commit $fallback, which a policy merged after it does not reach."
+              sha=$fallback
             else
-              echo "::warning::could not read the tip of $DEFAULT_BRANCH, so the hold config falls back to the base commit $BASE_SHA, which a policy merged after it does not reach."
+              echo "::error::could not read the tip of $DEFAULT_BRANCH, and this stack layer names no stack base commit, so the hold config has no default-branch commit to read; re-run this run."
+              exit 1
             fi
           fi
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
