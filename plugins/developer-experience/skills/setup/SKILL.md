@@ -40,8 +40,8 @@ the file at `${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md` (read it at 
 Run `bash "${CLAUDE_SKILL_DIR}/scripts/pointer-line.sh" check --root <repo> [--path <file>]` for
 the `AGENTS.md` line and load findings, and `... apply --root <repo> --path <file> --dry-run` for
 the diff to show, each as its own plain call: no `cd`, `;`, `&&`, pipe or `echo $?` (`state:` and
-`result:` carry the outcome); an allowlist approves a compound line only if every part matches.
-Re-run a denied compound call plainly; a denied plain call is a blocker: report the exact command
+`result:` carry the outcome), so an allowlist can approve it (allowlist matching: the pointer under
+Gotchas). Re-run a denied compound call plainly; a denied plain call is a blocker: report the exact command
 and write nothing. `--help` lists every output key and state; never redo its work by hand.
 
 | Exit | Meaning | Do |
@@ -78,7 +78,7 @@ the file and line behind it and one remediation line per FAIL:
    Load rules: pointer, when judging whether `AGENTS.md` loads, fetch
    <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> and
    <https://code.claude.com/docs/en/memory#share-one-file-with-other-coding-tools> live; as of
-   2026-10-11; recheck when either section changes its import or file-discovery rules or a
+   2026-11-10; recheck when either section changes its import or file-discovery rules or a
    release note touches CLAUDE.md loading.
 3. **Conventions file**: missing at the configured path; the path in the existing line points at a
    file that does not exist; or tooling conventions found in an old location: a file under
@@ -129,16 +129,16 @@ configure (conventions at the path), or nothing to do.
 3. Show every change: the conventions file as a diff (or the full file when new) and the helper's
    `--dry-run` diff for `AGENTS.md`. A missing `AGENTS.md` is created only after its own explicit
    yes; when a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` exists here or above, say
-   that under the default instruction-file setting Claude Code reads that file instead of
-   `AGENTS.md`, so the new file needs the helper's `add:` import line.
+   that the new file needs the helper's `add:` import line to load (load rules: the pointer in
+   `check` item 2).
 4. On the user's yes, write the conventions file, then run the helper
    `apply --yes --root <repo> --path <file>`. On migrate, delete the old file only after the
    helper reports `written`, `created` or `unchanged`; on any other result keep it, so `AGENTS.md` never
    points at a deleted file. Set `written_against` to the current plugin version only in a file you write.
    With nothing to change, write nothing and say so.
 5. Run `check` again and report what you observed on disk: the files written, the line's state,
-   and each `load:` finding. For a remaining `missing-import`, tell the user the line is not read
-   under the default instruction-file setting until that import is added, and print it as in `check`. A fresh session, not
+   and each `load:` finding. For a remaining `missing-import`, tell the user the line does not
+   load until that import is added (load rules: the pointer in `check` item 2), and print it as in `check`. A fresh session, not
    this one, shows the change. Offer `git add` and a commit; run them only when accepted.
 
 ### User level (`--user`)
@@ -179,4 +179,4 @@ and exited 1. Recheck when that page documents the unmanaged case.
   <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>; for
   the install-line form, <https://code.claude.com/docs/en/plugins/cli-reference#plugin-install>;
   for allowlist matching, <https://code.claude.com/docs/en/permissions#compound-commands>; each
-  live. **As of**: 2026-10-11. **Recheck trigger**: one of those sections changes.
+  live. **As of**: 2026-11-10. **Recheck trigger**: one of those sections changes.

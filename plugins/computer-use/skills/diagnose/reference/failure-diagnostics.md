@@ -1,7 +1,9 @@
 # Diagnosing capture and input failures
 
-Our content, measured 2026-08-10 on Windows 11 / Claude Desktop. Upstream documents no
-troubleshooting for screenshot failures, which is why this file exists.
+Our content, measured 2026-08-10 on Windows 11 / Claude Desktop. This file exists because
+upstream's troubleshooting does not cover screenshot failures. Pointer:
+[Troubleshooting](https://code.claude.com/docs/en/computer-use#troubleshooting). As of: 2026-11-10.
+Recheck trigger: that section adds an entry for capture failures.
 
 The governing rule: **a capture or input failure is almost always environment state, not a tool
 defect.** Retrying an action that failed for an environmental reason will fail identically.

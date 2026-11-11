@@ -14,10 +14,11 @@ form puts the destination, the body, the transport bounds, and the absence of `-
 line, so approving it means seeing exactly what will happen. Every PowerShell-portable alternative
 moves that detail somewhere the prompt cannot show:
 
-- **Inline JSON is not portable.** PowerShell 7.3 changed native-argument parsing in what Microsoft
-  documents as a breaking change from 5.1 (`about_Parsing`; `$PSNativeCommandArgumentPassing`, where
-  `Windows`/`Standard` preserve embedded quotes and `Legacy` does not). `'{"url":"..."}'` loses its
-  quotes under `Legacy`; `'{\"url\":\"...\"}'` arrives with literal backslashes under the others.
+- **Inline JSON is not portable.** How PowerShell passes embedded quotes to a native command
+  depends on its version and `$PSNativeCommandArgumentPassing` (pointer:
+  [Passing arguments that contain quote characters](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_parsing#passing-arguments-that-contain-quote-characters);
+  as of 2026-11-10; recheck when that section changes which modes keep embedded quotes), so no
+  one quoting of `{"url":"..."}` arrives intact under every mode.
 - **A curl config file fixes the quoting and breaks the prompt.** `curl.exe -q -K <file>` shows the
   operator a filename. The URL, the `data` reference, any `output` directive, and redirect behavior
   all live inside a model-authored file nobody approves. Should attacker-authored content ever push
@@ -113,8 +114,10 @@ exact command, path included, before it runs.
 `--proto '=https'` and the absence of `-L` are absolute: the request cannot change scheme or host.
 `--max-time` always applies.
 
-`--max-filesize` is best-effort. Before curl 8.4.0 it does not stop a response of unknown length, so
-a chunked reply from a compromised or malfunctioning converter can exceed the stated cap. Treat the
+`--max-filesize` is best-effort: on some curl versions a chunked reply from a compromised or
+malfunctioning converter can exceed the stated cap (which versions: curl's manual,
+[`--max-filesize`](https://curl.se/docs/manpage.html#--max-filesize); as of 2026-11-10; recheck when
+that entry changes how a response of unknown length is handled). Treat the
 byte cap as a courtesy limit and `--max-time` as the real ceiling on how much third-party text can
 arrive.
 

@@ -224,16 +224,14 @@ real run, read `result-latest.json`. Do not ask them to paste the transcript.
   pass `-TolerateTakeExit` and prove the state with `Wait-ForState`.
 - `wsl.exe` writes its listings (`--list`, `--status`) as UTF-16, which a
   PowerShell capture decodes as text with embedded NULs, so a `-contains
-  'Ubuntu'` guard never matches and reads `absent`. `WSL_UTF8=1` makes it emit
-  UTF-8 (WSL 0.64.0 and later); wrap the call in `Invoke-NativeUtf8`. Verified
-  2026-09-29 against the 0.64.0 release notes
+  'Ubuntu'` guard never matches and reads `absent`. Wrap the call in
+  `Invoke-NativeUtf8`, which sets `WSL_UTF8=1`. Which WSL releases honor it and
+  which values: pointer to the 0.64.0 release notes
   (<https://github.com/microsoft/WSL/releases/tag/0.64.0>), `WslClient.cpp` in
-  `microsoft/WSL` (reads `WSL_UTF8`; only the value `1` enables UTF-8), and
-  Microsoft's `diagnostics/collect-wsl-logs.ps1` (sets it beside
-  `[Console]::OutputEncoding`). The Microsoft Learn WSL pages do not mention
-  it. Recheck when a WSL release note changes or drops `WSL_UTF8`, or the Learn
-  basic-commands page documents a different switch for `wsl.exe` output
-  encoding.
+  `microsoft/WSL`, and Microsoft's `diagnostics/collect-wsl-logs.ps1`; the
+  Microsoft Learn WSL pages do not cover it. As of 2026-11-10. Recheck when a
+  WSL release note changes or drops `WSL_UTF8`, or the Learn basic-commands
+  page documents a different switch for `wsl.exe` output encoding.
 - The store rung calls `Get-Secret -AsPlainText` with no `-Vault`, so it searches
   every registered vault, the default vault first and remote ones included, on any
   platform where the module and a vault are present. Nothing gates it to Windows. A
@@ -242,20 +240,17 @@ real run, read `result-latest.json`. Do not ask them to paste the transcript.
   `Interaction` set to `None` the read fails and the rung is skipped.
   `-AsPlainText` converts only a `String` or `SecureString`, so a `PSCredential`,
   hashtable or `byte[]` secret is skipped with a warning and the ladder goes on
-  to the hidden prompt. SecretStore encrypts with .NET Core cryptographic APIs,
-  not DPAPI. Verified 2026-09-29 against the SecretManagement
+  to the hidden prompt. Pointers: the SecretManagement
   [overview](https://learn.microsoft.com/en-us/powershell/utility-modules/secretmanagement/overview)
-  (SecretStore "uses .NET Core cryptographic APIs to encrypt file contents" and
-  "works on all platforms that support PowerShell 7"; the modules are "feature
-  complete" with the repository archived, at SecretManagement 1.1.2 and
-  SecretStore 1.0.6),
-  [Get-Secret](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.secretmanagement/get-secret?view=ps-modules)
-  (with no vault named, "all registered vaults are searched"; `-AsPlainText` "has
-  no effect" on a secret that is not a `String` or `SecureString`) and
-  [Set-SecretStoreConfiguration](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.secretstore/set-secretstoreconfiguration?view=ps-modules)
-  (`-Interaction`). Recheck when the PowerShell Gallery lists a release of either
-  module after those versions, or the overview page drops its "feature complete"
-  notice.
+  (how SecretStore encrypts, which platforms it runs on, and the modules'
+  maintenance status), Get-Secret
+  [`-Vault`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.secretmanagement/get-secret?view=ps-modules#-vault)
+  and
+  [`-AsPlainText`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.secretmanagement/get-secret?view=ps-modules#-asplaintext),
+  and Set-SecretStoreConfiguration
+  [`-Interaction`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.secretstore/set-secretstoreconfiguration?view=ps-modules#-interaction).
+  As of 2026-11-10. Recheck when the PowerShell Gallery lists a new release of
+  either module, or the overview page changes the modules' maintenance status.
 - The native store rungs can block an unattended run. The Keychain can raise an
   access dialog for an item the calling app is not trusted for or in a locked
   keychain, and `pass` runs `gpg`, which asks for a passphrase through pinentry
@@ -263,13 +258,11 @@ real run, read `result-latest.json`. Do not ask them to paste the transcript.
   (`security unlock-keychain`) or add the calling app to the item's trusted
   applications, and start `gpg-agent` with the passphrase cached (for example by
   running `pass show <name>` once). `pass show` prints the whole file; the rung
-  takes the first line. Verified 2026-09-30 against the Apple
+  takes the first line. Pointers: the Apple
   [`security` man page](https://keith.github.io/xcode-man-pages/security.1.html)
-  (`find-generic-password`: `-s` matches the service string, `-w` displays the
-  password only; `unlock-keychain`) and the passwordstore.org
-  [pass man page](https://git.zx2c4.com/password-store/plain/man/pass.1) (`show`
-  decrypts and prints the named password; `gpg-agent` is recommended so batch
-  decryption needs less intervention). Recheck when either man page changes
+  (`find-generic-password`, `unlock-keychain`) and the passwordstore.org
+  [pass man page](https://git.zx2c4.com/password-store/plain/man/pass.1)
+  (`show`, `gpg-agent`). As of 2026-11-10. Recheck when either man page changes
   those flags or commands.
 - A secret resolved at runtime stays in the human's process. Do not ask for
   the value in chat.
