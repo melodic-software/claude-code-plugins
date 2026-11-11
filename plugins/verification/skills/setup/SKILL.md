@@ -123,8 +123,8 @@ for each key written, and whether the file is tracked.
 
 - Run a verification pass. That is the plugin's verification skills (`/verification:confirm`,
   `/verification:measure`).
-- Write any settings file other than `docs/conventions/verification.yaml`, edit any ignore file,
-  or write the plugin directory or the plugin data directory (`${CLAUDE_PLUGIN_DATA}` is for caches
+- Write any settings file other than `docs/conventions/verification.yaml`, edit any ignore file
+  beyond the personal override line the operator confirms in the convention-home offer, or write the plugin directory or the plugin data directory (`${CLAUDE_PLUGIN_DATA}` is for caches
   and generated state only).
 - Write Claude Code user settings or `pluginConfigs`. The per-user `proof_level` and
   `live_workers` options are set through `/plugin configure`, not here.

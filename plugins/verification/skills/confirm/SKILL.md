@@ -180,7 +180,7 @@ Read the criterion context file for the dispatched mode, then run the flow below
    - **Merged report.** The missing-entry-point check above reads the merged per-entry-point report of every worker: an entry point no worker reported holds the verdict exactly as it would in a single drive.
    - **Measured usage per worker.** For each worker the report lists its entry points, its result and its usage as measured: the tokens and wall time the Agent tool's result reports for that worker, never an estimate, and never a price or cost figure.
    - **Cloud host.** When this run is on a cloud execution target (`CLAUDE_CODE_REMOTE` is `true` in the session, or the stage's `execution_target` in `docs/conventions/execution-target.yaml` resolved to a cloud value), the report adds the line `live-UI step unverified on this host`.
-     - **Pointer**: the `CLAUDE_CODE_REMOTE` row of <https://code.claude.com/docs/en/env-vars>; for the subagent result whose usage each worker line reports, <https://code.claude.com/docs/en/agent-sdk/typescript#agent-2>.
+     - **Pointer**: the `CLAUDE_CODE_REMOTE` row of <https://code.claude.com/docs/en/env-vars#variables>; for the subagent result whose usage each worker line reports, <https://code.claude.com/docs/en/agent-sdk/typescript#agent-2>.
      - **As of**: 2026-10-31
      - **Recheck trigger**: the env-vars row changes, or a Claude Code release changes the Agent tool result or its usage format.
 
@@ -314,8 +314,8 @@ either.
 
 **Routing.** When the change has a runtime surface to drive (an `e2e-*` category above, or any
 product source), offer it to the person at the end of the run, beside the report:
-If /verify is available in your session (gate basis: `disableBundledSkills` or a `skillOverrides`
-entry hides it; records in [reference/native-verify.md](reference/native-verify.md)), you can run
+If /verify is available in your session (gate basis: which settings hide it is read live from the
+records in [reference/native-verify.md](reference/native-verify.md)), you can run
 it alongside this skill to drive the change end to end. Skip the offer for a diff touching
 only tests, docs, or code with no runtime surface. When the caller passes `--unattended`, the run records the offer in its output instead of asking; without that flag
 it asks. Its result is added evidence; it replaces neither Stage 1 nor the verdict.
@@ -323,7 +323,7 @@ it asks. Its result is added evidence; it replaces neither Stage 1 nor the verdi
 **Mutation gate.** `/verify` may write a project verify skill on first use. This skill never
 triggers it on its own behalf.
 
-**Availability is never assumed.** `disableBundledSkills` or a `skillOverrides` entry hides it;
+**Availability is never assumed.** Project settings can hide it;
 this section states what to do when it resolves, never that it is present. The records, each a
 pointer with an as-of date and a recheck trigger, live in
 [reference/native-verify.md](reference/native-verify.md).

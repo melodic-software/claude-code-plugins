@@ -289,8 +289,8 @@ Known traps, seeded from the research this skill was grounded on:
   (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/hotspots.md`) runs first; a window the history does not cover downgrades churn to a
   recorded evidence gap. Confidently-wrong rankings from partial history are worse than no
   ranking.
-- **Never call the Actions `/timing` endpoint**. GitHub marks it as closing down; the dated record
-  for that, and for the documented 1,000-result bound behind the windowing rule, is in
+- **Never call the Actions `/timing` endpoint**. GitHub is retiring it; the dated record
+  for that, and for the documented result cap behind the windowing rule, is in
   `${CLAUDE_PLUGIN_ROOT}/skills/find/context/ci-health.md`. CI health iterates `/actions/runs` by `created` date windows (never deep
   pagination) and derives failure ratios, duration trends, and `run_attempt` retries per that file.
 - **Unattended is declared, never detected.** There is no supported way to observe

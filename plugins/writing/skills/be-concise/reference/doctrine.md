@@ -32,17 +32,20 @@ scan it.
 
 ## The reader model this rests on
 
-People scan. Nielsen Norman Group's usage data puts a reader at about a fifth
-of the words on a page in an average visit, and at most 28%. GOV.UK restates
-the same range in its own guidance. Front-loaded text, short sentences and
+People scan: Nielsen Norman Group's usage data finds a reader takes in a small
+share of the words on a page in an average visit (figures in the
+[How Little Do Users Read?](sources.md#how-little-do-users-read-nielsen-2008)
+record). GOV.UK restates the same range in its own guidance. Front-loaded text, short sentences and
 scannable structure exist to serve that reader, not because short writing is a
 virtue in itself.
 
 The size of the effect comes from one controlled experiment: five conditions,
 51 experienced users, one seven-page site (Nielsen Norman Group, Morkes and
-Nielsen, 1997). Cutting the pages to about half their words raised measured
-usability 58%, making the text scannable raised it 47%, stripping promotional
-language raised it 27%, and all three together raised it 124%.
+Nielsen, 1997). Cutting the pages to about half their words, making the text
+scannable and stripping promotional language each raised measured usability,
+and all three together raised it most (figures in the
+[Concise, Scannable, and Objective](sources.md#concise-scannable-and-objective-morkes-and-nielsen-1997)
+record).
 
 State that evidence honestly when it comes up. It is a single study from 1997.
 No replication and no refutation has been published. The screen-reading premise
