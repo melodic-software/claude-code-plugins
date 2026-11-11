@@ -338,6 +338,14 @@ test('skeptics see the reader pointer beside each repo claim', async () => {
   assert.match(data(by(calls, 'skeptic:')[0].prompt, 'findings')[0].pointer, /as of 2026-10-01/)
 })
 
+test('repo finders take a pointer without a stamp as conforming and keep the stamp for stored values', async () => {
+  const { calls } = await run({ mode: 'repo', targets: [{ area: 'a', files: ['docs/a.md'] }] })
+  const prompt = by(calls, 'find:')[0].prompt
+  assert.match(prompt, /section-anchored link that needs no as-of date or recheck trigger/)
+  assert.match(prompt, /no pointer to its source, or is a stored value with no as-of date and recheck trigger/)
+  assert.doesNotMatch(prompt, /records the pointer, an as-of date and a recheck trigger/)
+})
+
 test('sources off the fetch-gate hosts, or with a query string, are dropped before any stage runs', async () => {
   const { result, logs } = await run({ mode: 'repo', targets: TARGETS, upstream: ['https://example.org/x', 'https://code.claude.com/docs?x=1', 'https://code.claude.com/docs/en/hooks'] })
   assert.deepEqual(result.sources, ['https://code.claude.com/docs/en/hooks'])
