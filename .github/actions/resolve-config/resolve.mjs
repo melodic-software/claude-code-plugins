@@ -211,9 +211,16 @@ function checkLeaves(activities, activityRules) {
     if (isComposite(activity)) {
       continue;
     }
+    // A skill runs only in the read runner, which holds no write credential;
+    // a script applies or publishes what it hands on.
+    if (typeof activity.skill === "string" && activity.effect !== "read") {
+      throw new Rejection(
+        "skill-not-read",
+        `activity \`${name}\` is a skill with effect ${activity.effect}; a skill has effect read and hands its change to a script activity`,
+      );
+    }
     // ci-context is the read runner's one mode, apply-patch a branch-writing
-    // script's; every other mode needs a skill that can write, or a read
-    // skill whose patch a script applies.
+    // script's; every other mode needs a read skill whose patch a script applies.
     const needs = { "ci-context": "read", "apply-patch": "mutate-branch" }[activity.prepare];
     const handsOnPatch = isObject(activity["applied-by"]) && typeof activity["applied-by"].patch === "string";
     if (
@@ -224,7 +231,7 @@ function checkLeaves(activities, activityRules) {
         "invalid-prepare",
         needs
           ? `activity \`${name}\` sets prepare: ${activity.prepare}, which needs effect ${needs}`
-          : `activity \`${name}\` sets prepare with effect read and no applied-by.patch; prepare needs a skill that can write or hands on a patch`,
+          : `activity \`${name}\` sets prepare with no applied-by.patch; a skill's prepare mode hands its change on as a patch`,
       );
     }
     const rule = own(activityRules, name);
