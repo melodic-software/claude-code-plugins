@@ -15,7 +15,7 @@ SKILL_FRONTMATTER_LIB_LOADED=1
 skill_frontmatter::extract() {
   awk '
     NR == 1 && $0 !~ /^---[[:space:]]*$/ { exit }
-    /^---[[:space:]]*$/ { fence++; if (fence == 1) next; if (fence >= 2) exit }
+    /^---[[:space:]]*$/ { if (++fence == 1) next; exit }
     fence == 1 { print }
   '
 }
@@ -103,12 +103,9 @@ skill_frontmatter::field() {
 # for top-level keys only. Prints nothing if the key is absent.
 #
 # The read is SCOPED to the `metadata:` block: collection starts at a column-0
-# `metadata:` line and stops at the next column-0 key. Without that scope this
-# matched the first indented `key:` line anywhere in the frontmatter, so an
-# indented line inside a `description: |` block scalar was read as metadata
-# while the cheat-sheet generator (which tracks the block) read the real value.
-# Two readers disagreeing about WHICH value they are reading is a sharper
-# failure than disagreeing about whether it is valid (#3189).
+# `metadata:` line and stops at the next column-0 key, so an indented line
+# inside a `description: |` block scalar is never read as metadata. The
+# cheat-sheet generator tracks the block the same way, so both read one value.
 #
 # Quotes are NOT stripped. The value is the literal text after the key, which is
 # what the generator's reader takes and what the summary guard judges: a quoted
@@ -126,8 +123,8 @@ skill_frontmatter::field() {
 # first can never reach the same verdict. Trailing whitespace is removed in both
 # modes, matching the generator's trim.
 skill_frontmatter::metadata_field() {
-  local key="$1" mode="${2:-}" strip=1
-  [[ "$mode" == "--raw" ]] && strip=0
+  local key="$1" strip=1
+  [[ "${2:-}" == "--raw" ]] && strip=0
   awk -v k="$key" -v strip="$strip" '
     /^metadata:[[:space:]]*$/ { inmeta = 1; next }
     /^[^[:space:]]/ { inmeta = 0 }
@@ -230,7 +227,7 @@ skill_frontmatter::summary_error() {
   lead="${s:0:1}"
   if [[ "$unsafe_lead" == *"$lead"* ]]; then
     # Naming the remedy matters here: quoting is what an author reaches for
-    # first, and a leading quote is rejected by this very rule (#3189).
+    # first, and a leading quote is rejected by this very rule.
     printf "summary starts with the YAML-special character '%s' (reword to a plain unquoted scalar; quoting it is rejected too)" "$lead"
     return 1
   fi

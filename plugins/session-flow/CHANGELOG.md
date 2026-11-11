@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [7.7.1] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [7.7.0] - 2026-11-10
 
 ### Changed

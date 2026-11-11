@@ -129,6 +129,11 @@ EOF
   exit "$EX_USAGE"
 }
 
+die_usage() {
+  printf '%s: %s\n' "$PROG" "$1" >&2
+  exit "$EX_USAGE"
+}
+
 # shellcheck source=lib/worktree-facts.sh
 source "$SCRIPT_DIR/lib/worktree-facts.sh" || { echo "error: cannot load lib/worktree-facts.sh" >&2; exit "$EX_ENV"; }
 
@@ -281,19 +286,9 @@ find_worktree_index() {
 }
 
 resolve_repo_dir() {
-  local hint="$1"
-  if [[ -n "$hint" ]]; then
-    if git_unlocated -C "$hint" rev-parse --git-dir >/dev/null 2>&1; then
-      printf '%s' "$hint"
-      return 0
-    fi
-    return 1
-  fi
-  if git_unlocated rev-parse --git-dir >/dev/null 2>&1; then
-    printf '%s' "."
-    return 0
-  fi
-  return 1
+  local dir="${1:-.}"
+  git_unlocated -C "$dir" rev-parse --git-dir >/dev/null 2>&1 || return 1
+  printf '%s' "$dir"
 }
 
 cmd="${1:-}"
@@ -370,85 +365,41 @@ done
 
 session_id="$(resolve_session_id "$session_id")"
 if [[ -n "$session_id" ]] && ! valid_session_id "$session_id"; then
-  printf '%s: --session-id must match ^[A-Za-z0-9._:-]{1,128}$\n' "$PROG" >&2
-  exit "$EX_USAGE"
+  die_usage '--session-id must match ^[A-Za-z0-9._:-]{1,128}$'
 fi
 
 case "$cmd" in
-report | claim | check-enter | release | handover | stale) ;;
+report | stale) ;;
+claim)
+  ((all_unclaimed)) || [[ -n "$path" ]] || die_usage 'claim requires a path or --all-unclaimed'
+  ((all_unclaimed)) && [[ -n "$path" ]] && die_usage 'claim: pass a path or --all-unclaimed, not both'
+  ;;
+check-enter)
+  [[ -n "$path" ]] || die_usage 'check-enter requires a path'
+  ;;
+release)
+  [[ -n "$path" ]] || die_usage 'release requires a path'
+  [[ -n "$session_id" ]] || die_usage 'release needs --session-id or CLAUDE_CODE_SESSION_ID to prove ownership'
+  ;;
+handover)
+  [[ -n "$path" ]] || die_usage 'handover requires a path'
+  [[ "$session_id_given" == 1 && -n "$to_session" ]] || die_usage 'handover needs --session-id OLD and --to NEW'
+  valid_session_id "$to_session" || die_usage '--to must match ^[A-Za-z0-9._:-]{1,128}$'
+  ;;
 *)
   printf '%s: unknown verb: %s\n' "$PROG" "$cmd" >&2
   usage
   ;;
 esac
 
-if [[ "$cmd" == "claim" ]]; then
-  if ((all_unclaimed == 0)) && [[ -z "$path" ]]; then
-    printf '%s: claim requires a path or --all-unclaimed\n' "$PROG" >&2
-    exit "$EX_USAGE"
-  fi
-  if ((all_unclaimed == 1)) && [[ -n "$path" ]]; then
-    printf '%s: claim: pass a path or --all-unclaimed, not both\n' "$PROG" >&2
-    exit "$EX_USAGE"
-  fi
-fi
-if [[ "$cmd" == "check-enter" && -z "$path" ]]; then
-  printf '%s: check-enter requires a path\n' "$PROG" >&2
-  exit "$EX_USAGE"
-fi
-if [[ "$cmd" == "release" && -z "$path" ]]; then
-  printf '%s: release requires a path\n' "$PROG" >&2
-  exit "$EX_USAGE"
-fi
-if [[ "$cmd" == "release" && -z "$session_id" ]]; then
-  printf '%s: release needs --session-id or CLAUDE_CODE_SESSION_ID to prove ownership\n' "$PROG" >&2
-  exit "$EX_USAGE"
-fi
-if [[ "$cmd" == "handover" ]]; then
-  if [[ -z "$path" ]]; then
-    printf '%s: handover requires a path\n' "$PROG" >&2
-    exit "$EX_USAGE"
-  fi
-  if ((session_id_given == 0)) || [[ -z "$to_session" ]]; then
-    printf '%s: handover needs --session-id OLD and --to NEW\n' "$PROG" >&2
-    exit "$EX_USAGE"
-  fi
-  if ! valid_session_id "$to_session"; then
-    printf '%s: --to must match ^[A-Za-z0-9._:-]{1,128}$\n' "$PROG" >&2
-    exit "$EX_USAGE"
-  fi
-elif [[ -n "$to_session" ]]; then
-  printf '%s: --to applies to handover only\n' "$PROG" >&2
-  exit "$EX_USAGE"
-fi
-if ((batch)) && [[ "$cmd" != "stale" ]]; then
-  printf '%s: --batch applies to stale only\n' "$PROG" >&2
-  exit "$EX_USAGE"
-fi
-if ((batch)) && [[ -n "$path" ]]; then
-  printf '%s: stale --batch reads its paths from stdin, not arguments\n' "$PROG" >&2
-  exit "$EX_USAGE"
-fi
-if ((batch)) && [[ -z "$repo_dir" ]]; then
-  printf '%s: stale --batch needs --repo-dir\n' "$PROG" >&2
-  exit "$EX_USAGE"
-fi
-if [[ "$cmd" == "stale" ]] && ((batch == 0)) && [[ -z "$path" ]]; then
-  printf '%s: stale requires a path\n' "$PROG" >&2
-  exit "$EX_USAGE"
-fi
-if [[ ! "$idle_minutes" =~ ^[0-9]{1,9}$ ]]; then
-  printf '%s: --idle-minutes must be a non-negative integer\n' "$PROG" >&2
-  exit "$EX_USAGE"
-fi
-if [[ -n "$root_dir" && "$cmd" != "report" ]]; then
-  printf '%s: --root applies to report only\n' "$PROG" >&2
-  exit "$EX_USAGE"
-fi
-if [[ "$cmd" == "report" && -n "$path" ]]; then
-  printf '%s: report takes no path\n' "$PROG" >&2
-  exit "$EX_USAGE"
-fi
+[[ "$cmd" != handover && -n "$to_session" ]] && die_usage '--to applies to handover only'
+((batch)) && [[ "$cmd" != stale ]] && die_usage '--batch applies to stale only'
+((batch)) && [[ -n "$path" ]] && die_usage 'stale --batch reads its paths from stdin, not arguments'
+((batch)) && [[ -z "$repo_dir" ]] && die_usage 'stale --batch needs --repo-dir'
+[[ "$cmd" == stale && "$batch" == 0 && -z "$path" ]] && die_usage 'stale requires a path'
+[[ "$idle_minutes" =~ ^[0-9]{1,9}$ ]] || die_usage '--idle-minutes must be a non-negative integer'
+[[ -n "$root_dir" && "$cmd" != report ]] && die_usage '--root applies to report only'
+[[ "$cmd" == report && -n "$path" ]] && die_usage 'report takes no path'
 
 # Resolve relative / `.` / symlink spellings before matching porcelain.
 # A `check-enter .` from inside a linked worktree must see that tree's claim.
@@ -495,18 +446,34 @@ do_report() {
   if [[ -n "$root" ]]; then
     printf '%s: %d unclaimed outside the worktree root %s\n' "$PROG" "$outside" "$root" >&2
   fi
-  if ((unclaimed > 0)); then
-    return "$EX_UNCLAIMED_REPORT"
+  ((unclaimed == 0)) || return "$EX_UNCLAIMED_REPORT"
+}
+
+# Index of the linked worktree holding $path into WT_INDEX. Otherwise the
+# refusal is printed and its exit code returned; <action> names the verb in it.
+linked_index() {
+  if ! find_worktree_index "$path"; then
+    printf '%s: not a registered worktree: %s\n' "$PROG" "$path" >&2
+    return "$EX_ENV"
   fi
-  return "$EX_OK"
+  if ((WT_IS_LINKED[WT_INDEX] == 0)); then
+    printf '%s: refusing to %s the main worktree: %s\n' "$PROG" "$1" "${WT_PATHS[WT_INDEX]}" >&2
+    return "$EX_USAGE"
+  fi
+}
+
+# worktree_git <lock|unlock> [args...] <path>: run it against the repository,
+# naming the verb and path when git fails.
+worktree_git() {
+  git_unlocated -C "$repo_dir" worktree "$@" >&2 && return 0
+  printf '%s: git worktree %s failed for %s\n' "$PROG" "$1" "${!#}" >&2
+  return 1
 }
 
 # Generate a session id only when claiming and the caller supplied none.
 # Distinct per invocation so two concurrent claims on one host differ.
 ensure_claim_session() {
-  if [[ -n "$session_id" ]]; then
-    return 0
-  fi
+  [[ -z "$session_id" ]] || return 0
   local host="${HOSTNAME:-unknown-host}" rand
   rand="$(date -u +%s%N 2>/dev/null || date -u +%s)"
   session_id="term-${host}-$$-${rand}"
@@ -528,44 +495,25 @@ lock_one() {
   fi
   local reason
   reason="$(worktree_lock_reason worktree-claim.sh "$session_id")"
-  if ! git_unlocated -C "$repo_dir" worktree lock --reason "$reason" "$wt_path" >&2; then
-    printf '%s: git worktree lock failed for %s\n' "$PROG" "$wt_path" >&2
-    return "$EX_ENV"
-  fi
+  worktree_git lock --reason "$reason" "$wt_path" || return "$EX_ENV"
   printf '%s\n' "$reason"
   return "$EX_OK"
 }
 
 do_claim_one() {
-  local idx
-  if ! find_worktree_index "$path"; then
-    printf '%s: not a registered worktree: %s\n' "$PROG" "$path" >&2
-    exit "$EX_ENV"
-  fi
-  idx="$WT_INDEX"
-  if ((WT_IS_LINKED[idx] == 0)); then
-    printf '%s: refusing to claim the main worktree: %s\n' "$PROG" "${WT_PATHS[idx]}" >&2
-    exit "$EX_USAGE"
-  fi
+  linked_index claim || return
   ensure_claim_session
-  lock_one "${WT_PATHS[idx]}" "${WT_REASONS[idx]}"
+  lock_one "${WT_PATHS[WT_INDEX]}" "${WT_REASONS[WT_INDEX]}"
 }
 
 do_claim_all() {
-  local i rc=0 any=0 st
+  local i rc=0 any=0
   ensure_claim_session
   for i in "${!WT_PATHS[@]}"; do
     ((WT_IS_LINKED[i])) || continue
     [[ -z "${WT_REASONS[i]}" ]] || continue
     any=1
-    # Capture lock_one's status directly. `if ! lock_one; then rc=$?` is
-    # always 0: the `!` makes the if-body run on failure, and `$?` then
-    # reflects the successful test, not lock_one (#2882 review).
-    lock_one "${WT_PATHS[i]}" ""
-    st=$?
-    if ((st != 0)); then
-      rc=$st
-    fi
+    lock_one "${WT_PATHS[i]}" "" || rc=$?
   done
   if ((any == 0)); then
     printf '%s: no unclaimed linked worktrees\n' "$PROG" >&2
@@ -601,18 +549,8 @@ do_check_enter() {
 }
 
 do_release() {
-  local idx wt reason
-  if ! find_worktree_index "$path"; then
-    printf '%s: not a registered worktree: %s\n' "$PROG" "$path" >&2
-    return "$EX_ENV"
-  fi
-  idx="$WT_INDEX"
-  wt="${WT_PATHS[idx]}"
-  if ((WT_IS_LINKED[idx] == 0)); then
-    printf '%s: refusing to release the main worktree: %s\n' "$PROG" "$wt" >&2
-    return "$EX_USAGE"
-  fi
-  reason="${WT_REASONS[idx]}"
+  linked_index release || return
+  local wt="${WT_PATHS[WT_INDEX]}" reason="${WT_REASONS[WT_INDEX]}"
   if [[ -z "$reason" ]]; then
     printf '%s: not locked: %s\n' "$PROG" "$wt" >&2
     return "$EX_OK"
@@ -621,27 +559,14 @@ do_release() {
     printf '%s: not released, the lock is not this session'\''s: %s\n' "$PROG" "$reason" >&2
     return "$EX_FOREIGN"
   fi
-  if ! git_unlocated -C "$repo_dir" worktree unlock "$wt" >&2; then
-    printf '%s: git worktree unlock failed for %s\n' "$PROG" "$wt" >&2
-    return "$EX_ENV"
-  fi
+  worktree_git unlock "$wt" || return "$EX_ENV"
   printf 'released %s\n' "$wt"
 }
 
 do_handover() {
-  local idx wt reason creator=worktree-claim.sh new_reason
-  if ! find_worktree_index "$path"; then
-    printf '%s: not a registered worktree: %s\n' "$PROG" "$path" >&2
-    return "$EX_ENV"
-  fi
-  idx="$WT_INDEX"
-  wt="${WT_PATHS[idx]}"
-  if ((WT_IS_LINKED[idx] == 0)); then
-    printf '%s: refusing to hand over the main worktree: %s\n' "$PROG" "$wt" >&2
-    return "$EX_USAGE"
-  fi
-  reason="${WT_REASONS[idx]}"
-  if [[ -z "$reason" && "${WT_IS_LOCKED[idx]}" == "yes" ]]; then
+  linked_index "hand over" || return
+  local wt="${WT_PATHS[WT_INDEX]}" reason="${WT_REASONS[WT_INDEX]}" creator=worktree-claim.sh new_reason
+  if [[ -z "$reason" && "${WT_IS_LOCKED[WT_INDEX]}" == "yes" ]]; then
     printf '%s: not handed over, the lock carries no reason, so it names no session: %s\n' "$PROG" "$wt" >&2
     return "$EX_FOREIGN"
   fi
@@ -660,12 +585,8 @@ do_handover() {
   fi
   [[ "$reason" == worktree-create.sh:* ]] && creator=worktree-create.sh
   new_reason="$(worktree_lock_reason "$creator" "$to_session")"
-  if ! git_unlocated -C "$repo_dir" worktree unlock "$wt" >&2; then
-    printf '%s: git worktree unlock failed for %s\n' "$PROG" "$wt" >&2
-    return "$EX_ENV"
-  fi
-  if ! git_unlocated -C "$repo_dir" worktree lock --reason "$new_reason" "$wt" >&2; then
-    printf '%s: git worktree lock failed for %s\n' "$PROG" "$wt" >&2
+  worktree_git unlock "$wt" || return "$EX_ENV"
+  if ! worktree_git lock --reason "$new_reason" "$wt"; then
     git_unlocated -C "$repo_dir" worktree lock --reason "$reason" "$wt" >&2 ||
       printf '%s: the old lock could not be restored on %s; read git worktree list --porcelain for its state\n' "$PROG" "$wt" >&2
     return "$EX_ENV"
@@ -887,38 +808,13 @@ do_stale_batch() {
 }
 
 case "$cmd" in
-stale)
-  if ((batch)); then
-    do_stale_batch
-    exit $?
-  fi
-  do_stale
-  exit $?
-  ;;
-report)
-  do_report
-  exit $?
-  ;;
-claim)
-  if ((all_unclaimed)); then
-    do_claim_all
-    exit $?
-  fi
-  do_claim_one
-  exit $?
-  ;;
-check-enter)
-  do_check_enter
-  exit $?
-  ;;
-release)
-  do_release
-  exit $?
-  ;;
-handover)
-  do_handover
-  exit $?
-  ;;
+stale) if ((batch)); then do_stale_batch; else do_stale; fi ;;
+report) do_report ;;
+claim) if ((all_unclaimed)); then do_claim_all; else do_claim_one; fi ;;
+check-enter) do_check_enter ;;
+release) do_release ;;
+handover) do_handover ;;
 # Unknown verbs already exited above, where the verb was validated.
 *) ;;
 esac
+exit $?

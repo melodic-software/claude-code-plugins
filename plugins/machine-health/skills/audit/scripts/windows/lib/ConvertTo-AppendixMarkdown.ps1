@@ -185,10 +185,9 @@ function Get-EventLogAppendix {
     $items = @(Get-AppendixInventory -Detail $Detail -Key 'top_sources')
     if ($items.Count -eq 0) { return $null }
 
+    $stamp = { param($t) $t ? (($t -split '\.')[0] -replace 'T', ' ') : '' }
     $rows = foreach ($e in $items) {
-        $first = $e.first_seen ? (($e.first_seen -split '\.')[0] -replace 'T', ' ') : ''
-        $last = $e.last_seen ? (($e.last_seen -split '\.')[0] -replace 'T', ' ') : ''
-        "| ``$($e.provider_and_id)`` | $($e.count) | $first | $last |"
+        "| ``$($e.provider_and_id)`` | $($e.count) | $(& $stamp $e.first_seen) | $(& $stamp $e.last_seen) |"
     }
 
     return Format-AppendixDetail -Summary "event-log top sources ($($items.Count))" `

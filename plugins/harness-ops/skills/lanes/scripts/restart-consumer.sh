@@ -244,6 +244,31 @@ check_uint() {
   return 1
 }
 
+# Stores one value-taking option; the integer options are validated first.
+set_opt() { # <flag> <value>
+  case "$1" in
+  --config) CONFIG="$2" ;;
+  --repo) REPO="$2" ;;
+  --target-repo) TARGET_REPO="$2" ;;
+  --lane) TARGET_LANES+=("$2") ;;
+  --data-dir) DATA_DIR_OVERRIDE="$2" ;;
+  --launcher) LAUNCHER="$2" ;;
+  --agents-json) AGENTS_JSON_FILE="$2" ;;
+  --telemetry-json) TELEMETRY_JSON_FILE="$2" ;;
+  *)
+    check_uint "$1" "$2" || exit 3
+    case "$1" in
+    --telemetry-issue) TELEMETRY_ISSUE="$2" ;;
+    --max-restarts) MAX_RESTARTS="$2" ;;
+    --window-hours) WINDOW_HOURS="$2" ;;
+    --interval-minutes) INTERVAL_MINUTES="$2" ;;
+    --now) NOW_EPOCH="$2" ;;
+    *) ;;
+    esac
+    ;;
+  esac
+}
+
 parse_args() {
   local seen_action=0
   while (($#)); do
@@ -261,54 +286,16 @@ parse_args() {
       ACTION="$1"
       seen_action=1
       ;;
-    --config)
+    --config | --repo | --target-repo | --lane | --data-dir | --launcher | --agents-json | \
+      --telemetry-json | --telemetry-issue | --max-restarts | --window-hours | --interval-minutes | --now)
       check_optarg "$1" "${2:-}" || exit 3
-      CONFIG="$2"
+      set_opt "$1" "$2"
       shift
       ;;
-    --config=*) CONFIG="${1#*=}" ;;
-    --repo)
-      check_optarg "$1" "${2:-}" || exit 3
-      REPO="$2"
-      shift
+    --config=* | --repo=* | --target-repo=* | --lane=* | --data-dir=* | --launcher=* | --agents-json=* | \
+      --telemetry-json=* | --telemetry-issue=* | --max-restarts=* | --window-hours=* | --interval-minutes=* | --now=*)
+      set_opt "${1%%=*}" "${1#*=}"
       ;;
-    --repo=*) REPO="${1#*=}" ;;
-    --target-repo)
-      check_optarg "$1" "${2:-}" || exit 3
-      TARGET_REPO="$2"
-      shift
-      ;;
-    --target-repo=*) TARGET_REPO="${1#*=}" ;;
-    --lane)
-      check_optarg "$1" "${2:-}" || exit 3
-      TARGET_LANES+=("$2")
-      shift
-      ;;
-    --lane=*) TARGET_LANES+=("${1#*=}") ;;
-    --data-dir)
-      check_optarg "$1" "${2:-}" || exit 3
-      DATA_DIR_OVERRIDE="$2"
-      shift
-      ;;
-    --data-dir=*) DATA_DIR_OVERRIDE="${1#*=}" ;;
-    --launcher)
-      check_optarg "$1" "${2:-}" || exit 3
-      LAUNCHER="$2"
-      shift
-      ;;
-    --launcher=*) LAUNCHER="${1#*=}" ;;
-    --agents-json)
-      check_optarg "$1" "${2:-}" || exit 3
-      AGENTS_JSON_FILE="$2"
-      shift
-      ;;
-    --agents-json=*) AGENTS_JSON_FILE="${1#*=}" ;;
-    --telemetry-json)
-      check_optarg "$1" "${2:-}" || exit 3
-      TELEMETRY_JSON_FILE="$2"
-      shift
-      ;;
-    --telemetry-json=*) TELEMETRY_JSON_FILE="${1#*=}" ;;
     --app-slug)
       # An empty value is allowed: the lanes skill always passes the rendered
       # lane_app_slug option, which is empty when the operator left it unset.
@@ -320,57 +307,7 @@ parse_args() {
       shift
       ;;
     --app-slug=*) APP_SLUG="${1#*=}" ;;
-    --telemetry-issue)
-      check_optarg "$1" "${2:-}" || exit 3
-      check_uint "$1" "$2" || exit 3
-      TELEMETRY_ISSUE="$2"
-      shift
-      ;;
-    --telemetry-issue=*)
-      TELEMETRY_ISSUE="${1#*=}"
-      check_uint "--telemetry-issue" "$TELEMETRY_ISSUE" || exit 3
-      ;;
     --no-telemetry) NO_TELEMETRY=1 ;;
-    --max-restarts)
-      check_optarg "$1" "${2:-}" || exit 3
-      check_uint "$1" "$2" || exit 3
-      MAX_RESTARTS="$2"
-      shift
-      ;;
-    --max-restarts=*)
-      MAX_RESTARTS="${1#*=}"
-      check_uint "--max-restarts" "$MAX_RESTARTS" || exit 3
-      ;;
-    --window-hours)
-      check_optarg "$1" "${2:-}" || exit 3
-      check_uint "$1" "$2" || exit 3
-      WINDOW_HOURS="$2"
-      shift
-      ;;
-    --window-hours=*)
-      WINDOW_HOURS="${1#*=}"
-      check_uint "--window-hours" "$WINDOW_HOURS" || exit 3
-      ;;
-    --interval-minutes)
-      check_optarg "$1" "${2:-}" || exit 3
-      check_uint "$1" "$2" || exit 3
-      INTERVAL_MINUTES="$2"
-      shift
-      ;;
-    --interval-minutes=*)
-      INTERVAL_MINUTES="${1#*=}"
-      check_uint "--interval-minutes" "$INTERVAL_MINUTES" || exit 3
-      ;;
-    --now)
-      check_optarg "$1" "${2:-}" || exit 3
-      check_uint "$1" "$2" || exit 3
-      NOW_EPOCH="$2"
-      shift
-      ;;
-    --now=*)
-      NOW_EPOCH="${1#*=}"
-      check_uint "--now" "$NOW_EPOCH" || exit 3
-      ;;
     --dry-run) DRY_RUN=1 ;;
     -h | --help)
       usage
@@ -712,9 +649,6 @@ acquire_lock() {
     fi
     stamp="$(lock_stamp)"
     pid="$(lock_owner_pid)"
-    # A loser that finds NO stamp adopts one at `now` rather than reclaiming: the
-    # holder may have won the mkdir microseconds ago and not written its stamp
-    # yet, and stealing that lock is the very duplication this guards.
     if ((stamp == 0)); then
       write_lock_file "$LOCK_DIR/acquired-at" "$now" || return 2
       return 1
@@ -1249,8 +1183,7 @@ process_lane() {
 # --- The consumer's own telemetry --------------------------------------------
 upsert_own_telemetry() {
   local now="$1" issue body flagstr row upsert
-  ((NO_TELEMETRY)) && return 0
-  ((DRY_RUN)) && return 0
+  ((NO_TELEMETRY || DRY_RUN)) && return 0
   [[ "$ACTION" == "run" ]] || return 0
 
   issue="$TELEMETRY_ISSUE"

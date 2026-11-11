@@ -34,7 +34,6 @@
 
 set -euo pipefail
 
-LIMIT="${LIMIT:-25}"
 MODE="${1:-}"
 shift || true
 ARG="${*:-}"
@@ -50,7 +49,7 @@ usage() {
 emit_tsv() { jq -r '.[] | [.word, (.score // 0), (.numSyllables // 0), ((.tags // []) | join(","))] | @tsv'; }
 
 # One Datamuse request for <query>, with syllable metadata and the result cap.
-fetch() { curl -sS "$api?$1&md=s&max=$max"; }
+fetch() { curl -sS "https://api.datamuse.com/words?$1&md=s&max=$max"; }
 
 if [[ "$MODE" == "-h" || "$MODE" == "--help" ]]; then
   usage
@@ -62,19 +61,14 @@ if [[ -z "$MODE" || -z "$ARG" ]]; then
   exit 1
 fi
 
-api="https://api.datamuse.com/words"
 word="${ARG// /+}"
-max="$LIMIT"
+max="${LIMIT:-25}"
 
 case "$MODE" in
 rhyme) query="rel_rhy=$word" ;;
 near) query="rel_nry=$word" ;;
 cons) query="rel_cns=$word" ;;
-syn) query="rel_syn=$word" ;;
-ant) query="rel_ant=$word" ;;
-trg) query="rel_trg=$word" ;;
-jja) query="rel_jja=$word" ;;
-jjb) query="rel_jjb=$word" ;;
+syn | ant | trg | jja | jjb) query="rel_$MODE=$word" ;;
 means) query="ml=$word" ;;
 sounds) query="sl=$word" ;;
 pattern) query="sp=$word" ;;
@@ -86,9 +80,7 @@ family)
   # near rhymes + consonance, combined; useful for Pat's family-rhyme search
   near=$(fetch "rel_nry=$word")
   cons=$(fetch "rel_cns=$word")
-  echo "$near $cons" |
-    jq -s 'add | unique_by(.word) | sort_by(-(.score // 0))' |
-    emit_tsv
+  echo "$near $cons" | jq -s 'add | unique_by(.word) | sort_by(-(.score // 0))' | emit_tsv
   exit 0
   ;;
 *)

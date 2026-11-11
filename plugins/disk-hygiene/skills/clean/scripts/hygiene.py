@@ -318,9 +318,7 @@ def scan_stdout_payload(payload: dict[str, Any], quiet: bool) -> dict[str, Any]:
     if isinstance(trimmed.get("truncated_paths"), list):
         trimmed["truncated_paths"] = len(trimmed["truncated_paths"])
     if isinstance(trimmed.get("truncation_reasons"), dict):
-        tally: dict[str, int] = {}
-        for reason in trimmed["truncation_reasons"].values():
-            tally[reason] = tally.get(reason, 0) + 1
+        tally = Counter(trimmed["truncation_reasons"].values())
         trimmed["truncation_reasons"] = dict(sorted(tally.items()))
     trimmed["note"] = (
         QUIET_ROOT_CHILDREN_SCAN_NOTE
@@ -403,13 +401,16 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
 DATA_ROOT_OVERRIDE: str | None = None
 
 
-def state_output_path(path: Path) -> Path:
+def _data_root() -> Path:
     # Never read CLAUDE_PLUGIN_DATA here: a repository settings.json env block can
     # set it, so only the --data-root the guard validated may place state.
-    data_value = DATA_ROOT_OVERRIDE
-    if not data_value:
+    if not DATA_ROOT_OVERRIDE:
         raise HygieneError("a generated-state root is required: pass --data-root")
-    data_root = Path(data_value).expanduser().resolve(strict=False)
+    return Path(DATA_ROOT_OVERRIDE).expanduser().resolve(strict=False)
+
+
+def state_output_path(path: Path) -> Path:
+    data_root = _data_root()
     path = path.expanduser().resolve(strict=False)
     if is_within(path, PLUGIN_ROOT):
         raise HygieneError(
@@ -427,9 +428,7 @@ def state_input_path(path: Path) -> Path:
     snapshot, plan, path list or VCS evidence read from anywhere else could drop
     a protection the scan recorded.
     """
-    if not DATA_ROOT_OVERRIDE:
-        raise HygieneError("a generated-state root is required: pass --data-root")
-    data_root = Path(DATA_ROOT_OVERRIDE).expanduser().resolve(strict=False)
+    data_root = _data_root()
     path = path.expanduser().resolve(strict=False)
     if not is_within(path, data_root):
         raise HygieneError("engine inputs must be read from inside the data root")
@@ -448,9 +447,7 @@ def refuse_engine_owned(path: Path, data_root: Path) -> Path:
 
 def model_output_path(value: str) -> Path:
     """Resolve --output or --report: inside the data root, off engine-owned state."""
-    path = state_output_path(Path(value))
-    data_root = Path(DATA_ROOT_OVERRIDE or "").expanduser().resolve(strict=False)
-    return refuse_engine_owned(path, data_root)
+    return refuse_engine_owned(state_output_path(Path(value)), _data_root())
 
 
 def close_clean_runs(ended: Path | None = None) -> None:
@@ -468,10 +465,7 @@ def close_clean_runs(ended: Path | None = None) -> None:
     session_id = os.environ.get("CLAUDE_CODE_SESSION_ID")
     if not DATA_ROOT_OVERRIDE or not session_id:
         return
-    runs = (
-        Path(DATA_ROOT_OVERRIDE).expanduser().resolve(strict=False)
-        / engine_grammar.RUN_MARKER_DIRNAME
-    )
+    runs = _data_root() / engine_grammar.RUN_MARKER_DIRNAME
     marker = runs / engine_grammar.run_marker_filename(session_id)
     try:
         if runs.is_symlink() or not runs.is_dir():
@@ -627,13 +621,11 @@ def _validate_protection_glob_entry(entry: Any) -> None:
         raise HygieneError(
             "protection globs must be non-empty strings or {glob, reason} objects"
         )
-    if isinstance(entry, dict) and not set(entry) <= {"glob", "reason"}:
+    if not isinstance(entry, dict):
+        return
+    if not set(entry) <= {"glob", "reason"}:
         raise HygieneError("protection glob objects may only carry glob and reason")
-    if (
-        isinstance(entry, dict)
-        and "reason" in entry
-        and not (isinstance(entry["reason"], str) and entry["reason"])
-    ):
+    if "reason" in entry and not (isinstance(entry["reason"], str) and entry["reason"]):
         raise HygieneError("protection glob reason must be a non-empty string")
 
 
@@ -736,11 +728,10 @@ def mount_state(
 ) -> tuple[bool, str | None]:
     if os_key() == "linux":
         points = known_linux_mounts
-        error = None
         if points is None:
             points, error = linux_mount_points()
-        if error:
-            return False, error
+            if error:
+                return False, error
         return path.absolute() in points, None
     try:
         return os.path.ismount(path), None
@@ -853,8 +844,7 @@ def os_drive_markers(
     current_platform = platform_key or os_key()
     if current_platform != "windows":
         return system_roots(current_platform)
-    markers: list[Path] = []
-    markers.extend(_windows_env_roots())
+    markers = _windows_env_roots()
     drive_roots = windows_roots if windows_roots is not None else windows_drive_roots()
     for drive_root in drive_roots:
         markers.extend(drive_root / name for name in WINDOWS_OS_DRIVE_MARKERS)
@@ -1074,10 +1064,8 @@ def hard_protection(
         if current.name.casefold() in VCS_NAMES:
             reasons.append("vcs-metadata")
         current = current.parent
-    for root in system_roots():
-        if is_within(path.absolute(), root.absolute()):
-            reasons.append("os-managed-root")
-            break
+    if any(is_within(path.absolute(), root.absolute()) for root in system_roots()):
+        reasons.append("os-managed-root")
     return sorted(set(reasons))
 
 
@@ -1457,10 +1445,11 @@ def apply_rules(
     for entry in entries:
         hint_ids = [hint["id"] for hint in entry.get("hints", [])]
         match = None
-        for rule in rules:
+        for rule in reversed(rules):
             hit = next((i for i in hint_ids if i in rule["hint_ids"]), None)
             if hit is not None:
                 match = (rule, hit)
+                break
         if match is None:
             continue
         rule, hint_id = match
@@ -1551,13 +1540,9 @@ def apply_in_flight_refs(
     for entry in entries:
         key = _ref_key(entry["path"])
         parts = key.split("/")
+        prefixes = ("/".join(parts[:i]) for i in range(1, len(parts) + 1))
         reason = covered.get("") or next(
-            (
-                covered["/".join(parts[:i])]
-                for i in range(1, len(parts) + 1)
-                if "/".join(parts[:i]) in covered
-            ),
-            None,
+            (covered[prefix] for prefix in prefixes if prefix in covered), None
         )
         if reason is None and key in holders:
             reason = f"contains a referenced path ({holders[key]})"

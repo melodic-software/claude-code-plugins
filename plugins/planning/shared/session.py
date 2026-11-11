@@ -3500,10 +3500,14 @@ class Session:
                 cleared += len(d["needsReview"]) - len(kept)
                 d["needsReview"] = kept
         log = self.state.setdefault("decisions", [])
-        seq = 1 + max((e.get("seq", i) for i, e in enumerate(log)), default=-1)
-        log.append({"at": self.now(), "qid": qid, "kind": kind, "by": by, "seq": seq, **fields})
+        log.append({"at": self.now(), "qid": qid, "kind": kind, "by": by, "seq": self._next_seq(log), **fields})
         self._trim_decisions()
         return cleared
+
+    @staticmethod
+    def _next_seq(log):
+        """The `seq` the next decision log entry takes: one past the highest so far (an entry without one counts its index)."""
+        return 1 + max((e.get("seq", i) for i, e in enumerate(log)), default=-1)
 
     def _undo_take_back(self, qid, pid, reason):
         """pid raises a Disagree again on qid's locked answer soon after their take-back ended its late Disagrees:
@@ -3517,7 +3521,7 @@ class Session:
         mine = next((i for i, e in self._reopened(qid) if e["by"] == pid), None)
         if mine is None:
             return False
-        seq = 1 + max(e.get("seq", i) for i, e in enumerate(log))
+        seq = self._next_seq(log)
         log.append({**log.pop(mine), "at": self.now(), "reason": reason, "seq": seq})
         return True
 
@@ -3844,23 +3848,34 @@ class Session:
                 if "claude" not in to:  # Claude's answer is written as the host's message, but it is not the host's to hear about
                     self._notify(to["pid"], "reply", "replied to your message.", actor=pid, by=pid, body=clip(one_line(text), 160), msg=msg["id"])
                     skip = (to["pid"],)
-            refused = None
-            if ASK_CLAUDE.search(text):  # after tokenizing, as in a comment: a person called Claude is their mention
-                try:  # a general ask: no question, owner-gated as any guest request; Claude's answer replies to this message
-                    msg["request"] = self._new_request(pid, None, "ask", text, "host", now, msg=msg["id"], att=att)["id"]
-                except DomainError as e:  # too soon or too many waiting: the message still posts, without a request
-                    if e.code not in ("slow-down", "too-many-pending"):
-                        raise
-                    refused = e
+            # after tokenizing, as in a comment: a person called Claude is their mention. A general ask: no question,
+            # owner-gated as any guest request; Claude's answer replies to this message
+            refused = self._ask_from(msg, pid, None, now, msg=msg["id"]) if ASK_CLAUDE.search(text) else None
             st["chat"].append(msg)
             del st["chat"][:-MAX_CHAT]
             self._notify_mentions(text, pid, "in chat", skip=skip, msg=msg["id"])
         self._wrote(pid, "chat", now)
         if "request" in msg:
             self._wrote(pid, "request", now)
+        return self._posted(msg, refused)
+
+    def _ask_from(self, post, pid, q, now, **where):
+        """File the ask request "@Claude" in a chat message or comment makes, naming it on the post as `request`. Too
+        soon or too many waiting: the post still goes up without one, and the refusal is returned."""
+        try:
+            post["request"] = self._new_request(pid, q, "ask", post["text"], "host", now, att=post.get("attachments", ()), **where)["id"]
+        except DomainError as e:
+            if e.code not in ("slow-down", "too-many-pending"):
+                raise
+            return e
+        return None
+
+    @staticmethod
+    def _posted(post, refused):
+        """What a chat message or comment's route answers: its id and the request it filed, or why none was filed."""
         if refused:
-            return {"id": msg["id"], "requestRefused": refused.code, "message": f"Posted, but not sent to Claude: {refused.message}"}
-        return {"id": msg["id"], **({"request": msg["request"]} if "request" in msg else {})}
+            return {"id": post["id"], "requestRefused": refused.code, "message": f"Posted, but not sent to Claude: {refused.message}"}
+        return {"id": post["id"], **({"request": post["request"]} if "request" in post else {})}
 
     def react_chat(self, pid, body):
         """POST /api/chat/react: `{id, emoji, on}` adds or takes back one's own emoji on a chat message.
@@ -3878,18 +3893,9 @@ class Session:
             if not st["session"]["settings"]["chat"]:
                 raise DomainError(403, "chat-off", "Chat is off in this session.")
             self._throttle(pid, route, now)
-            msg = next((m for m in st["chat"] if m["id"] == mid and self._active(m["pid"])), None)
-            if msg is None:
-                raise DomainError(404, "not-found", "No such message.")
-            reactions = msg.setdefault("reactions", {})
-            pids = reactions.get(emoji, [])
-            if on and pid not in pids:
-                if emoji not in reactions and len(reactions) >= MAX_CHAT_EMOJI:
-                    raise DomainError(409, "reaction-cap", f"A message takes at most {MAX_CHAT_EMOJI} different emoji.", max=MAX_CHAT_EMOJI)
-                if sum(1 for ps in reactions.values() if pid in ps) >= MAX_MY_CHAT_EMOJI:
-                    raise DomainError(409, "reaction-cap", f"You can put at most {MAX_MY_CHAT_EMOJI} emoji on one message.", max=MAX_MY_CHAT_EMOJI)
-                reactions[emoji] = [*pids, pid]
-                n = sum(len(ps) for ps in reactions.values())
+            msg = self._chat_message(mid)
+            if self._toggle_reaction(msg, emoji, pid, on, "message"):
+                n = sum(len(ps) for ps in msg["reactions"].values())
                 self._notify(
                     None if "claude" in msg else msg["pid"],  # Claude's answer has no author to tell
                     "reaction",
@@ -3899,16 +3905,38 @@ class Session:
                     window=VOTE_ROLLUP_WINDOW,
                     msg=mid,
                 )
-            elif not on and pid in pids:
-                pids.remove(pid)
-                if not pids:
-                    reactions.pop(emoji)
-            if not reactions:
-                msg.pop("reactions")
             self._touch_chat(mid)
         self._wrote(pid, route, now)
         self._wrote(pid, "chat-react", now)
         return {"id": mid, "emoji": emoji, "on": on}
+
+    def _chat_message(self, mid):
+        """The chat message `mid`, by an active author; 404 when there is none."""
+        msg = next((m for m in self.state["chat"] if m["id"] == mid and self._active(m["pid"])), None)
+        if msg is None:
+            raise DomainError(404, "not-found", "No such message.")
+        return msg
+
+    @staticmethod
+    def _toggle_reaction(target, emoji, pid, on, noun):
+        """Add or take back pid's emoji on a chat message or comment (the `noun` its refusals name), within the emoji
+        caps; a reactions map left empty goes. True when it added one."""
+        reactions = target.setdefault("reactions", {})
+        pids = reactions.get(emoji, [])
+        added = on and pid not in pids
+        if added:
+            if emoji not in reactions and len(reactions) >= MAX_CHAT_EMOJI:
+                raise DomainError(409, "reaction-cap", f"A {noun} takes at most {MAX_CHAT_EMOJI} different emoji.", max=MAX_CHAT_EMOJI)
+            if sum(1 for ps in reactions.values() if pid in ps) >= MAX_MY_CHAT_EMOJI:
+                raise DomainError(409, "reaction-cap", f"You can put at most {MAX_MY_CHAT_EMOJI} emoji on one {noun}.", max=MAX_MY_CHAT_EMOJI)
+            reactions[emoji] = [*pids, pid]
+        elif not on and pid in pids:
+            pids.remove(pid)
+            if not pids:
+                reactions.pop(emoji)
+        if not reactions:
+            target.pop("reactions")
+        return added
 
     def _touch_chat(self, mid):
         """A message's reactions or forward changed: the snapshot's chatTouched moves when it is older than the window."""
@@ -3917,12 +3945,10 @@ class Session:
 
     def propose_from_chat(self, pid, body):
         """POST /api/chat/propose: a moderator turns a chat message into its author's proposal."""
-        with self._tx() as st:
+        with self._tx():
             self._moderator(pid)
             mid = _ident(body, "id")
-            msg = next((m for m in st["chat"] if m["id"] == mid and self._active(m["pid"])), None)
-            if msg is None:
-                raise DomainError(404, "not-found", "No such message.")
+            msg = self._chat_message(mid)
             if msg.get("proposed"):
                 raise DomainError(409, "wrong-status", "This message is already a proposal.", status="proposed")
             if "claude" in msg:
@@ -4002,7 +4028,7 @@ class Session:
         with self._lock:
             if self._live(lid)["status"]["kind"] != "starting":
                 return False
-        if not (isinstance(url, str) and len(url) <= MAX_LIVE_URL and LIVE_URL.fullmatch(url)):
+        if not self._is_live_url(url):
             raise DomainError(502, "live-failed", "The live prototype did not start: its server answered no https address.")
         with self._tx():
             e = self._live(lid)
@@ -4010,6 +4036,11 @@ class Session:
                 return False
             e["status"] = {**e["status"], "kind": "running", "startedAt": self.now(), "url": url}
             return True
+
+    @staticmethod
+    def _is_live_url(url):
+        """Whether the live starter answered an https origin a live prototype may run at."""
+        return isinstance(url, str) and len(url) <= MAX_LIVE_URL and bool(LIVE_URL.fullmatch(url))
 
     def live_start_failed(self, lid):
         """The start of `lid` failed: it waits for Approve again, unless it ended meanwhile."""
@@ -4033,7 +4064,7 @@ class Session:
         """The live starter restarted the running `lid` behind a new quick tunnel at `url`: the entry keeps running,
         approved once for its target and content, at the new address. False when it no longer runs (the server then
         stops what it restarted); a url that is not a quick tunnel's origin is refused, 502."""
-        if not (isinstance(url, str) and len(url) <= MAX_LIVE_URL and LIVE_URL.fullmatch(url)):
+        if not self._is_live_url(url):
             raise DomainError(502, "live-failed", "The live prototype did not restart: its server answered no https address.")
         with self._tx():
             e = self._live(lid)
@@ -4185,14 +4216,7 @@ class Session:
             asks = bool(ASK_CLAUDE.search(text))  # after tokenizing: "@Claude" naming a person called Claude is their mention
             now = self.now()
             c = {"id": self._next("D"), "pid": pid, "text": text, "at": now, **({"attachments": att} if att else {})}
-            refused = None
-            if asks:
-                try:
-                    c["request"] = self._new_request(pid, q, "ask", text, "host", now, att=att)["id"]
-                except DomainError as e:  # too soon or too many waiting: the comment still posts, without a request
-                    if e.code not in ("slow-down", "too-many-pending"):
-                        raise
-                    refused = e
+            refused = self._ask_from(c, pid, q, now) if asks else None
             mark = st["discussionSeen"].get(pid, {}).get(q["id"], 0.0)
             if not any(x["pid"] != pid and x["at"] > mark and self._comment_visible(pid, x) for x in lst):
                 st["discussionSeen"].setdefault(pid, {})[q["id"]] = now  # posting marks read nothing the author has not seen
@@ -4206,9 +4230,7 @@ class Session:
                     self._notify(p, "discussion", f"{k} new comment{'' if k == 1 else 's'} in the Discussion on question {q['id']}.", actor=pid, rollup="disc:" + q["id"], qid=q["id"], comment=c["id"])
             if "request" in c:
                 self._wrote(pid, "request", now)
-            if refused:
-                return {"id": c["id"], "requestRefused": refused.code, "message": f"Posted, but not sent to Claude: {refused.message}"}
-            return {"id": c["id"], **({"request": c["request"]} if "request" in c else {})}
+            return self._posted(c, refused)
 
     def _comment_shown(self, c):
         return "hidden" not in c and self._active(c["pid"])
@@ -4290,20 +4312,7 @@ class Session:
                 return {"id": cid, "emoji": emoji, "on": on}
         with self._write_as(pid, route):
             _, c = self._comment_target(body)
-            reactions = c.setdefault("reactions", {})
-            pids = reactions.get(emoji, [])
-            if on and pid not in pids:
-                if emoji not in reactions and len(reactions) >= MAX_CHAT_EMOJI:
-                    raise DomainError(409, "reaction-cap", f"A comment takes at most {MAX_CHAT_EMOJI} different emoji.", max=MAX_CHAT_EMOJI)
-                if sum(1 for ps in reactions.values() if pid in ps) >= MAX_MY_CHAT_EMOJI:
-                    raise DomainError(409, "reaction-cap", f"You can put at most {MAX_MY_CHAT_EMOJI} emoji on one comment.", max=MAX_MY_CHAT_EMOJI)
-                reactions[emoji] = [*pids, pid]
-            elif not on and pid in pids:
-                pids.remove(pid)
-                if not pids:
-                    reactions.pop(emoji)
-            if not reactions:
-                c.pop("reactions")
+            self._toggle_reaction(c, emoji, pid, on, "comment")
         self._wrote(pid, "discussion-react", now)
         return {"id": cid, "emoji": emoji, "on": on}
 
@@ -4351,6 +4360,13 @@ class Session:
         if r is None or (runner and r["runner"] != runner) or (owner_pid and r["pid"] != owner_pid):
             raise DomainError(404, "no-such-request", f"No request {rid}.")
         return r
+
+    @staticmethod
+    def _request_in(r, allowed):
+        """Refuse, 409, a request whose status is not one of `allowed`."""
+        status = r["status"]["kind"]
+        if status not in allowed:
+            raise DomainError(409, "wrong-status", f"Request {r['id']} is {status}.", status=status)
 
     def request(self, pid, body):
         """POST /api/request: ask Claude; waits in the owner's queue (`runner: self` runs on the requester's Claude).
@@ -4423,10 +4439,7 @@ class Session:
             if action in ("publish", "discard", "takedown"):
                 return self._act_on_result(pid, _ident(body, "id"), action)
             r = self._request(_ident(body, "id"), runner="host")
-            status = r["status"]["kind"]
-            allowed = {"edit": ("pending",), "decline": ("pending",), "fail": ("running",), "rerun": ("running", "failed")}[action]
-            if status not in allowed:
-                raise DomainError(409, "wrong-status", f"Request {r['id']} is {status}.", status=status)
+            self._request_in(r, {"edit": ("pending",), "decline": ("pending",), "fail": ("running",), "rerun": ("running", "failed")}[action])
             if action == "edit":
                 text = self._tokenize(r["pid"], _text(body, "text"))  # as its author, as edit_card does
                 if text != r["text"]:
@@ -4463,9 +4476,7 @@ class Session:
         if res and any(res["id"] in c.get("cites", ()) for c in _answers(self.state["cards"])):
             raise DomainError(409, "cited", "This answer is cited in someone's answer, so it stays where it is.")
         if res:
-            results[key].remove(res)
-            if not results[key]:
-                results.pop(key)
+            self._drop_result(key, res)
             results.setdefault(to or GENERAL, []).append(res)
         for x in (r, res) if res else (r,):
             x.pop("qid", None)
@@ -4489,14 +4500,12 @@ class Session:
         self._notify(r["pid"], "request", f"Your request {_on(r)} was declined.", actor=by, qid=r.get("qid"))
 
     def _run(self, reqs):
-        st = self.state
         ev = self._event(
             "request-run",
             requests=[{"id": r["id"], **self._run_where(r), "kind": r["kind"], "text": r["text"], **({"attachments": list(r["attachments"])} if "attachments" in r else {})} for r in reqs],
         )
         for r in reqs:
             r["status"] = {"kind": "running", "since": self.now(), "eventSeq": ev["seq"]}
-        return st
 
     def _run_where(self, r):
         """Where a run request was written, for Claude: its question, or `scope: session` with no qid, and `from: chat`
@@ -4542,6 +4551,17 @@ class Session:
         """The owner reviews every answer before it is shared: on unless set off (a session from before the setting lacks it)."""
         return self.state["session"]["settings"].get("reviewAnswers", True)
 
+    def _drop_result(self, key, res):
+        """Take a result out of results[key], and the key with it once it holds none."""
+        lst = self.state["results"][key]
+        lst.remove(res)
+        if not lst:
+            self.state["results"].pop(key)
+
+    def _result_request(self, res):
+        """The request that asked for a result; None when none did, or it is gone."""
+        return next((r for r in self.state["requests"] if r["id"] == res["request"]), None)
+
     def _find_result(self, rid):
         for lst in self.state["results"].values():
             for res in lst:
@@ -4551,7 +4571,7 @@ class Session:
 
     def _act_on_result(self, pid, rid, action):
         res = self._find_result(rid)
-        req = next((r for r in self.state["requests"] if r["id"] == res["request"]), None)
+        req = self._result_request(res)
         if action == "takedown":
             if not res["published"]:
                 raise DomainError(409, "wrong-status", "This result is not shared.", status="unpublished")
@@ -4569,11 +4589,7 @@ class Session:
                 return {"id": res["id"], "published": False}
             self._share(res, req, pid)
         else:
-            key = res.get("qid", GENERAL)
-            lst = self.state["results"][key]
-            lst.remove(res)
-            if not lst:
-                self.state["results"].pop(key)
+            self._drop_result(res.get("qid", GENERAL), res)
             if req:
                 req["status"] = {"kind": "failed", "at": self.now(), "reason": NOT_SHARED, "cancelled": True}  # the owner ended it
                 self._notify(req["pid"], "request", f"Your request {_on(req)} was not shared.", actor=pid, qid=req.get("qid"))
@@ -4628,7 +4644,7 @@ class Session:
             raise DomainError(409, "wrong-status", "This answer is already shared.", status="published")
         if pid != HOST and ("takenDown" in res or res["by"]["kind"] == "guest-claude"):
             raise DomainError(403, "host-only", "Only the host can share this answer.")
-        self._share(res, next((r for r in self.state["requests"] if r["id"] == res["request"]), None), pid)
+        self._share(res, self._result_request(res), pid)
         return {"id": res["id"], "published": True}
 
     def _claude_says(self, res, req):
@@ -4693,17 +4709,12 @@ class Session:
             # the requester's own Claude reads names as its page shows them: "@someone" where names are masked
             full = self.state["session"]["settings"]["names"] == "full" or me["role"] in ("owner", "leader")
             mine = [r for r in self.state["requests"] if r["pid"] == pid and r["runner"] == "self" and (status is None or r["status"]["kind"] == status)]
-            out = []
-            for r in mine:
-                q = self._question(r["qid"])
-                out.append(self._plain_all({**copy.deepcopy(r), "question": q["text"]}, full))
-            return {"requests": out}
+            return {"requests": [self._plain_all({**copy.deepcopy(r), "question": self._question(r["qid"])["text"]}, full) for r in mine]}
 
     def claim_my_request(self, pid, body):
         with self._write_as(pid, "mine-claim"):
             r = self._request(_ident(body, "id"), runner="self", owner_pid=pid)
-            if r["status"]["kind"] != "pending":
-                raise DomainError(409, "wrong-status", f"Request {r['id']} is {r['status']['kind']}.", status=r["status"]["kind"])
+            self._request_in(r, ("pending",))
             r["status"] = {"kind": "running", "since": self.now()}
             return {"id": r["id"], "status": "running"}
 
@@ -4712,8 +4723,7 @@ class Session:
         owner's Publish; until then only the requester and the owner see it."""
         with self._write_as(pid, "mine-result") as st:
             r = self._request(_ident(body, "id"), runner="self", owner_pid=pid)
-            if r["status"]["kind"] != "running":
-                raise DomainError(409, "wrong-status", f"Request {r['id']} is {r['status']['kind']}.", status=r["status"]["kind"])
+            self._request_in(r, ("running",))
             rnd = self._question(r["qid"])["round"]
             in_round = {q["id"] for q in st["questions"] if q["round"] == rnd}
             mine = [x for qid, lst in st["results"].items() if qid in in_round for x in lst if x["by"].get("pid") == pid]
@@ -4730,8 +4740,7 @@ class Session:
         reason = _text(body, "reason", limit=MAX_NOTE)
         with self._write_as(pid, "mine-fail"):
             r = self._request(_ident(body, "id"), runner="self", owner_pid=pid)
-            if r["status"]["kind"] not in ("pending", "running"):
-                raise DomainError(409, "wrong-status", f"Request {r['id']} is {r['status']['kind']}.", status=r["status"]["kind"])
+            self._request_in(r, ("pending", "running"))
             r["status"] = {"kind": "failed", "at": self.now(), "reason": reason, "cancelled": False}
             return {"id": r["id"], "status": "failed"}
 

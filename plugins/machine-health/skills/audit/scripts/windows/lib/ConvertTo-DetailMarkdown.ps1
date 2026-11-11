@@ -85,13 +85,9 @@ function ConvertTo-DetailMarkdown {
     if ($rows.Count -eq 0) { return $null }
 
     $shown = @($rows | Select-Object -First $MaxRows)
-    $lines = [System.Collections.Generic.List[string]]::new()
-    $lines.Add('| Detail | Value |')
-    $lines.Add('|---|---|')
-    foreach ($row in $shown) { $lines.Add($row) }
+    $lines = @('| Detail | Value |', '|---|---|') + $shown
     if ($rows.Count -gt $shown.Count) {
-        $lines.Add('')
-        $lines.Add("_$($rows.Count - $shown.Count) more detail field(s) in latest.json._")
+        $lines += '', "_$($rows.Count - $shown.Count) more detail field(s) in latest.json._"
     }
     return ($lines -join "`n")
 }

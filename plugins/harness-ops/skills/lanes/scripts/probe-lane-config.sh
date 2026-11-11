@@ -62,16 +62,11 @@ if (($#)); then
   esac
 fi
 
-repo_root() {
-  local root
-  root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
-  printf '%s\n' "${root:-$PWD}"
-}
-
 if [[ -n "${HARNESS_OPS_LANES_CONFIG:-}" ]]; then
   CONFIG="$HARNESS_OPS_LANES_CONFIG"
 else
-  ROOT="$(repo_root)"
+  ROOT="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+  ROOT="${ROOT:-$PWD}"
   CONFIG="$ROOT/.work/lanes/lanes.json"
   [[ ! -f "$CONFIG" && -f "$ROOT/.work/lanes.json" ]] && CONFIG="$ROOT/.work/lanes.json"
 fi
