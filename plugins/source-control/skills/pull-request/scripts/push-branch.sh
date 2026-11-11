@@ -333,11 +333,9 @@ if [[ "$ACTING" == *"[bot]" ]]; then
     echo "push-branch.sh: '$BRANCH' is checked out in no worktree, so lane-push.sh has no HEAD to push; not pushing" >&2
     exit 1
   fi
-  LANE_PUSH="${SCRIPT_DIR}/../../../scripts/lane-push.sh"
-  if [[ -n "$PR" ]]; then
-    exec bash "$LANE_PUSH" --dir "$SRC_DIR" --login "$IDENTITY" --repo "$BASE_REPO" --pr "$PR"
-  fi
-  exec bash "$LANE_PUSH" --dir "$SRC_DIR" --login "$IDENTITY" --repo "$BASE_REPO" --branch "$BRANCH"
+  TARGET=(--branch "$BRANCH")
+  [[ -z "$PR" ]] || TARGET=(--pr "$PR")
+  exec bash "${SCRIPT_DIR}/../../../scripts/lane-push.sh" --dir "$SRC_DIR" --login "$IDENTITY" --repo "$BASE_REPO" "${TARGET[@]}"
 fi
 
 if [[ -n "$PRE_PUSH" && -z "$BRANCH" ]]; then
@@ -385,15 +383,9 @@ sync_skip() { echo "push-branch.sh: sync-stale-base skipped: $1; pushing as is" 
 # trunk it holds), or nothing. No network call.
 local_default() {
   local d b
-  d=$(git symbolic-ref --short "refs/remotes/$1/HEAD" 2>/dev/null) && {
-    echo "${d#"$1"/}"
-    return 0
-  }
+  d=$(git symbolic-ref --short "refs/remotes/$1/HEAD" 2>/dev/null) && { echo "${d#"$1"/}"; return 0; }
   for b in main master trunk; do
-    git rev-parse -q --verify "refs/remotes/$1/$b" >/dev/null && {
-      echo "$b"
-      return 0
-    }
+    git rev-parse -q --verify "refs/remotes/$1/$b" >/dev/null && { echo "$b"; return 0; }
   done
 }
 
@@ -433,10 +425,7 @@ sync_stale_base() {
     [[ -n "$remote" && "$(cd "${wd:-.}" && setting_at "$remote")" == true ]] || return 0
     on=true
   fi
-  [[ -n "$wd" ]] || {
-    sync_skip "'$BRANCH' is checked out in no worktree"
-    return 0
-  }
+  [[ -n "$wd" ]] || { sync_skip "'$BRANCH' is checked out in no worktree"; return 0; }
   if [[ -z "$PR" ]]; then
     if out=$(gh pr view "$BRANCH" --json baseRefName,url -q '.baseRefName + " " + (.url | split("/")[3:5] | join("/"))' 2>&1); then
       read -r base base_repo <<<"${out//$'\r'/}"
@@ -450,37 +439,19 @@ sync_stale_base() {
       [[ "$(cd "$wd" && setting_at "$remote")" == true ]] || return 0
     fi
   fi
-  [[ -n "$remote" ]] || {
-    sync_skip "no remote fetches the base repository ${base_repo:-of $BRANCH}"
-    return 0
-  }
-  [[ -n "$base" ]] || {
-    sync_skip "the base branch of '$BRANCH' could not be read"
-    return 0
-  }
+  [[ -n "$remote" ]] || { sync_skip "no remote fetches the base repository ${base_repo:-of $BRANCH}"; return 0; }
+  [[ -n "$base" ]] || { sync_skip "the base branch of '$BRANCH' could not be read"; return 0; }
   ref="$remote/$base"
-  git -C "$wd" fetch --quiet "$remote" "+refs/heads/$base:refs/remotes/$ref" || {
-    sync_skip "git fetch of $ref failed"
-    return 0
-  }
-  git -C "$wd" diff --quiet HEAD -- || {
-    sync_skip "tracked files in $wd have uncommitted edits"
-    return 0
-  }
-  ! git -C "$wd" rev-parse -q --verify MERGE_HEAD >/dev/null || {
-    sync_skip "a merge is in progress in $wd"
-    return 0
-  }
+  git -C "$wd" fetch --quiet "$remote" "+refs/heads/$base:refs/remotes/$ref" || { sync_skip "git fetch of $ref failed"; return 0; }
+  git -C "$wd" diff --quiet HEAD -- || { sync_skip "tracked files in $wd have uncommitted edits"; return 0; }
+  ! git -C "$wd" rev-parse -q --verify MERGE_HEAD >/dev/null || { sync_skip "a merge is in progress in $wd"; return 0; }
   # Only a base the remote reports as its default branch may run its own rule.
   [[ "$base" != "$(cd "$wd" && remote_default "$remote")" ]] || flags=()
   out=$(bash "$SCRIPT_DIR/../../../scripts/stale-base-overlap.sh" ${flags[@]+"${flags[@]}"} "$wd" "$ref")
   case "$out" in
     yes) ;;
     no) return 0 ;;
-    *)
-      sync_skip "${out#unknown }"
-      return 0
-      ;;
+    *) sync_skip "${out#unknown }"; return 0 ;;
   esac
   out=$(git -C "$wd" cat-file commit HEAD)
   if [[ "$(git -C "$wd" config --bool commit.gpgsign)" != true && "$out" =~ (^|$'\n')gpgsig(-sha256)?\  ]]; then
