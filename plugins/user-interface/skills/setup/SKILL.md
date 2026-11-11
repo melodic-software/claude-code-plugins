@@ -101,9 +101,9 @@ The userConfig layer is not a file this skill writes. To change a `css_*` option
 `css_important` to `allow`), send the user to Claude Code's native flow, interactively with
 `/plugin configure user-interface@<marketplace>` or by a headless route, as the marketplace's
 plugin-reconfiguration convention gives them in
-[§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+[§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
 (it owns the verified-version record). Apply the scope and failure-signal caveats in its
-[§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+[§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
 Never uninstall to reconfigure; that section links what an uninstall deletes. Afterwards rerun
 `check` in a **fresh session**, since a same-session `check` can still show the old value, and
 report the provenance it observes, never an unobserved change.

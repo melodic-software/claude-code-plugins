@@ -155,9 +155,9 @@ Not `apply` surface: Claude Code owns the storage, and this contract forbids set
 `pluginConfigs`, so `check` reports the observed value and routes the change. Reconfigure through
 Claude Code's native flow, interactively with `/plugin configure code-tidying@<marketplace>` or by
 a headless route, as the marketplace's plugin-reconfiguration convention gives them in
-[§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+[§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
 (it owns the verified-version record). Apply the scope and failure-signal caveats in its
-[§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+[§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
 Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
 writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**, since a
 same-session `check` can still show the old value, and report the observed effective value, never
@@ -192,9 +192,9 @@ names it and the globs it lifts.
 ## Gotchas
 
 - **Do not uninstall to reconfigure.** The plugin-reconfiguration convention's
-  [§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries)
+  [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries)
   links what an uninstall deletes, and
-  [§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+  [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
   covers what an install rerun does to stored options.
 - **A copied bundled section is frozen** at its copy-time value, while an omitted one keeps
   inheriting bundled improvements. Write only the sections that diverge.

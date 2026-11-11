@@ -45,9 +45,9 @@ surface, which setup must not hand-edit (Check-only carve-out, native `userConfi
 - **Reconfiguring the personal option:** set `skills_root` to the skills directory through Claude
   Code's native flow, interactively with `/plugin configure skill-quality@<marketplace>` or by a
   headless route, as the marketplace's plugin-reconfiguration convention gives them in
-  [§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+  [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
   (it owns the verified-version record). Apply the scope and failure-signal caveats in its
-  [§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+  [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
   Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
   writes user settings or `pluginConfigs`. Observe the change only in a **fresh session** (the
   rerun below), and report the observed effective value, never an unobserved change.

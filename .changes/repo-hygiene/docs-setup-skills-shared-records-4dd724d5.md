@@ -8,3 +8,4 @@ bump: patch
 - The setup skill's pre-computed context keeps its fallback for a row showing the `disableSkillShellExecution` placeholder and adds a pointer record to the skills docs' "Inject dynamic context" section, where that placeholder text is documented.
 - Eval cases that graded the removed reconfiguration wording now grade the decisions: the native configure route, the option key and value, a pointer at the convention, no uninstall, and the fresh-session recheck.
 - The setup check's fresh-session rule for observing a changed option no longer gives "injected when this skill loads" as its reason and points at the plugins manifest reference's "Reference a saved value" section instead.
+- The plugin now ships a generated copy of the plugin-reconfiguration convention at `reference/plugin-reconfiguration.md`, and its skills link that copy by relative path, so an agent without network access can read the routes and caveats the skills point at.

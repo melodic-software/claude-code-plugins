@@ -234,10 +234,10 @@ Steps 1 to 10 are the `team` flow. The other two layers change what is written:
   say that file overrides the user value here. Then name how to save them through Claude Code's
   native flow: interactively with `/plugin configure mutation-testing@<marketplace>`, or by a
   headless route as the marketplace's plugin-reconfiguration convention gives them in
-  [§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+  [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
   (it owns the verified-version record, and what a key left out does), with the scope and
   failure-signal caveats in its
-  [§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+  [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
   Save only the keys the user settled: `operators`, plus `max_mutants` only when the user chose a
   cap (never an empty or invented cap). Never uninstall to reconfigure; that section links what an
   uninstall deletes. A `check` in a **fresh session** shows the saved value, since a same-session

@@ -67,7 +67,8 @@ profile is profile selection, not resolution of a `*.local.*` cascade layer.
 
 Resolve the profile, then probe its state and the build toolchain and report a
 PASS/FAIL/INFO table with one remediation line per FAIL. Do not create, modify, or install
-anything.
+anything, even when the user asks `check` to create a missing file: report the FAIL and route it
+to `apply`, which is the action that writes.
 
 1. **Resolve the profile.** Parse `--profile <name>` from `$ARGUMENTS`; otherwise use the
    rendered `${user_config.active_profile}` value when non-empty, else the root `default`
@@ -79,9 +80,9 @@ anything.
      flow, interactively with `/plugin configure ai-briefing@<marketplace>` (the recommended
      route) or by a headless route, as the marketplace's plugin-reconfiguration convention gives
      them in
-     [§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+     [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
      (it owns the verified-version record). Apply the scope and failure-signal caveats in its
-     [§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+     [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
      Never uninstall to reconfigure; that section links what an uninstall deletes. This skill
      never writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh
      session**, since a same-session `check` can still show the old value, and report the

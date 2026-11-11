@@ -145,9 +145,9 @@ pipeline skills' question rounds render through `AskUserQuestion` or as inline p
 consumer-project file this skill writes. Reconfigure `use_ask_user_question` through Claude
 Code's native flow, interactively with `/plugin configure planning@<marketplace>` or by a headless
 route, as the marketplace's plugin-reconfiguration convention gives them in
-[§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+[§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
 (it owns the verified-version record). Apply the scope and failure-signal caveats in its
-[§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+[§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
 Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
 writes Claude Code user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh
 session**, since a same-session `check` can still show the old value, and report the observed

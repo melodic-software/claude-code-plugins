@@ -112,9 +112,9 @@ time) is the recommended rotation path regardless. It masks input, unlike anythi
 command line (see the security note below).
 
 Headless, use a route the marketplace's plugin-reconfiguration convention gives in
-[§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+[§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
 (it owns the verified-version record), and apply the scope and failure-signal caveats in its
-[§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+[§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
 For `miro_api_token`, take the preferred `claude plugin configure miro@<marketplace>` route, which
 keeps the token off the command line: delete its values file afterwards, or pipe the value in from
 your secrets manager. Do not rely on the install-rerun fallback for the token, since that

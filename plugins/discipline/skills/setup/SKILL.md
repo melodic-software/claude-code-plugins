@@ -105,9 +105,9 @@ Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#u
 8. To change or clear any personal option, direct the user to Claude Code's native flow,
    interactively with `/plugin configure discipline@<marketplace>` or by a headless route, as the
    marketplace's plugin-reconfiguration convention gives them in
-   [§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+   [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
    (it owns the verified-version record). Apply the scope and failure-signal caveats in its
-   [§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+   [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
    Never uninstall to reconfigure; that section links what an uninstall deletes. Claude Code owns
    persistence: this skill never writes user settings or `pluginConfigs`, and never hand-edits any
    `pluginConfigs` key.

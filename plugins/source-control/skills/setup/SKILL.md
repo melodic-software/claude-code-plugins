@@ -338,9 +338,9 @@ Code owns (`pluginConfigs`), this skill never hand-edits it. Reconfigure through
 native flow, interactively with `/plugin configure source-control@<marketplace>` (or the `/plugin`
 dialog → source-control → configure) or by a headless route, as the marketplace's
 plugin-reconfiguration convention gives them in
-[§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+[§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
 (it owns the verified-version record). Apply the scope and failure-signal caveats in its
-[§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+[§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
 Never uninstall to reconfigure; that section links what an uninstall deletes. The multi-value keys
 (`babysit_watched_owners`, `babysit_self_logins`, `babysit_review_bot_logins`,
 `babysit_extra_bot_logins`) take comma-joined values, and the convention's record has not verified

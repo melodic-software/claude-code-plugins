@@ -119,11 +119,11 @@ Close by pointing at each resolution. A rerun after everything passes changes no
 - **Toggle off (or on):** set `settings_write_ask_enabled` through Claude Code's native flow,
   interactively with `/plugin configure context-budget@<marketplace>` or by a headless route, as
   the marketplace's plugin-reconfiguration convention gives them in
-  [§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+  [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
   (it owns the verified-version record). Print the route for the operator; never run a headless
   route, because each writes `pluginConfigs`, which this skill never writes, nor user settings.
   Apply the scope and failure-signal caveats in its
-  [§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+  [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
   Never uninstall to reconfigure; that section links what an uninstall deletes. Afterwards rerun
   `check` in a **fresh session**, since a same-session `check` can still show the old value, and
   report the observed effective value, never an unobserved change.

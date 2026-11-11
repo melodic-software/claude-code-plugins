@@ -147,11 +147,13 @@ value. For the headless routes and the scope and failure-signal caveats it cites
 by heading, and it carries a pointer record to
 [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure).
 It restates neither the commands' flags and version floor nor the verified-version record.
-Canonical citation (installed plugins cannot read this repository's working tree, so cite the
-published URL):
-
+Installed plugins cannot read this repository's working tree, and an agent may have no network,
+so each plugin whose setup skill cites this doc carries a generated copy at
+`reference/plugin-reconfiguration.md` (registered in `scripts/shared-copies.txt`), and the skill
+links that copy by a relative path such as `../../reference/plugin-reconfiguration.md#the-routes`.
+Human-facing text cites the published URL:
 <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>
 
 The setup contract's other fixed step, retired-conventions detection in `check` and gated cleanup
 in `apply`, is conditional on the plugin shipping `retirements.yaml`, and its canonical text lives
-in the [retired-conventions convention](../retired-conventions/README.md#the-two-fixed-setup-lines).
+in the [retired-conventions convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/retired-conventions/README.md#the-two-fixed-setup-lines).

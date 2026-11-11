@@ -149,9 +149,9 @@ Run `check`, then for each FAIL point at the resolution. This skill installs not
 - toggle off: set `actionlint_enabled` to `true` through Claude Code's native flow,
   interactively with `/plugin configure actionlint@<marketplace>` or by a headless route, as the
   marketplace's plugin-reconfiguration convention gives them in
-  [§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+  [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
   (it owns the verified-version record). Apply the scope and failure-signal caveats in its
-  [§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+  [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
   Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
   writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**, since a
   same-session `check` can still show the old value, and report the observed effective value,
@@ -179,7 +179,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
   [`plugin install`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install). As of:
   2026-11-10. Recheck trigger: that row lets `--config` set a key the manifest does not declare.
 - **What each headless route does to stored options is the convention's to state.** Read it in
-  [§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes),
+  [§ The routes](../../reference/plugin-reconfiguration.md#the-routes),
   which also holds the verified-version record: which CLI release each behavior was observed on,
   and under which conditions.
 - **`-shellcheck=` / `-pyflakes=` are deliberate, and the deadlock claim is a local

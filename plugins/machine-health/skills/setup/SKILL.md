@@ -258,9 +258,9 @@ Reject an argument targeting an unknown check id, remediation or muted key with 
    not the overlay; reconfigure `report_dir` through Claude Code's native flow, interactively with
    `/plugin configure machine-health@<marketplace>` or by a headless route, as the marketplace's
    plugin-reconfiguration convention gives them in
-   [§ The routes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#the-routes)
+   [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
    (it owns the verified-version record). Apply the scope and failure-signal caveats in its
-   [§ Caveats every setup skill's short form carries](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries).
+   [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
    `<marketplace>` is the owner's installed marketplace name: fill it in only when the
    owner gave it in this conversation, else hand the commands over with `<marketplace>` as written.
    Never search, list or read files (manifests, the plugin cache, settings) to find it. Where a
