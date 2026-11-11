@@ -231,19 +231,18 @@ placeholder" holds the payload shape and the probe recipe. Recheck when a releas
 Step 3 sweeps every user-scope install, and `harness-ops` is one of them. When that update lands
 mid-run, `${CLAUDE_PLUGIN_ROOT}` keeps resolving to the version loaded at session start, so every
 remaining step, including every later `fleet-state.sh` call, executes the **pre-update** script
-while the report describes a version the user now has installed but is not running. Per
-`code.claude.com/docs/en/plugins/loading#when-auto-update-runs` (re-fetched 2026-10-07): "When a copied plugin
-updates mid-session, hook commands, monitors, MCP servers, and LSP servers keep using the previous
-version's path." (Recheck when that section stops saying so.) The behavior is **not re-run on 2.1.261**: observing it requires a live
+while the report describes a version the user now has installed but is not running. What a
+running session keeps after a mid-session update is read live from
+[plugins loading: which marketplaces and plugins auto-update](https://code.claude.com/docs/en/plugins/loading#which-marketplaces-and-plugins-auto-update)
+(as of 2026-11-10; recheck when that section says a running session switches paths on update). The behavior is **not re-run on 2.1.261**: observing it requires a live
 interactive session in which a plugin updates mid-run, which a non-interactive probe pass cannot
 stage. It was observed on **Claude Code 2.1.240**: a `sync` run's Step 3 moved the `harness-ops`
 install record to 0.35.3, while the session went on rendering the 0.33.2 skill it had loaded at
 session start, and every `fleet-state.sh` call for the rest of that run came from the 0.33.2 tree.
 
-Not a crash: Claude Code marks the previous version directory orphaned and removes it only after a
-grace period, so a session that already loaded the old version keeps running and the old script
-stays readable to the end of the run. Grace period and sweep conditions:
-<https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions> (as of 2026-10-11; recheck
+Not a crash: we treat the old script as staying readable to the end of the run. Grace period and
+sweep conditions:
+<https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions> (as of 2026-11-10; recheck
 when that section stops saying a session that loaded the old version keeps running). And the
 *resolution* half is already handled: `fleet-state.sh`'s default-marketplace resolver carries a
 version-agnostic fallback whose comment names this exact scenario, which is why the bare
@@ -368,8 +367,8 @@ while IFS= read -r id; do
 done < <(…/scripts/fleet-state.sh --ids update-candidates-user)
 ```
 
-For anything `--ids` does not cover: capture every `jq` call the way `fleet-state.sh`'s `jq_to`
-helper does, `out=$(command jq …)` followed by `${out//$'\r'/}`, which strips every carriage return
+For anything `--ids` does not cover: capture every `jq` call the way the `jq_to` helper in
+`scripts/jq-capture.sh` (which `fleet-state.sh` sources) does, `out=$(command jq …)` followed by `${out//$'\r'/}`, which strips every carriage return
 with a parameter expansion and no `tr` process, **and** strip `\r` the same way from every value
 captured from any other source before embedding it in a `claude plugin` command or a JSON argument.
 A `jq() { command jq "$@" | tr -d '\r'; }` wrapper gives the same guarantee at the price of a second
@@ -438,8 +437,10 @@ it also deletes this skill's run journal, which is the only record of what to re
 **A plain `claude plugin uninstall` spawns a session that loads every still-enabled plugin**, so a
 revert loop over a large set re-executes the very plugin set it is removing, once per iteration,
 including their MCP servers. Run every uninstall as `claude --bare plugin uninstall <id> -s user -y`
-instead; `--bare` skips hooks, LSP, plugin sync and the MCP boot, at roughly 15s per uninstall
-rather than 6s. Until the revert drains, use `--bare` for unrelated shell work too, and do not run
+instead, at roughly 15s per uninstall rather than 6s. What `--bare` skips is read live from
+[headless: start faster with bare mode](https://code.claude.com/docs/en/headless#start-faster-with-bare-mode)
+(as of 2026-11-10; recheck when that section stops skipping installed plugins); that it also
+skipped LSP and plugin sync is our observation below. Until the revert drains, use `--bare` for unrelated shell work too, and do not run
 `/reload-plugins`.
 
 *Basis:* the absence of a bulk verb is `claude plugin uninstall --help`, which takes one `<plugin>`

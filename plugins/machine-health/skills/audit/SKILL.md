@@ -9,7 +9,7 @@ disable-model-invocation: false
 
 ## Overview
 
-This skill performs a **weekly workstation health audit** with a fail-safe posture: surface issues over silently fixing them. Findings always include reproduction commands so the human can rerun the check outside the skill. Remediations are narrow, logged, and only attempted when the OS-specific `remediation-policy.md` authorizes them. Trend adjusts severity upward only: a worsening metric or a repeat across runs can raise WARN to CRIT, and nothing lowers a reading later. A first run has no history, so every finding in it is a single, unmoderated reading. A custom check from the catalog overlay is capped at WARN until it has reported clean in 3 runs.
+This skill performs a **scheduled (monthly) or on-demand workstation health audit** with a fail-safe posture: surface issues over silently fixing them. Findings always include reproduction commands so the human can rerun the check outside the skill. Remediations are narrow, logged, and only attempted when the OS-specific `remediation-policy.md` authorizes them. Trend adjusts severity upward only: a worsening metric or a repeat across runs can raise WARN to CRIT, and nothing lowers a reading later. A first run has no history, so every finding in it is a single, unmoderated reading. A custom check from the catalog overlay is capped at WARN until it has reported clean in 3 runs.
 
 The skill is stateless about scheduling and never creates a scheduled task. A scheduled task or an ad-hoc `/machine-health:audit` invocation calls into it; `/machine-health:setup schedule` creates the monthly task, only on the owner's yes.
 
@@ -24,7 +24,7 @@ Two roots, resolved through the plugin's configuration seams:
 | **Report root** (`-OutputBase`) | `reports/`, the human-facing dated reports | `${user_config.report_dir}` when set to a non-empty path; if it is empty or still shows an unexpanded `${user_config.report_dir}` token (option unset), default to `$env:USERPROFILE\Documents\MachineHealth` |
 | **State root** (`-StateBase`) | `state/` (history, latest snapshot, approvals), `logs/`, catalog overlay, custom checks, `TODO.md` proposals | `${CLAUDE_PLUGIN_DATA}`, the per-plugin data directory that survives plugin updates, passed explicitly when the token expands. If it is unexpanded, do **not** fall through to the orchestrator's environment ladder: a subprocess inherits whichever plugin's `CLAUDE_PLUGIN_DATA` its parent process already carried, so a skill-invoked tool can inherit an unrelated installed plugin's value and write this plugin's `state/`, `logs/`, and catalog overlay into that plugin's directory. Use the report root as the state root instead (the roots block below does). Colocating state with the reports is wrong-but-visible, where the inherited variable is wrong-and-silent. Report that the plugin-specific root could not be resolved. Never substitute a literal path: the data directory is not named for the plugin alone, so a guessed path names a different directory and splits state from the overlay |
 
-Observed behavior: `CLAUDE_PLUGIN_DATA` is present in the environment of commands run through the Bash tool, and on a host with several plugins installed it can hold a different plugin's data directory. The upstream page says the Bash tool does not receive the variable. Either way no command here reads it: the roots block takes the substituted token text.
+Observed behavior: `CLAUDE_PLUGIN_DATA` is present in the environment of commands run through the Bash tool, and on a host with several plugins installed it can hold a different plugin's data directory. No command here reads it: the roots block takes the substituted token text.
 
 - **Pointer**: which processes receive the plugin variables is in [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves), and how the data directory is named is in [Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables). **Probe**: the observation came from printing `CLAUDE_PLUGIN_DATA` in a subagent's Bash tool on a host with several plugins installed, which showed another plugin's data directory; no probe script is recorded, so rerun that step to recheck. **As of**: 2026-10-11. **Recheck trigger**: the first section changes whether the Bash tool receives the variables, the second changes how the directory is named, or a rerun of the probe finds `CLAUDE_PLUGIN_DATA` absent from a Bash-tool environment.
 
@@ -111,14 +111,19 @@ Routing table:
 
 1. **Verify preconditions.** PowerShell 7.4+ (enforced by the orchestrator's `#Requires`; individual checks that need a still-newer cmdlet return UNKNOWN rather than aborting). The report and state roots are writable. Record elevation state via `scripts/<os>/lib/Test-IsElevated.ps1`. The run never prompts for UAC; the [elevated pass](#elevated-pass) is the only route to admin.
 2. **Load and filter the catalog.** The orchestrator reads the shipped `catalog/checks.jsonc`, merges the machine-local overlay at `<StateBase>/catalog/checks.local.jsonc` when present (see `reference/shared/catalog-overlay.md`), and keeps entries whose `os` list contains the current OS and where `enabled: true` and `deprecated: false`.
-3. **Load trend context.** Read the tail of `<StateBase>/state/history.jsonl` (last 8 weeks) for each check. Pass the slice to each check script over stdin so checks can annotate deltas, but checks remain stateless themselves.
-4. **Invoke the OS orchestrator** as a background command, and wait for its completion notice: a full run can outlast the shell tool's foreground limit. Run through the PowerShell tool the [roots block](#resolving-output-locations-do-this-first) with the command below appended, `weekly` replaced by the run mode, adding `-DryRun` for `--dry-run`:
+3. **Load trend context.** The orchestrator reads the tail of `<StateBase>/state/history.jsonl`, keeps the last 8 runs, and applies trend to the results after the checks finish. Checks receive no history and stay stateless.
+4. **Invoke the OS orchestrator** as a background command, and wait for its completion notice: a full run is too long to hold in the foreground. Run through the PowerShell tool the [roots block](#resolving-output-locations-do-this-first) with the command below appended, `weekly` replaced by the run mode, adding `-DryRun` for `--dry-run`:
 
    ```powershell
    & (Join-Path $skillRoot 'scripts/windows/Invoke-MachineHealthCheck.ps1') -OutputBase $reportRoot -StateBase $stateRoot -RunMode weekly
    ```
 
    Under `--scheduled`, append `-Scheduled -SampleSeconds 60 -SkipBanner` to that command.
+
+   - **Pointer**: the foreground command time limit is in
+     [Tools reference, "Timeout and output limits"](https://code.claude.com/docs/en/tools-reference#timeout-and-output-limits).
+     **As of**: 2026-11-10. **Recheck trigger**: that section raises the foreground limit above the
+     audit's 15-minute runtime cap, or drops it.
 
    The orchestrator dispatches checks under per-check 90s timeouts, collects JSON results, applies the upward-only trend adjustments and the custom-check clamp, and, on non-dry runs, dispatches authorized remediations with before/after logging.
 5. **Receive the structured result.** When the run reports a `run-lock` result, another audit holds the state folder and this run wrote nothing: run no discovery, write nothing, and go straight to step 8's `run-lock` sentence, skipping its report check and decision-page sentence; offer no elevated pass. When the run reports a `state-location` result, its state folder sits under a cloud sync root and nothing was written there: write no `TODO.md` and no custom check, and go to step 6. Otherwise run discovery per `reference/shared/discovery-guide.md`. Propose 1–3 OS-appropriate new checks. Straightforward read-only ones may be implemented as custom checks (script under `<StateBase>/scripts/<os>/checks/`, registered in the catalog overlay), except under `--scheduled`, where every proposal goes to `<StateBase>/TODO.md` and nothing is authored or registered; anything needing new permissions or remediation lands in `<StateBase>/TODO.md` for human approval. Checks broadly useful to every consumer are best contributed to the plugin itself.
@@ -267,7 +272,7 @@ owner and from this skill's rules.
 
 - **Max total runtime:** 15 minutes for the checks. Partial results mark missing checks `UNKNOWN` with reason `"timeout"`. A `--scheduled` run with research may take up to the monthly wrapper's time limit.
 - **Per-check timeout:** 90 seconds.
-- **No interactive prompts.** Ever. This runs unattended on a schedule; a stalled prompt would hang the weekly job.
+- **No interactive prompts.** The run, its orchestrator and its checks never prompt. This runs unattended on a schedule; a stalled prompt would hang the scheduled job. The [elevated pass](#elevated-pass) asks its yes in the session, after the run.
 - **No retry loops on failure.** One attempt per check, one attempt per remediation. `reference/shared/remediation-philosophy.md` carries the one-attempt rationale for remediations; checks stay one-attempt for the same reason. A flaky check should read as flaky, not as eventually-fine.
 - **First-run dry mode.** The first ever run (RunMode `first-run`) forces `DryRun = true`. Seeds state, produces the first report, and queues any first-run proposal (such as installing the `Microsoft.WinGet.Client` module) in `<StateBase>/TODO.md`. Remediation approval is never queued there: it goes through `/machine-health:setup`.
 - **Idempotency.** Two runs back-to-back produce two valid reports and two history entries with no partial state.

@@ -45,17 +45,16 @@ Rationale and handoffs: [reference/scope-and-handoffs.md](reference/scope-and-ha
 One native Claude Code surface asks a question that sounds like this skill's, and the two are
 routinely conflated:
 
-- **`doctor` (bundled skill, alias `checkup`)**: health-checks an installation and **offers to
-  fix** what it finds:
-  installation problems, unused extensions, duplicated or bloated memory files, slow hooks,
-  updates, permissions. It also estimates what the skill listing costs in context. It is the one
-  bundled skill `disableBundledSkills` does not remove; `DISABLE_DOCTOR_COMMAND=1` or a
-  `skillOverrides` entry hides it instead. Basis for all four: the `/doctor` row on
-  <https://code.claude.com/docs/en/commands> names the `/checkup` alias and the fix-in-place
-  behavior, and <https://code.claude.com/docs/en/skills> carries the `disableBundledSkills`
-  exemption and both hiding mechanisms. Verified 2026-09-06 against Claude Code 2.1.263 and those
-  two pages as fetched that day. Recheck when either page stops carrying the row, or a release note
-  names bundled-skill gating or the `doctor` surface.
+- **`doctor` (bundled skill)**: health-checks an installation and **offers to fix** what it
+  finds.
+  - **Pointer**: when stating what `doctor` checks, its aliases, or what hides or removes it,
+    fetch the `/doctor` row of
+    [commands: all commands](https://code.claude.com/docs/en/commands#all-commands) and
+    [skills: check your setup with /doctor](https://code.claude.com/docs/en/skills#check-your-setup-with-%2Fdoctor)
+    live.
+  - **As of**: 2026-11-10
+  - **Recheck trigger**: either section drops `/doctor` or stops describing it as fixing what it
+    finds, or a release note names bundled-skill gating or the `doctor` surface.
 - **This skill (marketplace plugin)**, the deep read-only inventory of the install tree: every
   file classified, product-managed retention separated from genuinely unmanaged state, filename
   schemes resolved before any liveness check, and a deliberate-or-experimental state detected
@@ -128,7 +127,7 @@ possible **sole copy** of somebody's revert path: propose nothing for it, check 
 
 Read `retention`. Report `effective_days` with its `effective_evidence`: `measured` when a file
 supplied it, `documented-default` when upstream's default applies. The highest-severity finding
-lives here: **an unparsable user `settings.json` can pause the retention sweep**. If
+lives here: if
 `settings-unparsable-pauses-sweep` appears in `retention.findings`, lead with it and treat every
 staleness reading below as suspect. If `managed-settings-unparsable-refuses-start` appears, report
 a refused start naming the managed source; that is not a paused sweep. The pointer records for the
@@ -163,8 +162,7 @@ its `why`; `node_modules` elsewhere under `plugins/` is measured apart and attri
 no `installPath` in `plugins/installed_plugins.json` references, largest first, with `bytes`, the
 `.orphaned_at` marker's `orphaned_at` and `marker_age_days`, and `past_sweep_window` (true once
 the marker is `ORPHAN_SWEEP_DAYS` old). A directory with no marker has `orphaned_at: null` and is
-never past the window: the sweep is documented as starting from the marker, so it has no removal
-date. The report keeps only
+never past the window, so it has no removal date (sweep condition: pointer below). The report keeps only
 the 25 largest, so the field stops growing with the version count (each row repeats its path, so
 very long directory names still make rows large).
 `unreferenced_versions_total` is the full count and `unreferenced_versions_truncated` is true when
@@ -176,9 +174,9 @@ is a report, not a deletion list, and removing anything stays with `/disk-hygien
 skill treats the cache as managed state and leaves version directories to the product's own sweep;
 do not remove them by hand.
 
-A running session keeps the plugin version it loaded, so hook, guard, and denial messages can name
-the previous version's path after an update. Restart the session to pick up the new version; the
-old path is expected, not a defect.
+Hook, guard, and denial messages that name the previous version's path after an update are
+expected, not a defect (running-session behavior: pointer below). Restart the session to pick up
+the new version.
 
 `ORPHAN_SWEEP_DAYS` in `lib/plugin_cache_versions.py` (and its byte-identical copy in
 `disk-hygiene`) is our runtime copy of the window, used without a live fetch.
@@ -186,7 +184,7 @@ old path is expected, not a defect.
 - **Pointer**: when stating the window, the marker name, or the running-session behavior, fetch
   [plugins loading: cleanup of previous versions](https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions)
   live.
-- **As of**: 2026-10-11
+- **As of**: 2026-11-10
 - **Recheck trigger**: that section changes the window, the marker name, or the sweep condition,
   or a release note names plugin cache cleanup; then update `ORPHAN_SWEEP_DAYS` and its copy.
 

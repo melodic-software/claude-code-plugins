@@ -32,7 +32,7 @@ the mod's README says.
 ## Gotchas
 
 - A toast is brief: start the recording before the action, never after.
-- An open pane can hold toasts back; close every pane before the action.
+- Close every pane before the action.
 - What raises a toast and what holds it back:
   <https://code.claude.com/docs/en/plugins/mods/api#show-something-without-starting-a-turn> and
   <https://code.claude.com/docs/en/plugins/mods/interface#hold-toasts-behind-a-dialog> (as of

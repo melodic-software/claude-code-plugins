@@ -10,8 +10,8 @@ false.
 
 | ID | Site | Claim | Status | Last touched |
 |---|---|---|---|---|
-| S7 | `power-tips.md:7-13` | First tag carries highest weight; middle tags (4-7) soften/merge | **Unsourced**: retained as unverified rule of thumb; first-party category-order lead does not establish positional weight | 1.1.4 |
-| S10 | `power-tips.md:29` | Genre-fusion order encodes priority | **Audited**: demoted. Anchor/accent hierarchy is attested, position-as-mechanism is not | 1.1.2 |
+| S7 | `power-tips.md` "Tag order" | First tag carries highest weight; middle tags (4-7) soften/merge | **Split**: front-loading is LOW-MEDIUM on one community post, for terse comma-separated prompts only; middle-tag softening stays **Unsourced**, retained as an unverified rule of thumb; first-party category-order lead does not establish positional weight | 1.1.4 |
+| S10 | `power-tips.md` "Genre fusion: anchor and accent" | Genre-fusion order encodes priority | **Audited**: demoted. Anchor/accent hierarchy is attested, position-as-mechanism is not | 1.1.2 |
 | S11 | `tips.md` timing cue | `~70%` effectiveness figure | **Removed in 1.1.2**: no basis found in-repo (searched 2026-08-11, re-run 2026-08-12) or externally (2026-08-12: two `help.suno.com` articles read verbatim, two large community meta-tag references grepped; zero hits for the cue form or `70%`); technique retained, flagged LOW-MEDIUM; full search record kept in `tips.md` | 1.1.2 |
 | S13 | `advanced.md` Duration slider | Control exists, is named "Duration slider", lives in the Create form, scoped to Web + V5.5 | **Audited, first-party** (<https://suno.com/release-notes/duration-slider-on-web>, Jul 20 2026, fetched 2026-08-12) | 1.3.0 |
 | S14 | `advanced.md` Duration slider | Range 10s-6min, 5-second increments, Auto/Custom default pair | **LOW-MEDIUM**: writer-observed 2026-08-12 and independently stated by one community post; `help.suno.com` has no slider article as of 2026-08-12, and the Jack Righteous duration-slider guide declines to state a range | 1.3.0 |

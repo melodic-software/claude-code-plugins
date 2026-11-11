@@ -8,7 +8,7 @@ Report each condition as held, failed or unknown, with its evidence. **Unknown i
 failed or unknown condition keeps the recommendation at "keep the shim" and names the condition.
 This recommends, never removes: `remove-shims` and its `--confirm` gate stay the only path.
 
-The quotes, dates and recheck triggers behind every condition are in [`sources.md`](sources.md),
+The pointers, dates and recheck triggers behind every condition are in [`sources.md`](sources.md),
 "The built-in agents-md plugin".
 
 ## The user roots
@@ -58,8 +58,8 @@ done
 ```
 
 On Windows, walk to the drive root (`C:\`) the same way. Every `FOUND` row that is not one of the
-shims `remove-shims` would remove fails A. The user `CLAUDE.md` is not on the list: the memory page
-says "your `~/.claude/CLAUDE.md`" does not count, so a `FOUND $HOME/.claude/CLAUDE.md` row is the
+shims `remove-shims` would remove fails A. The user `CLAUDE.md` is not on the list (which files count:
+<https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md>), so a `FOUND $HOME/.claude/CLAUDE.md` row is the
 one exemption, and only while `<config>` resolves to `$HOME/.claude`. With `CLAUDE_CONFIG_DIR`
 pointing elsewhere, the page does not say whether that file still counts, so the row fails A. An
 `UNREADABLE` row is unknown, and fails A.
@@ -131,9 +131,9 @@ e_walk() { # <file> <its hop>; its imports are hop + 1, and the loader follows h
 for a in <every AGENTS.md>; do e_walk "$(ip_realpath "$a")" 0; done
 ```
 
-`EXTERNAL` is a reachable target outside the start directory, which loads only where external
-imports were already approved. `UNRESOLVED` is a target that is not a file. `DEPTH` is an import
-past the fourth hop, which the loader drops, so the chain is not what it reads. Each fails E.
+`EXTERNAL` is a reachable target outside the start directory. `UNRESOLVED` is a target that is
+not a file. `DEPTH` is an import past the fourth hop. Each fails E; how the loader treats each is
+at the pointer above.
 
 ## The frontmatter scan for condition F
 
@@ -221,12 +221,15 @@ Ask each, and record the answer beside the condition:
    `allowManagedHooksOnly` set: an earlier revision of the page listed both here, and no release
    note dates their removal.
 3. **Does anyone run a CLI before v2.1.281 on Amazon Bedrock, Google Vertex AI, Microsoft
-   Foundry, an LLM gateway, or with telemetry disabled?** The memory page names Bedrock and
-   telemetry-disabled sessions; the 2.1.281 changelog entry names the full list as the sessions
-   that release extended support to.
+   Foundry, an LLM gateway, or with telemetry disabled?** Pointer:
+   [When AGENTS.md support is unavailable](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable)
+   and the 2.1.281 entry of the
+   [Claude Code CHANGELOG](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md).
+   As of: 2026-11-10. Recheck trigger: either changes which sessions lack support before v2.1.281.
 4. **Does anyone add this repository with `--add-dir` while
-   `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD` is set?** There "Their `AGENTS.md` doesn't
-   load".
+   `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD` is set?** Pointer:
+   [Where AGENTS.md differs from CLAUDE.md](https://code.claude.com/docs/en/memory#where-agents-md-differs-from-claude-md).
+   As of: 2026-11-10. Recheck trigger: that section changes what loads from an added directory.
 5. **Does anyone reach this repository through the Agent SDK, a cloud or web session, or
    `claude-code-action`?** The memory page does not say whether those surfaces read `AGENTS.md`
    directly. The CI canary in `sources.md` covers one `claude-code-action` pin and CLI, not every
@@ -241,11 +244,11 @@ Ask each, and record the answer beside the condition:
 
 ## Nested `AGENTS.md`, per mode
 
-What the memory page states, and the verdict that follows:
+The verdict per mode:
 
-- `claude-md-or-agents-md`: a subdirectory's `AGENTS.md` loads "when Claude opens a file there
-  with the Read tool and that subdirectory has none of the three `CLAUDE.md` files of its own".
-  Nested shims leave with the root only when condition A holds for every such subdirectory and
+- `claude-md-or-agents-md`: when a subdirectory's `AGENTS.md` loads is in
+  [When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md)
+  (as of 2026-11-10; recheck trigger: that section changes the subdirectory trigger). Nested shims leave with the root only when condition A holds for every such subdirectory and
   every directory between it and the root, and condition G holds; a blocker anywhere on that path,
   or a load trigger only a shim carries, keeps its shim, and since `remove-shims` takes root and
   nested together, the repository keeps all of them.

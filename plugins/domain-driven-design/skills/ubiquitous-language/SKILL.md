@@ -27,7 +27,10 @@ Entry discipline, the convention-resolution ladder and the multi-context rules l
 
 ## Settings
 
-`locate` resolves the two file-name settings here, since only this file has its values filled in:
+`locate` resolves the two file-name settings here, in this file, not in a spoke. Pointer for where
+saved values are filled in: [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value).
+As of: 2026-11-10. Recheck trigger: that section changes which content `${user_config.KEY}` is
+substituted into.
 
 1. Write the userConfig values to
    `${CLAUDE_PLUGIN_DATA}/ubiquitous-language-user-config-${CLAUDE_SESSION_ID}.json` with the Write

@@ -3,6 +3,13 @@
 All notable changes to the `sql-server` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.3] - 2026-11-11
+
+### Changed
+
+- The setup skill points at its upstream record for why the server copy lives in the plugin data
+  directory, and that record is restamped. No behavior change.
+
 ## [0.6.2] - 2026-11-06
 
 ### Changed

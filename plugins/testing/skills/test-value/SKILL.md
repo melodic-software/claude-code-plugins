@@ -111,12 +111,9 @@ The named exception is the EF Core carve-out: mocking `DbContext` is acceptable 
 writes (verifying that code called `Add` or `SaveChanges()`). Never mock `DbSet` for queries; LINQ
 over an in-memory collection does not behave like the provider.
 
-Verification record. Claim: mocking `DbContext` "can be a good approach for testing various
-non-query functionality, such as calls to Add or SaveChanges()", mocking `DbSet` for queries should
-be avoided, and tests against the production database system are recommended. Basis:
-https://learn.microsoft.com/en-us/ef/core/testing/choosing-a-testing-strategy. As of 2026-09-29
-(page updated 2026-06-26). Recheck when that page's "Mocking or stubbing DbContext and DbSet"
-section or its Summary changes.
+Pointer: [Choosing a testing strategy § Mocking or stubbing DbContext and DbSet](https://learn.microsoft.com/en-us/ef/core/testing/choosing-a-testing-strategy#mocking-or-stubbing-dbcontext-and-dbset)
+and its [Summary](https://learn.microsoft.com/en-us/ef/core/testing/choosing-a-testing-strategy#summary).
+As of 2026-11-10. Recheck when that section or the Summary changes.
 
 ## 4. Refactoring stays inside the loop
 

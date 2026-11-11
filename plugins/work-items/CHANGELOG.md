@@ -3,6 +3,16 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.9.1] - 2026-11-11
+
+### Changed
+
+- Skill text that restated GitHub, `gh`, git and Claude Code behavior now points at the live
+  docs section, with an as-of date and a recheck trigger. Fixed broken sentences, wrong step and
+  section references, a stale warning that the shipped seam ignores a human-gated label remap,
+  a missing exit-18 row and a wrong verification limit in the attend-queue telemetry reference,
+  and an adapter-spec example that disagreed with the Gitea seed. No behavior change.
+
 ## [12.9.0] - 2026-11-10
 
 ### Added

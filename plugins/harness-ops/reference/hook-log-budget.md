@@ -23,7 +23,7 @@ capture lands.
 
 ## Which bash
 
-Captured 2026-09-30 on melo-desk-001 from Git for Windows 2.55.0's own bash (`MSYSTEM=MINGW64`,
+Captured 2026-09-30 on one Windows host from Git for Windows 2.55.0's own bash (`MSYSTEM=MINGW64`,
 `uname -s` `MINGW64_NT-10.0-26200`), which reports `OSTYPE=cygwin`. The host has no Cygwin install
 (`C:\cygwin64` and `C:\cygwin` are absent), so `cygwin` here is what Git Bash reports, not a second
 shell.

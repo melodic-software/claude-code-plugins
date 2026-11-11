@@ -245,18 +245,20 @@ The component view reads dependency-graph.json.
   reference. A reference-like tag it cannot turn into an edge (`FrameworkReference`,
   `GlobalPackageReference`, an empty or missing `Include`) is counted in the
   `unread-reference-tags` finding.
-- **Directory.Build.props edges follow MSBuild's lookup.** MSBuild imports the nearest
-  `Directory.Build.props` above a project and stops there, and a relative `Include` in an
-  imported file is relative to the importing project's folder. This collector does not
-  evaluate `Condition` or `$(...)` properties, so a props reference that a condition
-  would exclude is still drawn, and one built from a property is `unresolved`.
-  - Claim: MSBuild walks up from the project to the first `Directory.Build.props` and
-    imports that one; an imported file's relative `Include` resolves from the project's
-    folder.
-  - Basis: https://learn.microsoft.com/en-us/visualstudio/msbuild/customize-by-directory
-    and https://learn.microsoft.com/en-us/visualstudio/msbuild/msbuild-items
-  - As of: 2026-09-29.
-  - Recheck: when either page changes the lookup rule or the base of a relative `Include`.
+- **Directory.Build.props edges follow MSBuild's lookup.** The collector reads the nearest
+  `Directory.Build.props` above a project and resolves a relative `Include` in it from the
+  project's folder. It does not evaluate `Condition` or `$(...)` properties, so a props
+  reference that a condition would exclude is still drawn, and one built from a property is
+  `unresolved`.
+  - **Pointer**: when checking which props file MSBuild imports or how it resolves a relative
+    `Include`, fetch
+    [Customize by folder § Use case: multi-level merging](https://learn.microsoft.com/en-us/visualstudio/msbuild/customize-by-directory#use-case-multi-level-merging)
+    and
+    [MSBuild items § Create items in a project file](https://learn.microsoft.com/en-us/visualstudio/msbuild/msbuild-items#create-items-in-a-project-file)
+    live.
+  - **As of**: 2026-11-10
+  - **Recheck trigger**: either section changes the lookup rule or the base of a relative
+    `Include`.
 - **Evidence stops at the end of the tag.** A `Version` child element on the following
   lines is not part of the citation. A `Version` attribute on the same tag is.
 - **`bin`, `obj`, `node_modules`, `vendor`, and dot-directories** other than the CI and

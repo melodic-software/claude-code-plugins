@@ -273,13 +273,11 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
 - **Notes:** The full list goes in the report appendix. `catalog/cisa-kev.json` refreshed weekly by `scripts/windows/lib/Get-CisaKevCache.ps1` from `https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json`. Log the outbound URL every time. `detail.kev_cache_state` records which list correlation used: `fresh`, `stale` (refresh failed, prior cache used), `unavailable` (refresh failed, no prior cache), `empty` (feed had no entries) or `unknown` (the lookup threw or returned no labeled list), with `kev_cache_age_days` beside it. If the fetch fails and a prior cache exists, keep it, keep the severity, and say so in `notes` and in the summary. With no usable list, report `UNKNOWN` as above, unless no upgrades are pending, which stays `OK` with a `notes` entry.
 
 - **KEV feed record:**
-  - Claim: a KEV entry has no field for affected versions. Its fields are `cveID`, `vendorProject`,
-    `product`, `vulnerabilityName`, `dateAdded`, `shortDescription`, `requiredAction`, `dueDate`,
-    `knownRansomwareCampaignUse`, `forensicTriage`, `notes` and `cwes`; the first eight are
-    required.
-  - Basis: the `vulnerability` definition in the feed's JSON schema,
+  - Decision: KEV correlation matches by name only and never compares installed versions.
+  - Pointer: the fields a KEV entry carries are in the `vulnerability` definition of the feed's
+    JSON schema,
     `https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities_schema.json`.
-  - As of: 2026-09-29.
+  - As of: 2026-11-10.
   - Recheck trigger: the schema gains a version or affected-range field, or the check starts
     comparing installed versions.
 
@@ -775,12 +773,11 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   cannot leak a secret the check never loaded. The check never writes: no `Set-Item`,
   `Set-ItemProperty`, `SetEnvironmentVariable`, or Path rewrite.
 
-- **Notes:** a truthy persisted `DISABLE_AUTOUPDATER` turns off Claude Code's background
-  updates for every session that inherits it, with no error and no prompt, which is why a set
-  value is a WARN. What the variable does and does not block (manual updates, the separate
-  variable that blocks every update path) is stated in
+- **Notes:** a truthy persisted `DISABLE_AUTOUPDATER` is a WARN, since it reaches every session
+  that inherits it. What the variable does and does not block
+  is stated in
   [Disable auto-updates](https://code.claude.com/docs/en/setup#disable-auto-updates); fetch it
-  live. **As of**: 2026-10-11. **Recheck trigger**: that section changes which update paths
+  live. **As of**: 2026-11-10. **Recheck trigger**: that section changes which update paths
   `DISABLE_AUTOUPDATER` stops. Duplicate and missing PATH entries are INFO because presence is a
   shape, not a verdict that the entry should be removed.
 
@@ -845,7 +842,7 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   entry carries a `created` **date** (day granularity, stable across runs) rather than an
   instant, so a dropping that sits unchanged produces identical findings run over run and
   feeds the catalog's `identical_streak` demotion accounting instead of reading as news
-  every week. `residue_count` is the history metric.
+  every run. `residue_count` is the history metric.
 
 - **Notes:** owner (`Get-Acl`) and directory emptiness (first `EnumerateFileSystemEntries`
   hit only, since the check never recurses into a stray directory) are best-effort diagnostic
@@ -1081,9 +1078,8 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   ExtensionSettings, its `install_mode`. `install_state` is `listed-off-store` for an entry whose
   update URL is off that browser's own store, on a machine not joined to a domain, when no
   installed extension in this run has that id; otherwise `listed`. `blocked_marker_count` counts
-  the entries in that state. The browser marks such entries rather than dropping
-  them, and Learn limits forced installs off a domain to its store; the check does not claim the
-  entry was blocked. When domain membership cannot be read, no entry is off-store and
+  the entries in that state. How the browser and Learn treat such entries is in the pointers
+  below; the check does not claim the entry was blocked. When domain membership cannot be read, no entry is off-store and
   `domain_read_state` says so.
 
 - **Pointers:** Microsoft Learn,

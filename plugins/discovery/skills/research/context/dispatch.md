@@ -186,8 +186,7 @@ against a run that produced none):
 
 ## Discipline liveness: why a token at all
 
-A `skills:` entry that is missing or disabled is **skipped silently**: the harness logs a warning to
-the debug log and starts the agent regardless. The dated record for that harness behavior is
+A `skills:` entry that is missing or disabled is **skipped silently** and the agent still starts. The dated record for that harness behavior is
 [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
 "Harness facts the dispatch design rests on". The resulting run has no disciplines, no phase
 structure, and no gate, and it still writes an artifact, still returns a payload, and still reports

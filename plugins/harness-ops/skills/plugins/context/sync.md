@@ -32,9 +32,10 @@ The script is bound to it, so a rule changed here is a rule changed in the scrip
 ```bash
 sync-run.sh [--marketplace <name> | --all] --journal-root <dir> \
             [--install-new all|none|ask] [--allow-downgrade] \
-            [--source-pull ask|never] [--pull-source <names>] [--quiet-auto-update <names>]
+            [--source-pull ask|never] [--pull-source <names>] [--quiet-auto-update <names>] \
+            [--update-other-paths]
 sync-run.sh [--marketplace <name> | --all] --audit [--install-new all|none|ask] \
-            [--source-pull ask|never] [--quiet-auto-update <names>]
+            [--source-pull ask|never] [--quiet-auto-update <names>] [--update-other-paths]
 sync-run.sh --only-install <ids> --run-dir <dir> [--marketplace <name> | --all]
 ```
 
@@ -125,16 +126,19 @@ the run directory, which the digest names.
 
 ## Concurrency
 
-The `claude plugin` CLI is the serialization point. There is no separate lock this skill manages.
+The `claude plugin` CLI does not serialize concurrent writes, so this skill keeps its own mutating
+calls serial (see [gotchas.md](gotchas.md), "Never run plugin CLI writes concurrently: the sweep
+stays serial"). There is no separate lock this skill manages.
 
 **The re-read boundary is the STEP, not the individual mutation.** Re-run `fleet-state.sh`
 immediately before each mutating step rather than mutating off a snapshot taken several steps ago; a
 background `autoUpdate` sweep or a concurrent session can change installed/enabled state between
 steps. Inside a step, the loop body is deliberately snapshot-driven: Step 3 reads its id list once
 and then issues one `claude plugin update` per line. That is the intended design, not a violation of
-the rule above. Re-reading state before each of sixty-odd calls would buy nothing: the CLI is the
-serialization point, so no call tears a file, and losing the race on one id leaves that id at the
-version whoever won it wrote: the call degrades to a no-op.
+the rule above. Re-reading state before each of sixty-odd calls would not close the race: an
+external writer can still land between the read and the call, and the lost write is silent. The
+step-boundary snapshots (`mid` and `post`, and the `Moved during this run:` row the gotchas
+Concurrency section points to) are what detect it.
 
 A re-read whose inputs did not change reuses the last report instead of running `fleet-state.sh`
 again. `fleet-state.sh` lists every path it read, absent ones included, and `sync-run.sh` reuses
@@ -306,7 +310,7 @@ Then, for the rest of the run:
   The three the divergence attribution needs are `pre`, `mid`, and `post`; two more exist because
   Steps 4 and 5 mutate too, and `pre-refresh` exists for the catalog regression check below. Step 1
   saves it inside its own per-marketplace loop, at the point that marketplace's refresh call
-  occupies in `sync`; the snippet is there rather than restated here. It is a read, so `audit`
+  occupies in `sync`; the code is in `sync-run.sh` rather than restated here. It is a read, so `audit`
   saves it too, into that run's scratch directory.
 
 - **Catalog regression check.** Step 6 diffs `catalog_versions` across every consecutive saved
@@ -730,8 +734,9 @@ an id current, and what each does:
 
 Update the catalog plugins installed at `user` scope with `claude plugin update <id> -s user`.
 
-One call per plugin: `claude plugin update` takes a single `<plugin>` argument, there is no bulk
-"update everything" flag. Loop it; a single plugin's update failure is reported inline (under
+One call per plugin: we treat `claude plugin update` as taking a single `<plugin>` argument with no
+bulk flag ([plugins CLI reference: plugin update](https://code.claude.com/docs/en/plugins/cli-reference#plugin-update),
+as of 2026-11-10; recheck when that synopsis takes several plugins or a bulk flag). Loop it; a single plugin's update failure is reported inline (under
 "Action needed") and does not abort the sweep for the rest.
 
 Take the ids from `fleet-state.sh --ids`, never from a hand-written `jq` over its JSON, and use the
@@ -931,8 +936,8 @@ record that moved backward renders under `Downgraded:` with its scope instead of
 there.
 
 **Report the catalog regression check.** Emit SKILL.md's `Catalog regression:` line for the first
-snapshot interval in which any id's catalog version moved backward, per the "Run journal" section's
-jq. It is the signal that names the cause behind every withheld downgrade, so it belongs in the
+snapshot interval in which any id's catalog version moved backward, from the digest's
+`catalog_regression` field that `sync-run.sh` computes (see the "Run journal" section). It is the signal that names the cause behind every withheld downgrade, so it belongs in the
 report even when `--allow-downgrade` moved them anyway.
 
 **Split the Divergences count into pre-existing and run-caused.** A user-scope sweep that moves user
@@ -1035,12 +1040,9 @@ absent paths in `by_path`, which the render folds into the count entry.
 **Say when `harness-ops` itself moved during the run.** Step 3 sweeps every user-scope candidate,
 which can include the plugin providing this skill, and a concurrent update can move it too; the
 digest's `self_updated` is true when this plugin's install moved either way, whichever step or
-process moved it and in whichever direction. When it did, the algorithm that ran is the
-**pre-update** one: `${CLAUDE_PLUGIN_ROOT}` keeps resolving to the version loaded at session start,
-so every later `fleet-state.sh` call and every remaining step executes the old copy, and the report
-describes work done by a version the user no longer has installed. We treat this as a reporting
-obligation, not a crash risk: the previous version's directory stays on disk for a grace period, so
-the running script does not vanish mid-run. The render emits the self-update note when the digest's
+process moved it and in whichever direction. When it did, we treat the algorithm that ran as the
+**pre-update** one, read from the `${CLAUDE_PLUGIN_ROOT}` the session loaded (pointer below), so the report describes work done by a version the user no
+longer has installed. We treat this as a reporting obligation, not a crash risk. The render emits the self-update note when the digest's
 `self_updated` is true, and names the plugin and versions from the digest's `self_update` row, the
 record of this plugin the run moved, never from whichever moved row comes first.
 

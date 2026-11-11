@@ -12,7 +12,7 @@ metadata:
 
 Relay the sentence below to the user and do not run `/skill-doctor` yourself: it is a command the Skill tool never lists.
 
-If /skill-doctor is available in your session (claim: `/skill-doctor` is a built-in command reserved for the person to run, and it requires a minimum Claude Code version and a session that fetches feature flags; basis: the `/skill-doctor` row on the commands reference and the find-unused-skills section of the skills reference, both fetched 2026-09-29; as of 2026-09-29; recheck: either page changes that requirement, or a release renames it or merges it into `/doctor`), run it for the one-shot unused-versus-context-cost report when that is the whole ask.
+If /skill-doctor is available in your session (gate basis: **Boundary, the bundled `doctor` skill and `/skill-doctor`** below), run it for the one-shot unused-versus-context-cost report when that is the whole ask.
 
 **Arguments.** `[--unattended] [--installed [dir]] [--plugins-root <dir>] [--render markdown|json]`. `--unattended`, anywhere in the arguments, is the caller declaring that nobody is present: the skill takes it out before reading the rest, never passes it to the engine script (whose parser does not accept it) and never reads it as a root path; under it the suggestion is recorded in the report instead of asked. The bare word `unattended` is neither this flag nor a path: stop and name `--unattended`. Full form: [--unattended] [--installed [dir]] [--plugins-root <dir>] [--context-window <tokens>] [--bytes-per-token 3|4] [--budget-fraction <f>] [--max-desc-chars <n>] [--listing-capture <transcript.jsonl>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins; unpinned, the budget is a band over both windows and both byte estimates
 
@@ -26,10 +26,9 @@ my skill fleet never get used?* A skill the model cannot see cannot be chosen, s
 
 **Visibility is Claude Code's own term** for this; the settings page documents `skillOverrides`
 under "Override skill visibility". This skill audits every way a plugin skill loses it, and
-`skillOverrides` is not one of those ways: plugin skills are governed by `enabledPlugins`, and a
-plugin it does not set to `true` loads none of the skills it ships. `skillOverrides` governs
-non-plugin skills (user, project and claude.ai-synced), which `--installed` enumerates and applies
-it to; it is never cited as a cause for a plugin skill. Our binary reading on Claude Code 2.1.283
+`skillOverrides` is not one of those ways: we treat plugin skills as governed by `enabledPlugins`
+alone, and apply `skillOverrides` only to the non-plugin skills `--installed` enumerates; it is
+never cited as a cause for a plugin skill. Our binary reading on Claude Code 2.1.283
 agrees: its listing resolver returns `on` for every plugin-sourced skill before it reads the
 override map. A `skillOverrides` entry already in an operator's settings that names a plugin skill
 therefore never takes effect; `harness-config:audit`, when installed, reports those entries.
@@ -205,11 +204,12 @@ from below it read `unknown`, with that file named in the remedy. Only
 The budget has five inputs, and the report states where each one came from:
 
 - `skillListingBudgetFraction` and `skillListingMaxDescChars` are read from the
-  settings scopes with the precedence the product uses, per key:
-  user (`~/.claude/settings.json`, relocated by `CLAUDE_CONFIG_DIR`) <
-  project (`<project>/.claude/settings.json`) <
-  local (`<project>/.claude/settings.local.json`) < the `--settings` flag <
-  managed policy. The project is `CLAUDE_PROJECT_DIR`, falling back to the
+  user (`~/.claude/settings.json`, relocated by `CLAUDE_CONFIG_DIR`), project
+  (`<project>/.claude/settings.json`), local
+  (`<project>/.claude/settings.local.json`), `--settings` flag and managed-policy
+  scopes, per key, with the precedence the product uses, read live from
+  [settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence)
+  (as of 2026-11-10; recheck when that section reorders the scopes). The project is `CLAUDE_PROJECT_DIR`, falling back to the
   working directory. The flag scope lives inside the session and cannot be read
   from outside it, so it is reported as **unread**, never as absent. Managed
   locations (the base file plus the `managed-settings.d` drop-ins, per OS) come
@@ -223,10 +223,10 @@ The budget has five inputs, and the report states where each one came from:
   is read live from its row in
   [environment variables](https://code.claude.com/docs/en/env-vars#variables)
   (as of 2026-11-03; recheck when that row changes what the override replaces).
-- The context window is per model. `CLAUDE_CODE_DISABLE_1M_CONTEXT` collapses
-  it to 200k, and `CLAUDE_CODE_MAX_CONTEXT_TOKENS` names it when
+- The context window is per model. The engine treats `CLAUDE_CODE_DISABLE_1M_CONTEXT` as
+  collapsing it to 200k, and `CLAUDE_CODE_MAX_CONTEXT_TOKENS` as naming it when
   `DISABLE_COMPACT` is also set; both are read from the process environment and
-  recorded. Otherwise `--context-window <tokens>` pins it, and unpinned the
+  recorded. What each does in the product is read live from its row in [environment variables](https://code.claude.com/docs/en/env-vars#variables) (as of 2026-11-10; recheck when one of those rows changes how the window is set). Otherwise `--context-window <tokens>` pins it, and unpinned the
   report carries both 200k and 1M.
 - Bytes per token is 4 or 3 per model. `--bytes-per-token` pins it; unpinned the
   report carries both.
@@ -257,8 +257,7 @@ workflows, and with `--installed` the user's `~/.claude/skills`, the
 `.claude/skills` of the project and each parent up to the repository root, and
 the signed-in account's claude.ai-synced skills, each with `skillOverrides`
 applied. A user or project skill is listed under its frontmatter `name` when it
-sets one, a synced skill under its folder name, and a personal skill shadows a
-project skill of the same name. Built-in and bundled skills ship
+sets one, a synced skill under its folder name, and the engine lets a personal skill shadow a project skill of the same name, the order read live from [skills: resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name) (as of 2026-11-10; recheck when that table changes the personal-over-project order). Built-in and bundled skills ship
 inside Claude Code and cannot be read from disk, so without a capture
 `coverage` is `enumerated-only`, the Markdown says what was not counted, and a
 row whose counted entries fit reports `fit-unconfirmed`, never `listing-fits`:
@@ -317,9 +316,10 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-skill-visibility/scripts/skill-pair-coo
 An empty or unrendered option value reads as its default, as it does in the hooks. `--data-root`
 is the `data-dir` scope's answer and the other two scopes ignore it, so the one call above serves
 all three. It is written out here rather than read from the environment because the script takes
-no `CLAUDE_PLUGIN_DATA` fallback: a skill subprocess can carry another plugin's value, and the
-Bash tool does not inherit this one at all, so the skill body's own expansion is the only
-trustworthy source. Flags, that reason, and missing-store behavior:
+no `CLAUDE_PLUGIN_DATA` fallback: we treat the skill body's own expansion as the only trustworthy
+source. Which processes receive the variable is read live from
+[plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
+(as of 2026-11-10; recheck when that table exports the variable to the Bash tool). Flags, that reason, and missing-store behavior:
 [reference/pair-cooccurrence.md](reference/pair-cooccurrence.md).
 
 ## Reading the output
@@ -426,7 +426,7 @@ the settings file that did), and says so when there is nothing to fix.
 | Question | Owner |
 |---|---|
 | Why is my fleet unused, starved, unwanted, or unobserved? Does skill B get invoked where skill A ran? | **this skill**, the second via `scripts/skill-pair-cooccurrence.sh`, co-occurrence and never attribution ([reference/pair-cooccurrence.md](reference/pair-cooccurrence.md)) |
-| Which skills are unused vs their context cost, right now? | Claude Code's own built-in `/skill-doctor` command, when it resolves in this session; the bundled `/doctor` skill's checkup, when that one resolves; the Stats tab carries the `/skill-doctor` report in an interactive session |
+| Which skills are unused vs their context cost, right now? | Claude Code's own built-in `/skill-doctor` command, when it resolves in this session; the bundled `/doctor` skill's checkup, when that one resolves |
 | Is a repo's authored listing over budget? | `skill-quality`'s `check-listing-budget.sh` |
 | What is installed and invocable? | `/harness-ops:inventory` |
 | Is the telemetry pipeline healthy? | `/harness-ops:observability` |
@@ -442,7 +442,7 @@ conflated whenever a fleet looks unused:
 
 - **`doctor` (bundled skill)**: an in-session checkup that can offer to disable components, which
   this skill never does. What it checks is read live from
-  [skills: check your setup with /doctor](https://code.claude.com/docs/en/skills#check-your-setup-with-doctor)
+  [skills: check your setup with /doctor](https://code.claude.com/docs/en/skills#check-your-setup-with-%2Fdoctor)
   (as of 2026-11-03; recheck when that section changes what the checkup covers).
 - **`/skill-doctor` (built-in command).** Claude Code's own unused-skills report; what it shows
   and where is read live from
@@ -461,16 +461,15 @@ the question is whether skill B fires where skill A ran.
 never chain into a `doctor` disable on this skill's behalf; report the classification and let the
 user act.
 
-**Availability is never assumed.** `doctor` survives the bundled-skill kill switch but an
-environment variable or a `skillOverrides` entry still hides it, and `/skill-doctor` has its own
-gate; this section states what to do when one resolves, never that it is present. The four-part
-records live in [reference/bundled-doctor.md](reference/bundled-doctor.md).
+**Availability is never assumed.** Settings and the environment can hide either surface; this
+section states what to do when one resolves, never that it is present. What hides each, and the
+four-part records, live in [reference/bundled-doctor.md](reference/bundled-doctor.md).
 
 ## Run-end suggestion
 
 Relay the sentence below to the user and do not run `/doctor` yourself: it is reserved for the person to run.
 
-If /doctor is available in your session (claim: `/doctor` is reserved for the person to run, `DISABLE_DOCTOR_COMMAND` or a `skillOverrides` entry hides it, and it survives `disableBundledSkills`; basis: the `/doctor` row on the commands reference and the bundled-skills section of the skills reference, both fetched 2026-09-29, and the 2.1.263 binary registering it as model-invocation-disabled on 2026-09-11; as of 2026-09-29; recheck: either page drops that gate, or a release lets the model invoke it), run it for the bundled checkup's unused-components pass when you want fixes offered in place.
+If /doctor is available in your session (gate basis: **Boundary, the bundled `doctor` skill and `/skill-doctor`** above), run it for the bundled checkup's unused-components pass when you want fixes offered in place.
 
 **`--unattended`:** record both suggestions in the report; do not ask.
 

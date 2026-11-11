@@ -1,8 +1,11 @@
 # Remove: the workflow
 
 The default action and `report`. Scripts below are in the skill's `scripts/` directory, cited here
-as `<skill-dir>/scripts/<name>`: this file arrives through the Read tool, so no substitution
-variable resolves in it. Postures, the floor and the hard rules are in `SKILL.md`.
+as `<skill-dir>/scripts/<name>`, never through a substitution variable. Pointer for where those
+variables resolve:
+[Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions).
+As of: 2026-11-10. Recheck trigger: that section changes where plugin variables are substituted.
+Postures, the floor and the hard rules are in `SKILL.md`.
 
 With a subagent tool available, and unless you are `comment-reviewer` yourself, you run steps 1 and
 2 and then dispatch `code-tidying:comment-reviewer` for steps 3 to 7 ("The comment-reviewer agent"

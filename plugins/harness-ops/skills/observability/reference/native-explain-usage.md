@@ -22,7 +22,7 @@ native explanation where it resolves; everything cross-session or hook-related s
 
 ## Presence
 
-Bundled skills can be removed by `disableBundledSkills`, hidden by a `skillOverrides` entry, and
-vary by plan, platform, and host (<https://code.claude.com/docs/en/skills>, bundled skills section,
-read 2026-09-29). The routing reads "resolves in this session", never "is available". Recheck when
-a release or docs change adds, removes, or renames a gating axis.
+We never assume a bundled skill is present: the routing reads "resolves in this session", never
+"is available". What removes or hides one is read live from
+[skills: bundled skills](https://code.claude.com/docs/en/skills#bundled-skills) (as of
+2026-11-10). Recheck when a release or docs change adds, removes, or renames a gating axis.

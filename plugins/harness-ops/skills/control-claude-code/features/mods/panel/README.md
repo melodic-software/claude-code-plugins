@@ -33,8 +33,8 @@ Close the pane, then return what the mod saved to its default the way the mod's 
 
 ## Gotchas
 
-- The driver's terminal is 120 columns wide. A pane the mod opens on its own can wait for a wider
-  terminal and never show; open it with the mod's command.
+- The driver's terminal is 120 columns wide, so open a pane with the mod's command rather than
+  waiting for the mod to open it.
 - Where a pane sits and when it waits for a wider terminal:
   <https://code.claude.com/docs/en/plugins/mods/interface#open-a-pane-at-the-right-time> (as of
   2026-10-26; recheck when that section changes the widths).
