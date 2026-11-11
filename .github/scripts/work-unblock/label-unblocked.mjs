@@ -385,6 +385,10 @@ const KILL_STEP = "Check the kill switch";
 const BUDGET_STEP = /^Stop on a low GITHUB_TOKEN budget(?: until (.*))?$/;
 // The second line of a breaker record whose stop was a budget stop.
 const BUDGET_TAG = "<!-- work-unblock cause=budget -->";
+// The budget record's last line: when each of its earlier edits was made, so
+// every budget re-fire keeps its date once the record is edited again.
+const BUDGET_EARLIER = /^<!-- work-unblock earlier ([^>]*) -->$/m;
+const budgetEarlier = (body) => (BUDGET_EARLIER.exec(String(body ?? ""))?.[1] ?? "").split(" ").filter(Boolean);
 // A raw job log line, its timestamp first, whose rest matches the pattern `rest`.
 const stamped = (rest) => new RegExp(String.raw`^\d{4}-\d\d-\d\dT[\d:.]+Z ` + rest);
 // request-lane-token's last line when the broker refuses it, in check mode
@@ -566,14 +570,16 @@ const parseMarker = (body) => {
 
 // The lanes App's outcome and re-fire markers on an issue, oldest first, each
 // with when it was posted (the backoff comment and the budget record, each
-// edited in place: last edited).
+// edited in place: last edited). The budget record is one marker per re-fire
+// it records, its earlier edits included.
 const appMarkers = (comments, bot) =>
   comments
     .filter((comment) => comment.user?.login === bot)
-    .map((comment) => {
+    .flatMap((comment) => {
       const marker = parseMarker(comment.body);
       const edited = marker?.budget || INFRA.test(String(comment.body ?? ""));
-      return { ...marker, at: Date.parse(edited ? (comment.updated_at ?? comment.created_at) : comment.created_at) };
+      const at = Date.parse(edited ? (comment.updated_at ?? comment.created_at) : comment.created_at);
+      return [...(marker?.budget ? budgetEarlier(comment.body) : []).map(Date.parse), at].map((when) => ({ ...marker, at: when }));
     })
     .filter((marker) => marker.outcome !== undefined && Number.isFinite(marker.at))
     .sort((a, b) => a.at - b.at);
@@ -1570,9 +1576,9 @@ const MINT_CAUSE = `The work-resolve-issue run that \`${LABEL}\` started could n
 // The record of a re-fire after a kill-switch refusal, posted before the
 // label moves, once per re-fire. It names the refused run and when it ended,
 // since the re-fire can come hours after the refusal.
-export const breakerComment = (key, { repo, run, ended, budget = false }) =>
+export const breakerComment = (key, { repo, run, ended, budget = false, earlier = [] }) =>
   budget
-    ? `<!-- work-unblock refired ${key} breaker -->\n${BUDGET_TAG}\nThis records a re-fire of an earlier stop, not a new one. The start gate stopped [run ${run}](https://github.com/${repo}/actions/runs/${run}), the work-resolve-issue run that \`${LABEL}\` started, before any model turn, because the GITHUB_TOKEN budget was under its start-gate share (limits.api github-token start-gate); that run ended at ${new Date(ended).toISOString().replace(/\.\d{3}Z$/, "Z")}. work-unblock has now removed and added \`${LABEL}\` back to start a fresh run. A budget stop is the lanes' load, not a fault in this issue: it never counts toward limits.limit-stops-per-issue or the \`kill-switch\` wait.`
+    ? `<!-- work-unblock refired ${key} breaker -->\n${BUDGET_TAG}\nThis records a re-fire of an earlier stop, not a new one. The start gate stopped [run ${run}](https://github.com/${repo}/actions/runs/${run}), the work-resolve-issue run that \`${LABEL}\` started, before any model turn, because the GITHUB_TOKEN budget was under its start-gate share (limits.api github-token start-gate); that run ended at ${new Date(ended).toISOString().replace(/\.\d{3}Z$/, "Z")}. work-unblock has now removed and added \`${LABEL}\` back to start a fresh run. A budget stop is the lanes' load, not a fault in this issue: it never counts toward limits.limit-stops-per-issue or the \`kill-switch\` wait.${earlier.length > 0 ? `\n<!-- work-unblock earlier ${earlier.join(" ")} -->` : ""}`
     : `<!-- work-unblock refired ${key} breaker -->\nThis records a re-fire of an earlier refusal, not a new refusal. The lanes kill switch stopped [run ${run}](https://github.com/${repo}/actions/runs/${run}), the work-resolve-issue run that \`${LABEL}\` started, before it finished; that run ended at ${new Date(ended).toISOString().replace(/\.\d{3}Z$/, "Z")}. work-unblock has now removed and added \`${LABEL}\` back to start a fresh run. A kill-switch refusal is no fault in this issue or the lanes, so it never counts against later re-fires; after limits.limit-stops-per-issue of them since a person last added \`${LABEL}\` or a run last reported, work-unblock waits the same limits.stranded-backoff-hours \`kill-switch\` hours after each refused run before re-firing it, never longer.`;
 
 // The backoff record of an issue whose re-fires on these workflow files keep
@@ -2272,11 +2278,13 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
     if (stalled === "mint-failed" && !recorded && fired >= limits["limit-stops-per-issue"]) {
       return backoff(key, ended, MINT_CAUSE, hoursFor["failed-mint"]);
     }
-    // An issue keeps one budget record, edited in place for each window.
+    // An issue keeps one budget record, edited in place for each window; the
+    // edit carries the dates of the ones before it.
     const budgetRecord = budget
-      ? comments.filter((comment) => comment.user?.login === bot && parseMarker(comment.body)?.budget && RUN_ID.test(String(comment.id))).at(-1)?.id
+      ? comments.filter((comment) => comment.user?.login === bot && parseMarker(comment.body)?.budget && RUN_ID.test(String(comment.id))).at(-1)
       : undefined;
-    const trip = stalled === "breaker" ? { run: refused.id, ended: Date.parse(refused.updated_at) || ended, budget, record: budgetRecord } : undefined;
+    const earlier = budgetRecord ? [...budgetEarlier(budgetRecord.body), budgetRecord.updated_at ?? budgetRecord.created_at] : [];
+    const trip = stalled === "breaker" ? { run: refused.id, ended: Date.parse(refused.updated_at) || ended, budget, record: budgetRecord?.id, earlier } : undefined;
     // Trips sort by when their run ended, not when they fell due, so the sweeps
     // after the switch clears drain them oldest first whatever their waits.
     return { reason: null, resets: trip ? ended : due, refire: key, recorded, stall: stalled, trip };

@@ -3861,6 +3861,34 @@ test("a later budget stop edits the issue's one budget record in place, never po
   switched(switchAfter.calls);
 });
 
+// One re-fire of a failed run on these workflow files (06:00), then two budget
+// stops on the one budget record (re-added 07:00 and 10:00), then a failed run
+// ending at 10:05: the backoff counts one re-fire, so it waits 6 hours, not 12.
+test("an edited budget record keeps each budget re-fire its own, so none counts toward a later backoff", async () => {
+  const failedLater = [ADMITTED, pickSlot, BROKER_ALLOWED, { name: "resolve-issue / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "success" }] }];
+  const unlabeled = (at) => ({ event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: at });
+  const first = { id: 71, body: breakerComment(KEY, { repo: REPO, run: 4100, ended: Date.parse("2026-10-16T06:50:00Z"), budget: true }), user: LANES_BOT, created_at: "2026-10-16T07:00:00Z" };
+  const before = [added("2026-10-16T05:00:00Z", OWNER), unlabeled("2026-10-16T06:00:00Z"), added("2026-10-16T06:00:01Z"), unlabeled("2026-10-16T07:00:00Z"), added("2026-10-16T07:00:01Z")];
+  const second = stalledRun({ jobs: BUDGET_STOPPED, conclusion: "success", comments: [note(), refireNote(KEY, "2026-10-16T06:00:00Z"), first], events: [...before.slice(0, -1), added(LABELED_AT)] });
+  assert.equal(await sweep({ github: second.github, actions: second.actions }), 0);
+  const patch = writes(second.calls)[0];
+  assert.ok(patch.startsWith(`PATCH /repos/${REPO}/issues/comments/71 `), patch);
+  const edited = { ...first, body: JSON.parse(patch.slice(patch.indexOf(" {") + 1)).body, updated_at: "2026-10-16T09:59:59Z" };
+  const history = {
+    comments: [note(), refireNote(KEY, "2026-10-16T06:00:00Z"), edited],
+    events: [...before, unlabeled("2026-10-16T09:59:59Z"), added(LABELED_AT)],
+  };
+  const early = stalledRun({ jobs: failedLater, ...history });
+  assert.equal(await sweep({ github: early.github, actions: early.actions, now: Date.parse("2026-10-16T16:04:59Z") }), 0);
+  assert.deepEqual(writes(early.calls), [], "one re-fire waits 6 hours");
+  const due = stalledRun({ jobs: failedLater, ...history });
+  assert.equal(await sweep({ github: due.github, actions: due.actions, now: Date.parse("2026-10-16T16:05:00Z") }), 0);
+  const done = writes(due.calls);
+  assert.ok(done[0].startsWith(`POST /repos/${REPO}/issues/30/comments `), done.join("\n"));
+  assert.ok(done[0].includes("has re-fired it 2 time(s)"), done[0]);
+  assert.deepEqual(done.slice(1), restarted(30));
+});
+
 test("the budget record says it never counts toward the per-issue bound", () => {
   const body = breakerComment(KEY, { repo: REPO, run: 5030, ended: Date.parse("2026-10-16T10:05:00Z"), budget: true });
   assert.ok(body.startsWith(BUDGET_RECORD), body);
