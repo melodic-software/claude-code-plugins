@@ -10,6 +10,6 @@ bump: minor
   issue-body headings from the issue-body contract the standards sync
   delivers into each plugin's reference/ directory, the same record the
   org issue forms are generated from. triage checks an issue body against
-  the contract with scripts/check-body.mjs, which accepts a field under a
-  ## or ### heading and treats a form's skipped answer as empty. The tidy
+  the contract with scripts/check-body.mjs, which accepts a field under
+  a `##` or `###` heading and treats a form's skipped answer as empty. The tidy
   deferred-item body follows the task type.

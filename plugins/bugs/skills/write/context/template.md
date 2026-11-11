@@ -6,7 +6,7 @@ Loaded on demand by `/bugs:write`. Contains: the full Markdown template (5 field
 
 The body sections come from the org issue-body contract, so a filed report matches the org bug form
 and passes the intake heading check. Read the `bug` type of
-[`${CLAUDE_PLUGIN_ROOT}/reference/issue-body-contract.json`](${CLAUDE_PLUGIN_ROOT}/reference/issue-body-contract.json)
+[`reference/issue-body-contract.json`](../../../reference/issue-body-contract.json)
 and write one `## <heading>` section per entry of its `fields`, in that order, never a heading the
 contract does not name except `## Notes`. Fill each from the matching part of the five fields:
 
