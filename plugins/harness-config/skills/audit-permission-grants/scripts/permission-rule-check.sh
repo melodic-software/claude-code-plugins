@@ -613,14 +613,14 @@ extract_allowed_tools() {
 # `agents/` or `commands/` segment, at or below the scan root, holds the manifest.
 # A manifestless plugin outside `plugins/<name>/` is still excluded and counted.
 #
-# Nested `.claude/skills/` folders inside the user plugins directory
-# (`<config root>/plugins/`) do not load when Claude works on files there, from
-# Claude Code 2.1.321 (changelog https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md,
-# 2.1.321; as of 2026-11-11, recheck when the skills page's nested-discovery
-# section states its own rule for that directory). The detector excludes every
-# `.claude/skills/` under that directory, the scan root's own included. A session
-# started there, or one that adds it with --add-dir, would still load those
-# skills; the exclusion count discloses that gap.
+# We treat `.claude/skills/` folders nested below the scan root inside the user
+# plugins directory (`<config root>/plugins/`) as non-loadable, and keep the scan
+# root's own `.claude/skills/` audited: a session started in the scan root loads
+# those as project skills. Pointer: https://code.claude.com/docs/en/changelog#2-1-321
+# and https://code.claude.com/docs/en/skills#discovery-from-parent-and-nested-directories.
+# As of: 2026-11-11. Recheck trigger: either section changes which directories
+# under the user plugins directory load skills. A session that adds a nested
+# folder with --add-dir would still load it; the exclusion count discloses that gap.
 #
 # CLAUDE_CONFIG_DIR relocates the whole ~/.claude tree when set (official
 # .claude-directory doc), so it wins over $HOME; with neither resolvable there is
@@ -653,6 +653,7 @@ frontmatter_is_loadable() {
   case "$file" in
   */SKILL.md)
     if [[ "$rel" =~ (^|/)\.claude/skills/[^/]+/SKILL\.md$ ]]; then
+      [[ "$rel" == .claude/skills/* ]] && return 0
       under_user_plugins "$rel" && return 1
       return 0
     fi
