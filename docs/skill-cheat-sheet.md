@@ -52,7 +52,6 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/bugs:write`](../plugins/bugs/skills/write/SKILL.md) | `bugs` | Turn an informal bug description into a structured 5-field report, read-only |
 | [`/planning:audit-answers`](../plugins/planning/skills/audit-answers/SKILL.md) | `planning` | Adversarially validate interview answers with fresh-context agents |
 | [`/planning:interview`](../plugins/planning/skills/interview/SKILL.md) | `planning` | Interview in frontier rounds until the task contract is locked |
-| [`/planning:questionnaire`](../plugins/planning/skills/questionnaire/SKILL.md) | `planning` | Turn a decision someone else must answer into an async questionnaire |
 | [`/planning:wayfind`](../plugins/planning/skills/wayfind/SKILL.md) | `planning` | Chart a too-big, foggy effort as a decision map worked one decision at a time |
 
 ## 2. Explore

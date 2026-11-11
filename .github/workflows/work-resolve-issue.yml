@@ -827,6 +827,7 @@ jobs:
       || needs.pick-slot.outputs.skip-reason == 'research-first'
       || needs.pick-slot.outputs.skip-reason == 'probe-first')))
     permissions:
+      actions: read # the write runner's run job reads the review lanes' comment records
       contents: read
       pull-requests: read
       checks: write
@@ -856,6 +857,7 @@ jobs:
       ${{ !cancelled() && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') == 'true'
       && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-patch-state || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-patch-state || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-patch-state || '') == 'written' }}
     permissions:
+      actions: read # the write runner's run job reads the review lanes' comment records
       contents: read
       pull-requests: read
       checks: write
@@ -1278,6 +1280,7 @@ jobs:
       && needs.apply-issue-patch.outputs.skip-reason != 'kill-switch'
       || needs.resolve-issue-stale.outputs.stale == 'true') }}
     permissions:
+      actions: read # the write runner's run job reads the review lanes' comment records
       contents: read
       pull-requests: read
       checks: write

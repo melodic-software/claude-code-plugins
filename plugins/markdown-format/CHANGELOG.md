@@ -3,6 +3,18 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.16] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [1.0.15] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [1.0.14] - 2026-11-11
 
 ### Changed

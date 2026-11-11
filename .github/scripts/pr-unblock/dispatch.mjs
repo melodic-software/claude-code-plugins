@@ -52,6 +52,7 @@ import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { DEPENDABOT_ID, POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, writeRecord } from "./dispatch-record.mjs";
+import { laneReader, withLaneBinding } from "./address-feedback.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
 import { runTitle, shareWorkflowRuns } from "./feedback-dispatch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel } from "./fix-ci-dispatch.mjs";
@@ -819,6 +820,8 @@ export async function main(
   env,
   {
     api,
+    // The review lanes' run records (address-feedback.mjs laneReader).
+    actions,
     sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     log = (line) => console.log(line),
     loadLimits = loadBaseLimits,
@@ -836,15 +839,19 @@ export async function main(
     }
   }
   const budget = api ? null : budgetedFetch({ log });
-  const base =
+  // Every held PR's timeline binds the review lanes' hold comments to their
+  // runs (address-feedback.mjs withLaneBinding), read with ARTIFACT_READ_TOKEN.
+  const base = withLaneBinding(
     api ??
-    createGitHubApi({
-      token: env.GITHUB_TOKEN,
-      repository: env.GITHUB_REPOSITORY,
-      apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
-      graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
-      fetch: budget.fetch,
-    });
+      createGitHubApi({
+        token: env.GITHUB_TOKEN,
+        repository: env.GITHUB_REPOSITORY,
+        apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
+        graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+        fetch: budget.fetch,
+      }),
+    actions ?? laneReader(env, { fetch: budget?.fetch }),
+  );
   try {
     return await dispatchAll(env, { client: shareWorkflowRuns(shareTimeline(wrapRunIds(base, env))), sleep, log, loadLimits, loadAdoption, loadOwnedBranches, verifyCapped, now });
   } finally {

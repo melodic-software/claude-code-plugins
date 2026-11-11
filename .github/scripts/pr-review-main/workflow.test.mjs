@@ -945,7 +945,9 @@ test("the key leg takes the trigger job's gate only from this attempt, and every
       "review=${{ steps.select.outputs.review || steps.files.outputs.review }}",
       "pr-number=${{ steps.gate.outputs.pr-number }}",
       "head-sha=${{ steps.gate.outputs.head-sha }}",
-      "base-sha=${{ steps.gate.outputs.base-sha }}",
+      // The review's diff base: the PR's own base, which for a stack layer
+      // is the layer below, not the stack base the gate's base-sha names.
+      "base-sha=${{ steps.gate.outputs.pr-base-sha }}",
       "judged=${{ steps.judged.outputs.judged }}",
       "held=${{ steps.select.outputs.held }}",
       "main-sha=${{ steps.main.outputs.main-sha }}",
@@ -980,6 +982,7 @@ test("the key leg takes the trigger job's gate only from this attempt, and every
     const key = { PROCEED: "proceed", REVIEW: "review", PR: "pr-number", HEAD: "head-sha", BASE: "base-sha" }[name];
     assert.equal(input(step("Take the gate's result"), `CARRIED_${name}`), `\${{ needs.trigger.outputs.${key} }}`);
   }
+  for (const job of LEGS) assert.equal(input(step("Take the gate's result", job), "GATE_BASE"), "${{ steps.gate.outputs.pr-base-sha }}", job);
 });
 
 // The trigger job reads the event's PR's files before the gate and skips the

@@ -275,6 +275,8 @@ jobs:
           && steps.pace.outputs.paced != 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # The review lanes' comment records (actions: read).
+          ARTIFACT_READ_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
           # A rate limit past the guard's budget refuses the call with a notice
           # (rate-guard.mjs): the refusal carries rateLimited, so a refused

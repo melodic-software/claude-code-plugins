@@ -81,7 +81,7 @@ reporting the merge as done.
 
 **Through the async merge API.** Use it instead of the CLI merge when the session refuses GraphQL
 (the CLI's merge and PR view run over GraphQL; this is REST) or when the PR is a stack layer
-([stacks.md](stacks.md)). Pin it to the `HEAD_SHA` captured in 4.1 step 2, and never let it bypass
+([stacked-prs.md](../../../reference/stacked-prs.md)). Pin it to the `HEAD_SHA` captured in 4.1 step 2, and never let it bypass
 rules ([GitHub](../../../reference/providers/github/pull-request/merge.md#async-merge-api)). For a
 merge queue, request a queue action instead of a direct merge. The response carries a request id to
 poll until it reads `merged`, `enqueued`, or `failed`. `enqueued` means queued, not merged: delete

@@ -126,9 +126,11 @@ phase, since this lane's writes are judgment, not implementation:
 
 ```bash
 TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
-[[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
+[[ -f "$TRACKER" ]] || TRACKER="<project root>/tools/work-item-tracker/work-item-tracker.sh"
 "$TRACKER" claim "<id>" --phase triage
 ```
+
+`<project root>` is the literal path [`tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet.
 
 `<id>` MUST be fully-qualified (`claim` rejects a bare number). Exit `0` → claim held for this row;
 record the claim object's `lease_comment_id`, which the release after disposition needs.

@@ -113,14 +113,14 @@ STUB_BRANCH=$(git -C "$REPO" branch --show-current)
 run_flow() {
   (cd "${FLOW_CWD:-$REPO}" && PATH="$STUB_DIR:$PATH" STUB_STATE="$STATE" STUB_STALE="$1" STUB_PUSHED="$PUSHED" \
     STUB_FORGE="${3:-$PUSHED}" STUB_BRANCH="$STUB_BRANCH" STUB_OID="${STUB_OID:-$BEFORE}" \
-    READY_VERIFY_DIR="$STATE/verify" PR_NUMBER=5 HEAD_BEFORE="$2" timeout 30 bash "$FLOW" 2>&1)
+    READY_VERIFY_DIR="$STATE/verify" PR_NUMBER=5 REPO=acme/tool HEAD_BEFORE="$2" timeout 30 bash "$FLOW" 2>&1)
 }
 
 new_state "$PUSHED"
 out=$(run_flow "$BEFORE" "$BEFORE")
 assert_contains "lagging forge: the wait finds the pushed commit's runs" "$out" "WAITED=1 HEAD_SHA=$PUSHED"
 assert_contains "lagging forge: the guarded flip passes on the pushed commit" "$out" "FLIP_EXIT=0"
-assert_eq "lagging forge: the PR is flipped once" "pr ready 5" "$(cat "$STATE/flipped" 2>/dev/null)"
+assert_eq "lagging forge: the PR is flipped once" "pr ready 5 -R acme/tool" "$(cat "$STATE/flipped" 2>/dev/null)"
 assert_not_contains "lagging forge: no run list asks about the pre-push commit" "$(cat "$STATE/runs")" "$BEFORE"
 assert_contains "lagging forge: the confirmation sees the ready run, so no toggle" "$out" "CONFIRM=0"
 
@@ -150,7 +150,7 @@ READY_VERIFY_DIR="$STATE/verify" bash "$SKILL_DIR/scripts/verify-gate.sh" check 
 assert_exit "a NEEDS WORK verdict leaves the head's verify pass as it was" 0 "$?"
 out=$(CONFIRM_VERDICT_DIR="$STATE/confirm" run_flow "$BEFORE" "$BEFORE")
 assert_contains "a NEEDS WORK verdict for the head: the guarded flip passes" "$out" "FLIP_EXIT=0"
-assert_eq "a NEEDS WORK verdict for the head: the PR is flipped once" "pr ready 5" "$(cat "$STATE/flipped" 2>/dev/null)"
+assert_eq "a NEEDS WORK verdict for the head: the PR is flipped once" "pr ready 5 -R acme/tool" "$(cat "$STATE/flipped" 2>/dev/null)"
 out=$(run_report)
 assert_exit "the report's confirm verdict line exits 0 after the flip" 0 "$?"
 assert_eq "the report names NEEDS WORK for the head and each MISSING or PARTIAL item" "confirm: NEEDS WORK for head $PUSHED
@@ -184,7 +184,7 @@ for verdict in 'CANNOT QUANTIFY' DEGRADED 'NOT CONFIRMED' INCONCLUSIVE MIXED CON
   assert_exit "a $verdict measure verdict is recorded for the head" 0 "$?"
   out=$(CONFIRM_VERDICT_DIR="$STATE/confirm" run_flow "$BEFORE" "$BEFORE")
   assert_contains "a $verdict measure verdict for the head: the guarded flip passes" "$out" "FLIP_EXIT=0"
-  assert_eq "a $verdict measure verdict for the head: the PR is flipped once" "pr ready 5" "$(cat "$STATE/flipped" 2>/dev/null)"
+  assert_eq "a $verdict measure verdict for the head: the PR is flipped once" "pr ready 5 -R acme/tool" "$(cat "$STATE/flipped" 2>/dev/null)"
 done
 
 new_state "$PUSHED"

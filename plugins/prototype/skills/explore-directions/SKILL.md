@@ -86,6 +86,7 @@ question, not an appearance question, and belongs to the other facet: invoke
 It fits the exploration phase: a rough description of what to build, with the exact details of how
 it should work or look not yet decided. If the user has already decided and wants one thing built,
 build one thing: a switcher holding three answers to a settled question wastes everyone's time.
+It raises fidelity (concreteness) where discussion cannot settle a question; the cheapest artifact that answers it wins.
 
 ## Find the app's design system
 

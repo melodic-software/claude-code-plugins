@@ -3,6 +3,12 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.25] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [0.8.24] - 2026-11-11
 
 ### Changed

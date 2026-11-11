@@ -3451,7 +3451,7 @@ test("pr-refine.yml: fix-docs runs only on a fix-docs dispatch with a PR number,
     assert.equal(jobs[id].with["trusted-base"], "default-tip", id);
     assert.equal(jobs[id].with["dispatcher-run-id"], "${{ inputs.dispatcher-run-id }}", id);
     assert.equal(jobs[id].with.lane, "pr-refine", id);
-    assert.deepEqual(jobs[id].permissions, { ...(id === "apply-docs-patch" ? {} : { actions: "read" }), contents: "read", "pull-requests": "read", checks: "write", issues: "write", "id-token": "write" }, id);
+    assert.deepEqual(jobs[id].permissions, { actions: "read", contents: "read", "pull-requests": "read", checks: "write", issues: "write", "id-token": "write" }, id);
   }
   const starts = ({ activity = "fix-docs", pr = "7", sender = "1", held = "false" } = {}) =>
     evaluate(jobs["fix-docs"].if, {
@@ -7130,7 +7130,7 @@ test("pr-unblock.yml: resolve-conflicts is reported neutral when the select job 
 
 test("pr-unblock.yml: resolve-conflicts-select merges with the base's scripts, pinned to the tip it read, in a head checkout that keeps no credential", () => {
   const select = workflow("pr-unblock.yml").jobs["resolve-conflicts-select"];
-  assert.deepEqual(select.permissions, { contents: "read", "pull-requests": "read" });
+  assert.deepEqual(select.permissions, { actions: "read", contents: "read", "pull-requests": "read" });
   assert.equal(select.uses, undefined, "a base job, never a runner");
   assert.deepEqual(stepSecrets(select), []);
   const step = (id) => select.steps.find((s) => s.id === id);
@@ -9525,7 +9525,7 @@ test("pr-unblock.yml: resolve-feedback-threads is its own base-only script job a
   const { jobs } = workflow("pr-unblock.yml");
   const job = jobs["resolve-feedback-threads"];
   const publish = jobs["publish-feedback"];
-  const tokenPermissions = { contents: "read", "pull-requests": "read", checks: "write", issues: "write", "id-token": "write" };
+  const tokenPermissions = { actions: "read", contents: "read", "pull-requests": "read", checks: "write", issues: "write", "id-token": "write" };
   assert.deepEqual(publish.permissions, tokenPermissions, "publish-feedback's job permissions are unchanged");
   assert.equal(publish.with.activity, "publish-feedback");
   assert.deepEqual(job.permissions, tokenPermissions, "the job token holds no write beyond publish-feedback's");
