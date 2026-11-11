@@ -41,7 +41,7 @@ graders:
     target: 'last_message'
   - name: 'already-installed-still-writes'
     type: 'regex'
-    pattern: '\balready[- ]installed\b[^\n]{0,160}\b(?:still|also)\b[^\n]{0,40}\b(?:writes?|saves?)\b|\bstill (?:writes?|saves?)\b[^\n]{0,160}\balready[- ]installed\b|\b(?:writes?|saves?)\b[^\n]{0,40}\b(?:on|against|to)\s+an?\s+already[- ]installed\b'
+    pattern: '\balready[- ]installed\b(?:(?!\bnot\b|n[''’]t\b|\bnothing\b)[^\n]){0,160}?\b(?:writes?|saves?)\b|\bstill (?:writes?|saves?)\b[^\n]{0,160}\balready[- ]installed\b|\b(?:writes?|saves?)\b[^\n]{0,40}\b(?:on|against|to)\s+an?\s+already[- ]installed\b'
     flags: 'i'
     target: 'last_message'
   - name: 'scope-rule'

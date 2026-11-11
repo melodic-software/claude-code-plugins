@@ -115,6 +115,9 @@ Headless, use a route the marketplace's plugin-reconfiguration convention gives 
 [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
 (it owns the verified-version record), and apply the scope and failure-signal caveats in its
 [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
+Read both sections and print what they give, the fallback route, its behavior on an
+already-installed plugin and the scope to pass included, rather than only naming them, and
+leave out the verified-version record.
 For `miro_api_token`, take the preferred `claude plugin configure miro@<marketplace>` route, which
 keeps the token off the command line: delete its values file afterwards, or pipe the value in from
 your secrets manager. Do not rely on the install-rerun fallback for the token, since that

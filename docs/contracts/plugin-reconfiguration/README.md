@@ -144,7 +144,9 @@ user settings or `pluginConfigs`, and recheck in a fresh session, reporting only
 value. For the headless routes and the scope and failure-signal caveats it cites
 [The routes](#the-routes) and
 [Caveats every setup skill's short form carries](#caveats-every-setup-skills-short-form-carries)
-by heading, and it carries a pointer record to
+by heading, tells the agent to read them and print what they give (the fallback route, its
+behavior on an already-installed plugin and the scope to pass included) rather than only name
+them, leaving out the verified-version record, and it carries a pointer record to
 [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure).
 It restates neither the commands' flags and version floor nor the verified-version record.
 Installed plugins cannot read this repository's working tree, and an agent may have no network,

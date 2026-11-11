@@ -238,6 +238,9 @@ Steps 1 to 10 are the `team` flow. The other two layers change what is written:
   (it owns the verified-version record, and what a key left out does), with the scope and
   failure-signal caveats in its
   [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
+  Read both sections and print what they give, the fallback route, its behavior on an
+  already-installed plugin and the scope to pass included, rather than only naming them, and
+  leave out the verified-version record.
   Save only the keys the user settled: `operators`, plus `max_mutants` only when the user chose a
   cap (never an empty or invented cap). Never uninstall to reconfigure; that section links what an
   uninstall deletes. A `check` in a **fresh session** shows the saved value, since a same-session

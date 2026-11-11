@@ -261,6 +261,9 @@ Reject an argument targeting an unknown check id, remediation or muted key with 
    [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
    (it owns the verified-version record). Apply the scope and failure-signal caveats in its
    [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
+   Read both sections and print what they give, the fallback route, its behavior on an
+   already-installed plugin and the scope to pass included, rather than only naming them, and
+   leave out the verified-version record.
    `<marketplace>` is the owner's installed marketplace name: fill it in only when the
    owner gave it in this conversation, else hand the commands over with `<marketplace>` as written.
    Never search, list or read files (manifests, the plugin cache, settings) to find it. Where a

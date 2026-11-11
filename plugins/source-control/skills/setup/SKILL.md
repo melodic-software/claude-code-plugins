@@ -341,6 +341,9 @@ plugin-reconfiguration convention gives them in
 [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
 (it owns the verified-version record). Apply the scope and failure-signal caveats in its
 [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
+Read both sections and print what they give, the fallback route, its behavior on an
+already-installed plugin and the scope to pass included, rather than only naming them, and
+leave out the verified-version record.
 Never uninstall to reconfigure; that section links what an uninstall deletes. The multi-value keys
 (`babysit_watched_owners`, `babysit_self_logins`, `babysit_review_bot_logins`,
 `babysit_extra_bot_logins`) take comma-joined values, and the convention's record has not verified

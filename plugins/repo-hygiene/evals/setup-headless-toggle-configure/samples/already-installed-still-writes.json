@@ -11,6 +11,12 @@
     },
     {
       "answer": "Already installed: the rerun still saves the value."
+    },
+    {
+      "answer": "On an already-installed plugin this prints `already installed` and only saves the value."
+    },
+    {
+      "answer": "On a plugin that's already installed, a rerun at the same scope prints `already installed` and saves only the option."
     }
   ],
   "fail": [
@@ -24,6 +30,14 @@
     {
       "answer": "Fallback: claude plugin install <plugin>@<marketplace> -s <scope> --config KEY=VALUE.",
       "why": "gives the fallback but omits that it saves on an already-installed plugin"
+    },
+    {
+      "answer": "If it is already installed, the rerun does not save the value.",
+      "why": "says nothing is saved"
+    },
+    {
+      "answer": "Already installed: the rerun won't write anything.",
+      "why": "says nothing is written"
     }
   ]
 }

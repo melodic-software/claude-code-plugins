@@ -9,3 +9,4 @@ bump: patch
 - A setup eval case checks that `check` reports a missing `sources.md` as a FAIL routed to `apply` and writes nothing.
 - The plugin now ships a generated copy of the plugin-reconfiguration convention at `reference/plugin-reconfiguration.md`, and its skills link that copy by relative path, so an agent without network access can read the routes and caveats the skills point at.
 - `/ai-briefing:setup check` states that it writes nothing even when the user asks it to create a missing file: it reports the FAIL and routes it to `apply`.
+- The setup skill tells the agent to read the convention's routes and caveats sections and print what they give (the fallback route, its behavior on an already-installed plugin and the scope to pass), leaving out the verified-version record, rather than only naming the sections.
