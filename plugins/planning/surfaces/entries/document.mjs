@@ -4,7 +4,6 @@
 export default {
   id: 'document',
   reportName: 'document',
-  aliases: ['questionnaire'],
   onRequest: true,
   available: () => ({ ok: true, reason: 'needs no tool' }),
   start: () => ({

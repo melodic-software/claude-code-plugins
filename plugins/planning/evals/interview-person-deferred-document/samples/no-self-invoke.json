@@ -47,7 +47,7 @@
           "tool": "Skill",
           "input": {
             "skill": "planning:interview",
-            "args": "questionnaire Dana: retention window"
+            "args": "document Dana: retention window"
           }
         }
       ],

@@ -693,11 +693,12 @@ pin_case_digest "eval case A is unchanged (no criterion added that contradicts t
 # emoji paragraph and the Question lanes declared-default line flip the emoji default to on (#6233); presentation only, they resolve no row, and the no-silent-resolve and lock defenses are byte-identical
 # Document surface folded into the interview: the frontmatter adds the document trigger phrases and the `document` argument word; the Action Router adds one row that resolves a named surface and then runs `auto`, leaving the `lock` row and its STOP-on-gap reading untouched; the roster renames case 38 and adds cases 46-51, which register the recipient questions open and resolve none on anyone behalf, so neither defense is weakened
 # Review fix: the surface-word row now matches only a surface marked onRequest in the registry list, so an alias such as browser no longer reroutes a topic; it still only resolves a surface and runs `auto`, and the `lock` row and its STOP-on-gap reading are untouched
+# Owner decision: the surface-word row resolves a request made in words with the surface id, since the document surface keeps no prior-name argument word; the row still only resolves a surface and runs `auto`, and the `lock` row and its STOP-on-gap reading are untouched
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "5a451ed4f8dfaaac7b0eb83205221de424ee42323b43096cb5222c3de1f27a88"
+  "6695e5fce036cc33040726ecd35aed817679dfba13c77648e6df81c428148b39"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
