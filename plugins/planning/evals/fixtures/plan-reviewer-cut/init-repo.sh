@@ -4,7 +4,8 @@
 #
 #   init-repo.sh <branch>
 #
-# Each draft's phase headings carry the placeholder [STATUS]; this script sets it to [TODO].
+# Each draft's phase headings carry the placeholder [STATUS]; this script sets it to the
+# not-started status marker the plan skill expects.
 set -euo pipefail
 
 branch="$1"

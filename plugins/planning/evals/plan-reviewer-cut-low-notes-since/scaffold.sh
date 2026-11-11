@@ -76,7 +76,7 @@ cat >.work/notes-since/PLAN.md <<'EOF'
 ### Acceptance criteria
 - AC1: `notes list` without `--since` prints what it prints today.
 - AC2: `notes list --since 2026-03-01` prints only notes created on or after that date.
-- AC3: An unparseable `--since` value exits with status 2 and an error naming the flag.
+- AC3: An unparsable `--since` value exits with status 2 and an error naming the flag.
 
 ### Out-of-scope
 - Relative dates such as "last week".
