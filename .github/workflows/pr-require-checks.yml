@@ -7498,7 +7498,7 @@ jobs:
     timeout-minutes: 3
     permissions: {}
     steps:
-      - name: Report CI Status's conclusion
+      - name: Report the conclusion of `CI Status`
         env:
           RESULT: ${{ needs.ci-status.result }}
         run: |
