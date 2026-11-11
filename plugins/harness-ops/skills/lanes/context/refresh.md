@@ -9,11 +9,8 @@ an operator restart?
 
 Three independently sufficient facts block it, and any one alone is decisive.
 This section is the dated record for all three; SKILL.md points here rather than
-restating them. Verified 2026-09-06 against Claude Code 2.1.263 and the three
-pages cited below as fetched that day, each of which still carries the quoted
-span. Recheck when any of those pages drops its quoted sentence, or a release
-note names plugin auto-update, skill content lifecycle, or how a scheduled fire
-handles built-in commands.
+restating them. Each fact carries its own pointer, as-of date and recheck
+trigger.
 
 1. **A running session keeps its launch-time plugin versions.** Merging to the
    marketplace source does nothing to a live session until the local install is

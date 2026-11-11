@@ -79,8 +79,9 @@ under the machine-wide total, which includes it: `2 here` under the `actionable`
 versions per repo) is reserved for genuine conflicts: a delisted or delisted_settings_only plugin id, or a CLI call
 that failed, never for the routine bulk case. (Enable-state mismatches, a plugin `true` in one
 scope's `enabledPlugins` and `false` in another, are a known blind spot, not a reportable category:
-`fleet-state.sh` only exposes the merged effective value, never each scope's raw map, so this skill
-cannot detect one to report it. See [converge.md](converge.md) "V1 scope".)
+`fleet-state.sh` exposes the merged effective value and the project's raw entry
+(`projectEnabledEntry`), but not the raw local or user maps, so this skill cannot detect one to
+report it. See [converge.md](converge.md) "V1 scope".)
 
 ## Cache content: reported, never repaired
 

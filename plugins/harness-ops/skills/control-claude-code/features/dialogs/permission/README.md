@@ -38,7 +38,7 @@ record that, then delete the file.
 - Never wait on `ccprobe.txt` alone: Claude's reply can name the file before the dialog draws. The
   prompt spells the name in parts so the full name comes only from Claude.
 - When no dialog shows, look for a managed setting or a hook of the plugin under test that approves
-  the write before recording the dialog as missing; the restricted launch loads only managed
-  settings and `--settings`, per the `--restricted` row of
+  the write before recording the dialog as missing; which settings the restricted launch loads is
+  read live from the `--restricted` row of
   <https://code.claude.com/docs/en/cli-reference#cli-flags> (as of 2026-10-26; recheck when that
   row changes which settings it loads).

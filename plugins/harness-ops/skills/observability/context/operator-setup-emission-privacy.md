@@ -4,7 +4,7 @@ Parent: [`operator-setup.md`](operator-setup.md). Retention: [`operator-setup-re
 
 ## Emission profile (where each key lives)
 
-CC reads these at session start. Two homes: each developer's **user scope** (user settings
+Two homes: each developer's **user scope** (user settings
 `~/.claude/settings.json` `env`, or the shell) for every key that turns telemetry on, picks its
 destination, or captures content, and the committed project `.claude/settings.json` `env` for
 structure-only keys. Health check: if startup or `/status` reports ignored variables, move them
@@ -23,8 +23,8 @@ to user scope.
 
 `CLAUDE_CODE_ENABLE_TELEMETRY`, `OTEL_LOGS_EXPORTER`, `OTEL_METRICS_EXPORTER`,
 `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL` in user settings or the shell.
-Captures span/event names, durations, counts, and identity attributes, with **no** prompt / tool
-/ API-body content. Which identity attributes ride on metrics by default, and which appear only
+We treat this baseline as structure-only, with **no** prompt / tool / API-body content. What it
+emits, and which identity attributes ride on metrics by default, and which appear only
 under OAuth, are read live.
 
 - **Pointer**: when stating which identity attributes are emitted or on by default, fetch
@@ -64,10 +64,10 @@ committed file. To capture one project only, export them in the shell that launc
 
 | Key | Effect |
 |---|---|
-| `OTEL_LOG_USER_PROMPTS=1` | prompt text in events/spans (else `<REDACTED>`) |
+| `OTEL_LOG_USER_PROMPTS=1` | see the pointer below |
 | `OTEL_LOG_TOOL_DETAILS=1` | see the pointer below; needed in user scope for the `vcs_ref_head_*` columns |
-| `OTEL_LOG_TOOL_CONTENT=1` | tool content in spans |
-| `OTEL_LOG_RAW_API_BODIES=1` | raw API request/response bodies |
+| `OTEL_LOG_TOOL_CONTENT=1` | see the pointer below |
+| `OTEL_LOG_RAW_API_BODIES=1` | see the pointer below |
 
 - **Pointer**: when stating what each content key adds or what it requires, fetch
   [Agent SDK observability: control sensitive data in exports](https://code.claude.com/docs/en/agent-sdk/observability#control-sensitive-data-in-exports)
@@ -87,8 +87,8 @@ configuration variables](https://code.claude.com/docs/en/monitoring-usage#common
 - **As of**: 2026-10-10
 - **Recheck trigger**: either section changes what the flag adds.
 
-- `OTEL_LOG_RAW_API_BODIES` inline versus on-disk modes are in the common configuration variables
-  page linked above. The on-disk mode writes a **separate** directory that must ALSO be gitignored.
+- `OTEL_LOG_RAW_API_BODIES` modes are in the common configuration variables page linked above.
+  Gitignore any directory its on-disk mode writes, **too**.
 - **Traces** persist to `cc-traces.json` (query via `cc_spans` / `cc_traces`) and optionally
   fan out to the Aspire dashboard for live UI. Historical queries:
   [`otel-queries.md`](otel-queries.md).
@@ -118,4 +118,4 @@ profile. To turn one off for a single project, check the ignored-variables point
 which off values a project or local settings file honors. The user-scope baseline and traces keep emitting, and the committed `settings.json` carries no
 content keys to remove.
 
-Changes take effect on the **next** CC session (env is read at session start).
+Start a **new** CC session after a change.
