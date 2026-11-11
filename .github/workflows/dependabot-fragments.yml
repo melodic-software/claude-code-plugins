@@ -56,7 +56,9 @@ jobs:
       || contains(github.event.commits.*.author.email, '49699333+dependabot[bot]@users.noreply.github.com'))
     # The App's private key is an environment secret; the environment admits
     # only main (github-iac RepositoryEnvironments.cs).
-    environment: plugin-release
+    environment:
+      name: plugin-release
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
