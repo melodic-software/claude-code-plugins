@@ -1870,8 +1870,7 @@ hook::repo_root_uncached_to() {
     printf -v "$__hu_rr_dest" '%s' "$__hu_rr_val"
     return 0
   fi
-  __hu_rr_val="$__hu_rr_hint"
-  __hu_rr_val="${__hu_rr_val%/.claude}"
+  __hu_rr_val="${__hu_rr_hint%/.claude}"
   __hu_rr_val="${__hu_rr_val%\\.claude}"
   HOOK_REPO_ROOT_UNRESOLVED=1
   printf -v "$__hu_rr_dest" '%s' "$__hu_rr_val"
@@ -1948,6 +1947,25 @@ hook::walk_up_to() {
   [[ -n "$__hu_wu_hit" ]]
 }
 
+# hook::_rstrip_slashes_to <var> <path>: <path> without trailing slashes. A
+# lone `/` is kept: trimming the filesystem root's only slash would empty it.
+hook::_rstrip_slashes_to() {
+  local __hu_rs_p="$2"
+  while [[ "$__hu_rs_p" == */ && "$__hu_rs_p" != / ]]; do
+    __hu_rs_p="${__hu_rs_p%/}"
+  done
+  printf -v "$1" '%s' "$__hu_rs_p"
+}
+
+# hook::_strip_root_to <var> <file> <root> <fold>: <file> with its `<root>/`
+# prefix removed, compared case-insensitively when <fold> is 1. Returns 1 and
+# writes nothing when <file> is not under <root>.
+hook::_strip_root_to() {
+  local __hu_sr_pre="$3/"
+  [[ "$2" == "$__hu_sr_pre"* ]] || { (($4)) && [[ "${2,,}" == "${__hu_sr_pre,,}"* ]]; } || return 1
+  printf -v "$1" '%s' "${2:${#__hu_sr_pre}}"
+}
+
 # Repo-relative form of <file> under <repo-root> — the shape the telemetry
 # schema requires of `data.file` ("relative to the consuming repo root").
 #
@@ -1983,31 +2001,26 @@ hook::walk_up_to() {
 # shellcheck disable=SC2034  # public contract: callers may read HOOK_REPO_RELATIVE_DEGRADED
 hook::repo_relative_path_to() {
   local __hu_rp_dest="$1"
-  local __hu_rp_file="$2" __hu_rp_root="$3" __hu_rp_rel=""
-  local __hu_rp_file_n __hu_rp_root_n __hu_rp_file_c __hu_rp_root_c __hu_rp_pre
+  local __hu_rp_file_n="$2" __hu_rp_root_n="$3" __hu_rp_rel=""
+  local __hu_rp_file_c __hu_rp_root_c
   local __hu_rp_fold=0 __hu_rp_file_lm="" __hu_rp_root_lm=""
   HOOK_REPO_RELATIVE_DEGRADED=0
   # One separator spelling, then drop a trailing separator. A root that already
   # ends in / or \ makes the prefix "/repo//" and matches nothing, so every
-  # in-project file collapses to its basename (#4527). The filesystem root
-  # itself is kept: trimming its only slash would empty the anchor.
+  # in-project file collapses to its basename (#4527).
   # Backslash is a separator only on Windows; on POSIX it is a filename
   # character, and folding it could make an outside path look like a member.
-  __hu_rp_file_n=$__hu_rp_file
-  __hu_rp_root_n=$__hu_rp_root
+  # The Windows compare is also case-insensitive.
   case "${OSTYPE:-}" in
   msys* | cygwin* | win32)
+    __hu_rp_fold=1
     __hu_rp_file_n="${__hu_rp_file_n//\\//}"
     __hu_rp_root_n="${__hu_rp_root_n//\\//}"
     ;;
   *) ;; # POSIX: keep the caller's spelling
   esac
-  while [[ "$__hu_rp_root_n" == */ && "$__hu_rp_root_n" != / ]]; do
-    __hu_rp_root_n="${__hu_rp_root_n%/}"
-  done
-  while [[ "$__hu_rp_file_n" == */ && ${#__hu_rp_file_n} -gt 1 ]]; do
-    __hu_rp_file_n="${__hu_rp_file_n%/}"
-  done
+  hook::_rstrip_slashes_to __hu_rp_root_n "$__hu_rp_root_n"
+  hook::_rstrip_slashes_to __hu_rp_file_n "$__hu_rp_file_n"
   __hu_rp_file_c=$__hu_rp_file_n
   __hu_rp_root_c=$__hu_rp_root_n
   # An empty root anchors nothing, and the strip must not run against one:
@@ -2021,44 +2034,20 @@ hook::repo_relative_path_to() {
   # probes every PATH directory: on WSL that includes the /mnt/c entries, one
   # 9P round trip each, 13-20 ms per call. The call is therefore the lookup.
   if [[ -n "$__hu_rp_root_n" ]]; then
-    case "${OSTYPE:-}" in
-    msys* | cygwin* | win32)
-      __hu_rp_fold=1
+    if ((__hu_rp_fold)); then
       __hu_rp_file_lm=$(cygpath -l -m -- "$__hu_rp_file_n" 2>/dev/null) || __hu_rp_file_lm=""
       __hu_rp_root_lm=$(cygpath -l -m -- "$__hu_rp_root_n" 2>/dev/null) || __hu_rp_root_lm=""
       if [[ -n "$__hu_rp_file_lm" && -n "$__hu_rp_root_lm" ]]; then
-        __hu_rp_file_c="${__hu_rp_file_lm//\\//}"
-        __hu_rp_root_c="${__hu_rp_root_lm//\\//}"
-        while [[ "$__hu_rp_root_c" == */ && "$__hu_rp_root_c" != / ]]; do
-          __hu_rp_root_c="${__hu_rp_root_c%/}"
-        done
-        while [[ "$__hu_rp_file_c" == */ && ${#__hu_rp_file_c} -gt 1 ]]; do
-          __hu_rp_file_c="${__hu_rp_file_c%/}"
-        done
+        hook::_rstrip_slashes_to __hu_rp_file_c "${__hu_rp_file_lm//\\//}"
+        hook::_rstrip_slashes_to __hu_rp_root_c "${__hu_rp_root_lm//\\//}"
       fi
-      ;;
-    *) ;; # POSIX hosts: case-sensitive FS, strip the caller's spelling
-    esac
-    __hu_rp_pre="${__hu_rp_root_c}/"
-    if [[ "$__hu_rp_file_c" == "$__hu_rp_pre"* ]]; then
-      __hu_rp_rel="${__hu_rp_file_c#"$__hu_rp_pre"}"
-    elif ((__hu_rp_fold)) && [[ "${__hu_rp_file_c,,}" == "${__hu_rp_pre,,}"* ]]; then
-      __hu_rp_rel="${__hu_rp_file_c:${#__hu_rp_pre}}"
-    elif [[ "$__hu_rp_file_c" != "$__hu_rp_file_n" || "$__hu_rp_root_c" != "$__hu_rp_root_n" ]]; then
-      # cygpath sent the two sides to different trees (a /tmp that is usertemp
-      # on one side and a drive-root translation on the other). The caller's
-      # own spelling still shares a prefix; use that rather than the basename.
-      __hu_rp_pre="${__hu_rp_root_n}/"
-      if [[ "$__hu_rp_file_n" == "$__hu_rp_pre"* ]]; then
-        __hu_rp_rel="${__hu_rp_file_n#"$__hu_rp_pre"}"
-      elif ((__hu_rp_fold)) && [[ "${__hu_rp_file_n,,}" == "${__hu_rp_pre,,}"* ]]; then
-        __hu_rp_rel="${__hu_rp_file_n:${#__hu_rp_pre}}"
-      else
-        __hu_rp_rel=$__hu_rp_file_c
-      fi
-    else
-      __hu_rp_rel=$__hu_rp_file_c
     fi
+    # When cygpath sent the two sides to different trees (a /tmp that is
+    # usertemp on one side and a drive-root translation on the other), the
+    # caller's own spelling still shares a prefix; use that before the basename.
+    hook::_strip_root_to __hu_rp_rel "$__hu_rp_file_c" "$__hu_rp_root_c" "$__hu_rp_fold" ||
+      hook::_strip_root_to __hu_rp_rel "$__hu_rp_file_n" "$__hu_rp_root_n" "$__hu_rp_fold" ||
+      __hu_rp_rel=$__hu_rp_file_c
   else
     __hu_rp_rel=$__hu_rp_file_n
   fi
@@ -2210,21 +2199,24 @@ hook::read_supports_fractional_timeout() {
 hook::resolve_read_timeout_to() {
   local __hu_dest="$1"
   local __hu_t="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
+  local __hu_micros=0
+  # Zero falls under the floor, so it needs no test of its own.
   if [[ "$__hu_t" != "2" ]]; then
-    if ! [[ "$__hu_t" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ "$__hu_t" =~ ^0+(\.0+)?$ ]] ||
+    if ! hook::_micros_to __hu_micros "$__hu_t" || ((__hu_micros < HOOK_STDIN_READ_TIMEOUT_MIN_MICROS)) ||
       { [[ "$__hu_t" == *.* ]] && ! hook::read_supports_fractional_timeout; }; then
       __hu_t=2
-    elif [[ "$__hu_t" =~ ^([0-9]+)(\.([0-9]+))?$ ]]; then
-      local whole="${BASH_REMATCH[1]}" frac="${BASH_REMATCH[3]:-}"
-      frac="${frac}000000"
-      frac="${frac:0:6}"
-      local micros=$((10#$whole * 1000000 + 10#$frac))
-      if ((micros < HOOK_STDIN_READ_TIMEOUT_MIN_MICROS)); then
-        __hu_t=2
-      fi
     fi
   fi
   printf -v "$__hu_dest" '%s' "$__hu_t"
+}
+
+# hook::_micros_to <var> <seconds>: a decimal second count (`5`, `0.25`) in
+# whole microseconds, digits past the sixth decimal dropped (bash has no float
+# arithmetic). Returns 1 and writes nothing when <seconds> is not that decimal shape.
+hook::_micros_to() {
+  [[ "$2" =~ ^([0-9]+)(\.([0-9]+))?$ ]] || return 1
+  local __hu_mi_frac="${BASH_REMATCH[3]:-}000000"
+  printf -v "$1" '%s' "$((10#${BASH_REMATCH[1]} * 1000000 + 10#${__hu_mi_frac:0:6}))"
 }
 
 # How many slices the idle bound is divided into. `read -t` reports only that a
@@ -2246,7 +2238,7 @@ HOOK_STDIN_READ_SLICES=4
 # no substitution fork (GNU Bash: commands grouped for substitution run in a
 # subshell).
 hook::resolve_read_slice_to() {
-  local __hu_t="$1" __hu_slice=""
+  local __hu_t="$1" __hu_slice="" __hu_micros __hu_milli
   local __hu_slice_dest="$2" __hu_count_dest="$3"
   # The division is fixed-point shell arithmetic, not `awk t/n`. A hook pays for
   # every external process it spawns — ~140 ms each on Windows Git Bash, where
@@ -2263,15 +2255,11 @@ hook::resolve_read_slice_to() {
   # A value the pattern rejects, or one large enough to overflow the arithmetic
   # into a negative, leaves `slice` unusable and falls through to the unsliced
   # "<t> 1" form below, exactly as an awk failure did.
-  if [[ "$__hu_t" =~ ^([0-9]+)(\.([0-9]+))?$ ]] && ((HOOK_STDIN_READ_SLICES > 0)); then
-    local whole="${BASH_REMATCH[1]}" frac="${BASH_REMATCH[3]:-}"
-    frac="${frac}000000"
-    frac="${frac:0:6}"
-    local micros=$((10#$whole * 1000000 + 10#$frac))
-    local milli=$(((micros / HOOK_STDIN_READ_SLICES + 500) / 1000))
-    printf -v __hu_slice '%d.%03d' "$((milli / 1000))" "$((milli % 1000))"
+  if hook::_micros_to __hu_micros "$__hu_t" && ((HOOK_STDIN_READ_SLICES > 0)); then
+    __hu_milli=$(((__hu_micros / HOOK_STDIN_READ_SLICES + 500) / 1000))
+    printf -v __hu_slice '%d.%03d' "$((__hu_milli / 1000))" "$((__hu_milli % 1000))"
   fi
-  if [[ -n "$__hu_slice" && "$__hu_slice" =~ ^[0-9]+\.[0-9]+$ ]] && ! [[ "$__hu_slice" =~ ^0+\.0+$ ]] &&
+  if [[ "$__hu_slice" =~ ^[0-9]+\.[0-9]+$ ]] && ! [[ "$__hu_slice" =~ ^0+\.0+$ ]] &&
     hook::read_supports_fractional_timeout; then
     printf -v "$__hu_slice_dest" '%s' "$__hu_slice"
     printf -v "$__hu_count_dest" '%s' "$HOOK_STDIN_READ_SLICES"
@@ -2962,16 +2950,14 @@ hook::begin() {
   TOOL=""
   FILE_REL="$FILE"
   FILE_REL_DEGRADED=0
-  if ((__hu_bg_relative)); then
+  local __hu_bg_telemetry=0
+  hook::telemetry_enabled && __hu_bg_telemetry=1
+  if ((__hu_bg_relative || __hu_bg_telemetry)); then
     FILE_REL=""
     hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT" || FILE_REL_DEGRADED=1
   fi
-  if hook::telemetry_enabled; then
+  if ((__hu_bg_telemetry)); then
     hook::jq_fields "$INPUT" '.tool_name' && TOOL="${HOOK_JQ_FIELDS[0]}"
-    if ((__hu_bg_relative == 0)); then
-      FILE_REL=""
-      hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT" || FILE_REL_DEGRADED=1
-    fi
   fi
   return 0
 }
@@ -3119,21 +3105,16 @@ hook::extract_bash_subject_to() {
   while [[ "$first_token" == "sudo" || "$first_token" == *=* ]] &&
     [[ -n "$cmd" && "$cmd" == *[[:space:]]* ]]; do
     # A quote in the prefix token means a quoted value spans the next whitespace;
-    # we cannot tokenize it safely — bail rather than leak a value fragment.
-    if [[ "$first_token" == *[\"\']* ]]; then
-      printf -v "$__hu_dest" '%s' "$tool"
-      return 0
-    fi
+    # we cannot tokenize it safely — the quote check below bails rather than
+    # leak a value fragment.
+    [[ "$first_token" == *[\"\']* ]] && break
     cmd="${cmd#*[[:space:]]}"
     cmd="${cmd#"${cmd%%[![:space:]]*}"}"
     first_token="${cmd%%[[:space:]]*}"
   done
   # The resolved command token itself must not carry a quote (e.g. a value that
   # ended here), which would likewise be a value fragment.
-  if [[ "$first_token" == *[\"\']* ]]; then
-    printf -v "$__hu_dest" '%s' "$tool"
-    return 0
-  fi
+  #
   # A resolved token still shaped like a bare/trailing assignment (no following
   # command word consumed it in the strip loop) would emit the assignment's
   # value — a possible credential — as the subject; bail to the bare "Bash"
@@ -3143,16 +3124,14 @@ hook::extract_bash_subject_to() {
   # accepts nested subscripts like NAME[1+IDX[0]]=value, which a
   # no-close-bracket class would miss. This runs BEFORE the basename strip so
   # a path-valued assignment (TOKEN=/a/b/secret) cannot lose its "=" first.
-  if [[ "$first_token" =~ ^[a-zA-Z_][a-zA-Z0-9_]*(\[.*\])?\+?= ]]; then
-    printf -v "$__hu_dest" '%s' "$tool"
-    return 0
+  if [[ "$first_token" != *[\"\']* && ! "$first_token" =~ ^[a-zA-Z_][a-zA-Z0-9_]*(\[.*\])?\+?= ]]; then
+    first_token="${first_token##*/}"
+    if [[ -n "$first_token" ]]; then
+      printf -v "$__hu_dest" 'Bash:%s' "$first_token"
+      return 0
+    fi
   fi
-  first_token="${first_token##*/}"
-  if [[ -n "$first_token" ]]; then
-    printf -v "$__hu_dest" 'Bash:%s' "$first_token"
-  else
-    printf -v "$__hu_dest" '%s' "$tool"
-  fi
+  printf -v "$__hu_dest" '%s' "$tool"
 }
 
 # Append one line to a JSONL file, serialized under an flock advisory lock when
@@ -3366,14 +3345,11 @@ hook::emit_telemetry() {
         corr_t=${corr_t//"\\\""/@@}
       fi
     fi
-    local corr_parts corr_i corr_n corr_depth=0 corr_root="" corr_seg corr_x
+    local corr_parts corr_i corr_n corr_depth=0 corr_root="" corr_seg
     local corr_o corr_c
-    # Brace characters come from variables: a literal `}` inside a `${...}`
-    # pattern ends the expansion before the pattern is read. Each one is
-    # counted by deleting it and taking the length difference — a negated
-    # bracket class is not usable here, because `[!]}]` does not parse as the
-    # "neither ] nor }" class it looks like (it counted `{` as a closer).
-    local corr_ob='{' corr_cb='}' corr_osb='[' corr_csb=']'
+    # Each segment's depth change is its closers deleted minus its openers
+    # deleted, in length. The braces in the classes are escaped: a bare `}`
+    # inside a `${...}` pattern ends the expansion.
     local corr_glob=0
     [[ $- == *f* ]] || corr_glob=1
     set -f
@@ -3391,15 +3367,9 @@ hook::emit_telemetry() {
         if ((corr_i % 2 == 0)); then
           corr_seg=${corr_parts[corr_i]}
           corr_root+=$corr_seg
-          corr_x=${corr_seg//"$corr_ob"/}
-          corr_o=$((${#corr_seg} - ${#corr_x}))
-          corr_x=${corr_seg//"$corr_osb"/}
-          corr_o=$((corr_o + ${#corr_seg} - ${#corr_x}))
-          corr_x=${corr_seg//"$corr_cb"/}
-          corr_c=$((${#corr_seg} - ${#corr_x}))
-          corr_x=${corr_seg//"$corr_csb"/}
-          corr_c=$((corr_c + ${#corr_seg} - ${#corr_x}))
-          corr_depth=$((corr_depth + corr_o - corr_c))
+          corr_o=${corr_seg//[\{\[]/}
+          corr_c=${corr_seg//[\}\]]/}
+          corr_depth=$((corr_depth + ${#corr_c} - ${#corr_o}))
         elif ((corr_depth == 1)); then
           corr_root+='"'${corr_parts[corr_i]}'"'
         fi
@@ -3452,13 +3422,9 @@ hook::emit_telemetry() {
     # not used: jq's --slurpfile there is not portable on Windows. Redirect jq
     # stderr to /dev/null; output goes to a local variable — never to fd1.
     command -v jq >/dev/null 2>&1 || return 0
-    local data_file
+    local data_file envelope_rc=0
     data_file=$(mktemp) || return 0
-    printf '%s' "$data_json" >"$data_file" || {
-      rm -f "$data_file"
-      return 0
-    }
-    envelope=$(jq -nc \
+    printf '%s' "$data_json" >"$data_file" && envelope=$(jq -nc \
       --arg schema_version "1.1" \
       --arg timestamp "$timestamp" \
       --arg hook "$hook_id" \
@@ -3468,11 +3434,9 @@ hook::emit_telemetry() {
       --argjson corr "{${corr%,}}" \
       --slurpfile data "$data_file" \
       '{schema_version:$schema_version,timestamp:$timestamp,hook:$hook,hook_event:$hook_event,status:$status,duration_ms:$duration_ms} + $corr + {data:($data[0] // {})}' \
-      2>/dev/null) || {
-      rm -f "$data_file"
-      return 0
-    }
+      2>/dev/null) || envelope_rc=1
     rm -f "$data_file"
+    ((envelope_rc == 0)) || return 0
   fi
 
   # Resolve the sink path. A relative HOOK_TELEMETRY_SINK is joined onto the
