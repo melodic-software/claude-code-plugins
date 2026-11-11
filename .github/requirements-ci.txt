@@ -28,9 +28,9 @@ pytest-xdist==3.8.0 \
 # Its numbers move with its version, so the pin is exact; pathspec is its one
 # dependency not pinned above (pygments is). Both are pure-Python wheels, one
 # hash each.
-lizard==1.24.3 \
-    --hash=sha256:7d2570ca711288388de1cf0f25512e97fbbc5e189f551c87b4e20d11d028b297 \
-    --hash=sha256:f7fccd909719170e323a240cc6927bfea65984d77a8f9c0e6405be582e9861db
+lizard==1.25.1 \
+    --hash=sha256:3513ce263d17ed580f8efa202658b02c684d5da2b39ef40c7663971be822a9d6 \
+    --hash=sha256:789e7103875cb15aac273e1701cd72d4b9d5fa521790e258fe071dbf79dbc4ee
 pathspec==1.1.1 \
     --hash=sha256:a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189
 # pyyaml reads the skill/agent frontmatter surface for the hook-exec-form gate
