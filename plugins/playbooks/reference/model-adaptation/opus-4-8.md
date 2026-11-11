@@ -47,8 +47,6 @@ do not. `[CC: direct]`
 
 - **Pointer**: for instruction following, see
   [More literal instruction following](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#more-literal-instruction-following).
-- **As of**: 2026-08-08
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Verify with tools, not recall
 
@@ -58,8 +56,6 @@ for facts about the environment. `[CC: direct]`
 
 - **Pointer**: for tool use, see
   [Tool use triggering](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#tool-use-triggering).
-- **As of**: 2026-08-08
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Delegation
 
@@ -71,8 +67,6 @@ correct is under-delegation. `[CC: direct]`
 
 - **Pointer**: for subagent spawning, see
   [Controlling subagent spawning](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#controlling-subagent-spawning).
-- **As of**: 2026-08-08
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Effort
 
@@ -102,8 +96,6 @@ thinking there through its own controls. `[CC: API-side]`
   [Calibrating effort and thinking depth](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#calibrating-effort-and-thinking-depth);
   for Claude Code's controls, see
   [Extended thinking](https://code.claude.com/docs/en/model-config#extended-thinking).
-- **As of**: 2026-08-08 for the guide; 2026-10-01 for model-config.
-- **Recheck trigger**: a re-read of either section no longer supporting the decision above.
 
 ## Review findings
 
@@ -114,8 +106,6 @@ against, never an adjective; the guide's tested wording is at the pointer. `[CC:
 
 - **Pointer**: for review harnesses, see
   [Code review harnesses](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#code-review-harnesses).
-- **As of**: 2026-08-08
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Behaviors to emulate deliberately
 
@@ -150,9 +140,6 @@ one as a default is checked at the first pointer.
   [Construct a memory system](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#construct-a-memory-system),
   and
   [Readability when communicating with the user](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#readability-when-communicating-with-the-user).
-- **As of**: 2026-10-01
-- **Recheck trigger**: a re-read of any pointed section no longer supporting the bullet that
-  cites it.
 
 ## What NOT to import from Fable-era practice
 
@@ -171,7 +158,6 @@ one as a default is checked at the first pointer.
 - **Do not scaffold your own progress updates.** Forced interim-status rituals add noise.
   `[CC: prompt-authoring]` Pointer: for progress updates, see
   [User-facing progress updates](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#user-facing-progress-updates).
-  As of: 2026-08-08. Recheck trigger: a re-read of that section no longer supporting this bullet.
 - **Do not treat this playbook as license to overthink.** Allocate effort where decisions are hard
   to reverse. The calibration chapter's stop-conditions apply unchanged. `[CC: direct]`
 

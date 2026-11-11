@@ -17,8 +17,6 @@ Use 'max' for hard debugging, architecture decisions, tricky code where Claude n
 > **Amended:** the levels a model offers and its default level vary by model. For the current
 > levels and defaults, see
 > [Claude Code model config, "Choose an effort level"](https://code.claude.com/docs/en/model-config#choose-an-effort-level).
-> **As of:** 2026-09-30. **Recheck trigger:** that section is renamed or removed, or stops stating
-> each model's default level.
 
 Source: https://x.com/trq212/status/2032632596572811575
 

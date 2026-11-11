@@ -50,8 +50,7 @@ the guide's statement; if the guide reconciles the two, this section moves with 
   and
   [Capability improvements](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#capability-improvements).
 - **As of**: 2026-08-08
-- **Recheck trigger**: a re-read of any pointed section no longer supporting the decision above,
-  or the guide reconciling its sections on verification.
+- **Recheck trigger**: the guide reconciling its sections on verification.
 
 ## Stated facts
 
@@ -78,8 +77,6 @@ at the pointer; do not add one to surfaces where the user operates the work.
 
 - **Pointer**: for correction narration, see
   [Self-correction](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#self-correction).
-- **As of**: 2026-08-08
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Scope
 
@@ -89,8 +86,6 @@ stays on the live page. `[CC: direct]`
 
 - **Pointer**: for scope, see
   [Task scope and over-verification](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#task-scope-and-over-verification).
-- **As of**: 2026-08-08
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Review findings
 
@@ -103,8 +98,6 @@ pass is legitimate, run at `medium` effort or above per this repository's effort
   [Capability improvements](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#capability-improvements);
   for the effort floor, see
   [Effort floor](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/plugin-philosophy.md#effort-floor).
-- **As of**: 2026-08-08 for the guide; 2026-10-02 for the effort floor
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Delegation
 
@@ -115,8 +108,6 @@ the floor.
 
 - **Pointer**: for subagent spawning, see
   [Controlling subagent spawning](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#controlling-subagent-spawning).
-- **As of**: 2026-08-08
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Output length
 
@@ -130,8 +121,6 @@ the guide's calibration wording at the pointer. `[CC: direct]`
   [User-facing progress updates](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#user-facing-progress-updates),
   and
   [Written deliverable length](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#written-deliverable-length).
-- **As of**: 2026-08-08
-- **Recheck trigger**: a re-read of any pointed section no longer supporting the decision above.
 
 ## Thinking and effort
 
@@ -151,9 +140,6 @@ how each surface handles this pairing resolves at the pointers. The effort ladde
   for effort, see
   [Recommended effort levels for Claude Opus 5](https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels-for-claude-opus-5)
   and [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level).
-- **As of**: 2026-08-08 for the guide; 2026-10-01 for model-config and the errors page.
-- **Recheck trigger**: a re-read of any pointed section no longer supporting the decision above,
-  or a Claude Code release note changing how a thinking-disable setting combines with effort.
 
 ## Destructive actions
 

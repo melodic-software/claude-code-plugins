@@ -59,9 +59,6 @@ Hooks run logic at specific points in the agent lifecycle:
 
 - **Pointer**: for the hook events that exist and when each fires, see
   [Hook events](https://code.claude.com/docs/en/hooks#hook-events).
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section adds, renames or removes a hook event, or a Claude Code release
-  note touches one.
 
 See also: [Section 7: Hooks](foundations.md)
 
@@ -164,8 +161,6 @@ For non-interactive usage, most of the time you want to specify explicitly what 
 - **Pointer**: for what a non-interactive run loads by default and what `--bare` skips, fetch
   [Start faster with bare mode](https://code.claude.com/docs/en/headless#start-faster-with-bare-mode)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section changes what bare mode skips or whether it is the default.
 
 ```bash
 claude -p --bare --system-prompt "..." --mcp-config ./my-config.json
@@ -201,9 +196,6 @@ claude --agent=<your-agent-name>
 
 - **Pointer**: for how `--agent` runs a defined agent as the main session, see
   [Invoke subagents explicitly](https://code.claude.com/docs/en/sub-agents#invoke-subagents-explicitly).
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section renames or removes the `--agent` flag or changes what it loads,
-  or a Claude Code release note touches it.
 
 See also: [Section 22: Agents](customization.md)
 
