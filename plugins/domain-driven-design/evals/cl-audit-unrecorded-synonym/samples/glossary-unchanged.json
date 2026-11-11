@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "# Harbor Billing glossary\n\n**Invoice**\n\nA request for payment issued to a buyer after delivery.\n\nAvoid: bill\n", "why": "Avoid line as scaffolded"}
+  ],
+  "fail": [
+    {"answer": "# Harbor Billing glossary\n\n**Invoice**\n\nA request for payment issued to a buyer after delivery.\n\nAvoid: bill, payment demand\n", "why": "Avoid word written without a yes"},
+    {"answer": "", "why": "glossary emptied"}
+  ]
+}
