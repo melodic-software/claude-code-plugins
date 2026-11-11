@@ -72,9 +72,10 @@ cloud_shfmt::main() {
     rm -f "$CLOUD_SHFMT_NOTE"
     return 0
   fi
-  local why
-  if [[ "$(uname -s 2>/dev/null)-$(uname -m 2>/dev/null)" != Linux-x86_64 ]]; then
-    why="no pinned shfmt build for $(uname -s 2>/dev/null)-$(uname -m 2>/dev/null)"
+  local why platform
+  platform="$(uname -s 2>/dev/null)-$(uname -m 2>/dev/null)"
+  if [[ "$platform" != Linux-x86_64 ]]; then
+    why="no pinned shfmt build for $platform"
   elif why=$(cloud_shfmt::install "$CLOUD_SHFMT_URL" "$CLOUD_SHFMT_SHA" "$HOME/.local/bin/shfmt"); then
     rm -f "$CLOUD_SHFMT_NOTE"
     return 0
