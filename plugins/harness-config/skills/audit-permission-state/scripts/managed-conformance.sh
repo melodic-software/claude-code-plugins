@@ -84,21 +84,20 @@ function text_of(start,   i, s) {
 function tool_of(t,   p) { p = index(t, "("); return p ? substr(t, 1, p - 1) : t }
 
 $1 == "rule" {
+  key = $4 SUBSEP text_of(5)
   if ($2 == "managed") {
-    key = $4 SUBSEP text_of(5)
     if (!(key in managed_seen)) {
       managed_seen[key] = 1
       managed_order[++n_managed] = key
     }
   } else {
-    lk = $4 SUBSEP text_of(5)
-    # Guarded by a counter rather than `(lk in lower)`: mawk creates the element
+    # Guarded by a counter rather than `(key in lower)`: mawk creates the element
     # named by an assignment target before evaluating the right-hand side, so
     # the membership test is already true on the first contributor and the scope
     # list comes out with a leading empty element ("in scope(s) ,user"). See the
     # same fix in permission-merge.sh.
-    lower[lk] = (n_lower[lk] > 0) ? lower[lk] "," $2 : $2
-    n_lower[lk]++
+    lower[key] = (n_lower[key] > 0) ? lower[key] "," $2 : $2
+    n_lower[key]++
   }
   next
 }
@@ -182,15 +181,14 @@ END {
       tk = tool_of(text)
       earlier_kinds = (kind == "allow") ? "deny ask" : "deny"
       n_earlier = split(earlier_kinds, earlier, " ")
-      beaten = ""; beaten_key = ""
+      beaten = ""; beaten_text = ""
       for (e = 1; e <= n_earlier && beaten == ""; e++) {
-        if ((earlier[e] SUBSEP text) in lower) { beaten = earlier[e]; beaten_key = earlier[e] SUBSEP text }
-        else if (tk != text && (earlier[e] SUBSEP tk) in lower) { beaten = earlier[e]; beaten_key = earlier[e] SUBSEP tk }
+        if ((earlier[e] SUBSEP text) in lower) { beaten = earlier[e]; beaten_text = text }
+        else if (tk != text && (earlier[e] SUBSEP tk) in lower) { beaten = earlier[e]; beaten_text = tk }
       }
       if (beaten != "") {
-        split(beaten_key, bk, SUBSEP)
-        whole = (bk[2] == tk && tk != text) ? " whole-tool" : ""
-        print "managed loosenable rule the managed " kind " rule " text " is outranked by a" whole " " beaten " rule (" bk[2] ") in scope(s) " lower[beaten_key] " — evaluation order (deny, then ask, then allow) applies from any scope, so a lower scope changes the outcome without overriding the managed rule"
+        whole = (beaten_text != text) ? " whole-tool" : ""
+        print "managed loosenable rule the managed " kind " rule " text " is outranked by a" whole " " beaten " rule (" beaten_text ") in scope(s) " lower[beaten SUBSEP beaten_text] " — evaluation order (deny, then ask, then allow) applies from any scope, so a lower scope changes the outcome without overriding the managed rule"
         n_loosenable++
       } else {
         print "managed enforced " kind " " text
