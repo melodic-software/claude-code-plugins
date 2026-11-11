@@ -28,11 +28,11 @@ Output reports: Kindle for PC version, firewall rule presence, ICACLS deny prese
 | (empty) | Default. Auto-detect from status | If pristine → recommend `/kindle-dedrm:setup`. If state OK + user mentioned new books → recommend `sync`. Otherwise emit status report |
 | `setup` | First-time install | Delegates to the dedicated **`/kindle-dedrm:setup`** skill (uniform check/apply contract): provisioning walkthrough: download, install Kindle for PC 2.8.0, sign-in checkpoint, sync books, install Calibre plugins, run keyfinder, apply firewall + ICACLS lockdown |
 | `sync` | New books purchased after initial setup | Disable firewall, prompt user to sync in Kindle, delete cached installer, re-enable firewall, re-run keyfinder |
-| `update` | Periodic drift check | WebFetch tutorial URLs + gh API for upstream releases, diff against captured baselines in `reference/sources.md`, emit drift report. No mutations |
+| `update` | Periodic drift check | HEAD-probe the pinned URLs + gh API for upstream releases, diff against captured baselines in `reference/sources.md`, emit drift report. No mutations |
 | `cleanup` | Decommission | Walk through every reversible mutation with per-item Y/N. Default (confirm-each) offers the firewall rule, ICACLS deny, keyfinder, and downloads; `--soft` limits to tools + downloads (keeps the firewall/ICACLS lock and Kindle for PC); `--full` also offers to uninstall Kindle for PC and remove Calibre plugins. The Calibre Library is never offered |
 | `status` | Diagnostic | Same as default empty action |
 
-Smart auto-detect when action is empty: read pre-computed context, classify state, recommend the most-fitting action OR emit status if classification is ambiguous. Never commit to setup/sync/cleanup without user confirmation when ambiguous.
+Smart auto-detect when action is empty: read the `status.sh` JSON, classify state, recommend the most-fitting action OR emit status if classification is ambiguous. Never commit to setup/sync/cleanup without user confirmation when ambiguous.
 
 ## Hard safety rules
 

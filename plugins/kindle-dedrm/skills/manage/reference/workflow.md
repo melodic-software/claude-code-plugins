@@ -250,7 +250,7 @@ First-run wizard prompts (defaults are fine):
 
 Tool runs four phases in order:
 
-1. **Phase 1: Key extraction.** Runs KFXKeyExtractor28.exe per book; falls back to KFXArchiver283.exe for unsupported versions. Writes `~/Tools/Kindle_Key_Finder/Keys/kindlekey.txt` + `kindlekey.k4i`.
+1. **Phase 1: Key extraction.** Runs KFXKeyExtractor282.exe per book; falls back to KFXArchiver283.exe for unsupported versions. Writes `~/Tools/Kindle_Key_Finder/Keys/kindlekey.txt` + `kindlekey.k4i`.
 2. **Phase 2: DeDRM config.** Reads keys, writes them to `%APPDATA%\calibre\plugins\dedrm.json`.
 3. **Phase 3: Calibre import.** Uses `calibredb add` per book; DeDRM strips encryption on import.
 4. **Phase 4: KFX → EPUB conversion.** Uses `ebook-convert` per book.

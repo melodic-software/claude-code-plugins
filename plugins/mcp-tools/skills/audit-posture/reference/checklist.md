@@ -234,10 +234,10 @@ the entry checks first.
 
 - **Pointer**: when an sdk row appears, fetch
   <https://code.claude.com/docs/en/mcp#option-1-add-a-remote-http-server> (the note on `sdk`
-  entries) and <https://code.claude.com/docs/en/changelog> (version 2.1.274) live.
+  entries) and <https://code.claude.com/docs/en/changelog#2-1-274> live.
 - **Source conflict**: the mcp page
   (<https://code.claude.com/docs/en/mcp#option-1-add-a-remote-http-server>) and changelog 2.1.274
-  (<https://code.claude.com/docs/en/changelog>) disagree on which config sources skip an sdk entry.
+  (<https://code.claude.com/docs/en/changelog#2-1-274>) disagree on which config sources skip an sdk entry.
 - **As of**: 2026-10-10
 - **Recheck trigger**: the mcp page's `sdk` note changes the sources it names, or a Claude Code
   release note names `"type": "sdk"` entries.

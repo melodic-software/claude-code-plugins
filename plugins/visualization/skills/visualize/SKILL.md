@@ -237,9 +237,11 @@ look" only swaps one default for another.
 primitive, never into the consumer's repository tree. On Unix/Linux/Git Bash,
 create a private run directory and echo it in the same call,
 `d=$(mktemp -d "${TMPDIR:-/tmp}/visualize-XXXXXX"); echo "$d"`, then write the
-page to `<echoed dir>/visualize.html`. Echo it because shell state does not
-survive between Bash calls: the directory name is random, so an unechoed path is
-unrecoverable in the call that writes the file. Carry the temp root in the positional template, the one form GNU and BSD `mktemp` accept identically, since `-p`/`--tmpdir`/`-t` differ between the dialects and a bare relative template silently creates the file in the **current directory**, the consumer's repository. Keep the `XXXXXX` placeholders **trailing**. BSD `mktemp` (macOS) substitutes only trailing Xs, so an extension after them is not portable.
+page to `<echoed dir>/visualize.html`. Echo it in that call: the directory name
+is random, so an unechoed path is unrecoverable in the call that writes the file
+(what carries between Bash calls:
+[Tools reference, "What persists between commands"](https://code.claude.com/docs/en/tools-reference#what-persists-between-commands),
+as of 2026-11-10; recheck when that section says shell variables persist between calls). Carry the temp root in the positional template, the one form GNU and BSD `mktemp` accept identically, since `-p`/`--tmpdir`/`-t` differ between the dialects and a bare relative template silently creates the file in the **current directory**, the consumer's repository. Keep the `XXXXXX` placeholders **trailing**. BSD `mktemp` (macOS) substitutes only trailing Xs, so an extension after them is not portable.
 That is why the page takes a fixed name inside the generated directory rather
 than a `visualize-XXXXXX.html` template, which macOS cannot create at all. On Windows,
 a user-scoped temp under
@@ -268,8 +270,8 @@ node "${CLAUDE_PLUGIN_ROOT}/lib/mermaid-gate.mjs" [--svg-dir "<dir>"] <file>...
 
 Stdout is one JSON report; each block has `file`, `line`, `status` (`ok` or `error`) and `render`
 (`svg` or `source`). Exit 1 means a block failed to parse. For a local file, pass `--svg-dir` and
-embed the SVG a block names in place of the fence. For an Artifact, omit `--svg-dir`: the Artifact
-renders mermaid natively and needs the parse only.
+embed the SVG a block names in place of the fence. For an Artifact, omit `--svg-dir` and run the parse
+only (why: [the catalog's Published Artifact entry](context/decision-matrix.md#published-artifact)).
 
 - `status: error`: do not write the page. Report the block's `file`, `line` and `error`, fix the
   diagram, run the gate again.
@@ -373,18 +375,22 @@ round-trip controls), never a hand-built imitation of the explorer.
 The **design canvas** is the bundled `design` skill, a native surface this skill overlaps on
 hand-tweakable layouts, so a request for a mockup or a one-pager can mean either:
 
-- **`design` (bundled skill)**: drafts artboards on one canvas, published as a persistent,
-  shareable Claude Design Artifact under the person's account that they edit in a desktop browser. It is reserved for the
-  person to run; the model does not invoke it.
+- **`design` (bundled skill)**: drafts artboards on one canvas the person keeps and edits
+  (what it publishes and where it is edited:
+  [Artifacts: Draft a design canvas](https://code.claude.com/docs/en/artifacts#draft-a-design-canvas),
+  as of 2026-11-10; recheck when that section changes what a canvas publishes or where it is
+  edited). It is reserved for the person to run; the model does not invoke it.
 - **This skill (marketplace plugin)**: picks the form and medium and renders a throwaway or
   plain-static page.
 
 **Routing:** when the form is a hand-tweakable layout and Step 3's medium permits publishing,
 render this skill's page and tell the person: If /design is available in your session (gate
 basis: the verification record below), you can run it instead of or alongside this skill for a
-hand-editable design canvas. A local skill named `design` at any level silently shadows the
-bundled command, and the bundled one never appears in your skill listing, so a `design` entry in
-that listing is a shadowing local skill: do not make the offer, and tell the person a local
+hand-editable design canvas. Treat a `design` entry in your skill listing as a local skill
+shadowing the bundled command (how same-name skills resolve:
+[Skills, "Resolve skills that share a name"](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name),
+as of 2026-11-10; recheck when that section lets a bundled skill and a local one of the same name
+both appear): do not make the offer, and tell the person a local
 `design` skill shadows the bundled canvas command. A local `design` skill that disables model
 invocation shadows it too and is hidden from you, so every offer adds that `/design`'s description
 should read "Make a new Design artifact from a brief"; anything else is a local skill, not the
