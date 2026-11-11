@@ -3,6 +3,16 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.2] - 2026-11-11
+
+### Changed
+
+- The `confirm` skill now cites the gather-block convention record, "The pre-compute block runs as one shell
+  invocation", instead of restating how the harness runs the pre-compute block. No behavior
+  change.
+
+- `confirm` reads which settings hide `/verify` from its records instead of naming them, and its `CLAUDE_CODE_REMOTE` pointer links the env-vars section. `setup`'s "does not do" list now matches what `apply` writes: the one personal-override ignore line the operator confirms. No behavior change.
+
 ## [0.22.1] - 2026-11-10
 
 ### Changed

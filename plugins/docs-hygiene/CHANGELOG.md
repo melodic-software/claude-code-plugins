@@ -1,5 +1,13 @@
 # Changelog: docs-hygiene plugin
 
+## [2.10.2] - 2026-11-11
+
+### Changed
+
+- The `audit-derivability`, `audit-noise` and `compress` skills now cite the gather-block convention record, "The pre-compute block runs as one shell
+  invocation", instead of restating how the harness runs the pre-compute block. No behavior
+  change.
+
 ## [2.10.1] - 2026-11-11
 
 ### Changed

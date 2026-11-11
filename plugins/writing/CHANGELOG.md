@@ -5,6 +5,12 @@ All notable changes to the `writing` plugin are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.3] - 2026-11-11
+
+### Changed
+
+- `be-concise`'s doctrine cites the reading-share and usability figures through their records in `sources.md` instead of repeating the percentages. No behavior change.
+
 ## [0.3.2] - 2026-11-09
 
 ### Changed

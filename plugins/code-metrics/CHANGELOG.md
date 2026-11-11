@@ -3,6 +3,18 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.11] - 2026-11-11
+
+### Changed
+
+- `audit-coverage` and the `principles` reference files cite the "Coverage artifacts" rows of
+  `reference/collectors.md` for lcov and coverage.py versions instead of restating them, and
+  `principles` points at the shellmetrics README for shell-dependent values.
+- `principles` now says the plugin has the `audit` skill and its `audit-*` siblings, names
+  `audit-suppressions --findings` as the one findings file, and describes the mypy figure as a
+  ratio over expressions. The c8 link in `audit-suppressions` points at the README section that
+  exists. No behavior change.
+
 ## [1.0.10] - 2026-11-10
 
 ### Changed
