@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "Preferred: `claude plugin configure eol-normalizer@<marketplace> --values-stdin < values.json`.\n\nBefore 2.1.285: `claude plugin install eol-normalizer@<marketplace> -s <scope> --config eol_normalizer_enabled=false`."
+    },
+    {
+      "answer": "1. claude plugin configure eol-normalizer@m --values-stdin\n2. claude plugin install eol-normalizer@m --config=eol_normalizer_enabled=false",
+      "why": "--config="
+    }
+  ],
+  "fail": [
+    {
+      "answer": "claude plugin install eol-normalizer@m -s user --config eol_normalizer_enabled=false",
+      "why": "fallback without the preferred route"
+    },
+    {
+      "answer": "claude plugin install eol-normalizer@m --config eol_normalizer_enabled=false\nor claude plugin configure eol-normalizer@m --values-stdin",
+      "why": "fallback first"
+    },
+    {
+      "answer": "claude plugin configure eol-normalizer@m --values-stdin\nclaude plugin install eol-normalizer@m --config eol_normalizer_enabled=true",
+      "why": "wrong value"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

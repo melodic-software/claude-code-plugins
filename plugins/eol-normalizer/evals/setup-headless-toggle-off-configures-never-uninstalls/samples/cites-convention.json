@@ -5,6 +5,9 @@
     },
     {
       "answer": "Follow the marketplace's plugin reconfiguration convention for the headless route."
+    },
+    {
+      "answer": "The sandbox blocked the reconfiguration-convention page, so check its routes on your CI box."
     }
   ],
   "fail": [

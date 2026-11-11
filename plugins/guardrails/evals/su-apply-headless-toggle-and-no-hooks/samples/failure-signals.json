@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "--values-stdin exits 1 on a bad value and saves nothing; the --config rerun prints a warning but exits 0, so read its output, not the exit code."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Both routes exit non-zero on a bad value.",
+      "why": "wrong"
+    },
+    {
+      "answer": "--values-stdin exits 1 on a bad value.",
+      "why": "near miss: no --config signal"
+    },
+    {
+      "answer": "The --config rerun exits 1 on a rejected value.",
+      "why": "near miss: wrong exit code"
+    }
+  ]
+}

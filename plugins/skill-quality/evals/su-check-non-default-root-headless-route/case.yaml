@@ -48,3 +48,11 @@ graders:
     min: 0
     max: 0
     arm: both
+  - name: 'install-config-fallback'
+    type: 'regex'
+    pattern: 'claude plugin install skill-quality@[^\n]*?--config\s+skills_root='
+    target: 'last_message'
+  - name: 'scope-from-plugin-list'
+    type: 'regex'
+    pattern: '\bclaude plugin list\b'
+    target: 'last_message'

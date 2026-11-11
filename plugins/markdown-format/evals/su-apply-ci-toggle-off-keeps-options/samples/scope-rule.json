@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Pass the scope `claude plugin list` reports for this plugin; from the home directory pass `user`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Pass `-s project`.",
+      "why": "a fixed wrong scope"
+    },
+    {
+      "answer": "Pass `-s user`.",
+      "why": "no list lookup"
+    }
+  ]
+}

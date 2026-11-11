@@ -15,7 +15,7 @@ graders:
     focus: 'last_message'
   - name: cites-reconfiguration-convention
     type: regex
-    pattern: '\bplugin[- ]reconfiguration\b'
+    pattern: '\bplugin[- ]reconfiguration\b|\breconfiguration[- ](?:convention|contract|routes|guide)\b'
     flags: 'i'
     target: 'last_message'
   - name: no-restated-versions
@@ -26,7 +26,7 @@ graders:
     target: 'last_message'
   - name: fresh-session-observed-value
     type: llm
-    criteria: 'The reply does not claim the checkpoint is now off. It tells the user to rerun check in a fresh session, because a same-session check can still report the old value, and to report the effective value that check observes.'
+    criteria: 'The reply does not claim the checkpoint is now off. It tells the user to confirm the change by rerunning the setup check in a fresh session, because a same-session check can still report the old value.'
     focus: 'last_message'
   - name: no-plugin-command-run
     type: tool_used
@@ -35,3 +35,15 @@ graders:
     min: 0
     max: 0
     arm: 'both'
+  - name: 'fallback-after-configure'
+    type: 'regex'
+    pattern: 'claude plugin configure(?:\s+-\S+)*\s+context\-budget@\S+[\s\S]*?claude plugin install(?:\s+-\S+(?:\s+(?!context\-budget@)(?:\w+|<[^>\s]+>))?)*\s+context\-budget@\S+(?:\\\n|[^\n])*?--config[ =]settings_write_ask_enabled=false\b'
+    target: 'last_message'
+  - name: 'already-installed-still-writes'
+    type: 'regex'
+    pattern: '\balready[- ]installed\b[^\n]{0,160}\b(?:still|also)\b[^\n]{0,40}\b(?:writes?|saves?)\b|\bstill (?:writes?|saves?)\b[^\n]{0,160}\balready[- ]installed\b'
+    target: 'last_message'
+  - name: 'scope-rule'
+    type: 'llm'
+    criteria: 'The reply says to run claude plugin configure from the project the plugin is installed in, since it has no scope flag, and to pass the install --config rerun the scope claude plugin list reports for this plugin, since a rerun at another scope adds an install record there.'
+    focus: 'last_message'

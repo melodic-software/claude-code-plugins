@@ -12,7 +12,7 @@
     "\\bblock_cd_prefix_enabled\\b[^\\n]{0,40}?\\bfalse\\b"
   ],
   "cites-convention": [
-    "\\bplugin[- ]reconfiguration\\b"
+    "\\bplugin[- ]reconfiguration\\b|\\breconfiguration[- ](?:convention|contract|routes|guide)\\b"
   ],
   "names-install-git-hooks": [
     "\\bapply install-git-hooks(?![\\w-]|\\.\\w)"
