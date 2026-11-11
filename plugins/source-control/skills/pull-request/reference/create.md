@@ -623,8 +623,8 @@ more than one repository, none a pushable fork of another, and none is recorded 
 repository, named explicitly, stands in for the script's result. Open the PR as a draft on that repository from
 head `$BRANCH`, with the title and the body file, and capture `PR_URL` and `PR_NUMBER`
 ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-draft-pr)). That
-repository and number are the source of truth for the rest of this phase: pass both explicitly to
-every later forge call.
+repository and number are the source of truth for the rest of this phase: every later forge read
+and write targets that repository, and names the number.
 
 - **Identity:** the human PR author by default. If the consuming project routes automation writes
   through a bot identity wrapper, use it for comments and reactions; the human account normally

@@ -33,13 +33,18 @@ prompt (an agent's shell, or any `$(...)` capture), the first remote in its own 
 name, where `upstream` comes before `origin`. A stock `gh repo clone` of a fork records `upstream`
 as the default. So in a fork checkout a bare write can land on the upstream repository.
 
-Each phase that writes resolves the repository once, before its first forge call, with
-`bash "<skill-dir>/scripts/target-repo.sh" [--dir <checkout>]` (the pull-request skill's script),
-reports the `target repository:` line it prints, and names that repository in every later call of
-the phase: `-R <owner>/<repo>` on `gh pr` and `gh issue`, `repos/<owner>/<repo>/...` on `gh api`,
-as [merge](pull-request/merge.md#merge-command) already does. The script resolves in this order:
+Each phase that writes resolves the repository once, before its first write (ready and evidence
+before their first read too), with `bash "<skill-dir>/scripts/target-repo.sh" [--dir <checkout>]`
+(the pull-request skill's script), reports the `target repository:` line it prints, and targets
+that repository with every later read and write of the phase. Each write names it:
+`-R <owner>/<repo>` on `gh pr` and `gh issue`, `repos/<owner>/<repo>/...` on `gh api`, as
+[merge](pull-request/merge.md#merge-command) already does. A phase that runs shell blocks also
+exports `GH_REPO` with it, which every other `gh` call follows, the scripts the phase runs
+included, and which `{owner}/{repo}` placeholders expand from. `gh repo view` with no argument
+ignores `GH_REPO` (gh 2.103.3), so a script that needs the repository reads
+`gh api 'repos/{owner}/{repo}' --jq .full_name` instead. The script resolves in this order:
 
-1. `GH_REPO`, when set: the caller's explicit choice, which the phase's unpinned reads also follow.
+1. `GH_REPO`, when set: the caller's explicit choice, or the repository an earlier block resolved.
 2. When the remotes name two or more github.com repositories, the fork among them: a remote's
    repository the caller can push to (`.permissions.push`) whose parent (`.parent.full_name`,
    both from `gh api repos/<owner>/<repo>`) is the recorded default or another remote's

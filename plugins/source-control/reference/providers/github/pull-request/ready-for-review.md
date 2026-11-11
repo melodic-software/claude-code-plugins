@@ -7,12 +7,15 @@ and `gh` facts behind them.
 
 ## Find the PR for the branch
 
-The repository is resolved once, before the PR, and every write below names it
-([target repository](../README.md#target-repository)). A non-zero exit from `target-repo.sh` ends
-the phase with its stderr reported.
+The repository is resolved once, before the PR, and every read and write below targets it
+([target repository](../README.md#target-repository)): the writes name it, and the exported
+`GH_REPO` carries it to every other `gh` call, the scripts' included. A shell that runs a later
+block runs this block's first two lines first. A non-zero exit from `target-repo.sh` ends the phase with its stderr
+reported.
 
 ```bash
 REPO=$(bash "<skill-dir>/scripts/target-repo.sh") || exit 1
+export GH_REPO="$REPO"
 BRANCH=$(git branch --show-current)
 PR_NUMBER=$(gh pr view "$BRANCH" -R "$REPO" --json number -q '.number' 2>/dev/null)
 ```

@@ -51,8 +51,8 @@ found() {
   exit 0
 }
 
-# An explicit GH_REPO is the caller's choice, and the phase's unpinned reads
-# follow it, so it wins. It may carry a HOST/ prefix.
+# GH_REPO is the caller's choice, or the repository an earlier block resolved
+# and exported, so it wins. It may carry a HOST/ prefix.
 if [[ -n "${GH_REPO:-}" ]]; then
   repo="${GH_REPO%/}"
   [[ "$repo" == */*/* ]] && repo="${repo#*/}"

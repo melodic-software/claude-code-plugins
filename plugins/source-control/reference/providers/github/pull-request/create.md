@@ -95,10 +95,10 @@ from `gh api "repos/{owner}/{repo}/issues/${REFS_NUM}"` (state `open`) and the s
 
 `gh api` has no `--repo` flag. `{owner}` and `{repo}` expand from `GH_REPO`, else from the
 repository gh resolves for the **current directory**, which in a fork checkout can be upstream
-([target repository](../README.md#target-repository)). The PR-opening calls below name
-`$REPO` instead, the repository `target-repo.sh` resolved for the checkout. Out of tree, run a
-remaining placeholder call from the worktree (`( cd "$WT" && gh api … )`) or prefix
-`GH_REPO=<owner>/<repo>`.
+([target repository](../README.md#target-repository)). Once `target-repo.sh` has resolved the
+checkout's repository, the calls below name `$REPO` and the exported `GH_REPO` expands the
+placeholders. Before that, out of tree, run a placeholder call from the worktree
+(`( cd "$WT" && gh api … )`) or prefix `GH_REPO=<owner>/<repo>`.
 
 ## Body overrides the template
 
@@ -110,11 +110,15 @@ later): captures go to the PR through the pull-request skill's `evidence` action
 
 ```bash
 REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>") || exit 1
+export GH_REPO="$REPO"
 ```
 
 A non-zero exit opens no PR: report the script's stderr, which names the failed repository read,
 or the `gh repo set-default` fix when the remotes name more than one repository, none a pushable
 fork of another, and no default is recorded ([target repository](../README.md#target-repository)).
+From here on every read and write targets `$REPO`: the writes name it, and the exported `GH_REPO`
+carries it to every other `gh` call. On a triangular flow the base repository takes `$REPO`'s
+place in both.
 
 ## Open the draft PR
 
@@ -166,7 +170,7 @@ The REST form has no hook backstop: `pr-body-linkage-gate.sh` matches `gh pr cre
 ## PR identity
 
 ```bash
-gh pr view --json number,url
+gh pr view "$PR_NUMBER" -R "$REPO" --json number,url
 ```
 
 In a sandboxed session, take identity from the create response, or re-read it with
@@ -175,8 +179,9 @@ In a sandboxed session, take identity from the create response, or re-read it wi
 ## Open the PR from an out-of-tree orchestrator
 
 Resolve the repository for the worker's checkout, not the orchestrator's:
-`REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "$WT") || exit 1`. `gh pr create` MUST
-pass `--head "$BRANCH"` explicitly, since the invoker is not on the branch:
+`REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "$WT") || exit 1`, then
+`export GH_REPO="$REPO"`. `gh pr create` MUST pass `--head "$BRANCH"` explicitly, since the
+invoker is not on the branch:
 
 ```bash
 PR_URL=$(gh pr create -R "$REPO" --draft --head "$BRANCH" --title "<type>: <description>" --body-file "$BODY_FILE")
