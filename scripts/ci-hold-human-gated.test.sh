@@ -268,7 +268,7 @@ export async function filterLaneHolds() {
   for await (const chunk of process.stdin) chunks.push(chunk);
   const all = JSON.parse(Buffer.concat(chunks).toString("utf8"));
   if (process.env.STUB_FILTER === "fail") return 1;
-  process.stdout.write(`${JSON.stringify(all.map((c) => (c.user.login === "github-actions[bot]" ? { ...c, body: c.body.replace(/\s*`?claude-lane: [a-z-]+`?\s*$/, "") } : c)))}\n`);
+  process.stdout.write(`${JSON.stringify(all.map((c) => (c.user.login === "github-actions[bot]" ? { ...c, body: c.body.replace(/\s*`?claude-lane: [a-z-]+`?\s*$/, "") } : c)))}\n`); // portability-ok: a JavaScript regex in the node stub, not grep or sed
   return 0;
 }
 JS

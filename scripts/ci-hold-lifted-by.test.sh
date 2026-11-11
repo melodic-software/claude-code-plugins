@@ -146,7 +146,7 @@ export async function filterLaneHolds() {
   appendFileSync(STUB_LOG, `filter pr=${PR_NUMBER} comments=${all.length}\n`);
   if (STUB_FILTER === "fail") return 1;
   const out = STUB_FILTER === "unfoot"
-    ? all.map((c) => (c.user.login === "github-actions[bot]" ? { ...c, body: c.body.replace(/\s*claude-lane: [a-z-]+$/, "") } : c))
+    ? all.map((c) => (c.user.login === "github-actions[bot]" ? { ...c, body: c.body.replace(/\s*claude-lane: [a-z-]+$/, "") } : c)) // portability-ok: a JavaScript regex in the node stub, not grep or sed
     : all;
   process.stdout.write(`${JSON.stringify(out)}\n`);
   return 0;
