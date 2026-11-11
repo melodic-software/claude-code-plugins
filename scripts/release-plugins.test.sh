@@ -165,6 +165,98 @@ else
 fi
 rm -rf "$f"
 
+# --- identical bullets within one section collapse to the first ------------------
+base_fixture f
+for n in 1 2 3; do
+  add_fragment "$f" beta "same-1111111$n" patch "### Changed
+
+- Internal simplification, no behavior change."
+done
+run_release "$f" >/dev/null 2>&1
+expect_file "three identical bullets in one section collapse to one" \
+  "$f/plugins/beta/CHANGELOG.md" '# Changelog
+
+Intro.
+
+## [0.4.1] - 2026-10-04
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [0.0.1] - 2026-01-01
+
+### Added
+
+- First.'
+rm -rf "$f"
+
+base_fixture f
+add_fragment "$f" beta a-11111111 patch "### Changed
+
+- Dup line.
+- Alpha line."
+add_fragment "$f" beta b-22222222 patch "### Changed
+
+- Beta line.
+
+- Dup line."
+add_fragment "$f" beta c-33333333 patch "### Changed
+
+- Dup line.
+- Alpha line."
+run_release "$f" >/dev/null 2>&1
+expect_file "distinct bullets keep their order around a duplicate" \
+  "$f/plugins/beta/CHANGELOG.md" '# Changelog
+
+Intro.
+
+## [0.4.1] - 2026-10-04
+
+### Changed
+
+- Dup line.
+- Alpha line.
+
+- Beta line.
+
+## [0.0.1] - 2026-01-01
+
+### Added
+
+- First.'
+rm -rf "$f"
+
+base_fixture f
+add_fragment "$f" beta a-11111111 patch "### Added
+
+- Same text."
+add_fragment "$f" beta b-22222222 patch "### Fixed
+
+- Same text."
+run_release "$f" >/dev/null 2>&1
+expect_file "the same bullet under two sections is kept in both" \
+  "$f/plugins/beta/CHANGELOG.md" '# Changelog
+
+Intro.
+
+## [0.4.1] - 2026-10-04
+
+### Added
+
+- Same text.
+
+### Fixed
+
+- Same text.
+
+## [0.0.1] - 2026-01-01
+
+### Added
+
+- First.'
+rm -rf "$f"
+
 # --- nothing pending ---------------------------------------------------------------
 base_fixture f
 out="$(run_release "$f" 2>&1)"

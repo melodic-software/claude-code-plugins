@@ -10,7 +10,8 @@
 #   2. one `## [<new>] - <date>` entry goes above the newest version heading of
 #      plugins/<plugin>/CHANGELOG.md, merging the fragments' bodies section by
 #      section (Keep a Changelog order) in the order the fragments were
-#      committed;
+#      committed, keeping only the first of identical top-level bullets within
+#      one section;
 #   3. `version` changes in plugin.json only;
 #   4. every fragment of the plugin, `none` included, is deleted.
 # A listed convention (scripts/lib/changelog-fragments.sh) has no plugin.json:
@@ -202,7 +203,8 @@ for name in "${plugins[@]}"; do
       }
       $0 == "\f" { flush(); cur = ""; next }
       /^###[ \t]/ { flush(); cur = $0; sub(/^###[ \t]+/, "", cur); sub(/[ \t]+$/, "", cur); next }
-      cur != "" { buf = buf $0 "\n" }
+      cur != "" && /^- / && ((cur SUBSEP $0) in seen) { next }
+      cur != "" { if ($0 ~ /^- /) seen[cur, $0] = 1; buf = buf $0 "\n" }
       END {
         flush()
         print head
