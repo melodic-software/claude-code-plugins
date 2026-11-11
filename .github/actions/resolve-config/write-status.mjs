@@ -114,7 +114,7 @@ export async function writeState({ github, repository, number, state, config, cu
 // What a state writer's entry point hands its run, over the base config's
 // models.issue-status and trusted-actor list (read-status.mjs
 // loadTrustedActors):
-// - `set(number, state, {fields, keepHold, releases})` writes `state`
+// - `set(number, state, {fields, keepHold, releases, from})` writes `state`
 //   (writeState), skipping an option this process already wrote for the
 //   issue, or one `fields` (field id -> {option}) shows it holds. `fields`
 //   must come from a trusted read (read-status.mjs fieldStatus's rule): an

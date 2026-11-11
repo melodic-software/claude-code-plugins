@@ -27,7 +27,8 @@
 // a network error or a deferred triage) the sweep sets its Work status to
 // needs-triage (write-status.mjs) and rewrites that comment to hand it to a
 // maintainer, listing the runs. That write first reads the field fresh and
-// leaves any state but unset, needs-triage or ready, so an issue admitted
+// leaves any state but unset or needs-triage (or ready, on an issue listed
+// at status: ready), so an issue admitted
 // since the listing is never demoted. It files no issue. No model. The count is per triage cycle: a work-unblock
 // hand-back comment the lanes App posted after the state comment's last edit
 // starts a new cycle with no runs, in the same comment. An issue still at
@@ -92,8 +93,10 @@ const HAND_BACK = /^(?:<!-- work-unblock handed triage #[1-9][0-9]* -->|<!-- wor
 const HANDED_TEXT = "so the sweep no longer dispatches it";
 const FLOOR = "needs-triage";
 // The Work status states a hand-off may replace (null for unset): untriaged,
-// or born triaged and never admitted (bornReady).
-const HAND_OFF_FROM = [null, FLOOR, "ready"];
+// and ready only on an issue the listing saw at status: ready (bornReady),
+// since admission and work-unblock also write ready.
+const HAND_OFF_FROM = [null, FLOOR];
+const BORN_HAND_OFF_FROM = [...HAND_OFF_FROM, "ready"];
 // Labels a verdict or a person leaves: an issue with one is triaged.
 const TRIAGED = /^(needs-human|needs-spec|needs-owner-decision|needs-reporter-info|agent-ready|admission-deferred)$|^status: /;
 // What keeps a born-triaged `status: ready` issue out of admission on purpose.
@@ -116,7 +119,7 @@ const bornReady = (i, labels) =>
 // Whether admission already ran on the issue and left it waiting: the lanes
 // App's admission comment (edited in place), unless it is the retriage note
 // that hands the issue back (HAND_BACK).
-export const admissionParked = (comments, appId = null) =>
+export const admissionWaiting = (comments, appId = null) =>
   appId !== null &&
   comments.some((c) => String(c.user?.id) === String(appId) && String(c.body ?? "").startsWith(ADMIT_MARKER) && !HAND_BACK.test(String(c.body ?? "")));
 
@@ -377,8 +380,10 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
   // the issue is held, so it is neither handed off nor recorded. So does any
   // state past triage the field reads now (HAND_OFF_FROM): the listing can
   // read field events stale, and the issue may have been admitted since.
-  const handOff = async (number) => {
-    const written = await setStatus(number, FLOOR, { keepHold: true, from: HAND_OFF_FROM });
+  const listedReady = (i) => names(i, statusLabels.get(i.number)).includes("status: ready");
+  const handOff = async (issue) => {
+    const { number } = issue;
+    const written = await setStatus(number, FLOOR, { keepHold: true, from: listedReady(issue) ? BORN_HAND_OFF_FROM : HAND_OFF_FROM });
     if (written?.outcome === "held") result.held.push(number);
     if (written?.outcome === "moved") {
       result.left.push(number);
@@ -403,7 +408,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
         if (!full) break;
       }
       // Only bornReady lets an issue at status: ready through selectCandidates.
-      if (names(issue, statusLabels.get(number)).includes("status: ready") && admissionParked(comments, appId)) {
+      if (listedReady(issue) && admissionWaiting(comments, appId)) {
         result.parked.push(number);
         continue;
       }
@@ -412,7 +417,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
       if (full) {
         if (atFloor(issue)) continue;
         checked += 1;
-        if (await handOff(number)) result.handedOff.push(number);
+        if (await handOff(issue)) result.handedOff.push(number);
         continue;
       }
       const state = readState(comments, appId);
@@ -498,7 +503,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
         }
         // The state first, then the record that stops later passes: a failed
         // record leaves the issue for the next pass, which sets it again.
-        if (!(await handOff(number))) continue;
+        if (!(await handOff(issue))) continue;
         await writeState(call, repo, number, state, { runs: state.runs, filed: HANDED, repoUrl, details: runs, reached: known });
         result.handed.push(number);
       }

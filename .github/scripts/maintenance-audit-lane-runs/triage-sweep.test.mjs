@@ -549,7 +549,7 @@ test("a hand-off a person's late hold answers held writes no record and is not c
     return { outcome: "held", state: "needs-human" };
   };
   const result = await runSweep({ call: gh.call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), setStatus });
-  assert.deepEqual(asked, [[1, "needs-triage", { keepHold: true, from: [null, "needs-triage", "ready"] }]]);
+  assert.deepEqual(asked, [[1, "needs-triage", { keepHold: true, from: [null, "needs-triage"] }]]);
   assert.deepEqual(result.handed, []);
   assert.deepEqual(result.held, [1]);
   assert.deepEqual(gh.writes, [], "no hand-off record");
@@ -560,15 +560,16 @@ test("a hand-off a person's late hold answers held writes no record and is not c
 // demote it. The hand-off's own field read decides, through the job's writer.
 test("an agent-ready issue the listing read stale as needs-triage is left as is at hand-off, and a fresh needs-triage one is handed off", async () => {
   const runs = { 11: { status: "completed", conclusion: "success" }, 22: { status: "completed", conclusion: "success" } };
-  const handOffPass = async (fields) => {
-    const issues = [issue(1)];
+  const handOffPass = async (fields, listed = ["needs-triage"]) => {
+    const issues = [issue(1, { body: "Fix it.\n\n<!-- work-items:born-triaged -->" })];
     const { set } = await statusWriter({ env: { BASE_PATH: ROOT }, github: fieldWorld(issues, fields), repository: "o/r" });
     const gh = fakeGitHub({ issues, comments: { 1: [{ id: 5, user: BOT, body: renderState({ runs: [11, 22], filed: null, runUrl: "u" }) }] }, runs });
-    const stale = new Map([[1, ["needs-triage"]]]);
+    const stale = new Map([[1, listed]]);
     const result = await runSweep({ call: gh.call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), setStatus: set, statusLabels: stale });
     return { result, writes: gh.writes };
   };
-  for (const state of ["agent-ready", "deferred", "confirmed"]) {
+  // ready too: admission's wait and work-unblock write it after the listing.
+  for (const state of ["agent-ready", "deferred", "confirmed", "ready"]) {
     const fields = { 1: { state, setter: APP } };
     const { result, writes } = await handOffPass(fields);
     assert.deepEqual(result.left, [1], state);
@@ -581,6 +582,11 @@ test("an agent-ready issue the listing read stale as needs-triage is left as is 
   assert.deepEqual(result.handed, [1]);
   assert.deepEqual(result.left, []);
   assert.equal(readState([{ id: 5, user: BOT, body: writes.at(-1).body.body }]).filed, HANDED);
+  // A born-triaged issue the listing saw at status: ready, still ready, intake never admitted.
+  const born = { 1: { state: "ready", setter: APP } };
+  const handed = await handOffPass(born, ["status: ready"]);
+  assert.deepEqual(handed.result.handed, [1]);
+  assert.deepEqual(born[1].state, "needs-triage");
 });
 
 test("a run still in progress holds the issue for a later pass", async () => {
