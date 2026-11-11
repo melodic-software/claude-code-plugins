@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "| sources.md | FAIL | missing for the default profile; run `/ai-briefing:setup apply` |"
+    },
+    {
+      "answer": "Run apply to scaffold the profile, which creates sources.md."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "sources.md is missing. I created it for you.",
+      "why": "no apply remediation"
+    },
+    {
+      "answer": "Everything is configured.",
+      "why": "near miss: reports no gap"
+    }
+  ]
+}
