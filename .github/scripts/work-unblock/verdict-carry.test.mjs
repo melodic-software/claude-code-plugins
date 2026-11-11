@@ -127,6 +127,19 @@ test("a carry kept by the same code is used, and one kept by other code is read 
   assert.deepEqual(JSON.parse(readFileSync(join(dir, "next.json"), "utf8")), { code: "b".repeat(64), jobs: {}, refusals: {}, decided: {} });
 });
 
+test("a rate-limit stop's reset is carried by its job and the limit mode, and a value of another shape is read fresh", () => {
+  const dir = tempDir("verdict-carry-limit-");
+  const now = Date.parse("2026-11-10T03:00:00Z");
+  const old = loadCarry(undefined, now - 60_000, "a".repeat(64));
+  old.keepRefusal(71, "limit", "2026-11-10T03:30:00Z");
+  old.keepRefusal(72, "limit", "2026-11-10 03:30");
+  old.save(join(dir, "kept.json"));
+  const next = loadCarry(join(dir, "kept.json"), now, "a".repeat(64));
+  assert.deepEqual(next.refusal(71, "limit"), { value: "2026-11-10T03:30:00Z" });
+  assert.equal(next.refusal(71, "check"), undefined, "the reset is kept for the limit mode only");
+  assert.equal(next.refusal(72, "limit"), undefined, "a reset not in the stop line's form is dropped");
+});
+
 test("the decided times carry each issue's last decision, and a file kept before them carries none", () => {
   const dir = tempDir("verdict-carry-decided-");
   const now = Date.parse("2026-11-10T03:00:00Z");
