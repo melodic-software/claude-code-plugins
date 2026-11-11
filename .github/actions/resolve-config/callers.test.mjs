@@ -1938,64 +1938,36 @@ test("the write runner keeps a lane-hold marker only for a held script activity 
   }
 });
 
-test("no job using pr-run-activity-write.yml runs the resolve-issue model step, and the write runner refuses an issue skill", () => {
+test("no job using pr-run-activity-write.yml runs a skill activity, and the write runner refuses a skill before the mint", () => {
   const dir = new URL("../../workflows/", import.meta.url);
+  const config = parse(read("../../../docs/conventions/pr-pipeline.yaml"));
   for (const name of readdirSync(dir).filter((file) => /\.ya?ml$/.test(file))) {
     const { jobs = {} } = parse(readFileSync(new URL(name, dir), "utf8")) ?? {};
     for (const [id, job] of Object.entries(jobs)) {
       if (String(job?.uses ?? "").endsWith("pr-run-activity-write.yml")) {
-        assert.notEqual(job.with?.activity, "resolve-issue", `${name} ${id}`);
+        assert.equal(typeof config.activities[job.with?.activity]?.skill, "undefined", `${name} ${id}`);
       }
     }
   }
   const { jobs } = workflow("pr-run-activity-write.yml");
-  const refuse = jobs.run.steps.find((s) => s.name === "Assert an issue skill runs in the read runner");
+  const steps = jobs.run.steps;
+  const refuse = steps.find((s) => s.name === "Assert a skill runs in the read runner");
   assert.ok(refuse);
+  assert.ok(steps.indexOf(refuse) < steps.findIndex((s) => s.id === "lane-token"));
   const context = (issue, kind) => ({ "inputs.issue-number": issue, "steps.config.outcome": "success", "steps.config.outputs.kind": kind });
   assert.equal(evaluate(refuse.if, context("7", "skill")), true);
+  assert.equal(evaluate(refuse.if, context("", "skill")), true);
   assert.equal(evaluate(refuse.if, context("7", "script")), false);
-  assert.equal(evaluate(refuse.if, context("", "skill")), false);
   assert.equal(spawnSync("bash", ["-c", refuse.run]).status, 1);
+  assert.ok(!steps.some((s) => /claude-code-action/.test(s.uses ?? "")), "the write runner runs no model");
 });
 
 // The write runner's run job holds the lane token and id-token: write, so it
-// prepares no runner for head test files: the schema refuses run-test-file.sh
-// and check-skill.sh on a write-effect skill (verify-scripts.test.mjs), and a
-// read skill runs them in pr-run-activity-read.yml, whose run job holds neither
-// (pinned below with its read-only permissions).
+// prepares no runner for head test files: a skill runs them in
+// pr-run-activity-read.yml, whose run job holds neither (pinned below with its
+// read-only permissions).
 test("pr-run-activity-write.yml prepares no head test-file runner", () => {
   assert.doesNotMatch(read("../../workflows/pr-run-activity-write.yml"), /run-test-file|check-skill/);
-});
-
-// claude-code-action puts the lane token in GH_TOKEN and GITHUB_TOKEN of the
-// environment it hands Claude, and the environment scrub keeps both for Bash,
-// so the skill's settings set both to empty: no Bash process, the wrappers'
-// ancestors included, holds the token in its /proc/<pid>/environ. The action's
-// MCP servers get the token from their own config env.
-test("pr-run-activity-write.yml clears the GitHub token from the skill's Bash", () => {
-  const steps = Object.values(workflow("pr-run-activity-write.yml").jobs).flatMap((job) => job.steps ?? []);
-  const skill = steps.find((step) => step.id === "act-skill");
-  const clear = steps.find((step) => step.id === "skill-settings");
-  assert.ok(clear, "no step clears the token from the skill's settings");
-  assert.ok(steps.indexOf(clear) < steps.indexOf(skill));
-  assert.equal(clear.if, skill.if);
-  assert.equal(clear.env.SETTINGS_JSON, "${{ steps.config.outputs.settings-json }}");
-  assert.equal(skill.with.settings, "${{ steps.skill-settings.outputs.json }}");
-  const dir = tempDir("skill-settings-");
-  const output = join(dir, "output");
-  const run = (settingsJson) => {
-    writeFileSync(output, "");
-    const result = spawnSync("bash", ["-c", clear.run], {
-      env: { ...process.env, SETTINGS_JSON: settingsJson, GITHUB_OUTPUT: output },
-      encoding: "utf8",
-    });
-    assert.equal(result.status, 0, result.stderr);
-    return JSON.parse(/^json=(.*)$/m.exec(readFileSync(output, "utf8"))[1]);
-  };
-  const cleared = { GH_TOKEN: "", GITHUB_TOKEN: "" };
-  assert.deepEqual(run(""), { env: cleared });
-  assert.deepEqual(run(SUBAGENT), { env: { CLAUDE_CODE_SUBAGENT_MODEL: "haiku", ...cleared } });
-  assert.deepEqual(run('{"env":{"GH_TOKEN":"x"},"model":"m"}'), { env: cleared, model: "m" });
 });
 
 // The admission gate: on an issue anyone can open, only a listed human's
@@ -3100,21 +3072,19 @@ test("pr-run-activity-read.yml: the fallback call's lane record names why it ran
   assert.equal(credential({}), "");
 });
 
-// The same action, at the same pin, as the write workflow.
-test("pr-run-activity-read.yml: the lane record uses the write workflow's report-lane-outcome", () => {
-  const { jobs } = workflow("pr-run-activity-read.yml");
-  const writeRecord = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.id === "lane-record");
-  assert.equal(jobs.run.steps.find((s) => s.id === "lane-record").uses, writeRecord.uses);
-});
-
-// Both lane check runs carry the lane-outcome record itself, so limit-stop.mjs
-// reads one JSON shape from read and write activities alike.
-test("pr-run-activity read and write: the posted check carries the lane-outcome record", () => {
+// The read runner's check run carries the lane-outcome record, the JSON shape
+// limit-stop.mjs reads; the write runner runs no model, so it has none.
+test("pr-run-activity read: the posted check carries the lane-outcome record; write: none", () => {
   for (const file of ["pr-run-activity-read.yml", "pr-run-activity-write.yml"]) {
     const { jobs } = workflow(file);
-    assert.equal(jobs.run.outputs.record, "${{ steps.lane-record.outputs.record }}", file);
     const post = jobs.report.steps.find((s) => s.uses === "./.base/.github/actions/report-check-run");
-    assert.equal(post.with["lane-outcome"], "${{ needs.run.outputs.record }}", file);
+    if (file === "pr-run-activity-read.yml") {
+      assert.equal(jobs.run.outputs.record, "${{ steps.lane-record.outputs.record }}", file);
+      assert.equal(post.with["lane-outcome"], "${{ needs.run.outputs.record }}", file);
+    } else {
+      assert.equal(jobs.run.outputs.record, undefined, file);
+      assert.equal(post.with["lane-outcome"], undefined, file);
+    }
     // The retired key=value summary line's inputs (ADR 0087 slice 3).
     assert.deepEqual(Object.keys(post.with).filter((key) => /^lane-(class|resets|turns|max-turns|models|profile)$/.test(key)), [], file);
   }
@@ -4658,43 +4628,6 @@ test("pr-run-activity-read.yml: after the collector, no checkout's post step fin
   assert.equal(existsSync(join(state.work, ".base", ".git", "config")), false);
   assert.equal(readFileSync(join(state.work, "tracked.txt"), "utf8"), "unchanged\n", "the work tree stays");
   assert.equal(runStep(remove, state.temp, {}).status, 1, "an unset workspace removes nothing");
-});
-
-test("pr-run-activity-write.yml: after the skill, no checkout's post step finds a .git/config to run git in", async (t) => {
-  const steps = workflow("pr-run-activity-write.yml").jobs.run.steps;
-  const remove = steps.find((s) => s.name === "Remove the checkouts' .git directories");
-  const at = (predicate) => steps.findIndex(predicate);
-  assert.equal(at((s) => s === remove), at((s) => s.id === "act-result") + 1, "right after the turn-cap check, the skill's own next step");
-  // Pinned, as the revoke step is: the skill could have changed PATH or BASH_ENV.
-  assert.equal(remove.run, undefined);
-  assert.match(remove.uses, /^actions\/github-script@[0-9a-f]{40}$/);
-  // A failed or cancelled skill still runs it, since the post steps run after a
-  // cancel; a script activity, which needs its checkout, never does.
-  assert.equal(evaluate(remove.if, { "steps.act-skill.outcome": "success" }), true);
-  assert.equal(evaluate(remove.if, { "steps.act-skill.outcome": "failure" }), true);
-  assert.equal(evaluate(remove.if, { "steps.act-skill.outcome": "cancelled" }), true);
-  assert.equal(evaluate(remove.if, { "steps.act-skill.outcome": "skipped" }), false);
-  // No step a skill run reaches after it runs git or checks out.
-  const gitAfter = steps.slice(at((s) => s === remove) + 1).filter((s) => /\bgit\b/.test(String(s.run ?? "")) || String(s.uses ?? "").startsWith("actions/checkout@"));
-  assert.deepEqual(gitAfter.map((s) => s.name), []);
-  const { createRequire } = await import("node:module");
-  const run = async (env) => {
-    let failed = null;
-    const core = { setFailed: (message) => (failed = message) };
-    await new AsyncFunction("require", "core", "process", remove.with.script)(createRequire(import.meta.url), core, { env });
-    return failed;
-  };
-  const state = plantedCheckout(t);
-  state.plant();
-  mkdirSync(join(state.work, ".base", ".git"), { recursive: true });
-  writeFileSync(join(state.work, ".base", ".git", "config"), "[core]\n\tfsmonitor = /bin/false\n");
-  assert.notEqual(await run({ WORKSPACE: "" }), null, "an empty workspace fails");
-  assert.equal(existsSync(join(state.work, ".git", "config")), true, "and removes nothing");
-  assert.equal(await run({ WORKSPACE: state.work }), null);
-  assert.equal(existsSync(join(state.work, ".git", "config")), false);
-  assert.equal(existsSync(join(state.work, ".base", ".git", "config")), false);
-  assert.equal(readFileSync(join(state.work, "tracked.txt"), "utf8"), "unchanged\n", "the work tree stays");
-  assert.equal(await run({ WORKSPACE: state.work }), null, "nothing to remove is no failure");
 });
 
 // --- the model job's payloads to the scan job, sealed ---
@@ -9540,7 +9473,7 @@ test("pr-unblock.yml: resolve-feedback-threads is its own base-only script job a
   assert.equal(grants["publish-feedback"], "publish-artifact");
 
   // The write runner: checkout base skips the head checkout and its assert;
-  // the base checkout persists no credentials; a script runs no skill step.
+  // the base checkout persists no credentials; the runner has no skill step.
   const steps = workflow("pr-run-activity-write.yml").jobs.run.steps;
   const step = (name) => steps.find((s) => s.name === name);
   assert.equal(step("Check out the default branch tip").with["persist-credentials"], false);
@@ -9549,9 +9482,9 @@ test("pr-unblock.yml: resolve-feedback-threads is its own base-only script job a
   for (const name of ["Check out the PR head", "Assert the head is the gated SHA"]) {
     assert.equal(on(name, "base"), false, `${name} skips on checkout: base`);
     assert.equal(on(name, "head"), true, `${name} runs on checkout: head`);
-    assert.equal(on(name, ""), true, `${name} runs for a skill`);
+    assert.equal(on(name, ""), true, `${name} runs when checkout is unset`);
   }
-  assert.match(String(steps.find((s) => s.id === "act-skill").if), /kind == 'skill'/);
+  assert.equal(steps.find((s) => s.id === "act-skill"), undefined);
   assert.match(String(steps.find((s) => s.id === "act-script").if), /kind == 'script'/);
 });
 

@@ -254,7 +254,7 @@ runs:
         # naming a path outside it (a script may print what it reads), unsets
         # GH_TOKEN and GITHUB_TOKEN in the script's own environment (no Bash
         # process above it holds them either: run-claude-cli's steps set
-        # neither, and the write runner's skill settings clear both), and
+        # neither), and
         # keeps git from loading system, global or hook and fsmonitor
         # programs. As for the
         # checks, <dir> is where the copy is written and <at> where it runs.
