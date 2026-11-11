@@ -5320,7 +5320,6 @@ rdt_ix_calls() {
   local re="$2" m="$ix_m" name t pl imp
   local re_open='^[[:space:]]*\(' re_bare='^[[:blank:]]+[^][:space:]=,.;)}|&?+*/<>!~{-]'
   local re_end=$'^[[:blank:]]*([;}\n]|$)'
-  local -a cargs=()
   while [[ "$m" =~ $re ]]; do
     rdt_deadline
     name="${BASH_REMATCH[2]}"
@@ -5340,13 +5339,12 @@ rdt_ix_calls() {
       continue
     fi
     rdt_ix_split "$t" "$pl"
-    cargs=(${RDT_IX_ARGS[@]+"${RDT_IX_ARGS[@]}"})
-    if ((imp && ${#cargs[@]} == 0)); then
+    if ((imp && ${#RDT_IX_ARGS[@]} == 0)); then
       rdt_ix_unplaceable '$_'
     elif [[ "$1" == del ]]; then
-      rdt_ix_del ${cargs[@]+"${cargs[@]}"}
+      rdt_ix_del ${RDT_IX_ARGS[@]+"${RDT_IX_ARGS[@]}"}
     else
-      rdt_ix_run "$name" ${cargs[@]+"${cargs[@]}"}
+      rdt_ix_run "$name" ${RDT_IX_ARGS[@]+"${RDT_IX_ARGS[@]}"}
     fi
   done
   return 0
@@ -5437,28 +5435,19 @@ rdt_ix_del() {
 # shellcheck disable=SC2329  # invoked from rdt_ix_del
 rdt_ix_target() {
   local e
-  local -a el=()
-  if [[ "$1" =~ $RDT_IX_PH_RE ]]; then
-    if [[ "${BASH_REMATCH[1]}" == s ]]; then
-      rdt_ix_path "${ix_v[BASH_REMATCH[2]]}"
-    else
-      rdt_ix_unplaceable "$1"
-    fi
-    return 0
-  fi
+  local -a el=("$1")
   if [[ "$1" == '['*']' ]]; then
     rdt_ix_split "${1:1:${#1}-2}" 0
     el=(${RDT_IX_ARGS[@]+"${RDT_IX_ARGS[@]}"})
-    for e in ${el[@]+"${el[@]}"}; do
-      if [[ "$e" =~ $RDT_IX_PH_RE ]] && [[ "${BASH_REMATCH[1]}" == s ]]; then
-        rdt_ix_path "${ix_v[BASH_REMATCH[2]]}"
-      else
-        rdt_ix_unplaceable "$e"
-      fi
-    done
-    return 0
   fi
-  rdt_ix_unplaceable "$1"
+  for e in ${el[@]+"${el[@]}"}; do
+    if [[ "$e" =~ $RDT_IX_PH_RE ]] && [[ "${BASH_REMATCH[1]}" == s ]]; then
+      rdt_ix_path "${ix_v[BASH_REMATCH[2]]}"
+    else
+      rdt_ix_unplaceable "$e"
+    fi
+  done
+  return 0
 }
 
 # rdt_ix_path <value>: a literal path a deleter is given, judged as an
@@ -5581,11 +5570,9 @@ rdt_ix_word_to() {
 # shellcheck disable=SC2329  # invoked from rdt_ix_run
 rdt_ix_list() {
   local e w
-  local -a el=()
   rdt_ix_split "${1:1:${#1}-2}" 0
-  el=(${RDT_IX_ARGS[@]+"${RDT_IX_ARGS[@]}"})
   RDT_IX_L=()
-  for e in ${el[@]+"${el[@]}"}; do
+  for e in ${RDT_IX_ARGS[@]+"${RDT_IX_ARGS[@]}"}; do
     if rdt_ix_word_to w "$e"; then RDT_IX_L+=("$w"); else RDT_IX_L+=("$RDT_IX_HOLE"); fi
   done
 }
@@ -5623,7 +5610,7 @@ rdt_ix_shell() {
 # HOOK_SEG_WORD_QUOTED from its caller through bash's dynamic scope.
 # shellcheck disable=SC2329  # invoked from rdt_find_check and rdt_feed_class
 rdt_find_scan() {
-  local k w c key del=0 files0=0 gnu=0 follow=0
+  local k w c key del=0 files0=0 follow=0
   local -a sw=() sq=()
   local -A seen=()
   RDT_FIND_OUT=1
@@ -5673,10 +5660,9 @@ rdt_find_scan() {
     [[ "$w" == -* || "$w" == '(' || "$w" == '!' ]] && break
     sw+=("$w")
     sq+=("${HOOK_SEG_WORD_QUOTED[k]:-0}")
-    gnu=1
     k=$((k + 1))
   done
-  if ((gnu == 0 && files0 == 0)); then
+  if ((${#sw[@]} == 0 && files0 == 0)); then
     sw+=(.)
     sq+=(0)
   fi
@@ -6119,7 +6105,7 @@ rdt_feed_judge() {
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_xargs_check() {
   local k=$(($1 + 1)) c w x name hit src="$rdt_seg_feed" rdt_deleter=0 rdt_fed=1
-  local -a q0=()
+  local -a q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
   while ((k < n)); do
     w="${words[k]}"
     case "$w" in
@@ -6170,7 +6156,6 @@ rdt_xargs_check() {
     k=$((k + 1))
   done
   ((k < n)) || return 0
-  q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
   HOOK_SEG_WORD_QUOTED=(${q0[@]+"${q0[@]:k}"})
   rdt_check_segment "${words[@]:k}"
   HOOK_SEG_WORD_QUOTED=(${q0[@]+"${q0[@]}"})
