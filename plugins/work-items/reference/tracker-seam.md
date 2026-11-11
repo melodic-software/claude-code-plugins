@@ -344,5 +344,4 @@ operations reference. For GitHub, that is
   [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)
   (universal + repo-specific groups).
 - Bind the provider. The active provider lives under the `tracker` key of `<home>/work-items.yaml`,
-  else in the legacy repo-root JSON binding `/work-items:setup` writes; these skills read the
-  binding but never write it.
+  which `/work-items:setup` writes; these skills read the binding but never write it.

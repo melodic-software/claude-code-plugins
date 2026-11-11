@@ -102,8 +102,8 @@ carries a readiness label, decided at step 4:
    assigns `agent-ready` on its own judgment.
 
 The two names are roles, not literal labels. Read each from the target repository's tracker
-binding, `config.role_labels` under `tracker:` in its `docs/conventions/work-items.yaml` (else the
-legacy `.work-item-tracker.json`): `agent-ready` is the `autonomous-eligible` role and
+binding, `config.role_labels` under `tracker:` in its `docs/conventions/work-items.yaml`:
+`agent-ready` is the `autonomous-eligible` role and
 `needs-decision` the `owner-decision` role. With no binding or no entry for a role, use its
 default: `agent-ready` and `needs-owner-decision`, unless the repository declares others. Where the sink has no labels, keep the rule
 and state the decision in the item.

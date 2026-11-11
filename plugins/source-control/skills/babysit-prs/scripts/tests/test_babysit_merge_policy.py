@@ -85,7 +85,7 @@ SOURCE_CONTROL = "babysit_loop_merge: c2-mechanical\n"
 TEAM_YAML = "docs/conventions/source-control.yaml"
 # The retired legacy file the gate no longer reads.
 RETIRED_SOURCE_CONTROL = ".claude/source-control.md"
-TRACKER_LEGACY = policy.tracker_binding.LEGACY_PATH
+TRACKER_YAML = policy.tracker_binding.YAML_PATH
 # The YAML files `GhFake` answers absent when a test sets none.
 UNSET_YAML = (TEAM_YAML, policy.tracker_binding.YAML_PATH)
 
@@ -2641,12 +2641,14 @@ class IssueVouch(unittest.TestCase):
 
     def test_the_admission_label_reads_the_tracker_config(self) -> None:
         gh = GhFake().install(self)
-        path = f"repos/{REPO}/contents/{TRACKER_LEGACY}?ref=main"
-        mapped = {"config": {"role_labels": {"autonomous-eligible": "go"}}}
+        path = f"repos/{REPO}/contents/{TRACKER_YAML}?ref=main"
+        mapped = (
+            "tracker:\n  config:\n    role_labels:\n      autonomous-eligible: go\n"
+        )
         gh.rest[path] = {
             "type": "file",
             "encoding": "base64",
-            "content": base64.b64encode(json.dumps(mapped).encode()).decode(),
+            "content": base64.b64encode(mapped.encode()).decode(),
         }
         self.assertEqual(policy.admission_label("owner", "repo", "main"), "go")
         gh.rest[path] = 404
@@ -2739,7 +2741,7 @@ class IssueVouch(unittest.TestCase):
             self.assertEqual(eligibility().reason, "issue-not-vouched:no-labeled-event")
 
     def tracker(self, gh: GhFake, text: str) -> None:
-        gh.rest[f"repos/{REPO}/contents/{TRACKER_LEGACY}?ref=main"] = {
+        gh.rest[f"repos/{REPO}/contents/{TRACKER_YAML}?ref=main"] = {
             "type": "file",
             "encoding": "base64",
             "content": base64.b64encode(text.encode()).decode(),
@@ -2764,19 +2766,21 @@ class IssueVouch(unittest.TestCase):
                 "created_at": "2026-10-11T09:00:00Z",
             }
         ]
-        mapped = {"config": {"role_labels": {"autonomous-eligible": "ready-for-agent"}}}
-        self.tracker(gh, json.dumps(mapped))
+        self.tracker(
+            gh,
+            "tracker:\n  config:\n    role_labels:\n      autonomous-eligible: ready-for-agent\n",
+        )
         production = policy.eligibility(
             REPO, 7, agent_identity=IDENTITY, permission=HUMANS
         )
         self.assertTrue(production.eligible, production.reason)
 
-    def test_a_non_json_tracker_config_refuses_unreadable(self) -> None:
+    def test_a_tracker_config_that_does_not_parse_refuses_unreadable(self) -> None:
         gh = self.outside_issue(["agent-ready"], {"login": OPERATOR, "type": "User"})
         gh.graphql["PolicyEligibility"]["repository"]["pullRequest"]["baseRefName"] = (
             "main"
         )
-        self.tracker(gh, "{ not json")
+        self.tracker(gh, "tracker: {provider: github}\n")
         result = policy.eligibility(REPO, 7, agent_identity=IDENTITY, permission=HUMANS)
         self.assertFalse(result.eligible)
         self.assertTrue(result.reason.startswith("unreadable:"), result.reason)

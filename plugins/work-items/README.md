@@ -131,10 +131,9 @@ enough that one skill no longer predicts its contents.
   which owns the copy from then on. On a re-run, setup fast-forwards a copy nobody edited and
   stops with the diff on one somebody did. The consuming repo declares its
   active provider under the `tracker` key of `<home>/work-items.yaml` in its convention home
-  (default `docs/conventions`). Until `/work-items:setup` writes that key, it writes a legacy
-  repo-root JSON binding, which the seam still reads with a notice. A personal override beside the
-  binding (`work-items.local.yaml` beside the YAML one; the legacy JSON override, which setup
-  gitignores, beside the legacy one) may carry the per-user
+  (default `docs/conventions`). A repo-root `.work-item-tracker.json` no longer binds:
+  `/work-items:setup apply` copies it under that key. A personal override beside the
+  binding (`work-items.local.yaml`) may carry the per-user
   lease TTL and the per-provider auth identity: `auth_email` and `auth_env` for jira, `auth_env`
   for linear, and `auth_env` for gitea. A repo
   may add or shadow an adapter consumer-local at
