@@ -386,6 +386,17 @@ function checkReadShape(file, doc, lineCounter) {
   }
 }
 
+// Exactly `{ name: pr-pipeline-scan-carrier, deployment: false }`: the
+// environment's secret and branch policy, and no deployment record.
+function isCarrierEnvironment(node) {
+  return (
+    yaml.isMap(node) &&
+    node.items.length === 2 &&
+    node.get("name") === CARRIER_ENVIRONMENT &&
+    node.get("deployment") === false
+  );
+}
+
 function check(file) {
   const { doc, lineCounter } = files.get(file);
   const checkJob = checkJobOf(file, doc);
@@ -445,13 +456,12 @@ function check(file) {
         key === "environment" &&
         !(
           pair.value === carrierEnvironment &&
-          yaml.isScalar(pair.value) &&
-          pair.value.value === CARRIER_ENVIRONMENT
+          isCarrierEnvironment(pair.value)
         )
       ) {
         report(
           keyLine,
-          `names an environment other than ${CARRIER_ENVIRONMENT} on the read workflow's ${CARRIER_JOB} job`,
+          `names an environment other than ${CARRIER_ENVIRONMENT} with deployment: false on the read workflow's ${CARRIER_JOB} job`,
         );
       }
       if (key === "secrets" && valueIs(pair, "inherit")) {

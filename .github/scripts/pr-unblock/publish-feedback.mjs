@@ -66,6 +66,8 @@
 //
 // Environment:
 //   GH_TOKEN              the lane token (pull-requests: write, contents: read)
+//   ARTIFACT_READ_TOKEN   the job's own token (actions: read), for the lane
+//                         comments' run records only (address-feedback.mjs laneReader)
 //   GITHUB_REPOSITORY     owner/repo
 //   PR_NUMBER, HEAD_SHA   the gated pull request and its current head
 //   HEAD_REF              the PR branch, re-read for HEAD_SHA before each post
@@ -99,6 +101,7 @@ import {
   currentThreads,
   isRoundMarker,
   DEFAULT_MAX_ROUNDS,
+  laneReader,
   FRESH_FIXER_ROUNDS,
   roundLine,
   maxRoundsFrom,
@@ -111,6 +114,7 @@ import {
   SHA,
   staleVerifyNotes,
   trustedHumansFrom,
+  withLaneBinding,
 } from "./address-feedback.mjs";
 import { DISPUTED, FINDING_ANSWERED, LEFT_OPEN, parseVerdicts, settleDisputes } from "./adjudicate-feedback.mjs";
 import { inThreadScope, NOTE_ID, THREAD_ID, threadsNamed } from "./thread-scope.mjs";
@@ -922,7 +926,7 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
 // Whether `text` hashes to `recorded`, a SHA-256 an earlier job passed out.
 const matchesSha256 = (text, recorded) => /^[0-9a-f]{64}$/.test(recorded ?? "") && createHash("sha256").update(text).digest("hex") === recorded;
 
-export async function main(env, { api, log = (line) => console.log(line) } = {}) {
+export async function main(env, { api, actions, log = (line) => console.log(line) } = {}) {
   need(env, [
     "GH_TOKEN",
     "GITHUB_REPOSITORY",
@@ -1005,14 +1009,18 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     return matchesSha256(text, env.ADJUDICATION_SHA256) ? text : null;
   };
   const { escalationReason, skipReason } = await publish({
-    api:
+    // The lane comments' bindings are read with ARTIFACT_READ_TOKEN, never
+    // the lane token (address-feedback.mjs laneReader).
+    api: withLaneBinding(
       api ??
-      createGitHubApi({
-        token: env.GH_TOKEN,
-        repository: env.GITHUB_REPOSITORY,
-        apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
-        graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
-      }),
+        createGitHubApi({
+          token: env.GH_TOKEN,
+          repository: env.GITHUB_REPOSITORY,
+          apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
+          graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+        }),
+      actions ?? laneReader(env),
+    ),
     pr,
     headSha: env.HEAD_SHA,
     headRef: env.HEAD_REF,

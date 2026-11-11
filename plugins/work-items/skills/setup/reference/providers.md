@@ -106,7 +106,8 @@ pass has been run**.
 ## Another provider
 
 Supply the adapter consumer-local at
-`${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/adapters/<provider>/`.
+`<project root>/tools/work-item-tracker/adapters/<provider>/`
+([`tracker-seam.md`](../../../reference/tracker-seam.md) "Project root").
 The seam resolves consumer-local adapters ahead of the bundled pair, so a repo can add an unshipped
 provider, or shadow a bundled one, without forking the plugin. Set `provider` to its name in the
 binding.

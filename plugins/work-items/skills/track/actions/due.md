@@ -22,7 +22,7 @@ Show recurring items that are past their `next_due` date.
 Read `.github/recurring-schedule.json` and filter items where `next_due <= today`. When the file is absent, report "no recurring schedule configured" and stop. Use jq for the initial filter:
 
 ```bash
-SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+SCHEDULE="<project root>/.github/recurring-schedule.json"
 if [[ -f "$SCHEDULE" ]]; then
   jq --arg today "$(date +%Y-%m-%d)" '
     [.items[] | select(.next_due != null and .next_due <= $today)]
@@ -33,6 +33,8 @@ else
   echo "no recurring schedule configured"
 fi
 ```
+
+`<project root>` is the literal path [`tracker-seam.md`](../../../reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet and each later one in this file.
 
 For days-overdue computation, calculate `(today - next_due)` in days. jq lacks date arithmetic, so compute this when presenting the table (parse the ISO dates and subtract).
 
@@ -47,7 +49,7 @@ For days-overdue computation, calculate `(today - next_due)` in days. jq lacks d
 1. **Check for orphaned entries.** Only **due** entries can be orphaned. The recurring automation creates a tracker item only once an entry reaches `next_due <= today`, so a healthy future entry (`next_due > today`) legitimately has no open item and is NOT orphaned. Filter to due entries before flagging missing items:
 
 ```bash
-SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+SCHEDULE="<project root>/.github/recurring-schedule.json"
 if [[ -f "$SCHEDULE" ]]; then
   jq -r --arg today "$(date +%Y-%m-%d)" \
     '.items[] | select(.next_due != null and .next_due <= $today) | .id' "$SCHEDULE"

@@ -1439,9 +1439,20 @@ test("work-resolve-issue.yml: a WIP cap check that fails holds pick-slot green w
   assert.equal(wip["continue-on-error"], true, "a failed cap check holds green");
   const hold = pick.steps.find((item) => item.name === "Hold on an unknown WIP cap");
   assert.ok(pick.steps.indexOf(hold) > pick.steps.indexOf(wip), "the hold notice follows the check");
-  for (const [capped, runs] of [["", true], ["true", false], ["false", false]]) {
-    assert.equal(evaluate(hold.if, { "steps.wip.outputs.capped": capped }), runs, `hold notice on capped ${JSON.stringify(capped)}`);
+  // A kill-switch check that could not run sets no proceed and holds as before;
+  // a switch that is on skips the check and every hold.
+  for (const proceed of ["true", ""]) {
+    for (const [capped, runs] of [["", true], ["true", false], ["false", false]]) {
+      const context = { "steps.kill.outputs.proceed": proceed, "steps.wip.outputs.capped": capped };
+      assert.equal(evaluate(hold.if, context), runs, `hold notice on proceed ${JSON.stringify(proceed)}, capped ${JSON.stringify(capped)}`);
+    }
+    assert.equal(evaluate(wip.if, { "steps.kill.outputs.proceed": proceed }), true, `cap check on proceed ${JSON.stringify(proceed)}`);
   }
+  assert.equal(evaluate(wip.if, { "steps.kill.outputs.proceed": "false" }), false, "the switch on skips the cap check");
+  assert.equal(evaluate(hold.if, { "steps.kill.outputs.proceed": "false", "steps.wip.outputs.capped": "" }), false, "the switch on names no hold");
+  const marker = pick.steps.find((item) => item.id === "hold-marker");
+  assert.equal(evaluate(marker.if, { "steps.kill.outputs.proceed": "false", "steps.wip.outputs.held": "", "steps.wip.outputs.capped": "" }), false, "the switch on marks no hold");
+  assert.equal(evaluate(marker.if, { "steps.kill.outputs.proceed": "", "steps.wip.outputs.held": "", "steps.wip.outputs.capped": "" }), true, "an unknown cap marks the hold");
   assert.match(hold.run, /^echo "::notice title=WIP cap hold::/);
   assert.equal(hold["continue-on-error"], undefined);
   // A held run reads no more config, so an unreadable base config cannot fail
@@ -3438,7 +3449,7 @@ test("pr-refine.yml: fix-docs runs only on a fix-docs dispatch with a PR number,
     assert.equal(jobs[id].with["trusted-base"], "default-tip", id);
     assert.equal(jobs[id].with["dispatcher-run-id"], "${{ inputs.dispatcher-run-id }}", id);
     assert.equal(jobs[id].with.lane, "pr-refine", id);
-    assert.deepEqual(jobs[id].permissions, { ...(id === "apply-docs-patch" ? {} : { actions: "read" }), contents: "read", "pull-requests": "read", checks: "write", issues: "write", "id-token": "write" }, id);
+    assert.deepEqual(jobs[id].permissions, { actions: "read", contents: "read", "pull-requests": "read", checks: "write", issues: "write", "id-token": "write" }, id);
   }
   const starts = ({ activity = "fix-docs", pr = "7", sender = "1", held = "false" } = {}) =>
     evaluate(jobs["fix-docs"].if, {
@@ -3725,7 +3736,7 @@ test("pr-run-activity-read.yml: the scan job holds only the scan-carrier key, in
   assert.equal(scan["runs-on"], "ubuntu-24.04");
   assert.deepEqual(scan.needs, ["run", "issue-fields"]);
   assert.deepEqual(scan.permissions, { contents: "read" });
-  assert.equal(scan.environment, "pr-pipeline-scan-carrier");
+  assert.deepEqual(scan.environment, { name: "pr-pipeline-scan-carrier", deployment: false });
   assert.deepEqual(stepSecrets(scan), ["scan-carrier-private-key"], "the one secret in the job");
   assert.deepEqual(scan.steps.filter((step) => stepSecrets(step).length > 0).map((step) => step.id), ["open"], "read in the decode step alone");
   assert.doesNotMatch(JSON.stringify(scan), /id-token|ACTIONS_ID_TOKEN/);
@@ -5536,10 +5547,25 @@ test("pr-run-activity-read.yml: the scan-carrier key is passed by name by each r
   }
   for (const file of files) {
     for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
-      if ((file === "pr-run-activity-read.yml" || CARRIER_HOLDERS.includes(file)) && id === "scan") assert.equal(job.environment, "pr-pipeline-scan-carrier");
+      if ((file === "pr-run-activity-read.yml" || CARRIER_HOLDERS.includes(file)) && id === "scan") assert.deepEqual(job.environment, { name: "pr-pipeline-scan-carrier", deployment: false }, `${file} ${id}`);
       else assert.doesNotMatch(JSON.stringify(job.environment ?? ""), /pr-pipeline-scan-carrier/, `${file} ${id}`);
     }
   }
+});
+
+test("every job naming an environment uses it for its secrets alone, with deployment: false", () => {
+  const named = [];
+  for (const file of workflowFiles()) {
+    for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
+      if (job.environment === undefined) continue;
+      named.push(`${file} ${id}`);
+      assert.deepEqual(Object.keys(job.environment).sort(), ["deployment", "name"], `${file} ${id}`);
+      assert.equal(job.environment.deployment, false, `${file} ${id}`);
+    }
+  }
+  assert.ok(named.includes("release-publish-plugins.yml merge"), named.join(", "));
+  assert.ok(named.includes("release-publish-plugins.yml build"), named.join(", "));
+  assert.ok(named.includes("dependabot-fragments.yml write"), named.join(", "));
 });
 
 test("scan job: the verdict is built from the run job's checked outputs, never from a file a model job wrote", (t) => {
@@ -7102,7 +7128,7 @@ test("pr-unblock.yml: resolve-conflicts is reported neutral when the select job 
 
 test("pr-unblock.yml: resolve-conflicts-select merges with the base's scripts, pinned to the tip it read, in a head checkout that keeps no credential", () => {
   const select = workflow("pr-unblock.yml").jobs["resolve-conflicts-select"];
-  assert.deepEqual(select.permissions, { contents: "read", "pull-requests": "read" });
+  assert.deepEqual(select.permissions, { actions: "read", contents: "read", "pull-requests": "read" });
   assert.equal(select.uses, undefined, "a base job, never a runner");
   assert.deepEqual(stepSecrets(select), []);
   const step = (id) => select.steps.find((s) => s.id === id);
@@ -9494,7 +9520,7 @@ test("pr-unblock.yml: resolve-feedback-threads is its own base-only script job a
   const { jobs } = workflow("pr-unblock.yml");
   const job = jobs["resolve-feedback-threads"];
   const publish = jobs["publish-feedback"];
-  const tokenPermissions = { contents: "read", "pull-requests": "read", checks: "write", issues: "write", "id-token": "write" };
+  const tokenPermissions = { actions: "read", contents: "read", "pull-requests": "read", checks: "write", issues: "write", "id-token": "write" };
   assert.deepEqual(publish.permissions, tokenPermissions, "publish-feedback's job permissions are unchanged");
   assert.equal(publish.with.activity, "publish-feedback");
   assert.deepEqual(job.permissions, tokenPermissions, "the job token holds no write beyond publish-feedback's");

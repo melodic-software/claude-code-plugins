@@ -68,9 +68,8 @@ class Broken(Exception):
 
 
 def supported(version):
-    if PYTHONS:
-        return tuple(version[:2]) in PYTHONS
-    return tuple(version[:2]) >= MIN_PYTHON
+    version = tuple(version[:2])
+    return version in PYTHONS if PYTHONS else version >= MIN_PYTHON
 
 
 # Read at import: sysconfig loads its data lazily, keyed by sys.platform.
@@ -280,10 +279,7 @@ def check(data, requirements=REQUIREMENTS, probe=PROBE):
 
 
 def _runs_supported(path):
-    if PYTHONS:
-        version_ok = f'sys.version_info[:2] in {PYTHONS}'
-    else:
-        version_ok = f'sys.version_info[:2] >= {MIN_PYTHON}'
+    version_ok = f'sys.version_info[:2] in {PYTHONS}' if PYTHONS else f'sys.version_info[:2] >= {MIN_PYTHON}'
     gil_ok = 'True' if ALLOW_FREE_THREADED else 'not sysconfig.get_config_var("Py_GIL_DISABLED")'
     probe = f'import sys, sysconfig; raise SystemExit(not ({version_ok} and {gil_ok}))'
     try:
@@ -303,9 +299,7 @@ def _launcher_listed():
         r = subprocess.run([launcher, '-0p'], env=_foreign_env(), capture_output=True, text=True, errors='replace')
     except OSError:
         return []
-    if r.returncode:
-        return []
-    return re.findall(r'(?im)^\s*-\S+\s+(?:\*\s+)?([a-z]:\\.*?\.exe)\b', r.stdout)
+    return [] if r.returncode else re.findall(r'(?im)^\s*-\S+\s+(?:\*\s+)?([a-z]:\\.*?\.exe)\b', r.stdout)
 
 
 def interpreter():
@@ -328,13 +322,14 @@ def main(argv=None):
         if chosen and Path(chosen).resolve() != Path(sys.executable).resolve():
             return subprocess.run([chosen, str(Path(__file__).resolve()), *argv],
                                   env=_foreign_env({HANDED_OVER: chosen})).returncode
-    rest = argv[argv.index('--') + 1:] if '--' in argv else []
+    split = argv.index('--') if '--' in argv else len(argv)
+    rest = argv[split + 1:]
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument('action', choices=('install', 'run', 'check'))
     ap.add_argument('--data-dir')
     ap.add_argument('--requirements', type=Path, default=REQUIREMENTS)
     ap.add_argument('--probe', nargs='+', default=PROBE)
-    a = ap.parse_args(argv[:argv.index('--')] if '--' in argv else argv)
+    a = ap.parse_args(argv[:split])
     if a.action == 'run' and not rest:
         ap.error('run needs a script after --')
     failed = 2 if a.action == 'run' else 1

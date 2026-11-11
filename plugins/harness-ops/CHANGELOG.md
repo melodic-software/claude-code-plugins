@@ -3,6 +3,28 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.30] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.29] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.28] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+### Fixed
+
+- `/harness-ops:audit-install-state` and `/harness-ops:audit-skill-visibility` under `--unattended` omit the `/doctor` and `/skill-doctor` suggestions instead of recording them in the report, as `/harness-ops:audit-performance` already does: an unattended run neither suggests nor runs a command reserved for the person.
+
 ## [8.12.27] - 2026-11-11
 
 ### Changed

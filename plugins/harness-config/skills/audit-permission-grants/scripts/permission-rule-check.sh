@@ -592,7 +592,8 @@ extract_allowed_tools() {
 # Only frontmatter at a documented load path is audited — not every SKILL.md the
 # walk finds. Claude Code loads skills from project `.claude/skills/<name>/`,
 # nested `**/.claude/skills/<name>/` below the working directory (including
-# under `node_modules/<pkg>/`), and a plugin's `skills/<name>/SKILL.md`; agents
+# under `node_modules/<pkg>/`, not inside the user plugins directory), and a
+# plugin's `skills/<name>/SKILL.md`; agents
 # and commands load from the parallel `.claude/` and plugin paths. A vendored
 # copy at `vendor/foo/SKILL.md` or `pkg/skills/foo/SKILL.md` is not one of
 # those shapes and is excluded; `vendor/foo/.claude/skills/bar/SKILL.md` IS
@@ -611,6 +612,36 @@ extract_allowed_tools() {
 # its own root. So a path also loads when the directory above its `skills/`,
 # `agents/` or `commands/` segment, at or below the scan root, holds the manifest.
 # A manifestless plugin outside `plugins/<name>/` is still excluded and counted.
+#
+# We treat `.claude/skills/` folders nested below the scan root inside the user
+# plugins directory (`<config root>/plugins/`) as non-loadable, and keep the scan
+# root's own `.claude/skills/` audited: a session started in the scan root loads
+# those as project skills. Pointer: https://code.claude.com/docs/en/changelog#2-1-321
+# and https://code.claude.com/docs/en/skills#discovery-from-parent-and-nested-directories.
+# As of: 2026-11-11. Recheck trigger: either section changes which directories
+# under the user plugins directory load skills. A session that adds a nested
+# folder with --add-dir would still load it; the exclusion count discloses that gap.
+#
+# CLAUDE_CONFIG_DIR relocates the whole ~/.claude tree when set (official
+# .claude-directory doc), so it wins over $HOME; with neither resolvable there is
+# no user scope. This resolution IS the fixture seam: a test points $HOME at a
+# fixture home and unsets CLAUDE_CONFIG_DIR, the same seam harness-memory's
+# resolver already uses. No test may read the operator's real ~/.claude.
+if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then
+  USER_CONFIG_ROOT="$CLAUDE_CONFIG_DIR"
+elif [[ -n "${HOME:-}" ]]; then
+  USER_CONFIG_ROOT="$HOME/.claude"
+else
+  USER_CONFIG_ROOT=""
+fi
+USER_PLUGINS_REAL=""
+[[ -n "$USER_CONFIG_ROOT" && -d "$USER_CONFIG_ROOT/plugins" ]] &&
+  USER_PLUGINS_REAL="$(cd "$USER_CONFIG_ROOT/plugins" && pwd -P)"
+ROOT_REAL="$(cd "$ROOT" && pwd -P)"
+under_user_plugins() {
+  # under_user_plugins <path relative to ROOT>
+  [[ -n "$USER_PLUGINS_REAL" && "$ROOT_REAL/$1" == "$USER_PLUGINS_REAL"/* ]]
+}
 plugin_root_has_manifest() {
   # plugin_root_has_manifest <dir relative to ROOT, empty for ROOT itself>
   [[ -f "$ROOT${1:+/$1}/.claude-plugin/plugin.json" ]]
@@ -621,7 +652,11 @@ frontmatter_is_loadable() {
   local file="$1" rel="${1#"$ROOT"/}"
   case "$file" in
   */SKILL.md)
-    [[ "$rel" =~ (^|/)\.claude/skills/[^/]+/SKILL\.md$ ]] && return 0
+    if [[ "$rel" =~ (^|/)\.claude/skills/[^/]+/SKILL\.md$ ]]; then
+      [[ "$rel" == .claude/skills/* ]] && return 0
+      under_user_plugins "$rel" && return 1
+      return 0
+    fi
     [[ "$rel" =~ ^plugins/[^/]+/skills/[^/]+/SKILL\.md$ ]] && return 0
     if [[ "$rel" =~ ^(.+/)?skills/[^/]+/SKILL\.md$ ]]; then
       plugin_root_has_manifest "${BASH_REMATCH[1]%/}" && return 0
@@ -734,22 +769,9 @@ fi
 # a prompt approval is saved, see
 # https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository
 # (as of 2026-11-04; recheck when that section changes where approvals are saved).
-# CLAUDE_CONFIG_DIR relocates the
-# whole ~/.claude tree when set (official .claude-directory doc), so it wins over
-# $HOME; with neither resolvable there is no user scope to scan. The label is the
-# resolved absolute path — reporting "~/.claude/settings.json" would name the
-# wrong file whenever CLAUDE_CONFIG_DIR has moved the tree.
-#
-# This resolution IS the fixture seam: a test points $HOME at a fixture home and
-# unsets CLAUDE_CONFIG_DIR, the same seam harness-memory's resolver already uses.
-# No test may read the operator's real ~/.claude.
-if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then
-  USER_CONFIG_ROOT="$CLAUDE_CONFIG_DIR"
-elif [[ -n "${HOME:-}" ]]; then
-  USER_CONFIG_ROOT="$HOME/.claude"
-else
-  USER_CONFIG_ROOT=""
-fi
+# The label is the resolved absolute path (USER_CONFIG_ROOT, resolved above the
+# frontmatter loop) — reporting "~/.claude/settings.json" would name the wrong
+# file whenever CLAUDE_CONFIG_DIR has moved the tree.
 if [[ -n "$USER_CONFIG_ROOT" ]]; then
   user_settings="$USER_CONFIG_ROOT/settings.json"
   project_settings="$ROOT/.claude/settings.json"

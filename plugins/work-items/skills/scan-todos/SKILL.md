@@ -36,8 +36,10 @@ If the consuming repo has its own comment-hygiene tooling (a shared pattern libr
 ```bash
 # -C roots the scan at the repo top — a bare git grep from a subdirectory searches only that subtree.
 # With --path <dir>, thread it in as a root-relative pathspec (keep the exclusions): ... -- '<dir>' ':!*.min.*' ':!*node_modules*'
-git -C "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}" grep -nE '\b(TODO|FIXME|HACK|XXX)\b' -- ':!*.min.*' ':!*node_modules*' | tr -d '\r'
+git -C "<project root>" grep -nE '\b(TODO|FIXME|HACK|XXX)\b' -- ':!*.min.*' ':!*node_modules*' | tr -d '\r'
 ```
+
+`<project root>` is the literal path [`tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet.
 
 - **Actionable (in scope):** bare `TODO`/`FIXME`/`HACK`/`XXX` markers describing work to do; internal tracker provenance comments (e.g. `item #N` breadcrumbs left in code)
 - **Not actionable (skip):** external upstream citations (`org/repo#issue`), structured task-list grammar in working-notes files (e.g. `[TODO]` phase tags), test fixtures that assert on the literal marker text, and the consuming repo's documented exclusion paths

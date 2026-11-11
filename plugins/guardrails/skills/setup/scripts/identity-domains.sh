@@ -84,6 +84,7 @@ def innermost($paths; $os):
             elif ($tree | test("[*?\\[]")) then {note: "skipped tree \($tree): it holds a wildcard"}
             elif ($tree | absolute($os) | not) then {note: "skipped tree \($tree): it is not absolute below a filesystem root"}
             else {tree: $tree, base: ($tree | base), gh: ((.identity? | .gh_config_dir? | objects) // {})} end] as $rows
+      | [$rows[] | .note // empty] as $notes
       | (reduce ($rows[] | select(has("tree"))) as $r ({taken: {}, out: []};
           .taken as $t | ($r.base | fresh($t)) as $n | .taken[$n] = true | .out += [$r + {name: $n}])
         | .out) as $kept
@@ -109,8 +110,8 @@ def innermost($paths; $os):
               end]) as $bad
       | def given($k; $n): [$extra[] | select(.k == $k and .n == $n) | .v];
         def ghset: .gh.verdict == "set" and (.gh.value | oneline);
-        if ($kept | length) == 0 then {refused: (["no identity domain in the profile has an absolute tree with no wildcard"] + $bad), notes: [$rows[] | .note // empty]}
-        elif ($bad | length) > 0 then {refused: $bad, notes: [$rows[] | .note // empty]}
+        if ($kept | length) == 0 then {refused: (["no identity domain in the profile has an absolute tree with no wildcard"] + $bad), notes: $notes}
+        elif ($bad | length) > 0 then {refused: $bad, notes: $notes}
         else
           ($kept | map(
               .name as $n
@@ -127,7 +128,7 @@ def innermost($paths; $os):
           | {map: ({domains: $domains}
                + (if $owner_roots != [] then {owner_roots: {($os): $owner_roots}} else {} end)
                + $shared),
-             notes: ([$rows[] | .note // empty]
+             notes: ($notes
                + [$kept[] | select(ghset | not)
                    | "domain \(.name): gh_config_dir left out; the profile records it \(.gh.verdict // "nowhere")"]
                + [$kept[] | "domain \(.name) is tree \(.tree)"]
@@ -158,10 +159,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
     --profile) PROFILE="$2" ;;
     --data-dir) DATA_DIR="$2" ;;
-    --owner) add_extra owner "$2" ;;
-    --marker) add_extra marker "$2" ;;
-    --az-config-dir) add_extra az-config-dir "$2" ;;
-    --shared-exception) add_extra shared-exception "$2" ;;
+    --owner | --marker | --az-config-dir | --shared-exception) add_extra "${1#--}" "$2" ;;
     --owner-root) add_extra owner-root "root=$2" ;;
     *) ;;
     esac
@@ -179,15 +177,12 @@ done
 
 [[ -n "$PROFILE" ]] || die "--profile is required"
 # shellcheck disable=SC2016  # a literal unresolved token
-if [[ -n "$DATA_DIR" && "$DATA_DIR" == *'${'* ]]; then die "--data-dir is unresolved; pass the plugin data directory"; fi
+[[ "$DATA_DIR" != *'${'* ]] || die "--data-dir is unresolved; pass the plugin data directory"
 ((CONFIRM == 0)) || [[ -n "$DATA_DIR" ]] || die "--confirm needs --data-dir"
 
-if [[ "$PROFILE" == "-" ]]; then
-  RAW="$(cat)"
-else
-  [[ -r "$PROFILE" ]] || die "cannot read $PROFILE"
-  RAW="$(cat -- "$PROFILE")"
-fi
+# cat reads stdin for the operand "-", even after "--".
+[[ "$PROFILE" == "-" || -r "$PROFILE" ]] || die "cannot read $PROFILE"
+RAW="$(cat -- "$PROFILE")"
 
 # MSYS_NO_PATHCONV=1 keeps Git Bash from rewriting the path values handed to jq.
 OUT="$(MSYS_NO_PATHCONV=1 jq -c -R -s --arg home "${HOME:-}" "$BUILD_JQ" --args ${EXTRA[@]+"${EXTRA[@]}"} <<<"$RAW")" || die "jq could not build the map" 1

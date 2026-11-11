@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "9.0.0",
+  "version": "10.0.2",
   "license": "MIT",
   "keywords": [
     "git",
@@ -92,12 +92,6 @@
       "type": "boolean",
       "title": "Worktree-add-claim hook",
       "description": "After a raw Bash git worktree add, locks the parsed add target with a session-distinct claim (host, session id, timestamp) so concurrent adds cannot steal each other's trees. On by default. Off leaves plain-add trees unclaimed.",
-      "default": true
-    },
-    "worktree_create_gate_enabled": {
-      "type": "boolean",
-      "title": "Worktree-create-gate hook",
-      "description": "Redirects a WorktreeCreate away from Claude Code's default location, which may be inside the repository, to the configured worktree_root. On by default. Off does not hand placement back to Claude Code: the gate refuses and every harness-driven worktree creation fails.",
       "default": true
     },
     "babysit_watched_owners": {

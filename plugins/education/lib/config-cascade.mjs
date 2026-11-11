@@ -64,7 +64,7 @@
 // heading follows them, and the team text before the first H2 is kept. `sections` lists the result in
 // order, each with the layer it came from (`heading` is null for text before the first H2).
 // This module reads files only. File contents are data; error messages quote them as JSON strings.
-import { lstatSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve as resolvePath, sep } from "node:path";
 import { parse } from "./yaml-subset.mjs";
@@ -86,25 +86,39 @@ const record = (layer, message, key = null) => {
   layer.errors.push(message);
   layer.error_keys.push(key);
 };
+/** Records `message` on `layer`, prefixed with the layer's name and path. */
+const recordOn = (layer, message, key) => record(layer, `${layer.name}${layer.path ? ` (${layer.path})` : ""}: ${message}`, key);
 
-/** {ok} for a readable layer file, {refused: why} for one that must not be read, {} when absent. A
- * repository layer refuses a symlink, which could reach a file outside the checkout; every layer
- * refuses anything but a regular file, since a device or FIFO never finishes reading. */
-function fileState(path, repo) {
+function checkPlugin(plugin) {
+  if (typeof plugin !== "string" || !PLUGIN.test(plugin)) throw new Error(`config-cascade: plugin name ${JSON.stringify(plugin)} is not a plain name`);
+}
+
+/** The convention home, whether a relative one escapes projectRoot, and the [name, stem] of each file layer. */
+function fileLayersOf(plugin, projectRoot, home) {
+  const homeDir = resolvePath(projectRoot, home);
+  // A relative home is inside the checkout by intent; a committed symlink must not carry it out.
+  const homeEscapes = !isAbsolute(home) && escapes(homeDir, projectRoot);
+  const stems = [
+    ["team", join(homeDir, plugin)],
+    ["local", join(homeDir, `${plugin}.local`)],
+  ];
+  return { homeDir, homeEscapes, stems };
+}
+
+const escapedLayer = (name, stem, homeDir) =>
+  newLayer(name, `${stem}.yaml`, "invalid", [`${name} (${homeDir}): the convention home resolves outside the project; a repository layer stays inside it`]);
+
+/** {ok} for a readable repository layer file, {refused: why} for one that must not be read, {} when
+ * absent. A symlink is refused, since it could reach a file outside the checkout, and so is anything
+ * but a regular file, since a device or FIFO never finishes reading. */
+function fileState(path) {
   let st;
   try {
     st = lstatSync(path);
   } catch {
     return {};
   }
-  if (st.isSymbolicLink()) {
-    if (repo) return { refused: "is a symlink; a repository layer reads only regular files" };
-    try {
-      st = statSync(path);
-    } catch {
-      return {};
-    }
-  }
+  if (st.isSymbolicLink()) return { refused: "is a symlink; a repository layer reads only regular files" };
   return st.isFile() ? { ok: true } : { refused: "is not a regular file" };
 }
 
@@ -240,18 +254,18 @@ function userConfigLeaves(userConfig, names, teamOnly, fail) {
 }
 
 /** One file layer: its report entry, its parsed mapping (or null), and its prose path (or null). */
-function readLayer(name, stem, repo) {
+function readLayer(name, stem) {
   const path = `${stem}.yaml`;
   const md = `${stem}.md`;
   const layer = newLayer(name, path, "absent");
-  const mdFile = fileState(md, repo);
+  const mdFile = fileState(md);
   if (mdFile.refused) {
     layer.state = "invalid";
     record(layer, `${name} (${md}): ${mdFile.refused}`);
   }
   const prose = mdFile.ok ? md : null;
   if (prose) layer.state = "loaded";
-  const yamlFile = fileState(path, repo);
+  const yamlFile = fileState(path);
   if (yamlFile.refused) {
     layer.state = "invalid";
     record(layer, `${name} (${path}): ${yamlFile.refused}`);
@@ -294,12 +308,8 @@ export function configBlockBody(text) {
 
 /** True when the Markdown file holds a ```<lang> config block outside any other fence. */
 function hasConfigBlock(path) {
-  if (!fileState(path, true).ok) return false;
-  try {
-    return configBlockBody(readFileSync(path, "utf8")) !== null;
-  } catch {
-    return false;
-  }
+  const text = fileState(path).ok ? readText(path) : null;
+  return text !== null && configBlockBody(text) !== null;
 }
 
 /** A Markdown text as [{heading, text}], split at each H2 outside a code fence; the first entry holds
@@ -424,13 +434,11 @@ function looser(floor, personal, team, node) {
 }
 
 export function resolve({ plugin, projectRoot, home = "docs/conventions", schema, defaults, userConfig, teamOnly = [], floors = {}, userHome = homedir() }) {
-  if (typeof plugin !== "string" || !PLUGIN.test(plugin)) throw new Error(`config-cascade: plugin name ${JSON.stringify(plugin)} is not a plain name`);
+  checkPlugin(plugin);
   const only = new Set(teamOnly);
   const floorMap = normalizeFloors(floors);
   const names = flatNames(schema, only);
-  const homeDir = resolvePath(projectRoot, home);
-  // A relative home is inside the checkout by intent; a committed symlink must not carry it out.
-  const homeEscapes = !isAbsolute(home) && escapes(homeDir, projectRoot);
+  const { homeDir, homeEscapes, stems } = fileLayersOf(plugin, projectRoot, home);
   const layers = [];
   const contributions = []; // [layer name, [[parts, value]], dotted keys whose value was invalid]
   const prose = [];
@@ -440,7 +448,7 @@ export function resolve({ plugin, projectRoot, home = "docs/conventions", schema
   const take = (layer, pairsOf) => {
     const invalid = new Set();
     const fail = (message, key, valueFailed = false) => {
-      record(layer, `${layer.name}${layer.path ? ` (${layer.path})` : ""}: ${message}`, key);
+      recordOn(layer, message, key);
       if (valueFailed) invalid.add(key);
     };
     if (pairsOf) contributions.push([layer.name, pairsOf(fail), invalid]);
@@ -457,16 +465,12 @@ export function resolve({ plugin, projectRoot, home = "docs/conventions", schema
   take(d.layer, d.ok && fileLeaves(defaults, true));
   const u = shaped("userConfig", userConfig);
   take(u.layer, u.ok && ((fail) => userConfigLeaves(userConfig, names, only, fail)));
-  for (const [name, stem] of [
-    ["team", join(homeDir, plugin)],
-    ["local", join(homeDir, `${plugin}.local`)],
-  ]) {
+  for (const [name, stem] of stems) {
     if (homeEscapes) {
-      const why = "the convention home resolves outside the project; a repository layer stays inside it";
-      take(newLayer(name, `${stem}.yaml`, "invalid", [`${name} (${homeDir}): ${why}`]));
+      take(escapedLayer(name, stem, homeDir));
       continue;
     }
-    const read = readLayer(name, stem, true);
+    const read = readLayer(name, stem);
     take(read.layer, fileLeaves(read.data, name === "team"));
     if (read.prose) {
       prose.push(read.prose);
@@ -547,31 +551,26 @@ function legacyOf(plugin, userHome, projectRoot, teamMd) {
  *     -> {layers: [{name, path, state, errors, error_keys, values: {"a.b": value}}], legacy}
  */
 export function readLayers({ plugin, projectRoot = null, home = "docs/conventions", schema, userConfig, teamOnly = [], team, userHome = homedir() }) {
-  if (typeof plugin !== "string" || !PLUGIN.test(plugin)) throw new Error(`config-cascade: plugin name ${JSON.stringify(plugin)} is not a plain name`);
+  checkPlugin(plugin);
   const only = new Set(teamOnly);
   const layers = [];
   const add = (layer, pairsOf) => {
-    const fail = (message, key) => record(layer, `${layer.name}${layer.path ? ` (${layer.path})` : ""}: ${message}`, key);
     const values = {};
-    for (const [parts, value] of pairsOf ? pairsOf(fail) : []) put(values, parts.join("."), value);
+    for (const [parts, value] of pairsOf ? pairsOf((message, key) => recordOn(layer, message, key)) : []) put(values, parts.join("."), value);
     layers.push({ ...layer, values });
   };
   if (isMapping(userConfig)) add(newLayer("userConfig", null, "loaded"), (fail) => userConfigLeaves(userConfig, flatNames(schema, only), only, fail));
   if (!projectRoot) return { layers, legacy: legacyOf(plugin, userHome, null, false) };
-  const homeDir = resolvePath(projectRoot, home);
-  const homeEscapes = !isAbsolute(home) && escapes(homeDir, projectRoot);
-  for (const [name, stem] of [
-    ["team", join(homeDir, plugin)],
-    ["local", join(homeDir, `${plugin}.local`)],
-  ]) {
+  const { homeDir, homeEscapes, stems } = fileLayersOf(plugin, projectRoot, home);
+  for (const [name, stem] of stems) {
     const fileLeaves = (data) => data && ((fail) => leaves(data, schema, { teamOnly: only, allowTeamOnly: name === "team", fail }));
     if (name === "team" && team) {
       const layer = newLayer(name, team.path, "absent");
       add(layer, typeof team.text === "string" && fileLeaves(parseInto(layer, () => team.text)));
     } else if (homeEscapes) {
-      add(newLayer(name, `${stem}.yaml`, "invalid", [`${name} (${homeDir}): the convention home resolves outside the project; a repository layer stays inside it`]));
+      add(escapedLayer(name, stem, homeDir));
     } else {
-      const read = readLayer(name, stem, true);
+      const read = readLayer(name, stem);
       add(read.layer, fileLeaves(read.data));
     }
   }
