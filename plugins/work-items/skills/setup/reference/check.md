@@ -58,7 +58,26 @@ check.
    check is the wrong gate), so an unrelated stale credential cannot skip the probe and let the
    very binding this exists to catch go unreported. Verdict on *why* the call failed
    rather than on failure alone:
-   - Resolves → INFO naming the `owner/repo` the seam will address.
+   - Resolves → INFO naming the `owner/repo` the seam will address. Then check that this is the
+     repository the user means: with no recorded default, `gh` picks among several remotes by
+     remote name, and a stock fork clone records `upstream`, so in a fork checkout the seam's
+     writes could land on upstream. Run `gh repo set-default --view` and list the distinct
+     GitHub `owner/repo` values the remotes' fetch URLs name (`git remote -v`; the ssh and https
+     forms of one repository, with or without `.git`, compared case-insensitively, are one). Judge
+     the command by its output, never its exit code, which is 0 whether or not a default is set:
+     - One distinct repository → nothing to add.
+     - Two or more, and `--view` printed nothing on stdout with stderr saying no default
+       remote repository has been set → FAIL: the seam's repository is gh's guess.
+     - Two or more, and the default `--view` printed is not the fork → FAIL. The fork is the
+       tracker in a fork checkout; it is normally the repository `origin` names, and
+       `gh api repos/<owner>/<repo> --jq .parent.full_name` on it names its upstream.
+     - Two or more, and the default is the fork → INFO naming it.
+     - Any other `--view` output (gh missing, a gh without `--view`, an error) → INFO, naming the
+       message verbatim, for the reason the last bullet below gives.
+
+     The remediation for either FAIL is to print, with the fork filled in,
+     `gh repo set-default <owner>/<repo>`, and to say that the user confirms the repository first;
+     `check` never runs it.
    - No remote, or no remote pointing at a known GitHub host → FAIL: nothing here can derive a repo,
      so every repo-scoped verb that is not handed the CONTRACT's explicit `--repo <owner>/<repo>`
      override fails at call time. Remediation is `/work-items:setup apply` with a user present,
