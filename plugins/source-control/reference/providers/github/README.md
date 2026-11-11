@@ -37,11 +37,23 @@ Each phase that writes resolves the repository once, before its first forge call
 `bash "<skill-dir>/scripts/target-repo.sh" [--dir <checkout>]` (the pull-request skill's script),
 reports the `target repository:` line it prints, and names that repository in every later call of
 the phase: `-R <owner>/<repo>` on `gh pr` and `gh issue`, `repos/<owner>/<repo>/...` on `gh api`,
-as [merge](pull-request/merge.md#merge-command) already does. The script takes the recorded
-default, else the one github.com repository the remotes name, and refuses a checkout whose
-remotes name two or more with no default recorded, printing the `gh repo set-default
-<owner>/<repo>` fix. A refusal stops the phase: which repository is the target is the user's
-choice, not the script's.
+as [merge](pull-request/merge.md#merge-command) already does. The script resolves in this order:
+
+1. `GH_REPO`, when set: the caller's explicit choice, which the phase's unpinned reads also follow.
+2. When the remotes name two or more github.com repositories, the fork among them: a remote's
+   repository whose parent (`gh api repos/<owner>/<repo> --jq .parent.full_name`) is the recorded
+   default or another remote's repository, `origin` checked first. A fork checkout works on the
+   fork, even when a stock fork clone recorded upstream as gh's default.
+3. The recorded default.
+4. The one github.com repository the remotes name.
+5. With no github.com remote, gh's own resolution.
+
+It refuses only when the remotes cannot decide: two or more github.com repositories, none a fork
+of another, and no default recorded. It then prints the `gh repo set-default <owner>/<repo>` fix,
+and the refusal stops the phase: which repository is the target is the user's choice, not the
+script's. A pull request meant for upstream from a fork names its base repository explicitly
+([out-of-tree create](pull-request/create.md#open-the-pr-from-an-out-of-tree-orchestrator),
+triangular flow).
 
 - **Pointer**: [`gh repo set-default`](https://cli.github.com/manual/gh_repo_set-default),
   [`gh repo clone`](https://cli.github.com/manual/gh_repo_clone) and

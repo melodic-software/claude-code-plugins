@@ -2,9 +2,11 @@
 # Tests for target-repo.sh. Each case builds a throwaway git repo with a given
 # set of remotes and runs the resolver against a stub gh whose
 # `repo set-default --view` and `api` output come from the STUB_* variables.
+# STUB_PARENTS lists `<repo>=<parent>` pairs, space-separated, that the stub's
+# `api repos/<repo>` answers with; any other repository has no parent.
 # Non-zero exit on any FAIL.
 
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GH_REPO
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 RESOLVER="${SCRIPT_DIR}/target-repo.sh"
@@ -24,6 +26,12 @@ case "$1 $2" in
   exit "${STUB_VIEW_RC:-0}"
   ;;
 "api repos/{owner}/{repo}") printf '%s\n' "${STUB_API_OUT:-}" ;;
+"api repos/"*)
+  for pair in ${STUB_PARENTS:-}; do
+    [[ "repos/${pair%%=*}" == "$2" ]] && printf '%s\n' "${pair#*=}"
+  done
+  exit 0
+  ;;
 *) echo "stub gh: unexpected call: $*" >&2; exit 99 ;;
 esac
 STUB
@@ -64,15 +72,27 @@ FORK=$(make_repo fork origin=https://github.com/me/tool.git upstream=git@github.
 SINGLE=$(make_repo single origin=https://github.com/acme/tool)
 SAME=$(make_repo same origin=git@github.com:acme/tool.git github=https://github.com/acme/tool/)
 GHE=$(make_repo ghe origin=https://ghe.example.com/acme/tool.git)
+UNRELATED=$(make_repo unrelated origin=https://github.com/acme/tool.git other=https://github.com/beta/lib.git)
+NO_ORIGIN=$(make_repo no-origin mine=https://github.com/me/tool.git upstream=https://github.com/acme/tool.git)
 
-check "a recorded default wins even with two GitHub repositories" "$FORK" \
-  "me/tool" 0 "target repository: me/tool" STUB_VIEW_OUT=me/tool
+check "a stock fork clone with upstream as the gh default pins the fork origin names" "$FORK" \
+  "me/tool" 0 "target repository: me/tool" STUB_VIEW_OUT=acme/tool STUB_PARENTS=me/tool=acme/tool
+check "no default with a fork and its upstream pins the fork" "$FORK" \
+  "me/tool" 0 "target repository: me/tool" "STUB_VIEW_ERR=$NO_DEFAULT" STUB_PARENTS=me/tool=acme/tool
+check "a fork under a remote other than origin is still found" "$NO_ORIGIN" \
+  "me/tool" 0 "target repository: me/tool" "STUB_VIEW_ERR=$NO_DEFAULT" STUB_PARENTS=me/tool=acme/tool
+check "two unrelated repositories with no default are refused with the set-default fix" "$UNRELATED" \
+  "" 1 "gh repo set-default <owner>/<repo>" "STUB_VIEW_ERR=$NO_DEFAULT"
+check "two unrelated repositories follow a recorded default" "$UNRELATED" \
+  "beta/lib" 0 "target repository: beta/lib" STUB_VIEW_OUT=beta/lib
+check "an explicit GH_REPO wins over the recorded default" "$FORK" \
+  "elsewhere/other" 0 "target repository: elsewhere/other" GH_REPO=elsewhere/other STUB_VIEW_OUT=me/tool
+check "a GH_REPO with a host prefix drops the host" "$SINGLE" \
+  "elsewhere/other" 0 "target repository: elsewhere/other" GH_REPO=github.com/elsewhere/other
 check "no default and one GitHub repository resolves to it" "$SINGLE" \
   "acme/tool" 0 "target repository: acme/tool" "STUB_VIEW_ERR=$NO_DEFAULT"
 check "two remotes naming the same repository count as one" "$SAME" \
   "acme/tool" 0 "target repository: acme/tool" "STUB_VIEW_ERR=$NO_DEFAULT"
-check "no default with a fork and its upstream is refused with the set-default fix" "$FORK" \
-  "" 1 "gh repo set-default <owner>/<repo>" "STUB_VIEW_ERR=$NO_DEFAULT"
 check "no github.com remote falls back to gh's own resolution" "$GHE" \
   "acme/tool" 0 "target repository: acme/tool" "STUB_VIEW_ERR=$NO_DEFAULT" STUB_API_OUT=acme/tool
 check "an unrecognized --view message is not read as no default" "$SINGLE" \

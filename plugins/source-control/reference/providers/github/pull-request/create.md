@@ -113,8 +113,8 @@ REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>") || exit 1
 ```
 
 A non-zero exit opens no PR: report the script's stderr, which names the `gh repo set-default`
-fix when the remotes name more than one repository
-([target repository](../README.md#target-repository)).
+fix when the remotes name more than one repository, none a fork of another, and no default is
+recorded ([target repository](../README.md#target-repository)).
 
 ## Open the draft PR
 

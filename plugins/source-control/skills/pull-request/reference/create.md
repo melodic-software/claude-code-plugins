@@ -617,8 +617,9 @@ bash "<skill-dir>/scripts/push-branch.sh" --check --dir "<checkout>" "$BRANCH" |
 Then resolve the repository the PR opens on, once, from `<checkout>` with
 `scripts/target-repo.sh`, and report the `target repository:` line it prints
 ([GitHub](../../../reference/providers/github/pull-request/create.md#resolve-the-target-repository)).
-A non-zero exit opens no PR: report its stderr, which names the fix when the remotes name more than
-one repository and none is recorded as the default. On a triangular flow (§2.7) the base
+In a fork checkout it resolves to the fork. A non-zero exit opens no PR: report its stderr, which
+names the fix when the remotes name more than one repository, none a fork of another, and none is
+recorded as the default. On a triangular flow (§2.7) the base
 repository, named explicitly, stands in for the script's result. Open the PR as a draft on that repository from
 head `$BRANCH`, with the title and the body file, and capture `PR_URL` and `PR_NUMBER`
 ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-draft-pr)). That
@@ -713,7 +714,7 @@ BRANCH=$(git -C "$WT" branch --show-current)
 
   `$BASE` needs its own resolution: §2.2 is skipped in this mode, so nothing set a default branch. Resolve it from the same repository.
 
-  **On a triangular flow, the worktree's repository is not the target.** Where the worker pushed to a fork and the PR targets an upstream base, the worktree resolves to whichever repository gh records for it, which need not be that base, so the create can post to the wrong repository's default branch. Name the base repository (the PR's target, not the push destination) explicitly in `$REPO`'s place and namespace `head` as `<fork-owner>:$BRANCH`, per §2.4.3. Resolve `$BASE` against that base repository too, never through the worktree's own resolution. The provider reference holds each of these commands.
+  **On a triangular flow, the worktree's repository is not the target.** Where the worker pushed to a fork and the PR targets an upstream base, `target-repo.sh` resolves the worktree to the fork, and gh's own resolution to whichever repository it records, neither of which need be that base, so the create can post to the wrong repository's default branch. Name the base repository (the PR's target, not the push destination) explicitly in `$REPO`'s place and namespace `head` as `<fork-owner>:$BRANCH`, per §2.4.3. Resolve `$BASE` against that base repository too, never through the worktree's own resolution. The provider reference holds each of these commands.
 
 - **§2.5 / §2.6:** record expected workflows, report the PR URL + number, and stop. §2.6's arming step is skipped: the watch is session-scoped ([monitor.md](monitor.md) §3.0.1), so it belongs to the session acting on the events.
 
