@@ -789,9 +789,9 @@ test("signal 11: a reason from the report reaches the issue inert", () => {
 });
 
 test("signal 14 fires on publish-lane-level's variable check annotations and on nothing else", () => {
-  const run = (id, annotations) => ({ id, url: `https://github.com/o/r/actions/runs/${id}`, name: "Work Unblock", event: "schedule", annotations });
+  const run = (id, annotations, failedSteps = []) => ({ id, url: `https://github.com/o/r/actions/runs/${id}`, name: "Work Unblock", event: "schedule", annotations, failedSteps });
   const found = laneVariableFindings({
-    failedRuns: [
+    laneVariableRuns: [
       run(41, [{ level: "failure", message: `${VARIABLES_CHANGED} created CLAUDE_LANES_DISABLED` }]),
       run(42, [{ level: "failure", message: `${VARIABLES_UNREAD} the repository variables were not listed after the publish (502)` }]),
       run(43, [{ level: "warning", message: `${VARIABLES_CHANGED} changed LANES_BROKER_URL` }, { level: "failure", message: "Process completed with exit code 1." }]),
@@ -805,6 +805,15 @@ test("signal 14 fires on publish-lane-level's variable check annotations and on 
     "Work Unblock https://github.com/o/r/actions/runs/42: lane-variables-unread: the repository variables were not listed after the publish (502)",
   ]);
   assert.match(found[0].summary, /^2 publish-lane-level runs/);
-  assert.deepEqual(laneVariableFindings({ failedRuns: [run(43, [{ level: "failure", message: "Process completed with exit code 1." }])] }), []);
+  assert.deepEqual(laneVariableFindings({ laneVariableRuns: [run(43, [{ level: "failure", message: "Process completed with exit code 1." }])] }), []);
   assert.deepEqual(laneVariableFindings({}), []);
+});
+
+test("signal 14 fires on a variable check step that timed out with no annotation", () => {
+  const [found] = laneVariableFindings({
+    laneVariableRuns: [
+      { id: 44, url: "https://github.com/o/r/actions/runs/44", name: "Work Unblock", event: "schedule", annotations: [{ level: "failure", message: "The action has timed out." }], failedSteps: ["Check no other repository variable changed: cancelled"] },
+    ],
+  });
+  assert.deepEqual(found.facts, ["Work Unblock https://github.com/o/r/actions/runs/44: Check no other repository variable changed: cancelled, with no check annotation"]);
 });

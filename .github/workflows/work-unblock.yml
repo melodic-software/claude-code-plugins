@@ -456,7 +456,12 @@ jobs:
       group: work-unblock-publish-lane-level
       cancel-in-progress: false
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    # The step caps alone come to about 13 minutes (the tip resolve at 3 x 60s
+    # with backoff, the listing, publish, check and scan steps at 2 each, the
+    # revoke and budget log), with checkout, setup, config and the mint (a 30s
+    # OIDC read and a 60s broker call) on top. A job cut off mid-run skips the
+    # check, so the cap must leave it room.
+    timeout-minutes: 20
     permissions:
       actions: read # count the issue lane's runs in progress, and read the last decision's artifact
       contents: read # check out main

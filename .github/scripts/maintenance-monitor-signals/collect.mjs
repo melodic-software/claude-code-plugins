@@ -17,6 +17,10 @@ export const LIMITS = {
   inProgressRuns: 30,
   failedRuns: 12,
   failedRunPages: 5,
+  // Failed scheduled work-unblock runs signal 14 reads, apart from the failed
+  // runs above so their cap never hides one. The schedule is hourly, so the
+  // window plus its lookback holds about 7.
+  laneVariableRuns: 10,
   failedJobsPerRun: 3,
   mainFailedJobs: 5,
   mergeGroupRuns: 10,
@@ -100,6 +104,11 @@ const SKIP_FAILED_EVENTS = new Set(["pull_request", "merge_group"]);
 // name tests, some of them for rate limits; signal 1 reads main's suite.
 const SKIP_FAILED_PATHS = new Set([".github/workflows/pr-require-checks.yml", ".github/workflows/pr-test-platforms.yml"]);
 const QUEUE_BRANCH = /^gh-readonly-queue\/[^/]+\/pr-(\d+)-[0-9a-f]+$/;
+// Signal 14's job and the two steps of its repository variable check, as
+// work-unblock.yml names them.
+const WORK_UNBLOCK_PATH = ".github/workflows/work-unblock.yml";
+export const PUBLISH_LANE_LEVEL_JOB = "publish-lane-level";
+export const VARIABLE_STEPS = new Set(["List the repository variables before the publish", "Check no other repository variable changed"]);
 // Only main's own scheduled or dispatched pr-merge runs are trusted: a PR,
 // fork or branch run can upload an artifact or annotation of the same name.
 const TRUSTED_EVENTS = new Set(["schedule", "workflow_dispatch"]);
@@ -345,6 +354,29 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     }
     if (unread && kept.size < LIMITS.failedRuns) {
       gaps.push(`failed runs: over ${LIMITS.failedRunPages * 100} failed runs in the window; the rest were not read`);
+    }
+  });
+
+  // Signal 14's own read: main's failed scheduled work-unblock runs in the
+  // window and their publish-lane-level job. A failure annotation names a
+  // variable check result; a variable step that failed with none (a timeout)
+  // is kept as a failed step. More runs than the cap is a gap, so the signal
+  // reads unread rather than clear.
+  await source("lane variable runs", async () => {
+    const listed = (
+      await get(`/repos/${repo}/actions/workflows/work-unblock.yml/runs?event=schedule&branch=main&status=failure&created=${created}&per_page=${LIMITS.laneVariableRuns + 1}`)
+    ).workflow_runs.filter((r) => r.conclusion === "failure");
+    const runs = listed.filter((r) => r.path === WORK_UNBLOCK_PATH && r.event === "schedule" && r.head_branch === "main" && ownHead(r) && completedInWindow(r));
+    if (listed.length > LIMITS.laneVariableRuns) {
+      throw new Error(`over ${LIMITS.laneVariableRuns} failed scheduled work-unblock runs; the rest were not read`);
+    }
+    data.laneVariableRuns = [];
+    for (const run of runs) {
+      const job = failedJobs(await jobsOf(run)).find((j) => j.name === PUBLISH_LANE_LEVEL_JOB);
+      if (!job) continue;
+      const failedSteps = (job.steps ?? []).filter((s) => VARIABLE_STEPS.has(s.name) && s.conclusion && !["success", "skipped"].includes(s.conclusion)).map((s) => `${s.name}: ${s.conclusion}`);
+      const annotations = (await annotationsOf(job.id)).map(levelAndMessage);
+      data.laneVariableRuns.push({ id: run.id, url: run.html_url, name: run.name, event: run.event, annotations, failedSteps });
     }
   });
 

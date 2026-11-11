@@ -409,19 +409,27 @@ export function listingHeldFindings({ heldSweeps = [] }) {
 // write changed any repository variable but the level variable, or when its
 // check could not list them (publish-lane-level.mjs check). Either is a
 // security signal: a repository variable can shadow an organization one, such
-// as the lanes kill switch.
+// as the lanes kill switch. collect's "lane variable runs" source keeps only
+// main's failed scheduled work-unblock runs, and only their failed
+// publish-lane-level job, so the event and workflow are checked there. A
+// variable step that ended without success and with no annotation (a timeout)
+// counts too: a check that did not finish must not read as clear.
 const LANE_VARIABLES = /^lane-variables-(?:changed|unread):/;
 
-export function laneVariableFindings({ failedRuns = [] }) {
+export function laneVariableFindings({ laneVariableRuns = [] }) {
   const lines = [];
   const runs = new Set();
-  for (const run of failedRuns) {
+  for (const run of laneVariableRuns) {
+    const before = lines.length;
     for (const { level, message } of run.annotations ?? []) {
       if (level === "failure" && LANE_VARIABLES.test(String(message))) {
-        runs.add(run.id);
         lines.push(`${run.name} ${run.url}: ${message}`);
       }
     }
+    if (lines.length === before) {
+      for (const step of run.failedSteps ?? []) lines.push(`${run.name} ${run.url}: ${step}, with no check annotation`);
+    }
+    if (lines.length > before) runs.add(run.id);
   }
   if (lines.length === 0) return [];
   return [

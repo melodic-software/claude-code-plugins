@@ -1312,7 +1312,7 @@ test("work-unblock.yml: publish-lane-level lists every variable before the publi
   assert.equal(before.if, "steps.mode.outputs.shadow == 'false' && steps.lane-token.outputs.token != ''");
   assert.equal(before.run, 'node ".base/$SCRIPT" snapshot');
   assert.equal(before["continue-on-error"], undefined, "a failed listing must skip the publish");
-  assert.ok(!/always\(\)|failure\(\)/.test(publish.if), "the publish runs only when the listing before it succeeded");
+  assert.equal(publish.if, "steps.mode.outcome == 'success'", "no status function, so the implicit success() skips the publish after a failed listing");
   assert.equal(verify.if, "always() && steps.lane-token.outputs.token != ''");
   assert.equal(verify.run, 'node ".base/$SCRIPT" check');
   assert.equal(verify["continue-on-error"], undefined, "the check fails the job");

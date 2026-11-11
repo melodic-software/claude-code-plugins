@@ -260,6 +260,7 @@ test("variable check: a created, changed or deleted variable fails, named with i
     ["the repository kill switch updated", (list) => set(list, "CLAUDE_LANES_REPO_DISABLED", "true"), "changed CLAUDE_LANES_REPO_DISABLED"],
     ["the broker endpoint deleted", (list) => list.splice(2, 1), "deleted LANES_BROKER_URL"],
     ["the broker endpoint rewritten with its own value", (list) => set(list, "LANES_BROKER_URL", "https://broker.example.invalid/mint"), "changed LANES_BROKER_URL"],
+    ["the broker endpoint changed with updated_at left as it was", (list) => set(list, "LANES_BROKER_URL", "https://attacker.example.invalid/mint", "2026-11-10T22:00:00Z"), "changed LANES_BROKER_URL"],
     ["the level variable deleted", (list) => list.splice(0, 1), "deleted CLAUDE_LANE_LEVEL"],
   ];
   for (const [label, edit, change] of cases) {
