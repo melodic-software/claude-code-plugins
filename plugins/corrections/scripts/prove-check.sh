@@ -19,6 +19,15 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG
 usage() {
   printf 'usage: %s --check <command> --old <ref> [--new <ref>]\n' "${0##*/}" >&2
 }
+die() {
+  printf '%s: %s\n' "${0##*/}" "$1" >&2
+  exit 2
+}
+usage_error() {
+  printf '%s: %s\n' "${0##*/}" "$1" >&2
+  usage
+  exit 2
+}
 
 check=""
 old=""
@@ -29,9 +38,7 @@ while (($# > 0)); do
   case "$1" in
   --check | --old | --new)
     if (($# < 2)) || [[ -z "$2" ]]; then
-      printf '%s: %s needs a value\n' "${0##*/}" "$1" >&2
-      usage
-      exit 2
+      usage_error "$1 needs a value"
     fi
     case "$1" in
     --check) check="$2" have_check=1 ;;
@@ -46,35 +53,19 @@ while (($# > 0)); do
     exit 0
     ;;
   *)
-    printf '%s: unknown argument: %s\n' "${0##*/}" "$1" >&2
-    usage
-    exit 2
+    usage_error "unknown argument: $1"
     ;;
   esac
 done
 if ((have_check == 0 || have_old == 0)); then
-  printf '%s: --check and --old are required\n' "${0##*/}" >&2
-  usage
-  exit 2
+  usage_error "--check and --old are required"
 fi
 
-if ! command -v git >/dev/null 2>&1; then
-  printf '%s: git is required\n' "${0##*/}" >&2
-  exit 2
-fi
-if ! repo="$(git rev-parse --show-toplevel 2>/dev/null)"; then
-  printf '%s: not inside a git repository\n' "${0##*/}" >&2
-  exit 2
-fi
+command -v git >/dev/null 2>&1 || die "git is required"
+repo="$(git rev-parse --show-toplevel 2>/dev/null)" || die "not inside a git repository"
 
-old_sha="$(git -C "$repo" rev-parse --verify --quiet "$old^{commit}")" || {
-  printf '%s: --old is not a commit: %s\n' "${0##*/}" "$old" >&2
-  exit 2
-}
-new_sha="$(git -C "$repo" rev-parse --verify --quiet "$new^{commit}")" || {
-  printf '%s: --new is not a commit: %s\n' "${0##*/}" "$new" >&2
-  exit 2
-}
+old_sha="$(git -C "$repo" rev-parse --verify --quiet "$old^{commit}")" || die "--old is not a commit: $old"
+new_sha="$(git -C "$repo" rev-parse --verify --quiet "$new^{commit}")" || die "--new is not a commit: $new"
 
 work="$(mktemp -d)" || exit 2
 # shellcheck disable=SC2329  # invoked through the EXIT trap below
@@ -91,19 +82,16 @@ trap cleanup EXIT
 for side in old new; do
   sha="$old_sha"
   [[ "$side" == new ]] && sha="$new_sha"
-  if ! git -C "$repo" worktree add --detach "$work/$side" "$sha" >/dev/null 2>&1; then
-    printf '%s: could not create a worktree at %s\n' "${0##*/}" "$sha" >&2
-    exit 2
-  fi
+  git -C "$repo" worktree add --detach "$work/$side" "$sha" >/dev/null 2>&1 ||
+    die "could not create a worktree at $sha"
 done
 
-# run_check <dir>: run the command with the caller's git environment cleared,
-# so a check that calls git sees the worktree and not the caller's repository.
+# run_check <dir>: run the command in <dir>. The git environment unset above
+# stays unset here, so a check that calls git sees the worktree.
 run_check() {
   (
     cd "$1" || exit 2
-    env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_CONFIG \
-      bash -c "$check" >&2
+    bash -c "$check" >&2
   )
 }
 
