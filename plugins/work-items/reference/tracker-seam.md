@@ -125,7 +125,7 @@ carries the rule and its failure modes. It is linked here because this is the do
 surface consults when it needs body text, and it would otherwise have to already know the
 reference exists.
 
-Coordination claims are race-safe at the seam (assignee + lease comment; `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Lease protocol"). The retired hold→verify→claim label dance is gone. Reads are non-mutating; writes route through the adapter's identity policy.
+Coordination claims are race-safe at the seam (assignee + lease comment; `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Lease protocol"). The hold→verify→claim label protocol is retired. Reads are non-mutating; writes route through the adapter's identity policy.
 
 ## Default = fix, not file
 
