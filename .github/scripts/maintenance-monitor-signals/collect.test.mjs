@@ -5,9 +5,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { collect, jobsCarryFile, JOBS_VERSION, LIMITS, listFiled, parseEpisodeCarry, parseHeldCarry, parseJobsCarry } from "./collect.mjs";
+import { collect, jobsCarryFile, JOBS_VERSION, LIMITS, listFiled, parseEpisodeCarry, parseHeldCarry, parseJobsCarry, PUBLISH_LANE_LEVEL_JOB, VARIABLE_STEPS } from "./collect.mjs";
 import { partlyReadSignals, planIssues, SIGNALS, unreadSignals } from "./issues.mjs";
-import { ceilingFindings, detect } from "./signals.mjs";
+import { ceilingFindings, detect, laneVariableFindings } from "./signals.mjs";
 
 const repo = "o/r";
 const now = new Date("2026-10-19T16:41:00Z");
@@ -155,6 +155,7 @@ const routes = () => [
     ],
   ],
   [/actions\/runs\?status=completed/, { workflow_runs: [] }],
+  [/workflows\/work-unblock\.yml\/runs/, { workflow_runs: [] }],
   [/actions\/runs\?status=in_progress/, { workflow_runs: [run(20)] }],
   [/runs\/20\/jobs/, { jobs: [{ id: 200, status: "in_progress" }, { id: 201, status: "completed" }] }],
   [
@@ -1146,7 +1147,9 @@ test("lane holds: no carry, a stale one or an unread rule is a gap, and the carr
   assert.equal(unruled.heldCarry.from, CARRIED.from);
   assert.equal(unruled.holdRule, undefined);
   // A failed read keeps the carried runs and marks the span unknown, so the next run starts it again.
-  const failed = await collect(input(fakeApi([[/workflows\/work-unblock\.yml\/runs/, new Error("GET runs: HTTP 502")], ...holdRoutes()]), { holds: { rule: RULE, carried: CARRIED } }));
+  const failed = await collect(
+    input(fakeApi([[/work-unblock\.yml\/runs\?event=schedule&branch=main&status=(failure|timed_out)/, { workflow_runs: [] }], [/workflows\/work-unblock\.yml\/runs/, new Error("GET runs: HTTP 502")], ...holdRoutes()]), { holds: { rule: RULE, carried: CARRIED } }),
+  );
   assert.deepEqual(failed.gaps, ["lane holds: GET runs: HTTP 502"]);
   assert.deepEqual([failed.heldCarry.runs.map((h) => h.runId), failed.heldCarry.from, failed.heldCarry.through], [[85, 84, 70, 71], null, null]);
   const off = await collect(input(fakeApi(routes())));
@@ -1579,4 +1582,79 @@ test("a carried held run of another repository or an unknown lane, or a bad span
   ]) {
     assert.throws(() => parseHeldCarry(text, repo), /unexpected shape/);
   }
+});
+
+// Signal 14's own source: main's failed scheduled work-unblock runs, and the
+// annotations of their failed publish-lane-level job.
+const unblockRun = (id, extra = {}) => run(id, { name: "Work Unblock", path: ".github/workflows/work-unblock.yml", conclusion: "failure", ...extra });
+const publishJob = (id, steps = []) => ({ id, name: "publish-lane-level", conclusion: "failure", steps });
+const CHANGED = { annotation_level: "failure", message: "lane-variables-changed: created CLAUDE_LANES_DISABLED" };
+
+test("lane variable runs: a red publish-lane-level run is read even past 12 other failed runs", async () => {
+  const others = Array.from({ length: 20 }, (_, i) => run(2000 + i, { name: "pr-unblock" }));
+  const api = fakeApi([
+    [/actions\/runs\?status=failure/, { workflow_runs: others }],
+    [/runs\/2\d{3}\/jobs/, { jobs: [] }],
+    [/workflows\/work-unblock\.yml\/runs/, { workflow_runs: [unblockRun(80)] }],
+    [/runs\/80\/jobs/, { jobs: [{ id: 800, name: "label-unblocked", conclusion: "success" }, publishJob(801, [{ name: "Check no other repository variable changed", conclusion: "failure" }])] }],
+    [/check-runs\/801\/annotations/, [CHANGED]],
+    ...routes(),
+  ]);
+  const data = await collect(input(api));
+  assert.equal(data.failedRuns.length, 12, "the general failed-run read stops at its cap");
+  assert.ok(!data.failedRuns.some((r) => r.id === 80));
+  assert.deepEqual(data.laneVariableRuns, [
+    { id: 80, url: "https://github.com/o/r/actions/runs/80", name: "Work Unblock", event: "schedule", annotations: [{ level: "failure", message: CHANGED.message }], failedSteps: ["Check no other repository variable changed: failure"] },
+  ]);
+  assert.deepEqual(laneVariableFindings(data)[0].facts, ["Work Unblock https://github.com/o/r/actions/runs/80: lane-variables-changed: created CLAUDE_LANES_DISABLED"]);
+  assert.ok(api.calls.some((p) => p.startsWith("/repos/o/r/actions/workflows/work-unblock.yml/runs?event=schedule&branch=main&status=failure&created=")));
+});
+
+test("lane variable runs: only main's scheduled runs of this repository's head count, and only a failed publish-lane-level job", async () => {
+  const api = fakeApi([
+    [
+      /workflows\/work-unblock\.yml\/runs/,
+      {
+        workflow_runs: [
+          unblockRun(81, { event: "workflow_run" }),
+          unblockRun(82, { head_branch: "feature" }),
+          unblockRun(83, { head_repository: { full_name: "fork/r" } }),
+          unblockRun(84),
+        ],
+      },
+    ],
+    [/runs\/84\/jobs/, { jobs: [{ id: 840, name: "label-unblocked", conclusion: "failure" }, { ...publishJob(841), conclusion: "success" }] }],
+    ...routes(),
+  ]);
+  const data = await collect(input(api));
+  assert.deepEqual(data.laneVariableRuns, []);
+  assert.ok(!api.calls.some((p) => /runs\/8[123]\/jobs/.test(p)));
+});
+
+test("lane variable runs: a run that timed out is read too", async () => {
+  const timedOut = unblockRun(85, { conclusion: "timed_out" });
+  const api = fakeApi([
+    [/workflows\/work-unblock\.yml\/runs\?event=schedule&branch=main&status=timed_out/, { workflow_runs: [timedOut] }],
+    [/workflows\/work-unblock\.yml\/runs/, { workflow_runs: [] }],
+    [/runs\/85\/jobs/, { jobs: [{ ...publishJob(851, [{ name: "Check no other repository variable changed", conclusion: "cancelled" }]), conclusion: "timed_out" }] }],
+    [/check-runs\/851\/annotations/, []],
+    ...routes(),
+  ]);
+  const data = await collect(input(api));
+  assert.deepEqual(data.laneVariableRuns.map((r) => [r.id, r.failedSteps]), [[85, ["Check no other repository variable changed: cancelled"]]]);
+});
+
+test("lane variable runs: a failed listing or one over the cap is a gap, so signal 14 reads unread", async () => {
+  const failed = await collect(input(fakeApi([[/workflows\/work-unblock\.yml\/runs/, new Error("HTTP 502")], ...routes()])));
+  assert.deepEqual(failed.gaps, ["lane variable runs: HTTP 502"]);
+  assert.ok(unreadSignals(failed.gaps).has("14 lane variables"));
+  const many = Array.from({ length: LIMITS.laneVariableRuns + 1 }, (_, i) => unblockRun(900 + i));
+  const over = await collect(input(fakeApi([[/workflows\/work-unblock\.yml\/runs/, { workflow_runs: many }], ...routes()])));
+  assert.deepEqual(over.gaps, [`lane variable runs: over ${LIMITS.laneVariableRuns} failed scheduled work-unblock runs; the rest were not read`]);
+});
+
+test("the job and step names signal 14 reads are the ones work-unblock.yml uses", () => {
+  const text = readFileSync(new URL("../../workflows/work-unblock.yml", import.meta.url), "utf8");
+  assert.match(text, new RegExp(`^  ${PUBLISH_LANE_LEVEL_JOB}:$`, "m"));
+  for (const name of VARIABLE_STEPS) assert.ok(text.includes(`- name: ${name}\n`), name);
 });

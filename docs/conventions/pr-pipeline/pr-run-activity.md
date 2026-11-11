@@ -2077,6 +2077,11 @@ The mitigations:
 - `publish-lane-level.mjs` refuses any name but a `*_LANE_LEVEL` variable, and any value but
   `<level>@<valid-until>`, before it makes a request. The schema holds
   `limits.lane-level.variable` to the same pattern.
+- The job lists every repository variable with the token before the publish and again after
+  it, and fails red on any variable created, changed (value or `updated_at`) or deleted other
+  than the configured level variable, or when either listing is missing or incomplete; a failed
+  first listing skips the publish. This checks what the token did, not what the code says. The
+  monitoring lane's signal 14 files a critical incident from the failure annotation.
 
 A dispatch `github-actions[bot]` sent (intake-reenter.yml, the triage sweep) mints
 for `intake-triage.yml` only while the issue it names is open. The broker (azure-iac's `lanes-token-broker`) still re-checks the retired ratification marker for the App, so until it drops that check an App-labeled issue without the marker gets no token and the run fails closed. A `merge` request from `pr-merge.yml` names no pull request either; its actor must be a listed human, except on a `schedule` run on `refs/heads/main`, whose actor is whoever last edited the workflow file and is not checked. A re-run of a scheduled run must be started by a listed human. `dispatcher_run_id`, a positive

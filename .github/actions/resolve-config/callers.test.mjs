@@ -1291,11 +1291,32 @@ test("work-unblock.yml: publish-lane-level runs on main's schedule only, mints o
   const holders = job.steps.filter((step) => JSON.stringify({ env: step.env, with: step.with, run: step.run }).includes("steps.lane-token.outputs.token") && step !== mint);
   assert.deepEqual(
     holders.map((step) => step.name),
-    ["Decide and publish the lane level", "Revoke the lane token"],
+    ["List the repository variables before the publish", "Decide and publish the lane level", "Check no other repository variable changed", "Revoke the lane token"],
   );
   for (const step of holders) {
     assert.equal(step.env.GH_TOKEN, "${{ steps.lane-token.outputs.token }}", step.name);
   }
+});
+
+// The variable check brackets the publish: listed after the mint and before
+// the publish, which a failed listing skips, and checked after it whenever a
+// token was minted, failing the job (owner decisions Q113 (a) and Q115 (a)).
+test("work-unblock.yml: publish-lane-level lists every variable before the publish and fails red on a change after it", () => {
+  const steps = workflow("work-unblock.yml").jobs["publish-lane-level"].steps;
+  const at = (name) => steps.findIndex((step) => step.name === name);
+  const before = steps[at("List the repository variables before the publish")];
+  const publish = steps[at("Decide and publish the lane level")];
+  const verify = steps[at("Check no other repository variable changed")];
+  assert.ok(at("Request the lane token") < at(before.name) && at(before.name) < at(publish.name), "listed between the mint and the publish");
+  assert.ok(at(publish.name) < at(verify.name) && at(verify.name) < at("Revoke the lane token"), "checked between the publish and the revoke");
+  assert.equal(before.if, "steps.mode.outputs.shadow == 'false' && steps.lane-token.outputs.token != ''");
+  assert.equal(before.run, 'node ".base/$SCRIPT" snapshot');
+  assert.equal(before["continue-on-error"], undefined, "a failed listing must skip the publish");
+  assert.equal(publish.if, "steps.mode.outcome == 'success'", "no status function, so the implicit success() skips the publish after a failed listing");
+  assert.equal(verify.if, "always() && steps.lane-token.outputs.token != ''");
+  assert.equal(verify.run, 'node ".base/$SCRIPT" check');
+  assert.equal(verify["continue-on-error"], undefined, "the check fails the job");
+  assert.equal(verify.env.VARIABLES_STATE, before.env.VARIABLES_STATE, "the check reads the listing the snapshot wrote");
 });
 
 // GitHub runs at most one job per concurrency group, and `queue: max` keeps

@@ -1445,6 +1445,9 @@ branch-cleanup:
 # the p90 of how long the signal stayed on, at most 8; close-hours is the
 # median gap before it fired again, rounded up, at most 6. main-red opens at
 # once, and a signal with 3 episodes or fewer takes values from its cadence.
+# lane-variables, a security signal with no episodes yet, opens at once too,
+# and closes only after 168 hours clear: its evidence is one red run, and the
+# next hour's check passes whether or not anyone set the variable back.
 monitor:
   lane-holds:
     threshold: 4
@@ -1486,6 +1489,9 @@ monitor:
     lane-holds:
       open-hours: 2
       close-hours: 6
+    lane-variables:
+      open-hours: 0
+      close-hours: 168
 
 merge:
   # The rung is a pacing cap: off merges nothing without a human; merge lets

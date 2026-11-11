@@ -442,8 +442,9 @@ jobs:
   # limits.lane-level.variable names
   # (.github/scripts/work-unblock/publish-lane-level.mjs). While
   # limits.lane-level.shadow is set it logs the level as a notice, mints no
-  # token and writes nothing. Any failure ends green with a notice: a missed
-  # hour leaves the last value, which expires to the default. The pacer does
+  # token and writes nothing. Any failure but the variable check ends green
+  # with a notice: a missed hour leaves the last value, which expires to the
+  # default. The pacer does
   # not skip it: it costs a few job-token calls an hour, and the level should
   # still be decided when the budget runs hot. A tick the pacer paced made no
   # lanes App calls, so it hands over no readings and decide() holds L.
@@ -455,7 +456,12 @@ jobs:
       group: work-unblock-publish-lane-level
       cancel-in-progress: false
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    # The step caps alone come to about 13 minutes (the tip resolve at 3 x 60s
+    # with backoff, the listing, publish, check and scan steps at 2 each, the
+    # revoke and budget log), with checkout, setup, config and the mint (a 30s
+    # OIDC read and a 60s broker call) on top. A job cut off mid-run skips the
+    # check, so the cap must leave it room.
+    timeout-minutes: 20
     permissions:
       actions: read # count the issue lane's runs in progress, and read the last decision's artifact
       contents: read # check out main
@@ -541,6 +547,21 @@ jobs:
           kill-switch-ok: "true"
           rate-limit-hold-ok: "true"
 
+      # The token's Variables write covers every repository variable, so every
+      # one is listed before the publish and again after it (owner decisions
+      # Q113 (a) and Q115 (a)). A failed listing fails this step, and the
+      # publish step, which runs only on success, then writes nothing.
+      - name: List the repository variables before the publish
+        id: variables-before
+        if: steps.mode.outputs.shadow == 'false' && steps.lane-token.outputs.token != ''
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: github-token
+          VARIABLES_STATE: ${{ runner.temp }}/lane-variables-before.json
+          SCRIPT: ${{ steps.config.outputs.script }}
+        run: node ".base/$SCRIPT" snapshot
+
       - name: Decide and publish the lane level
         id: publish
         if: steps.mode.outcome == 'success'
@@ -559,6 +580,21 @@ jobs:
           STATE_OUT: ${{ runner.temp }}/lane-level-state.json
           SCRIPT: ${{ steps.config.outputs.script }}
         run: node ".base/$SCRIPT" run
+
+      # Unlike the rest of this job, which ends green, this step fails the job
+      # on any variable change but the level variable, or when either listing
+      # is incomplete: maintenance-monitor-signals files signal 14 from its
+      # annotation. It runs whenever a token was minted, whatever publish did.
+      - name: Check no other repository variable changed
+        if: always() && steps.lane-token.outputs.token != ''
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: github-token
+          RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
+          VARIABLES_STATE: ${{ runner.temp }}/lane-variables-before.json
+          SCRIPT: ${{ steps.config.outputs.script }}
+        run: node ".base/$SCRIPT" check
 
       - name: Scan the upload for credentials
         id: scan-state
