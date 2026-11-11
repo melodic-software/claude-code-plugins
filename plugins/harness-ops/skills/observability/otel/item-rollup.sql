@@ -77,10 +77,10 @@ e AS (
 ),
 tokens AS (
   SELECT item, ccr,
-    COALESCE(sum(value) FILTER (WHERE attr_type = 'input'), 0) AS input_tokens,
-    COALESCE(sum(value) FILTER (WHERE attr_type = 'output'), 0) AS output_tokens,
-    COALESCE(sum(value) FILTER (WHERE attr_type = 'cacheRead'), 0) AS cache_read,
-    COALESCE(sum(value) FILTER (WHERE attr_type = 'cacheCreation'), 0) AS cache_creation
+    sum(value) FILTER (WHERE attr_type = 'input') AS input_tokens,
+    sum(value) FILTER (WHERE attr_type = 'output') AS output_tokens,
+    sum(value) FILTER (WHERE attr_type = 'cacheRead') AS cache_read,
+    sum(value) FILTER (WHERE attr_type = 'cacheCreation') AS cache_creation
   FROM t
   GROUP BY item, ccr
 ),

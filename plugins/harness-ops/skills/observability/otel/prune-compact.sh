@@ -161,7 +161,7 @@ compact_dropped() {
   local cold_tmp="$cold_file.tmp"
   # A keep-on compaction writes prompt content to cold, voiding the clean marker. Removed
   # before the write so a crash after it never leaves a stale marker.
-  if [[ "${CC_OTEL_COLD_KEEP_USER_PROMPTS:-0}" == "1" && "$base" != cc-metrics ]]; then
+  if keep_prompts && [[ "$base" != cc-metrics ]]; then
     rm -f "$cold_dir/$COLD_CLEAN_MARKER"
   fi
   if [[ -n "${CC_OTEL_COMPACT_CMD:-}" ]]; then
@@ -250,12 +250,14 @@ cold_scrub_select() {
   printf '%s' "SELECT * REPLACE (${replace:+$replace, }to_json(list_filter(from_json($raw, '$COLD_ATTR_SHAPE'), lambda x: x.key NOT IN (${keys:-''}))) AS $raw) FROM $(cold_rows_sql "$kind" "$src_sql")"
 }
 
-# Print "<rows>,<dirty rows>" for one cold Parquet file.
-cold_counts() {
-  local kind="$1" file="$2" out errf
+# duckdb_cold with stdin closed, printing its output without CRs. Arg 1 names what it reads for
+# the error, which carries duckdb's last stderr line; the rest go to duckdb_cold.
+duckdb_cold_read() {
+  local what="$1" out errf
+  shift
   errf="$(mktemp)"
-  out="$(duckdb_cold "${file%/*}" -csv -noheader -c "SELECT count(*), count(*) FILTER (WHERE $(cold_dirty_predicate "$kind" all)) FROM $(cold_rows_sql "$kind" "$(sql_path "$file")");" 2>"$errf" </dev/null)" || {
-    err "duckdb could not read $file: $(tail -n 1 "$errf")"
+  out="$(duckdb_cold "$@" 2>"$errf" </dev/null)" || {
+    err "duckdb could not read $what: $(tail -n 1 "$errf")"
     rm -f "$errf"
     return 1
   }
@@ -263,20 +265,19 @@ cold_counts() {
   printf '%s\n' "${out//$'\r'/}"
 }
 
+# Print "<rows>,<dirty rows>" for one cold Parquet file.
+cold_counts() {
+  local kind="$1" file="$2"
+  duckdb_cold_read "$file" "${file%/*}" -csv -noheader -c "SELECT count(*), count(*) FILTER (WHERE $(cold_dirty_predicate "$kind" all)) FROM $(cold_rows_sql "$kind" "$(sql_path "$file")");"
+}
+
 # Print "<rows>|<dirty rows>|<file name>" for every cold file of one kind, in ONE duckdb call
 # over the kind's glob (cold history is unbounded; a process per file does not scale).
 # Prints nothing when the kind has no cold files. Arg 3: predicate scope (see above).
 cold_glob_counts() {
-  local kind="$1" cold_dir="$2" scope="$3" out errf
+  local kind="$1" cold_dir="$2" scope="$3"
   compgen -G "$cold_dir/$kind-*.parquet" >/dev/null || return 0
-  errf="$(mktemp)"
-  out="$(duckdb_cold "$cold_dir" -list -noheader -c "SELECT count(*), count(*) FILTER (WHERE $(cold_dirty_predicate "$kind" "$scope")), parse_filename(filename) FROM $(cold_rows_sql "$kind" "$(sql_path "$cold_dir")/$kind-*.parquet" ", filename = true") GROUP BY filename ORDER BY filename;" 2>"$errf" </dev/null)" || {
-    err "duckdb could not read $cold_dir/$kind-*.parquet: $(tail -n 1 "$errf")"
-    rm -f "$errf"
-    return 1
-  }
-  rm -f "$errf"
-  printf '%s\n' "${out//$'\r'/}"
+  duckdb_cold_read "$cold_dir/$kind-*.parquet" "$cold_dir" -list -noheader -c "SELECT count(*), count(*) FILTER (WHERE $(cold_dirty_predicate "$kind" "$scope")), parse_filename(filename) FROM $(cold_rows_sql "$kind" "$(sql_path "$cold_dir")/$kind-*.parquet" ", filename = true") GROUP BY filename ORDER BY filename;"
 }
 
 # Count cold files holding prompt content (one duckdb call per kind).
@@ -311,7 +312,7 @@ COLD_CLEAN_SNAPSHOT=""
 cold_prompt_notice() {
   local cold_dir="$1/cold" snapshot dirty_files
   COLD_CLEAN_SNAPSHOT=""
-  [[ "${CC_OTEL_COLD_KEEP_USER_PROMPTS:-0}" == "1" ]] && return 0
+  keep_prompts && return 0
   [[ -e "$cold_dir/$COLD_CLEAN_MARKER" ]] && return 0
   command -v duckdb >/dev/null 2>&1 || return 0
   snapshot="$(cold_snapshot "$cold_dir")"
