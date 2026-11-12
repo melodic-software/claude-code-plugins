@@ -3,6 +3,10 @@
 All notable changes to the `spelling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+Entries released before the plugin was renamed `spelling` were written under its earlier name and
+option prefix. They now show today's names, so a command, option, variable or path named in one
+of them may never have shipped under the name shown.
+
 ## [1.1.0] - 2026-11-12
 
 ### Added
