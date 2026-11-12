@@ -165,13 +165,19 @@ const FOLLOW_UP_MARKER = "Pre-existing (advisory):";
 
 // A `## Follow-ups` bullet: the sweep's marker, the advisory's first non-blank
 // line in a code span, so a closing keyword or an @-mention in it does
-// nothing, then `link`.
+// nothing, then `link`. Comment markers are stripped until none is left, since
+// one pass can join the halves of a nested marker into a new one.
 export function followUpBullet(advisory, link) {
   const first = String(advisory ?? "")
     .split(/\r?\n/)
     .map((row) => row.trim())
     .find((row) => row !== "");
-  const text = [...(first ?? "").replace(/`/g, "'").replace(/<!--|-->/g, "")].slice(0, FOLLOW_UP_TEXT_CAP).join("") || "advisory";
+  let stripped = (first ?? "").replace(/`/g, "'");
+  for (let prev; prev !== stripped; ) {
+    prev = stripped;
+    stripped = stripped.replace(/<!--|-->/g, "");
+  }
+  const text = [...stripped].slice(0, FOLLOW_UP_TEXT_CAP).join("") || "advisory";
   return `- ${FOLLOW_UP_MARKER} \`${text}\` ([thread](${link}))`;
 }
 
