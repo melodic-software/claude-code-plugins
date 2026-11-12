@@ -73,7 +73,7 @@ stale stamp reads identically to a fresh one, and upstream surfaces move without
 Code changes its own conventions between releases, sometimes with no version signal on the surface
 in question, and experimental surfaces churn outright. The part of the record that matters is
 therefore the **trigger**, not the date: a stored copy of a volatile upstream specific carries a
-stated re-derivation event, or it is drift waiting to happen. The as-of date is the ceiling on how
+stated re-derivation event, or drift is likely. The as-of date is the ceiling on how
 current the value can be, never a guarantee.
 
 A pointer record carries no date because it stores nothing for a date to describe: the reader
@@ -116,7 +116,7 @@ named exception is [old-patterns mapping tables](#old-patterns-mapping-tables)).
 
 A pointer carries no as-of date and no recheck trigger. A dead link or a moved anchor is caught by
 the link checks: `pr-require-checks.yml` checks local anchors and the external links a pull request
-adds or changes, and `maintenance-check-links-online-claude-code-plugins.yml` checks every external
+adds or changes, and `maintenance-check-links-online.yml` checks every external
 link weekly, anchors included except the script-rendered ones `lychee.toml` rewrites. Changed
 content is seen by whoever fetches the link, and git history records when the line changed.
 
@@ -225,8 +225,8 @@ maintenance procedure above.
 Re-reading the section a pointer names is the first step of every firing above, so **how** the page is read is
 part of the contract. A summarizing fetch of a long docs page is not a read of that page: it
 truncates, and a summarizer asked what the page contains then answers from the truncated span. That
-answer is indistinguishable from a genuine absence, so a truncated fetch manufactures drift that is
-not there. `env-vars` produced exactly that false negative on three
+answer is indistinguishable from a genuine absence, so a truncated fetch reports drift that does
+not exist. `env-vars` produced exactly that false negative on three
 independent fetches, each stopping before the `CLAUDE_CODE_MAX_*` range and each reporting those
 rows missing ([#2182](https://github.com/melodic-software/claude-code-plugins/pull/2182)).
 
@@ -337,7 +337,7 @@ the retired one that happens to still serve bytes. Because the alias is silent, 
 citation of a retired slug keeps working indefinitely while pointing somewhere its author never
 read, and the day the alias is dropped it becomes a `404` on a claim nobody re-derived.
 
-Credit where the fleet found it: this surfaced in the 2026-08-11 stamp re-verification
+The fleet found this in the 2026-08-11 stamp re-verification
 ([#2187](https://github.com/melodic-software/claude-code-plugins/pull/2187)), where a per-page
 channel check noticed `slash-commands.md` serving `skills` content and recorded that a `200` is not
 proof the page is the one you wanted.
@@ -366,7 +366,7 @@ The conclusion it supported survived on a different premise. That is worth stati
 since it is the reason to care: **a sound conclusion resting on a false premise is not safe, it is
 fragile**, because the next reader who
 checks the premise discards the conclusion with it. Fix the
-premise and keep the conclusion; never keep a premise because the conclusion it props up is
+premise and keep the conclusion; never keep a premise because the conclusion it supports is
 convenient.
 
 ### The mirror rung and its freshness step
