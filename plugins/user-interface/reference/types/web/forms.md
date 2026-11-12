@@ -195,9 +195,6 @@ hardware at all, check `navigator.maxTouchPoints > 0`.
   <https://developer.mozilla.org/en-US/docs/Web/CSS/@media/pointer#syntax>, and
   `Navigator.maxTouchPoints`,
   <https://developer.mozilla.org/en-US/docs/Web/API/Navigator/maxTouchPoints#value>
-- **As of**: 2026-10-29
-- **Recheck trigger**: either page changes what `pointer` or `maxTouchPoints` describes, or the
-  first stops pointing at `any-pointer`.
 
 Hunt for: `autoFocus` / `autofocus` / `.focus()` in a mount effect with no pointer gate.
 
@@ -235,9 +232,6 @@ second layer, not the protection (the second pointer says why).
   <https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html#built-in-or-existing-csrf-implementations>,
   and "Limitations of SameSite",
   <https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html#limitations-of-samesite>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the cheat sheet changes its guidance on built-in protections or on SameSite
-  as a defense.
 
 For textareas (where Enter inserts a newline), support `Cmd+Enter` (Mac) / `Ctrl+Enter` (Windows) to
 submit:
@@ -258,9 +252,6 @@ Submit with `requestSubmit()`, never `submit()`; the pointer says what it runs. 
   <https://developer.mozilla.org/en-US/docs/Web/API/HTMLFormElement/requestSubmit#usage_notes>, and
   `KeyboardEvent.isComposing`,
   <https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/isComposing#browser_compatibility>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the `isComposing` page's compatibility data changes, or the first page
-  changes what `requestSubmit()` runs.
 
 A textarea that grows with its text: recipe `textarea-that-grows-with-its-content`.
 
@@ -310,8 +301,6 @@ called.
 
 - **Pointer**: React, `useFormStatus`, Caveats,
   <https://react.dev/reference/react-dom/hooks/useFormStatus#caveats>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the page changes what `pending` reports or where the hook must be called.
 
 Hunt for: submit handlers with no `isSubmitting` / `isPending` / `useFormStatus` state;
 `<button type="submit">` with no `disabled` prop; async `onClick` handlers on "Create", "Pay",
@@ -358,8 +347,6 @@ goes in the email, not on the form.
 
 - **Pointer**: OWASP Authentication Cheat Sheet, "Authentication Responses",
   <https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html#authentication-responses>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the section changes which flows must answer with a generic message.
 
 Hunt for: `catch` blocks that only `console.error`; `try` with no `catch` around a `fetch`; no
 `finally` resetting the submitting state; form `reset()` called before the response is checked; no

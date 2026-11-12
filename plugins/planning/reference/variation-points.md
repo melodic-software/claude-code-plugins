@@ -141,5 +141,3 @@ fetch the page when a definition needs verifying (a book cited from recall is re
   [The Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html);
   Grzybek, [Modular Monolith: A Primer](https://www.kamilgrzybek.com/blog/posts/modular-monolith-primer);
   Fowler, [Bounded Context](https://martinfowler.com/bliki/BoundedContext.html).
-
-Links checked 2026-10-11. Recheck a link when it stops resolving or the page it names moves.

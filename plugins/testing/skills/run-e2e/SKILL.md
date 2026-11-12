@@ -17,8 +17,7 @@ Collect these with **individual** Bash calls, one command per call, never combin
 
 The pipe is the bound and belongs in the command: a read-time cap ("read only the first 20
 entries") comes after the command has already returned its output inline. What a result returns
-inline, and when it arrives as a saved file instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits)
-(as of 2026-11-10; recheck when that section changes what a valid result returns inline).
+inline, and when it arrives as a saved file instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits).
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls, not pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
@@ -312,7 +311,7 @@ edits no component code; fixes go to the user. It always takes own driving and s
 
 ## Handoff
 
-- Surface verification available → the bundled `/verify` skill covers the same surface. Suggest the user run it and consume its findings rather than delegating to it: its start stays with the user, and this skill's orchestrator path runs unchanged either way. Pointer: [Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills), which says which bundled skills Claude invokes on its own. As of: 2026-11-04. Recheck trigger: that section changes who may invoke `/verify`, or a Claude Code changelog entry names `/verify` or bundled-skill invocability
+- Surface verification available → the bundled `/verify` skill covers the same surface. Suggest the user run it and consume its findings rather than delegating to it: its start stays with the user, and this skill's orchestrator path runs unchanged either way. Pointer: [Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills), which says which bundled skills Claude invokes on its own.
 - All scenarios pass, the change is not yet reviewed, and no other Test-stage check (coverage plan, test quality) is still pending → invoke `/review:quality-gate` via the Skill tool when the `review` plugin is enabled; otherwise the consuming setup's review step
 - All scenarios pass after review → invoke `/verification:confirm outcome` via the Skill tool when the `verification` plugin is enabled (composes intent + evidence; chains back here when needed); otherwise report the captured evidence for outcome sign-off directly
 - Visual bugs or API errors found → for API errors, read the orchestrator's structured logs for the root cause first; then invoke `/testing:diagnose` via the Skill tool, passing each failed scenario's failure packet ([context/e2e.md](context/e2e.md), Failure packet) as its input rather than a summary, redacted at write time with its framing line and app-output block intact, so diagnose treats the app-sourced fields as data
@@ -325,8 +324,7 @@ the request is "run it and see":
 
 - **`run` (bundled skill)**: launches and drives the app so a change can be looked at; what it
   does and its sibling skills are [skills § Run and verify your app](https://code.claude.com/docs/en/skills#run-and-verify-your-app)'s
-  to state (as of 2026-11-10; recheck trigger: that section is removed or `run` starts capturing
-  evidence). It captures no evidence to a contract and has no non-UI mode.
+  to state. It captures no evidence to a contract and has no non-UI mode.
 - **This skill (marketplace plugin).** Starts the app through `/app-control:drive`, the consuming
   project's orchestrator configuration, or `run` where none governs the start, drives UI and API
   flows, and captures evidence under the contract in

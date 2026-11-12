@@ -4,8 +4,7 @@ The project's design system, tokens and conventions override everything in this 
 configurable value in an example is a `{{key}}` placeholder; fill each as
 [`values.md`](../../../reference/values.md) says.
 
-Each `Baseline:` line links the live compat entry; never copy version numbers from it. As of
-2026-10-11; recheck when that entry's Baseline status changes or the project's browser target moves.
+Each `Baseline:` line links the live compat entry; never copy version numbers from it.
 
 The motion rules these recipes serve (which curve, how long, reduced motion, hover motion) are the
 `motion` concern of `/user-interface:design`; the recipes are the CSS for them.
@@ -21,7 +20,6 @@ Why: movement is added only for people who have not asked to reduce motion, inst
 afterwards.
 
 Baseline: [`prefers-reduced-motion`](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it for every transition or animation that moves or scales something.
 
@@ -47,7 +45,6 @@ Rules:
 Why: movement swaps to opacity; feedback stays.
 
 Baseline: [`prefers-reduced-motion`](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion#browser_compatibility).
-As of 2026-10-29, recheck on a status change.
 
 Use it when motion already exists in shared keyframes, classes or duration tokens and was not
 built opt-in: make the swap there, at the token or config level, which fixes every instance at
@@ -81,7 +78,7 @@ Why: easing curves defined once and a duration per role make every transition fe
 system.
 
 Baseline: [`cubic-bezier()`](https://developer.mozilla.org/en-US/docs/Web/CSS/easing-function#browser_compatibility),
-widely available. As of 2026-10-11, recheck on a status change.
+widely available.
 
 Use them in every transition and animation. The values come from the resolved config, never from
 this file: `config.values.animation.easing` holds each curve as four control points, written as the
@@ -127,7 +124,6 @@ Why: a registered property interpolates, so one state change drives several valu
 number fed in by a script eases in CSS.
 
 Baseline: [`@property`](https://developer.mozilla.org/en-US/docs/Web/CSS/@property#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it when one state change should drive several values, or a script feeds a number such as
 pointer position or progress into CSS.
@@ -181,7 +177,7 @@ Why: fading the opacity of two pre-drawn shadows is composited, where animating 
 repaints every frame.
 
 Baseline: [`opacity`](https://developer.mozilla.org/en-US/docs/Web/CSS/opacity#browser_compatibility),
-widely available. As of 2026-10-11, recheck on a status change.
+widely available.
 
 Use it on cards that lift on hover, most of all in a grid of many cards or with a large blur.
 
@@ -233,7 +229,7 @@ Why: an element that moves on hover moves its own hit area, so at the edge the c
 hover ends, the element returns and hover starts again: a flicker loop.
 
 Baseline: [`transform`](https://developer.mozilla.org/en-US/docs/Web/CSS/transform#browser_compatibility),
-widely available. As of 2026-10-29, recheck on a status change.
+widely available.
 
 Use it on any card or button that lifts, slides or scales on hover.
 
@@ -265,7 +261,6 @@ Why: two lines crossfade between pages of a multi-page site, replacing a client-
 page-transition script.
 
 Baseline: [`@view-transition`](https://developer.mozilla.org/en-US/docs/Web/CSS/@view-transition#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 ```css
 @view-transition { navigation: auto; }
@@ -285,7 +280,6 @@ and writes a `transform` and a width.
 
 Baseline: [`anchor-name`](https://developer.mozilla.org/en-US/docs/Web/CSS/anchor-name#browser_compatibility),
 [`anchor-scope`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/anchor-scope#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it for the underline on a tab row or the bar beside a side nav.
 

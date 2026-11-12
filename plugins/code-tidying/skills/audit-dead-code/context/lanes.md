@@ -69,7 +69,6 @@ non-source paths are not in the coverage total.
   healthy, so stdout genuinely cannot establish run health here.
 - **Exit codes:** the lane never reads knip's exit code; run health comes from stderr, as above.
   Pointer: [knip CLI `--no-exit-code`](https://knip.dev/reference/cli#--no-exit-code).
-  As of: 2026-11-10. Recheck trigger: that section gives findings and errors different codes.
 - **Config evaluation is disclosed, not denied.** knip loads a repository-controlled
   `knip.config.{ts,js,mjs,cjs}` through `jiti`; a planted side effect in one **fired**. Every run
   that loads a config module says so in the report. The same experiment in Python did not fire:
@@ -101,8 +100,7 @@ non-source paths are not in the coverage total.
   is degraded. Conflating them would let one stray `.toml` in scope suppress the whole Python lane.
   knip's `ERROR:` stderr rule does **not** generalize here.
 - **Exit codes:** health comes from the shape of stderr, never from the code. Pointer:
-  [vulture exit codes](https://github.com/jendrikseipp/vulture#exit-codes). As of: 2026-11-10.
-  Recheck trigger: that section adds a code that separates an input error from a crash.
+  [vulture exit codes](https://github.com/jendrikseipp/vulture#exit-codes).
 - **Pipeline safety:** vulture's output is written to a temp file and read back in full, never
   piped into a truncating reader; a stdout closed early fails the run (measured, versions per the
   record above).
@@ -219,8 +217,7 @@ non-source paths are not in the coverage total.
   dead. Precision of this shape is unmeasured beyond the fixture contract (a workflow reference
   saves the script it names; a script named nowhere is the one candidate).
 - **`-H -o` attribute each match to its file**, and the lane relies on BSD grep taking both flags.
-  Pointer: [FreeBSD grep(1)](https://man.freebsd.org/cgi/man.cgi?query=grep&sektion=1). As of:
-  2026-11-10. Recheck trigger: the lane fails on a BSD or macOS userland, or the man page drops
+  Pointer: [FreeBSD grep(1)](https://man.freebsd.org/cgi/man.cgi?query=grep&sektion=1). Recheck trigger: the lane fails on a BSD or macOS userland, or the man page drops
   either flag.
 
 ## Why Rust, a .NET build lane, and an LSP scanning lane are absent
@@ -236,8 +233,7 @@ non-source paths are not in the coverage total.
 - **An LSP scanning lane**: a lane is a detector the scan script runs in one batch. Claude Code's
   `LSP` tool is used only as an optional per-candidate assist inside the already-bounded
   adjudication. Pointer:
-  [LSP tool behavior](https://code.claude.com/docs/en/tools-reference#lsp-tool-behavior). As of:
-  2026-11-10. Recheck trigger: that section lets a script or a batch call reach the tool.
+  [LSP tool behavior](https://code.claude.com/docs/en/tools-reference#lsp-tool-behavior).
 - **`DiagnosticTag.Unnecessary`**: wrong scope everywhere (file-local/private only), push-only
   delivery, and Claude Code's diagnostics normalizer strips `tags` entirely.
 - **pyright as a Python detector**: measured, it misses `dead_fn`, `DeadClass`, and `dead_method`.

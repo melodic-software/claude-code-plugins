@@ -31,12 +31,10 @@ cookbook (`anthropics/claude-cookbooks` `misc/building_evals.ipynb`), fetched 20
 
 `claude plugin eval` is what runs and scores a plugin's eval cases. For what one run does and what
 it reports, read
-[How an eval run works](https://code.claude.com/docs/en/plugin-evals#how-an-eval-run-works) live
-(as of 2026-11-03; recheck when that section changes how a run is graded or reported). It needs a
-recent Claude Code; for the minimum version, see
-[Requirements](https://code.claude.com/docs/en/plugin-evals#requirements) (as of 2026-10-11;
-recheck when that section's version floor changes). Every run and every judge grader is a metered
-model call on your own account.
+[How an eval run works](https://code.claude.com/docs/en/plugin-evals#how-an-eval-run-works) live.
+It needs a recent Claude Code; for the minimum version, see
+[Requirements](https://code.claude.com/docs/en/plugin-evals#requirements). Every run and every
+judge grader is a metered model call on your own account.
 
 This plugin is the practice around that command rather than a second runner. `/evals:plugin-eval`
 preflights the machine and the target, validates the case files, prices the suite before it spends,
@@ -45,8 +43,8 @@ work.
 
 Here `/evals:design` writes a skill's cases and `claude plugin eval init` a whole plugin's, both in
 the suite layout the CLI reads, and `/evals:validate` checks them. For that layout, read
-[Write a case manually](https://code.claude.com/docs/en/plugin-evals#write-a-case-manually) live
-(as of 2026-11-03; recheck when that section changes the case layout). This repository converts
+[Write a case manually](https://code.claude.com/docs/en/plugin-evals#write-a-case-manually) live.
+This repository converts
 `skill-creator` `evals.json` cases into the suite rather than keeping both:
 `skills/plugin-eval/scripts/convert-evals-json.py <plugin-dir>` converts one plugin's `evals.json`
 cases into its `evals/` suite and removes the converted files.
@@ -112,8 +110,7 @@ Eight `userConfig` keys. Two set the run's cost ceiling, read by `/evals:plugin-
 - **`max_cost_usd`** (number, default `5`): the ceiling passed to the CLI as `--max-cost-usd`.
   Raise it for a suite whose estimate is higher. For what the ceiling bounds and what a run that
   reaches it returns, read the `--max-cost-usd` row of
-  [Command options](https://code.claude.com/docs/en/plugin-evals#command-options) live (as of
-  2026-11-03; recheck when that row changes).
+  [Command options](https://code.claude.com/docs/en/plugin-evals#command-options) live.
 - **`unlimited_cost`** (boolean, default `false`): removes the ceiling and nothing else. The
   estimate still prints before the run, so an expensive suite is still visible before it starts.
 

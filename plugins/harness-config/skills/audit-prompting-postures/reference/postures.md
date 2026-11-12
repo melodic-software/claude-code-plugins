@@ -2,8 +2,7 @@
 
 Fourteen postures. Each row: the applicability predicate (which component purposes it binds), what
 counts as present, and the guide pointer that owns the recommended wording. Pointers only.
-Wording is fetched live per SKILL.md Phase A; the recheck trigger for every row is a change to its
-cited section.
+Wording is fetched live per SKILL.md Phase A.
 
 Guide root: <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices>
 (sections cited by heading). Model subpages cited by page + heading where a row needs one.
@@ -29,14 +28,10 @@ Rows cite the subpages of the current models first. A subpage name in a row mean
   We keep them in P1 while Claude Code can still put a session on either model. Pointer: for the
   models a session can fall back to, see
   [model configuration: automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback).
-  As of: 2026-10-01. Recheck trigger: either model leaves Claude Code's model page.
+  Recheck trigger: either model leaves Claude Code's model page.
 
 - **Pointer**: for which model each subpage covers, see the
   [model-specific guidance table](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#model-specific-guidance).
-- **As of**: 2026-10-01 (each subpage read as raw markdown that day); the Fable 5.2 subpage read
-  whole on 2026-11-09.
-- **Recheck trigger**: a row's cited heading disappears from its subpage, or that table gains or
-  drops a row.
 
 A row's "correlate:" note names a heading in the Opus 5.5 usage guide
 (correlate with <https://claude.dev/blog/getting-the-most-out-of-opus-5-5/>, published 2026-09-22),
@@ -64,7 +59,6 @@ carries the Sonnet 5.5 condition.
   (P8) and
   [verification on coding tasks](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#verification-on-coding-tasks)
   (P13).
-- **As of**: 2026-10-01
 - **Recheck trigger**: a cited heading disappears from that subpage, or another model's subpage
   covers self-started review rounds, which re-opens P12's model condition.
 
@@ -76,7 +70,6 @@ nothing in the section recommends a steer on where the run ends.
 
 - **Pointer**: the Fable 5.2 subpage's
   [set expectations for subagents](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#set-expectations-for-subagents).
-- **As of**: 2026-11-09
 - **Recheck trigger**: that section starts recommending a steer on where the run ends, which
   extends P12's condition to Fable 5.2.
 
@@ -154,8 +147,7 @@ Classify each component by what its body has the model DO (multiple or none):
   On 2026-10-01 that was the only docs section covering this check: we read the Fable 5.1, Opus 5.5
   and Sonnet 5.5 subpages that day (raw markdown, no artifact stored) and none of them covers tying
   progress claims to tool-result evidence; the Fable 5.2 subpage, read whole on 2026-11-09, does
-  not either. As of: 2026-11-09. Recheck trigger: a current model's subpage starts covering the
-  check (repoint there), or that Fable 5 section disappears.
+  not either.
 
 ### P6: Autonomy or checkpoint posture
 
@@ -201,7 +193,6 @@ Classify each component by what its body has the model DO (multiple or none):
   model condition. Read the model list on the run's live fetch; this file keeps no copy.
   Pointer: for which models the capability covers, see
   [context windows: context awareness](https://platform.claude.com/docs/en/build-with-claude/context-windows#context-awareness).
-  As of: 2026-10-01. Recheck trigger: that section's model list changes.
 - **Present when:** the surfaced figure is accompanied by do-not-wrap-up-early framing (or the
   component deliberately avoids surfacing raw countdowns at all, the stronger form).
 - **Pointer:** main page,

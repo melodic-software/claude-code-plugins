@@ -104,8 +104,6 @@ Mechanics live in each tool's docs: Hypothesis
 [`example.xfail()`](https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.example.xfail)
 and [prefer `@example` over the database](https://hypothesis.readthedocs.io/en/latest/tutorial/replaying-failures.html#prefer-example-over-the-database-for-correctness);
 fast-check [run against custom values](https://fast-check.dev/docs/configuration/user-definable-values/#run-against-custom-values).
-As of 2026-11-10. Recheck trigger: a tool stops recommending explicit examples over its database
-or seed, or renames these parameters.
 
 ## Show the property can fail
 
@@ -148,8 +146,6 @@ For Python, the Hypothesis maintainers publish a `/hypothesis` Claude Code comma
 this loop (evidence-backed properties, failure triage, pinning the minimal input). Use it rather
 than re-deriving it here:
 [`.claude/commands/hypothesis.md`](https://github.com/HypothesisWorks/hypothesis/blob/master/.claude/commands/hypothesis.md).
-As of 2026-10-06 (announced 2025-11-01). Recheck trigger: the file moves, is retired, or ships as a
-plugin.
 
 Basis: the agent-self-check research slice (2026-10-06), prompted by Addy Osmani's 2026-10-05 post
 (<https://x.com/addyosmani/status/2106995301802541481>). Agentic property testing found real bugs

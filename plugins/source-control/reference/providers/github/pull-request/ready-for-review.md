@@ -108,8 +108,6 @@ fi
 - **Pointer**: when checking the update's parameter and responses, fetch
   [update a pull request branch](https://docs.github.com/en/rest/pulls/pulls#update-a-pull-request-branch)
   live.
-- **As of**: 2026-11-08
-- **Recheck trigger**: that section changes `expected_head_sha` or its responses.
 
 The PR's head commit, for the completion check:
 
@@ -145,8 +143,6 @@ git cat-file commit HEAD | grep -q '^gpgsig' && echo signed
   for the classic fields, fetch
   [get branch protection](https://docs.github.com/en/rest/branches/branch-protection#get-branch-protection)
   live.
-- **As of**: 2026-11-08
-- **Recheck trigger**: either section renames a rule type or field read here.
 
 ## Post the range-diff
 
@@ -249,9 +245,7 @@ fi
 
 `--commit` and `--event` filter the list server side, and `-L 100` lifts the default page so a
 repository with many workflows is counted in full. Pointer:
-[gh run list](https://cli.github.com/manual/gh_run_list) for the flags and the default limit. As
-of: 2026-10-18. Recheck trigger: a gh release that changes `run list` filtering or its default
-limit.
+[gh run list](https://cli.github.com/manual/gh_run_list) for the flags and the default limit.
 
 ## Flip to ready
 
