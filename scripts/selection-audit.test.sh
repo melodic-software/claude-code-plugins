@@ -81,10 +81,13 @@ else
   echo 22 >"$t/.node-version"
   echo '*.log' >"$t/.gitignore"
   echo '* text=auto' >"$t/.gitattributes"
+  # So are the nested copies git reads when a suite walks the tree.
+  echo '*.tmp' >"$t/data/.gitignore"
+  echo '*.bin binary' >"$t/data/.gitattributes"
   mkdir -p "$t/.github"
   echo 'fetch-retries=1' >"$t/.github/npm-fetch.npmrc"
   printf '%s\n' '#!/usr/bin/env bash' 'cat data/hidden.txt data/recorded.txt data/named.txt data/unmapped.txt data/untracked.txt data/broken.txt' \
-    'cat package.json .node-version .gitignore .gitattributes .github/npm-fetch.npmrc' >"$t/suites/reader.test.sh"
+    'cat package.json .node-version .gitignore .gitattributes data/.gitignore data/.gitattributes .github/npm-fetch.npmrc' >"$t/suites/reader.test.sh"
   printf '%s\n' '#!/usr/bin/env bash' 'true' >"$t/suites/quiet.test.sh"
   # Reads the unmapped file too, but the fallback corpus does not run it.
   printf '%s\n' '#!/usr/bin/env bash' 'cat data/unmapped.txt' >"$t/suites/zz-outside.test.sh"
@@ -118,7 +121,7 @@ EOF
     fail "trace: exit $rc, want 1: $(cat "$TMP_ROOT/trace.log")"
   fi
   if [[ "$gaps" == "$want" ]]; then
-    ok "trace: gaps are the read that selects no suite, the unmapped-to-suite read and the unmapped read of a suite the fallback does not run (mapped, recorded no-suite, fallback-run, unchecked, untracked, self and root toolchain files are not)"
+    ok "trace: gaps are the read that selects no suite, the unmapped-to-suite read and the unmapped read of a suite the fallback does not run (mapped, recorded no-suite, fallback-run, unchecked, untracked, self, root toolchain files and nested .gitignore/.gitattributes are not)"
   else
     fail "trace: gaps.tsv [$gaps] want [$want]"
   fi

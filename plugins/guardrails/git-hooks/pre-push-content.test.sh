@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/guardrails/hooks/*.sh plugins/guardrails/hooks/yaml-subset.awk plugins/guardrails/lib/verification/*.sh
 # Contract tests for the guardrails pre-push entry git-hooks/pre-push-content.sh:
 # a secret or machine-specific path that a pushed commit adds blocks with
 # "<path>:<line>: <message> (commit <id>)", also when a later commit of the same

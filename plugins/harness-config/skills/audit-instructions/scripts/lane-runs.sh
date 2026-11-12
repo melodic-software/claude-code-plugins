@@ -79,10 +79,6 @@ sha256_stdin() {
   fi
 }
 
-sha256_file() {
-  sha256_stdin <"$1"
-}
-
 require_positive_number() {
   local name="$1" value="$2"
   if [[ ! "$value" =~ ^[0-9]+([.][0-9]+)?$ ]] || awk -v v="$value" 'BEGIN{exit !(v <= 0)}'; then
@@ -256,20 +252,19 @@ cmd_digest() {
   [[ -n "$partition" ]] || die "digest needs --partition-digest"
   [[ ${#files[@]} -gt 0 ]] || die "digest needs at least one file after --"
 
-  local key p found missing=""
+  local key p keys=" " missing=""
+  for p in "${params[@]}"; do
+    keys+="${p%%=*} "
+  done
   for key in $REQUIRED_PARAMS; do
-    found=0
-    for p in "${params[@]}"; do
-      [[ "${p%%=*}" == "$key" ]] && found=1
-    done
-    [[ "$found" -eq 1 ]] || missing+=" $key"
+    [[ "$keys" == *" $key "* ]] || missing+=" $key"
   done
   [[ -z "$missing" ]] || die "digest is missing required --param keys:$missing"
 
   local f body=""
   for f in "${files[@]}"; do
     [[ -f "$f" ]] || die "no such file: $f"
-    body+="file"$'\t'"$f"$'\t'"$(sha256_file "$f")"$'\n'
+    body+="file"$'\t'"$f"$'\t'"$(sha256_stdin <"$f")"$'\n'
   done
   body+="partition"$'\t'"$partition"$'\n'
   body+=$(printf '%s\n' "${params[@]}" | LC_ALL=C sort | sed 's/^/param\t/')

@@ -72,9 +72,7 @@ fleet_load_config_skip() {
 }
 
 fleet_finalize_skip_names() {
-  if [[ ${#SKIP_NAMES[@]} -eq 0 ]]; then
-    SKIP_NAMES=("${FLEET_DEFAULT_SKIP_NAMES[@]}")
-  fi
+  [[ ${#SKIP_NAMES[@]} -gt 0 ]] || SKIP_NAMES=("${FLEET_DEFAULT_SKIP_NAMES[@]}")
   [[ ${#SKIP_APPEND_NAMES[@]} -eq 0 ]] || SKIP_NAMES+=("${SKIP_APPEND_NAMES[@]}")
 }
 
@@ -94,14 +92,10 @@ fleet_resolve_max_depth() {
 
 should_skip_dir_name() {
   local name="$1" skip
-  # This arm is defense in depth, not a live guard: no input reaching the sole caller
-  # (fleet_discover_root's child loop) can match it. `.` and `..` can never BE a child basename —
-  # the loop's globs are "$dir"/* (no dotfiles), "$dir"/.[!.]* and "$dir"/..?*, none of which can
-  # yield `.` or `..`. And for `.git`, the nested-repository early return fires first on the
-  # identical path and predicate, so the loop never runs for a directory holding one. The arm is
-  # kept so a future refactor of that early return cannot silently start walking `.git` internals.
-  # Its contract is asserted directly in audit-fleet.test.sh, because no discovery-level test can
-  # observe it (#2844).
+  # Defense in depth: fleet_discover_root's globs never yield `.` or `..`, and its
+  # nested-repository early return stops before the loop reaches a `.git` directory or file. The
+  # arm keeps a refactor of that early return from walking `.git` internals; no discovery-level
+  # test can observe it, so audit-fleet.test.sh asserts it directly.
   case "$name" in
   . | .. | .git) return 0 ;;
   *) ;;
@@ -128,7 +122,7 @@ fleet_on_unreadable() { :; }
 # directory holding a .git marker is a repository and the walk stops there, so nothing nested
 # inside a checkout is reported.
 fleet_discover_root() {
-  local dir="$1" depth="${2:-0}" child name
+  local dir="$1" depth="${2:-0}" child
   [[ -d "$dir" && ! -L "$dir" ]] || return 0
   # Unreadable directories are ordinary under a volume-wide root (Windows $RECYCLE.BIN).
   if [[ ! -r "$dir" || ! -x "$dir" ]]; then
@@ -143,10 +137,7 @@ fleet_discover_root() {
   for child in "$dir"/* "$dir"/.[!.]* "$dir"/..?*; do
     # Unmatched globs leave literal patterns; skip those. Broken symlinks still match -L.
     [[ -e "$child" || -L "$child" ]] || continue
-    name="${child##*/}"
-    if should_skip_dir_name "$name"; then
-      continue
-    fi
+    should_skip_dir_name "${child##*/}" && continue
     # Windows directory junctions satisfy both -d and -L under Git Bash, so they take this arm.
     if [[ -L "$child" && -d "$child" ]]; then
       fleet_on_symlink "$child"

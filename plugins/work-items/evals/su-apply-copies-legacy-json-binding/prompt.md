@@ -4,7 +4,7 @@ tags: [setup, apply, migration, hard]
 max_turns: 15
 timeout_seconds: 420
 allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: 'Check reports that the binding exists only in the legacy JSON file. Apply ensures a .gitignore rule covers docs/conventions/work-items.local.yaml and announces that edit, then runs migrate-binding.sh, which appends a tracker mapping to docs/conventions/work-items.yaml below ai_disclaimer and writes docs/conventions/work-items.local.yaml with the personal override''s lease_ttl_hours 6. It announces both copies and says the JSON files stay unchanged because older installed plugin versions and the repository''s own tooling may still read only them, and that later binding edits land only in the YAML. It does not delete, rewrite or ask the user to edit .work-item-tracker.json, and it keeps the copied binding rather than re-binding a provider.'
+expected_outcome: 'Check reports that the binding exists only in the legacy JSON file. Apply ensures a .gitignore rule covers docs/conventions/work-items.local.yaml and announces that edit, then runs migrate-binding.sh, which appends a tracker mapping to docs/conventions/work-items.yaml below ai_disclaimer and writes docs/conventions/work-items.local.yaml with the personal override''s lease_ttl_hours 6. It announces both copies and says the JSON files stay unchanged because a vendored seam or the repository''s own tooling may still read only them, and that later binding edits land only in the YAML. It does not delete, rewrite or ask the user to edit .work-item-tracker.json, and it keeps the copied binding rather than re-binding a provider.'
 ---
 
 /work-items:setup apply
