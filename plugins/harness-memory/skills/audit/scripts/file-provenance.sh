@@ -49,17 +49,17 @@ emit() {
   printf '%s\t%s\t%s\n' "$1" "$2" "$3"
 }
 
-if [[ ! -f "$target" ]]; then
+# --synced exits 1 for a local file; the plain mode exits 0.
+emit_local() {
   emit local none unknown
-  ((quiet)) && exit 1
-  exit 0
-fi
+  exit "$quiet"
+}
 
-upstream=unknown
+[[ -f "$target" ]] || emit_local
+
 if grep -q 'SYNC-MANAGED' "$target" 2>/dev/null; then
-  found=$(grep -m1 -oE 'Source of truth: *[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+' "$target" 2>/dev/null | sed -E 's/.*: *//')
-  [[ -n "$found" ]] && upstream="$found"
-  emit synced header "$upstream"
+  upstream=$(grep -m1 -oE 'Source of truth: *[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+' "$target" 2>/dev/null | sed -E 's/.*: *//')
+  emit synced header "${upstream:-unknown}"
   exit 0
 fi
 
@@ -68,12 +68,10 @@ if [[ -n "$dir" ]] && git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2
   last=$(git -C "$dir" log -1 --format='%an%n%s' -- "$(basename "$target")" 2>/dev/null | tr -d '\r')
   author="${last%%$'\n'*}"
   subject="${last#*$'\n'}"
-  if [[ -n "$last" ]] && { [[ "$author" == *standards-sync* ]] || [[ "$subject" == "chore: sync standards"* ]]; }; then
-    emit synced commit "$upstream"
+  if [[ "$author" == *standards-sync* || "$subject" == "chore: sync standards"* ]]; then
+    emit synced commit unknown
     exit 0
   fi
 fi
 
-emit local none unknown
-((quiet)) && exit 1
-exit 0
+emit_local

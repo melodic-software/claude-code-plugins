@@ -53,7 +53,7 @@ done
 orphan=()
 shopt -s nullglob
 for file in "$memory_dir"/*.md; do
-  base=$(basename "$file")
+  base="${file##*/}"
   [[ "$base" == "MEMORY.md" ]] && continue
   [[ -n "${linked[$base]:-}" ]] && continue
   grep -q '<!-- memory-index-orphan-ignore -->' "$file" && continue
