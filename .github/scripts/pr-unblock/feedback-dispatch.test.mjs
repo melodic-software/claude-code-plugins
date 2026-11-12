@@ -3776,6 +3776,32 @@ test("an owner PR's Codex thread answering an untrusted or missing @codex reques
   }
 });
 
+// github-advanced-security[bot]'s code scanning thread on an owner PR, scanned
+// on an earlier push after the opening too: unsummoned, it dispatches with no
+// `@codex` request, where Codex in the same place does not.
+const CODEQL = { databaseId: 62310815, login: "github-advanced-security" };
+const botOwner = (bot) => {
+  const node = codexThread().comments.nodes[0];
+  return ownerApi({
+    pulls: ownerPull({ created_at: "2026-10-28T06:00:00Z" }),
+    threads: [{ ...codexThread(), comments: { nodes: [{ ...node, author: bot, pullRequestReview: { ...node.pullRequestReview, author: bot } }], pageInfo: { hasNextPage: false } } }],
+    comments: [marker("claude-review"), marker("claude-security-review")],
+    reviews: [
+      { user: { id: bot.databaseId }, commit_id: "c".repeat(40), submitted_at: "2026-10-28T07:00:00Z", body: "" },
+      { user: { id: bot.databaseId }, commit_id: HEAD, submitted_at: CODEX_REVIEWED, body: "" },
+    ],
+  });
+};
+
+test("an owner PR's CodeQL thread on a later push's scan dispatches with no @codex request; Codex's in the same place does not", async () => {
+  const reviewerIds = [CODEX.databaseId, CODEQL.databaseId];
+  const scanned = await decideOwner(botOwner(CODEQL), { reviewerIds });
+  assert.equal(scanned.result?.number, 42, scanned.lines.join("\n"));
+  const codex = await decideOwner(botOwner(CODEX), { reviewerIds });
+  assert.equal(codex.result, null);
+  assert.ok(codex.lines.some((line) => /^skip thread PRRT_9: codex-request-not-found/.test(line)), codex.lines.join("\n"));
+});
+
 // Element 6 of the outage posture (docs/conventions/pr-pipeline/README.md#outage-posture): reads are
 // serial, so each review workflow's run listing starts after the last ends.
 test("reviewRunAt lists each review workflow's runs one after the other and picks the newest", async () => {

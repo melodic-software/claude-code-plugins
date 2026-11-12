@@ -4064,10 +4064,15 @@ person's or the lanes App's (`APP_SENDER_ID`). Any untrusted request or event si
 or none that can be read, leaves the thread for a person. So does a comment or review by anyone
 else, apart from our own bots, that was edited since the window opened, or a deleted comment
 of theirs, since either may have held a request. The reason is logged
-(`codex-request-untrusted`, `codex-request-not-found`). The list is matched on the
+(`codex-request-untrusted`, `codex-request-not-found`). A listed bot no comment can summon,
+`github-advanced-security[bot]` (code scanning alerts, which it posts after each analysis of a
+pushed head; `UNSUMMONED_REVIEWER_IDS` in `address-feedback.mjs`), needs no request: its thread is
+worked when a trusted person or the lanes App opened the pull request, and logged with the same
+reasons otherwise. The list is matched on the
 account id GitHub records for each comment and its review, never on a login, so another account
 using the same name matches nothing. The comment text stays data in every model prompt, as the
-reviewer bot's does. This repository lists `chatgpt-codex-connector[bot]` (199175422). The
+reviewer bot's does. This repository lists `chatgpt-codex-connector[bot]` (199175422) and
+`github-advanced-security[bot]` (62310815). The
 select job and `publish-feedback` read the list from the resolved config; `fix-ci-context.mjs`
 and `pr-feedback-dispatch.yml` read it from the base's `pr-pipeline.yaml`. Absent: none.
 
