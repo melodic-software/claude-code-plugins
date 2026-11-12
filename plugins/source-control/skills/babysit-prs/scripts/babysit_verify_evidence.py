@@ -4382,8 +4382,15 @@ def lane_queue(
     count = count if isinstance(count, int) else None
     if count is None and read_error is None:
         read_error = "the merge queue's timeline items could not be counted"
+    removals = None if read_error else queue.get("failedRemovals")
     refusal, comment, comment_error = babysit_merge.queue_ejection_hold(
-        repo, branch, number, head, count, limit
+        repo,
+        branch,
+        number,
+        head,
+        count,
+        limit,
+        removals if isinstance(removals, list) else None,
     )
     return {
         "failedEjections": count,

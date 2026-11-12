@@ -923,6 +923,20 @@ class EvidenceCommandReadsTheQueueEjections(unittest.TestCase):
                     },
                 )
 
+    def test_a_rate_limited_removal_at_the_cap_lifts_the_refusal(self) -> None:
+        removals = ["2026-11-12T03:00:00Z", "2026-11-12T04:40:05Z"]
+        read = {"readError": None, "failedEjections": 2, "failedRemovals": removals}
+        for limited, refusal in ((1, None), (0, EJECTED)):
+            with (
+                self.subTest(limited=limited),
+                mock.patch.object(
+                    babysit_merge, "rate_limited_removals", return_value=limited
+                ) as check,
+            ):
+                queue = self.cli(read)["queue"]
+                check.assert_called_once_with(REPO, "main", 41, removals, 2)
+                self.assertEqual(queue["refusal"], refusal)
+
     def test_a_failed_runs_read_still_refuses_and_names_its_error(self) -> None:
         queue = self.cli(
             {"readError": None, "failedEjections": 2}, runs=RuntimeError("boom")
