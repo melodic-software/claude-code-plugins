@@ -99,7 +99,9 @@ telemetry in RAM only, so restart to reclaim.)
 On the last row: `anthropics/claude-code#53954` reports that in streaming mode the enhanced-telemetry
 beta emits `claude_code.llm_request` only, with the interaction, tool, and tool-execution spans
 missing. The issue is closed as not planned, so the direct-CLI path stays the one that yields a
-full span tree. Basis: `gh api repos/anthropics/claude-code/issues/53954`.
+full span tree. Basis: `gh api repos/anthropics/claude-code/issues/53954`. Recheck when the issue
+reopens or closes as completed, or when a run on this machine returns interaction spans from the
+SDK path; route the recheck through `/harness-ops:known-issues check-all`.
 
 ## Distinction from `/harness-ops:known-issues`
 
