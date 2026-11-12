@@ -1,6 +1,6 @@
 ---
 type: regex
-pattern: '^###\s*Phase[\s\S]*?^\s*[-*]\s+[^\n]*(?:ValueError|unsupported delimiter|\brefus|\breject|\braise)'
+pattern: '^###\s*Phase(?:(?!^#{2,3}\s)[\s\S])*?^\s*[-*]\s+[^\n]*(?:ValueError|unsupported delimiter|\brefus|\breject|\braise)'
 flags: mi
 target:
   source: file
