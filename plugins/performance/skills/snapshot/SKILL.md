@@ -50,8 +50,7 @@ refuses above a variance threshold: pyperf, Criterion, JMH and benchstat all war
 number anyway.
 
 - **Pointer**: when you need pyperf's own stability thresholds, fetch
-  [pyperf check](https://pyperf.readthedocs.io/en/latest/cli.html#check-cmd) live. **As of**:
-  2026-10-02. **Recheck trigger**: that section turns a check from a warning into a failure.
+  [pyperf check](https://pyperf.readthedocs.io/en/latest/cli.html#check-cmd) live.
 
 ### 1b. Measuring-tool integrity (before timing)
 

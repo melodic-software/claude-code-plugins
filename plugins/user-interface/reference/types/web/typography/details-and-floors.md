@@ -71,7 +71,6 @@ to click text that goes nowhere.
 
 Baseline: [`::target-text`](https://developer.mozilla.org/en-US/docs/Web/CSS/::target-text#browser_compatibility),
 [CSS Custom Highlight API](https://developer.mozilla.org/en-US/docs/Web/API/CSS_Custom_Highlight_API#browser_compatibility).
-As of 2026-10-29, recheck on a status change.
 
 ## Placeholders and carets
 
@@ -93,9 +92,6 @@ root, both vendor properties together:
 
 - **Pointer**: MDN, `font-smooth` syntax, which covers both vendor properties,
   <https://developer.mozilla.org/en-US/docs/Web/CSS/font-smooth#syntax>
-- **As of**: 2026-10-29
-- **Recheck trigger**: either vendor property changes the platforms it works on, or a standard
-  smoothing property ships.
 
 ```css
 body {
@@ -120,7 +116,6 @@ Once, globally, at the layout root, not re-declared per component.
 Baseline: [`::first-letter`](https://developer.mozilla.org/en-US/docs/Web/CSS/::first-letter#browser_compatibility),
 [`initial-letter`](https://developer.mozilla.org/en-US/docs/Web/CSS/initial-letter#browser_compatibility),
 [`-webkit-text-stroke`](https://developer.mozilla.org/en-US/docs/Web/CSS/-webkit-text-stroke#browser_compatibility).
-As of 2026-10-29, recheck on a status change.
 
 A known artifact: stroked text sometimes shows seams *inside* the letters. Those seams are
 overlapping contours in the font itself (variable fonts commonly leave shape intersections

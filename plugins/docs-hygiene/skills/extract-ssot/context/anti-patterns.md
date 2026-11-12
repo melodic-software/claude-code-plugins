@@ -43,8 +43,6 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 **Symptom.** A skill body cites a rule file; the rule file cites another rule file for the same domain. We treat that depth as an anti-pattern here.
 
 - **Pointer**: when explaining why a deep reference chain fails a reader, fetch [Avoid deeply nested references](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#avoid-deeply-nested-references) live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section changes its guidance on reference nesting depth, or moves.
 
 **Code/config analog.** Re-export chains: `module-A` re-exports from `module-B` which re-exports from `module-C`. IDE "go to definition" jumps through layers; refactor breakage cascades. The same one-level-deep rule applies: the call site imports the canonical SSOT directly.
 
@@ -147,15 +145,13 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 **Scope fence: Claude Code sessions, and the cost is propagation, not caching.** We do not count SSOT edit frequency as a distinct driver of cache misses in Claude Code sessions: a committed edit affects prefix sharing no differently from any other commit. A volatility cost on the API surface is real, but it reaches an Agent SDK fleet assembling one shared prefix across machines, not the tracked-markdown extractions this skill scopes to.
 
 - **Pointer**: for what a mid-session edit does, when the new content loads, and what keys prefix sharing, fetch [editing CLAUDE.md mid-session](https://code.claude.com/docs/en/prompt-caching#editing-claude-md-mid-session) and [cache scope](https://code.claude.com/docs/en/prompt-caching#cache-scope) live; for the API surface, [cache storage and sharing](https://platform.claude.com/docs/en/build-with-claude/prompt-caching#cache-storage-and-sharing).
-- **As of**: 2026-10-11
-- **Recheck trigger**: the prompt-caching page changes how a mid-session CLAUDE.md edit affects the cached prefix or when it loads; the cache-scope section stops keying sharing on the startup git-status snapshot; or the API cache-storage-and-sharing section changes what a cache entry is shared across or what keys it.
 
 **Symptom.** A rule corrected hours ago is still being violated by long-running sessions; two concurrent sessions in the same repo follow different versions of the same extracted rule.
 
 **Mitigation.**
 
 1. Decision-framework test #3 (Stable: content changes <1×/quarter) is the up-front gate
-2. If the SSOT must be edited frequently, split it: stable categorical bits stay in the always-loaded SSOT, volatile narrative moves to a surface that loads late enough to see corrections, such as a skill body (injects at invocation), a `paths:`-scoped rule (loads when Claude first works with a matching file; for the exact trigger list, fetch [path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules) live; as of 2026-10-10, recheck when that section changes its trigger list), or a file consulted on demand. Going back inline helps only when the original home was itself lazy-loaded; inline in `CLAUDE.md` or an unscoped rule is the same always-loaded surface with the same lag, and buys nothing
+2. If the SSOT must be edited frequently, split it: stable categorical bits stay in the always-loaded SSOT, volatile narrative moves to a surface that loads late enough to see corrections, such as a skill body (injects at invocation), a `paths:`-scoped rule (loads when Claude first works with a matching file; for the exact trigger list, fetch [path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules) live;), or a file consulted on demand. Going back inline helps only when the original home was itself lazy-loaded; inline in `CLAUDE.md` or an unscoped rule is the same always-loaded surface with the same lag, and buys nothing
 3. A Recheck-triggers section in the SSOT documents anticipated edit frequency; if it drifts >1×/month, raise it as a side observation
 4. After a correction live sessions must honor, say so. The fix reaches them only when they reload instructions (which actions do that: the "editing CLAUDE.md mid-session" pointer under the scope fence above)
 

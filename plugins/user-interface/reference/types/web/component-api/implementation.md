@@ -140,8 +140,6 @@ in that form.
 - **Pointer**: <https://react.dev/reference/react/forwardRef#reference> (the notice that opens the
   page, above that section); correlate with
   <https://react.dev/learn/manipulating-the-dom-with-refs#accessing-another-components-dom-nodes>
-- **As of**: 2026-10-29
-- **Recheck trigger**: a React release changes how a component receives a ref.
 
 ## Spreading remaining props
 
@@ -223,9 +221,6 @@ package it already uses. With neither, write one as the pointer below shows, onc
 
 - **Pointer**:
   <https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the section moves, or a React release changes how a component catches
-  render errors.
 
 ## File structure and exports
 

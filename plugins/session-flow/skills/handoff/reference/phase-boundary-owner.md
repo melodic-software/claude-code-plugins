@@ -16,7 +16,6 @@ Option A: one owner. Dual-owner (handoff writes the artifact; dispatch owns cont
   PR [#4741](https://github.com/melodic-software/claude-code-plugins/pull/4741) (#3711) already
   moved the *clear* ritual to invoke this skill last. The remaining ask in #3952 (a no-stop
   argument plus dispatch invoking it at every numbered boundary) is the dual-owner rebuild.
-- **As of:** 2026-09-28.
 - **Recheck:** a maintainer funds a no-stop argument on this skill, or `implement-dispatch`
   "Phase boundaries" again tells a resident orchestrator to write a handoff.
 

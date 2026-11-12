@@ -61,12 +61,10 @@ told:
    stop and ask, and a deliberately chosen model tier, on top of the brief elements the
    multi-agent post lists. Pointer: [Give the reason, not only the request](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#give-the-reason-not-only-the-request);
    correlate with <https://www.anthropic.com/engineering/multi-agent-research-system> for the
-   brief elements, which no docs page covers as of 2026-10-01. Recheck trigger: a docs page
-   starts covering brief contents. Name the model tier deliberately rather than leaving it
-   unspecified: what an omitted `model` resolves to, with or without a consumer-level
+   brief elements, which no docs page covers. Name the model tier deliberately rather than leaving
+   it unspecified: what an omitted `model` resolves to, with or without a consumer-level
    subagent-model override, is upstream behavior
-   (pointer: <https://code.claude.com/docs/en/sub-agents#choose-a-model>, as of 2026-11-10; recheck
-   when that section changes the resolution order or what an omitted `model` resolves to).
+   (pointer: <https://code.claude.com/docs/en/sub-agents#choose-a-model>).
    Holding only an objective, a worker resolves each ambiguity toward the sentence you wrote rather
    than the outcome you wanted, and returns something well-formed and wrong.
    A worker that measures is told which exact commits to compare and how to sample (how many
@@ -86,8 +84,7 @@ told:
 4. RUN WORKERS WELL. Dispatch without blocking, and keep a worker across subtasks where the
    runtime allows; watch each worker and step in when it drifts. Pointer:
    [Parallel subagents](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#parallel-subagents).
-   As of: 2026-10-01. Recheck trigger: that section changes its dispatch or reuse guidance. A worker that
-   must wait on an external result polls it in the foreground with a bounded loop, or returns what
+   A worker that must wait on an external result polls it in the foreground with a bounded loop, or returns what
    it has and lets the parent re-dispatch. A background command or watch the worker started is not
    a wait: the runtime may stop it when the worker returns, a watch expires at its deadline, and no
    sentinel file appears unless something the worker launched writes it. The runtime may also leave
@@ -112,8 +109,7 @@ told:
 5. NESTED SUBAGENTS, a worker may spawn its own workers when a delegated task itself subdivides
    AND the depth is non-load-bearing. Reliability
    degrades with depth and platforms cap it (for the cap, see
-   <https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents>, as of 2026-10-31; recheck when
-   that section changes the default or the setting), so never author a tree that needs a specific or deep
+   <https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents>), so never author a tree that needs a specific or deep
    nesting level.
 6. SURFACE DRIFT, the moment you notice a stale reference, broken citation, or convention
    conflict adjacent to your task, flag it in one line; don't fix it silently, don't deep-dive.
@@ -137,14 +133,13 @@ told:
    high-volume mechanical work (search, extraction, per-item transforms, formatting) runs cheaper
    on both. Work that changes code, verifies a change, or is likely to hit edge cases is excluded
    from the lower effort: pick its level from model-config's effort table
-   (<https://code.claude.com/docs/en/model-config#choose-an-effort-level>, as of 2026-10-02;
-   recheck when that section is renamed or moved or its table columns change), and, as this
+   (<https://code.claude.com/docs/en/model-config#choose-an-effort-level>), and, as this
    repository's own floor, never below medium. A premium fan-out outside the hard stages is a per-stage decision to justify
    explicitly, never a default to inherit. Pointer for both cost judgments (delegating bulk work,
    tuning effort per subtask):
    <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work>
    and <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort>.
-   Both judgments are ours. As of: 2026-10-18. Recheck trigger: either section changes its advice.
+   Both judgments are ours.
 
 Discipline: trigger-evaluation is mandatory; the ACTION stays calibrated (delegate on value +
 parallelism, not convenience). Treat every worker's return as unverified synthesis: check its
@@ -158,8 +153,7 @@ never label a claim "known" / "from memory" / "obvious".
 you may also reach orchestration surfaces a non-fork worker cannot: agent teams (driven from the
 lead session; the docs do not state whether a fork of the lead can drive one; see
 [agent teams: architecture](https://code.claude.com/docs/en/agent-teams#architecture) and
-[limitations](https://code.claude.com/docs/en/agent-teams#limitations), as of 2026-10-31; recheck
-when either changes who can lead a team) and dynamic workflows (withheld from non-fork workers). This session's reasoning effort is `${CLAUDE_EFFORT}`; if that value reads as a literal
+[limitations](https://code.claude.com/docs/en/agent-teams#limitations)) and dynamic workflows (withheld from non-fork workers). This session's reasoning effort is `${CLAUDE_EFFORT}`; if that value reads as a literal
 placeholder, resolve the session's effort yourself before using it. Feed the value
 into imperative 7's tier calibration: we treat it as the effort an unpinned spawn may run at when it
 passes no `effort`, and the pointer below says on which model that holds. Its gap from what a subtask needs IS
@@ -170,13 +164,11 @@ for the per-spawn `effort` and its precedence, see
 <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>; for which model the session's
 level reaches, see <https://code.claude.com/docs/en/model-config#effort-level-of-subagents-and-teammates>;
 for how ultracode relates to
-effort, see <https://code.claude.com/docs/en/model-config#adjust-effort-level>. As of: 2026-11-04.
-Recheck trigger: any of those sections moves or changes how a subagent's effort or ultracode is
-set, which spawns honor `effort`, or which model the session's level reaches. Where a
+effort, see <https://code.claude.com/docs/en/model-config#adjust-effort-level>. Where a
 `SendMessage` tool resolves in this session, run imperative 4's worker reuse and mid-flight
 intervention through it, addressed by the worker's agent ID. Never re-invoke the dispatch tool to
 continue a worker: that starts a second, independent worker. Read a refused message as a worker
-the user stopped. Pointers, as-of date and the empirical probe: `context/sources.md`, "SendMessage
+the user stopped. Pointers and the empirical probe: `context/sources.md`, "SendMessage
 worker continuation".
 `worker_continuation` decides how a worker's next unit (a fix round, a follow-up, a retry, the
 next queue item) runs. Resolve it once, at arm time, lowest layer first: the default `resume`; the
@@ -201,9 +193,8 @@ costly to move: its checkout, uncommitted changes, or a running process. Setting
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md).
 To choose between a workflow and subagents, and the model and effort each spawn gets, run
 `/multi-agent:assess` and `/multi-agent:route` when they resolve in this session; otherwise read
-<https://code.claude.com/docs/en/sub-agents#choose-a-model> (as of 2026-10-02; recheck when that
-section changes how a subagent's model is chosen; record: `context/sources.md`, "Priming addendum:
-model and effort routing").
+<https://code.claude.com/docs/en/sub-agents#choose-a-model> (record: `context/sources.md`,
+"Priming addendum: model and effort routing").
 Resolve the repository's verification level once with
 `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin session-flow --skill orchestrate --file docs/conventions/session-flow.yaml`
 and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
@@ -220,19 +211,15 @@ Guidance for the main session once a task needs more than one layer; the export 
 because a pasted worker sits inside a tree rather than authoring one.
 
 **A rough anchor for small/medium/large.** Not thresholds to enforce, the judgment still runs on context
-boundaries, not head-count, but our anchor follows the platform's workflow size settings: fewer
-than 5 agents is small, 5 to 9 medium, and 10 or more large. A run large enough to trip the
-platform's large-workflow warning is a size to justify out loud. An order-of-magnitude
-disagreement with this anchor is one to name, not skip. Before a workflow run, read the size
-guideline in force for this session: the platform's default differs by plan, and the guideline
-the session sets is the one Claude receives, whatever this anchor says.
+boundaries, not head-count, but our anchor is the platform's workflow size guideline values,
+read live. A run large enough to trip the platform's large-workflow warning is a size to justify
+out loud. An order-of-magnitude disagreement with this anchor is one to name, not skip. Before a
+workflow run, read the size guideline in force for this session: the guideline the session sets
+is the one Claude receives, whatever this anchor says.
 
-- **Pointer**: for the workflow size guideline and its defaults, see
+- **Pointer**: for the size guideline values and their defaults, see
   <https://code.claude.com/docs/en/workflows#set-a-size-guideline>; for the large-workflow
   warning, see <https://code.claude.com/docs/en/workflows#cost>.
-- **As of**: 2026-10-18
-- **Recheck trigger**: that page changes a size-guideline agent count, a default guideline, or the
-  threshold its large-workflow warning fires at.
 
 **The top of the tree owns the loop, not the work.** Its context is the scarcest in the run,
 everything that enters it stays for the rest of the session. So it holds the objective, the
@@ -260,9 +247,7 @@ should aim for, never a budget to spend up to.
 - **Pointer**: for a subagent returning a summary in place of its verbose output, see
   <https://code.claude.com/docs/en/sub-agents#isolate-high-volume-operations>
   (correlate with <https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents>).
-  No docs page states a return size as of the as-of date.
-- **As of**: 2026-09-01
-- **Recheck trigger**: a docs page starts stating a subagent return size, or that section moves.
+  No docs page states a return size.
 
 **Workers are ephemeral, and the deeper the tier the shorter the life.** A worker that finishes and
 stays alive keeps costing the tier above, notifications, status, re-acknowledgement, for zero
@@ -301,9 +286,6 @@ forbidden intermediate tier either. The version history behind the caps lives in
   concurrency cap, see <https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit>; for
   workflow limits, see <https://code.claude.com/docs/en/workflows#behavior-and-limits>; for forks,
   see <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>.
-- **As of**: 2026-11-10
-- **Recheck trigger**: a changelog entry touches subagent limits, or `context/sources.md` is
-  re-verified.
 
 **Confirm nesting from behavior, not from one page** (why: `context/gotchas.md`). Have a
 worker of the SAME definition you plan to use as the intermediate tier attempt a trivial nested

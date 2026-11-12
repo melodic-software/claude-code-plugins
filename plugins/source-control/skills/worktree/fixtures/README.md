@@ -165,8 +165,7 @@ hook references a path placeholder, since each element is passed as one argument
 Delivered with `claude -p --settings <file>`. Our reading today, not the run's record: the flag
 keeps the trace hook in the probe's own file rather than in anything the fixture commits, and
 [Workspace trust](https://code.claude.com/docs/en/hooks#workspace-trust) says which settings-file
-hooks a `-p` session runs (as of 2026-11-04; recheck when that section changes what a `-p` session
-runs).
+hooks a `-p` session runs.
 
 **A trap the script guards.** Zero trace events means *the hook did not fire*, a fixture failure,
 not evidence of absence. The script says so rather than printing a null. Mistaking one for the other
@@ -252,8 +251,7 @@ Bash yields the native long form), unify separators, and fold case on Windows. N
 endings and escaping of what `jq` prints before matching it too. For how jq ends lines and escapes a
 `@tsv` field, see jq's
 [Format strings and escaping](https://jqlang.org/manual/#format-strings-and-escaping) and the
-`--binary` option under [Invoking jq](https://jqlang.org/manual/#invoking-jq) (as of 2026-11-03;
-recheck when either changes how `@tsv` escapes or how jq ends lines on Windows).
+`--binary` option under [Invoking jq](https://jqlang.org/manual/#invoking-jq).
 
 ### What this settles in the plugin
 

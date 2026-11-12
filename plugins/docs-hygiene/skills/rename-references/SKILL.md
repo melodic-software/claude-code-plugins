@@ -24,9 +24,7 @@ The pipe is the bound and belongs in the command. A read-time cap ("read only th
 limits only what is read after the command returns, never what it returns.
 
 - **Pointer**: when deciding how much command output reaches context, fetch
-  [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits) live. **As of**:
-  2026-11-10. **Recheck trigger**: that section changes how much output arrives inline or what
-  arrives in place of output past the inline limit.
+  [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits) live.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines.
@@ -34,9 +32,6 @@ separate body Bash calls rather than pre-compute lines.
 - **Pointer**: when deciding whether a gather line can move into the pre-compute block, fetch
   [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
   live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section changes how a skill's injected commands are grouped into shell
-  invocations, or a release note names skill injected commands.
 
 ## Purpose
 
@@ -90,9 +85,6 @@ the configured location before sweeping or excluding, and fall back to the defau
 overrides it.
 
 - **Pointer**: <https://code.claude.com/docs/en/memory#storage-location>
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section adds, removes or renames a setting or variable that moves the
-  directory, or changes the default path.
 
 ## Blocklist action
 
@@ -165,7 +157,7 @@ Paths skipped from sweeps automatically:
 ## Edge cases
 
 - **English-verb collision**. Tokens like `confirm`, `test`, `review`, `clean`, `fix`, `build`, `lint`, `plan`, `run`, `view`, `start`, `stop`, `merge`, `split`, `sort`, `filter`, `group`, `head`, `body`, `link`, `list`, `work`, `log`, `watch`, `monitor`. Triage forces these into ambiguous bucket regardless of regex hit position. User confirms each.
-- **Concurrent sessions**. If an Edit call fails, report to the user and abort. **Pointer**: when judging what the Edit tool checks before an edit applies, fetch [Edit tool behavior](https://code.claude.com/docs/en/tools-reference#edit-tool-behavior) live. **As of**: 2026-11-03. **Recheck trigger**: that section changes the checks an edit must pass, or how a file changed on disk since the last read is handled.
+- **Concurrent sessions**. If an Edit call fails, report to the user and abort. **Pointer**: when judging what the Edit tool checks before an edit applies, fetch [Edit tool behavior](https://code.claude.com/docs/en/tools-reference#edit-tool-behavior) live.
 - **Word-boundary trap**. `confirm` inside `confirmation` MUST NOT match. All bare-token patterns use `\b`.
 - **Slash-token specificity**. `/confirm` should match but not `/confirmation`, `/confirm-changes`, or `path/confirm`. Use `\B/<old>([^\w-]|$)` (non-word-boundary before the slash; a CONSUMED terminator after that excludes a hyphen). A trailing `\b` is not enough: it treats a hyphen as a boundary, so it matches inside kebab-case sibling commands, and Form 1 is Certain, so that auto-applies. The consumed character is not part of the reference.
 - **Frontmatter trailing newline**. YAML frontmatter description strings can span lines. Patterns must handle multi-line. Use `multiline: true` on the Grep tool.
