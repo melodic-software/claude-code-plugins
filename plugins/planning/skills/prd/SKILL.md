@@ -18,7 +18,7 @@ Collect these with **individual** Bash calls, one command per call, never combin
 - Recent commits, `git log --oneline -5`
 - Working tree status (empty = clean), `git status --porcelain | head -10`
 
-Keep the pipe in the command: a read-time cap bounds nothing, since the Bash tool returns the full output first. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body Bash calls, not pre-compute lines. How the harness runs a skill's injected commands: [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run), as of 2026-11-03; recheck when that section changes how injected commands run.
+Keep the pipe in the command: a read-time cap comes too late ([what a result returns inline](https://code.claude.com/docs/en/tools-reference#output-limits)). Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body Bash calls, not pre-compute lines ([how injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)).
 
 ## Variables
 

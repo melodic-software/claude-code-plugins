@@ -28,32 +28,20 @@ Each pair below comes from one of two changes, a retry backoff cap and a CSV exp
 
 ## Template
 
+The brief's fields are the `agent-ready` type of the issue-body contract
+([`${CLAUDE_PLUGIN_ROOT}/reference/issue-body-contract.json`](${CLAUDE_PLUGIN_ROOT}/reference/issue-body-contract.json)),
+the record the org agent-ready issue form is generated from. Write one `### <heading>` per entry of
+its `fields`, in issue-body contract order, under the `## Agent Brief` heading; a form-filed item already
+carries them as `###` sections. The type is the issue's own (native Issue Type on org repos, `type:`
+label on personal / non-org repos), never a brief field. Each field's `description` says what it
+holds; the rules table above says how to write the four that go stale. Shape:
+
 ```markdown
 ## Agent Brief
 
-**Type:** Bug / Feature / Task (the issue's type: native Issue Type on org repos, `type:` label on personal / non-org repos)
-**Summary:** <the change, in one line>
+### <each agent-ready field heading, in contract order>
 
-**Root cause:** <bugs only: `unknown`, or the cause in one line, e.g. `known: stale cache key in RetryPolicy`>
-
-**Current behavior:**
-<What the code does today. A bug: the faulty result. A feature: the existing behavior it extends.>
-
-**Desired behavior:**
-<What the code does once this lands, including how it handles edge cases and failures.>
-
-**Key interfaces:**
-- `TypeName`: <the change and the reason for it>
-- `FunctionName()` return type: <today's value vs the intended one>
-- Config shape: <settings added or changed>
-
-**Acceptance criteria:**
-- [ ] <a check with a yes-or-no result>
-- [ ] <a check with a yes-or-no result>
-
-**Out of scope:**
-- <something this change must not touch>
-- <a nearby feature that stays as it is>
+<its value; `- [ ]` checks under Acceptance criteria, bullets under Key interfaces and Out of scope>
 ```
 
 ## When to use
