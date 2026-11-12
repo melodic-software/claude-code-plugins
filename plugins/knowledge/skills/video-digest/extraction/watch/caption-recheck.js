@@ -47,11 +47,7 @@ import { runMain } from "../lib/run-main.js";
 export async function recheckCaptions(url, { deadline, acquire = acquireMedia, now = Date.now }) {
   const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "video-caption-recheck-"));
   try {
-    const outcome = await acquire(url, {
-      workDir,
-      mode: "transcript",
-      captionWaitDeadline: deadline,
-    });
+    const outcome = await acquire(url, { workDir, mode: "transcript", captionWaitDeadline: deadline });
     if (outcome.success) {
       return { result: "captions-ready" };
     }
