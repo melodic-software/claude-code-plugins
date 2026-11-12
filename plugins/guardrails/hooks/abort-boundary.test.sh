@@ -415,6 +415,24 @@ run_hook CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/data" -- \
 assert_exit "shipped cli-flag-verify exits 0 on plain prose" 0 "$RC"
 assert_absent "an advisory hook's normal run carries no abort notice" "$ERR$OUT" "$NOTICE"
 
+# --- A field read that fails other than "unparsable" is a quiet allow --------
+# hook::jq_fields returns 2 for a payload jq rejects and 1 only when jq is
+# absent, which hook::require_jq_blocking has already refused, so no payload
+# reaches any other status. A stub on a copy of the plugin does: the six guards
+# that refuse status 2 must let every other failure through, silently.
+for jq_status in 1 3; do
+  SEAM="$TEST_TMPDIR/jq-status-$jq_status"
+  cp -R "$PLUGIN_DIR" "$SEAM"
+  for stem in block-credential-read block-exported-msys-pathconv block-github-post-content \
+    block-no-verify block-root-delete-target block-windows-drive-tmp; do
+    inject_after "$SEAM/hooks/$stem.sh" '^source "[$]_HOOK_SELF/hook-utils.sh"' \
+      "hook::jq_fields() { HOOK_JQ_FIELDS=(); HOOK_JQ_FIELDS_NUL=0; return $jq_status; }" || continue
+    run_hook CLAUDE_PLUGIN_ROOT="$SEAM" OSTYPE=msys -- feed_run "$BASH_BENIGN" bash "$SEAM/hooks/$stem.sh"
+    assert_exit "$stem: field read status $jq_status allows" 0 "$RC"
+    assert_silent "$stem: field read status $jq_status is silent" "$ERR$OUT"
+  done
+done
+
 # --- The helper itself, through stubs -----------------------------------------
 stub() { # stub <name> <body...>: a script that sources the boundary first
   local name="$1"
