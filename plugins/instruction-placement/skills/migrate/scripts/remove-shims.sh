@@ -5,8 +5,7 @@
 # acts. In order, and every gate fails closed:
 #
 #   1. It prints what removal costs: the decision and pointer of the pointer
-#      record (decision, pointer, as-of date, recheck trigger) headed "What shim
-#      removal costs" in reference/sources.md. With a nested AGENTS.md it
+#      record headed "What shim removal costs" in reference/sources.md. With a nested AGENTS.md it
 #      also prices the nested write-trigger loss, and prints it again with
 #      cutover-check's probe result once that has run.
 #   2. It refuses without --confirm. There is no blanket-yes and no all-repos

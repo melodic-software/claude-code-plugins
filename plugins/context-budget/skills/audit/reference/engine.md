@@ -53,12 +53,6 @@ Each row is our decision; what the upstream section says about it is read live a
 | Exact mode reads structured context usage from the Agent SDK control protocol | [Agent SDK TypeScript § SDKControlGetContextUsageResponse](https://code.claude.com/docs/en/agent-sdk/typescript#sdkcontrolgetcontextusageresponse) |
 | A `/context` count is not assumed to be a measured API count | "Session-kind boundary" below |
 
-- **As of:** 2026-10-11.
-- **Recheck trigger:** a row's section changes what it says about that row's topic, a release
-  note names deny rules, the `EndConversation` exception, deferred tool loading, the
-  `--disallowedTools` flag, or the Agent SDK control protocol, or the "Session-kind boundary"
-  record the last row relays changes its pointer or its heading moves.
-
 Where the engine's behavior rests on empirical observation rather than documentation (headless
 `/context`, the skill-listing signature below), the record says so in `caveats`. The engine
 reports the observation and never silently assumes it durable.
@@ -69,8 +63,7 @@ reports the observation and never silently assumes it durable.
    relative to a run with an identical skill listing, because the engine observes it moving with
    the listing. That is an observation, not documentation: the `/context` row in
    [commands § All commands](https://code.claude.com/docs/en/commands#all-commands) does not
-   itemize the bucket (as of 2026-11-03; recheck when that row documents what `System tools`
-   counts). Every snapshot carries `skillListing.signature`, a hash of the sorted
+   itemize the bucket. Every snapshot carries `skillListing.signature`, a hash of the sorted
    (name, source) listing. On a mismatch, `compare`/`attribute` mark `systemToolsComparable: false`
    and put the reason in `comparability.reasons`. The deferred bucket is a separate pool
    and listing or Skills-token drift does not poison it: per-bucket additivity applies this gate
@@ -126,8 +119,7 @@ All records are JSON on stdout (and `--out <file>`), schema-tagged:
   `--operator-deny`: the operator's bare-name deny explains their absence, so they are not
   labeled structurally unreachable. `EndConversation` is on the interactive-only list because it
   never enters either attributed headless bucket, and deny rules treat it differently (the
-  bare-name row in "Mechanism claims and citations" carries the pointer, relayed as of 2026-10-11;
-  recheck when that table's trigger fires or its heading moves). A deny can empty a
+  bare-name row in "Mechanism claims and citations" carries the pointer). A deny can empty a
   summed bucket out of the snapshot entirely; the bucket's delta is then null and the row (or
   additivity record) reports `savedTokens`/`combinedSaved` as `null` with `comparable: false` and
   the reason: a missing measurement, never a coerced zero. That vanish path fires in

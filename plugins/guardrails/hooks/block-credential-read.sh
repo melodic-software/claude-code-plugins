@@ -36,9 +36,7 @@
 #                         Bash commands and the Read tool but not an interpreter
 #                         that opens the file itself; /guardrails:setup prints the
 #                         rules. Pointer: "Read and Edit" in
-#                         https://code.claude.com/docs/en/permissions. As of:
-#                         2026-10-15. Recheck trigger: that section changes which
-#                         Bash commands a Read deny rule reaches.
+#                         https://code.claude.com/docs/en/permissions.
 #
 # ALLOWED, because they answer presence without printing a value: `gh auth status`,
 # `test -n "$GH_TOKEN"`, `[ -f ~/.netrc ]`, `printenv PATH`, `echo $HOME`,
