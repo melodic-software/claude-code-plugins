@@ -76,7 +76,7 @@ than "missing". An absent optional prerequisite is not a failure.
 **5. Git pre-commit entry.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
 from the repository. Each line is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined` is INFO
 (this clone said no; silent at session start), and `missing`, `stale`, `modified` or `superseded` is a FAIL
-whose remediation is `apply install-git-hooks`; for `superseded` (a copy installed under an earlier plugin name), first remove what its detail names. The entry needs no external tool. Outside a git
+whose remediation is `apply install-git-hooks`; a `superseded` detail lists what an install under an earlier plugin name left, which that action removes on the user's yes. The entry needs no external tool. Outside a git
 repository, report INFO and skip the step.
 
 **6. Effective configuration.** Print each value with its **source**, so a surprising number is

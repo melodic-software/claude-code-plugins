@@ -473,8 +473,31 @@ function configBool(info, key) {
   const r = git(info.top, ["config", "--type=bool", "--get", key]);
   return r.ok ? r.out : r.status === 1 ? "" : "invalid";
 }
+// A decline recorded under another plugin name for one of this plugin's
+// entries (entry names are unique across plugins): an install made before the
+// plugin was renamed. It counts between the entry's own key and the master key.
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// configEntries(info, re, args) -> [{ scope, origin, key, value }] for every
+// config line whose key matches re; value is null for a key with no value.
+function configEntries(info, re, args = []) {
+  const tokens = git(info.top, ["config", ...args, "--show-origin", "--show-scope", "--null", "--get-regexp", re]).out.split("\0");
+  const out = [];
+  for (let i = 0; i + 2 < tokens.length; i += 3) {
+    const [key, ...value] = tokens[i + 2].split("\n");
+    out.push({ scope: tokens[i], origin: tokens[i + 1].replace(/^file:/, ""), key, value: value.length ? value.join("\n") : null });
+  }
+  return out;
+}
+const isTrue = (value) => value === null || ["true", "yes", "on", "1"].includes(value.toLowerCase());
+function priorDeclines(info, plugin, entry) {
+  return configEntries(info, `^checks\\.[^.]+\\.${escapeRe(entry.name)}\\.declined$`)
+    .map((d) => ({ ...d, from: d.key.split(".")[1], value: isTrue(d.value) }))
+    .filter((d) => d.from !== plugin.name);
+}
 const isDeclined = (info, plugin, entry) =>
-  (configBool(info, declineKey(plugin, entry)) || configBool(info, MASTER_DECLINE_KEY)) === "true";
+  (configBool(info, declineKey(plugin, entry)) ||
+    (priorDeclines(info, plugin, entry).some((d) => d.value) ? "true" : "") ||
+    configBool(info, MASTER_DECLINE_KEY)) === "true";
 
 // copyState(file, entry, current) -> missing | modified | stale | ok, for one
 // installed script, its lib and its assets beside it. The stamp is checked over
@@ -773,7 +796,7 @@ function remotePlan(info, plugin, override) {
   if (!plugin.entries.every((e) => lefthookHook(info, e.event)) || !remoteFetched(info, plugin)) {
     decisions.push({ kind: "lefthook-install", command: "lefthook install" });
   }
-  decisions.push(...sharedLeftovers(info, plugin), ...migrateDecision(info, plugin, "shared", manager));
+  decisions.push(...sharedLeftovers(info, plugin), ...migrateDecision(info, plugin, "shared", manager), ...supersededDecisions(info, plugin));
   for (const entry of plugin.entries) {
     if (isDeclined(info, plugin, entry)) decisions.push({ kind: "declined", entry: entry.name });
     decisions.push(...toolDecisions(info, plugin, entry));
@@ -802,7 +825,11 @@ export function plan(info, plugin, scope, override) {
   const owned = hooksDirOwned(info, scope, manager);
   if (owned) return { manager, actions: [], decisions: [owned] };
   const actions = [];
-  const decisions = [...managerDecisions(info, plugin, scope, manager), ...migrateDecision(info, plugin, scope, manager)];
+  const decisions = [
+    ...managerDecisions(info, plugin, scope, manager),
+    ...migrateDecision(info, plugin, scope, manager),
+    ...supersededDecisions(info, plugin),
+  ];
   for (const entry of plugin.entries) {
     const step = entryPlan(info, plugin, entry, scope, manager);
     actions.push(...step.actions);
@@ -1135,35 +1162,99 @@ function entryVerdict(info, plugin, entry, manager) {
   return wired ? { state: "ok" } : { state: "missing", detail: "installed but not wired into the hook manager" };
 }
 
-// superseded(info, plugin) -> [{ entry, state, detail, missingTools[] }], one row
-// per copy of one of this plugin's entries installed under another plugin name:
-// its stamp names the entry but not this plugin, as an install made before the
-// plugin was renamed does. Entry names are unique across plugins. The detail is
-// the removal that retires it; install.mjs deletes nothing in a consumer repo.
-function superseded(info, plugin) {
-  const roots = new Set(scopesFor(info).map(({ scope, manager }) => layout(info, scope, manager).root));
-  roots.add(path.join(info.top, SHARED_DIR));
-  const rows = [];
-  for (const root of roots) {
-    for (const d of dirNames(root)) {
-      if (!d.isDir || d.name === plugin.name || d.name.toLowerCase().endsWith(".d")) continue;
-      for (const entry of plugin.entries) {
+// leftovers(info, plugin) -> [{ entry, from, dirs[], markers[], scripts[],
+// jobs[{ name, file }], declines[{ key, scope, carry }], config[{ key, scope, value? }] }],
+// one per entry and earlier plugin name (`from`) with anything installed under
+// that name, as an install made before the plugin was renamed leaves: copies
+// whose stamp names the entry but not this plugin (in a repository hooks
+// directory or the user config-hook directory), <event>.d markers, lefthook
+// jobs that run such a copy, decline keys, config-hook keys and the includeIf
+// that loads them. Entry names are unique across plugins, so no earlier name
+// is listed anywhere. install.mjs removes none of it: plan hands it to the
+// setup agent as a superseded decision (D1).
+function leftovers(info, plugin) {
+  const found = new Map();
+  const at = (entry, from) => {
+    const k = `${entry.name}\0${from}`;
+    if (!found.has(k)) {
+      found.set(k, { entry: entry.name, from, dirs: [], markers: [], scripts: [], jobs: [], declines: [], config: [] });
+    }
+    return found.get(k);
+  };
+  const shared = path.join(info.top, SHARED_DIR);
+  const checksRoot = path.dirname(configHookDir(plugin));
+  const roots = new Set([
+    ...scopesFor(info).map(({ scope, manager }) => layout(info, scope, manager).root),
+    shared,
+    path.join(shared, "local"),
+    path.join(path.dirname(path.dirname(info.excludeFile)), "hooks"),
+    checksRoot,
+  ]);
+  const ownDeclineSet = (entry) => configBool(info, declineKey(plugin, entry)) !== "";
+  for (const entry of plugin.entries) {
+    const name = escapeRe(entry.name);
+    for (const root of roots) {
+      for (const d of dirNames(root)) {
+        if (!d.isDir || d.name === plugin.name || d.name.toLowerCase().endsWith(".d")) continue;
         const script = path.join(root, d.name, entry.script);
         const stamp = readStamp(readText(script) ?? "");
         if (!stamp || stamp.name !== entry.name || stamp.plugin === plugin.name) continue;
-        const marker = path.join(root, `${entry.event}.d`, `${d.name}.${entry.name}`);
-        const remove = [path.join(root, d.name), ...(existsSync(marker) ? [marker] : [])].map((p) => configPath(info, p));
-        rows.push({
-          entry: entry.name,
-          state: "superseded",
-          detail: `remove ${remove.join(" and ")} and any hook-manager line that runs ${configPath(info, script)}`,
-          missingTools: [],
-        });
+        const l = at(entry, d.name);
+        l.dirs.push(configPath(info, path.join(root, d.name)));
+        l.scripts.push(configPath(info, script));
+        if (root !== checksRoot) continue;
+        const include = posix(path.join(root, d.name, INCLUDE_FILE));
+        for (const c of configEntries(info, "^includeif\\..*\\.path$", ["--global"])) {
+          if (c.value === include) l.config.push({ key: c.key, scope: c.scope, value: c.value });
+        }
+      }
+      const suffix = `.${entry.name}`;
+      for (const m of dirNames(path.join(root, `${entry.event}.d`))) {
+        const from = m.name.slice(0, -suffix.length);
+        if (m.isDir || !m.name.endsWith(suffix) || !from || from === plugin.name) continue;
+        at(entry, from).markers.push(configPath(info, path.join(root, `${entry.event}.d`, m.name)));
       }
     }
+    // A job counts only when the file also names a copy under that plugin name.
+    const job = new RegExp(`(?:name:[ \\t]*(["']?)([a-z0-9][a-z0-9-]*)-${name}\\1|^[ \\t]+([a-z0-9][a-z0-9-]*)-${name}:)[ \\t]*$`, "gm");
+    for (const file of new Set([lefthookFile(info, "shared"), lefthookFile(info, "local")])) {
+      const text = readText(path.join(info.top, file)) ?? "";
+      for (const m of text.matchAll(job)) {
+        const from = m[2] ?? m[3];
+        if (from !== plugin.name && text.includes(`${from}/${entry.script}`)) at(entry, from).jobs.push({ name: `${from}-${entry.name}`, file });
+      }
+    }
+    for (const d of priorDeclines(info, plugin, entry)) {
+      at(entry, d.from).declines.push({ key: d.key, scope: d.scope, carry: d.value && !ownDeclineSet(entry) });
+    }
+    // Config-hook keys set in this repository's config; those the removed
+    // include file sets go with it.
+    if (!CONFIG_HOOK_EVENTS.includes(entry.event)) continue;
+    for (const c of configEntries(info, `^hook\\.[a-z0-9][a-z0-9-]*-${name}\\.`)) {
+      const from = c.key.slice("hook.".length, c.key.lastIndexOf(".") - entry.name.length - 1);
+      if (from === plugin.name || posix(c.origin).startsWith(`${posix(checksRoot)}/`)) continue;
+      const l = at(entry, from);
+      if (!l.config.some((k) => k.key === c.key && k.scope === c.scope)) l.config.push({ key: c.key, scope: c.scope });
+    }
   }
-  return rows;
+  return [...found.values()];
 }
+
+// The removal a leftover needs, in words, for verify's detail.
+function leftoverDetail(plugin, l) {
+  const parts = [];
+  const remove = [...l.dirs, ...l.markers, ...l.scripts.map((s) => `any hook-manager line that runs ${s}`)];
+  if (remove.length) parts.push(`remove ${remove.join(" and ")}`);
+  for (const j of l.jobs) parts.push(`remove the lefthook job ${j.name} from ${j.file}`);
+  for (const c of l.config) parts.push(`unset git config ${c.key} (${c.scope})`);
+  for (const d of l.declines) {
+    const to = `checks.${plugin.name}.${l.entry}.declined`;
+    parts.push(d.carry ? `move the decline ${d.key} (${d.scope}) to ${to}` : `unset git config ${d.key} (${d.scope})`);
+  }
+  return parts.join("; ");
+}
+
+const supersededDecisions = (info, plugin) => leftovers(info, plugin).map((l) => ({ kind: "superseded", ...l }));
 
 // verify(info, plugin) -> [{ entry, state, detail?, missingTools[] }]
 export function verify(info, plugin) {
@@ -1173,14 +1264,26 @@ export function verify(info, plugin) {
     ...entryVerdict(info, plugin, entry, manager),
     missingTools: entry.tools.filter((t) => !whichTool(t)),
   }));
-  return [...rows, ...superseded(info, plugin)];
+  // A decline left under an earlier name is reported beside the entry's own
+  // declined row, silent at session start; anything else left is drift.
+  const superseded = [];
+  for (const l of leftovers(info, plugin)) {
+    const row = rows.find((r) => r.entry === l.entry);
+    const onlyDeclines = !l.dirs.length && !l.markers.length && !l.jobs.length && !l.config.length;
+    if (onlyDeclines && row.state === "declined") {
+      row.detail = [row.detail, leftoverDetail(plugin, l)].filter(Boolean).join("; ");
+    } else {
+      superseded.push({ entry: l.entry, state: "superseded", detail: leftoverDetail(plugin, l), missingTools: [] });
+    }
+  }
+  return [...rows, ...superseded];
 }
 
 export const DRIFT = ["stale", "modified", "missing", "superseded"];
 
 export function driftLine(plugin, row) {
   if (row.state === "superseded") {
-    return `${plugin.name}: git hook ${row.entry} superseded by a copy under another plugin name; ${row.detail}, then run /${plugin.name}:setup apply install-git-hooks`;
+    return `${plugin.name}: git hook ${row.entry} left under an earlier plugin name (${row.detail}); run /${plugin.name}:setup apply install-git-hooks`;
   }
   return `${plugin.name}: git hook ${row.entry} ${row.state}; run /${plugin.name}:setup apply install-git-hooks`;
 }
