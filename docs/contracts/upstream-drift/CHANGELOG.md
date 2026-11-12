@@ -4,6 +4,22 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [6.0.0] - 2026-11-11
+
+Major: which records carry the as-of date and recheck trigger changes, by the owner's decision D26
+(2026-11-11). A stored value is now only a number or string the text records, copied or measured
+from upstream: a default, limit, version gate, price, error string, a measured figure (bytes,
+milliseconds, a hash, a count, and the version it was measured on beside that figure), or a pinned
+SHA.
+
+- A probe record of behavior with no recorded value, a source conflict, and a "no docs page covers
+  X" note are pointer records with no stamp; the one-line no-docs-page form drops `as of <date>`.
+- A "last researched" or "verified on" date on a record with no such value is dropped.
+- Restated upstream behavior stays a defect, not a record to stamp. Recorded decisions keep their
+  named trigger and no date, unchanged.
+- The enforceability row on stamps beside a pointer, the Adopters note and the git-pin wording
+  follow the narrower definition. No verdict changes.
+
 ## [5.0.0] - 2026-11-11
 
 Major: a required part changes. A pointer record is now our decision plus a section-anchored

@@ -272,7 +272,7 @@ The `miro` plugin's server supports bulk creation (up to 20 items per batch) via
   on rectangle-heavy boards
 - **Bulk limit**: max 20 items per bulk operation
 - **Rate limits**: Miro API has rate limits; space out bulk operations
-- **No real-time collaboration**: MCP operations are request/response, not live collaborative editing
+- **No real-time collaboration**: agents act in rounds, not live collaborative editing
 - **Color approximation**: Miro's sticky colors don't perfectly match physical sticky note colors, but are close enough
 
 ## Gotchas
