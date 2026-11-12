@@ -1125,8 +1125,7 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   [QueryFullProcessImageNameW](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-queryfullprocessimagenamew#parameters),
   [netsh http, `show servicestate` in Syntax](https://learn.microsoft.com/windows-server/administration/windows-commands/netsh-http#syntax),
   [Get-AuthenticodeSignature](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/get-authenticodesignature#outputs).
-  Recheck when an unelevated run starts resolving every listener, the netsh
-  request-queue view changes shape, or the signature status values change.
+  Recheck when an unelevated run starts resolving every listener.
 
 ---
 
