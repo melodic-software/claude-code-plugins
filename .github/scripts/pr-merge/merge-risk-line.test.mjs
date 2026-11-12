@@ -260,11 +260,41 @@ test("markerAction never replaces a rated record with an unrated line, and still
   assert.deepEqual(markerAction([appSaid(61, PENDING_COMMENT)], { bot: BOT, head: HEAD, line: ratedLine(rating()) }), { action: "patch", id: 61 });
 });
 
-test("markerAction posts a fresh record when the App's newest marker comment was edited", () => {
-  const edited = (body) => ({ ...appSaid(70, body), lastEditedAt: "2026-11-12T02:00:00Z" });
-  assert.deepEqual(markerAction([edited(PENDING_COMMENT)], { bot: BOT, head: HEAD, line: unratedLine("pending") }), { action: "post" });
-  assert.deepEqual(markerAction([edited(PENDING_COMMENT)], { bot: BOT, head: HEAD, line: ratedLine(rating()) }), { action: "post" });
-  assert.deepEqual(markerAction([edited(markerBody(HEAD, ratedLine(rating())))], { bot: BOT, head: HEAD, line: unratedLine("no-run") }), { action: "post" });
+test("markerAction posts a fresh record when anyone other than the lanes App edited its newest marker comment", () => {
+  const editedBy = (editor, body) => ({ ...appSaid(70, body), lastEditedAt: "2026-11-12T02:00:00Z", editor });
+  const person = { __typename: "User", login: "someone" };
+  const otherBot = { __typename: "Bot", login: "other-app" };
+  const sameLoginPerson = { __typename: "User", login: BOT };
+  for (const editor of [person, otherBot, sameLoginPerson, null, undefined]) {
+    const who = JSON.stringify(editor ?? null);
+    assert.deepEqual(markerAction([editedBy(editor, PENDING_COMMENT)], { bot: BOT, head: HEAD, line: unratedLine("pending") }), { action: "post" }, who);
+    assert.deepEqual(markerAction([editedBy(editor, PENDING_COMMENT)], { bot: BOT, head: HEAD, line: ratedLine(rating()) }), { action: "post" }, who);
+    assert.deepEqual(markerAction([editedBy(editor, markerBody(HEAD, ratedLine(rating())))], { bot: BOT, head: HEAD, line: unratedLine("no-run") }), { action: "post" }, who);
+  }
+});
+
+test("markerAction trusts a record the lanes App itself edited: a patched rating is kept, not posted again", () => {
+  const patched = { ...appSaid(80, markerBody(HEAD, ratedLine(rating()))), lastEditedAt: "2026-11-12T02:00:00Z", editor: APP };
+  assert.deepEqual(markerAction([patched], { bot: BOT, head: HEAD, line: ratedLine(rating()) }), { action: "none" });
+  assert.deepEqual(markerAction([patched], { bot: BOT, head: HEAD, line: unratedLine("unreadable") }), { action: "none" });
+  const higher = ratedLine({ ...rating(), max: "HIGH", demote: true });
+  assert.deepEqual(markerAction([patched], { bot: BOT, head: HEAD, line: higher }), { action: "patch", id: 80 });
+});
+
+test("recordMergeRisk patches pending to rated once, then a re-arm of the same head writes nothing", async () => {
+  const reads = () => fake({ artifacts: [{ id: 11, name: artifactName(7, HEAD), expired: false, workflow_run: { id: 5 } }], runs: { 5: runOf(5) } }).actions;
+  const first = writer();
+  await recordMergeRisk({ bot: BOT, pull, comments: [appSaid(41, PENDING_COMMENT)], repository: REPO, actions: reads(), github: first.github, download: () => JSON.stringify(rating()) });
+  assert.deepEqual(first.sent.map((call) => `${call.method} ${call.path}`), [`PATCH /repos/${REPO}/issues/comments/41`]);
+  // The comment as GitHub returns it after the App's own PATCH.
+  const afterPatch = { ...appSaid(41, first.sent[0].payload.body), lastEditedAt: "2026-11-12T02:00:00Z", editor: APP };
+  const again = writer();
+  const result = await recordMergeRisk({ bot: BOT, pull, comments: [afterPatch], repository: REPO, actions: reads(), github: again.github, download: () => JSON.stringify(rating()) });
+  assert.deepEqual([result.token, result.wrote, result.skipped], ["rated", false, "exact"]);
+  assert.deepEqual(again.sent, []);
+  const failedRead = writer();
+  await recordMergeRisk({ bot: BOT, pull, comments: [afterPatch], repository: REPO, actions: fake({ fail: new Set(["/actions/"]) }).actions, github: failedRead.github, download: () => "" });
+  assert.deepEqual(failedRead.sent, []);
 });
 
 test("recordMergeRisk posts one marker comment when the head has none", async () => {

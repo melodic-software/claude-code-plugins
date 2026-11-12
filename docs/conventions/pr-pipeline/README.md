@@ -2480,9 +2480,11 @@ Merge-Risk: unrated reason=<pending|no-run|no-rating|invalid|unreadable|over-bud
   newest marker comment names this head and holds this line, or holds a rated line while this
   one is `unrated`, it writes nothing, so a later failed read never overwrites a rating; when it
   names this head with another line (`pending` before the rating landed, or another rating), it
-  edits that comment; when that comment was edited (`lastEditedAt` set) it is no longer the App's
-  text, and the arm posts a new comment, as it does in any other case. The comment is the App's own text, so it records the rating
-  on every armed pull request, whoever wrote the body. It never edits the pull request body.
+  edits that comment. When that comment was edited by anyone other than the lanes App (its
+  `editor`, or an editor that does not read, with `lastEditedAt` set) it is no longer the App's
+  text, and the arm posts a new comment, as it does in any other case; the App's own edit keeps
+  it trusted. The comment is the App's own text, so it records the rating on every armed pull
+  request, whoever wrote the body. It never edits the pull request body.
 - **Why a comment.** A merge queue ignores a commit body given at arm time: GraphQL's
   `enablePullRequestAutoMerge` documents `commitBody` with "when merging with a merge queue any
   input value for commit message is ignored"
@@ -2501,7 +2503,7 @@ Merge-Risk: unrated reason=<pending|no-run|no-rating|invalid|unreadable|over-bud
   seconds, the comment write 5, and the artifact download runs `gh` and `unzip`, each capped at 8
   seconds, which that timer cannot cut short. Any error or timeout records `unrated` or skips the
   write, and the arm goes on. Each arm makes at most one comment write, and a head gets at most
-  one comment unless its record was edited; there is no write when the head's record already
+  one comment unless anyone other than the lanes App edited its record; there is no write when the head's record already
   holds the line or a rating. Its `issue_comment` event starts
   `security-outside-actor` and `intake-reenter` runs whose jobs skip a bot's comment, as they do
   for the pin. Nothing reads the record back: no gate, hold or rung. Not while
@@ -2513,7 +2515,8 @@ Merge-Risk: unrated reason=<pending|no-run|no-rating|invalid|unreadable|over-bud
 - **Finding a merged pull request's rating.** A squash commit's subject ends in `(#N)`, and a
   revert's subject quotes it. For a revert study, take `N`, read pull request N's comments, and
   take the lanes App's newest comment whose first line is the marker for the head that merged,
-  skipping any with an edit timestamp (`lastEditedAt`); its second line is the rating. A pull request armed before the record moved carries the line as
+  skipping any edited by anyone other than the lanes App (`editor`, when `lastEditedAt` is set);
+  its second line is the rating. A pull request armed before the record moved carries the line as
   its body's last line instead, and so does its squash commit, which GitHub wraps over 72
   characters into one `Merge-Risk:` line and the `key=value` lines after it: join them up to the
   next blank line.

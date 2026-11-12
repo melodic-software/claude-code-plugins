@@ -305,7 +305,7 @@ export const PULLS_QUERY = `query($owner: String!, $name: String!, $after: Strin
 }`;
 // One candidate's discussion: the newest 100 of each, and wholeDiscussion
 // reads the rest of any list that has more.
-const COMMENT_FIELDS = "databaseId author { __typename login } body createdAt updatedAt lastEditedAt authorAssociation";
+const COMMENT_FIELDS = "databaseId author { __typename login } editor { __typename login } body createdAt updatedAt lastEditedAt authorAssociation";
 const REVIEW_FIELDS = "author { __typename login ... on User { databaseId } } state commit { oid } body submittedAt authorAssociation";
 const THREAD_COMMENT_FIELDS = "author { __typename login } body createdAt authorAssociation";
 const THREAD_FIELDS = `id comments(last: 100) { totalCount nodes { ${THREAD_COMMENT_FIELDS} } }`;

@@ -122,17 +122,19 @@ export const markerBody = (head, line) => `<!-- ${MERGE_RISK_MARKER} head=${head
 const isRated = (line) => String(line ?? "").startsWith("Merge-Risk: max=");
 
 // What the arm does with its record, from `comments` it already read
-// (author, body, createdAt, lastEditedAt, databaseId): the lanes App's (`bot`,
-// its login without `[bot]`) newest marker comment for `head` holding `line`,
-// or a rated line when `line` is unrated, needs nothing; one holding another
-// line is patched. An edited record is not the App's text, so it, like no
-// record or one for another head, gets a new comment.
+// (author, editor, body, createdAt, lastEditedAt, databaseId): the lanes
+// App's (`bot`, its login without `[bot]`) newest marker comment for `head`
+// holding `line`, or a rated line when `line` is unrated, needs nothing; one
+// holding another line is patched. A record last edited by anyone but the App,
+// or by an editor that does not read, is no longer the App's text, so it, like
+// no record or one for another head, gets a new comment.
 export function markerAction(comments, { bot, head, line }) {
+  const isApp = (actor) => actor?.__typename === "Bot" && actor.login === bot;
   const newest = (Array.isArray(comments) ? comments : [])
-    .filter((c) => c?.author?.__typename === "Bot" && c.author.login === bot && MARKER_LINE.test(String(c.body ?? "").split(/\r?\n/)[0]))
+    .filter((c) => isApp(c?.author) && MARKER_LINE.test(String(c.body ?? "").split(/\r?\n/)[0]))
     .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
     .at(-1);
-  if (newest === undefined || newest.lastEditedAt || MARKER_LINE.exec(String(newest.body).split(/\r?\n/)[0])[1] !== head) return { action: "post" };
+  if (newest === undefined || (newest.lastEditedAt && !isApp(newest.editor)) || MARKER_LINE.exec(String(newest.body).split(/\r?\n/)[0])[1] !== head) return { action: "post" };
   const body = String(newest.body).replace(/\r\n/g, "\n");
   if (body === markerBody(head, line) || (isRated(body.split("\n")[1]) && !isRated(line))) return { action: "none" };
   return Number.isSafeInteger(newest.databaseId) ? { action: "patch", id: newest.databaseId } : { action: "post" };
