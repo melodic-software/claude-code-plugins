@@ -505,7 +505,7 @@ for the tool namespace, color mapping, spacing values, and board setup.
 
 ### Round-Based Orchestration: Following Brandolini's Incremental Phases
 
-Agents can't subscribe to live board changes, because MCP is request/response, not streaming. The realistic pattern is **round-based orchestration**, which maps to Brandolini's Big Picture phases exactly. **Critical: follow the incremental notation and don't dump all building blocks at once.**
+Agents do not subscribe to live board changes; the pattern here is **round-based orchestration**, which maps to Brandolini's Big Picture phases exactly. **Critical: follow the incremental notation and don't dump all building blocks at once.**
 
 **Agent Execution Pattern**
 
