@@ -62,13 +62,10 @@ against reference/conflict-criteria.md. A pair is a candidate, never a finding.
 EOF
 }
 
-case "${1:-}" in
--h | --help)
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage
   exit 0
-  ;;
-*) ;;
-esac
+fi
 
 # Check the tools this script actually executes. `mapfile < <(… | sort -u)`
 # swallows a failure inside the process substitution, so a missing `awk` or
@@ -140,11 +137,8 @@ BOUNDARY_ERE='([.;!?] |[^a-z],? *(but|whereas|though|although|yet)[^a-z]|, while
 # is what separates the two readings.
 #
 # The token set is COMPOSED from the two classifier alternations rather than
-# retyped. A hand-copied list drifts the moment either classifier gains a token:
-# `use|present|ask` were added to MANDATE_ERE and not here, so `Never use X and
-# use Y` found no boundary, Y inherited the leading `never`, and a real conflict
-# with `Never use Y` went unreported while `Always use Y` reported a false one.
-# Composition makes that divergence unrepresentable.
+# retyped: a token missing here means `Never use X and use Y` finds no boundary
+# and Y inherits the leading `never`.
 COORD_ERE="[^a-z],? *and +(${PROHIBIT_ALT}|${MANDATE_ALT})[^a-z]"
 # The coordinator alone. A LEADING window resumes after this much of a COORD
 # match rather than after the whole of it, so the second directive's polarity
