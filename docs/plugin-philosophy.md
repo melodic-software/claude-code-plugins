@@ -1310,7 +1310,8 @@ actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
 Four rules decide a lane's model, applied in this order:
 
 1. **Self-check, then effort, then a second model.** A lane that falls short first gets a check of
-   its own output (a test, build or script), then a higher effort; a second model enters last.
+   its own output (a test, build or script), then a higher effort; a second model enters last,
+   starting at a lower effort than the first model reached.
 2. **Use one model at lower effort unless the work is bulk and independent.** A dependent chain, or
    work that fits one context, stays on the coordinating model. Only a fan-out of independent items
    delegates to a cheaper worker model.

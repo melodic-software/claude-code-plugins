@@ -54,6 +54,9 @@ subagents that search files, read logs or summarize; that work stays on
 [#10022](https://github.com/melodic-software/claude-code-plugins/issues/10022)
 ran it at `high`, so the eval did not measure the guide's starting point.
 
+For upstream evidence on Haiku subagents for coding work, see
+[optimizing for cost and intelligence: orchestrator strategy](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work).
+
 ## Where to read the specifics
 
 - **Pointer**: when choosing an effort level for a role, fetch
