@@ -220,19 +220,15 @@ Guidance for the main session once a task needs more than one layer; the export 
 because a pasted worker sits inside a tree rather than authoring one.
 
 **A rough anchor for small/medium/large.** Not thresholds to enforce, the judgment still runs on context
-boundaries, not head-count, but our anchor follows the platform's workflow size settings: fewer
-than 5 agents is small, 5 to 9 medium, and 10 or more large. A run large enough to trip the
-platform's large-workflow warning is a size to justify out loud. An order-of-magnitude
-disagreement with this anchor is one to name, not skip. Before a workflow run, read the size
-guideline in force for this session: the platform's default differs by plan, and the guideline
-the session sets is the one Claude receives, whatever this anchor says.
+boundaries, not head-count, but our anchor is the platform's workflow size guideline values,
+read live. A run large enough to trip the platform's large-workflow warning is a size to justify
+out loud. An order-of-magnitude disagreement with this anchor is one to name, not skip. Before a
+workflow run, read the size guideline in force for this session: the guideline the session sets
+is the one Claude receives, whatever this anchor says.
 
-- **Pointer**: for the workflow size guideline and its defaults, see
+- **Pointer**: for the size guideline values and their defaults, see
   <https://code.claude.com/docs/en/workflows#set-a-size-guideline>; for the large-workflow
   warning, see <https://code.claude.com/docs/en/workflows#cost>.
-- **As of**: 2026-10-18
-- **Recheck trigger**: that page changes a size-guideline agent count, a default guideline, or the
-  threshold its large-workflow warning fires at.
 
 **The top of the tree owns the loop, not the work.** Its context is the scarcest in the run,
 everything that enters it stays for the rest of the session. So it holds the objective, the
