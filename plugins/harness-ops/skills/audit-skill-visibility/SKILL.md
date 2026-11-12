@@ -33,7 +33,7 @@ agrees: its listing resolver returns `on` for every plugin-sourced skill before 
 override map. A `skillOverrides` entry already in an operator's settings that names a plugin skill
 therefore never takes effect; `harness-config:audit`, when installed, reports those entries.
 
-- **Pointer**: when deciding whether `skillOverrides` can affect a plugin skill, fetch [skills: override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings) live. **As of**: 2026-10-11. **Recheck trigger**: that section changes how plugin skills relate to `skillOverrides`, or a release note says plugin skills honor it.
+- **Pointer**: when deciding whether `skillOverrides` can affect a plugin skill, fetch [skills: override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings) live.
 
 Claude Code budgets the model-visible skill listing in characters, at
 `window x bytes-per-token x skillListingBudgetFraction` (our binary reading), and, when it
@@ -47,18 +47,16 @@ skill never resolves the session's model from disk. It reads the fraction and th
 from the settings scopes the product merges and, unless you pin the model-side inputs, reports the
 budget as a band over both windows and both byte estimates, naming no row as this session's.
 
-- **Pointer**: when stating the fraction's or the per-entry cap's default, fetch [settings reference: skillListingBudgetFraction](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction) and [skillListingMaxDescChars](https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars) live. **As of**: 2026-10-11. **Recheck trigger**: either entry changes its default.
+- **Pointer**: when stating the fraction's or the per-entry cap's default, fetch [settings reference: skillListingBudgetFraction](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction) and [skillListingMaxDescChars](https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars) live.
 
 **The drop ORDER is a source conflict.** The skills page's [skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)
 and the binary disagree on which descriptions overflow drops first. Take the ordering from the
 binary: [reference/listing-scorer.md](reference/listing-scorer.md) carries the counterexamples, the
-greps, the budget arithmetic, and the stamp. As of 2026-10-11; recheck when that section changes
-its drop order or the binary's scorer changes.
+greps, the budget arithmetic, and the stamp.
 
 So the useful question is not *which skills are unused*: that one belongs to Claude Code's own
 surfaces, which the run-start and run-end suggestions offer; what they report is read live from
-[skills: find unused skills](https://code.claude.com/docs/en/skills#find-unused-skills) (as of
-2026-11-03; recheck when that section changes which command or tab reports unused skills).
+[skills: find unused skills](https://code.claude.com/docs/en/skills#find-unused-skills).
 It is **which skills are starved by
 that loop and still wanted, versus genuinely unwanted, versus not observable at
 all.**
@@ -129,8 +127,7 @@ Where a plugin is installed at more than one scope, resolution loads the highest
 *applicable* record. The scope order and its record live in this plugin's own
 [`skills/plugins/context/scope-semantics.md`](../plugins/context/scope-semantics.md). The nearest
 docs section, [settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence),
-ranks settings files and names no install records as of 2026-11-03; recheck when it or the plugin
-loading page states which install record loads. Getting it wrong is not cosmetic: plugins pinned
+ranks settings files and names no install records. Getting it wrong is not cosmetic: plugins pinned
 at different versions across scopes can ship different skill *sets* and different `description` text. Superseded records are
 listed under **Fleet resolution** so a pin being outranked is visible.
 
@@ -146,9 +143,8 @@ declared `source`, since `plugins/<name>` is the common layout but not a rule.
 
 Whether each resolved plugin actually loads is read from `enabledPlugins` in the
 same settings scopes the listing budget reads, merged per `plugin@marketplace` key across scopes
-by the order in [plugin loading: find where a plugin is enabled](https://code.claude.com/docs/en/plugins/loading#find-where-a-plugin-is-enabled)
-(as of 2026-11-03; recheck when that section changes its source list or order). The
-`--settings` flag scope is unread from outside the session. A key set to `false`
+by the order in [plugin loading: find where a plugin is enabled](https://code.claude.com/docs/en/plugins/loading#find-where-a-plugin-is-enabled).
+The `--settings` flag scope is unread from outside the session. A key set to `false`
 makes every skill of that plugin `hidden`, with the scope file that supplied
 the `false` as evidence. A key absent from every scope makes every skill of
 that plugin `not-enabled` (cause `plugin-never-enabled`, remedy
@@ -165,10 +161,7 @@ including one whose marketplace entry and one whose `plugin.json` set
 plugin with no entry at any scope falls back to its `defaultEnabled` value, and
 the manifest reference (<https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled>)
 agrees. Both contradict the measured runtime, so the engine follows the product
-and each such row's `provenance` says so. As of 2026-10-04 (settings and
-manifest references re-read); re-measured 2026-09-28. Recheck trigger: a
-Claude Code release that changes `claude plugin list`'s `enabled` answer for an
-absent key, or either doc section changing.
+and each such row's `provenance` says so.
 
 Every `enabledPlugins` value must be a Boolean. A settings file holding one
 that is not contributes none of its `enabledPlugins` keys, `true` siblings
@@ -208,8 +201,8 @@ The budget has five inputs, and the report states where each one came from:
   (`<project>/.claude/settings.json`), local
   (`<project>/.claude/settings.local.json`), `--settings` flag and managed-policy
   scopes, per key, with the precedence the product uses, read live from
-  [settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence)
-  (as of 2026-11-10; recheck when that section reorders the scopes). The project is `CLAUDE_PROJECT_DIR`, falling back to the
+  [settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence).
+  The project is `CLAUDE_PROJECT_DIR`, falling back to the
   working directory. The flag scope lives inside the session and cannot be read
   from outside it, so it is reported as **unread**, never as absent. Managed
   locations (the base file plus the `managed-settings.d` drop-ins, per OS) come
@@ -221,12 +214,11 @@ The budget has five inputs, and the report states where each one came from:
   the computation, and the row carries `budget_basis: env-override` and the
   label `SLASH_COMMAND_TOOL_CHAR_BUDGET`. What the variable does in the product
   is read live from its row in
-  [environment variables](https://code.claude.com/docs/en/env-vars#variables)
-  (as of 2026-11-03; recheck when that row changes what the override replaces).
+  [environment variables](https://code.claude.com/docs/en/env-vars#variables).
 - The context window is per model. The engine treats `CLAUDE_CODE_DISABLE_1M_CONTEXT` as
   collapsing it to 200k, and `CLAUDE_CODE_MAX_CONTEXT_TOKENS` as naming it when
   `DISABLE_COMPACT` is also set; both are read from the process environment and
-  recorded. What each does in the product is read live from its row in [environment variables](https://code.claude.com/docs/en/env-vars#variables) (as of 2026-11-10; recheck when one of those rows changes how the window is set). Otherwise `--context-window <tokens>` pins it, and unpinned the
+  recorded. What each does in the product is read live from its row in [environment variables](https://code.claude.com/docs/en/env-vars#variables). Otherwise `--context-window <tokens>` pins it, and unpinned the
   report carries both 200k and 1M.
 - Bytes per token is 4 or 3 per model. `--bytes-per-token` pins it; unpinned the
   report carries both.
@@ -257,7 +249,7 @@ workflows, and with `--installed` the user's `~/.claude/skills`, the
 `.claude/skills` of the project and each parent up to the repository root, and
 the signed-in account's claude.ai-synced skills, each with `skillOverrides`
 applied. A user or project skill is listed under its frontmatter `name` when it
-sets one, a synced skill under its folder name, and the engine lets a personal skill shadow a project skill of the same name, the order read live from [skills: resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name) (as of 2026-11-10; recheck when that table changes the personal-over-project order). Built-in and bundled skills ship
+sets one, a synced skill under its folder name, and the engine lets a personal skill shadow a project skill of the same name, the order read live from [skills: resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name). Built-in and bundled skills ship
 inside Claude Code and cannot be read from disk, so without a capture
 `coverage` is `enumerated-only`, the Markdown says what was not counted, and a
 row whose counted entries fit reports `fit-unconfirmed`, never `listing-fits`:
@@ -318,8 +310,8 @@ is the `data-dir` scope's answer and the other two scopes ignore it, so the one 
 all three. It is written out here rather than read from the environment because the script takes
 no `CLAUDE_PLUGIN_DATA` fallback: we treat the skill body's own expansion as the only trustworthy
 source. Which processes receive the variable is read live from
-[plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
-(as of 2026-11-10; recheck when that table exports the variable to the Bash tool). Flags, that reason, and missing-store behavior:
+[plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves).
+Flags, that reason, and missing-store behavior:
 [reference/pair-cooccurrence.md](reference/pair-cooccurrence.md).
 
 ## Reading the output
@@ -442,12 +434,10 @@ conflated whenever a fleet looks unused:
 
 - **`doctor` (bundled skill)**: an in-session checkup that can offer to disable components, which
   this skill never does. What it checks is read live from
-  [skills: check your setup with /doctor](https://code.claude.com/docs/en/skills#check-your-setup-with-%2Fdoctor)
-  (as of 2026-11-03; recheck when that section changes what the checkup covers).
+  [skills: check your setup with /doctor](https://code.claude.com/docs/en/skills#check-your-setup-with-%2Fdoctor).
 - **`/skill-doctor` (built-in command).** Claude Code's own unused-skills report; what it shows
   and where is read live from
-  [skills: find unused skills](https://code.claude.com/docs/en/skills#find-unused-skills) (as of
-  2026-11-03; recheck when that section changes what the report covers).
+  [skills: find unused skills](https://code.claude.com/docs/en/skills#find-unused-skills).
 - **This skill (marketplace plugin).** Reconciles the native counters with a JSONL store and OTEL,
   computes an observed horizon, and separates starved-and-wanted from unwanted from unobservable,
   withholding every verdict the span cannot support. Read-only.
@@ -463,7 +453,7 @@ user act.
 
 **Availability is never assumed.** Settings and the environment can hide either surface; this
 section states what to do when one resolves, never that it is present. What hides each, and the
-four-part records, live in [reference/bundled-doctor.md](reference/bundled-doctor.md).
+records, live in [reference/bundled-doctor.md](reference/bundled-doctor.md).
 
 ## Run-end suggestion
 

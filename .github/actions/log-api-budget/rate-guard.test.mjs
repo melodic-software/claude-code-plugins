@@ -640,7 +640,6 @@ const UNGUARDED = {
   ".github/scripts/apply-patch/apply-patch.mjs": "script activity run from a directory copy",
   // Its mains run from the base checkout count their requests (countedFetch).
   ".github/scripts/pr-unblock/address-feedback.mjs": "imported by script activities run from a directory copy",
-  ".github/scripts/work-resolve-issue/report-outcome.mjs": "script activity run from a directory copy",
   // pr-merge's own guard is its owner's change.
   ".github/scripts/pr-merge/merge-holds.mjs": "pr-merge, guarded by its owner",
   // A test helper no lane runs: the credential-legs tests' read of ci-workflows

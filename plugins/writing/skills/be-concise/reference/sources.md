@@ -9,13 +9,15 @@
 
 Every rule in [`doctrine.md`](doctrine.md) is paraphrased from one of the
 sources below. Nothing upstream is vendored into this repository, and no
-article is reproduced. Each entry carries the four parts this repository's
-upstream-drift convention requires: the claim, the basis with its URL, the
-as-of date, and the recheck trigger that obliges re-deriving the claim.
+article is reproduced. Each entry carries the claim and the basis with its URL.
+An entry that records a figure from its basis is a stored value under this
+repository's upstream-drift convention, so it also carries the as-of date and
+the recheck trigger that obliges re-deriving the claim.
 
-The as-of date on every entry is the verified research run of 2026-09-05, which
-fetched each basis directly. A date is not authority. Re-fetch the basis before
-relying on a claim; the stamp is a ceiling on how current the claim can be.
+The as-of date on each such entry is the verified research run of 2026-09-05,
+which fetched each basis directly. A date is not authority. Re-fetch the basis
+before relying on a claim; the stamp is a ceiling on how current the claim can
+be.
 
 Two entries carry no rule of their own. The licensing entry records what may be
 quoted from Nielsen Norman Group and why nothing is vendored. The two
@@ -79,11 +81,6 @@ screen sizes.
 
 Basis: https://www.nngroup.com/articles/inverted-pyramid/
 
-As of: 2026-09-05
-
-Recheck when: the article withdraws the front-loading rule or bounds it to a
-screen size or content type.
-
 ### F-Shaped Pattern of Reading (Pernice, 2017, last reviewed 2026-08-19)
 
 Claim: Scanning persists on desktop and mobile; the F-pattern is the default
@@ -94,11 +91,6 @@ the front-loading rule survives either result because all pools agree attention
 is weighted to the start of lines.
 
 Basis: https://www.nngroup.com/articles/f-shaped-pattern-reading-web-content/
-
-As of: 2026-09-05
-
-Recheck when: the article's review date moves and its conclusion changes, or a
-replication settles the shape dispute either way.
 
 ### How Little Do Users Read? (Nielsen, 2008)
 
@@ -138,11 +130,6 @@ statement, with no independent carrier, so read it directly before relying on
 it.
 
 Basis: https://www.nngroup.com/terms-and-conditions/
-
-As of: 2026-09-05
-
-Recheck when: the terms page's "Last updated" line moves, or its fair-use or
-reprinting clauses change.
 
 ## Government and vendor writing standards
 
@@ -195,12 +182,6 @@ guide publishes no numeric sentence limit.
 
 Basis: https://developers.google.com/style/highlights
 
-As of: 2026-09-05
-
-Recheck when: the guide's What's New page records a change to a rule the
-doctrine states, since this is a continuously edited site with no edition to
-pin.
-
 ### Microsoft Writing Style Guide
 
 Claim: Bigger ideas, fewer words; get to the point fast and then stop; prune
@@ -246,11 +227,6 @@ requirement instead of the document restating it.
 
 Basis: https://www.govinfo.gov/content/pkg/FR-2017-12-29/pdf/2017-28124.pdf
 
-As of: 2026-09-05
-
-Recheck when: the Administrative Conference supersedes or amends
-Recommendation 2017-3.
-
 ### DOE-STD-1029, Writer's Guide for Technical Procedures
 
 Claim: Procedures must be accurate, complete and usable together; actions are
@@ -263,11 +239,6 @@ Basis: https://www.osti.gov/biblio/308015 (the Department of Energy record for
 the 1992 standard; the full text was read from a third-party mirror, one rung
 below a primary read)
 
-As of: 2026-09-05
-
-Recheck when: the Department of Energy supersedes or withdraws the standard,
-or a primary copy of the full text becomes reachable and replaces the mirror.
-
 ### Linux kernel patch-submission guidance
 
 Claim: A change description must describe the problem that motivated the work,
@@ -275,10 +246,6 @@ whatever the size of the change, and its user-visible impact. That record is
 what a body shortened past the floor destroys.
 
 Basis: https://www.kernel.org/doc/html/latest/process/submitting-patches.html
-
-As of: 2026-09-05
-
-Recheck when: the page drops or rewrites its "Describe your changes" guidance.
 
 ### Claude Code concise output style
 
@@ -290,9 +257,6 @@ compare our floor against it live rather than from a copy here.
 - **Pointer**: when checking our floor against the Concise style, fetch
   [Output styles, Concise](https://code.claude.com/docs/en/output-styles#concise)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section changes what the Concise style keeps in
-  full, or the style is renamed or removed.
 
 ## Evidence on the reader model
 

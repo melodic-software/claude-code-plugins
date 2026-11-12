@@ -65,15 +65,12 @@ one of them is a setting:
   documented default. `skillListingMaxDescChars`, likewise, caps each entry's
   description before it is summed. Read both defaults live from
   [skillListingBudgetFraction](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction)
-  and [skillListingMaxDescChars](https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars)
-  (as of 2026-10-11; recheck when either entry changes its default).
+  and [skillListingMaxDescChars](https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars).
 - `window` is the ACTIVE model's context window, which the live caller passes
   to the arithmetic; the formula's literal is only what it falls back on when
   none is passed. Which models run with which window, and the variables that
   change it, are read live from
-  [model configuration: extended context](https://code.claude.com/docs/en/model-config#extended-context)
-  (as of 2026-11-03; recheck when that section changes a model's default window
-  or the variables that override it).
+  [model configuration: extended context](https://code.claude.com/docs/en/model-config#extended-context).
 - `bytesPerToken` is 4 or 3 BY MODEL, resolved from the model id. A 3-byte
   model gets a budget a quarter smaller than a 4-byte model at the same fraction
   and window.

@@ -1,11 +1,7 @@
 # Official source record
 
-Fetched and re-verified 2026-07-16, except the Git entries dated 2026-09-29 under "Git claims the
-skill bodies restate", which were fetched that day, and the Claude Code entries, re-verified
-2026-10-11. Recheck trigger: any GitHub GraphQL or REST rate-limit change,
-any change to the Git commands or porcelain fields the collector parses, and each Claude Code
-minor release that touches skills, plugins, or `allowed-tools`. These sources define the runtime
-and evidence contracts; the plugin does not rely on remembered behavior.
+These sources define the runtime and evidence contracts; the plugin does not rely on remembered
+behavior.
 
 ## Claude Code
 

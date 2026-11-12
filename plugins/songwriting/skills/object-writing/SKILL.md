@@ -85,9 +85,6 @@ Dispatch rules:
      [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model) and
      [Run every subagent on one model](https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model)
      live, and read the session's subagent-model environment variables against them.
-   - **As of**: 2026-11-10
-   - **Recheck trigger**: either section changes the resolution order or what the forcing
-     setting overrides, or a release note names subagent model resolution.
 
    **The fleet default is the tier whose writing has cleared the writer's bar**, not a fixed model
    name, which goes stale at the next release. Resolve it from the consuming project's own
@@ -98,24 +95,19 @@ Dispatch rules:
    **Never run a fleet on a tier priced above the fleet default.** A fan-out multiplies a tier's
    per-token rate by the agent count. A tier above the default belongs at a judge or verifier stage
    at most, where one call reads many writes. Pointer for the rates:
-   [Model pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing). As of:
-   2026-11-10. Recheck trigger: that section prices a higher tier at or below the fleet default's
-   rate.
+   [Model pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing).
+   Recheck trigger: that section prices a higher tier at or below the fleet default's rate.
 
    **Reach for effort before reaching for a cheaper tier.** Effort scales the tokens one agent
    spends; tier scales the price of every token AND changes which model wrote the lines. Across a
    fleet both multiply, but only one of them changes the writing. A fan-out that needs the lever
    sets it on the spawn, not through a workflow (the pointer below, to
    [Choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level),
-   says which spawns take it; as of 2026-10-11; recheck when that pointer's URL or as-of date
-   changes, or it is dropped). A spawn of `object-writer` omits `effort` unless the writer asks for
+   says which spawns take it). A spawn of `object-writer` omits `effort` unless the writer asks for
    another level.
 
    - **Pointer**: before relying on the effort of an agent spawn, whether or not it passes
      `effort`, fetch <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level> live.
-   - **As of**: 2026-10-11
-   - **Recheck trigger**: that section changes which spawns take a per-call `effort` or how it
-     ranks against an agent definition's `effort`.
 
    **A tier step-down is a per-stage decision, never a fleet default.** Mechanical legs (rhyme-field
    enumeration, word-pool merge, syllable counting, dedup) are reading-heavy and low-reasoning, and

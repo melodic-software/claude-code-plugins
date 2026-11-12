@@ -32,5 +32,4 @@ None: the menu keeps no state. Clear the prompt with `type --key Escape --sessio
 ## Gotchas
 
 - Wait for the prompt before typing `/`: a mod registers its commands as the session starts. Where
-  a mod registers them: <https://code.claude.com/docs/en/plugins/mods/api#add-a-command-or-a-tool>
-  (as of 2026-10-26; recheck when that section changes when registered commands appear).
+  a mod registers them: <https://code.claude.com/docs/en/plugins/mods/api#add-a-command-or-a-tool>.

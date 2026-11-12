@@ -70,8 +70,9 @@ roles:
     reason_mechanical_model: mechanical work needs no Opus-level reasoning; the model guide's task table (https://claude.dev/blog/which-claude-model-should-you-build-with#pick-a-model-by-task) starts well-scoped coding, such as bug fixes, feature iteration and spec-driven work, on Sonnet, but sits on a host the drift audit does not fetch, so it is recorded as context rather than an upstream pointer
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
     pointer_spawn: https://code.claude.com/docs/en/sub-agents#choose-an-effort-level
+    pointer_subagent_effort: https://code.claude.com/docs/en/model-config#effort-level-of-subagents-and-teammates
     as_of: 2026-11-09
-    recheck: model-config's effort table changes the row for clear-scope engineering work, the cost page's orchestrator strategy changes its worker-model advice, a new model is named on the cost page, the guide's task table changes its row for well-scoped coding, the Agent tool's per-spawn effort parameter changes, or a role is proposed for haiku (see routing-rubric.md)
+    recheck: model-config's effort table changes the row for clear-scope engineering work, the cost page's orchestrator strategy changes its worker-model advice, a new model is named on the cost page, the guide's task table changes its row for well-scoped coding, the Agent tool's per-spawn effort parameter changes, a role is proposed for haiku (see routing-rubric.md), or the default subagent effort setting changes (pointer_subagent_effort)
   verifier:
     model: inherit
     effort: high
@@ -82,8 +83,9 @@ roles:
     claim_effort: the effort table's row for work where verification matters or edge cases are likely
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
     pointer_spawn: https://code.claude.com/docs/en/sub-agents#choose-an-effort-level
+    pointer_subagent_effort: https://code.claude.com/docs/en/model-config#effort-level-of-subagents-and-teammates
     as_of: 2026-11-09
-    recheck: model-config's effort table changes the row for verification-heavy work, an upstream page states a model for a verifying or judging agent, or the Agent tool's per-spawn effort parameter changes
+    recheck: model-config's effort table changes the row for verification-heavy work, an upstream page states a model for a verifying or judging agent, the Agent tool's per-spawn effort parameter changes, or the default subagent effort setting changes (pointer_subagent_effort)
   retrieval:
     model: sonnet
     effort: medium
@@ -94,5 +96,6 @@ roles:
     claim_effort: the effort table's medium row names it the default on the Sonnet 5.5 model
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
     pointer_spawn: https://code.claude.com/docs/en/sub-agents#choose-an-effort-level
+    pointer_subagent_effort: https://code.claude.com/docs/en/model-config#effort-level-of-subagents-and-teammates
     as_of: 2026-11-09
-    recheck: the guide's task table changes its row for search, log and summary subagents, the workflows Cost section changes its smaller-model advice, a model-config change to the sonnet alias or its default effort, the Agent tool's per-spawn effort parameter changes, or a role is proposed for haiku (see routing-rubric.md)
+    recheck: the guide's task table changes its row for search, log and summary subagents, the workflows Cost section changes its smaller-model advice, a model-config change to the sonnet alias or its default effort, the Agent tool's per-spawn effort parameter changes, a role is proposed for haiku (see routing-rubric.md), or the default subagent effort setting changes (pointer_subagent_effort)

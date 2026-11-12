@@ -20,7 +20,6 @@ Keep the pipe in the command: a read-time cap ("read only the first 5 entries") 
 because the result is already formed. Pointer: how
 much of a command's output reaches the result, and in what form, is read at
 [tools reference: output limits](https://code.claude.com/docs/en/tools-reference#output-limits).
-As of: 2026-10-11. Recheck trigger: that section changes the inline ceiling or what arrives past it.
 
 A failure (not a repository, git unavailable) is an unknown value; carry on. These stay body Bash
 calls rather than pre-compute lines. The dated record for how the pre-compute block is composed is
@@ -29,9 +28,6 @@ shell invocation"); which commands a worktree-isolated session refuses is read a
 [worktrees: how Claude Code enforces isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation),
 and how injected commands run at
 [skills: how injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
-As of: 2026-11-10. Recheck triggers: the gather-block section moves, is renamed, or changes how the
-block is composed; the worktrees section changes which commands it refuses; the skills section
-changes how a block's commands are run.
 
 ## Pre-computed context
 
@@ -118,8 +114,7 @@ defect is visual and none came with the description, ask the reporter for one. A
 screenshot or image path backs Expected vs actual like the reporter's own words; name it under
 Notes so it is attached when filed. Ask for a screenshot or a few still frames, not a video
 (which file types Read handles:
-[tools reference: Read tool behavior](https://code.claude.com/docs/en/tools-reference#read-tool-behavior),
-as of 2026-11-10; recheck when that section adds a video type). A repo that wants a screenshot on every rendered-output report says so in its consumer
+[tools reference: Read tool behavior](https://code.claude.com/docs/en/tools-reference#read-tool-behavior)). A repo that wants a screenshot on every rendered-output report says so in its consumer
 gotchas.
 
 If it's motion, use a frame-state capture. Find the frame where something needs fixing, copy the
@@ -152,8 +147,7 @@ this order, and always tell the user the final path:
    another repository's report on the same symbol. When checking what the data directory is keyed
    by, fetch
    [plugins manifest reference § Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
-   live (as of 2026-11-03; recheck trigger: that section changes what `${CLAUDE_PLUGIN_DATA}` is
-   keyed by).
+   live.
 3. If neither resolves, `${CLAUDE_PROJECT_DIR}/.bug-reports/`, stating clearly where the file landed.
 
 Filename: an ISO basic UTC timestamp with no colons (Windows-safe), then a kebab-case slug of the
@@ -178,7 +172,7 @@ Recommend the next step; do not invoke it yourself:
   so backticks or `$( )` in the reporter's text cannot execute. On a repo without native Issue
   Types, drop `--type Bug` and add a `type: bug` label when the repo defines one. When checking
   what `--type` takes, fetch [gh issue create: Options](https://cli.github.com/manual/gh_issue_create#options)
-  live (as of 2026-11-03; recheck trigger: that section renames or drops `--type`). If neither path
+  live. If neither path
   applies and a work-item tracker MCP tool is available, use it.
 - **A fix is next.** Diagnose first when the root cause is unknown (`/debugging:debug` when
   installed); when the report names the cause, go to the fix (`/implementation:implement` when
@@ -208,8 +202,7 @@ severity cannot be calibrated from context, ask one question rather than invent 
 - **`/bug` (built-in command)**: reports a problem with Claude Code itself. What it includes and where the report goes are read
   live from its row. Pointer: the second row of
   [context/native-bug.md](context/native-bug.md#the-built-in-bug-command-verification-record)
-  carries that record. As of: 2026-10-11. Recheck trigger: that row moves or stops carrying its own
-  pointer and trigger.
+  carries that record.
 - **This skill**: a five-field report for a defect in the person's code, grounded in their
   repository, filed nowhere unless they ask.
 

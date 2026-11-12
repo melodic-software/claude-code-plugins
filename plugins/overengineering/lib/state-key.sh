@@ -4,9 +4,8 @@
 # Per-project state key for anything a plugin writes under ${CLAUDE_PLUGIN_DATA}.
 #
 # WHY. ${CLAUDE_PLUGIN_DATA} is keyed to the plugin identifier and nothing else:
-# https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables
-# (as of 2026-10-11; recheck when that section adds a project, checkout,
-# worktree or session segment to the path). So a skill that writes a fixed filename there has one file per
+# https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables.
+# So a skill that writes a fixed filename there has one file per
 # MACHINE: every run from every repository overwrites the last, and a skill that
 # READS it back can serve one project's findings as another's.
 #

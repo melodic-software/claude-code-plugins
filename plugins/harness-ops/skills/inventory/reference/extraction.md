@@ -624,8 +624,7 @@ parameter the rule cannot bound, or a `+` whose sides may start and end `require
 A template `import()` whose specifier starts with a bare package name
 (`` import(`@withfig/autocomplete/build/${e}.js`) ``) counts too: no source read shows that a bare
 specifier cannot reach a file embedded in the executable (pointer: Bun's
-[standalone executables](https://bun.com/docs/compiler/executables#embed-directories) page, as of
-2026-10-29; recheck when it documents how a bare specifier resolves inside a compiled executable).
+[standalone executables](https://bun.com/docs/compiler/executables#embed-directories) page).
 
 A named loader is followed instead: an alias of `import.meta.require` or `require` that a
 module-scope declarator initializes, never written again and exported by name other than

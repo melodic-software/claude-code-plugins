@@ -20,8 +20,6 @@ for formatting. It ships no rules of its own.
     without a shell file costs one `node` process.
   - **Pointer**: when deciding what filters a `PostToolBatch` row, fetch
     [hooks: PostToolBatch](https://code.claude.com/docs/en/hooks#posttoolbatch) live.
-    **As of**: 2026-10-15. **Recheck trigger**: that section adds a matcher or an `if` for the
-    event, or changes the `tool_calls` fields.
 - **Format is opt-in.** shfmt runs **only when an `.editorconfig` section names shell files**: a
   shell glob such as `[*.sh]`, `[*.bash]`, or `[*.{sh,bash}]` (including path-prefixed forms like
   `[**/*.sh]`), found by walking up from the file to the repository root. A bare `[*]` catch-all is
@@ -33,8 +31,7 @@ for formatting. It ships no rules of its own.
   sets the style and an `ignore = true` section (e.g. for generated or vendored scripts) excludes
   a file. For what each does, see the DESCRIPTION section and the `--apply-ignore` entry of the
   [shfmt manual page](https://github.com/mvdan/sh/blob/master/cmd/shfmt/shfmt.1.scd), which the
-  [mvdan/sh README: shfmt](https://github.com/mvdan/sh#shfmt) section links (as of 2026-11-03;
-  recheck when either changes how EditorConfig options or ignore rules apply).
+  [mvdan/sh README: shfmt](https://github.com/mvdan/sh#shfmt) section links.
 - **Pre-existing drift is rewritten whole.** The batch payload carries no pre-edit bytes, so a file
   that already drifted from your style is formatted in full, as the pre-commit entry would.
 - **A rewrite that would change an array subscript is put back.** shfmt parses an unquoted
@@ -57,8 +54,7 @@ for formatting. It ships no rules of its own.
 - **Config from the consumer.** Both tools read their configuration from your repository:
   `.shellcheckrc` for ShellCheck and `.editorconfig` for shfmt. For how each file is found, see
   [ShellCheck manual: RC FILES](https://github.com/koalaman/shellcheck/blob/master/shellcheck.1.md#rc-files)
-  and the shfmt manual page linked above (as of 2026-11-03; recheck when either changes where it
-  looks for its file). Files under `.githooks/` (installed copies) are skipped.
+  and the shfmt manual page linked above. Files under `.githooks/` (installed copies) are skipped.
 - **Gitignored files are skipped by default in the session.** The batch row does not rewrite a file
   the repository gitignores, silently, since a rewrite of an ignored file has no git checkout to
   undo it. Set `bash_format_lint_gitignored` to `true` to act on them too. A tracked file that
@@ -108,10 +104,8 @@ at the end of a turn, without rewriting, and hands findings back to Claude once 
 - **Node.js** on `PATH`. Every hook row runs through `node hooks/exec-bash.mjs`, so without `node`
   the hook does not launch and shell edits are not formatted. We do not assume a Claude Code
   install brings Node. Pointer: when deciding whether it does, fetch
-  [setup: Install with npm](https://code.claude.com/docs/en/setup#install-with-npm) live.
-  As of: 2026-10-11. Recheck trigger: that section or
-  [System requirements](https://code.claude.com/docs/en/setup#system-requirements) changes which
-  install needs Node at runtime. A missing `node` shows no notice from this plugin. Check it with
+  [setup: Install with npm](https://code.claude.com/docs/en/setup#install-with-npm) and
+  [System requirements](https://code.claude.com/docs/en/setup#system-requirements) live. A missing `node` shows no notice from this plugin. Check it with
   `/bash-format:setup check`. [Install Node.js](https://nodejs.org/en/download).
 - **jq** on `PATH`. Reads the file paths from the `PostToolBatch` payload and the syntax tree for
   the subscript guard. Absent: the batch row does nothing, the pre-commit entry skips its rewrite,

@@ -1406,6 +1406,25 @@ if [[ $rc -eq 0 ]]; then ok "the release pull request passes: a consumed fragmen
 fragment_case release release/plugins-copy
 if [[ $rc -eq 1 && "$out" == *"FRAGMENT-MODE RELEASE: alpha"* ]]; then ok "only the exact release branch may version a fragment-mode plugin"; else fail "near-miss branch treated as the release: rc=$rc out='$out'"; fi
 
+# A plugin rename moves its CHANGELOG.md; the headings it carried are not new.
+rename_alpha() {
+  git -C "$repo" mv plugins/alpha plugins/gamma
+  printf 'gamma\n' >"$repo/scripts/fragment-plugins.txt"
+}
+fragment_case rename_alpha
+if [[ $rc -eq 0 ]]; then ok "a renamed fragment-mode plugin keeps its released headings without a release"; else fail "plugin rename read as a release: rc=$rc out='$out'"; fi
+
+rename_and_head() {
+  rename_alpha
+  printf '# Changelog\n\n## [1.1.0]\n\n- Early note.\n\n## [1.0.0]\n\n%s\n' "$long_body" >"$repo/plugins/gamma/CHANGELOG.md"
+}
+fragment_case rename_and_head
+if [[ $rc -eq 1 && "$out" == *"FRAGMENT-MODE RELEASE: gamma"*"adds the version heading(s) 1.1.0 to"* && "$out" != *"1.1.0 1.0.0"* ]]; then
+  ok "a rename that also adds a heading fails on that heading alone"
+else
+  fail "heading added during a rename not caught: rc=$rc out='$out'"
+fi
+
 # A listed convention (docs/conventions/<name>/ or docs/contracts/<name>/) is versioned by its CHANGELOG
 # heading alone, so only the release pull request may add one.
 convention_case() {

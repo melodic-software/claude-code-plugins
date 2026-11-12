@@ -107,8 +107,7 @@ Each is a comma-separated list of corrector names. Treat BOTH an empty value
 AND a surviving literal `${user_config.…}` placeholder as unset, no override
 from that key, and never read the literal token as a corrector name. Substitution is documented at
 [plugin manifest reference: reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value),
-which as of 2026-11-03 does not say what an unset option renders; recheck
-when that section states it. Apply
+which does not say what an unset option renders. Apply
 after tier resolution: `batch_exclude` drops a member, `batch_promote` lifts a
 situational corrector to always-run, `batch_demote` drops a core corrector to
 relevance-gated. **`batch_promote` accepts situational names only.** For each
@@ -144,10 +143,6 @@ never/core/unknown promote warning in that report, never silently drop them.
     <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>
     live, and for skills run with `context: fork`, the Note under
     <https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents>.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: that section changes which subagent kinds receive the
-    main conversation's history, or the Note changes whether a skill run with
-    `context: fork` starts without conversation history.
 - **Audit in the forks, correct on the main thread.** Parallel forks that
   wrote would race and re-dilute salience; the value is one ordered
   correction pass.
@@ -157,9 +152,6 @@ never/core/unknown promote warning in that report, never silently drop them.
   - **Pointer**: when deciding whether a fork's tools can be restricted, fetch
     <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>
     and <https://code.claude.com/docs/en/sub-agents#available-tools> live.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: either section starts letting a fork's tool set differ
-    from the main session's, or adds a filter that applies to forks.
 
   Never present the audit fan-out's read-only posture as harness-enforced. If you
   want assurance that the fan-out honored it, capture the working tree's state
@@ -179,10 +171,6 @@ never/core/unknown promote warning in that report, never silently drop them.
     for which writes into this checkout a worktree refuses, fetch
     <https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation>
     live.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: that section starts carrying uncommitted changes into
-    a subagent worktree, or the enforcement section starts refusing shell
-    commands that write into the main checkout.
 - **The preflight is the guard, not an optimization.** Skipping it does not
   make the sweep cheaper. It makes every ledger unfalsifiable, and the
   batched pass's step 4 writes those ledgers' remedies to the working tree.
@@ -193,10 +181,6 @@ never/core/unknown promote warning in that report, never silently drop them.
   - **Pointer**: when estimating a fork's model, context and cache reuse, fetch
     <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>
     live.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: that section changes which model a fork runs on, how
-    much of the main session's context it receives, or whether a fork shares
-    the main session's prompt cache.
 
   Keeping the `never` tier and every member's
   fan-out tier out, and relevance-gating the situational tier, are what hold

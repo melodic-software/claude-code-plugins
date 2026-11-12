@@ -5,6 +5,30 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.5.17] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
+## [3.5.16] - 2026-11-12
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [3.5.15] - 2026-11-12
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [3.5.14] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
 ## [3.5.13] - 2026-11-12
 
 ### Changed

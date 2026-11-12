@@ -3,6 +3,24 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.17] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
+## [2.1.16] - 2026-11-12
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [2.1.15] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
 ## [2.1.14] - 2026-11-12
 
 ### Changed

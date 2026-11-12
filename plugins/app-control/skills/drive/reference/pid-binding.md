@@ -20,8 +20,7 @@ rules.
   spaces and `)` included. The hash is taken over the raw command line bytes, on Linux every byte of
   `/proc/<pid>/cmdline` exactly as read, NUL separators and the trailing NUL included
   (<https://man7.org/linux/man-pages/man5/proc_pid_cmdline.5.html#DESCRIPTION>); the stored
-  `command_line` is a display form, never the hash input. The three man pages as of 2026-10-27;
-  recheck when one changes the field's form or who may write the command name. A `capture` in a later invocation reads the record
+  `command_line` is a display form, never the hash input. A `capture` in a later invocation reads the record
   from the run directory named by `--out`. No launch record means this run launched nothing:
   unattended, `blocked: no process launched by this run`; interactive, only
   [Attach](../SKILL.md#attach).

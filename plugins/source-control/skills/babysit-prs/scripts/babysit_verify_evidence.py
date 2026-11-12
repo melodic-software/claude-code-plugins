@@ -3137,6 +3137,23 @@ class Reader:
         if len(names) > INDEX_NAMES_CAP:
             # More reads than one whole listing costs: read that instead.
             return self._listing()
+        found = self._indexed(number, head, names, deadline)
+        print(
+            f"{INDEX_READS_PREFIX} "
+            + json.dumps(
+                {"pr": number, "names": len(names), "reads": self.index_reads - reads}
+            ),
+            file=sys.stderr,
+        )
+        return found
+
+    def _indexed(
+        self, number: int, head: str, names: list[str], deadline: float
+    ) -> list[dict[str, Any]]:
+        """The legacy FAILs and the artifacts the FAIL index leads to from
+        `names`, with this pull request's passes at the head and at each
+        FAILed head (`_passes_named`). Any read that fails raises
+        `_Unreadable`."""
         found = {a["id"]: a for a in self._live_legacy()}
         found.update((a["id"], a) for a in self._index_hits(names, deadline))
         failed = {
@@ -3149,13 +3166,6 @@ class Reader:
         found.update(
             (a["id"], a) for a in self._passes_named(number, failed | {head}, deadline)
         )
-        print(
-            f"{INDEX_READS_PREFIX} "
-            + json.dumps(
-                {"pr": number, "names": len(names), "reads": self.index_reads - reads}
-            ),
-            file=sys.stderr,
-        )
         return list(found.values())
 
     def own_verdicts(self, number: int, head: str) -> list[dict[str, Any]]:
@@ -3165,28 +3175,14 @@ class Reader:
         `RuntimeError` when a read fails."""
         deadline = _listing_clock() + listing_cap()[0]
         try:
-            found = {a["id"]: a for a in self._live_legacy()}
-            found.update(
-                (a["id"], a)
-                for a in self._index_hits(
-                    [f"{INDEX_PREFIX}pr-{number}", f"{INDEX_PREFIX}sha-{head}"],
-                    deadline,
-                )
-            )
-            failed = {
-                match[2]
-                for a in found.values()
-                if (match := verdict_name(str(a.get("name") or ""))) is not None
-                and int(match[1]) == number
-                and match[3] == "fail"
-            }
-            found.update(
-                (a["id"], a)
-                for a in self._passes_named(number, failed | {head}, deadline)
+            return self._indexed(
+                number,
+                head,
+                [f"{INDEX_PREFIX}pr-{number}", f"{INDEX_PREFIX}sha-{head}"],
+                deadline,
             )
         except _Unreadable as exc:
             raise RuntimeError(str(exc)) from exc
-        return list(found.values())
 
     def _verdict_artifacts(
         self, number: int, head: str, head_ref: str, commits: set[str]
@@ -3222,11 +3218,8 @@ class Reader:
                 except _Unreadable as exc:
                     entry["unreadable"] = str(exc)
                 else:
-                    notes = record.get("notes")
                     entry["summary"] = str(record.get("summary") or "")
-                    entry["notes"] = (
-                        [str(n) for n in notes] if is_json_array(notes) else []
-                    )
+                    entry["notes"] = [str(n) for n in json_array(record.get("notes"))]
                 found.append(entry)
         return found
 
@@ -3494,11 +3487,12 @@ class Reader:
                 continue
             tied = pr_n == number or sha in commits
             if verdict in PASSES:
-                if pr_n == number and sha != head:
+                if pr_n != number:
+                    continue
+                if sha != head:
                     other_passes.setdefault(sha, []).append(
                         (run_id, name, item.get("id"))
                     )
-                if pr_n != number or sha != head:
                     continue
                 if self._run_state(run_id) == COUNTED:
                     verdicts.append(Verdict(sha, verdict, run_id))
@@ -3560,6 +3554,23 @@ class Reader:
             )
             return self._superseded(number, sha, fail_artifacts, at)
 
+        def elsewhere() -> tuple[dict[Any, Any], set[str]]:
+            return self._elsewhere(
+                number,
+                failed_by_pr,
+                unread_prs,
+                failed_by_issue,
+                unread_issues,
+                fail_times,
+            )
+
+        def capped(heads: set[str]) -> str:
+            return (
+                f"fails at {len(heads)} heads of this and other "
+                f"pull requests for its issues ({_heads(heads)}), "
+                f"the cap is {self.max_fails}"
+            )
+
         refusal: str | None
         detail = unreadable
         head_superseded = False
@@ -3569,22 +3580,10 @@ class Reader:
         elif head in failed and not (head_superseded := superseded(head)):
             # A FAIL here gets a fix round, so the cap counts the other pull
             # requests for its issues first: a round past it cannot merge.
-            _, elsewhere = self._elsewhere(
-                number,
-                failed_by_pr,
-                unread_prs,
-                failed_by_issue,
-                unread_issues,
-                fail_times,
-            )
+            heads = failed | elsewhere()[1]
             refusal = FAIL
-            if len(failed | elsewhere) >= self.max_fails:
-                refusal = REPEATED_FAIL
-                detail = (
-                    f"fails at {len(failed | elsewhere)} heads of this and other "
-                    f"pull requests for its issues ({_heads(failed | elsewhere)}), "
-                    f"the cap is {self.max_fails}"
-                )
+            if len(heads) >= self.max_fails:
+                refusal, detail = REPEATED_FAIL, capped(heads)
         elif fails and (
             not self._passes_follow(fails, passes)
             or not self._change_differs(
@@ -3603,21 +3602,10 @@ class Reader:
             # Every pass of the run that started last must allow
             # (`_newest`), so listing order decides nothing; any unreadable
             # one refuses (`_Unreadable`).
-            live, elsewhere = self._elsewhere(
-                number,
-                failed_by_pr,
-                unread_prs,
-                failed_by_issue,
-                unread_issues,
-                fail_times,
-            )
-            if len(failed | elsewhere) >= self.max_fails:
-                refusal = REPEATED_FAIL
-                detail = (
-                    f"fails at {len(failed | elsewhere)} heads of this and other "
-                    f"pull requests for its issues ({_heads(failed | elsewhere)}), "
-                    f"the cap is {self.max_fails}"
-                )
+            live, others = elsewhere()
+            heads = failed | others
+            if len(heads) >= self.max_fails:
+                refusal, detail = REPEATED_FAIL, capped(heads)
             else:
                 refusals = {
                     self._pass_refusal(run_id, name, number, head, live, pr, artifact)
@@ -4298,7 +4286,8 @@ def lane_risk_refusal(
             config.floor,
         )
         files = merge_policy.with_contents(repo, pr, files)
-        private = json_object(json_object(pr.get("base")).get("repo")).get("private")
+        base = json_object(pr.get("base"))
+        private = json_object(base.get("repo")).get("private")
         risk_input = babysit_risk.RiskInput(
             files=files,
             files_complete=complete,
@@ -4308,7 +4297,7 @@ def lane_risk_refusal(
             lanes=lanes,
             public=True if private is False else None,
             pulumi_dirs=merge_policy.pulumi_dirs_at(repo, pr),
-            base_sha=json_object(pr.get("base")).get("sha"),
+            base_sha=base.get("sha"),
             floor_rows=config.floor_paths,
             high_floor=config.high_path_floor,
             path_holds=config.path_holds,
@@ -4378,8 +4367,9 @@ def lane_queue(
     except Exception as exc:  # noqa: BLE001 - any doubt holds, as the gate's
         queue = {"readError": f"{type(exc).__name__}: {exc}"}
     read_error = queue.get("readError") or None
-    count = None if read_error else queue.get("failedEjections")
-    count = count if isinstance(count, int) else None
+    count = queue.get("failedEjections")
+    if read_error or not isinstance(count, int):
+        count = None
     if count is None and read_error is None:
         read_error = "the merge queue's timeline items could not be counted"
     removals = None if read_error else queue.get("failedRemovals")
@@ -4606,14 +4596,14 @@ def capped_close_bodies(
         )
     elif parked:
         next_step = (
-            f"Issue #{issue} has used its {attempt[1] if attempt else 0} fresh attempt(s) "
+            f"Issue #{issue} has used its {attempt[1]} fresh attempt(s) "
             "(`merge.verify-cap-attempts`), so it is parked at "
             f"`{STATUS_CONFIRMED}` and no new attempt starts."
         )
     else:
         next_step = (
             f"Issue #{issue} goes back to `{admission}` for fresh attempt "
-            f"{attempt[0] if attempt else 0} of {attempt[1] if attempt else 0}, "
+            f"{attempt[0]} of {attempt[1]}, "
             + (
                 f"which starts from {stop}."
                 if refusal == NOT_CONVERGING

@@ -4,6 +4,32 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.4.7] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
+### Fixed
+
+- `/knowledge:video-digest` sets the default maximum gap between sampled frames by video length:
+  5 s up to 90 s, 6 s up to 5 minutes, then growing with length so gap fill stays near 80 frames,
+  up to 60 s from 80 minutes. Demo-heavy videos no longer miss screens shown between scene cuts;
+  `--max-frame-gap-sec` still overrides it.
+- Watch checklist row 1.5 states the `highVolume` rule the pipeline applies, including the
+  candidate-count condition, and its generated tick checks that condition too.
+- `init-watch-checklist.js --force` and a `run-watch.js` re-run rewrite the generated evidence
+  lines from the new run and keep agent-written ticks and evidence; a criteria-change notice goes
+  to stderr.
+
+- video-digest preflight escapes backslashes in queue table cells and caps a title before escaping it, so a title with a backslash no longer breaks the queue row.
+
+## [1.4.6] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
 ## [1.4.5] - 2026-11-11
 
 ### Changed

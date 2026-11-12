@@ -1,6 +1,6 @@
 # Classify a plugin's hooks by packaging before proposing a split
 
-- Status: accepted
+- Status: accepted; amended 2026-11-12 (`context-guard` no longer gates tool calls)
 - Date: 2026-09-04
 
 ## Decision
@@ -20,7 +20,7 @@ candidate:
 - **Class B: the hook IS the feature mechanism.** The plugin's advertised capability is delivered
   BY the hook, so a split severs the feature from its own implementation. Three plugins:
   `autonomy` (the Ralph-loop `Stop` gate is what makes a lane continue or halt), `context-guard`
-  (the zone mechanism is the `PreToolUse` gate plus its injection hooks), `disk-hygiene` (the
+  (the zone mechanism is its hooks module plus the `PostCompact` marker hook), `disk-hygiene` (the
   `PreToolUse` guard polices that plugin's OWN delete engine, split apart, the guard and the
   engine version independently and the guard can be installed without what it guards, or worse, the
   engine without its guard). **Must not split.**
@@ -44,8 +44,8 @@ Alternatives weighed:
   fleet-wide rule was believed to be policy precisely because nothing was written down. A rule that
   lives only in recollection is re-litigated at every audit, and the re-litigation is the cost.
 - **Split by hook EVENT rather than by plugin: not viable.** A plugin's hooks routinely span
-  events that belong to the same feature: `context-guard` alone wires `PreToolUse`,
-  `UserPromptSubmit`, `PostToolBatch` and `PostCompact` to deliver one zone mechanism. Cutting by
+  events that belong to the same feature: `context-guard` alone handles session, prompt, turn,
+  tool-call and compaction events to deliver one zone mechanism. Cutting by
   event cuts through the feature.
 
 ## Consequences
@@ -66,7 +66,7 @@ Three of the five turn on the same test, and it is the test this taxonomy exists
 hook that WRITES what a sibling skill READS is one feature with two surfaces, which is Class B
 reasoning arriving by a different route.
 
-The counts above are a snapshot of 2026-09-04 and are load-bearing only as evidence for the shape
+The counts above are a snapshot of 2026-09-04 and serve only as evidence for the shape
 of the classes. A new hook-carrying plugin is classified when it lands, by the same question in
 each class's first sentence, not by matching it to a list.
 
@@ -85,3 +85,11 @@ Class C split is urgent, and they remain the only such lever for Class A and B.
   the complementary axes. That rubric asks what a hook DOES (mechanism) and why it EXISTS (class);
   this one asks where it belongs. A hook can be pure policy by that rubric and still sit in a Class
   C plugin.
+
+## Amendment (2026-11-12): `context-guard` reports zones and denies nothing
+
+The Class B entry and the hook-event alternative described a `context-guard` `PreToolUse` gate.
+The plugin now delivers its zones through a hooks module and one `PostCompact` settings hook, and
+no part of it denies a tool call (`plugins/context-guard/README.md`, "PostCompact marker hook").
+Both passages state the current mechanism. The class is unchanged: the hooks are still how the
+feature is delivered.

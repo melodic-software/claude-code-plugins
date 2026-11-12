@@ -15,9 +15,6 @@ to user scope.
   [settings reference: variables Claude Code ignores in env](https://code.claude.com/docs/en/settings-reference#variables-claude-code-ignores-in-env)
   and [monitoring: administrator configuration](https://code.claude.com/docs/en/monitoring-usage#administrator-configuration)
   live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: that settings-reference section changes its list of ignored telemetry
-  variables or its version floor.
 
 ### Structure-only baseline (user scope, always on)
 
@@ -30,16 +27,13 @@ under OAuth, are read live.
 - **Pointer**: when stating which identity attributes are emitted or on by default, fetch
   [monitoring: standard attributes](https://code.claude.com/docs/en/monitoring-usage#standard-attributes)
   and [metrics cardinality control](https://code.claude.com/docs/en/monitoring-usage#metrics-cardinality-control)
-  live. **As of**: 2026-10-11. **Recheck trigger**: either section changes an attribute's default
-  or adds an identity attribute.
+  live.
 
 ### Traces (user scope)
 
 The span-tracing variables go beside the baseline in user scope. Which variables enable traces,
 and what the spans carry, are read live from
-[monitoring: traces (beta)](https://code.claude.com/docs/en/monitoring-usage#traces-beta)
-(as of 2026-11-03; recheck when that section changes the variables that enable tracing or the
-span attributes).
+[monitoring: traces (beta)](https://code.claude.com/docs/en/monitoring-usage#traces-beta).
 
 ### Structure-only keys (committed project `env`)
 
@@ -77,15 +71,12 @@ committed file. To capture one project only, export them in the shell that launc
   or adds a fifth.
 
 Exact flag names, accepted values, redaction and truncation limits: [monitoring: common
-configuration variables](https://code.claude.com/docs/en/monitoring-usage#common-configuration-variables)
-(as of 2026-10-11; recheck when that table renames a content flag or changes a truncation limit).
+configuration variables](https://code.claude.com/docs/en/monitoring-usage#common-configuration-variables).
 
 - **Pointer**: when checking what `OTEL_LOG_TOOL_DETAILS` adds, fetch
   [monitoring: cost counter](https://code.claude.com/docs/en/monitoring-usage#cost-counter) and
   [monitoring: tool result event](https://code.claude.com/docs/en/monitoring-usage#tool-result-event)
   live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: either section changes what the flag adds.
 
 - `OTEL_LOG_RAW_API_BODIES` modes are in the common configuration variables page linked above.
   Gitignore any directory its on-disk mode writes, **too**.

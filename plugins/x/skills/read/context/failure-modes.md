@@ -16,8 +16,8 @@ moves that detail somewhere the prompt cannot show:
 
 - **Inline JSON is not portable.** How PowerShell passes embedded quotes to a native command
   depends on its version and `$PSNativeCommandArgumentPassing` (pointer:
-  [Passing arguments that contain quote characters](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_parsing#passing-arguments-that-contain-quote-characters);
-  as of 2026-11-10; recheck when that section changes which modes keep embedded quotes), so no
+  [Passing arguments that contain quote characters](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_parsing#passing-arguments-that-contain-quote-characters)),
+  so no
   one quoting of `{"url":"..."}` arrives intact under every mode.
 - **A curl config file fixes the quoting and breaks the prompt.** `curl.exe -q -K <file>` shows the
   operator a filename. The URL, the `data` reference, any `output` directive, and redirect behavior
@@ -116,8 +116,7 @@ exact command, path included, before it runs.
 
 `--max-filesize` is best-effort: on some curl versions a chunked reply from a compromised or
 malfunctioning converter can exceed the stated cap (which versions: curl's manual,
-[`--max-filesize`](https://curl.se/docs/manpage.html#--max-filesize); as of 2026-11-10; recheck when
-that entry changes how a response of unknown length is handled). Treat the
+[`--max-filesize`](https://curl.se/docs/manpage.html#--max-filesize)). Treat the
 byte cap as a courtesy limit and `--max-time` as the real ceiling on how much third-party text can
 arrive.
 
