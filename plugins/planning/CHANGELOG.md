@@ -3,6 +3,13 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.3] - 2026-11-12
+
+### Changed
+
+- `/planning:draft-goal-condition` routes multi-window work to decomposed items so each starts in
+  a fresh window, and links the context-window docs for what a window carries across a compaction.
+
 ## [3.1.2] - 2026-11-12
 
 ### Changed
