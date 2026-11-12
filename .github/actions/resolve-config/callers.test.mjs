@@ -334,8 +334,14 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
   const args = "--model sonnet --max-turns 30 --effort medium";
   assert.equal(runs("", args), true, "a failed or false born-triaged check falls through to the reusable's gate");
   assert.equal(runs("false", args), true);
-  assert.equal(runs("true", args), false, "a born-triaged issue skips intake");
-  assert.equal(runs("true", args, "workflow_dispatch"), true, "a dispatch triages a born-triaged issue");
+  assert.equal(runs("true", args), false, "a born-triaged or routed issue skips intake");
+  assert.equal(runs("true", args, "workflow_dispatch"), false, "a dispatch skips an issue the gate skips: a routing label");
+  assert.equal(runs("false", args, "workflow_dispatch"), true, "a dispatch triages an issue the gate passes");
+  const check = gate.steps.find((step) => step.id === "check");
+  const bornTriaged = (event, action) => evaluate(check.with["born-triaged"], { "github.event_name": event, "github.event.action": action });
+  assert.equal(bornTriaged("issues", "opened"), true, "an opened issue gets the born-triaged rule");
+  assert.equal(bornTriaged("issues", "reopened"), false, "a reopened born-triaged issue re-acquires the floor label");
+  assert.equal(bornTriaged("workflow_dispatch", ""), false, "a dispatch triages a born-triaged issue");
   assert.equal(runs("false", args, "issues", "true", "false", "reopened"), false, "a reopened issue gets the floor label only, no triage");
   assert.equal(runs("", ""), false, "intake never runs without resolved claude-args");
   assert.equal(runs("false", ""), false);
@@ -411,7 +417,12 @@ test("intake-triage.yml: the kill switch stops the born-triaged check and the fl
   const gate = jobs["born-triaged"];
   const checks = (action) => evaluate(gate.if, { "github.event_name": "issues", "github.event.action": action, "github.ref": "refs/heads/main" });
   assert.equal(checks("opened"), true);
-  assert.equal(checks("reopened"), false, "a reopened issue re-acquires the floor label");
+  assert.equal(checks("reopened"), true, "a reopened issue is checked for a routing label");
+  const checkout = gate.steps.find((step) => step.uses?.startsWith("actions/checkout@"));
+  const sparse = checkout.with["sparse-checkout"].trim().split("\n");
+  for (const path of [...importClosure(".github/scripts/pr-merge/merge-holds.mjs"), "docs/conventions/work-items.yaml"]) {
+    assert.ok(sparse.includes(`/${path}`), `the gate's sparse checkout lacks ${path}, which holds the routing labels`);
+  }
   const label = jobs["intake-label-needs-triage"];
   assert.deepEqual(label.needs, ["kill-switch", "born-triaged"]);
   const labels = (proceed, skip, limited = "false", event = "issues") =>
@@ -423,7 +434,7 @@ test("intake-triage.yml: the kill switch stops the born-triaged check and the fl
     });
   assert.equal(labels("true", ""), true, "a skipped or failed born-triaged check still labels");
   assert.equal(labels("true", "false"), true);
-  assert.equal(labels("true", "true"), false, "a born-triaged issue keeps no floor label");
+  assert.equal(labels("true", "true"), false, "a born-triaged or routed issue gets no floor label");
   assert.equal(labels("false", ""), false, "the kill switch stops the label");
   assert.equal(labels("", ""), false, "a failed kill-switch job stops the label");
   assert.equal(labels("true", "false", "true"), false, "a rate limit on the gate's read stops the label's calls");
@@ -437,9 +448,9 @@ test("intake-triage.yml: the kill switch stops the born-triaged check and the fl
 });
 
 // One run per issue event: intake-triage.yml takes the reopen too, for the
-// floor label only, so no job that triages, writes through the broker or
-// dispatches runs on it.
-test("intake-triage.yml: a reopened issue runs only the kill switch and the floor label", () => {
+// routing-label gate and the floor label only, so no job that triages, writes
+// through the broker or dispatches runs on it.
+test("intake-triage.yml: a reopened issue runs only the gate, the kill switch and the floor label", () => {
   const { on, jobs } = workflow("intake-triage.yml");
   assert.deepEqual(on.issues.types, ["opened", "reopened"]);
   assert.equal(existsSync(new URL("../../workflows/intake-label-needs-triage.yml", import.meta.url)), false, "no second workflow on the same issue event");
@@ -448,9 +459,9 @@ test("intake-triage.yml: a reopened issue runs only the kill switch and the floo
     "github.event.action": "reopened",
     "github.ref": "refs/heads/main",
     "needs.kill-switch.outputs.proceed": "true",
-    // born-triaged is skipped, so its outputs are empty.
-    "needs.born-triaged.outputs.skip": "",
-    "needs.born-triaged.outputs.rate-limited": "",
+    // The gate finds no routing label on the reopened issue.
+    "needs.born-triaged.outputs.skip": "false",
+    "needs.born-triaged.outputs.rate-limited": "false",
     "needs.born-triaged.outputs.claude-args": "--model sonnet",
   };
   const ran = new Set();
@@ -464,7 +475,7 @@ test("intake-triage.yml: a reopened issue runs only the kill switch and the floo
     );
     if (job.if === undefined || evaluate(job.if, { ...reopened, ...results, ...outputs })) ran.add(id);
   }
-  assert.deepEqual([...ran].sort(), ["intake-label-needs-triage", "kill-switch"]);
+  assert.deepEqual([...ran].sort(), ["born-triaged", "intake-label-needs-triage", "kill-switch"]);
 });
 
 // Folding the floor label in gave no job a permission it did not hold in

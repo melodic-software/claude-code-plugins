@@ -35,7 +35,9 @@
 // listed human releases that hold (docs/contracts/loop-lane/README.md, the
 // label table), and their release re-enters an issue at
 // `needs-owner-decision` (owner decision on #10735). At `status: confirmed`
-// it re-enters nothing, so the decision is posted again after it;
+// it re-enters nothing, so the decision is posted again after it. Nor does
+// anything on an issue whose own labels hold a routing label
+// (check-born-triaged.mjs routingLabel): intake skips it;
 //
 // then, on a comment or a needs-human removal, it sets the Work status field
 // to needs-triage and dispatches intake-triage.yml once, only for an issue
@@ -71,9 +73,11 @@
 //   LANES_APP_ID          the lanes App bot's user id, or empty
 //   KILL_SWITCH           `proceed`, or the run stops before any API call
 //   GITHUB_API_URL
+import { join } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
+import { readRouting, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { createGitHub, GitHubError, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { authorAdmitted, confirmedOnly } from "../intake-triage/admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
@@ -351,7 +355,9 @@ const ANSWERED = {
   statusless: [[], null],
 };
 
-export async function main({ env = process.env, github, log = console.log, statusOf } = {}) {
+// `routing` overrides the binding's routing labels, read by default from
+// BASE_PATH's work-items.yaml (check-born-triaged.mjs readRouting).
+export async function main({ env = process.env, github, log = console.log, statusOf, routing } = {}) {
   try {
     if (env.KILL_SWITCH !== "proceed") {
       log("intake-reenter: the kill switch stops this run; nothing read or labeled");
@@ -368,6 +374,11 @@ export async function main({ env = process.env, github, log = console.log, statu
     const repository = env.GITHUB_REPOSITORY;
     const base = `/repos/${repository}/issues/${env.ISSUE_NUMBER}`;
     const issue = await client("GET", base);
+    const routed = routingLabel(labelNames(issue).filter(Boolean), routing ?? readRouting(join(env.BASE_PATH || ".base", "docs/conventions/work-items.yaml"), { who: "intake-reenter", log }));
+    if (routed) {
+      log(`intake-reenter: the issue carries '${routed}', a container or wayfind label, so the skill that filed it routes it; nothing changed`);
+      return 0;
+    }
     if (field) {
       return await releaseField({ client, repository, base, issue, humans, lanesAppId, env, log });
     }
