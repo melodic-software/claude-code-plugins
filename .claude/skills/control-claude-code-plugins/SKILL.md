@@ -139,7 +139,7 @@ The driving tool's `## Mask`.
 - tdd | features/tdd/README.md | entry points: 4 | sources: plugins/tdd/skills/*/SKILL.md
 - testing | features/testing/README.md | entry points: 4 | sources: plugins/testing/skills/*/SKILL.md
 - toolchain | features/toolchain/README.md | entry points: 4 | sources: plugins/toolchain/skills/*/SKILL.md
-- typos-format | features/typos-format/README.md | entry points: 4 | sources: plugins/typos-format/skills/*/SKILL.md
+- spelling | features/spelling/README.md | entry points: 4 | sources: plugins/spelling/skills/*/SKILL.md
 - user-experience | features/user-experience/README.md | entry points: 4 | sources: plugins/user-experience/skills/*/SKILL.md
 - user-interface | features/user-interface/README.md | entry points: 4 | sources: plugins/user-interface/skills/*/SKILL.md
 - verification | features/verification/README.md | entry points: 4 | sources: plugins/verification/skills/*/SKILL.md

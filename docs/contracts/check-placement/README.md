@@ -39,7 +39,7 @@ and what reaches the model.
    place, and CI re-runs it on the change only. Formatters are the one exception: they run once
    per batch in session (when within the ceiling below) and again at `pre-commit`. The opt-in
    end-of-turn hand-back is not an exception, because the
-   [typos-format pilot](#typos-format-pilot-2026-10-15) left it off by default. markdown-format's
+   [spelling pilot](#spelling-pilot-2026-10-15) left it off by default. markdown-format's
    default end-of-turn report is the one stated exception
    ([#11502](https://github.com/melodic-software/claude-code-plugins/issues/11502)): its lint
    runs at turn end and again at `pre-commit`, and the turn-end findings go to the user only.
@@ -75,7 +75,7 @@ see the [hooks reference](https://code.claude.com/docs/en/hooks). As of 2026-10-
   `<plugin>_end_of_turn` userConfig boolean, default `false`. Its findings exit 2, so the model
   fixes them before the turn ends; the row honors `stop_hook_active` and blocks at most once per
   turn. The hand-back stays off by default for every report-only plugin, per the
-  [typos-format pilot](#typos-format-pilot-2026-10-15).
+  [spelling pilot](#spelling-pilot-2026-10-15).
 - **markdown-format reports at turn end by default.** Its `markdown_format_end_of_turn` has no
   default: unset, the `Stop` row exits 0 with the findings in a `systemMessage`, which the user
   sees and the model does not, and the turn ends. `true` is the hand-back above; `false` runs
@@ -86,7 +86,7 @@ see the [hooks reference](https://code.claude.com/docs/en/hooks). As of 2026-10-
 No `TaskCompleted` gate is used. In-session blocking verification, where a plugin has it, runs
 from `Stop`; for report-only checks the `pre-commit` gate stays the default blocking point, and
 their `Stop` row stays opt-in as stated above. Reason: in the
-[typos-format pilot](#typos-format-pilot-2026-10-15) the end-of-turn check never fired, because
+[spelling pilot](#spelling-pilot-2026-10-15) the end-of-turn check never fired, because
 the `pre-commit` hook caught every finding first, so a per-task gate has no measured catch to earn
 its cost. Revisit when a finding reaches a commit that no hook caught.
 Dissent: Lydia Hallie's talk "Rethinking Claude Code Best Practices"
@@ -328,7 +328,7 @@ Every git-hook entry has a test and a measured cost row in the table below. A ch
 builds a throwaway repository, stages a file, runs the script, and asserts exit code and stderr;
 each check carries at least one stay-quiet case ([hook-precision](../hook-precision/README.md)).
 
-## typos-format pilot (2026-10-15)
+## spelling pilot (2026-10-15)
 
 Claude Code 2.1.301, Sonnet, headless, one multi-edit task over four files with seeded misspellings
 in a passage the prompt asked to paste verbatim, then a commit; user settings excluded so only the
@@ -386,7 +386,7 @@ marketplace comes from these rows.
 
 | Hook | Placement | Measured | Host | Date |
 |---|---|---|---|---|
-| typos-format `pre-commit` entry (typos 1.51.1, plain dispatcher), staged sets from real `origin/main` commits | pre-commit | 1 file 0.039 s (0.038-0.040); 10 files 0.125 s (0.122-0.133); 44 files 0.508 s (0.491-0.681) | reference host (Linux, WSL2, 32 CPUs) | 2026-10-15 |
+| spelling `pre-commit` entry (typos 1.51.1, plain dispatcher), staged sets from real `origin/main` commits | pre-commit | 1 file 0.039 s (0.038-0.040); 10 files 0.125 s (0.122-0.133); 44 files 0.508 s (0.491-0.681) | reference host (Linux, WSL2, 32 CPUs) | 2026-10-15 |
 | guardrails `commit-msg-convention` entry, one message | commit-msg | 10 ms median (9-11) | reference host (Linux, WSL2) | 2026-10-16 |
 | guardrails `pre-commit-content` entry, staged sets from real `origin/main` commits | pre-commit | 1 file 0.039 s (0.036-0.040); 10 files 0.311 s (0.298-0.337); 44 files 1.277 s (1.206-1.450), re-measured 1.302 s (1.209-1.467) once it was the only guardrails `pre-commit` entry | reference host (Linux, WSL2) | 2026-10-16 |
 | guardrails `reference-verify` entry, the 44-file `origin/main` commit (37 of its files are `.md`/`.sh`) as one pushed range | pre-push | 10.6 s median (10.1-12.5); 15.7 s on the first run in a clone, which builds the deleted-path cache | reference host (Linux, WSL2) | 2026-10-16 |
@@ -398,7 +398,7 @@ marketplace comes from these rows.
 | markdown-format, per edit (`.md`, configured) | PostToolUse today | 180 ms median (174-186) | reference host (Linux, WSL2) | 2026-10-15 |
 | powershell-format, per edit (`.ps1`, configured) | PostToolUse today | 973 ms median (918-1,026) | reference host (Linux, WSL2) | 2026-10-15 |
 | ruff-format, per edit (`.py`, configured) | PostToolUse today | 75 ms median (73-83) | reference host (Linux, WSL2) | 2026-10-15 |
-| typos-format, per edit (`.md`) | PostToolUse until removed; now pre-commit | 59 ms median (56-63) | reference host (Linux, WSL2) | 2026-10-15 |
+| spelling, per edit (`.md`) | PostToolUse until removed; now pre-commit | 59 ms median (56-63) | reference host (Linux, WSL2) | 2026-10-15 |
 
 The per-edit rows are today's `PostToolUse` rows run from each plugin's `hooks/hooks.json` with a
 sample that needs work (hyperfine, 2 warmups, 10 runs; a 15 ms spawn baseline is included). They

@@ -468,6 +468,9 @@ plugins/source-control/skills/setup/reference/*.md
 plugins/source-control/skills/worktree/context/*.md
 plugins/source-control/skills/worktree/fixtures/*.md
 plugins/source-control/skills/worktree/reference/*.md
+plugins/spelling/README.md
+plugins/spelling/CHANGELOG.md
+plugins/spelling/skills/*/SKILL.md
 # The tdd plugin was purged whole. Five verbatim Beck and Khorikov quotations keep their em dashes
 # inside markers naming the source; the gate honors those.
 plugins/tdd/*.md
@@ -479,9 +482,6 @@ plugins/toolchain/CHANGELOG.md
 plugins/toolchain/reference/*.md
 plugins/toolchain/skills/*/SKILL.md
 plugins/toolchain/skills/check/context/*.md
-plugins/typos-format/README.md
-plugins/typos-format/CHANGELOG.md
-plugins/typos-format/skills/*/SKILL.md
 plugins/verification/README.md
 plugins/verification/CHANGELOG.md
 plugins/verification/skills/*/SKILL.md

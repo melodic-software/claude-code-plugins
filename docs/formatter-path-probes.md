@@ -12,7 +12,7 @@ host or harness dispatch failure, not a PATH miss, and
 [#3549](https://github.com/melodic-software/claude-code-plugins/issues/3549) carries it.
 
 **Claim:** "no `PostToolUse` hook completes" is not a general property of Claude Code 2.1.x:
-Linux 2.1.258 completes the two-line probe and a real `typos-format` `PostToolUse` with a full
+Linux 2.1.258 completes the two-line probe and a real `spelling` `PostToolUse` with a full
 plugin fleet. **Basis:** the 2026-09-06 triage probe on #3549 (both `pre-` and `post-` lines
 present, isolated `CLAUDE_CONFIG_DIR` and real `~/.claude`). **As of:** 2026-09-28.
 **Recheck:** the Windows `claude --debug` result on #3549. Until it names a cause, do not raise
@@ -41,7 +41,7 @@ The per-edit notice rules above apply to the hooks this table no longer lists.
 | `biome-format` | `hooks/biome-format.sh` / `git-hooks/biome-check.sh` | `node_modules/.bin/biome` under the governing config, then `command -v biome` | `npm i -D @biomejs/biome` | pre-commit contract | `lib/prerequisites.mjs check`; SessionStart probe |
 | `ruff-format` | `hooks/ruff-format.sh` / `git-hooks/ruff-check.sh` | `.venv/{bin,Scripts}/ruff`, then `command -v ruff` | project `.venv` / `pip install ruff` | pre-commit contract | `lib/prerequisites.mjs check`; SessionStart probe |
 | `bash-format` | `hooks/bash-format.sh` / `git-hooks/shell-check.sh` | `command -v shfmt`, `command -v shellcheck` | host package / release binary (no npm form) | pre-commit contract | `lib/prerequisites.mjs check`; SessionStart probe |
-| `typos-format` | none / `git-hooks/typos-check.sh` | `command -v typos` | cargo / release binary | pre-commit contract | `lib/prerequisites.mjs check`; SessionStart probe |
+| `spelling` | none / `git-hooks/typos-check.sh` | `command -v typos` | cargo / release binary | pre-commit contract | `lib/prerequisites.mjs check`; SessionStart probe |
 | `go-format` | `hooks/go-format.sh` / `git-hooks/goimports-format.sh` | `command -v goimports`, `command -v go` | `go install …/goimports@latest` | pre-commit contract | `lib/prerequisites.mjs check`; SessionStart probe |
 | `powershell-format` | none / `git-hooks/powershell-check.sh` | `command -v pwsh`, then the PSScriptAnalyzer module | host PowerShell install | pre-commit contract (pwsh and PSScriptAnalyzer) | `lib/prerequisites.mjs check`; SessionStart probe |
 | `actionlint` | none / `git-hooks/actionlint-check.sh` | `command -v actionlint` | release binary / `go install` | pre-commit contract | `lib/prerequisites.mjs check`; SessionStart probe |

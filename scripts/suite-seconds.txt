@@ -667,6 +667,7 @@ plugins/speech/scripts/test_assets.py 1
 plugins/speech/scripts/test_elevenlabs.py 1
 plugins/speech/scripts/test_narrate.py 1
 plugins/speech/scripts/test_speech_pydeps.py 6
+plugins/spelling/hooks/spelling.test.sh 12
 plugins/testing/hooks/test-scan.test.sh 11
 plugins/testing/hooks/test-weaken.test.sh 6
 plugins/testing/scripts/gen-hook-filters.test.sh 1
@@ -675,7 +676,6 @@ plugins/testing/skills/audit/evals/judge-calibration/metrics.test.sh 6
 plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh 200
 plugins/testing/skills/setup/scripts/setup.test.sh 2
 plugins/testing/tests/fix-until-green.test.sh 1
-plugins/typos-format/hooks/typos-format.test.sh 12
 plugins/wizard/skills/generate/template.test.sh 1
 plugins/wizard/skills/unattended/template.test.sh 112
 plugins/work-items/scripts/backfill-capability-tier-labels.test.sh 1

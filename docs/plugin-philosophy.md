@@ -828,10 +828,10 @@ paper over the gap; name every reason that applies; at least one always does.
 The discriminator is the preamble, not the install command. A plugin that exists to drive a CLI
 (context7's `ctx7`, playwright's `@playwright/cli`) installs it machine-globally under the
 Machine-global CLI shape. A plugin whose hook only runs a tool over the consumer's files
-(go-format's `goimports`, typos-format's `typos`) refuses under the list above, though that tool is
+(go-format's `goimports`, spelling's `typos`) refuses under the list above, though that tool is
 also its subject. A machine-global or `@latest` install is not itself a reason to refuse.
 
-`go-format` (no `install-goimports`: the hook resolves `PATH` only, reason 1) and `typos-format` (no
+`go-format` (no `install-goimports`: the hook resolves `PATH` only, reason 1) and `spelling` (no
 `install-typos`: cargo, Homebrew, Conda, pacman or a pre-built binary, reasons 1 and 2) are the
 current refusals. They stay; they are not defects against a missing subaction.
 
@@ -841,7 +841,7 @@ current refusals. They stay; they are not defects against a missing subaction.
 - **Pointer:** #3574. What each live subaction installs, and where, is stated in the setup skill
   that declares it: each `plugins/*/skills/setup/SKILL.md` naming an `install-*` subaction. The
   refusals: `plugins/go-format/skills/setup/SKILL.md` and
-  `plugins/typos-format/skills/setup/SKILL.md`. Tokens such as `install-hint` and
+  `plugins/spelling/skills/setup/SKILL.md`. Tokens such as `install-hint` and
   `install-browser` are not setup subactions.
 - **Recheck trigger:** a setup skill adds an install subaction that fits none of the four shapes, a live
   subaction changes what or where it installs, or a maintainer converges the fleet onto one

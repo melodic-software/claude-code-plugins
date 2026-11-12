@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Preferred: `claude plugin configure spelling@melodic-software --values-stdin < values.json`.\n\nOlder release: `claude plugin install spelling@melodic-software -s user --config spelling_enabled=false`."
+    },
+    {
+      "answer": "claude plugin configure spelling@melodic-software --values-stdin < values.json\nclaude plugin install -s project spelling@melodic-software --config spelling_enabled=false",
+      "why": "scope before the plugin"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "claude plugin install spelling@melodic-software --config spelling_enabled=false\nclaude plugin configure spelling@melodic-software --values-stdin < values.json",
+      "why": "near miss: fallback first"
+    },
+    {
+      "answer": "claude plugin configure spelling@melodic-software --values-stdin < values.json",
+      "why": "near miss: no fallback"
+    }
+  ]
+}

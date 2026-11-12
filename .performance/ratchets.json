@@ -29,11 +29,11 @@
       "goal": "With a guard launch marked, a warm Stop's monitor reads the same transcript bytes at 10 MiB as at 50 KiB (guard_launch_monitor.py incremental read, #4422). Measured on ubuntu-24.04 with bash 5.2.21, python3 3.14.7, strace 6.8; the ratchet step prints the current versions. Correlation: unproven: not measured"
     },
     {
-      "name": "typos-format-stop-end-of-turn-option-off-spawns",
-      "command": "bash scripts/hook-census.sh typos-format Stop typos-format.sh '{\"session_id\":\"census\",\"hook_event_name\":\"Stop\",\"stop_hook_active\":false,\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "name": "spelling-stop-end-of-turn-option-off-spawns",
+      "command": "bash scripts/hook-census.sh spelling Stop spelling.sh '{\"session_id\":\"census\",\"hook_event_name\":\"Stop\",\"stop_hook_active\":false,\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
       "ceiling": 1,
-      "goal": "With typos_format_end_of_turn at its default (false), the Stop row costs only the node launcher: the --require-true gate closes before bash starts. Stop fires on every turn end, so this is what every turn costs a user who never opted in. Measured 1 on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
+      "goal": "With spelling_end_of_turn at its default (false), the Stop row costs only the node launcher: the --require-true gate closes before bash starts. Stop fires on every turn end, so this is what every turn costs a user who never opted in. Measured 1 on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
     },
     {
       "name": "ruff-format-posttoolbatch-no-python-spawns",
