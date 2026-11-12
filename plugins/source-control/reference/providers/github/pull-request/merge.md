@@ -59,9 +59,7 @@ gh pr comment <pr_number> --body '@dependabot rebase'
 
 When the only foreign commits are merges of the base, comment `@dependabot recreate` instead;
 any other foreign commit is someone's work that a recreate would discard, so leave the PR to a
-person. Pointer: [Dependabot pull request comment commands](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-pull-request-comment-commands#commands-for-dependabot-pull-requests). As of: 2026-10-24. Recheck
-trigger: that section changes what rebase or recreate does to a branch that carries another
-author's commits.
+person. Pointer: [Dependabot pull request comment commands](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-pull-request-comment-commands#commands-for-dependabot-pull-requests).
 
 For another manager, use its own documented rebase trigger.
 
@@ -97,8 +95,7 @@ done
 ```
 
 `mergeable_state` is the REST form of GraphQL's `mergeStateStatus`, lowercased:
-[MergeStateStatus enum](https://docs.github.com/graphql/reference/enums#mergestatestatus), as of
-2026-10-13; recheck when that enum changes.
+[MergeStateStatus enum](https://docs.github.com/graphql/reference/enums#mergestatestatus).
 
 ## Merge command
 
@@ -312,9 +309,6 @@ the result, and `enqueue` again means the mutation returned but the PR is not in
   [managing a merge queue](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue);
   the mutation and its `expectedHeadOid` input:
   [enqueuePullRequest](https://docs.github.com/graphql/reference/mutations#enqueuepullrequest).
-- **As of**: 2026-10-11
-- **Recheck trigger**: a gh release that changes how `gh pr merge` enqueues, or a change to
-  `enqueuePullRequest` or its input on that page.
 
 ## Latest run on the default branch
 

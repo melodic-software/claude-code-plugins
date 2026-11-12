@@ -55,9 +55,8 @@ sweep. The bare word `unattended` is not this flag: stop and name `--unattended`
    The conversation itself is another machine-local, non-durable item:
    transcripts live only in this machine's `~/.claude` tree and are
    retention-swept besides (pointer:
-   [All settings § cleanupPeriodDays](https://code.claude.com/docs/en/settings-reference#cleanupperioddays);
-   as of 2026-10-11; recheck trigger: that setting is renamed or stops
-   governing transcript retention). When the session is worth keeping:
+   [All settings § cleanupPeriodDays](https://code.claude.com/docs/en/settings-reference#cleanupperioddays)).
+   When the session is worth keeping:
    If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. **`--unattended`:** make no suggestion.
    That destination is machine-local, so when the machine may go away, also
    surface copying the export off the machine as a "preserve off the machine" item.
@@ -97,8 +96,7 @@ sweep. The bare word `unattended` is not this flag: stop and name `--unattended`
    what `git worktree remove` refuses or deletes, read
    [git-status `--ignored`](https://git-scm.com/docs/git-status#Documentation/git-status.txt---ignoredmode)
    and [git-worktree `remove`](https://git-scm.com/docs/git-worktree#Documentation/git-worktree.txt-remove)
-   live (as of 2026-11-03; recheck when either entry changes how ignored
-   files are listed or removed). Anything still holding unmerged commits, dirty state,
+   live. Anything still holding unmerged commits, dirty state,
    irreplaceable ignored files, or a running job is NOT pruned. It becomes a
    named item in the verdict.
 5. **Free-and-clear verdict.** Lead the report with one of two honest

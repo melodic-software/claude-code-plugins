@@ -12,7 +12,7 @@ Full detail for `/source-control:worktree audit`. SKILL.md carries the headline 
 |-------|-----|----------|
 | `delete_branch_on_merge` | Read the repository's `delete_branch_on_merge` setting ([GitHub](../../../reference/providers/github/README.md#branch-rules)) | `true` recommended: remote branches auto-delete on merge, so cleanup only handles local branches |
 | Worktree root convention | `bash "<scripts-dir>/worktree-root-doctor.sh" --repo-dir <repo>` | Exit 0. The doctor makes the `worktreeroot.path` / `includeIf` silent-failure classes loud (misfiring conditions, missing include files, parse-order shadowing, a root inside a repository) and names which rule supplied this repository's root; report each `warn:`/`error:` line as a finding. Convention: `reference/worktree-root-convention.md` |
-| Gitignored-file propagation | Check whether a `.worktreeinclude` file exists at the repo root | Optional. Suggest when the project keeps local secrets/config in gitignored files (e.g. `.claude/settings.local.json`). Under this plugin's `WorktreeCreate` hook the copy is the hook's job, and `worktree-create.sh` does it. Pointer: [worktrees: copy gitignored files into worktrees](https://code.claude.com/docs/en/worktrees#copy-gitignored-files-into-worktrees); as of 2026-10-11; recheck when that section changes who copies the files under a hook |
+| Gitignored-file propagation | Check whether a `.worktreeinclude` file exists at the repo root | Optional. Suggest when the project keeps local secrets/config in gitignored files (e.g. `.claude/settings.local.json`). Under this plugin's `WorktreeCreate` hook the copy is the hook's job, and `worktree-create.sh` does it. Pointer: [worktrees: copy gitignored files into worktrees](https://code.claude.com/docs/en/worktrees#copy-gitignored-files-into-worktrees) |
 | Project worktree hooks | If the project registers `WorktreeCreate` / SessionStart setup hooks in its settings, confirm they are present as its docs expect | Per project convention. Skip when the project has none |
 | Stale metadata | `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>` shows `prunable=no` on every row | Clean. Otherwise suggest `git worktree prune` via `/source-control:worktree cleanup` |
 | Worktree nested in another repository | The `worktree-root-doctor.sh` run above: for each registered worktree it walks up from the path and emits an `error:` line when an ancestor is the work tree of a repository with a different git common dir | No such `error:` line. A worktree inside its own repository's tree, or under the resolved worktree root, is not flagged; a missing or unreadable ancestor ends the walk without failing the audit. The line names the owning repository, the containing repository and the `git worktree remove` command; report it and emit the command, never run it |
@@ -27,10 +27,9 @@ removes itself (a `--worktree` session exit, `ExitWorktree`, a background-sessio
 by this plugin's `WorktreeRemove` hook (`hooks/worktree-remove-gate.sh`), which leaves the worktree
 on disk when it has uncommitted or untracked work or the reap fails. Subagent and workflow-agent
 worktrees are not: Claude Code keeps them and runs no `WorktreeRemove` hook, so they stay until
-`cleanup` removes them. Pointer: [hooks: WorktreeRemove](https://code.claude.com/docs/en/hooks#worktreeremove);
-as of 2026-10-26; recheck when that section changes which removals fire the event. Every worktree
-removed any other way left its records behind, and they accumulate indefinitely because nothing
-else reaps a record whose path is gone. Audit makes them visible.
+`cleanup` removes them. Pointer: [hooks: WorktreeRemove](https://code.claude.com/docs/en/hooks#worktreeremove).
+Every worktree removed any other way left its records behind, and they accumulate indefinitely
+because nothing else reaps a record whose path is gone. Audit makes them visible.
 
 **Read-only. This step reports; it never removes a record.** A project-scope record for a live
 repository on an unmounted network share or detached external volume is indistinguishable from a dead worktree to a bare existence check, so nothing here may act
@@ -109,8 +108,7 @@ runs the remedy on each confirmed path. The remedy must run from the recorded di
 measured for project scope in [fixtures/README.md](../fixtures/README.md) under
 `project-scope-reap-probe.sh`; `-s local` is unmeasured and treated the same.
 For the uninstall command's scope flags and options, see
-[plugin uninstall](https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall) (as of
-2026-11-03; recheck when that section adds a path or project option to the command). The remedy:
+[plugin uninstall](https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall). The remedy:
 
 ```bash
 # Only paths the user has individually confirmed are dead worktrees — not another
@@ -123,8 +121,7 @@ bash "<remedy>" "<path>" ["<path>" ...]
 paths, in the order to reap them. Do not emit
 `${CLAUDE_PLUGIN_ROOT}` here: that variable is set for the tooling that runs this skill, not in the
 user's shell, so a pasted command carrying it expands to `/scripts/…` and exits 127. Pointer:
-[plugin manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves);
-as of 2026-10-11; recheck when that section starts resolving the variable in the user's shell.
+[plugin manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves).
 
 For each path, in order, the script runs: plain `mkdir`,
 `cd` into it, `scripts/reap-project-plugin-records.sh --worktree-path <path> --dry-run`, the same

@@ -233,9 +233,6 @@ prefix, `Bash(bash '<plugin-root>/shared/wake.sh' *)` with the path spelled out 
 it, and `Bash(bash '<plugin-root>/shared/watch.sh' *)` for a bare re-arm.
 
 - **Pointer:** [permissions: wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns).
-- **As of:** 2026-10-16.
-- **Recheck trigger:** that section changes how a prefix rule matches, or a wake prompts again with
-  the rule in place.
 
 ## Events
 
