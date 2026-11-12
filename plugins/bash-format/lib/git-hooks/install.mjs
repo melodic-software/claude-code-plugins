@@ -9,7 +9,7 @@
 //   install.mjs list     [common]
 //   install.mjs plan     --scope local|shared|remote [--manager <m>] [common]
 //   install.mjs copy     --scope local|shared [--entry <name>]... [--manager <m>] [--force] [common]
-//   install.mjs decline  --entry <name> [--undo] [--global] [common]
+//   install.mjs decline  --entry <name> [--undo|--opt-in] [--global|--file <config file>] [common]
 //   install.mjs verify   [--quiet] [common]
 //   install.mjs config-hook --include-if <condition> [--force] [common]
 //   common: [--repo <dir>] [--plugin-root <dir>]
@@ -29,12 +29,22 @@
 // holding its `[hook "<plugin>-<entry>"]` block under the user's git config
 // directory; the includeIf line that loads it comes back as a decision.
 //
+// After a rename, plan lists the entry's decline lines under the earlier name
+// from this clone's config and from every shared file (system, both global
+// files, and everything they include, whatever the condition), and marks each
+// for carry-over so no clone's decline changes (carryOver()). Out of reach,
+// and so out of scope: another clone's own .git/config; linked worktrees,
+// which share this clone's local file and are treated as this clone; a file a
+// local include pulls in, treated as this clone's; and lines from the command
+// line (`-c`, GIT_CONFIG_COUNT), which name no file and are reported only.
+//
 // Exit 0 done; 1 verify found drift, or copy or config-hook refused a locally
 // modified copy, or copy a target that is or passes through a symlink;
 // 2 usage, a bad manifest, or not a git repository (verify --quiet exits 0).
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  accessSync,
   chmodSync,
   closeSync,
   constants,
@@ -495,25 +505,88 @@ function configEntries(info, re, args = []) {
   }
   return out;
 }
-// fileBool(info, file, key) -> true | false as git reads key in that one file,
-// or null for a value git does not take as a boolean.
-function fileBool(info, file, key) {
-  const r = git(info.top, ["config", "--file", file, "--type=bool", "--get", key]);
-  return r.ok ? r.out === "true" : null;
+// fileLines(info, file, re) -> [{ file, key, value }], one per line of that one
+// file (its includes not followed) whose key matches re, in file order; value
+// is git's boolean reading of that line, or null when git does not take it as one.
+function fileLines(info, file, re) {
+  const all = git(info.top, ["config", "--file", file, "--no-includes", "--type=bool", "--null", "--get-regexp", re]);
+  if (all.ok || all.status === 1) {
+    return all.out
+      .split("\0")
+      .filter(Boolean)
+      .map((t) => {
+        const [key, value] = t.split("\n");
+        return { file, key, value: value === "true" };
+      });
+  }
+  // A value git does not take as a boolean fails the whole listing: read each key's values.
+  const lines = configEntries(info, re, ["--file", file, "--no-includes"]);
+  const bools = new Map();
+  for (const key of new Set(lines.map((l) => l.key))) {
+    const r = git(info.top, ["config", "--file", file, "--no-includes", "--type=bool", "--null", "--get-all", key]);
+    bools.set(key, r.ok ? r.out.split("\0").map((v) => v === "true") : []);
+  }
+  const seen = new Map();
+  return lines.map((l) => {
+    const i = seen.get(l.key) ?? 0;
+    seen.set(l.key, i + 1);
+    return { file, key: l.key, value: bools.get(l.key)[i] ?? null };
+  });
 }
-// lineBool(info, line) -> true | false | null for one configEntries line.
-const lineBool = (info, d) => (d.file ? fileBool(info, d.file, d.key) : ({ true: true, false: false }[configBool(info, d.key)] ?? null));
-function priorDeclines(info, plugin, entry) {
-  return configEntries(info, `^checks\\.[^.]+\\.${escapeRe(entry.name)}\\.declined$`)
-    .map((d) => ({ ...d, from: d.key.split(".")[1], value: lineBool(info, d) }))
-    .filter((d) => d.from !== plugin.name && NAME_RE.test(d.from));
+// sharedConfig(info) -> { files: [{ file, scope, conditional }], unreadable }:
+// every config file other clones can read too. That is the system file (unless
+// GIT_CONFIG_NOSYSTEM is set) and the global files (GIT_CONFIG_GLOBAL, or
+// ~/.gitconfig and $XDG_CONFIG_HOME/git/config), each with every file it
+// includes, followed whatever the include's condition and to git's own depth
+// limit. conditional: reached only through an includeIf, so some clones do not
+// read it. unreadable: a file exists that cannot be read, or nesting passed the
+// depth limit, so what other clones read is not fully known.
+const INCLUDE_DEPTH = 10;
+function sharedConfig(info) {
+  const found = new Map();
+  let unreadable = false;
+  const visit = (file, scope, conditional, depth) => {
+    const known = found.get(file);
+    if (known) {
+      known.conditional &&= conditional;
+      return;
+    }
+    if (!existsSync(file)) return; // git skips a missing include, and so does every clone
+    try {
+      accessSync(file, constants.R_OK);
+    } catch {
+      unreadable = true;
+      return;
+    }
+    found.set(file, { file, scope, conditional });
+    for (const inc of configEntries(info, "^include(if\\..+)?\\.path$", ["--file", file, "--no-includes"])) {
+      if (!inc.value) continue;
+      if (depth >= INCLUDE_DEPTH) {
+        unreadable = true;
+        continue;
+      }
+      const target = inc.value.startsWith("~/") ? path.join(homedir(), inc.value.slice(2)) : path.resolve(path.dirname(file), inc.value);
+      visit(target, scope, conditional || inc.key.startsWith("includeif."), depth + 1);
+    }
+  };
+  // `git config --global` names one file, but a read takes both global files.
+  const xdg = process.env.XDG_CONFIG_HOME && path.isAbsolute(process.env.XDG_CONFIG_HOME) ? process.env.XDG_CONFIG_HOME : path.join(homedir(), ".config");
+  const globals = process.env.GIT_CONFIG_GLOBAL ? [path.resolve(process.env.GIT_CONFIG_GLOBAL)] : [path.join(xdg, "git", "config"), path.join(homedir(), ".gitconfig")];
+  if (!process.env.GIT_CONFIG_NOSYSTEM) {
+    for (const file of new Set(configEntries(info, ".", ["--system", "--no-includes"]).map((c) => c.file).filter(Boolean))) visit(file, "system", false, 0);
+  }
+  for (const file of globals) visit(file, "global", false, 0);
+  return { files: [...found.values()], unreadable };
 }
 // priorDecline -> the effective value (git's precedence per key) of the entry's
 // decline key under another plugin name: "true" when any such key reads true,
 // else "false" when one reads false (an opt-in, as copy writes over a master or
 // global decline), else "". The entry's own key, when set, wins over it.
 function priorDecline(info, plugin, entry) {
-  const values = [...new Set(priorDeclines(info, plugin, entry).map((d) => d.key))].map((k) => configBool(info, k));
+  const keys = configEntries(info, `^checks\\.[^.]+\\.${escapeRe(entry.name)}\\.declined$`)
+    .map((d) => d.key)
+    .filter((k) => k.split(".")[1] !== plugin.name && NAME_RE.test(k.split(".")[1]));
+  const values = [...new Set(keys)].map((k) => configBool(info, k));
   return values.includes("true") ? "true" : values.includes("false") ? "false" : "";
 }
 const isDeclined = (info, plugin, entry, prior = true) =>
@@ -1217,8 +1290,7 @@ function leftovers(info, plugin) {
     path.join(path.dirname(path.dirname(info.excludeFile)), "hooks"),
     checksRoot,
   ]);
-  // The files git reads at global scope itself, not through an include.
-  const mainGlobal = new Set(configEntries(info, ".", ["--global", "--no-includes"]).map((c) => c.file));
+  const sharedFiles = sharedConfig(info);
   for (const entry of plugin.entries) {
     const name = escapeRe(entry.name);
     for (const root of roots) {
@@ -1252,14 +1324,31 @@ function leftovers(info, plugin) {
         if (from !== plugin.name && text.includes(`${from}/${entry.script}`)) at(entry, from).jobs.push({ name: `${from}-${entry.name}`, file });
       }
     }
-    // Each line is unset in the file that sets it, and carried to the entry's
-    // own key in that same file (so a decline an includeIf scopes to some
-    // repositories stays scoped), so that following the plan changes no
-    // clone's decline: carryOver() decides per line.
-    const ownLines = configEntries(info, `^${escapeRe(declineKey(plugin, entry))}$`).map((o) => ({ ...o, value: lineBool(info, o) }));
-    for (const d of priorDeclines(info, plugin, entry)) {
-      const { carry, keep } = carryOver(d, ownLines, mainGlobal);
-      at(entry, d.from).declines.push({ key: d.key, scope: d.scope, file: d.file, value: d.value, carry, ...(keep ? { keep } : {}) });
+    // Every earlier-name decline line this clone can see or any clone shares:
+    // the shared files read directly (so a line in an include this clone does
+    // not match is listed too), then this clone's own local, worktree and
+    // command-line lines. Each is unset in its file and, where carryOver()
+    // allows, first carried to the entry's own key in that same file.
+    const declineRe = `^checks\\.[^.]+\\.${name}\\.declined$`;
+    const ownKey = declineKey(plugin, entry);
+    const sharedLines = sharedFiles.files.flatMap((f) =>
+      fileLines(info, f.file, declineRe).map((l) => ({ ...l, scope: f.scope, conditional: f.conditional })),
+    );
+    const here = configEntries(info, declineRe);
+    const sharedSet = new Set(sharedFiles.files.map((f) => f.file));
+    const hereScope = new Map(here.filter((d) => d.file && !sharedSet.has(d.file) && !["system", "global"].includes(d.scope)).map((d) => [d.file, d.scope]));
+    const hereLines = [
+      ...[...hereScope].flatMap(([file, scope]) => fileLines(info, file, declineRe).map((l) => ({ ...l, scope }))),
+      ...here.filter((d) => !d.file).map((d) => ({ key: d.key, scope: d.scope, file: null, value: null })),
+    ];
+    const ownShared = sharedLines.filter((l) => l.key === ownKey);
+    const ownHere = here.filter((d) => d.key === ownKey);
+    const lines = [...sharedLines, ...hereLines].filter((l) => l.key !== ownKey);
+    for (const d of lines) {
+      const from = d.key.split(".")[1];
+      if (from === plugin.name || !NAME_RE.test(from)) continue;
+      const { carry, keep } = carryOver(d, ownShared, ownHere, sharedFiles.unreadable);
+      at(entry, from).declines.push({ key: d.key, scope: d.scope, file: d.file, value: d.value, carry, ...(keep ? { keep } : {}) });
     }
     // Config-hook keys set in this repository's config; those the removed
     // include file sets go with it.
@@ -1274,28 +1363,36 @@ function leftovers(info, plugin) {
   return [...found.values()];
 }
 
-// carryOver(line, ownLines, mainGlobal) -> { carry, keep } for one earlier-name
-// decline line, so that writing the entry's own key with the line's value in
-// the line's file, then unsetting the line, changes no clone's decline. The
-// entry's own key, wherever it is set, wins over every earlier-name line.
-// - A line that is not a local or global file line, or not a boolean, is only unset.
-// - The own key in the same file: unset only; that file already decides.
-// - A local line decides only this clone: carry it when no own key is set here.
-// - A global line decides every clone its file reaches that sets no own key,
-//   and a local own key reaches only this clone. An own key at system scope
-//   or in a main global file reaches every clone, so the line is only unset.
-//   An own key in another include is shadowed by the carry wherever both
-//   apply, so a carry is safe only when it writes the same value; otherwise
-//   no carry keeps every clone and the line is kept for the user (keep).
-// An own key in an include this clone does not match is not visible here.
-function carryOver(d, ownLines, mainGlobal) {
-  if (!d.file || !["local", "global"].includes(d.scope) || d.value === null || ownLines.some((o) => o.file === d.file)) {
+// carryOver(line, ownShared, ownHere, unreadable) -> { carry, keep? } for one
+// earlier-name decline line, so that writing the entry's own key with the
+// line's value into the line's file, then unsetting the line, changes no
+// clone's decline. The entry's own key wins over every earlier-name line in
+// any clone that sees it. ownShared: the own key's lines in the shared files,
+// each marked conditional or not; ownHere: the own key as this clone sees it.
+// - No file, or a value git does not read as a boolean: unset only.
+// - The own key in the same file: unset only, since every clone reading the
+//   line reads the own key too.
+// - A line in this clone's local or worktree file reaches this clone (and its
+//   linked worktrees, which share the local file and are treated as it): carry
+//   when the own key is unset here, apart from a worktree file's own key,
+//   which sits above a local carry.
+// - A line in a shared file reaches every clone that reads that file; a clone's
+//   local own key sits above any shared carry, so only shared own keys count.
+//   One in a file every clone reads: unset only, every clone already has it.
+//   One in a conditional include with the other value: no carry is right for
+//   every clone (the carry, appended after that include, outranks it where both
+//   apply; no carry drops the decline elsewhere), so keep. The same value: carry.
+//   A shared file that cannot be read may hold either: keep.
+function carryOver(d, ownShared, ownHere, unreadable) {
+  if (!d.file || d.value === null || ownShared.some((o) => o.file === d.file) || ownHere.some((o) => o.file === d.file)) {
     return { carry: false };
   }
-  if (d.scope === "local") return { carry: ownLines.length === 0 };
-  if (ownLines.some((o) => o.scope === "system" || (o.scope === "global" && mainGlobal.has(o.file)))) return { carry: false };
-  const clash = ownLines.some((o) => o.scope === "global" && o.value !== d.value);
-  return clash ? { carry: false, keep: true } : { carry: true };
+  if (d.scope === "local") return { carry: !ownHere.some((o) => o.scope !== "worktree") };
+  if (d.scope === "worktree") return { carry: ownHere.length === 0 };
+  if (!["system", "global"].includes(d.scope)) return { carry: false };
+  if (ownShared.some((o) => !o.conditional)) return { carry: false };
+  if (unreadable || ownShared.some((o) => o.value !== d.value)) return { carry: false, keep: true };
+  return { carry: true };
 }
 
 // The removal a leftover needs, in words, for verify's detail.
