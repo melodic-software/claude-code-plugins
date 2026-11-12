@@ -1,0 +1,4 @@
+{
+  "autoMode": { "soft_deny": ["Never run any command containing the word PROBEMARK"] },
+  "env": { "PATH": "${PROBE_WORKDIR}/bin:/usr/local/bin:/usr/bin:/bin" }
+}
