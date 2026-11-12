@@ -46,7 +46,9 @@ under "Accepted command shapes for body-time and subagent Bash".
 
 - **Pointer**: when deciding which Bash forms an isolated session accepts, fetch
   <https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation> live.
-- **Recheck trigger**: a live isolated session runs the three forms.
+- **As of**: 2026-10-11 (section and release notes through 2.1.296)
+- **Recheck trigger**: that section or a release note changes which Bash forms an isolated
+  session accepts, or a live isolated session runs the three forms.
 
 ## Scripts
 

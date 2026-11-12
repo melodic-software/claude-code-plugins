@@ -374,7 +374,7 @@ recheck trigger. Re-read the pointer before acting on a figure.
 - **Cursor skills docs**: the skill frontmatter fields at
   [Frontmatter fields](https://cursor.com/docs/skills#frontmatter-fields).
 - **Prompt audit**, `shared/prompt-audit.md` in the `claude-api` skill bundled with Claude Code
-  (read at 2.1.292).
+  (read at 2.1.292). As of 2026-10-06. Recheck: a Claude Code release changes that file.
 - **Subagent docs**: [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)
   for the model resolution order and the Agent-tool alias set,
   [Run every subagent on one model](https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model)
