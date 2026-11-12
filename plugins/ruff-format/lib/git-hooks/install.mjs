@@ -494,9 +494,17 @@ function priorDeclines(info, plugin, entry) {
     .map((d) => ({ ...d, from: d.key.split(".")[1], value: isTrue(d.value) }))
     .filter((d) => d.from !== plugin.name);
 }
-const isDeclined = (info, plugin, entry) =>
+// priorDecline -> the effective value (git's precedence per key) of the entry's
+// decline key under another plugin name: "true" when any such key reads true,
+// else "false" when one reads false (an opt-in, as copy writes over a master or
+// global decline), else "". The entry's own key, when set, wins over it.
+function priorDecline(info, plugin, entry) {
+  const values = [...new Set(priorDeclines(info, plugin, entry).map((d) => d.key))].map((k) => configBool(info, k));
+  return values.includes("true") ? "true" : values.includes("false") ? "false" : "";
+}
+const isDeclined = (info, plugin, entry, prior = true) =>
   (configBool(info, declineKey(plugin, entry)) ||
-    (priorDeclines(info, plugin, entry).some((d) => d.value) ? "true" : "") ||
+    (prior ? priorDecline(info, plugin, entry) : "") ||
     configBool(info, MASTER_DECLINE_KEY)) === "true";
 
 // copyState(file, entry, current) -> missing | modified | stale | ok, for one
@@ -983,18 +991,22 @@ export function copy(info, plugin, entry, scope, manager, force = false) {
     if (!staged) return "stage-failed";
   }
   git(info.top, ["config", "--local", "--unset", declineKey(plugin, entry)]);
-  // An install opts this clone back in over a global or master decline.
-  if (isDeclined(info, plugin, entry)) git(info.top, ["config", "--local", declineKey(plugin, entry), "false"]);
+  // An install opts this clone back in over a global or master decline, and
+  // over a prior-name key, which the setup agent unsets afterwards.
+  if (isDeclined(info, plugin, entry) || isDeclined(info, plugin, entry, false)) {
+    git(info.top, ["config", "--local", declineKey(plugin, entry), "false"]);
+  }
   if (before === "missing") return "installed";
   return changed ? "refreshed" : "unchanged";
 }
 
-// decline(info, plugin, entry, undo, global) -> sets or clears the entry's
-// decline key in this clone, or with global in the user's global config.
-export function decline(info, plugin, entry, undo = false, global = false) {
+// decline(info, plugin, entry, undo, global, optIn) -> sets the entry's decline
+// key (false with optIn, an opt-in over a wider decline) or clears it, in this
+// clone, or with global in the user's global config.
+export function decline(info, plugin, entry, undo = false, global = false, optIn = false) {
   const scope = global ? "--global" : "--local";
   const key = declineKey(plugin, entry);
-  const args = undo ? ["config", scope, "--unset", key] : ["config", scope, key, "true"];
+  const args = undo ? ["config", scope, "--unset", key] : ["config", scope, key, optIn ? "false" : "true"];
   const r = git(info.top, args);
   return r.ok || (undo && r.status === 5); // 5: the key was not set
 }
@@ -1163,7 +1175,7 @@ function entryVerdict(info, plugin, entry, manager) {
 }
 
 // leftovers(info, plugin) -> [{ entry, from, dirs[], markers[], scripts[],
-// jobs[{ name, file }], declines[{ key, scope, carry }], config[{ key, scope, value? }] }],
+// jobs[{ name, file }], declines[{ key, scope, value, carry }], config[{ key, scope, value? }] }],
 // one per entry and earlier plugin name (`from`) with anything installed under
 // that name, as an install made before the plugin was renamed leaves: copies
 // whose stamp names the entry but not this plugin (in a repository hooks
@@ -1190,7 +1202,7 @@ function leftovers(info, plugin) {
     path.join(path.dirname(path.dirname(info.excludeFile)), "hooks"),
     checksRoot,
   ]);
-  const ownDeclineSet = (entry) => configBool(info, declineKey(plugin, entry)) !== "";
+  const ownDeclineSet = (entry, scope) => git(info.top, ["config", `--${scope}`, "--get", declineKey(plugin, entry)]).status !== 1;
   for (const entry of plugin.entries) {
     const name = escapeRe(entry.name);
     for (const root of roots) {
@@ -1224,8 +1236,12 @@ function leftovers(info, plugin) {
         if (from !== plugin.name && text.includes(`${from}/${entry.script}`)) at(entry, from).jobs.push({ name: `${from}-${entry.name}`, file });
       }
     }
+    // Each line is unset, and carried to the entry's own key at the same scope
+    // (local or global, the scopes decline writes) when that scope has none, so
+    // every clone keeps the value git's precedence gave it.
     for (const d of priorDeclines(info, plugin, entry)) {
-      at(entry, d.from).declines.push({ key: d.key, scope: d.scope, carry: d.value && !ownDeclineSet(entry) });
+      const carry = ["local", "global"].includes(d.scope) && !ownDeclineSet(entry, d.scope);
+      at(entry, d.from).declines.push({ key: d.key, scope: d.scope, value: d.value, carry });
     }
     // Config-hook keys set in this repository's config; those the removed
     // include file sets go with it.
@@ -1249,7 +1265,8 @@ function leftoverDetail(plugin, l) {
   for (const c of l.config) parts.push(`unset git config ${c.key} (${c.scope})`);
   for (const d of l.declines) {
     const to = `checks.${plugin.name}.${l.entry}.declined`;
-    parts.push(d.carry ? `move the decline ${d.key} (${d.scope}) to ${to}` : `unset git config ${d.key} (${d.scope})`);
+    const what = d.value ? "decline" : "opt-in";
+    parts.push(d.carry ? `move the ${what} ${d.key} (${d.scope}) to ${to}` : `unset git config ${d.key} (${d.scope})`);
   }
   return parts.join("; ");
 }
@@ -1292,7 +1309,7 @@ const USAGE = [
   "usage: install.mjs detect|list [--repo <dir>] [--plugin-root <dir>]",
   "       install.mjs plan --scope local|shared|remote [--manager lefthook|husky|plain]",
   "       install.mjs copy --scope local|shared [--entry <name>]... [--manager <m>] [--force]",
-  "       install.mjs decline --entry <name> [--undo] [--global]",
+  "       install.mjs decline --entry <name> [--undo|--opt-in] [--global]",
   "       install.mjs verify [--quiet]",
   "       install.mjs config-hook --include-if <condition> [--force]",
 ].join("\n");
@@ -1304,7 +1321,7 @@ const VALUE_FLAGS = {
   "--manager": "manager",
   "--include-if": "includeIf",
 };
-const BOOL_FLAGS = { "--force": "force", "--quiet": "quiet", "--undo": "undo", "--global": "global" };
+const BOOL_FLAGS = { "--force": "force", "--quiet": "quiet", "--undo": "undo", "--global": "global", "--opt-in": "optIn" };
 const ACTIONS = ["detect", "list", "plan", "copy", "decline", "verify", "config-hook"];
 
 function parseArgs(argv, defaults) {
@@ -1385,7 +1402,7 @@ function dispatch(info, plugin, opts, io) {
     case "copy":
       return runCopy(info, plugin, opts, io);
     case "decline":
-      return decline(info, plugin, pickEntries(plugin, opts.entries)[0], opts.undo, opts.global) ? 0 : 2;
+      return decline(info, plugin, pickEntries(plugin, opts.entries)[0], opts.undo, opts.global, opts.optIn) ? 0 : 2;
     case "config-hook": {
       const result = configHook(info, plugin, opts.includeIf, opts.force);
       io.stdout(JSON.stringify(result));
