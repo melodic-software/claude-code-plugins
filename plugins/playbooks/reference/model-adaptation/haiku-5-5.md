@@ -42,7 +42,6 @@ included, lives in the Haiku 5.5 launch record; read it there and copy none of i
   [Alias binding](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#alias-binding);
   for what the alias resolves to on each provider, see
   [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases).
-- **As of**: 2026-10-10
 - **Recheck trigger**: a role passing the routing eval, the rubric or the launch record changing,
   or the alias changing what it resolves to.
 
@@ -71,9 +70,7 @@ read the Claude Code pointers. `[CC: direct]` `[CC: API-side]`
   for Claude Code, see
   [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) and
   [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level).
-- **As of**: 2026-10-10
-- **Recheck trigger**: the rubric, the effort floor, or the `low` carve-out changing, or any pointed
-  section moving.
+- **Recheck trigger**: the rubric, the effort floor, or the `low` carve-out changing.
 
 ## Where a run stops and what it covers
 
@@ -90,9 +87,7 @@ pointer before changing that surface. `[CC: direct]` `[CC: prompt-authoring]`
 
 - **Pointer**: see
   [Prevent early stopping in long agent prompts](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#prevent-early-stopping-in-long-agent-prompts).
-- **As of**: 2026-10-10
-- **Recheck trigger**: that section moving, or an agent's "When you are done" section being
-  renamed or removed.
+- **Recheck trigger**: an agent's "When you are done" section being renamed or removed.
 
 ## Verification
 
@@ -106,9 +101,7 @@ behind it, read the guide's section at the pointer before changing that surface.
 
 - **Pointer**: see
   [Tell coding agents to verify their changes](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#tell-coding-agents-to-verify-their-changes).
-- **As of**: 2026-10-10
-- **Recheck trigger**: that section moving, or a transcript from a surface we own showing the
-  symptom.
+- **Recheck trigger**: a transcript from a surface we own showing the symptom.
 
 ## Current specifics and search
 
@@ -121,8 +114,6 @@ knowledge where a current source was needed, read the guide's section at the poi
 
 - **Pointer**: see
   [Accurate search results](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#accurate-search-results).
-- **As of**: 2026-10-10
-- **Recheck trigger**: that section moving.
 
 ## Thinking and reasoning in replies
 
@@ -139,9 +130,6 @@ reasoning-like text shows up in a reply users see, read the guide's section on i
   [Use effort to control thinking](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#use-effort-to-control-thinking)
   and
   [Keep reasoning out of user-facing text](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#keep-reasoning-out-of-user-facing-text).
-- **As of**: 2026-10-10
-- **Recheck trigger**: any pointed section moving, or a Claude Code release note adding a thinking
-  setting for this model.
 
 ## Mid-turn messages and hook text
 
@@ -159,8 +147,7 @@ add a hook that writes into context after tool results, read the pointers.
   [Add context for Claude](https://code.claude.com/docs/en/hooks#add-context-for-claude); for our
   convention, see the
   [hook-observability convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-observability/README.md).
-- **As of**: 2026-10-10
-- **Recheck trigger**: either upstream section moving, or the convention changing.
+- **Recheck trigger**: the hook-observability convention changing.
 
 ## JSON output, tools, and chatbots
 
@@ -176,9 +163,8 @@ a tool, or deploy it as a chatbot or support assistant, read the guide's section
   [Use adaptive thinking with JSON output and your own tools](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#json-output-with-your-own-tools)
   and
   [Keep chatbots to their system prompt](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#keep-chatbots-to-their-system-prompt).
-- **As of**: 2026-10-10
-- **Recheck trigger**: either section moving, or this repository gaining code that parses model
-  output, dispatches tool calls, or serves a chatbot.
+- **Recheck trigger**: this repository gaining code that parses model output, dispatches tool
+  calls, or serves a chatbot.
 
 ## API requests carried over from Haiku 4.5
 
@@ -193,8 +179,7 @@ what's-new page at the pointers. `[CC: API-side]`
   [Haiku 5.5 migration guide](https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide)
   and
   [What's new in Claude Haiku 5.5](https://platform.claude.com/docs/en/models/haiku-5-5/whats-new-haiku-5-5).
-- **As of**: 2026-10-10
-- **Recheck trigger**: either page moving, or this repository gaining code that sends API requests.
+- **Recheck trigger**: this repository gaining code that sends API requests.
 
 ## Which surfaces we author as system prompt
 
@@ -212,9 +197,7 @@ of those two, and read the guide's note on changing a system prompt mid-conversa
   [Write subagent files](https://code.claude.com/docs/en/sub-agents#write-subagent-files); for the
   flags, see
   [System prompt flags](https://code.claude.com/docs/en/cli-reference#system-prompt-flags).
-- **As of**: 2026-10-10
-- **Recheck trigger**: any pointed section moving, or Claude Code documenting how skill bodies are
-  delivered.
+- **Recheck trigger**: Claude Code documenting how skill bodies are delivered.
 
 ## Safeguards and fallback
 
@@ -230,9 +213,6 @@ skill that asks a model for its reasoning in the reply, read the guide's refusal
   [Safeguard refusals](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#safeguard-refusals)
   and, for Claude Code,
   [Automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback).
-- **As of**: 2026-10-10
-- **Recheck trigger**: the fallback section naming this model as a source, or a refusal category
-  added or removed for it.
 
 ## Caching and cost
 
@@ -252,8 +232,6 @@ before sending it a long prompt where cost matters, read the pointers. `[CC: API
   [Haiku 5.5 context window and pricing](https://code.claude.com/docs/en/model-config#haiku-5-5-context-window-and-pricing);
   for the figures, see
   [Haiku 5.5 launch record: launch page figures](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/upstream/haiku-5-5-launch.md#launch-page-figures).
-- **As of**: 2026-10-10
-- **Recheck trigger**: any pointed section moving.
 
 ## Sources
 

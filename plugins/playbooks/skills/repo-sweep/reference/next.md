@@ -22,8 +22,7 @@ never combined with `&&` or other commands in one call. The record for these sha
    rerun `next`. `UNKNOWN` never stops. **Pointer**: when deciding whether a conflicting PR runs
    CI, fetch
    [`pull_request`](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request)
-   live. **As of**: 2026-11-10. **Recheck trigger**: that section changes whether workflows run on
-   a pull request with a merge conflict. Otherwise act on its exit code:
+   live. Otherwise act on its exit code:
    - 10: no sweep PR. Point to `/playbooks:repo-sweep plan`. Stop.
    - 11: the sweep PR is merged or closed. Refuse to continue and point to `plan`. Stop.
    - 12: the tree is dirty and no step is in progress. Show `git status --short`, ask the user
@@ -53,9 +52,6 @@ never combined with `&&` or other commands in one call. The record for these sha
    - **Pointer**: when the update notice's wording is in doubt, fetch
      [When auto-update runs](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs)
      live.
-   - **As of**: 2026-10-11
-   - **Recheck trigger**: that section changes the notice's text or when a running session
-     applies an update.
 2. Read the entry: its row from `S/catalog.sh C`, `S/catalog.sh --override <id> C`, and
    `S/catalog.sh --notes <id> C`. Resolve arguments in angle brackets for this
    repository; ask the user when more than one reading is plausible.
@@ -161,9 +157,7 @@ A step that cannot finish in this session: leave `[~]` and route the next step w
 session-flow, follow the pointer below.
 
 - **Pointer**: when a step cannot finish in this session and session-flow is not installed, fetch
-  <https://code.claude.com/docs/en/context-window#when-your-context-fills-up> live. **As of**:
-  2026-10-13. **Recheck trigger**: the section changes how it splits work between compaction and a
-  fresh session, or moves.
+  <https://code.claude.com/docs/en/context-window#when-your-context-fills-up> live.
 
 ## 5. After the last step
 
@@ -184,5 +178,3 @@ step commit:
    reaches the running session or waits for a restart.
    - **Pointer**: when deciding which applied settings or hook edits need a restart, fetch
      <https://code.claude.com/docs/en/settings#when-edits-take-effect> live.
-   - **As of**: 2026-10-11
-   - **Recheck trigger**: that section changes which keys reload into a running session.

@@ -6,7 +6,6 @@ as a target; retire it when it stops.
 
 - **Pointer**: for which flagged requests move to Opus 4.8, see
   [Automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback).
-- **As of**: 2026-10-11
 - **Recheck trigger**: that section no longer names Opus 4.8 as a fallback target.
 
 > **If you are not Claude Opus 4.8:** the specific deltas below are calibrated for Opus 4.8, so don't
@@ -47,8 +46,6 @@ do not. `[CC: direct]`
 
 - **Pointer**: for instruction following, see
   [More literal instruction following](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#more-literal-instruction-following).
-- **As of**: 2026-08-08
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Verify with tools, not recall
 
@@ -58,8 +55,6 @@ for facts about the environment. `[CC: direct]`
 
 - **Pointer**: for tool use, see
   [Tool use triggering](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#tool-use-triggering).
-- **As of**: 2026-08-08
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Delegation
 
@@ -71,8 +66,6 @@ correct is under-delegation. `[CC: direct]`
 
 - **Pointer**: for subagent spawning, see
   [Controlling subagent spawning](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#controlling-subagent-spawning).
-- **As of**: 2026-08-08
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Effort
 
@@ -88,9 +81,6 @@ The levels and their recommended uses resolve at the pointers, never from this f
   [Calibrating effort and thinking depth](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#calibrating-effort-and-thinking-depth)
   and the Claude Opus 4.8 entry of
   [Recommended effort levels](https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels).
-- **As of**: 2026-11-01
-- **Recheck trigger**: the effort page dropping its Claude Opus 4.8 entry, or a re-read of either
-  section no longer supporting the decision above.
 
 ## Thinking controls
 
@@ -102,8 +92,6 @@ thinking there through its own controls. `[CC: API-side]`
   [Calibrating effort and thinking depth](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#calibrating-effort-and-thinking-depth);
   for Claude Code's controls, see
   [Extended thinking](https://code.claude.com/docs/en/model-config#extended-thinking).
-- **As of**: 2026-08-08 for the guide; 2026-10-01 for model-config.
-- **Recheck trigger**: a re-read of either section no longer supporting the decision above.
 
 ## Review findings
 
@@ -114,8 +102,6 @@ against, never an adjective; the guide's tested wording is at the pointer. `[CC:
 
 - **Pointer**: for review harnesses, see
   [Code review harnesses](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#code-review-harnesses).
-- **As of**: 2026-08-08
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Behaviors to emulate deliberately
 
@@ -129,7 +115,6 @@ one as a default is checked at the first pointer.
   opening paragraph of
   [Prompting Claude Fable 5.2](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2)
   (above its first heading, which the page gives no anchor of its own) and its section index live.
-- **As of**: 2026-11-09
 - **Recheck trigger**: that guide documenting turn length, early stopping, progress claims,
   boundaries, memory, or readability as the model's default, at which point the matching pointer
   below moves there.
@@ -150,9 +135,6 @@ one as a default is checked at the first pointer.
   [Construct a memory system](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#construct-a-memory-system),
   and
   [Readability when communicating with the user](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#readability-when-communicating-with-the-user).
-- **As of**: 2026-10-01
-- **Recheck trigger**: a re-read of any pointed section no longer supporting the bullet that
-  cites it.
 
 ## What NOT to import from Fable-era practice
 
@@ -162,16 +144,13 @@ one as a default is checked at the first pointer.
   `[CC: prompt-authoring]` Pointer: when weighing how much to spell out for this model, fetch
   [More literal instruction following](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#more-literal-instruction-following)
   live; for Fable, fetch
-  [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable) live. As of:
-  2026-11-01. Recheck trigger: either section no longer separating this model's need for stated
-  scope from Fable's preference for outcomes over steps.
+  [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable) live.
 - **Size plan granularity to the executor, not to yourself.** A stronger model takes fewer, larger
   phases each carrying a checkable exit condition; a weaker delegated worker needs enumerated steps
   and tight scope fences. Ask who runs a plan before choosing step size. `[CC: prompt-authoring]`
 - **Do not scaffold your own progress updates.** Forced interim-status rituals add noise.
   `[CC: prompt-authoring]` Pointer: for progress updates, see
   [User-facing progress updates](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#user-facing-progress-updates).
-  As of: 2026-08-08. Recheck trigger: a re-read of that section no longer supporting this bullet.
 - **Do not treat this playbook as license to overthink.** Allocate effort where decisions are hard
   to reverse. The calibration chapter's stop-conditions apply unchanged. `[CC: direct]`
 
@@ -186,6 +165,3 @@ section is the one delta stated against a Fable guide and keeps its Fable 5 guid
 the record above; every other delta is stated against this model's own guide and is kept unchanged.
 The communication chapter's prompt-authoring note removes narration-suppressing
 lines rather than scaffolding updates, so "Do not scaffold your own progress updates" stands.
-
-Recheck trigger for the whole chapter: a re-read of any pointed section no longer supporting the
-decision beside it, or model-config no longer naming Opus 4.8 as a fallback target.

@@ -2,10 +2,12 @@
 # ci-status.sh <sha>
 # ci-status.sh --unfinished <sha>
 #
-# Print the ci-status result on <sha> in GITHUB_REPOSITORY: success, pending,
+# Print the gate's result on <sha> in GITHUB_REPOSITORY: success, pending,
 # failure when any deciding run failed, else another deciding run's
-# non-success conclusion. Only GitHub Actions' runs are read: it is the app the
-# ruleset requires ci-status from, so another app's run of that name, with any
+# non-success conclusion. The gate's check is CI Status; on a SHA with no CI
+# Status run, tested before the rename, it is ci-status. Only GitHub Actions'
+# runs are read: it is the app the ruleset requires the gate from, so another
+# app's run of that name, with any
 # start time it chooses, never decides. Any GITHUB_TOKEN with checks: write
 # posts as that app too, as the ruleset's own check does. filter=latest keeps the latest run of
 # each check suite, so a re-triggered workflow leaves an older run beside a
@@ -28,9 +30,14 @@ if [[ $1 == --unfinished ]]; then
     --jq '.check_runs[] | select(.status != "completed") | .name'
 fi
 
+# gate_runs <check name, URL-encoded>: GitHub Actions' runs of that check on <sha>.
+gate_runs() { gh api "repos/$GITHUB_REPOSITORY/commits/$1/check-runs?check_name=$2&app_id=$ACTIONS_APP_ID&filter=latest&per_page=100" --jq .check_runs; }
+runs=$(gate_runs "$1" 'CI%20Status')
+[[ $(jq length <<<"$runs") -gt 0 ]] || runs=$(gate_runs "$1" ci-status)
+
 # shellcheck disable=SC2016  # the $ names are jq variables, not shell
-gh api "repos/$GITHUB_REPOSITORY/commits/$1/check-runs?check_name=ci-status&app_id=$ACTIONS_APP_ID&filter=latest&per_page=100" --jq '
-  .check_runs as $runs
+jq -r '
+  . as $runs
   | [$runs[] | try (.started_at | fromdateiso8601) catch null] as $t
   | (if $t != [] and all($t[]; . != null)
      then ($t | max) as $last | [range($runs | length) | select($t[.] == $last) | $runs[.]]
@@ -40,4 +47,4 @@ gh api "repos/$GITHUB_REPOSITORY/commits/$1/check-runs?check_name=ci-status&app_
     | if any($failed[]; . == "failure") then "failure"
       elif $failed != [] then ($failed[0] // "pending")
       else "success" end
-    end'
+    end' <<<"$runs"

@@ -126,14 +126,14 @@ harness_ops::resolve_skill_usage_dir() {
   case "$scope" in
   user)
     [[ -n "${HOME:-}" && -d "${HOME:-}" ]] || return 2
-    harness_ops::resolve_project_relative_dir "$HOME" "$rel_dir" || return 1
+    harness_ops::resolve_project_relative_dir "$HOME" "$rel_dir"
     ;;
   data-dir)
     [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]] || return 2
     printf '%s' "${CLAUDE_PLUGIN_DATA%/}/skill-usage/$(harness_ops::repo_slug "$project_dir")"
     ;;
   *)
-    harness_ops::resolve_project_relative_dir "$project_dir" "$rel_dir" || return 1
+    harness_ops::resolve_project_relative_dir "$project_dir" "$rel_dir"
     ;;
   esac
 }
