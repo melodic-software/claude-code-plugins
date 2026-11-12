@@ -21,7 +21,6 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import {
@@ -31,6 +30,7 @@ import {
 } from "../acquisition/caption-wait.js";
 import { primaryEntry, UnsupportedSourceError } from "../adapters/adapter-contract.js";
 import { acquireMedia, resolveSourceAdapter } from "../adapters/registry.js";
+import { runMain } from "../lib/run-main.js";
 import { resolveWorkRoot } from "../lib/work-root.js";
 import { deriveVideoSlug, resolveWorkSliceDir } from "./derive-video-slug.js";
 import { parseTranscriptStrategyOverride } from "./transcript-strategy.js";
@@ -150,13 +150,4 @@ export async function runTranscriptCli(argv) {
   }
 }
 
-if (isMainModule(import.meta.url)) {
-  runTranscriptCli(process.argv)
-    .then((code) => {
-      process.exitCode = code;
-    })
-    .catch((error) => {
-      writeStderr(error instanceof Error ? error.message : String(error));
-      process.exitCode = 1;
-    });
-}
+runMain(import.meta.url, runTranscriptCli);

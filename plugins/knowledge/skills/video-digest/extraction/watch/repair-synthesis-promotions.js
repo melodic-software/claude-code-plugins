@@ -21,19 +21,11 @@ import {
   isPipelinePlaceholderGapNote,
   normalizeSynthesisDestName,
 } from "../lib/synthesis-filename.js";
-import { readJsonFile } from "../lib/watch-frame-index.js";
+import { readJsonFile, writeJsonFile } from "../lib/watch-frame-index.js";
 import { parseSessionsFromClaimInventory } from "../lib/watch-slice-sessions.js";
 import { slugifyTitle } from "../transcript/derive-video-slug.js";
 import { renderKeyFramesManifest } from "./render-key-frames-manifest.js";
 import { renderQualityAudit } from "./render-quality-audit.js";
-
-/**
- * @param {string} file
- * @param {unknown} value
- */
-function writeJson(file, value) {
-  fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}
 
 /**
  * @typedef {{ selectedFrames: { file: string, timestampSec?: number }[], sessions: ReturnType<typeof parseSessionsFromClaimInventory> }} SessionIndex
@@ -182,8 +174,8 @@ function writePromotionArtifacts(absSlice, doc) {
     };
   }
 
-  writeJson(lanePath(absSlice, LANES.keyFrames, "promotion-map.json"), promotionMap);
-  writeJson(lanePath(absSlice, LANES.keyFrames, "key-frame-quality-audit.json"), {
+  writeJsonFile(lanePath(absSlice, LANES.keyFrames, "promotion-map.json"), promotionMap);
+  writeJsonFile(lanePath(absSlice, LANES.keyFrames, "key-frame-quality-audit.json"), {
     reviewedAt: new Date().toISOString(),
     model: "repair-synthesis-promotions",
     files: promotes.map((row) => ({
@@ -260,7 +252,7 @@ export function repairSynthesisPromotions(sliceDir, { dryRun = false } = {}) {
   );
 
   if (!dryRun) {
-    writeJson(decisionsPath, doc);
+    writeJsonFile(decisionsPath, doc);
     applyFileRenames(synthesisDir, renamePairs);
     pruneUnpromotedSynthesisFiles(synthesisDir, doc);
     writePromotionArtifacts(absSlice, doc);

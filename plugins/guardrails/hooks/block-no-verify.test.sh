@@ -788,6 +788,14 @@ malformed_rc=0
 bash "$HOOK" <<<'not json at all' >/dev/null 2>&1 || malformed_rc=$?
 assert_exit "malformed JSON payload (blocked)" 2 "$malformed_rc"
 
+# JSON whose fields jq cannot read gets past the stdin read above and is
+# refused by the field read.
+guard_invoke --payload '{"tool_name":"Bash","tool_input":"git push --no-verify"}'
+assert_exit "a payload whose fields jq cannot read (blocked)" 2 "$GUARD_RC"
+assert_eq "unreadable fields: the refusal says why" \
+  "BLOCKED: the hook payload could not be parsed." "$GUARD_ERR"
+assert_eq "unreadable fields: nothing on stdout" "" "$GUARD_OUT"
+
 # --- A NUL in the payload must not void the guard (#2122) --------------------
 # hook::jq_fields separates its fields with a NUL. A JSON NUL escape inside the
 # command used to split that value in two, fail the helper's cardinality check

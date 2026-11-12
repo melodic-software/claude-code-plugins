@@ -257,6 +257,41 @@ assert_exit_trap_detected "paren-terminated EXIT trap" \
   "$TRAP_FIXTURE/paren.sh"
 assert_no_exit_trap "trap on INT only" "$TRAP_FIXTURE/other-signal.sh"
 
+# --- Static: every guard::payload_verdict call exits on the verdict ---------
+# The helper decides and returns. A guard that called it without exiting on the
+# answer would read on past a payload it refused, so only the one exit form is
+# accepted: it blocks on every status but 0 and 3.
+# shellcheck disable=SC2016  # the exit form is matched as literal text
+PV_EXIT='guard::payload_verdict "$jq_rc" || exit $(($? == 3 ? 0 : 2))'
+verdict_unconsumed() { # <file>: lines calling the helper in any other form
+  grep -nE '^[^#]*guard::payload_verdict[[:space:]]' "$1" | grep -vF "$PV_EXIT"
+}
+pv_callers=" "
+for f in "$HOOK_DIR"/*.sh; do
+  [[ "$f" == *.test.sh ]] && continue
+  # A call line, not the usage line in the helper's own doc comment.
+  grep -qv '^[[:space:]]*#' < <(grep -F "$PV_EXIT" "$f") && pv_callers+="${f##*/} "
+  hits=$(verdict_unconsumed "$f")
+  if [[ -n "$hits" ]]; then
+    bad "${f##*/} calls guard::payload_verdict without exiting on it: ${hits//$'\n'/; }"
+  fi
+done
+for name in block-credential-read.sh block-exported-msys-pathconv.sh block-github-post-content.sh \
+  block-no-verify.sh block-root-delete-target.sh block-windows-drive-tmp.sh; do
+  if [[ "$pv_callers" == *" $name "* ]]; then
+    ok "$name reads its payload through guard::payload_verdict"
+  else
+    bad "$name no longer calls guard::payload_verdict in the exit form"
+  fi
+done
+# shellcheck disable=SC2016  # fixture bodies carry literal text
+printf '  guard::payload_verdict "$jq_rc"\n' >"$TRAP_FIXTURE/verdict-ignored.sh"
+if [[ -n "$(verdict_unconsumed "$TRAP_FIXTURE/verdict-ignored.sh")" ]]; then
+  ok "a guard::payload_verdict call with no exit is detected"
+else
+  bad "a guard::payload_verdict call with no exit was not detected"
+fi
+
 # The dispatcher names the event by looking `.hook_event_name` up in its
 # primed filters, so the filter has to be there. (A positional index once put
 # the neighboring field into every notice when a filter was added ahead of
@@ -415,6 +450,24 @@ run_hook CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/data" -- \
 assert_exit "shipped cli-flag-verify exits 0 on plain prose" 0 "$RC"
 assert_absent "an advisory hook's normal run carries no abort notice" "$ERR$OUT" "$NOTICE"
 
+# --- A field read that fails other than "unparsable" is a quiet allow --------
+# hook::jq_fields returns 2 for a payload jq rejects and 1 only when jq is
+# absent, which hook::require_jq_blocking has already refused, so no payload
+# reaches any other status. A stub on a copy of the plugin does: the six guards
+# that refuse status 2 must let every other failure through, silently.
+for jq_status in 1 3; do
+  SEAM="$TEST_TMPDIR/jq-status-$jq_status"
+  cp -R "$PLUGIN_DIR" "$SEAM"
+  for stem in block-credential-read block-exported-msys-pathconv block-github-post-content \
+    block-no-verify block-root-delete-target block-windows-drive-tmp; do
+    inject_after "$SEAM/hooks/$stem.sh" '^source "[$]_HOOK_SELF/hook-utils.sh"' \
+      "hook::jq_fields() { HOOK_JQ_FIELDS=(); HOOK_JQ_FIELDS_NUL=0; return $jq_status; }" || continue
+    run_hook CLAUDE_PLUGIN_ROOT="$SEAM" OSTYPE=msys -- feed_run "$BASH_BENIGN" bash "$SEAM/hooks/$stem.sh"
+    assert_exit "$stem: field read status $jq_status allows" 0 "$RC"
+    assert_silent "$stem: field read status $jq_status is silent" "$ERR$OUT"
+  done
+done
+
 # --- The helper itself, through stubs -----------------------------------------
 stub() { # stub <name> <body...>: a script that sources the boundary first
   local name="$1"
@@ -472,6 +525,22 @@ stub "unbound.sh" 'guard::abort_boundary stub-unbound PreToolUse open 0 2' ': "$
 run_hook -- bash "$TEST_TMPDIR/unbound.sh"
 assert_exit "set -u abort in a stub fails open" 0 "$RC"
 assert_contains "set -u abort in a stub is named with rc=1" "$ERR" "guardrails stub-unbound: ${NOTICE}1); this call was not checked"
+
+# guard::payload_verdict <status> with HOOK_JQ_FIELDS_NUL: its return and what
+# it writes, for each field-read outcome.
+verdict_case() { # <label> <jq status> <nul flag> <expected return> <expected stderr>
+  stub "verdict.sh" "HOOK_JQ_FIELDS_NUL=$3" "guard::payload_verdict $2" 'exit $?'
+  run_hook -- bash "$TEST_TMPDIR/verdict.sh"
+  assert_exit "payload_verdict: $1" "$4" "$RC"
+  assert_eq "payload_verdict: $1, stderr" "$5" "$ERR"
+  assert_silent "payload_verdict: $1, stdout" "$OUT"
+}
+verdict_case "a clean read goes on" 0 0 0 ""
+verdict_case "a NUL byte refuses" 0 1 2 "BLOCKED: the payload carries a NUL byte. Reissue the call without it."
+verdict_case "an unparsable payload refuses" 2 0 2 "BLOCKED: the hook payload could not be parsed."
+verdict_case "an unparsable payload refuses before the NUL flag" 2 1 2 "BLOCKED: the hook payload could not be parsed."
+verdict_case "a missing jq (status 1) lets the call through" 1 0 3 ""
+verdict_case "any other status lets the call through" 5 1 3 ""
 
 # --- The handler cannot re-enter ----------------------------------------------
 # The handler's first act is `trap - EXIT`. When its own body then fails (an

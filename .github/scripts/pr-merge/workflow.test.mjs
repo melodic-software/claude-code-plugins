@@ -815,6 +815,66 @@ test("the arm step hands the room's post-merge check the attempts kept beside it
   assert.match(step, /\n {10}POSTMERGE_RESULT: \$\{\{ runner\.temp \}\}\/post-merge\/post-merge\.json\n/);
 });
 
+// The merge job's own check, run when post-merge-dispatch's report does not
+// stand: the step's script with settle refusing and the check stubbed to
+// record the attempts file it was handed.
+const mergeCheck = ({ attempts = true } = {}) => {
+  const body = /- name: Check earlier lane merges\n([\s\S]*?)(?=\n {6}- name: )/.exec(job("merge"))?.[1];
+  assert.ok(body, "the merge job checks earlier lane merges");
+  const script = /\n {8}run: \|\n([\s\S]*)$/.exec(body)[1].replace(/^ {10}/gm, "");
+  const dir = tempDir("pr-merge-merge-check-");
+  const bin = join(dir, "bin");
+  mkdirSync(bin);
+  const handed = join(dir, "handed");
+  const attemptsPath = join(dir, "post-merge-attempts.json");
+  writeFileSync(
+    join(bin, "python3"),
+    `#!/bin/bash
+case "$1" in
+  *babysit_postmerge.py)
+    if [ -f "$BABYSIT_POSTMERGE_ATTEMPTS" ]; then cp "$BABYSIT_POSTMERGE_ATTEMPTS" '${handed}'; fi
+    echo '{}'; exit 0 ;;
+esac
+exit 1
+`,
+    { mode: 0o755 },
+  );
+  writeFileSync(join(bin, "yq"), "#!/bin/sh\necho lanes-bot\n", { mode: 0o755 });
+  const kept = join(dir, "post-merge-kept");
+  mkdirSync(kept);
+  writeFileSync(join(kept, "post-merge.json"), "{}");
+  writeFileSync(join(kept, "post-merge-code"), "0\n");
+  writeFileSync(join(kept, "post-merge-code-sha"), `${"c".repeat(40)}\n`);
+  if (attempts) writeFileSync(join(kept, "attempts.json"), '{"attempts":{}}');
+  const output = join(dir, "output");
+  writeFileSync(output, "");
+  const run = spawnSync("bash", ["--noprofile", "--norc", "-c", script], {
+    env: { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, REPO: "o/r", GITHUB_OUTPUT: output, BABYSIT_POSTMERGE_ATTEMPTS: attemptsPath },
+    encoding: "utf8",
+  });
+  return { body, status: run.status, stderr: run.stderr, output: readFileSync(output, "utf8"), handed: existsSync(handed) ? readFileSync(handed, "utf8") : null };
+};
+
+test("the merge job's fresh check answers the kept report's completed attempts with no read, as enable-auto-merge's does", () => {
+  const run = mergeCheck();
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.output, "needs-dispatch=false\ncode=0\n");
+  assert.equal(run.handed, '{"attempts":{}}', "the check was handed the attempts kept beside post-merge-dispatch's report");
+  assert.match(run.body, /\n {10}BABYSIT_POSTMERGE_ATTEMPTS: \$\{\{ runner\.temp \}\}\/post-merge-attempts\.json\n/);
+  // The same file enable-auto-merge's fresh check copies, from this run's report.
+  const keep = /- name: Keep the last sweep's report only while nothing it read has moved\n([\s\S]*?)(?=\n {6}- name: )/.exec(job("enable-auto-merge"))[1];
+  const copy = /\[ ! -f "\$(?:last|kept)\/attempts\.json" \] \|\| cp "\$(?:last|kept)\/attempts\.json" "\$BABYSIT_POSTMERGE_ATTEMPTS"/;
+  assert.match(keep, copy);
+  assert.match(run.body, copy);
+});
+
+test("the merge job's fresh check runs with no attempts file when the kept report has none", () => {
+  const run = mergeCheck({ attempts: false });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.output, "needs-dispatch=false\ncode=0\n");
+  assert.equal(run.handed, null);
+});
+
 // (b) Any refusal on the fresh path leaves no report, so nothing arms.
 test("a PR-scoped run whose fresh check or fresh settle refuses keeps no report", () => {
   for (const [why, options, settled, reason] of [

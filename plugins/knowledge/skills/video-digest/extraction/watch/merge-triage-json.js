@@ -12,7 +12,7 @@ import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import { LANES, lanePath } from "../lib/slice-lanes.js";
-import { readJsonFile } from "../lib/watch-frame-index.js";
+import { readJsonFile, writeJsonFile } from "../lib/watch-frame-index.js";
 import { CELL_IDS, validateTriageSheet } from "../lib/watch-vision-validation.js";
 
 /**
@@ -71,7 +71,7 @@ export function mergeTriageJson(sliceDir, batchPaths) {
 
   fs.mkdirSync(triageDir, { recursive: true });
   const outPath = path.join(triageDir, "manifest.json");
-  fs.writeFileSync(outPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  writeJsonFile(outPath, manifest);
   return outPath;
 }
 

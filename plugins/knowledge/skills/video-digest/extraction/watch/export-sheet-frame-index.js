@@ -13,7 +13,12 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { resolveTempSession, serializeTempPath } from "../lib/temp-session-paths.js";
-import { indexSelectedFrames, readJsonFile, readLaneJson } from "../lib/watch-frame-index.js";
+import {
+  indexSelectedFrames,
+  readJsonFile,
+  readLaneJson,
+  writeJsonFile,
+} from "../lib/watch-frame-index.js";
 import { CELL_IDS } from "../lib/watch-vision-validation.js";
 import { watchStatePath } from "./watch-state.js";
 
@@ -54,7 +59,7 @@ export function exportSheetFrameIndex(sliceDir) {
   const payload = { sheetsDir, framesDir, sheets };
   const outPath = lanePath(absSlice, LANES.keyFrames, "sheet-frame-index.json");
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  fs.writeFileSync(outPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  writeJsonFile(outPath, payload);
   return outPath;
 }
 

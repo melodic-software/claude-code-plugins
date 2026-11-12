@@ -34,7 +34,6 @@ import { syncBuiltinESMExports } from "node:module";
 import os from "node:os";
 import path from "node:path";
 
-import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 import { parseVttSegment } from "@melodic/video-digestion/transcript/vtt-parser";
 
@@ -50,6 +49,7 @@ import {
 } from "../adapters/adapter-contract.js";
 import { acquireMedia, resolveSourceAdapter } from "../adapters/registry.js";
 import { portableTargetName } from "../lib/portable-target.js";
+import { runMain } from "../lib/run-main.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { resolveWorkRoot } from "../lib/work-root.js";
 import { deriveVideoSlug, resolveWorkSliceDir } from "../transcript/derive-video-slug.js";
@@ -595,13 +595,4 @@ async function watchUrl({
   return 0;
 }
 
-if (isMainModule(import.meta.url)) {
-  runWatchCli(process.argv)
-    .then((code) => {
-      process.exitCode = code;
-    })
-    .catch((error) => {
-      writeStderr(error instanceof Error ? error.message : String(error));
-      process.exitCode = 1;
-    });
-}
+runMain(import.meta.url, runWatchCli);
