@@ -263,6 +263,19 @@ rc=0
 env OSTYPE=msys bash "$HOOK" <<<'{"tool_name":"Bash","tool_input":{}}' >/dev/null 2>&1 || rc=$?
 assert_exit "payload with no command is a skip" 0 "$rc"
 
+# JSON whose fields jq cannot read gets past the stdin read and is refused by
+# the field read. A NUL in a harmless command is refused there too.
+guard_invoke --hook "$HOOK" --payload '{"tool_name":"Bash","tool_input":"git status"}' -- OSTYPE=msys
+assert_exit "a payload whose fields jq cannot read fails closed" 2 "$GUARD_RC"
+assert_eq "unreadable fields: the refusal says why" \
+  "BLOCKED: the hook payload could not be parsed." "$GUARD_ERR"
+assert_eq "unreadable fields: nothing on stdout" "" "$GUARD_OUT"
+guard_invoke --hook "$HOOK" --payload "$(jq -n '{tool_name:"Bash",tool_input:{command:"ls\u0000 -la"}}')" -- OSTYPE=msys
+assert_exit "a NUL byte in a harmless command fails closed" 2 "$GUARD_RC"
+assert_eq "NUL byte: the refusal says why" \
+  "BLOCKED: the payload carries a NUL byte. Reissue the call without it." "$GUARD_ERR"
+assert_eq "NUL byte: nothing on stdout" "" "$GUARD_OUT"
+
 # --- 8. Kill switch ----------------------------------------------------------
 rc=0
 env OSTYPE=msys CLAUDE_PLUGIN_OPTION_BLOCK_EXPORTED_MSYS_PATHCONV_ENABLED=false \

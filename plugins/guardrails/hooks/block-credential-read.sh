@@ -117,16 +117,7 @@ hook::require_jq_blocking "guardrails-block-credential-read" "block_credential_r
 
 jq_rc=0
 hook::jq_fields "$INPUT" '.tool_input.command' || jq_rc=$?
-if ((jq_rc == 2)); then
-  guard::refuse_unparsable
-  exit 2
-fi
-((jq_rc != 0)) && exit 0
-
-if ((HOOK_JQ_FIELDS_NUL)); then
-  guard::refuse_nul
-  exit 2
-fi
+guard::payload_verdict "$jq_rc" || exit $(($? == 3 ? 0 : 2))
 
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0

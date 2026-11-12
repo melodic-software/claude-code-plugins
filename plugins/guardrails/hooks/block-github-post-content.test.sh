@@ -138,6 +138,18 @@ assert_exit "empty stdin is a skip" 0 "$rc"
 rc=0
 bash "$HOOK" <<<"not json" >/dev/null 2>&1 || rc=$?
 assert_exit "text that is not JSON fails closed" 2 "$rc"
+# JSON whose fields jq cannot read gets past the stdin read and is refused by
+# the field read. A NUL in a harmless command is refused there too.
+guard_invoke --hook "$HOOK" --payload '{"tool_name":"Bash","tool_input":"gh pr comment 1"}'
+assert_exit "a payload whose fields jq cannot read fails closed" 2 "$GUARD_RC"
+assert_eq "unreadable fields: the refusal says why" \
+  "BLOCKED: the hook payload could not be parsed." "$GUARD_ERR"
+assert_eq "unreadable fields: nothing on stdout" "" "$GUARD_OUT"
+guard_invoke --hook "$HOOK" --payload "$(jq -n '{tool_name:"Bash",tool_input:{command:"ls\u0000 -la"}}')"
+assert_exit "a NUL byte in a harmless command fails closed" 2 "$GUARD_RC"
+assert_eq "NUL byte: the refusal says why" \
+  "BLOCKED: the payload carries a NUL byte. Reissue the call without it." "$GUARD_ERR"
+assert_eq "NUL byte: nothing on stdout" "" "$GUARD_OUT"
 rc=0
 bash "$HOOK" <<<"$(payload Bash "gh pr comment 1 --body '$TOK' $(printf 'x%.0s' {1..17000})")" >/dev/null 2>&1 || rc=$?
 assert_exit "an over-length post holding a secret is refused" 2 "$rc"

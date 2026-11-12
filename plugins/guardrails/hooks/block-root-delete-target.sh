@@ -894,21 +894,13 @@ hook::require_jq_blocking "guardrails-block-root-delete-target" "block_root_dele
 # where it runs, nothing else. `.cwd` is read after the `rm` prefilter, and
 # `.scratchpad_dir` only when a target needs judging, each in its own call so
 # a NUL byte in either is judged apart from the command's.
-jq_rc=0
-hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || jq_rc=$?
-if ((jq_rc == 2)); then
-  guard::refuse_unparsable
-  exit 2
-fi
-((jq_rc != 0)) && exit 0
-
+#
 # A NUL byte in the command or the tool name is fail-CLOSED, for every call:
 # what a guard can read is then not dependably what would run, and a NUL in
 # the command could hide an `rm` from the prefilter below.
-if ((HOOK_JQ_FIELDS_NUL)); then
-  guard::refuse_nul
-  exit 2
-fi
+jq_rc=0
+hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || jq_rc=$?
+guard::payload_verdict "$jq_rc" || exit $(($? == 3 ? 0 : 2))
 
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
