@@ -6,8 +6,8 @@ Copy into `<memory_dir>/<topic-slug>/plan-checklist.md` (default `.work/`; the t
 
 - [ ] Step 1: Prerequisite check. Brief locked (PLAN.md Brief section exists OR equivalent crisp framing); exploration + research done or explicitly waived; design gate evaluated
 - [ ] Step 2: Formulate the plan. Phases with verifiable Sanity Checks per phase; estimate scope; identify parallelism
-- [ ] Step 3: Plan stress-test. Resolve `plan_stress_test` for the draft's mode; unless it is `devils-advocate`, surface cost, then dispatch the plan-reviewer agent per context/plan-reviewer.md
-- [ ] Step 3b: Assess blast radius (LOW / MEDIUM / HIGH / CRITICAL). Under `auto` this gates whether Step 4 runs
+- [ ] Step 3: Plan stress-test. Resolve `plan_stress_test` for the draft's mode and apply the reviewer rule (SKILL.md Gates); when it runs the reviewer, surface cost, then dispatch the plan-reviewer agent per context/plan-reviewer.md; otherwise record `Reviewer: skipped (<reason>)`
+- [ ] Step 3b: Assess blast radius (LOW / MEDIUM / HIGH / CRITICAL). Under `auto` it is assessed before Step 3's reviewer decision and gates both the reviewer and Step 4
 - [ ] Step 4: Formal stress-test + research-iterate (CONDITIONAL on Step 3b). Invoke `/planning:devils-advocate` and targeted research on contested claims
 - [ ] Step 4.5: Execution-shape analysis (default ON for multi-phase plans). Emit scope-fencing tables + per-phase routing table
 - [ ] Step 4.6: Tag unilateral decisions. Flag any choice made without explicit user approval; interview below-bar decisions
@@ -16,7 +16,7 @@ Copy into `<memory_dir>/<topic-slug>/plan-checklist.md` (default `.work/`; the t
 
 ## Skip criteria
 
-- Step 3 SKIPPED only under `plan_stress_test`'s `devils-advocate`, which runs Step 4 instead (stress-test before presenting)
+- Step 3's reviewer SKIPPED under `plan_stress_test`'s `devils-advocate` (Step 4 runs instead), under verification `light` or `off`, and under `auto` when Step 3b's blast radius is LOW, no trigger matches, verification is not `strict` and the user did not ask for a review; tick Step 3 with the skip and its reason
 - Step 4 SKIPPED under `plan_stress_test`'s `reviewer`, and under `auto` when Step 3b verdict = LOW blast radius and no trigger matches
 - Step 4.5 SKIPPED when the plan is single-phase (no parallelism axis, all-main-session default)
 - Step 4.6 SKIPPED when no unilateral decisions were made (user approved every choice during Q&A)

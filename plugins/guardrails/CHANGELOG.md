@@ -3,6 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.27] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [3.0.26] - 2026-11-11
+
+### Changed
+
+- The README options reference lists its upstream documentation as pointers only, with no as-of date or recheck trigger.
+
 ## [3.0.25] - 2026-11-11
 
 ### Changed

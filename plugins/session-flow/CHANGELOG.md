@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [7.9.8] - 2026-11-11
+
+### Changed
+
+- The README options reference lists its upstream documentation as pointers only, with no as-of date or recheck trigger.
+
 ## [7.9.7] - 2026-11-11
 
 ### Changed

@@ -3,6 +3,16 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.21] - 2026-11-11
+
+### Changed
+
+- The README options reference lists its upstream documentation as pointers only, with no as-of date or recheck trigger.
+
+### Fixed
+
+- `/instruction-placement:migrate` `remove-shims` ends the printed price where the record's pointer bullet ends, instead of at an As of line, so a pointer record without an as-of date no longer runs the price into the rest of the section.
+
 ## [1.0.20] - 2026-11-11
 
 ### Fixed

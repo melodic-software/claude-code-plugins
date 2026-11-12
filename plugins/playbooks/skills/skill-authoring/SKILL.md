@@ -99,7 +99,7 @@ Better:
 
 ### 5. Write Descriptions for the Model, Not for Humans
 
-Claude reads the skill listing to decide "is there a skill for this request?" The description is not a summary, it's a trigger condition. **Pointer**: when deciding what the listing holds or when it shortens a description, fetch [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short) live; correlate with the post's tip on descriptions. **As of**: 2026-11-10. **Recheck trigger**: that section changes what the listing holds or how it shortens a description.
+Claude reads the skill listing to decide "is there a skill for this request?" The description is not a summary, it's a trigger condition. **Pointer**: when deciding what the listing holds or when it shortens a description, fetch [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short) live; correlate with the post's tip on descriptions.
 
 Bad: `description: A comprehensive tool for monitoring pull request status across the development lifecycle.`
 
@@ -113,11 +113,11 @@ Example: inline bash cats `config.json` from the skill directory. If absent, out
 
 ### 7. Help Claude Remember
 
-Skills can store data across runs. Use `CLAUDE_PLUGIN_DATA` (referenced in your skill content as a dollar-brace `${...}` placeholder) as the skill's state folder, never the skill's own directory. **Pointer**: when deciding where a skill's state survives a plugin update, fetch the `CLAUDE_PLUGIN_DATA` row of [Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables) live. **As of**: 2026-11-10. **Recheck trigger**: that row or the text after its table changes what an update or an uninstall keeps.
+Skills can store data across runs. Use `CLAUDE_PLUGIN_DATA` (referenced in your skill content as a dollar-brace `${...}` placeholder) as the skill's state folder, never the skill's own directory. **Pointer**: when deciding where a skill's state survives a plugin update, fetch the `CLAUDE_PLUGIN_DATA` row of [Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables) live.
 
 Options: append-only text logs, JSON files, SQLite databases. A standup-post skill might keep `standups.log` so Claude can diff against yesterday.
 
-For effort-aware behavior, embed the `CLAUDE_EFFORT` placeholder (same dollar-brace form) in SKILL.md content. Claude Code injects the current effort level at invocation; for the values it can take, see [available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions), the `CLAUDE_EFFORT` row (as of 2026-10-02; recheck when that row changes the level set). Example: skip expensive research phases when effort is `low`, run the full workflow at `high` or above.
+For effort-aware behavior, embed the `CLAUDE_EFFORT` placeholder (same dollar-brace form) in SKILL.md content. Claude Code injects the current effort level at invocation; for the values it can take, see [available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions), the `CLAUDE_EFFORT` row. Example: skip expensive research phases when effort is `low`, run the full workflow at `high` or above.
 
 (The two variable names above are written without their dollar-brace wrapper because Claude Code substitutes such placeholders inline when this skill loads.)
 
@@ -155,7 +155,7 @@ Use a PreToolUse hook to log skill usage. Find popular or undertriggering skills
 
 ### Composing Skills
 
-Reference other skills by name. Claude invokes them if installed. A plugin can also declare the plugins it needs in its manifest. **Pointer**: when declaring which plugins a plugin needs, fetch [`dependencies`](https://code.claude.com/docs/en/plugins/manifest-reference#dependencies) live. **As of**: 2026-11-10. **Recheck trigger**: that field is renamed or removed from the manifest reference.
+Reference other skills by name. Claude invokes them if installed. A plugin can also declare the plugins it needs in its manifest. **Pointer**: when declaring which plugins a plugin needs, fetch [`dependencies`](https://code.claude.com/docs/en/plugins/manifest-reference#dependencies) live.
 
 ---
 
@@ -208,8 +208,6 @@ sets in a fork.
 - **Pointer**: when a skill's `model` value matters, fetch the `model` row of
   [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) live; for
   the fork case, also [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model).
-  **As of**: 2026-11-10. **Recheck trigger**: that row changes the turn scope, the allowlist or auto-mode exception, or
-  the `context: fork` rule.
 
 ## Arguments (Melodic Software addition)
 
@@ -219,12 +217,12 @@ owns the argument shape and the decision to decline the `arguments` field.
 To keep a positional token literal, write exactly one backslash directly before it, never two.
 **Pointer**: when the indexing of positional tokens or the escape rule matters, fetch
 [Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions)
-live. **As of**: 2026-11-10. **Recheck trigger**: that section changes indexing or the escape rule.
+live.
 
 A 2.1.251 probe recorded on
 [#3543](https://github.com/melodic-software/claude-code-plugins/issues/3543) found that
 substitution also reaches fenced code. That reach is not stated in the substitutions section
-fetched on the as-of date, and this page does not re-probe it. Escape `\$<digit>` in fences of a
+and this page does not re-probe it. Escape `\$<digit>` in fences of a
 skill that admits arguments anyway. Recheck: a current-version probe where a fenced `\$0` stays
 literal with arguments present.
 
@@ -252,8 +250,7 @@ Each Skill tool call loads exactly one skill, so a step that uses two skills mak
 skill with `disable-model-invocation: true`, tell the user to run `/plugin:skill` instead of
 attempting the call. **Pointer**: when deciding whether Claude may invoke a skill itself, fetch
 [Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill)
-live. **As of**: 2026-11-10. **Recheck trigger**: that section changes whether Claude can invoke a
-skill that sets `disable-model-invocation: true`.
+live.
 
 Write `disable-model-invocation` explicitly on every skill and decide its value against the
 [invocation-mode rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/invocation-mode/README.md),
