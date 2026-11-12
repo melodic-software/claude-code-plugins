@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.2.1] - 2026-11-12
+
+### Changed
+
+- Internal restructuring, no behavior change.
+
+## [11.2.0] - 2026-11-12
+
+### Changed
+
+- `babysit_postmerge.py --uncovered-at LANE_SHA --branch BRANCH` replaces `--uncovered-since MERGED_AT`: it makes one read of the branch's newest full dispatch run and exits 6 when its head commit does not contain LANE_SHA (ancestry read from a local full-history clone; a head commit no clone holds counts as covered), the point where `--stop-uncovered` would stop. pr-merge's PR-scoped wake runs it first and ends there on 6, before its last-report, carry, lane-records and fresh-check reads.
+
+## [11.1.5] - 2026-11-12
+
+### Fixed
+
+- babysit-prs: the raw-text workflow reading in the risk scorer now strips anchors and tags and finds block-scalar openers in one linear pass, so a long workflow patch line can no longer slow the scorer.
+
 ## [11.1.4] - 2026-11-12
 
 ### Changed

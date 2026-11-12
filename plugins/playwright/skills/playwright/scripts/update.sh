@@ -36,9 +36,9 @@ TMPDIR_RUN=$(mktemp -d -t playwright-update-XXXXXX)
 
 trap 'rm -rf "$TMPDIR_RUN"' EXIT
 
-log() { printf '%s\n' "$*"; }
-err() { printf 'ERROR: %s\n' "$*" >&2; }
-section() { printf '\n== %s ==\n' "$*"; }
+# log, err, section, replace_metadata_field and main.
+# shellcheck source=vendor-update.sh
+source "${SCRIPT_DIR}/vendor-update.sh" || exit 2
 
 check_prereqs() {
   local tool missing=0
@@ -83,19 +83,6 @@ fetch_upstream_skill_dir() {
     return 1
   fi
   printf '%s' "$skill_dir"
-}
-
-# Replace a nested metadata field in the SKILL.md frontmatter, anchored to the
-# indented key under the metadata: block so a top-level key never matches.
-replace_metadata_field() {
-  local field="$1" value="$2" tmp="${TMPDIR_RUN}/skill.md.tmp"
-  # Escape chars special on sed's replacement side (& \ and the | delimiter) so
-  # an upstream version string with metacharacters can't mangle the file.
-  local value_safe
-  value_safe=$(printf '%s' "$value" | sed 's/[&|\\]/\\&/g')
-  sed -E "s|^([[:space:]]+${field}:[[:space:]]+).*\$|\\1${value_safe}|" \
-    "$FRONTMATTER_FILE" >"$tmp"
-  mv "$tmp" "$FRONTMATTER_FILE"
 }
 
 run_check() {
@@ -225,35 +212,6 @@ run in a working-tree checkout of the plugin, not an installed copy.
 
 Source: the skill directory bundled inside the @playwright/cli npm package.
 EOF
-}
-
-main() {
-  local mode="${1:---check}"
-
-  if [[ "$mode" == -h || "$mode" == --help ]]; then
-    print_help
-    exit 0
-  fi
-
-  if [[ ! -f "$FRONTMATTER_FILE" ]]; then
-    err "SKILL.md not found at $FRONTMATTER_FILE — run from a plugin checkout"
-    exit 2
-  fi
-
-  check_prereqs
-
-  case "$mode" in
-  --check)
-    run_check
-    ;;
-  --apply)
-    run_apply
-    ;;
-  *)
-    err "unknown mode: $mode (expected --check, --apply, or --help)"
-    exit 2
-    ;;
-  esac
 }
 
 # Source-guard: only run main when executed directly, not when sourced (tests).

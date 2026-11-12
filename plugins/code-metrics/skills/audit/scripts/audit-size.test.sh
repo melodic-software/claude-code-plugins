@@ -21,7 +21,8 @@ source "$PLUGIN_ROOT/scripts/test-helpers.sh"
 unset CODE_METRICS_DISABLE_BUNDLED
 REPORTS="$(mktemp -d)"
 EMPTY_PATH="$(mktemp -d)"
-trap 'rm -rf "$REPORTS" "$EMPTY_PATH"' EXIT
+NO_PYTHON="$(mktemp -d)"
+trap 'rm -rf "$REPORTS" "$EMPTY_PATH" "$NO_PYTHON"' EXIT
 export CODE_METRICS_REPORT_DIR="$REPORTS"
 
 out="$(bash "$SCRIPT" --json --all "$SOURCES")"
@@ -49,6 +50,21 @@ assert_eq "a missing explicit path exits 2" 2 "$?"
 
 grep -q 'audit-size.sh \[--json\]' < <(bash "$SCRIPT" --help 2>&1)
 assert_eq "--help prints usage" 0 "$?"
+
+# No interpreter passes the floor probe: the shared cm_require_python prints
+# the prerequisite line under this script's name and exits 2. Failing stubs go
+# in front of the whole PATH, as python-resolve.test.sh does, rather than on a
+# bare PATH, so bash and the coreutils the script runs first still resolve.
+for name in python3 python py; do
+  printf '#!/usr/bin/env bash\nexit 1\n' >"$NO_PYTHON/$name"
+  chmod +x "$NO_PYTHON/$name"
+done
+floor="$(sed -n 's/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\1.\2/p' "$PLUGIN_ROOT/scripts/report.py")"
+err="$(PATH="$NO_PYTHON:$PATH" bash "$SCRIPT" --all "$SOURCES" 2>&1 >/dev/null)"
+rc=$?
+assert_eq "no Python exits 2" 2 "$rc"
+assert_eq "no Python prints the prerequisite line" \
+  "audit-size.sh: Python ${floor}+ not found (tried python3, python, py -3); it is a required prerequisite" "$err"
 
 # The 1000-line provenance is one sentence, owned by the bundled defaults and
 # repeated verbatim where a reader meets the number without the report: the

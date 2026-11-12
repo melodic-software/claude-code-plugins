@@ -107,34 +107,17 @@ require_opt_value() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --from)
+  --from | --from-lane | --out | --branch | --declined-carveout | --declined-residency)
     require_opt_value "$@"
-    FROM="$2"
-    shift 2
-    ;;
-  --from-lane)
-    require_opt_value "$@"
-    FROM_LANE="$2"
-    shift 2
-    ;;
-  --out)
-    require_opt_value "$@"
-    OUT="$2"
-    shift 2
-    ;;
-  --branch)
-    require_opt_value "$@"
-    BRANCH="$2"
-    shift 2
-    ;;
-  --declined-carveout)
-    require_opt_value "$@"
-    CARVEOUT="$2"
-    shift 2
-    ;;
-  --declined-residency)
-    require_opt_value "$@"
-    RESIDENCY="$2"
+    case "$1" in
+    --from) FROM="$2" ;;
+    --from-lane) FROM_LANE="$2" ;;
+    --out) OUT="$2" ;;
+    --branch) BRANCH="$2" ;;
+    --declined-carveout) CARVEOUT="$2" ;;
+    --declined-residency) RESIDENCY="$2" ;;
+    *) ;;
+    esac
     shift 2
     ;;
   --help | -h)
@@ -303,7 +286,7 @@ LC_ALL=C awk \
     if (id == "I33") return "harness-config/audit-instructions/rule-spoke-self-description"
     return ""
   }
-  function lane_rule(id) { return (id == "I30" || id == "I31" || id == "I32" || id == "I33") }
+  function lane_rule(id) { return id ~ /^I3[0-3]$/ }
   # Tier mirror of the severity crosswalk (see header comment). I32 is
   # CRITICAL on the marketplace arm (a path under plugins/, catalog severity
   # error) and IMPORTANT on the user and project arm (catalog severity warning).
@@ -723,13 +706,17 @@ LC_ALL=C awk \
     print "## Surfaces"
     print ""
     how = ""
-    if (have_scan != "") how = "instruction-scan.sh --body-only"
-    if (lane_file != "") how = how (how == "" ? "" : "; ") "model lanes: I30, I31, I32, I33"
+    ranids = ""
+    if (have_scan != "") {
+      how = "instruction-scan.sh --body-only"
+      ranids = "I28-a I28-b I29-a I29-b"
+    }
+    if (lane_file != "") {
+      how = how (how == "" ? "" : "; ") "model lanes: I30, I31, I32, I33"
+      ranids = ranids (ranids == "" ? "" : " ") "I30 I31 I32 I33"
+    }
     ran = "Ran: [harness-config:audit-instructions (" how ")]."
     zero = ""
-    ranids = ""
-    if (have_scan != "") ranids = "I28-a I28-b I29-a I29-b"
-    if (lane_file != "") ranids = ranids (ranids == "" ? "" : " ") "I30 I31 I32 I33"
     nz = split(ranids, zids, " ")
     for (i = 1; i <= nz; i++)
       if (!(zids[i] in seen))

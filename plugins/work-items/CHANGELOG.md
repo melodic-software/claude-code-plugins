@@ -3,6 +3,22 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.0.5] - 2026-11-12
+
+### Changed
+
+- Internal restructuring, no behavior change.
+
+## [13.0.4] - 2026-11-12
+
+### Fixed
+
+- The github tracker's `claim` treats an earlier live lease held by a completed workflow run
+  (`session_id` `run-<id>`) as released: one run read, the lease superseded in place, and the
+  claim holds, so a lane run that died before its release no longer blocks the issue's re-fire
+  until the lease's TTL. A live run, any other `session_id`, or an unreadable run status still
+  wins arbitration.
+
 ## [13.0.3] - 2026-11-12
 
 ### Changed

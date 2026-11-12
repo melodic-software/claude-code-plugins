@@ -48,7 +48,7 @@ roles:
     model: inherit
     effort: high
     basis_model: judgment
-    reason_model: the orchestrator is the session itself, so it runs on the model the user chose; the cost page's orchestrator strategy puts a frontier model in the loop, which inherit follows only when the session is frontier, and no upstream statement sets the orchestrator's model for other sessions
+    reason_model: the orchestrator is the session itself, so it runs on the model the user chose; the cost page's orchestrator strategy puts a frontier model in the loop, which inherit follows only when the session is frontier, and no upstream statement sets the orchestrator's model for other sessions; the owner's decision (session model, Opus by default, Fable for long-horizon work) is docs/adr/0100-run-the-orchestrator-on-the-session-model-opus-by-default.md
     basis_effort: judgment
     reason_effort: no upstream statement sets this orchestrator's effort; the model guide's task table (https://claude.dev/blog/which-claude-model-should-you-build-with#pick-a-model-by-task) starts a Fable lead of many subagents at medium, then high, while this orchestrator inherits the session model and merges every worker's result, so it takes the second step, which pointer_levels' effort table gives to work where verification matters or edge cases are likely
     pointer_levels: https://code.claude.com/docs/en/model-config#choose-an-effort-level

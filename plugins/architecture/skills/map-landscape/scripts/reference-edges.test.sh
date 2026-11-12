@@ -225,6 +225,32 @@ assert_not_contains "artifact: nor the portfolio table" "$out" 'portfolio-row'
 assert_contains "artifact: a real doc reference still survives alongside them" "$out" '"to":"fixture-owner/ci-workflows"'
 assert_not_contains "noise: nor in another case" "$out" '"to":"Fixture-Owner/Charted"'
 
+# Tests in any language, test-vector tables, example owners and a dotted owner
+# name no system; a real URL beside them, dotted repository name included, does.
+sample_repo="$(make_repo sampled)"
+mkdir -p "$sample_repo/scripts" "$sample_repo/docs"
+printf "const u = 'https://github.com/o/r/pull/1';\n" >"$sample_repo/scripts/edges.test.mjs"
+printf "x = 'https://github.com/x/y/issues/2'\n" >"$sample_repo/scripts/check.test.py"
+printf '{ "url": "https://github.com/someowner/somerepo/pull/5" }\n' \
+  >"$sample_repo/scripts/rate-guard.vectors.json"
+cat >"$sample_repo/docs/notes.md" <<'MD'
+A link like [#12](https://github.com/other/repo/issues/12) names nothing.
+The fixture origin is https://github.com/eval-fixture/app.git.
+Look up `github.com/.../issues/N` URLs, and https://github.com/a.b/c too.
+We build with https://github.com/real-owner/docs.rs and https://github.com/real-owner/tool.
+MD
+commit_repo "$sample_repo"
+out="$(bash "$SCRIPT" "$sample_repo")"
+assert_not_contains "sample: a .test.mjs file names no system" "$out" '"to":"o/r"'
+assert_not_contains "sample: a .test.py file names no system" "$out" '"to":"x/y"'
+assert_not_contains "sample: a .vectors.json table names no system" "$out" 'someowner/somerepo'
+assert_not_contains "sample: an other/repo example is a placeholder" "$out" '"to":"other/repo"'
+assert_not_contains "sample: the eval-fixture origin is a placeholder" "$out" 'eval-fixture/'
+assert_not_contains "sample: an elided owner is not an account" "$out" '"to":".../issues"'
+assert_not_contains "sample: a dotted owner is not an account" "$out" '"to":"a.b/c"'
+assert_contains "sample: a real URL beside them still emits" "$out" '"to":"real-owner/tool"'
+assert_contains "sample: a dotted repository name is still valid" "$out" '"to":"real-owner/docs.rs"'
+
 # A worktree or a renamed clone sits in a directory whose name is not the
 # repository's. Its own `owner/repo` citations must still read as self, or the
 # landscape gains a phantom second system with an arrow pointing at it.

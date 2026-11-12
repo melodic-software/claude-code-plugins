@@ -5,6 +5,20 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.5.20] - 2026-11-12
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [3.5.19] - 2026-11-12
+
+### Changed
+
+- audit-automation-gaps: a gotcha that a hook refusing by exit 1 is not counted as a gate until its event's exit-code semantics are read live.
+- draft-auto-mode-rules: an action that must never happen is pointed at `permissions.deny` or a hook, with `hard_deny` kept as a second layer.
+- Enforcement ladder copy updated to 2.1.1.
+
 ## [3.5.18] - 2026-11-12
 
 ### Changed
