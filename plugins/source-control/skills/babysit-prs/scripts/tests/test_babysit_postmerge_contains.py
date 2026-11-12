@@ -704,5 +704,46 @@ class GreenMainAncestry(unittest.TestCase):
             self.assertTrue(green.ahead(self.c1, self.c3), clone.name)
 
 
+class NewestDispatchLacks(unittest.TestCase):
+    """`newest_dispatch_lacks` (pr-merge's `--uncovered-at` pre-check) asks
+    real git whether the newest dispatch run's head holds the lane merge: True
+    only when git says it does not. Fixture: `Contains`'s repository, main
+    c1-c2-c3 and side s1 off c1."""
+
+    setUpClass = classmethod(Contains.setUpClass.__func__)
+    tearDownClass = classmethod(Contains.tearDownClass.__func__)
+
+    def lacks(self, checkouts: list[pathlib.Path], lane: str, head: str) -> bool:
+        fixture = pathlib.Path(__file__).resolve().parent / "fixtures" / "postmerge"
+        row = json.loads((fixture / "workflow-run.json").read_text(encoding="utf-8"))
+        row.update(event="workflow_dispatch", head_sha=head)
+        page = json.dumps({"total_count": 1, "workflow_runs": [row]})
+        calls: list[list[str]] = []
+
+        def listing(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+            calls.append(args)
+            return subprocess.CompletedProcess(args, 0, page, "")
+
+        with (
+            mock.patch.object(pm, "gh_capture", listing),
+            mock.patch.object(pm.policy, "_history_checkouts", return_value=checkouts),
+        ):
+            answer = pm.newest_dispatch_lacks("example-org/example-repo", "main", lane)
+        self.assertEqual(len(calls), 1)
+        return answer
+
+    def test_a_head_holding_the_lane_merge_is_covered(self) -> None:
+        self.assertFalse(self.lacks([self.root], self.c2, self.c3))
+        self.assertFalse(self.lacks([self.root], self.c3, self.c3))
+
+    def test_a_head_older_than_the_lane_merge_is_uncovered(self) -> None:
+        self.assertTrue(self.lacks([self.root], self.c3, self.c2))
+        self.assertTrue(self.lacks([self.root], self.s1, self.c3))
+
+    def test_a_head_no_full_clone_holds_counts_as_covered(self) -> None:
+        self.assertFalse(self.lacks([self.root], self.c3, UNKNOWN))
+        self.assertFalse(self.lacks([self.shallow, self.empty], self.c3, self.c2))
+
+
 if __name__ == "__main__":
     unittest.main()

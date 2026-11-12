@@ -1507,6 +1507,19 @@ else
 fi
 rm -f "$f" "$EMPTY_TOKENS"
 
+tok="$(one_token_list 'stat[[:space:]]+-c')"
+f="$(tmpsh 'echo hello')"
+scan_tmp="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+TMPDIR="$scan_tmp" SHELL_PORTABILITY_TOKENS="$tok" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1
+rc=$?
+left="$(ls -A "$scan_tmp")"
+if [[ "$rc" -eq 0 && -z "$left" ]]; then
+  ok "a clean scan exits 0 and its EXIT trap removes the active-pattern temp file"
+else
+  fail "clean scan should exit 0 (got $rc) and leave TMPDIR empty (left: $left)"
+fi
+rm -rf "$scan_tmp" "$f" "$tok"
+
 f="$(tmpsh 'grep -Eq foo bar')"
 SHELL_PORTABILITY_TOKENS="/nonexistent/tokens.txt" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1
 if [[ "$?" -eq 2 ]]; then

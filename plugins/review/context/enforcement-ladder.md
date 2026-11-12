@@ -1,5 +1,5 @@
 ---
-enforcement-ladder: 2.1.0
+enforcement-ladder: 2.1.1
 ---
 
 <!-- GENERATED from docs/contracts/enforcement-ladder/README.md by scripts/sync-shared-copies.sh. Do not edit this copy:
@@ -111,7 +111,9 @@ place the readers point to for the question.
 
 1. It can be decided without reasoning: a machine reaches the same verdict every time.
 2. It recurs past the threshold, or once if it is policy-class (a rule the repository states as
-   policy, where one miss is already too many).
+   policy, where one miss is already too many). An action that cannot be undone, exposes a secret,
+   or sends data outside the repository is policy-class: git can revert code, tests and docs, so
+   those can stay with the model, but not these.
 3. A blocking check has no effective false positives; an advisory check stays under 10%. The 10% is
    a corpus-precision proxy, read off the corpus sweep, not a measured per-check rate. The record
    is `0003-verification-guards-earn-default-on-by-measured-precision.md` and

@@ -81,6 +81,18 @@ see the [hooks reference](https://code.claude.com/docs/en/hooks). As of 2026-10-
   sees and the model does not, and the turn ends. `true` is the hand-back above; `false` runs
   no check.
 
+### Where verification blocks
+
+No `TaskCompleted` gate is used. In-session blocking verification, where a plugin has it, runs
+from `Stop`; for report-only checks the `pre-commit` gate stays the default blocking point, and
+their `Stop` row stays opt-in as stated above. Reason: in the
+[typos-format pilot](#typos-format-pilot-2026-10-15) the end-of-turn check never fired, because
+the `pre-commit` hook caught every finding first, so a per-task gate has no measured catch to earn
+its cost. Revisit when a finding reaches a commit that no hook caught.
+Dissent: Lydia Hallie's talk "Rethinking Claude Code Best Practices"
+([video](https://www.youtube.com/watch?v=vlfCjWuv4es)) runs each task's tests on `TaskCompleted`
+and the full suite on `Stop`. Owner decision of 2026-11-12.
+
 ## The registration contract
 
 Rule D1, split between script and agent: scripts only detect, list, diff, render snippets, verify,

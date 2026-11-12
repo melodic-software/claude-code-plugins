@@ -93,17 +93,12 @@ esac
 grep -q '"schema_version"[[:space:]]*:[[:space:]]*1' "$record" ||
   die "not a schema_version 1 record: $record" 1
 
+# shellcheck source=../../../lib/record-layout.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/record-layout.sh"
 read -r -d '' LAYOUT_AWK <<'AWK' || true
 BEGIN {
   shape["actors"] = "^[[:space:]]*[{]\"name\":"
   shape["externals"] = "^[[:space:]]*[{]\"host\":"
-}
-function open_array(key,   rest) {
-  if (!match($0, "\"" key "\"[[:space:]]*:[[:space:]]*\\[")) return
-  rest = substr($0, RSTART + RLENGTH)
-  if (rest ~ /^[[:space:]]*\]/) { seen[key] = 1; return }
-  if (substr($0, 1, RSTART - 1) ~ /^[[:space:]]*$/ && rest ~ /^[[:space:]]*$/) { open = key; return }
-  problem = "the " key " array does not start on a line of its own"
 }
 /"focal"[[:space:]]*:[[:space:]]*\{"name":/ { saw_focal = 1 }
 open != "" {
@@ -124,7 +119,7 @@ END {
   print problem
 }
 AWK
-layout_problem="$(awk "$LAYOUT_AWK" "$record")"
+layout_problem="$(awk "$RECORD_OPEN_ARRAY_AWK$LAYOUT_AWK" "$record")"
 [[ -z "$layout_problem" ]] ||
   die "record is not in the one-object-per-line layout collect-context.sh writes ($layout_problem); regenerate it: $record" 1
 
