@@ -61,10 +61,12 @@ POLL_RE = re.compile(r"\bsleep\s+\d|\buntil\b.*\bdo\b|\bwhile\b.*\bdo\b|--watch\
 CI_WAIT_RE = re.compile(r"\bgh\s+(run\s+watch|pr\s+checks\b.*--watch)|\bglab\s+ci\s+status\b.*--live", re.S)
 CONFLICT_RE = re.compile(r"^CONFLICT \(|Automatic merge failed", re.M)
 # A git subcommand that can stop on a conflict, after any `-C <dir>`, `-c <key=value>`, `-p`, `--git-dir <path>`
-# or `--flag[=value]` global options.
+# or `--flag[=value]` global options. Each option text has exactly one parse, so a long option run
+# cannot backtrack exponentially.
 CONFLICT_COMMAND_RE = re.compile(
     r"\bgit(?:\.exe)?[\"']?"
-    r"(?:\s+(?:-[Cc]\s+(?:\"[^\"]*\"|'[^']*'|\S+)|-[pP]|--(?:git-dir|work-tree|namespace|config-env)\s+\S+|--[\w-]+(?:=\S+)?))*\s+"
+    r"(?:\s+(?:-[Cc]\s+(?:\"[^\"]*\"|'[^']*'|[^\s\"']\S*)|-[pP]|--(?:git-dir|work-tree|namespace|config-env)\s+\S+"
+    r"|--(?!(?:git-dir|work-tree|namespace|config-env)\s)[\w-]+(?:=\S+)?))*\s+"
     r"(?:merge|rebase|pull|cherry-pick|revert|am|stash\s+(?:pop|apply))(?![\w-])"
 )
 PERF_COUNTS = ("tool_waits_gt5m", "polling_calls", "ci_wait_calls", "merge_conflicts")
