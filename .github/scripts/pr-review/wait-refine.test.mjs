@@ -48,7 +48,7 @@ const record = (id = REFINE_ID) => ({ artifacts: [{ name: `pr-unblock-target-dis
 // Each route answers a value, or a list it steps through one read at a time
 // (holding its last), or throws when the value is an Error. A world that
 // names no ref route answers the ref read 404, so each test that does not
-// name one shows the pull request read deciding, as before the ref read.
+// name one shows the pull request read deciding at every poll.
 function world(routes) {
   routes = { [PROBE]: NOT_FOUND, ...routes };
   const reads = [];
@@ -263,7 +263,7 @@ const apiReads = (w) => w.reads.filter((line) => !line.startsWith("log "));
 test("a ref showing another head falls back to the pull request reads: a move they confirm ends the wait", async () => {
   const w = world({ ...refined(running(), steps(pull(), pull(MOVED))), [PROBE]: ref(MOVED) });
   assert.deepEqual(await decide(INPUT, w.deps), { proceed: false, reason: "head-moved" });
-  assert.equal(w.elapsed(), 60_000, "one 30 s poll, then the 30 s confirming read, as before the ref read");
+  assert.equal(w.elapsed(), 60_000, "one 30 s poll, then the 30 s confirming read");
   assert.deepEqual(apiReads(w).slice(-3), [PROBE, "pulls/7", "pulls/7"]);
 });
 
@@ -287,10 +287,37 @@ test("a ref read that fails, or answers 404, or names no commit falls back to th
   }
 });
 
+test("a pull request closed while Refine runs is caught at the final read once Refine completes: it is not reviewed", async () => {
+  const w = world({ ...refined(steps(running(), running(), refineRun()), steps(pull(), pull(HEAD, { state: "closed" }))), [PROBE]: ref() });
+  assert.deepEqual(await decide(INPUT, w.deps), { proceed: false, reason: "head-moved" });
+  assert.equal(reads(w, `actions/runs/${REFINE_ID}`), 3, "Refine is read until it completes");
+  assert.equal(reads(w, "pulls/7"), 2, "the start read and the final read that finds it closed");
+});
+
+test("a ref read that keeps failing warns once per job, naming the status", async () => {
+  const w = world({ ...refined(steps(running(), running(), running(), refineRun())), [PROBE]: new Error(`GET ${PROBE} returned 403`) });
+  assert.deepEqual(await decide(INPUT, w.deps), { proceed: true, reason: "refine-success" });
+  assert.equal(reads(w, PROBE), 3);
+  const warnings = w.reads.filter((line) => line.startsWith(`log ::warning::wait-refine #7 ${HEAD}: the head ref read failed`));
+  assert.equal(warnings.length, 1, "one warning for three failed ref reads");
+  assert.ok(warnings[0].includes("returned 403"), warnings[0]);
+});
+
+test("a ref with no commit warns once, and a ref naming another head does not warn", async () => {
+  const empty = world({ ...refined(steps(running(), running(), refineRun())), [PROBE]: { ref: "refs/pull/7/head" } });
+  await decide(INPUT, empty.deps);
+  assert.equal(empty.reads.filter((line) => line.includes("the head ref read failed (it named no commit)")).length, 1);
+  const other = world({ ...refined(steps(running(), refineRun())), [PROBE]: ref(MOVED) });
+  await decide(INPUT, other.deps);
+  assert.ok(!other.reads.some((line) => line.includes("the head ref read failed")));
+});
+
 const ENV = { PR_NUMBER: "7", HEAD_SHA: HEAD, GITHUB_REPOSITORY: REPO, GITHUB_TOKEN: "t", GITHUB_OUTPUT: "/dev/null" };
 
-test("the default poll is 60 s, the owner's wait-refine poll decision", () => {
-  assert.equal(readEnv(ENV).pollMs, 60_000);
+test("with no poll set, a poll comes 60 s after the last read", async () => {
+  const w = world({ ...refined(steps(running(), refineRun())), [PROBE]: ref() });
+  assert.deepEqual(await main(ENV, w.deps), { proceed: true, reason: "refine-success" });
+  assert.equal(w.elapsed(), 60_000, "one poll while Refine runs");
 });
 
 test("malformed env throws before any read", () => {

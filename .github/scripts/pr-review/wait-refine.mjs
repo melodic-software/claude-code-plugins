@@ -15,9 +15,10 @@
 // which answers 304 while the head holds; the pull request itself never does,
 // since its body embeds the repository, whose pushed_at moves on every push.
 // A ref read that shows another head, or fails, falls back to reading the
-// pull request. A head read there as moved is read again after one poll
-// before anything ends on it; a second read that shows this head again
-// resumes the wait. No dispatcher run, no record, a record naming
+// pull request. The ref outlives a close or merge, so a pull request closed
+// mid-wait is caught at the final read, once the wait ends. A head read there
+// as moved is read again after one poll before anything ends on it; a second
+// read that shows this head again resumes the wait. No dispatcher run, no record, a record naming
 // any other run, a wait past its cap, or any read that fails runs the review,
 // as it ran before this job existed.
 //
@@ -81,12 +82,21 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
 
   // moved() for a poll, skipped while the head's ref still names this head.
   // The ref route carries only the PR number, so no branch name reaches a
-  // rate-guard log line. A failed ref read costs what a poll cost before it.
-  async function polled() {
+  // rate-guard log line. A failed ref read adds its own call to the poll's
+  // pull request reads, so the first failure in a job is warned once.
+  let refFailed = false;
+  async function movedAtPoll() {
+    let failure = null;
     try {
-      if ((await api.get(`git/ref/pull/${number}/head`)).object?.sha === head) return null;
-    } catch {
-      // The pull request read below decides, and its failure is read-error.
+      const sha = (await api.get(`git/ref/pull/${number}/head`)).object?.sha;
+      if (sha === head) return null;
+      if (typeof sha !== "string") failure = "it named no commit";
+    } catch (error) {
+      failure = error.message;
+    }
+    if (failure && !refFailed) {
+      refFailed = true;
+      say("warning", `the head ref read failed (${failure}); polls read the pull request instead`);
     }
     return moved();
   }
@@ -102,7 +112,7 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
     while (run.status !== "completed") {
       if (now() + pollMs > deadline) return null;
       await sleep(pollMs);
-      const pr = await polled();
+      const pr = await movedAtPoll();
       if (pr) return { moved: pr };
       run = await api.get(`actions/runs/${run.id}`);
     }
@@ -134,7 +144,7 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
       );
       if (runs.length > 0 || now() + pollMs > start + appearMs) break;
       await sleep(pollMs);
-      const current = await polled();
+      const current = await movedAtPoll();
       if (current) return skip(current, "waiting for a dispatcher run");
     }
     if (runs.length === 0) return await finish("no-dispatcher");
