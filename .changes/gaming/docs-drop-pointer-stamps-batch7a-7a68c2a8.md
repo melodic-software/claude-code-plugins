@@ -1,5 +1,7 @@
 ---
-bump: none
+bump: patch
 ---
 
-Comment-only sync of shared library copies; this plugin's release note for the same sweep ships in its own batch 7 split.
+### Changed
+
+- Synced the shared library copies this plugin carries; their pointer records no longer carry an as-of date or recheck trigger.
