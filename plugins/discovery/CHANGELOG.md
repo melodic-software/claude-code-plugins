@@ -1,5 +1,19 @@
 # Changelog: discovery plugin
 
+## [1.7.9] - 2026-11-11
+
+### Fixed
+
+- The `explore` skill no longer says the Bash tool returns a command's complete output into context. The rule
+  stands (the pipe is the bound, so it belongs in the command); the reason now points at the Output
+  limits section of the Claude Code tools reference for what a result returns inline.
+
+## [1.7.8] - 2026-11-11
+
+### Changed
+
+- The README options reference lists its upstream documentation as pointers only, with no as-of date or recheck trigger.
+
 ## [1.7.7] - 2026-11-11
 
 ### Changed

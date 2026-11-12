@@ -107,6 +107,13 @@
           "default": 2,
           "description": "Kill-switch re-fires' queue target per issue-lane slot (SLOTS in work-resolve-issue.yml): a work-unblock sweep re-fires breaker-stranded issues, oldest first, only until the work-resolve-issue runs not yet finished reach this times SLOTS, within restarts-per-run."
         },
+        "stale-queued-minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1440,
+          "default": 60,
+          "description": "Minutes after it was created past which a work-resolve-issue run still at status queued is not counted toward refire-queue-per-slot's room: its first job never got a runner, so GitHub lost it and it will never start. A reopened fix issue's in-flight check also ignores such a run when it names no issue; one that names the issue still holds it."
+        },
         "sweep-gap-minutes": {
           "type": "integer",
           "minimum": 0,
@@ -709,17 +716,12 @@
       }
     },
     "edit-runner": {
-      "anyOf": [
-        { "properties": { "effect": { "not": { "const": "read" } } } },
-        {
-          "required": ["applied-by"],
-          "properties": {
-            "applied-by": { "required": ["patch"] },
-            "prepare": { "not": { "const": "ci-context" } }
-          }
-        }
-      ],
-      "description": "Only the runner that stages a skill's edit tools grants checks, self-checks, verify-scripts and web-access: the write runner, or the read runner for a skill with applied-by.patch and no prepare: ci-context. Anywhere else they would do nothing, so they are refused."
+      "required": ["applied-by"],
+      "properties": {
+        "applied-by": { "required": ["patch"] },
+        "prepare": { "not": { "const": "ci-context" } }
+      },
+      "description": "Only the read runner stages a skill's edit tools, for a skill with applied-by.patch and no prepare: ci-context, so only that skill takes checks, self-checks, verify-scripts and web-access. Anywhere else they would do nothing, so they are refused."
     },
     "verify-runner": {
       "anyOf": [
@@ -727,10 +729,6 @@
         { "required": ["prepare"], "properties": { "prepare": { "const": "ci-context" } } }
       ],
       "description": "verify-scripts are staged where checks are, and under prepare: ci-context too, where the skill is told to run a listed script only from its base copy."
-    },
-    "no-head-test-check": {
-      "not": { "pattern": "^scripts/(affected-tests|run-outside-node-suites|selection-audit|check-guardrails-ps-differential|run-test-file)\\.sh( |$)" },
-      "description": "A check or self-check of a skill whose effect is not read runs in the write runner's run job, which holds the lane token and id-token: write, so it may not be a script that runs the checkout's test files. check-affected.sh --tests is allowed: run from the base copy against the checkout, it skips the branch's tests."
     },
     "leaf": {
       "type": "object",
@@ -782,16 +780,9 @@
       },
       "allOf": [
         {
-          "if": { "required": ["effect"], "properties": { "effect": { "not": { "const": "read" } } } },
-          "then": {
-            "properties": {
-              "checks": { "items": { "$ref": "#/$defs/no-head-test-check" } },
-              "self-checks": { "items": { "$ref": "#/$defs/no-head-test-check" } },
-              "verify-scripts": {
-                "items": { "not": { "enum": ["scripts/run-test-file.sh", "plugins/skill-quality/scripts/check-skill.sh"] } }
-              }
-            }
-          }
+          "if": { "required": ["skill"] },
+          "then": { "properties": { "effect": { "const": "read" } } },
+          "description": "A skill runs only in the read runner, which holds no write credential: its effect is read, and a script activity applies or publishes what it hands on."
         },
         {
           "if": { "required": ["effect", "prepare"], "properties": { "effect": { "const": "read" }, "prepare": { "enum": ["ci-context", "review-threads", "merge-base"] } } },
@@ -824,7 +815,7 @@
         "skill": { "$ref": "#/$defs/skill" },
         "prepare": {
           "enum": ["merge-base", "review-threads", "dependency-review", "ci-context", "apply-patch"],
-          "description": "What the runner does around the activity (README.md, Activities; pr-run-activity.md, the prepare sections). apply-patch is the one mode for a script, a mutate-branch one; the others run around a skill. ci-context needs effect read and hands its change on as a patch; merge-base, review-threads and dependency-review need an effect other than read unless their activity hands its change on as a patch, review-threads with effect read also hands on its replies (applied-by.feedback-replies), and dependency-review with effect read its verdict (applied-by.dependency-verdict). ci-context: download the failing-check context file a base job wrote, check its SHA-256 and head, make it read-only and name it to the skill, which also gets Bash, Edit and Write. apply-patch: check the patch artifact a producer left (one patch.diff with its SHA-256, on the head it worked on), apply it to the gated head, and push it as one commit without force; patch-rules.json registers the rules each producer's patch is to be held to (README.md, Patch rules). merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents (with effect read, a base job of the caller merges first and decides, the read runner merges the same base again and hands the skill's resolutions on as a patch measured from the conflict tree, and a prepare: apply-patch script commits the merge). review-threads: before any model turn, keep the PR's unresolved reviewer-bot threads on a reviewed head and escalate on a .github/** diff or the round cap (on the read runner, a base job of the caller does this and the runner checks its thread file); give the skill the review-thread tool; after it, upload the replies it recorded for a script job to validate and post. dependency-review: before any model turn, skip a PR Dependabot did not open or one sorted auto, and escalate on the round cap (on the read runner, a base job of the caller does this and the runner checks its context file); give the skill a read-only context file and a verdict schema for its structured output; after it, upload the verdict for a script job to validate and act on, and the fix as a patch a prepare: apply-patch script pushes only on a fix verdict."
+          "description": "What the runner does around the activity (README.md, Activities; pr-run-activity.md, the prepare sections). apply-patch is the one mode for a script, a mutate-branch one; the others run around a skill. A skill's mode hands its change on as a patch; review-threads also hands on its replies (applied-by.feedback-replies), and dependency-review its verdict (applied-by.dependency-verdict). ci-context: download the failing-check context file a base job wrote, check its SHA-256 and head, make it read-only and name it to the skill, which also gets Bash, Edit and Write. apply-patch: check the patch artifact a producer left (one patch.diff with its SHA-256, on the head it worked on), apply it to the gated head, and push it as one commit without force; patch-rules.json registers the rules each producer's patch is to be held to (README.md, Patch rules). merge-base: a base job of the caller merges the base tip first and decides, the read runner merges the same base again without committing and hands the skill's resolutions on as a patch measured from the conflict tree, and a prepare: apply-patch script commits the merge with the gated head and the base tip as parents. review-threads: before any model turn, keep the PR's unresolved reviewer-bot threads on a reviewed head and escalate on a .github/** diff or the round cap (on the read runner, a base job of the caller does this and the runner checks its thread file); give the skill the review-thread tool; after it, upload the replies it recorded for a script job to validate and post. dependency-review: before any model turn, skip a PR Dependabot did not open or one sorted auto, and escalate on the round cap (on the read runner, a base job of the caller does this and the runner checks its context file); give the skill a read-only context file and a verdict schema for its structured output; after it, upload the verdict for a script job to validate and act on, and the fix as a patch a prepare: apply-patch script pushes only on a fix verdict."
         },
         "applied-by": {
           "type": "object",
@@ -846,7 +837,7 @@
             "type": "string",
             "pattern": "^scripts/[A-Za-z0-9_-]+\\.sh( --[a-z][a-z-]*)*$"
           },
-          "description": "Repository check scripts the skill may run, each with its fixed flags. The runner that stages the skill's edit tools (the write runner, or the read runner for a skill with applied-by.patch) runs each from the base copy against the checkout, through a wrapper the skill can call with no arguments."
+          "description": "Repository check scripts the skill may run, each with its fixed flags. The runner that stages the skill's edit tools (the read runner, for a skill with applied-by.patch) runs each from the base copy against the checkout, through a wrapper the skill can call with no arguments."
         },
         "self-checks": {
           "type": "array",
@@ -866,7 +857,7 @@
             "type": "string",
             "pattern": "^(scripts|plugins/[a-z0-9-]+/(skills/[a-z0-9-]+/)?scripts)/[A-Za-z0-9_-]+\\.sh$"
           },
-          "description": "Exact repository-relative paths of scripts the skill may run with any arguments. The runner that stages the skill's edit tools copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows a wrapper that runs the script from the checkout, with GH_TOKEN and GITHUB_TOKEN unset (no ancestor process holds them either, though the write runner's checkout keeps the token in .git/config), with any arguments but a path outside it. A script that changes files, runs code from the checkout, or reaches the network hands the run that power: list one only when it limits itself, as scripts/run-test-file.sh, scripts/git-mv-rm.sh and scripts/new-changelog-fragment.sh do, or when the run may hold that power, as plugins/skill-quality/scripts/check-skill.sh (checkout test scripts and markdownlint) does. Those two run checkout code, so a skill whose effect is not read, whose run job holds the lane token and id-token: write, may list neither."
+          "description": "Exact repository-relative paths of scripts the skill may run with any arguments. The runner that stages the skill's edit tools copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows a wrapper that runs the script from the checkout, with GH_TOKEN and GITHUB_TOKEN unset (no ancestor process holds them either), with any arguments but a path outside it. A script that changes files, runs code from the checkout, or reaches the network hands the run that power: list one only when it limits itself, as scripts/run-test-file.sh, scripts/git-mv-rm.sh and scripts/new-changelog-fragment.sh do, or when the run may hold that power, as plugins/skill-quality/scripts/check-skill.sh (checkout test scripts and markdownlint) does."
         },
         "web-access": {
           "type": "object",
@@ -959,7 +950,7 @@
             "publish-artifact",
             "merge"
           ],
-          "description": "What the activity may change. The runner derives ordering and the token grant from it and checks that a read activity left the tree clean, unless the activity hands its change on as a patch. mutate-variable reads everything and writes only what its lane's activity grant adds: repository Variables, for work-unblock's publish-lane-level alone."
+          "description": "What the activity may change; a skill's is read. The runner derives ordering and the token grant from it and checks that a read activity left the tree clean, unless the activity hands its change on as a patch. mutate-variable reads everything and writes only what its lane's activity grant adds: repository Variables, for work-unblock's publish-lane-level alone."
         },
         "gating": {
           "enum": ["gate", "advisory"],

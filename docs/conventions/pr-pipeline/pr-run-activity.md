@@ -10,8 +10,10 @@ Two reusable workflows run one activity of one lane each and end in one check ru
   before the head checkout for any other effect.
 - [`pr-run-activity-write.yml`](../../../.github/workflows/pr-run-activity-write.yml) runs every
   other effect. It declares no App key either: its run job holds `id-token: write` and gets the
-  effect's token from the lanes token broker before any head checkout. It never runs for the lanes
-  App bot, and fails red with `effect-read` for a `read` activity.
+  effect's token from the lanes token broker before any head checkout. It runs scripts only: a
+  skill's effect is always `read` (the config reader refuses any other), and the file fails red
+  with `skill-in-write-runner` before the mint for a skill. It never runs for the lanes App bot,
+  and fails red with `effect-read` for a `read` activity.
 
 Every lane workflow calls one of them once per activity; the activity's effect decides which. Which
 activity runs, with what model, turn budget and token grant, comes from the base SHA's
@@ -133,8 +135,8 @@ retries under `limits.stop-retries`, and
 `scan-refused-output` holds for a person ahead of any funding, limit or turn-cap record. A
 failed download there names no refusal.
 
-Secrets are passed by name, never `inherit`: `claude-code-oauth-token` (skill activities, both
-files) and, in the read file, `claude-api-key` (a PR-mode skill's first call), one of the two
+Secrets are passed by name, never `inherit`: `claude-code-oauth-token` (skill activities, the read
+file only) and, in the read file, `claude-api-key` (a PR-mode skill's first call), one of the two
 per call. Variables: `CLAUDE_LANES_DISABLED` and `CLAUDE_LANES_REPO_DISABLED` (the org
 and repository kill switches),
 `AUTOMATION_LANES_APP_SENDER_ID`, the App bot's numeric user id, the one place it is written, and
@@ -332,7 +334,7 @@ the broker request, and no other permission; it never holds `checks: write` or `
    `plugins/source-control/scripts/resolve-version-bump-conflict.sh` to
    `$RUNNER_TEMP/merge-base-bin`, recording each copy's SHA-256 as a step output, and read
    `loop.no-progress` from the resolved config.
-9. `setup-runner-isolation`: for a skill, installs bubblewrap and socat and, where
+9. `setup-runner-isolation`: for a skill, which runs in the read file only, installs bubblewrap and socat and, where
    `/proc/sys/kernel/apparmor_restrict_unprivileged_userns` exists, sets it to `0`. It installs
    with `apt-get` from the image's own package lists, else after `apt-get update` (three tries),
    all within 540 s, under the image's own mirror failover settings. It uses no Actions cache: the
@@ -341,17 +343,17 @@ the broker request, and no other permission; it never holds `checks: write` or `
 10. Removes sudo and docker access for the rest of the job: `/var/run/docker.sock` becomes
    root-only and the runner user's `/etc/sudoers.d/runner` entry is deleted. It fails red if
    `sudo -n true` still succeeds or the socket is still open to the runner user.
-11. For a skill, copies the base's [`scripts/setup-env.sh`](../../../scripts/setup-env.sh) and the
+11. For a skill (the read file only), copies the base's [`scripts/setup-env.sh`](../../../scripts/setup-env.sh) and the
     files it installs from (`.python-version`, `.github/requirements-ci.txt`, the root and
     `.github/standards/runner-policy` `package.json` and `package-lock.json`) to
     `$RUNNER_TEMP/setup-env`; a base without the script skips this and step 12's install with a
     notice. Then checks out the trigger gate's `head-sha` with `persist-credentials: false` (full
     history for a merge, else depth 1), then fails red unless `git rev-parse HEAD`
     equals that SHA. This replaces `.base`.
-12. For a skill, sets up Python from the copied `.python-version` and runs the copied
+12. For a skill (the read file only), sets up Python from the copied `.python-version` and runs the copied
     `setup-env.sh`, which installs the hash-pinned wheels in `.github/requirements-ci.txt` into a
     venv under `$RUNNER_TEMP` and the locked Node packages, puts both on `PATH`, and copies the
-    `node_modules` trees into the checkout. Both files install from the base copies in
+    `node_modules` trees into the checkout. It installs from the base copies in
     `$RUNNER_TEMP/setup-env`, so no head code runs before the skill's own Bash; a read skill that
     needs the head's own packages runs `npm ci` there.
     Then runs the activity (below) and, in the read file, records whether the tree is dirty, or
@@ -389,15 +391,10 @@ empty; `head-sha` and `head-ref` are the trigger gate's; `base-sha` is set only 
 is always on the default branch. `escalation-reason` comes from the base's reply, verdict and
 apply-patch scripts, which run no model and no head code. `act-outcome` is the activity step's
 outcome. In the read file a skill runs on run-claude-cli (`act-key` or `act-token`), and one
-whose step succeeded is a failure when it took no model turn. In the write file a skill step
-claude-code-action failed only because a `success` result went over `--max-turns` counts as
-succeeded. That holds only when the execution file's last result message has subtype `success`,
-`is_error` false and `num_turns` over the cap; any other failure, or a missing or unreadable
-execution file, still fails the job. There a skill whose step succeeded is a failure when it took
-no model turn, when it is a gate skill and the verdict check (below) fails, or when its commits
-could not be moved onto the PR branch. These checks are steps that run after the skill.
+whose step succeeded is a failure when it took no model turn. The write file runs no skill, so its
+`act-outcome` is the script step's outcome.
 
-Both files also output the lane record of a skill run: `record`, the lane-outcome JSON
+The read file also outputs the lane record of a skill run (the write file runs no skill and outputs none): `record`, the lane-outcome JSON
 (ci-workflows `docs/lane-outcome.md`) that ci-workflows' `report-lane-outcome` builds from the
 execution file after the skill, naming the credential the leg ran on, or for a read leg that
 failed before the launcher named it (a CLI install), the secret the call was given. The report job
@@ -433,8 +430,8 @@ mints nothing. `collect-base-activity` fails red on a path outside that name set
 the slash command reaches the skill's arguments. A `reads-untrusted` skill must read PR text (title, body, comments,
 reviews, linked issues) only from that file, never through the API. Existing skills are not yet
 adapted to this and still read PR text themselves; until each is, its untrusted-text exposure is a
-known residual. The skill gets the App token as `github_token` in the write file; the read file
-runs the skill on run-claude-cli, whose steps pass it no GitHub token. `claude_args` passes `--setting-sources user`, so no
+known residual. Every skill runs in the read file, on run-claude-cli, whose steps pass it no
+GitHub token; the write file runs no skill. `claude_args` passes `--setting-sources user`, so no
 project or local settings, hooks, `CLAUDE.md`, `AGENTS.md` or `.mcp.json` from the PR head load;
 `--permission-mode dontAsk`; `--allowedTools "Skill(<plugin>:<skill>)"`, so the skill's own
 `allowed-tools` decide what else it may use; and `resolve-config`'s `claude-args` for the
@@ -482,9 +479,8 @@ read-only, denies `Edit` and `Write` on it, allows `Bash(<copy>/bin/<name> *)`, 
 wrapper in `--append-system-prompt`. The wrapper changes to the checkout, refuses any argument (or
 the value after an `=`) naming an existing path whose real path lies outside the checkout, since a
 script may print lines of a file it reads, unsets `GH_TOKEN` and `GITHUB_TOKEN` in the script's
-own environment (no Bash process above it holds the token either: in the write runner the skill's
-settings clear it, and the read runner's run-claude-cli steps set neither `GH_TOKEN` nor
-`GITHUB_TOKEN`), sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=/dev/null`
+own environment (no Bash process above it holds the token either: the read runner's
+run-claude-cli steps set neither `GH_TOKEN` nor `GITHUB_TOKEN`), sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=/dev/null`
 and command-scope `core.fsmonitor=false` and `core.hooksPath=/dev/null`, for skill-quality's
 `check-skill.sh` alone sets `HOME` to a fresh `mktemp -d` directory and `CLAUDE_CONFIG_DIR` to its
 `.claude`, since the skill tests it runs write there and the runner's `~/.claude` is read-only,
@@ -514,12 +510,9 @@ running `npm ci --ignore-scripts` there once when it has a `package-lock.json` a
 without `GH_TOKEN` or `GITHUB_TOKEN`, with git reading a fixed test config in place of the host's
 (`scripts/lib/test-git-env.sh`). It refuses any other file and any name outside
 `[A-Za-z0-9._/-]`, so pytest reads no node id. When it is listed, the system prompt names its
-wrapper as the way to run a test file and says a compound `cd <dir>; <command>` is refused. Its tests are checkout code with the network open, so the schema
-refuses `scripts/run-test-file.sh` and `check-skill.sh` in the `verify-scripts` of a skill whose
-effect is not `read`: the write runner's run job holds the lane token and `id-token: write`, and
-only a read skill with `applied-by.patch`, in the read runner's run job that holds neither, may
-list them. For the same reason the schema refuses, in such a skill's `checks` and `self-checks`,
-the scripts that run the checkout's test files ([README.md](README.md#activities)). `scripts/git-mv-rm.sh` runs
+wrapper as the way to run a test file and says a compound `cd <dir>; <command>` is refused. Its tests are checkout code with the network open, so
+only a skill in the read runner's run job, which holds neither the lane token nor `id-token: write`,
+may list them; every skill runs there ([README.md](README.md#activities)). `scripts/git-mv-rm.sh` runs
 `git mv <source> <destination>` or `git rm -r -f <path>...`, first recording an untracked path as
 intent-to-add so a file the run created can be renamed or removed, with `GIT_LITERAL_PATHSPECS=1`
 so git reads each path literally, never as a glob or pathspec magic. The index is local: the
@@ -567,61 +560,10 @@ environment and gives Bash its own PID namespace; it does not sandbox the networ
 ([env vars: What the subprocess environment scrub removes](https://code.claude.com/docs/en/env-vars#what-the-subprocess-environment-scrub-removes);
 as of 2026-10-15). Without `web-access` the skill has no web tool and no `Bash` rule that fetches,
 so `dontAsk` refuses every fetch. Fetched pages are
-untrusted text, so the activity must set `reads-untrusted: true`. No rule limits which files it changes: with its
-token it can change, commit and push any file in the repository, and claude-code-action writes
-the token into the origin URL under `use_commit_signing`
-(`src/github/operations/git-config.ts:129-133` at `ed670b4`), so a `git push` works too. The PR is
-the review step: the review lanes, `ci-status`, review-thread resolution and the merge gate see
-every lane commit. The hardening is the broker's scoped, hour-long token revoked when the job
-ends, base-SHA config and runner, the trusted-actor filter, the kill switch,
-`--setting-sources user`, an explicit `--permission-mode` and never `bypassPermissions`. The
-residuals are in [Trust-root paths](README.md#trust-root-paths): the model can read its token
-(`GH_TOKEN`, `GITHUB_TOKEN`, `.git/config`) until it is revoked, and under `web-access` send it to
-any domain the activity allows, which is
-[ADR 0055](../../adr/0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md)'s
-accepted residual, a skill's own `Bash` grant can exceed its job (`Bash(git:*)` in
-`ai-slop:audit`), and a lane commit can change instruction files the PR author's local session
-later loads. The skill's final reply is uploaded as an artifact with the token string cut out.
-`commit_files` builds each commit on the live tip of `CLAUDE_BRANCH` with file bytes from the
-gated checkout (`src/mcp/github-file-ops-server.ts:226-367` at `ed670b4`), so committing straight
-to the PR branch would overwrite a push made during the run. After the skill, a pinned
-`github-script` step fast-forwards the PR branch to the lane branch only while the PR branch is
-still at the gated SHA, and deletes the lane branch either way. When the PR branch has moved, the
-lane's commits are dropped and the activity fails; a later run (a reopen or a dispatch) gates the
-new head and redoes the activity. Right before the move it
-re-reads the PR's labels and draft flag with the job's `GITHUB_TOKEN`, then reads the PR branch's
-tip last: `do-not-merge`, the base's human-gated role label, a label in the activity's
-`labels-absent` list (both read from the base before the head checkout) or a draft drops the lane's
-commits and skips `awaiting-human`, and a read that fails or a second page of labels moves nothing
-and fails the step. A raw `git push` from the
-skill skips this check. Why a skill activity loads nothing from
-the PR head:
-[ADR 0055](../../adr/0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md).
-
-In the write file, on PR events claude-code-action adds a second head-isolation layer beside
-`--setting-sources user`: when it treats the PR head as untrusted, it replaces `.claude`,
-`.mcp.json`, `CLAUDE.md` and its other listed config paths with the PR base branch's copies
-before Claude starts. The read file runs no claude-code-action step.
-
-In the write file, a skill whose `gating` is `gate` must end with a verdict. `claude_args` adds `--json-schema` with a
-schema requiring `{"verdict": "pass" | "fail", "summary": string}`; claude-code-action fails its
-step when no structured output returns. The next step reads the action's `structured_output`
-output through `env`, parses it with `jq`, writes the summary to the step summary as data, and fails
-red unless the verdict is exactly `pass`. A `fail` verdict therefore makes `act-outcome` `failure`
-and the check a failure. A `gating` value other than `gate` or `advisory` fails the job red before
-the head checkout.
-
-A `gating: gate` skill must not execute head code: no test, linter or build of the PR runs through
-its Bash. The verdict check runs after the skill in the same job, so head code that ran first could
-forge it, for example by writing a `$RUNNER_TEMP` file-command file such as one `BASH_ENV` points
-at, or by leaving a process running. Tests, linters and builds that gate run as a `script` activity,
-or under a separate design that judges their result in a job head code never touched.
-
-After a write-file skill, a pinned `actions/github-script` step removes the head checkout's
-and `.base`'s `.git` directories, so neither `actions/checkout` post step runs git under config the
-skill wrote while it holds the job's runtime token. A script activity skips that step. A process
-the skill left running can make them again: no step stops such processes yet
-([#8302](https://github.com/melodic-software/claude-code-plugins/issues/8302)).
+untrusted text, so the activity must set `reads-untrusted: true`. The skill holds no GitHub token and pushes nothing: its change leaves the run only as an artifact
+(a patch, replies, a verdict or a work outcome) that a script activity in the write file checks and
+applies, and the PR is the review step for what lands. Why a skill activity loads nothing from the
+PR head: [ADR 0055](../../adr/0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md).
 
 The step summary (in a PR-mode read run, the scan job's) shows the skill's final reply (at most 4000 characters, backticks
 neutralized) for audit. It is model output, printed as data. The same text is uploaded as the
@@ -642,8 +584,7 @@ none), cut to 300 characters, and `denied_total`, the count of all of them. Unti
 the 32768-byte cap a read run's scan job carries it under, the oldest stderr messages drop first,
 then denials from the end. It writes them to `act-turns.json`, which goes into the
 same artifact and onto the step summary, where each denial shows as `tool: input` followed by
-`(+N more)` when some were cut; in the write file the lane token is cut out
-of both. In a PR-mode read run, `act-turns.json` is sealed with the reply for the scan job, which
+`(+N more)` when some were cut. In a PR-mode read run, `act-turns.json` is sealed with the reply for the scan job, which
 shows and uploads it only after a clean leak scan. The full execution file is not uploaded: it
 holds head text and tool output.
 
@@ -1908,8 +1849,9 @@ What it trusts:
 
 - Lane and activity from the reusable workflow's own inputs.
 - `needs.run.result`, and the run job's `act-outcome`, `can-commit`, `gate-reason`, `head-sha`,
-  `base-sha` and, in the write file, `run-failure` outputs, computed by the runner. All but a gate skill's `act-outcome` come from steps
-  that ran before any head code; that one rests on the rule that a gate skill runs no head code.
+  `base-sha` and, in the write file, `run-failure` outputs, computed by the runner. All but
+  `act-outcome` come from steps that ran before any head code; in the write file that one is a base
+  script's outcome, and the write file runs no skill.
 - Its own signed-commit result. On an unverified commit, `check-signed-commits` fails closed: the
   check is a failure, and the report job adds `needs-human` when the repository has that label and
   posts a comment whose first line is `<!-- check-signed-commits hold -->`, which holds the lane
@@ -1922,13 +1864,10 @@ The activity ran on exactly the commit the check is posted on: the run job check
 cannot make the activity judge a different commit than the one its check marks, so a later
 force-push back to the checked SHA never carries a result for code the activity did not see.
 
-`persist-credentials: false` does not hold for a skill activity. claude-code-action writes the App
-token into the origin URL in `.git/config` and exports it to Claude as `GH_TOKEN` and
-`GITHUB_TOKEN`. A skill activity whose effect is not `read` therefore holds a contents-write App
-token inside the Claude process and the git config. Such a skill must not execute head code: no
-test or build of the PR runs through Bash. A lane that needs to run head code with a write effect
-is outside this contract until a split design exists (a read-only run, then a separate step that
-makes the signed commit).
+No skill runs beside an App token: a skill's effect is always `read`, so it runs in the read file,
+whose run job holds `contents: read` and `pull-requests: read` and no `id-token`, and hands its
+change on as a patch whose SHA-256 the write file checks before it requests the token. The write
+file's head checkout sets `persist-credentials: false`, and the scripts it runs come from the base.
 
 Secrets in the job that runs head code: neither file references the App key, and a run holds it
 only if a caller passes it ([below](#secrets-and-the-two-files)). Every skill job references the
@@ -1937,15 +1876,9 @@ Claude OAuth token. Two routes reach it and the activity's GitHub token:
 - Environment inheritance, no root needed. claude-code-action puts `CLAUDE_CODE_OAUTH_TOKEN` and
   the token it was given (as `GH_TOKEN` and `GITHUB_TOKEN`) in Claude's environment, so every Bash
   child of Claude inherits them and can read them from its own environment or from
-  `/proc/<ancestor>/environ`. The write file's skill step sets `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which
-  strips the OAuth token and other credentials from Bash, hook and MCP subprocesses and gives
-  Bash its own PID namespace, so an ancestor's `environ` is out of reach. The scrub keeps
-  `GH_TOKEN` and `GITHUB_TOKEN`. The read file runs its skill on run-claude-cli, not this action,
-  and its run-claude-cli steps set neither token. The write file's skill step sets both to empty
-  in its settings' `env`, so no Bash process, the sandbox's pid 1 included, holds the effect-scoped App token; the action's MCP
-  servers, commit signing among them, get it from their own config `env`. The action installs
-  bubblewrap only for `allowed_non_write_users`, so run job step 9 installs it and fails the job
-  when it is missing.
+  `/proc/<ancestor>/environ`. Every skill runs in the read file, on run-claude-cli, not this
+  action, and its run-claude-cli steps set neither token; the write file runs no skill and
+  references no Claude credential.
 - Runner memory, with root. A hosted runner holds referenced secrets in the runner's memory.
   Removing sudo and docker access before the head checkout blocks the documented memory-dump
   route.
@@ -2234,8 +2167,8 @@ The `issue-number` input of both files runs a lane on an issue instead of a PR. 
 [`work-resolve-issue.yml`](../../../.github/workflows/work-resolve-issue.yml): the `agent-ready`
 label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`) in the read file
 in [patch output mode](#patch-output-mode), so the model job holds no write token, then `apply-issue-patch` and
-`report-outcome` (scripts) in the write file. The write file refuses an issue skill red
-(`issue-skill-in-write-runner`). The model job's run job holds `contents: read` and
+`report-outcome` (scripts) in the write file. The write file refuses any skill red
+(`skill-in-write-runner`). The model job's run job holds `contents: read` and
 `pull-requests: read` only, and the skill runs on `run-claude-cli` like a PR-mode skill
 ([Two calls on one credential each](#two-calls-on-one-credential-each)), whose leg environment
 holds its one Claude credential and no GitHub token. Before any job that

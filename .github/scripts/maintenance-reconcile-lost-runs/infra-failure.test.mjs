@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { contractOnly, infraCause, infraOnly, reconcilerOwns, reconcilerRetries, stepsKnown, testedRun, timeLimitNoted } from "./infra-failure.mjs";
+import { contractOnly, gateEntries, infraCause, infraOnly, reconcilerOwns, reconcilerRetries, stepsKnown, testedRun, timeLimitNoted } from "./infra-failure.mjs";
 
 const recorded = (id) => JSON.parse(readFileSync(new URL(`./fixtures/jobs-${id}.json`, import.meta.url), "utf8")).jobs;
 const MIXED = recorded(39710654665);
@@ -187,6 +187,25 @@ test("a run where only ci-status ran is contract-only; a tested run is not", () 
   assert.equal(contractOnly(recorded(39716948399)), true);
   assert.equal(contractOnly(MIXED), false);
   assert.equal(contractOnly([{ name: "ci-status", conclusion: "failure" }]), false);
+});
+
+// The gate job shows as CI Status; its alias job, ci-status, reports the same
+// conclusion under the old required context. A run from before has only ci-status.
+const GATE = { id: 7, name: "CI Status", conclusion: "failure" };
+const ALIAS = { id: 8, name: "ci-status", conclusion: "failure" };
+
+test("the gate's entries are CI Status's, never the alias's beside it, and ci-status's in a run from before", () => {
+  assert.deepEqual(gateEntries([ALIAS, { name: "lint-repo" }, GATE]), [GATE]);
+  assert.deepEqual(gateEntries([{ name: "lint-repo" }, ALIAS]), [ALIAS]);
+  assert.deepEqual(gateEntries([{ name: "lint-repo" }]), []);
+  assert.deepEqual(gateEntries(undefined), []);
+});
+
+test("CI Status and its alias are both the aggregate: alone they are a contract-only run and a real failure", () => {
+  const skipped = { name: "lint-repo", conclusion: "skipped" };
+  assert.equal(contractOnly([skipped, GATE, ALIAS]), true);
+  assert.equal(infraOnly([GATE, ALIAS]), false);
+  assert.equal(infraOnly([{ ...job("cancelled"), conclusion: "cancelled", steps: [{ name: "Install dependencies", conclusion: "cancelled" }] }, GATE, ALIAS]), true);
 });
 
 test("the tested run steps past failed contract-only runs, and stops at any other run", async () => {

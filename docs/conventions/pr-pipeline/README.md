@@ -676,10 +676,11 @@ Every lane:
   runs per item: each comment, review reply and linked issue is checked by its own author, not by
   the PR's. Web pages and CI logs are untrusted wherever they came from and stay data. The
   trusted-actor list is one central standards component that every lane reads.
-- Runs Claude Code with `--permission-mode dontAsk` and the tools its skill needs to do its job: a
-  write-effect skill can change, commit and push any file in the repository with its token
-  ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). It gets the write access its job
-  needs through a short-lived, job-scoped App token, revoked when the job ends. Local lanes keep
+- Runs Claude Code with `--permission-mode dontAsk` and the tools its skill needs to do its job,
+  always in the read runner with no GitHub token: a skill's effect is `read`, and the config
+  reader refuses any other. Its change reaches the branch only through a script activity
+  ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)), which gets the write access its
+  job needs through a short-lived, job-scoped App token, revoked when the job ends. Local lanes keep
   auto mode (AGENTS.md). Capability is never removed for safety: a lane's scope comes from how
   granular its activity is, the PR is the review step, and safety comes from who can trigger a
   lane, token lifetime and scope, workflow execution protections, the kill switch, and a
@@ -756,12 +757,12 @@ Each leaf declares:
   `read`, or `applied-by.patch`"; the effect half goes once the last skill leaves
   `pr-run-activity-write.yml`.
 - `checks` (optional, `skill` only): repository check scripts, each `scripts/<name>.sh` with its
-  flags fixed, that the skill may run. The runner that gives the skill its edit tools (the write
-  runner, or the read runner for a skill that hands on a patch) runs each from the base copy
+  flags fixed, that the skill may run. The read runner gives a skill that hands on a patch its edit
+  tools and runs each from the base copy
   against the checkout, so no head code runs, and tells the skill to fix what
   a check reports before it reports done
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The schema refuses `checks`,
-  `self-checks`, `verify-scripts` and `web-access` turned on for any other skill (effect `read`
+  `self-checks`, `verify-scripts` and `web-access` turned on for any other skill (one
   without `applied-by.patch`, or with `prepare: ci-context`), where they would do nothing, except
   `verify-scripts` under `prepare: ci-context`, which the read runner stages as a base copy the
   skill is told to run in place of the checkout's; its Bash, Edit and Write stay open, so review
@@ -769,25 +770,20 @@ Each leaf declares:
 - `self-checks` (optional, `skill` only): the same shape as `checks`, run and fixed by the skill
   through the same wrapper before it commits or hands its change on. Advisory: unlike `checks`, no
   runner job reruns them, so a failure the skill cannot fix still opens the PR and is named in its
-  report. A script in both lists fails red. On a skill whose effect is not `read`, whose run job
-  holds the lane token and `id-token: write`, neither list may name a script that runs the
-  checkout's test files (`affected-tests.sh`, `run-outside-node-suites.sh`, `selection-audit.sh`,
-  `check-guardrails-ps-differential.sh`, `run-test-file.sh`); `check-affected.sh --tests` stays
-  allowed, since from the base copy it skips the branch's tests.
+  report. A script in both lists fails red.
 - `verify-scripts` (optional, `skill` only): exact repository-relative paths of scripts, each `scripts/<name>.sh`, `plugins/<plugin>/scripts/<name>.sh` or
   `plugins/<plugin>/skills/<skill>/scripts/<name>.sh`, that the skill may run with any arguments
   but a path outside the checkout. The runner that gives the skill its edit tools runs each from a read-only base copy of its plugin (or of `scripts/`) against
   the checkout, with `GH_TOKEN` and `GITHUB_TOKEN` unset. No Bash process above it holds
-  the token either: the write runner's settings clear it, and the read runner's run-claude-cli steps set
-  neither token ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The arguments are the model's, so
+  the token either: the read runner's run-claude-cli steps set neither token ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The arguments are the model's, so
   a script that changes files, runs code from the checkout or reaches the network hands the run
   that power: list one only when it limits itself, as `scripts/run-test-file.sh` (one test file
   inside the checkout), `scripts/git-mv-rm.sh` (`git mv` and `git rm` inside the checkout) and
   `scripts/new-changelog-fragment.sh` (new files under the checkout's `.changes/` only) do,
   or when the run may hold that power, as `plugins/skill-quality/scripts/check-skill.sh` (each
   checked skill's `scripts/*.test.sh` and the checkout's markdownlint) does. Those two run checkout
-  code, so the schema refuses them on a skill whose effect is not `read`: its run job holds the
-  lane token and `id-token: write`.
+  code, which the read runner's run job may, since it holds neither the lane token nor
+  `id-token: write`.
 - `web-access` (optional, `skill` only, off when absent): `enabled` and `domains`, either `any` or
   a list of host names (`*.` allowed as a prefix). When on, the skill may search the web, fetch
   those domains, and run the research skills, wherever the runner gives it its edit tools
@@ -814,15 +810,15 @@ Each leaf declares:
   token broker grants to work-unblock's `publish-lane-level` alone (owner decision Q113 (a)). The
   runner derives ordering from it, takes the token grant from
   [`effect-grants.json`](../../../.github/actions/resolve-config/effect-grants.json), and fails a
-  `read` activity that leaves the working tree dirty unless it hands its change on as a patch. An
-  activity that runs head code (tests, linters, builds) takes effect `read`, because a
-  write-effect activity must not execute head code. To change the branch it hands its change on
+  `read` activity that leaves the working tree dirty unless it hands its change on as a patch. A
+  skill's effect is always `read`: the schema and the config reader refuse any other, so no model
+  runs beside the lane token. An activity that runs head code (tests, linters, builds) takes effect
+  `read`, because a write-effect activity must not execute head code. To change the branch it hands its change on
   to a `prepare: apply-patch` script with no model and no head code, named in its
   `applied-by.patch`, as fix-docs and fix-ci do with `apply-patch`.
 - `gating`: `gate` feeds `ci-status`; `advisory` is reported only. `ci-status` stays the only
-  required check. A `gate` skill activity must not execute head code, since its verdict is read
-  in the same job after the skill ran; tests, linters and builds that gate run as a `script`
-  activity or under a separate design.
+  required check. Tests, linters and builds that gate run as a `script` activity or under a
+  separate design.
 - `reads-untrusted`: whether it reads issue, PR, comment, web or CI-log text, or PR head files,
   which can quote such text. Ingested text is data, never instructions
   ([`untrusted-content`](../../contracts/untrusted-content/README.md)).
@@ -1411,15 +1407,15 @@ the rules that only tighten in
   - `enforcement`, a clean security review clears it: every other module the floored scripts
     import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
     `thread-scope.mjs`, `escalation-routes.mjs` and the routing table `escalation-routes.json` it
-    reads, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`, and the
-    `retry-fetch.mjs` copy in each of those two directories, and the stop routes
+    reads, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`,
+    `.github/scripts/lib/retry-fetch.mjs` and `lane-hold-marker.mjs`, and the stop routes
     `report-outcome.mjs` loads, `stop-routes.mjs` and `stop-routes.json`, and `fix-ci-context.mjs`
     with the `.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs` it loads), the scripts that act on a pr-unblock
     stop's route (`report-escalation.sh`, which labels a held reason, `adjudicate-feedback.mjs` and
     `publish-feedback.mjs`, which decide and resolve threads, and
     `.github/scripts/apply-patch/apply-patch.mjs`, which holds fix-ci escalations) with every module
-    they import (`request-budget.mjs`, `dependency-classify.mjs`, and `predicates.mjs`,
-    `protected-paths.mjs` and `retry-fetch.mjs` in `apply-patch/`),
+    they import (`request-budget.mjs`, `dependency-classify.mjs`, and `predicates.mjs` and
+    `protected-paths.mjs` in `apply-patch/`),
     and the rest of the Python that decides the holds (`babysit_verify_evidence.py`, which
     `enable-auto-merge.mjs` runs, and the `babysit-prs/scripts/` modules it and `babysit_risk.py`
     import). It scores HIGH as `review-path:<glob>` until the `claude-security-review` evidence
@@ -3727,6 +3723,7 @@ with its default.
 | `reset-clamp-max` | 168 | Most hours after a stop before a restart, whatever reset the stop names. |
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
 | `refire-queue-per-slot` | 2 | Kill-switch re-fires' queue target per issue-lane slot (`SLOTS`, the effective lane level `lane-level-value.mjs` reads): a sweep re-fires breaker-stranded issues, oldest first, only until the unfinished work-resolve-issue runs reach this times `SLOTS`, within `restarts-per-run`. At most 10. |
+| `stale-queued-minutes` | 60 | Minutes after it was created past which a work-resolve-issue run still at status `queued` is left out of the unfinished runs `refire-queue-per-slot` counts: its first job never got a runner, so GitHub lost it and it never starts. The sweep logs how many it left out. A reopened fix issue's in-flight check also ignores such a run when it names no issue; one that names the issue still holds it. At most 1440. |
 | `sweep-gap-minutes` | 15 | Minutes after a full work-unblock sweep (a run that uploaded `work-unblock-verdicts`) finished during which the sweep a finished work-resolve-issue run starts skips its work and requests no lane token. A scheduled sweep or an issue close never skips; a read that fails runs the sweep. 0 turns it off; at most 60. |
 | `readmit-per-run` | 20 | Open `status: ready` issues with neither `agent-ready` nor `admission-deferred` one work-unblock sweep runs intake's admission rules on, oldest updated first; at most 100. Only an issue that reaches the rules counts: a hold or refuse label, an open blocker or sub-issue, a `status: ready` neither a listed human nor the lanes App added, or a standing `agent-ready` removal leaves it out uncounted. |
 | `parent-rescan-per-run` | 5 | Open issues whose every sub-issue is completed and whose number is the UTC hour modulo 24 that one work-unblock sweep reads to close a finished split parent, oldest updated first; at most 100. A parent whose last sub-issue closed outside the sweep window closes on its hour; one that stays open logs why. |
@@ -4067,10 +4064,15 @@ person's or the lanes App's (`APP_SENDER_ID`). Any untrusted request or event si
 or none that can be read, leaves the thread for a person. So does a comment or review by anyone
 else, apart from our own bots, that was edited since the window opened, or a deleted comment
 of theirs, since either may have held a request. The reason is logged
-(`codex-request-untrusted`, `codex-request-not-found`). The list is matched on the
+(`codex-request-untrusted`, `codex-request-not-found`). A listed bot no comment can summon,
+`github-advanced-security[bot]` (code scanning alerts, which it posts after each analysis of a
+pushed head; `UNSUMMONED_REVIEWER_IDS` in `address-feedback.mjs`), needs no request: its thread is
+worked when a trusted person or the lanes App opened the pull request, and logged with the same
+reasons otherwise. The list is matched on the
 account id GitHub records for each comment and its review, never on a login, so another account
 using the same name matches nothing. The comment text stays data in every model prompt, as the
-reviewer bot's does. This repository lists `chatgpt-codex-connector[bot]` (199175422). The
+reviewer bot's does. This repository lists `chatgpt-codex-connector[bot]` (199175422) and
+`github-advanced-security[bot]` (62310815). The
 select job and `publish-feedback` read the list from the resolved config; `fix-ci-context.mjs`
 and `pr-feedback-dispatch.yml` read it from the base's `pr-pipeline.yaml`. Absent: none.
 

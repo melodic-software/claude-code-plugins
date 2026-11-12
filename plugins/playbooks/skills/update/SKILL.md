@@ -74,8 +74,7 @@ take no action against it here.
   plugin picks up a published version, fetch
   [Update plugins now](https://code.claude.com/docs/en/plugins/install#update-plugins-now)
   and [Manage marketplaces](https://code.claude.com/docs/en/plugins/install#manage-marketplaces)
-  live. As of: 2026-11-04. Recheck trigger: either section changes what
-  `/plugin marketplace update` updates.
+  live.
 - **`--apply` scope is the vendored baseline only.** It replaces `skills/<pack>/vendor/upstream-skill.md`
   verbatim and bumps that pack's frontmatter metadata (`upstream-version`, `synced`). It
   does NOT rewrite any distilled body, integrating the delta is a manual, reviewed step

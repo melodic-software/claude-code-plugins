@@ -3,6 +3,43 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0] - 2026-11-12
+
+### Added
+
+- read issue-body skeletons from the org issue-body contract
+
+  track add, decompose, the agent brief and bugs:write now take their
+  issue-body headings from the issue-body contract the standards sync
+  delivers into each plugin's reference/ directory, the same record the
+  org issue forms are generated from. triage checks an issue body against
+  the contract with scripts/check-body.mjs, which accepts a field under
+  a `##` or `###` heading and treats a form's skipped answer as empty. The tidy
+  deferred-item body follows the task type.
+
+- fan the synced issue-body contract into the plugins
+
+  The standards sync delivers the contract once, to
+  docs/contracts/issue-body/contract.json. sync-shared-copies.sh now
+  copies a JSON canonical byte for byte (JSON has no comment syntax for a
+  header) and generates plugins/bugs and plugins/work-items
+  reference/issue-body-contract.json from it; the cross-plugin registry
+  records the cluster.
+
+## [0.21.7] - 2026-11-11
+
+### Changed
+
+- The README options reference lists its upstream documentation as pointers only, with no as-of date or recheck trigger.
+
+## [0.21.6] - 2026-11-11
+
+### Changed
+
+- The setup skill's reconfiguration guidance keeps its decisions (reconfigure through the native configure flow, never uninstall to reconfigure, recheck in a fresh session) and now points at the plugin-reconfiguration convention's "The routes" and "Caveats" sections and the plugin CLI reference's `plugin configure` section instead of restating the headless command, its version floor and failure signals, and drops any claim that option values are fixed at session start or skill load, which the docs do not state.
+- The plugin now ships a generated copy of the plugin-reconfiguration convention at `reference/plugin-reconfiguration.md`, and its skills link that copy by relative path, so an agent without network access can read the routes and caveats the skills point at.
+- The setup skill tells the agent to read the convention's routes and caveats sections and print what they give (the fallback route, its behavior on an already-installed plugin and the scope to pass), leaving out the verified-version record, rather than only naming the sections.
+
 ## [0.21.5] - 2026-11-11
 
 ### Changed

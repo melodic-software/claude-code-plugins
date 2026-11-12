@@ -38,7 +38,7 @@ import {
   readOutcome,
   readTurnCap,
 } from "./report-outcome.mjs";
-import { retryFetch } from "./retry-fetch.mjs";
+import { retryFetch } from "../lib/retry-fetch.mjs";
 
 const PREP_STEPS = new Set(["review", "verify", "checks"]);
 const STEP_STATES = { pass: "success", fail: "failure" };
