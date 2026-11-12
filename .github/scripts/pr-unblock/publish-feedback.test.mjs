@@ -1626,13 +1626,15 @@ test("lineChanged reads a patch's new-side hunks", async () => {
 });
 
 // collect-base-activity runs a script activity from a copy of its own
-// directory under $RUNNER_TEMP, beside a copy of the shared ../lib modules, so
-// every import must resolve inside those two.
-test("the script loads from a copy of its own directory and the shared lib alone", async () => {
+// directory under $RUNNER_TEMP, beside a copy of the shared ../lib modules and
+// merge-holds.mjs in ../pr-merge, so every import must resolve inside those.
+test("the script loads from a copy of its own directory, the shared lib and the staged merge-holds alone", async () => {
   const root = tempDir("base-activity-");
   try {
     cpSync(dirname(fileURLToPath(import.meta.url)), join(root, "base-script"), { recursive: true });
     cpSync(fileURLToPath(new URL("../lib", import.meta.url)), join(root, "lib"), { recursive: true });
+    mkdirSync(join(root, "pr-merge"));
+    cpSync(fileURLToPath(new URL("../pr-merge/merge-holds.mjs", import.meta.url)), join(root, "pr-merge", "merge-holds.mjs"));
     const module = await import(pathToFileURL(join(root, "base-script", "publish-feedback.mjs")).href);
     assert.equal(typeof module.main, "function");
   } finally {
@@ -1806,7 +1808,12 @@ test("on a lanes App PR the same round still resolves both threads", async () =>
 
 // A tests-only finding (#10075): run.json carries the select job's CI
 // snapshot of the gated head, and the reply job settles from it alone.
-const CI_RUNS = [{ name: "test-node", url: "https://github.com/o/r/actions/runs/1/job/3" }];
+// A lane by its display name, and one by its job id, as a head tested before
+// the rename shows it.
+const CI_RUNS = [
+  { name: "Test Bash (3)", url: "https://github.com/o/r/actions/runs/1/job/3" },
+  { name: "test-node", url: "https://github.com/o/r/actions/runs/1/job/4" },
+];
 const ciRun = (ci, threads = [RUN.threads[0]]) => JSON.stringify({ ...RUN, threads, ci });
 // A round that pushed nothing: the select job read the head the reply job sees.
 const ciRunAtNow = (ci, threads = [RUN.threads[0]]) => JSON.stringify({ ...RUN, head_sha: NOW, threads, ci });
@@ -1817,7 +1824,8 @@ test("an UNCERTAIN tests-only finding on a green head is resolved citing the run
   const result = await run(api, lines(reply({ disposition: "UNCERTAIN" })), ciRunAtNow({ state: "green", runs: CI_RUNS }), testsVerdict());
   assert.equal(result.escalationReason, "");
   assert.deepEqual(api.resolved(), ["PRRT_a"]);
-  assert.match(api.posted()[1][3], /\[test-node\]\(https:\/\/github\.com\/o\/r\/actions\/runs\/1\/job\/3\)/);
+  assert.match(api.posted()[1][3], /\[Test Bash \(3\)\]\(https:\/\/github\.com\/o\/r\/actions\/runs\/1\/job\/3\)/);
+  assert.match(api.posted()[1][3], /\[test-node\]\(https:\/\/github\.com\/o\/r\/actions\/runs\/1\/job\/4\)/);
   // Red leaves it open with no person; no snapshot leaves it as today.
   const red = fakeApi();
   assert.equal((await run(red, lines(reply({ disposition: "UNCERTAIN" })), ciRunAtNow({ state: "red", runs: CI_RUNS }), testsVerdict())).escalationReason, "");
@@ -1840,6 +1848,9 @@ test("a run.json whose ci snapshot is malformed posts nothing", async () => {
     { state: "green" },
     { state: "green", runs: [{ name: "test-node", url: "https://evil.example/x" }] },
     { state: "green", runs: [{ name: "test-node\n- [x](y)", url: "https://github.com/o/r/actions/runs/1/job/3" }] },
+    { state: "green", runs: [{ name: "Test  Node", url: "https://github.com/o/r/actions/runs/1/job/3" }] },
+    { state: "green", runs: [{ name: "Test Node ", url: "https://github.com/o/r/actions/runs/1/job/3" }] },
+    { state: "green", runs: [{ name: "Test [x](y)", url: "https://github.com/o/r/actions/runs/1/job/3" }] },
     { state: "green", runs: Array.from({ length: 101 }, () => CI_RUNS[0]) },
     { state: "green", runs: CI_RUNS, extra: 1 },
   ]) {
@@ -2018,4 +2029,12 @@ test("followUpBullet quotes the advisory's first line in a code span so a closin
     "- Pre-existing (advisory): `**Advisory:** Fixes #12 for '@someone' m` ([thread](https://github.com/o/r/pull/1#discussion_r9))",
   );
   assert.equal(followUpBullet("", "L"), "- Pre-existing (advisory): `advisory` ([thread](L))");
+});
+
+test("followUpBullet leaves no comment marker when markers are nested inside each other", () => {
+  for (const advisory of ["<!<!---- x ---->>", "<<!--!--<!---->-- x --<!---->>", "<!-<!---- x"]) {
+    const bullet = followUpBullet(advisory, "L");
+    assert.doesNotMatch(bullet, /<!--|-->/, advisory);
+  }
+  assert.equal(followUpBullet("<!<!---- x ---->>", "L"), "- Pre-existing (advisory): ` x ` ([thread](L))");
 });

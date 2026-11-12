@@ -6,6 +6,13 @@ value is minor; clarification is a patch. A recheck of the Mermaid-C4 record lan
 it produces a drift outcome; refreshing the record's as-of date with no verdict change is no entry
 and no version bump, per the upstream-drift contract's "When a trigger fires".
 
+## [1.0.7] - 2026-11-11
+
+Clarification. No key, allowed value, or default changes.
+
+- The Mermaid-C4 record drops its as-of date and keeps its named trigger, per upstream-drift
+  owner decision D26: it records no upstream number or string.
+
 ## [1.0.6] - 2026-11-11
 
 Clarification. No key, allowed value, or default changes.

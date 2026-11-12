@@ -31,7 +31,7 @@ Tick only after verification evidence. Criteria SSOT: `quality-gates.md` (the `/
 - [ ] **1.2** `transcript.txt` readable. Verify: spot-read; not empty/error stub
 - [ ] **1.3** `key-frames/selection.json` matches `watch.json` metrics. Verify: frame count, `contactSheets`, `densificationWindows`
 - [ ] **1.4** tempSession paths exist on disk. Verify: `contactSheetsDir`, frames dir from `watch.json` `artifactPaths`
-- [ ] **1.5** `highVolume` correct for long VOD. Verify: true when sheets ≥8 or duration ≥2h or densification ≥30
+- [ ] **1.5** `highVolume` matches the pipeline rule. Verify: equals `isHighVolume` (`extraction/watching/frame-budget.js`) over the slice's sheets, duration, densification windows, `candidateCount` and `targetMinFrames`
 - [ ] **1.6** CLI phases marked complete only after 1.1–1.5. Verify: acquire, transcript, watching, harvest in `watch.json`
 
 ## Phase 2: Vision plan (before fan-out)

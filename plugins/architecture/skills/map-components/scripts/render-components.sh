@@ -167,17 +167,12 @@ grep -q '"schema_version"[[:space:]]*:[[:space:]]*1' "$graph" ||
 grep -q '^[[:space:]]*"result"[[:space:]]*:' "$graph" ||
   die "not a dependency-graph.sh record (no result key); regenerate it with /architecture:map-dependencies: $graph" 1
 
+# shellcheck source=../../../lib/record-layout.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/record-layout.sh"
 read -r -d '' LAYOUT_AWK <<'AWK' || true
 BEGIN {
   shape["nodes"] = "^[[:space:]]*[{]\"id\":"
   shape["edges"] = "^[[:space:]]*[{]\"from\":"
-}
-function open_array(key,   rest) {
-  if (!match($0, "\"" key "\"[[:space:]]*:[[:space:]]*\\[")) return
-  rest = substr($0, RSTART + RLENGTH)
-  if (rest ~ /^[[:space:]]*\]/) { seen[key] = 1; return }
-  if (substr($0, 1, RSTART - 1) ~ /^[[:space:]]*$/ && rest ~ /^[[:space:]]*$/) { open = key; return }
-  problem = "the " key " array does not start on a line of its own"
 }
 open != "" {
   if ($0 ~ /^[[:space:]]*\][[:space:]]*,?[[:space:]]*$/) { seen[open] = 1; open = ""; next }
@@ -196,7 +191,7 @@ END {
   print problem
 }
 AWK
-layout_problem="$(awk "$LAYOUT_AWK" "$graph")"
+layout_problem="$(awk "$RECORD_OPEN_ARRAY_AWK$LAYOUT_AWK" "$graph")"
 [[ -z "$layout_problem" ]] ||
   die "record is not in the one-object-per-line layout ($layout_problem); regenerate it: $graph" 1
 
@@ -268,76 +263,12 @@ if [[ "$ecosystem" == "unknown" ]]; then
   exit 0
 fi
 
+SPLIT_OBJECT_AWK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/split-object.awk"
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 
 awk -v container="$container" -v groupby="$groupby" -v layers="$layers" \
-  -v threshold="$threshold" -f /dev/stdin "$graph" >"$tmp" <<'AWK'
-function split_object(line, keys, vals,   i, n, c, k, v, depth, instr, start) {
-  n = 0
-  i = index(line, "{")
-  if (i == 0) return 0
-  i++
-  while (i <= length(line)) {
-    c = substr(line, i, 1)
-    if (c == " " || c == ",") { i++; continue }
-    if (c == "}") break
-    if (c != "\"") return n
-    i++
-    start = i
-    while (i <= length(line)) {
-      c = substr(line, i, 1)
-      if (c == "\\") { i += 2; continue }
-      if (c == "\"") break
-      i++
-    }
-    k = substr(line, start, i - start)
-    i++
-    while (substr(line, i, 1) == " " || substr(line, i, 1) == ":") i++
-    start = i
-    c = substr(line, i, 1)
-    if (c == "\"") {
-      i++
-      while (i <= length(line)) {
-        c = substr(line, i, 1)
-        if (c == "\\") { i += 2; continue }
-        if (c == "\"") break
-        i++
-      }
-      i++
-    } else if (c == "[" || c == "{") {
-      depth = 0
-      instr = 0
-      while (i <= length(line)) {
-        c = substr(line, i, 1)
-        if (instr) {
-          if (c == "\\") { i += 2; continue }
-          if (c == "\"") instr = 0
-        } else if (c == "\"") {
-          instr = 1
-        } else if (c == "[" || c == "{") {
-          depth++
-        } else if (c == "]" || c == "}") {
-          depth--
-          if (depth == 0) { i++; break }
-        }
-        i++
-      }
-    } else {
-      while (i <= length(line) && substr(line, i, 1) != "," && substr(line, i, 1) != "}") i++
-    }
-    v = substr(line, start, i - start)
-    n++
-    keys[n] = k
-    vals[n] = v
-  }
-  return n
-}
-function field(line, want,   keys, vals, n, i) {
-  n = split_object(line, keys, vals)
-  for (i = 1; i <= n; i++) if (keys[i] == want) return vals[i]
-  return ""
-}
+  -v threshold="$threshold" -f "$SPLIT_OBJECT_AWK" -f /dev/stdin "$graph" >"$tmp" <<'AWK'
 function unquote(v,   out, i, c, last) {
   if (substr(v, 1, 1) != "\"") return v
   v = substr(v, 2, length(v) - 2)

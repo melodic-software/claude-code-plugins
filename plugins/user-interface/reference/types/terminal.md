@@ -68,8 +68,6 @@ For CLI conventions beyond presentation, the Command Line Interface Guidelines a
 reference.
 
 - **Pointer**: <https://clig.dev/>
-- **As of**: 2026-10-04
-- **Recheck trigger**: the guide's output or error sections change.
 
 ## TUIs
 

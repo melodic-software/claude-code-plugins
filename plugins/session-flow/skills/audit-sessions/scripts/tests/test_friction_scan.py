@@ -6,6 +6,8 @@ Records are synthetic, written from the transcript shapes the reader documents. 
 
 from __future__ import annotations
 
+import time
+
 import collect
 import friction_scan
 import pytest
@@ -332,6 +334,10 @@ CONFLICT_TEXT = "Auto-merging a.py\nCONFLICT (content): Merge conflict in a.py\n
         ("Bash", {"command": "git -c rebase.autoStash=true pull --rebase"}, 1),
         ("Bash", {"command": "git -P --git-dir /w/repo/.git revert HEAD"}, 1),
         ("Bash", {"command": "/usr/bin/git am 0001.patch"}, 1),
+        ("Bash", {"command": "git --git-dir=/w/repo/.git --work-tree /w/repo merge main"}, 1),
+        ("Bash", {"command": "git -C '/w/my repo' -C /w/repo rebase main"}, 1),
+        ("Bash", {"command": "git -C \"$repo\"/sub merge main"}, 1),
+        ("Bash", {"command": "git -C '/w/my repo'/sub rebase main"}, 1),
         ("Monitor", {"command": "git merge origin/main"}, 0),
         ("Bash", {"command": "git-lfs pull"}, 0),
         ("Bash", {"command": "gh pr merge 7 --squash"}, 0),
@@ -348,6 +354,15 @@ def test_merge_conflicts_counts_only_git_commands_that_can_conflict(name, tool_i
     scan.add(call("t1", name, **tool_input))
     scan.add({"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "t1", "content": CONFLICT_TEXT}]}})
     assert scan.perf["merge_conflicts"] == conflicts
+
+
+@pytest.mark.parametrize("group", [" --git-dir -P", ' -C "a"', " -C 'a'"])
+def test_conflict_command_match_stays_linear_on_long_option_runs(group):
+    command = "git" + group * 40 + " status"
+    start = time.perf_counter()
+    assert friction_scan.CONFLICT_COMMAND_RE.search(command) is None
+    assert friction_scan.CONFLICT_COMMAND_RE.search(command.replace(" status", " merge main"))
+    assert time.perf_counter() - start < 1
 
 
 @pytest.mark.parametrize(

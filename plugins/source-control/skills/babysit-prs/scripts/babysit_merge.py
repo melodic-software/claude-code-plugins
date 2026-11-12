@@ -314,17 +314,25 @@ def is_unarmed_status(check: dict[str, Any]) -> bool:
 # name: the security job is named `security-review`, generic enough that
 # another workflow's job could carry it, so it counts only under its own
 # caller prefix, as does pr-review-cli.yml's `review-status`, which both lanes
-# share. `pr-review-security / security-review` is the current caller of
-# pr-review-security.yml, `security-review / security-review` the previous one,
-# and `claude-security-review-status` the job of a pin that predates the fold.
+# share. `PR Review / review-status` and `PR Review Security / review-status`
+# are the callers' display names; the lower-case callers are a head tested
+# before the rename, or a repository whose caller job has no display name.
+# `pr-review-security / security-review` is the caller of pr-review-security.yml,
+# `security-review / security-review` the previous one, and
+# `claude-security-review-status` the job of a pin that predates the fold.
 # Old and new callers run side by side while repos migrate. Every matching
 # check must succeed.
 AI_REVIEW_CHECKS = {
-    "claude-review-status": ("claude-review-status", "pr-review / review-status"),
+    "claude-review-status": (
+        "claude-review-status",
+        "PR Review / review-status",
+        "pr-review / review-status",
+    ),
     "claude-security-review-status": (
         "claude-security-review-status",
         "security-review / security-review",
         "pr-review-security / security-review",
+        "PR Review Security / review-status",
         "pr-review-security / review-status",
     ),
 }
@@ -2361,7 +2369,7 @@ MERGE_QUEUE_QUERY = (
     "mergeQueueEntry{state position} autoMergeRequest{enabledAt} "
     f"timelineItems(last:{merge_policy.MAX_QUEUE_EJECTIONS_LIMIT},itemTypes:["
     "REMOVED_FROM_MERGE_QUEUE_EVENT,PULL_REQUEST_COMMIT,HEAD_REF_FORCE_PUSHED_EVENT])"
-    "{nodes{__typename ... on RemovedFromMergeQueueEvent{reason}}} "
+    "{nodes{__typename ... on RemovedFromMergeQueueEvent{reason createdAt}}} "
     "queueEvents:timelineItems(last:3,itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT,"
     "REMOVED_FROM_MERGE_QUEUE_EVENT,PULL_REQUEST_COMMIT,HEAD_REF_FORCE_PUSHED_EVENT])"
     "{nodes{__typename ... on RemovedFromMergeQueueEvent{reason createdAt} "
@@ -2403,10 +2411,17 @@ def _ejected_enqueue(pr: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _failed_ejections(pr: dict[str, Any]) -> int | None:
-    """The merge queue's removals of the pull request for failed checks since
-    its newest head change, read from the timeline items (oldest first), or
-    None when they cannot be read: a malformed item, or a full window with no
-    head change in it, whose older removals the read did not reach.
+    """How many removals `_failed_removals` reads, or None when it cannot."""
+    removals = _failed_removals(pr)
+    return None if removals is None else len(removals)
+
+
+def _failed_removals(pr: dict[str, Any]) -> list[str] | None:
+    """The times of the merge queue's removals of the pull request for failed
+    checks since its newest head change, oldest first ("" for a removal with
+    no time), read from the timeline items (oldest first), or None when they
+    cannot be read: a malformed item, or a full window with no head change in
+    it, whose older removals the read did not reach.
 
     The timeline places a commit by its date, not its push (UNVERIFIED: no
     GitHub page or schema field states either; `PullRequestCommit` carries no
@@ -2417,15 +2432,19 @@ def _failed_ejections(pr: dict[str, Any]) -> int | None:
     nodes = json_object(pr.get("timelineItems")).get("nodes")
     if not is_json_array(nodes):
         return None
-    count = 0
+    times: list[str] = []
     for node in map(json_object, reversed(nodes)):
         kind = node.get("__typename")
         if kind in HEAD_CHANGES:
-            return count
+            return times[::-1]
         if kind != REMOVED:
             return None
-        count += node.get("reason") == "failed_checks"
-    return count if len(nodes) < merge_policy.MAX_QUEUE_EJECTIONS_LIMIT else None
+        if node.get("reason") == "failed_checks":
+            at = node.get("createdAt")
+            times.append(at if isinstance(at, str) else "")
+    if len(nodes) >= merge_policy.MAX_QUEUE_EJECTIONS_LIMIT:
+        return None
+    return times[::-1]
 
 
 def _last_removal_reason(pr: dict[str, Any]) -> str | None:
@@ -2480,6 +2499,7 @@ def read_merge_queue(repo: str, number: int) -> dict[str, Any]:
         "state": entry.get("state") if entry else None,
         "position": entry.get("position") if entry else None,
         "failedEjections": _failed_ejections(pr),
+        "failedRemovals": _failed_removals(pr),
         "lastRemovalReason": _last_removal_reason(pr),
         "ejectedEnqueue": _ejected_enqueue(pr),
     }
@@ -4300,31 +4320,220 @@ def _lifted_by_person(
         return False, f"{type(exc).__name__}: {exc}"
 
 
-def _failed_merge_group_runs(repo: str, branch: str, number: int) -> list[str] | None:
-    """The links of the pull request's failed merge_group runs among the
-    repository's newest 100, newest first, or None when they cannot be read.
-    Read under the verdict reader's Actions token when one is set."""
-    proc = gh_capture(
-        [
-            "api",
-            f"repos/{repo}/actions/runs?event=merge_group&status=failure&per_page=100",
-        ],
-        env_overrides=_verdict_read_env(),
-    )
+MERGE_GROUP_FAILURES_SECTION = "merge-group-failures"
+RATE_LIMITED_ENTRY_SECTION = "rate-limited-queue-entry"
+# The run fields the gate reads; the run cache keeps only these.
+MERGE_GROUP_RUN_FIELDS = (
+    "id",
+    "run_attempt",
+    "status",
+    "head_branch",
+    "head_sha",
+    "html_url",
+    "created_at",
+    "updated_at",
+)
+
+
+def _verdict_read(path: str) -> Any:
+    """One GET under the verdict reader's Actions token when one is set."""
+    proc = gh_capture(["api", path], env_overrides=_verdict_read_env())
     if proc.returncode != 0:
-        return None
-    try:
-        runs = json_object(json.loads(proc.stdout)).get("workflow_runs")
-    except ValueError:
-        return None
+        raise RuntimeError(f"gh api {path}: {proc.stderr.strip()}")
+    return json.loads(proc.stdout)
+
+
+def _merge_group_failures(
+    repo: str, branch: str, number: int
+) -> list[dict[str, Any]] | None:
+    """The pull request's failed merge_group runs among the repository's
+    newest 100, newest first, or None when they cannot be read. The listing
+    is shared through the run cache for `run_cache.MAX_AGE`."""
+    runs = run_cache.get(MERGE_GROUP_FAILURES_SECTION, repo, run_cache.MAX_AGE)
     if not is_json_array(runs):
-        return None
+        try:
+            runs = json_object(
+                _verdict_read(
+                    f"repos/{repo}/actions/runs?event=merge_group&status=failure&per_page=100"
+                )
+            ).get("workflow_runs")
+        except (RuntimeError, ValueError):
+            return None
+        if not is_json_array(runs):
+            return None
+        runs = [
+            {field: json_object(run).get(field) for field in MERGE_GROUP_RUN_FIELDS}
+            for run in runs
+        ]
+        run_cache.put(MERGE_GROUP_FAILURES_SECTION, repo, runs)
     prefix = f"gh-readonly-queue/{branch}/pr-{number}-"
     return [
-        str(run.get("html_url"))
+        run
         for run in map(json_object, runs)
-        if str(run.get("head_branch") or "").startswith(prefix) and run.get("html_url")
+        if str(run.get("head_branch") or "").startswith(prefix)
     ]
+
+
+def _failed_merge_group_runs(repo: str, branch: str, number: int) -> list[str] | None:
+    """The links of `_merge_group_failures`, or None when it cannot be read."""
+    runs = _merge_group_failures(repo, branch, number)
+    if runs is None:
+        return None
+    return [str(run["html_url"]) for run in runs if run.get("html_url")]
+
+
+# A merge-queue removal is charged to the queue entry whose failed run ended
+# within this long of it. The queue removes an entry as its required check
+# fails: run 43155083740 ended at 04:40:05Z, the second #15535 left the queue.
+REMOVAL_RUN_WINDOW = timedelta(minutes=2)
+# The rate-limit lines the gate job's guards write: the pinned ci-workflows
+# composites (pr-require-checks/aggregate-results/run.sh:266 at ac4d878 and
+# check-contract/run.sh:184 at 2476d5d), this repo's rate guard
+# (.github/actions/log-api-budget/api-budget.bash, api_budget_refuse and the
+# line after it) and ci-status's gh_read (pr-require-checks.yml, "API rate
+# limit blocks").
+RATE_LIMIT_ANNOTATION_RE = re.compile(
+    r"rate limited past rate-limit-wait-seconds"
+    r"|\bGitHub's (?:[\w-]+ )?API rate limit (?:holds until|blocks)\b"
+    r"|\bhit GitHub's (?:[\w-]+ )?API rate limit\b"
+)
+# Failure lines that name no cause of their own: the runner's exit line, and
+# a read that failed, which the gate words as "...; re-run this run.".
+GENERIC_FAILURE_RE = re.compile(
+    r"Process completed with exit code \d+\.|.*; re-run this run\.", re.DOTALL
+)
+ISO_STAMP_RE = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ")
+# The reset assumed when no annotation names one: GitHub's primary limit
+# window is an hour.
+DEFAULT_RESET = timedelta(hours=1)
+PASSING_JOB_CONCLUSIONS = frozenset({"success", "skipped", "neutral"})
+
+
+def _gate_rate_limit_reset(annotations: list[Any]) -> str | None:
+    """The time a gate job's rate limit resets, when its annotations show it
+    failed on a rate limit alone: every failure line is a rate-limit line
+    (`RATE_LIMIT_ANNOTATION_RE`) or a generic one (`GENERIC_FAILURE_RE`), and
+    at least one is a rate-limit line. The reset is the latest time any
+    rate-limit annotation names, "" when none names one; None otherwise."""
+    failures = [
+        str(a.get("message") or "")
+        for a in map(json_object, annotations)
+        if a.get("annotation_level") == "failure"
+    ]
+    limited = [m for m in failures if RATE_LIMIT_ANNOTATION_RE.search(m)]
+    if not limited or any(
+        not RATE_LIMIT_ANNOTATION_RE.search(m) and not GENERIC_FAILURE_RE.fullmatch(m)
+        for m in failures
+    ):
+        return None
+    stamps = [
+        stamp
+        for a in map(json_object, annotations)
+        if re.search(r"rate.limit", str(a.get("message") or ""), re.IGNORECASE)
+        for stamp in ISO_STAMP_RE.findall(str(a.get("message") or ""))
+    ]
+    return max(stamps, default="")
+
+
+def _run_rate_limit_reset(repo: str, run: dict[str, Any]) -> str | None:
+    """`_gate_rate_limit_reset` for a failed merge_group run whose only failed
+    jobs are the gate (`merge_policy.GATE_CHECK`) and its alias, read from
+    that attempt's jobs and the gate's annotations; None for any other run.
+    A completed attempt cannot change, so its answer is kept for the run."""
+    key = f"{repo}/{run.get('id')}/{run.get('run_attempt') or 1}"
+    cached = run_cache.get(RATE_LIMITED_ENTRY_SECTION, key, None)
+    if is_json_object(cached):
+        return cached.get("reset")
+    jobs = json_object(
+        _verdict_read(
+            f"repos/{repo}/actions/runs/{run.get('id')}/attempts/"
+            f"{run.get('run_attempt') or 1}/jobs?per_page=100"
+        )
+    )
+    listed = json_array(jobs.get("jobs"))
+    failed = [
+        job
+        for job in map(json_object, listed)
+        if job.get("conclusion") not in PASSING_JOB_CONCLUSIONS
+    ]
+    gates = [job for job in failed if job.get("name") == merge_policy.GATE_CHECK]
+    reset = None
+    if (
+        jobs.get("total_count") == len(listed)
+        and len(gates) == 1
+        and all(
+            job.get("name") in (merge_policy.GATE_CHECK, merge_policy.GATE_ALIAS)
+            for job in failed
+        )
+    ):
+        annotations = json_array(
+            _verdict_read(
+                f"repos/{repo}/check-runs/{gates[0].get('id')}/annotations?per_page=100"
+            )
+        )
+        # A full page may hide a failure line on the next one.
+        reset = _gate_rate_limit_reset(annotations) if len(annotations) < 100 else None
+    if run.get("status") == "completed":
+        run_cache.put(RATE_LIMITED_ENTRY_SECTION, key, {"reset": reset})
+    return reset
+
+
+def _rate_limited_removal(repo: str, runs: list[dict[str, Any]], at: str) -> bool:
+    """Whether the merge queue's removal at `at` came from the gate failing on
+    a GitHub rate limit that has since reset. The removal is charged to the
+    one queue entry (merge-group commit) whose failed run among `runs` ended
+    within `REMOVAL_RUN_WINDOW` of it; every failed run of that entry must
+    have failed only its gate, on a rate limit alone. Any doubt is False."""
+    removed = parse_github_timestamp(at)
+    if removed is None:
+        return False
+    near: set[Any] = set()
+    for run in runs:
+        created = parse_github_timestamp(str(run.get("created_at") or ""))
+        ended = parse_github_timestamp(str(run.get("updated_at") or ""))
+        if (
+            created
+            and ended
+            and created <= removed
+            and abs(ended - removed) <= REMOVAL_RUN_WINDOW
+        ):
+            near.add(run.get("head_sha"))
+    if len(near) != 1 or not next(iter(near)):
+        return False
+    resets = [
+        _run_rate_limit_reset(repo, run) for run in runs if run.get("head_sha") in near
+    ]
+    if any(reset is None for reset in resets):
+        return False
+    named = [t for t in (parse_github_timestamp(str(r)) for r in resets) if t]
+    # Before the limit resets a re-enqueue only fails again on it.
+    return _now() >= (max(named) if named else removed + DEFAULT_RESET)
+
+
+def rate_limited_removals(
+    repo: str, branch: str, number: int, removals: list[str], limit: int
+) -> int:
+    """How many of the head's failed-check `removals` (`_failed_removals`)
+    came from a GitHub rate limit (`_rate_limited_removal`), newest first,
+    stopping once `limit` others make the gate's refusal certain. Any read
+    that fails counts the removal, as before this check."""
+    try:
+        runs = _merge_group_failures(repo, branch, number)
+    except Exception:  # noqa: BLE001 -- any failure counts every removal
+        return 0
+    if not runs:
+        return 0
+    limited = counted = 0
+    for at in reversed(removals):
+        if counted >= limit:
+            break
+        try:
+            hit = _rate_limited_removal(repo, runs, at)
+        except Exception:  # noqa: BLE001 -- any failure counts the removal
+            hit = False
+        limited += hit
+        counted += not hit
+    return limited
 
 
 def queue_ejection_refusal(ejections: int | None, limit: int, head: str) -> str | None:
@@ -4344,12 +4553,22 @@ def queue_ejection_refusal(ejections: int | None, limit: int, head: str) -> str 
 
 
 def queue_ejection_hold(
-    repo: str, branch: str, number: int, head: str, ejections: int | None, limit: int
+    repo: str,
+    branch: str,
+    number: int,
+    head: str,
+    ejections: int | None,
+    limit: int,
+    removals: list[str] | None = None,
 ) -> tuple[str | None, str | None, str | None]:
     """The gate's refusal of `head` (`queue_ejection_refusal`), its marked
     comment body at the cap (`queue_ejection_body`, naming the failing
     merge_group runs), and the error when the runs read raised, which leaves
-    no body. The unattended enqueue and `evidence --lane-queue` both use it."""
+    no body. At the cap, a removal among `removals` (`_failed_removals`) a
+    reset GitHub rate limit caused is not counted (`rate_limited_removals`).
+    The unattended enqueue and `evidence --lane-queue` both use it."""
+    if ejections is not None and ejections >= limit and removals:
+        ejections -= rate_limited_removals(repo, branch, number, removals, limit)
     refusal = queue_ejection_refusal(ejections, limit, head)
     if refusal is None or ejections is None:
         return refusal, None, None
@@ -4872,7 +5091,13 @@ def unattended_enqueue(
     ejections = queue.get("failedEjections")
     step["failedEjections"] = ejections
     ejected, body, error = queue_ejection_hold(
-        repo, branch, number, pin, ejections, inputs["config"].max_queue_ejections
+        repo,
+        branch,
+        number,
+        pin,
+        ejections,
+        inputs["config"].max_queue_ejections,
+        queue.get("failedRemovals"),
     )
     if error is not None:
         step["ejectionComment"] = error

@@ -32,8 +32,7 @@ without a `//` prefix, so a profile you edit can be checked.
 
 ## Limits
 
-A deny rule is not an OS-level control. Per the same permissions page section (as of 2026-10-18,
-recheck when it changes):
+A deny rule is not an OS-level control. Per the same permissions page section:
 
 - Read and Edit denies cover the built-in file tools, the Bash file commands Claude Code recognizes
   (`cat`, `head`, `tail`, `sed`, `tee`) and redirection targets.

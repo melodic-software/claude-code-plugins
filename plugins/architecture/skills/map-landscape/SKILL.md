@@ -76,8 +76,7 @@ One call assembles both collectors into the committed record:
 
 Keep the `${CLAUDE_SKILL_DIR}` anchor;
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md` § Script paths](${CLAUDE_PLUGIN_ROOT}/reference/config.md#script-paths)
-says why. **As of**: 2026-10-11. **Recheck trigger**: that section is renamed or removed, or its
-own recheck trigger fires.
+says why.
 
 `--source` and `--remote` are recorded verbatim, so a later reader can tell an explicit list from a
 fleet plan, and a local-only run from one that fetched. `--edges-from` is the repository whose
@@ -243,8 +242,6 @@ hand-written; the shared medium resolver decides the destination, with this plug
   [record](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/authoring-formats/README.md#why-mermaid-is-not-offered-for-the-system-key).
   - **Pointer**: for the landscape view Structurizr offers, see
     [Structurizr DSL: systemLandscape view](https://docs.structurizr.com/dsl/language#systemlandscape-view).
-  - **As of**: 2026-11-03
-  - **Recheck trigger**: that section changes its landscape view.
 - **A referenced repository is not a checked-out one, and the portfolio says so.** Under the default
   scope only the subject repository has probed facts. Everything else is a node with edges and an
   `unknown` row. That is the honest answer without `--remote`, not a gap to fill by guessing.

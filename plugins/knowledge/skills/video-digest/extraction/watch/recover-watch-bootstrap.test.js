@@ -124,17 +124,19 @@ describe("recovery maximum frame gap", () => {
     expect((await readSliceJson("run-state", "watch.json")).maxFrameGapSec).toBe(30);
   });
 
-  it("falls back to the 60s default for a slice recorded before the field existed", async () => {
+  // The seeded slice is a 120s video (captions end at 2:00, no probe), the medium tier: 6s.
+  it("falls back to the medium-tier 6s default when the run recorded no value", async () => {
     expect(await recoverSeededSlice()).toBe(0);
 
-    expect((await readSliceJson("key-frames", "coverage-plan.json")).maxFrameGapSec).toBe(60);
+    expect((await readSliceJson("key-frames", "coverage-plan.json")).maxFrameGapSec).toBe(6);
+    expect((await readSliceJson("run-state", "watch.json")).maxFrameGapSec).toBe(6);
   });
 
-  it.each([0, "abc"])("falls back to the 60s default for a recorded value of %j", async (value) => {
+  it.each([0, "abc"])("falls back to the medium-tier 6s default for a recorded %j", async (value) => {
     expect(await recoverSeededSlice({ maxFrameGapSec: value })).toBe(0);
 
-    expect((await readSliceJson("key-frames", "coverage-plan.json")).maxFrameGapSec).toBe(60);
-    expect((await readSliceJson("run-state", "watch.json")).maxFrameGapSec).toBe(60);
+    expect((await readSliceJson("key-frames", "coverage-plan.json")).maxFrameGapSec).toBe(6);
+    expect((await readSliceJson("run-state", "watch.json")).maxFrameGapSec).toBe(6);
   });
 });
 

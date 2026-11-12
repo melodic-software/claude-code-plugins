@@ -157,9 +157,6 @@ copy of the ladder; every other file points here.
    - **Pointer**: <https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit>
      (the refusal text, what it tells the caller, and when spawning succeeds
      again).
-   - **As of**: 2026-10-17
-   - **Recheck trigger**: that section changes what the refusal tells Claude
-     to do or when spawning succeeds again.
 1. **Retry window** (an agent that died, not a refusal): re-dispatch the same
    brief once; record the death and the retry.
 2. **Inline-with-disclosure**: if the retry also dies, or a unit was refused

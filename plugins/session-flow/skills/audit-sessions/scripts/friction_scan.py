@@ -61,10 +61,12 @@ POLL_RE = re.compile(r"\bsleep\s+\d|\buntil\b.*\bdo\b|\bwhile\b.*\bdo\b|--watch\
 CI_WAIT_RE = re.compile(r"\bgh\s+(run\s+watch|pr\s+checks\b.*--watch)|\bglab\s+ci\s+status\b.*--live", re.S)
 CONFLICT_RE = re.compile(r"^CONFLICT \(|Automatic merge failed", re.M)
 # A git subcommand that can stop on a conflict, after any `-C <dir>`, `-c <key=value>`, `-p`, `--git-dir <path>`
-# or `--flag[=value]` global options.
+# or `--flag[=value]` global options. Each option text has exactly one parse, so a long option run
+# cannot backtrack exponentially.
 CONFLICT_COMMAND_RE = re.compile(
     r"\bgit(?:\.exe)?[\"']?"
-    r"(?:\s+(?:-[Cc]\s+(?:\"[^\"]*\"|'[^']*'|\S+)|-[pP]|--(?:git-dir|work-tree|namespace|config-env)\s+\S+|--[\w-]+(?:=\S+)?))*\s+"
+    r"(?:\s+(?:-[Cc]\s+(?:\"[^\"]*\"|'[^']*'|[^\s\"'])\S*|-[pP]|--(?:git-dir|work-tree|namespace|config-env)\s+\S+"
+    r"|--(?!(?:git-dir|work-tree|namespace|config-env)\s)[\w-]+(?:=\S+)?))*\s+"
     r"(?:merge|rebase|pull|cherry-pick|revert|am|stash\s+(?:pop|apply))(?![\w-])"
 )
 PERF_COUNTS = ("tool_waits_gt5m", "polling_calls", "ci_wait_calls", "merge_conflicts")
@@ -80,16 +82,6 @@ SUBCOMMAND = re.compile(r"[a-z][a-z0-9-]{0,30}")
 GIT_ARG_FLAGS = frozenset({"-C", "-c"})
 # Event fields holding transcript or metadata text, scrubbed before storage; the rest are enums this module sets.
 SCRUBBED_FIELDS = ("reason", "hook", "shape", "tool", "agent", "source", "reason_type", "next_tool", "tool_use_id")
-
-
-def _epoch(value: object) -> float | None:
-    if not isinstance(value, str):
-        return None
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return (parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)).timestamp()
 
 
 def _errored(record: dict) -> bool:
@@ -230,7 +222,7 @@ class FrictionScan:
             self.cwd = record["cwd"]
         if record.get("entrypoint") in census.AUTOMATED_ENTRYPOINTS:
             self.headless = True
-        ts = _epoch(record.get("timestamp"))
+        ts = census.epoch(record.get("timestamp"))
         kind = record.get("type")
         if kind == "assistant":
             self._assistant(record, ts)

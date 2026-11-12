@@ -19,8 +19,8 @@
 // ARTIFACT_READ_TOKEN (actions: read; the review lanes' comment records).
 
 import { appendFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
 
+import { runAsScript } from "../lib/run-main.mjs";
 import { isFault } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createGitHubApi, humanGatedLabelFrom, laneReader, need, positive, withLaneBinding } from "./address-feedback.mjs";
@@ -95,14 +95,4 @@ export async function main(env, { api, actions, log = (line) => console.log(line
   return 0;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main(process.env).then(
-    (code) => {
-      process.exitCode = code;
-    },
-    (error) => {
-      console.log(`::error::lane-hold failed: ${error.message}`);
-      process.exitCode = 1;
-    },
-  );
-}
+runAsScript(import.meta.url, "lane-hold", () => main(process.env));

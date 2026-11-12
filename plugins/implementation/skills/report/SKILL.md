@@ -120,8 +120,6 @@ reading the skill file as `fired`.
 - **Pointer**: when deciding what a `skills:` entry that does not load leaves behind, fetch
   [Preload skills into subagents](https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents)
   live.
-- **As of**: 2026-11-11
-- **Recheck trigger**: a Claude Code release note touching subagent `skills` preloading.
 
 **When no body reached you at all**, return `preload_token: MISSING` and `verdict: stopped`.
 `verdict: stopped` is terminal and **not resumable**: no resume can deliver a skill body that never

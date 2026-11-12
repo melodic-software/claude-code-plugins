@@ -18,7 +18,7 @@ The GLOBAL HARD list gates every lane. A tidying that would touch any entry is a
 
 ### Agent & enforcement configuration (universal)
 
-Claude Code surface: `.claude/**` in full. The whole directory is agent surface: settings, agents, hooks, rules, routines, tidy-lanes (the consumer's own lane definitions, since the lane contract cannot tidy itself), and any settings-wired hook or bootstrap script that lives there. Any script wired as a hook command **anywhere** is excluded wherever it lives, because a hook command may point outside `.claude/`. Every place a hook can be wired counts, not only the project settings files: see [Hook locations](https://code.claude.com/docs/en/hooks#hook-locations), as of 2026-11-03; recheck when that section adds or removes a location. `.mcp.json`. Other agents' config bundles (e.g. `.codex/**`, `.cursor/**`), since a tidy must not mutate another agent's behavior. GitHub surface: `.github/workflows/**`, `.github/actions/**`, `.github/CODEOWNERS`, `.github/dependabot.yml`. Local git-hook chain: the hook manager's config and script directories (e.g. `lefthook.yml`, `.lefthook/**`, `.husky/**`, `.pre-commit-config.yaml`). Cross-ecosystem lint / style config: `.editorconfig`, `.shellcheckrc`, and their per-tool equivalents.
+Claude Code surface: `.claude/**` in full. The whole directory is agent surface: settings, agents, hooks, rules, routines, tidy-lanes (the consumer's own lane definitions, since the lane contract cannot tidy itself), and any settings-wired hook or bootstrap script that lives there. Any script wired as a hook command **anywhere** is excluded wherever it lives, because a hook command may point outside `.claude/`. Every place a hook can be wired counts, not only the project settings files: see [Hook locations](https://code.claude.com/docs/en/hooks#hook-locations). `.mcp.json`. Other agents' config bundles (e.g. `.codex/**`, `.cursor/**`), since a tidy must not mutate another agent's behavior. GitHub surface: `.github/workflows/**`, `.github/actions/**`, `.github/CODEOWNERS`, `.github/dependabot.yml`. Local git-hook chain: the hook manager's config and script directories (e.g. `lefthook.yml`, `.lefthook/**`, `.husky/**`, `.pre-commit-config.yaml`). Cross-ecosystem lint / style config: `.editorconfig`, `.shellcheckrc`, and their per-tool equivalents.
 
 ### Consumer-declared protections
 
@@ -70,7 +70,7 @@ If during a self-update run you find drift in any of the following, **clean exit
 
 ### Frontmatter (entire YAML block of every skill file)
 
-- Every key in the block, whichever fields it carries, including fields Claude Code adds later. Pointer for the fields Claude Code defines: [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference). As of: 2026-10-11. Recheck trigger: that section adds, renames or removes a field
+- Every key in the block, whichever fields it carries, including fields Claude Code adds later. Pointer for the fields Claude Code defines: [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference).
 - Applies to every `skills/*/SKILL.md` in this plugin, including skills added later
 
 ### Safety-mechanism content
@@ -122,7 +122,7 @@ To operate on a directory genuinely named `override`, spell it `./override`.
 
 ### The `hard_exclusions` userConfig option
 
-`enforce` (default) keeps the section 1 path list blocking. `advisory` reports each HARD path match and never blocks, so the operator's standing posture is "tell me, then proceed". It is a scalar, not a list: a per-path list belongs in the repository file below. Option types: [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration), as of 2026-11-03; recheck when that section changes the option types. Any value outside the two is read as `enforce`.
+`enforce` (default) keeps the section 1 path list blocking. `advisory` reports each HARD path match and never blocks, so the operator's standing posture is "tell me, then proceed". It is a scalar, not a list: a per-path list belongs in the repository file below. Option types: [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration). Any value outside the two is read as `enforce`.
 
 ### The consumer-declared overrides file
 

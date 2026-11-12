@@ -294,7 +294,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in FLOOR.classes),
-            {"trust": 20, "gate": 62, "enforcement": 59},
+            {"trust": 20, "gate": 62, "enforcement": 61},
         )
         self.assertEqual(
             FLOOR.high,
@@ -343,6 +343,8 @@ class HighReasonTests(unittest.TestCase):
             (".github/scripts/apply-patch/apply-patch.mjs", ".github/scripts/apply-patch/apply-patch.mjs"),
             (".github/scripts/apply-patch/predicates.mjs", ".github/scripts/apply-patch/predicates.mjs"),
             (".github/scripts/apply-patch/protected-paths.mjs", ".github/scripts/apply-patch/protected-paths.mjs"),
+            (".github/scripts/lib/run-main.mjs", ".github/scripts/lib/run-main.mjs"),
+            (".github/scripts/lib/github-rest.mjs", ".github/scripts/lib/github-rest.mjs"),
             (".github/scripts/pr-unblock/fix-ci-context.mjs", ".github/scripts/pr-unblock/fix-ci-context.mjs"),
             (".github/scripts/pr-unblock/feedback-dispatch.mjs", ".github/scripts/pr-unblock/feedback-dispatch.mjs"),
             (".github/scripts/pr-unblock/verify-notes.mjs", ".github/scripts/pr-unblock/verify-notes.mjs"),
@@ -1233,6 +1235,8 @@ class LanePathFloorTests(unittest.TestCase):
             ".github/scripts/apply-patch/apply-patch.mjs",
             ".github/scripts/apply-patch/predicates.mjs",
             ".github/scripts/apply-patch/protected-paths.mjs",
+            ".github/scripts/lib/run-main.mjs",
+            ".github/scripts/lib/github-rest.mjs",
             ".github/scripts/pr-unblock/fix-ci-context.mjs",
             ".github/scripts/pr-unblock/feedback-dispatch.mjs",
             ".github/scripts/pr-unblock/verify-notes.mjs",
@@ -2296,7 +2300,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(FLOOR.review), 59)
+        self.assertEqual(len(FLOOR.review), 61)
         for glob in FLOOR.review:
             with self.subTest(glob):
                 result = self._score(glob, (_lane("claude-security-review"),))

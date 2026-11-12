@@ -62,6 +62,8 @@ source "$SCRIPT_DIR/../../../lib/family-records.sh"
 source "$SCRIPT_DIR/../../../lib/github-remote.sh"
 # shellcheck source=../../../lib/redact-connection.sh
 source "$SCRIPT_DIR/../../../lib/redact-connection.sh"
+# shellcheck source=../../../lib/json-escape.sh
+source "$SCRIPT_DIR/../../../lib/json-escape.sh"
 
 usage() {
   sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -70,17 +72,6 @@ usage() {
 die() {
   printf 'collect-context.sh: %s\n' "$1" >&2
   exit "$2"
-}
-
-JSON_ESC=""
-json_escape() {
-  local s="$1"
-  s="${s//\\/\\\\}"
-  s="${s//\"/\\\"}"
-  s="${s//$'\t'/\\t}"
-  s="${s//$'\r'/\\r}"
-  s="${s//$'\n'/\\n}"
-  JSON_ESC="$s"
 }
 
 json_field() {

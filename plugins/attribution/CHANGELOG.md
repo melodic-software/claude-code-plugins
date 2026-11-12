@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.19.3] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
+## [0.19.2] - 2026-11-12
+
+### Changed
+
+- Synced the shared library copies this plugin carries; their pointer records no longer carry an as-of date or recheck trigger.
+
+## [0.19.1] - 2026-11-12
+
+### Changed
+
+- The rubric's conforming-record wording and the `condense-to-stamped-record` disposition name a
+  stored value as upstream-drift 6.0.0 does: a number or string copied or measured from upstream.
+  A probe record of behavior or a "no docs page covers X" note is a pointer with no stamp. No
+  criterion or carve-out outcome changes, so the rubric versions stay copy 5 and restated-fact 1.
+
 ## [0.19.0] - 2026-11-11
 
 ### Changed

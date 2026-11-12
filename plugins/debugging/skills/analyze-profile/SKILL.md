@@ -82,8 +82,7 @@ Run queries through `scripts/query_profile.py`, which opens the database read-on
 as bound parameters and refuses any statement other than a read. The format pages write this
 skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`; put that path in place of the
 placeholder before running a command (where Claude Code substitutes it:
-[Plugins reference, "Where each variable resolves"](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves),
-as of 2026-11-10; recheck when that section substitutes variables in files read with the Read tool).
+[Plugins reference, "Where each variable resolves"](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)).
 
 **Before you answer**, hold the draft against each row:
 

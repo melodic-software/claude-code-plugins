@@ -29,9 +29,6 @@ stops from the pointer below, and if that does not fit the intent, route instead
 - **Pointer**: the "when the next turn starts" and "stops when" columns of
   <https://code.claude.com/docs/en/goal#compare-ways-to-keep-a-session-running>, for when `/goal`,
   `/loop` and a Stop hook start the next turn and when each stops.
-- **As of**: 2026-10-19
-- **Recheck trigger**: that section's table changes the `/goal` row or adds an approach beside
-  `/loop` and the Stop hook.
 
 A lever that repeats build-and-check rounds (a metric hill-climb, or a `/goal`, `/loop` or routine
 that edits each round) pays off only when the task repeats and the agent can run what it builds and
@@ -45,14 +42,14 @@ see the result. When either is missing, prompt once instead.
 - **Interval-driven** ("every 5 minutes", "poll until") → `/loop`, not `/goal`.
 - **Cloud / sessionless / scheduled** ("nightly", "each morning", runs with no session open) →
   routines / `/schedule`. Routines were labeled a research preview on
-  `https://code.claude.com/docs/en/routines` as of 2026-09-02; re-read that label during the Step 1
-  fetch before recommending them, and recheck when the page drops the research-preview label.
+  `https://code.claude.com/docs/en/routines`; re-read that label during the Step 1 fetch before
+  recommending them.
 - **Custom per-turn logic across all sessions** (deterministic script check, settings-scoped) → a
   prompt-based Stop hook.
 - **More agents than one conversation can coordinate** (or orchestration worth codifying as a
   rerunnable script; for the scale each approach fits, see
-  [When to use a workflow](https://code.claude.com/docs/en/workflows#when-to-use-a-workflow), as of
-  2026-10-31; recheck when that section's comparison table changes) → a dynamic workflow. This row composes with `/goal`: the workflow does the
+  [When to use a workflow](https://code.claude.com/docs/en/workflows#when-to-use-a-workflow)) → a
+  dynamic workflow. This row composes with `/goal`: the workflow does the
   parallel work, the goal sets the hard completion requirement. Route away from drafting only when
   the intent wants the fan-out and *no* across-turn completion condition; when it wants both, draft
   the condition here and say the workflow rides alongside it.
@@ -62,28 +59,26 @@ see the result. When either is missing, prompt once instead.
   backlog / existing tickets →
   `/work-items:work` (or the work-loop); undecomposed plan or intent → `/work-items:decompose` then
   `/work-items:work`. When `work-items` is not enabled, tell the user to enable it (installing it
-  first if needed), or draft only if they insist on one-session completion. A single goal-pursuing
-  window relies on auto-compaction and spends most of its life degraded, while decomposed items
-  each get a fresh window. This is an advisory default, not a prohibition: draft when the intent is
-  genuinely one-session completion.
+  first if needed), or draft only if they insist on one-session completion. We route
+  multi-window work to decomposed items so each item starts in a fresh window; what one window
+  carries across a compaction is in
+  [What survives compaction](https://code.claude.com/docs/en/context-window#what-survives-compaction).
+  This is an advisory default, not a prohibition: draft when the intent is genuinely one-session
+  completion.
 
 Two caveats on the workflow row, each of which turns a plausible recommendation into a dead one:
 
 - **Route to the right ultracode form.** We tell apart the per-task opt-in (the `ultracode`
   keyword, or asking in plain words for a workflow) and the standing `/effort ultracode` session
   setting. For what each form does, the effort level included, see
-  [Let Claude decide with ultracode](https://code.claude.com/docs/en/workflows#let-claude-decide-with-ultracode)
-  (as of 2026-11-10; recheck when that section changes what either form does to a task or to the
-  effort level). Before
-  recommending either form, apply the routing decisions in
+  [Let Claude decide with ultracode](https://code.claude.com/docs/en/workflows#let-claude-decide-with-ultracode).
+  Before recommending either form, apply the routing decisions in
   [reference/workflow-row.md](reference/workflow-row.md): which prompt sources the keyword fits
   (a `-p`, Agent SDK, scheduled or relayed prompt among them), which plans reach the workflow
   lever and what a plan must switch on first, and when the standing setting fits.
 - **The lever is unreachable from an ordinary subagent.** We treat the `Workflow` tool as
   missing from every non-fork subagent (which tools a subagent gets:
-  [sub-agents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools), as of
-  2026-11-10; recheck when `Workflow` leaves that list or a fork stops keeping the main session's
-  tools;
+  [sub-agents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools);
   `/discovery:research`, if enabled, selects its workflow-backed deep tier only in the main
   conversation for this reason). A lever whose work lands in dispatched non-fork subagents (the
   loop lanes' workers, for instance) cannot be the workflow row; recommend it only where the
@@ -134,8 +129,7 @@ defers until the docs are reachable. Never finalize a draft on a shape or limit 
 Every claim in the condition must be something Claude's own output in the transcript can
 demonstrate. Avoid conditions the transcript cannot show (subjective quality, external state Claude
 never surfaces). What the evaluator reads:
-[How evaluation works](https://code.claude.com/docs/en/goal#how-evaluation-works),
-as of 2026-11-03; recheck when that section changes what the evaluator receives or can call.
+[How evaluation works](https://code.claude.com/docs/en/goal#how-evaluation-works).
 
 Structure the draft to the shape Step 1 read off the live page; this file does not restate its
 elements. Keep each prescribed element separately identifiable, so Step 3's tightening pass can
@@ -160,9 +154,6 @@ a stall. A condition with no user-gated step gets no exit.
 
 - **Pointer**: <https://code.claude.com/docs/en/goal#how-evaluation-works>, for the verdicts the
   evaluator returns and when a loop that makes no progress stops.
-- **As of**: 2026-10-29
-- **Recheck trigger**: that section adds a verdict for a condition waiting on the user, or changes
-  the no-progress stop.
 
 **Refuse a fragile end state.** Refuse a draft, or rewrite it with the user's agreement, when its
 only end state:
@@ -250,9 +241,6 @@ and that a goal the page says is removed must be re-set.
   - **Pointer**: <https://code.claude.com/docs/en/goal#set-a-goal> for what setting a goal does,
     <https://code.claude.com/docs/en/goal#check-status> and
     <https://code.claude.com/docs/en/goal#clear-a-goal> for the other two forms.
-  - **As of**: 2026-10-19
-  - **Recheck trigger**: the "Set a goal" section changes what setting a goal does, or the
-    status or clear forms move.
 - **`ProposeGoal` (built-in tool)**: the model proposes a goal condition and the person approves
   it with one keypress (`ask_user` true, the default); `ask_user` false sets it with no dialog.
   It cannot clear a goal, and it is refused in subagents, outside interactive local sessions, and
@@ -298,13 +286,10 @@ in [reference/native-goal.md](reference/native-goal.md).
   live each run.
 - **The pre-submission counter is the only length guard.** Do not assume the app trims an
   over-limit condition. The limit is in
-  [Write an effective condition](https://code.claude.com/docs/en/goal#write-an-effective-condition),
-  as of 2026-11-03; recheck when that section says what happens to an over-limit condition.
+  [Write an effective condition](https://code.claude.com/docs/en/goal#write-an-effective-condition).
 - **A long goal run draws usage on every turn.** We treat a goal left waiting on background work as
   still spending usage, so flag it when drafting a goal that waits on background work. Pointer:
   for why usage climbs in a long session and the setting that turns goal check-ins off, see
-  <https://code.claude.com/docs/en/costs#why-usage-climbs-in-a-long-session>. As of: 2026-10-01.
-  Recheck trigger: that section moves or stops naming goal check-ins.
+  <https://code.claude.com/docs/en/costs#why-usage-climbs-in-a-long-session>.
 - **Flag a goal whose check is a shell command**, and point the user at
-  [Set a goal](https://code.claude.com/docs/en/goal#set-a-goal) for how goal turns get permission,
-  as of 2026-11-03; recheck when that section changes how a goal interacts with permission modes.
+  [Set a goal](https://code.claude.com/docs/en/goal#set-a-goal) for how goal turns get permission.

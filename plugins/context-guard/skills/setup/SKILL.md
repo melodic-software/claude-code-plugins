@@ -49,16 +49,12 @@ paths this skill names, with the `Read` tool; never Glob or Grep the plugin dire
    not put `node` on `PATH` for them (pointer below). Without `node` on `PATH` the marker does not
    launch and no snapshot is written, so file readers read `unknown`; report that the marker cannot
    launch (how Claude Code treats a hook that cannot start:
-   [Hooks, "Exit code output"](https://code.claude.com/docs/en/hooks#exit-code-output), as of
-   2026-11-10; recheck when that section stops treating a hook that cannot start as a non-blocking
-   error), since nothing else says so. The module's zone lines, band row and status tool do not
+   [Hooks, "Exit code output"](https://code.claude.com/docs/en/hooks#exit-code-output)), since
+   nothing else says so. The module's zone lines, band row and status tool do not
    need `node`. Remediation: install Node.js (<https://nodejs.org/en/download>) and restart Claude
    Code.
    - **Pointer**: [Set up, "Install with npm"](https://code.claude.com/docs/en/setup#install-with-npm),
      for whether the installed `claude` binary uses Node.
-   - **As of**: 2026-11-10.
-   - **Recheck trigger**: that section, or a release note, says the binary bundles Node or runs
-     hooks with it.
 3. **Module state.** The module loads only where mods can.
    - **This session**: the module registers `mcp__context-guard__status` when the session starts.
      Look for that name in your own tool list, deferred tool names included. Present → PASS, the
@@ -213,8 +209,7 @@ The `defaults` argument changes only how a present file is treated:
 Places the optional prompt-cache status-line segment at a fixed path this plugin owns, so the
 operator's status line never depends on where the installed plugin's files live. Pointer: for
 where those files live, see
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>. As of:
-2026-10-11. Recheck trigger: that section names a stable install path a status line could use.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
 1. **Copy** `${CLAUDE_PLUGIN_ROOT}/scripts/cache-line.mjs` to
    `~/.claude/context-guard/cache-line.mjs`, creating the directory if needed. When the target is
@@ -225,9 +220,7 @@ where those files live, see
    edit. When no file sets it, the target is the user `settings.json`. Pointer: for the precedence
    order and the scopes a status line can live in, see
    <https://code.claude.com/docs/en/settings#settings-precedence> and
-   <https://code.claude.com/docs/en/statusline#manually-configure-a-status-line>. As of:
-   2026-10-11. Recheck trigger: either section changes the scope order or where a status line may
-   be set.
+   <https://code.claude.com/docs/en/statusline#manually-configure-a-status-line>.
 3. **Print the statusLine edit; never write it, and never compose it by hand.** Pipe that file
    (`{}` when it is absent) into `node "${CLAUDE_PLUGIN_ROOT}/scripts/cache-line.mjs" --wire` and
    print its output as the paste-ready `statusLine` object for that same file. With an existing
@@ -246,9 +239,8 @@ where those files live, see
 
 Once the plugin is uninstalled the module stops and nothing writes new snapshots (what an uninstall
 removes:
-[Plugins CLI reference, "What an uninstall deletes and keeps"](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps),
-as of 2026-11-10; recheck when that section stops removing the plugin's installed files). The
-operator's directory `~/.claude/context-guard/` (`zones.json`, the snapshots, the
+[Plugins CLI reference, "What an uninstall deletes and keeps"](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps)).
+The operator's directory `~/.claude/context-guard/` (`zones.json`, the snapshots, the
 compaction markers and, after `apply cache-line`, `cache-line.mjs`) stays. Removing it is safe once
 the operator's `statusLine` no longer runs `cache-line.mjs`: restore the command `--after` wrapped,
 or drop the bare segment, first. Readers then read `unknown` and take their conservative path.

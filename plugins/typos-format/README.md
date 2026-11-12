@@ -11,7 +11,6 @@ The check honors your repository's own typos configuration: typos discovers it f
 path, and the plugin's bundled `config/default-typos.toml` (passed with `-c`, so that SHA-shaped
 hex is not read as a misspelling) merges with it through `extend-*` keys. Pointer: the Sources
 list in [typos' configuration reference](https://github.com/crate-ci/typos/blob/master/docs/reference.md#sources).
-As of: 2026-10-01. Recheck trigger: typos changes its config file names or search order.
 
 ## Git pre-commit entry
 
@@ -43,8 +42,7 @@ same host.
 ## Requirements
 
 - **typos** on `PATH`, installed at the machine level by the machine's owner
-  ([install typos](https://github.com/crate-ci/typos#install); as of 2026-11-03, recheck trigger:
-  typos moves or retitles its Install section). It is never downloaded on the fly. The
+  ([install typos](https://github.com/crate-ci/typos#install)). It is never downloaded on the fly. The
   SessionStart probe reports a missing `typos` once per session from `prerequisites.json`.
 - **Bash** runs the check (3.2 or newer, so macOS's own bash works). On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows).

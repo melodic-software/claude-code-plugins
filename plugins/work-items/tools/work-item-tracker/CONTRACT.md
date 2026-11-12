@@ -279,12 +279,11 @@ admission. For every `--label`, the adapter takes the most recent application of
 (GitHub: the latest `labeled` event on the issue timeline by `created_at`), reads the actor's
 repository permission, and marks the label `trusted` only when that permission is `admin` or
 `write` (GitHub maps maintain to `write` and triage to `read`; pointer:
-[Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user),
-as of 2026-10-04, recheck trigger: the endpoint's role mapping changes). Each row carries the
+[Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user)). Each row carries the
 application's time as `at`. The adapter also reads when the item's body was last edited (GitHub:
 GraphQL `lastEditedAt`, since REST carries no edit time: the
 [issue event types](https://docs.github.com/en/rest/using-the-rest-api/issue-event-types) list no
-body-edit event, and `renamed` covers only the title, as of 2026-10-31, recheck trigger: that list
+body-edit event, and `renamed` covers only the title; recheck trigger: that list
 adds a body-edit event) and reports it as `body_edit`;
 `after_admission` is `true` when that edit is later than the latest `at` of the named labels,
 because a body rewritten after the labeler read it is not the body the labeler admitted.
@@ -307,8 +306,7 @@ for organization issue fields: it reads the options from `GET /orgs/{org}/issue-
 needs `read:org` on an OAuth or classic token, and writes names, since the REST write takes the
 option's name (pointer:
 [issue field values](https://docs.github.com/en/rest/issues/issue-field-values) and
-[organization issue fields](https://docs.github.com/en/rest/orgs/issue-fields), as of
-2026-10-18, recheck trigger: the write starts taking option ids, or the listing's permission
+[organization issue fields](https://docs.github.com/en/rest/orgs/issue-fields); recheck trigger: the write starts taking option ids, or the listing's permission
 changes). An adapter that declares no `set-fields` key exits `6`.
 
 `get-field-options` is the read-only counterpart of `set-fields`: it lists the options of one
@@ -649,8 +647,10 @@ issue comment with a machine marker. The GitHub adapter's `claim` has two modes:
   `--holder <h>` names the holder instead of the authenticated login, for a caller whose token
   cannot read `GET /user` (a GitHub App installation token, which a CI job holds). The issue lane
   claims this way, holding `vars.AUTOMATION_LANES_APP_SENDER_ID`, before its model starts.
-  The lane releases its lease when its report job ends; a lane run cancelled by hand before that,
-  or a release that fails, leaves the lease to its TTL, which is accepted behavior.
+  The lane claims with `--session-id run-<run id>` and releases its lease when its report job
+  ends. A lane run that ends before that (cancelled, timed out, or failed on a rate limit), or a
+  release that fails, leaves its lease live, and the next claim treats it as released once the run
+  has completed (claim step 4).
 
 Arbitration is the same in both modes (step 4), so a local claim made while a lane lease is live
 backs off, and a lane run that finds a live local lease backs off without starting its model.
@@ -660,7 +660,8 @@ backs off, and a lane run that finds a live local lease backs off without starti
 ```
 
 - Created at claim; **edited in place** at renew (`renewed_at` bump); superseded at
-  reclaim, back-off, or release by adding `"superseded_at":"<ISO>"` to the JSON.
+  reclaim, back-off, release, or a claim that finds its run completed (claim step 4) by adding
+  `"superseded_at":"<ISO>"` to the JSON.
 - A lease is **live** when it has no `superseded_at` and `renewed_at + ttl_hours×3600 +
   (ttl_minutes×60)` is in the future. `ttl_hours` defaults from binding
   `config.lease_ttl_hours`; `ttl_minutes` defaults to `0` and may be set per claim via
@@ -674,8 +675,9 @@ backs off, and a lane run that finds a live local lease backs off without starti
   (non-superseded) lease but already **expired**, meaning `renewed_at + ttl_hours` elapsed with
   no back-off yet, is refused (exit `7`), never revived: a delayed holder must not undo a
   TTL-based handoff. Recovery from an expired lease is a fresh claim/reclaim, not a renew.
-- `session_id` is diagnostic metadata only, optional and collision-prone; a
-  missing/duplicate `session_id` still counts as a competing lease.
+- `session_id` is optional and collision-prone; a missing/duplicate `session_id` still counts as a
+  competing lease. The one shape the GitHub adapter's claim step 4 reads is `run-<id>`, a workflow run of the
+  item's repository; any other value is diagnostic only.
 - `phase` names the work the lease is for: `triage`, `discovery` or `implementation`. The github
   and local-markdown `claim` write it from `--phase <kind>` and refuse any other value (exit 2)
   before any write. A lease with no `phase` field is an implementation claim. `renew-lease`, and
@@ -699,6 +701,12 @@ Claim sequence (race-safe, same-identity aware):
    comment, the foreign lease wins → supersede own comment, exit `7`. (Assignee is left
    in place on a same-login race: it belongs to the winner.)
    The back-off message prints the winner's holder with control characters removed.
+   GitHub adapter: an earlier live lease whose `session_id` is `run-<id>` costs one
+   `GET /repos/{owner}/{repo}/actions/runs/{id}` read (the token needs `actions: read`). A run
+   whose `status` is `completed`, whatever its conclusion, holds nothing, so its lease is
+   superseded in place (best-effort, the same `superseded_at` edit as a back-off) and arbitration
+   moves to the next live lease. A run in any other status, or a read that fails, keeps the lease
+   winning. A lease with any other `session_id` costs no read.
 5. Emit the claim object.
 
 Release (early end of the caller's own lease): `release` supersedes a lease before its TTL
@@ -1078,8 +1086,7 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
   be an object with exactly those two keys, each an array of non-empty string ids, with no
   id in both (exit `3` otherwise). Ids, not names, because Jira admins can rename, add,
   and delete resolutions
-  ([add, edit, or delete resolutions](https://support.atlassian.com/jira-cloud-administration/docs/add-edit-or-delete-resolutions/),
-  as of 2026-10-10; recheck when that page changes how resolutions are identified), so no
+  ([add, edit, or delete resolutions](https://support.atlassian.com/jira-cloud-administration/docs/add-edit-or-delete-resolutions/)), so no
   name list fits every instance and a rename must not reclassify a resolution.
   `/work-items:setup apply` writes the key from the instance's own resolution list.
 - **Read-path normalization** (CONTRACT.md "JSON output contract"): `state` is `closed` when the

@@ -51,8 +51,6 @@ the `skills` dir of the installed version you mean:
 - **Pointer**: when locating an installed version on disk, or judging which versions stay there,
   fetch <https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk> and
   <https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions> live.
-  **As of**: 2026-10-11. **Recheck trigger**: either section changing the cache layout or how
-  long a previous version stays on disk.
 
 ```shell
 CHECK_SKILL_SKILLS_ROOT=<installed-version-dir>/skills \
@@ -200,31 +198,24 @@ inputs no repository file records (the budget's basis: pointer below). Point `/d
 encoded constants are recorded once each: in the comment above `DESC_CHAR_CAP=` in
 [`${CLAUDE_PLUGIN_ROOT}/scripts/check-skill.sh`](../../scripts/check-skill.sh) and in the header
 of [`${CLAUDE_PLUGIN_ROOT}/scripts/check-listing-budget.sh`](../../scripts/check-listing-budget.sh)
-(scripts, so no section anchor; as of 2026-10-11; recheck trigger: `DESC_CHAR_CAP` being renamed
-or either record's pointer changing).
+(scripts, so no section anchor).
 
 - **Pointer**: when you need the per-entry cap, the shared budget's basis, its default, or its
   override, fetch <https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars>,
   <https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction> and
-  <https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short> live. **As of**:
-  2026-10-11. **Recheck trigger**: any of those sections changing a default, the budget's basis,
-  or the override.
+  <https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short> live.
 
 **Only listing-eligible skills count.** The report skips a skill with
 `disable-model-invocation: true` and counts the rest, so a skill whose description never reaches
 the listing does not inflate the aggregate. The reported figure is an upper bound for a consumer
 who sets `skillOverrides`, which repository content cannot reveal (what it frees:
-[Skills, "Skill descriptions are cut short"](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short),
-as of 2026-11-10; recheck when that section stops letting `skillOverrides` change listing
-characters). A missing explicit root and a nonnumeric override are both
+[Skills, "Skill descriptions are cut short"](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)).
+A missing explicit root and a nonnumeric override are both
 environment errors (exit 2), never a silent skip or a coerced-to-zero budget.
 
 - **Pointer**: when deciding which skills' descriptions reach the listing, fetch
   <https://code.claude.com/docs/en/skills#control-who-invokes-a-skill> and
-  <https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings> live. **As
-  of**: 2026-10-11. **Recheck trigger**: either section changing which frontmatter or setting
-  keeps a description out of the listing, or a release note naming the skill listing budget or
-  `skillOverrides`.
+  <https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings> live.
 
 ## Action: measure-invocation
 
@@ -256,9 +247,7 @@ Model-graded `claude plugin eval` cases are emitted on demand. Contract:
    checks that the target skill fired through a `tool_used` grader on the `Skill` tool.
    - **Pointer**: when an emitted case fails to load or its grader shape is in doubt, fetch
      <https://code.claude.com/docs/en/plugin-evals#write-a-case-manually> and
-     <https://code.claude.com/docs/en/plugin-evals#grader-types> live. **As of**: 2026-10-11.
-     **Recheck trigger**: either section changing the case layout, the `prompt.md` fields, or the
-     `tool_used` grader fields.
+     <https://code.claude.com/docs/en/plugin-evals#grader-types> live.
 3. Report per skill, per split (`train` and `validation`): `trigger_rate` and
    `false_trigger_rate`, sample size, and the method name. A rewrite is compared with `compare`
    against `probes/baselines/listing-overlap.json` beside the scored probes directory (or a later
@@ -282,10 +271,7 @@ and review against the invariant.
 
 - **Pointer**: when deciding whether the Skill tool can reach a target, or how many skills one
   call runs, fetch <https://code.claude.com/docs/en/skills#control-who-invokes-a-skill> live (the
-  tools reference's `Skill` row links to it and has no section anchor of its own). **As of**:
-  2026-10-11. **Recheck trigger**: that section or the `Skill` row changing how many skills one
-  call runs or which frontmatter blocks Skill-tool invocation, or a release note naming the Skill
-  tool.
+  tools reference's `Skill` row links to it and has no section anchor of its own).
 
 ## Next
 
@@ -316,8 +302,7 @@ and review against the invariant.
 - **Check 6 defers to the skill's own repo markdownlint config.** The checker runs `markdownlint-cli2`
   from the top level of the git repo holding the skill, so a repo-root `.markdownlint-cli2.jsonc`
   applies whichever directory or root you started from (where it discovers config:
-  [markdownlint-cli2 README, "Configuration"](https://github.com/DavidAnson/markdownlint-cli2#configuration),
-  as of 2026-11-10; recheck when the repo's `markdownlint-cli2` pin changes major or minor version). A skill in no git repo (a marketplace-installed skill in the plugin cache, which has
+  [markdownlint-cli2 README, "Configuration"](https://github.com/DavidAnson/markdownlint-cli2#configuration)). A skill in no git repo (a marketplace-installed skill in the plugin cache, which has
   no config) is linted where the checker stands, and markdownlint applies its DEFAULTS, so rules a repo deliberately disables (commonly
   `MD013` line-length for injection blocks and tables, `MD041` first-line-heading for a frontmatter/H2
   start, `MD060` table-pipe style) fire as spurious failures on a skill that passes in-repo. This is the
@@ -340,9 +325,7 @@ and review against the invariant.
   empty or whitespace-containing value. The field is optional. What the runtime does with a named
   model it will not use is runtime behavior, not a second finding.
   - **Pointer**: when the accepted values or the runtime fallback are in doubt, fetch
-    <https://code.claude.com/docs/en/skills#frontmatter-reference> (the `model` row) live. **As
-    of**: 2026-10-11. **Recheck trigger**: that row defining a grammar for the value or changing
-    its fallback.
+    <https://code.claude.com/docs/en/skills#frontmatter-reference> (the `model` row) live.
 - Check 1 also fails an unquoted plain `description` with a colon followed by a space on any line,
   or a line ending in a colon (a YAML mapping indicator). A quoted or block-scalar description may
   contain it.
@@ -388,8 +371,7 @@ and review against the invariant.
 - Check 24 (explicit invocation mode) FAILs a marketplace plugin skill (`plugins/*/skills/*`) whose
   frontmatter omits `disable-model-invocation`, and only WARNs anywhere else, so a consumer's own
   skill is informed by this fleet's convention rather than broken by it (the key's default:
-  [Skills, "Frontmatter reference"](https://code.claude.com/docs/en/skills#frontmatter-reference),
-  as of 2026-11-10; recheck when that section changes the key's default). A non-boolean value FAILs everywhere: the check reads the bare scalar, so a quoted
+  [Skills, "Frontmatter reference"](https://code.claude.com/docs/en/skills#frontmatter-reference)). A non-boolean value FAILs everywhere: the check reads the bare scalar, so a quoted
   `"false"` fails as the YAML string it is, while a trailing `# comment` naming the exception class
   is fine. The rubric that owns the decision, the
   model-invoked default and the only three exception classes a `true` may claim, is

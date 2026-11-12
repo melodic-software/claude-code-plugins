@@ -52,8 +52,7 @@ This skill never writes the consumer's root instruction file or its topic doc;
 
 `--depth` defaults to 5. Keep the `${CLAUDE_SKILL_DIR}` anchor;
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md` § Script paths](${CLAUDE_PLUGIN_ROOT}/reference/config.md#script-paths)
-says why. **As of**: 2026-10-11. **Recheck trigger**: that section is renamed or removed, or its
-own recheck trigger fires.
+says why.
 
 Exit 3 is a refusal whose message states the reason; nothing was written. Report the reason and
 stop. Do not draw a sequence from the files you can see.
@@ -206,8 +205,6 @@ option `${user_config.medium}`, or `""` when that reads empty or unsubstituted (
   [C4 dynamic diagram § Scope](https://c4model.com/diagrams/dynamic#scope),
   [§ Primary and supporting elements](https://c4model.com/diagrams/dynamic#primary-and-supporting-elements)
   and [C4 diagrams § Supporting diagrams](https://c4model.com/diagrams#supporting-diagrams) live.
-  As of: 2026-11-10. Recheck trigger: the dynamic-diagram page changes the scope or the element
-  rule, or the diagrams index adds or removes dynamic.
 - **The picture has no dialect key.** The authoring-formats convention keys only data diagrams and
   C4 system views, so a traced sequence stays an unkeyed mermaid `sequenceDiagram`, as
   `/planning:design` draws its sequence flows. The decision is recorded in
@@ -234,8 +231,7 @@ option `${user_config.medium}`, or `""` when that reads empty or unsubstituted (
   [controller routing § Attribute routing with HTTP verb attributes](https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/routing#attribute-routing-with-http-verb-attributes)
   and
   [minimal APIs § Routing](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis#routing)
-  live. As of: 2026-11-10. Recheck trigger: either section drops those attribute names or the
-  `Map*` route-string form. A verb prefix on the entry
+  live. A verb prefix on the entry
   (`GET /orders/{id}`) is matched against the `Http*` attribute names beside the route, or the
   `Map*` name. The script does not compose a class-level `[Route(...)]` with a method route; that
   is a limit of this adapter.

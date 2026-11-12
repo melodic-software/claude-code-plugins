@@ -3,6 +3,24 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.3] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
+## [0.43.2] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
+## [0.43.1] - 2026-11-12
+
+### Fixed
+
+- Corrected stated facts that had gone stale or were wrong, each checked against its current source.
+
 ## [0.43.0] - 2026-11-12
 
 ### Added

@@ -249,7 +249,7 @@ the step UNKNOWN with remediation, never green.
      probe as scope-incomplete rather than as the effective configuration. A missing or
      narrow-looking block is INFO, never FAIL on its own: settings cannot prove reachability,
      because a host safety classifier decides per call, at call time.
-     **Pointer**: when reading the probe's scopes or output, fetch [Where the classifier reads configuration](https://code.claude.com/docs/en/auto-mode-config#where-the-classifier-reads-configuration) and [Inspect the defaults and your effective config](https://code.claude.com/docs/en/auto-mode-config#inspect-the-defaults-and-your-effective-config) live. **As of**: 2026-11-10. **Recheck trigger**: either section changes the scopes the classifier reads or what `claude auto-mode config` prints.
+     **Pointer**: when reading the probe's scopes or output, fetch [Where the classifier reads configuration](https://code.claude.com/docs/en/auto-mode-config#where-the-classifier-reads-configuration) and [Inspect the defaults and your effective config](https://code.claude.com/docs/en/auto-mode-config#inspect-the-defaults-and-your-effective-config) live.
 
    - **GraphQL reachability (a different wall, probed the same way).** The two canaries above prove
      the lane's own scripts reach the classifier; this one proves the forge will answer them.
@@ -354,9 +354,6 @@ the install-rerun route.
   when a saved value applies, fetch
   [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
   live.
-- **As of**: 2026-11-11
-- **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-  refused value, or when a saved value applies.
 
 When an uninstall is warranted for a reason other than reconfiguring (troubleshooting, changing
 scopes, reinstalling a version), pass `--keep-data`. Uninstalling from the **last remaining scope**
@@ -391,8 +388,7 @@ The `reference/` files write this skill's directory as `<skill-dir>`, which is
 writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
 in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
 `CLAUDE_SKILL_DIR` or `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
 ## Gotchas
 

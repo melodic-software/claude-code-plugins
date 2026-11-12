@@ -43,8 +43,7 @@ Each recommendation (a library, a layout, a default) carries a `Basis:` line per
    with the repository: tell the user to run `/developer-experience:setup`, then continue from
    what the repository shows. A team exit code keeps the team's meaning: usage means called
    wrongly, not a missing remote, variable or file (`EX_USAGE` against `EX_CONFIG` and `EX_NOINPUT` in
-   <https://man.freebsd.org/cgi/man.cgi?query=sysexits&sektion=3>, as of 2026-10-09; recheck when
-   those definitions change). A failure no team code names is an open question (step 4).
+   <https://man.freebsd.org/cgi/man.cgi?query=sysexits&sektion=3>). A failure no team code names is an open question (step 4).
 2. **Reuse.** Find the helpers new code must call: the conventions' Shared helpers section, then
    the code itself (process runner, logging, argument parsing, output formatting). Extend a
    helper that falls short; never add a second one beside it, because two ways to run a process
@@ -79,8 +78,8 @@ Each recommendation (a library, a layout, a default) carries a `Basis:` line per
    this platform and must exit 0; when a run could change anything, use its dry-run or ask first
    and say why. Run each as one plain command (no `cd`, `;`, `&&` or pipe), so an earlier denial of
    a compound line says nothing about this call (pointer: when a compound line was denied, fetch
-   <https://code.claude.com/docs/en/permissions#compound-commands> live; as of 2026-10-11;
-   recheck when that section changes how a compound line is matched). Report as unverified, with the reason, never as failed:
+   <https://code.claude.com/docs/en/permissions#compound-commands> live). Report as unverified,
+   with the reason, never as failed:
    other platforms, a run the user declined, and a plain call that was itself denied.
 8. **Report** what ran and what each run returned. A failed build, test or smoke run is reported
    with its output, including a failure the change did not cause, and the files stay in place for
@@ -97,8 +96,8 @@ or changed in this session, dispatch a generic fresh-context subagent for the re
 tool's files and the contract table inline, not the reasoning that produced them, and limit
 findings to the fifteen rules, the secrets rule and correctness. Use a non-fork subagent, so the
 review stays blind to this session (pointer: when choosing the subagent type, fetch
-<https://code.claude.com/docs/en/sub-agents#what-loads-at-startup> live; as of 2026-10-11;
-recheck when that section changes what a non-fork subagent starts with). General code review beyond the contract is `/review:quality-gate`, when the review
+<https://code.claude.com/docs/en/sub-agents#what-loads-at-startup> live). General code review
+beyond the contract is `/review:quality-gate`, when the review
 plugin is installed; otherwise say it was not run.
 
 Before that dispatch, run
@@ -125,4 +124,3 @@ yourself against the same fifteen rules, the secrets rule and correctness, and l
   file.
 - **Pointer**: when writing an install line, fetch
   <https://code.claude.com/docs/en/plugins/cli-reference#plugin-install> live for its form.
-  **As of**: 2026-10-11. **Recheck trigger**: that section changes the plugin argument form.

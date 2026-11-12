@@ -24,5 +24,4 @@ native explanation where it resolves; everything cross-session or hook-related s
 
 We never assume a bundled skill is present: the routing reads "resolves in this session", never
 "is available". What removes or hides one is read live from
-[skills: bundled skills](https://code.claude.com/docs/en/skills#bundled-skills) (as of
-2026-11-10). Recheck when a release or docs change adds, removes, or renames a gating axis.
+[skills: bundled skills](https://code.claude.com/docs/en/skills#bundled-skills).

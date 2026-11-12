@@ -685,7 +685,7 @@ test("a verify run is read across all three legs: a fallback write held, a fallb
     ],
   });
   const fallback = (write, upload) => ({
-    name: "check-intent-fallback",
+    name: "Check Intent Fallback",
     status: "completed",
     conclusion: "failure",
     steps: [
@@ -712,7 +712,7 @@ test("a verify run is read across all three legs: a fallback write held, a fallb
 // the subscription leg judges: its own steps tell a write held from a run lost.
 test("a verify run whose credit gate skipped the key is read on the subscription leg", async () => {
   const key = {
-    name: "check-intent",
+    name: "Check Intent",
     status: "completed",
     conclusion: "success",
     steps: [
@@ -725,7 +725,7 @@ test("a verify run whose credit gate skipped the key is read on the subscription
     ],
   };
   const subscription = (write, upload) => ({
-    name: "check-intent-subscription",
+    name: "Check Intent Subscription",
     status: "completed",
     conclusion: "failure",
     steps: [
@@ -762,7 +762,7 @@ test("a verify run that failed on its first attempt is recorded and re-run once"
 const heldJob = ({ marked = true, notes = [{ annotation_level: "notice", title: "pr-verify", message: "held: pr-verify could not resolve the pull request: GET /repos/x failed with status 502" }] } = {}) => [
   {
     id: 7001,
-    name: "check-intent",
+    name: "Check Intent",
     status: "completed",
     conclusion: "success",
     steps: [
@@ -853,7 +853,7 @@ test("a pass reads at most 100 succeeded runs' jobs for a hold, oldest first, an
 test("a verify run the kill switch stopped is re-run once the switch is off", async () => {
   const stopped = [
     {
-      name: "check-intent",
+      name: "Check Intent",
       steps: [
         { name: "Set up job", status: "completed", conclusion: "success" },
         { name: "Check the kill switch", status: "completed", conclusion: "success" },
@@ -1079,12 +1079,12 @@ test("a main-run review whose verdict write started in any lane is held with its
 const MAIN_HELD_NOTE = /echo "::notice title=pr-review-main::(held: [^"]*)"/
   .exec(readFileSync(new URL("../../workflows/pr-review-main.yml", import.meta.url), "utf8"))[1]
   .replace("$retry_call_unknown", "failed 3 times");
-const mainHeldJobs = ({ holder = "trigger", marked = true, notes = [{ annotation_level: "notice", title: "pr-review-main", message: MAIN_HELD_NOTE }], wrote = false } = {}) => [
+const mainHeldJobs = ({ holder = "Trigger", marked = true, notes = [{ annotation_level: "notice", title: "pr-review-main", message: MAIN_HELD_NOTE }], wrote = false } = {}) => [
   ...(wrote
     ? [
         {
           id: 8000,
-          name: "review (claude-security-review)",
+          name: "Review (claude-security-review)",
           status: "completed",
           conclusion: "success",
           steps: [
@@ -1119,7 +1119,7 @@ test("a main-run review held green on an unread file list is recorded and re-run
   assert.deepEqual(reruns, [311]);
   assert.deepEqual(records(outputs), [`reconcile-rerun-311-2-${MAIN_TIP}`, "", ""]);
   // A later leg's hold is read the same way.
-  assert.deepEqual((await reconcile({ pulls: [], runs: [mainHeldRun(311, { holder: "review-subscription (claude-review)" })] })).reruns, [311]);
+  assert.deepEqual((await reconcile({ pulls: [], runs: [mainHeldRun(311, { holder: "Review Subscription (claude-review)" })] })).reruns, [311]);
 });
 
 test("a succeeded main-run review with no hold, or with no held notice, is not re-run, and one with no marker is settled", async () => {
@@ -1140,7 +1140,7 @@ test("a held main-run review where a verdict write started in another job is hel
   try {
     const summary = path.join(dir, "summary.md");
     writeFileSync(summary, "");
-    const { code, reruns, outputs, settled } = await reconcile({ pulls: [], runs: [mainHeldRun(315, { holder: "review-subscription (claude-review)", wrote: true })], carry: null, env: { GITHUB_STEP_SUMMARY: summary } });
+    const { code, reruns, outputs, settled } = await reconcile({ pulls: [], runs: [mainHeldRun(315, { holder: "Review Subscription (claude-review)", wrote: true })], carry: null, env: { GITHUB_STEP_SUMMARY: summary } });
     assert.equal(code, 0);
     assert.deepEqual(reruns, []);
     assert.deepEqual(records(outputs), ["", "", ""]);
@@ -1419,7 +1419,7 @@ test("a run with a real failure at attempt 2, or older than the lookback, is not
 test("a failed run at attempt 2 whose failed job's steps did not list is not re-run as infra", async () => {
   const cut = [{ name: "Check out", status: "completed", conclusion: "success" }];
   for (const steps of [[], cut]) {
-    const jobs = [{ name: "lint-repo", conclusion: "failure", runner_id: 7, steps }];
+    const jobs = [{ name: "Lint Repo", conclusion: "failure", runner_id: 7, steps }];
     const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs, attempt: 2 })] });
     assert.equal(code, 0);
     assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
@@ -1431,7 +1431,7 @@ test("a failed run whose cut job lost its runner is re-run as infra, from the jo
     { name: "Set up job", status: "completed", conclusion: "success" },
     { name: "Run the suites", status: "in_progress", conclusion: null },
   ];
-  const lost = { id: 77, name: "lint-repo", status: "completed", conclusion: "failure", runner_id: 7, steps };
+  const lost = { id: 77, name: "Lint Repo", status: "completed", conclusion: "failure", runner_id: 7, steps };
   const message = "The hosted runner: GitHub Actions 7 lost communication with the server.";
   // npm down holds an infra re-run back, not a flake re-run, so it tells the two apart.
   const upstream = { [NPM_STATUS_URL]: NPM_DOWN, [GITHUB_STATUS_URL]: GITHUB_OK };
@@ -1448,7 +1448,7 @@ test("a failed run whose cut job lost its runner is re-run as infra, from the jo
 
 test("a run where only ci-status failed is not re-run", async () => {
   const jobs = [
-    { name: "lint-repo", conclusion: "success", steps: [] },
+    { name: "Lint Repo", conclusion: "success", steps: [] },
     { name: "ci-status", conclusion: "failure", steps: [{ name: "Check the pull request contract", conclusion: "failure" }] },
   ];
   const { calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs })] });
@@ -1542,10 +1542,10 @@ const INTAKE = ".github/workflows/intake-triage.yml";
 // reusable workflow is listed as `<caller job> / <called job>`.
 const intakeJob = (name, conclusion) => ({ id: name.length * 1000 + 7, name, status: "completed", conclusion, steps: [] });
 const LABEL_FAILED = [
-  intakeJob("kill-switch", "success"),
-  intakeJob("born-triaged", "success"),
-  intakeJob("intake-triage / triage", "success"),
-  intakeJob("intake-label-needs-triage / label", "failure"),
+  intakeJob("Kill Switch", "success"),
+  intakeJob("Born Triaged", "success"),
+  intakeJob("Intake Triage / triage", "success"),
+  intakeJob("Intake Label Needs Triage / label", "failure"),
 ];
 const intakeRun = (id, opts = {}) => run(id, MAIN_TIP, { path: INTAKE, event: "issues", conclusion: "failure", jobs: LABEL_FAILED, ...opts });
 
@@ -1556,17 +1556,24 @@ test("a failed first attempt of an intake run whose only failed job is the floor
   assert.deepEqual(reruns, []);
 });
 
+test("an intake run from before the job rename, its floor label named intake-label-needs-triage, is re-run the same way", async () => {
+  const jobs = [intakeJob("kill-switch", "success"), intakeJob("intake-triage / triage", "success"), intakeJob("intake-label-needs-triage / label", "failure")];
+  const { code, failedJobReruns } = await reconcile({ pulls: [], runs: [intakeRun(301, { jobs })] });
+  assert.equal(code, 0);
+  assert.deepEqual(failedJobReruns, [301]);
+});
+
 // rerun-failed-jobs re-runs every failed job, so a run where any other job
 // failed (the model triage, a gate) would start that job again as
 // github-actions[bot]: only the floor label is re-run here.
 test("an intake run where any job but the floor label failed, or none did, is left alone", async () => {
   const runs = [
-    intakeRun(301, { jobs: [intakeJob("kill-switch", "success"), intakeJob("intake-triage / triage", "failure"), intakeJob("intake-label-needs-triage / label", "success")] }),
-    intakeRun(302, { jobs: [intakeJob("intake-triage / triage", "failure"), intakeJob("intake-label-needs-triage / label", "failure")] }),
-    intakeRun(303, { jobs: [intakeJob("born-triaged", "cancelled"), intakeJob("intake-label-needs-triage / label", "failure")] }),
-    intakeRun(304, { jobs: [intakeJob("apply-verdict", "timed_out"), intakeJob("intake-label-needs-triage / label", "failure")] }),
+    intakeRun(301, { jobs: [intakeJob("Kill Switch", "success"), intakeJob("Intake Triage / triage", "failure"), intakeJob("Intake Label Needs Triage / label", "success")] }),
+    intakeRun(302, { jobs: [intakeJob("Intake Triage / triage", "failure"), intakeJob("Intake Label Needs Triage / label", "failure")] }),
+    intakeRun(303, { jobs: [intakeJob("Born Triaged", "cancelled"), intakeJob("Intake Label Needs Triage / label", "failure")] }),
+    intakeRun(304, { jobs: [intakeJob("Apply Verdict", "timed_out"), intakeJob("Intake Label Needs Triage / label", "failure")] }),
     intakeRun(305, { jobs: [] }),
-    intakeRun(306, { jobs: [intakeJob("intake-label-needs-triage-extra / label", "failure")] }),
+    intakeRun(306, { jobs: [intakeJob("Intake Label Needs Triage Extra / label", "failure")] }),
   ];
   const { failedJobReruns, calls } = await reconcile({ pulls: [], runs });
   assert.deepEqual(failedJobReruns, []);
@@ -1612,7 +1619,7 @@ test("a floor-label run re-run since the listing is left alone", async () => {
 // post-verify-notes fails at its kill-switch step, posting nothing, and the
 // first pass after the switch lifts re-runs that job, which applies the verdict.
 const FEEDBACK = ".github/workflows/pr-feedback-dispatch.yml";
-const verdictJob = (failedStep = VERDICT_STOP_STEP, { name = "post-verify-notes", conclusion = "failure" } = {}) => ({
+const verdictJob = (failedStep = VERDICT_STOP_STEP, { name = "Post Verify Notes", conclusion = "failure" } = {}) => ({
   id: 4007,
   name,
   status: "completed",
@@ -1625,7 +1632,7 @@ const verdictJob = (failedStep = VERDICT_STOP_STEP, { name = "post-verify-notes"
     { name: "Complete job", status: "completed", conclusion: "success" },
   ],
 });
-const SWITCHED = [verdictJob(), { id: 4008, name: "dispatch", status: "completed", conclusion: "skipped", steps: [] }];
+const SWITCHED = [verdictJob(), { id: 4008, name: "Dispatch", status: "completed", conclusion: "skipped", steps: [] }];
 const verdictRun = (id, opts = {}) => run(id, MAIN_TIP, { path: FEEDBACK, event: "workflow_run", conclusion: "failure", jobs: SWITCHED, ...opts });
 
 test("a verdict the kill switch kept from its PR is applied once the switch lifts", async () => {
@@ -1633,6 +1640,13 @@ test("a verdict the kill switch kept from its PR is applied once the switch lift
   assert.equal(code, 0);
   assert.deepEqual(failedJobReruns, [401]);
   assert.deepEqual(reruns, []);
+});
+
+test("a stopped verdict from before the job rename, its job named post-verify-notes, is applied the same way", async () => {
+  const jobs = [verdictJob(VERDICT_STOP_STEP, { name: "post-verify-notes" }), { id: 4008, name: "dispatch", status: "completed", conclusion: "skipped", steps: [] }];
+  const { code, failedJobReruns } = await reconcile({ pulls: [], runs: [verdictRun(401, { jobs })] });
+  assert.equal(code, 0);
+  assert.deepEqual(failedJobReruns, [401]);
 });
 
 // The re-run leaves a pr-feedback-deferred record, so the plan names the
@@ -1674,8 +1688,8 @@ test("while the kill switch is on, no stopped verdict is read or re-run", async 
 test("a verdict run that failed anywhere but the kill-switch step, or at attempt 2, is left alone", async () => {
   const runs = [
     verdictRun(401, { jobs: [verdictJob("Download the verdict")] }),
-    verdictRun(402, { jobs: [verdictJob(), { id: 4009, name: "dispatch", status: "completed", conclusion: "failure", steps: [] }] }),
-    verdictRun(403, { jobs: [verdictJob(VERDICT_STOP_STEP, { name: "rerun-ci-status" })] }),
+    verdictRun(402, { jobs: [verdictJob(), { id: 4009, name: "Dispatch", status: "completed", conclusion: "failure", steps: [] }] }),
+    verdictRun(403, { jobs: [verdictJob(VERDICT_STOP_STEP, { name: "Rerun CI Status" })] }),
     verdictRun(404, { attempt: 2 }),
     verdictRun(405, { created: "2026-10-18T19:00:00Z" }),
     verdictRun(406, { jobs: [] }),
@@ -2168,7 +2182,7 @@ test("act re-runs no CI run whose plan names another record", async (t) => {
 const LANE_ID = 9;
 const lanePr = (number, opts) => ({ ...pr(number, opts), user: { id: LANE_ID, login: LANE, type: "Bot" } });
 const switchJobs = ({ message = `#1: ${KILL_SWITCH_NOTE} (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false')`, lane = "success" } = {}) => [
-  { id: 501, name: "lint-repo", status: "completed", conclusion: lane, steps: [] },
+  { id: 501, name: "Lint Repo", status: "completed", conclusion: lane, steps: [] },
   { id: 502, name: "ci-status", status: "completed", conclusion: "failure", steps: [], notes: [{ annotation_level: "failure", message }] },
 ];
 async function withLaneList(fn) {
@@ -2243,7 +2257,7 @@ test("a ci-status failure with no kill-switch note, another author's PR, a secon
 test("a kill-switch stop on a newer failed contract-only run is re-run, not hidden by the tested run below it", async () => {
   await withLaneList(async (env) => {
     const contract = [
-      { id: 511, name: "lint-repo", status: "completed", conclusion: "skipped", steps: [] },
+      { id: 511, name: "Lint Repo", status: "completed", conclusion: "skipped", steps: [] },
       { ...switchJobs()[1], id: 512 },
     ];
     const runs = [run(100, sha(1), { conclusion: "success", created: "2026-10-19T18:00:00Z" }), failed(101, sha(1), { jobs: contract })];
@@ -2289,7 +2303,7 @@ test("ci-status's lanes-hold step still fails a lanes App PR with the kill-switc
 const STOP_LINE = (context = "pr-unblock/address-feedback", head = sha(1)) =>
   `'${context}' is failure on ${head}: Lane stopped: feedback-untaken-threads; checked again on a new head. The lane that stopped clears it by running again on this head, or a new head carries none.`;
 const stopJobs = ({ notes = [STOP_LINE()] } = {}) => [
-  { id: 501, name: "lint-repo", status: "completed", conclusion: "success", steps: [] },
+  { id: 501, name: "Lint Repo", status: "completed", conclusion: "success", steps: [] },
   {
     id: 502,
     name: "ci-status",
@@ -2320,11 +2334,14 @@ test("a ci-status that failed on a pr-unblock stop note is not re-run, even once
 // pr-review-security-hosted.yml) and the review job was skipped.
 const SECURITY_REVIEW = ".github/workflows/pr-review-security-hosted.yml";
 const NPM_COMPONENTS = "https://status.npmjs.org/api/v2/components.json";
-const gatedJobs = ({ stop = "failure", kill = "failure", review = "skipped" } = {}) => [
-  { id: 301, name: "resolve-model", status: "completed", conclusion: "success", steps: [] },
+// The hosted callers' job names, and the ids a head tested before the rename shows.
+const NEW_NAMES = { model: "Resolve Model", kill: "Kill Switch", review: "PR Review" };
+const OLD_NAMES = { model: "resolve-model", kill: "kill-switch", review: "pr-review" };
+const gatedJobs = ({ stop = "failure", kill = "failure", review = "skipped", names = NEW_NAMES } = {}) => [
+  { id: 301, name: names.model, status: "completed", conclusion: "success", steps: [] },
   {
     id: 302,
-    name: "kill-switch",
+    name: names.kill,
     status: "completed",
     conclusion: kill,
     steps: [
@@ -2334,7 +2351,7 @@ const gatedJobs = ({ stop = "failure", kill = "failure", review = "skipped" } = 
       { name: UPSTREAM_STOP_STEP, status: "completed", conclusion: stop },
     ],
   },
-  { id: 303, name: "pr-review / claude-review-status", status: "completed", conclusion: review, steps: [] },
+  { id: 303, name: `${names.review} / claude-review-status`, status: "completed", conclusion: review, steps: [] },
 ];
 const gated = (id, head, opts = {}, jobs = gatedJobs()) => run(id, head, { path: REVIEW, conclusion: "failure", updated: "2026-10-19T19:00:00Z", jobs, ...opts });
 
@@ -2353,6 +2370,12 @@ test("a hosted review run the upstream gate stopped has its failed jobs re-run o
     assert.deepEqual(reruns, [], path);
     assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${sha(1)}`, "", ""], path);
   }
+});
+
+test("a hosted review run from before the job rename, its gate named kill-switch, is re-run the same way", async () => {
+  const { code, failedJobReruns } = await reconcile({ pulls: [pr(1)], runs: [gated(201, sha(1), {}, gatedJobs({ names: OLD_NAMES }))] });
+  assert.equal(code, 0);
+  assert.deepEqual(failedJobReruns, [201]);
 });
 
 // An outage stops both review lanes at one head, so one PR's set can hold more
@@ -2445,11 +2468,11 @@ test("a hosted review re-run in flight takes none of the CI slots and does not h
 // skipped. ci-status fails the head with REVIEW_STOP_NOTE; rerun-ci-status
 // re-runs ci-status when the stopped run completes, so the checks run is often
 // past attempt 1. The text is the one pr-require-checks.yml writes (pinned below).
-const stoppedJobs = ({ report = "success", kill = "success", review = "skipped" } = {}) => [
-  { id: 311, name: "resolve-model", status: "completed", conclusion: "success", steps: [] },
+const stoppedJobs = ({ report = "success", kill = "success", review = "skipped", names = NEW_NAMES } = {}) => [
+  { id: 311, name: names.model, status: "completed", conclusion: "success", steps: [] },
   {
     id: 312,
-    name: "kill-switch",
+    name: names.kill,
     status: "completed",
     conclusion: kill,
     steps: [
@@ -2457,7 +2480,7 @@ const stoppedJobs = ({ report = "success", kill = "success", review = "skipped" 
       { name: REVIEW_STOP_STEP, status: "completed", conclusion: report },
     ],
   },
-  { id: 313, name: "pr-review", status: "completed", conclusion: review, steps: [] },
+  { id: 313, name: names.review, status: "completed", conclusion: review, steps: [] },
 ];
 const stoppedRun = (id, head, opts = {}, jobs = stoppedJobs()) => run(id, head, { path: REVIEW, conclusion: "success", jobs, ...opts });
 const redChecks = (id, head, opts = {}) =>
@@ -2478,6 +2501,13 @@ test("a review run a kill switch stopped is re-run whole once, recorded, at any 
       assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${sha(1)}`, "", ""]);
     }
   }
+});
+
+test("a stopped review run from before the job rename is read by its old job names: re-run when skipped, never when it reviewed", async () => {
+  const stopped = await reconcile({ pulls: [pr(1)], runs: [redChecks(101, sha(1)), stoppedRun(201, sha(1), {}, stoppedJobs({ names: OLD_NAMES }))] });
+  assert.deepEqual(stopped.reruns, [201]);
+  const reviewed = await reconcile({ pulls: [pr(1)], runs: [redChecks(101, sha(1)), stoppedRun(201, sha(1), {}, stoppedJobs({ names: OLD_NAMES, review: "success" }))] });
+  assert.deepEqual(reviewed.reruns, []);
 });
 
 test("both stopped lanes of a head go one per pass, so three heads stay inside the record uploads", async () => {
@@ -2551,7 +2581,7 @@ test("only a stopped review on a head ci-status names is re-run", async () => {
   const cases = [
     // A real review, whatever ci-status says: never traded for another.
     [redChecks(101, sha(1)), stoppedRun(201, sha(1), {}, stoppedJobs({ review: "success" }))],
-    [redChecks(101, sha(1)), stoppedRun(201, sha(1), {}, [stoppedJobs()[1], { id: 314, name: "pr-review / claude-review-status", status: "completed", conclusion: "success", steps: [] }])],
+    [redChecks(101, sha(1)), stoppedRun(201, sha(1), {}, [stoppedJobs()[1], { id: 314, name: "PR Review / claude-review-status", status: "completed", conclusion: "success", steps: [] }])],
     // No stop step that ran, or a list cut short.
     [redChecks(101, sha(1)), stoppedRun(201, sha(1), {}, stoppedJobs({ report: "skipped" }))],
     [redChecks(101, sha(1)), stoppedRun(201, sha(1), {}, stoppedJobs({ kill: "failure" }))],

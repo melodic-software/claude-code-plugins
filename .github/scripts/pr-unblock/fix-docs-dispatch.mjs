@@ -209,6 +209,14 @@ function historyHasRun(pullRequest) {
   });
 }
 
+// A pr-refine.yml job as the jobs API names it, from its job id (a called
+// job's `<caller id> / <callee id>`): each id in Title Case, `fix-docs / run`
+// as `Fix Docs / Run`; or the ids themselves, on a run started before the
+// rename.
+const titled = (id) => id.replace(/[a-z0-9]+/g, (word) => word[0].toUpperCase() + word.slice(1)).replaceAll("-", " ");
+const NAMINGS = [titled, (id) => id];
+const isJob = (job, id) => NAMINGS.some((named) => job?.name === named(id));
+
 // Whether a run held on a handoff read (handoff-evidence.sh's hold or lag notice,
 // each of which ends the run green): a leg handed off, read from job conclusions as that script
 // reads them, its handoff job succeeded, and the next leg never started, which
@@ -217,17 +225,19 @@ function historyHasRun(pullRequest) {
 // conclusion is what shows a read ran: a leg with no fallback token has none.
 export function heldHandoff(run, activity = DEFAULTS.activity) {
   const jobs = run?.jobs ?? [];
-  const conclusion = (name) => jobs.find((job) => job?.name === name)?.conclusion;
-  const legs = [activity, `${activity}-subscription`, `${activity}-fallback`];
-  return legs.slice(0, -1).some((leg, index) => {
-    const scan = conclusion(`${leg} / scan`);
-    return (
-      conclusion(`${leg} / broker-allowed`) === "success" &&
-      conclusion(`${leg} / run`) === "success" &&
-      (scan === undefined || scan === "skipped") &&
-      conclusion(`${leg}-handoff`) === "success" &&
-      !jobs.some((job) => job?.name?.startsWith(`${legs[index + 1]} / `) && job.conclusion !== "skipped")
-    );
+  return NAMINGS.some((named) => {
+    const conclusion = (id) => jobs.find((job) => job?.name === named(id))?.conclusion;
+    const legs = [activity, `${activity}-subscription`, `${activity}-fallback`];
+    return legs.slice(0, -1).some((leg, index) => {
+      const scan = conclusion(`${leg} / scan`);
+      return (
+        conclusion(`${leg} / broker-allowed`) === "success" &&
+        conclusion(`${leg} / run`) === "success" &&
+        (scan === undefined || scan === "skipped") &&
+        conclusion(`${leg}-handoff`) === "success" &&
+        !jobs.some((job) => job?.name?.startsWith(`${named(legs[index + 1])} / `) && job.conclusion !== "skipped")
+      );
+    });
   });
 }
 
@@ -235,7 +245,7 @@ export function heldHandoff(run, activity = DEFAULTS.activity) {
 // job, which runs only on fix-docs-head's unread output, succeeded. A green run
 // without it, such as one a human-gated hold skipped, still ends the PR.
 export function heldHead(run, activity = DEFAULTS.activity) {
-  return (run?.jobs ?? []).some((job) => job?.name === `${activity}-head-held` && job.conclusion === "success");
+  return (run?.jobs ?? []).some((job) => isJob(job, `${activity}-head-held`) && job.conclusion === "success");
 }
 
 // The run-name the workflow gives a dispatch: its file stem, the activity
@@ -272,7 +282,7 @@ export function docsRunState(run, allowedJob = DEFAULTS.allowedJob) {
   if (run === null) {
     return "done";
   }
-  if (run.jobs.some((job) => job?.name === allowedJob && job.conclusion === "success")) {
+  if (run.jobs.some((job) => isJob(job, allowedJob) && job.conclusion === "success")) {
     return "allowed";
   }
   return run.status === "completed" ? "done" : "going";

@@ -48,10 +48,6 @@ still running. When none exists, report teammates as `none recorded`.
   and [agent teams: Limitations](https://code.claude.com/docs/en/agent-teams#limitations)
   live; the first owns the directory's location and lifetime, the second what a
   resume restores.
-- **As of**: 2026-10-23
-- **Recheck trigger**: either section changes where the task list lives, how
-  long it stays, or what a resume restores; or agent teams leave experimental
-  status.
 
 **In-flight MCP calls.** Report these as `not observable`, with the reason: the
 call does not survive the session that made it, and the server may already
@@ -62,10 +58,6 @@ re-fire is gated like any side effect.
 - **Pointer**: when deciding whether an MCP call can outlive its session, fetch
   [MCP: Automatic backgrounding of long tool calls](https://code.claude.com/docs/en/mcp#automatic-backgrounding-of-long-tool-calls)
   live.
-- **As of**: 2026-10-23
-- **Recheck trigger**: that section describes a record of in-flight calls a
-  later session can read, or a way for a backgrounded call to outlive its
-  session.
 
 **Background output files named by `claude mcp serve`.** This rule covers only a
 Bash or PowerShell tool result from a `claude mcp serve` server in the prior
@@ -94,7 +86,6 @@ post the excerpt to a pull request, issue or other remote comment unattended.
   live; to locate the temp directory tree, fetch the `CLAUDE_CODE_TMPDIR` row of
   [Environment variables: Variables](https://code.claude.com/docs/en/env-vars#variables)
   live.
-- **As of**: 2026-10-23
 - **Recheck trigger**: the MCP section ties the field to results other than
   Bash or PowerShell through `claude mcp serve`, or adds an end marker or a
   completion notice to the file; or the docs name a dedicated location for

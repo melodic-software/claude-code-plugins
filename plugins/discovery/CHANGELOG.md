@@ -1,5 +1,17 @@
 # Changelog: discovery plugin
 
+## [1.7.11] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
+## [1.7.10] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
 ## [1.7.9] - 2026-11-11
 
 ### Fixed

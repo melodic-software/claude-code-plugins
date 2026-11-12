@@ -20,7 +20,8 @@ work.
 
 ## Task tracking
 
-For non-trivial work (3+ stages), create tasks at the START, update status as you go. Tasks make
+For non-trivial work (3+ stages), when this session has the task tools, create tasks at the START
+and update status as you go (`SKILL.md` step 5 covers sessions without them). Tasks make
 progress visible; for state that must survive `/clear`, use the durable checklist or a `/session-flow:handoff`
 save-point. In-memory tasks do not persist.
 

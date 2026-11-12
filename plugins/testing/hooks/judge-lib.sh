@@ -73,9 +73,7 @@ judge::same_path() {
 # writes itself are escaped.
 # https://code.claude.com/docs/en/permissions#read-and-edit,
 # https://git-scm.com/docs/gitignore#_pattern_format and
-# https://code.claude.com/docs/en/tools-reference (as of 2026-10-04; recheck
-# when the anchor table, the escaping of path rules or the tools a Read rule
-# covers changes).
+# https://code.claude.com/docs/en/tools-reference.
 judge::read_rule() {
   local p="$2" q="" c i
   if ((JUDGE_WIN)); then
@@ -532,8 +530,7 @@ judge::pick() {
 # when the output holds no usable result; a key the output leaves out gets no
 # verdict. A run whose result lists permission_denials (the authoritative
 # record of denied tool calls,
-# https://code.claude.com/docs/en/agent-sdk/typescript, as of 2026-10-04;
-# recheck when the result message's fields change) and that gives no key a
+# https://code.claude.com/docs/en/agent-sdk/typescript) and that gives no key a
 # FLAG or PASS is a malfunction: it gives no verdict, and JUDGE_MUTED is 1. A
 # denial names a tool call, never a block, and one run judges every block of
 # the file, so a run with any FLAG or PASS keeps its UNKNOWN verdicts too.

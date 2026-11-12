@@ -1,3 +1,5 @@
+# GENERATED from lib/worktree-root-legacy.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # worktree-root-legacy.sh — retired git config alias peel.
 # Sourced by worktree-root-resolve.sh. Not a skill body. Delete after 2026-12-31.
 #

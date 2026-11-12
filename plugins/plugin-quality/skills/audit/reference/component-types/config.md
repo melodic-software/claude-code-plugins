@@ -28,8 +28,6 @@ convention/config files the plugin reads.
   - **Pointer**: when checking where a `sensitive` value is stored, fetch
     [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
     live.
-  - **As of**: 2026-11-03
-  - **Recheck trigger**: that section changes what `sensitive` does or where values are stored.
 - **Machine-readable format**: for data other tools must read, prefer flat-scalar YAML (shell-grep
   friendly) over frontmatter-in-markdown or a value trapped in a tool-specific language.
 - **Silent no-op keys (`settings.json`)**: flag any key in a plugin-root `settings.json` that the
@@ -37,18 +35,12 @@ convention/config files the plugin reads.
   - **Pointer**: when checking which keys take effect, what happens to the rest, and which of the
     file and the manifest key wins, fetch
     [Default settings](https://code.claude.com/docs/en/plugins/components#default-settings) live.
-  - **As of**: 2026-11-03
-  - **Recheck trigger**: that section adds or removes a supported key, or changes the precedence
-    between the file and the manifest.
 - **Silent-skip LSP entries (`.lsp.json`)**: check every entry is valid against the
   [`lspServers`](https://code.claude.com/docs/en/plugins/manifest-reference#lspservers) field
   table, and check the server binary is documented for installers as a user-machine prerequisite.
   - **Pointer**: when checking how an invalid entry or a server that fails to start surfaces, fetch
     [LSP servers](https://code.claude.com/docs/en/plugins/components#lsp-servers) live; when
     checking an entry's fields, fetch the `lspServers` section linked above live.
-  - **As of**: 2026-11-03
-  - **Recheck trigger**: that section changes how invalid entries, missing binaries or extension
-    conflicts are reported.
 - **Monitor noise & portability (`monitors/monitors.json`)**: inspect each monitor's `when`
   trigger before assessing runtime volume, since the trigger decides when the monitor starts and
   so how long it runs. Every stdout line from `command` reaches Claude as a notification; check
@@ -57,10 +49,6 @@ convention/config files the plugin reads.
     fetch [Monitors](https://code.claude.com/docs/en/plugins/manifest-reference#monitors) live;
     when checking what a running monitor's output does, fetch
     [Monitors](https://code.claude.com/docs/en/plugins/components#monitors) live.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: the manifest-reference section changes the trigger values or the default,
-    the components section changes how a monitor's output reaches Claude, or a release note names
-    the monitors component.
 
 ## Categories
 

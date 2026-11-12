@@ -164,10 +164,6 @@ def collector_digest() -> str:
     return digest.hexdigest()
 
 
-def store_dir(data_dir: Path) -> Path:
-    return data_dir / "audit-sessions" / "store" / "v1" / "sessions"
-
-
 def project_segment(project_dir: str) -> str:
     return "p-" + hashlib.sha256(project_dir.encode("utf-8")).hexdigest()[:12]
 
@@ -178,16 +174,6 @@ def _obj(value: object) -> dict:
 
 def _number(value: object) -> float:
     return value if isinstance(value, (int, float)) and not isinstance(value, bool) else 0
-
-
-def _epoch(value: object) -> float | None:
-    if not isinstance(value, str):
-        return None
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return (parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)).timestamp()
 
 
 def _iso(epoch: float | None) -> str | None:
@@ -341,7 +327,7 @@ class SessionScan:
             return
         ts = None
         if side == "main":
-            ts = _epoch(record.get("timestamp"))
+            ts = census.epoch(record.get("timestamp"))
             if ts is not None and kind in ("user", "assistant", "system"):
                 self.timestamps.append(ts)
             if self.cwd is None and isinstance(record.get("cwd"), str):
@@ -850,7 +836,7 @@ def load_store(store: Path) -> dict[Path, tuple[dict | None, tuple, float | None
         except (OSError, ValueError):
             continue
         if isinstance(record, dict) and record.get("schema") == RECORD_SCHEMA:
-            end = _epoch(_obj(record.get("time")).get("end"))
+            end = census.epoch(_obj(record.get("time")).get("end"))
             index[path] = (record.get("fingerprint"), stored_policy(record), end)
     return index
 
@@ -863,7 +849,7 @@ def cmd_collect(args: argparse.Namespace) -> int:
             pass
     except OSError:
         return emit("error", f"projects root not readable: {root}", {"projects_root": str(root)}, 2)
-    store = store_dir(Path(args.data_dir))
+    store = census.store_dir(Path(args.data_dir))
     try:
         store.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
@@ -927,7 +913,7 @@ def cmd_collect(args: argparse.Namespace) -> int:
                 excerpt_chars=args.excerpt_chars,
                 excerpt_words=args.excerpt_words,
             )
-            end = _epoch(record["time"]["end"])
+            end = census.epoch(record["time"]["end"])
             if cutoff is not None and end is not None and end < cutoff:
                 expired += 1
                 continue
@@ -1007,13 +993,6 @@ def cmd_drift(args: argparse.Namespace) -> int:
     return emit("pass", f"no drift over {len(records)} sessions", data, 0, DRIFT_SCHEMA)
 
 
-def _positive(value: str) -> int:
-    number = int(value)
-    if number < 1:
-        raise argparse.ArgumentTypeError("must be 1 or more")
-    return number
-
-
 def _non_negative(value: str) -> int:
     number = int(value)
     if number < 0:
@@ -1041,9 +1020,9 @@ def main(argv: list[str] | None = None) -> int:
     aggregate.set_defaults(func=cmd_census)
     drift = sub.add_parser("drift", help="classify census changes between Claude Code versions")
     drift.add_argument("--data-dir", required=True)
-    drift.add_argument("--min-count", type=_positive, default=census.DEFAULT_MIN_COUNT)
-    drift.add_argument("--versions", type=_positive, default=census.DEFAULT_VERSIONS, help="vanish window, in versions")
-    drift.add_argument("--session-floor", type=_positive, default=census.DEFAULT_SESSION_FLOOR)
+    drift.add_argument("--min-count", type=census._positive, default=census.DEFAULT_MIN_COUNT)
+    drift.add_argument("--versions", type=census._positive, default=census.DEFAULT_VERSIONS, help="vanish window, in versions")
+    drift.add_argument("--session-floor", type=census._positive, default=census.DEFAULT_SESSION_FLOOR)
     drift.add_argument("--canaries", default=str(census.BUNDLED_CANARIES))
     drift.set_defaults(func=cmd_drift)
     try:

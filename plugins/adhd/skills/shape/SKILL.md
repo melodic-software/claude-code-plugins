@@ -206,9 +206,7 @@ Before sending, delete:
 
 - **The standing posture erodes across context compaction.** Re-invoke
   `/adhd:shape` if responses stop being shaped. What compaction keeps of an
-  invoked skill: [Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle);
-  as of 2026-11-10; recheck when that section changes what compaction keeps
-  of an invoked skill.
+  invoked skill: [Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle).
 
 ## Attribution
 
