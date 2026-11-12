@@ -130,33 +130,9 @@ layout_problem="$(awk "$LAYOUT_AWK" "$record")"
 
 target="$outdir/context.md"
 
-OUT_FILE="$target" DIALECT="$dialect" awk -f - "$record" <<'AWK'
-function jstr(line, key,    pat, i, rest, out, c, n) {
-  pat = "\"" key "\""
-  i = index(line, pat)
-  if (i == 0) return ""
-  rest = substr(line, i + length(pat))
-  if (!sub(/^[[:space:]]*:[[:space:]]*"/, "", rest)) return ""
-  out = ""
-  n = length(rest)
-  i = 1
-  while (i <= n) {
-    c = substr(rest, i, 1)
-    if (c == "\\") {
-      i++
-      c = substr(rest, i, 1)
-      if (c == "n") out = out "\n"
-      else if (c == "t") out = out "\t"
-      else out = out c
-      i++
-      continue
-    }
-    if (c == "\"") return out
-    out = out c
-    i++
-  }
-  return out
-}
+JSTR_AWK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/jstr.awk"
+
+OUT_FILE="$target" DIALECT="$dialect" awk -f "$JSTR_AWK" -f - "$record" <<'AWK'
 function rank(k) {
   if (k == "authority") return 7
   if (k == "storage") return 6
