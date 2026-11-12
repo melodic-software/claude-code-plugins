@@ -18,17 +18,24 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   exit 2
 fi
 
-read -r -d '' _RECORD_LAYOUT_AWK <<'AWK' || true
-BEGIN {
-  shape["repositories"] = "^[[:space:]]*[{]\"name\":"
-  shape["edges"] = "^[[:space:]]*[{]\"from\":"
-}
+# The awk function every layout check shares, for a script to prefix to its
+# own program. open_array(key) reads and sets the program's seen, open and
+# problem globals.
+read -r -d '' RECORD_OPEN_ARRAY_AWK <<'AWK' || true
 function open_array(key,   rest) {
   if (!match($0, "\"" key "\"[[:space:]]*:[[:space:]]*\\[")) return
   rest = substr($0, RSTART + RLENGTH)
   if (rest ~ /^[[:space:]]*\]/) { seen[key] = 1; return }
   if (substr($0, 1, RSTART - 1) ~ /^[[:space:]]*$/ && rest ~ /^[[:space:]]*$/) { open = key; return }
   problem = "the " key " array does not start on a line of its own"
+}
+AWK
+RECORD_OPEN_ARRAY_AWK+=$'\n'
+
+read -r -d '' _RECORD_LAYOUT_AWK <<'AWK' || true
+BEGIN {
+  shape["repositories"] = "^[[:space:]]*[{]\"name\":"
+  shape["edges"] = "^[[:space:]]*[{]\"from\":"
 }
 open != "" {
   if ($0 ~ /^[[:space:]]*\][[:space:]]*,?[[:space:]]*$/) { seen[open] = 1; open = ""; next }
@@ -47,6 +54,7 @@ END {
   print problem
 }
 AWK
+_RECORD_LAYOUT_AWK="$RECORD_OPEN_ARRAY_AWK$_RECORD_LAYOUT_AWK"
 
 record_layout_problem() {
   awk "$_RECORD_LAYOUT_AWK" "$1"

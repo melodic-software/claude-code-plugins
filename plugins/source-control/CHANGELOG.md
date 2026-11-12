@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.1.5] - 2026-11-12
+
+### Fixed
+
+- babysit-prs: the raw-text workflow reading in the risk scorer now strips anchors and tags and finds block-scalar openers in one linear pass, so a long workflow patch line can no longer slow the scorer.
+
 ## [11.1.4] - 2026-11-12
 
 ### Changed
