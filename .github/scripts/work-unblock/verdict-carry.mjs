@@ -75,8 +75,9 @@ const RUN_KEY = /^[1-9][0-9]{0,14}\|[1-9][0-9]{0,3}$/;
 const REFUSAL_KEY = /^[1-9][0-9]{0,14}\|(?:check|token|stop|limit)$/;
 const ISSUE_KEY = /^[1-9][0-9]{0,9}$/;
 // A refusal reason as label-unblocked.mjs reads it (DENIAL, BREAKER), or the
-// reset a rate-limit stop names (RATE_LIMITED), or null.
-const REASON = /^(?:[a-z]+(?:-[a-z]+)*|\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ)$/;
+// reset a rate-limit stop names (RATE_LIMITED), with ` server-<5xx>` after it
+// for a server error hold, or null.
+const REASON = /^(?:[a-z]+(?:-[a-z]+)*|\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ(?: server-5\d\d)?)$/;
 const ZONED = /(Z|[+-]\d\d:\d\d)$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const DAY_MS = 86_400_000;

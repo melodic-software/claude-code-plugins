@@ -472,6 +472,17 @@ test("api_budget_classify decides every rate-guard vector", () => {
   }
 });
 
+// The shell port's server error predicate decides every shared vector's
+// server_error as rate-guard.mjs serverErrorHold does (unmarked: false).
+test("api_budget's server error predicate decides every rate-guard vector's server_error", () => {
+  const vectors = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
+  assert.deepEqual(new Set(vectors.vectors.filter((v) => "server_error" in v).map((v) => v.server_error)), new Set([true, false]));
+  for (const vector of vectors.vectors) {
+    const out = withDir((dir) => bash(dir, 'jq -c "$API_BUDGET_SERVER_ERROR"', { input: JSON.stringify(vector.input) }));
+    assert.equal(JSON.parse(out.stdout), vector.server_error ?? false, `${vector.name}: ${out.stderr}`);
+  }
+});
+
 // A gh that logs each call and answers from STUB_ANSWERS, one line per call:
 // `<status> <remaining> <retry-after or -> <body>` for `api -i`, printed as a
 // header block and body (exit 1 unless 200); `fail <text>` prints text on
@@ -550,6 +561,68 @@ test("gh guard: retry-after stops every pool until it ends, and an ended stop le
     assert.ok(Math.abs(Number(until) - (Math.floor(Date.now() / 1000) + 120)) <= 5);
     writeFileSync(join(dir, "api-budget", "stop"), `* ${Math.floor(Date.now() / 1000) - 1}\n`);
     assert.equal(guarded(dir, ["200 4000 - {}"], "gh api repos/o/r").calls.length, 1);
+  }));
+
+// GitHub documents its rate limits as 403 or 429 answers: a 5xx whose only
+// signal is Retry-After holds every pool for it all the same, worded and
+// titled as a server error, and its cause goes in the job's cause file.
+test("gh guard: a 5xx with retry-after alone holds every pool for it, as a server error", () => {
+  for (const status of [502, 503, 504]) {
+    withDir((dir) => {
+      const out = guarded(dir, [`${status} 4000 120 <html>unavailable</html>`, "200 4000 - {}"], 'gh api repos/o/r/pulls/1 >/dev/null || echo "first=$?"\ngh api graphql -f query=x >/dev/null || echo "second=$?"');
+      assert.equal(out.stdout, "first=1\nsecond=1\n");
+      assert.equal(out.calls.length, 1);
+      const [pool, wait] = stopFor(dir);
+      assert.equal(pool, "*");
+      assert.ok(Math.abs(wait - 120) <= 5, String(wait));
+      const until = Number(readFileSync(join(dir, "api-budget", "stop"), "utf8").trim().split(" ")[1]);
+      const when = new Date(until * 1000).toISOString().replace(".000Z", "Z");
+      assert.equal(readFileSync(join(dir, "api-budget", "cause"), "utf8"), `* ${until} server-${status}\n`);
+      assert.equal(
+        out.stderr,
+        `::error title=GitHub server error::'gh api repos/o/r/pulls/1' got a GitHub server error, HTTP ${status} with a Retry-After: no call to it before ${when} (retry-after); the call returns 1\n` +
+          `::error title=GitHub server error::'gh api graphql -f query=x' was not sent: GitHub answered HTTP ${status} with a Retry-After; no call to it before ${when}\n`,
+      );
+    });
+  }
+});
+
+test("gh guard: a held server error is a notice under its own title when the caller holds", () =>
+  withDir((dir) => {
+    const out = guarded(dir, ["503 4000 120 {}"], "gh api repos/o/r >/dev/null; gh api repos/o/r >/dev/null", { API_BUDGET_HOLD: "1" });
+    const lines = out.stderr.trim().split("\n");
+    assert.equal(lines.length, 2);
+    assert.ok(lines.every((line) => line.startsWith("::notice title=GitHub server error::")), out.stderr);
+  }));
+
+// Every real limit signal keeps today's wording when it arrives on a 5xx, as on
+// a 403 or 429 with retry-after.
+test("gh guard: a limit signal beside a 5xx's retry-after, or a 403 or 429 with one, stays a rate limit", () => {
+  const cases = [
+    ["503 with remaining 0", "503 0 5 {}", "repos/o/r"],
+    ["503 naming a secondary limit", '503 4000 120 {"message":"You have exceeded a secondary rate limit."}', "repos/o/r"],
+    ["503 naming a primary limit", '503 4000 120 {"message":"API rate limit exceeded for installation ID 1."}', "repos/o/r"],
+    ["graphql 502 with RATE_LIMITED", '502 4000 120 {"errors":[{"type":"RATE_LIMITED","message":"API rate limit exceeded"}]}', "graphql -f query=x"],
+    ["403 with retry-after", "403 4000 120 {}", "repos/o/r"],
+    ["429 with retry-after", "429 4000 120 {}", "repos/o/r"],
+  ];
+  for (const [name, answer, args] of cases) {
+    withDir((dir) => {
+      const out = guarded(dir, [answer], `gh api ${args} >/dev/null; gh api repos/o/r/pulls/2 >/dev/null`);
+      assert.match(out.stderr, new RegExp(`^::error::'gh api ${args}' hit GitHub's API rate limit: no call to it before \\S+ \\((retry-after|x-ratelimit-reset)\\); the call returns 1$`, "m"), name);
+      assert.match(out.stderr, /^::error::'gh api repos\/o\/r\/pulls\/2' was not sent: GitHub's core API rate limit holds until /m, name);
+      assert.doesNotMatch(out.stderr, /server error/, name);
+      assert.match(readFileSync(join(dir, "api-budget", "cause"), "utf8"), /^\* \d+ limit\n$/, name);
+    });
+  }
+});
+
+test("gh guard: a 5xx without retry-after holds nothing", () =>
+  withDir((dir) => {
+    const out = guarded(dir, ["503 4000 - {}", "200 4000 - {}"], 'gh api repos/o/r >/dev/null || echo "first=$?"\ngh api repos/o/r >/dev/null && echo "second=sent"');
+    assert.equal(out.stdout, "first=1\nsecond=sent\n");
+    assert.equal(out.stderr, "");
+    assert.equal(existsSync(join(dir, "api-budget", "stop")), false);
   }));
 
 // The epoch second of the one stop a case wrote, less now.
@@ -908,6 +981,33 @@ test("the stop file reads the same in the shell and in Node: every stop_files ve
       const { shell, node } = readBoth(dir, vectors.vector_now);
       assert.deepEqual(shell, vector.until, `shell: ${vector.name}`);
       assert.deepEqual(node, vector.until, `node: ${vector.name}`);
+    });
+  }
+});
+
+// stop_causes: the cause file beside the stop file reads alike in the shell
+// and in Node, and no cause reads as a rate limit.
+test("the cause file reads the same in the shell and in Node: every stop_causes vector", () => {
+  const vectors = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
+  assert.ok(vectors.stop_causes.length > 0, "rate-guard.vectors.json holds stop_causes vectors");
+  for (const vector of vectors.stop_causes) {
+    withDir((dir) => {
+      mkdirSync(join(dir, "api-budget"));
+      writeFileSync(join(dir, "api-budget", "stop"), vector.stop);
+      if (vector.cause !== null) {
+        writeFileSync(join(dir, "api-budget", "cause"), vector.cause);
+      }
+      const out = bash(dir, `date() { echo ${vectors.vector_now}; }\nfor p in core graphql; do echo "$p $(api_budget_server_status "$p" "$(api_budget_stop_until "$p")")"; done`);
+      const shell = Object.fromEntries(
+        out.stdout
+          .trim()
+          .split("\n")
+          .map((line) => line.split(" "))
+          .map(([pool, status]) => [pool, status ? Number(status) : null]),
+      );
+      assert.deepEqual(shell, vector.server, `shell: ${vector.name}: ${out.stderr}`);
+      const latch = createRateLimitLatch({ now: () => vectors.vector_now * 1000, log: () => {}, fail: () => {}, limits: () => ({}), stopFile: join(dir, "api-budget", "stop") });
+      assert.deepEqual({ core: latch.serverStatus(POOL_URLS.core), graphql: latch.serverStatus(POOL_URLS.graphql) }, vector.server, `node: ${vector.name}`);
     });
   }
 });

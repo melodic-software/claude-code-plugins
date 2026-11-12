@@ -4391,12 +4391,22 @@ REMOVAL_RUN_WINDOW = timedelta(minutes=2)
 # check-contract/run.sh:184 at 2476d5d), this repo's rate guard
 # (.github/actions/log-api-budget/api-budget.bash, api_budget_refuse and the
 # line after it) and ci-status's gh_read (pr-require-checks.yml, "API rate
-# limit blocks").
+# limit blocks"). Those guards word a server error hold (a 5xx whose only
+# signal was Retry-After) as below, a line their rate-limit wording matched
+# before, so it matches still. babysit_gh.py's "; no GitHub call is sent
+# before" line is left out: its rate-limit wording never matched.
+SERVER_ERROR_HOLD = (
+    r"\bHTTP 5\d\d with a Retry-After(?:: no call to it before"
+    r"|; no call to it before|, which holds ')"
+)
 RATE_LIMIT_ANNOTATION_RE = re.compile(
     r"rate limited past rate-limit-wait-seconds"
     r"|\bGitHub's (?:[\w-]+ )?API rate limit (?:holds until|blocks)\b"
     r"|\bhit GitHub's (?:[\w-]+ )?API rate limit\b"
+    rf"|{SERVER_ERROR_HOLD}"
 )
+# An annotation whose times are a hold's reset.
+HOLD_RESET_RE = re.compile(rf"rate.limit|{SERVER_ERROR_HOLD}", re.IGNORECASE)
 # Failure lines that name no cause of their own: the runner's exit line, and
 # a read that failed, which the gate words as "...; re-run this run.".
 GENERIC_FAILURE_RE = re.compile(
@@ -4429,7 +4439,7 @@ def _gate_rate_limit_reset(annotations: list[Any]) -> str | None:
     stamps = [
         stamp
         for a in map(json_object, annotations)
-        if re.search(r"rate.limit", str(a.get("message") or ""), re.IGNORECASE)
+        if HOLD_RESET_RE.search(str(a.get("message") or ""))
         for stamp in ISO_STAMP_RE.findall(str(a.get("message") or ""))
     ]
     return max(stamps, default="")
