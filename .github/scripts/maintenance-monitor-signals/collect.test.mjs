@@ -187,7 +187,7 @@ const stallRoutes = () => [
 const routes = () => [
   ...stallRoutes(),
   [/workflows\/pr-merge\.yml\/runs/, { workflow_runs: [run(10)] }],
-  [/runs\/10\/jobs/, { jobs: [{ id: 100, name: "merge", conclusion: "success" }, { id: 101, name: "post-merge-dispatch" }] }],
+  [/runs\/10\/jobs/, { jobs: [{ id: 100, name: "Merge", conclusion: "success" }, { id: 101, name: "Post Merge Dispatch" }] }],
   [
     /check-runs\/100\/annotations/,
     [
@@ -216,7 +216,7 @@ const routes = () => [
       ],
     },
   ],
-  [/runs\/50\/jobs/, { jobs: [{ id: 500, name: "test-bash (1/4)", conclusion: "failure", steps: [{ name: "Run the suites", conclusion: "failure" }, { name: "Set up", conclusion: "success" }] }] }],
+  [/runs\/50\/jobs/, { jobs: [{ id: 500, name: "Test Bash (1/4)", conclusion: "failure", steps: [{ name: "Run the suites", conclusion: "failure" }, { name: "Set up", conclusion: "success" }] }] }],
   [/runs\/52\/jobs/, { jobs: [{ id: 520, name: "lint", conclusion: "failure", steps: [] }] }],
   [
     /actions\/artifacts\?name=pr-merge-summary/,
@@ -291,7 +291,7 @@ test("collect reads every source into the signals' data shape", async () => {
   assert.deepEqual(
     data.mergeGroupFailures.map((r) => [r.pr, r.failedSteps]),
     [
-      [8225, ["test-bash (1/4) / Run the suites"]],
+      [8225, ["Test Bash (1/4) / Run the suites"]],
       [8031, ["lint"]],
     ],
   );
@@ -558,7 +558,7 @@ test("lane quota readings skip branch-code, fork and test-suite runs, failed min
       },
     ],
     [/runs\/84\/jobs/, { jobs: [mintJob(840, "failure")] }],
-    [/runs\/10\/jobs/, { jobs: [mintJob(100, "success", "merge")] }],
+    [/runs\/10\/jobs/, { jobs: [mintJob(100, "success", "Merge")] }],
     [/check-runs\/100\/annotations/, [mintNotice(494), { annotation_level: "notice", title: "api-budget", message: "end lane core remaining=494 used=4706 limit=5200 reset=x" }]],
     ...routes(),
   ]);
@@ -566,6 +566,17 @@ test("lane quota readings skip branch-code, fork and test-suite runs, failed min
   assert.deepEqual(data.gaps, []);
   assert.ok(!api.calls.some((p) => /runs\/8[12356]\/jobs|check-runs\/840\//.test(p)));
   // pr-merge's merge job counts once, through its own source.
+  assert.deepEqual(data.budgetReadings.map((r) => [r.name, r.runId]), [["lanes-app", 10], ["lane", 10]]);
+});
+
+test("a pr-merge run from before the job rename has its merge job read by its id, once", async () => {
+  const api = fakeApi([
+    [/actions\/runs\?status=completed/, { workflow_runs: [prMergeRun(10)] }],
+    [/runs\/10\/jobs/, { jobs: [mintJob(100, "success", "merge")] }],
+    [/check-runs\/100\/annotations/, [mintNotice(494), { annotation_level: "notice", title: "api-budget", message: "end lane core remaining=494 used=4706 limit=5200 reset=x" }]],
+    ...routes(),
+  ]);
+  const data = await collect(input(api, { ownRate: null }));
   assert.deepEqual(data.budgetReadings.map((r) => [r.name, r.runId]), [["lanes-app", 10], ["lane", 10]]);
 });
 
@@ -661,7 +672,7 @@ test("failed test-suite runs on main are not read as lane runs, so a test named 
         ],
       },
     ],
-    [/runs\/3[56]\/jobs/, { jobs: [{ id: 350, name: "test-bash (1/4)", conclusion: "failure" }] }],
+    [/runs\/3[56]\/jobs/, { jobs: [{ id: 350, name: "Test Bash (1/4)", conclusion: "failure" }] }],
     [/check-runs\/350\/annotations/, [{ annotation_level: "failure", message: "not ok 7 - retries on 429" }]],
     ...routes(),
   ]);
@@ -1008,7 +1019,7 @@ const queueJobs = (attempt = 1) => ({
   jobs: [
     {
       id: 500,
-      name: "test-bash (1/4)",
+      name: "Test Bash (1/4)",
       status: "completed",
       conclusion: "failure",
       run_attempt: attempt,
@@ -1041,7 +1052,7 @@ test("a completed run's job read is carried, and the next run reads the same dat
   assert.ok(!jobReads(api).includes(50));
   assert.equal(api.calls.length, firstApi.calls.length - 1);
   assert.deepEqual(second.mergeGroupFailures, first.mergeGroupFailures);
-  assert.deepEqual(second.mergeGroupFailures[0].failedSteps, ["test-bash (1/4) / Run the suites"]);
+  assert.deepEqual(second.mergeGroupFailures[0].failedSteps, ["Test Bash (1/4) / Run the suites"]);
   assert.deepEqual(second.jobsCarry, first.jobsCarry);
 });
 
@@ -1095,7 +1106,7 @@ const notice = (title, message) => ({ annotation_level: "notice", title, message
 const holdRoutes = () => [
   [/workflows\/work-resolve-issue\.yml\/runs/, { workflow_runs: [run(84, { event: "issues" }), run(85, { event: "issues" }), run(86, { event: "issues" })] }],
   [/workflows\/work-unblock\.yml\/runs/, { workflow_runs: [run(81), run(82, { event: "pull_request" }), run(83, { updated_at: "2026-10-19T15:20:00Z" })] }],
-  [/runs\/83\/jobs/, { jobs: [{ id: 830, name: "label-unblocked", conclusion: "success" }] }],
+  [/runs\/83\/jobs/, { jobs: [{ id: 830, name: "Label Unblocked", conclusion: "success" }] }],
   [/check-runs\/830\/annotations/, [notice("label-unblocked", "the agent-ready listing failed (HTTP 502); holding, and the next sweep reads it again")]],
   [/workflows\/pr-refine\.yml\/runs/, { workflow_runs: [run(87, { event: "workflow_dispatch" })] }],
   [/workflows\/intake-triage\.yml\/runs/, { workflow_runs: [] }],
@@ -1103,15 +1114,15 @@ const holdRoutes = () => [
   [/workflows\/pr-review-main\.yml\/runs/, { workflow_runs: [] }],
   [/workflows\/pr-merge\.yml\/runs\?status=/, { workflow_runs: [] }],
   [/runs\/84\/jobs/, { jobs: [] }],
-  [/runs\/81\/jobs/, { jobs: [{ id: 810, name: "label-unblocked", conclusion: "success" }, { id: 811, name: "wip-state", conclusion: "success" }] }],
+  [/runs\/81\/jobs/, { jobs: [{ id: 810, name: "Label Unblocked", conclusion: "success" }, { id: 811, name: "wip-state", conclusion: "success" }] }],
   [/check-runs\/810\/annotations/, [
     notice("label-unblocked", "the open listing failed (HTTP 502); holding, and the next sweep reads it again"),
     notice("label-unblocked", "the closed-issue listing failed (HTTP 502); holding, and the next sweep reads it again"),
   ]],
-  [/runs\/85\/jobs/, { jobs: [{ id: 850, name: "report-outcome / run", conclusion: "success" }, { id: 851, name: "report-outcome / report", conclusion: "success" }] }],
+  [/runs\/85\/jobs/, { jobs: [{ id: 850, name: "Report Outcome / Run", conclusion: "success" }, { id: 851, name: "Report Outcome / Report", conclusion: "success" }] }],
   [/check-runs\/850\/annotations/, [notice("report-outcome", "issue #812 stopped on a fault (outcome-unread), and every retry since a person last added agent-ready was one too; it keeps agent-ready and a later run tries again")]],
-  [/runs\/86\/jobs/, { jobs: [{ id: 860, name: "report-outcome / run", conclusion: "skipped" }] }],
-  [/runs\/87\/jobs/, { jobs: [{ id: 870, name: "fix-docs-handoff", conclusion: "success" }] }],
+  [/runs\/86\/jobs/, { jobs: [{ id: 860, name: "Report Outcome / Run", conclusion: "skipped" }] }],
+  [/runs\/87\/jobs/, { jobs: [{ id: 870, name: "Fix Docs Handoff", conclusion: "success" }] }],
   [/check-runs\/870\/annotations/, [notice("api-budget", "end github-token core remaining=1 used=1 limit=2 reset=x")]],
   ...routes(),
 ];
@@ -1161,6 +1172,12 @@ test("lane holds: green runs in the window add their holds to the carried ones i
   assert.deepEqual(parseHeldCarry(jobsCarryFile(repo, data.jobsCarry, data.heldCarry), repo), data.heldCarry);
 });
 
+test("lane holds: a run from before the job rename lists its hold job by id, and its holds are read", async () => {
+  const api = fakeApi([[/runs\/81\/jobs/, { jobs: [{ id: 810, name: "label-unblocked", conclusion: "success" }] }], ...holdRoutes()]);
+  const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
+  assert.ok(data.laneHolds.some((h) => h.lane === "work-unblock" && h.runId === 81), JSON.stringify(data.laneHolds));
+});
+
 test("lane holds: no carry, a stale one or an unread rule is a gap, and the carried runs still go on", async () => {
   // No carry: this window starts the span, which falls short of 24 hours.
   const uncarried = await collect(input(fakeApi(holdRoutes()), { holds: { rule: RULE, carried: null } }));
@@ -1204,7 +1221,7 @@ const refineRoutes = () => [
   [/workflows\/pr-refine\.yml\/runs/, {
     workflow_runs: [...REFINE_AT.map((t, i) => run(900 + i, { event: "workflow_dispatch", updated_at: `2026-10-19T${t}:00Z` })), run(908, { event: "workflow_dispatch", updated_at: "2026-10-19T15:38:00Z" })].reverse(),
   }],
-  [/runs\/90[01]\/jobs/, (path) => ({ jobs: [{ id: Number(/runs\/(\d+)/.exec(path)[1]) * 10, name: "fix-docs-handoff", conclusion: "success" }] })],
+  [/runs\/90[01]\/jobs/, (path) => ({ jobs: [{ id: Number(/runs\/(\d+)/.exec(path)[1]) * 10, name: "Fix Docs Handoff", conclusion: "success" }] })],
   [/check-runs\/90[01]0\/annotations/, [notice("Handoff evidence hold", "handoff evidence for fix-docs still missing after the read")]],
   [/runs\/90\d\/jobs/, { jobs: [] }],
   ...holdRoutes(),
@@ -1308,9 +1325,9 @@ test("lane holds: pr-refine's red runs are read, and a refine-failed warning cou
   const warning = (title, message) => ({ annotation_level: "warning", title, message });
   const api = fakeApi([
     [/workflows\/pr-refine\.yml\/runs\?status=failure/, { workflow_runs: [run(950, { event: "workflow_dispatch" }), run(951, { event: "workflow_dispatch" })] }],
-    [/runs\/950\/jobs/, { jobs: [{ id: 9500, name: "record-passes", conclusion: "success" }, { id: 9501, name: "fix-docs / run", conclusion: "failure" }] }],
+    [/runs\/950\/jobs/, { jobs: [{ id: 9500, name: "Record Passes", conclusion: "success" }, { id: 9501, name: "Fix Docs / Run", conclusion: "failure" }] }],
     [/check-runs\/9500\/annotations/, [warning("refine-failed", "pass=fix-docs reason=fix-docs-failure")]],
-    [/runs\/951\/jobs/, { jobs: [{ id: 9510, name: "record-passes", conclusion: "success" }] }],
+    [/runs\/951\/jobs/, { jobs: [{ id: 9510, name: "Record Passes", conclusion: "success" }] }],
     [/check-runs\/9510\/annotations/, [notice("refine-failed", "pass=fix-docs reason=fix-docs-failure")]],
     ...holdRoutes(),
   ]);
@@ -1329,7 +1346,7 @@ const intakeRuns = (count, from = 1000) =>
   Array.from({ length: count }, (_, i) => run(from + i, { event: "issues", updated_at: `2026-10-19T${i < 23 ? "15" : "16"}:${String((37 + i) % 60).padStart(2, "0")}:00Z` })).reverse();
 const intakeRoutes = (listing) => [
   [/workflows\/intake-triage\.yml\/runs/, listing],
-  [/runs\/1\d{3}\/jobs/, (path) => ({ jobs: [{ id: Number(/runs\/(\d+)/.exec(path)[1]) * 10, name: "apply-verdict", conclusion: "success" }] })],
+  [/runs\/1\d{3}\/jobs/, (path) => ({ jobs: [{ id: Number(/runs\/(\d+)/.exec(path)[1]) * 10, name: "Apply Verdict", conclusion: "success" }] })],
   [/check-runs\/10000\/annotations/, [notice("apply-verdict", "held: admission failed: GET /repos/o/r/issues/7/timeline failed with status 503")]],
   [/check-runs\/10010\/annotations/, [notice("apply-verdict", "held: GET /repos/o/r/issues/7 failed with status 502")]],
   [/check-runs\/1\d{4}\/annotations/, [notice("api-budget", "end lanes-app core remaining=1 used=1 limit=2 reset=x")]],
@@ -1360,7 +1377,7 @@ test("lane holds: work-unblock reads past the default cap of 6 up to its own of 
   const sweeps = (count) => Array.from({ length: count }, (_, i) => run(2100 + i, { event: "schedule", updated_at: `2026-10-19T16:${String(i + 10).padStart(2, "0")}:00Z` })).reverse();
   const routesFor = (count) => [
     [/workflows\/work-unblock\.yml\/runs/, { workflow_runs: sweeps(count) }],
-    [/runs\/21\d{2}\/jobs/, (path) => ({ jobs: [{ id: Number(/runs\/(\d+)/.exec(path)[1]) * 10, name: "label-unblocked", conclusion: "success" }] })],
+    [/runs\/21\d{2}\/jobs/, (path) => ({ jobs: [{ id: Number(/runs\/(\d+)/.exec(path)[1]) * 10, name: "Label Unblocked", conclusion: "success" }] })],
     [/check-runs\/21\d{3}\/annotations/, []],
     ...holdRoutes(),
   ];
@@ -1391,7 +1408,7 @@ const twoLaneRoutes = ({ later = false } = {}) => [
   }],
   [/runs\/3[01]\d{2}\/jobs/, (path) => {
     const id = Number(/runs\/(\d+)/.exec(path)[1]);
-    return { jobs: [{ id: id * 10, name: id < 3100 ? "report-outcome / run" : "label-unblocked", conclusion: "success" }] };
+    return { jobs: [{ id: id * 10, name: id < 3100 ? "Report Outcome / Run" : "Label Unblocked", conclusion: "success" }] };
   }],
   [/check-runs\/3[01]\d{3}\/annotations/, []],
   ...holdRoutes(),
@@ -1498,24 +1515,31 @@ test("lane holds: a run list past one page reads the next, and past three pages 
 });
 
 // pr-verify green runs from 4000: 4000 held by the resolver, 4001 by the
-// trigger gate (a later job), 4002 judged with no hold, its jobs' annotations
-// never read, and 4003 a job listed with no steps, read and found unheld.
+// trigger gate (a later job), 4002 judged with no hold, and 4003 a green hold
+// job listed with no steps whose only notice is no hold. Listed through REST,
+// with steps, only 40000, 40011 and the stepless 40030 have their
+// annotations read; listed through GraphQL, every green hold job's are.
 const verifyJob = (id, name, held) => ({ id, name, conclusion: "success", steps: [{ name: "Resolve the pull request", conclusion: "success" }, { name: "Note the hold", conclusion: held ? "success" : "skipped" }] });
 const verifyRoutes = (listing) => [
   [/workflows\/pr-verify\.yml\/runs/, listing],
-  [/runs\/4000\/jobs/, { jobs: [verifyJob(40000, "check-intent", true)] }],
-  [/runs\/4001\/jobs/, { jobs: [verifyJob(40010, "check-intent", false), verifyJob(40011, "check-intent-subscription", true)] }],
-  [/runs\/4002\/jobs/, { jobs: [verifyJob(40020, "check-intent", false), verifyJob(40021, "wake-pr-merge", true)] }],
-  [/runs\/4003\/jobs/, { jobs: [{ id: 40030, name: "check-intent", conclusion: "success", steps: [] }] }],
+  [/runs\/4000\/jobs/, { jobs: [verifyJob(40000, "Check Intent", true)] }],
+  [/runs\/4001\/jobs/, { jobs: [verifyJob(40010, "Check Intent", false), verifyJob(40011, "Check Intent Subscription", true)] }],
+  [/runs\/4002\/jobs/, { jobs: [verifyJob(40020, "Check Intent", false), verifyJob(40021, "Wake PR Merge", true)] }],
+  [/runs\/4003\/jobs/, { jobs: [{ id: 40030, name: "Check Intent", conclusion: "success", steps: [] }] }],
   [/check-runs\/40000\/annotations/, [notice("pr-verify", "held: pr-verify could not resolve the pull request: GET /repos/o/r/pulls/7 failed with status 502")]],
   [/check-runs\/40011\/annotations/, [notice("pr-verify", "held: pr-verify's trigger gate met a GitHub fault (read-fault); nothing is judged")]],
   [/check-runs\/40030\/annotations/, [notice("api-budget", "end github-token core remaining=1 used=1 limit=2 reset=x")]],
+  [/check-runs\/400[12]0\/annotations/, []],
   ...holdRoutes(),
 ];
 const verifyRuns = (count, from = 4000) =>
   Array.from({ length: count }, (_, i) => run(from + i, { event: "workflow_run", updated_at: new Date(Date.parse("2026-10-19T15:40:00Z") + i * 30_000).toISOString().replace(".000Z", "Z") })).reverse();
+// The check runs whose annotations were read through REST, among `ids`.
+const restAnnotationReads = (api, ids) =>
+  api.calls.map((c) => Number(/check-runs\/(\d+)\/annotations/.exec(c)?.[1])).filter((id) => ids.includes(id)).sort((a, b) => a - b);
+const VERIFY_JOBS = [40000, 40010, 40011, 40020, 40021, 40030];
 
-test("lane holds: pr-verify counts resolver and trigger-gate holds, reading annotations only where Note the hold ran", async () => {
+test("lane holds: pr-verify counts resolver and trigger-gate holds, reading REST-listed annotations only where Note the hold ran", async () => {
   const api = fakeApi(verifyRoutes({ workflow_runs: verifyRuns(4) }));
   const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
   assert.deepEqual(data.gaps, []);
@@ -1523,8 +1547,27 @@ test("lane holds: pr-verify counts resolver and trigger-gate holds, reading anno
     [4001, null, "trigger gate fault"],
     [4000, null, "resolver fault"],
   ]);
-  for (const id of [40010, 40020, 40021]) assert.ok(!api.calls.some((c) => c.includes(`check-runs/${id}/`)), id);
-  assert.ok(api.calls.some((c) => c.includes("check-runs/40030/annotations")), "a job listed with no steps is read");
+  assert.deepEqual(restAnnotationReads(api, VERIFY_JOBS), [40000, 40011, 40030]);
+});
+
+// The same routes read with and without node ids: the hold data each read
+// finds, and the REST paths the GraphQL read made that match `lane`.
+async function holdsBothWays(routes, lane) {
+  const holds = { rule: RULE, carried: CARRIED };
+  const before = await collect(input(fakeApi(routes), { holds }));
+  const gql = fakeApi(withNodeIds(routes));
+  const after = await collect(input(gql, { holds }));
+  return { before, after, restLeft: gql.calls.filter((c) => c !== GRAPHQL && lane.test(c)), listed: gql.queries.flatMap((q) => q.variables?.ids ?? []) };
+}
+
+test("lane holds: pr-verify's runs are listed through GraphQL, with no REST jobs or annotations read, and find the same holds", async () => {
+  const { before, after, restLeft, listed } = await holdsBothWays(verifyRoutes({ workflow_runs: verifyRuns(4) }), /runs\/400\d\/jobs|check-runs\/400\d\d\//);
+  assert.deepEqual(after.laneHolds, before.laneHolds);
+  assert.deepEqual(after.heldCarry, before.heldCarry);
+  assert.equal(after.laneHolds.filter((h) => h.lane === "pr-verify").length, 2);
+  assert.deepEqual(restLeft, []);
+  // A GraphQL list has no steps, so every green hold job's annotations are read in the batch.
+  for (const id of ["WFR_4000", "WFR_4003", "CR_40000", "CR_40010", "CR_40011", "CR_40020", "CR_40030"]) assert.ok(listed.includes(id), id);
 });
 
 test("lane holds: pr-verify reads up to its own cap of 80 runs and 5 list pages", async () => {
@@ -1547,28 +1590,86 @@ test("lane holds: pr-verify reads up to its own cap of 80 runs and 5 list pages"
 });
 
 // pr-review-main green runs: 7000 held in a matrix leg, 7001 held in the
-// trigger job, 7002 reviewed with no hold, none of its annotations read.
+// trigger job, 7002 reviewed with no hold. Listed through REST, only 70001
+// and 70010 have their annotations read; Record (70021) is no hold job.
 const reviewJob = (id, name, held) => ({ id, name, conclusion: "success", steps: [{ name: "Select a lane-source pull request", conclusion: "success" }, { name: "Note the hold", conclusion: held ? "success" : "skipped" }] });
 const unreadList = "held: the file list did not read (HTTP 502); no review, and the lost-run reconciler re-runs this run once";
+const reviewRoutes = () => [
+  [/workflows\/pr-review-main\.yml\/runs/, { workflow_runs: [7000, 7001, 7002].map((id, i) => run(id, { event: "workflow_run", updated_at: `2026-10-19T16:0${i}:00Z` })).reverse() }],
+  [/runs\/7000\/jobs/, { jobs: [reviewJob(70000, "Trigger", false), reviewJob(70001, "Review (claude-review, claude-review)", true), reviewJob(70002, "Review (claude-security-review, claude-security-review)", false)] }],
+  [/runs\/7001\/jobs/, { jobs: [reviewJob(70010, "Trigger", true)] }],
+  [/runs\/7002\/jobs/, { jobs: [reviewJob(70020, "Trigger", false), reviewJob(70021, "Record", true)] }],
+  [/check-runs\/70001\/annotations/, [notice("pr-review-main", unreadList)]],
+  [/check-runs\/70010\/annotations/, [notice("pr-review-main", unreadList)]],
+  [/check-runs\/700[02][02]\/annotations/, []],
+  ...holdRoutes(),
+];
 
-test("lane holds: pr-review-main counts a held trigger job or matrix leg, reading annotations only where Note the hold ran", async () => {
-  const runs = [7000, 7001, 7002].map((id, i) => run(id, { event: "workflow_run", updated_at: `2026-10-19T16:0${i}:00Z` })).reverse();
-  const api = fakeApi([
-    [/workflows\/pr-review-main\.yml\/runs/, { workflow_runs: runs }],
-    [/runs\/7000\/jobs/, { jobs: [reviewJob(70000, "trigger", false), reviewJob(70001, "review (claude-review, claude-review)", true), reviewJob(70002, "review (claude-security-review, claude-security-review)", false)] }],
-    [/runs\/7001\/jobs/, { jobs: [reviewJob(70010, "trigger", true)] }],
-    [/runs\/7002\/jobs/, { jobs: [reviewJob(70020, "trigger", false), reviewJob(70021, "record", true)] }],
-    [/check-runs\/70001\/annotations/, [notice("pr-review-main", unreadList)]],
-    [/check-runs\/70010\/annotations/, [notice("pr-review-main", unreadList)]],
-    ...holdRoutes(),
-  ]);
+const REVIEW_JOBS = [70000, 70001, 70002, 70010, 70020, 70021];
+
+test("lane holds: pr-review-main counts a held trigger job or matrix leg, reading REST-listed annotations only where Note the hold ran", async () => {
+  const api = fakeApi(reviewRoutes());
   const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
   assert.deepEqual(data.gaps, []);
   assert.deepEqual(data.laneHolds.filter((h) => h.lane === "pr-review-main").map((h) => [h.runId, h.reason]), [
     [7001, "file list unread"],
     [7000, "file list unread"],
   ]);
-  for (const id of [70000, 70002, 70020, 70021]) assert.ok(!api.calls.some((c) => c.includes(`check-runs/${id}/`)), id);
+  assert.deepEqual(restAnnotationReads(api, REVIEW_JOBS), [70001, 70010]);
+});
+
+test("lane holds: pr-review-main's runs are listed through GraphQL, with no REST jobs or annotations read, and find the same holds", async () => {
+  const { before, after, restLeft, listed } = await holdsBothWays(reviewRoutes(), /runs\/700\d\/jobs|check-runs\/700\d\d\//);
+  assert.deepEqual(after.laneHolds, before.laneHolds);
+  assert.deepEqual(after.heldCarry, before.heldCarry);
+  assert.equal(after.laneHolds.filter((h) => h.lane === "pr-review-main").length, 2);
+  assert.deepEqual(restLeft, []);
+  for (const id of ["WFR_7000", "WFR_7002", "CR_70001", "CR_70010"]) assert.ok(listed.includes(id), id);
+});
+
+test("lane holds: a re-run of pr-verify is listed through REST and its hold still counts", async () => {
+  const rerun = verifyRuns(4).map((r) => ({ ...r, run_attempt: 2 }));
+  const api = fakeApi(withNodeIds(verifyRoutes({ workflow_runs: rerun })));
+  const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
+  assert.deepEqual(data.laneHolds.filter((h) => h.lane === "pr-verify").map((h) => h.runId), [4001, 4000]);
+  assert.ok(api.calls.some((c) => c.includes("runs/4000/jobs?filter=latest")));
+  assert.ok(!api.queries.some((q) => q.variables?.ids?.includes("WFR_4000")));
+});
+
+test("lane holds: with GraphQL refused, pr-verify and pr-review-main list through REST and read annotations only where Note the hold ran", async () => {
+  // Each lane's own routes, ahead of holdRoutes, which list every other lane empty.
+  const own = (routes) => routes.slice(0, routes.length - holdRoutes().length);
+  const routes = [...own(verifyRoutes({ workflow_runs: verifyRuns(4) })), ...own(reviewRoutes()), ...holdRoutes()];
+  const api = fakeApi([[GRAPHQL, new Error("POST /graphql: HTTP 502")], ...withNodeIds(routes)]);
+  const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
+  assert.ok(api.queries.some((q) => q.variables?.ids?.includes("WFR_4000")), "the GraphQL list was tried");
+  assert.ok(api.queries.some((q) => q.variables?.ids?.includes("CR_70001")), "the GraphQL annotations read was tried");
+  for (const r of [4000, 4001, 4002, 4003, 7000, 7001, 7002]) assert.ok(api.calls.some((c) => c.includes(`runs/${r}/jobs?filter=latest`)), r);
+  assert.deepEqual(data.laneHolds.filter((h) => h.lane === "pr-verify").map((h) => h.runId), [4001, 4000]);
+  assert.deepEqual(data.laneHolds.filter((h) => h.lane === "pr-review-main").map((h) => h.runId), [7001, 7000]);
+  assert.deepEqual(restAnnotationReads(api, VERIFY_JOBS), [40000, 40011, 40030]);
+  assert.deepEqual(restAnnotationReads(api, REVIEW_JOBS), [70001, 70010]);
+});
+
+test("lane holds: with the GraphQL list answering and the annotation batch failing, pr-verify and pr-review-main list each run through REST and read annotations only where Note the hold ran", async () => {
+  const own = (routes) => routes.slice(0, routes.length - holdRoutes().length);
+  const routes = [...own(verifyRoutes({ workflow_runs: verifyRuns(4) })), ...own(reviewRoutes()), ...holdRoutes()];
+  const api = fakeApi(withNodeIds(routes));
+  const graphql = async (query, variables) => {
+    if (query.includes("... on CheckRun")) {
+      api.queries.push({ query, variables });
+      throw new Error("POST /graphql: HTTP 502");
+    }
+    return api.graphql(query, variables);
+  };
+  const data = await collect({ ...input(api, { holds: { rule: RULE, carried: CARRIED } }), graphql });
+  assert.ok(api.queries.some((q) => q.query.includes("... on WorkflowRun") && q.variables?.ids?.includes("WFR_7000")), "the GraphQL list was read");
+  assert.ok(api.queries.some((q) => q.query.includes("... on CheckRun") && q.variables?.ids?.includes("CR_70001")), "the GraphQL annotations read was tried");
+  assert.deepEqual(data.laneHolds.filter((h) => h.lane === "pr-verify").map((h) => h.runId), [4001, 4000]);
+  assert.deepEqual(data.laneHolds.filter((h) => h.lane === "pr-review-main").map((h) => h.runId), [7001, 7000]);
+  assert.deepEqual(restAnnotationReads(api, VERIFY_JOBS), [40000, 40011, 40030]);
+  assert.deepEqual(restAnnotationReads(api, REVIEW_JOBS), [70001, 70010]);
+  for (const r of [4000, 4001, 4002, 4003, 7000, 7001, 7002]) assert.equal(api.calls.filter((c) => c.includes(`runs/${r}/jobs?filter=latest`)).length, 1, `run ${r} listed through REST once`);
 });
 
 // pr-merge green runs: 7100 a sweep whose merge job held on its lane token,
@@ -1587,9 +1688,9 @@ test("lane holds: pr-merge counts a lane token hold in its merge or enable-auto-
   const job = (id, name) => ({ id, name, conclusion: "success" });
   const api = fakeApi([
     [/workflows\/pr-merge\.yml\/runs\?status=/, { workflow_runs: runs }],
-    [/runs\/7100\/jobs/, { jobs: [job(71000, "post-merge-dispatch"), job(71001, "merge")] }],
-    [/runs\/7101\/jobs/, { jobs: [job(71010, "enable-auto-merge")] }],
-    [/runs\/7102\/jobs/, { jobs: [job(71020, "merge"), job(71021, "enable-auto-merge")] }],
+    [/runs\/7100\/jobs/, { jobs: [job(71000, "Post Merge Dispatch"), job(71001, "Merge")] }],
+    [/runs\/7101\/jobs/, { jobs: [job(71010, "Enable Auto Merge")] }],
+    [/runs\/7102\/jobs/, { jobs: [job(71020, "Merge"), job(71021, "Enable Auto Merge")] }],
     [/check-runs\/71001\/annotations/, [notice("Lane token hold", tokenHold)]],
     [/check-runs\/71010\/annotations/, [notice("Lane token hold", tokenHold)]],
     [/check-runs\/7102[01]\/annotations/, [notice("api-budget", "end github-token core remaining=1 used=1 limit=2 reset=x")]],
@@ -1628,7 +1729,7 @@ test("a carried held run of another repository or an unknown lane, or a bad span
 // Signal 14's own source: main's failed scheduled work-unblock runs, and the
 // annotations of their failed publish-lane-level job.
 const unblockRun = (id, extra = {}) => run(id, { name: "Work Unblock", path: ".github/workflows/work-unblock.yml", conclusion: "failure", ...extra });
-const publishJob = (id, steps = []) => ({ id, name: "publish-lane-level", conclusion: "failure", steps });
+const publishJob = (id, steps = []) => ({ id, name: "Publish Lane Level", conclusion: "failure", steps });
 const CHANGED = { annotation_level: "failure", message: "lane-variables-changed: created CLAUDE_LANES_DISABLED" };
 
 test("lane variable runs: a red publish-lane-level run is read even past 12 other failed runs", async () => {
@@ -1637,7 +1738,7 @@ test("lane variable runs: a red publish-lane-level run is read even past 12 othe
     [/actions\/runs\?status=failure/, { workflow_runs: others }],
     [/runs\/2\d{3}\/jobs/, { jobs: [] }],
     [/workflows\/work-unblock\.yml\/runs/, { workflow_runs: [unblockRun(80)] }],
-    [/runs\/80\/jobs/, { jobs: [{ id: 800, name: "label-unblocked", conclusion: "success" }, publishJob(801, [{ name: "Check no other repository variable changed", conclusion: "failure" }])] }],
+    [/runs\/80\/jobs/, { jobs: [{ id: 800, name: "Label Unblocked", conclusion: "success" }, publishJob(801, [{ name: "Check no other repository variable changed", conclusion: "failure" }])] }],
     [/check-runs\/801\/annotations/, [CHANGED]],
     ...routes(),
   ]);
@@ -1649,6 +1750,17 @@ test("lane variable runs: a red publish-lane-level run is read even past 12 othe
   ]);
   assert.deepEqual(laneVariableFindings(data)[0].facts, ["Work Unblock https://github.com/o/r/actions/runs/80: lane-variables-changed: created CLAUDE_LANES_DISABLED"]);
   assert.ok(api.calls.some((p) => p.startsWith("/repos/o/r/actions/workflows/work-unblock.yml/runs?event=schedule&branch=main&status=failure&created=")));
+});
+
+test("lane variable runs: a run from before the job rename names the job publish-lane-level, and is read the same way", async () => {
+  const api = fakeApi([
+    [/workflows\/work-unblock\.yml\/runs/, { workflow_runs: [unblockRun(80)] }],
+    [/runs\/80\/jobs/, { jobs: [{ ...publishJob(801, [{ name: "Check no other repository variable changed", conclusion: "failure" }]), name: "publish-lane-level" }] }],
+    [/check-runs\/801\/annotations/, [CHANGED]],
+    ...routes(),
+  ]);
+  const data = await collect(input(api));
+  assert.deepEqual(data.laneVariableRuns.map((r) => [r.id, r.failedSteps]), [[80, ["Check no other repository variable changed: failure"]]]);
 });
 
 test("lane variable runs: only main's scheduled runs of this repository's head count, and only a failed publish-lane-level job", async () => {
@@ -1664,7 +1776,7 @@ test("lane variable runs: only main's scheduled runs of this repository's head c
         ],
       },
     ],
-    [/runs\/84\/jobs/, { jobs: [{ id: 840, name: "label-unblocked", conclusion: "failure" }, { ...publishJob(841), conclusion: "success" }] }],
+    [/runs\/84\/jobs/, { jobs: [{ id: 840, name: "Label Unblocked", conclusion: "failure" }, { ...publishJob(841), conclusion: "success" }] }],
     ...routes(),
   ]);
   const data = await collect(input(api));
@@ -1761,10 +1873,11 @@ test("a GraphQL answer that is cut short, holds a null, is another run's or a re
 
 // Every source that reads jobs or annotations: pr-merge budget (run 10),
 // in-progress (20), failed runs (30), merge groups (50), the hold lanes
-// (81, 85, 86, 87) and pr-review-main, whose Note the hold needs steps (7000).
+// (81, 85, 86, 87) and pr-review-main (7000).
 const graphqlScenario = () => [
   [/workflows\/pr-review-main\.yml\/runs/, { workflow_runs: [run(7000, { event: "workflow_run" })] }],
   [/runs\/7000\/jobs/, { jobs: [reviewJob(70000, "trigger", false), reviewJob(70001, "review (claude-review, claude-review)", true)] }],
+  [/check-runs\/70000\/annotations/, []],
   [/check-runs\/70001\/annotations/, [notice("pr-review-main", unreadList)]],
   ...queueRoutes().slice(0, 3),
   ...holdRoutes(),
@@ -1780,15 +1893,19 @@ test("with node ids listed, job lists and annotations are read through GraphQL a
   const after = await collect(holdInput(gql));
   assert.deepEqual(after, before);
   assert.deepEqual(detect(after), detect(before));
-  const replaced = ["runs/10/jobs", "runs/20/jobs", "runs/30/jobs", "runs/81/jobs", "runs/85/jobs", "runs/86/jobs", "runs/87/jobs"]
+  const replaced = ["runs/10/jobs", "runs/20/jobs", "runs/30/jobs", "runs/81/jobs", "runs/85/jobs", "runs/86/jobs", "runs/87/jobs", "runs/7000/jobs"]
     .concat(["check-runs/100/", "check-runs/300/", "check-runs/810/", "check-runs/850/", "check-runs/870/", "check-runs/70001/"]);
   assert.deepEqual(restGets(gql), restGets(rest).filter((c) => !replaced.some((p) => c.includes(p))));
   for (const path of replaced) assert.ok(restGets(rest).some((c) => c.includes(path)), `the REST read makes ${path}`);
+  // pr-review-main's trigger job, whose Note the hold was skipped: a REST list
+  // shows it, so its annotations go unread; a GraphQL list does not, so they are read in the batch.
+  assert.ok(!restGets(rest).some((c) => c.includes("check-runs/70000/")));
+  assert.ok(nodeQueries(gql).some((q) => q.variables.ids.includes("CR_70000")));
   // A source that reads steps still lists its run's jobs through REST, and that read is still carried.
-  for (const path of ["runs/7000/jobs", "runs/50/jobs"]) assert.ok(restGets(gql).some((c) => c.includes(path)), path);
+  assert.ok(restGets(gql).some((c) => c.includes("runs/50/jobs")));
   assert.deepEqual(after.jobsCarry.map((e) => e.id), [50]);
-  // One list and one annotations query for pr-merge budget, failed runs and three hold lanes; a list for in-progress; annotations for pr-review-main.
-  assert.equal(nodeQueries(gql).length, 12);
+  // One list and one annotations query for pr-merge budget, failed runs and four hold lanes; a list for in-progress.
+  assert.equal(nodeQueries(gql).length, 13);
 });
 
 test("a null GraphQL node is read through REST, so a gap stays a gap and never reads as no hold", async () => {

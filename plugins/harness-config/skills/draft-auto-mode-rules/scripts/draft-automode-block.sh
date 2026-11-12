@@ -99,29 +99,27 @@ printf '%s\n' "$answers" | jq -Rn '
   # Conditions the classifier cannot evaluate from a transcript are the
   # documented weakness, so the interview is what keeps them out -- this only
   # renders what it was given.
+  def bullets($heading; $items):
+    if ($items | length) > 0 then [$heading] + ($items | map("- " + trim)) else [] end;
   def render($e):
-    ($e.label // "" | trim) as $label
-    | ($e.covered // []) as $covered
-    | ($e.not // []) as $not
-    | ($e.why // "" | trim) as $why
-    | [ "\($label):" ]
-      + (if ($covered | length) > 0 then ["COVERED:"] + ($covered | map("- " + trim)) else [] end)
-      + (if ($not | length) > 0 then ["NOT COVERED:"] + ($not | map("- " + trim)) else [] end)
+    ($e.why | trim) as $why
+    | [ "\($e.label | trim):" ]
+      + bullets("COVERED:"; $e.covered)
+      + bullets("NOT COVERED:"; $e.not)
       + (if $why != "" then ["Why: " + $why] else [] end)
     | join("\n");
+  def flush: if .current != null then .entries += [.current] else . end;
 
-  [inputs]
-  | map(select(test("[^[:space:]]")))
-  | reduce .[] as $line (
+  reduce (inputs | select(test("[^[:space:]]"))) as $line (
       {section: null, current: null, entries: []};
       ($line | capture("^[[:space:]]*(?<key>section|label|covered|not|why)[[:space:]]+(?<value>.*)$") // null) as $rec
       | if $rec == null then .
         elif $rec.key == "section" then
-          (if .current != null then .entries += [.current] else . end)
+          flush
           | .section = ($rec.value | trim)
           | .current = null
         elif $rec.key == "label" then
-          (if .current != null then .entries += [.current] else . end)
+          flush
           | .current = {section: .section, label: $rec.value, covered: [], not: [], why: ""}
         elif .current == null then .
         elif $rec.key == "covered" then .current.covered += [$rec.value]
@@ -129,7 +127,8 @@ printf '%s\n' "$answers" | jq -Rn '
         else .current.why = $rec.value
         end
     )
-  | (if .current != null then .entries + [.current] else .entries end)
+  | flush
+  | .entries
   # Only the four documented sections are emitted. A drafter that happily wrote
   # `bogus_section` (or "") into an autoMode block would be manufacturing
   # exactly the "written where nothing reads it" defect its audit sibling

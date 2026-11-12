@@ -466,18 +466,19 @@ reset
 page 1 "${BOTH_PAGE[@]}"
 wf 11 completed:success:1
 wf 22 completed:success:1
-checks 1 "lint-repo:completed:success" "test-bash (0):completed:success" "test-bash (1):completed:success" \
-  "test-python:completed:skipped" "test-node:completed:success"
+checks 1 "Lint Repo:completed:success" "Test Bash (0):completed:success" "Test Bash (1):completed:success" \
+  "Test Python:completed:skipped" "Test Node:completed:success"
 out=$(run --head "$HEAD_SHA")
 assert_exit "a head whose test lanes passed exits 0" 0 "$?"
 assert_contains "test lanes that passed on the head are covered by CI" "$out" "tests ci healthy"
 assert_contains "the tests line counts the passing runs" "$out" "3 test-lane check runs succeeded"
-assert_contains "the tests line names each lane once" "$out" "(test-bash, test-node)"
+assert_contains "the tests line names each lane once" "$out" "(Test Bash, Test Node)"
 assert_eq "the tests line comes last" "tests" "$(tail -n1 <<<"$out" | cut -d' ' -f1)"
 assert_contains "every check run on the head is read" "$(cat "$TEST_TMPDIR/calls")" "commits/$HEAD_SHA/check-runs?filter=all"
 
 # A label or body edit re-runs the workflow on the same commit and posts each
-# test lane skipped; that skip must not hide the lane's failure.
+# test lane skipped; that skip must not hide the lane's failure. The lanes go by
+# their job ids, as on a head tested before the jobs got display names.
 reset
 page 1 "${BOTH_PAGE[@]}"
 wf 11 completed:success:1

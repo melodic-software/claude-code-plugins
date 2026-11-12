@@ -93,8 +93,8 @@
 import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 
+import { runAsScript } from "../lib/run-main.mjs";
 import {
   countRounds,
   createGitHubApi,
@@ -234,7 +234,8 @@ const citation = (ev) => [ev.slice(0, ev.lastIndexOf(":")), Number(ev.slice(ev.l
 
 // The check runs a ci snapshot may cite: a github-actions job page.
 const CI_RUN_URL = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/[1-9][0-9]{0,19}\/job\/[1-9][0-9]{0,19}$/;
-const CI_RUN_NAME = /^[A-Za-z0-9_.-]+( \([0-9]{1,3}\))?$/;
+// A job's name, display (`Test Bash (3)`) or id (`test-bash (3)`).
+const CI_RUN_NAME = /^[A-Za-z0-9_.-]+(?: [A-Za-z0-9_.-]+)*( \([0-9]{1,3}\))?$/;
 const ciValid = (ci) =>
   ci !== null &&
   typeof ci === "object" &&
@@ -1049,14 +1050,4 @@ export async function main(env, { api, actions, log = (line) => console.log(line
   return 0;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main(process.env).then(
-    (code) => {
-      process.exitCode = code;
-    },
-    (error) => {
-      console.log(`::error::publish-feedback failed: ${error.message}`);
-      process.exitCode = 1;
-    },
-  );
-}
+runAsScript(import.meta.url, "publish-feedback", () => main(process.env));

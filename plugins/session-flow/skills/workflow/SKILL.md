@@ -176,8 +176,6 @@ two files.
 - **Pointer**: when deciding whether this session has the task tools, fetch
   [Task tool availability](https://code.claude.com/docs/en/tools-reference#task-tool-availability)
   live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: that section changes which sessions, models, or opt-ins get the task tools.
 
 ## On-ramps: work that merges into the flow partway
 

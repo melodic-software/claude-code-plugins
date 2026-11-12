@@ -97,7 +97,7 @@ answer: can it fail at all? Recent work on LLM-written properties uses mutation 
 Vikram et al. measure property coverage with mutants (<https://arxiv.org/abs/2307.04346>, 2024),
 and PROBE generates counter-implementations that satisfy a property while being wrong
 (<https://aclanthology.org/2026.findings-acl.683/>, ACL 2026 Findings). Two independent studies,
-abstract and conference page read on 2026-10-06, so treat this as MEDIUM: mutation is one way 2024-2026
+abstract and conference page read, so treat this as MEDIUM: mutation is one way 2024-2026
 research shows a generated property can fail, not an established standard. The same limit as
 above applies, a property that restates the implementation can still kill mutants. Recheck when
 either study is revised or a mutation tool's docs address property tests.

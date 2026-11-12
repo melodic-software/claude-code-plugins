@@ -13,7 +13,9 @@
 # (Task Scheduler / launchd / systemd --user / cron) rather than by anything
 # inside the harness: a watchdog lane is itself a /loop bounded by the same
 # seven-day expiry it would remediate, and no in-harness surface survives a
-# crashed lane, a harness restart, or a reboot. `print-schedule` emits the exact
+# crashed lane, a harness restart, or a reboot. The schedule survives those; a
+# crashed lane writes no restart_request, so this consumer does not relaunch it.
+# `print-schedule` emits the exact
 # registration commands; registering them is an operator action this script
 # never performs.
 #

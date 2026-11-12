@@ -146,6 +146,8 @@ runner="$script_dir/${BASH_SOURCE[0]##*/}"
 . "$script_dir/lib/test-git-env.sh"
 # shellcheck source=lib/read-list.sh
 . "$script_dir/lib/read-list.sh"
+# shellcheck source=lib/shard-spec.sh
+. "$script_dir/lib/shard-spec.sh"
 SERIAL_LIST="${PLUGIN_TEST_SERIAL_LIST:-$script_dir/run-plugin-tests-serial.txt}"
 SECONDS_LIST="${PLUGIN_TEST_SECONDS_LIST:-$script_dir/suite-seconds.txt}"
 ADVISORY_LIST="${PLUGIN_TEST_ADVISORY_LIST:-$script_dir/run-plugin-tests-advisory.txt}"
@@ -154,20 +156,6 @@ EXCEPTIONS_LIST="${PLUGIN_TEST_SUITE_EXCEPTIONS:-$script_dir/suite-budget-except
 usage() {
   echo "usage: run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR] [--shard I/N] [--suites-from FILE] [--budget SECONDS] [--timings FILE] [SUITE ...] | --list [--root DIR]" >&2
   exit 2
-}
-
-# parse_shard <spec>: accept exactly `<i>/<n>` with n >= 1 and 0 <= i < n,
-# mirroring scripts/affected-tests.sh. The default is 0/1 rather than unset, so
-# an explicit `--shard ""` (an environment variable that expanded to nothing)
-# is rejected instead of silently running every suite on every leg.
-parse_shard() {
-  local spec="$1" i n
-  [[ "$spec" =~ ^[0-9]+/[0-9]+$ ]] || return 1
-  i=$((10#${spec%%/*}))
-  n=$((10#${spec##*/}))
-  ((n >= 1 && i < n)) || return 1
-  shard_index="$i"
-  shard_total="$n"
 }
 
 # --worker <NNNNNN:suite>: internal. Runs ONE suite with its output captured
@@ -225,6 +213,9 @@ fi
 strict_skips=0
 jobs="${PLUGIN_TEST_JOBS:-1}"
 root=""
+# The default is 0/1 rather than unset, so an explicit `--shard ""` (an
+# environment variable that expanded to nothing) is rejected instead of
+# silently running every suite on every leg.
 shard_spec="0/1"
 suites_from=""
 budget=""

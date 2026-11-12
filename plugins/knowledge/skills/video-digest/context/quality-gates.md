@@ -35,7 +35,7 @@ This table lists the **blocking artifacts per phase** (which must exist before t
 | --- | --- | --- |
 | 0 Prerequisites | deps installed | Pre-computed context in SKILL.md, no MISSING |
 | 0b Companion (when `source/companion-sources.md` exists) | `source/companion-digest/README.md`, `source/companion-digest/<section-slug>.md` per brief | Every section row digested; `mark-phase companion` before Phase 1; SSOT: `companion-primary-sources.md` |
-| 1 CLI bootstrap | `source/transcript.txt`, `run-state/watch.json`, `key-frames/selection.json`, tempSession paths exist | `run-watch.js` exit 0; spot-read transcript; `highVolume` true when sheets ≥8 or duration ≥2h |
+| 1 CLI bootstrap | `source/transcript.txt`, `run-state/watch.json`, `key-frames/selection.json`, tempSession paths exist | `run-watch.js` exit 0; spot-read transcript; `highVolume` equals `isHighVolume` (`extraction/watching/frame-budget.js`) |
 | 2 Vision plan | `key-frames/vision-plan.md` | Content class + segments + triage scope; inspection sample of 3–5 sheets recorded |
 | 3 Claim landscape | `research/claim-inventory.md`, draft `research/research-agenda.md` | ≥4 claims/session for conferences; ≥40 total claims for ≥4h VOD |
 | 4 Vision pass 1 | `key-frames/frame-triage-log.md` | One `## sheet_NNN` per contact sheet with per-cell verdicts |

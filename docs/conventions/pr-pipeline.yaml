@@ -1865,6 +1865,8 @@ merge:
         class: enforcement
       - glob: ".github/scripts/recurring-schedule/file-due.mjs"
         class: enforcement
+      - glob: ".github/scripts/lib/github-rest.mjs"
+        class: enforcement
       - glob: "plugins/work-items/scripts/charge-words.json"
         class: enforcement
       - glob: ".github/scripts/pr-unblock/dependency-classify.mjs"
@@ -1874,6 +1876,8 @@ merge:
       - glob: ".github/scripts/apply-patch/predicates.mjs"
         class: enforcement
       - glob: ".github/scripts/apply-patch/protected-paths.mjs"
+        class: enforcement
+      - glob: ".github/scripts/lib/run-main.mjs"
         class: enforcement
       - glob: ".github/scripts/pr-unblock/fix-ci-context.mjs"
         class: enforcement

@@ -16,8 +16,8 @@
 // (actions: read; the review lanes' comment records).
 
 import { appendFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
 
+import { runAsScript } from "../lib/run-main.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createGitHubApi, laneReader, need, ownerAdoption, ownerAuthored, positive, SHA, withLaneBinding } from "./address-feedback.mjs";
 import { commentItems, gateSource, prHold, reviewReader } from "./gate-source.mjs";
@@ -80,14 +80,4 @@ export async function main(env, { api, actions, adoption, log = (line) => consol
   return 0;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main(process.env).then(
-    (code) => {
-      process.exitCode = code;
-    },
-    (error) => {
-      console.log(`::error::gate-recheck failed: ${error.message}`);
-      process.exitCode = 1;
-    },
-  );
-}
+runAsScript(import.meta.url, "gate-recheck", () => main(process.env));

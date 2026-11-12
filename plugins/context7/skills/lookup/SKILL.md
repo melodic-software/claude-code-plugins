@@ -44,8 +44,6 @@ Or through the MCP server, when configured: `mcp__context7__resolve-library-id`,
 
 - **Pointer**: for each MCP tool's parameters, fetch
   [Context7: MCP Tools](https://github.com/upstash/context7#mcp-tools) live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section renames a tool or changes which parameters it requires.
 
 - Always resolve first; the docs step rejects anything but a resolved ID, unless the user supplied one in `/org/project` form.
 - One concept per query; run a separate lookup per independent topic, and at most 3 lookup commands per topic. When Context7 does not cover it, answer from training knowledge and say so.
@@ -73,19 +71,13 @@ never hand a `${…}` token from those files to the Bash tool.
   carries, fetch
   [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that table adds supporting files to where a `${…}` reference resolves, or the
-  Bash tool's environment starts carrying the plugin variables.
 
 ## Gotchas
 
 - **Windows Git Bash** rewrites `ctx7 docs /org/project` into `C:/Program Files/Git/org/project`. Always prefix `ctx7 docs`, and `ctx7 search --library /org/project`, with `MSYS_NO_PATHCONV=1`; `ctx7 library` is unaffected. Detail: [context/cli.md](context/cli.md).
   - **Pointer**: for how an MSYS2-based shell rewrites a `/org/project` argument, see
     [MSYS2: Automatic Unix ⟶ Windows Path Conversion](https://www.msys2.org/docs/filesystem-paths/#automatic-unix-windows-path-conversion).
-  - **As of**: 2026-11-03
-  - **Recheck trigger**: that section changes which arguments are converted.
 - For more content per call, use the MCP server. Which flags `ctx7 docs` takes is
-  [Context7 CLI § Query Library Documentation](https://context7.com/docs/clients/cli#query-library-documentation)
-  (as of 2026-11-10; recheck when that section adds a depth or token flag).
+  [Context7 CLI § Query Library Documentation](https://context7.com/docs/clients/cli#query-library-documentation).
 - Never run `ctx7 setup`, or `ctx7 skills install` if a guide names it: this plugin owns the lookup surface, and a second copy of Upstash's `find-docs` fragments lookups and drifts on its own.
 - This skill retrieves library docs only. Architecture decisions and other questions that need cross-checked sources go to a research workflow.

@@ -5,8 +5,7 @@
 # SIDE-EFFECT-ONLY by design: this hook's one job is the record it appends,
 # and it returns no decision. Pointer: when deciding whether StopFailure
 # output can do anything, fetch https://code.claude.com/docs/en/hooks#stopfailure
-# live. As of: 2026-10-11. Recheck trigger: the StopFailure section gives the
-# event decision control.
+# live.
 # The record is the reactive-fallback signal consumers read when the
 # module's snapshot carries no usable window data (see
 # ../reference/reader-contract.md). The payload carries no reset or quota

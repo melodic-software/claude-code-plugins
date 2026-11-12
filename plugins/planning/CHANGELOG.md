@@ -3,6 +3,29 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.3] - 2026-11-12
+
+### Changed
+
+- `/planning:draft-goal-condition` routes multi-window work to decomposed items so each starts in
+  a fresh window, and links the context-window docs for what a window carries across a compaction.
+
+## [3.1.2] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
+## [3.1.1] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
+### Fixed
+
+- Connect your Claude no longer stalls the page on session text holding a long run of dashes or `#` with no SESSION DATA marker after it: the marker pattern now matches one dash per repetition.
+
 ## [3.1.0] - 2026-11-11
 
 ### Changed

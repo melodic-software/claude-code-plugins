@@ -25,8 +25,7 @@ Markdown style, so nothing runs there. Carrying a config **is** the opt-in.
   repository root. A config the tool reads only when a flag points it there does not open
   the gate. Which file names it discovers, and how a nested config scopes, is
   [markdownlint-cli2: Configuration](https://github.com/DavidAnson/markdownlint-cli2#configuration)'s
-  to say (as of 2026-11-03; recheck when that section changes the discovered names or how
-  nested configs apply). Both the batch row and the pre-commit entry read the same gates
+  to say. Both the batch row and the pre-commit entry read the same gates
   (`git-hooks/markdown-gates.sh`).
 - **A config that can run code waits for your approval.** The plugin treats a `.cjs` or
   `.mjs` config, and a config naming `customRules`, `markdownItPlugins` or
@@ -43,12 +42,11 @@ Markdown style, so nothing runs there. Carrying a config **is** the opt-in.
   tier such as `.work/**`, build output, or a vendored tree, is not rewritten. The verdict
   comes from `git check-ignore`; which ignore sources it reads is
   [git-check-ignore: description](https://git-scm.com/docs/git-check-ignore#_description)'s
-  to say (as of 2026-11-03; recheck when that section changes which sources it consults or
-  how it treats tracked files). A **tracked** file is never treated as ignored. Set
+  to say. A **tracked** file is never treated as ignored. Set
   `markdown_format_lint_gitignored` to `true` to bypass this check. What markdownlint-cli2's
   own `ignores` and `gitignore` keys do then is
   [markdownlint-cli2: .markdownlint-cli2.jsonc](https://github.com/DavidAnson/markdownlint-cli2#markdownlint-cli2jsonc)'s
-  to say (as of 2026-11-03; recheck when that section changes either key). The pre-commit
+  to say. The pre-commit
   entry only sees files git stages, so it needs no such rule.
 - **Write paths the batch row does not see.** It reads only `Write`, `Edit` and `MultiEdit`
   calls. A file written through `Bash`, `PowerShell` or an MCP tool is not rewritten in
@@ -193,8 +191,7 @@ plugin keeps no exemption list of its own. Both the
 batch row and the pre-commit entry pass each file as a literal path. Whether a key applies
 to a literal path is
 [markdownlint-cli2: .markdownlint-cli2.jsonc](https://github.com/DavidAnson/markdownlint-cli2#markdownlint-cli2jsonc)'s
-to say (as of 2026-11-03; recheck when that section changes how `ignores` treats paths
-passed on the command line).
+to say.
 
 Three `userConfig` options tune the hooks:
 

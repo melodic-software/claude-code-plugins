@@ -54,15 +54,9 @@ Basis: judgment.
   - **Pointer**: for Apple's rules on when to ask and on any screen shown before the system alert,
     read the Human Interface Guidelines, Privacy, at
     <https://developer.apple.com/design/human-interface-guidelines/privacy>.
-  - **As of**: 2026-10-04
-  - **Recheck trigger**: the page's change log shows an update, or Apple changes App Tracking
-    Transparency review rules.
   - **Pointer**: for Android's rules on asking in context, the educational screen before the system
     dialog and repeated denial, read "Request runtime permissions" at
     <https://developer.android.com/training/permissions/requesting>.
-  - **As of**: 2026-10-04
-  - **Recheck trigger**: the page's last-updated date moves, or a new Android release changes the
-    permission model.
 - When local privacy law requires a consent screen, or the app cannot work without a permission,
   check Apple's current rules on where that screen or request may sit (around the system alert, or
   inside onboarding) before placing it in the first run. Basis: [apple-privacy], HIGH (single
@@ -71,8 +65,6 @@ Basis: judgment.
     Interface Guidelines, Onboarding, at
     <https://developer.apple.com/design/human-interface-guidelines/onboarding>; for the consent
     screen and the tracking alert, the Privacy page in the record above.
-  - **As of**: 2026-10-04
-  - **Recheck trigger**: the Onboarding page's change log shows an update.
 
 ## First-run flow specification
 

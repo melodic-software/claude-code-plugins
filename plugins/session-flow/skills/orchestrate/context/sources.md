@@ -32,12 +32,9 @@ the pointer. A blog post is never the pointer; it appears only as a correlate be
   <https://code.claude.com/docs/en/sub-agents#choose-between-subagents-and-main-conversation>;
   for multi-agent token cost, see <https://code.claude.com/docs/en/costs#agent-team-token-costs>
   and <https://code.claude.com/docs/en/agent-teams#when-to-use-agent-teams>. No docs page states a
-  cost multiplier as of the as-of date.
+  cost multiplier.
   (correlate with <https://claude.com/blog/building-multi-agent-systems-when-and-how-to-use-them>;
   correlate with <https://www.anthropic.com/engineering/multi-agent-research-system>)
-- **As of**: 2026-06-14
-- **Recheck trigger**: one of those sections moves, or a docs page starts stating a multi-agent
-  token multiplier.
 
 ## Imperative 2: SPEC EVERY SPAWN
 
@@ -50,9 +47,6 @@ it must not touch. Size the number of workers and their tool budgets to how hard
   for briefing a parallel worker, see
   <https://code.claude.com/docs/en/agent-teams#give-teammates-enough-context>.
   (correlate with <https://www.anthropic.com/engineering/multi-agent-research-system>)
-- **As of**: 2026-06-14
-- **Recheck trigger**: either section moves or stops covering what a delegated request should
-  carry.
 
 ## Imperative 3: FRESH-CONTEXT VERIFY
 
@@ -68,9 +62,6 @@ and the stated requirements, and judges the final state, not the process.
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#recommended-scaffolding-changes>.
   (correlate with <https://claude.com/blog/multi-agent-coordination-patterns>;
   correlate with <https://www.anthropic.com/engineering/multi-agent-research-system>)
-- **As of**: 2026-06-14
-- **Recheck trigger**: one of those sections moves or stops recommending a fresh-context
-  verifier.
 
 ## Imperative 4: RUN WORKERS WELL
 
@@ -81,8 +72,6 @@ under-delegating model too.
 
 - **Pointer**: for asynchronous dispatch, long-lived subagents and intervention, see
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#parallel-subagents>.
-- **As of**: 2026-06-14
-- **Recheck trigger**: that section moves or stops covering any of the three behaviors.
 
 ### A worker's own background work is not a wait
 
@@ -102,9 +91,6 @@ sessions, until their timeouts.
   deadlines, see <https://code.claude.com/docs/en/tools-reference#monitor-tool>; for the
   notification a background subagent gets, see
   <https://code.claude.com/docs/en/sub-agents#run-subagents-in-foreground-or-background>.
-- **As of**: 2026-10-01
-- **Recheck trigger**: either page changes its subagent background-command lifetime or
-  notification behavior, or the Monitor deadline figures.
 
 #### Record: a hung background shell keeps a returned worker listed as active
 
@@ -145,9 +131,6 @@ specifically.
   <https://code.claude.com/docs/en/sub-agents#resume-subagents>; for turning off cross-session
   messaging, see
   <https://code.claude.com/docs/en/cross-session-messaging#turn-off-cross-session-messaging>.
-- **As of**: 2026-08-24
-- **Recheck trigger**: a Claude Code changelog entry touching `SendMessage`, subagent resume, or
-  cross-session messaging.
 
 ## Imperative 5: NESTED SUBAGENTS
 
@@ -184,15 +167,12 @@ agents and agent-team teammates as outside those caps. Read the concurrency cap'
 how resumes count against it from the pointer before sizing a wide fan-out.
 
 - **Pointer**: <https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit>.
-- **As of**: 2026-08-15
-- **Recheck trigger**: a changelog entry touching subagent concurrency, or that section moves.
 
 **Below-limit fork parenting a non-fork child: unconfirmed.** The depth-limit rules imply a
 below-limit fork keeps `Agent`, but the docs do not state the child-type outcome and no
 authenticated probe has recorded it. Keep treating the path as unconfirmed.
 
 - **Pointer**: <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>.
-- **As of**: 2026-08-10
 - **Recheck trigger**: an authenticated probe session, or a sub-agents page edit that states the
   child-type rule explicitly.
 
@@ -205,8 +185,6 @@ tools. Either alone proves nothing. Agent-team teammates do not get `Workflow` b
 - **Pointer**: for the tool filters on subagents, see
   <https://code.claude.com/docs/en/sub-agents#available-tools>; for a fork's tools, see
   <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>.
-- **As of**: 2026-10-01
-- **Recheck trigger**: either section changes which tools a subagent, fork, or teammate keeps.
 
 ## Priming addendum: model and effort routing
 
@@ -216,9 +194,6 @@ any plugin. Without them, the session reads the upstream model-selection order d
 
 - **Pointer**: <https://code.claude.com/docs/en/sub-agents#choose-a-model>; with the plugin,
   `/multi-agent:assess` and `/multi-agent:route`.
-- **As of**: 2026-10-02
-- **Recheck trigger**: that section changes how a subagent's model is chosen, or the multi-agent
-  skills are renamed.
 
 ## Priming addendum: worker_continuation
 
@@ -230,9 +205,6 @@ interrupt, the setting decides whether it is.
 
 - **Pointer**: for what a resumed worker keeps, a user-stopped worker refusing messages and
   resuming after `TaskStop`, see <https://code.claude.com/docs/en/sub-agents#resume-subagents>.
-- **As of**: 2026-11-04
-- **Recheck trigger**: that section changes what a resumed worker keeps, how a stopped
-  worker answers a message, or whether a `TaskStop`-ed worker can be resumed.
 
 ## Imperative 6: SURFACE DRIFT
 
@@ -253,7 +225,6 @@ Part-sourced, part authoring convention. The boundary is called out per factor.
   and steer workers reaches further single-agent, and a weaker one needs more decomposition and
   tighter specs. Pointer:
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#capability-improvements>.
-  As of: 2026-06-14. Recheck trigger: that section moves or stops covering delegation.
 - **Advisor / verifier availability and context pressure** are operational authoring
   convention, NOT canonical Anthropic orchestration guidance. They scale the same underlying
   trade-offs (a fresh-context verifier is worth leaning on when one is on hand; a filling window is
@@ -270,26 +241,20 @@ Part-sourced, part authoring convention. The boundary is called out per factor.
   because a spawn that names none, for an agent whose definition names none, can fall through to
   the parent session's model: the mechanism behind premium-model fan-outs (imperatives 2 and 7's
   tiering clauses). Pointer: <https://code.claude.com/docs/en/sub-agents#choose-a-model> and
-  <https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model>. As of:
-  2026-09-27. Recheck trigger: the page changes the resolution order or what an omitted `model`
-  field resolves to, or a release note names subagent model resolution.
+  <https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model>.
 - **Tier is model AND effort.** A cheaper tier is a cheaper model, a lower effort, or both, and an
   agent definition can set its own effort. This backs imperative 7's "match the reasoning depth
   (effort) to the subtask too" clause. Pointer:
   <https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields> (the `effort` field).
-  As of: 2026-10-01. Recheck trigger: that field is renamed, removed, or stops overriding the
-  session's effort.
 - **Delegating bulk work and tuning effort are judgment calls.**
   Our reading: past a wide fan-out the cheaper tier is the default, and effort is matched to the
   subtask. The upstream page is linked, not restated. Pointer:
   <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work>
   and <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort>.
-  As of: 2026-10-18. Recheck trigger: either section changes its advice.
 - **Volume-driven default: a fleet inherits the session model unless explicitly routed.** A
   workflow stage that does not need the strongest model names a smaller one; an unrouted fleet runs
   on the session's model, the same resolution as the subagent path at fan-out scale. Pointer:
-  <https://code.claude.com/docs/en/workflows#cost>. As of: 2026-09-27. Recheck trigger: the page
-  changes how a workflow agent's model is picked.
+  <https://code.claude.com/docs/en/workflows#cost>.
 - **The platform's large-workflow warning is our anchor for "wide fan-out."** The brief speaks of
   a wide fan-out abstractly; the size guideline in force, the warning threshold, the concurrency
   bound with its override, and the total agent cap are read live from the pointer, never copied

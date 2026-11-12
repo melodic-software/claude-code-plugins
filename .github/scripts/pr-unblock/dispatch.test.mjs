@@ -1328,7 +1328,7 @@ test("the required-run read takes the newest pr-require-checks run that tested t
   // Run 14 is a contract-only run (only ci-status ran), stepped past.
   const contractOnly = [
     { name: "ci-status", conclusion: "failure" },
-    { name: "lint-repo", conclusion: "skipped" },
+    { name: "Lint Repo", conclusion: "skipped" },
   ];
   const responses = [
     {
@@ -1341,10 +1341,10 @@ test("the required-run read takes the newest pr-require-checks run that tested t
       ],
     },
     { total_count: 2, jobs: contractOnly },
-    { total_count: 1, jobs: [{ name: "test-node", conclusion: "cancelled" }] },
+    { total_count: 1, jobs: [{ name: "Test Node", conclusion: "cancelled" }] },
     { total_count: 0, workflow_runs: [] },
     { total_count: 1, workflow_runs: [failed(11, ".github/workflows/pr-require-checks.yml", "2026-10-22T02:00:00Z"), failed(13, ".github/workflows/pr-test-platforms.yml", "2026-10-22T04:00:00Z")] },
-    { total_count: 1, jobs: [{ name: "test-macos-planning-shared", conclusion: "failure" }] },
+    { total_count: 1, jobs: [{ name: "Test Macos Planning Shared", conclusion: "failure" }] },
   ];
   const api = createGitHubApi({
     token: "t0ken",
@@ -1358,7 +1358,7 @@ test("the required-run read takes the newest pr-require-checks run that tested t
   });
   assert.deepEqual(await api.readRequiredRun(head), {
     run: failed(12, ".github/workflows/pr-require-checks.yml", "2026-10-22T03:00:00Z"),
-    jobs: [{ name: "test-node", conclusion: "cancelled" }],
+    jobs: [{ name: "Test Node", conclusion: "cancelled" }],
   });
   assert.deepEqual(urls, [
     `https://api.example/repos/octo/repo/actions/runs?head_sha=${head}&event=pull_request&per_page=100`,
@@ -1369,7 +1369,7 @@ test("the required-run read takes the newest pr-require-checks run that tested t
   // A named workflow reads that workflow's runs instead.
   assert.deepEqual(await api.readRequiredRun(head, ".github/workflows/pr-test-platforms.yml"), {
     run: failed(13, ".github/workflows/pr-test-platforms.yml", "2026-10-22T04:00:00Z"),
-    jobs: [{ name: "test-macos-planning-shared", conclusion: "failure" }],
+    jobs: [{ name: "Test Macos Planning Shared", conclusion: "failure" }],
   });
   assert.equal(urls.at(-1), "https://api.example/repos/octo/repo/actions/runs/13/jobs?filter=latest&per_page=100");
   await assert.rejects(api.readRequiredRun("main"), /not a commit SHA/);
@@ -1381,7 +1381,7 @@ test("the required-run read skips a fork's newer run at the same head SHA", asyn
   const own = { id: 21, path: ".github/workflows/pr-require-checks.yml", created_at: "2026-10-22T02:00:00Z", status: "completed", conclusion: "failure", head_repository: { full_name: "octo/repo" } };
   // A fork PR pushed the same commit: its run is newer and still going.
   const fork = { ...own, id: 22, created_at: "2026-10-22T03:00:00Z", status: "in_progress", conclusion: null, head_repository: { full_name: "someone/repo" } };
-  const responses = [{ total_count: 2, workflow_runs: [fork, own] }, { total_count: 1, jobs: [{ name: "test-node", conclusion: "failure" }] }];
+  const responses = [{ total_count: 2, workflow_runs: [fork, own] }, { total_count: 1, jobs: [{ name: "Test Node", conclusion: "failure" }] }];
   const api = createGitHubApi({
     token: "t0ken",
     repository: "octo/repo",
@@ -1392,7 +1392,7 @@ test("the required-run read skips a fork's newer run at the same head SHA", asyn
       return { ok: true, status: 200, json: async () => responses.shift() };
     },
   });
-  assert.deepEqual(await api.readRequiredRun(head), { run: own, jobs: [{ name: "test-node", conclusion: "failure" }] });
+  assert.deepEqual(await api.readRequiredRun(head), { run: own, jobs: [{ name: "Test Node", conclusion: "failure" }] });
   assert.equal(urls.at(-1), "https://api.example/repos/octo/repo/actions/runs/21/jobs?filter=latest&per_page=100");
 });
 

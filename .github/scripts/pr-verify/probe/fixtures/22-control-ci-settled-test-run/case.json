@@ -4,6 +4,6 @@
   },
   "pr": {
     "title": "fix(sample-kit): order prerelease versions as SemVer 2.0.0 does",
-    "body": "Compares prerelease identifiers per SemVer 2.0.0 section 11 and asserts the spec's example chain in semver.test.mjs. The suite runs in CI's test-node job on this head; I did not run it locally."
+    "body": "Compares prerelease identifiers per SemVer 2.0.0 section 11 and asserts the spec's example chain in semver.test.mjs. The suite runs in CI's Test Node job on this head; I did not run it locally."
   }
 }

@@ -2,7 +2,7 @@
 
 Criteria P1-P5 for `/mcp-tools:audit-posture`. Each criterion names its severity rule and what it
 reads from the inventory. The decisions behind the criteria are in [Source records](#source-records),
-each with a pointer to where the fact lives, an as-of stamp and a recheck trigger.
+each with a pointer to where the fact lives.
 
 ## Contents
 
@@ -33,8 +33,7 @@ inventory table and get no findings, because Claude Code does not launch them fr
 `rejected-by-client` is a
 `managedMcpServers` entry that fails the entry checks the script applies, so the audit treats it as
 not loaded; the [managed precedence record](#managed-precedence) points at where those checks are
-defined, and `inventory.sh` encodes them. As of 2026-10-11. Recheck trigger: that record moves or
-stops pointing at the entry checks.
+defined, and `inventory.sh` encodes them.
 
 P2, P3, and P4 depend on facts outside the config. A result reached without a lookup the operator
 asked for carries the label `unverified`.
@@ -60,9 +59,6 @@ Reads the `launcher` and `pin` columns. Mechanical: no judgment beyond this tabl
   whether the npm registry lets a published version change, fetch the
   [npm unpublish policy, Considerations](https://docs.npmjs.com/policies/unpublish#considerations)
   live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: either section changes how a spec without a version resolves or whether a
-  used `package@version` can be published again.
 - `local` launchers (`pin` = `local-path` or `not-a-package`) and `remote` rows (`pin` = `n/a`)
   are `n/a` for P1. Name a `local-path` row in the details so the operator knows the code on disk
   is theirs to track.
@@ -145,9 +141,6 @@ started by Claude Code itself, outside the scope of the commands the sandbox cov
 - **Pointer**: for which commands the sandbox covers and the protected paths that keep a command
   from adding an MCP server, see <https://code.claude.com/docs/en/sandboxing> (the page
   introduction) and <https://code.claude.com/docs/en/sandboxing#protected-paths>.
-- **As of**: 2026-09-26
-- **Recheck trigger**: that page changes which commands the sandbox covers, or a Claude Code
-  release note names sandboxing together with MCP servers.
 
 ### Anthropic does not audit MCP servers
 
@@ -156,8 +149,6 @@ server as vetted by Anthropic.
 
 - **Pointer**: for Anthropic's position on MCP server review, see
   <https://code.claude.com/docs/en/security#mcp-security>.
-- **As of**: 2026-09-26
-- **Recheck trigger**: that section changes what Anthropic reviews.
 
 ### Registry moderation
 
@@ -166,9 +157,6 @@ gives a registry listing no weight as evidence of safety, including for known vu
 
 - **Pointer**: for what the registry moderates, and its preview status, see
   <https://modelcontextprotocol.io/registry/moderation-policy>.
-- **As of**: 2026-09-26
-- **Recheck trigger**: that page changes what the registry moderates or removes, or the registry
-  leaves preview.
 
 ### Docker sandboxes and local MCP servers
 
@@ -177,8 +165,6 @@ MCP server.
 
 - **Pointer**: for how Docker's sandbox model places local MCP servers, see
   <https://docs.docker.com/ai/sandboxes/security>.
-- **As of**: 2026-09-26
-- **Recheck trigger**: that page changes where local stdio MCP servers run.
 
 ### Postmark
 
@@ -186,8 +172,6 @@ P3's worked case: the audit treats `postmark-mcp` on npm as a package under Post
 Postmark did not publish.
 
 - **Pointer**: <https://postmarkapp.com/blog/information-regarding-malicious-postmark-mcp-package>.
-- **As of**: 2026-09-26
-- **Recheck trigger**: that post changes what it says about who published the package.
 
 ### Configuration sources
 
@@ -201,10 +185,6 @@ precedence they name. `inventory.sh` encodes both; this record says where to re-
   <https://code.claude.com/docs/en/managed-mcp#deploy-managed-mcp-json>,
   <https://code.claude.com/docs/en/managed-mcp#provide-servers-through-managed-settings>, and
   <https://code.claude.com/docs/en/managed-settings#split-a-file-based-policy-across-teams>.
-- **As of**: 2026-10-11
-- **Recheck trigger**: a Claude Code release note naming an MCP scope, `managed-mcp.json`, or
-  `managedMcpServers`, or a re-fetch of any of those sections diverging from what `inventory.sh`
-  reads.
 
 ### Managed precedence
 
@@ -220,9 +200,6 @@ case handling.
   see <https://code.claude.com/docs/en/managed-mcp#how-provided-servers-load> and
   <https://code.claude.com/docs/en/managed-mcp#exclusive-control-with-managed-mcp-json>; for the
   entry checks, <https://code.claude.com/docs/en/managed-mcp#what-an-entry-can-contain>.
-- **As of**: 2026-09-26
-- **Recheck trigger**: the managed-mcp page changes precedence or the entry checks, or a Claude
-  Code release note names `managedMcpServers` precedence or its entry checks.
 
 ### SDK entries
 

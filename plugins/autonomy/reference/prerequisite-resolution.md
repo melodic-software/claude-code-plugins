@@ -78,8 +78,7 @@ tokens"; they are not reused as probe labels.
    is a host-harness rule this contract does not restate.
    - **Pointer**: when a verdict depends on what enables a declared server, read the
      [project server enablement record](../skills/setup/context/prerequisite-resolution-slice.md#project-server-enablement)
-     and fetch the section it names live. **As of**: 2026-11-03. **Recheck trigger**: that
-     record's recheck trigger fires, or its heading is renamed or removed.
+     and fetch the section it names live.
 3. **machine-context**: CLI availability, local substrates, deterministic and per-surface. A
    result is a claim about the probed surface only, never a repo claim.
 4. **prose-context inference**: host instruction files, agent-instruction files, README are a
@@ -98,8 +97,6 @@ because this tree names no vendor. Last verified 2026-09-19, against harness ver
 - **Pointer**: when a proposal depends on which instruction files a session loads, read the
   [instruction-file loading record](../skills/setup/context/prerequisite-resolution-slice.md#instruction-file-loading)
   and fetch the sections it names live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that record's recheck trigger fires, or its heading is renamed or removed.
 
 Probe evidence is durable per surface under the existing isolation-binding pattern. Only signals
 with no owner (CI-config presence, flag-SDK presence) gain probes owned by this contract;

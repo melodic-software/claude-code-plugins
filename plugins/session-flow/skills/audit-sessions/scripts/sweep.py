@@ -592,16 +592,6 @@ def judged_section(turns: list[dict], verdicts: dict[str, dict], scope: str, cat
     }
 
 
-def _epoch(value: object) -> float | None:
-    if not isinstance(value, str):
-        return None
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return (parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)).timestamp()
-
-
 def first_match(pattern: re.Pattern, texts: list[object]) -> str | None:
     for text in texts:
         match = pattern.search(text) if isinstance(text, str) else None
@@ -621,8 +611,8 @@ def ticket_row(key: str, members: list[dict]) -> dict:
     timed = []
     for r in members:
         times = r.get("time") if isinstance(r.get("time"), dict) else {}
-        start = _epoch(times.get("start"))
-        timed.append((start, _epoch(times.get("end")) or start, r))
+        start = census.epoch(times.get("start"))
+        timed.append((start, census.epoch(times.get("end")) or start, r))
     timed.sort(key=lambda t: (t[0] is None, t[0] or 0, t[2]["session_id"]))
     gaps, latest = [], None
     for start, end, _ in timed:
@@ -696,13 +686,6 @@ def emit(fmt: str, status: str, summary: str, data: dict, code: int) -> int:
     return code
 
 
-def _positive(value: str) -> int:
-    number = int(value)
-    if number < 1:
-        raise argparse.ArgumentTypeError("must be 1 or more")
-    return number
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Report session metrics and findings from the audit-sessions store.")
     parser.add_argument("--data-dir", required=True)
@@ -712,9 +695,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--state-key", help="lib/state-key.sh output; required with --scope project")
     parser.add_argument("--catalog", nargs="+", action="extend", help="installed skills; others render (not installed)")
     parser.add_argument("--canaries", default=str(census.BUNDLED_CANARIES))
-    parser.add_argument("--min-count", type=_positive, default=census.DEFAULT_MIN_COUNT)
-    parser.add_argument("--versions", type=_positive, default=census.DEFAULT_VERSIONS)
-    parser.add_argument("--session-floor", type=_positive, default=census.DEFAULT_SESSION_FLOOR)
+    parser.add_argument("--min-count", type=census._positive, default=census.DEFAULT_MIN_COUNT)
+    parser.add_argument("--versions", type=census._positive, default=census.DEFAULT_VERSIONS)
+    parser.add_argument("--session-floor", type=census._positive, default=census.DEFAULT_SESSION_FLOOR)
     parser.add_argument("--format", choices=("json", "md"), default="json")
     parser.add_argument("--write-report", action="store_true")
     mode = parser.add_mutually_exclusive_group()

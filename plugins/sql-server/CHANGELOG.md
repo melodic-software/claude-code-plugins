@@ -3,6 +3,18 @@
 All notable changes to the `sql-server` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.7] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
+## [0.6.6] - 2026-11-12
+
+### Changed
+
+- Synced the shared library copies this plugin carries; their pointer records no longer carry an as-of date or recheck trigger.
+
 ## [0.6.5] - 2026-11-11
 
 ### Changed

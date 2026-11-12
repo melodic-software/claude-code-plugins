@@ -2589,6 +2589,29 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assertEqual(code, 0, out["blockers"])
         self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
 
+    def test_a_rate_limited_removal_at_the_cap_does_not_count(self) -> None:
+        removals = ["2026-11-12T03:00:00Z", "2026-11-12T04:40:05Z"]
+        self.queue = {
+            **fixtures._queue_read(required=True, failed_ejections=2),
+            "failedRemovals": removals,
+        }
+        for limited, enqueued in ((1, True), (0, False)):
+            with (
+                self.subTest(limited=limited),
+                mock.patch.object(
+                    merge, "rate_limited_removals", return_value=limited
+                ) as check,
+                mock.patch.object(merge, "_failed_merge_group_runs", return_value=[]),
+            ):
+                self.log.clear()
+                code, out = self.run_main()
+                check.assert_called_once_with("owner/repo", "main", PR, removals, 2)
+                if enqueued:
+                    self.assertEqual(code, 0, out["blockers"])
+                    self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+                else:
+                    self.assert_no_merge(code)
+
     def test_the_ejection_cap_is_the_configured_one(self) -> None:
         self.config = dataclasses.replace(self.config, max_queue_ejections=3)
         self.queue = fixtures._queue_read(required=True, failed_ejections=2)

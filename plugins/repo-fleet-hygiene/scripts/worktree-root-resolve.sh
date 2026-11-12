@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# GENERATED from lib/worktree-root-resolve.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # worktree-root-resolve.sh — last-wins read of worktreeroot.path.
 # Owner: reference/worktree-root-convention.md (source-control).
 #

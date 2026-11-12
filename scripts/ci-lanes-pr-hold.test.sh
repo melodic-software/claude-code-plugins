@@ -731,6 +731,7 @@ for path in plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evi
   .github/scripts/pr-unblock/publish-feedback.mjs .github/scripts/pr-unblock/request-budget.mjs \
   .github/scripts/pr-unblock/dependency-classify.mjs .github/scripts/apply-patch/apply-patch.mjs \
   .github/scripts/apply-patch/predicates.mjs .github/scripts/apply-patch/protected-paths.mjs \
+  .github/scripts/lib/run-main.mjs .github/scripts/lib/github-rest.mjs \
   .github/scripts/pr-unblock/fix-ci-context.mjs \
   .github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"

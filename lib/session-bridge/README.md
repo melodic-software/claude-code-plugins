@@ -185,8 +185,6 @@ and flags: [channels research preview](https://code.claude.com/docs/en/channels#
 the capability and event a server declares and emits:
 [server options](https://code.claude.com/docs/en/channels-reference#server-options) and
 [notification format](https://code.claude.com/docs/en/channels-reference#notification-format).
-As of 2026-10-11; recheck when any of those sections changes the flags, the capability or the
-event.
 
 - `session_bridge.py relay` runs `ChannelServer`, a stdio MCP server that declares the
   `claude/channel` capability and three tools taking `data_dir`: `watch`, `events` and `unwatch`.

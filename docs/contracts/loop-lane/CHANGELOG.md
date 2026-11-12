@@ -5,6 +5,18 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [19.6.1] - 2026-11-11
+
+Patch. Wording only; no topology, escalation-contract mechanism, capability-tier or §4 invariant
+changed.
+
+- **Cycle budget.** The contract names `harness-ops` `lanes` `consume-restarts` as the launcher
+  that relaunches a stopped lane whose telemetry carries a `restart_request`, once the operator
+  registers its OS schedule; until then a budget hit stays a terminal manual-restart state.
+- **Permission modes.** An auto-mode classifier denial comes back to the lane session as an error
+  tool result, seen in the transcript and `claude logs <id>`; whether it reaches lane telemetry is
+  unprobed.
+
 ## [19.6.0] - 2026-11-11
 
 Minor: additive guidance.

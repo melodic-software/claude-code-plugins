@@ -22,9 +22,7 @@ default of `do-your-research`'s fan-out tier (`research_deep_verification`) and
 `lever_scope`. They are personal options, held in user settings, and this skill
 reads only their rendered values (`check` step 1). How Claude Code collects and
 stores them, and which settings files it reads them from, are read live
-from [plugin manifest reference: where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
-(as of 2026-11-03; recheck when that section changes where options are stored or which
-files they are read from).
+from [plugin manifest reference: where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored).
 
 The plugin owns one tracked consumer file, `docs/conventions/discipline.yaml`, the
 repository layer of `lever_scope` (keys, values and layers:
@@ -47,8 +45,7 @@ Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#u
    literal `${user_config.…}` placeholder as unset (the key's own default applies);
    never read the literal token as a value. Substitution is documented at
    [plugin manifest reference: reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value),
-   which as of 2026-11-03 does not say what an unset option renders; recheck when
-   that section states it.
+   which does not say what an unset option renders.
 3. For each set batch option, split on commas and report the parsed corrector names,
    and the net effect: `batch_exclude` drops those correctors from the batch,
    `batch_promote` runs those situational correctors every session, `batch_demote`
@@ -95,9 +92,6 @@ Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#u
    section the Pointer below names, and report what it states.
    - **Pointer**: when reporting whether fork mode is on, fetch
      <https://code.claude.com/docs/en/sub-agents#turn-fork-mode-on-or-off> live.
-   - **As of**: 2026-10-11
-   - **Recheck trigger**: that section changes which sessions have fork mode on by default,
-     its version floor, or the variable that overrides it.
 
    `sweep-all` preflights this itself and degrades when the fan-out cannot inherit; that runbook owns the behavior; report the prerequisite here only so an unavailable
    fan-out reads as expected rather than as a misconfiguration, and do not restate what
@@ -119,15 +113,11 @@ Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#u
      when a saved value applies, fetch
      [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
      live.
-   - **As of**: 2026-11-11
-   - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-     refused value, or when a saved value applies.
 9. Tell the user to rerun `check` after reconfiguration **in a fresh session**, and report the
    OBSERVED effective values from that fresh run, never an unobserved change. Substitution of the
    rendered `${user_config.*}` values is documented at
    [plugin manifest reference: reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value),
-   which as of 2026-11-03 does not say when skill content is re-rendered; recheck when that
-   section states it.
+   which does not say when skill content is re-rendered.
 
 ## `apply` (writes `docs/conventions/discipline.yaml` only)
 

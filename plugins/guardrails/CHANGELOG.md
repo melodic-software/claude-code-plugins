@@ -3,6 +3,23 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.30] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
+- Synced the shared library copies this plugin carries; their pointer records no longer carry an as-of date or recheck trigger.
+
+## [3.0.29] - 2026-11-12
+
+### Changed
+
+- The `merge_guard_ignored_checks` default is `github-actions:Merge,github-actions:merge`: the
+  pr-merge job's check is now `Merge`, and `merge` on a head tested before the rename.
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
 ## [3.0.28] - 2026-11-12
 
 ### Changed

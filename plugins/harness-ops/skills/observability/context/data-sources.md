@@ -9,7 +9,7 @@
 - [2.6 Toggles and retention in effect](#26-toggles-and-retention-in-effect)
 - [3. Tool call decisions: which calls were denied, and why](#3-tool-call-decisions-which-calls-were-denied-and-why)
 - [4. Recurring tool-call patterns](#4-recurring-tool-call-patterns)
-- [4.5 Hallucination-guard catches (`cli-flag-verify` violations)](#45-hallucination-guard-catches-cli-flag-verify-violations)
+- [4.5 Hallucination-guard catches (`cli-flag-verify`)](#45-hallucination-guard-catches-cli-flag-verify)
 - [5. Drift candidates (rules-vs-code mismatches)](#5-drift-candidates-rules-vs-code-mismatches)
 - [6. Calibration signal: dismissed observations](#6-calibration-signal-dismissed-observations)
 - [7. Git + GH activity (context for severity)](#7-git--gh-activity-context-for-severity)
@@ -25,8 +25,7 @@ The hook log root is the plugin's `session_event_log_dir` option, project-relati
 `.observability/claude`. Its rendered value is the `root` entry on the skill body's "Rendered
 options" line: use that, never `CLAUDE_PLUGIN_DATA` and never the environment (which processes receive
 `CLAUDE_PLUGIN_OPTION_*` is read live from
-[plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves),
-as of 2026-11-10; recheck when that table exports it to skill subprocesses). A `--hook-root REL` token on the invocation overrides it for one
+[plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)). A `--hook-root REL` token on the invocation overrides it for one
 run. Under the root: `sessions/<session_id>.jsonl`, one file per session, holding the
 per-session event log rows (`source: "event-log"`) and the sink's envelope rows for that
 session (`source: "envelope"`); and the shared `hook-events.jsonl`, holding the same envelope
@@ -126,9 +125,8 @@ Cross-platform: `date -u -d "..."` is GNU. macOS BSD date uses `date -u -v-7d`. 
 **Preferred path: MCP** (no shell-out per call). This skill reads the ccusage
 MCP server's per-day, per-session and 5-hour block reports. Its tool names, arguments and
 return shapes are read live from the server's own tool listing in the session,
-not from this file: as of 2026-11-03 ccusage publishes no MCP reference page
-(`ccusage.com/guide/mcp-server` returned 404). Recheck when ccusage publishes
-one, and point at it here.
+not from this file: ccusage publishes no MCP reference page
+(`ccusage.com/guide/mcp-server` returned 404).
 
 **Fallback path: CLI** when the ccusage MCP server is not configured.
 
@@ -257,9 +255,7 @@ holds, normally the first call's.
 
 - **Pointer**: when checking when `PostToolBatch` fires or the field order of its call list,
   fetch [hooks: PostToolBatch input](https://code.claude.com/docs/en/hooks#posttoolbatch-input)
-  live. **As of**: 2026-10-11. **Recheck trigger**: a `/harness-ops:changelog` ingest whose notes
-  touch hooks, or a batch line's `tool_name` stops matching the transcript's first call of that
-  batch.
+  live.
 
 ```bash
 jq -sr '.[] | select(.source == "event-log")
@@ -320,8 +316,7 @@ drove it, in the promoted `decision` and `source` columns. The DuckDB projection
 - **Pointer**: when stating an event's attributes, their values, or what a `source` bucket
   covers, fetch [monitoring: tool decision event](https://code.claude.com/docs/en/monitoring-usage#tool-decision-event)
   and [monitoring: tool result event](https://code.claude.com/docs/en/monitoring-usage#tool-result-event)
-  live. **As of**: 2026-11-03. **Recheck trigger**: either section renames an attribute or
-  changes its values.
+  live.
 
 **Attribution caveat:** a bucket spans many mechanisms, so a reject count in one bucket is an
 **upper bound** on deny-rule firings and cannot be pinned to an individual rule. Per-rule
@@ -360,42 +355,15 @@ jq -s 'map(select(.hook != null)) | sort_by(.ts) as $e
 ' "${HOOK_FILES[@]}"
 ```
 
-## 4.5 Hallucination-guard catches (`cli-flag-verify` violations)
+## 4.5 Hallucination-guard catches (`cli-flag-verify`)
 
-`cli-flag-verify` PostToolUse hook (advisory exit 1) emits one `PostToolUse` event per unverifiable `<bin> --<flag>` pair detected in a Write/Edit, discriminated from other `PostToolUse` writers via the `hook` field. Subject format: `<bin>:<sha16>`, with bin in clear (groupable) and sha16 = first 16 hex of `sha256("<bin> <flag>")` (flag content protected). Schema: whatever envelope the consumer's hook emitter writes; the fields used here are `hook` and `subject`. Per-period count + per-binary breakdown calibrates the verifier (false-positive rate, hallucination hot-spots) and gates the future advisory→blocking exit-2 graduation.
-
-**Per-period count + per-binary breakdown:**
-
-```bash
-jq -s --arg since "$SINCE_ISO" '
-  map(select(.hook_event_name == "PostToolUse" and .hook == "cli-flag-verify" and .ts >= $since))
-  | { total: length,
-      unique_pairs: (map(.subject) | unique | length),
-      by_binary: (group_by(.subject | split(":")[0])
-                  | map({ bin: .[0].subject | split(":")[0],
-                          count: length,
-                          unique: (map(.subject) | unique | length) })
-                  | sort_by(-.count)) }
-' "${HOOK_FILES[@]}"
-```
-
-**Top recurring hallucinations** (same `<bin>:<sha16>` repeating = same flag re-hallucinated):
-
-```bash
-jq -s --arg since "$SINCE_ISO" '
-  map(select(.hook_event_name == "PostToolUse" and .hook == "cli-flag-verify" and .ts >= $since) | .subject)
-  | group_by(.) | map({ subject: .[0], count: length })
-  | sort_by(-.count) | .[0:10]
-' "${HOOK_FILES[@]}"
-```
-
-**Flag rules:**
-
-- HIGH: same `<bin>:<sha16>` appearing 3+ times (recurring agent confusion, an escalation candidate for blocking exit 2 once FP rate < 1%)
-- MEDIUM: per-binary count > 5 in window (binary's `--help` may be non-exhaustive, a candidate for the guardrails `cli_flag_verify_skip_bins` option)
-- INFO: total count, unique-pair count, per-binary distribution
-
-Empty: `"no cli-flag-verify violations: verifier may be advisory-clean OR the consumer's telemetry sink is not wired/enabled"`.
+guardrails runs `cli-flag-verify` at push time, in its `reference-verify` git hook, not after each
+Write or Edit: the `reference-verify` entry is a `pre-push` hook whose assets carry
+`hooks/cli-flag-verify.sh` (`plugins/guardrails/git-hooks/entries.json:43-52`), and
+`plugins/guardrails/hooks/hooks.json` registers no `cli-flag-verify` hook. A git hook writes no
+Claude Code hook event, so the hook event log holds no catches to count. Report the section as
+`not collected: cli-flag-verify runs at push time in guardrails' reference-verify git hook`, and
+never read an empty count as a clean verifier.
 
 ## 5. Drift candidates (rules-vs-code mismatches)
 

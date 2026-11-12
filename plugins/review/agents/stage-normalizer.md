@@ -24,5 +24,3 @@ routing sets both; it exists only to narrow the stage's tools.
 
 - **Pointer:** for how a `tools` list withholds tools from a subagent, see
   [create custom subagents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools).
-- **As of:** 2026-10-04.
-- **Recheck trigger:** that section changes how an omitted `tools` entry is withheld.

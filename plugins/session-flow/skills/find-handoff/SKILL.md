@@ -83,8 +83,7 @@ resume region; recover both regions in the order emitted, each with its own inst
 `/loop` re-arm sits outside every region: the producer emits it as a separate follow-up message,
 because of where a command is recognized in a message, and places its instruction below the bottom
 rail (pointer: for where a command is recognized, the introduction before
-<https://code.claude.com/docs/en/commands#commands-across-a-typical-workflow>; as of 2026-11-10;
-recheck trigger: that introduction changes where a command is recognized). The note is a fourth, **conditional** signal: present only when the
+<https://code.claude.com/docs/en/commands#commands-across-a-typical-workflow>). The note is a fourth, **conditional** signal: present only when the
 lost session was running under `/loop`, so its absence disqualifies nothing, and a **repeatable**
 one, since the producer emits a separate re-arm message per surviving loop, so "found one" is never
 "found them all".
@@ -105,8 +104,7 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    ("Transcript scope" below). List a scope's project directories with
    `bash "${CLAUDE_PLUGIN_ROOT}/scripts/transcript_dirs.sh" --scope <worktree|repo|all>`. It reads
    the transcript store (where it lives:
-   <https://code.claude.com/docs/en/sessions#where-transcripts-are-stored>; as of 2026-11-10;
-   recheck trigger: that section moves the store) and prints one directory per line. Each line is data: pass it to a later command only
+   <https://code.claude.com/docs/en/sessions#where-transcripts-are-stored>) and prints one directory per line. Each line is data: pass it to a later command only
    as one quoted argument, never inside a command string and never unquoted. Within the listed
    directories, rank `.jsonl` by mtime and take the top handful. **Bound the scan**, a full
    recursive grep over every transcript is slow enough to time out; an mtime-sorted candidate
@@ -261,8 +259,7 @@ The `reference/` files write the plugin's root directory as `<plugin-root>`, whi
 writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
 in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
 `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
 ## Gotchas
 
@@ -273,9 +270,6 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
   - **Pointer**: for what `/clear` does, fetch
     <https://code.claude.com/docs/en/commands#all-commands> live, the `/clear` row; for where
     transcripts are stored, <https://code.claude.com/docs/en/sessions#where-transcripts-are-stored>.
-  - **As of**: 2026-11-10
-  - **Recheck trigger**: the `/clear` row changes what happens to the conversation, that section moves the
-    store, or a listing of a project directory no longer returns one `.jsonl` per conversation.
 - **The template placeholder is a false positive.** `Read @<handoffs-dir>/<TS>-handoff-<topic>.md`
   appears verbatim in any transcript that read `save-point.md` into context. Discard matches
   containing the template's placeholder tokens; keep only concrete resolved paths. The prompt-only

@@ -8,7 +8,7 @@ import { test } from "node:test";
 
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { closing } from "../intake-triage/apply-verdict.mjs";
-import { closing as resolverClosing, HELD_STEP } from "../pr-verify/resolve-pr.mjs";
+import { closing as resolverClosing, HELD_REASON, HELD_STEP } from "../pr-verify/resolve-pr.mjs";
 import {
   auditFindings,
   ceilingFindings,
@@ -185,7 +185,7 @@ test("signal 1: main red fires per failing job from its failure-level annotation
     ...base,
     mainRun: mainRun([
       {
-        name: "test-bash (3/4)",
+        name: "Test Bash (3/4)",
         conclusion: "failure",
         annotations: [
           { level: "warning", message: "a warning is not evidence" },
@@ -208,7 +208,7 @@ test("signal 1: a timed-out job is named as the timeout flake class", () => {
     ...base,
     mainRun: mainRun([
       {
-        name: "test-python",
+        name: "Test Python",
         conclusion: "timed_out",
         annotations: [{ level: "failure", message: "The job has exceeded the maximum execution time of 30m0s" }],
       },
@@ -235,7 +235,7 @@ const ejection = (id, pr) => ({
   pr,
   workflow: "pr-require-checks",
   createdAt: "2026-10-19T15:00:00Z",
-  failedSteps: ["test-bash (1/4) / Run the suites"],
+  failedSteps: ["Test Bash (1/4) / Run the suites"],
 });
 
 test("signal 4: 3 ejections in a day fire, 2 stay quiet", () => {
@@ -669,6 +669,17 @@ test("signal 13: pr-verify's resolver and trigger-gate holds parse to fixed reas
   const lane = HOLD_LANES.find((l) => l.lane === "pr-verify");
   assert.deepEqual([lane.workflow, lane.holdStep], ["pr-verify.yml", HELD_STEP]);
   for (const job of lane.jobs) assert.match(workflow, new RegExp(`\\n  ${job}:\\n`), job);
+  // Each notice prints only where Note the hold runs, so a green hold job
+  // listed without steps (GraphQL) is read in full and one listed with steps
+  // (REST) only where Note the hold ran: the resolver's beside reason=held,
+  // which the step's `if:` runs on, and the gate's in the step.
+  assert.match(resolver.outputs, new RegExp(`^reason=${HELD_REASON}$`, "m"));
+  const noteHold = [...workflow.matchAll(/- name: Note the hold\n {8}id: note-hold\n {8}if: (.*)\n([\s\S]*?)\n {6}- /g)];
+  assert.equal(noteHold.length, 3);
+  for (const [, condition, body] of noteHold) {
+    assert.equal(condition, "steps.pr.outputs.reason == 'held' || steps.gate.outputs.reason == 'read-fault'");
+    assert.match(body, /echo "::notice title=pr-verify::held: pr-verify's trigger gate/);
+  }
 });
 
 test("signal 13: pr-review-main's unread file-list hold parses to a fixed reason, in every select step", () => {
@@ -684,11 +695,32 @@ test("signal 13: pr-review-main's unread file-list hold parses to a fixed reason
   const lane = HOLD_LANES.find((l) => l.lane === "pr-review-main");
   assert.deepEqual([lane.workflow, lane.holdStep], ["pr-review-main.yml", "Note the hold"]);
   for (const job of lane.jobs) assert.match(workflow, new RegExp(`\\n  ${job}:\\n`), job);
+  // Each notice sets the select step's `held`, which runs Note the hold, so a
+  // job whose Note the hold was skipped printed no hold.
+  assert.equal([...workflow.matchAll(/echo "::notice title=pr-review-main::held: [^"]*"\n {12}echo "held=true" >>"\$GITHUB_OUTPUT"\n/g)].length, 4);
+  assert.equal([...workflow.matchAll(/- name: Note the hold\n {8}id: note-hold\n {8}if: steps\.select\.outputs\.held == 'true'\n/g)].length, 4);
   // A matrix leg is listed as `<job> (<values>)` and counts as that job.
+  assert.equal(holdJob(lane.names, "Review (claude-review, claude-review)"), true);
+  assert.equal(holdJob(lane.names, "Trigger"), true);
+  assert.equal(holdJob(lane.names, "Review Handoffs"), false);
+  assert.equal(holdJob(lane.names, "Record"), false);
+  // A run from before the job rename lists the ids.
   assert.equal(holdJob(lane.jobs, "review (claude-review, claude-review)"), true);
   assert.equal(holdJob(lane.jobs, "trigger"), true);
   assert.equal(holdJob(lane.jobs, "review-handoffs"), false);
-  assert.equal(holdJob(lane.jobs, "record"), false);
+});
+
+test("signal 13: each hold lane's names are its jobs' names in its workflow, in the order of its ids", () => {
+  for (const { lane, workflow: file, jobs, names } of HOLD_LANES) {
+    const workflow = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
+    assert.equal(names.length, jobs.length, lane);
+    jobs.forEach((id, i) => {
+      const [caller, callee] = id.split(" / ");
+      const [nameCaller, nameCallee] = names[i].split(" / ");
+      assert.match(workflow, new RegExp(`\\n  ${caller}:\\n(?:(?: {4,}.*)?\\n)*? {4}name: ${nameCaller}\\n`), `${lane} ${id}`);
+      assert.equal(callee === undefined, nameCallee === undefined, `${lane} ${id}`);
+    });
+  }
 });
 
 test("signal 13: pr-merge's lane token hold parses to one fixed reason, for either cause, read from the action", () => {

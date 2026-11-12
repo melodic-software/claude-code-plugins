@@ -1854,7 +1854,6 @@ _status_one() {
 # We treat a set variable as able to override every lane's --effort and every agent
 # pin, so a set value is said once. Pointer: for its precedence, see the
 # CLAUDE_CODE_EFFORT_LEVEL row at https://code.claude.com/docs/en/env-vars#variables.
-# As of: 2026-10-02. Recheck trigger: that row's precedence changes.
 warn_effort_env_override() {
   [[ -n "${CLAUDE_CODE_EFFORT_LEVEL:-}" ]] || return 0
   warn "CLAUDE_CODE_EFFORT_LEVEL=$CLAUDE_CODE_EFFORT_LEVEL is set and every lane inherits it; it may override lane --effort values and agent effort pins, so those may not hold"

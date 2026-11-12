@@ -97,9 +97,6 @@ Report a PASS/INFO/WARN table. Write nothing.
      when a saved value applies, fetch
      [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
      live.
-   - **As of**: 2026-11-11
-   - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-     refused value, or when a saved value applies.
 8. Tell the user to rerun `check` after a `userConfig` change in a **fresh session**, since a
    same-session `check` can still show the old value. Then report the observed effective settings,
    never an unobserved change.

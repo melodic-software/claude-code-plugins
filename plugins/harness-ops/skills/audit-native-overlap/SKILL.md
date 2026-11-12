@@ -303,9 +303,9 @@ observation is extraction-evidence is written together with a `## Boundary` sect
 component's body, in the same change: the surfaces by provenance class, the routing split, and
 the mutation gate, with the records behind them in a reference file inside the same skill that
 the section links. Each record holds our decision in our words, a pointer to the exact upstream
-section, the as-of date and the recheck trigger, and no upstream text; a table form uses the
-header `| Decision | Pointer | As of | Recheck when |`. A body loads only on invocation, so
-the section spends no listing budget and moves no routing; it is what makes the verdict real for
+section, and no upstream text (table header `| Decision | Pointer |`); a stored value adds the
+`As of` and `Recheck when` columns. A body loads only on invocation, so the section spends no
+listing budget and moves no routing; it is what makes the verdict real for
 the model, and a row without it fails the self-check. Boundary-only baking may cover several
 plugins in one change.
 
@@ -385,12 +385,12 @@ that answer is not evidence of absence. A `200` is also not proof you got the pa
 retired slugs are silently aliased, so the fetcher confirms the slug against the docs index
 (`llms.txt`); still read the body's own first heading before citing it.
 
-Two upstream dependencies of this skill, each with the trigger that obliges re-deriving it:
+Two upstream dependencies of this skill:
 
-| Decision | Pointer | As of | Recheck when |
-|---|---|---|---|
-| We treat the description as the routing surface and measure a baked description against the per-entry cap and the listing budget, reading both values from the settings pointers here. For which entries overflow drops, we use the order our own binary reading records in [`audit-skill-visibility/reference/listing-scorer.md`](../audit-skill-visibility/reference/listing-scorer.md); the docs page and that reading disagree on the drop order | [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference), [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short), [`skillListingMaxDescChars`](https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars), [`skillListingBudgetFraction`](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction); the drop order is our binary reading | 2026-10-11 | Either default moves, or the binary's scorer or grant loop diverges from that reference |
-| We make no static availability claim for a native surface, because we treat settings and environment, plan, platform or provider, and host surface as each able to remove one | [`disableBundledSkills`](https://code.claude.com/docs/en/settings-reference#disablebundledskills), [environment variables](https://code.claude.com/docs/en/env-vars), [Commands](https://code.claude.com/docs/en/commands), [What's available in cloud sessions](https://code.claude.com/docs/en/cloud-environments#what%E2%80%99s-available-in-cloud-sessions) | 2026-08-23 | A release or docs change adds, removes, or renames a gating axis |
+| Decision | Pointer |
+|---|---|
+| We treat the description as the routing surface and measure a baked description against the per-entry cap and the listing budget, reading both values from the settings pointers here. For which entries overflow drops, we use the order our own binary reading records in [`audit-skill-visibility/reference/listing-scorer.md`](../audit-skill-visibility/reference/listing-scorer.md); the docs page and that reading disagree on the drop order | [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference), [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short), [`skillListingMaxDescChars`](https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars), [`skillListingBudgetFraction`](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction); the drop order is our binary reading |
+| We make no static availability claim for a native surface, because we treat settings and environment, plan, platform or provider, and host surface as each able to remove one | [`disableBundledSkills`](https://code.claude.com/docs/en/settings-reference#disablebundledskills), [environment variables](https://code.claude.com/docs/en/env-vars), [Commands](https://code.claude.com/docs/en/commands), [What's available in cloud sessions](https://code.claude.com/docs/en/cloud-environments#what%E2%80%99s-available-in-cloud-sessions) |
 
 ## Gotchas
 
@@ -398,7 +398,7 @@ Two upstream dependencies of this skill, each with the trigger that obliges re-d
   That is why the routing lives in descriptions rather than in a name. Pointer: when stating how
   same-named skills resolve, fetch the plugin-skill row of
   [skills: resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name)
-  live. As of: 2026-11-10. Recheck trigger: that row stops saying both load.
+  live.
 - **`plugin_backed` is its own lane.** `security-review` is reported there, not under
   `builtin_commands`. Read the wrong key and the row looks absent. Pointer: our probe, the
   `plugin_backed` key of an `inventory.py --binary-only` extraction on this machine, which held

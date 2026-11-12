@@ -32,8 +32,7 @@ always-loaded index still describe what is on disk?**
 
 It exists because every failure mode here is silent: a glob that matches nothing, a malformed
 bracket expression, a pattern over the brace budget (how Claude Code treats one:
-[Memory, "Path-specific rules"](https://code.claude.com/docs/en/memory#path-specific-rules), as of
-2026-11-10; recheck when that section starts reporting such a pattern or changes how it uses one).
+[Memory, "Path-specific rules"](https://code.claude.com/docs/en/memory#path-specific-rules)).
 The rule simply never fires, and the convention it carries is quietly
 absent from every session that needed it. A repository can accumulate a dozen dead rules and look
 healthy.
@@ -69,9 +68,6 @@ canary on Claude Code 2.1.278, recorded in that file under "The CI canary", obse
 - **Pointer**: for when Claude Code reads `AGENTS.md` and when that support is unavailable, see
   <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> and
   <https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable>.
-- **As of**: 2026-11-10
-- **Recheck trigger**: those sections change which file names shadow `AGENTS.md`, or a release note
-  names `AGENTS.md` or instruction-file loading.
 
 Over-broad is the one **warning** rather than a failure: breadth is a judgment about whether a
 demotion was worth making, not a statement that the rule is broken. Everything else is a hard fail.
@@ -142,9 +138,7 @@ SUMMARY <tab> tracked <tab> patterns <tab> invalid <tab> overbroad <tab> verdict
 
 A `FRONTMATTER` row counts toward `invalid`. It is a static screen, not a YAML parser, so a green
 gate does not prove the YAML is valid. To see the parser's own error, follow the
-[rule frontmatter reference](https://code.claude.com/docs/en/memory#rules-frontmatter-reference)
-(read 2026-10-17; recheck trigger: that section changing how an unparsable frontmatter is
-reported or loaded).
+[rule frontmatter reference](https://code.claude.com/docs/en/memory#rules-frontmatter-reference).
 
 Report per failing pattern: the rule file, the pattern, the status, and **what the operator should
 do about it**. The three failure statuses have different fixes and saying "invalid" helps nobody.
@@ -153,7 +147,7 @@ do about it**. The three failure statuses have different fixes and saying "inval
 |---|---|---|
 | `zero-match` | No tracked file under the rule's base directory matches | The glob is wrong, or the code it described was moved or deleted. Correct the pattern, or retire the rule |
 | `bad-bracket` | A `[` cannot be read as a bracket expression | Escape it as `\[` if it is a literal, or close the expression |
-| `over-budget` | Expansion exceeded the brace budget ([Path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules), as of 2026-11-10, recheck when that section changes the budget) | Split the rule, or replace brace groups with a broader pattern |
+| `over-budget` | Expansion exceeded the brace budget ([Path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules)) | Split the rule, or replace brace groups with a broader pattern |
 | `unparsable` (`FRONTMATTER`) | The YAML between the `---` markers will not parse | Quote the offending value (`paths: "**/*.ts"`), fix the indentation, then rerun. The rule is loading unscoped until then |
 | `over-broad` | Matches most of the rule's base: the repository for a root rule, its subtree for a nested one | Advisory. Narrow it, or accept it and raise `--breadth-max` |
 
@@ -197,8 +191,7 @@ do about it**. The three failure statuses have different fixes and saying "inval
   which is all a static check can see. `verify-load.sh` is what answers whether it actually loaded.
 - **Rules discovery follows symlinks and does not require git.** A symlinked rule may point outside the
   repository to share one rule set across projects
-  ([Share rules across projects with symlinks](https://code.claude.com/docs/en/memory#share-rules-across-projects-with-symlinks),
-  as of 2026-11-10; recheck when that section changes how a symlinked rule loads), so it is
-  never tracked. Nested instruction files are the opposite: tracked-only, because an untracked or
+  ([Share rules across projects with symlinks](https://code.claude.com/docs/en/memory#share-rules-across-projects-with-symlinks)),
+  so it is never tracked. Nested instruction files are the opposite: tracked-only, because an untracked or
   vendored `AGENTS.md` must never reach the consuming repository's always-loaded surface. If a rule
   seems missing from a report, check which of the two rules applies before assuming a bug.

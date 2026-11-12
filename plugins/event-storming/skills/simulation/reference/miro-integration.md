@@ -17,7 +17,7 @@ Miro MCP server.
 > a third-party remote MCP. The decision record is the miro record in the marketplace repo's
 > `docs/adr/0093-record-plugin-acceptance-security-reviews.md`; the carry verdict is `docs/adr/0092-carry-only-the-miro-mcp-server-in-a-plugin.md`. For the tools Miro's hosted server exposes, fetch
 > [MCP Tools and Capabilities](https://developers.miro.com/docs/mcp-intro#-mcp-tools-and-capabilities)
-> live (as of 2026-11-03; recheck when that list adds a board-delete tool).
+> live.
 
 ### Tool namespace
 
@@ -35,9 +35,6 @@ reference docs denotes that tool under whichever prefix is live; the availabilit
   [Plugin-provided MCP servers](https://code.claude.com/docs/en/mcp#plugin-provided-mcp-servers) and
   [Server names, tool names, and reloads](https://code.claude.com/docs/en/plugins/components#server-names-tool-names-and-reloads)
   live.
-- **As of**: 2026-11-10
-- **Recheck trigger**: either section changes the MCP tool-name format, or a Claude Code changelog
-  entry mentions MCP tool naming.
 
 ### Setup
 
@@ -53,14 +50,10 @@ marketplace first, then enabled** (enabling alone does not install it).
    item, connector and tag endpoints the bundled server's tools call, and nothing broader: any
    extra scope only widens what a leaked token exposes. Take the scope names from the OAuth guide
    that [Authorization Info](https://developers.miro.com/docs/rest-api-reference-guide#authorization-info)
-   links (as of 2026-11-03; recheck when that section moves or stops linking the authorization
-   guide, or when the bundled server's tools call an endpoint outside board, item, connector and
-   tag).
+   links.
    - **Pointer**: when a user asks how the token is collected or stored, fetch
      [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
      (the `sensitive` option) live.
-   - **As of**: 2026-10-11
-   - **Recheck trigger**: that section changes how a `sensitive` option is prompted for or stored.
 4. **Verify:** in a session with the plugin enabled, the `miro_*` tools are callable.
    Test with "List my Miro boards".
 
@@ -73,8 +66,7 @@ marketplace first, then enabled** (enabling alone does not install it).
 The colors the sticky tools accept are the `miro` plugin's `STICKY_NOTE_COLORS` list in
 `plugins/miro/server/src/tools/sticky-notes.ts` in the marketplace repository; the mapping below
 gives each of them one EventStorming role. Correlate that list with Miro's own
-[`StickyNoteStyle.fill_color`](https://miroapp.github.io/api-clients/python/miro_api/models/sticky_note_style.html#StickyNoteStyle.fill_color)
-(as of 2026-11-03; recheck when that field's allowed values change).
+[`StickyNoteStyle.fill_color`](https://miroapp.github.io/api-clients/python/miro_api/models/sticky_note_style.html#StickyNoteStyle.fill_color).
 
 ### EventStorming → Miro Color + Shape Mapping (Every Color Assigned)
 
@@ -106,7 +98,7 @@ gives each of them one EventStorming role. Correlate that list with Miro's own
 - No sticky note rotation, so you can't rotate 45° for phase names. Use `cyan` color + `[PHASE]` prefix instead
 - No size control via MCP, so every sticky takes Miro's default size. For the REST API's size
   fields, fetch [Create sticky note item](https://developers.miro.com/reference/create-sticky-note-item-1)
-  live (as of 2026-11-03; recheck when that page changes the sticky note's geometry fields)
+  live
 - No magenta color, so `red` is closest for Hot Spots
 
 ---
@@ -126,8 +118,7 @@ Create a Miro board with this layout:
 ### Positioning Strategy (Tested Values)
 
 For the board's coordinate origin and a sticky note's default size, fetch
-[Create sticky note item](https://developers.miro.com/reference/create-sticky-note-item-1) live
-(as of 2026-11-03; recheck when that page changes the board origin or the default sticky size).
+[Create sticky note item](https://developers.miro.com/reference/create-sticky-note-item-1) live.
 
 **Horizontal spacing: 400px between items on the main flow.** This gives ~200px of clear space between stickies. 200px is too tight (stickies touch, text overlaps). For Problems/Opportunities zones with longer text, use 300px minimum.
 
@@ -232,7 +223,7 @@ Next Event       x=1600    row: Domain Events
   coordinate computed against the y-coordinate tables above. Keeping the legend stickies parentless
   also means they survive deletion of the legend frame. For how a parent changes an item's
   position, fetch [Create sticky note item](https://developers.miro.com/reference/create-sticky-note-item-1)
-  live (as of 2026-11-03; recheck when that page changes how `parent` affects position)
+  live
 
 **Spacing summary:**
 
@@ -290,7 +281,7 @@ The `miro` plugin's server supports bulk creation (up to 20 items per batch) via
 - **Frame z-order**: frames created AFTER stickies render ON TOP, hiding them behind the white frame background. **Only use frames that are created BEFORE their content items and never need resizing.** The legend frame (created once, content placed inside) works well. Timeline frames that grow with each round should be SKIPPED entirely. Rely on coordinate-based organization instead. If you delete and recreate a frame, it covers all existing stickies
 - **Practical recommendation**: use frames ONLY for the legend (static, created once). For the evolving timeline and content areas, skip frames and let the y-coordinate layering organize the board visually. This avoids all z-order issues
 - **Deleting frames with children**: if stickies were created with `parent_id` pointing to a frame, deleting the frame deletes all children. Stickies created WITHOUT `parent_id` survive frame deletion but may be hidden under newly created frames
-- **Board sharing via API**: use `sharing_access: "view"` parameter on `miro_create_board` to create public boards. The `miro_update_board` tool can also change sharing after creation. For the REST sharing payload behind both, fetch [Boards](https://developers.miro.com/docs/rest-api-reference-guide#boards) live (as of 2026-11-03; recheck when that section changes the Create Board or Update Board sharing fields)
+- **Board sharing via API**: use `sharing_access: "view"` parameter on `miro_create_board` to create public boards. The `miro_update_board` tool can also change sharing after creation. For the REST sharing payload behind both, fetch [Boards](https://developers.miro.com/docs/rest-api-reference-guide#boards) live
 
 ---
 

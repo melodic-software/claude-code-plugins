@@ -558,6 +558,8 @@ LOCAL_OK=0
 [[ "${SCOPE_STATE[local]}" == "ok" ]] && LOCAL_OK=1
 USER_OK=0
 [[ -n "$USER_SETTINGS" && "${SCOPE_STATE[user]:-absent}" == "ok" ]] && USER_OK=1
+MCP_OK=0
+[[ "${SCOPE_STATE[mcp]}" == "ok" ]] && MCP_OK=1
 
 # What categories A, B, H and I ask of a settings file, read in one jq per file.
 # A field outside its key's presence check stays empty.
@@ -594,8 +596,6 @@ load_facts() {
 [[ $PROJECT_OK -eq 1 ]] && load_facts "$SETTINGS"
 [[ $LOCAL_OK -eq 1 ]] && load_facts "$LOCAL"
 [[ $USER_OK -eq 1 ]] && load_facts "$USER_SETTINGS"
-MCP_OK=0
-[[ "${SCOPE_STATE[mcp]}" == "ok" ]] && MCP_OK=1
 
 # --- Suppression record (three cascade layers) ---------------------------------
 #
@@ -796,8 +796,7 @@ unsupplied() {
   done
 }
 MODS_SLUG="plugins/mods/overview"
-DOCS_WANT=()
-while IFS= read -r slug; do DOCS_WANT+=("$slug"); done < <(unsupplied settings-reference env-vars "$MODS_SLUG")
+mapfile -t DOCS_WANT < <(unsupplied settings-reference env-vars "$MODS_SLUG")
 DOCS_INDEX_JSON="$(jq -cn --arg url "$DOCS_INDEX_URL" \
   '{url:$url,source:"",bytes:0,state:"not-needed",reason:"",sha256:null,content_type:null,lines:0,retrieved:null}')"
 progress docs "upstream pages"
@@ -1008,8 +1007,7 @@ if [[ -n "$SR" ]]; then
 fi
 if [[ ${#linked[@]} -gt 0 ]]; then
   LINKED_MANIFEST="$DOCS_TMP/manifest-linked.json"
-  linked_fetch=()
-  while IFS= read -r slug; do linked_fetch+=("$slug"); done < <(unsupplied "${linked[@]}")
+  mapfile -t linked_fetch < <(unsupplied "${linked[@]}")
   [[ ${#linked_fetch[@]} -gt 0 ]] && fetch_pages "$LINKED_MANIFEST" "${linked_fetch[@]}"
   for slug in "${linked[@]}"; do acquire_page "$slug" "$LINKED_MANIFEST"; done
 fi
@@ -1297,17 +1295,18 @@ if [[ ${#KP_KEY[@]} -gt 0 ]]; then
   for i in "${!KP_KEY[@]}"; do
     surface="${KP_SURF[$i]}" k="${KP_KEY[$i]}" leaf="${KP_LEAF[$i]}" ptr="${KP_PTR[$i]}"
     cr_match "$surface" "$k" "$leaf" && continue
-    cr_note="${CR_WHY:+; not labeled a consent receipt: $CR_WHY}"
+    sev=info detail="$k is not documented on settings-reference; "
     if [[ "$BIN_SEARCH" != "searched" ]]; then
-      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; the installed claude binary was not searched, so whether the CLI reads it is not known$cr_note" "$ptr"
+      detail+="the installed claude binary was not searched, so whether the CLI reads it is not known"
     elif [[ "${BIN_HAS[$leaf]}" == "unsearchable" ]]; then
-      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; its name is too short or not identifier-shaped for a binary search to settle, so whether the CLI reads it is not known$cr_note" "$ptr"
+      detail+="its name is too short or not identifier-shaped for a binary search to settle, so whether the CLI reads it is not known"
     elif [[ "${BIN_HAS[$leaf]}" == "yes" ]]; then
       desc="$(bin_describe "$leaf")"
-      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; the installed claude binary carries $leaf as a standalone name, so it may be an internal key the CLI manages (this shows the name is in the CLI, not that the CLI reads it)${desc:+; the binary describes it: \"$desc\"}$cr_note" "$ptr"
+      detail+="the installed claude binary carries $leaf as a standalone name, so it may be an internal key the CLI manages (this shows the name is in the CLI, not that the CLI reads it)${desc:+; the binary describes it: \"$desc\"}"
     else
-      row A key-documented finding warning "$surface" "undocumented-key:$k" "$k is in neither settings-reference nor the installed claude binary; Claude Code may ignore it$cr_note" "$ptr"
+      sev=warning detail="$k is in neither settings-reference nor the installed claude binary; Claude Code may ignore it"
     fi
+    row A key-documented finding "$sev" "$surface" "undocumented-key:$k" "$detail${CR_WHY:+; not labeled a consent receipt: $CR_WHY}" "$ptr"
   done
 fi
 
@@ -1501,37 +1500,24 @@ if [[ $PROJECT_OK -eq 1 && ${#BASELINE_ORDER[@]} -gt 0 ]]; then
   # pattern in BASELINE_ORDER, from one jq call.
   b_args=()
   for pat in "${BASELINE_ORDER[@]}"; do b_args+=("${BASELINE_FAMILY[$pat]}" "$pat"); done
-  b_present=()
-  while IFS= read -r present; do b_present+=("$present"); done < <(tr -d '\r' <"$SETTINGS" | ejq -r '
+  mapfile -t b_present < <(tr -d '\r' <"$SETTINGS" | ejq -r '
     (.permissions.deny // []) as $deny | (.permissions.ask // []) as $ask
     | $ARGS.positional as $a | range(0; $a | length; 2) as $i
     | (if $a[$i] == "ask-rules" then $ask else $deny end) | index($a[$i + 1]) != null' --args "${b_args[@]}")
-  b_i=0
-  for pat in "${BASELINE_ORDER[@]}"; do
+  for b_i in "${!BASELINE_ORDER[@]}"; do
+    pat="${BASELINE_ORDER[b_i]}"
     fam="${BASELINE_FAMILY[$pat]}"
-    present="${b_present[b_i]:-}"
-    b_i=$((b_i + 1))
-    case "$fam" in
-    ask-rules)
-      target="ask"
-      sev=warning
-      ;;
-    *)
-      target="deny"
-      sev=error
-      ;;
-    esac
-    if [[ "$present" == "true" ]]; then
+    target=deny sev=error lane_note=""
+    if [[ "$fam" == "ask-rules" ]]; then
+      target=ask sev=warning lane_note="; $ASK_BLOCKS_LANES"
+    fi
+    if [[ "${b_present[b_i]:-}" == "true" ]]; then
       row B "baseline-$fam" ok none "$SURF_SETTINGS" "present-pattern:$pat" "$target carries $pat" -
       continue
     fi
-    lane_note=""
-    if [[ "$fam" == "ask-rules" ]]; then
-      lane_note="; $ASK_BLOCKS_LANES"
-      if [[ -n "$UNATTENDED_LANE" ]]; then
-        row B "baseline-$fam" finding info "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target; narrowing 1 applies: $UNATTENDED_LANE$lane_note" "/permissions/$target"
-        continue
-      fi
+    if [[ "$fam" == "ask-rules" && -n "$UNATTENDED_LANE" ]]; then
+      row B "baseline-$fam" finding info "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target; narrowing 1 applies: $UNATTENDED_LANE$lane_note" "/permissions/$target"
+      continue
     fi
     if [[ -n "${COVERED_BY[$pat]:-}" ]]; then
       if [[ $HOOKS_LIVE -eq 1 ]]; then
@@ -2168,9 +2154,15 @@ if [[ -n "$DEBUG_LOG" ]]; then
   fi
   gline="$(grep -E 'Skill listing over budget: [0-9]+ skills, [0-9]+ chars > [0-9]+ budget' "$DEBUG_LOG" 2>/dev/null | tail -n 1 || true)"
   if [[ -n "$gline" ]]; then
-    g_skills="$(sed -E 's/.*over budget: ([0-9]+) skills.*/\1/' <<<"$gline")"
-    g_chars="$(sed -E 's/.*skills, ([0-9]+) chars.*/\1/' <<<"$gline")"
-    g_budget="$(sed -E 's/.*chars > ([0-9]+) budget.*/\1/' <<<"$gline")"
+    # Each leading .* is greedy, so each number comes from the line's last match;
+    # a line a pattern misses passes through whole, as sed leaves it.
+    g_skills="$gline" g_chars="$gline" g_budget="$gline"
+    g_re='.*over budget: ([0-9]+) skills'
+    [[ "$gline" =~ $g_re ]] && g_skills="${BASH_REMATCH[1]}"
+    g_re='.*skills, ([0-9]+) chars'
+    [[ "$gline" =~ $g_re ]] && g_chars="${BASH_REMATCH[1]}"
+    g_re='.*chars > ([0-9]+) budget'
+    [[ "$gline" =~ $g_re ]] && g_budget="${BASH_REMATCH[1]}"
     G_JSON="$(jq -cn --arg log "$DEBUG_LOG" --arg p "$DEBUG_LOG_PROVENANCE" --argjson s "$g_skills" --argjson c "$g_chars" --argjson b "$g_budget" \
       '{measured:true,route:"debug-log",provenance:$p,log:$log,skills:$s,chars:$c,budget:$b,over_by:($c-$b),overflow:true}')"
     row G listing-budget finding warning "settings" "listing-over-budget" "debug log $DEBUG_LOG ($DEBUG_LOG_PROVENANCE): $g_skills skills, $g_chars chars against a $g_budget budget, over by $((g_chars - g_budget)); descriptions of the least-used skills are cut" "skill-listing"
@@ -2360,7 +2352,7 @@ fallback_cap() {
 check_h() {
   # check_h <file> <surface>
   local file="$1" surface="$2"
-  local raw dedup cap mix enforce avail_len req key
+  local raw dedup cap mix enforce avail_len req policy key
   # We treat deniedModels and availableModelsMatch as managed-only, and every
   # file check_h reads is a user, project or local file, so an entry here is a
   # model policy that is not in force.
@@ -2369,14 +2361,12 @@ check_h() {
   # https://code.claude.com/docs/en/settings-reference#deniedmodels live.
   # As of: 2026-10-10. Recheck trigger: either section reads its key outside
   # managed settings.
-  if [[ "${FACT[$file:has_denied]:-}" == "true" ]]; then
-    key=deniedModels
-    row H managed-only-model-policy finding warning "$surface" "$key-outside-managed" "$key is set outside managed settings, where Claude Code ignores it, so this model policy is not in force" "/$key"
-  fi
-  if [[ "${FACT[$file:has_match]:-}" == "true" ]]; then
-    key=availableModelsMatch
-    row H managed-only-model-policy finding warning "$surface" "$key-outside-managed" "$key is set outside managed settings, where Claude Code ignores it, so this model policy is not in force" "/$key"
-  fi
+  for policy in has_denied=deniedModels has_match=availableModelsMatch; do
+    key="${policy#*=}"
+    if [[ "${FACT[$file:${policy%%=*}]:-}" == "true" ]]; then
+      row H managed-only-model-policy finding warning "$surface" "$key-outside-managed" "$key is set outside managed settings, where Claude Code ignores it, so this model policy is not in force" "/$key"
+    fi
+  done
   if [[ "${FACT[$file:has_effort]:-}" == "true" ]]; then
     documented_value H effort-level effortLevel "${FACT[$file:effort]:-}" "$surface"
   fi
@@ -2544,9 +2534,13 @@ if [[ ${#REC[@]} -gt 0 ]]; then
              lane: "harness-config/audit", tier: "derived"} else null end)}] as $all
     | [$all[].row], [$all[] | .finding | select(. != null)], [$all[] | select(.kind == "suppressed") | .row]')
 fi
-personal_json="$(if [[ ${#PERSONAL_ONLY[@]} -gt 0 ]]; then printf '%s\n' "${PERSONAL_ONLY[@]}" | jq -R . | jq -cs '.'; else echo '[]'; fi)"
-malformed_json="$(if [[ ${#MALFORMED[@]} -gt 0 ]]; then printf '%s\n' "${MALFORMED[@]}" | jq -R . | jq -cs '.'; else echo '[]'; fi)"
-layers_json="$(printf '%s\n' "${SUPPRESSION_LAYERS[@]}" | jq -R 'split("\t") | {layer: .[0], source: .[1], state: .[2]}' | jq -cs '.')"
+# lines_json <line>...: the lines as a compact JSON array of strings.
+lines_json() {
+  if [[ $# -gt 0 ]]; then printf '%s\n' "$@" | jq -Rcn '[inputs]'; else echo '[]'; fi
+}
+personal_json="$(lines_json ${PERSONAL_ONLY[@]+"${PERSONAL_ONLY[@]}"})"
+malformed_json="$(lines_json ${MALFORMED[@]+"${MALFORMED[@]}"})"
+layers_json="$(printf '%s\n' "${SUPPRESSION_LAYERS[@]}" | jq -Rcn '[inputs | split("\t") | {layer: .[0], source: .[1], state: .[2]}]')"
 
 inv_json="$(jq -c '{inventory:.inventory, levers:(.levers // []), mod_plane:(.mod_plane // []), unreadable:(.unreadable // []), divergence:(.divergence // [])}' <<<"$INVENTORY_JSON")"
 version_json="$(jq -cn --arg raw "$CLAUDE_RAW" --arg v "$CLAUDE_VERSION" --arg bin "$CLAUDE_BIN" --arg search "$BIN_SEARCH" \

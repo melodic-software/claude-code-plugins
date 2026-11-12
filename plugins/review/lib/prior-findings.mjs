@@ -253,7 +253,9 @@ export function collect({ threads, reviews, comments, lane, head, diff }) {
 // default `blocking-only` for an absent key, an unknown value or no file.
 export const AFTER_FIRST_REVIEW_DEFAULT = "blocking-only";
 export function readAfterFirstReview(yaml) {
-  const m = /^loop:\r?\n(?:[ \t]+.*\r?\n|[ \t]*\r?\n)*?[ \t]+findings-after-first-review:[ \t]*(["']?)(blocking-only|all)\1[ \t]*(?:#.*)?\r?$/mu.exec(yaml ?? "");
+  // A nested line starts with a non-blank character after its indent, so it and
+  // a blank line never match the same text.
+  const m = /^loop:\r?\n(?:[ \t]+\S.*\r?\n|[ \t]*\r?\n)*?[ \t]+findings-after-first-review:[ \t]*(["']?)(blocking-only|all)\1[ \t]*(?:#.*)?\r?$/mu.exec(yaml ?? "");
   return m ? m[2] : AFTER_FIRST_REVIEW_DEFAULT;
 }
 

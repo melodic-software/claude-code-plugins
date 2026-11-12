@@ -251,14 +251,16 @@ export const CI_WORKFLOWS = new Set([
   ".github/workflows/pr-check-managed-files-hosted.yml",
   ...GATED_REVIEWS,
 ]);
-// The hosted review callers' kill-switch job and the step that fails it while
-// the upstream-status gate skips the review.
-export const GATE_JOB = "kill-switch";
+// The hosted review callers' kill-switch job, by its name (kill-switch on a
+// head tested before the rename), and the step that fails it while the
+// upstream-status gate skips the review.
+export const GATE_JOBS = new Set(["Kill Switch", "kill-switch"]);
 export const UPSTREAM_STOP_STEP = "Stop on upstream status";
 // The step that job runs when a kill switch stops the review, and the caller's
-// job names for the review itself (`pr-review`, or a reusable's `pr-review / x`).
+// job names for the review itself (`PR Review`, or a reusable's `PR Review / x`;
+// pr-review on a head tested before the rename).
 export const REVIEW_STOP_STEP = "Report the kill switch";
-const REVIEW_JOB = /^pr-review/;
+const REVIEW_JOB = /^(PR Review|pr-review)/;
 // Each hosted review's own switch, by the name its caller reads from `vars`.
 export const REVIEW_SWITCHES = new Map([
   [".github/workflows/pr-review-hosted.yml", "CLAUDE_REVIEW_DISABLED"],
@@ -290,7 +292,9 @@ export const RECORDED_UPSTREAMS = new Set([".github/workflows/pr-require-checks.
 // labels it needs-triage after 2 dispatches leave it untriaged. Otherwise, and
 // once a dispatch triages it, the issue stays without the floor label.
 export const INTAKE = ".github/workflows/intake-triage.yml";
-export const INTAKE_LABEL_JOB = "intake-label-needs-triage";
+// intake-label-needs-triage names it on a run from before the rename.
+export const INTAKE_LABEL_JOBS = ["Intake Label Needs Triage", "intake-label-needs-triage"];
+const isIntakeLabelJob = (job) => INTAKE_LABEL_JOBS.some((name) => String(job?.name ?? "").startsWith(`${name} / `));
 // pr-feedback-dispatch's job that applies a pr-verify verdict to its PR, and
 // the step that fails that job while the lanes kill switch is on: the failed
 // first attempt is the record of a verdict not yet applied. Re-running its
@@ -298,7 +302,8 @@ export const INTAKE_LABEL_JOB = "intake-label-needs-triage";
 // A job that failed at any other step (a refused dequeue, a verdict name no
 // reader takes) is a red for a person, never re-run here.
 export const VERDICT_DISPATCH = ".github/workflows/pr-feedback-dispatch.yml";
-export const VERDICT_JOB = "post-verify-notes";
+// post-verify-notes names it on a run from before the rename.
+export const VERDICT_JOBS = new Set(["Post Verify Notes", "post-verify-notes"]);
 export const VERDICT_STOP_STEP = "Stop on the kill switch";
 // A job's conclusions that rerun-failed-jobs leaves alone.
 const NOT_RERUN = new Set(["success", "skipped", "neutral"]);
@@ -749,7 +754,7 @@ export const upstreamStopped = (jobs) =>
   jobs.filter((job) => FAILED.has(job?.conclusion)).length === 1 &&
   jobs.some(
     (job) =>
-      job?.name === GATE_JOB &&
+      GATE_JOBS.has(job?.name) &&
       job.conclusion === "failure" &&
       Array.isArray(job.steps) &&
       job.steps.some((step) => step?.name === UPSTREAM_STOP_STEP && step.conclusion === "failure"),
@@ -761,7 +766,7 @@ export const upstreamStopped = (jobs) =>
 export const reviewStopped = (jobs) =>
   Array.isArray(jobs) &&
   !jobs.some((job) => REVIEW_JOB.test(job?.name ?? "") && job.conclusion !== "skipped") &&
-  jobs.some((job) => job?.name === GATE_JOB && job.conclusion === "success" && job.steps?.some((step) => step?.name === REVIEW_STOP_STEP && step.conclusion === "success"));
+  jobs.some((job) => GATE_JOBS.has(job?.name) && job.conclusion === "success" && job.steps?.some((step) => step?.name === REVIEW_STOP_STEP && step.conclusion === "success"));
 
 // Why the run's first attempt must not be re-run, with whether that hold is
 // final (`settle`), or undefined when it may be re-run: no job started any
@@ -1508,7 +1513,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     try {
       const listing = await firstAttemptJobs(call, repo, r.id);
       const rerun = listing.jobs.filter((job) => !NOT_RERUN.has(job?.conclusion));
-      if (rerun.length > 0 && rerun.every((job) => String(job?.name ?? "").startsWith(`${INTAKE_LABEL_JOB} / `))) {
+      if (rerun.length > 0 && rerun.every(isIntakeLabelJob)) {
         intake.push({ kind: "intake", id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha });
       } else if (rerun.length > 0 && wholeListing(listing)) {
         settle.push({ id: r.id, reason: "" });
@@ -1538,9 +1543,9 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       const listing = await firstAttemptJobs(call, repo, r.id);
       const rerun = listing.jobs.filter((job) => !NOT_RERUN.has(job?.conclusion));
       const failedSteps = (rerun[0]?.steps ?? []).filter((step) => step?.conclusion === "failure").map((step) => step.name);
-      if (rerun.length === 1 && rerun[0].name === VERDICT_JOB && failedSteps.length === 1 && failedSteps[0] === VERDICT_STOP_STEP) {
+      if (rerun.length === 1 && VERDICT_JOBS.has(rerun[0].name) && failedSteps.length === 1 && failedSteps[0] === VERDICT_STOP_STEP) {
         verdicts.push({ kind: "verdict", id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha });
-      } else if (wholeListing(listing) && (rerun.length > 1 || (rerun.length === 1 && (rerun[0].name !== VERDICT_JOB || stepsKnown(rerun[0]))))) {
+      } else if (wholeListing(listing) && (rerun.length > 1 || (rerun.length === 1 && (!VERDICT_JOBS.has(rerun[0].name) || stepsKnown(rerun[0]))))) {
         // A listing with no failed job, a job without its conclusion, or a
         // step list read before it was whole, is read again next pass.
         settle.push({ id: r.id, reason: "" });

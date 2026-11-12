@@ -1,5 +1,17 @@
 # Changelog: evals
 
+## [0.18.7] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
+## [0.18.6] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
 ## [0.18.5] - 2026-11-11
 
 ### Changed

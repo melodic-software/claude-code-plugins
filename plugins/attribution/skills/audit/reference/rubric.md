@@ -112,7 +112,7 @@ breadcrumb or nomination already names the sibling repo as the source.
 
 Sibling-org repos are external at audit time unless the passage cites that sibling as its source.
 **Pointer:** none; this is `judgment`, and no audited pass or upstream source shows the carve-out
-behavior yet. **As of:** 2026-09-28. **Recheck trigger:** a consumer policy file declares same-org
+behavior yet. **Recheck trigger:** a consumer policy file declares same-org
 siblings owned, or a golden case is added that turns on this boundary.
 
 ### 5. Distilled-product architectures
