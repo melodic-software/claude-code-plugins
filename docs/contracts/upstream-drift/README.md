@@ -116,7 +116,7 @@ named exception is [old-patterns mapping tables](#old-patterns-mapping-tables)).
 
 A pointer carries no as-of date and no recheck trigger. A dead link or a moved anchor is caught by
 the link checks: `pr-require-checks.yml` checks local anchors and the external links a pull request
-adds or changes, and `maintenance-check-links-online-claude-code-plugins.yml` checks every external
+adds or changes, and `maintenance-check-links-online.yml` checks every external
 link weekly, anchors included except the script-rendered ones `lychee.toml` rewrites. Changed
 content is seen by whoever fetches the link, and git history records when the line changed.
 
