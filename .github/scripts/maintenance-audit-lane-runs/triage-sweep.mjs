@@ -1,7 +1,8 @@
 // The hourly triage sweep: finds open issues no intake verdict holds and
 // dispatches intake-triage.yml for them, with the job's own token only. An
 // issue qualifies when it is no pull request, is over an hour old, its author
-// is a listed human or the lanes App (as the intake lane admits on open), and
+// is a listed human or the lanes App (as the intake lane admits on open), it
+// carries no routing label (intake skips one: check-born-triaged.mjs), and
 // either:
 //
 // - its labels, as its Work status field decides them (read-status.mjs
@@ -39,10 +40,11 @@
 // in the hour before the sweep dispatches. Intake treats them as untrusted
 // data and applies only allowlisted labels, never agent-ready.
 import { appendFileSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { BORN_TRIAGED_MARKER, humanIds } from "../../actions/check-born-triaged/check-born-triaged.mjs";
+import { BORN_TRIAGED_MARKER, humanIds, readRouting, ROUTING_DEFAULTS, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { budgetedCall, createBudget } from "./collect.mjs";
 import { UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
@@ -116,9 +118,12 @@ const bornReady = (i, labels) =>
 // its Work status field decides them; an issue it leaves out is judged by its
 // own labels, except one in its `held` set (Work status mid-write), which is
 // not dispatched this pass (conservative: no dispatch on a state not read).
-export function selectCandidates({ issues, now, authorIds, statusLabels = new Map() }) {
+// An issue whose own labels hold a routing label (check-born-triaged.mjs
+// routingLabel) is never one: intake skips it.
+export function selectCandidates({ issues, now, authorIds, statusLabels = new Map(), routing = ROUTING_DEFAULTS }) {
   const untriagedOrReady = (i) => {
     if (statusLabels.held?.has(i.number)) return false;
+    if (routingLabel((i.labels ?? []).map((l) => l.name ?? ""), routing)) return false;
     const labels = names(i, statusLabels.get(i.number));
     return !labels.some((n) => TRIAGED.test(n)) || bornReady(i, labels);
   };
@@ -357,8 +362,9 @@ async function handedOff(call, repo, appId) {
 
 // One pass. `call` returns null for a GET that 404s. `setStatus(number,
 // state)` (write-status.mjs statusWriter's set) writes the Work status field.
-// `statusLabels` is statusListing's map, read once before the pass.
-export async function runSweep({ call, remaining = () => Infinity, repo, serverUrl, now, authorIds, appId = null, setStatus = async () => {}, statusLabels = new Map() }) {
+// `statusLabels` is statusListing's map, read once before the pass; `routing`
+// the binding's routing labels (readRouting).
+export async function runSweep({ call, remaining = () => Infinity, repo, serverUrl, now, authorIds, appId = null, setStatus = async () => {}, statusLabels = new Map(), routing = ROUTING_DEFAULTS }) {
   const repoUrl = `${serverUrl}/${repo}`;
   const issues = [];
   for (let page = 1; page <= MAX_ISSUE_PAGES; page += 1) {
@@ -367,7 +373,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
     if (batch.length < 100) break;
   }
   const result = { candidates: 0, dispatched: [], handed: [], handedOff: [], held: [], left: [], waiting: [], failed: [], truncated: null };
-  const selected = selectCandidates({ issues, now, authorIds, statusLabels });
+  const selected = selectCandidates({ issues, now, authorIds, statusLabels, routing });
   const atFloor = (i) => names(i, statusLabels.get(i.number)).includes(FLOOR);
   const filed = selected.length > 0 ? await handedOff(call, repo, appId) : new Set();
   const candidates = selected.filter((i) => !(filed.has(i.number) && atFloor(i)));
@@ -555,6 +561,7 @@ async function main() {
     appId,
     setStatus: set,
     statusLabels,
+    routing: readRouting(join(env.BASE_PATH || ".base", "docs/conventions/work-items.yaml"), { who: "triage-sweep" }),
   });
   const numbers = (xs) => xs.map((n) => `#${n}`).join(", ") || "none";
   const lines = [

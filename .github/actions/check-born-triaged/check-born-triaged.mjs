@@ -152,13 +152,13 @@ function writeOutputs(outputs, outputPath = process.env.GITHUB_OUTPUT) {
 }
 
 // The binding's routing labels; a missing file keeps the defaults, and an
-// unreadable one keeps them with a warning.
-function readRouting(path) {
+// unreadable one keeps them with a warning naming `who`.
+export function readRouting(path, { who = "check-born-triaged", log = console.log } = {}) {
   try {
     return routingLabels(JSON.parse(trackerBindingText(path)));
   } catch (error) {
     if (error.code !== "ENOENT") {
-      console.log(`::warning::check-born-triaged: cannot read the routing labels from ${path} (${error.message}); using '${ROUTING_DEFAULTS.container}' and '${ROUTING_DEFAULTS.prefix}'`);
+      log(`::warning::${who}: cannot read the routing labels from ${path} (${error.message}); using '${ROUTING_DEFAULTS.container}' and '${ROUTING_DEFAULTS.prefix}'`);
     }
     return ROUTING_DEFAULTS;
   }

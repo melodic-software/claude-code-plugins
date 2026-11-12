@@ -10,7 +10,11 @@
 // needs-triage, says so in its comment on the issue, and stops dispatching it.
 // Owner rule 2026-10-24: no new issues; comment on the original instead.
 import assert from "node:assert/strict";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
+import { tempDir } from "../../../lib/test-tmp.mjs";
+import { readRouting } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { ADMIT_MARKER, retriageNote } from "../intake-triage/admit.mjs";
 import { HUMAN_ID, mirroredStatusOf, OPTION, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
@@ -109,6 +113,32 @@ test("a born-triaged issue in status: ready with no agent-ready, deferral, hold 
     selectCandidates({ issues, now: NOW, authorIds: authors }).map((i) => i.number),
     [1, 7, 8, 14],
   );
+});
+
+// /planning:wayfind and /work-items:decompose route an issue with a routing
+// label (the binding's container label, default `work-map`, or a label
+// starting with its wayfind prefix, default `wayfind:`); intake skips it, so
+// a dispatch would only count toward a needless hand-off.
+test("an issue whose own labels hold a routing label is no candidate, as the binding names it", () => {
+  const issues = [
+    issue(1, { labels: [{ name: "wayfind: design" }] }),
+    issue(2, { labels: [{ name: "work-map" }] }),
+    issue(3, { labels: [{ name: "epic" }] }),
+    issue(4, { labels: [{ name: "fog: storage" }] }),
+    issue(5),
+  ];
+  const select = (routing) => selectCandidates({ issues, now: NOW, authorIds: authors, routing }).map((i) => i.number);
+  assert.deepEqual(select(undefined), [3, 4, 5], "the default labels");
+  const dir = tempDir("triage-sweep-routing-");
+  const binding = join(dir, "work-items.yaml");
+  writeFileSync(binding, "tracker:\n  config:\n    container_label: epic\n    wayfind_label_prefix: 'fog:'\n");
+  assert.deepEqual(select(readRouting(binding)), [1, 2, 5], "a remapped binding");
+  assert.deepEqual(select(readRouting(join(dir, "absent.yaml"))), [3, 4, 5], "no binding file keeps the defaults");
+});
+
+test("the field never makes a routing-labelled issue a candidate", () => {
+  const issues = [issue(1, { labels: [{ name: "wayfind: research" }] }), issue(2)];
+  assert.deepEqual(selectCandidates({ issues, now: NOW, authorIds: authors, statusLabels: new Map([[1, []]]) }).map((i) => i.number), [2]);
 });
 
 // A GitHub whose Work status values live in `fields` (read-status.fixtures.mjs
@@ -446,6 +476,16 @@ test("an issue with a status label is left alone, whatever its comments", async 
   const result = await sweep(gh);
   assert.deepEqual(gh.writes, []);
   assert.equal(result.candidates, 0);
+});
+
+test("a pass writes and dispatches nothing for a routing-labelled issue, as the pass's binding names it", async () => {
+  const issues = [issue(1, { labels: [{ name: "wayfind: design" }] }), issue(2, { labels: [{ name: "work-map" }] })];
+  const gh = fakeGitHub({ issues });
+  assert.equal((await sweep(gh)).candidates, 0);
+  assert.deepEqual(gh.writes, []);
+  const remapped = fakeGitHub({ issues });
+  const result = await runSweep({ call: remapped.call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, routing: { container: "epic", prefix: "fog:" } });
+  assert.deepEqual(result.dispatched, [1, 2]);
 });
 
 test("a second dispatch edits the same state comment", async () => {
