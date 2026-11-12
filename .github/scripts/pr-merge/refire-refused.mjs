@@ -35,8 +35,9 @@
 // A run of an activity no dispatcher tick re-dispatches (the lane's
 // `transientActivities`; the pr-unblock-dispatch tick dispatches the others,
 // so no head gets two retry paths) also gets the empty commit
-// when its token step failed transiently: `broker-unreachable`, or
-// `lane-token-denied` with a 5xx status. No 403 reason is transient, so a 403
+// when its token step failed transiently: `broker-unreachable`,
+// `lane-token-denied` with a 5xx status, or an OIDC token request still
+// failing with a 5xx or a curl network error. No 403 reason is transient, so a 403
 // other than workflow-modified is never re-fired. The new head starts the
 // review lanes, whose completion is the activity's own fresh event. Such a
 // re-fire is recorded per run in a `transient` marker, and is capped at one
@@ -129,10 +130,12 @@ const LANES = Object.freeze({
 const REFUSED =
   /^lane-token-denied: the broker answered 403 with reason workflow-modified: (\.github\/workflows\/[A-Za-z0-9._-]+\.yml) differs from refs\/heads\/main$/;
 // A token step that failed for a reason the broker or the network may not
-// give next time (request-lane-token/action.yml): no response at all, or a
-// 5xx after the action's own retries. Group 1 is the label a marker records.
+// give next time (request-lane-token/action.yml): no response at all, a 5xx
+// after the action's own retries, or an OIDC token request still failing with
+// a 5xx or a curl network error after them (a 429 is a rate limit, not
+// re-fired). Group 1 or 4 is the label a marker records.
 const TRANSIENT =
-  /^(broker-unreachable): the lanes token broker gave no response|^lane-token-denied: the broker answered (5[0-9]{2}) with reason ([a-z]+(?:-[a-z]+)*)/;
+  /^(broker-unreachable): the lanes token broker gave no response|^lane-token-denied: the broker answered (5[0-9]{2}) with reason ([a-z]+(?:-[a-z]+)*)|^(the OIDC token request failed: (?:HTTP 5[0-9]{2}|curl exit [0-9]{1,2})) on attempt /;
 // At most this many transient re-fires per head tree (judgment, owner decision
 // on #8446: two per head).
 export const TRANSIENT_PER_HEAD = 2;
@@ -304,7 +307,7 @@ export async function tokenRefusal({ jobs, readAnnotations, lane = LANES["pr-unb
       }
       const match = transientOk && transient === null ? TRANSIENT.exec(message) : null;
       if (match !== null) {
-        transient = { kind: "transient", label: match[1] ?? `lane-token-denied ${match[2]} ${match[3]}` };
+        transient = { kind: "transient", label: match[1] ?? match[4] ?? `lane-token-denied ${match[2]} ${match[3]}` };
       }
     }
   }
