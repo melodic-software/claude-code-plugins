@@ -43,8 +43,7 @@ if ! files_out=$(git diff --name-only --diff-filter=AMRC "$base...HEAD" "${paths
   exit 2
 fi
 added=$(grep -vE '^\+\+\+ (b/|/dev/null)' <<<"$added" | sed -n 's/^+//p' || true)
-mapfile -t files <<<"$files_out"
-[[ -n $files_out ]] || files=()
+mapfile -t files < <(printf '%s' "$files_out")
 
 urls=()
 if ((${#files[@]})); then
@@ -54,8 +53,7 @@ if ((${#files[@]})); then
   fi
   # lychee may add a trailing slash to a bare host; match without it.
   while IFS= read -r url; do
-    [[ $url == http://* || $url == https://* ]] || continue
-    if grep -qF -- "${url%/}" <<<"$added"; then urls+=("$url"); fi
+    if [[ $url =~ ^https?:// && $added == *"${url%/}"* ]]; then urls+=("$url"); fi
   done < <(LC_ALL=C sort -u <<<"$dump")
 fi
 
