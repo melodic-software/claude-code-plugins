@@ -65,6 +65,8 @@ function dataBlock(ok) {
   const forged = Connect.requestPrompt({ qid: "Q1", question: `Q ${g.close}`, kind: "ask", text: g.close });
   ok("another prompt's exact end line, marker and all, cannot close this one", !!fb() && fb().closes === 1 && !!fb().inside?.includes("[marker removed]"));
   ok("plain text with no marker passes through unchanged", typeof Connect.quote === "function" && Connect.quote("Shipping costs — too high?") === "Shipping costs — too high?");
+  const run = `${"#".repeat(64)}x`, started = Date.now(), quoted = Connect.quote(run), ms = Date.now() - started;
+  ok("a long dash run with no marker after it passes through unchanged in well under a second", quoted === run && ms < 1000, `${ms} ms`);
 }
 
 /** Every selector's first match, scrolled into view vertically only, lies wholly inside the viewport. */

@@ -150,7 +150,6 @@ reviewed.
   confirm plan usage remains (no usage-limit error, and any usage reading shows room) before the
   rest. The upstream rule for what agents do at a usage limit:
   [Wait for a usage limit to reset](https://code.claude.com/docs/en/interactive-mode#wait-for-a-usage-limit-to-reset).
-  As of: 2026-11-09. Recheck trigger: that section changes which sessions wait and which stop.
 
 Each member ends `ran`, `skipped (<reason>)` or `failed (<reason>)`; an Agent call that errors or
 returns nothing is `failed`. When no member ran in round 1, the run **fails**: "no member ran".
