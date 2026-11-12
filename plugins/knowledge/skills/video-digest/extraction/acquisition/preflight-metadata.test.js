@@ -35,6 +35,11 @@ describe("escapeTableCell", () => {
     expect(escapeTableCell("Rust | Go | C")).toBe("Rust \\| Go \\| C");
   });
 
+  it("escapes backslashes so a trailing one cannot escape the cell's closing pipe", () => {
+    expect(escapeTableCell("C:\\dir\\")).toBe("C:\\\\dir\\\\");
+    expect(escapeTableCell("a\\|b")).toBe("a\\\\\\|b");
+  });
+
   it("collapses newlines and runs of whitespace to a single space", () => {
     expect(escapeTableCell("line one\nline   two\t")).toBe("line one line two");
   });
