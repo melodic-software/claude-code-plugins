@@ -110,6 +110,7 @@ defaults:
 
 jobs:
   check-intent:
+    name: Check Intent
     if: >-
       github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
@@ -2184,6 +2185,7 @@ jobs:
   # that failed, a denial on its key leg included, leaves this job skipped;
   # or after check-intent's credit gate skipped its key leg.
   check-intent-subscription:
+    name: Check Intent Subscription
     needs: check-intent
     if: >-
       !cancelled()
@@ -4120,6 +4122,7 @@ jobs:
   # !cancelled(): the implicit success() also needs every ancestor, so a
   # check-intent the credit gate skipped would skip this job too.
   check-intent-fallback:
+    name: Check Intent Fallback
     needs: check-intent-subscription
     if: >-
       !cancelled()
@@ -5776,6 +5779,7 @@ jobs:
   # job (timeout, lost runner) leaves the run's conclusion to the verdict jobs,
   # since pr-merge counts a pass only from a run that ended success.
   wake-pr-merge:
+    name: Wake PR Merge
     needs: [check-intent, check-intent-subscription, check-intent-fallback]
     if: >-
       !cancelled()

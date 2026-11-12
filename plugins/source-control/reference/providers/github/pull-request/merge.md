@@ -187,9 +187,11 @@ jq -e '[.[].check_runs[]] as $r
   | def lane($names): [$r[] | select(.name | IN($names[]))]
       | length > 0 and all(.status == "completed" and .conclusion == "success");
   ($r | length) == .[0].total_count
-  and lane(["pr-review / review-status", "pr-review / claude-review-status"])
-  and lane(["pr-review-security / review-status", "pr-review-security / security-review",
-            "security-review / security-review", "claude-security-review-status"])' <<<"$RUNS" >/dev/null \
+  and lane(["PR Review / review-status", "pr-review / review-status",
+            "pr-review / claude-review-status"])
+  and lane(["PR Review Security / review-status", "pr-review-security / review-status",
+            "pr-review-security / security-review", "security-review / security-review",
+            "claude-security-review-status"])' <<<"$RUNS" >/dev/null \
   || { echo 'AI review not complete on the pinned head: hold' >&2; exit 1; }
 for _ in $(seq 5); do
   S=$(gh api "repos/{owner}/{repo}/pulls/<pr_number>" \

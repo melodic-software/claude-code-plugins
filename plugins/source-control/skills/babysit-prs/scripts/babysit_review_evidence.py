@@ -52,16 +52,26 @@ from babysit_risk import Floor, LONG_LINE_BYTES, LaneEvidence, glob_match
 # Lane id -> (caller workflow path, status job names). Fixed in code: a
 # weaker table could only come from a file a pull request can edit. Each name
 # is the whole caller-qualified job name: pr-review-cli.yml names both lanes'
-# status jobs `review-status`; the second is the name ci-workflows'
+# status jobs `review-status`, under the caller's display name first; the
+# lower-case caller is a head tested before the rename, or a repository whose
+# caller job has no display name. The last is the name ci-workflows'
 # pr-review.yml and pr-review-security.yml give it.
 LANES: dict[str, tuple[str, tuple[str, ...]]] = {
     "claude-review": (
         ".github/workflows/pr-review-hosted.yml",
-        ("pr-review / review-status", "pr-review / claude-review-status"),
+        (
+            "PR Review / review-status",
+            "pr-review / review-status",
+            "pr-review / claude-review-status",
+        ),
     ),
     "claude-security-review": (
         ".github/workflows/pr-review-security-hosted.yml",
-        ("pr-review-security / review-status", "pr-review-security / security-review"),
+        (
+            "PR Review Security / review-status",
+            "pr-review-security / review-status",
+            "pr-review-security / security-review",
+        ),
     ),
 }
 
@@ -289,7 +299,9 @@ NO_OUTCOME_RE = re.compile(
 # (`_lost_unposted`), which leaves the run to a person.
 LOST = "lost"
 LOST_CONCLUSIONS = frozenset({"cancelled", "timed_out", "startup_failure"})
-KILL_SWITCH_JOB = "kill-switch"
+# The kill-switch job's display name; `kill-switch` is a head tested before
+# the rename, or a repository whose job has no display name.
+KILL_SWITCH_JOBS = frozenset({"Kill Switch", "kill-switch"})
 KILL_SWITCH_NOTICE_RE = {
     "claude-review": re.compile(r"a kill switch stops this review \("),
     "claude-security-review": re.compile(
@@ -789,9 +801,9 @@ WORKFLOW_NAME_WORDS = {
 
 def workflow_display_name(stem: str) -> str:
     """A lowercase file stem's workflow `name:`: hyphens to spaces, Title
-    Case, listed words as `WORKFLOW_NAME_WORDS` spells them.
-    `.github/actions/resolve-config/callers.test.mjs` holds the same rule over
-    this repository's workflow files."""
+    Case, listed words as `WORKFLOW_NAME_WORDS` spells them, the rule
+    melodic-software/standards' github-actions-conventions naming lint
+    enforces on this repository's workflow files."""
     return " ".join(
         WORKFLOW_NAME_WORDS.get(word, word.capitalize()) for word in stem.split("-")
     )
@@ -1503,7 +1515,7 @@ def _gate_stopped(
         raise Unbound("evidence-missing")
     if _has_lane_job(lane, jobs):
         return False
-    kills = [job for job in jobs if job.get("name") == KILL_SWITCH_JOB]
+    kills = [job for job in jobs if job.get("name") in KILL_SWITCH_JOBS]
     if len(kills) != 1 or kills[0].get("conclusion") != conclusion:
         return False
     kill = kills[0]

@@ -343,7 +343,7 @@ class FakeGh:
             attempt = int(endpoint.split("/attempts/")[1].split("/")[0])
             jobs = self.jobs.get(
                 (run_id, attempt),
-                [failed_job(run_id * 10 + attempt, "test-bash", "Run the bash tests")],
+                [failed_job(run_id * 10 + attempt, "Test Bash", "Run the bash tests")],
             )
             page = {"total_count": len(jobs), "jobs": jobs}
             return completed([page] if "--slurp" in args else page)
@@ -2322,7 +2322,7 @@ class UnlistedRecordRecovery(CheckCase):
             [(f.signal, f.run_url) for f in verdict.failures],
             [("dispatch", f"{RUN_URL}/{self.LATE_RUN}/attempts/2")],
         )
-        self.assertIn("newly failing: test-bash", verdict.failures[0].detail)
+        self.assertIn("newly failing: Test Bash", verdict.failures[0].detail)
         self.assertFalse(verdict.needs_dispatch)
 
     def test_a_later_recorded_red_run_without_regressions_clears_the_hold(
@@ -2342,7 +2342,7 @@ class UnlistedRecordRecovery(CheckCase):
                 triggering_actor=maintainer,
             ),
         )
-        self.gh.jobs[(10, 1)] = [failed_job(101, "test-bash", "Run the bash tests")]
+        self.gh.jobs[(10, 1)] = [failed_job(101, "Test Bash", "Run the bash tests")]
         self.unlisted_hold()
         self.red_late_rerun()
         verdict = self.check(pinned=None, now=self.AFTER)
@@ -2686,43 +2686,60 @@ class Baseline(CheckCase):
             "schedule",
             schedule_run(30, "failure", head_sha=FORK_SHA, created_at=self.BEFORE),
         )
-        self.gh.jobs[(30, 1)] = [failed_job(301, "test-bash", "Run the bash tests")]
-        self.red_after_merge(failed_job(312, "test-bash", "Run the bash tests"))
+        self.gh.jobs[(30, 1)] = [failed_job(301, "Test Bash", "Run the bash tests")]
+        self.red_after_merge(failed_job(312, "Test Bash", "Run the bash tests"))
         verdict = self.check()
         self.assertEqual([f.signal for f in verdict.failures], ["schedule"])
 
     def test_a_check_already_red_before_the_merge_is_not_charged_to_it(self) -> None:
-        self.before_merge("failure", failed_job(301, "test-bash", "Run the bash tests"))
-        self.red_after_merge(failed_job(312, "test-bash", "Run the bash tests"))
+        self.before_merge("failure", failed_job(301, "Test Bash", "Run the bash tests"))
+        self.red_after_merge(failed_job(312, "Test Bash", "Run the bash tests"))
         verdict = self.check()
         self.assertEqual(verdict.failures, ())
         self.assertEqual(verdict.unattributed, (self.SIGHTING,))
         self.assertEqual(verdict.report()["unattributed"], [self.SIGHTING])
 
+    def test_a_check_red_before_the_rename_is_not_charged_to_the_merge(self) -> None:
+        # A baseline run tested before the jobs got display names names the
+        # same leg and gate in lower case.
+        lint = self.gitleaks_red(302, failure_annotation("markdown failed"))[0]
+        self.before_merge(
+            "failure",
+            failed_job(301, "test-bash (0)", "Run the bash tests"),
+            lint | {"name": "lint-repo"},
+        )
+        self.red_after_merge(
+            failed_job(312, "Test Bash (0)", "Run the bash tests"),
+            *self.gitleaks_red(313, failure_annotation("markdown failed"))[:1],
+        )
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(verdict.unattributed, (self.SIGHTING,))
+
     def test_a_check_green_before_the_merge_is_charged_to_it(self) -> None:
         self.before_merge("success")
-        self.red_after_merge(failed_job(312, "test-bash", "Run the bash tests"))
+        self.red_after_merge(failed_job(312, "Test Bash", "Run the bash tests"))
         verdict = self.check()
         self.assertEqual(
             [(f.signal, f.merge.number, f.run_url) for f in verdict.failures],
             [("schedule", 7001, self.SIGHTING)],
         )
-        self.assertIn("newly failing: test-bash", verdict.failures[0].detail)
+        self.assertIn("newly failing: Test Bash", verdict.failures[0].detail)
 
     def test_with_no_run_before_the_merge_a_red_check_is_charged(self) -> None:
-        self.red_after_merge(failed_job(312, "test-bash", "Run the bash tests"))
+        self.red_after_merge(failed_job(312, "Test Bash", "Run the bash tests"))
         self.assertEqual(
             [(f.signal, f.merge.number) for f in self.check().failures],
             [("schedule", 7001)],
         )
 
     def test_another_check_red_before_the_merge_does_not_excuse_this_one(self) -> None:
-        self.before_merge("failure", failed_job(301, "lint-shell", "ShellCheck"))
-        self.red_after_merge(failed_job(312, "test-bash", "Run the bash tests"))
+        self.before_merge("failure", failed_job(301, "Lint Shell", "ShellCheck"))
+        self.red_after_merge(failed_job(312, "Test Bash", "Run the bash tests"))
         self.assertEqual([f.signal for f in self.check().failures], ["schedule"])
 
     def test_a_dispatch_run_compares_with_dispatch_runs_not_schedule_runs(self) -> None:
-        self.before_merge("failure", failed_job(301, "test-bash", "Run the bash tests"))
+        self.before_merge("failure", failed_job(301, "Test Bash", "Run the bash tests"))
         self.gh.add_runs(
             "pr-require-checks.yml",
             "workflow_dispatch",
@@ -2732,7 +2749,7 @@ class Baseline(CheckCase):
         self.assertEqual([f.signal for f in self.check().failures], ["dispatch"])
 
     def gitleaks_red(self, job_id: int, *more: dict[str, Any]) -> list[dict[str, Any]]:
-        """lint-repo red through its aggregator step, and the ci-status job
+        """Lint Repo red through its aggregator step, and the ci-status job
         it turns red; the aggregator titles each failed gate."""
         self.gh.annotations[job_id] = [
             failure_annotation(),
@@ -2740,7 +2757,7 @@ class Baseline(CheckCase):
             *more,
         ]
         return [
-            failed_job(job_id, "lint-repo", "Aggregate hygiene results"),
+            failed_job(job_id, "Lint Repo", "Aggregate hygiene results"),
             failed_job(job_id + 1, "ci-status", "Aggregate lane results"),
         ]
 
@@ -2767,14 +2784,14 @@ class Baseline(CheckCase):
         verdict = self.check()
         self.assertEqual([f.signal for f in verdict.failures], ["schedule"])
         self.assertIn(
-            "newly failing: lint-repo: markdown failed", verdict.failures[0].detail
+            "newly failing: Lint Repo: markdown failed", verdict.failures[0].detail
         )
 
     def test_a_lint_repo_step_outside_the_aggregator_is_still_charged(self) -> None:
         jobs = self.gitleaks_red(312)
         jobs[0] = failed_job(
             312,
-            "lint-repo",
+            "Lint Repo",
             "Aggregate hygiene results",
             "Test hygiene result aggregation",
         )
@@ -2816,7 +2833,7 @@ class Baseline(CheckCase):
         jobs = self.gitleaks_red(312)
         jobs[0] = failed_job(
             312,
-            "lint-repo",
+            "Lint Repo",
             "Aggregate hygiene results",
             "Test hygiene result aggregation",
         )
@@ -3128,7 +3145,7 @@ class ReplacedRuns(CheckCase):
             ctx._baseline(
                 pm.SIGNAL_DISPATCH, datetime(2026, 10, 12, 10, 0, tzinfo=UTC)
             ),
-            frozenset({"test-bash"}),
+            frozenset({"Test Bash"}),
         )
 
 
@@ -3493,6 +3510,125 @@ class StopUncovered(CheckCase):
             )
         self.assertEqual(exit_.exception.code, 2)
         self.assertEqual(self.gh.calls, [])
+
+
+class UncoveredSince(CheckCase):
+    """`--uncovered-since`, a pr-merge wake's pre-check: one listing read of
+    the newest full dispatch run, 6 only when it was created before the
+    newest lane merge (`_stop_uncovered` would stop), anything else so the
+    wake runs today's check."""
+
+    MERGED = "2026-10-12T10:00:00+00:00"
+
+    def cli(self, merged_at: str = MERGED) -> int:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
+            io.StringIO()
+        ):
+            return pm.main(
+                ["--repo", REPO, "--branch", "main", "--uncovered-since", merged_at]
+            )
+
+    def listing_calls(self) -> list[list[str]]:
+        return [c for c in self.gh.calls if "/actions/workflows/" in " ".join(c)]
+
+    def test_a_merge_newer_than_the_newest_dispatch_run_exits_6_with_one_read(
+        self,
+    ) -> None:
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(11, created_at="2026-10-12T09:59:59Z"),
+        )
+        # git's %cI for a UTC committer date ends in Z.
+        self.assertEqual(self.cli("2026-10-12T10:00:00Z"), pm.EXIT_UNCOVERED)
+        self.assertEqual(len(self.gh.calls), 1)
+        self.assertEqual(self.listing_calls(), self.gh.calls)
+        self.assertIn("per_page=1", " ".join(self.gh.calls[0]))
+        self.assertEqual(self.gh.writes(), [])
+
+    def test_no_dispatch_run_at_all_exits_6(self) -> None:
+        self.assertEqual(self.cli(), pm.EXIT_UNCOVERED)
+        self.assertEqual(len(self.gh.calls), 1)
+
+    def test_a_dispatch_run_at_or_after_the_merge_falls_through(self) -> None:
+        for why, created in [("same second", "2026-10-12T10:00:00Z"), ("later", "2026-10-12T10:05:00Z")]:
+            with self.subTest(why):
+                self.setUp()
+                self.gh.add_runs(
+                    "pr-require-checks.yml",
+                    "workflow_dispatch",
+                    dispatch_run(11, created_at=created),
+                )
+                self.assertEqual(self.cli(), 0)
+                self.assertEqual(len(self.gh.calls), 1)
+
+    def test_any_dispatch_run_counts_as_the_stop_counts_it(self) -> None:
+        # `_stop_uncovered`'s first pass counts every listed dispatch run,
+        # red, running or another actor's, so the pre-check adds no filter.
+        for why, listed in [
+            ("red", dispatch_run(11, conclusion="failure")),
+            ("running", dispatch_run(11, status="in_progress", conclusion=None)),
+            ("cancelled", dispatch_run(11, conclusion="cancelled")),
+            ("a person's", dispatch_run(11, actor=by("maintainer"), triggering_actor=by("maintainer"))),
+        ]:
+            with self.subTest(why):
+                self.setUp()
+                self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", listed)
+                self.assertEqual(self.cli(), 0)
+
+    def test_an_unreadable_listing_falls_through(self) -> None:
+        self.gh.workflow_status["pr-require-checks.yml"] = 502
+        self.assertEqual(self.cli(), pm.EXIT_UNREADABLE)
+        self.assertEqual(len(self.gh.calls), 1)
+
+    def test_a_short_or_foreign_newest_row_falls_through(self) -> None:
+        for why, setup in [
+            ("count with no rows", lambda: self.gh.total_counts.__setitem__(("pr-require-checks.yml", "workflow_dispatch"), 3)),
+            (
+                "another branch's row",
+                lambda: self.gh.add_runs(
+                    "pr-require-checks.yml",
+                    "workflow_dispatch",
+                    dispatch_run(11, created_at="2026-10-12T09:00:00Z", head_branch="feature"),
+                ),
+            ),
+            (
+                "a fork's row",
+                lambda: self.gh.add_runs(
+                    "pr-require-checks.yml",
+                    "workflow_dispatch",
+                    dispatch_run(
+                        11,
+                        created_at="2026-10-12T09:00:00Z",
+                        head_repository={"full_name": "outsider/example-repo"},
+                    ),
+                ),
+            ),
+        ]:
+            with self.subTest(why):
+                self.setUp()
+                setup()
+                self.assertEqual(self.cli(), pm.EXIT_UNREADABLE)
+
+    def test_it_reads_nothing_else_and_needs_no_identity(self) -> None:
+        self.gh.default_branch = None
+        self.gh.viewer = "someone-else"
+        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+        self.assertEqual(self.cli(), 0)
+        self.assertEqual(len(self.gh.calls), 1)
+
+    def test_it_needs_a_branch_and_an_offset_and_no_stop_flag(self) -> None:
+        for argv in (
+            ["--repo", REPO, "--uncovered-since", self.MERGED],
+            ["--repo", REPO, "--branch", "main", "--uncovered-since", "2026-10-12T10:00:00"],
+            ["--repo", REPO, "--branch", "main", "--uncovered-since", self.MERGED, "--stop-uncovered"],
+        ):
+            with self.subTest(argv), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                pm.main(argv)
+        self.assertEqual(self.gh.calls, [])
+
+    def test_its_stop_is_the_stop_uncovered_code(self) -> None:
+        self.assertNotIn(pm.EXIT_UNCOVERED, (0, 1, 2, pm.EXIT_UNREADABLE, 75))
 
 
 class LaneMergesOnly(CheckCase):

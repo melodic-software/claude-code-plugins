@@ -18,7 +18,7 @@ Collect each with its own Bash call, never combined, and not as pre-compute line
 - Recent commits, `git log --oneline -5`
 - Working tree status (empty = clean), `git status --porcelain | head -20`
 
-The pipe is the bound and belongs in the command, never left to how the Bash tool handles long output. Pointer: [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits). As of: 2026-11-10. Recheck trigger: that section changes what output reaches Claude before a read. Treat a failure (not a repository, git unavailable) as an unknown value and carry on.
+The pipe is the bound and belongs in the command, never left to how the Bash tool handles long output. Pointer: [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits). Treat a failure (not a repository, git unavailable) as an unknown value and carry on.
 
 ## Pre-computed context
 
@@ -224,7 +224,7 @@ Full template: [reference/scope-budget.md](reference/scope-budget.md). Every ite
 
 ## Boundary with the bundled `simplify` skill
 
-`simplify` cleans up code and applies its fixes; for what it reviews and the targets it takes, read the `/simplify` row in [All commands](https://code.claude.com/docs/en/commands#all-commands). As of: 2026-11-10. Recheck trigger: that row changes what `simplify` reviews or the targets it takes. This skill hunts unfiled structural drift across a rotated, glob-scoped lane regardless of recent activity, under a scope budget, and ships one structure-only PR. When `simplify` resolves, prefer it for refining a diff that exists (what you just wrote, a path, a PR); prefer this skill when nothing has changed yet and the question is what small structural improvement one slice can take today. `batch-simplify` owns the same cleanup at sweep scale.
+`simplify` cleans up code and applies its fixes; for what it reviews and the targets it takes, read the `/simplify` row in [All commands](https://code.claude.com/docs/en/commands#all-commands). This skill hunts unfiled structural drift across a rotated, glob-scoped lane regardless of recent activity, under a scope budget, and ships one structure-only PR. When `simplify` resolves, prefer it for refining a diff that exists (what you just wrote, a path, a PR); prefer this skill when nothing has changed yet and the question is what small structural improvement one slice can take today. `batch-simplify` owns the same cleanup at sweep scale.
 
 **Mutation gate.** `simplify` edits the working tree. This skill makes its own scope-budgeted edits and commits them as tidyings, so never chain into a `simplify` run on this skill's behalf; the two anchors differ and their diffs would mix.
 

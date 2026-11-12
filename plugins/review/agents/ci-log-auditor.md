@@ -22,7 +22,6 @@ it resolves to under a given session model is read live from the pointer below.
   [subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model);
   the advisor capability rule in
   [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility).
-- **As of:** 2026-11-09.
 - **Recheck trigger:** next model release, or "Choose a model" changes when a family alias resolves to the
   session's model.
 
@@ -51,8 +50,6 @@ it resolves to under a given session model is read live from the pointer below.
 We treat every `continue-on-error` step as a possible masked failure whatever its recorded conclusion, and a job's `success` as no evidence either way. Detection therefore does not rely on step conclusions: grep the workflow YAML for `continue-on-error` to enumerate the at-risk steps, then read those steps' logs for failure signatures (`##[error]`, non-zero exit, `FAILED`, stack traces). A step=failure under a job=success is a confirmed mask; a `continue-on-error` step with failure signatures in its log is one too, whatever its recorded conclusion.
 
 - **Pointer**: for how `continue-on-error` changes a step's recorded result, see [contexts: steps context](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#steps-context).
-- **As of**: 2026-10-01
-- **Recheck trigger**: that section changes how `continue-on-error` affects a step's conclusion, or the REST jobs endpoint starts reporting a step's result from before `continue-on-error` applies.
 
 ### 2. Silently-skipped jobs
 

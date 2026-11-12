@@ -59,9 +59,6 @@ Print the script's output verbatim; do not re-query the sections by hand. When t
 Pass the data dir on the command line, never through the script's environment.
 
 - **Pointer**: <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>
-- **As of**: 2026-11-10
-- **Recheck trigger**: that section starts exporting the plugin path variables to commands run
-  through the Bash tool.
 
 When the header reports unreadable sections, say which were lost and why (each
 `UNREADABLE:` line carries the cause), name the remedy the cause calls for, and
@@ -193,11 +190,8 @@ also prints `PARTIAL`.
 
 - **Pointer**: for what `behind_by` counts, see
   <https://docs.github.com/en/rest/commits/commits#compare-two-commits>. For when GitHub
-  regenerates a PR's test merge commit, no docs page covers it as of the date; correlate with
+  regenerates a PR's test merge commit, no docs page covers it; correlate with
   <https://github.blog/changelog/2026-02-19-changes-to-test-merge-commit-generation-for-pull-requests>.
-- **As of**: 2026-10-02
-- **Recheck trigger**: a docs page starts to cover test merge commit regeneration, or the
-  `mergeStateStatus` enum gains or drops a value.
 
 Upstream facts the script restates, each with its verification record:
 
@@ -211,18 +205,14 @@ Upstream facts the script restates, each with its verification record:
   path reads `reviewDecision` and `mergeStateStatus`.** **Pointer**: when
   the REST path reports a review decision, fetch the response schema at
   <https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request> live, and
-  `gh pr list --help` for the `--json` fields. **As of**: 2026-11-10. **Recheck trigger**:
-  the REST pull schema gains a review-decision field, or gh drops either `--json` field.
+  `gh pr list --help` for the `--json` fields.
 - **The REST path retries a null `mergeable` read instead of treating null as the
   final answer.** **Pointer**: when that retry runs, fetch
-  <https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request> live. **As of**:
-  2026-10-03. **Recheck trigger**: that page changes the description of `mergeable`
-  or removes the field.
+  <https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request> live.
 - **The Lanes section re-reads a lane's runs one UTC day at a time when its week's search
   returns fewer runs than its `total_count`.** **Pointer**:
   [List workflow runs for a workflow](https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2022-11-28#list-workflow-runs-for-a-workflow),
-  which states the result cap for a filtered search. **As of**: 2026-11-04. **Recheck trigger**:
-  that section changes or removes its result cap, or one lane's day passes the cap.
+  which states the result cap for a filtered search.
 
 ## Work status
 
@@ -260,9 +250,6 @@ item types and the qualifier live:
 - **Pointer**: <https://docs.github.com/en/graphql/reference/issues#enum-issuetimelineitemsitemtype>,
   <https://docs.github.com/en/graphql/reference/pulls#enum-pullrequesttimelineitemsitemtype> and
   <https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests#search-by-when-an-issue-or-pull-request-was-created-or-last-updated>.
-- **As of**: 2026-10-29
-- **Recheck trigger**: either enum renames an item type the section reads, or the `updated:`
-  qualifier stops taking a time range.
 
 It pages that search 50 at a time, not 100. No docs page covers the page size's effect on item
 timelines; check it with the probe:
@@ -278,8 +265,6 @@ labeled event. Read both live:
 
 - **Pointer**: <https://docs.github.com/en/graphql/reference/search#query-search> and
   <https://docs.github.com/en/graphql/reference/issues#object-labeledevent>.
-- **As of**: 2026-10-29
-- **Recheck trigger**: either page changes the search's result cap or the event's fields.
 
 The Lanes section parses text two upstream components write. When a row's classes or turns look
 wrong, read the current shapes live:
@@ -291,10 +276,6 @@ wrong, read the current shapes live:
   [`docs/lane-outcome.md` § Fields](https://github.com/melodic-software/ci-workflows/blob/main/docs/lane-outcome.md#fields);
   the turn-cap annotation, claude-code-action
   [`base-action/src/run-claude-sdk.ts`](https://github.com/anthropics/claude-code-action/blob/main/base-action/src/run-claude-sdk.ts).
-- **As of**: 2026-10-23
-- **Recheck trigger**: a ci-workflows release changes the lane record's fields, class names,
-  fallback reasons, what `costUsd` measures, or the record version, or a claude-code-action
-  release changes its turn-cap message.
 
 A pipeline lane's activity is read from the name of the job that carries the record, which the
 pipeline lanes name after the activity, so it costs no read beyond the jobs read. The
@@ -338,7 +319,7 @@ under WSL. A GitHub billing 403 whose message names admin rights, a billing mana
 organization owner is `UNREADABLE` with the org-admin fix; any other 403 is `UNREADABLE` with its
 message (who may call these endpoints: the GitHub pointers below).
 
-Each pointer below is as of 2026-10-21; its recheck trigger follows it.
+Each pointer below is followed by its recheck trigger.
 
 - Foundational CSPM and the secure score:
   <https://learn.microsoft.com/en-us/azure/defender-for-cloud/concept-cloud-security-posture-management#plan-pricing>.

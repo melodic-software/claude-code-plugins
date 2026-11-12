@@ -26,7 +26,7 @@ A resumed session and a corpus refresh run it again before their first write, wi
 
 The `context/`, `templates/` and `reference/` files write the plugin data directory as `<plugin-data>` and the plugin root as `<plugin-root>`. Put the `${CLAUDE_PLUGIN_DATA}` or `${CLAUDE_PLUGIN_ROOT}` path this body shows in its place before a path from those files goes into a command or a file write.
 
-- **Pointer**: when deciding which plugin files may carry a `${…}` path and which need the placeholder, fetch <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves> live. **As of**: 2026-10-07. **Recheck trigger**: that table adds supporting files to where a `${…}` reference resolves, or lists the Bash tool among the processes that receive the variables.
+- **Pointer**: when deciding which plugin files may carry a `${…}` path and which need the placeholder, fetch <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves> live.
 
 **Example shape:** a testing skill distilled from two books, Beck's *Test-Driven Development by Example* and Khorikov's *Unit Testing*, producing ~14 reference files, with shared files where the authors overlap.
 
@@ -48,8 +48,6 @@ This tool is a neutral distiller: it applies a method, it does not judge what yo
 For multi-session book distillation (Phases 1-5 split across sessions), copy `${CLAUDE_PLUGIN_ROOT}/skills/distill/templates/checklist.md` into `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/{book-slug}-checklist.md`. `{project-slug}` is the progress key (Phase 1.4); derive `{target-skill-slug}` from the target skill name (Phase 1.1), slugified to lowercase alphanumerics and hyphens. Tick each phase as completed; the ticked state IS the cross-session resume pointer. We keep cross-session state in `${CLAUDE_PLUGIN_DATA}` so it outlives the session. Check and read that state with Glob or Read by absolute path (a missing checklist means a new book), never with `cd`, `ls`, `cat` or `sed` in a shell. Phase 3 SKIPPED for thin / single-chapter books.
 
 - **Pointer**: when deciding whether state under `${CLAUDE_PLUGIN_DATA}` will still be there next session, fetch <https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables> live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section changes when the plugin data directory is created, kept or deleted.
 
 ## Phase 1. Setup
 
@@ -106,7 +104,7 @@ Map chapters to output files. Group related chapters into single files when they
 
 ### 1.4 Create the progress file
 
-Save a progress file under `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/` (named by book slug, e.g. `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/{book-slug}-progress.md`) capturing book title/author/path/page-offset, a File plan table (File · Chapters · PDF pages · Status), and a Session log. `{project-slug}` is the progress key `node "${CLAUDE_PLUGIN_ROOT}/scripts/work-root.mjs" --progress-key` prints, run from the session's working directory alone as its own Bash call, with no other command chained to it: the session root's slugified basename plus a hash of its path (rule in `${CLAUDE_PLUGIN_ROOT}/reference/work-root.md`), so two clones or worktrees that share a directory name (`/tmp/api` vs `~/work/api`) never share state. Derive `{target-skill-slug}` from the target skill name (Phase 1.1), slugified the same way, so distilling the same book in different projects or into different target skills never collides. Its lifetime is the data directory's (record under [Emit checklist](#emit-checklist); as of 2026-10-11; recheck trigger: that heading is renamed or the record leaves it). Fill-in template in [context/templates.md](context/templates.md) "Progress file"; a web corpus uses "Web corpus progress file" there instead.
+Save a progress file under `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/` (named by book slug, e.g. `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/{book-slug}-progress.md`) capturing book title/author/path/page-offset, a File plan table (File · Chapters · PDF pages · Status), and a Session log. `{project-slug}` is the progress key `node "${CLAUDE_PLUGIN_ROOT}/scripts/work-root.mjs" --progress-key` prints, run from the session's working directory alone as its own Bash call, with no other command chained to it: the session root's slugified basename plus a hash of its path (rule in `${CLAUDE_PLUGIN_ROOT}/reference/work-root.md`), so two clones or worktrees that share a directory name (`/tmp/api` vs `~/work/api`) never share state. Derive `{target-skill-slug}` from the target skill name (Phase 1.1), slugified the same way, so distilling the same book in different projects or into different target skills never collides. Its lifetime is the data directory's (record under [Emit checklist](#emit-checklist)). Fill-in template in [context/templates.md](context/templates.md) "Progress file"; a web corpus uses "Web corpus progress file" there instead.
 
 ### 1.5 Session budget
 
@@ -134,7 +132,7 @@ All book text (PDF/EPUB extraction) and every page or post you fetch or read fro
 
 ### Reading a chapter (PDF)
 
-- Read 10-20 PDF pages per batch, within the Read tool's per-call page limit (**Pointer**: when choosing a page range, fetch <https://code.claude.com/docs/en/tools-reference#read-tool-behavior> live for that limit. **As of**: 2026-10-11. **Recheck trigger**: that section changes how many PDF pages one call reads)
+- Read 10-20 PDF pages per batch, within the Read tool's per-call page limit (**Pointer**: when choosing a page range, fetch <https://code.claude.com/docs/en/tools-reference#read-tool-behavior> live for that limit)
 - 10 pages for image-heavy content (diagrams, code listings with screenshots)
 - 20 pages for text-heavy content (prose, inline code)
 - Note the chapter's key frameworks, terminology, and arguments as you read
@@ -185,7 +183,7 @@ After all author-specific files are written, identify concepts covered by multip
 2. Merge into the shared file:
    - If `{concept}.md` does not exist: rename `{concept}-{author}.md` to `{concept}.md` with `mv` when the source is untracked, or `git mv` when already staged/tracked
    - If `{concept}.md` already exists: Read both files, append the new author's content below the existing shared file, then remove `{concept}-{author}.md` with `rm` (untracked) or `git rm` (tracked). Do not use `git mv -f`. That would replace rather than merge
-3. **Re-Read the file at its new path** before any Edit or Write to it (**Pointer**: for when Edit and Write need a prior Read, see <https://code.claude.com/docs/en/tools-reference#write-tool-behavior>. **As of**: 2026-11-03. **Recheck trigger**: that section changes when an existing file needs a Read before it is written)
+3. **Re-Read the file at its new path** before any Edit or Write to it (**Pointer**: for when Edit and Write need a prior Read, see <https://code.claude.com/docs/en/tools-reference#write-tool-behavior>)
 4. Add the new author's section, when you appended into an existing shared file, ensure the new section is clearly headed; when you renamed, append below existing content, don't rewrite what's already there
 5. Synthesize. Add a brief note connecting the authors' perspectives where they complement or contrast
 
@@ -220,8 +218,6 @@ Check that every `[file](reference/<file>.md)` link in SKILL.md resolves to an a
 When the target skill is one person's or company's corpus, its SKILL.md takes the fixed shape in [context/templates.md](context/templates.md) "Corpus skill SKILL.md": the template, what each section holds, and the length limit live there, and the section order is kept. When the target is an existing discipline skill instead, add the theme files to its routing table as above and its core ideas to its quick decision guide.
 
 - **Pointer**: for which parts of a skill sit in the agent's context and when (the description, the `SKILL.md` body, supporting files), fetch <https://code.claude.com/docs/en/skills#control-who-invokes-a-skill> and <https://code.claude.com/docs/en/skills#add-supporting-files> live. This record backs every loading reason in this skill's web corpus steps, templates included.
-- **As of**: 2026-10-29
-- **Recheck trigger**: either section changes what loads at startup, when a skill body loads, or when supporting files are read.
 
 ## Phase 5. Quality polish
 
@@ -258,4 +254,4 @@ These are hard-won lessons from real distillation sessions:
 
 7. **One skill per discipline.** Testing knowledge goes in a testing skill, domain design in a domain-design skill. Don't create a mega catch-all skill. A catch-all skill's routing table has to disambiguate across unrelated disciplines, so it routes worse than a per-discipline table
 
-8. **Reference files one level deep.** SKILL.md → reference/*.md. No deeper nesting; keep the hierarchy flat. Why: [Avoid deeply nested references](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#avoid-deeply-nested-references), as of 2026-11-10; recheck when that section changes
+8. **Reference files one level deep.** SKILL.md → reference/*.md. No deeper nesting; keep the hierarchy flat. Why: [Avoid deeply nested references](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#avoid-deeply-nested-references).

@@ -29,8 +29,7 @@ A static field on a `hooks.json` **handler object**, sibling of `type`/`command`
 
 It labels the spinner while the hook runs. **A hook script never emits this, because it is configuration,
 not a runtime output field.** Pointer: for the field, see
-<https://code.claude.com/docs/en/hooks#common-fields>. As of: 2026-10-01. Recheck trigger: that
-table moves the field or a runtime output field takes the name. **Rollout status: near-complete.** As of
+<https://code.claude.com/docs/en/hooks#common-fields>. **Rollout status: near-complete.** As of
 2026-07-23, 30 of the 31 wired `type: "command"` handlers across the fleet's 15 hook-bearing
 plugins declare `statusMessage`; the sole remaining holdout is
 `plugins/disk-hygiene/hooks/hooks.json`. Tracked against
@@ -74,7 +73,6 @@ notice takes. The rule rests on a negative: we found no file-change or diff surf
 output channels, so a benign reflow and a wrong dictionary rewrite arrive identically.
 
 - **Pointer**: for the hook output fields, see <https://code.claude.com/docs/en/hooks#json-output>.
-- **As of**: 2026-08-10
 - **Recheck trigger**: a Claude Code release that adds a file-change or diff surface to the hook
   output schema, whether a fourth output field or such a payload on one of
   [the three](#the-three-surfaces), which would make this rule's disclosure requirement redundant.
@@ -133,9 +131,6 @@ count, or the disclosure becomes the noise problem it was meant to prevent.
   - **Pointer**: for the field's delivery, see <https://code.claude.com/docs/en/hooks#json-output>
     and the event's section under <https://code.claude.com/docs/en/hooks#hook-events>; for
     background hooks, see <https://code.claude.com/docs/en/hooks#how-async-hooks-execute>.
-  - **As of**: 2026-10-01
-  - **Recheck trigger**: either section changes where `systemMessage` is delivered, or an event's
-    section changes how it treats the field.
 
 **Repeat-notice discipline.** A missing-prerequisite notice behind a broad matcher (every
 `Write|Edit`, every `Bash` call) must not repeat on every invocation. Use `hook::require jq`
@@ -145,9 +140,8 @@ unguarded `hook::emit_skip_notice` call on a broad-matcher hook is a conformance
 notice fires once per session; the model notice fires once per agent, because a non-fork subagent
 does not share the parent's context and would otherwise never see why the hook skipped. A fork
 inherits only what fired before it spawned
-([subagents: how forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents),
-as of 2026-11-01; recheck when that section changes what a fork inherits), so it gets its own
-notice too. Neither renews. The
+([subagents: how forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents)),
+so it gets its own notice too. Neither renews. The
 text says the notice will not repeat this session, never that the skip lasts the session: the hook
 probes again on every call. A plugin README states the cadence as "once per session". A missing
 external binary keeps the same cadence, with the install route in its user notice.
@@ -192,15 +186,11 @@ Three cap decisions, each with the section that owns the figure.
    with an opt-in end-of-turn check, and sends neither channel per edit.
    - **Pointer**: for the output cap and what happens over it, see
      <https://code.claude.com/docs/en/hooks#json-output>.
-   - **As of**: 2026-10-04
-   - **Recheck trigger**: that section changes the cap figure or what happens over it.
 
 2. **Each `additionalContext` value is sized on its own.** We size the value against the cap above
    and never against what other hooks on the same event emit.
    - **Pointer**: for how several hooks' values are delivered, see
      <https://code.claude.com/docs/en/hooks#add-context-for-claude>.
-   - **As of**: 2026-09-05
-   - **Recheck trigger**: that section states a budget shared across hooks.
 
 3. **`classifierContext` is not a fourth surface, and its cap governs neither channel above.** It
    is a `PostToolUse` field addressed to the auto-mode classifier, never the user or the model, so
@@ -211,9 +201,6 @@ Three cap decisions, each with the section that owns the figure.
    this is where the next reader should find the answer.
    - **Pointer**: for the field and its limits, see
      <https://code.claude.com/docs/en/hooks#annotate-a-result-for-the-auto-mode-classifier>.
-   - **As of**: 2026-09-05
-   - **Recheck trigger**: that section changes the field's cap, its sharing rule, or the events
-     that accept it.
 
 ### 3. OTel-style telemetry envelope
 
@@ -231,15 +218,13 @@ for the precise rule and why. The guard mods emit on fewer outcomes, under a
 `OTEL_*` exporter configuration, so it cannot emit real OpenTelemetry. The file-sink envelope is
 the only telemetry surface we give a hook; this is a constraint, not an oversight. Pointer: for
 which subprocesses get no `OTEL_*` variables, see
-<https://code.claude.com/docs/en/monitoring-usage#administrator-configuration>. As of: 2026-10-01.
-Recheck trigger: that section starts passing `OTEL_*` variables to hook subprocesses.
+<https://code.claude.com/docs/en/monitoring-usage#administrator-configuration>.
 
 **Deferred: `prompt_id` correlation.** Carrying the hook input's `prompt_id` in the envelope would
 let external tooling correlate a hook's local envelope with the same turn's real OTel stream.
 Adding it is a `hook-telemetry` schema change (`schema_version` 1.0 → 1.1) touching every
 producer's `data_json` construction, out of scope for this doc's three-surface convention.
-Pointer: for the field, see <https://code.claude.com/docs/en/hooks#common-input-fields>. As of:
-2026-10-01. Recheck trigger: that table drops the field or its OpenTelemetry match.
+Pointer: for the field, see <https://code.claude.com/docs/en/hooks#common-input-fields>.
 melodic-software/claude-code-plugins#930 is closed: the per-session event log (`harness-ops`,
 melodic-software/claude-code-plugins#3750) records `prompt_id` per event, and the envelope-spine
 promotion is tracked at melodic-software/claude-code-plugins#3758.
@@ -286,9 +271,6 @@ to the Frequency rule, and `rate-limit-guard`'s threshold line to the Phrasing r
   <https://code.claude.com/docs/en/plugins/mods/api#show-something-without-starting-a-turn>; for
   the model behavior behind the risk, see
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#mid-turn-user-messages-and-task-budgets>.
-- **As of**: 2026-10-04
-- **Recheck trigger**: one of those sections changes who reads a channel, how injected context
-  should be phrased, or how the model treats text that arrives beside tool results.
 
 ### See what a hook or mod sent
 
@@ -302,7 +284,6 @@ carrying the exact text sent, so the debug log holds what the model read.
 
 - **Pointer**: for the debug log and the call, see the links above and
   <https://code.claude.com/docs/en/plugins/mods/troubleshoot#read-the-debug-log>.
-- **As of**: 2026-10-04
 - **Recheck trigger**: one of those sections moves, or the mods API gains its own record of what a
   mod sent Claude.
 
@@ -323,9 +304,7 @@ carrying the exact text sent, so the debug log holds what the model read.
   agent-actionable content to the user channel).
 - **Not a UI feature, but "no verbose surface exists" is the wrong reason.** Verbose surfaces do
   exist, and the hooks reference names one that carries background-hook output. Pointer: for that
-  surface, see <https://code.claude.com/docs/en/hooks#how-async-hooks-execute>. As of: 2026-08-11.
-  Recheck trigger: that section stops naming a surface that carries background-hook output.
-  Alongside it are the `verbose` and `viewMode` settings, the `--verbose` flag,
+  surface, see <https://code.claude.com/docs/en/hooks#how-async-hooks-execute>. Alongside it are the `verbose` and `viewMode` settings, the `--verbose` flag,
   `CLAUDE_CODE_DEBUG_LOG_LEVEL=verbose` for hook matcher counts, and `--include-hook-events` for
   the stream-json event feed.
 
@@ -453,7 +432,3 @@ per cycle.
   <https://platform.claude.com/docs/en/build-with-claude/context-windows#context-awareness>; for the
   countdown and the occasional reminder, see
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#mid-turn-user-messages-and-task-budgets>.
-- **As of**: 2026-10-03
-- **Recheck trigger**: the context-awareness section changes which models receive the injected
-  tags, or the prompting guide changes how often harness text after tool results may arrive before
-  the model treats it as an injection.

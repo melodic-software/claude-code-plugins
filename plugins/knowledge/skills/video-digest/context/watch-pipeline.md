@@ -236,8 +236,6 @@ that file's section of the template, and a per-sheet brief also carries the shee
 conversation nor the files already read.
 
 - **Pointer**: <https://code.claude.com/docs/en/sub-agents#what-loads-at-startup>
-- **As of**: 2026-10-10
-- **Recheck trigger**: that section changes what a non-fork subagent inherits from its parent.
 
 - **Pass 1 contact-sheet triage:** One subagent per sheet from `tempSession.contactSheetsDir`
   (or `key-frames/contact-sheets/`). Write `key-frames/triage/batches/sheet_NNN.json` (cells per
@@ -416,9 +414,6 @@ correction. A probe on ffmpeg 8.0.1 found the reported times already relative to
 - **Pointer**: for per-frame timing, see <https://ffmpeg.org/ffmpeg-filters.html#showinfo>; for
   start-offset handling, see the `-copyts` entry at
   <https://ffmpeg.org/ffmpeg.html#Advanced-options>.
-- **As of**: 2026-10-02
-- **Recheck trigger**: the ffmpeg floor under Prerequisites in `SKILL.md` changes, or a release note
-  for either entry mentions timestamps.
 
 Standalone pipeline (when video + VTT already acquired):
 

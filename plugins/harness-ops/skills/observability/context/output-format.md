@@ -77,19 +77,8 @@ Failed-then-fixed retries:
 
 ## Hallucination-guard catches
 
-`PostToolUse` events from `cli-flag-verify` hook (advisory exit 1).
-
-- Total: `<N>` violations · unique `<bin>:<sha16>` pairs: `<U>`
-
-| Binary | Catches | Unique pairs | Severity |
-|---|---:|---:|---|
-| claude | 12 | 4 | MEDIUM |
-| gh | 3 | 3 | INFO |
-
-Top recurring (same `<bin>:<sha16>` ≥ 3×):
-
-- `5× claude:<sha16>`: repeated hallucination, escalation candidate
-- (or) `_no recurrences_`
+`not collected: cli-flag-verify runs at push time in guardrails' reference-verify git hook`
+(data-sources.md 4.5).
 
 ## Drift candidates
 

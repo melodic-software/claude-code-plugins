@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: pl-install-summary-and-rollback-lines
+graders:
+  - name: no-reload-after-active
+    type: regex
+    pattern: 'reload(?:-plugins)?\b[^.\n]{0,80}\b(?:not (?:needed|required|necessary)|unnecessary)|(?:don[’'']?t|do not|doesn[’'']?t|does not|no) (?:need|have) to (?:run )?(?:a )?/?reload|\balready (?:active|live|loaded)\b|\bno reload\b'
+    flags: 'i'
+    target: last_message
+  - name: calls-it-downgrade
+    type: regex
+    pattern: '\b(?:downgrad\w*|roll(?:ed)?[- ]?back|rollback)\b'
+    flags: 'i'
+    target: last_message
+  - name: explains-head-only-compare
+    type: regex
+    pattern: '\bshallow\b|\bre-?clon\w*|\bat (?:the )?(?:clone[’'']?s )?HEAD\b|\bHEAD commit\b|\b(?:latest|newest|tip|current) commit\b[^.\n]{0,120}\bolder commit\b|\bolder commit\b[^.\n]{0,160}\b(?:nothing|no object|not (?:there|held|present)|missing)'
+    flags: 'i'
+    target: last_message

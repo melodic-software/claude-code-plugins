@@ -53,9 +53,6 @@ consumer-run.
     key forms a release takes, fetch
     [plugin CLI reference § plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
     live.
-  - **As of**: 2026-11-03
-  - **Recheck trigger**: that section changes what an install of an already-installed plugin does,
-    or the `--config` key forms.
 
 ## Verified-version record
 
@@ -134,10 +131,6 @@ newer release is verified.
   how each route reports a rejected value, at
   [§ plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
   and [§ plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
-- **As of**: 2026-11-03
-- **Recheck trigger**: one of those sections changes what an uninstall deletes, where a saved value
-  is stored, what `-s` places, when a saved value takes effect, or how a route reports a
-  rejection.
 
 ## The short form setups print
 

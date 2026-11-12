@@ -153,6 +153,7 @@ jobs:
   # check does not trust; that event's merge job still runs the check. Not on
   # a PR-scoped dispatch (inputs.pr), which only arms.
   post-merge-dispatch:
+    name: Post Merge Dispatch
     if: >-
       github.ref == 'refs/heads/main'
       && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
@@ -933,6 +934,7 @@ jobs:
     # condition below, which still skips push, forks and other
     # branches. The job joins its concurrency group only once
     # post-merge-dispatch ends.
+    name: Merge
     needs: [post-merge-dispatch]
     # A run started on any other branch would use that branch's copy of this
     # file, so it does nothing. pull_request_target runs carry the PR's base
@@ -956,7 +958,7 @@ jobs:
     # could stop between the gate's check and its merge-queue write. Extra runs
     # wait in line (`queue: max`) instead of being dropped. Without it GitHub
     # keeps only one waiting run and cancels the rest, which leaves CANCELLED
-    # `merge` checks on PRs and makes the merge hook refuse them. Waiting is
+    # `Merge` checks on PRs and makes the merge hook refuse them. Waiting is
     # harmless because every run re-reads its PRs from the API, and a run
     # with a pending successor that does its work skips the gate (the
     # superseded step). GitHub caps
@@ -1170,7 +1172,7 @@ jobs:
       # kill switch, a listed human) and hands out one token per job. A queued
       # run that a change to this file on main superseded is refused
       # `workflow-modified`; it ends green with a warning and no token, so the
-      # steps below skip and no stale failed `merge` check lands on a PR. The
+      # steps below skip and no stale failed `Merge` check lands on a PR. The
       # newer run checks every PR. A kill switch turned on after this run read
       # its variables is refused `kill-switch`; it ends green with a notice and
       # no token the same way, and the next scheduled run checks every PR.
@@ -2331,7 +2333,9 @@ jobs:
   # disarms at the next scheduled run, which also arms a new pull request and
   # catches what the events missed. A PR-scoped dispatch (inputs.pr, which
   # pr-verify starts on a pass verdict) reads and arms only that pull
-  # request, its room from the last sweep's post-merge report. Only the
+  # request, its room from the last sweep's post-merge report, after a
+  # one-read pre-check that ends the wake while no full run covers the
+  # newest lane merge. Only the
   # scheduled run and a dispatched one arm, on
   # the issue link (one closing issue, or one plain `Refs:` issue) and verdict
   # pr-merge's gate would take at the head, with no hold on the gate's risk
@@ -2348,6 +2352,7 @@ jobs:
     # post-merge-dispatch and reads its report; on every other event and a
     # PR-scoped dispatch that job is skipped, and !cancelled() runs this one
     # anyway.
+    name: Enable Auto Merge
     needs: [post-merge-dispatch]
     # A pull request event wakes it only for a lanes App pull
     # request (its author's id is AUTOMATION_LANES_APP_SENDER_ID), the only
@@ -2370,9 +2375,9 @@ jobs:
       group: pr-merge-enable-auto-merge
       queue: max
     runs-on: ubuntu-24.04
-    # Above the sum of its steps' timeouts (43, workflow.test.mjs checks it),
+    # Above the sum of its steps' timeouts (44, workflow.test.mjs checks it),
     # with a minute left for the steps that name none.
-    timeout-minutes: 44
+    timeout-minutes: 45
     permissions:
       contents: read # check out main
       actions: read # the verifier verdicts, their runs and the head-ref map
@@ -2525,6 +2530,40 @@ jobs:
           kill-switch-ok: true
           rate-limit-hold-ok: true
 
+      # A PR-scoped run's first read, on every wake and never carried: when
+      # main's newest full dispatch run was created before the newest lane
+      # merge this checkout holds, the fresh check below would stop at that
+      # merge (--stop-uncovered, exit 6) after the reads before it, so the wake
+      # ends here on one read, with the same outcome. A lane merge here is the
+      # newest first-parent commit merge.agent-identity authored, and its time
+      # the committer date the merge queue stamps when it builds the group, at
+      # or before mergedAt, so an early date only reads as covered. A covered,
+      # unreadable or missing answer, or a rate limit, runs the steps below as
+      # before; a wrong uncovered leaves the arming to the next sweep.
+      - name: Check whether a full run covers the newest lane merge
+        id: precheck
+        if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: uncovered-since
+          REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml) || exit 0
+          [ -n "$identity" ] || exit 0
+          at=$(git -C .base log -1 --first-parent --fixed-strings --author="$identity" --format=%cI HEAD) || exit 0
+          [ -n "$at" ] || exit 0
+          code=0
+          python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
+            --repo "$REPO" --branch main --uncovered-since "$at" || code=$?
+          if [ "$code" = 6 ]; then
+            echo "::notice::the pre-check found a lane merge ($at) no dispatch run covers yet; its report would need a dispatch, so nothing is armed or disarmed, and the next sweep checks again"
+            echo "uncovered=true" >>"$GITHUB_OUTPUT"
+          fi
+
       # A PR-scoped dispatch has no post-merge-dispatch job, so it reads the
       # report the last sweep kept, from a trusted run on main
       # (last-report.mjs), into the same place. The keep-report step below
@@ -2532,7 +2571,7 @@ jobs:
       # otherwise runs the check fresh in its place. Read first, so a report
       # whose check code changed ends the wake before the reads below.
       - name: Read the post-merge report the last sweep kept
-        if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr
+        if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr && steps.precheck.outputs.uncovered != 'true'
         continue-on-error: true
         timeout-minutes: 2
         env:
@@ -2551,7 +2590,7 @@ jobs:
       # unset, and keep-report decides as before.
       - name: Check whether the last sweep's report predates a code change
         id: code
-        if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr
+        if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr && steps.precheck.outputs.uncovered != 'true'
         continue-on-error: true
         run: |
           last=$RUNNER_TEMP/post-merge
@@ -2571,7 +2610,7 @@ jobs:
       - name: Read the verdict reads the last run kept
         if: >-
           steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-          && steps.code.outputs.changed != 'true'
+          && steps.code.outputs.changed != 'true' && steps.precheck.outputs.uncovered != 'true'
         continue-on-error: true
         timeout-minutes: 2
         env:
@@ -2585,7 +2624,7 @@ jobs:
       - name: Start the run cache from them
         if: >-
           steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-          && steps.code.outputs.changed != 'true'
+          && steps.code.outputs.changed != 'true' && steps.precheck.outputs.uncovered != 'true'
         continue-on-error: true
         env:
           CARRY_FROM: ${{ runner.temp }}/pr-merge-carried.json
@@ -2621,7 +2660,7 @@ jobs:
       - name: Read the lane records the last run kept
         if: >-
           steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-          && steps.code.outputs.changed != 'true'
+          && steps.code.outputs.changed != 'true' && steps.precheck.outputs.uncovered != 'true'
         continue-on-error: true
         timeout-minutes: 2
         env:
@@ -2659,7 +2698,7 @@ jobs:
       # under the same bounds, and no others.
       - name: Keep the last sweep's report only while nothing it read has moved
         id: keep-report
-        if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr
+        if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr && steps.precheck.outputs.uncovered != 'true'
         timeout-minutes: 5
         env:
           GH_TOKEN: ${{ github.token }}
@@ -2945,6 +2984,7 @@ jobs:
           KILL: ${{ steps.kill.outputs.proceed }}
           WHO: ${{ steps.who.outputs.proceed }}
           SUPERSEDED: ${{ steps.superseded.outputs.superseded }}
+          UNCOVERED: ${{ steps.precheck.outputs.uncovered }}
           STANDS: ${{ steps.keep-report.outputs.stands }}
           FRESH: ${{ steps.keep-report.outputs.fresh }}
           FRESH_REASON: ${{ steps.keep-report.outputs.fresh-reason }}
@@ -2958,6 +2998,8 @@ jobs:
               OUTCOME="skipped: the who step stopped it"
             elif [ "$SUPERSEDED" = true ]; then
               OUTCOME="skipped: a waiting run does this work"
+            elif [ "$UNCOVERED" = true ]; then
+              OUTCOME="skipped: the pre-check found a lane merge no dispatch run covers (needs-dispatch)"
             elif [ -z "$FRESH" ] && [ "$FRESH_STARTED" = true ]; then
               OUTCOME="skipped: the fresh post-merge check did not finish (timeout or cancel)"
             elif [ "$STANDS" = false ] && [ "$FRESH" = 6 ]; then
@@ -3036,6 +3078,7 @@ jobs:
   # Rules: .github/scripts/pr-merge/post-unarmed-status.mjs.
   # Not on a PR-scoped dispatch: the next sweep posts what that run would.
   unarmed-status:
+    name: Unarmed Status
     needs: [enable-auto-merge]
     if: ${{ !cancelled() && !inputs.pr && needs.enable-auto-merge.outputs.unarmed-statuses != '' }}
     runs-on: ubuntu-24.04
@@ -3086,6 +3129,7 @@ jobs:
           tokens: github-token
 
   dispatch-full-run:
+    name: Dispatch Full Run
     needs: [merge]
     if: >-
       !cancelled()
@@ -3355,6 +3399,7 @@ jobs:
   # line like the merge job's, so two never write at once and none is
   # cancelled onto a PR head; every step after the checkout cannot fail it.
   gate-check:
+    name: Gate Check
     needs: [merge]
     if: always() && needs.merge.outputs.gate-rows == 'true'
     concurrency:

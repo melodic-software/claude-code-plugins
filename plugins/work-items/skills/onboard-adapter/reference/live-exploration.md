@@ -75,7 +75,7 @@ Fetch a child item, and list items from its container.
 List items with an explicit page size, and again with none.
 
 - What is the default page size when none is requested? This is the number that silently
-  truncates. (For `gh`: [`gh issue list` options](https://cli.github.com/manual/gh_issue_list#options), as of 2026-11-10; recheck when gh changes its default `--limit`.)
+  truncates. (For `gh`: [`gh issue list` options](https://cli.github.com/manual/gh_issue_list#options).)
 - What is the maximum the API accepts? That is `limits.list_items_max`.
 - How is the next page signaled: cursor, link header, or page number? The adapter must
   follow it to the declared ceiling.

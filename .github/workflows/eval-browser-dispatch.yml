@@ -142,6 +142,7 @@ jobs:
   # refused key attempt first. No secret, no model, no checkout; every
   # failure runs the key. Probing is off.
   eval-key-credit:
+    name: Eval Key Credit
     if: >-
       (github.event_name == 'workflow_dispatch'
       && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
@@ -191,6 +192,7 @@ jobs:
   # stop, or a 401 or 402, in the probe or any run hands the eval to
   # eval-subscription; an empty key, or one the gate skipped, runs nothing.
   eval:
+    name: Eval
     needs: eval-key-credit
     if: >-
       ${{ !cancelled() && needs.eval-key-credit.result == 'success' && ((github.event_name == 'workflow_dispatch'
@@ -1058,6 +1060,7 @@ jobs:
   # credential, the leg record's fallback reason and the fallback leg's lack
   # of a next-leg call.
   eval-subscription:
+    name: Eval Subscription
     needs: [eval-key-credit, eval]
     if: >-
       ${{ !cancelled() && needs.eval-key-credit.result == 'success'
@@ -1880,6 +1883,7 @@ jobs:
   # the subscription leg handed off or found its token empty, and only when
   # the fallback token is set. It is the last leg and never hands off.
   eval-fallback:
+    name: Eval Fallback
     needs: [eval-key-credit, eval-subscription]
     if: ${{ !cancelled() && needs.eval-subscription.outputs.next-leg == 'fallback' }}
     runs-on: ubuntu-24.04

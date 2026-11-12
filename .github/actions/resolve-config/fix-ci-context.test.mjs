@@ -23,7 +23,7 @@ const api = {
   listPullCommits: async () => [fixCommit, fixCommit, fixCommit],
   // A failing check: the round cap is read only when one fails.
   listCommitCheckRuns: async () =>
-    Object.assign([{ id: 11, name: "lint-shell", status: "completed", conclusion: "failure", app: { slug: "github-actions" } }], { complete: true }),
+    Object.assign([{ id: 11, name: "Lint Shell", status: "completed", conclusion: "failure", app: { slug: "github-actions" } }], { complete: true }),
 };
 
 test("with no FIX_CI_ROUNDS, main reads loop.fix-ci-rounds from the base config", async () => {
