@@ -8,7 +8,7 @@ import { test } from "node:test";
 
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { closing } from "../intake-triage/apply-verdict.mjs";
-import { closing as resolverClosing, HELD_STEP } from "../pr-verify/resolve-pr.mjs";
+import { closing as resolverClosing, HELD_REASON } from "../pr-verify/resolve-pr.mjs";
 import {
   auditFindings,
   ceilingFindings,
@@ -667,8 +667,18 @@ test("signal 13: pr-verify's resolver and trigger-gate holds parse to fixed reas
   assert.equal(parseHold("pr-verify", "pr-verify judged #7: PASS"), null);
   assert.equal(parseHold("intake-sweep", annotation(gates[0])[1]), null);
   const lane = HOLD_LANES.find((l) => l.lane === "pr-verify");
-  assert.deepEqual([lane.workflow, lane.holdStep], ["pr-verify.yml", HELD_STEP]);
+  assert.equal(lane.workflow, "pr-verify.yml");
   for (const job of lane.jobs) assert.match(workflow, new RegExp(`\\n  ${job}:\\n`), job);
+  // Each notice prints only where Note the hold runs, so the monitor reads a
+  // green hold job's annotations without its steps: the resolver's beside
+  // reason=held, which the step's `if:` runs on, and the gate's in the step.
+  assert.match(resolver.outputs, new RegExp(`^reason=${HELD_REASON}$`, "m"));
+  const noteHold = [...workflow.matchAll(/- name: Note the hold\n {8}id: note-hold\n {8}if: (.*)\n([\s\S]*?)\n {6}- /g)];
+  assert.equal(noteHold.length, 3);
+  for (const [, condition, body] of noteHold) {
+    assert.equal(condition, "steps.pr.outputs.reason == 'held' || steps.gate.outputs.reason == 'read-fault'");
+    assert.match(body, /echo "::notice title=pr-verify::held: pr-verify's trigger gate/);
+  }
 });
 
 test("signal 13: pr-review-main's unread file-list hold parses to a fixed reason, in every select step", () => {
@@ -682,8 +692,12 @@ test("signal 13: pr-review-main's unread file-list hold parses to a fixed reason
   assert.equal(parseHold("pr-verify", annotation(notices[0])[1]), null);
   assert.equal(parseHold("pr-review-main", "the file list read 12 files"), null);
   const lane = HOLD_LANES.find((l) => l.lane === "pr-review-main");
-  assert.deepEqual([lane.workflow, lane.holdStep], ["pr-review-main.yml", "Note the hold"]);
+  assert.equal(lane.workflow, "pr-review-main.yml");
   for (const job of lane.jobs) assert.match(workflow, new RegExp(`\\n  ${job}:\\n`), job);
+  // Each notice sets the select step's `held`, which runs Note the hold, so
+  // the monitor reads a green hold job's annotations without its steps.
+  assert.equal([...workflow.matchAll(/echo "::notice title=pr-review-main::held: [^"]*"\n {12}echo "held=true" >>"\$GITHUB_OUTPUT"\n/g)].length, 4);
+  assert.equal([...workflow.matchAll(/- name: Note the hold\n {8}id: note-hold\n {8}if: steps\.select\.outputs\.held == 'true'\n/g)].length, 4);
   // A matrix leg is listed as `<job> (<values>)` and counts as that job.
   assert.equal(holdJob(lane.names, "Review (claude-review, claude-review)"), true);
   assert.equal(holdJob(lane.names, "Trigger"), true);
@@ -726,7 +740,6 @@ test("signal 13: pr-merge's lane token hold parses to one fixed reason, for eith
   assert.equal(parseHold("Lane token hold", "lane-token-stopped: the broker refused the token because a lanes kill switch is on"), null);
   const lane = HOLD_LANES.find((l) => l.lane === "pr-merge");
   assert.equal(lane.workflow, "pr-merge.yml");
-  assert.equal(lane.holdStep, undefined, "no pr-merge step runs only on a hold");
   // Each job named is one whose token step opts into the hold.
   const workflow = readFileSync(new URL("../../workflows/pr-merge.yml", import.meta.url), "utf8");
   for (const job of lane.jobs) {
