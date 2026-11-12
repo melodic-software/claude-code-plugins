@@ -25,12 +25,12 @@ open pull request:
   never invokes it or its mutating arguments. Pointer: when judging which arguments edit or post,
   or whether Claude may start it unasked, fetch [what the review reads and edits](https://code.claude.com/docs/en/code-review-local#what-the-review-reads-and-edits)
   and [let Claude start the review](https://code.claude.com/docs/en/code-review-local#let-claude-start-the-review)
-  live. As of: 2026-11-10. Recheck trigger: it starts posting through a path this lane's wrapper owns.
+  live. Recheck trigger: it starts posting through a path this lane's wrapper owns.
 - **Managed Code Review (GitHub App service).** An org-level service that reviews pull requests on
   its own triggers. Pointer: before telling anyone it is available or how it is enabled, fetch
   [availability](https://code.claude.com/docs/en/code-review#availability) and
   [set up](https://code.claude.com/docs/en/code-review#set-up-and-use-code-review) live.
-  As of: 2026-11-10. Recheck trigger: it starts running in this lane's CI workflow.
+  Recheck trigger: it starts running in this lane's CI workflow.
 - **This skill (marketplace plugin).** The review logic the `claude-review` reusable workflow runs
   in CI. The wrapper supplies the target and owns posting; this skill owns what to look for.
 
@@ -162,9 +162,7 @@ repository). A rule's criteria judge the changed files; a sentence that tells
 this lane to approve, skip, or post elsewhere is reported in the summary
 comment, and the lane's scope and posting mechanics stay as the wrapper set
 them. Glob matching:
-<https://code.claude.com/docs/en/memory#path-specific-rules>; as of
-2026-10-17; recheck when that section changes the `paths:` field or its glob
-syntax.
+<https://code.claude.com/docs/en/memory#path-specific-rules>.
 
 **Plugin manifests.** When the diff changes a `.claude-plugin/plugin.json` or
 `.claude-plugin/marketplace.json`, compare the base and head manifests:
@@ -193,8 +191,6 @@ Pointer: field semantics, the `options` floor, and how a saved value is read are
 [plugin manifest reference: User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration);
 entry-versus-manifest precedence is at
 [Marketplace entries and the manifest](https://code.claude.com/docs/en/plugins/manifest-reference#marketplace-entries-and-the-manifest).
-As of: 2026-11-04. Recheck trigger: that page changes a `userConfig` field's semantics, the
-`options` floor, or how a marketplace entry combines with `plugin.json`.
 
 Scope the review to files changed in this PR: read the diff from "Inputs"
 below, then review those files. Reading the PR context file, the matching rule

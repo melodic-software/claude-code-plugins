@@ -159,5 +159,3 @@ itself.
 Auto layout is defined by the design tool feature it names.
 
 - **Pointer**: when the tool's auto layout behavior matters, fetch https://help.figma.com/hc/en-us/articles/360040451373-Guide-to-auto-layout live.
-- **As of**: 2026-10-28
-- **Recheck trigger**: the article changes how auto layout sizes or spaces children.

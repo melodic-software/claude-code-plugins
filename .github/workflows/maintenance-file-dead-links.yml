@@ -6,7 +6,7 @@ name: Maintenance File Dead Links
 # path when a pointer later dies"). This repository owns that trigger; the
 # plugin owns the repair.
 #
-# The link check (maintenance-check-links-online-claude-code-plugins.yml) is a
+# The link check (maintenance-check-links-online.yml) is a
 # sync-managed caller of the ci-workflows reusable workflow, which uploads the
 # run's broken links as the link-check-online-dead-links artifact. A
 # reusable workflow's outputs reach only its own caller, so this workflow reads
@@ -31,8 +31,8 @@ name: Maintenance File Dead Links
 #
 # The trigger names the link-check workflow by its `name:`, which the
 # standards component owns: a rename there disconnects this workflow. Both
-# names stay listed until the sync carrying standards#990's rename lands; then
-# drop the old one.
+# names stay listed until the sync that delivers the caller as
+# maintenance-check-links-online.yml lands; then drop the old one.
 
 on:
   # Runs this file from the default branch and executes no code from the
@@ -46,7 +46,7 @@ permissions: {}
 
 jobs:
   read:
-    name: Read the dead links
+    name: Read The Dead Links
     if: >-
       github.event.workflow_run.head_branch == 'main'
       && github.event.workflow_run.head_repository.full_name == github.repository
@@ -136,7 +136,7 @@ jobs:
           echo "handed $((count - more)) dead links to the file job ($more more over the cap)"
 
   file:
-    name: Update the dead-link rollup issue
+    name: Update The Dead-Link Rollup Issue
     needs: [read]
     if: needs.read.outputs.found == 'true'
     runs-on: ubuntu-24.04

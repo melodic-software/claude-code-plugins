@@ -51,7 +51,7 @@ When a security scanner or reviewer is added, replaced, or removed:
 
 Every gate below reads a GitHub list endpoint; each returns **one default-sized page** unless asked for more and reports nothing when it truncates, so a truncated read is a confidently wrong answer, not a visibly short one.
 
-- **Pointer**: when the default page size matters, fetch [Using pagination in the REST API, About pagination](https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api#about-pagination) live. **As of**: 2026-11-10. **Recheck trigger**: that section changes the default page size it shows.
+- **Pointer**: when the default page size matters, fetch [Using pagination in the REST API, About pagination](https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api#about-pagination) live.
 
 Three rules, all absolute:
 

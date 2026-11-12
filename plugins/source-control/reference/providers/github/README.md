@@ -175,8 +175,7 @@ restriction is handled in the pull-request skill's `create.md` §2.4.0 and the
 ## Draft stage
 
 A draft cannot merge until it is marked ready
-([changing the stage of a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/changing-the-stage-of-a-pull-request),
-read 2026-10-11; recheck when GitHub changes the draft-stage rules).
+([changing the stage of a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/changing-the-stage-of-a-pull-request)).
 
 ## API budget
 

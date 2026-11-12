@@ -42,7 +42,7 @@ print_profile() {
     echo "wsl-profile: HOME is not an absolute path" >&2
     exit 2
   }
-  local home="$HOME" win_homes=() line
+  local win_homes=() line
   while IFS= read -r line; do win_homes+=("$line"); done < <(windows_homes)
   if ((${#win_homes[@]} == 0)); then
     echo "wsl-profile: no Windows user directory under $MNT_ROOT/<drive>/Users; the Edit rules use placeholders" >&2
@@ -52,15 +52,15 @@ print_profile() {
   fi
 
   # `//` plus the path without its leading slash is the absolute form.
-  local rules=() w
-  rules+=("Read(/$home/.ssh/id_*)")
-  rules+=("Read(/$home/.azure/msal_token_cache*)")
-  rules+=("Read(/$home/.config/gh/hosts.yml)")
-  rules+=("Read(/$home/.gnupg/**)")
-  rules+=("Read(/$home/.microsoft/usersecrets/**)")
+  local w rules=(
+    "Read(/$HOME/.ssh/id_*)"
+    "Read(/$HOME/.azure/msal_token_cache*)"
+    "Read(/$HOME/.config/gh/hosts.yml)"
+    "Read(/$HOME/.gnupg/**)"
+    "Read(/$HOME/.microsoft/usersecrets/**)"
+  )
   for w in "${win_homes[@]}"; do
-    rules+=("Edit(/$w/.claude/**)")
-    rules+=("Edit(/$w/.claude.json)")
+    rules+=("Edit(/$w/.claude/**)" "Edit(/$w/.claude.json)")
   done
 
   jq -n --arg tmp "${WSL_PROFILE_TMPDIR:-/tmp}" \

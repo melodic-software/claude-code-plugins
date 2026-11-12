@@ -79,6 +79,7 @@ jobs:
     # own read refuses it. A Work status field change gets through only on
     # that field and from a person; the script reads who made it and from
     # which state.
+    name: Reenter
     if: >-
       !github.event.issue.pull_request
       && github.event.issue.state == 'open'

@@ -39,7 +39,7 @@ rather than its expected behavior, and can validate bugs (the first paper also f
 detecting faults than EvoSuite's). Basis: https://arxiv.org/abs/2410.21136,
 https://arxiv.org/abs/2412.14137, https://arxiv.org/abs/2607.22883 (abstracts read). Measured on
 LLM test generators run on benchmark repositories; the transfer to an agent writing tests mid-task
-is inferred. As of 2026-10-06. Recheck when a study measures an interactive coding agent's own
+is inferred. Recheck when a study measures an interactive coding agent's own
 tests, or one of the three papers is revised.
 
 ### A property is stated before it runs
@@ -56,7 +56,7 @@ superficial (a wrong implementation also satisfies them), and Hypothesis documen
 examples as a check that a test does fail on some inputs. Basis:
 https://aclanthology.org/2026.findings-acl.683/, https://arxiv.org/abs/2307.04346,
 https://hypothesis.readthedocs.io/en/latest/reference/api.html. Measured on Python libraries and
-benchmark functions. As of 2026-10-06. Recheck when Hypothesis renames or drops `example.xfail`.
+benchmark functions.
 
 ### In a rewrite, the old code is the source and the test is a pin
 
@@ -82,8 +82,7 @@ whose consumers cannot be identified, such as public APIs; vcrpy records real re
 its `none` record mode errors on any unrecorded request. Basis:
 https://martinfowler.com/bliki/ContractTest.html,
 https://docs.pact.io/getting_started/what_is_pact_good_for,
-https://vcrpy.readthedocs.io/en/latest/usage.html. As of 2026-10-06. Recheck when Pact's
-suitability page or vcrpy's record modes change.
+https://vcrpy.readthedocs.io/en/latest/usage.html.
 
 ## 2. Call counts are legitimate at unmanaged, state-changing boundaries
 
@@ -95,9 +94,7 @@ dependency or a query call the same assertion pins the implementation and breaks
 
 Verification record. Claim: only unmanaged dependencies should be mocked, and interactions with
 them (calls that change their state) are observable behavior to verify. Basis:
-https://enterprisecraftsmanship.com/posts/when-to-mock/. As of 2026-09-29. Recheck when that post
-or Khorikov's *Unit Testing Principles, Practices, and Patterns* publishes a revision that changes
-the managed/unmanaged split.
+https://enterprisecraftsmanship.com/posts/when-to-mock/.
 
 ## 3. A managed database is real, and reading it back is state verification
 
@@ -113,7 +110,6 @@ over an in-memory collection does not behave like the provider.
 
 Pointer: [Choosing a testing strategy § Mocking or stubbing DbContext and DbSet](https://learn.microsoft.com/en-us/ef/core/testing/choosing-a-testing-strategy#mocking-or-stubbing-dbcontext-and-dbset)
 and its [Summary](https://learn.microsoft.com/en-us/ef/core/testing/choosing-a-testing-strategy#summary).
-As of 2026-11-10. Recheck when that section or the Summary changes.
 
 ## 4. Refactoring stays inside the loop
 
@@ -125,8 +121,7 @@ Verification record. Claim: Canon TDD is five steps (list, one test, make it pas
 refactor to improve the implementation design", repeat until the list is empty), and "copying
 actual, computed values & pasting them into the expected values of the test ... defeats double
 checking". Basis: https://newsletter.kentbeck.com/p/canon-tdd (redirected from
-tidyfirst.substack.com; published 2023-12-11). As of 2026-09-29. Recheck when Beck publishes a
-revision of Canon TDD or a successor post that changes step 4.
+tidyfirst.substack.com; published 2023-12-11).
 
 A rewrite pin (§1) is not the copying Beck rules out: its values come from a second
 implementation, the old one, so the check is double, but on sameness only.
@@ -136,8 +131,7 @@ than its desired behavior; temporarily sabotaging the code under test confirms e
 characterization assertion can fail; Jest says to fix a bug before regenerating snapshots so the
 snapshot does not record it. Basis: https://michaelfeathers.silvrback.com/characterization-testing,
 https://blog.ploeh.dk/2025/11/03/empirical-characterization-testing/,
-https://jestjs.io/docs/snapshot-testing. As of 2026-10-06. Recheck when Feathers or Seemann
-revises the post, or Jest's snapshot page changes its regeneration advice.
+https://jestjs.io/docs/snapshot-testing.
 
 ## Next
 

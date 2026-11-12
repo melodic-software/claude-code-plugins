@@ -15,8 +15,6 @@ rather than a hand-rolled bulk `rm`.
 
 - **Pointer**: for what the classifier blocks, fetch
   <https://code.claude.com/docs/en/permission-modes#what-the-classifier-blocks-by-default> live.
-- **As of**: 2026-11-10
-- **Recheck trigger**: that section stops covering bulk removals, or the section is renamed.
 
 ## Scope
 

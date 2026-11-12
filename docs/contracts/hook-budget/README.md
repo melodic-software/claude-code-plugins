@@ -76,9 +76,6 @@ process on events that write nothing, one per write"). A new always-on mod hook 
   live; when stubbing `$` calls in a test, fetch
   [test: Stub what Claude Code would answer](https://code.claude.com/docs/en/plugins/mods/test#stub-what-claude-code-would-answer)
   live.
-- **As of**: 2026-11-03; test anchor 2026-10-11
-- **Recheck trigger**: the limits section changes a hook's time limit or what happens past it, or
-  `claude plugin test` stops letting a test stub `$.process.run`.
 
 ## Wall-clock measurement (Windows)
 

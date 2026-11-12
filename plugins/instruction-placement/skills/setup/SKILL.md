@@ -36,9 +36,6 @@ minimum CLI version". Canary runs on Claude Code 2.1.278 observed the shadowing.
 - **Pointer**: for when Claude Code reads `AGENTS.md` and when that support is unavailable, see
   <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> and
   <https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable>.
-- **As of**: 2026-09-29
-- **Recheck trigger**: those sections change which file names shadow `AGENTS.md`, or a release note
-  names `AGENTS.md` or instruction-file loading.
 
 Secondary warrants: `git` backs tracked-file discovery for nested instruction files, `node` runs the
 git-hook installer and the session-start drift probe, and the optional empirical load probe needs

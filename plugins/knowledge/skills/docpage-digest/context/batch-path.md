@@ -5,8 +5,7 @@ The launch steps for the `knowledge:docpage-digest-batch` workflow that [`../SKI
 
 1. **Availability.** Launch only when the Workflow tool is in this session's toolset; otherwise run
    the pages one at a time through the skill. The switches that turn workflows off are in
-   [workflows: turn workflows off](https://code.claude.com/docs/en/workflows#turn-workflows-off)
-   (as of 2026-11-03; recheck when those switches are renamed).
+   [workflows: turn workflows off](https://code.claude.com/docs/en/workflows#turn-workflows-off).
 2. **Roles.** When `/multi-agent:route` resolves, keep the `roles` object
    `/multi-agent:route all session=<alias>` prints; otherwise omit it and the workflow's
    fallbacks apply.
@@ -16,8 +15,6 @@ The launch steps for the `knowledge:docpage-digest-batch` workflow that [`../SKI
    cross-vendor arm.
    - **Pointer**: the forwarding rule on returning the companion's stdout in the codex plugin's
      `agents/codex-rescue.md`.
-   - **As of**: 2026-11-03 (codex plugin 1.0.6).
-   - **Recheck trigger**: that agent gains a structured return.
 4. **Write scope.** Every stage runs as `knowledge:digest-worker`, whose writes the stage prompt
    scopes to the page's slice, in parity with the single-page path, whose digest and verifier
    subagents are scoped by their briefs alone ([`../SKILL.md`](../SKILL.md) Phase 3); no hook

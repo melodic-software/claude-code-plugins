@@ -279,12 +279,11 @@ admission. For every `--label`, the adapter takes the most recent application of
 (GitHub: the latest `labeled` event on the issue timeline by `created_at`), reads the actor's
 repository permission, and marks the label `trusted` only when that permission is `admin` or
 `write` (GitHub maps maintain to `write` and triage to `read`; pointer:
-[Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user),
-as of 2026-10-04, recheck trigger: the endpoint's role mapping changes). Each row carries the
+[Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user)). Each row carries the
 application's time as `at`. The adapter also reads when the item's body was last edited (GitHub:
 GraphQL `lastEditedAt`, since REST carries no edit time: the
 [issue event types](https://docs.github.com/en/rest/using-the-rest-api/issue-event-types) list no
-body-edit event, and `renamed` covers only the title, as of 2026-10-31, recheck trigger: that list
+body-edit event, and `renamed` covers only the title; recheck trigger: that list
 adds a body-edit event) and reports it as `body_edit`;
 `after_admission` is `true` when that edit is later than the latest `at` of the named labels,
 because a body rewritten after the labeler read it is not the body the labeler admitted.
@@ -307,8 +306,7 @@ for organization issue fields: it reads the options from `GET /orgs/{org}/issue-
 needs `read:org` on an OAuth or classic token, and writes names, since the REST write takes the
 option's name (pointer:
 [issue field values](https://docs.github.com/en/rest/issues/issue-field-values) and
-[organization issue fields](https://docs.github.com/en/rest/orgs/issue-fields), as of
-2026-10-18, recheck trigger: the write starts taking option ids, or the listing's permission
+[organization issue fields](https://docs.github.com/en/rest/orgs/issue-fields); recheck trigger: the write starts taking option ids, or the listing's permission
 changes). An adapter that declares no `set-fields` key exits `6`.
 
 `get-field-options` is the read-only counterpart of `set-fields`: it lists the options of one
@@ -1078,8 +1076,7 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
   be an object with exactly those two keys, each an array of non-empty string ids, with no
   id in both (exit `3` otherwise). Ids, not names, because Jira admins can rename, add,
   and delete resolutions
-  ([add, edit, or delete resolutions](https://support.atlassian.com/jira-cloud-administration/docs/add-edit-or-delete-resolutions/),
-  as of 2026-10-10; recheck when that page changes how resolutions are identified), so no
+  ([add, edit, or delete resolutions](https://support.atlassian.com/jira-cloud-administration/docs/add-edit-or-delete-resolutions/)), so no
   name list fits every instance and a rename must not reclassify a resolution.
   `/work-items:setup apply` writes the key from the instance's own resolution list.
 - **Read-path normalization** (CONTRACT.md "JSON output contract"): `state` is `closed` when the

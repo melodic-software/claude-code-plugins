@@ -62,8 +62,8 @@ const run = (
     headBranch = "main",
     step = TOKEN_STEP,
     steps = fullSteps(step),
-    // The write runner's job as the jobs API names it (`<caller> / run`).
-    jobName = "apply-conflict-patch / run",
+    // The write runner's job as the jobs API names it (`<caller> / Run`).
+    jobName = "Apply Conflict Patch / Run",
     conclusion = "failure",
     messages = [denial(UNBLOCK)],
     actor = ACTIONS_BOT,
@@ -388,11 +388,12 @@ test("a failed job whose step list lacks the token step is judged by its annotat
 const annotationReads = (calls) => calls.filter((call) => /\/check-runs\/\d+\/annotations/.test(call));
 
 test("a job that is no write runner job, or did not fail, has its annotations unread even with no steps listed", async () => {
-  // fix-ci / run is the read runner's job: it runs the model over PR content
+  // Fix CI / Run is the read runner's job: it runs the model over PR content
   // and requests no lane token, so its annotations are never trusted.
   for (const runOptions of [
+    { jobName: "Fix CI / Run", steps: [] },
     { jobName: "fix-ci / run", steps: [] },
-    { jobName: "apply-conflict-patch / report", steps: [] },
+    { jobName: "Apply Conflict Patch / Report", steps: [] },
     { conclusion: "success", steps: [] },
   ]) {
     const w = refusedWorld([pr(9)], { runOptions });
@@ -406,13 +407,19 @@ test("a job that is no write runner job, or did not fail, has its annotations un
 test("every pr-unblock job that calls the write runner is read when its steps are missing", async () => {
   // The callers come from pr-unblock.yml itself, so a new one is covered.
   const yml = readFileSync(join(HERE, "../../workflows/pr-unblock.yml"), "utf8");
-  const callers = [...yml.matchAll(/^ {2}([a-z0-9-]+):\n(?:(?! {2}\S).*\n)*? {4}uses: \.\/\.github\/workflows\/pr-run-activity-write\.yml/gm)].map((m) => m[1]);
-  assert.ok(callers.includes("apply-conflict-patch") && callers.length >= 8, JSON.stringify(callers));
+  const callers = [...yml.matchAll(/^ {2}([a-z0-9-]+):\n {4}name: (.+)\n(?:(?! {2}\S).*\n)*? {4}uses: \.\/\.github\/workflows\/pr-run-activity-write\.yml/gm)].map((m) => m[2]);
+  assert.ok(callers.includes("Apply Conflict Patch") && callers.length >= 8, JSON.stringify(callers));
   for (const caller of callers) {
-    const w = refusedWorld([pr(9)], { runOptions: { jobName: `${caller} / run`, steps: [] } });
+    const w = refusedWorld([pr(9)], { runOptions: { jobName: `${caller} / Run`, steps: [] } });
     assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
     assert.equal(pushes(w.calls).length, 1, caller);
   }
+});
+
+test("a write runner job a head tested before the rename names `<caller> / run` is still read", async () => {
+  const w = refusedWorld([pr(9)], { runOptions: { jobName: "apply-conflict-patch / run", steps: [] } });
+  assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+  assert.equal(pushes(w.calls).length, 1);
 });
 
 test("only a head check-trusted-trigger trusts qualifies: no untrusted author, fork, draft or Dependabot PR is pushed to", async () => {
@@ -647,7 +654,7 @@ test("the job token's client counts its readings and plans its read floor as git
 // wording: no broker response, or a 5xx after the action's own retries.
 const UNREACHABLE = "broker-unreachable: the lanes token broker gave no response, after 503 with reason github-unavailable";
 const DENIED_5XX = "lane-token-denied: the broker answered 502 with reason internal-error: upstream timed out";
-const FEEDBACK = { title: "pr-unblock address-feedback #9", jobName: "apply-feedback-patch / run" };
+const FEEDBACK = { title: "pr-unblock address-feedback #9", jobName: "Apply Feedback Patch / Run" };
 const transientMarker = (runId, head, { tree = TREE, at = "2026-10-17T21:50:00Z" } = {}) => ({
   user: BOT,
   created_at: at,

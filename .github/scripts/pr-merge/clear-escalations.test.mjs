@@ -1245,7 +1245,9 @@ test("a lanes App push is not a trusted move: the App never lifts its own stop w
 // `jobs` names each lane's status job), and the security lane's reviewed-head
 // marker carrying its summary.
 const REVIEW_FILES = { "claude-review": "pr-review-hosted.yml", "claude-security-review": "pr-review-security-hosted.yml" };
-const STATUS_JOBS = { "claude-review": "pr-review / review-status", "claude-security-review": "pr-review-security / review-status" };
+const STATUS_JOBS = { "claude-review": "PR Review / review-status", "claude-security-review": "PR Review Security / review-status" };
+// The status job names on a head tested before the caller jobs' rename.
+const PRE_RENAME_STATUS_JOBS = { "claude-review": "pr-review / review-status", "claude-security-review": "pr-review-security / review-status" };
 // The status job names pr-review-cli.yml gave before it named both review-status.
 const RETIRED_STATUS_JOBS = { "claude-review": "pr-review / claude-review-status", "claude-security-review": "pr-review-security / security-review" };
 function laneReader({ pushes = [pushedBy(APP_ACTOR)], scopes = { "claude-review": "incremental since=" + KEY, "claude-security-review": "whole" }, runStatus = "completed", jobs = STATUS_JOBS } = {}) {
@@ -1282,6 +1284,7 @@ test("feedback-not-landed comes off after a lanes App push once both review lane
   for (const [severity, jobs] of [
     ["severity: SUGGESTION", STATUS_JOBS],
     ["severity: IMPORTANT", STATUS_JOBS],
+    ["severity: SUGGESTION", PRE_RENAME_STATUS_JOBS],
   ]) {
     const label = `${severity} ${jobs["claude-review"]}`;
     const w = world({ timeline: notLandedTimeline(), reader: laneReader({ jobs }), reviewThreads: () => threadPage([reviewThread(true, [LANE_AUTHOR]), severityThread(severity)]) });
@@ -1300,7 +1303,7 @@ test("feedback-not-landed stays after a lanes App push while the review lanes ha
     ["only one lane ran", laneReader({ scopes: { "claude-security-review": "whole" } }), notLandedTimeline()],
     ["runs still in progress", laneReader({ runStatus: "in_progress" }), notLandedTimeline()],
     ["a status job under another caller job", laneReader({ jobs: { ...STATUS_JOBS, "claude-review": "other / review-status" } }), notLandedTimeline()],
-    ["the other lane's status job name", laneReader({ jobs: { ...STATUS_JOBS, "claude-security-review": "pr-review / review-status" } }), notLandedTimeline()],
+    ["the other lane's status job name", laneReader({ jobs: { ...STATUS_JOBS, "claude-security-review": "PR Review / review-status" } }), notLandedTimeline()],
     ["the review status job's retired name", laneReader({ jobs: { ...STATUS_JOBS, "claude-review": RETIRED_STATUS_JOBS["claude-review"] } }), notLandedTimeline()],
     ["the security status job's retired name", laneReader({ jobs: { ...STATUS_JOBS, "claude-security-review": RETIRED_STATUS_JOBS["claude-security-review"] } }), notLandedTimeline()],
     ["an incremental security review", laneReader({ scopes: { "claude-review": "whole", "claude-security-review": `incremental since=${KEY}` } }), notLandedTimeline()],

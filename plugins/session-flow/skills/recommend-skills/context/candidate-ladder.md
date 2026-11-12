@@ -15,9 +15,6 @@ out entirely are upstream behavior; read them live before relying on the listing
   [All settings § skillListingBudgetFraction](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction)
   and [§ skillListingMaxDescChars](https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars)
   for the budget keys.
-- **As of**: 2026-10-11
-- **Recheck trigger**: any of those sections changes what the listing drops or omits, or renames a
-  budget key; re-derive this section then.
 
 Our premise: the skills an operator has forgotten are the ones the listing serves worst, by
 whatever the pointer sections above say it shortens, drops or omits. A recommender sourced from
@@ -35,9 +32,8 @@ it is blind.
 **Rung 1 is a reuse, not a reimplementation.** `harness-ops:inventory` owns whole-fleet enumeration
 and ships a bundled script for it. Do not walk `~/.claude/plugins/cache` directly: we treat its
 `<marketplace>/<plugin>/<version>` nesting as no contract (the docs show it only inside an error
-example: [Troubleshoot plugins § Install a plugin](https://code.claude.com/docs/en/plugins/troubleshooting#install-a-plugin);
-as of 2026-10-11; recheck trigger: a docs page documents the cache layout as stable), and the
-version directory changes on every update. The consuming marketplace's own `skill-quality:check` refuses
+example: [Troubleshoot plugins § Install a plugin](https://code.claude.com/docs/en/plugins/troubleshooting#install-a-plugin)),
+and the version directory changes on every update. The consuming marketplace's own `skill-quality:check` refuses
 that move on exactly those grounds.
 
 **Rung 1 carries descriptions, not stage metadata.** Per inventory's "Skills index" section, each
@@ -79,8 +75,7 @@ have it. Resolve whatever path the project declares; if none is declared, this r
 
 We treat `metadata` as never reaching the listing, so stage grouping always requires a file read or
 a supplied catalog (pointer: [Extend Claude with skills § Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference),
-the `metadata` row; as of 2026-10-11; recheck trigger: that row says Claude Code acts on the
-field's contents). A session
+the `metadata` row). A session
 running inside a marketplace repository can read `plugins/**/SKILL.md` directly; a session in an
 unrelated consuming repo generally cannot.
 

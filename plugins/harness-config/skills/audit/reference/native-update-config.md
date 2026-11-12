@@ -28,6 +28,3 @@ resolves in this session" and never that it is present.
 - **Pointer**: when checking what removes or hides a bundled skill, fetch
   [settings reference: disableBundledSkills](https://code.claude.com/docs/en/settings-reference#disablebundledskills)
   live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that entry changes what it turns off, or a release adds, removes, or renames a
-  setting that hides bundled skills.

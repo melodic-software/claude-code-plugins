@@ -18,7 +18,7 @@ the spawn is refused), and probing with a different agent type (the gate is defi
 so a `general-purpose` success says nothing about a definition that omits `Agent` or disallows
 it). A restricted agent type that shows `Agent` as absent says nothing about nesting
 platform-wide. One cheap probe beats any citation, but it has to probe the thing you are actually
-going to run. `context/sources.md` carries the pointers, as-of dates, and recheck triggers.
+going to run. `context/sources.md` carries the pointers.
 
 ## A denied spawn is not a depth answer
 
@@ -29,8 +29,7 @@ for. A depth probe can come back unresolved because this
 different gate answered first. Read what came back rather than inferring depth from a refusal: what
 a subagent at the depth limit sees is
 [subagents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)'s
-to state. As of 2026-11-01; recheck when that section changes
-what the depth limit does.
+to state.
 
 ## A clean return is not a correct return
 

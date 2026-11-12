@@ -97,8 +97,8 @@
     "merge_guard_ignored_checks": {
       "type": "string",
       "title": "Block-unresolved-PR-merge ignored checks",
-      "description": "Comma-separated <app slug>:<check name> pairs block-unresolved-pr-merge never judges as pending or failing. The default, github-actions:merge, is the pr-merge lane's own merge job, which runs as the merger rather than as a gate. Empty judges every check.",
-      "default": "github-actions:merge"
+      "description": "Comma-separated <app slug>:<check name> pairs block-unresolved-pr-merge never judges as pending or failing. The default names the pr-merge lane's merge job, which runs as the merger, not a gate, by display name and by job id. Empty judges every check.",
+      "default": "github-actions:Merge,github-actions:merge"
     },
     "block_fix_request_post_enabled": {
       "type": "boolean",
@@ -192,5 +192,5 @@
       "min": 1
     }
   },
-  "version": "3.0.28"
+  "version": "3.0.29"
 }

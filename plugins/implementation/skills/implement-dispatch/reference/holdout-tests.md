@@ -21,9 +21,6 @@ special-case.
 
 - **Pointer**: the test-writer split in
   [best practices: run sessions in parallel](https://code.claude.com/docs/en/best-practices#run-sessions-in-parallel).
-- **As of**: 2026-10-30.
-- **Recheck trigger**: that page drops or reframes the separate test writer, or a second study
-  measures hidden tests' effect on legitimate performance.
 
 ## Steps
 
@@ -67,9 +64,6 @@ special-case.
      the permissions page, for the path syntax and what a deny does not cover;
      [sub-agents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools), for
      what a subagent's `disallowedTools` entry removes.
-   - **As of**: 2026-10-11.
-   - **Recheck trigger**: that section changes `//` path anchoring or starts covering files a
-     script opens itself, or subagent definitions gain path-scoped deny rules.
 4. **Hand them to the verifier in a throwaway worktree.** At the phase boundary the orchestrator
    first reruns the step 3 hash command and compares it with the record, and confirms the holdout
    directory holds no entry other than a regular file or directory
@@ -97,9 +91,6 @@ special-case.
      [pytest command-line flags](https://docs.pytest.org/en/stable/reference/reference.html#command-line-flags),
      [Vitest CLI](https://vitest.dev/guide/cli),
      [Jest CLI](https://jestjs.io/docs/cli).
-   - **As of**: 2026-10-06.
-   - **Recheck trigger**: a runner renames or drops a flag above, or starts loading configuration
-     or setup files from the tree despite an explicit config path.
 
 5. **Feed back the criterion, not the test.** A holdout FAIL fails its criterion. The re-brief
    names the criterion and the observed behavior, never the test's source or its expected

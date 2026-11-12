@@ -31,8 +31,7 @@ only when its `udid` matches `^[0-9A-Fa-f-]{36}$`, and measure it with
 `du -sk "$HOME/Library/Developer/CoreSimulator/Devices/<udid>"`.<!-- spellchecker:on -->
 
 Pointer for both: the subcommands and flags `xcrun simctl help` prints on the host, and the
-Derived Data row of Xcode's Settings, Locations pane. As of 2026-10-04. Recheck when an Xcode
-release changes the `simctl list` or `simctl delete` options or moves the Derived Data setting.
+Derived Data row of Xcode's Settings, Locations pane.
 
 ## 2. Present
 

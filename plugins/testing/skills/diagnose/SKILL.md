@@ -19,8 +19,7 @@ invocation:
 
 The pipe is the bound and belongs in the command: a read-time cap ("read only the first 20
 entries") comes after the command has already returned its output inline. What a result returns
-inline, and when it arrives as a saved file instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits)
-(as of 2026-11-10; recheck when that section changes what a valid result returns inline).
+inline, and when it arrives as a saved file instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits).
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
@@ -94,5 +93,5 @@ drives the full cycle including code edits and suggests `/verification:confirm` 
 
 ## Gotchas
 
-- Framework traps. .NET: the Microsoft Testing Platform runner's `dotnet test` options, argument forms and exit codes differ from the classic runner's, so an unrecognized option can exit non-zero before any test runs; read them for the SDK the project uses before reading an exit code as a test result. Pointers: [dotnet test with MTP § Options](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-mtp#options) and [Testing platform troubleshooting § Exit codes](https://learn.microsoft.com/en-us/dotnet/core/testing/microsoft-testing-platform-troubleshooting#exit-codes), as of 2026-11-10, recheck trigger: either section is removed or retitled. `global.json` selects the runner, so confirm which one the project uses before reading any of this as its behavior. Parallel-execution races are the third trap. Check the consuming project's own gotcha notes before diagnosing
+- Framework traps. .NET: the Microsoft Testing Platform runner's `dotnet test` options, argument forms and exit codes differ from the classic runner's, so an unrecognized option can exit non-zero before any test runs; read them for the SDK the project uses before reading an exit code as a test result. Pointers: [dotnet test with MTP § Options](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-mtp#options) and [Testing platform troubleshooting § Exit codes](https://learn.microsoft.com/en-us/dotnet/core/testing/microsoft-testing-platform-troubleshooting#exit-codes). `global.json` selects the runner, so confirm which one the project uses before reading any of this as its behavior. Parallel-execution races are the third trap. Check the consuming project's own gotcha notes before diagnosing
 - Process-global singleton symptoms ("frozen", "already initialized"). Usually a shared-state fixture problem; check the consuming project's fixture conventions for the named pattern before inventing a workaround

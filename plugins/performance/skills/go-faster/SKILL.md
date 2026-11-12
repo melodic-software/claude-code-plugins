@@ -60,9 +60,6 @@ data folder and a transcript; nothing else sets them.
 - **Pointer**: when deciding what an eval run can reach, fetch
   [How runs are isolated](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated)
   and [Grant tools](https://code.claude.com/docs/en/plugin-evals#grant-tools) live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either section changes what a run's Bash can read or write, or which
-  variables reach the run.
 
 Then take the lock, one sweep per repository and worktree:
 
@@ -108,8 +105,7 @@ This skill sets no foreground or background mode on the sweeper.
 
 - **Pointer**: when deciding whether the sweeper runs in the background in this session, fetch
   [Run subagents in foreground or background](https://code.claude.com/docs/en/sub-agents#run-subagents-in-foreground-or-background)
-  live. **As of**: 2026-10-11. **Recheck trigger**: that section changes which cases run a
-  subagent in the background, or what a request or a definition field can choose.
+  live.
 
 If the sweeper fails or returns `write-denied` or `refused-by-guard`, release the lock (Step 4) and
 report what it said, including the refused command.

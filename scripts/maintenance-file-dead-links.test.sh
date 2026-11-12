@@ -7,15 +7,25 @@
 # issue list and logs every write. Also checks the workflow's shape: the
 # trigger names the link-check workflow, and each job holds one scope.
 # test-scope: .github/workflows/maintenance-file-dead-links.yml
+# test-scope: .github/workflows/maintenance-check-links-online*.yml
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKFLOW="$ROOT/.github/workflows/maintenance-file-dead-links.yml"
-CALLER="$ROOT/.github/workflows/maintenance-check-links-online-claude-code-plugins.yml"
 
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"
+
+# The sync-managed link-check caller, whichever stem the sync delivers it
+# under: exactly one must exist.
+callers=("$ROOT"/.github/workflows/maintenance-check-links-online*.yml)
+if ((${#callers[@]} != 1)) || [[ ! -f "${callers[0]}" ]]; then
+  fail "expected one link-check caller, found: ${callers[*]}"
+  test_harness::report
+  exit 1
+fi
+CALLER="${callers[0]}"
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT

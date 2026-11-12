@@ -43,20 +43,13 @@ cd "$repo_root" || exit 1
 # The in-repo memory tier, not the auto-memory dir resolve-memory-dir.sh derives.
 memory_dir=".work"
 
-is_always_loaded() {
-  ! rule_frontmatter_declares "$1" paths
-}
-
-has_description() {
-  rule_frontmatter_declares "$1" description
-}
-
 orphans=()
 shopt -s nullglob
 for file in .claude/rules/*.md; do
-  is_always_loaded "$file" || continue
-  has_description "$file" && continue
-  base=$(basename "$file")
+  # A `paths:` rule is path-scoped, not always-loaded.
+  rule_frontmatter_declares "$file" paths && continue
+  rule_frontmatter_declares "$file" description && continue
+  base="${file##*/}"
   # -xF: fixed-string whole-line match, so path dots stay literal.
   local_refs=$(git grep -l -F -- "$base" -- ":(exclude)${memory_dir}/" 2>/dev/null | grep -vcxF -- "$file" || true)
   [[ "$local_refs" -eq 0 ]] && orphans+=("$base")

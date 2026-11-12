@@ -77,8 +77,6 @@ before relying on it.
   <https://nextjs.org/docs/app/api-reference/functions/generate-viewport#viewport-fields>; MDN,
   viewport `<meta>`, "viewport-fit" and "interactive-widget",
   <https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/meta/name/viewport#viewport-fit>
-- **As of**: 2026-10-29
-- **Recheck trigger**: Next.js adds, renames or drops a viewport field, or MDN changes either key.
 
 The rest of the head belongs to other concerns, one home each: `<html lang>` with the content's
 real language is the `typography` concern; `theme-color` and the `color-scheme` meta tag, which a
@@ -127,8 +125,6 @@ leads, and the review checklist below checks only what was built.
 `corner-shape` is experimental and not supported everywhere; read its status before relying on it.
 
 - **Pointer**: <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/corner-shape>
-- **As of**: 2026-10-10
-- **Recheck trigger**: the page drops its experimental flag or marks the property Baseline.
 
 ## Review checklist
 
@@ -151,5 +147,3 @@ When the project builds on Material Design or Fluent, follow its official guidel
 library's own components; do not restyle them toward another look.
 
 - **Pointer**: Material 3, <https://m3.material.io/>; Fluent 2, <https://fluent2.microsoft.design/>
-- **As of**: 2026-10-04
-- **Recheck trigger**: either site publishes a new major version of its design language.

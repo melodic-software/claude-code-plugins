@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No, 3.4.0 to 3.3.1 is a downgrade; sync lists it under Downgraded.",
+      "why": "downgrade"
+    },
+    {
+      "answer": "That line is a rollback the CLI still words as an update.",
+      "why": "rollback"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, a normal update.",
+      "why": "wrong"
+    }
+  ]
+}

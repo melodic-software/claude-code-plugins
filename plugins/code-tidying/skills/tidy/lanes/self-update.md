@@ -48,7 +48,7 @@ npx markdownlint-cli2 <changed .md files>
 bash skills/tidy/scripts/open-pr-count.test.sh    # if the script changed (it shouldn't in this lane)
 ```
 
-Markdown lint does not cover the frontmatter parse contract, so run this fence check from the plugin root. How Claude Code reads a SKILL.md's frontmatter block: [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference), as of 2026-11-03; recheck when that section changes how a malformed frontmatter block loads.
+Markdown lint does not cover the frontmatter parse contract, so run this fence check from the plugin root. How Claude Code reads a SKILL.md's frontmatter block: [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference).
 
 ```bash
 # Stdlib-only (no PyYAML): confirms each SKILL.md's `---` fences are present and the frontmatter between them is non-empty.
@@ -61,5 +61,5 @@ python -c "import glob,sys; bad=[p for p in glob.glob('skills/*/SKILL.md') if (l
 
 ## Preferred research sources
 
-- **Anthropic skill-authoring best-practices guide**: start at [Checklist for effective Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#checklist-for-effective-skills) and follow it to the section a candidate touches. As of: 2026-10-11. Recheck trigger: that section is renamed or removed
+- **Anthropic skill-authoring best-practices guide**: start at [Checklist for effective Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#checklist-for-effective-skills) and follow it to the section a candidate touches.
 - **Kent Beck, *Tidy First?***: when a candidate's structural-vs-behavioral classification is uncertain

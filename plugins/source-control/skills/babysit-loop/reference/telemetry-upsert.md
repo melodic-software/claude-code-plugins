@@ -68,9 +68,6 @@ the operator retires the old comment.
   [Authenticating as a GitHub App installation](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation);
   the slug output of the minting action,
   [actions/create-github-app-token outputs](https://github.com/actions/create-github-app-token#outputs).
-- **As of:** 2026-10-11.
-- **Recheck:** an App token's writes landing under a login other than `<slug>[bot]`, or a lane run
-  under an App token exiting 5 with `--app-slug` passed.
 
 **What the script checks, in order.** The pre-write gate rejects a body that is empty, opens with a
 literal `@`, or carries under 16 bytes below the sentinel: the mechanical form of the `@path`-as-body
@@ -152,8 +149,7 @@ generated once per session, `heartbeat_at` is rewritten every cycle, alongside `
   block, write my nonce, continue. This is the ordinary restart path. Two hours is twice the longest
   self-paced wait, so a healthy lane at maximum idle backoff never reads as stale. Pointer:
   [scheduled tasks: let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval).
-  As of: 2026-10-11. Recheck trigger: that section's longest delay grows past half the two-hour
-  window.
+  Recheck trigger: that section's longest delay grows past half the two-hour window.
 - Nonce differs **and** the block is fresh with no pending `restart_request` → **another live lane
   holds my instance id.** Write nothing to the block, escalate per the convention's escalation
   contract, and stop the loop cleanly.

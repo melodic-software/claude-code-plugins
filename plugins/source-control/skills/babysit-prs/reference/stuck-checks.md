@@ -71,12 +71,10 @@ No push, re-run, or wait releases any of these, and an unattended agent cannot a
   otherwise: approval runs the PR's code with the repository's secrets, and that is the decision
   the hold reserves for a person.
 
-**Claim, basis, as of, recheck:** fork-run approval and the malicious-run hold, including who may
-approve and where,
+**Pointer:** for fork-run approval and the malicious-run hold, including who may approve and
+where, read
 [approving workflow runs from forks](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/approve-runs-from-forks)
-and [Actions holds potentially malicious workflows](https://github.blog/changelog/2026-07-28-github-actions-holds-potentially-malicious-workflows-for-approval);
-2026-10-02. Recheck when GitHub names the status a held run carries, adds an API route for the
-malicious-run hold, or changes either page.
+and [Actions holds potentially malicious workflows](https://github.blog/changelog/2026-07-28-github-actions-holds-potentially-malicious-workflows-for-approval).
 
 ## Not Stuck: Never Scheduled
 
