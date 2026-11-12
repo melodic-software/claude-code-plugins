@@ -472,12 +472,11 @@ We read a configured window above the model's context window as the model's wind
 nothing.
 
 - **Pointer**: per row above.
-- **As of**: 2026-10-10 for the settings `autoCompactWindow` row; 2026-10-31 for the subagent
-  frontmatter `autoCompactWindow` row; 2026-10-15 for the
-  `DISABLE_COMPACT` entry and the `DISABLE_AUTO_COMPACT` manual-`/compact` sentence; 2026-08-19
-  for the other rows.
-- **Recheck trigger**: a release note or one of those sections changes a surface's units, range,
-  precedence, or the set of surfaces itself.
+- **As of**: 2026-10-15 for the `DISABLE_COMPACT` row, which quotes the page; "—" for the other
+  rows, which are pointers.
+- **Recheck trigger**: for the `DISABLE_COMPACT` row, a release note or one of those sections
+  changes a surface's units, range, precedence, or the set of surfaces itself; "—" for the other
+  rows.
 
 **The module follows the effective window.** It never reads a configured window or resolves
 precedence itself: it reads the window the engine settled on, the `rawMaxTokens` of
