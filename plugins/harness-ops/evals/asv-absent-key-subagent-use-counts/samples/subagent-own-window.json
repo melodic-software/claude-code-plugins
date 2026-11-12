@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Not necessarily. A subagent gets a listing sized to its own window and can shed skills.",
+      "why": "own window"
+    },
+    {
+      "answer": "The verdict covers only the main session.",
+      "why": "only main"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, subagents see the same listing.",
+      "why": "wrong"
+    }
+  ]
+}

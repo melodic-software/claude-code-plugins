@@ -66,14 +66,16 @@ DIFF_PARTSCHUNK_NOTE
   before. A green job settles only that; steps 2 and 3 still judge whether the test can fail,
   covers the change, or was weakened, and whether the diff changed the job's workflow. Suites
   the change does not touch are skipped by design, so a `skipped` job is a defect only when its
-  suite covers the changed files. When `select-tests` itself is
+  suite covers the changed files. A run from before the jobs took display names names each
+  job by its id instead (`select-tests` for `Select Tests`, `test-bash (3)` for
+  `Test Bash (3)`); read the two as the same job. When `Select Tests` itself is
   `skipped`, the run was a label or body-edit re-run that ran no suite: the list is then no
   evidence either way, and its skips are no defect. `CI Status` (`ci-status` on a run from
   before it) sums the others and fails on holds a person lifts, and a `ci-status` job beside it
   only repeats its conclusion; neither is test evidence. Its `wrapped_node_suites` lists each
   Node suite (`suite`) in the judged head's tree that has a sibling `.test.sh` (`wrapper`): CI
-  runs such a suite only through its wrapper, in a `test-bash` job, never in `test-node`, so its
-  evidence is the `test-bash` jobs' conclusions. Job names come from the pull request's own
+  runs such a suite only through its wrapper, in a `Test Bash` job, never in `Test Node`, so its
+  evidence is the `Test Bash` jobs' conclusions. Job names come from the pull request's own
   `.github/workflows/pr-require-checks.yml`, and the wrapper rule from its
   `scripts/plan-test-lanes.sh`, so a diff that changes either file changes what the list means.
 - `CAPTURE_DIR`: what `pr-verify-capture.yml` recorded when it drove the changed app at the judged

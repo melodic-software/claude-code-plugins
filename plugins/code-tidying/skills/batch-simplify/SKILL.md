@@ -15,15 +15,13 @@ discovery, filtering, grouping, ordering, verification, and report around it. On
 runs per group, never both. `docs` mode keeps the simplifier agent, since `simplify` has no
 factual-staleness pass, and records `State: skipped (docs mode)`. Repo mode never invokes
 `simplify` ([context/repo-mode.md](context/repo-mode.md) gives the reasons). Pointer for how an invoked skill's body stays in context:
-[Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle). As of:
-2026-11-10. Recheck trigger: that section changes when an invoked skill's body leaves context.
+[Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle).
 
 **Identity check.** The name is in the skill listing; the description is advisory. A description
 that reads as a different surface is a likely user or project shadow: skip with a warning and
 spawn the agent. A name listed with no description is invoked with the warning "identity
 confirmed by name alone". Pointer for when the listing drops a description:
 [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short).
-As of: 2026-10-11. Recheck trigger: that section changes when a description is dropped.
 
 **Mutation.** Groups the step runs over go one at a time, never in a parallel wave. Before each
 invocation, fingerprint the tracked files outside that group; any change there right after it is
@@ -33,10 +31,8 @@ invocation, fingerprint the tracked files outside that group; any change there r
 session`, invocation refused (the reason, never retried), or identity mismatch; those three name the axis
 line: settings or environment, plan, platform or provider, host surface; and the enable path,
 read live from [Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills).
-As of: 2026-10-11. Recheck trigger: that section changes the settings that turn a bundled skill
-off. The matching row is in
-[context/bundled-simplify.md](context/bundled-simplify.md#decision-records)
-(relay as of 2026-10-11; recheck when that table is renamed or moved). When `simplify` runs but
+ The matching row is in
+[context/bundled-simplify.md](context/bundled-simplify.md#decision-records). When `simplify` runs but
 says it ran a weaker procedure, the state is resolved but degraded, and the report relays its disclosure instead of
 calling the group fully simplified.
 
@@ -63,8 +59,7 @@ invocation:
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines. How the harness runs a skill's injected
-commands: [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run),
-as of 2026-11-03; recheck when that section changes how injected commands run.
+commands: [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
 
 ## Variables
 
@@ -87,7 +82,7 @@ For any batch run (Phases 1-8), copy `templates/checklist.md` into your project'
 
 Supported formats: `24h`, `48h`, `72h`, `7d`, `2d`, `1w`. Default: `48h`.
 
-**Normalize before use:** convert to long units before passing the window to `git log --since` (the option's entry is under [Commit Limiting](https://git-scm.com/docs/git-log#_commit_limiting), as of 2026-11-03; recheck when that entry documents the short `h`, `d` and `w` forms):
+**Normalize before use:** convert to long units before passing the window to `git log --since` (the option's entry is under [Commit Limiting](https://git-scm.com/docs/git-log#_commit_limiting); recheck when that entry documents the short `h`, `d` and `w` forms):
 
 - `<N>h` → `<N> hours` (e.g., `48h` → `48 hours`)
 - `<N>d` → `<N> days` (e.g., `7d` → `7 days`)
@@ -229,8 +224,6 @@ Track one entry per group, each with:
 When the task tools (`TaskCreate`, `TaskUpdate`) are present in this session, create each entry with `TaskCreate`. When they are not, write the entries as a per-group list in the run's copied checklist (or inline, when it has no working-notes copy) and tick them there; never fail or stop the run for want of the tools. Decide by whether the tools are present, not by the model: which sessions get them is upstream's call and changes by release.
 
 - **Pointer**: when deciding whether this session should have the task tools, fetch [tools-reference: Task tool availability](https://code.claude.com/docs/en/tools-reference#task-tool-availability) live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: that section changes the default model set or the opt-ins that enable the tools.
 
 ### Phase 6: Run simplification waves
 
@@ -298,8 +291,7 @@ conflated whenever the request is "run simplify":
 
 - **`simplify` (bundled skill)**: a single-target cleanup pass that edits the code it reviews.
   What it reviews and which targets it takes are in the pointer records in
-  [context/bundled-simplify.md](context/bundled-simplify.md#decision-records)
-  (relay as of 2026-10-11; recheck when that table is renamed or moved).
+  [context/bundled-simplify.md](context/bundled-simplify.md#decision-records).
 - **This skill (marketplace plugin).** Sweeps a time window, a branch, or the whole repository in
   waves, grouped by ecosystem in dependency order, with a checklist, a deferred-items contract,
   and a docs mode for factual staleness.
@@ -315,8 +307,7 @@ one sweep would mix their diffs.
 **Availability is never assumed.** This section states what to do when a bundled surface
 resolves, never that it is present. The pointer records, including what can turn a bundled skill
 off, live in
-[context/bundled-simplify.md](context/bundled-simplify.md#decision-records)
-(relay as of 2026-10-11; recheck when that table is renamed or moved).
+[context/bundled-simplify.md](context/bundled-simplify.md#decision-records).
 
 ## Next
 

@@ -96,9 +96,6 @@ every retina screen.
   Component, `sizes` and `unoptimized`,
   <https://nextjs.org/docs/app/api-reference/components/image#sizes> and
   <https://nextjs.org/docs/app/api-reference/components/image#unoptimized>
-- **As of**: 2026-10-29
-- **Recheck trigger**: MDN changes how `srcset` and `sizes` select a source, or Next.js changes how
-  `sizes` shapes the generated `srcset`.
 
 **Audit: Important.** An image decoded far larger than it is shown (an avatar or thumbnail served
 the original upload, a photo over `performance.image_max_kb`, `unoptimized` on `next/image`, a raw
@@ -227,9 +224,6 @@ Whether a video autoplays at all under reduced motion is the `motion` concern's 
   <https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Autoplay#autoplay_availability>;
   WebKit blog, "New `<video>` Policies for iOS", section "WebKit's New policies for video", for the
   iOS side, <https://webkit.org/blog/6784/new-video-policies-for-ios/>
-- **As of**: 2026-10-29
-- **Recheck trigger**: MDN's autoplay guide changes which media may autoplay or what `playsinline`
-  does, or WebKit changes when iOS lets a video autoplay or play inline.
 
 **Audit: Important.** An autoplaying `<video>` (`autoplay` or `autoPlay`) missing `muted` or
 `playsinline`.
@@ -330,9 +324,6 @@ them a browser already treats as passive. Read the scroll-listener half of the h
 - **Pointer**: MDN, `EventTarget.addEventListener()`, "Using passive listeners" (which listeners
   `passive` matters for, and which ones a browser already treats as passive),
   <https://developer.mozilla.org/en-US/docs/Web/API/EventTarget/addEventListener#using_passive_listeners>
-- **As of**: 2026-10-29
-- **Recheck trigger**: MDN changes which events or targets default to passive, or says `passive`
-  matters for the `scroll` event.
 
 The debounce delays the request, never the input: the field shows every keystroke at once, and any
 filtering the page does locally stays immediate. Removing delays from the input path is the `motion`

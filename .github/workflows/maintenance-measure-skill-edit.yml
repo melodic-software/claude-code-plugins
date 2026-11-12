@@ -79,6 +79,7 @@ concurrency:
 jobs:
   gate:
     # The first attempt only: a re-run never spends again.
+    name: Gate
     if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.run_attempt == '1'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -225,6 +226,7 @@ jobs:
           tokens: github-token
 
   pass-a:
+    name: Pass A
     needs: gate
     if: needs.gate.outputs.go == 'true'
     permissions:
@@ -243,6 +245,7 @@ jobs:
       FALLBACK_CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
 
   pass-a2:
+    name: Pass A2
     needs: gate
     if: needs.gate.outputs.go == 'true'
     permissions:
@@ -267,6 +270,7 @@ jobs:
   # subscription with no refused key attempt first. No secret, no model, no
   # checkout; every failure runs the key. Probing is off.
   propose-key-credit:
+    name: Propose Key Credit
     needs: [gate, pass-a, pass-a2]
     if: needs.pass-a.result == 'success' && needs.pass-a2.result == 'success'
     runs-on: ubuntu-24.04
@@ -309,6 +313,7 @@ jobs:
   # the file tools to the workspace; each leg gets Read, Grep and Glob only, so
   # its one result is the structured output, which the scan job checks.
   propose:
+    name: Propose
     needs: [gate, pass-a, pass-a2, propose-key-credit]
     if: needs.pass-a.result == 'success' && needs.pass-a2.result == 'success'
     runs-on: ubuntu-24.04
@@ -808,6 +813,7 @@ jobs:
   # base, so the path rule and select-plugins.mjs judge the exact change pass b
   # will run.
   scan:
+    name: Scan
     needs: [gate, propose]
     if: ${{ !cancelled() && needs.propose.outputs.artifact-id != '' }}
     runs-on: ubuntu-24.04
@@ -896,6 +902,7 @@ jobs:
           if-no-files-found: error
 
   pass-b:
+    name: Pass B
     needs: [gate, scan]
     if: ${{ !cancelled() && needs.scan.outputs.artifact-id != '' }}
     permissions:
@@ -918,6 +925,7 @@ jobs:
   # No model, no secret. Names the gate that stopped the run, with its
   # numbers; on a win, keeps the edit and each pass's results for 3 days.
   verdict:
+    name: Verdict
     needs: [gate, pass-a, pass-a2, propose, scan, pass-b]
     if: ${{ always() && needs.gate.outputs.go == 'true' }}
     runs-on: ubuntu-24.04
@@ -1070,6 +1078,7 @@ jobs:
   # changes only the skill's markdown and one fixed changelog fragment, and no
   # hold path, before it writes chore/hill-climb-<plugin>-<skill>-<run id>.
   push-branch:
+    name: Push Branch
     needs: [gate, scan, verdict]
     if: ${{ !cancelled() && needs.verdict.outputs.win == 'true' && needs.verdict.outputs.artifact-id != '' }}
     runs-on: ubuntu-24.04
@@ -1220,6 +1229,7 @@ jobs:
   # artifact checked against its manifest's SHA-256; the pull request opens as
   # a draft, and nothing here or in any lane marks it ready or merges it.
   publish:
+    name: Publish
     needs: [gate, verdict, push-branch]
     if: >-
       ${{ !cancelled() && needs.push-branch.result == 'success'

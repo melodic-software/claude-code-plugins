@@ -12,8 +12,6 @@ subagent. A dispatched or forked run of this skill therefore never selects the
 deep tier and never promises the workflow engine; it runs the standard discipline inline. Pointer:
 [Available tools](https://code.claude.com/docs/en/sub-agents#available-tools) and
 [Let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents).
-As of 2026-10-10. Recheck trigger: either section changes which tools a subagent keeps or the
-nesting default.
 
 **Caveat, a `${CLAUDE_…}`-shaped token in a topic may not arrive as you typed it**, and the deep
 tier carries the highest exposure because a corrupted topic here is copied into every envelope of
@@ -34,8 +32,7 @@ with the user before dispatching.
 return, and confirm plan usage remains (the return carries no usage-limit error, and any usage
 reading the session has shows room for the rest) before spawning the other N-1. What a session and
 its agents do at a usage limit is upstream's rule, read live at
-[Wait for a usage limit to reset](https://code.claude.com/docs/en/interactive-mode#wait-for-a-usage-limit-to-reset)
-(as of 2026-10-09; recheck when that section changes which sessions wait and which stop).
+[Wait for a usage limit to reset](https://code.claude.com/docs/en/interactive-mode#wait-for-a-usage-limit-to-reset).
 
 **Give each agent its own sub-slice**. `<memory_dir>/<slug>/<topic-slug>/`, assigned by this
 session in the dispatch envelope, never chosen by the worker (two workers choosing independently
@@ -125,7 +122,7 @@ the artifact. The bundled `deep-research` workflow is offered to the person, nev
    size, clamped to 1-16 by the workflow script itself, default 4. The clamp is this plugin's own
    cap; the runtime's concurrency limit for workflow agents is
    [workflows: behavior and limits](https://code.claude.com/docs/en/workflows#behavior-and-limits)'s
-   to state (as of 2026-11-01; recheck when that section changes the limit or how to raise it). `artifactPath` is the slice's `RESEARCH.md`, echoed back. An
+   to state. `artifactPath` is the slice's `RESEARCH.md`, echoed back. An
    `error` return means nothing was dispatched: relaunch after fixing `missing-question`; take the
    researcher fallback on `no-sources`.
 5. **Write the artifact from the result**, to the shape in [artifact-shape.md](artifact-shape.md).
@@ -159,8 +156,7 @@ the artifact. The bundled `deep-research` workflow is offered to the person, nev
 
 The workflow runs in the background. If it is interrupted, relaunch it with the same `args`; which
 agents return saved results is in
-[Resume after a pause](https://code.claude.com/docs/en/workflows#resume-after-a-pause) (as of
-2026-10-02; recheck when the resume rules change). Do not re-run the research inline.
+[Resume after a pause](https://code.claude.com/docs/en/workflows#resume-after-a-pause). Do not re-run the research inline.
 
 **Researcher fallback.** When the availability gate fails, dispatch ONE `discovery:researcher` with
 the envelope above. With a single worker the slice field is the topic's own `<memory_dir>/<slug>/`;

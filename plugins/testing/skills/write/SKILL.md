@@ -17,15 +17,12 @@ Collect these with **individual** Bash calls, one command per call, never combin
 
 The pipe is the bound and belongs in the command: a read-time cap ("read only the first 20
 entries") comes after the command has already returned its output inline. What a result returns
-inline, and when it arrives as a saved file instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits)
-(as of 2026-10-11; recheck when that section changes what a valid result returns inline).
+inline, and when it arrives as a saved file instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits).
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these
 as separate body Bash calls, not pre-compute lines. The dated record for why is the
-[gather-block convention § The pre-compute block runs as one shell invocation](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation)
-(as of 2026-10-11; recheck when that section's record changes). How injected commands run is
-[Extend Claude with skills § How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
-(as of 2026-10-11; recheck when that section changes the per-command shell, timeout, or output-handling behavior it documents).
+[gather-block convention § The pre-compute block runs as one shell invocation](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation). How injected commands run is
+[Extend Claude with skills § How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
 
 ## Purpose
 
@@ -119,5 +116,5 @@ Checks the new tests for assertions that cannot fail.
 
 ## Gotchas
 
-- Framework traps. `.NET`: the Microsoft Testing Platform runner's `dotnet test` options and arguments differ from the classic runner's, so read them for the SDK the project uses before writing a test command; pointer: [dotnet test with MTP § Options](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-mtp#options), as of 2026-11-10, recheck trigger: that section is removed or retitled. `global.json` selects the runner, so confirm which one the project uses. Do not nest a test project inside another project's directory, for any SDK-style project, not only the Web SDK; why: [.NET project SDK overview § Default includes and excludes](https://learn.microsoft.com/en-us/dotnet/core/project-sdk/overview#default-includes-and-excludes), as of 2026-11-10, recheck trigger: that section stops including source files by a recursive default. Check the consuming project's own gotcha notes before writing tests
+- Framework traps. `.NET`: the Microsoft Testing Platform runner's `dotnet test` options and arguments differ from the classic runner's, so read them for the SDK the project uses before writing a test command; pointer: [dotnet test with MTP § Options](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-mtp#options). `global.json` selects the runner, so confirm which one the project uses. Do not nest a test project inside another project's directory, for any SDK-style project, not only the Web SDK; why: [.NET project SDK overview § Default includes and excludes](https://learn.microsoft.com/en-us/dotnet/core/project-sdk/overview#default-includes-and-excludes). Check the consuming project's own gotcha notes before writing tests
 - Shared-state workarounds (collection fixtures, process-global singletons) are repo-specific. Consult the consuming project's testing conventions before writing or moving tests in affected areas

@@ -44,7 +44,7 @@ App installation token with "Enqueuer is not authorized to merge", so the gate d
 
 `gh pr merge` adds a PR to the queue on any base that has one, `--auto` or not, and exits `0`.
 
-**Claim, basis, as of, recheck:** that `gh pr merge` adds a PR to a required merge queue, or
+**Claim, basis:** that `gh pr merge` adds a PR to a required merge queue, or
 enables auto-merge until its checks pass, and exits `0` for a PR already queued,
 [merging a pull request with a merge queue](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/merging-a-pull-request-with-a-merge-queue),
 the [`gh pr merge` manual](https://cli.github.com/manual/gh_pr_merge), and
@@ -52,8 +52,7 @@ the [`gh pr merge` manual](https://cli.github.com/manual/gh_pr_merge), and
 the queue fields read back (`isInMergeQueue`, `isMergeQueueEnabled`, `mergeQueueEntry`,
 `autoMergeRequest`), the
 [`PullRequest` GraphQL object](https://docs.github.com/en/graphql/reference/objects#pullrequest);
-why a PR leaves the queue, the first page's removal section; 2026-10-04. Recheck when a `gh`
-release changes how `gh pr merge` treats a queue base, or the GraphQL schema changes a queue field.
+why a PR leaves the queue, the first page's removal section.
 
 ## Rerun a rate-limited review
 

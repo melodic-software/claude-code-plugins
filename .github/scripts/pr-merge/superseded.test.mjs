@@ -43,7 +43,9 @@ const pending = (id, event, actor = OWNER, { rerunner = actor, branch = "main", 
 });
 
 const jobsOf = (id) => `/repos/${REPO}/actions/runs/${id}/jobs?filter=latest&per_page=100`;
-const waiting = (name = "merge", status = "pending") => [{ name, status }];
+// Each job's display name in pr-merge.yml, which the jobs API lists it by.
+const NAMES = { merge: "Merge", "enable-auto-merge": "Enable Auto Merge" };
+const waiting = (job = "merge", status = "pending") => [{ name: NAMES[job], status }];
 
 let n = 0;
 // `jobs` maps a run id to its jobs read; a run missing from it has `job`
@@ -97,6 +99,13 @@ test("a pending scheduled run whose merge job waits supersedes a scheduled run, 
   assert.equal(run.superseded, true);
   assert.deepEqual(run.calls, [`GET ${LISTING}`, `GET ${jobsOf(600)}`]);
   assert.match(run.stdout, /^::notice::.*run 600 \(schedule\)/m);
+});
+
+test("a pending run queued before the rename, its jobs listed by id, still supersedes", async () => {
+  for (const job of ["merge", "enable-auto-merge"]) {
+    const run = await check({ job, runs: [pending(600, "schedule", QUEUE_BOT)], jobs: { 600: [{ name: job, status: "pending" }] } });
+    assert.equal(run.superseded, true, job);
+  }
 });
 
 test("no other pending run: the gate runs", async () => {
@@ -210,7 +219,7 @@ test("an unknown current event, or an unknown job, does its work without a listi
 test("a pending run whose merge job already ran supersedes nothing", async () => {
   const run = await check({
     runs: [pending(600, "schedule", QUEUE_BOT)],
-    jobs: { 600: [{ name: "merge", status: "completed" }, { name: "enable-auto-merge", status: "pending" }] },
+    jobs: { 600: [{ name: "Merge", status: "completed" }, { name: "Enable Auto Merge", status: "pending" }] },
   });
   assert.equal(run.superseded, false);
 });
@@ -218,7 +227,7 @@ test("a pending run whose merge job already ran supersedes nothing", async () =>
 test("the first pending run whose job still waits supersedes, and later runs are not read", async () => {
   const run = await check({
     runs: [pending(700, "schedule"), pending(600, "schedule"), pending(550, "schedule")],
-    jobs: { 700: [{ name: "merge", status: "completed" }] },
+    jobs: { 700: [{ name: "Merge", status: "completed" }] },
   });
   assert.equal(run.superseded, true);
   assert.match(run.stdout, /run 600 \(schedule\)/);
@@ -234,7 +243,7 @@ test("a queued or waiting job counts as waiting; one missing from the run does n
 
 test("at most five pending runs have their jobs read", async () => {
   const runs = Array.from({ length: 7 }, (_, i) => pending(600 + i, "schedule"));
-  const jobs = Object.fromEntries(runs.map((r) => [r.id, [{ name: "merge", status: "completed" }]]));
+  const jobs = Object.fromEntries(runs.map((r) => [r.id, [{ name: "Merge", status: "completed" }]]));
   const run = await check({ runs, jobs });
   assert.equal(run.superseded, false);
   assert.equal(run.calls.length, 1 + 5);
@@ -268,7 +277,7 @@ test("enable-auto-merge: an event run, which never arms, supersedes no scheduled
 });
 
 test("enable-auto-merge: a waiting merge job, or an enable-auto-merge job a condition skipped, supersedes nothing", async () => {
-  for (const jobs of [waiting("merge"), [{ name: "enable-auto-merge", status: "completed", conclusion: "skipped" }]]) {
+  for (const jobs of [waiting("merge"), [{ name: "Enable Auto Merge", status: "completed", conclusion: "skipped" }]]) {
     const run = await check({ job: "enable-auto-merge", runs: [pending(600, "schedule")], jobs: { 600: jobs } });
     assert.equal(run.superseded, false);
   }

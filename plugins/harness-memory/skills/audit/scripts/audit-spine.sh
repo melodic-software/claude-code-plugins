@@ -34,9 +34,7 @@ if [[ -d .claude/rules ]]; then
   while IFS= read -r f; do
     [[ -n "$f" ]] || continue
     rules_total=$((rules_total + 1))
-    if rule_frontmatter_declares "$f" paths; then
-      rules_scoped=$((rules_scoped + 1))
-    fi
+    rule_frontmatter_declares "$f" paths && rules_scoped=$((rules_scoped + 1))
   done < <(find .claude/rules -name '*.md' -type f 2>/dev/null | LC_ALL=C sort)
 fi
 
@@ -73,13 +71,9 @@ echo "Findings:"
 findings=0
 for script in nested-agents-check.sh orphan-rule-check.sh memory-index-refs-check.sh; do
   while IFS= read -r line; do
-    case "$line" in
-    FAIL* | WARN*)
-      echo "$line"
-      findings=$((findings + 1))
-      ;;
-    *) ;;
-    esac
+    [[ "$line" == FAIL* || "$line" == WARN* ]] || continue
+    echo "$line"
+    findings=$((findings + 1))
   done < <(bash "$SCRIPT_DIR/$script" 2>/dev/null)
 done
 ((findings == 0)) && echo "none from the deterministic spine"

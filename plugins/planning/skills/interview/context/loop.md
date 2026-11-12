@@ -328,7 +328,7 @@ Tick on resolve. Surface the open set periodically (every few questions, or on r
 
 - **Persist per lock-in.** The moment a branch resolves, write the answer to its ledger checkbox + the relevant Brief section, so resolved branches survive a crash, context clear, or overflow.
 - **Continue on signal, never on self-estimate.** The ledger and partial Brief are already on disk after every lock-in, so nothing needs flushing first. When the user or the harness asks for a pause or branches outgrow the session (never because the conversation feels long), recommend routing the next step with `/session-flow:workflow` (if installed), handing it the ledger and Brief paths, the first open ledger checkbox and the register's `open` rows, which survive a clear that the transcript does not; without session-flow, see [when your context fills up](https://code.claude.com/docs/en/context-window#when-your-context-fills-up). Before the first resumed round, resolve the surface again through the start command in [`lane-page.md`](lane-page.md) (never an absolute path copied from a save-point) and run `round.sh --dir '<memory_dir>/<topic-slug>/interview-surface' doctor --ledger <ledger>`.
-  - **Pointer**: when session-flow is not installed, fetch <https://code.claude.com/docs/en/context-window#when-your-context-fills-up> live. **As of**: 2026-10-28. **Recheck trigger**: the section changes how it splits work between compaction and a fresh session, or moves.
+  - **Pointer**: when session-flow is not installed, fetch <https://code.claude.com/docs/en/context-window#when-your-context-fills-up> live.
 - **Branch out to ground a recommendation, without blocking the round.** If a question needs more than the lightweight codebase gate, such as external best-practice, library API surface, or deeper exploration, hand the lookup to a sub-agent (or do it inline when fast) as an in-flight lookup (SKILL.md "In-flight lookups"). When the result lands, the unblocked questions join the next round's frontier, grounded in code read this session or an official source fetched this session. Never recommend a consequential technical choice from training recall.
 
 ## The open-question register
@@ -413,7 +413,7 @@ The rule is also surface-agnostic: it reads the register, so it does not care wh
 
 ### Unattended path
 
-`/planning:interview` can be reached with no human to answer, from a loop, a spawned worker, or another skill's chain. There is no supported way for the session to *detect* this (as of 2026-09-02, `https://code.claude.com/docs/en/cli-reference` documents `--permission-prompt-tool` for non-interactive permission handling and no state a running session can read, and `https://code.claude.com/docs/en/env-vars` documents no remote or headless indicator; recheck when either page gains one), so the trigger is **declared, never sniffed**: the caller says it is unattended, or the round has been emitted and the run has no user turn to wait for.
+`/planning:interview` can be reached with no human to answer, from a loop, a spawned worker, or another skill's chain. There is no supported way for the session to *detect* this (`https://code.claude.com/docs/en/cli-reference` documents `--permission-prompt-tool` for non-interactive permission handling and no state a running session can read, and `https://code.claude.com/docs/en/env-vars` documents no remote or headless indicator), so the trigger is **declared, never sniffed**: the caller says it is unattended, or the round has been emitted and the run has no user turn to wait for.
 
 The ladder, in order:
 

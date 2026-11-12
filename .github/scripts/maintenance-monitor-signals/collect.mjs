@@ -163,11 +163,17 @@ const QUEUE_BRANCH = /^gh-readonly-queue\/[^/]+\/pr-(\d+)-[0-9a-f]+$/;
 // work-unblock.yml names them.
 const WORK_UNBLOCK_PATH = ".github/workflows/work-unblock.yml";
 export const PUBLISH_LANE_LEVEL_JOB = "publish-lane-level";
+// That job's name, and its id as a run from before the job rename lists it.
+const PUBLISH_LANE_LEVEL_NAMES = new Set(["Publish Lane Level", PUBLISH_LANE_LEVEL_JOB]);
 export const VARIABLE_STEPS = new Set(["List the repository variables before the publish", "Check no other repository variable changed"]);
 // Only main's own scheduled or dispatched pr-merge runs are trusted: a PR,
 // fork or branch run can upload an artifact or annotation of the same name.
 const TRUSTED_EVENTS = new Set(["schedule", "workflow_dispatch"]);
 const PR_MERGE_PATH = ".github/workflows/pr-merge.yml";
+// pr-merge's merge job by name, then by the id a run from before the job rename lists.
+const MERGE_JOB = "Merge";
+const MERGE_JOB_BEFORE_RENAME = "merge";
+const mergeJob = (jobs) => jobs.find((j) => j.name === MERGE_JOB) ?? jobs.find((j) => j.name === MERGE_JOB_BEFORE_RENAME);
 // The step name every lane workflow gives request-lane-token in token mode.
 const MINT_STEP = "Request the lane token";
 // Events whose run takes its workflow code from the default branch; a push
@@ -380,9 +386,9 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     data.budgetReadings = [];
     const read = runs.filter((r) => r.status === "completed" && trustedPrMerge(r) && completedInWindow(r)).slice(0, LIMITS.prMergeRuns);
     await warmLists(read);
-    const jobs = await prefetch(read, jobListOf, (js) => js.filter((j) => j.name === "merge").slice(0, 1));
+    const jobs = await prefetch(read, jobListOf, (js) => [mergeJob(js)].filter(Boolean));
     for (const run of read) {
-      const merge = (await jobs(run)).find((j) => j.name === "merge");
+      const merge = mergeJob(await jobs(run));
       if (!merge) continue;
       for (const a of await annotationsOf(merge.id)) {
         const reading = budgetReading(a);
@@ -405,7 +411,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     const lanes = runs.filter((r) => defaultBranchCode(r) && !SKIP_FAILED_PATHS.has(r.path) && ownHead(r) && completedInWindow(r));
     let read = 0;
     const mintedOf = (jobs, run) => {
-      const alreadyRead = (job) => run.path === PR_MERGE_PATH && trustedPrMerge(run) && job.name === "merge";
+      const alreadyRead = (job) => run.path === PR_MERGE_PATH && trustedPrMerge(run) && job === mergeJob(jobs);
       return jobs.filter((j) => !alreadyRead(j) && (j.steps ?? []).some((s) => s.name === MINT_STEP && s.conclusion === "success"));
     };
     const jobs = await prefetch(lanes.slice(0, LIMITS.laneRuns), jobsOf, mintedOf, LIMITS.laneMintJobs);
@@ -487,7 +493,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       throw new Error(`over ${LIMITS.laneVariableRuns} failed scheduled work-unblock runs; the rest were not read`);
     }
     data.laneVariableRuns = [];
-    const publishJob = (jobs) => failedJobs(jobs).find((j) => j.name === PUBLISH_LANE_LEVEL_JOB);
+    const publishJob = (jobs) => failedJobs(jobs).find((j) => PUBLISH_LANE_LEVEL_NAMES.has(j.name));
     const jobs = await prefetch(runs, jobsOf, (js) => [publishJob(js)].filter(Boolean));
     for (const run of runs) {
       const job = publishJob(await jobs(run));
@@ -722,7 +728,9 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       // of them, so the next run reads the rest and this one reports a gap.
       let readThrough = now.getTime();
       const cut = [];
-      for (const { lane, workflow, jobs, holdRuns: cap = LIMITS.holdRuns, listPages = LIMITS.holdListPages, holdStep, statuses = ["success"] } of HOLD_LANES) {
+      for (const { lane, workflow, jobs: ids, names, holdRuns: cap = LIMITS.holdRuns, listPages = LIMITS.holdListPages, holdStep, statuses = ["success"] } of HOLD_LANES) {
+        // A job by its name, or by its id on a run from before the job rename.
+        const jobs = [...names, ...ids];
         // By id: a run that starts between two page reads shifts one onto the next page.
         const runs = new Map();
         for (const status of statuses) {

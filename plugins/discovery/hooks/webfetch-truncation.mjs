@@ -15,14 +15,13 @@
 // names re-reading with that offset first. Probed on Claude Code 2.1.296,
 // 2026-10-10; evidence in the pull request that carries this change. For what
 // WebFetch documents about pages over its read cap, fetch
-// https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior live
-// (as of 2026-10-10); recheck when that section documents the note text or the
-// `offset` input. There is no length rule, so a page WebFetch summarized with
+// https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior live.
+// There is no length rule, so a page WebFetch summarized with
 // no marker goes unflagged; the README says so.
 //
 // tool_response's shape for WebFetch is not documented on the hooks page
 // (https://code.claude.com/docs/en/hooks#posttooluse-input says it "depends on
-// the tool"; as of 2026-10-04). The shape used here, an object whose `result`
+// the tool"). The shape used here, an object whose `result`
 // holds the text, comes from the captured fixtures (Claude Code 2.1.289).
 // Recheck when a capture shows a different shape.
 //

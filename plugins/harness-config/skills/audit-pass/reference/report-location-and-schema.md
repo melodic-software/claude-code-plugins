@@ -50,9 +50,6 @@ while excluding its `findings.json`, which is the same unfalsifiable-idempotence
     [plugin manifest reference: environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
     and [where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
     live.
-  - **As of**: 2026-11-04
-  - **Recheck trigger**: either section changes the character rule, or exports the variable to the
-    Bash tool.
 
   It is therefore **outside** a target below `~` and **inside** any
   target at or above it. The default path is *usually* outside the scan set and is **not

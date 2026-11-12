@@ -40,7 +40,6 @@ trades away width that reading actually uses. `pretty` is the exception for long
 Sometimes a manual break wins.
 
 Baseline: [`text-wrap`](https://developer.mozilla.org/en-US/docs/Web/CSS/text-wrap#browser_compatibility).
-As of 2026-10-29, recheck on a status change.
 
 ## Overflow protection
 
@@ -74,9 +73,7 @@ twice.
 
 - **Pointer**: MDN, `line-clamp`, Description, the legacy prefixed form and what it needs,
   <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/line-clamp#description>
-- **As of**: 2026-10-29
-- **Recheck trigger**: that section changes what the prefixed form needs, or unprefixed
-  `line-clamp` reaches Baseline.
+- **Recheck trigger**: unprefixed `line-clamp` reaches Baseline.
 
 Truncation deletes information from view. That's acceptable only when the reader has another route
 to the whole string: a tooltip, a `title` attribute, an expandable row, a detail page. A clipped ID

@@ -122,6 +122,7 @@ jobs:
   # A run GitHub skipped (pr-require-checks did not pass) ran no judgment and
   # uploaded nothing, so it starts no runner.
   post-verify-notes:
+    name: Post Verify Notes
     if: >-
       github.ref == 'refs/heads/main'
       && github.event.workflow_run.path == '.github/workflows/pr-verify.yml'
@@ -314,6 +315,7 @@ jobs:
     # only when it succeeded on a lane branch of this repository and a person,
     # not a bot, started it; feedback-dispatch.mjs checks its actors against
     # the list. A job skipped here starts no runner.
+    name: Dispatch
     if: >-
       ${{ !cancelled()
       && github.ref == 'refs/heads/main'
@@ -712,6 +714,7 @@ jobs:
   # and the labels that run writes start their own pull_request run.
   # Pinned by scripts/ci-rerun-ci-status.test.sh, which runs the find body.
   rerun-ci-status:
+    name: Rerun CI Status
     if: >-
       github.ref == 'refs/heads/main'
       && ((github.event.workflow_run.path == '.github/workflows/pr-review-hosted.yml'

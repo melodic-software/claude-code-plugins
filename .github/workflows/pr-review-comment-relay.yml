@@ -25,6 +25,7 @@ permissions: {}
 
 jobs:
   relay:
+    name: Relay
     if: >-
       github.event.comment.user.type == 'User'
       && github.event.pull_request.head.repo.full_name == github.repository

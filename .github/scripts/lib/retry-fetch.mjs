@@ -141,3 +141,26 @@ export function retryFetch(
     }
   };
 }
+
+// A GitHub REST call through retryFetch: (method, path, body, {safeToResend})
+// resolves to the parsed JSON answer, or null on a 204, and throws an error
+// carrying the answer's status when the answer is not 2xx.
+export function retryApi({ fetch, apiUrl, token, sleep }) {
+  const send = retryFetch(fetch, { sleep });
+  return async (method, path, body, { safeToResend = false } = {}) => {
+    const response = await send(`${apiUrl}${path}`, {
+      method,
+      safeToResend,
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    if (!response.ok) {
+      throw Object.assign(new Error(`${method} ${path} answered ${response.status}`), { status: response.status });
+    }
+    return response.status === 204 ? null : response.json();
+  };
+}

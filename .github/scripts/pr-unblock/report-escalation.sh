@@ -140,7 +140,9 @@ retried_refusal() {
   local jobs ids id notes annotations='{}'
   [[ ${GITHUB_RUN_ID:-} =~ ^[1-9][0-9]*$ ]] || return 1
   jobs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100") || return 1
-  ids=$(jq -er '[.jobs[] | select(.name == "publish-feedback / run" and .conclusion == "failure") | .id | select(type == "number")] | .[]' <<<"$jobs") || return 1
+  # publish-feedback / run, by display name; by its ids on a run started before
+  # the rename, which this script, read from the default branch tip, can still read.
+  ids=$(jq -er '[.jobs[] | select((.name == "Publish Feedback / Run" or .name == "publish-feedback / run") and .conclusion == "failure") | .id | select(type == "number")] | .[]' <<<"$jobs") || return 1
   for id in $ids; do
     notes=$(gh api "repos/$GITHUB_REPOSITORY/check-runs/$id/annotations?per_page=100") || return 1
     annotations=$(jq -c --arg id "$id" --argjson notes "$notes" '. + {($id): $notes}' <<<"$annotations") || return 1

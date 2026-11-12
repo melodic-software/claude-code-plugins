@@ -60,7 +60,7 @@ So Phase 1 takes the sources it can hold:
     [hooks: InstructionsLoaded input](https://code.claude.com/docs/en/hooks#instructionsloaded-input)
     live for the payload fields and the `load_reason` values. Basis beside it: first-party
     measurement in this marketplace (2026-09-13, Claude Code 2.1.268).
-  - **As of**: 2026-10-11 (pointer); 2026-09-13 (measurement)
+  - **As of**: 2026-09-13 (measurement)
   - **Recheck trigger**: that section changes the event's payload fields or its `load_reason` set.
 
   Only the `session_start` half is out of reach at dispatch time, because those events fired before
@@ -81,7 +81,7 @@ the run could not observe rather than left to read as coverage:
   which skill descriptions were dropped from the listing; route that question, and how drops are
   chosen, to `/harness-ops:audit-skill-visibility`. For whether a session can see its drops, fetch
   [skills: skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)
-  live (as of 2026-11-03; recheck when that section names a way to see them).
+  live.
 - **Custom-agent registration liveness**, which degrades from observed to **configured-not-observed**:
   the inventory can say an agent is defined and cannot say the session registered it.
 - **The clean-room comparison.** Relocating `CLAUDE_CONFIG_DIR` and diffing a bare session is what
