@@ -1,4 +1,4 @@
-# Context guard: reader contract
+# Context usage: reader contract
 
 ## Contents
 

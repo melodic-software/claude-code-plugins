@@ -1,4 +1,4 @@
-# Context guard: capture channels
+# Context usage: capture channels
 
 Why the plugin's module is its capture source, which other channels were checked and rejected, and
 how a consumer tells a *structurally absent* instrument from a *broken* one.
