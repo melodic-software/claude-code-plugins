@@ -165,7 +165,7 @@ read at the pointer.
   [Share rules across projects with symlinks](https://code.claude.com/docs/en/memory#share-rules-across-projects-with-symlinks),
   [User-level rules](https://code.claude.com/docs/en/memory#user-level-rules).
 
-**Path scoping status (verified working on Claude Code 2.1.219):** Path scoping defers as
+**Path scoping status (verified working 2026-07-24 on Claude Code 2.1.219):** Path scoping defers as
 documented. The audit treats a path-scoped rule as absent at session start and loaded once Claude
 reads or writes a matching file, and prices a move into one on that basis; which tools and Bash
 commands count is read live, not restated here. A first-party repro on 2.1.219 with
@@ -174,7 +174,8 @@ commands count is read live, not restated here. A first-party repro on 2.1.219 w
 Probe: the repro recorded in the description of pull request #1393
 (`gh pr view 1393 --repo melodic-software/claude-code-plugins`).
 No changelog entry or maintainer comment pins the version where this began working, so do not claim
-a version floor.
+a version floor. Recheck trigger: a Claude Code release note or memory-doc change touching rule
+loading, or any session in which a path-scoped rule is present at session start.
 
 - **Pointer**: when a finding depends on what loads a path-scoped rule or a nested CLAUDE.md, fetch
   [Path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules) and
