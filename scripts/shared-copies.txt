@@ -817,3 +817,6 @@ lib/worktree-root-resolve.sh plugins/repo-fleet-hygiene/scripts/worktree-root-re
 lib/worktree-root-resolve.sh plugins/source-control/scripts/worktree-root-resolve.sh
 lib/worktree-root-legacy.sh plugins/repo-fleet-hygiene/scripts/worktree-root-legacy.sh
 lib/worktree-root-legacy.sh plugins/source-control/scripts/worktree-root-legacy.sh
+lib/hook-test-sink.sh plugins/autonomy/hooks/hook-test-sink.sh
+lib/hook-test-sink.sh plugins/context-guard/hooks/hook-test-sink.sh
+lib/hook-test-sink.sh plugins/desktop-notification/hooks/hook-test-sink.sh

@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.4.12] - 2026-11-12
+
+### Changed
+
+- Enforcement ladder copy updated to 2.1.1: policy-class names irreversible, secret-exposing and data-egress actions.
+
 ## [8.4.11] - 2026-11-12
 
 ### Fixed

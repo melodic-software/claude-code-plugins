@@ -51,6 +51,9 @@ source "$WIT_LINEAR_SEAM_LIB/id.sh"
 wit_linear_require_seam_lib "$WIT_LINEAR_SEAM_LIB/json.sh"
 # shellcheck source=../../lib/json.sh disable=SC1091
 source "$WIT_LINEAR_SEAM_LIB/json.sh"
+wit_linear_require_seam_lib "$WIT_LINEAR_SEAM_LIB/verb-cli.sh"
+# shellcheck source=../../lib/verb-cli.sh disable=SC1091
+source "$WIT_LINEAR_SEAM_LIB/verb-cli.sh"
 # binding.sh is sourced, not inherited: the dispatcher runs each verb as a fresh
 # `bash <verb>.sh` subprocess, so only exported env vars cross — not wit_find_binding.
 # The adapter re-locates the binding itself to read its own config subtree.
@@ -145,11 +148,6 @@ readonly WIT_LINEAR_LEASE_SUFFIX=' -->'
 WIT_LINEAR_BODY=""
 WIT_LINEAR_STATUS=""
 
-wit_usage_error() {
-  printf '%s: %s\n' "$(basename "${BASH_SOURCE[1]}")" "$1" >&2
-  exit "$EX_USAGE"
-}
-
 # wit_linear_unimplemented <verb> — the marker a freshly generated verb
 # script carries until its provider mapping is filled in. Exit 1 (internal), NOT 6:
 # exit 6 means "this provider cannot do it and the manifest says so", which is a
@@ -163,16 +161,6 @@ wit_linear_unimplemented() {
     "$(basename "${BASH_SOURCE[1]}")" "$1" >&2
   printf '  fill in its PROVIDER MAPPING block, or set verbs["%s"]=false in capabilities.json\n' "$1" >&2
   exit "$EX_INTERNAL"
-}
-
-# wit_help_if_requested <usage-text> <args…> — print usage + exit 0 on --help.
-wit_help_if_requested() {
-  local usage="$1"
-  shift
-  if [[ "${1:-}" == "--help" ]]; then
-    printf '%s\n' "$usage"
-    exit 0
-  fi
 }
 
 # wit_linear_nonempty_array <json-text> — 0 when the text is a non-empty

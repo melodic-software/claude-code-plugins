@@ -736,7 +736,7 @@ Claude Code alias (see "Alias binding" below):
 | Tier | Role | Alias |
 |---|---|---|
 | frontier | Complex-stamped items; every security-surface work class, always; orchestrator where the organization chooses it | `best` |
-| strong | Orchestrator by default; default implementer / worker for unrouted or complex work | `opus` |
+| strong | Orchestrator by default ([ADR 0100](../../adr/0100-run-the-orchestrator-on-the-session-model-opus-by-default.md)); default implementer / worker for unrouted or complex work | `opus` |
 | fast | Mechanical items an objective check backs (a build, a test run, a schema or exit-code check), and phases a plan routes `sonnet` as well-scoped | `sonnet` |
 
 Fixed rules: the orchestrator runs at the strong or frontier tier, in the coordinator shape where

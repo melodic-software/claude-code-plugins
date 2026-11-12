@@ -165,18 +165,14 @@ fi
 
 [[ -n "$ROOT" ]] || ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 # Physical spellings on both sides, so a symlinked or Git Bash-spelled root and
-# the file path it contains compare equal.
-if [[ -n "$ROOT" ]]; then
-  ROOT="$(cd "$ROOT" 2>/dev/null && pwd -P)" || ROOT=""
-fi
-HOME_P=""
-if [[ -n "${HOME:-}" ]]; then
-  HOME_P="$(cd "$HOME" 2>/dev/null && pwd -P)" || HOME_P=""
-fi
-CONFIG_P=""
-if [[ -n "${CLAUDE_CONFIG_DIR:-${HOME:+$HOME/.claude}}" ]]; then
-  CONFIG_P="$(cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P)" || CONFIG_P=""
-fi
+# the file path it contains compare equal. Empty when the directory is unset or
+# unreachable.
+physical_dir() {
+  [[ -n "$1" ]] && cd "$1" 2>/dev/null && pwd -P || true
+}
+ROOT="$(physical_dir "$ROOT")"
+HOME_P="$(physical_dir "${HOME:-}")"
+CONFIG_P="$(physical_dir "${CLAUDE_CONFIG_DIR:-${HOME:+$HOME/.claude}}")"
 
 # Whether a physical path under $HOME is an instruction file: a markdown file
 # (CLAUDE.md, CLAUDE.local.md, AGENTS.md, rules, agents, output styles, and the
