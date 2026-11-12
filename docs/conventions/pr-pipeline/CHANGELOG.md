@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [9.25.0] - 2026-11-12
+
+### Added
+
+- `limits.stale-queued-minutes` (default 60). A work-unblock sweep leaves a work-resolve-issue run still at status `queued` this many minutes after it was created out of the unfinished runs that `limits.refire-queue-per-slot` counts, and logs how many it left out. Such a run never got a runner, so GitHub lost it and it will never start; counted, outage-lost runs held the kill-switch re-fire room at 0 and the issue lane idle. A reopened fix issue's in-flight check no longer counts such a run among the runs that name no issue, so lost runs no longer keep every reopened fix issue from its relabel; a run that names the issue still holds it.
+
+## [9.24.0] - 2026-11-12
+
+### Added
+
+- `review-threads.reviewer-ids` lists `github-advanced-security[bot]` (62310815), so `address-feedback` fixes or settles, replies to and resolves code scanning (CodeQL) alert threads as it does the reviewer bot's (owner decision Q29). That bot cannot be summoned by a comment, so its threads need no `@codex` request: `requestSkip` works one when a trusted person or the lanes App opened the pull request (`UNSUMMONED_REVIEWER_IDS` in `address-feedback.mjs`), and logs `codex-request-untrusted` or, on unreadable triggers, `codex-request-not-found` otherwise. Resolving a thread does not dismiss its code scanning alert; the next analysis closes a fixed one.
+
 ## [9.23.0] - 2026-11-11
 
 ### Changed

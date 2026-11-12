@@ -3,6 +3,14 @@
 All notable changes to the `coupling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.17] - 2026-11-11
+
+### Fixed
+
+- The `reduce` skill no longer says the Bash tool returns a command's complete output into context. The rule
+  stands (the pipe is the bound, so it belongs in the command); the reason now points at the Output
+  limits section of the Claude Code tools reference for what a result returns inline.
+
 ## [0.4.16] - 2026-11-11
 
 ### Changed
