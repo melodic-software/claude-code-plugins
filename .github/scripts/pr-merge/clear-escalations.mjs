@@ -241,8 +241,11 @@ const CI_FIX = Object.freeze(["ci-fix-round-cap", "ci-fix-empty", "ci-fix-invali
 // The only conclusions a check's latest run at the head may have for a ci-fix
 // stop to clear; action_required, stale, null and any other keep it.
 const PASSING = new Set(["success", "neutral", "skipped"]);
-// fix-ci's aggregate check, which the human-gated label itself fails.
-const AGGREGATE = "ci-status";
+// fix-ci's aggregate check, CI Status, with its ci-status alias: the
+// human-gated label itself fails both. Literals, since ci-status's sparse hold
+// config checkout holds only the modules this file loads.
+const AGGREGATE = "CI Status";
+const AGGREGATE_JOBS = new Set([AGGREGATE, "ci-status"]);
 // Check-run pages read at a head; a head with more stays unread.
 const CHECK_PAGES = 3;
 const SHA = /^[0-9a-f]{40}$/;
@@ -469,11 +472,11 @@ async function ciPasses(context) {
 // Why `head`'s checks do not pass, or null when they do: no check fails, runs
 // or was cancelled (fix-ci's failingChecks over every run, so a later skip
 // hides no failure), each check's latest run ended in PASSING, and one passed.
-// ci-status is left out: the label fails it. `read` runs a read with a token
+// CI Status and its ci-status alias are left out: the label fails them. `read` runs a read with a token
 // that holds checks: read and answers null when the read fails.
 async function checksHeld(read, repo, head) {
   const runs = await read((reader) => checkRuns(reader, repo, head));
-  const others = (runs ?? []).filter((run) => run?.name !== AGGREGATE);
+  const others = (runs ?? []).filter((run) => !AGGREGATE_JOBS.has(run?.name));
   const latest = new Map();
   for (const run of others) {
     if (!(latest.get(run.name)?.id > run.id)) {

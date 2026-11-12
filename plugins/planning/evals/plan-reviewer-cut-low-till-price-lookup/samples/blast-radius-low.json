@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Blast radius: LOW\nReason: two files.",
+      "why": "plain line"
+    },
+    {
+      "answer": "**Blast radius:** LOW",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Price lookup without a crash\n\n## Brief\n\n### Problem\nThe till crashes with a traceback when a product has no price, and staff restart it mid-sale.\n\n### Goal\n`price_for(sku)` returns the price, or `None` when the product or the price file is missing, so the till can ask staff to enter a price.\n\n### Acceptance criteria\n- AC1: `price_for(\"A100\")` returns the value from `data/prices.json`.\n- AC2: An unknown SKU returns `None`.\n- AC3: A missing price file returns `None`.\n- AC4: An edit to `data/prices.json` shows in the next call without a restart.\n\n### Out-of-scope\n- Editing prices from the till.\n\n## Design\n\nEarly exit (tier C): One new function beside an existing loader; no new types.\n\n## Plan\n\n### Behavior\n- B1: A known SKU returns its price (AC1). Delivered by Phase 1.\n- B2: An unknown SKU or a missing file gives no price instead of an error (AC2, AC3). Delivered by Phase 1.\n- B3: Add cases in `tests/test_prices.py` for an edit between calls (AC4). Delivered by Phase 1.\n\n### Load-bearing assumptions\n\n| Assumption | Source | Falsifying check | Response if false |\n|---|---|---|---|\n| `data/prices.json` holds a flat object of SKU to price | plan | Phase 1 Sanity Check | Minor: proceed and note |\n\n### Phase 1: Add price_for [TODO]\n**Satisfies:** AC1, AC2, AC3, AC4\n**Delivers:** B1, B2, B3\n\n- In `catalog/prices.py`, add `price_for(sku, path=PRICES_PATH)` returning `load_prices(path).get(sku)`; `load_prices` already returns an empty dict when the file is missing, so AC3 needs no branch of its own.\n- Read the file on every call, so a staff edit shows at once.\n- In `tests/test_prices.py`, add one case per criterion.\n\n**Sanity Check:** `python -m unittest discover -s tests` exits 0.\n\n### Files affected\n| File | Action |\n|---|---|\n| `catalog/prices.py` | modify |\n| `tests/test_prices.py` | modify |\n",
+      "why": "the draft as seeded has no assessment"
+    },
+    {
+      "answer": "Blast radius: MEDIUM\nReason: shared code.",
+      "why": "another tier"
+    }
+  ]
+}

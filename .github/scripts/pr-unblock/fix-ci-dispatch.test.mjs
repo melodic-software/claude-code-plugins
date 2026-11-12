@@ -6,7 +6,7 @@ import { createGitHubApi, LIST_QUERY } from "./dispatch.mjs";
 import { failingChecks } from "./gate-source.mjs";
 import { emptyRecord, isHandled } from "./dispatch-record.mjs";
 import { RERUN_DUE_MINUTES } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { DEFAULTS, dispatchCiFixes, humanGatedLabel, skipReason, staleStop } from "./fix-ci-dispatch.mjs";
+import { adoptableOwnerIds, DEFAULTS, dispatchCiFixes, humanGatedLabel, skipReason, staleStop } from "./fix-ci-dispatch.mjs";
 
 // The lanes App bot's user id and the GitHub Actions app id
 // (.github/standards/trusted-actors/trusted-actors.json; dispatch.mjs).
@@ -1532,6 +1532,21 @@ test("a head whose fix-ci stop fails with every check passed is dispatched fix-c
   assert.equal(error.api.calls.dispatch.length, 1);
 });
 
+test("a fix-ci stop is cleared over a red CI Status and its ci-status alias, as over ci-status alone", async () => {
+  const renamed = [lanes("SUCCESS"), check("lint", "SUCCESS"), check("CI Status", "FAILURE"), check("ci-status", "FAILURE"), fixCiStop()];
+  const { api } = await run({ pages: [[settled(renamed)]] });
+  assert.equal(api.calls.dispatch.length, 1);
+  assert.equal(staleStop(settled(renamed), { base: "main", appSenderId: APP, holdLabels: [], gateLabel: "needs-human" }).state, "FAILURE");
+});
+
+test("a red CI Status or ci-status beside passed lanes is no advisory failure", async () => {
+  for (const name of ["CI Status", "ci-status"]) {
+    const { api, result } = await run({ pages: [[pr(5, { checks: [lanes("SUCCESS"), check(name, "FAILURE")] })]] });
+    assert.deepEqual(result.dispatched, [], name);
+    assert.deepEqual(api.calls.paths, [], name);
+  }
+});
+
 test("a fix-ci stop is left on a head with a check failing or going, a run since the stop, another account's status or a hold label", async () => {
   for (const [label, page, options] of [
     ["a check is going", settled([lanes("SUCCESS"), check("lint", null), fixCiStop()]), {}],
@@ -1551,4 +1566,14 @@ test("a fix-ci stop is left on a head with a check failing or going, a run since
   // A run from before the stop does not hold it.
   const older = await run({ pages: [[settled(green)]], workflowRuns: [{ id: 2, status: "completed", display_title: "pr-unblock fix-ci #9", created_at: "2026-10-22T10:00:00Z" }] });
   assert.equal(older.api.calls.dispatch.length, 1);
+});
+
+test("adoption leaves out Dependabot and the release and standards-sync Apps, whose PRs a lane commit breaks", () => {
+  const trusted = JSON.parse(readFileSync(new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url), "utf8"));
+  const ids = trusted.actors.map((actor) => actor.id);
+  const adopted = adoptableOwnerIds(new Set(ids));
+  const excluded = [49699333, 337859524, 300666570];
+  assert.ok(excluded.every((id) => ids.includes(id)));
+  assert.deepEqual(adopted, ids.filter((id) => !excluded.includes(id)));
+  assert.ok(adopted.includes(APP));
 });

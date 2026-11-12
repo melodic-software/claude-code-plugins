@@ -287,6 +287,22 @@ fi
 out="$(run --check)"
 expect "--check passes on generated Markdown copies" 0 $? "$out"
 
+# --- a JSON copy is the canonical's bytes, with no header -------------------------
+fixture
+printf '{\n  "a": 1\n}\n' >"$root/lib/data.json"
+printf 'lib/data.json plugins/alpha/ref/data.json\n' >"$root/scripts/shared-copies.txt"
+run >/dev/null
+if cmp -s "$root/lib/data.json" "$root/plugins/alpha/ref/data.json"; then
+  pass "a JSON copy is byte-identical to its canonical"
+else
+  bad "a JSON copy is byte-identical to its canonical" "got: $(cat "$root/plugins/alpha/ref/data.json")"
+fi
+out="$(run --check)"
+expect "--check passes on a generated JSON copy" 0 $? "$out"
+printf '{\n  "a": 2\n}\n' >"$root/plugins/alpha/ref/data.json"
+out="$(run --check)"
+expect "--check fails on an edited JSON copy" 1 $? "$out"
+
 # --- an HTML copy takes an HTML-comment header, after any doctype ---------------
 fixture
 printf '<!doctype html>\n<html lang="en">\n</html>\n' >"$root/lib/page.html"
@@ -342,7 +358,7 @@ reject "a copy registered twice is rejected" "registered twice" "lib/esc.mjs plu
 reject "a canonical registered as a copy is rejected" "both a canonical and a copy" \
   "plugins/alpha/lib/esc.mjs plugins/gamma/lib/esc.mjs" plugins/alpha/lib/esc.mjs
 reject "an extension with no known comment syntax is rejected" "no comment syntax known" \
-  "lib/data.json plugins/alpha/data.json" lib/data.json
+  "lib/data.toml plugins/alpha/data.toml" lib/data.toml
 
 fixture
 out="$(run --bogus)"

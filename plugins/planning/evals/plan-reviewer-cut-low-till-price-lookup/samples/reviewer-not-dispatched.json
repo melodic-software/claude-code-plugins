@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".work/price-lookup/PLAN.md"
+          }
+        }
+      ],
+      "why": "no agent dispatched"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "planning:devils-advocate"
+          }
+        }
+      ],
+      "why": "devils-advocate only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "general-purpose",
+            "description": "Stress-test",
+            "prompt": "Run /planning:devils-advocate; the plan-reviewer was skipped."
+          }
+        }
+      ],
+      "why": "another agent whose prompt names the reviewer"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "planning:plan-reviewer",
+            "description": "Review plan",
+            "prompt": "Review .work/price-lookup/PLAN.md"
+          }
+        }
+      ],
+      "why": "dispatched the plan-reviewer"
+    }
+  ]
+}
