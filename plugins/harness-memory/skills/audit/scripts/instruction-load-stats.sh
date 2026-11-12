@@ -124,19 +124,16 @@ scope_roots() {
   [[ -d "$base/rules" ]] || return 0
   while IFS= read -r f; do
     [[ -n "$f" ]] || continue
-    is_unscoped_rule "$f" && printf '%s\t%s\n' "$scope" "$f"
+    rule_frontmatter_declares "$f" paths || printf '%s\t%s\n' "$scope" "$f"
   done < <(find "$base/rules" -name '*.md' -type f 2>/dev/null | LC_ALL=C sort)
 }
 
+USER_DIR="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}"
+
 always_loaded_roots() {
   scope_roots project .claude
-  local user_dir="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}"
-  [[ -n "${CLAUDE_CONFIG_DIR:-}${HOME:-}" && -d "$user_dir" ]] || return 0
-  scope_roots user "$user_dir"
-}
-
-is_unscoped_rule() {
-  ! rule_frontmatter_declares "$1" paths
+  [[ -n "${CLAUDE_CONFIG_DIR:-}${HOME:-}" && -d "$USER_DIR" ]] || return 0
+  scope_roots user "$USER_DIR"
 }
 
 relpath() {
@@ -162,18 +159,15 @@ if [[ "$mode" == "--lines" || "$mode" == "--bytes" ]]; then
   fi
   total=0
   while IFS=$'\t' read -r status path; do
-    case "$status" in
-    root | import)
-      if [[ "$mode" == "--lines" ]]; then n=$(count_lines "$path"); else n=$(count_bytes "$path"); fi
-      total=$((total + n))
-      ;;
-    *) ;;
-    esac
+    [[ "$status" == root || "$status" == import ]] || continue
+    if [[ "$mode" == "--lines" ]]; then n=$(count_lines "$path"); else n=$(count_bytes "$path"); fi
+    total=$((total + n))
   done < <(il_walk "$target")
   printf '%s\n' "$total"
   exit 0
 fi
 
+USER_IL_ROOT="$(il_realpath "$USER_DIR")"
 declare -A counted=()
 rows=()
 lines_total=0
@@ -181,7 +175,7 @@ bytes_total=0
 while IFS=$'\t' read -r scope root; do
   [[ -n "$root" ]] || continue
   if [[ "$scope" == "user" ]]; then
-    IL_ROOT="$(il_realpath "${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}")"
+    IL_ROOT="$USER_IL_ROOT"
   else
     IL_ROOT="$PROJECT_ROOT"
   fi

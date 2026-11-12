@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Absence from that answer is not evidence of absence.",
+      "why": "direct"
+    },
+    {
+      "answer": "You can't record that from a fetch answer.",
+      "why": "can't record"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, record it.",
+      "why": "wrong"
+    }
+  ]
+}

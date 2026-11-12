@@ -505,7 +505,7 @@ test("a head whose tested run ended cancelled is not dispatched across base move
       const newest = history.length === 0 ? [] : [check("pr-unblock / fix-ci", "NEUTRAL", { title: "Skipped: not-applicable", completedAt: history.at(-1).completed_at })];
       const { lines } = await run(
         {
-          pages: [[pr(9, { checks: [lanes("FAILURE"), check("test-bash (3)", "CANCELLED"), check("ci-status", "FAILURE"), ...newest] })]],
+          pages: [[pr(9, { checks: [lanes("FAILURE"), check("Test Bash (3)", "CANCELLED"), check("ci-status", "FAILURE"), ...newest] })]],
           history: new Map([[head, [...history]]]),
           requiredRuns: new Map([[head, { run: { ...tested(2), conclusion }, jobs: conclusion === "failure" ? MIXED_JOBS : null }]]),
           baseCommittedAt: at("00"),
@@ -534,9 +534,9 @@ test("a cancelled tested run with a check fix-ci-context counts as failing is st
     {
       pages: [
         [
-          pr(5, { checks: [lanes("FAILURE"), check("test-bash (3)", "TIMED_OUT")] }),
-          pr(6, { checks: [lanes("FAILURE"), check("lint-repo", "FAILURE")] }),
-          pr(7, { checks: [lanes("FAILURE"), check("test-node", "STARTUP_FAILURE")] }),
+          pr(5, { checks: [lanes("FAILURE"), check("Test Bash (3)", "TIMED_OUT")] }),
+          pr(6, { checks: [lanes("FAILURE"), check("Lint Repo", "FAILURE")] }),
+          pr(7, { checks: [lanes("FAILURE"), check("Test Node", "STARTUP_FAILURE")] }),
         ],
       ],
       requiredRuns: new Map([5, 6, 7].map((number) => [head(number), cancelledRun])),
@@ -560,13 +560,13 @@ const CANCEL_ONLY = TIME_LIMITED.filter((a) => a.message === "The operation was 
 const stranded = (number, notes) => {
   const head = String(number).padStart(40, "a");
   return {
-    pages: [[pr(number, { checks: [lanes("FAILURE"), check("test-bash (3)", "CANCELLED"), check("ci-status", "FAILURE")] })]],
+    pages: [[pr(number, { checks: [lanes("FAILURE"), check("Test Bash (3)", "CANCELLED"), check("ci-status", "FAILURE")] })]],
     requiredRuns: new Map([[head, { run: { ...tested(2), id: 40118648493, conclusion: "cancelled" }, jobs: null }]]),
     commitRuns: new Map([
       [
         head,
         [
-          { id: 120950643531, ...toRest(check("test-bash (3)", "CANCELLED")) },
+          { id: 120950643531, ...toRest(check("Test Bash (3)", "CANCELLED")) },
           { id: 120952904939, ...toRest(check("ci-status", "FAILURE")) },
         ],
       ],
@@ -584,7 +584,7 @@ test("a head whose tested run ended cancelled with a check past its time limit i
   // Only the cancelled lane check's annotations are read, not ci-status's.
   assert.deepEqual(api.calls.annotations, [120950643531]);
   assert.ok(
-    lines.some((line) => line.startsWith("dispatched fix-ci #9828 ") && line.endsWith("(cause: tested run completed/cancelled, time limit in test-bash (3))")),
+    lines.some((line) => line.startsWith("dispatched fix-ci #9828 ") && line.endsWith("(cause: tested run completed/cancelled, time limit in Test Bash (3))")),
     lines.join("\n"),
   );
 });
@@ -602,9 +602,9 @@ test("a cancelled check with no time-limit note leaves the head skipped; an unre
 // the rollup shows only the skip, and fix-ci-context still finds the failure.
 test("a cancelled tested run whose failed job a later run skipped is dispatched", async () => {
   const head = "8".padStart(40, "a");
-  const rest = (id, conclusion) => ({ id, name: "test-bash (3)", status: "completed", conclusion, output: { title: null }, completed_at: "2026-10-22T10:00:00Z" });
+  const rest = (id, conclusion) => ({ id, name: "Test Bash (3)", status: "completed", conclusion, output: { title: null }, completed_at: "2026-10-22T10:00:00Z" });
   const { lines, result, api } = await run({
-    pages: [[pr(8, { checks: [lanes("FAILURE"), check("test-bash (3)", "SKIPPED"), check("ci-status", "FAILURE")] })]],
+    pages: [[pr(8, { checks: [lanes("FAILURE"), check("Test Bash (3)", "SKIPPED"), check("ci-status", "FAILURE")] })]],
     requiredRuns: new Map([[head, { run: { ...tested(2), conclusion: "cancelled" }, jobs: MIXED_JOBS }]]),
     commitRuns: new Map([[head, [rest(1, "failure"), rest(2, "skipped")]]]),
   });
@@ -617,7 +617,7 @@ test("a cancelled tested run whose head's check runs cannot be read waits on a s
   const serverError = Object.assign(new Error("HTTP 502"), { status: 502 });
   const { lines, result } = await run(
     {
-      pages: [[pr(3, { checks: [lanes("FAILURE"), check("test-bash (3)", "SKIPPED")] }), pr(4, { checks: [lanes("FAILURE"), check("test-bash (3)", "SKIPPED")] })]],
+      pages: [[pr(3, { checks: [lanes("FAILURE"), check("Test Bash (3)", "SKIPPED")] }), pr(4, { checks: [lanes("FAILURE"), check("Test Bash (3)", "SKIPPED")] })]],
       requiredRuns: new Map([3, 4].map((number) => [head(number), { run: { ...tested(2), conclusion: "cancelled" }, jobs: null }])),
       commitRuns: new Map([
         [head(3), serverError],
@@ -1028,9 +1028,9 @@ test("the adapter's listing keeps a lane's failure under a later skip of it", as
     apiUrl: "https://api.example",
     graphqlUrl: "https://api.example/graphql",
     fetch: async (url) => {
-      const skipped = { id: 2, name: "test-node", status: "completed", conclusion: "skipped" };
+      const skipped = { id: 2, name: "Test Node", status: "completed", conclusion: "skipped" };
       const all = new URL(url).searchParams.get("filter") === "all";
-      const check_runs = all ? [{ id: 1, name: "test-node", status: "completed", conclusion: "failure" }, skipped] : [skipped];
+      const check_runs = all ? [{ id: 1, name: "Test Node", status: "completed", conclusion: "failure" }, skipped] : [skipped];
       return new Response(JSON.stringify({ check_runs }), { status: 200 });
     },
   });
@@ -1180,7 +1180,7 @@ test("an infra-only head past the reconciler's 24-hour lookback is fix-ci's", as
 test("a real failure goes straight to fix-ci at attempt 1, and the log names its job and step", async () => {
   const head = (number) => String(number).padStart(40, "a");
   const typos = [
-    { name: "lint-repo", conclusion: "failure", steps: [{ name: "Set up job", conclusion: "success" }, { name: "Check spelling", conclusion: "failure" }] },
+    { name: "Lint Repo", conclusion: "failure", steps: [{ name: "Set up job", conclusion: "success" }, { name: "Check spelling", conclusion: "failure" }] },
     { name: "ci-status", conclusion: "failure", steps: [] },
   ];
   const requiredRuns = new Map([
@@ -1188,7 +1188,7 @@ test("a real failure goes straight to fix-ci at attempt 1, and the log names its
     [head(6), { run: tested(2), jobs: MIXED_JOBS }],
     [head(7), { run: tested(1, 25), jobs: MIXED_JOBS }],
     // Only ci-status failed.
-    [head(8), { run: tested(1), jobs: [{ name: "lint-repo", conclusion: "success" }, { name: "ci-status", conclusion: "failure" }] }],
+    [head(8), { run: tested(1), jobs: [{ name: "Lint Repo", conclusion: "success" }, { name: "ci-status", conclusion: "failure" }] }],
     [head(9), { run: tested(1), jobs: typos }],
   ]);
   const { lines, result } = await run({ pages: [[pr(5), pr(6), pr(7), pr(8), pr(9)]], requiredRuns }, { maxDispatch: 5 });
@@ -1197,7 +1197,7 @@ test("a real failure goes straight to fix-ci at attempt 1, and the log names its
     [5, 6, 7, 8, 9],
   );
   assert.ok(!lines.some((line) => line.includes("first failure")), lines.join("\n"));
-  assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #9 ") && line.endsWith("(cause: code failure in lint-repo / Check spelling)")), lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #9 ") && line.endsWith("(cause: code failure in Lint Repo / Check spelling)")), lines.join("\n"));
   assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #8 ") && line.endsWith("(cause: no failed lane job)")), lines.join("\n"));
 });
 
@@ -1228,7 +1228,7 @@ test("a tested run that is missing or malformed dispatches fix-ci with the reaso
 // failing check, such as a macOS test_tunnel flake.
 test("a failed advisory pr-test-platforms run with ci-status green is fix-ci's unless a re-run of it is going", async () => {
   const head = (number) => String(number).padStart(40, "a");
-  const advisory = [lanes("SUCCESS"), check("test-macos-planning-shared", "FAILURE")];
+  const advisory = [lanes("SUCCESS"), check("Test Macos Planning Shared", "FAILURE")];
   const requiredRuns = new Map([
     [`${head(5)} ${ADVISORY}`, { run: tested(1), jobs: MIXED_JOBS }],
     [`${head(6)} ${ADVISORY}`, { run: tested(2), jobs: MIXED_JOBS }],
@@ -1342,13 +1342,13 @@ test("a failed job or step name with a newline or control character cannot start
 test("a failed job whose steps never listed is logged as such past the deadline", async () => {
   const head = "5".padStart(40, "a");
   const old = new Date(NOW - (RERUN_DUE_MINUTES + 5) * 60_000).toISOString();
-  const unlisted = [{ name: "lint-repo", status: "completed", conclusion: "failure", runner_id: 7, steps: [] }];
+  const unlisted = [{ name: "Lint Repo", status: "completed", conclusion: "failure", runner_id: 7, steps: [] }];
   const { lines, result } = await run({ pages: [[pr(5)]], requiredRuns: new Map([[head, { run: { ...tested(2), updated_at: old }, jobs: unlisted }]]) });
   assert.deepEqual(
     result.dispatched.map((d) => d.number),
     [5],
   );
-  assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #5 ") && line.endsWith(`(cause: steps unlisted past ${RERUN_DUE_MINUTES} min in lint-repo)`)), lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #5 ") && line.endsWith(`(cause: steps unlisted past ${RERUN_DUE_MINUTES} min in Lint Repo)`)), lines.join("\n"));
 });
 
 // A fix-ci run whose push job stopped on a reason routed to a failing status

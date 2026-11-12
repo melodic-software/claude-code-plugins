@@ -78,6 +78,7 @@ jobs:
   # check-blockers.mjs (RECHECK) before the model job and stops the run the
   # same way, at its `Stop on an open blocker` step.
   admit:
+    name: Admit
     if: >-
       github.event.issue_field.id == 48484079 && github.event.issue_field_value.option.id == 84879220
       && (github.event.sender.type == 'User' || github.event.sender.id == vars.AUTOMATION_LANES_APP_SENDER_ID)
@@ -219,6 +220,7 @@ jobs:
   # admissions then waits in SLOTS queues instead of spending the lanes App's
   # hourly API quota at once.
   pick-slot:
+    name: Pick Slot
     needs: admit
     if: github.event.issue_field.id == 48484079 && github.event.issue_field_value.option.id == 84879220 && needs.admit.outputs.proceed == 'true'
     runs-on: ubuntu-24.04
@@ -408,6 +410,7 @@ jobs:
   # limits.limit-stops-per-issue times since a person last set it or a run
   # last reported.
   resolve-issue:
+    name: Resolve Issue
     needs: [admit, pick-slot]
     if: >-
       github.event.issue_field.id == 48484079 && github.event.issue_field_value.option.id == 84879220 && needs.admit.outputs.proceed == 'true'
@@ -465,6 +468,7 @@ jobs:
   # second call; report-outcome then reports the first call, which uploaded
   # no outcome.
   resolve-issue-handoff:
+    name: Resolve Issue Handoff
     needs: [admit, pick-slot, resolve-issue]
     if: ${{ !cancelled() && needs.admit.outputs.proceed == 'true' && (needs.resolve-issue.result != 'skipped' || needs.pick-slot.result == 'success' && needs.pick-slot.outputs.skip-key == 'true') }}
     runs-on: ubuntu-24.04
@@ -536,6 +540,7 @@ jobs:
   # call's output. No job needs this one, so the read, which waits for the
   # jobs listing's steps, delays no handoff.
   key-credit-markers:
+    name: Key Credit Markers
     needs: [resolve-issue]
     if: ${{ !cancelled() && (needs.resolve-issue.result != 'skipped') }}
     runs-on: ubuntu-24.04
@@ -615,6 +620,7 @@ jobs:
   # key-credit gate skipped resolve-issue, passing fallback credit-stop. It
   # holds the OAuth token alone.
   resolve-issue-subscription:
+    name: Resolve Issue Subscription
     needs: [admit, pick-slot, resolve-issue, resolve-issue-handoff]
     if: >-
       ${{ !cancelled() && github.event.issue_field.id == 48484079 && github.event.issue_field_value.option.id == 84879220 && needs.admit.outputs.proceed == 'true'
@@ -655,6 +661,7 @@ jobs:
   # only when resolve-issue-handoff found the fallback token set, so with the token empty
   # nothing starts that did not before. A failed read starts no third call.
   resolve-issue-subscription-handoff:
+    name: Resolve Issue Subscription Handoff
     needs: [resolve-issue-handoff, resolve-issue-subscription]
     if: ${{ !cancelled() && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-handoff.outputs.fallback-ready == 'true' }}
     runs-on: ubuntu-24.04
@@ -712,6 +719,7 @@ jobs:
   # limit stop, a credit stop, or a 401 or 402). It is the last leg and never
   # hands off.
   resolve-issue-fallback:
+    name: Resolve Issue Fallback
     needs: [admit, pick-slot, resolve-issue, resolve-issue-handoff, resolve-issue-subscription, resolve-issue-subscription-handoff]
     if: >-
       ${{ !cancelled() && github.event.issue_field.id == 48484079 && github.event.issue_field_value.option.id == 84879220 && needs.admit.outputs.proceed == 'true'
@@ -751,6 +759,7 @@ jobs:
   # report-outcome re-fires the issue at once on main's files instead of
   # leaving it to work-unblock's hourly sweep. A failed read re-fires nothing.
   resolve-issue-stale:
+    name: Resolve Issue Stale
     needs: [admit, resolve-issue, resolve-issue-subscription, resolve-issue-fallback]
     if: >-
       ${{ !cancelled() && needs.admit.outputs.proceed == 'true' && (needs.resolve-issue.result != 'skipped' || needs.resolve-issue-subscription.result != 'skipped')
@@ -818,6 +827,7 @@ jobs:
   # hence !cancelled()): report-outcome removes agent-ready and comments that
   # a listed human re-files the work as a new issue, adding no label.
   report-skip:
+    name: Report Skip
     needs: [admit, pick-slot]
     if: >-
       !cancelled() && github.event.issue_field.id == 48484079 && github.event.issue_field_value.option.id == 84879220
@@ -852,6 +862,7 @@ jobs:
   # work-resolve-issue/issue-<n>-<run id>-<attempt> branch. One per issue at a
   # time, the rest queued.
   apply-issue-patch:
+    name: Apply Issue Patch
     needs: [resolve-issue, resolve-issue-subscription, resolve-issue-fallback]
     if: >-
       ${{ !cancelled() && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') == 'true'
@@ -897,6 +908,7 @@ jobs:
   # deletes only one with no pull request, at the tip it read. Nothing here
   # fails the run. The daily branch cleanup's rule is unchanged.
   prune-lane-branches:
+    name: Prune Lane Branches
     needs: [resolve-issue, resolve-issue-subscription, resolve-issue-fallback]
     if: >-
       ${{ !cancelled() && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-prune-branches || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-prune-branches || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-prune-branches || '') != '' }}
@@ -957,6 +969,7 @@ jobs:
   # the merge gate like any failing check. This is the lane's only `statuses: write` grant, on the job's own
   # GITHUB_TOKEN, and it runs only scripts from the default branch tip.
   report-statuses:
+    name: Report Statuses
     needs: [resolve-issue, resolve-issue-subscription, resolve-issue-fallback, apply-issue-patch, run-checks, report-outcome]
     if: >-
       ${{ !cancelled() && ((needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') == 'true'
@@ -1035,6 +1048,7 @@ jobs:
   # them only when this job succeeded, and stops a done run whose checks
   # failed, did not run, or ran on another tip.
   run-checks:
+    name: Run Checks
     needs: [admit, resolve-issue, resolve-issue-subscription, resolve-issue-fallback, apply-issue-patch]
     if: >-
       ${{ !cancelled() && ((needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') == 'true'
@@ -1254,6 +1268,7 @@ jobs:
           tokens: github-token
 
   report-outcome:
+    name: Report Outcome
     needs: [admit, resolve-issue, resolve-issue-subscription, resolve-issue-fallback, resolve-issue-stale, apply-issue-patch, run-checks]
     # issue-run-started is set only by the read runner's own steps, before
     # any model turn, once the run chose to run the skill, and reaches this

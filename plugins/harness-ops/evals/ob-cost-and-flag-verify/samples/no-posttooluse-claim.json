@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "cli-flag-verify runs at push time in guardrails' reference-verify git hook rather than as a PostToolUse hook after each edit.",
+      "why": "expected outcome"
+    },
+    {
+      "answer": "cli-flag-verify doesn't run as a PostToolUse hook anymore.",
+      "why": "doesn't"
+    },
+    {
+      "answer": "It is no longer a PostToolUse hook: cli-flag-verify moved to push time.",
+      "why": "no longer"
+    },
+    {
+      "answer": "The cli-flag-verify check is not a PostToolUse hook anymore.",
+      "why": "not a"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "cli-flag-verify runs as a PostToolUse hook after each edit, so the report does not show its catches.",
+      "why": "negation elsewhere"
+    },
+    {
+      "answer": "Per data-sources.md, cli-flag-verify is a PostToolUse hook.",
+      "why": "filename dot"
+    },
+    {
+      "answer": "cli-flag-verify is a PostToolUse hook; it never runs at push time.",
+      "why": "semicolon clause"
+    },
+    {
+      "answer": "The cli-flag-verify PostToolUse hook fires after each Write or Edit.",
+      "why": "stale"
+    },
+    {
+      "answer": "Look for PostToolUse events from cli-flag-verify in the hook log.",
+      "why": "stale reverse"
+    }
+  ]
+}

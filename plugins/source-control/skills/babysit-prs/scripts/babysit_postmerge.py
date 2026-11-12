@@ -522,6 +522,16 @@ def is_gate_suite(suite: str) -> bool:
     return suite.startswith(GATE_SUITE_PREFIXES)
 
 
+def check_key(check: str) -> str:
+    """`check` (`<job>`, `<job> (<leg>)` or `<job>: <gate>`) with its job
+    name lower-cased and its spaces made hyphens, so a baseline run tested
+    before the jobs got display names (`test-bash (0)`) matches the same check
+    after (`Test Bash (0)`)."""
+    job, colon, gate = check.partition(": ")
+    name, paren, leg = job.partition(" (")
+    return f"{name.lower().replace(' ', '-')}{paren}{leg}{colon}{gate}"
+
+
 # --- GitHub access ------------------------------------------------------------------
 
 
@@ -1484,7 +1494,12 @@ class _Context:
         attempt = 2 if run.id in self.red_on_rerun else 1
         failing = self.failing_checks(run.id, attempt)
         baseline = self._baseline(signal, merged_at) if failing else None
-        new = failing if baseline is None else failing - baseline
+        before = {check_key(c) for c in baseline or ()}
+        new = (
+            failing
+            if baseline is None
+            else frozenset(c for c in failing if check_key(c) not in before)
+        )
         demote = self.demoting(run, attempt, new) if new else new
         return demote | self.expired(run, attempt, failing - new)
 

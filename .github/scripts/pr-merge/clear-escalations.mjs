@@ -498,13 +498,14 @@ async function checksHeld(read, repo, head) {
 // The review lanes reviewLanesClean reads, as pr-require-checks.yml's
 // `Require both review lanes on this head` step names them: the workflow, the
 // lane its completion record names, its status job's names (as pr-review-cli.yml
-// names it), and whether only a whole review counts.
+// names it, new name first; the lower-case name is a head tested before the
+// rename), and whether only a whole review counts.
 const LANE_RECORDS = Object.freeze([
-  { file: "pr-review-hosted.yml", lane: "claude-review", jobs: ["pr-review / review-status"], whole: false },
+  { file: "pr-review-hosted.yml", lane: "claude-review", jobs: ["PR Review / review-status", "pr-review / review-status"], whole: false },
   {
     file: "pr-review-security-hosted.yml",
     lane: "claude-security-review",
-    jobs: ["pr-review-security / review-status"],
+    jobs: ["PR Review Security / review-status", "pr-review-security / review-status"],
     whole: true,
   },
 ]);
@@ -521,6 +522,8 @@ const SECURITY_REVIEWED_HEAD = /^<!-- claude-lane-reviewed-head lane=claude-secu
 const MARKER_AUTHOR = "github-actions[bot]";
 const CRITICAL_FINDINGS = /^\s*`?critical-findings: (\d{1,6})`?\s*$/gm;
 const newestById = (items) => items.reduce((newest, item) => (newest === undefined || item.id > newest.id ? item : newest), undefined);
+// The newest job named by the first of `names` any job carries.
+const newestNamed = (jobs, names) => names.map((name) => newestById(jobs.filter((item) => item?.name === name))).find((job) => job !== undefined);
 
 // Whether both review lanes read `pull`'s head clean: a description, or null
 // on any doubt, an unreadable or full page included. Read with the job token:
@@ -553,7 +556,7 @@ async function reviewLanesClean(context) {
       if (!Array.isArray(jobs) || jobs.length >= 100) {
         return null;
       }
-      const status = newestById(jobs.filter((item) => names.includes(item?.name)));
+      const status = newestNamed(jobs, names);
       if (status?.status !== "completed" || status.conclusion !== "success") {
         return null;
       }
@@ -1009,7 +1012,7 @@ async function laneReview({ checks, repo, head }, [file, names]) {
       return { held: `${lane} has not run on ${head}` };
     }
     const jobs = (await checks("GET", `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`))?.jobs;
-    const job = (Array.isArray(jobs) ? jobs : []).filter((item) => names.includes(item?.name)).sort((a, b) => b.id - a.id)[0];
+    const job = newestNamed(Array.isArray(jobs) ? jobs : [], names);
     if (job?.status !== "completed" || job.conclusion !== "success") {
       return { held: `${lane} has not passed on ${head}` };
     }
