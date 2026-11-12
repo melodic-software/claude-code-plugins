@@ -1395,10 +1395,11 @@ adoption:
 # pr-unblock's address-feedback works as the reviewer bot's: fix or explain,
 # adjudication and resolution, under the same trusted-person rules. Matched on
 # the account id GitHub records for a comment, never a login; their comment
-# text stays data. Owner decision 2026-10-26. 199175422 is
-# chatgpt-codex-connector[bot] (its threads on #10092).
+# text stays data. Owner decisions 2026-10-26 and Q29. 199175422 is
+# chatgpt-codex-connector[bot] (its threads on #10092); 62310815 is
+# github-advanced-security[bot], the code scanning (CodeQL) alerts.
 review-threads:
-  reviewer-ids: [199175422]
+  reviewer-ids: [199175422, 62310815]
 
 # Work that needs the owner present (owner decision 2026-10-28): a manual step
 # on external state an agent cannot safely run or test. Intake's refinement
