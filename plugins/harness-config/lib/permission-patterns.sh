@@ -1,6 +1,6 @@
 # shellcheck shell=bash
-# The bodies are consumed by the sourcing drivers, never in this file itself —
-# SC2034 "appears unused" is a false positive for a define-only library.
+# The sourcing drivers read these bodies, so SC2034 "appears unused" is a false
+# positive here.
 # shellcheck disable=SC2034
 # Claude Code auto-mode drop vocabulary — shared regex BODIES, define-only.
 #
@@ -55,25 +55,19 @@ CCPERM_SCRIPT_BODY='py|sh|rb|js|ts|mjs|cjs|pl|php'
 #      via npm exec / lifecycle scripts. A bare package-manager name subsumes
 #      its own run wildcard (npm matches `npm run *`), so `npm run` etc. are not
 #      listed separately. A fixed subcommand (Bash(npm test), Bash(npm run
-#      build)) carries no * and is not matched.
+#      build)) carries no * and is not matched. The `([\"' :])` before the `\*`
+#      requires a separator, so `Bash(npmx *)` does not match the `npm` runner.
 #   4. a leading-glob command that resolves to a script (Bash(*.py:*))
 #
 # Each alternative captures the whole Tool(...) spec. The specifier may contain
-# parentheses (a path such as Edit(./Finance (2024)/**) is one rule; parentheses
-# inside the specifier are literal). One nesting level is the token grammar's
-# limit, the same limit as CCPERM_TOOL_TOKEN_ERE. A `)` does not end the rule.
+# one nesting level of literal parentheses (CCPERM_BALANCED_ERE, the same limit
+# as CCPERM_TOOL_TOKEN_ERE), so an inner `)` does not end the rule: a bare `[^)]*`
+# would cut a documented path such as `Edit(./Finance (2024)/**)` short.
 #
 # The four alternatives are also exposed individually so a driver that must NAME
 # the class a rule fell into (the entry diff's drop reason) tests them one at a
 # time instead of re-deriving the wrapping; the union stays the P1 detector's
 # single match target and is composed from them, never written twice.
-#
-# In the RUNNER alternative, the `([\"' :])` before the `\*` requires a
-# separator, so `Bash(npmx *)` does not match the `npm` runner.
-#
-# One nesting level of parentheses inside a specifier. A bare `[^)]*` would end
-# the rule at the first `)`, which drops a documented path such as
-# `Edit(./Finance (2024)/**)`.
 CCPERM_BALANCED_ERE='([^()]|\([^()]*\))*'
 CCPERM_P1_BLANKET_ERE="(Bash|PowerShell)\\(\\*\\)"
 CCPERM_P1_INTERP_ERE="(Bash|PowerShell)\\([\"' ]*([^()\"' ]*[/\\\\])?(${CCPERM_INTERP_BODY})([\"' :]${CCPERM_BALANCED_ERE})?\\*${CCPERM_BALANCED_ERE}\\)"

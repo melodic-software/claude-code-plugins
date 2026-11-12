@@ -3,6 +3,12 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.8] - 2026-11-11
+
+### Changed
+
+- The setup skill's pre-computed context keeps its fallback for a row showing the `disableSkillShellExecution` placeholder and adds a pointer record to the skills docs' "Inject dynamic context" section, where that placeholder text is documented.
+
 ## [0.8.7] - 2026-11-11
 
 ### Changed

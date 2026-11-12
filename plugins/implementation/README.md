@@ -203,9 +203,6 @@ For a Claude Code release without `plugin configure`, see [Plugin install](https
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
 - [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
 
-As of 2026-11-04. Recheck trigger: one of these sections moves, or a Claude Code
-release note changes how plugin options are set or stored.
-
 <!-- END GENERATED: plugin options -->
 
 ## License

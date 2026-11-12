@@ -1,4 +1,4 @@
-# Upstream drift: verification stamps and recheck triggers
+# Upstream drift: pointers, stored values and recheck triggers
 
 ## Contents
 
@@ -18,9 +18,11 @@
 
 Owner doc for **how this repository records a fact or decision derived from a source it does not
 own**, whether an official doc page, an upstream issue thread, or a probed platform behavior, so the record
-stays honest as the upstream moves. One name and one shape: our decision in our own words, a
-**pointer** to the exact upstream section, an **as-of date**, and a **recheck trigger**, the stated
-observable event that obliges re-deriving the record. The upstream text itself is never stored.
+stays honest as the upstream moves. Two shapes. A **pointer record** is our decision in our own
+words plus a **pointer** to the exact upstream section; it stores nothing that can go stale, so it
+carries no date. A **stored value**, an upstream default, limit or observation we keep a copy of,
+adds an **as-of date** and a **recheck trigger**, the stated observable event that obliges
+re-deriving the value. The upstream text itself is never stored.
 
 The fleet previously practiced this in five-plus places under four names: "recheck triggers"
 ([hook-config-delivery](../hook-config-delivery/README.md)), "revisit triggers"
@@ -58,36 +60,48 @@ here a date alone does not qualify; a trigger names an observable event (see
 [the observability bar](#the-observability-bar)). This narrows only what this repository accepts;
 the upstream form list is the org standard's to change.
 
+The org rule's recheck trigger binds a recorded snapshot: an upstream default, version gate or
+price kept in durable content. A pointer record keeps no snapshot; it is the standard's preferred
+alternative, linking and fetching at read time, so it needs no trigger. A stored value is the
+snapshot the rule names and keeps its trigger.
+
 ## A date is never authority
 
-A dated verification stamp is an **as-of record**: it tells the reader when the decision was last
-derived from its source, and nothing more. It never confers standing authority. A stale stamp reads identically
-to a fresh one, and upstream surfaces move without notice: Claude Code changes its own conventions
-between releases, sometimes with no version signal on the surface in question, and experimental
-surfaces churn outright. The part of the record that matters is therefore the **trigger**, not the
-date: anything depending on a volatile upstream specific carries a stated re-derivation event, or
-it is drift waiting to happen. Before acting on any record, re-read the section its pointer names.
-The as-of date is the ceiling on how current the decision can be, never a guarantee.
+A dated verification stamp on a stored value is an **as-of record**: it tells the reader when the
+value was last derived from its source, and nothing more. It never confers standing authority. A
+stale stamp reads identically to a fresh one, and upstream surfaces move without notice: Claude
+Code changes its own conventions between releases, sometimes with no version signal on the surface
+in question, and experimental surfaces churn outright. The part of the record that matters is
+therefore the **trigger**, not the date: a stored copy of a volatile upstream specific carries a
+stated re-derivation event, or it is drift waiting to happen. The as-of date is the ceiling on how
+current the value can be, never a guarantee.
 
-The discipline covers two record kinds, one shape:
+A pointer record carries no date because it stores nothing for a date to describe: the reader
+fetches the section live and reads what it says now. Before acting on any record, re-read the
+section its pointer names. Git history records when a pointer line last changed.
+
+The discipline covers three record kinds:
 
 - a **dependent decision**: something this repository does because of an upstream specific, with
-  the pointer saying where that specific lives;
-- a **recorded decision**: a deferral or rejection derived from upstream facts as they stood on a
-  date, whose premises can rot the same way the facts can.
+  the pointer saying where that specific lives; a pointer record;
+- a **recorded decision**: a deferral or rejection derived from upstream facts, whose premises can
+  rot the same way the facts can; it carries a pointer for each premise, and a named trigger when
+  the decision should be re-derived on an observable event ([When a trigger fires](#when-a-trigger-fires));
+- a **stored value**: a recorded default, limit, version gate, price, error string, or measured
+  probe observation, kept in a code constant, a data file, a table of measured values or an
+  observation record; it carries a pointer (or names its probe), an as-of date and a recheck
+  trigger.
 
 ## Required parts
 
 A conforming record stores no upstream text, quoted or paraphrased, not even one line (the one
 named exception is [old-patterns mapping tables](#old-patterns-mapping-tables)). What a
 `docs/upstream/` row may describe in our own words is in
-[what a row may describe](#what-a-row-may-describe). It carries:
+[what a row may describe](#what-a-row-may-describe). A pointer record carries:
 
 ```markdown
 <our decision, in our words>
 - **Pointer**: when <situation>, fetch <link to the exact upstream section> live.
-- **As of**: YYYY-MM-DD
-- **Recheck trigger**: <an observable event, never a bare date>
 ```
 
 1. **The decision**: what this repository does or decided, in our own words. It may name the topic
@@ -95,31 +109,51 @@ named exception is [old-patterns mapping tables](#old-patterns-mapping-tables)).
 2. **The pointer**: the official page URL with the anchor of the exact section, or the upstream
    issue. A reader who needs the specific reads it there, live. A blog post is never the pointer
    where a main docs section covers the topic: it appears only as a "correlate with \<blog link>"
-   note beside that pointer. Where no docs page covers it yet, the record links the post as that
-   note, says no docs page covers the topic as of the date, and its recheck trigger is a docs page
-   starting to cover it, at which point the pointer moves there. In the one-line layout, that
-   correlate note may take the Pointer line's place, keeping the **Pointer** label and the
-   when-fetch wording and ending `no docs page covers <topic> as of <date>`.
-3. **The as-of date**: when the decision was last derived from the page.
-4. **The recheck trigger**: the observable event that obliges re-derivation.
+   note beside that pointer.
+
+A pointer carries no as-of date and no recheck trigger. A dead link or a moved anchor is caught by
+the link checks: `pr-require-checks.yml` checks local anchors and the external links a pull request
+adds or changes, and `maintenance-check-links-online-claude-code-plugins.yml` checks every external
+link weekly, anchors included except the script-rendered ones `lychee.toml` rewrites. Changed
+content is seen by whoever fetches the link, and git history records when the line changed.
+
+A **stored value** keeps a copy, so it adds two parts:
+
+```markdown
+<the value or observation, in our words>
+- **Pointer**: when <situation>, fetch <link to the exact upstream section> live.
+- **As of**: YYYY-MM-DD
+- **Recheck trigger**: <an observable event, never a bare date>
+```
+
+1. **The as-of date**: when the value was last derived from its source.
+2. **The recheck trigger**: the observable event that obliges re-derivation.
+
+A structured store (a data file, a code constant, a table with an **As of** column) may hold the
+same parts as fields or columns.
 
 This Pointer form is **context glue**: it names the situation in which a reader needs the upstream
 section and sends them to read it live, and a record that uses it is a context-glue record. New
 records use it. A Pointer in the earlier form, `for <topic>, see <link>.`, still conforms.
 
-The parts may also sit on one line under the decision prose, and that layout conforms too:
+A stored value's parts may also sit on one line under its prose, and that layout conforms too:
 
 ```markdown
 - **Pointer**: when <situation>, fetch <link> live. **As of**: YYYY-MM-DD. **Recheck trigger**: <event>.
 ```
 
-Two cases have their own form:
+Three cases are observations, so they are stored values with their own form:
 
 - **A probed behavior** has no upstream page. The pointer names the probe (the script, pull request
   or issue holding its evidence), and the decision may state what the probe observed, in our words:
   the observation is ours, not the upstream's.
 - **A source conflict** is recorded only as "pages X and Y disagree on topic T", with both links,
   the as-of date and a trigger. Neither page's position is restated.
+- **A topic no docs page covers yet.** The record links the blog post as the correlate note, says
+  no docs page covers the topic as of the date, and its recheck trigger is a docs page starting to
+  cover it, at which point the pointer moves there and the stamp goes. In the one-line layout the
+  correlate note may take the Pointer line's place, keeping the **Pointer** label and the
+  when-fetch wording and ending `no docs page covers <topic> as of <date>`.
 
 When a surface needs the specific at run time, it fetches it from the pointer
 ([the fetch route](#reading-the-basis-the-fetch-route)). A catalog row that must fire without a
@@ -130,16 +164,17 @@ live fetch keeps its firing rule in our own words; the rule is our decision, not
 One named exception admits upstream names into a file. A skill may carry a table mapping old API
 or interface names to their current ones, but only inside an "Old patterns" section placed where
 the skill-authoring guidance recommends one. The table holds names only, never descriptions of
-behavior, and the section carries the record parts below it. Everywhere else the rule above holds.
+behavior, and the section carries a pointer record below it. Everywhere else the rule above holds.
 
-- **Pointer**: for where the guidance recommends an "Old patterns" section, see
-  <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#avoid-time-sensitive-information>.
-- **As of**: 2026-10-01
-- **Recheck trigger**: that section stops recommending an "Old patterns" section, or moves.
+- **Pointer**: when deciding where an "Old patterns" section goes, fetch
+  <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#avoid-time-sensitive-information>
+  live.
 
 ## The observability bar
 
-A trigger names an event whose firing a reader, human or agent, can decide from evidence: a
+The bar applies to a stored value's recheck trigger and to a named trigger guarding a decision; a
+pointer record has no trigger. A trigger names an event whose firing a reader, human or agent, can
+decide from evidence: a
 release or changelog entry touching a named surface, an upstream issue changing state, a capability
 shipping or leaving an experimental key, a second consumer appearing, a recurring occasion such as
 each fleet audit. "Periodically", "when things change", or an unstated intention to revisit do not
@@ -147,20 +182,22 @@ qualify: a trigger whose firing cannot be checked is only a date.
 
 ## When a trigger fires
 
-A firing is a record-maintenance event, and the procedure follows what the trigger guards:
+A firing is a record-maintenance event, and the procedure follows what the trigger guards. A
+pointer record has no trigger and never fires: a link check failing on it is fixed by moving the
+pointer to the section's new home, and a reader who finds the section no longer supports the
+decision re-derives the decision then.
 
-- **A pointer record.** Re-read the section the pointer names and re-derive the decision from what
-  is actually there, never patching the record from memory. A section that moved gets a new
-  pointer. Refresh the as-of date **with the outcome**, drift or no drift. On a versioned surface
-  a drift outcome lands as a changelog entry; refreshing a date with no verdict change is no entry
-  and no version bump.
-- **A named trigger guarding an in-repo decision** ([Adopters](#adopters) says which rows these
-  are). There is no pointer to re-read and no as-of date to refresh: re-derive the decision
-  from the state the trigger names. The decision guarded is in-repo; the firing event can live
-  anywhere, upstream included. Record the outcome durably where the decision lives: the record
-  itself or the owning surface's changelog. A re-derivation that ends up depending on an upstream
-  specific adopts the required parts in the refreshed record. The durable outcome is the part
-  this kind shares with the pointer kind.
+- **A stored value.** Re-read the section the pointer names, or re-run the probe, and re-derive
+  the value from what is actually there, never patching the record from memory. A section that
+  moved gets a new pointer. Refresh the as-of date **with the outcome**, drift or no drift. On a
+  versioned surface a drift outcome lands as a changelog entry; refreshing a date with no verdict
+  change is no entry and no version bump.
+- **A named trigger guarding a decision** ([Adopters](#adopters) says which rows these are). There
+  is no as-of date to refresh: re-derive the decision from the state the trigger names, reading
+  any pointer it carries. The firing event can live anywhere, upstream included. Record the
+  outcome durably where the decision lives: the record itself or the owning surface's changelog.
+  A re-derivation that ends up depending on an upstream specific adopts the required parts in the
+  refreshed record. The durable outcome is the part this kind shares with the stored-value kind.
 
 Whichever the kind, where re-derivation finds drift the changed value lands in the owning record,
 never silently in a consuming surface.
@@ -169,10 +206,11 @@ never silently in a consuming surface.
 
 The standing rule to re-read a record's pointer before acting on it
 ([a date is never authority](#a-date-is-never-authority)) is per-use validation: it protects the
-act, not the record, and a lookup that finds no drift obliges no edit anywhere. A record kept
-current this way states divergence as its trigger, and "a read-time re-fetch finds the source no
-longer matching the record" is an event decidable from evidence, so the divergence, never the
-lookup, is what fires, and only a firing invokes the maintenance procedure above.
+act, not the record, and a lookup that finds no drift obliges no edit anywhere. A pointer record
+relies on this alone. A stored value kept current this way states divergence as its trigger, and
+"a read-time re-fetch finds the source no longer matching the record" is an event decidable from
+evidence, so the divergence, never the lookup, is what fires, and only a firing invokes the
+maintenance procedure above.
 
 ## Reading the basis: the fetch route
 
@@ -233,8 +271,6 @@ CHANGELOG capture below was, gets no note, so this routing rule, not the hook, c
 - **Pointer**: when deciding whether a WebFetch result can stand in for the page, fetch
   [tools reference: WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)
   live; it owns how WebFetch processes a page.
-- **As of**: 2026-10-04
-- **Recheck trigger**: that section changes how WebFetch limits or processes a page.
 
 Probed behavior, measured 2026-10-04 against each page's full `.md` bytes: WebFetch stopped at about
 100,000 characters of converted markdown, so the result covered about 40% of `hooks`, 61% of
@@ -363,7 +399,7 @@ That changes one thing: a model-written note about a page is served only while e
 cites still hashes the same, so a note expires when its sections change and survives edits elsewhere
 on the page.
 
-What stays **deferred** is a hash store for verification stamps. The cache is per machine, expires
+What stays **deferred** is a hash store for stored-value stamps. The cache is per machine, expires
 by age and is pruned by size, and no stamp records the hash of the page it was derived from, so a
 changed hash in the cache says nothing about which stamps rest on that page. Every stamp recheck is
 still a manual re-fetch at trigger time. Recheck trigger for the deferral itself: a stale stamp causes a
@@ -403,7 +439,8 @@ that records a docs site keeps its own forms; `docs/upstream/claude-code.md` kee
 
 The [required parts](#required-parts) still bind: a row may name a topic and link to it, and holds
 no upstream text, quoted or paraphrased; [what a row may describe](#what-a-row-may-describe) says
-where our own description of a unit ends and a paraphrase begins. Two parts take a git-specific
+where our own description of a unit ends and a paraphrase begins. A git-pinned page records what
+we read at a commit, so it is a stored value, and its two stored-value parts take a git-specific
 shape. The 40-hex pin stands in for the as-of date: the commit fixes exactly what was read, and the
 page's git history records when. And git blob SHAs are a content hash the host already serves, so
 the [content-hashing deferral](#drift-signal-content-hashing-deferred) does not apply to git
@@ -506,9 +543,11 @@ Classified per `melodic-software/standards` `standards/engineering/enforceabilit
 
 | Judgment | Tier |
 |---|---|
-| Every verification stamp carries a recheck trigger | **Deterministic** by nature (a presence check) once stamps and triggers use greppable forms. The check, flagging a dated stamp in a file that states no trigger, is **built, off by default, repo override enabled**: `/attribution:audit` runs it when `trigger_less_stamp_check` is true, the shipped default is false, and this repository sets it true in `docs/conventions/attribution.yaml`. It was built after its build trigger, a trigger-less stamp landing on `main` again, fired. |
+| A pointer's link resolves and its section anchor exists | **Deterministic**, built: the per-PR and weekly link checks named under [required parts](#required-parts). An anchor a page renders by script is rewritten away by `lychee.toml`, so a moved anchor of that kind is caught only when a reader fetches it. |
+| A pointer carries no as-of date or recheck trigger | **Detect-then-judge**, not built: a stamp beside a pointer is greppable, and whether the record keeps a stored value is a judgment. |
+| Every stored-value stamp carries a recheck trigger | **Deterministic** by nature (a presence check) once stamps and triggers use greppable forms. The check, flagging a dated stamp in a file that states no trigger, is **built, off by default, repo override enabled**: `/attribution:audit` runs it when `trigger_less_stamp_check` is true, the shipped default is false, and this repository sets it true in `docs/conventions/attribution.yaml`. It was built after its build trigger, a trigger-less stamp landing on `main` again, fired. |
 | The trigger clears the observability bar | **Reasoning-only**. Whether an event is decidable from evidence is a judgment about meaning. |
-| A trigger has fired | **Detect-then-judge** for [pinned git upstreams](#pinned-git-upstreams): `scripts/check-upstream-drift.sh` flags a change under a linked path or scope, and a person decides whether the change touches the decision, and for the Claude Code changelog record, where [the release intake lane](#claude-code-release-intake) takes in each unread release. **Reasoning-only** for every other record today; detect-then-judge there too if a hash store lands: the hash mismatch flags, and judgment decides whether the page change touches the claim, because a changed page is not a changed fact. |
+| A trigger has fired | **Detect-then-judge** for [pinned git upstreams](#pinned-git-upstreams): `scripts/check-upstream-drift.sh` flags a change under a linked path or scope, and a person decides whether the change touches the decision, and for the Claude Code changelog record, where [the release intake lane](#claude-code-release-intake) takes in each unread release. **Reasoning-only** for every other stored value today; detect-then-judge there too if a hash store lands: the hash mismatch flags, and judgment decides whether the page change touches the claim, because a changed page is not a changed fact. |
 
 ### Recorded decision: an adoption gate is deferred, and the check named above would have missed the case that prompted it
 
@@ -536,9 +575,9 @@ real signal into noise with an approved silencer.
 
 - **Pointer**: for the reasoning-only tier and the worth-mechanizing routing rule, see
   `melodic-software/standards` `standards/engineering/enforceability-tiers.md`; the worked
-  instance is above.
-- **As of**: 2026-11-05, re-derived and upheld in [CHANGELOG 4.2.0](CHANGELOG.md)
-- **Recheck trigger**: a third unstamped upstream-fact carrier reaches `main` after this decision
+  instance is above. Re-derived and upheld in [CHANGELOG 4.2.0](CHANGELOG.md).
+- **Recheck trigger** (a named trigger on this decision): a third upstream-fact carrier with no
+  record reaches `main` after this decision
   (two are already on the record: `plugin-quality`, corrected in its 0.4.0, and `architecture`,
   whose false claim was removed in its 0.5.1), **or** a detector is demonstrated that separates an
   upstream restatement from an in-repo one without a suppression list. Either event reopens the
@@ -576,7 +615,7 @@ note under the table already requires, and names the release that added it, so t
 implies a surface was migrated at 1.0.0 when it was not.
 
 **A surface is tabled only once it actually conforms.** The third column is a promise to a reader
-about what they can rely on, so a carrier *known* to be unstamped belongs in a tracked issue, never
+about what they can rely on, so a carrier *known* to lack its record belongs in a tracked issue, never
 in a row: tabling it would assert the very thing the reader would then not get. The fleet's open
 carriers are recorded that way in
 [#2297](https://github.com/melodic-software/claude-code-plugins/issues/2297).
@@ -594,6 +633,12 @@ pointer. The rows below were converted with that release. Records elsewhere stil
 four-part shape are tracked in
 [#5684](https://github.com/melodic-software/claude-code-plugins/issues/5684) and adopt the new shape
 on touch.
+
+At 5.0.0 a pointer record stopped carrying an as-of date and recheck trigger; only a stored value
+keeps them. A row below that names an as-of date or a divergence trigger on a pointer still
+conforms in its decision and pointer, and its stamps are removed by a later sweep or on touch. A
+row describing measured or probed values (a verified version, a probe) describes stored values and
+keeps its stamps.
 
 | Surface | Was | What a reader can rely on |
 |---|---|---|
@@ -619,7 +664,8 @@ wording they shipped with; a new ADR uses the canonical name going forward.
 ## Why this name
 
 "Recheck trigger" is what the org standard (`documentation-and-citations.md` §"Time-bound external
-claims need a recheck trigger") already calls the concept. A repo-level owner doc renaming the
+claims need a recheck trigger") already calls the concept, and it names the same thing there: the
+re-derivation event on a stored snapshot. A repo-level owner doc renaming the
 rule it specializes would fork the vocabulary one level up. It is also the majority name in this
 fleet, and the `## Recheck triggers` heading is the one the docs-hygiene plugin's audit-noise
 section-exemption list already recognizes.

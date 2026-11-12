@@ -5,7 +5,8 @@ on two questions, in this order: is `AGENTS.md` support **available** in the ses
 so, which files does the **Project instructions** setting load. Both are recorded here in the
 shape the
 [upstream-drift convention](../../../docs/contracts/upstream-drift/README.md#required-parts)
-defines: our decision, a pointer to the upstream section, the as-of date, the recheck trigger.
+defines: our decision and a pointer to the upstream section; an as-of date and recheck trigger
+only where a record keeps a stored value.
 
 **Why the record lives here.** A plugin never imports files from a sibling plugin
 ([plugin philosophy](../../../docs/plugin-philosophy.md), "It never imports files from a sibling

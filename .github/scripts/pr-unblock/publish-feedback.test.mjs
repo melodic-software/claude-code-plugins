@@ -59,6 +59,9 @@ function fakeApi(overrides = {}) {
     path,
     line: 1,
     body: `finding ${id}\n\nclaude-lane: claude-review`,
+    // Before LEGACY_CUTOFF, so it counts with no binding.
+    created_at: "2026-10-01T00:00:00Z",
+    updated_at: "2026-10-01T00:00:00Z",
     html_url: `https://github.com/o/r/pull/42#discussion_r${id}`,
   });
   let prBody = overrides.prBody ?? null;

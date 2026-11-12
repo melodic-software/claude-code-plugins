@@ -279,7 +279,7 @@ pointer, never restated here.
   <https://code.claude.com/docs/en/memory#where-agents-md-differs-from-claude-md> and
   <https://code.claude.com/docs/en/memory#my-agents-md-isn%E2%80%99t-loading>. Both pages fetched by
   the rung-1 route on 2026-09-29, both slugs present in `llms.txt`. `scripts/remove-shims.sh`
-  prints the paragraph above this line and this pointer, and stops at the As of line.
+  prints the paragraph above this line and this pointer, and stops where this bullet ends.
 - **As of**: 2026-09-29
 - **Recheck trigger**: either page changes that table, the hook's firing rule for `AGENTS.md`, or
   the `/memory` listing.

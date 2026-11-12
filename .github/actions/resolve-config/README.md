@@ -73,7 +73,7 @@ The step fails and writes no file when:
 10. A composite contains itself, directly or through another (`activity-cycle`), or holds a
     composite, which would put a leaf more than two layers below its lane (`activity-depth`).
 11. A leaf sets `prepare` with an effect its mode does not take: `ci-context` needs `read`,
-    `apply-patch` `mutate-branch`, the others an effect other than `read` (`invalid-prepare`).
+    `apply-patch` `mutate-branch`; the others need `applied-by.patch` (`invalid-prepare`).
 12. The selected leaf applies and sets `prepare`, and `prepare-supported` is not `true`: the
     runner would run the skill without its prepare step. The action checks this; `resolveGrant`
     does not.
@@ -83,7 +83,7 @@ The step fails and writes no file when:
 14. The patch rules or their schema are missing, fail the schema, or a row does not refuse the
     universal set, commits with the base as a parent with an `allow` other than exactly
     `[merge-result]`, or a patch-producing activity's prepare mode has no row (`patch-rules`). The
-    action checks this right after `loadConfig` (rejections 1-11, 13 and 16) and before it gathers
+    action checks this right after `loadConfig` (rejections 1-11, 13, 16 and 17) and before it gathers
     any fact or resolves a slot, for every lane; rejections 12 and 15 come after the slot
     resolves. `loadConfig` and `resolveGrant` do not check the patch rules, so the token broker
     never reads these files.
@@ -92,6 +92,10 @@ The step fails and writes no file when:
 16. `models.default-profile` or a route names a profile `models.profiles` does not define
     (`undefined-profile`), or a route key is neither a skill activity nor a run route
     (`verify-pr`, `review-code`, `review-security`, `triage-issue`, `summarize-reuse`, `adjudicate-feedback`; `undefined-route`), so a mistyped route cannot quietly take the default.
+17. A skill leaf's `effect` is not `read` (`skill-not-read`), in any lane or none: a skill runs
+    only in the read runner, which holds no write token, and a script activity applies or publishes
+    what it hands on. The schema refuses it first; the reader repeats the check so it holds whatever
+    schema it is given.
 
 It also fails when a predicate it decides cannot be decided: `pulls/{n}/files` lists 3000 files or
 fewer than the PR's `changed_files`, a predicate needs the PR and there is no `pr-number`, or a
