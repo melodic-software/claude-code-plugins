@@ -28,9 +28,9 @@ Measured between 00:28Z and 02:53Z on 2026-11-12:
   properties, status-report PUTs, the SARIF upload and its processing polls, with a rate-limited
   403 retried up to 4 times. This is a source-based estimate from
   [github/codeql-action at 33d7b85](https://github.com/github/codeql-action/tree/33d7b85da1a04171e211befe2c739303b9a4c066),
-  not a measurement. It comes to 33 to 57 calls per pull request and about 1,400 to 1,900 an hour,
-  28 to 38 percent of the 5,000-an-hour `GITHUB_TOKEN` installation pool that the review lanes and
-  `ci-status` share.
+  not a measurement. It comes to 33 to 57 calls per pull request and, at 105 jobs an hour, about
+  1,150 to 2,000 an hour: 23 to 40 percent of the 5,000-an-hour `GITHUB_TOKEN` installation pool
+  that the review lanes and `ci-status` share.
 
 While CodeQL was on, that pool ran out at 00:46Z, about 01:53Z and 02:39Z, and CodeQL's own upload
 step failed with "API rate limit exceeded for installation" on 7 pull request runs. The agreed
