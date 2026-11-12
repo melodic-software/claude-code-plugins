@@ -1064,7 +1064,8 @@ def _annotation(level: str, message: str) -> dict[str, str]:
 
 # The failure and warning annotations of run 43155083740's CI Status job
 # (check run 130976739440, the merge group of #15535 on 2026-11-12), as GitHub
-# returned them; the notices and two long read lines are left out.
+# returned them; the notices, one repeated pair and the long request-id warning
+# are left out, and the jobs read's jq filter is cut from its command.
 RATE_LIMITED_GATE = [
     _annotation("failure", "Process completed with exit code 1."),
     _annotation(
@@ -1099,6 +1100,20 @@ RATE_LIMITED_GATE = [
         "melodic-software/claude-code-plugins/actions/workflows/pr-merge.yml/runs"
         " was not sent: GitHub's core API rate limit holds until "
         "2026-11-12T04:53:44Z",
+    ),
+    _annotation(
+        "failure",
+        "GET https://api.github.com/repos/melodic-software/claude-code-plugins/"
+        "actions/workflows/pr-merge.yml/runs?branch=main&exclude_pull_requests=true"
+        "&per_page=100&page=1 was not sent: GitHub's core API rate limit holds "
+        "until 2026-11-12T04:53:44Z",
+    ),
+    _annotation(
+        "failure",
+        "'gh api repos/melodic-software/claude-code-plugins/actions/runs/"
+        "43155083740/attempts/1/jobs?per_page=100' hit GitHub's core API rate "
+        "limit: no call to it before 2026-11-12T04:53:44Z (x-ratelimit-reset); "
+        "the call returns 1",
     ),
 ]
 REMOVED_AT = "2026-11-12T04:40:05Z"

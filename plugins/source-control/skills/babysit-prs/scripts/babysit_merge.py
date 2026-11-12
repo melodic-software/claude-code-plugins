@@ -4322,6 +4322,17 @@ def _lifted_by_person(
 
 MERGE_GROUP_FAILURES_SECTION = "merge-group-failures"
 RATE_LIMITED_ENTRY_SECTION = "rate-limited-queue-entry"
+# The run fields the gate reads; the run cache keeps only these.
+MERGE_GROUP_RUN_FIELDS = (
+    "id",
+    "run_attempt",
+    "status",
+    "head_branch",
+    "head_sha",
+    "html_url",
+    "created_at",
+    "updated_at",
+)
 
 
 def _verdict_read(path: str) -> Any:
@@ -4350,6 +4361,10 @@ def _merge_group_failures(
             return None
         if not is_json_array(runs):
             return None
+        runs = [
+            {field: json_object(run).get(field) for field in MERGE_GROUP_RUN_FIELDS}
+            for run in runs
+        ]
         run_cache.put(MERGE_GROUP_FAILURES_SECTION, repo, runs)
     prefix = f"gh-readonly-queue/{branch}/pr-{number}-"
     return [
