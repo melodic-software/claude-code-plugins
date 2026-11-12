@@ -163,7 +163,7 @@ Ordered phase spine. Each phase's procedure, inputs, and outputs: `context/watch
    ```
 
    `--max-frame-gap-sec` sets the longest stretch between timed frames before a gap-fill frame is
-   extracted (default `MAX_FRAME_GAP_SEC`, `${CLAUDE_PLUGIN_ROOT}/vendor/video-digestion/TUNING.md`).
+   extracted (default set by video length, `${CLAUDE_PLUGIN_ROOT}/vendor/video-digestion/TUNING.md`).
 
 4. **Watch checklist**. Materialize via `init-watch-checklist.js`; tick `[ ]` → `[x]` only with
    verification evidence. Ordered checkboxes: `templates/watch-checklist.md`.

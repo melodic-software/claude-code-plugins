@@ -12,9 +12,8 @@
 # user-global (a common install) or ONLY at local scope is active here, so a
 # project-only probe false-negatives and this advisory never fires. Pointer:
 # the scope order is in
-# https://code.claude.com/docs/en/settings#settings-precedence. As of:
-# 2026-10-11. Recheck trigger: that section reorders the user, project and
-# local scopes, or is renamed. Uncertain state (no jq, no
+# https://code.claude.com/docs/en/settings#settings-precedence. Uncertain
+# state (no jq, no
 # value at any scope) never flags a `gh pr create` call — an advisory firing on
 # unknown state is noise, not signal. A missing jq specifically still surfaces a
 # one-time systemMessage that the guard is disabled

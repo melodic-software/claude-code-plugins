@@ -26,6 +26,3 @@ We never assume a bundled skill is present: the routing reads "resolves in this 
 "is available". What can remove, hide, or vary a bundled skill is read live at the pointer.
 
 - **Pointer:** [skills § Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills).
-- **As of:** 2026-10-11.
-- **Recheck trigger:** that section adds, removes, or renames a way a bundled skill can be turned
-  off or hidden.

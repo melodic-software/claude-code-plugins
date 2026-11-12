@@ -61,10 +61,8 @@ nothing.
      (`"command": "node"`), resolved on `PATH` in the hook's own environment. With no `node` the
      checkpoint cannot launch and produces no `ask`, while the option can still read `true` (how
      Claude Code treats a hook that cannot start:
-     [Hooks, "Exit code output"](https://code.claude.com/docs/en/hooks#exit-code-output), as of
-     2026-11-10; recheck when that section stops treating a hook that cannot start as a
-     non-blocking error). Name that divergence as exactly what a native
-     configuration prompt cannot tell you.
+     [Hooks, "Exit code output"](https://code.claude.com/docs/en/hooks#exit-code-output)). Name
+     that divergence as exactly what a native configuration prompt cannot tell you.
 
    FAIL when absent. On Windows, `command -v node` is not the hook's environment: a version
    manager can return a per-call path whose directory name contains a process id, which is not
@@ -88,9 +86,8 @@ nothing.
    `${user_config.settings_write_ask_enabled}` (`true` or `false`; an unexpanded token or empty
    value means the manifest default `true`). INFO. A change shows only in a **fresh session**; say
    so rather than re-reading it (when Claude Code substitutes the value:
-   [Plugins reference, "Reference a saved value"](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value),
-   as of 2026-11-10; recheck when that section says a changed value reaches a skill already loaded
-   in the session). When it reads
+   [Plugins reference, "Reference a saved value"](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)).
+   When it reads
    `false`, note that the checkpoint is deliberately off and step 1's `node` finding downgrades to INFO for
    the hook (it stays FAIL for the engine).
 
@@ -135,9 +132,6 @@ Close by pointing at each resolution. A rerun after everything passes changes no
     when a saved value applies, fetch
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
-  - **As of**: 2026-11-11
-  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-    refused value, or when a saved value applies.
 
 ## Next
 
