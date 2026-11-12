@@ -47,6 +47,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATES="$SCRIPT_DIR/../templates"
 RESOLVER="$SCRIPT_DIR/../../../scripts/resolve-config.sh"
 ROOT_SCOPES="$SCRIPT_DIR/../../../scripts/root-scopes.jq"
+# shellcheck source=../../../lib/load-config.sh
+. "$SCRIPT_DIR/../../../lib/load-config.sh"
 
 die() {
   printf 'emit-gate: %s\n' "$1" >&2
@@ -119,17 +121,7 @@ if [[ -z "$ROOT" ]]; then
 fi
 [[ -d "$ROOT" ]] || die "--root '$ROOT' is not a directory"
 
-if [[ -n "$CONFIG_FILE" ]]; then
-  [[ -r "$CONFIG_FILE" ]] || die "cannot read the configuration at $CONFIG_FILE"
-  CONFIG="$(jq -e . "$CONFIG_FILE" 2>/dev/null | tr -d '\r')" || die "the configuration at $CONFIG_FILE is not valid JSON"
-else
-  [[ -f "$RESOLVER" ]] || die "resolver missing at $RESOLVER"
-  CONFIG="$(bash "$RESOLVER" resolve --root "$ROOT")" || exit 2
-fi
-
-cfg() {
-  printf '%s' "$CONFIG" | jq -r "$1" 2>/dev/null | tr -d '\r'
-}
+load_config
 
 # --- the values the templates carry ------------------------------------------
 
