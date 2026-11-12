@@ -919,7 +919,7 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
 - **Needs admin:** no. Decision: without elevation `tasks_complete` is false and named in
   `admin_fields`, and every other source is read the same either way. Why: the `startup-items` row
   of `scripts/windows/lib/Get-ElevationMatrix.ps1`; `Complete` comes from
-  `scripts/windows/lib/Get-LogonTaskInventory.ps1`. **As of**: 2026-10-21. **Recheck trigger**: a
+  `scripts/windows/lib/Get-LogonTaskInventory.ps1`. **Recheck trigger**: a
   standard-token run lists as many logon tasks as an elevated run on the same host.
 - **Remediation:** none. The check lists; turning an entry off is the owner's action in Task
   Manager or Settings.
@@ -944,7 +944,7 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   `disabled` from its task state. Decision: decode only the bytes in the table in
   `scripts/windows/lib/Read-StartupApproved.ps1` (its header covers the encoding) and keep every
   other byte `unknown` with its raw value, pinned by
-  `tests/windows/lib/Read-StartupApproved.Tests.ps1`. **As of**: 2026-10-21. **Recheck trigger**: a
+  `tests/windows/lib/Read-StartupApproved.Tests.ps1`. **Recheck trigger**: a
   probe ties another first byte to the state Task Manager shows, or Microsoft documents the key.
 - **Severity rubric:**
   - `UNKNOWN`: any unmuted item in the `unknown` approved state, or any location with a read
@@ -967,7 +967,7 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   Decision: un-elevated, `prefetch_state` and `bam_state` read `denied` and are named in
   `admin_fields`; elevated, Prefetch and BAM add launch times. Why: the `app-last-use` row of
   `scripts/windows/lib/Get-ElevationMatrix.ps1`; the reads are in
-  `scripts/windows/lib/Get-ElevatedAppEvidence.ps1`. **As of**: 2026-10-21. **Recheck trigger**: a
+  `scripts/windows/lib/Get-ElevatedAppEvidence.ps1`. **Recheck trigger**: a
   standard-token run reads either source.
 - **Remediation:** none. The check never uninstalls anything.
 - **Commands:**
@@ -1001,7 +1001,7 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
     `no-launch-recorded` means only that no launch was recorded. The record layout is decoded in
     `scripts/windows/lib/Read-UserAssist.ps1` (its header covers the layout); a host whose values
     no longer fit reads `userassist_state` `error`.
-    **As of**: 2026-10-21. **Recheck trigger**: `userassist_state` reads `error` on a fleet host,
+    **Recheck trigger**: `userassist_state` reads `error` on a fleet host,
     or `launched_count` reads 0 where apps are in daily use.
 - **Severity rubric:**
   - `UNKNOWN`: `userassist_state` is any read state other than `ok` or `absent`
