@@ -7369,25 +7369,28 @@ jobs:
           # when there is none.
           # lane_run <sha> [pr]: prints that newest run, or nothing. It reads
           # the lanes out of head_runs' listing when that is whole (total_count
-          # no more than the runs listed, the rule reconcile.mjs sharedRuns
-          # keeps), else out of $file's own runs, so a cut-short listing never
-          # reads as no run.
+          # a number no more than the runs listed, the rule reconcile.mjs
+          # sharedRuns keeps), else out of $file's own runs, so a cut-short or
+          # malformed listing never reads as no run.
           # head_runs <sha>: prints <sha>'s pull_request runs of every
-          # workflow, read once for this step; a failed read keeps nothing.
+          # workflow, kept from the first read until the head's entry is
+          # dropped after a wait; a failed read or write keeps nothing.
           head_runs_dir=$(mktemp -d "$RUNNER_TEMP/head-runs.XXXXXX")
           head_runs() {
             local out
             if [ ! -f "$head_runs_dir/$1" ]; then
               out=$(read_api "the pull_request runs on $1" \
                 "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$1&event=pull_request&per_page=100") || return 1
-              printf '%s\n' "$out" >"$head_runs_dir/$1"
+              printf '%s\n' "$out" >"$head_runs_dir/$1" || rm -f "$head_runs_dir/$1"
+              printf '%s\n' "$out"
+              return 0
             fi
             cat "$head_runs_dir/$1"
           }
           lane_run() {
             local runs
             runs=$(head_runs "$1") || return 1
-            jq -e '(.total_count | numbers) <= (.workflow_runs | length)' <<<"$runs" >/dev/null 2>&1 ||
+            jq -e '(.total_count | numbers) <= (.workflow_runs | arrays | length)' <<<"$runs" >/dev/null 2>&1 ||
               runs=$(read_api "the $file runs on $1" \
                 "repos/$GITHUB_REPOSITORY/actions/workflows/$file/runs?head_sha=$1&event=pull_request&per_page=100") || return 1
             jq -c --arg path ".github/workflows/$file" --arg sha "$1" --arg repo "$GITHUB_REPOSITORY" --arg pr "${2:-}" \

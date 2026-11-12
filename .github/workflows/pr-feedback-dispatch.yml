@@ -940,14 +940,15 @@ jobs:
               | max_by(.id) // empty'
           }
           # One listing of the head's pull_request runs of every workflow answers
-          # each file below when it is whole (total_count no more than the runs
-          # listed, the rule reconcile.mjs sharedRuns keeps). A cut-short or
-          # unread one could hide the run that decides, so then each file's own
-          # runs are read, failing as before.
+          # each file below when it is whole (total_count a number no more than
+          # the runs listed, the rule reconcile.mjs sharedRuns keeps). A
+          # cut-short, malformed or unread one could hide the run that decides,
+          # so then each file's own runs are read, and one of those that cannot
+          # be read fails the step.
           head_runs=''
           if read_soft=1 read_api listing "the pull_request runs on $HEAD_SHA" \
             "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100" &&
-            jq -e '(.total_count | numbers) <= (.workflow_runs | length)' <<<"$listing" >/dev/null 2>&1; then
+            jq -e '(.total_count | numbers) <= (.workflow_runs | arrays | length)' <<<"$listing" >/dev/null 2>&1; then
             head_runs=$listing
           else
             echo "The pull_request runs on $HEAD_SHA did not come back whole; each workflow's own runs are read."

@@ -165,7 +165,9 @@ printf 'merge:\n  rung: C2\n' >"$TMP_ROOT/bare-config/docs/conventions/pr-pipeli
 # The stub logs its arguments. A runs read fails its first STUB_RUNS_FAILS
 # calls, then prints RUNS_CODE or RUNS_SEC by caller file. The head's runs of
 # every workflow are both together, with total_count their sum; STUB_HIDE_SEC
-# leaves RUNS_SEC's runs off that page but in its total_count. A jobs read fails
+# leaves RUNS_SEC's runs off that page but in its total_count. STUB_HEAD_SHAPE
+# reshapes that page: no-total drops total_count, text-total makes it a
+# string, null-runs answers {"total_count":0,"workflow_runs":null}. A jobs read fails
 # when STUB_JOBS_FAIL is set, else prints the JOBS_<run id> variable.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
@@ -176,8 +178,10 @@ case "$*" in
   [[ "$(grep -c '/runs?' "$STUB_LOG")" -gt "${STUB_RUNS_FAILS:-0}" ]] || { echo '{"message":"Server Error"}'; exit 1; }
   code=$RUNS_CODE
   if [[ -n "${RUNS_CODE_LATER:-}" ]] && grep -qE '/actions/runs/[0-9]+$' "$STUB_LOG"; then code=$RUNS_CODE_LATER; fi
-  jq -cs --arg hide "${STUB_HIDE_SEC:-}" '{total_count: (map(.workflow_runs | length) | add),
-    workflow_runs: (if $hide == "" then map(.workflow_runs) | add else .[0].workflow_runs end)}' <<<"$code"$'\n'"$RUNS_SEC"
+  jq -cs --arg hide "${STUB_HIDE_SEC:-}" --arg shape "${STUB_HEAD_SHAPE:-}" '{total_count: (map(.workflow_runs | length) | add),
+    workflow_runs: (if $hide == "" then map(.workflow_runs) | add else .[0].workflow_runs end)}
+    | if $shape == "no-total" then del(.total_count) elif $shape == "text-total" then .total_count |= tostring
+      elif $shape == "null-runs" then {total_count: 0, workflow_runs: null} else . end' <<<"$code"$'\n'"$RUNS_SEC"
   ;;
 */actions/workflows/pr-review-hosted.yml/runs*)
   [[ "$(grep -c '/runs?' "$STUB_LOG")" -gt "${STUB_RUNS_FAILS:-0}" ]] || { echo '{"message":"Server Error"}'; exit 1; }
@@ -430,6 +434,14 @@ if [[ "$(listings head)" == 1 ]] && grep -qxF "api repos/o/r/actions/workflows/$
 else
   fail "a cut-short listing read: '$(sort "$TMP_ROOT/log" | uniq -c)'"
 fi
+# A listing whose total_count is missing or not a number, or whose
+# workflow_runs is not a list, cannot show it is whole: each lane's own runs
+# are read and judged.
+for shape in no-total text-total null-runs; do
+  STUB_HEAD_SHAPE=$shape expect "a $shape listing is read from each lane's own runs" 0 \
+    "'$SEC_CHECK' passed on $HEAD (https://github.com/o/r/actions/runs/20)." "is missing"
+  if [[ "$(listings head) $(listings file)" == "1 4" ]]; then ok "a $shape listing falls back to each lane's own runs, for the wait and the judgment"; else fail "a $shape listing read: '$(sort "$TMP_ROOT/log" | uniq -c)'"; fi
+done
 
 for c in failure cancelled timed_out; do
   JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed "$c")")"

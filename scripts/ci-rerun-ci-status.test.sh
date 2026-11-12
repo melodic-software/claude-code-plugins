@@ -142,10 +142,13 @@ done
 # each failing when its *_FAIL is set. A read of the head's runs of every
 # workflow prints both together with total_count their sum, fails when
 # STUB_HEAD_FAIL is set, and with STUB_HEAD_CUT leaves STUB_RUNS off the page
-# but in total_count. A jobs read prints STUB_JOBS. A read of
+# but in total_count. STUB_HEAD_SHAPE reshapes that page: no-total drops
+# total_count, text-total makes it a string, null-runs answers
+# {"total_count":0,"workflow_runs":null}. A jobs read prints STUB_JOBS. A read of
 # one run prints the next line of STUB_RUN_SEQ (the last line once used up).
 # A POST re-run fails when STUB_RERUN_FAIL is set. While STUB_LIMIT_FILE
-# holds a count above 0, a read of the head's runs is refused as a
+# holds a count above 0, a read of the head's runs (of one workflow file
+# when STUB_LIMIT_FILE_ROUTE is set) is refused as a
 # primary rate limit resetting at STUB_RESET (a 429 with retry-after
 # STUB_RETRY_AFTER when that is set), and the count drops by one. The
 # sleep stub logs its seconds.
@@ -155,7 +158,9 @@ cat >"$TMP_ROOT/bin/gh" <<'EOF'
 printf '%s\n' "$*" >>"$STUB_LOG"
 # A GET read with -i prints a status line and a blank line before the body.
 ok200() { printf 'HTTP/2.0 200 OK\r\nX-Ratelimit-Remaining: 9\r\n\r\n%s\n' "$1"; }
-if [[ -n "${STUB_LIMIT_FILE:-}" && "$*" == *"/actions/runs?head_sha="* ]] &&
+limited='/actions/runs?head_sha='
+[[ -z "${STUB_LIMIT_FILE_ROUTE:-}" ]] || limited='/runs?head_sha='
+if [[ -n "${STUB_LIMIT_FILE:-}" && "$*" == *"$limited"* && ( -z "${STUB_LIMIT_FILE_ROUTE:-}" || "$*" == */actions/workflows/* ) ]] &&
   [[ "$(cat "$STUB_LIMIT_FILE")" -gt 0 ]]; then
   echo $(($(cat "$STUB_LIMIT_FILE") - 1)) >"$STUB_LIMIT_FILE"
   if [[ -n "${STUB_RETRY_AFTER:-}" ]]; then
@@ -184,8 +189,10 @@ fi
 case "$*" in
 *'/actions/runs?head_sha='*)
   [[ -z "${STUB_HEAD_FAIL:-}" ]] || exit 1
-  ok200 "$(jq -cs --arg cut "${STUB_HEAD_CUT:-}" '{total_count: (map(.workflow_runs | length) | add),
-    workflow_runs: (if $cut == "" then map(.workflow_runs) | add else .[0].workflow_runs end)}' \
+  ok200 "$(jq -cs --arg cut "${STUB_HEAD_CUT:-}" --arg shape "${STUB_HEAD_SHAPE:-}" '{total_count: (map(.workflow_runs | length) | add),
+    workflow_runs: (if $cut == "" then map(.workflow_runs) | add else .[0].workflow_runs end)}
+    | if $shape == "no-total" then del(.total_count) elif $shape == "text-total" then .total_count |= tostring
+      elif $shape == "null-runs" then {total_count: 0, workflow_runs: null} else . end' \
     <<<"$STUB_LANE_RUNS"$'\n'"$STUB_RUNS")"
   ;;
 */pulls/*)
@@ -364,6 +371,14 @@ fi
 STUB_HEAD_FAIL=1 expect "an unreadable listing falls back to each file's own runs" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 2."
 check_reran 1 "an unreadable listing still re-runs ci-status"
 if [[ "$(listings head) $(listings file)" == "3 2" ]]; then ok "an unreadable listing is sent 3 times, then each file's own runs are read"; else fail "an unreadable listing read: $(paste -sd'|' "$TMP_ROOT/log")"; fi
+# A listing whose total_count is missing or not a number, or whose
+# workflow_runs is not a list, cannot show it is whole: each file's own runs
+# are read and ci-status is re-run.
+for shape in no-total text-total null-runs; do
+  STUB_HEAD_SHAPE=$shape expect "a $shape listing falls back to each file's own runs" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 2."
+  check_reran 1 "a $shape listing still re-runs ci-status"
+  if [[ "$(listings head) $(listings file)" == "1 2" ]]; then ok "a $shape listing reads the other lane's and pr-require-checks' own runs"; else fail "a $shape listing read: $(paste -sd'|' "$TMP_ROOT/log")"; fi
+done
 STUB_RUNS="$(runs "$(run 5)" "$(run 9 completed "${HEAD//0/f}")" "$(run 10 completed "$HEAD" .github/workflows/other.yml)" "$(run 11 completed "$HEAD" "$RCF" merge_group)")"
 expect "runs on another head, of another file or event are not the newest" 0 "of run 5 on $HEAD"
 STUB_RUNS="$(runs "$(run 9)" "$(run 12 completed "$HEAD" "$RCF" pull_request "$LATER" 1 someone/fork)")"
@@ -591,11 +606,22 @@ echo 1 >"$STUB_LIMIT_FILE"
 STUB_RUNS="$(runs "$(run 9 in_progress)")" STUB_JOBS="$(cijob in_progress)" STUB_RUN_SEQ="$(run 9 in_progress)"
 expect "the reset wait counts toward the poll cap" 1 "has not finished after 600s"
 if [[ "$(grep -c '^sleep 60$' "$TMP_ROOT/log")" == 8 ]]; then ok "a 120 s reset wait leaves 8 polls"; else fail "polls: $(grep -c '^sleep 60$' "$TMP_ROOT/log")"; fi
+# With the listing cut short, the per-file reads take the rate limit's wait too.
+STUB_RUNS="$(runs "$(run 9)")" STUB_JOBS="$(cijob completed)" STUB_RUN_SEQ=''
+echo 1 >"$STUB_LIMIT_FILE"
+STUB_HEAD_CUT=1 STUB_LIMIT_FILE_ROUTE=1 expect "a rate-limited per-file read after a cut-short listing waits for the reset, then re-runs" 0 \
+  "Rate limited reading the pr-review-security-hosted.yml runs on $HEAD; waiting 120s for the reset."
+check_reran 1 "the per-file read after the reset goes on to the re-run"
+if [[ "$(grep -c '^sleep 120$' "$TMP_ROOT/log")" == 1 && "$(listings head) $(listings file)" == "1 3" ]]; then ok "the refused per-file read is sent again after one wait"; else fail "reads: $(paste -sd'|' "$TMP_ROOT/log")"; fi
+echo 1 >"$STUB_LIMIT_FILE"
+STUB_HEAD_CUT=1 STUB_LIMIT_FILE_ROUTE=1 STUB_RESET=1700 expect "a rate-limited per-file read with its reset past the cap fails" 1 \
+  "::error::the token's rate limit blocks reading the pr-review-security-hosted.yml runs on $HEAD until"
+check_reran 0 "nothing is re-run when a per-file read's reset is past the cap"
 unset STUB_LIMIT_FILE STUB_RESET
 STUB_RUNS="$(runs "$(run 9)")" STUB_JOBS="$(cijob completed)"
 
-# With the head's listing unreadable, each file's own runs decide, failing
-# closed as before.
+# With the head's listing unreadable, each file's own runs decide, and an
+# unreadable one fails the step.
 export STUB_HEAD_FAIL=1 STUB_LANE_FAIL=1
 expect "an unreadable other-lane run list fails" 1 "::error::could not read the pr-review-security-hosted.yml runs on $HEAD; re-run this run."
 unset STUB_LANE_FAIL
