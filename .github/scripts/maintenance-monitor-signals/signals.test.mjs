@@ -8,7 +8,7 @@ import { test } from "node:test";
 
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { closing } from "../intake-triage/apply-verdict.mjs";
-import { closing as resolverClosing, HELD_STEP } from "../pr-verify/resolve-pr.mjs";
+import { closing as resolverClosing, HELD_REASON, HELD_STEP } from "../pr-verify/resolve-pr.mjs";
 import {
   auditFindings,
   ceilingFindings,
@@ -669,6 +669,17 @@ test("signal 13: pr-verify's resolver and trigger-gate holds parse to fixed reas
   const lane = HOLD_LANES.find((l) => l.lane === "pr-verify");
   assert.deepEqual([lane.workflow, lane.holdStep], ["pr-verify.yml", HELD_STEP]);
   for (const job of lane.jobs) assert.match(workflow, new RegExp(`\\n  ${job}:\\n`), job);
+  // Each notice prints only where Note the hold runs, so a green hold job
+  // listed without steps (GraphQL) is read in full and one listed with steps
+  // (REST) only where Note the hold ran: the resolver's beside reason=held,
+  // which the step's `if:` runs on, and the gate's in the step.
+  assert.match(resolver.outputs, new RegExp(`^reason=${HELD_REASON}$`, "m"));
+  const noteHold = [...workflow.matchAll(/- name: Note the hold\n {8}id: note-hold\n {8}if: (.*)\n([\s\S]*?)\n {6}- /g)];
+  assert.equal(noteHold.length, 3);
+  for (const [, condition, body] of noteHold) {
+    assert.equal(condition, "steps.pr.outputs.reason == 'held' || steps.gate.outputs.reason == 'read-fault'");
+    assert.match(body, /echo "::notice title=pr-verify::held: pr-verify's trigger gate/);
+  }
 });
 
 test("signal 13: pr-review-main's unread file-list hold parses to a fixed reason, in every select step", () => {
@@ -684,6 +695,10 @@ test("signal 13: pr-review-main's unread file-list hold parses to a fixed reason
   const lane = HOLD_LANES.find((l) => l.lane === "pr-review-main");
   assert.deepEqual([lane.workflow, lane.holdStep], ["pr-review-main.yml", "Note the hold"]);
   for (const job of lane.jobs) assert.match(workflow, new RegExp(`\\n  ${job}:\\n`), job);
+  // Each notice sets the select step's `held`, which runs Note the hold, so a
+  // job whose Note the hold was skipped printed no hold.
+  assert.equal([...workflow.matchAll(/echo "::notice title=pr-review-main::held: [^"]*"\n {12}echo "held=true" >>"\$GITHUB_OUTPUT"\n/g)].length, 4);
+  assert.equal([...workflow.matchAll(/- name: Note the hold\n {8}id: note-hold\n {8}if: steps\.select\.outputs\.held == 'true'\n/g)].length, 4);
   // A matrix leg is listed as `<job> (<values>)` and counts as that job.
   assert.equal(holdJob(lane.names, "Review (claude-review, claude-review)"), true);
   assert.equal(holdJob(lane.names, "Trigger"), true);
