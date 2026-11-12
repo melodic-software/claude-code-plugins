@@ -18,8 +18,6 @@ the pre-commit entry reports it.
     script unless the payload mentions `.go`, so a batch without Go costs one `node` process.
   - **Pointer**: when deciding what filters a `PostToolBatch` row, fetch
     [hooks: PostToolBatch](https://code.claude.com/docs/en/hooks#posttoolbatch) live.
-    **As of**: 2026-10-15. **Recheck trigger**: that section adds a matcher or an `if` for the
-    event, or changes the `tool_calls` fields.
 - **No consumer-config opt-in gate.** Unlike sibling formatter plugins (`ruff-format`,
   `typos-format`), this plugin needs no repository configuration to run on a `.go` file.
   `goimports`' own docs describe it as "a replacement for your editor's gofmt-on-save hook" and it
@@ -31,9 +29,7 @@ the pre-commit entry reports it.
   where a copyright/license header (a `//` or `/* */` block) precedes the marker, common for
   `addlicense`/`goheader` output. The plugin applies this guard itself. For the marker's exact
   form, see
-  [go command: Generate Go files by processing source](https://pkg.go.dev/cmd/go#hdr-Generate_Go_files_by_processing_source)
-  (as of 2026-11-03; recheck when that section changes the marker's pattern or where it must
-  appear).
+  [go command: Generate Go files by processing source](https://pkg.go.dev/cmd/go#hdr-Generate_Go_files_by_processing_source).
 - **Leaves gitignored files alone.** By default a `.go` file the repository gitignores is not
   rewritten in the session, since a rewrite of an ignored file has no git checkout to undo it. A
   tracked file that matches an ignore pattern stays in scope. Set `go_format_lint_gitignored=true`
@@ -76,8 +72,7 @@ fails with the install command, a person gets a one-line notice, and
   [Install jq](https://jqlang.org/download/).
 - **goimports** on `PATH`. It is never downloaded on the fly; if it is not present, the batch
   row skips the files, and the SessionStart probe reports the gap. For how to install it, see
-  [goimports: Overview](https://pkg.go.dev/golang.org/x/tools/cmd/goimports#pkg-overview)
-  (as of 2026-11-03; recheck when that page changes its install command).
+  [goimports: Overview](https://pkg.go.dev/golang.org/x/tools/cmd/goimports#pkg-overview).
 - **`go` on `PATH` (optional).** Used only to resolve the `-local` grouping
   prefix (`go list -m`). Absent: `goimports` still formats and fixes imports, just
   without the `-local` grouping (its plain default behavior).

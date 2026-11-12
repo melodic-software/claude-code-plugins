@@ -38,8 +38,6 @@ cd "$PROJECT_DIR" && npx @biomejs/biome check --write <files>
 Run Biome through `npx` by its scoped package name `@biomejs/biome`, never the bare `biome` name: #12573 is the observed failure of the bare name. When the project pins Biome, its consumer `check-cmd`, `fix-cmd` and `code-fix-cmd` may instead name the local binary (`node_modules/.bin/biome`), or a `biome` binary on PATH when there is no local one, in place of `npx`.
 
 - **Pointer**: when deciding how `npx` resolves a package name given without a version, fetch <https://docs.npmjs.com/cli/v11/commands/npx#description> live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: npm changes how `npx` resolves a name without a version, or the unscoped `biome` npm package changes owner.
 
 ## Gotchas
 

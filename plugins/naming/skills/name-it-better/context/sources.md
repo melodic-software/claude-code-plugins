@@ -26,7 +26,7 @@ the honest → intent → domain-abstraction progression.
   `https://arlobelshee.com/good-naming-is-a-process-not-a-single-step/`.
   PRIMARY. Belshee's exact per-stage prose is corroborated by the Deep Roots
   rewrite below rather than quoted from the origin. Basis: the host did not
-  resolve when the entry was written, as of 2026-07-17. Recheck trigger: the
+  resolve when the entry was written. Recheck trigger: the
   host resolving again, which allows quoting the origin directly and restores
   this entry to a fully primary citation.
 - Canonical rewrite, Tim Ottinger + Llewellyn Falco: [deeproots-series]
@@ -74,7 +74,7 @@ truth is the consuming org's conventions).
   Nominally this is PRIMARY (the authors' own chapter), but its specific
   rules here rest on secondary write-ups, so treat it as
   Tier-2-for-verification. Basis: the full text sat behind the publisher's
-  paywall and was not obtained, as of 2026-07-18. Recheck trigger: obtaining
+  paywall and was not obtained. Recheck trigger: obtaining
   the chapter text, which promotes this entry to PRIMARY and lets its rules
   be cited directly.
 
@@ -131,9 +131,6 @@ style conflicts route to the consuming ecosystem, not a house verdict.
   - **Pointer**: when naming a skill, fetch
     <https://code.claude.com/docs/en/skills#frontmatter-reference> live for
     how the name and description fields are used.
-  - **As of**: 2026-11-10
-  - **Recheck trigger**: that section changes which field drives skill
-    loading, or the listing cap it states.
 - Documented, unresolved style conflicts. Route these to the consuming
   ecosystem's guide and do not pick a side:
   - abbreviation policy: .NET forbids ([dotnet-naming]) vs Go endorses
@@ -147,8 +144,8 @@ style conflicts route to the consuming ecosystem, not a house verdict.
 
 - .NET naming guidelines (Microsoft): [dotnet-naming]. PRIMARY. Reproduces
   the 2008 2nd-edition text (self-flagged), so treat the specific DO/DO NOT
-  rules as Tier-2. Basis: the 3rd edition (2020) was not freely available, as
-  of 2026-07-18. Recheck trigger: the 3rd-edition text becoming reachable,
+  rules as Tier-2. Basis: the 3rd edition (2020) was not freely available.
+  Recheck trigger: the 3rd-edition text becoming reachable,
   which re-derives the DO/DO NOT rules against the current edition.
 - Kevlin Henney, "Seven Ineffective Coding Habits" (naming): [henney].
   PRIMARY. Meaning over word-count; "adding words is not adding meaning".

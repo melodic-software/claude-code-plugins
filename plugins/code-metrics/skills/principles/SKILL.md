@@ -134,8 +134,7 @@ substitutes for it, unless the bullet names its own fallback.
   Ivankovic, ICSE-SEIP 2018; Petrovic, Ivankovic, Fraser and Just, IEEE TSE 2022.
 - **ISO/IEC 5055:2021** (the ISO publication of OMG ASCQM v1.0) and **ISO/IEC 25023:2016**, cited
   by clause and version, never by page number. Pointer: when a later OMG ASCQM release matters,
-  fetch [ASCQM: Formal Versions](https://www.omg.org/spec/ASCQM/#spec-versions-formal) live. As of:
-  2026-11-03. Recheck trigger: that list adds a release.
+  fetch [ASCQM: Formal Versions](https://www.omg.org/spec/ASCQM/#spec-versions-formal) live.
 
 Per-source annotation, including what each does not claim and the confidence behind it, is in
 [literature.md](reference/literature.md).
@@ -153,9 +152,7 @@ The `reference/` files write the plugin's root directory as `<plugin-root>`, whi
 writing it into a brief: a `${…}` token in a supporting file is not one this plugin can rely on
 being expanded, either in the file or in the Bash tool. Where each plugin variable resolves, and
 where it is exported: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, as of
-2026-10-11; recheck when that table adds supporting files to where a `${…}` reference resolves, or
-the Bash tool starts receiving the plugin variables.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
 ## Next
 

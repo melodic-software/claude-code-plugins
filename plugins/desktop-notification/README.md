@@ -14,9 +14,7 @@ notification, and, on macOS and Linux, an OS-native desktop toast.
 - **Advisory, never blocking.** The hook always exits `0`; a Notification hook is
   not a gate.
 - **Pointer**: the notification types and what a Notification hook can return are
-  in [Notification](https://code.claude.com/docs/en/hooks#notification). **As of**:
-  2026-10-11. **Recheck trigger**: that section renames either type, lets a
-  Notification hook block, stops discarding its `systemMessage`, or is renamed.
+  in [Notification](https://code.claude.com/docs/en/hooks#notification).
 - **Three additive channels**, each default on and independently mutable:
 
 | Channel | Option | What it does |
@@ -28,9 +26,6 @@ notification, and, on macOS and Linux, an OS-native desktop toast.
 - **Pointer**: how `terminalSequence` output is written and which terminals handle
   OSC 9 are in
   [Emit terminal notifications](https://code.claude.com/docs/en/hooks#emit-terminal-notifications).
-  **As of**: 2026-10-11. **Recheck trigger**: that section changes how
-  `terminalSequence` output is written, documents a Windows toast path, or is
-  renamed.
 
 ### Per-OS `os_toast` behavior
 
@@ -38,12 +33,10 @@ notification, and, on macOS and Linux, an OS-native desktop toast.
 |---|---|---|
 | macOS | [`osascript … display notification`](https://code-maven.com/display-notification-from-the-mac-command-line) | Built-in. No dependency. First run prompts to allow notifications for the terminal app. |
 | Linux | [`notify-send`](https://man.archlinux.org/man/notify-send.1.en#DESCRIPTION) | Needs `notify-send` on `PATH`. Without it, the `os_toast` channel is a silent no-op. |
-| Windows / other | none | No OS-toast branch: a fire-and-forget hook process leaves no live activator host for a WinRT toast to render into, so it would never reliably surface. The `terminal_notify` channel (OSC 9) carries Windows attention; which Windows terminals handle OSC 9 is read at the Emit terminal notifications pointer record above, which carries this cell's as-of date and recheck trigger. |
+| Windows / other | none | No OS-toast branch: a fire-and-forget hook process leaves no live activator host for a WinRT toast to render into, so it would never reliably surface. The `terminal_notify` channel (OSC 9) carries Windows attention; which Windows terminals handle OSC 9 is read at the Emit terminal notifications pointer record above. |
 
 - **Pointer**: when checking what `notify-send` is and the project that ships it, fetch
   [notify-send(1)](https://man.archlinux.org/man/notify-send.1.en#DESCRIPTION) live.
-  **As of**: 2026-11-03. **Recheck trigger**: that page moves, or the command is renamed or
-  leaves libnotify.
 
 The OS toast body includes the current git branch when the project is a git
 repository (e.g. `Waiting for your input — feat/my-branch`); outside a repo it is
@@ -73,9 +66,7 @@ that call, and the hook above sends it through the same channels, headed
 - **Pointer**: the `ui.toast` hook and `$.ui.notify` are in
   [Mods API](https://code.claude.com/docs/en/plugins/mods/api.md#show-something-without-starting-a-turn),
   and the `plugin_notification` title rule is in
-  [Notification](https://code.claude.com/docs/en/hooks#notification). **As of**:
-  2026-10-28. **Recheck trigger**: either section renames `ui.toast`,
-  `$.ui.notify` or `plugin_notification`, or changes where the hook's `title` comes from.
+  [Notification](https://code.claude.com/docs/en/hooks#notification).
 
 ## Requirements
 
@@ -86,9 +77,7 @@ a Claude Code install does not guarantee Node, so without it the hook does not l
 notifications do not fire ([install Node.js](https://nodejs.org/en/download)). It also needs [`jq`](https://jqlang.github.io/jq/) on `PATH`; without jq, notifications
 are disabled and the bundled checker reports it, because a Notification hook has no notice
 channel of its own. Relay: what it can return is in the Notification pointer record under
-[Behavior](#behavior). **As of**: 2026-10-11. **Recheck trigger**: that record leaves Behavior,
-or its own recheck trigger fires. macOS needs nothing
-further; Linux needs `notify-send` only for the `os_toast` channel; Windows needs
+[Behavior](#behavior). macOS needs nothing further; Linux needs `notify-send` only for the `os_toast` channel; Windows needs
 nothing (terminal channels only). Telemetry
 timing uses `EPOCHREALTIME` (Bash 5.0+); on older bash the telemetry envelope is
 skipped while notifications still fire.
@@ -97,8 +86,6 @@ skipped while notifications still fire.
   [Install with npm](https://code.claude.com/docs/en/setup#install-with-npm), and how the hook's
   `node` command is launched is in
   [Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form).
-  **As of**: 2026-10-11. **Recheck trigger**: the first section changes whether the native binary
-  ships or uses Node, the second changes how exec form launches `command`, or either is renamed.
 
 ## Install
 

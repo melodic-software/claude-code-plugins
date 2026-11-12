@@ -41,7 +41,6 @@ rather than mixing versions. No reader outside this plugin opens a saved report.
   [ADR 0013](../../../docs/adr/0013-keep-storage-format-identifiers-stable-across-renames.md)
   covers only that a storage-format identifier changes through a migration with a compatibility
   window; it does not settle this case.
-- As of: 2026-09-29.
 - Recheck: a tool, skill, or workflow outside this plugin starts reading a saved report.
 
 ## Path relativity

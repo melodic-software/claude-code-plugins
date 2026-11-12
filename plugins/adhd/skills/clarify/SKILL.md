@@ -124,8 +124,7 @@ plugin-data substitution variable for it.
 
 - **Pointer**: when choosing any `${…}` token for this skill's body, fetch
   [Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions)
-  live. **As of**: 2026-10-11. **Recheck trigger**: that section adds a plugin-data or
-  temp-directory variable, or documents the session scratchpad.
+  live.
 
 With neither a writable temp location nor the Artifact surface, use terminal markdown. The
 fidelity rules hold in every medium.
@@ -165,8 +164,7 @@ Load the `artifact-design` skill when it is available. When it is not, meet the 
 own stated requirements and keep the page self-contained.
 
 - **Pointer**: when `artifact-design` is absent, read the Artifact tool's definition and fetch
-  [Page constraints](https://code.claude.com/docs/en/artifacts#page-constraints) live. **As of**:
-  2026-10-11. **Recheck trigger**: that section adds or drops a page requirement or limit.
+  [Page constraints](https://code.claude.com/docs/en/artifacts#page-constraints) live.
 
 The decision table is the page's spine; it needs no runtime capabilities. Keep it utilitarian:
 no hero banner, no italic accent words in headings, no "01 / 02 / 03" section labels (`#` is the

@@ -19,8 +19,6 @@ own and runs only when your repo has opted into Ruff.
     script unless the payload mentions `.py`, so a batch without Python costs one `node` process.
   - **Pointer**: when deciding what filters a `PostToolBatch` row, fetch
     [hooks: PostToolBatch](https://code.claude.com/docs/en/hooks#posttoolbatch) live.
-    **As of**: 2026-10-15. **Recheck trigger**: that section adds a matcher or an `if` for the
-    event, or changes the `tool_calls` fields.
 - **Opt-in on a Ruff config.** Ruff runs **only when a `.ruff.toml`,
   `ruff.toml`, or `pyproject.toml` with a `[tool.ruff]` section governs the
   edited file**, found by walking up from the file to the repository root. A
@@ -32,8 +30,7 @@ own and runs only when your repo has opted into Ruff.
   safe: a missed opt-in, never a wrong edit).
   - **Pointer**: when comparing this walk with Ruff's own, fetch
     [Config file discovery](https://docs.astral.sh/ruff/configuration/#config-file-discovery)
-    live. **As of**: 2026-11-03. **Recheck trigger**: that section changes which files or
-    tables Ruff reads as its config.
+    live.
 - **Safe fixes only.** `ruff check --fix` never applies unsafe fixes, even when your config sets
   `unsafe-fixes = true`.
 - **Just-added imports are protected in the session.** The batch row passes `--unfixable F401`,
@@ -41,8 +38,6 @@ own and runs only when your repo has opted into Ruff.
   not pass it, so an unused import goes at commit.
   - **Pointer**: when working out how the flag combines with your config's `unfixable` list, fetch
     [settings: lint.unfixable](https://docs.astral.sh/ruff/settings/#lint_unfixable) live.
-    **As of**: 2026-11-03. **Recheck trigger**: that entry changes how a command-line value
-    combines with the configured list.
 - **Pre-existing drift is rewritten whole.** The batch payload carries no pre-edit bytes, so a
   file that already drifted from your config is formatted in full, as the pre-commit entry would.
 - **Respects your excludes.** Both pass `--force-exclude`, so a path your config excludes

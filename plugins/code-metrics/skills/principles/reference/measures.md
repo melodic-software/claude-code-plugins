@@ -167,8 +167,7 @@ comparable to a ratio. No standard and no CWE anchors any of this; see [threshol
   that text and the row is labeled with the tool's name.
 - **`shellmetrics` values depend on the parser shell.** Two machines can print different Bash
   complexity for the same script. Pointer:
-  [shellmetrics README § Usage](https://github.com/shellspec/shellmetrics#usage), as of 2026-11-10;
-  recheck when that section stops tying metric values to the shell used.
+  [shellmetrics README § Usage](https://github.com/shellspec/shellmetrics#usage).
 - **ESLint-based collectors report violations, not distributions.** The core `complexity` rule and
   `sonarjs/cognitive-complexity` fire above a threshold and stay silent below it, so they are run at
   a threshold of zero to make every function report. They resolve only when the repository already

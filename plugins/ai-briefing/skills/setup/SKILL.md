@@ -95,9 +95,6 @@ to `apply`, which is the action that writes.
        and when a saved value applies, fetch
        [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
        live.
-     - **As of**: 2026-11-11
-     - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-       refused value, or when a saved value applies.
    - **Neither, for a one-off:** a per-run `--profile <name>` selects a different profile without
      touching stored config.
 2. **`sources.md`.** FAIL if the resolved profile has no `sources.md`: `/ai-briefing:generate`

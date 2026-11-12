@@ -140,7 +140,7 @@ marked unverified.
 
 An existing check is held to the enforcement ladder's guardrail criterion: read
 [the Guardrail criterion section](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/enforcement-ladder/README.md#guardrail-criterion)
-live. **As of**: 2026-10-21. **Recheck trigger**: the ladder's major version changes.
+live. **Recheck trigger**: the ladder's major version changes.
 
 Protected items are audited in full: §7 caps the recommendation, not the scrutiny, and uncertain
 protection status counts as protected. A threshold that fires is cited with its source and its
@@ -235,8 +235,7 @@ capped top findings.
 The `context/` files write the plugin's root directory as `<plugin-root>`, which is
 `${CLAUDE_PLUGIN_ROOT}`. Substitute it before running a command or writing it into a brief.
 [`${CLAUDE_PLUGIN_ROOT}/reference/spoke-paths.md` § Spoke paths](${CLAUDE_PLUGIN_ROOT}/reference/spoke-paths.md#spoke-paths)
-records why, with the pointer to recheck. **As of**: 2026-10-11. **Recheck trigger**: that section is
-renamed or removed, or its own recheck trigger fires.
+records why and holds the pointer.
 
 ## Next
 

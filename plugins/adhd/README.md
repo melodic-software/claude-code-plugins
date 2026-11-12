@@ -90,12 +90,10 @@ deliberate non-goal for this version, recorded here so it is not re-litigated:
   A switch that cannot act would be a dead knob. When re-deriving where a saved
   value can reach, fetch
   [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
-  live (as of 2026-10-11; recheck when that section adds frontmatter or
-  invocation to where a value substitutes).
+  live.
 - **A hook is the mechanism it would take.** When re-deriving which hook event
   can arm the rules at every session start, fetch
-  [SessionStart](https://code.claude.com/docs/en/hooks#sessionstart) live
-  (as of 2026-11-03; recheck when that section changes how a hook adds context).
+  [SessionStart](https://code.claude.com/docs/en/hooks#sessionstart) live.
   A hook is a code-execution trust surface, adopted only on demonstrated need,
   and the session-standing behavior above already covers the common case
   (invoke once, shaped for the rest of the session).

@@ -5,8 +5,7 @@ Load this page when the artifact is a JSON object with `nodes`, `samples` and us
 DevTools and the inspector protocol save the same shape.
 
 Format pointer: the `Profile` type (`type Profile extends object`) in the DevTools protocol Profiler
-domain, <https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/pdl/js_protocol.pdl>. As of 2026-10-04.
-Recheck when the converter exits 2 on a profile a current Node.js or Chrome wrote.
+domain, <https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/pdl/js_protocol.pdl>.
 
 ## What the converter stores
 
@@ -61,6 +60,5 @@ WHERE f.name IN ('(program)', '(idle)', '(garbage collector)') GROUP BY s.profil
 ## Resolving the symbol
 
 A `url` pointing at a bundle (`main.3f9a.js`) with a short or mangled name needs the bundle's source
-map. The `source-map` library (<https://github.com/mozilla/source-map>, as of 2026-10-04, recheck on
-its next major release) maps a generated line and column back to the original file and line. With
+map. The `source-map` library (<https://github.com/mozilla/source-map>) maps a generated line and column back to the original file and line. With
 no map available, report the bundle position and say that the map is missing.

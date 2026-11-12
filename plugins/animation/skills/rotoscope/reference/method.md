@@ -108,8 +108,6 @@ quantized tone ramp.
   - **Pointer**: when sizing a tile or crop, or when review runs on a new model, fetch
     [Vision: Resolution and token cost](https://platform.claude.com/docs/en/build-with-claude/vision#evaluate-image-size)
     live.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: that table changes, or review runs on a model outside it.
 
 ## Known limits
 

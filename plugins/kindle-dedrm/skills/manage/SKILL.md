@@ -185,6 +185,3 @@ writing it into a brief; never hand a `${…}` token from those files to the Bas
   carries, fetch
   [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that table adds supporting files to where a `${…}` reference resolves, or the
-  Bash tool's environment starts carrying the plugin variables.

@@ -63,9 +63,8 @@ entries plus the "Signs of human writing" section to that file.
 One fresh-context subagent per batch, all dispatched in one message so they run concurrently.
 Dispatch each with `model: sonnet` on the Agent call itself. Which model that alias resolves to,
 and how the per-call value ranks against the agent definition and the session model, is in
-[Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model). As of: 2026-10-11.
-Recheck trigger: that section changes the accepted aliases, the resolution order, or how a
-family alias resolves. Each subagent receives:
+[Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model). Each subagent
+receives:
 
 - the path of the extracted rubric file, and nothing else from the catalog;
 - the path of its batch list and the digest the batch's `status` row printed (`status` runs

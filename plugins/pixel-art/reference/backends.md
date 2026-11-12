@@ -54,8 +54,7 @@ skip that feature, continue with the documented reduced result.
   forbids redistributing compiled builds; source can still be compiled for personal use, and art
   made with it can be sold. Do not copy the FAQ's pledge amount into a reply.
 - Verification record: claim = that license shape. Basis =
-  [Aseprite FAQ, Licensing & Commercial](https://www.aseprite.org/faq/). As-of 2026-09-28.
-  Recheck trigger: that section no longer saying the EULA replaced the GPL.
+  [Aseprite FAQ, Licensing & Commercial](https://www.aseprite.org/faq/).
 - Verification record: claim = `--batch` means do not start the UI, `--script` runs a Lua file,
   `--script-param` is read as `app.params`, `--version` prints the version, and the export flags
   above exist; the script uses `Sprite`, `Image:drawPixel`, `app.pixelColor.rgba`, `Sprite:newTag`,

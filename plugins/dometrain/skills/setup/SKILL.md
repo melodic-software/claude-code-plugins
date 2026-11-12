@@ -29,9 +29,6 @@ constraint, not around reading `/mcp` connection status directly.
 - **Pointer**: when deciding what a missing Dometrain tool can tell this skill, fetch
   [How Claude learns that a server failed](https://code.claude.com/docs/en/mcp#how-claude-learns-that-a-server-failed)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section changes which configurations report a failed server to
-  Claude, or where the error appears.
 
 ## Task
 
@@ -43,8 +40,7 @@ constraint, not around reading `/mcp` connection status directly.
    match), report **connected**. Do not claim the credential has valid API access beyond that:
    resolution is the strongest signal this skill can observe. For which rejections Dometrain's
    server returns and what each means, fetch
-   [Troubleshooting](https://github.com/Dometrain/mcp#troubleshooting) live (as of 2026-11-03;
-   recheck when that section moves or changes its list of rejections).
+   [Troubleshooting](https://github.com/Dometrain/mcp#troubleshooting) live.
 3. When no Dometrain tool resolves and `ToolSearch` returned no connection
    error for a `dometrain` server, report **disabled**: no server is present. Point to the
    README's [Getting the MCP server](../../README.md#getting-the-mcp-server) for registering a
@@ -54,16 +50,14 @@ constraint, not around reading `/mcp` connection status directly.
    - If `ToolSearch` returned a connection error for the `dometrain` server, quote it verbatim.
    - Otherwise do not assert why. Whether a failed connection reaches this turn depends on
      configuration this skill cannot inspect (see the mechanism note's pointer in
-     [Purpose](#purpose); as of 2026-10-11; recheck when that pointer moves out of
-     Purpose, is dropped, or its as-of date changes).
+     [Purpose](#purpose)).
      Direct the user to run `/mcp` themselves rather than claim knowledge it does not have.
    - Do not send the user to `/plugin configure`: point them to `claude mcp list` for a
      missing-variable warning on the `dometrain` entry and to the README's
      [Getting the MCP server](../../README.md#getting-the-mcp-server), and tell them to start a
      new session after setting the variable. For how Claude Code expands it, fetch
      [Environment variable expansion in `.mcp.json`](https://code.claude.com/docs/en/mcp#environment-variable-expansion-in-mcp-json)
-     live (as of 2026-11-03; recheck when that section changes when or from which environment a
-     variable expands).
+     live.
 
 ## Headless installation
 
@@ -92,9 +86,6 @@ claude plugin enable dometrain -s <scope>
   (the `--marketplace` row and its minimum version) and
   [Add a marketplace and install in one command](https://code.claude.com/docs/en/plugins/install#add-a-marketplace-and-install-in-one-command)
   (which scope the added marketplace lands in) live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: the `--marketplace` row of `plugin install` changes, or that install section
-  changes where the one-step form registers the marketplace.
 
 `<marketplace>` is the name the catalog registers under when it is added, and `<scope>` is the
 scope the bootstrap chooses: `user`, `project`, or `local`. Pass the scope explicitly on every
@@ -104,8 +95,6 @@ command and carry the same `<scope>` through all of them.
   [plugin marketplace add](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-add),
   [plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install) and
   [plugin enable](https://code.claude.com/docs/en/plugins/cli-reference#plugin-enable) live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: any of those three rows changes its scope default or its flag spelling.
 
 Registering at `user` while installing at `project`
 leaves the marketplace declaration out of the project's checked-in settings, so a fresh clone or CI
@@ -119,8 +108,6 @@ explicitly, so the sequence stays deterministic in CI.
 - **Pointer**: for what `defaultEnabled: false` means for a fresh install, fetch
   [`defaultEnabled`](https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled)
   live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section changes how an unset `enabledPlugins` entry is resolved.
 
 ## Output
 
@@ -136,8 +123,6 @@ collision warning instead.
 
 - **Pointer**: for that plugin's manifest `name`, read `.claude-plugin/plugin.json` in
   [Dometrain's repository](https://github.com/Dometrain/mcp) live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that repository renames its plugin or moves its manifest.
 
 ## Boundaries
 
