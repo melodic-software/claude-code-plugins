@@ -13,9 +13,8 @@ It is not. The rule is one line, and the rest of this doc is why.
 **A `PreToolUse` hook denies or asks. It never pairs `allow` with `updatedInput`.**
 
 A `PreToolUse` hook's decision-control fields, and the outcomes `permissionDecision` takes, are
-listed in [hooks § PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control)
-(as of 2026-10-11; recheck when that section adds or drops a field or an outcome). The others are
-uncontroversial. `updatedInput` is the one that lets a hook rewrite the call, and its only
+listed in [hooks § PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control).
+The others are uncontroversial. `updatedInput` is the one that lets a hook rewrite the call, and its only
 sanctioned pairing here is with `"ask"`.
 
 The concrete case this rule was written against: a commit guard that can tell a non-canonical
@@ -68,9 +67,6 @@ that can fire in a lane denies with instructions and never returns `updatedInput
   [hooks: PreToolUse `updatedInput` in auto mode](https://code.claude.com/docs/en/hooks#pretooluse-updatedinput-in-auto-mode)
   and
   <https://code.claude.com/docs/en/plugins/mods/troubleshoot#a-hook-changed-this-calls-input-after-the-model-wrote-it>.
-- **As of**: 2026-11-04
-- **Recheck trigger**: either section stops naming `PreToolUse` settings hooks, or auto mode starts
-  sending a hook's changed input back through the classifier.
 
 ## Boundary
 

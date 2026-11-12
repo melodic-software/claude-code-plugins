@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "It runs at push time in the `reference-verify` git hook.",
+      "why": "push time"
+    },
+    {
+      "answer": "A pre-push entry runs it.",
+      "why": "pre-push"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It runs after every Write or Edit.",
+      "why": "stale"
+    }
+  ]
+}

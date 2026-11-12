@@ -51,9 +51,6 @@ availability.
   gating, see [Commands](https://code.claude.com/docs/en/commands); for what a cloud session
   carries, see
   [What's available in cloud sessions](https://code.claude.com/docs/en/cloud-environments#what%E2%80%99s-available-in-cloud-sessions).
-- **As of**: 2026-10-01
-- **Recheck trigger**: a Claude Code release note or docs change adds, removes, or renames a gating
-  axis, or a `skillOverrides` state leaves the four-value set.
 
 The consequence is the rule: **a component never states that a native surface is present, absent,
 enabled, or unavailable.** It states what to do *if the surface resolves in the session*, and the
@@ -107,9 +104,6 @@ may be cut short, or its whole description dropped from the listing.
   [`skillListingMaxDescChars`](https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars)
   and
   [`skillListingBudgetFraction`](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction).
-- **As of**: 2026-10-01
-- **Recheck trigger**: a release or docs change moves the per-entry cap default, the budget
-  default, or the drop-order rule.
 
 Two obligations follow. Keep the phrase to one clause, since it spends shared budget every session
 for every consumer. And where a fleet's listing plausibly overflows, the overlap store records a
@@ -348,7 +342,7 @@ change; the doc's README-only original state reads as 1.0.
   `https://code.claude.com/docs/en/cloud-environments.md`: plan/platform gating and per-host
   roster differences.
 
-Upstream publishes no convention for deferring to its own surfaces (absence checked 2026-08-23
-against the pages listed above and `https://code.claude.com/docs/llms.txt`), which is why this
-repository owns one. Recheck trigger: a Claude Code docs page publishes guidance on how a plugin
+Upstream publishes no convention for deferring to its own surfaces (absence checked against the
+pages listed above and `https://code.claude.com/docs/llms.txt`), which is why this repository owns
+one. Recheck trigger: a Claude Code docs page publishes guidance on how a plugin
 should refer to native surfaces.

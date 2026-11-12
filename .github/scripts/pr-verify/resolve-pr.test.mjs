@@ -740,7 +740,7 @@ const CI_STEPS = [
   ["Complete job", "success"],
 ];
 const ciJob = (steps = CI_STEPS, conclusion = "failure") => ({ id: 9001, name: "ci-status", conclusion, steps: steps.map(([name, c]) => ({ name, conclusion: c })) });
-const heldJobs = (ci = ciJob(), others = [{ id: 9002, name: "lint-repo", conclusion: "success" }, { id: 9003, name: "pr-unblock / address-feedback", conclusion: "neutral" }]) => {
+const heldJobs = (ci = ciJob(), others = [{ id: 9002, name: "Lint Repo", conclusion: "success" }, { id: 9003, name: "pr-unblock / address-feedback", conclusion: "neutral" }]) => {
   const jobs = [...others, ci];
   return { total_count: jobs.length, jobs };
 };
@@ -767,9 +767,9 @@ test("a run that failed only on a hold an approval of the head lifts is judged",
 test("a held run reads CI Status's log, and its ci-status alias is no other failure", async () => {
   const gate = { ...ciJob(), name: "CI Status" };
   const alias = { id: 9009, name: "ci-status", conclusion: "failure", steps: [{ name: "Report the conclusion of `CI Status`", conclusion: "failure" }] };
-  const jobs = heldJobs(gate, [{ id: 9002, name: "lint-repo", conclusion: "success" }, alias]);
+  const jobs = heldJobs(gate, [{ id: 9002, name: "Lint Repo", conclusion: "success" }, alias]);
   assert.equal(await held(logOf(PATH_HOLD), { jobs }), "ok");
-  const failedLane = heldJobs(gate, [{ id: 9002, name: "lint-repo", conclusion: "failure" }, alias]);
+  const failedLane = heldJobs(gate, [{ id: 9002, name: "Lint Repo", conclusion: "failure" }, alias]);
   assert.equal(await held(logOf(PATH_HOLD), { jobs: failedLane }), "not-a-passing-run");
 });
 
@@ -785,8 +785,8 @@ test("a run that failed on anything but a hold an approval lifts starts nothing"
     "a second failed step's exit": [`${logOf(PATH_HOLD)}\n2026-10-28T16:21:46.0000000Z ##[error]Process completed with exit code 1.`],
     "an unreadable log": [null, { jobs: heldJobs() }, async () => { throw new Error("502"); }],
     "a pr-unblock stop too": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(CI_STEPS.map(([n, c]) => [n, n.includes("pr-unblock") ? "failure" : c]))) }],
-    "a failed lane": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(), [{ id: 9002, name: "lint-repo", conclusion: "failure" }]) }],
-    "a cancelled lane": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(), [{ id: 9002, name: "lint-repo", conclusion: "cancelled" }]) }],
+    "a failed lane": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(), [{ id: 9002, name: "Lint Repo", conclusion: "failure" }]) }],
+    "a cancelled lane": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(), [{ id: 9002, name: "Lint Repo", conclusion: "cancelled" }]) }],
     "a failed aggregate": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(CI_STEPS.map(([n, c]) => [n, n === "Aggregate lane results" ? "failure" : c]))) }],
     "a step list cut before the aggregate": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(CI_STEPS.slice(0, 6))) }],
     "no step list": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob([])) }],
@@ -1164,7 +1164,7 @@ const UNREADABLE_DRAFT_STATE = {
   "an empty step list": ciStatusWith([]),
   "the draft step listed with no conclusion": ciStatusWith([{ name: "Note a draft", conclusion: null }]),
   "the draft step not listed": ciStatusWith([{ name: "Aggregate lane results", conclusion: "success" }]),
-  "no ci-status job": { total_count: 1, jobs: [{ id: 9002, name: "lint-repo", conclusion: "success", steps: [] }] },
+  "no ci-status job": { total_count: 1, jobs: [{ id: 9002, name: "Lint Repo", conclusion: "success", steps: [] }] },
 };
 
 test("a run whose draft step is not listed with a conclusion is not judged, and a skipped one is", async () => {
@@ -2030,9 +2030,9 @@ test("main keeps the run's jobs in RUNNER_TEMP for upstream-jobs.mjs only when i
   const withUrl = { ...jobs, jobs: jobs.jobs.map((job) => (job.id === 9002 ? { ...job, html_url: jobPage } : job)) };
   await main(linked, { github: fake({ jobs: withUrl }) });
   const keptLinked = JSON.parse(readFileSync(path.join(linked.RUNNER_TEMP, KEPT_JOBS), "utf8")).jobs;
-  assert.deepEqual(keptLinked.find((job) => job.name === "lint-repo"), { name: "lint-repo", conclusion: "success", url: jobPage });
+  assert.deepEqual(keptLinked.find((job) => job.name === "Lint Repo"), { name: "Lint Repo", conclusion: "success", url: jobPage });
   assert.equal(keptLinked.find((job) => job.name === "ci-status").url, null);
-  assert.deepEqual(keptJobs(linked, RUN).jobs.find((job) => job.name === "lint-repo"), { name: "lint-repo", conclusion: "success", url: jobPage });
+  assert.deepEqual(keptJobs(linked, RUN).jobs.find((job) => job.name === "Lint Repo"), { name: "Lint Repo", conclusion: "success", url: jobPage });
   // A head already judged, after its jobs were read, leaves no file.
   const skipped = { ...env, RUNNER_TEMP: tempDir("pr-verify-temp-") };
   await main(skipped, { github: fake({ jobs, artifacts: [artifact(`pr-verify-41-${HEAD}-fail-i7`, 77)], runs: { 77: verifyRun(77) } }) });
@@ -2228,7 +2228,7 @@ test("each path through the resolver makes a pinned number of API calls", async 
 
 test("a failed run whose jobs are not a hold's skips on the run and its jobs alone, never reading the commit's pull requests", async () => {
   const readLog = async (id) => (id === 9001 ? logOf(PATH_HOLD) : "");
-  const failedLane = heldJobs(ciJob(), [{ id: 9002, name: "lint-repo", conclusion: "failure" }]);
+  const failedLane = heldJobs(ciJob(), [{ id: 9002, name: "Lint Repo", conclusion: "failure" }]);
   const jobsPath = `/repos/${REPO}/actions/runs/${RUN}/jobs?filter=latest&per_page=100`;
   // Accepted precedence: such a run of a draft or another author's pull
   // request skips as not-a-passing-run, which no pull request read decides.

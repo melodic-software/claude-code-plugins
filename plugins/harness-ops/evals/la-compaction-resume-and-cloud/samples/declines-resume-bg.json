@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No, do not use `claude --resume <id> --bg`; restart launches a fresh session.",
+      "why": "decline"
+    },
+    {
+      "answer": "`--resume` continues the old transcript; use restart instead.",
+      "why": "instead"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, that resumes the lane.",
+      "why": "wrong"
+    }
+  ]
+}

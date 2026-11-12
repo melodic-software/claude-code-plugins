@@ -4,9 +4,8 @@ An X post by Ayush Soni listing ten visual tells of generated design: correlate 
 `https://x.com/ayushsoni_io/status/2115322579187867898`, 2026-10-28. One person's opinion with no
 stated evidence, so each row is judged here on its own.
 
-- **As of**: 2026-11-02
-- **Recheck trigger**: none; the post is a fixed list, and new tells enter through
-  `plugins/user-interface/reference/types/web/generic-defaults.md` on their own evidence.
+The post is a fixed list; new tells enter through
+`plugins/user-interface/reference/types/web/generic-defaults.md` on their own evidence.
 
 All taken rows land in `generic-defaults.md` at Suggestion severity, on marketing and brand surfaces
 only, and judge whether anyone chose the element rather than ban it.

@@ -86,8 +86,6 @@ invoking skill routes an item that needs human judgment.
   [CommentAuthorAssociation](https://docs.github.com/en/graphql/reference/enums#commentauthorassociation)
   and the role mapping in
   [Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user).
-- **As of**: 2026-10-11
-- **Recheck trigger**: either page changes a value's meaning or the role mapping.
 
 ### Key interfaces from a design
 

@@ -216,20 +216,17 @@ why the [untrusted-input rule](#untrusted-input-worktrees) applies to cloud host
 
 ## Vendor facts this contract depends on
 
-- **SessionStart hooks and `CLAUDE_CODE_REMOTE` in cloud.** Pointer: "Setup scripts vs. SessionStart
-  hooks", "Install dependencies with a SessionStart hook" and "Environment caching" on
-  [Cloud environments](https://code.claude.com/docs/en/cloud-environments). As of: 2026-10-04.
-  Recheck trigger: the variable's name or value changes, SessionStart stops running on resume, or
-  the cache starts keeping running processes.
-- **Hook permissions and `WorktreeCreate` failure.** Pointer: "Security considerations" and the
-  `WorktreeCreate` event on [Hooks](https://code.claude.com/docs/en/hooks). As of: 2026-10-03.
-  Recheck trigger: hooks gain a permission check for repository-declared commands.
+- **SessionStart hooks and `CLAUDE_CODE_REMOTE` in cloud.** Pointer:
+  [Setup scripts vs. SessionStart hooks](https://code.claude.com/docs/en/cloud-environments#setup-scripts-vs-sessionstart-hooks),
+  [Install dependencies with a SessionStart hook](https://code.claude.com/docs/en/cloud-environments#install-dependencies-with-a-sessionstart-hook)
+  and [Environment caching](https://code.claude.com/docs/en/cloud-environments#environment-caching).
+- **Hook permissions and `WorktreeCreate` failure.** Pointer:
+  [Security considerations](https://code.claude.com/docs/en/hooks#security-considerations) and
+  [WorktreeCreate](https://code.claude.com/docs/en/hooks#worktreecreate).
 - **Compose project names and ports.** Pointer:
-  [Specify a project name](https://docs.docker.com/compose/how-tos/project-name/), `ports` on
-  [Services](https://docs.docker.com/reference/compose-file/services/), and
-  [`docker compose port`](https://docs.docker.com/reference/cli/docker/compose/port/). As of:
-  2026-10-04. Recheck trigger: the project-name character rule or `COMPOSE_PROJECT_NAME`'s
-  precedence changes, or a container-only `ports` entry stops getting an engine-assigned host port.
+  [Specify a project name](https://docs.docker.com/compose/how-tos/project-name/),
+  [`ports`](https://docs.docker.com/reference/compose-file/services/#ports), and
+  [`docker compose port`](https://docs.docker.com/reference/cli/docker/compose/port/).
 
 ## Versioning
 

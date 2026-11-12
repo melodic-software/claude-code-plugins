@@ -81,6 +81,7 @@ jobs:
     # A dispatch on another branch would run that branch's copy of this file.
     # A pull_request_target run also reports main as its ref; the refine job
     # takes it.
+    name: Dispatch
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request_target'
     # A burst of pushes collapses into one listing: a push cancels the run
     # going, since the newest listing reads main as it is now. A tick or a
@@ -384,6 +385,7 @@ jobs:
   # going, and the record steps run on cancel too (always()), so a run
   # cancelled after its dispatch still records it.
   refine:
+    name: Refine
     if: >-
       github.event_name == 'pull_request_target'
       && github.event.pull_request.draft == false

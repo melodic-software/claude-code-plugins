@@ -93,13 +93,24 @@ STARTDIR_LOCAL="$START_DIR/.claude/settings.local.json"
 MANAGED="$(mscope::base_file "${SETTINGS_AUDIT_MANAGED_PATH:-}")"
 MANAGED_DROPIN="$(mscope::dropin_dir "${SETTINGS_AUDIT_MANAGED_PATH:-}")"
 
+# Shared jq vocabulary for the per-kind fact lines below.
+# shellcheck disable=SC2016  # $k is a jq variable, not a shell one
+JQ_DEFS='
+  def permission_counts:
+    "Deny count: \((.permissions.deny // []) | length)",
+    "Ask count: \((.permissions.ask // []) | length)",
+    "Allow count: \((.permissions.allow // []) | length)";
+  def key_count(f): f // {} | keys | length;
+  def value_or_unset($k): if has($k) then (.[$k] | tostring) else "unset" end;
+  def list_or_unset($k):
+    if has($k) then (.[$k] | if length == 0 then "(empty list)" else join(", ") end) else "unset" end;
+'
+
 emit_file_facts() {
   local label="$1" path="$2" kind="$3"
   printf 'File: %s\n' "$label"
   if [[ ! -f "$path" ]]; then
-    printf 'Present: no\n'
-    printf 'Valid JSON: n/a\n'
-    printf 'Top-level keys: n/a\n'
+    printf '%s\n' 'Present: no' 'Valid JSON: n/a' 'Top-level keys: n/a'
     return 0
   fi
   printf 'Present: yes\n'
@@ -113,9 +124,7 @@ emit_file_facts() {
   # variable would put every credential in it into `set -x` trace output. File
   # contents stay inside pipelines, where tracing prints the command only.
   if ! : 2>/dev/null <"$path"; then
-    printf 'Readable: no\n'
-    printf 'Valid JSON: n/a\n'
-    printf 'Top-level keys: n/a\n'
+    printf '%s\n' 'Readable: no' 'Valid JSON: n/a' 'Top-level keys: n/a'
     printf 'Note: present but unreadable — not inspectable (sandbox denyRead — including a Read deny merged into the sandbox boundary — or filesystem permissions). Not a malformed-config finding.\n'
     return 0
   fi
@@ -124,17 +133,13 @@ emit_file_facts() {
     return 1
   fi
   printf 'Valid JSON: yes\n'
-  local keys
-  keys="$(tr -d '\r' <"$path" | jq -r 'keys | length')"
-  printf 'Top-level keys: %s\n' "$keys"
+  printf 'Top-level keys: %s\n' "$(tr -d '\r' <"$path" | jq -r 'keys | length')"
   case "$kind" in
   settings)
-    tr -d '\r' <"$path" | jq -r '
-        "Deny count: \((.permissions.deny // []) | length)",
-        "Ask count: \((.permissions.ask // []) | length)",
-        "Allow count: \((.permissions.allow // []) | length)",
-        "Hooks events: \((.hooks // {} | keys | length))",
-        "MCP servers: \((.mcpServers // {} | keys | length))",
+    tr -d '\r' <"$path" | jq -r "$JQ_DEFS"'
+        permission_counts,
+        "Hooks events: \(key_count(.hooks))",
+        "MCP servers: \(key_count(.mcpServers))",
         "Plugins enabled: \([.enabledPlugins // {} | to_entries[] | select(.value == true)] | length)"
       '
     ;;
@@ -146,31 +151,27 @@ emit_file_facts() {
     # turns on which family each entry names, and the fallback cap turns on
     # entry order. Counting them here would leave a local-only misconfiguration
     # invisible. The env-value and secret-field guard above is unchanged.
-    tr -d '\r' <"$path" | jq -r '
-        "Env keys: \((.env // {} | keys | length))",
-        "Deny count: \((.permissions.deny // []) | length)",
-        "Ask count: \((.permissions.ask // []) | length)",
-        "Allow count: \((.permissions.allow // []) | length)",
-        "Plugin keys: \((.enabledPlugins // {} | keys | length))",
-        "Effort level: \(if has("effortLevel") then (.effortLevel | tostring) else "unset" end)",
+    tr -d '\r' <"$path" | jq -r "$JQ_DEFS"'
+        "Env keys: \(key_count(.env))",
+        permission_counts,
+        "Plugin keys: \(key_count(.enabledPlugins))",
+        "Effort level: \(value_or_unset("effortLevel"))",
         "Fallback chain: \(if has("fallbackModel") then "\(.fallbackModel | length) raw, \(.fallbackModel | reduce .[] as $m ([]; if index($m) then . else . + [$m] end) | length) after dedup" else "unset" end)",
-        "Fallback entries: \(if has("fallbackModel") then (if (.fallbackModel | length) == 0 then "(empty list)" else (.fallbackModel | join(", ")) end) else "unset" end)",
-        "Available models: \(if has("availableModels") then (if (.availableModels | length) == 0 then "(empty list)" else (.availableModels | join(", ")) end) else "unset" end)",
-        "Enforce available models: \(if has("enforceAvailableModels") then (.enforceAvailableModels | tostring) else "unset" end)"
+        "Fallback entries: \(list_or_unset("fallbackModel"))",
+        "Available models: \(list_or_unset("availableModels"))",
+        "Enforce available models: \(value_or_unset("enforceAvailableModels"))"
       '
     ;;
   mcp)
-    tr -d '\r' <"$path" | jq -r '"MCP servers: \((.mcpServers // {} | keys | length))"'
+    tr -d '\r' <"$path" | jq -r "$JQ_DEFS"'"MCP servers: \(key_count(.mcpServers))"'
     ;;
   managed)
     # Structure only, same posture as `local`: managed policy can carry org
     # values an operator would not expect echoed into a report.
-    tr -d '\r' <"$path" | jq -r '
-        "Deny count: \((.permissions.deny // []) | length)",
-        "Ask count: \((.permissions.ask // []) | length)",
-        "Allow count: \((.permissions.allow // []) | length)",
-        "Hooks events: \((.hooks // {} | keys | length))",
-        "Env keys: \((.env // {} | keys | length))"
+    tr -d '\r' <"$path" | jq -r "$JQ_DEFS"'
+        permission_counts,
+        "Hooks events: \(key_count(.hooks))",
+        "Env keys: \(key_count(.env))"
       '
     ;;
   *) ;;

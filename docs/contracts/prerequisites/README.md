@@ -27,9 +27,6 @@ Three needs use a native surface instead, so the file never declares them:
   [plugins manifest reference § dependencies](https://code.claude.com/docs/en/plugins/manifest-reference#dependencies)
   and [§ User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
   live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: either section changes how a declared dependency or a sensitive option is
-  handled.
 
 The `env` kind is for a variable a command run through the Bash tool reads, such as a CLI's API
 key. `userConfig` values do not reach that environment.
@@ -188,9 +185,6 @@ because `setup` is manual-only (the
   live; when checking which shells set `PPID`, fetch
   [POSIX Shell Command Language § 2.5.3 Shell Variables](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html#tag_19_05_03)
   live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: the hooks section changes the default shell on Windows, or a POSIX revision
-  changes what it says about `PPID`.
 
 Both session-start notices need harness-ops enabled. Without it, no notice says `node` is missing,
 and a missing hook dependency is reported only at the point of use, by `hook::require`. The
@@ -226,9 +220,6 @@ dash and PowerShell.
 
 - **Pointer**: when checking the SessionStart sources, or what a compaction does to the session
   id, fetch [hooks § SessionStart](https://code.claude.com/docs/en/hooks#sessionstart) live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: the matcher table gains or drops a source, or the hooks page states whether
-  a compaction keeps the session id.
 
 `hook::require` reads an entry with bash alone, from its `id` to the next one, so write `id` first in every entry.
 

@@ -96,9 +96,15 @@ max_reads=12
 # Per requested fact: "true", "false", or the missing evidence, as one line
 # "fact<TAB>value".
 # shellcheck disable=SC2016 # a jq program, not a shell expansion
+# A call's job is listed by its display name, the call's id and the callee's
+# job id each in Title Case (`fix-ci / broker-check` shows as
+# `Fix CI / Broker Check`), else by those ids: a run started before the
+# rename, which this script, read from the default branch tip, can still read.
 settle='
   . as $jobs
-  | def job($n): first($jobs[] | select(.name == $n)) // null;
+  | def titled($id): $id | split("-") | map(if . == "ci" then "CI" else (.[:1] | ascii_upcase) + .[1:] end) | join(" ");
+  def job($n): ($n | split(" / ")) as $p
+    | first($jobs[] | select(.name == "\(titled($p[0])) / \(titled($p[1]))")) // first($jobs[] | select(.name == $n)) // null;
   def step($j; $s): first(($j.steps // [])[] | select(.name == $s)) // null;
   def by_step($j; $s): step($j; $s) as $st
     | if $st.conclusion == "success" then "true"

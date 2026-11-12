@@ -51,6 +51,7 @@ defaults:
 
 jobs:
   plan:
+    name: Plan
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -146,6 +147,7 @@ jobs:
           tokens: github-token
 
   delete:
+    name: Delete
     needs: plan
     if: >-
       github.ref == 'refs/heads/main'

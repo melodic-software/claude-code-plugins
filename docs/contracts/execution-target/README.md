@@ -233,17 +233,14 @@ The lanes launcher carries a copy of the plugin column (`stage_required_plugins`
 - **Routine triggers.** Pointer: the "Supported events" table on
   [Routines](https://code.claude.com/docs/en/routines#supported-events) (pull request and release
   events), and its "Connectors" section (every connected connector is included by default and its
-  tools run without approval). As of: 2026-10-04. Recheck trigger: the table gains an issues event, or
-  the connector default changes. The open conflict is anthropics/claude-code#72290 (an issue-opened
+  tools run without approval). The open conflict is anthropics/claude-code#72290 (an issue-opened
   routine trigger that did not fire, closed as stale); nothing here relies on an issue trigger.
 - **Cloud launch and upload.** Pointer:
-  [From terminal to cloud](https://code.claude.com/docs/en/claude-code-on-the-web#from-terminal-to-cloud)
+  [Start a cloud session from your terminal](https://code.claude.com/docs/en/claude-code-on-the-web#start-a-cloud-session-from-your-terminal)
   and [Send local repositories without GitHub](https://code.claude.com/docs/en/claude-code-on-the-web#send-local-repositories-without-github).
-  As of: 2026-10-04. Recheck trigger: `--cloud` stops uploading a bundle when the App is missing, or
-  gains a branch or worktree option.
-- **Cloud environments.** Pointer: "What carries over from your setup" and "Network access" on
-  [Cloud environments](https://code.claude.com/docs/en/cloud-environments). As of: 2026-10-04.
-  Recheck trigger: either table changes.
+- **Cloud environments.** Pointer:
+  [What carries over from your setup](https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup)
+  and [Network access](https://code.claude.com/docs/en/cloud-environments#network-access).
 
 ## Versioning
 

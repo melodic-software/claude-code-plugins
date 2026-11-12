@@ -612,18 +612,24 @@ test("a run still in progress holds the issue for a later pass", async () => {
 // switch stopped (run 41591527742: kill-switch succeeded, everything after it
 // skipped), and one cancelled before intake.
 const job = (name, conclusion) => ({ name, status: "completed", conclusion });
-const RAN = [job("kill-switch", "success"), job("born-triaged", "success"), job("intake-triage / claude-intake-triage", "success"), job("intake-triage / claude-intake-triage-skipped", "skipped"), job("apply-verdict", "success")];
-const KILLED = [job("born-triaged", "success"), job("kill-switch", "success"), job("intake-triage", "skipped"), job("apply-verdict", "skipped")];
-const CANCELLED = [job("kill-switch", "success"), job("born-triaged", "cancelled"), job("intake-triage", "cancelled"), job("apply-verdict", "skipped")];
+const RAN = [job("Kill Switch", "success"), job("Born Triaged", "success"), job("Intake Triage / claude-intake-triage", "success"), job("Intake Triage / claude-intake-triage-skipped", "skipped"), job("Apply Verdict", "success")];
+const KILLED = [job("Born Triaged", "success"), job("Kill Switch", "success"), job("Intake Triage", "skipped"), job("Apply Verdict", "skipped")];
+const CANCELLED = [job("Kill Switch", "success"), job("Born Triaged", "cancelled"), job("Intake Triage", "cancelled"), job("Apply Verdict", "skipped")];
 
 test("reachedIntake: an intake job that ran counts; skipped, cancelled, unfinished or absent does not", () => {
   assert.equal(reachedIntake(RAN), true);
-  assert.equal(reachedIntake([job("intake-triage / claude-intake-triage", "failure")]), true);
+  assert.equal(reachedIntake([job("Intake Triage / claude-intake-triage", "failure")]), true);
   assert.equal(reachedIntake(KILLED), false);
   assert.equal(reachedIntake(CANCELLED), false);
-  assert.equal(reachedIntake([{ name: "intake-triage / claude-intake-triage", status: "in_progress", conclusion: null }]), false);
-  assert.equal(reachedIntake([job("kill-switch", "success"), job("intake-triage-other", "success")]), false);
+  assert.equal(reachedIntake([{ name: "Intake Triage / claude-intake-triage", status: "in_progress", conclusion: null }]), false);
+  assert.equal(reachedIntake([job("Kill Switch", "success"), job("Intake Triage Other", "success")]), false);
   assert.equal(reachedIntake([]), false);
+});
+
+test("reachedIntake reads a run from before the job rename by its job ids", () => {
+  assert.equal(reachedIntake([job("kill-switch", "success"), job("intake-triage / claude-intake-triage", "success")]), true);
+  assert.equal(reachedIntake([job("kill-switch", "success"), job("intake-triage", "skipped")]), false);
+  assert.equal(reachedIntake([job("intake-triage-other", "success")]), false);
 });
 
 test("decide: only runs that reached intake count, and RUN_LIMIT dispatches hand off whatever reached it", () => {
@@ -767,11 +773,11 @@ test("a failing jobs read counts the run, as before: two runs hand the issue off
 // returned them for those runs.
 const cr = (id) => `https://api.github.com/repos/o/r/check-runs/${id}`;
 const withUrl = (name, conclusion, id) => ({ ...job(name, conclusion), check_run_url: cr(id) });
-const reachedWith = (...rest) => [job("kill-switch", "success"), job("intake-triage / claude-intake-triage", "success"), ...rest];
+const reachedWith = (...rest) => [job("Kill Switch", "success"), job("Intake Triage / claude-intake-triage", "success"), ...rest];
 const note = (annotation_level, message) => ({ annotation_level, message });
-const FAILED_500 = reachedWith(withUrl("apply-verdict", "failure", 220));
-const MISSED_502 = reachedWith(withUrl("apply-verdict", "success", 220));
-const DEFERRED = reachedWith(withUrl("intake-triage / claude-intake-triage-apply", "success", 221), job("apply-verdict", "skipped"));
+const FAILED_500 = reachedWith(withUrl("Apply Verdict", "failure", 220));
+const MISSED_502 = reachedWith(withUrl("Apply Verdict", "success", 220));
+const DEFERRED = reachedWith(withUrl("Intake Triage / claude-intake-triage-apply", "success", 221), job("Apply Verdict", "skipped"));
 const NOTES = {
   500: [note("notice", "api-calls lanes-app=6"), note("failure", "Process completed with exit code 1."), note("failure", "POST /repos/o/r/issues/1/issue-field-values failed with status 500")],
   502: [
@@ -803,6 +809,17 @@ for (const [shape, jobs22, annotations] of [
   });
 }
 
+test("a run from before the job rename, its jobs named by id, is classified the same way", async () => {
+  const old = (jobs) => jobs.map((j) => ({ ...j, name: j.name.replace("Kill Switch", "kill-switch").replace("Intake Triage", "intake-triage").replace("Apply Verdict", "apply-verdict") }));
+  for (const [jobs22, annotations] of [
+    [old(FAILED_500), { 220: NOTES[500] }],
+    [old(DEFERRED), { 221: NOTES.deferred }],
+  ]) {
+    const result = await sweep(transientRuns(jobs22, annotations));
+    assert.deepEqual([result.dispatched, result.handed], [[1], []], JSON.stringify(jobs22));
+  }
+});
+
 test("a run whose apply failed for a reason a retry does not clear counts", async () => {
   for (const message of ["POST /repos/o/r/issues/1/labels failed with status 403", "admission failed: the rules file does not parse"]) {
     const gh = transientRuns(FAILED_500, { 220: [note("failure", "Process completed with exit code 1."), note("failure", message)] });
@@ -829,7 +846,7 @@ test("a run whose apply failed for a reason a retry does not clear counts", asyn
 test("a run whose outcome cannot be read counts: a failing annotations read, or no check run to read", async () => {
   const unread = transientRuns(FAILED_500, {});
   assert.deepEqual((await sweep(unread)).handed, [1]);
-  const noUrl = transientRuns(reachedWith(job("apply-verdict", "failure")), { 220: NOTES[500] });
+  const noUrl = transientRuns(reachedWith(job("Apply Verdict", "failure")), { 220: NOTES[500] });
   assert.deepEqual((await sweep(noUrl)).handed, [1]);
 });
 

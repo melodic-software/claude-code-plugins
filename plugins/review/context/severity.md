@@ -17,9 +17,6 @@ existing bars rather than moving any finding between tiers.
 
 - **Pointer**: for how a review prompt should state its reporting bar, see
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#code-review-harnesses>.
-- **As of**: 2026-10-01
-- **Recheck trigger**: that section is removed, moves, or stops covering how to state a review
-  prompt's reporting bar.
 
 ## Confidence axis
 

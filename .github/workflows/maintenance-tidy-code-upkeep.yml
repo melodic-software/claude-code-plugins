@@ -57,6 +57,7 @@ defaults:
 
 jobs:
   detect:
+    name: Detect
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -89,6 +90,7 @@ jobs:
           node .github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs detect --before "$BEFORE" --after "$AFTER"
 
   gate:
+    name: Gate
     if: github.ref == 'refs/heads/main' && github.event_name != 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -211,6 +213,7 @@ jobs:
   # the working tree first. A handoff or an empty key leaves the sweep to
   # model-subscription.
   model:
+    name: Model
     needs: gate
     # The first attempt only: a re-run never runs the model again. A key the
     # credit gate skipped runs nothing here; model-subscription runs it.
@@ -540,6 +543,7 @@ jobs:
   # steps equal to the key leg's but for the credential, the handoff report,
   # the leg record's fallback reason and the seal's job id.
   model-subscription:
+    name: Model Subscription
     needs: [gate, model]
     # The first attempt only, after the key leg handed off, found its key
     # empty, or was skipped by the credit gate.
@@ -834,6 +838,7 @@ jobs:
   # alone, after the subscription leg handed off. It is the last leg and
   # never hands off.
   model-fallback:
+    name: Model Fallback
     needs: [gate, model-subscription]
     # The first attempt only, after the subscription leg handed off or found
     # its token empty.
@@ -1097,6 +1102,7 @@ jobs:
   # One leg answers the run: the fallback leg when it ran, else the
   # subscription leg when it ran, else the key leg.
   scan:
+    name: Scan
     needs: [gate, model, model-subscription, model-fallback]
     if: ${{ !cancelled() && (needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-length || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-length || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-length || '') != '' }}
     runs-on: ubuntu-24.04
@@ -1239,6 +1245,7 @@ jobs:
 
   # mutate-branch: contents write only.
   push-branches:
+    name: Push Branches
     needs: [gate, scan]
     if: ${{ !cancelled() && needs.scan.outputs.clean == 'true' && needs.scan.outputs.branches != '0' }}
     runs-on: ubuntu-24.04
@@ -1371,6 +1378,7 @@ jobs:
 
   # publish-artifact: pull-requests write, contents read.
   publish:
+    name: Publish
     needs: [gate, scan, push-branches]
     if: >-
       ${{ !cancelled() && needs.push-branches.result == 'success'
