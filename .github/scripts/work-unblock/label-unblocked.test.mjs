@@ -4905,6 +4905,22 @@ test("a reopened fix issue with an open lane PR, a lane run in flight, a hold, o
   }
 });
 
+test("a stale queued run naming no issue does not refuse a reopened fix issue's relabel; a fresh one does, and a stale one naming the issue still holds it", async () => {
+  const untitled = (at, number) => ({ ...laneRun({ number, at, status: "queued", conclusion: null }), display_title: "Fix the thing" });
+  // Twelve runs queued since 10:00, two hours before NOW: lost, so not unsure.
+  const lost = reopened({ runs: Array.from({ length: 12 }, (_, index) => untitled("2026-10-16T10:00:00Z", 800 + index)) });
+  assert.equal(await sweep({ github: lost.github, actions: lost.actions }), 0);
+  assert.deepEqual(writes(lost.calls), relabeled(30));
+  // One queued at 11:50, ten minutes before NOW, may still start.
+  const fresh = reopened({ runs: [untitled("2026-10-16T11:50:00Z", 800)] });
+  assert.equal(await sweep({ github: fresh.github, actions: fresh.actions }), 0);
+  assert.deepEqual(writes(fresh.calls), [], "a fresh untitled queued run");
+  // This issue's own run, queued two hours, still counts as in flight.
+  const own = reopened({ runs: [laneRun({ number: 30, at: "2026-10-16T10:00:00Z", status: "queued", conclusion: null })] });
+  assert.equal(await sweep({ github: own.github, actions: own.actions }), 0);
+  assert.deepEqual(writes(own.calls), [], "a stale queued run naming the issue");
+});
+
 // A listed human's open PR for the fix issue is work running on it.
 test("a reopened fix issue with a listed human's open closing PR is not relabeled; an unlisted author's PR does not hold it", async () => {
   const humanPull = (user) => ({ number: 7960, state: "open", user });

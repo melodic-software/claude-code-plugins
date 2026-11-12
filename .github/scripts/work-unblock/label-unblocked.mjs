@@ -233,7 +233,9 @@
 // queue that each finished run's sweep tops up. A run still `queued`
 // limits.stale-queued-minutes after it was created is not counted: its first
 // job never got a runner, so it is a run GitHub lost and will never start,
-// and counting it would hold the room at 0 for good. A breaker
+// and counting it would hold the room at 0 for good. For the same reason a
+// reopened fix issue's in-flight check does not count such a run among the
+// runs that name no issue, though one that names the issue still holds it. A breaker
 // record never spends the once-per-version re-fire, never counts toward the
 // failed-mint bound and never raises another cause's backoff. Each run's log
 // is read once, from its one refused job (or its one failed job before any
@@ -2103,7 +2105,7 @@ const fieldNamesOf = (statusOf, issue) => fieldFirst(statusOf, issue.number, lab
 // it is not relabeled now, or null with what to do. Null for any other issue,
 // and for one agent-ready was added to since the reopen, which the restart
 // and re-fire rules then take.
-async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, read, statusOf }) {
+async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, read, statusOf, now, limits }) {
   if (issue.user?.login !== ALERT_BOT || !FIX_ISSUE.test(String(issue.body ?? ""))) {
     return null;
   }
@@ -2140,17 +2142,17 @@ async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, r
   if (person) {
     return { reason: `a listed human's PR #${person.number} for it is open` };
   }
-  // Every unfinished run, a stale queued one included: one that names the
-  // issue may still be its run, so this check never ignores one.
+  // A run that names the issue holds it even when stale queued: it may still
+  // be its run. A stale queued run that names no issue never starts, so it
+  // cannot be this issue's run in flight and does not make the check unsure.
   const runs = await inFlight();
   if (runs === null) {
     return { reason: "no Actions token to read its lane runs" };
   }
-  const titles = runs.map((run) => run.title);
-  if (titles.some((title) => title.endsWith(` #${issue.number}`))) {
+  if (runs.some((run) => run.title.endsWith(` #${issue.number}`))) {
     return { reason: "a lane run for it is in flight" };
   }
-  const untitled = titles.filter((title) => !NAMES_ISSUE.test(title)).length;
+  const untitled = runs.filter((run) => !NAMES_ISSUE.test(run.title) && !staleQueued(run, now, limits["stale-queued-minutes"])).length;
   if (untitled > 0) {
     return { reason: `cannot tell whether a lane run for it is in flight: ${untitled} unfinished run(s) name no issue in their title` };
   }
@@ -2602,7 +2604,7 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
     const read = readsOf(issue);
     try {
       const verdict =
-        (await recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, read, statusOf })) ??
+        (await recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, read, statusOf, now, limits })) ??
         (await restartRefusal({ github, actions, jobLog, carry, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read, statusOf, runsOf, upstreamClear }));
       const { reason, fail } = verdict;
       if (carry && reason !== null && !fail) {
