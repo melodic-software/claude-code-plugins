@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.4.13] - 2026-11-12
+
+### Changed
+
+- Internal restructuring, no behavior change.
+
 ## [8.4.12] - 2026-11-12
 
 ### Changed

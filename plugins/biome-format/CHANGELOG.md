@@ -3,6 +3,12 @@
 All notable changes to the `biome-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.25] - 2026-11-12
+
+### Changed
+
+- Internal restructuring, no behavior change.
+
 ## [1.0.24] - 2026-11-12
 
 ### Changed
