@@ -13,7 +13,7 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { normalizePortableTempPath, serializeTempSession } from "../lib/temp-session-paths.js";
-import { readJsonFile } from "../lib/watch-frame-index.js";
+import { readJsonFile, writeJsonFile } from "../lib/watch-frame-index.js";
 import { watchStatePath } from "./watch-state.js";
 
 /**
@@ -28,14 +28,6 @@ function withoutPath(record) {
 }
 
 /**
- * @param {string} file
- * @param {unknown} value
- */
-function writeJson(file, value) {
-  fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}
-
-/**
  * @param {string} sliceDir
  */
 export function sanitizeSliceTempPaths(sliceDir) {
@@ -47,7 +39,7 @@ export function sanitizeSliceTempPaths(sliceDir) {
     const watch = readJsonFile(watchPath);
     if (watch.tempSession) {
       watch.tempSession = serializeTempSession(watch.tempSession);
-      writeJson(watchPath, watch);
+      writeJsonFile(watchPath, watch);
       touched.push("run-state/watch.json");
     }
   }
@@ -69,7 +61,7 @@ export function sanitizeSliceTempPaths(sliceDir) {
         entry?.frame ? { ...entry, frame: withoutPath(entry.frame) } : entry,
       );
     }
-    writeJson(selectionPath, selection);
+    writeJsonFile(selectionPath, selection);
     touched.push("key-frames/selection.json");
   }
 
@@ -92,7 +84,7 @@ export function sanitizeSliceTempPaths(sliceDir) {
         })),
       }));
     }
-    writeJson(indexPath, index);
+    writeJsonFile(indexPath, index);
     touched.push("key-frames/sheet-frame-index.json");
   }
 
@@ -101,7 +93,7 @@ export function sanitizeSliceTempPaths(sliceDir) {
     const meta = readJsonFile(snapshotMetaPath);
     if (meta.sourceDir) {
       meta.sourceDir = normalizePortableTempPath(meta.sourceDir);
-      writeJson(snapshotMetaPath, meta);
+      writeJsonFile(snapshotMetaPath, meta);
       touched.push("key-frames/contact-sheets/snapshot-meta.json");
     }
   }
