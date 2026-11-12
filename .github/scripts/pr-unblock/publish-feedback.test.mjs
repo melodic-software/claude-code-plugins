@@ -2030,3 +2030,11 @@ test("followUpBullet quotes the advisory's first line in a code span so a closin
   );
   assert.equal(followUpBullet("", "L"), "- Pre-existing (advisory): `advisory` ([thread](L))");
 });
+
+test("followUpBullet leaves no comment marker when markers are nested inside each other", () => {
+  for (const advisory of ["<!<!---- x ---->>", "<<!--!--<!---->-- x --<!---->>", "<!-<!---- x"]) {
+    const bullet = followUpBullet(advisory, "L");
+    assert.doesNotMatch(bullet, /<!--|-->/, advisory);
+  }
+  assert.equal(followUpBullet("<!<!---- x ---->>", "L"), "- Pre-existing (advisory): ` x ` ([thread](L))");
+});
