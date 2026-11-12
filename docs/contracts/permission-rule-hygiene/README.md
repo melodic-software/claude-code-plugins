@@ -35,6 +35,8 @@ particular session starts in is not something the convention tracks.
 - **Pointer**: when you need to know which mode a given session starts in, fetch
   [permission modes: which mode a session starts in](https://code.claude.com/docs/en/permission-modes#which-mode-a-session-starts-in)
   live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: that section stops starting interactive sessions in auto mode by default.
 - **Source conflict**: the first release that starts sessions in auto mode, between the
   [changelog](https://code.claude.com/docs/en/changelog) (v2.1.284 entry) and that section. Recheck
   trigger: either is revised on that point.

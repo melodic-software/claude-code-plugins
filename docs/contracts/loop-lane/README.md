@@ -1298,6 +1298,8 @@ hook `ask` in a lane. This subsection holds which mode each lane runs in.
   flag is UNVERIFIED.
 - **Pointer:** for the flag, fetch
   [CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags) live.
+- **As of:** 2026-11-01.
+- **Recheck trigger:** that page's `--permission-prompts` row changes.
 
 **Launch options.** An unattended Claude Code launch passes this set, drawn from what the lanes
 launcher builds. Other headless launchers adopt it when next touched. A flag whose effect no probe

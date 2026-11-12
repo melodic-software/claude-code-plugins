@@ -110,6 +110,9 @@ app is a user-scope change and needs the user's approval.
   [events: approve or refuse a tool call before the user is asked](https://code.claude.com/docs/en/plugins/mods/events#approve-or-refuse-a-tool-call-before-the-user-is-asked);
   for `CLAUDE_CODE_PLUGIN_DIRS`, see
   [reference: settings and environment variables](https://code.claude.com/docs/en/plugins/mods/reference#settings-and-environment-variables).
+- **As of**: 2026-10-03, Claude Code 2.1.288. `--bg` sessions and the Desktop app were not probed.
+- **Recheck trigger**: the where-mods-run table changes a row, the minimum version changes, or the
+  settings-hooks section changes where plugin `PreToolUse` hooks run.
 
 The switches that stop installed mods differ from those that stop built-in mods. When a mod passes
 `claude plugin test` and does nothing on a machine with managed settings or a Team or Enterprise

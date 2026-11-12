@@ -1003,6 +1003,9 @@ worktree. Outside a git repository the file stays in the folder you ran from.
   [`--scope` names the settings file written](https://code.claude.com/docs/en/plugins/cli-reference#claude-plugin-commands).
   Observed for `plugin install --scope local` on Claude Code 2.1.289, WSL2, during the
   install-and-test run in melodic-software/claude-code-plugins#6318, reported in #6375.
+- **As of:** 2026-10-04.
+- **Recheck trigger:** that settings section stops placing a worktree's local file at the main
+  checkout, or a release note changes where `--scope local` writes.
 
 ## Instruction economy
 
