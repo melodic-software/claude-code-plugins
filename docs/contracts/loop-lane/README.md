@@ -952,13 +952,15 @@ emits a restart-request into the #502 telemetry block and stops the loop cleanly
 cannot `/clear` or relaunch itself, since a relaunch is the only context reset a lane gets (the
 `harness-ops:lanes` skill owns the mechanism). What happens next is launcher-relative. Under a
 launcher that acts on restart-requests, the lane is relaunched and the loop continues: the budget
-restarts the **session**, never ends the **loop**. **No such automatic launcher exists today**:
-`harness-ops` `lanes` is operator-initiated by contract ("no scheduler runs `restart` for you today",
-per its SKILL.md), so until an automatic relaunch trigger exists, *every* budget hit, under `lanes`
-or a bare interactive `/loop` alike, is a **terminal** manual-restart state: the stop is reported
+restarts the **session**, never ends the **loop**. `harness-ops` `lanes` ships that launcher as
+`consume-restarts`: each `run` relaunches, through `lanes restart`, every configured lane that is
+stopped and whose telemetry carries a non-null `restart_request`. It runs only on an OS schedule the
+operator registers from `consume-restarts print-schedule`; the skill never registers one. Until the
+operator registers it, every budget hit, under `lanes` or a bare interactive `/loop` alike, is a
+**terminal** manual-restart state: the stop is reported
 in lane telemetry, and the operator owns the restart (`lanes` `restart` is the operator's
-one-command path). The restart-request in the #502 block is written so that the operator today, and
-an automatic trigger when one exists, can act on the same surface.
+one-command path). The restart-request in the #502 block is written so that the operator, or
+`consume-restarts` once its OS schedule is registered, can act on the same surface.
 
 **Telemetry comment (#502).** Each lane **instance** maintains exactly **one** status comment on a
 tracking item, identified by a machine sentinel marker and **edited in place** every cycle, never a
@@ -1280,8 +1282,10 @@ assumption.
 Root `AGENTS.md` ("Unattended lanes") holds the rules every session loads: no bypass mode and no
 hook `ask` in a lane. This subsection holds which mode each lane runs in.
 
-- **Local lanes** launch with `--permission-mode auto`. A lane whose action the auto-mode
-  classifier denies records the denial in its lane telemetry and moves on.
+- **Local lanes** launch with `--permission-mode auto`. When the auto-mode classifier denies a
+  lane's action, the denial comes back to the session as an error tool result and the session
+  moves on; it shows in the transcript and in `claude logs <id>`. Whether it reaches lane
+  telemetry is unprobed.
 - **CI lanes** run with no prompt handler, so an unlisted tool is denied. Intake triage and the
   review lanes pass `--permission-mode dontAsk` with a fixed tool allowlist. Read-runner
   activities (`fix-ci`, `fix-docs`) run `dontAsk` with explicit allow rules and no write token;
