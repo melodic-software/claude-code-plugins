@@ -6159,7 +6159,7 @@ Internal simplification, no behavior change.
   section composed from `skill-quality` when that plugin is installed. Mutation sits behind an
   explicit apply step and never runs on bare invocation.
 
-  Detection names its two substrates rather than blurring them: the native side is the sibling
+  Detection names its two sources rather than blurring them: the native side is the sibling
   `inventory` extractor's JSON, consumed with a `schema == 1` assertion and a presence check on
   every key read (`builtin_commands`, `bundled_skills`, `plugin_backed`, `integrity`), because the
   extractor's integrity block guards extraction drift and not its own key names. A missing key is
