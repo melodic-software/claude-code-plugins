@@ -4,11 +4,11 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const stdout = vi.hoisted(() => /** @type {string[]} */ ([]));
+const stderr = vi.hoisted(() => /** @type {string[]} */ ([]));
 
 vi.mock("@melodic/video-digestion/shared/terminal", () => ({
-  writeStdout: (/** @type {unknown[]} */ ...args) => stdout.push(args.join(" ")),
-  writeStderr: () => {},
+  writeStdout: () => {},
+  writeStderr: (/** @type {unknown[]} */ ...args) => stderr.push(args.join(" ")),
 }));
 
 import { buildSheetCheckboxes, formatSheetId, initWatchChecklist } from "./init-watch-checklist.js";
@@ -230,14 +230,14 @@ describe("initWatchChecklist", () => {
       })
       .join("\n");
     fs.writeFileSync(outPath, ticked);
-    stdout.length = 0;
+    stderr.length = 0;
 
     const body = fs.readFileSync(initWatchChecklist(sliceDir, { force: true }), "utf8");
 
     expect(body).toContain("- [ ] **0.1** video-extraction deps installed");
     expect(body).not.toContain("- [x] **0.1**");
     expect(body).not.toContain("  - evidence: setup-deps exit 0");
-    expect(stdout.join("\n")).toContain("0.1");
+    expect(stderr.join("\n")).toContain("0.1");
   });
 
   it("--force drops a tick on a row whose filled-in value changed, such as the sheet count", () => {
@@ -256,12 +256,12 @@ describe("initWatchChecklist", () => {
         frameSelection: { highVolume: true },
       }),
     );
-    stdout.length = 0;
+    stderr.length = 0;
 
     const body = fs.readFileSync(initWatchChecklist(sliceDir, { force: true }), "utf8");
 
     expect(body).toContain("- [ ] **4.0**");
-    expect(stdout.join("\n")).toContain("4.0");
+    expect(stderr.join("\n")).toContain("4.0");
   });
 
   it("--force keeps a tick whose criteria are unchanged, evidence included", () => {
@@ -277,14 +277,14 @@ describe("initWatchChecklist", () => {
       )
       .join("\n");
     fs.writeFileSync(outPath, ticked);
-    stdout.length = 0;
+    stderr.length = 0;
 
     const lines = fs.readFileSync(initWatchChecklist(sliceDir, { force: true }), "utf8").split("\n");
     const row = lines.findIndex((line) => line.startsWith("- [x] **0.1**"));
 
     expect(row).toBeGreaterThan(-1);
     expect(lines[row + 1]).toBe("  - evidence: setup-deps exit 0");
-    expect(stdout.join("\n")).not.toContain("Dropped");
+    expect(stderr.join("\n")).not.toContain("Dropped");
   });
 
   it("--force keeps a legacy tick that has no stored hash and stamps one", () => {
@@ -302,7 +302,7 @@ describe("initWatchChecklist", () => {
       .join("\n");
     expect(legacy).not.toContain("<!-- criteria:");
     fs.writeFileSync(outPath, legacy);
-    stdout.length = 0;
+    stderr.length = 0;
 
     const lines = fs.readFileSync(initWatchChecklist(sliceDir, { force: true }), "utf8").split("\n");
     const row = lines.findIndex((line) => line.startsWith("- [x] **0.1**"));
@@ -310,7 +310,7 @@ describe("initWatchChecklist", () => {
     expect(row).toBeGreaterThan(-1);
     expect(lines[row]).toMatch(/ <!-- criteria:[0-9a-f]+ -->$/);
     expect(lines[row + 1]).toBe("  - evidence: setup-deps exit 0");
-    expect(stdout.join("\n")).not.toContain("Dropped");
+    expect(stderr.join("\n")).not.toContain("Dropped");
   });
 
   describe("generated ticks", () => {
@@ -458,6 +458,91 @@ describe("initWatchChecklist", () => {
       expect(row(lines, "1.1").ticked).toBe(true);
       expect(lines.filter((line) => line.includes("`run-state/watch.json` present"))).toHaveLength(1);
       expect(lines.filter((line) => line.includes("evidence (generated): n/a"))).toHaveLength(5);
+    });
+
+    /**
+     * Write the checklist back with `extra` inserted right after row `id`'s generated line.
+     *
+     * @param {string} sliceDir
+     * @param {string} id
+     * @param {string} extra
+     */
+    function addAgentEvidence(sliceDir, id, extra) {
+      const outPath = path.join(sliceDir, "run-state", "watch-checklist.md");
+      const lines = fs.readFileSync(outPath, "utf8").split("\n");
+      const index = lines.findIndex((line) => line.includes(`] **${id}**`));
+      lines.splice(index + 2, 0, extra);
+      fs.writeFileSync(outPath, lines.join("\n"));
+    }
+
+    it("--force rewrites a stale generated line and keeps the agent evidence under the row", () => {
+      const sliceDir = makeBootstrappedSlice();
+      expect(row(readLines(sliceDir), "1.3").next).toContain("2 frames, 3 contact sheets");
+      addAgentEvidence(sliceDir, "1.3", "  - evidence: frame list spot-checked by hand");
+
+      // A re-run produced four frames; watch.json and selection.json agree on the new count.
+      const watchPath = path.join(sliceDir, "run-state", "watch.json");
+      const watch = JSON.parse(fs.readFileSync(watchPath, "utf8"));
+      watch.phases.watching.metrics.frameCount = 4;
+      fs.writeFileSync(watchPath, JSON.stringify(watch));
+      const selectionPath = path.join(sliceDir, "key-frames", "selection.json");
+      const selection = JSON.parse(fs.readFileSync(selectionPath, "utf8"));
+      selection.selectedFrames = [{ file: "a" }, { file: "b" }, { file: "c" }, { file: "d" }];
+      fs.writeFileSync(selectionPath, JSON.stringify(selection));
+
+      const lines = readLines(sliceDir);
+      const index = lines.findIndex((line) => line.includes("] **1.3**"));
+
+      expect(lines[index]).toMatch(/^- \[x\]/);
+      expect(lines[index + 1]).toContain(
+        "evidence (generated): `key-frames/selection.json` matches `watch.json` watching metrics: 4 frames, 3 contact sheets, 2 densification windows",
+      );
+      expect(lines[index + 2]).toBe("  - evidence: frame list spot-checked by hand");
+      expect(lines.join("\n")).not.toContain("2 frames, 3 contact sheets");
+    });
+
+    it("--force unticks a row only generated evidence held once the generator no longer proves it", () => {
+      const sliceDir = makeBootstrappedSlice();
+      expect(row(readLines(sliceDir), "1.4").ticked).toBe(true);
+
+      fs.rmSync(path.join(sliceDir, "tmp"), { recursive: true, force: true });
+      const { ticked, next } = row(readLines(sliceDir), "1.4");
+
+      expect(ticked).toBe(false);
+      expect(next).not.toMatch(/evidence/);
+    });
+
+    it("--force keeps an agent tick when its generated line no longer holds, dropping only that line", () => {
+      const sliceDir = makeBootstrappedSlice();
+      readLines(sliceDir);
+      addAgentEvidence(sliceDir, "1.4", "  - evidence: dirs listed with ls before the temp sweep");
+
+      fs.rmSync(path.join(sliceDir, "tmp"), { recursive: true, force: true });
+      const lines = readLines(sliceDir);
+      const { ticked, next } = row(lines, "1.4");
+
+      expect(ticked).toBe(true);
+      expect(next).toBe("  - evidence: dirs listed with ls before the temp sweep");
+      expect(lines.join("\n")).not.toContain("`tempSession` exist on disk");
+    });
+
+    // The 3:28 demo video: 4 sheets, 1 window, highVolume set only because 49 candidates > 3 x 7.
+    it("ticks 1.5 when highVolume rests on candidates over three times targetMinFrames", () => {
+      const shortDemo = {
+        durationSec: 207.901,
+        contactSheets: [{ id: "1" }, { id: "2" }, { id: "3" }, { id: "4" }],
+        densificationWindows: [{ startSec: 157.4, endSec: 171.8 }],
+        targetMinFrames: 7,
+        highVolume: true,
+      };
+
+      const overSlice = makeBootstrappedSlice({ selection: { ...shortDemo, candidateCount: 49 } });
+      const over = row(readLines(overSlice), "1.5");
+      expect(over.ticked).toBe(true);
+      expect(over.next).toContain("49 candidates against targetMinFrames 7");
+
+      const atLimit = makeBootstrappedSlice({ selection: { ...shortDemo, candidateCount: 21 } });
+      expect(row(readLines(atLimit), "1.5").ticked).toBe(false);
     });
   });
 

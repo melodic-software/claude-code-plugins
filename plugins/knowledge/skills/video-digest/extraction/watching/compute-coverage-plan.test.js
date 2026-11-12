@@ -4,7 +4,6 @@ import {
   computeCoveragePlan,
   cueAnchorTimestamps,
   gapFillTimestamps,
-  MAX_FRAME_GAP_SEC,
   parseMaxFrameGapSecOverride,
   stratifiedSampleTimestamps,
 } from "./compute-coverage-plan.js";
@@ -32,11 +31,31 @@ describe("computeCoveragePlan", () => {
     expect(plan.densificationWindowCount).toBe(1);
   });
 
-  it("defaults the maximum frame gap and lets a caller override it", () => {
-    const input = { durationSec: 3600, densificationWindows: [], sceneCandidateCount: 100 };
+  // Tier rule (TUNING.md "Dynamic coverage"): up to 90s -> 5s, up to 300s -> 6s, longer -> 60s.
+  it.each([
+    [60, 5],
+    [90, 5],
+    [91, 6],
+    [207.901, 6],
+    [300, 6],
+    [301, 60],
+    [3600, 60],
+  ])("defaults the maximum frame gap of a %ss video to %ss", (durationSec, expected) => {
+    const plan = computeCoveragePlan({
+      durationSec,
+      densificationWindows: [],
+      sceneCandidateCount: 100,
+    });
 
-    expect(computeCoveragePlan(input).maxFrameGapSec).toBe(MAX_FRAME_GAP_SEC);
-    expect(computeCoveragePlan({ ...input, maxFrameGapSec: 30 }).maxFrameGapSec).toBe(30);
+    expect(plan.maxFrameGapSec).toBe(expected);
+    expect(plan.rationale).toContain(`gap fill above ${expected}s`);
+  });
+
+  it("uses an explicit maximum frame gap over the duration default", () => {
+    const input = { densificationWindows: [], sceneCandidateCount: 100, maxFrameGapSec: 30 };
+
+    expect(computeCoveragePlan({ ...input, durationSec: 60 }).maxFrameGapSec).toBe(30);
+    expect(computeCoveragePlan({ ...input, durationSec: 3600 }).maxFrameGapSec).toBe(30);
   });
 
   it("names stratified sampling in the rationale only when the pass is forced", () => {

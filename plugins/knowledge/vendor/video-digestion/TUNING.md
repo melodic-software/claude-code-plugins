@@ -47,16 +47,31 @@ Keyword signals: `DENSIFICATION_SIGNALS` (code/slide/demo/terminal patterns).
 | Medium stratified interval (sec) | `45` | `MEDIUM_STRATIFIED_INTERVAL_SEC` |
 | Long stratified interval (sec) | `60` | `LONG_STRATIFIED_INTERVAL_SEC` |
 | Scene sparse ratio | `120` | `SCENE_SPARSE_RATIO` |
-| Max gap between timed frames (sec) | `60` | `MAX_FRAME_GAP_SEC` |
+| Max gap between timed frames, short (sec) | `5` | `SHORT_MAX_FRAME_GAP_SEC` |
+| Max gap between timed frames, medium (sec) | `6` | `MEDIUM_MAX_FRAME_GAP_SEC` |
+| Max gap between timed frames, long (sec) | `60` | `LONG_MAX_FRAME_GAP_SEC` |
 
-`MAX_FRAME_GAP_SEC` defaults to the long stratified interval (judgment: each gap-fill frame costs
-vision tokens); `run-watch.js --max-frame-gap-sec <sec>` overrides it for one run, and the value
-used is recorded as `maxFrameGapSec` in `coverage-plan.json`.
+`maxFrameGapForDuration` picks the cap by the stratified tiers: up to `SHORT_VIDEO_MAX_SEC` short,
+up to `MEDIUM_DURATION_THRESHOLD_SEC` medium, longer long. `run-watch.js --max-frame-gap-sec <sec>`
+overrides it for one run, and the value used is recorded as `maxFrameGapSec` in
+`coverage-plan.json` and `watch.json`.
+
+Basis per tier (as of 2026-11-11; recheck when a digest misses visuals or a sheet count jumps):
+
+- **Short (5 s):** the short stratified interval, so a short video with scene cuts is filled as
+  densely as one without. At most 18 fill frames at 90 s.
+- **Medium (6 s):** measured on a 3:28 presenter-plus-demo video (`C33hJGt-ySg`, 2026-11-11). The
+  old 60 s default gave 27 frames on 2 sheets and missed demo screens shown in 14-29 s stretches
+  between scene cuts; `--max-frame-gap-sec 6` gave 49 frames on 4 sheets, and 10 of the 12
+  promoted frames existed only in that run. At most 50 fill frames (4 sheets) at 300 s, half of
+  `HIGH_VOLUME_CONTACT_SHEET_MIN`.
+- **Long (60 s):** unchanged (judgment: each gap-fill frame costs vision tokens); one fill frame per
+  minute keeps a 2 h video at 120 or fewer.
 
 **Tune signal:** a digest that misses visuals in a long stretch without scene cuts needs a lower
 maximum gap; a talking-head video that gains many near-identical fill frames tolerates a higher one.
 
-No hard frame cap. `summarizeFrameSelection` sets `highVolume` when count > `targetMinFrames * 3`.
+No hard frame cap. `isHighVolume` (`video-extraction/watching/frame-budget.js`) decides `highVolume`.
 
 ## Post-watch retune checklist (host)
 
