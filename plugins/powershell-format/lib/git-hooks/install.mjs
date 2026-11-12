@@ -58,7 +58,10 @@ import { fileURLToPath } from "node:url";
 
 export const EVENTS = ["pre-commit", "pre-push", "commit-msg"];
 export const MANAGERS = ["lefthook", "husky", "plain"];
-const NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
+// Entry, tool and plugin names; an earlier plugin name read from a repository
+// path or a git config key that fails it is skipped, never listed.
+const NAME_PART = "[a-z0-9][a-z0-9-]*";
+const NAME_RE = new RegExp(`^${NAME_PART}$`);
 const SCRIPT_RE = /^[A-Za-z0-9._-]+\.sh$/;
 const STAMP_RE = /^# (\S+) (\S+) sha256:([0-9a-f]{64})$/;
 const SENTINEL = "# checks-dispatcher v1";
@@ -504,7 +507,7 @@ function priorDeclines(info, plugin, entry) {
       const bool = d.file ? fileBool(info, d.file, d.key) : { true: true, false: false }[configBool(info, d.key)] ?? null;
       return { ...d, from: d.key.split(".")[1], value: bool };
     })
-    .filter((d) => d.from !== plugin.name);
+    .filter((d) => d.from !== plugin.name && NAME_RE.test(d.from));
 }
 // priorDecline -> the effective value (git's precedence per key) of the entry's
 // decline key under another plugin name: "true" when any such key reads true,
@@ -1220,7 +1223,7 @@ function leftovers(info, plugin) {
     const name = escapeRe(entry.name);
     for (const root of roots) {
       for (const d of dirNames(root)) {
-        if (!d.isDir || d.name === plugin.name || d.name.toLowerCase().endsWith(".d")) continue;
+        if (!d.isDir || d.name === plugin.name || !NAME_RE.test(d.name)) continue;
         const script = path.join(root, d.name, entry.script);
         const stamp = readStamp(readText(script) ?? "");
         if (!stamp || stamp.name !== entry.name || stamp.plugin === plugin.name) continue;
@@ -1236,12 +1239,12 @@ function leftovers(info, plugin) {
       const suffix = `.${entry.name}`;
       for (const m of dirNames(path.join(root, `${entry.event}.d`))) {
         const from = m.name.slice(0, -suffix.length);
-        if (m.isDir || !m.name.endsWith(suffix) || !from || from === plugin.name) continue;
+        if (m.isDir || !m.name.endsWith(suffix) || !NAME_RE.test(from) || from === plugin.name) continue;
         at(entry, from).markers.push(configPath(info, path.join(root, `${entry.event}.d`, m.name)));
       }
     }
     // A job counts only when the file also names a copy under that plugin name.
-    const job = new RegExp(`(?:name:[ \\t]*(["']?)([a-z0-9][a-z0-9-]*)-${name}\\1|^[ \\t]+([a-z0-9][a-z0-9-]*)-${name}:)[ \\t]*$`, "gm");
+    const job = new RegExp(`(?:name:[ \\t]*(["']?)(${NAME_PART})-${name}\\1|^[ \\t]+(${NAME_PART})-${name}:)[ \\t]*$`, "gm");
     for (const file of new Set([lefthookFile(info, "shared"), lefthookFile(info, "local")])) {
       const text = readText(path.join(info.top, file)) ?? "";
       for (const m of text.matchAll(job)) {
@@ -1261,9 +1264,9 @@ function leftovers(info, plugin) {
     // Config-hook keys set in this repository's config; those the removed
     // include file sets go with it.
     if (!CONFIG_HOOK_EVENTS.includes(entry.event)) continue;
-    for (const c of configEntries(info, `^hook\\.[a-z0-9][a-z0-9-]*-${name}\\.`)) {
+    for (const c of configEntries(info, `^hook\\.${NAME_PART}-${name}\\.`)) {
       const from = c.key.slice("hook.".length, c.key.lastIndexOf(".") - entry.name.length - 1);
-      if (from === plugin.name || (c.file && posix(c.file).startsWith(`${posix(checksRoot)}/`))) continue;
+      if (from === plugin.name || !NAME_RE.test(from) || (c.file && posix(c.file).startsWith(`${posix(checksRoot)}/`))) continue;
       const l = at(entry, from);
       if (!l.config.some((k) => k.key === c.key && k.file === c.file)) l.config.push({ key: c.key, scope: c.scope, file: c.file });
     }
