@@ -113,7 +113,7 @@ class PhraseComesOnlyFromUserConfig(unittest.TestCase):
         run = mock.Mock(return_value={})
         with (
             mock.patch.object(sys, "argv", argv),
-            mock.patch.object(request_review, "run", run),
+            mock.patch.object(request_review, "run_under_state_lock", run),
             contextlib.redirect_stderr(io.StringIO()),
             self.assertRaises(SystemExit),
         ):
