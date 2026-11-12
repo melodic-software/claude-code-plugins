@@ -145,6 +145,18 @@ export async function filterLaneHolds() {
   const all = JSON.parse(Buffer.concat(chunks).toString("utf8"));
   appendFileSync(STUB_LOG, `filter pr=${PR_NUMBER} comments=${all.length}\n`);
   if (STUB_FILTER === "fail") return 1;
+  if (STUB_FILTER === "silent") return 0;
+  if (STUB_FILTER === "garbage") {
+    process.stdout.write(`100%\rdone${"x".repeat(200)}\nsecond line\n`);
+    return 0;
+  }
+  if (STUB_FILTER === "subset") {
+    process.stdout.write(`${JSON.stringify(all.slice(1))}\n`);
+    return 0;
+  }
+  // The shared rate guard's default log is console.log (rate-guard.mjs
+  // createRateLimitLatch), so a low pool prints a workflow command first.
+  if (STUB_FILTER === "log") console.log("::warning::GitHub's core API has under its read floor left (12 of the planned 1000; header remaining 4012 of 5000); reads continue");
   const out = STUB_FILTER === "unfoot"
     ? all.map((c) => (c.user.login === "github-actions[bot]" ? { ...c, body: c.body.replace(/\s*claude-lane: [a-z-]+$/, "") } : c)) // portability-ok: a JavaScript regex in the node stub, not grep or sed
     : all;
@@ -202,6 +214,32 @@ if grep -q '^filter ' "$TMP_ROOT/log"; then
   fail "filterLaneHolds ran with no github-actions[bot] hold comment"
 else
   ok "with no github-actions[bot] hold comment filterLaneHolds is not run"
+fi
+STUB_FILTER=log STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z),$OWNER_LIFT]" \
+  expect "a workflow command the base module logs while it checks the hold comments is no part of them" 0 \
+  "kyle-sexton, a person on the trusted-actor list, lifted" "could not read the comments"
+STUB_FILTER=log STUB_EVENTS="[$BOT_LIFT]" \
+  expect "a logged workflow command does not hide an untrusted lift" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
+STUB_FILTER=log STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z),$OWNER_LIFT]" \
+  expect "the workflow command the base module logs still reaches the step's log" 0 \
+  "::warning::GitHub's core API has under its read floor left (12 of the planned 1000"
+STUB_FILTER=silent STUB_EVENTS="[$BOT_LIFT]" \
+  expect "a base module that prints no comments fails closed" 1 "::error::could not read the comments of #6419"
+STUB_FILTER=subset STUB_EVENTS="[$BOT_LIFT]" \
+  expect "a base module that prints fewer comments than it was given fails closed" 1 \
+  "::error::the base commit's clear-escalations.mjs at $BASE printed 1 of the 2 comments it was given."
+STUB_FILTER=garbage STUB_EVENTS="[$BOT_LIFT]" \
+  expect "a base module's output that is not one array is named, cut and escaped as workflow-command data" 1 \
+  "did not print the comments as one JSON array: 100%25%0Ddone$(printf 'x%.0s' {1..111})"$'\n' "$(printf 'x%.0s' {1..112})"
+STUB_FILTER=garbage STUB_EVENTS="[$BOT_LIFT]" \
+  expect "the failed parse still fails the comments read" 1 "::error::could not read the comments of #6419" "second line"
+ODD_BODY="$(comment '{"login":"someone","type":"User"}' $'::warning::not a command\n"quoted" \\ \\\\ %25 é \t tab\r\n{"key": [1]}' 2026-10-23T10:30:00Z)"
+STUB_COMMENTS="[$OLD_HOLD,$ODD_BODY][$HOLD]" STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z)][$OWNER_LIFT]" \
+  expect "two comment pages with any characters in a body read as one list" 0 "kyle-sexton, a person on the trusted-actor list, lifted"
+if grep -qxF 'filter pr=6419 comments=3' "$TMP_ROOT/log"; then
+  ok "both comment pages reach the base module's filterLaneHolds as one array"
+else
+  fail "the base module's filterLaneHolds did not get both pages: '$(cat "$TMP_ROOT/log")'"
 fi
 STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z),$OWNER_LIFT]"
 STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z),$(jq -c '.performed_via_github_app = null' <<<"$OWNER_LIFT")]"

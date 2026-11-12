@@ -3,6 +3,18 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.8.1] - 2026-11-12
+
+### Changed
+
+- `audit`: shorter description, main use first, so more of the skill listing fits its budget. Model-graded trigger rate held against the previous description.
+
+## [3.8.0] - 2026-11-12
+
+### Added
+
+- `/testing:plan` plans a fuzz target for a parser or handler whose input is untrusted and a consumer-driven contract test for a client of a service whose provider verifies it, or an endpoint another service consumes, only when the change touches such code.
+
 ## [3.7.11] - 2026-11-12
 
 ### Changed

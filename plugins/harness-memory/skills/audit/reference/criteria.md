@@ -221,20 +221,25 @@ live in [official-guidance.md](official-guidance.md), not here.
    `ls`/Glob stays FLAG.
 2. Flag standard language conventions Claude already knows
 3. Flag framework documentation that should be linked, not copied
-4. WARN per instance
+4. Flag stack and dependency summaries ("We're on Node 18", a list of the packages in use): the
+   manifests hold them. Exact build, test and lint commands stay (C9).
+5. WARN per instance
 
 **Provenance**: the KEEP branch is a **repo extension, not doc-derived**: we found no navigation
 posture in the docs' include list, so the `update` action must not
 overwrite it.
 
 **Why**: Step 1 applies, in our words, the docs' test that CLAUDE.md holds only what Claude cannot
-work out from the code, and the stop-doing row on describing architecture and file layout. Steps 2
-and 3 are our judgment: no docs section lists them.
+work out from the code, and the stop-doing row on describing architecture and file layout. Step 4 is
+our decision; compare it with what the `/doctor` trim proposes through the pointer below. Steps 2 and 3
+are our judgment: no docs section lists them.
 
 - **Pointer**: for the test and the include list, see
   [Keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short); for
   the architecture and file-layout row, see
-  [What you can stop doing](https://code.claude.com/docs/en/best-practices#what-you-can-stop-doing).
+  [What you can stop doing](https://code.claude.com/docs/en/best-practices#what-you-can-stop-doing);
+  for the `/doctor` trim, see
+  [My CLAUDE.md is too large](https://code.claude.com/docs/en/memory#my-claude-md-is-too-large).
 
 ### C6: Consistency [FAIL]
 

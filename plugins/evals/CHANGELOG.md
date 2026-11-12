@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.18.8] - 2026-11-12
+
+### Changed
+
+- `plugin-eval`: shorter description, main use first, so more of the skill listing fits its budget. Model-graded trigger rate held against the previous description.
+
 ## [0.18.7] - 2026-11-12
 
 ### Changed

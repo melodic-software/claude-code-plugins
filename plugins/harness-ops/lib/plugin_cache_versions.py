@@ -1,3 +1,5 @@
+# GENERATED from lib/plugin_cache_versions.py by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 """Which plugin cache version directories does no installPath reference?
 
 Claude Code records every installed plugin in ``plugins/installed_plugins.json``
@@ -10,8 +12,8 @@ pure and read-only: every read goes through a caller-supplied ``read`` function
 taking a path relative to the Claude directory, so each caller keeps its own
 read guard. Its callers shape the answer into their own rows.
 
-Python 3.11+, standard library only. This file is carried byte-identical by
-every plugin that uses it (scripts/cross-plugin-source-registry.txt).
+Python 3.11+, standard library only. The plugin copies are generated from
+lib/plugin_cache_versions.py (scripts/shared-copies.txt).
 """
 
 from __future__ import annotations
