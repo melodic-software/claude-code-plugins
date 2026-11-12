@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, FILE_ONLY_FIELDS, isContentWrite, poolOf, RateLimitStop } from "./rate-guard.mjs";
+import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, FILE_ONLY_FIELDS, isContentWrite, poolOf, RateLimitStop, serverErrorHold } from "./rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
@@ -38,6 +38,16 @@ test("the vectors file holds at least twelve well-formed vectors", () => {
 for (const vector of VECTORS.vectors) {
   test(`vector: ${vector.name}`, () => {
     assert.deepEqual(classify(vector.input, { now: NOW, readFloor: READ_FLOOR, limitCap: vector.limit_cap ?? null }), vector.expect);
+  });
+}
+
+test("the vectors mark both server error holds and rate limits", () => {
+  assert.deepEqual(new Set(VECTORS.vectors.filter((v) => "server_error" in v).map((v) => v.server_error)), new Set([true, false]));
+});
+
+for (const vector of VECTORS.vectors) {
+  test(`server error vector: ${vector.name}`, () => {
+    assert.equal(serverErrorHold(vector.input), vector.server_error ?? false);
   });
 }
 
@@ -272,6 +282,84 @@ test("a primary limit on core leaves graphql open; a secondary one stops every p
   await fetch("https://api.github.com/graphql", { method: "POST" });
   await assert.rejects(fetch("https://api.github.com/graphql", { method: "POST" }), RateLimitStop);
   assert.equal(gh.sent.length, 3);
+});
+
+// GitHub documents its rate limits as 403 or 429 answers (REST) and 200 or
+// 403 (GraphQL): a 5xx whose only signal is Retry-After is held for exactly
+// as long, over every pool, but titled and worded as a server error.
+test("a 5xx with retry-after alone holds every pool for retry-after, reported as a server error", async () => {
+  for (const status of [502, 503, 504]) {
+    const gh = fakeGitHub([[status, { "retry-after": "120" }, "<html>unavailable</html>"], [200]]);
+    const { latch, lines, failed } = latchFor();
+    const fetch = latch.guard(gh.fetch);
+    assert.equal((await fetch(URL_A)).status, status);
+    assert.equal(latch.until(URL_A), VECTORS.vector_now + 120, `${status}: the hold is retry-after's 120 s`);
+    assert.equal(latch.until("https://api.github.com/graphql"), VECTORS.vector_now + 120, `${status}: every pool is held`);
+    await assert.rejects(fetch(URL_B), (error) => error instanceof RateLimitStop && error.message.includes(`GitHub answered HTTP ${status} with a Retry-After`));
+    assert.deepEqual(gh.sent, [`GET ${URL_A}`]);
+    assert.deepEqual(lines, [
+      `::error title=GitHub server error::GET ${URL_A} got a GitHub server error, HTTP ${status} with a Retry-After: no call to it before 2026-10-23T09:35:20Z (retry-after); this step fails`,
+      `::error title=GitHub server error::GET ${URL_B} was not sent: GitHub answered HTTP ${status} with a Retry-After; no call to it before 2026-10-23T09:35:20Z`,
+    ]);
+    assert.doesNotMatch(lines.join("\n"), /rate limit|pool is exhausted/i);
+    assert.equal(failed(), 2);
+  }
+});
+
+test("a server error hold within the 60 s budget is waited out under its own wording", async () => {
+  const gh = fakeGitHub([[503, { "retry-after": "5" }, ""], [200]]);
+  const { latch, lines, waits } = latchFor();
+  const fetch = latch.guard(gh.fetch);
+  await fetch(URL_A);
+  assert.equal((await fetch(URL_B)).status, 200);
+  assert.deepEqual(waits, [6_000]);
+  assert.equal(lines[1], `::notice::GET ${URL_B} waits 6s for GitHub's Retry-After on HTTP 503 to pass at 2026-10-23T09:33:25Z`);
+});
+
+test("a holding latch words a server error hold as a notice under its own title", async () => {
+  const gh = fakeGitHub([[503, { "retry-after": "120" }, ""]]);
+  const { latch, lines, failed } = latchFor({ hold: true });
+  const fetch = latch.guard(gh.fetch);
+  await fetch(URL_A);
+  await assert.rejects(fetch(URL_B), RateLimitStop);
+  assert.equal(failed(), 0);
+  assert.ok(lines.every((line) => line.startsWith("::notice title=GitHub server error::")), lines.join("\n"));
+  assert.ok(lines.every((line) => line.endsWith("this step holds")), lines.join("\n"));
+});
+
+// Every real limit signal keeps today's wording when it arrives on a 5xx, as
+// on a 403 or 429 with retry-after.
+test("a limit signal beside a 5xx's retry-after, or a 403 or 429 with one, stays a rate limit", async () => {
+  const graphql = "https://api.github.com/graphql";
+  const cases = [
+    ["503 with remaining 0", URL_A, [503, { "retry-after": "5", "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" }, ""], "2026-10-23T10:33:20Z (x-ratelimit-reset)"],
+    ["503 naming a secondary limit", URL_A, [503, { "retry-after": "120" }, { message: "You have exceeded a secondary rate limit." }], "2026-10-23T09:35:20Z (retry-after)"],
+    ["503 naming a primary limit", URL_A, [503, { "retry-after": "120" }, { message: "API rate limit exceeded for installation ID 1." }], "2026-10-23T09:35:20Z (retry-after)"],
+    ["graphql 502 with RATE_LIMITED", graphql, [502, { "retry-after": "120" }, { errors: [{ type: "RATE_LIMITED", message: "API rate limit exceeded" }] }], "2026-10-23T09:35:20Z (retry-after)"],
+    ["403 with retry-after", URL_A, [403, { "retry-after": "120" }, {}], "2026-10-23T09:35:20Z (retry-after)"],
+    ["429 with retry-after", URL_A, [429, { "retry-after": "120" }, {}], "2026-10-23T09:35:20Z (retry-after)"],
+  ];
+  for (const [name, url, answer, until] of cases) {
+    const gh = fakeGitHub([answer]);
+    const { latch, lines } = latchFor();
+    const fetch = latch.guard(gh.fetch);
+    await fetch(url, { method: url === graphql ? "POST" : "GET" });
+    await assert.rejects(fetch(URL_B), (error) => error instanceof RateLimitStop && /GitHub's API rate limit holds until/.test(error.message), name);
+    assert.match(lines[0], new RegExp(`^::error::\\w+ ${url.replace(/[.]/g, "\\.")} hit GitHub's API rate limit \\(status ${answer[0]}\\): no call to it before ${until.replace(/[()]/g, "\\$&")}; this step fails$`), name);
+    assert.match(lines[1], /^::error::GET \S+ was not sent: GitHub's API rate limit holds until /, name);
+    assert.doesNotMatch(lines.join("\n"), /server error/, name);
+  }
+});
+
+test("a 5xx without retry-after holds nothing", async () => {
+  const gh = fakeGitHub([[503, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4999", "x-ratelimit-reset": "1792751600" }, ""], [200]]);
+  const { latch, lines, failed } = latchFor();
+  const fetch = latch.guard(gh.fetch);
+  assert.equal((await fetch(URL_A)).status, 503);
+  assert.equal(latch.until(URL_A), null);
+  assert.equal((await fetch(URL_B)).status, 200);
+  assert.deepEqual(lines, []);
+  assert.equal(failed(), 0);
 });
 
 test("under the read floor: one warning, no failure, calls still go, belowFloor reports it", async () => {

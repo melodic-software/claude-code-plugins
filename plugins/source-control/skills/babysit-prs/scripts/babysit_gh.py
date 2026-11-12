@@ -413,13 +413,21 @@ _READ_VERBS = frozenset({"checks", "diff", "download", "list", "status", "view"}
 class RateLimitExhausted(BaseException):
     """A GitHub rate-limit pool is exhausted: nothing is sent to it before
     `reset`. A BaseException, like `DeadlineReached`, so no `except Exception`
-    handler on the way up turns it into a verdict."""
+    handler on the way up turns it into a verdict. `server_status` is the 5xx
+    of a `server_error_hold`: the same hold, reported as a server error."""
 
-    def __init__(self, pool: str, reset: float | None, reason: str) -> None:
+    def __init__(
+        self,
+        pool: str,
+        reset: float | None,
+        reason: str,
+        server_status: int | None = None,
+    ) -> None:
         super().__init__(pool, reset, reason)
         self.pool = pool
         self.reset = reset
         self.reason = reason
+        self.server_status = server_status
 
     def error_line(self) -> str:
         try:
@@ -433,6 +441,12 @@ class RateLimitExhausted(BaseException):
         except (OverflowError, OSError, ValueError):
             # MAX_RESET is past the year 9999 datetime can show.
             reset = f"epoch second {int(self.reset)}"
+        if self.server_status is not None:
+            return (
+                "::error title=GitHub server error::"
+                f"GitHub answered HTTP {self.server_status} with a Retry-After; "
+                f"no GitHub call is sent before {reset}"
+            )
         return (
             "::error title=GitHub rate limit::"
             f"{_pool_label(self.pool)} pool is exhausted "
@@ -565,6 +579,41 @@ def _int_header(headers: Mapping[str, Any], name: str) -> int | None:
     return int(text) if _INT_HEADER.fullmatch(text) else None
 
 
+def _body_and_errors(body: Any) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """A response body as an object (its text parsed; anything else empty)
+    and its `errors` entries."""
+    if isinstance(body, str):
+        try:
+            body = json.loads(body)
+        except ValueError:
+            body = None
+    body = json_object(body)
+    return body, [json_object(error) for error in json_array(body.get("errors"))]
+
+
+def server_error_hold(
+    *, status: int | None, headers: Mapping[str, Any], body: Any
+) -> bool:
+    """Whether a response's stop has a Retry-After on a 5xx as its only
+    cause: no `x-ratelimit-remaining` of 0, no message naming a rate limit or
+    abuse detection, and no GraphQL `RATE_LIMITED` error, whatever the call.
+    GitHub documents its rate limits as 403 or 429 answers (REST) and 200 or
+    403 (GraphQL), so such a hold is held the same but reported as a server
+    error. rate-guard.mjs `serverErrorHold` is its twin; the shared vectors'
+    `server_error` pins both."""
+    if status is None or not 500 <= status <= 599:
+        return False
+    if _int_header(headers, "retry-after") is None:
+        return False
+    if _int_header(headers, "x-ratelimit-remaining") == 0:
+        return False
+    body, errors = _body_and_errors(body)
+    texts = [body.get("message"), *(error.get("message") for error in errors)]
+    if any(RATE_LIMIT_MESSAGE.search(str(t if t is not None else "")) for t in texts):
+        return False
+    return not any(error.get("type") == GRAPHQL_RATE_LIMITED for error in errors)
+
+
 def evaluate_rate_response(
     *,
     url: str,
@@ -583,13 +632,7 @@ def evaluate_rate_response(
     limit = _int_header(headers, "x-ratelimit-limit")
     reset_header = _int_header(headers, "x-ratelimit-reset")
     ra = _int_header(headers, "retry-after")
-    if isinstance(body, str):
-        try:
-            body = json.loads(body)
-        except ValueError:
-            body = None
-    body = json_object(body)
-    errors = [json_object(error) for error in json_array(body.get("errors"))]
+    body, errors = _body_and_errors(body)
     # GraphQL answers a secondary limit with a 200 or a 403 and an error
     # message, so for a GraphQL call any status counts, and so do its errors'.
     graphql = any(r.search(url) for r, p in URL_POOLS if p == "graphql")
@@ -756,7 +799,7 @@ def _refuse_if_exhausted(pool: str | None, limits_pool: str) -> None:
         if trip.reset is not None and time.time() >= trip.reset:
             del _tripped[name]
             continue
-        raise RateLimitExhausted(trip.pool, trip.reset, trip.reason)
+        raise RateLimitExhausted(trip.pool, trip.reset, trip.reason, trip.server_status)
     for name in pools:
         at = stopped_until(name)
         if at is not None:
@@ -767,8 +810,10 @@ def _refuse_if_exhausted(pool: str | None, limits_pool: str) -> None:
         raise RateLimitExhausted(ALL_POOLS, None, f"fail closed: {limits}")
 
 
-def _trip(pool: str, reset: float | None, reason: str) -> RateLimitExhausted:
-    trip = RateLimitExhausted(pool, reset, reason)
+def _trip(
+    pool: str, reset: float | None, reason: str, server_status: int | None = None
+) -> RateLimitExhausted:
+    trip = RateLimitExhausted(pool, reset, reason, server_status)
     _tripped[pool] = trip
     return trip
 
@@ -823,10 +868,12 @@ def _guard_response(
         _headroom[limits_pool] = (remaining, limit)
     if not reading["latched"]:
         return
+    server = server_error_hold(status=status, headers=headers, body=body)
     trip = _trip(
         reading["pool"],
         reading["reset"],
         f"{reading['reset_source']} reset, HTTP {status if status is not None else 'error'}",
+        status if server else None,
     )
     _record_stop(reading["pool"], reading["reset"])
     if proc.returncode != 0:

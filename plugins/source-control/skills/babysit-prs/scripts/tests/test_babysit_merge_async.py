@@ -22,7 +22,7 @@ import sys
 import tempfile
 import unittest
 from datetime import timedelta
-from typing import Any
+from typing import Any, ClassVar
 from unittest import mock
 from urllib.parse import unquote
 
@@ -1230,6 +1230,41 @@ class RateLimitedQueueRemovalsAreNotCounted(unittest.TestCase):
 
     def test_a_removal_before_the_limit_resets_is_counted(self) -> None:
         self.now = merge.parse_github_timestamp("2026-11-12T04:50:00Z")
+        self.assert_counted([REMOVED_AT, REMOVED_AT])
+
+    # A server error hold (a 5xx whose only signal was Retry-After) is held
+    # like a rate limit and is infrastructure too: a gate that failed on its
+    # lines alone is not counted once the hold has passed, and is before.
+    SERVER_ERROR_GATE: ClassVar[list[dict[str, Any]]] = [
+        _annotation("failure", "Process completed with exit code 75."),
+        _annotation(
+            "failure",
+            "GitHub answered HTTP 503 with a Retry-After; no GitHub call is sent "
+            "before 2026-11-12T04:53:44Z",
+        ),
+        _annotation(
+            "failure",
+            "GET https://api.github.com/repos/o/r/pulls/5 got a GitHub server "
+            "error, HTTP 502 with a Retry-After: no call to it before "
+            "2026-11-12T04:52:00Z (retry-after); this step fails",
+        ),
+        _annotation(
+            "failure",
+            "GET https://api.github.com/repos/o/r/issues/5 was not sent: GitHub "
+            "answered HTTP 502 with a Retry-After; no call to it before "
+            "2026-11-12T04:52:00Z",
+        ),
+    ]
+
+    def test_a_removal_the_gate_failed_on_a_passed_server_error_hold_is_not_counted(
+        self,
+    ) -> None:
+        self.annotations[2] = self.SERVER_ERROR_GATE
+        self.assertEqual(self.hold([REMOVED_AT, REMOVED_AT]), (None, None, None))
+
+    def test_a_removal_before_a_server_error_hold_passes_is_counted(self) -> None:
+        self.annotations[2] = self.SERVER_ERROR_GATE
+        self.now = merge.parse_github_timestamp("2026-11-12T04:53:00Z")
         self.assert_counted([REMOVED_AT, REMOVED_AT])
 
     def test_unreadable_evidence_counts_the_removal(self) -> None:

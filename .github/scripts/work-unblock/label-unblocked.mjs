@@ -426,10 +426,12 @@ const denial = (mode) => stamped(String.raw`##\[error\]lane-${mode}-denied: the 
 const DENIAL = { check: denial("check"), token: denial("token") };
 const STEP_FAILED = stamped(String.raw`##\[error\]Process completed with exit code [0-9]+\.$`);
 // rate-guard's (and api-budget.bash's) stop line, as the failed step's last
-// line: a call that hit a pool's rate limit or left it at or under its
-// stop-floor share, and the reset it names. Only the reset is read.
+// line: a call that hit a pool's rate limit, left it at or under its
+// stop-floor share, or got a server error with a Retry-After (rate-guard's
+// serverErrorHold, held the same way), and the reset it names. Only the reset
+// is read.
 const RATE_LIMITED = stamped(
-  String.raw`##\[error\].* (?:hit GitHub's .+ rate limit|left GitHub's .+ requests, at or under its stop-floor share \S+)(?: \(status \d+\))?: no call to it before (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) \(`,
+  String.raw`##\[error\].* (?:hit GitHub's .+ rate limit|left GitHub's .+ requests, at or under its stop-floor share \S+|got a GitHub server error, HTTP 5\d\d with a Retry-After)(?: \(status \d+\))?: no call to it before (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) \(`,
 );
 // The write runner's step after MINT_STEP that runs exactly when a token was
 // minted; a MINT_STEP success with it skipped is a mint that stopped green.

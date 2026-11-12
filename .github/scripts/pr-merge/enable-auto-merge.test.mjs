@@ -3304,6 +3304,16 @@ test("a gate reader stopped on a rate limit ends the run: no later pull request 
   assert.match(errors[0], /2100-01-01T00:00:00Z/);
 });
 
+// babysit_gh.py exits 75 on a server error hold too, titling its line
+// "GitHub server error": the stop names that line, as it names a rate limit's.
+test("a reader stopped on a server error hold names its guard's line", () => {
+  const line = "GitHub answered HTTP 503 with a Retry-After; no GitHub call is sent before 2100-01-01T00:00:00Z";
+  const held = new ReaderRateLimited("the lane-room read", `::error title=GitHub server error::${line}\nbabysit-gh-calls {"total": 1}`);
+  assert.equal(held.message, `the lane-room read stopped on a GitHub rate limit: ${line}`);
+  const limited = new ReaderRateLimited("the lane-room read", "::error title=GitHub rate limit::every pool is exhausted (x); no GitHub call is sent before 2100-01-01T00:00:00Z");
+  assert.equal(limited.message, "the lane-room read stopped on a GitHub rate limit: every pool is exhausted (x); no GitHub call is sent before 2100-01-01T00:00:00Z");
+});
+
 // A lane-room reader stopped on a rate limit: its child wrote `pool` to the
 // job's stop file before exiting 75.
 async function roomStoppedOn(pool, pulls) {

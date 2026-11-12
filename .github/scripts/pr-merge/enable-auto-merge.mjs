@@ -1146,14 +1146,16 @@ export function liftedByPerson(timeline, label, since) {
 // latch read before the child wrote it and takes in again (reload) on this exit.
 export const READER_RATE_LIMIT_EXIT = 75;
 const GUARD_ERROR = "::error title=GitHub rate limit::";
+// The guard's line for a server error hold, which exits 75 the same way.
+const GUARD_LINE = /^::error title=GitHub (?:rate limit|server error)::/;
 
 // A reader stopped on a rate limit; `line` is its guard's ::error.
 export class ReaderRateLimited extends Error {
   constructor(what, stderr) {
     const line = String(stderr ?? "")
       .split("\n")
-      .find((text) => text.startsWith(GUARD_ERROR));
-    super(`${what} stopped on a GitHub rate limit: ${line ? line.slice(GUARD_ERROR.length) : `it exited ${READER_RATE_LIMIT_EXIT}`}`);
+      .find((text) => GUARD_LINE.test(text));
+    super(`${what} stopped on a GitHub rate limit: ${line ? line.replace(GUARD_LINE, "") : `it exited ${READER_RATE_LIMIT_EXIT}`}`);
     this.name = "ReaderRateLimited";
   }
 }

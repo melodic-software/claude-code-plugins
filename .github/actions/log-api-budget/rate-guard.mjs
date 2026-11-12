@@ -409,17 +409,39 @@ export function planOf({ limit, remaining }, limitCap = null) {
 // stopFloor of the header's limit whose header reset is still ahead.
 // headers is a Headers or a plain object of lower-case names; body is the
 // parsed body, or its text.
+const parseBody = (body) => {
+  if (typeof body !== "string") {
+    return body;
+  }
+  try {
+    return JSON.parse(body);
+  } catch {
+    return null;
+  }
+};
+
+// Whether a response's stop has a Retry-After on a 5xx as its only cause: no
+// x-ratelimit-remaining of 0, no message naming a rate limit or abuse
+// detection, and no RATE_LIMITED error, whatever the call. GitHub documents
+// its rate limits as 403 or 429 answers (REST) and 200 or 403 (GraphQL), so
+// such a stop holds as long as classify says but is reported as a server
+// error. babysit_gh.py server_error_hold is its twin; rate-guard.vectors.json's
+// server_error pins both.
+export function serverErrorHold({ status, headers, body }) {
+  const get = headerReader(headers);
+  if (!(status >= 500 && status <= 599) || intHeader(get, "retry-after") === null || intHeader(get, "x-ratelimit-remaining") === 0) {
+    return false;
+  }
+  const parsed = parseBody(body);
+  const errors = Array.isArray(parsed?.errors) ? parsed.errors : [];
+  const texts = [parsed?.message, ...errors.map((error) => error?.message)].map((text) => String(text ?? ""));
+  return !texts.some((text) => SIGNALS.message.test(text)) && !errors.some((error) => error?.type === SIGNALS.graphqlErrorType);
+}
+
 export function classify({ url, status, headers, body }, { now = Date.now(), readFloor = null, limitCap = null, stopFloor = null } = {}) {
   const get = headerReader(headers);
   const graphqlPool = poolOf(url) === "graphql";
-  let parsed = body;
-  if (typeof body === "string") {
-    try {
-      parsed = JSON.parse(body);
-    } catch {
-      parsed = null;
-    }
-  }
+  const parsed = parseBody(body);
   const remaining = intHeader(get, "x-ratelimit-remaining");
   const limit = intHeader(get, "x-ratelimit-limit");
   const reset = intHeader(get, "x-ratelimit-reset");
@@ -464,9 +486,15 @@ export function classify({ url, status, headers, body }, { now = Date.now(), rea
 export const resetLabel = (seconds) => new Date(seconds * 1000).toISOString().replace(".000Z", "Z");
 const poolLabel = (pool) => (pool === "*" ? "API" : `${pool} API`);
 
+// serverStatus: the 5xx of a serverErrorHold, the same stop worded as a
+// server error.
 export class RateLimitStop extends Error {
-  constructor(what, pool, reset) {
-    super(`${what} was not sent: GitHub's ${poolLabel(pool)} rate limit holds until ${resetLabel(reset)}`);
+  constructor(what, pool, reset, serverStatus = null) {
+    super(
+      serverStatus === null
+        ? `${what} was not sent: GitHub's ${poolLabel(pool)} rate limit holds until ${resetLabel(reset)}`
+        : `${what} was not sent: GitHub answered HTTP ${serverStatus} with a Retry-After; no call to it before ${resetLabel(reset)}`,
+    );
     this.name = "RateLimitStop";
     this.status = 429;
     // budgetedFetch's mark: a caller that defers its work on a rate limit
@@ -553,6 +581,10 @@ export function createRateLimitLatch({
   hold = process.env.API_BUDGET_HOLD === "1",
 } = {}) {
   const stops = readStops(stopFile, log);
+  // pool -> { reset, status } of a stop this latch set on a serverErrorHold.
+  // The stop file carries no cause, so a stop read from it is worded as a
+  // rate limit.
+  const serverHolds = new Map();
   const low = new Map();
   const warned = new Set();
   // The resets waited out, summed; the extra second only lands the call after one.
@@ -578,6 +610,16 @@ export function createRateLimitLatch({
     return at * 1000 > now() ? at : null;
   }
 
+  // The pool whose stop holds url until `at`: its own, else "*".
+  const heldBy = (url, at) => (stops.get(poolOf(url)) === at ? poolOf(url) : "*");
+
+  // The 5xx when url's stop is a server error hold this latch set, else null.
+  function serverStatus(url) {
+    const at = until(url);
+    const hold = at === null ? undefined : serverHolds.get(heldBy(url, at));
+    return hold?.reset === at ? hold.status : null;
+  }
+
   const resetMs = (url) => {
     const at = until(url);
     return at === null ? null : Math.max(0, at * 1000 - now());
@@ -594,7 +636,9 @@ export function createRateLimitLatch({
       return;
     }
     const reset = resetMs(url);
-    log(`::notice::${method} ${url} waits ${Math.ceil(reset / 1000) + 1}s for GitHub's rate limit to reset at ${resetLabel(until(url))}`);
+    const status = serverStatus(url);
+    const reason = status === null ? "GitHub's rate limit to reset" : `GitHub's Retry-After on HTTP ${status} to pass`;
+    log(`::notice::${method} ${url} waits ${Math.ceil(reset / 1000) + 1}s for ${reason} at ${resetLabel(until(url))}`);
     waited += reset;
     await wait(reset + 1000);
   }
@@ -604,11 +648,13 @@ export function createRateLimitLatch({
     if (at === null) {
       return;
     }
-    const stop = new RateLimitStop(`${method} ${url}`, stops.get(poolOf(url)) === at ? poolOf(url) : "*", at);
+    const status = serverStatus(url);
+    const stop = new RateLimitStop(`${method} ${url}`, heldBy(url, at), at, status);
+    const title = status === null ? "" : " title=GitHub server error";
     if (hold) {
-      log(`::notice::${stop.message}; this step holds`);
+      log(`::notice${title}::${stop.message}; this step holds`);
     } else {
-      log(`::error::${stop.message}`);
+      log(`::error${title}::${stop.message}`);
       fail();
     }
     throw stop;
@@ -619,7 +665,7 @@ export function createRateLimitLatch({
   // refusal fails nothing.
   async function observe(url, response, method = "GET", token = undefined, resend = false) {
     const pool = poolOf(url);
-    const needsBody = SIGNALS.statuses.includes(response.status) || pool === "graphql";
+    const needsBody = SIGNALS.statuses.includes(response.status) || pool === "graphql" || response.status >= 500;
     const body = needsBody ? await response.clone().text().catch(() => "") : null;
     const limitCap = margin(pool, "limit-cap", token);
     const stopFloor = margin(pool, "stop-floor", token);
@@ -645,14 +691,20 @@ export function createRateLimitLatch({
       const then = resent ? "it is sent again after the reset" : `this step ${holds ? "holds" : "fails"}`;
       const get = headerReader(response.headers);
       const [limit, remaining] = ["limit", "remaining"].map((name) => Number(get(`x-ratelimit-${name}`)));
-      const what =
-        !refused && stopFloor !== null && remaining > 0 && remaining <= stopFloor * limit
-          ? `left GitHub's ${poolLabel(verdict.pool)} ${remaining} of ${limit} requests, at or under its stop-floor share ${stopFloor}`
-          : `hit GitHub's ${poolLabel(verdict.pool)} rate limit`;
-      log(
-        `${holds ? "::notice::" : "::error::"}${method} ${url} ${what} (status ${response.status}):` +
-          ` no call to it before ${resetLabel(verdict.reset)} (${verdict.reset_source}); ${then}${unrecorded}`,
-      );
+      const floored = !refused && stopFloor !== null && remaining > 0 && remaining <= stopFloor * limit;
+      const server = !floored && serverErrorHold({ status: response.status, headers: response.headers, body });
+      if (server) {
+        serverHolds.set(verdict.pool, { reset: verdict.reset, status: response.status });
+      } else {
+        serverHolds.delete(verdict.pool);
+      }
+      const what = floored
+        ? `left GitHub's ${poolLabel(verdict.pool)} ${remaining} of ${limit} requests, at or under its stop-floor share ${stopFloor} (status ${response.status})`
+        : server
+          ? `got a GitHub server error, HTTP ${response.status} with a Retry-After`
+          : `hit GitHub's ${poolLabel(verdict.pool)} rate limit (status ${response.status})`;
+      const level = `${holds ? "::notice" : "::error"}${server ? " title=GitHub server error" : ""}::`;
+      log(`${level}${method} ${url} ${what}: no call to it before ${resetLabel(verdict.reset)} (${verdict.reset_source}); ${then}${unrecorded}`);
       if (!holds) {
         fail();
       }

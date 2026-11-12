@@ -14,10 +14,12 @@ import io
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 import unittest
 from typing import Any
 from unittest import mock
@@ -73,6 +75,28 @@ class SharedVectors(unittest.TestCase):
                     limit_cap=vector.get("limit_cap"),
                 )
                 self.assertEqual(got, vector["expect"])
+
+
+class SharedServerErrorVectors(unittest.TestCase):
+    def test_each_vector_says_whether_its_hold_is_a_server_error(self) -> None:
+        table = json.loads(VECTORS.read_text(encoding="utf-8"))
+        marked = [v for v in table["vectors"] if "server_error" in v]
+        self.assertEqual(
+            {v["server_error"] for v in marked},
+            {True, False},
+            "the vectors mark both server error holds and rate limits",
+        )
+        for vector in table["vectors"]:
+            with self.subTest(vector["name"]):
+                given = vector["input"]
+                self.assertEqual(
+                    gh.server_error_hold(
+                        status=given["status"],
+                        headers=given["headers"],
+                        body=given["body"],
+                    ),
+                    vector.get("server_error", False),
+                )
 
 
 class GuardCase(unittest.TestCase):
@@ -193,6 +217,116 @@ class TheLatchTripsOnEachSignal(GuardCase):
             gh.gh_capture(["api", "search/issues?q=y"])
         gh.gh_capture(["api", "repos/o/r/pulls/1"])
         self.assertEqual(len(self.sent), 2)
+
+
+SERVER_ERROR_LINE = re.compile(
+    r"::error title=GitHub server error::GitHub answered HTTP (\d{3}) with a "
+    r"Retry-After; no GitHub call is sent before "
+    r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ"
+)
+RATE_LIMIT_LINE = re.compile(
+    r"::error title=GitHub rate limit::every pool is exhausted "
+    r"\(retry-after reset, HTTP \d{3}\); no GitHub call is sent before "
+    r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ"
+)
+
+
+class AServerErrorWithRetryAfterIsHeldButNotARateLimit(GuardCase):
+    """GitHub documents its rate limits as 403 or 429 answers (REST) and 200
+    or 403 (GraphQL); a 5xx whose only signal is Retry-After is held for that
+    long all the same, under a server-error title."""
+
+    def trip(self, args: list[str]) -> gh.RateLimitExhausted:
+        with self.assertRaises(gh.RateLimitExhausted) as raised:
+            gh.gh_capture(args)
+        return raised.exception
+
+    def test_a_5xx_with_retry_after_alone_holds_every_pool_as_a_server_error(
+        self,
+    ) -> None:
+        for status in (502, 503, 504):
+            with self.subTest(status=status):
+                gh.reset_rate_guard()
+                self.sent.clear()
+                self.stop_file.unlink(missing_ok=True)
+                self.answer(
+                    1,
+                    head(status, **core(4000, Retry_After="120")) + "",
+                    f"gh: Service Unavailable (HTTP {status})",
+                )
+                before = time.time()
+                first = self.trip(["api", "repos/o/r/pulls/1"])
+                line = first.error_line()
+                self.assertRegex(line, SERVER_ERROR_LINE)
+                self.assertIn(f"HTTP {status} with a Retry-After", line)
+                self.assertNotIn("rate limit", line.lower())
+                self.assertNotIn("pool is exhausted", line)
+                # The hold is Retry-After's 120 s, over every pool, as before.
+                self.assertEqual(first.pool, gh.ALL_POOLS)
+                self.assertGreaterEqual(first.reset, int(before) + 120)
+                self.assertLessEqual(first.reset, time.time() + 120)
+                self.assertEqual(
+                    self.stop_file.read_text(encoding="utf-8"),
+                    f"* {int(first.reset)}\n",
+                )
+                again = self.trip(["api", "graphql", "-f", "query=query{n}"])
+                self.assertEqual(len(self.sent), 1, "a call was sent during the hold")
+                self.assertEqual(again.error_line(), line)
+
+    def assert_rate_limit(self, args: list[str], code: int, stdout: str) -> None:
+        self.answer(code, stdout, "gh: failed")
+        line = self.trip(args).error_line()
+        self.assertTrue(line.startswith("::error title=GitHub rate limit::"), line)
+        self.assertNotIn("server error", line)
+        self.assertRegex(line, r"pool is exhausted \([a-z-]+ reset, HTTP 50[23]\)")
+
+    def test_a_503_with_retry_after_and_remaining_0_stays_a_rate_limit(self) -> None:
+        self.assert_rate_limit(
+            ["api", "repos/o/r/pulls/1"], 1, head(503, **core(0, Retry_After="5"))
+        )
+
+    def test_a_503_whose_message_names_a_rate_limit_stays_a_rate_limit(self) -> None:
+        for message in (
+            "You have exceeded a secondary rate limit.",
+            "API rate limit exceeded for installation ID 1.",
+        ):
+            with self.subTest(message=message):
+                gh.reset_rate_guard()
+                self.stop_file.unlink(missing_ok=True)
+                self.assert_rate_limit(
+                    ["api", "repos/o/r/pulls/1"],
+                    1,
+                    head(503, **core(4000, Retry_After="60"))
+                    + json.dumps({"message": message}),
+                )
+
+    def test_a_graphql_502_with_rate_limited_errors_stays_a_rate_limit(self) -> None:
+        self.assert_rate_limit(
+            ["api", "graphql", "-f", "query=query{n}"],
+            1,
+            head(502, Retry_After="60")
+            + '{"errors":[{"type":"RATE_LIMITED","message":"API rate limit exceeded"}]}',
+        )
+
+    def test_a_403_or_429_with_retry_after_stays_a_rate_limit(self) -> None:
+        for status in (403, 429):
+            with self.subTest(status=status):
+                gh.reset_rate_guard()
+                self.stop_file.unlink(missing_ok=True)
+                self.answer(1, head(status, Retry_After="60") + "{}", "gh: failed")
+                line = self.trip(["api", "repos/o/r/pulls/1"]).error_line()
+                self.assertRegex(line, RATE_LIMIT_LINE)
+                self.assertIn(f"HTTP {status})", line)
+
+    def test_a_5xx_without_retry_after_holds_nothing(self) -> None:
+        self.answer(
+            1, head(503, **core(4000)) + "", "gh: Service Unavailable (HTTP 503)"
+        )
+        self.answer(0, head(200, **core(3999)) + "{}")
+        self.assertEqual(gh.gh_capture(["api", "repos/o/r/pulls/1"]).returncode, 1)
+        self.assertEqual(gh.gh_capture(["api", "repos/o/r/pulls/1"]).returncode, 0)
+        self.assertEqual(len(self.sent), 2)
+        self.assertFalse(self.stop_file.exists())
 
 
 class PaginatedReads(GuardCase):
