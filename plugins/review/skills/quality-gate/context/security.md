@@ -40,8 +40,6 @@ what a scan does at
 [claude-security: scan and fix your codebase](https://code.claude.com/docs/en/claude-security#scan-and-fix-your-codebase),
 and its output at
 [claude-security: read the scan results](https://code.claude.com/docs/en/claude-security#read-the-scan-results).
-As of: 2026-10-11. Recheck trigger: the page renames the command or the plugin's install id, or
-moves any of these sections.
 
 ## After the review
 
