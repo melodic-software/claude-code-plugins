@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "spelling_end_of_turn: INFO, unexpanded here, and unexpanded or empty means false, so findings wait for the commit."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "spelling_end_of_turn is false.",
+      "why": "near miss: no meaning for empty, no timing"
+    },
+    {
+      "answer": "An empty spelling_end_of_turn means true, so findings arrive at turn end.",
+      "why": "wrong default"
+    }
+  ]
+}

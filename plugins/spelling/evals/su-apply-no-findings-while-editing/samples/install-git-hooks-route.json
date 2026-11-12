@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Run `/spelling:setup apply install-git-hooks scope=local`."
+    },
+    {
+      "answer": "The fix is apply install-git-hooks.",
+      "why": "sentence-final period"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run the installer's plan step.",
+      "why": "near miss: no route"
+    },
+    {
+      "answer": "apply install-git-hooks-local",
+      "why": "a different name"
+    }
+  ]
+}

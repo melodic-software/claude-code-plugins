@@ -39,7 +39,7 @@ plugins/performance/scripts/ab.test.sh
 plugins/desktop-notification/hooks/desktop-notification.test.sh
 plugins/markdown-format/hooks/markdown-format.test.sh
 plugins/source-control/hooks/pr-body-linkage-gate.test.sh
-plugins/typos-format/hooks/typos-format.test.sh
+plugins/spelling/hooks/spelling.test.sh
 
 # The listing-budget reporter times its own whole-marketplace pass.
 plugins/skill-quality/scripts/check-listing-budget.test.sh

@@ -120,4 +120,4 @@ it overlapped other load on the host and is not a baseline). `audit-fleet.test.s
 | `plugins/skill-quality/scripts/check-listing-budget.test.sh` | 1 | 28 |
 | `plugins/source-control/hooks/pr-body-linkage-gate.test.sh` | 13 | 60 |
 | `plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh` | 128 | 1069 |
-| `plugins/typos-format/hooks/typos-format.test.sh` | 2 | 11 |
+| `plugins/spelling/hooks/spelling.test.sh` | 2 | 11 |

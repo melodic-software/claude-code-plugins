@@ -51,9 +51,9 @@ Moved to [this section](../../contracts/check-placement/README.md#drift-the-cont
 
 Moved to [this section](../../contracts/check-placement/README.md#tests).
 
-## typos-format pilot (2026-10-15)
+## spelling pilot (2026-10-15)
 
-Moved to [this section](../../contracts/check-placement/README.md#typos-format-pilot-2026-10-15).
+Moved to [this section](../../contracts/check-placement/README.md#spelling-pilot-2026-10-15).
 
 ## Duration budgets
 

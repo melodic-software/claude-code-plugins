@@ -87,7 +87,7 @@ wall time: process spawn is most expensive there, and the fleet's reference meas
 `python3 -c pass` ≈ 160 ms. The per-Bash-call always-on set (six guardrails classifiers + the
 disk-hygiene engine gate) measures ≈ 5.9 s parallel wall and the per-Write set (two formatters +
 three guardrails verifiers) ≈ 1.9 s. #1809's single-writer change removes per-Write work only in
-repos without a markdownlint config; in an opted-in repo the per-Write set is unchanged (typos-format
+repos without a markdownlint config; in an opted-in repo the per-Write set is unchanged (spelling
 then scanned each edit; it now reports at commit time), so these figures remain the reference accounting until
 re-measured.
 
@@ -125,7 +125,7 @@ per Bash call and three per Write or Edit, both at measurement time), followed b
 The "after" spawn-equivalents read higher than "before" on the Write and Edit rows because the
 before run's samples lived outside the repository, so every Write and verifier guard early-exited
 and measured a no-op; the harness now writes its samples under the measured cwd. Per-plugin
-READMEs carry the paired before-and-after figures for each change (guardrails, typos-format,
+READMEs carry the paired before-and-after figures for each change (guardrails, spelling,
 eol-normalizer, markdown-format). context-guard's and rate-limit-guard's figures retired with the
 shell hooks and status-line tee they measured; their mods' budget is under
 [Mods](#mods-a-third-enforcement-form). The run's transcript, the
@@ -202,7 +202,7 @@ guardrails `SessionStart` row is shell form in both arms, so it is the control.
 | --- | --- | ---: | ---: | ---: |
 | eol-normalizer (S 21) | PostToolUse `Write` | 292 | 257 | 35 (1.7) |
 | | PostToolUse `Edit` | 307 | 251 | 56 (2.7) |
-| typos-format (S 21.5) | PostToolUse `Write` | 371 | 326 | 45 (2.1) |
+| spelling (S 21.5) | PostToolUse `Write` | 371 | 326 | 45 (2.1) |
 | | PostToolUse `Edit` | 378 | 313 | 65 (3.0) |
 | | SessionStart `startup` | 182 | 127 | 55 (2.6) |
 | | SessionStart `compact` | 181 | 124 | 57 (2.7) |
@@ -367,7 +367,7 @@ is the fewest such a row can cost, so it has no overage for Rule 2 to hold again
 shapes cover the Stop rows this applies to:
 
 - the default-off end-of-turn checks of actionlint, bash-format, biome-format, go-format,
-  powershell-format, ruff-format and typos-format (`--require-true <PLUGIN>_END_OF_TURN`,
+  powershell-format, ruff-format and spelling (`--require-true <PLUGIN>_END_OF_TURN`,
   manifest default false), and markdown-format's once its option is `false`
   (`--run-if-unset-or-true MARKDOWN_FORMAT_END_OF_TURN`; unset, its default, runs the check);
 - autonomy's lane-stop gate (`--run-if-any-set` or `--run-if-settings-mention`, one any-of gate).

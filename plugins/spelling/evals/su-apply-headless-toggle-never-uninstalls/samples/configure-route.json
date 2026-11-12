@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "Run `claude plugin configure spelling@melodic-software --values-stdin < values.json`."
+    },
+    {
+      "answer": "claude plugin configure --values-stdin spelling@melodic-software < values.json",
+      "why": "flag first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "claude plugin install spelling@melodic-software --config spelling_enabled=false",
+      "why": "an install rerun, not the configure flow"
+    },
+    {
+      "answer": "claude plugin configure spelling --values-stdin",
+      "why": "near miss: no marketplace"
+    },
+    {
+      "answer": "Run `/plugin configure spelling@<marketplace>` and set the toggle.",
+      "why": "the interactive route the prompt rules out"
+    }
+  ]
+}

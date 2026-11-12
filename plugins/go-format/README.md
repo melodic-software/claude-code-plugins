@@ -21,7 +21,7 @@ the pre-commit entry reports it.
     **As of**: 2026-10-15. **Recheck trigger**: that section adds a matcher or an `if` for the
     event, or changes the `tool_calls` fields.
 - **No consumer-config opt-in gate.** Unlike sibling formatter plugins (`ruff-format`,
-  `typos-format`), this plugin needs no repository configuration to run on a `.go` file.
+  `spelling`), this plugin needs no repository configuration to run on a `.go` file.
   `goimports`' own docs describe it as "a replacement for your editor's gofmt-on-save hook" and it
   has no meaningful config-divergence axis when left unconfigured. Running it does not impose a
   style choice a repo hasn't made, the same reasoning that makes `gofmt` itself safe to run

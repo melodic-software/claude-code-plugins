@@ -63,7 +63,7 @@ scanner; remaining real cite relocated.
 | `/toolchain:check` `context/go.md` | clean |
 | `/toolchain:check` `context/python.md` | clean |
 | `/toolchain:check` `context/typescript.md` | clean |
-| `plugins/typos-format/README.md` | clean |
+| `plugins/spelling/README.md` | clean |
 
 ## Route: extract-ssot (136)
 

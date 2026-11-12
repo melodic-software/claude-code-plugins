@@ -392,7 +392,7 @@ from the two together (see
   none. The trade is context: every enabled plugin adds per-turn cost, so a *consumer* repo
   should opt out of what it does not need rather than copying anything wholesale. The cloud
   bootstrap provisions every tool the format/lint-on-edit hooks (`markdown-format`,
-  `bash-format`, `biome-format`, `typos-format`, `actionlint`, `eol-normalizer`) shell out to.
+  `bash-format`, `biome-format`, `spelling`, `actionlint`, `eol-normalizer`) shell out to.
 - The `plugin-catalog-enablement-gate` CI lane holds the `enabledPlugins` block to the catalog:
   every key for this marketplace must name a catalogued plugin, since a key that names nothing silently
   no-ops, and keys stay in byte order. It also checks that `cloud-bootstrap.sh`'s hardcoded

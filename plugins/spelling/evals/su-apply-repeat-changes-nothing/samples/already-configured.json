@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "Check found no FAIL. Already configured: nothing changed."
+    },
+    {
+      "answer": "**Already configured.**",
+      "why": "bold, capitalized"
+    },
+    {
+      "answer": "This repo is already configured.",
+      "why": "sentence-final period"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Everything passes; nothing to do.",
+      "why": "near miss: not the reported phrase"
+    },
+    {
+      "answer": "spelling is not configured yet.",
+      "why": "not configured"
+    }
+  ]
+}
