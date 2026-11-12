@@ -13,6 +13,14 @@
     {
       "answer": "No, it only sees open issues.",
       "why": "wrong"
+    },
+    {
+      "answer": "No, it won't find the closed one.",
+      "why": "negated find"
+    },
+    {
+      "answer": "It lists only open issues, so the closed one is missed.",
+      "why": "only open"
     }
   ]
 }

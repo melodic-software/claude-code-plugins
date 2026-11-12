@@ -3,8 +3,8 @@ name: cl-drift-dedupe-sees-closed
 graders:
   - name: dedupe-includes-closed
     type: regex
-    pattern: '--state all\b|\b(?:(?:includes?|including|included)|covers?|sees?|finds?|searches|lists?)\b[^.\n]{0,40}\bclosed\b|\bclosed\b[^.\n]{0,40}\b(?:too|as well|included)\b|\ball states\b'
-    flags: 'i'
+    pattern: '(?:^|[.!?][ \t]+)(?![^.!?\n]*(?:\b(?:not|no|never|cannot|misses|missed)\b|n[’'']t\b|\bonly (?:open|lists? open|sees? open)))[^.!?\n]*(?:--state all\b|\b(?:includes?|including|included|covers?|sees?|finds?|searches|lists?)\b[^.!?\n]{0,40}\bclosed\b|\bclosed\b[^.!?\n]{0,40}\b(?:too|as well|included)\b|\ball states\b)'
+    flags: 'im'
     target: last_message
   - name: raises-limit
     type: regex

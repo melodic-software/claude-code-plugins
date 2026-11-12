@@ -6,7 +6,7 @@ bump: patch
 
 - `observability` no longer describes `cli-flag-verify` as a PostToolUse hook: guardrails runs it at push time in the `reference-verify` git hook, so the report marks hallucination-guard catches as not collected rather than reading an empty count as clean.
 - `plugins` no longer says `claude plugin list` shows the highest version across scopes: on 2.1.322 it prints one row per install record with its own scope and version, and still never says which row loads here.
-- `plugins` reads `Run /reload-plugins to apply.` as a reload the `/plugin` panel already ran on close (2.1.268), so the reload two-step asks for a bare reload only when the plugin is still pending.
+- `plugins` no longer tells a user to run `/reload-plugins` after every `Run /reload-plugins to apply.` summary: since 2.1.268 the `/plugin` panel can apply changes itself, so the two-step checks what the panel did (at the install pointer) and asks for a bare reload only when the plugin is still not active.
 
 ### Changed
 

@@ -374,12 +374,10 @@ As of: 2026-11-04. Recheck trigger: that section stops saying monitors require a
 
 **An install can now activate itself, but not the installs this skill issues.** An install started
 from the in-session `/plugin` interface reports its activation state, and this skill reads two
-lines of that summary: `Plugin is now active.` means the plugin is live with no reload, and after
-`Run /reload-plugins to apply.` the interface runs that reload itself when the panel closes. It
-leaves the plugin pending only when the reload would invalidate the prompt cache. What the
-interface does after each line is read at the pointer below. `/plugin` installs activate when safe
-since [2.1.221](https://code.claude.com/docs/en/changelog#2-1-221), and closing the menu applies
-installs, enables and disables with no `/reload-plugins` afterwards since
+lines of that summary: `Plugin is now active.` and `Run /reload-plugins to apply.`. What the
+interface does after each line, including whether it reloads on its own or leaves the plugin
+pending, is read at the pointer below; the releases that changed it are
+[2.1.221](https://code.claude.com/docs/en/changelog#2-1-221) and
 [2.1.268](https://code.claude.com/docs/en/changelog#2-1-268).
 
 This does **not** relax the reload guidance below, because `sync` installs through the shell
@@ -401,9 +399,8 @@ changes raise that warning is read at the pointer below, not predicted here.
 
 So follow this two-step rather than predicting the cause:
 
-1. Check the install summary: `Plugin is now active.` needs nothing. After `Run /reload-plugins to
-   apply.` the panel already ran the reload on close; only if the plugin is still not active, run
-   bare `/reload-plugins`.
+1. Check the install summary and, at the pointer above, what the panel already did after it; only
+   if the plugin is still not active, run bare `/reload-plugins`.
 2. If that warns that the reload will re-read the conversation, rerun it as
    `/reload-plugins --force`.
 

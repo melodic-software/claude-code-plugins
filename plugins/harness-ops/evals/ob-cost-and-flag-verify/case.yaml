@@ -8,8 +8,8 @@ graders:
     target: last_message
   - name: no-posttooluse-claim
     type: regex
-    pattern: '(?<!not a )(?<!longer a )(?<!n''t a )(?<!not )(?<!longer )\bPostToolUse\b[^\n]{0,200}\bcli-flag-verify\b|\bcli-flag-verify\b(?![^\n]{0,80}\b(?:no longer|not|never|isn)\b)[^\n]{0,200}\bPostToolUse\b'
-    flags: 'i'
+    pattern: '(?:^|[.!?][ \t]+)(?![^.!?\n]*\b(?:not|no longer|never|rather than|instead of|isn[’'']t|doesn[’'']t|wasn[’'']t)\b)[^.!?\n]*(?:\bcli-flag-verify\b[^.!?\n]*\bPostToolUse\b|\bPostToolUse\b[^.!?\n]*\bcli-flag-verify\b)'
+    flags: 'im'
     match: not_contains
     target: last_message
   - name: names-push-time
