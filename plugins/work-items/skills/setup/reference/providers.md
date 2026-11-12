@@ -59,8 +59,7 @@ live-instance facts are CONTRACT.md's "jira adapter".
 `isLast` is true; each value carries `id`, `name`, `description`, and `default` (true on the
 instance's default resolution). The older `GET /rest/api/3/resolution` is deprecated
 ([Issue resolutions API](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-resolutions/)
-and its OpenAPI spec, as of 2026-10-10; recheck when that page changes the search endpoint
-or its fields). Call it
+and its OpenAPI spec). Call it
 with the same Basic auth the adapter uses (`auth_email` plus the token from `auth_env`), and
 write ids, never names, into `config.jira.resolutions`: admins can rename a resolution, and an id
 survives that.

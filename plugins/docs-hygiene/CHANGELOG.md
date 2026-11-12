@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [2.10.7] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
 ## [2.10.6] - 2026-11-11
 
 ### Changed

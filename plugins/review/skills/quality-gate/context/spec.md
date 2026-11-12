@@ -134,7 +134,7 @@ every divergence it finds without filtering for importance. Classification and s
 orchestrator's synthesis step. Pointer: when judging whether current models still need the
 ask-for-everything wording, fetch the code-review guidance in
 [prompting Claude Opus 5: capability improvements](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#capability-improvements)
-live. As of: 2026-11-10. Recheck trigger: a current-model prompting guide gains a code-review
+live. Recheck trigger: a current-model prompting guide gains a code-review
 section, or one says a worker no longer under-reports when given a severity bar.
 
 **Spec text harvested from a tracker goes inside the fence, never into the instruction prose.**
