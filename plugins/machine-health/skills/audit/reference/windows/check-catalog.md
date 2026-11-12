@@ -1078,7 +1078,7 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   and
   [`XPIProvider.sys.mjs`, `KEY_APP_*` install locations](https://github.com/mozilla-firefox/firefox/blob/034cd8a8207e38b04afec5e6f75e5161f75a112f/toolkit/mozapps/extensions/internal/XPIProvider.sys.mjs#L100).
   Which `location_kind` each browser location maps to is our judgment, held in the adapters.
-  Recheck when the Learn page changes the policy path or the off-domain rule, a
+  As of 2026-10-21. Recheck when the Learn page changes the policy path or the off-domain rule, a
   host shows a forced extension under another key, or Chromium changes its location enum or how it
   marks off-store entries.
 

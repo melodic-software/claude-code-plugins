@@ -219,7 +219,7 @@ hand-written; the shared medium resolver decides the destination, with this plug
   [LikeC4 specification § Element kind](https://likec4.dev/dsl/specification/#element-kind),
   [model § Element](https://likec4.dev/dsl/model/#element),
   [views § View definition](https://likec4.dev/dsl/views/#view-definition) and
-  [styling § Shape](https://likec4.dev/dsl/styling/#shape) live. Recheck
+  [styling § Shape](https://likec4.dev/dsl/styling/#shape) live. As of: 2026-11-10. Recheck
   trigger: any of those sections changes that syntax, or a newer `likec4` release ships: set
   `LIKEC4_VALIDATE=1` when running the test to re-run the CLI.
 - **Actors are not derived.** The system-context page lists people as supporting elements and does

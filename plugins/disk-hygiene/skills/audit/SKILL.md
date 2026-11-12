@@ -121,7 +121,8 @@ Run when the findings warrant removal and the user wants it; it takes the same t
   **Pointer:** when checking how a mode treats a Bash call no hook adjudicates, fetch
   [Available modes](https://code.claude.com/docs/en/permission-modes#available-modes) and
   [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control)
-  live.
+  live. **As of:** 2026-11-10. **Recheck trigger:** a Claude Code release changes how permission
+  modes treat Bash calls no hook adjudicates.
 - Under an inline `--plugin-dir` load the probe can report `data_root` as `null` even though the
   plugin data directory exists. Stop as step 1 says; do not substitute a guessed path. **Claim:** the
   guard derives `data_root` only from the `<plugins>/cache/<marketplace>/<name>` install layout or a

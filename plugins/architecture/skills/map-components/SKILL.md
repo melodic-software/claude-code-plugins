@@ -261,7 +261,7 @@ a `${user_config.*}` string in a shell command), and its report line is printed.
   [LikeC4 specification § Element kind](https://likec4.dev/dsl/specification/#element-kind),
   [model § Element](https://likec4.dev/dsl/model/#element),
   [views § Scoped views](https://likec4.dev/dsl/views/#scoped-views) and
-  [styling § Relationship](https://likec4.dev/dsl/styling/#relationship) live. Recheck trigger: any of those sections changes that syntax, or a newer `likec4`
+  [styling § Relationship](https://likec4.dev/dsl/styling/#relationship) live. As of: 2026-11-10. Recheck trigger: any of those sections changes that syntax, or a newer `likec4`
   release ships: set `LIKEC4_VALIDATE=1` when running the test to re-run the CLI.
 - **The record is one object per line.** A node line starts with `{"id":`. An
   edge line starts with `{"from":`. Any other layout exits 1 and writes

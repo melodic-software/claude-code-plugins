@@ -326,7 +326,7 @@ its report line is printed. Procedure:
   `collect-deployment.test.sh` diffs against. Pointer: when checking the syntax the collector
   writes, fetch [LikeC4 deployment model § Deployment nodes](https://likec4.dev/dsl/deployment/model/#deployment-nodes),
   [§ Deployed instances](https://likec4.dev/dsl/deployment/model/#deployed-instances), [§ Deployment relationships](https://likec4.dev/dsl/deployment/model/#deployment-relationships)
-  and [deployment views § View definition](https://likec4.dev/dsl/deployment/views/#view-definition) live. Recheck trigger: any of those sections changes that syntax, or a
+  and [deployment views § View definition](https://likec4.dev/dsl/deployment/views/#view-definition) live. As of: 2026-11-10. Recheck trigger: any of those sections changes that syntax, or a
   newer `likec4` release ships: set `LIKEC4_VALIDATE=1` when running the test to re-run the CLI.
 - **Labels cannot leave the block.** Quotes, backticks, backslashes, and line breaks are stripped
   from labels, `@` prints as `(at)`, and every identifier is prefixed and numbered, so a hostile

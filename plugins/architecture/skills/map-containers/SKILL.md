@@ -261,7 +261,7 @@ hand-written; the shared medium resolver decides the destination, with this plug
   [LikeC4 specification § Element kind](https://likec4.dev/dsl/specification/#element-kind),
   [model § Element](https://likec4.dev/dsl/model/#element),
   [views § Scoped views](https://likec4.dev/dsl/views/#scoped-views) and
-  [styling § Shape](https://likec4.dev/dsl/styling/#shape) live. Recheck
+  [styling § Shape](https://likec4.dev/dsl/styling/#shape) live. As of: 2026-11-10. Recheck
   trigger: any of those sections changes that syntax, or a newer `likec4` release ships: set
   `LIKEC4_VALIDATE=1` when running the test to re-run the CLI.
 - **A search store is read from a host or a compose image.** A host ending

@@ -147,7 +147,9 @@ to the metadata change time or to zero. **Basis:** the `os.stat` and `os.stat_re
 https://docs.python.org/3/library/os.html (Python 3.14.7), fetched with `curl` and read from the saved
 HTML: "On Windows, st_ctime is deprecated. Eventually, it will contain the last metadata change time,
 for consistency with other platforms, but for now still contains creation time." and "in the future
-st_ctime may be changed to return zero or the metadata change time, if available."
+st_ctime may be changed to return zero or the metadata change time, if available." **As of:**
+2026-09-30. **Recheck:** the `os.stat_result` entry stops saying `st_ctime` still contains creation
+time on Windows, or a CPython release note announces the change.
 
 ## Coverage and hint fields
 

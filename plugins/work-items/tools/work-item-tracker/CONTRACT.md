@@ -213,7 +213,8 @@ value (named by file, key and value; the personal override when it set the value
   default, and a stock `gh repo clone` of a fork records `upstream`; `/work-items:setup check`
   reports when the remotes name more than one repository. Verbs that need a repo context accept an
   explicit `--repo <owner>/<repo>` override (conformance, cross-repo tooling). Pointer:
-  [`gh repo set-default`](https://cli.github.com/manual/gh_repo_set-default).
+  [`gh repo set-default`](https://cli.github.com/manual/gh_repo_set-default); as of 2026-11-11
+  (gh 2.103.3); recheck when a gh release changes how commands pick the base repository.
 - No binding found → exit `3` and stderr points here; the seam runs no inline wizard. The
   `work-items` plugin's setup skill (`/work-items:setup`) seeds this file, provider + non-secret
   config, as the once-per-repo binding step.
