@@ -342,8 +342,7 @@ If the answer is a check (a lint or analyzer rule, a test, a hook) that would ha
 The names collide outright, so "debug this" can land on either, but the two debug different things.
 
 - **`debug` (bundled skill)**: troubleshoots Claude Code itself (what it enables and when: the
-  `/debug` row of [Commands, "All commands"](https://code.claude.com/docs/en/commands#all-commands),
-  as of 2026-11-10; recheck when that row changes what the skill turns on or reads). It is reserved
+  `/debug` row of [Commands, "All commands"](https://code.claude.com/docs/en/commands#all-commands)). It is reserved
   for the person to run; the model does not invoke it.
 - **This skill (marketplace plugin).** Debugs the user's application: build a reproduction loop,
   confirm it fails, rank causes, probe them, fix with a regression test, remove what the run added.

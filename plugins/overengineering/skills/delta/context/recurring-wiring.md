@@ -39,15 +39,10 @@ interval is scheduled, are read live.
 
 - **Pointer**: when deciding whether `/loop` is available, fetch
   [Commands § All commands](https://code.claude.com/docs/en/commands#all-commands) live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section is removed or retitled, or its `/loop` row is dropped or renamed.
 
 - **Pointer**: when deciding how a supplied interval is scheduled and how far a fire time can drift,
   fetch [scheduled tasks § Run on a fixed interval](https://code.claude.com/docs/en/scheduled-tasks#run-on-a-fixed-interval)
   and [§ Jitter](https://code.claude.com/docs/en/scheduled-tasks#jitter) live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either section is removed or retitled, or a release note names `/loop`
-  scheduling.
 
 **A fixed interval is the right shape here, and the reason is specific.** The self-paced shape, an
 omitted interval with the model choosing each delay, earns its keep for a *drain* loop, where what
@@ -69,9 +64,6 @@ version.
   [scheduled tasks § Seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry)
   and [§ Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either section is removed or retitled, the expiry section changes the
-  window, or a release note names scheduled-task expiry or self-paced `/loop` scheduling.
 
 ## Shape 2: a scheduled task (headless)
 

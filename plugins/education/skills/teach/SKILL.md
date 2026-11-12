@@ -82,9 +82,8 @@ Path resolution rules every action MUST follow:
   Scan for the highest existing `NNNN` and increment.
 - Plugin-data workspaces live under `${CLAUDE_PLUGIN_DATA}` so they outlive the session
   (**Pointer**: when deciding whether that directory exists yet or will still be there, fetch
-  <https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables> live.
-  **As of**: 2026-10-11. **Recheck trigger**: that section changes when the directory is created,
-  kept or deleted). At a user-chosen root, create the `Claude Learning/`-style home only at first
+  <https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables> live).
+  At a user-chosen root, create the `Claude Learning/`-style home only at first
   workspace creation there; never create the platform Documents directory itself.
 
 A lesson is an interactive, self-contained `lesson.html` where the learner's host can render it,
@@ -168,9 +167,7 @@ And `${user_config.*}` tokens must NEVER appear on this line: a surviving litera
 bash `bad substitution` that kills the whole call before any fallback (**Pointer**: when deciding
 whether a saved value is substituted in skill content, fetch
 <https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value> and
-<https://code.claude.com/docs/en/skills#inject-dynamic-context> live. **As of**: 2026-10-11.
-**Recheck trigger**: either section changes where `${user_config.*}` is substituted or how an
-injected command runs):
+<https://code.claude.com/docs/en/skills#inject-dynamic-context> live):
 
 - Plugin-data workspaces, `bash "${CLAUDE_PLUGIN_ROOT}/skills/teach/scripts/list-workspaces.sh" "${CLAUDE_PROJECT_DIR}" "${CLAUDE_PLUGIN_DATA}" 2>/dev/null || echo "none"`
 
@@ -371,9 +368,6 @@ substituted or expanded on the way to the Bash tool.
 
 - **Pointer**: when deciding whether a `${…}` token in a Read-delivered file resolves, fetch
   <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves> live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that table adds supporting files read through the Read tool, or the Bash
-  tool's environment, to where a `${…}` reference resolves.
 
 ## What This Skill Does NOT Do
 

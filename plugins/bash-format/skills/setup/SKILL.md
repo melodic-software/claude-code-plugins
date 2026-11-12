@@ -219,9 +219,6 @@ skill installs nothing:
     when a saved value applies, fetch
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
-  - **As of**: 2026-11-11
-  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-    refused value, or when a saved value applies.
 
 After pointing at a remediation, re-run the relevant `check` probe live via Bash (a pre-computed row
 predates the remediation, so never re-read it) and report its actual result. Never claim resolved on

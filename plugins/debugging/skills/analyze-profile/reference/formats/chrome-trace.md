@@ -7,8 +7,7 @@ non-browser tools write this shape.
 
 Format pointer: the Trace Event Format document,
 <https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU>, and Perfetto's
-documentation, <https://perfetto.dev/docs/>. As of 2026-10-04. Recheck when the converter exits 2
-on a trace a current Chrome saved, or when DevTools changes its save format.
+documentation, <https://perfetto.dev/docs/>.
 
 ## What the converter stores
 

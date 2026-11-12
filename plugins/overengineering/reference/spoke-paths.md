@@ -10,6 +10,3 @@ environment.
   fetch
   [plugins reference § Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section starts listing a skill's supporting files, or the Bash tool's
-  environment, as a place where `${CLAUDE_PLUGIN_ROOT}` resolves.

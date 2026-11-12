@@ -72,9 +72,6 @@ included.
 
 - **Pointer:** [actions/upload-artifact README](https://github.com/actions/upload-artifact#readme),
   the `archive` input (single file, no zip) and the `artifact-url` output.
-- **As of:** 2026-10-04.
-- **Recheck trigger:** a new major version of `actions/upload-artifact`, or the `archive` input
-  changing.
 
 Retention follows the repository's artifact retention setting; say in the comment that the link
 expires with it.

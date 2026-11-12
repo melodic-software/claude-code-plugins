@@ -8,8 +8,7 @@ Format pointer: the HeapProfiler domain of the DevTools protocol,
 <https://chromedevtools.github.io/devtools-protocol/tot/HeapProfiler/>, and the DevTools heap
 snapshot guide, <https://developer.chrome.com/docs/devtools/memory-problems/heap-snapshots>. The
 field layout is described inside each file under `snapshot.meta`, and the converter reads it from
-there. As of 2026-10-04. Recheck when the converter exits 2 on a snapshot a current Chrome or
-Node.js wrote.
+there.
 
 ## What the converter stores
 
