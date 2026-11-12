@@ -50,9 +50,13 @@ disagrees is the task table in
 [which Claude model should you build with: pick a model by task](https://claude.dev/blog/which-claude-model-should-you-build-with#pick-a-model-by-task),
 whose rows start classification and routing work on Haiku and offer it for
 subagents that search files, read logs or summarize; that work stays on
-`sonnet` or above, kept per owner rule. That table starts Haiku at its default effort, while
-[#10022](https://github.com/melodic-software/claude-code-plugins/issues/10022)
-ran it at `high`, so the eval did not measure the guide's starting point.
+`sonnet` or above, kept per owner rule. That table starts Haiku at its default effort; a
+[re-run at that effort](https://github.com/melodic-software/claude-code-plugins/issues/10022#issuecomment-6815430659)
+on Claude Code 2.1.322 matched accuracy but again used more tokens per completed task in
+every role and ran slower on the verifier cases, so the rule stands.
+
+For upstream evidence on Haiku subagents for coding work, see
+[optimizing for cost and intelligence: orchestrator strategy](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work).
 
 ## Where to read the specifics
 
