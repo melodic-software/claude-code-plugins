@@ -276,7 +276,7 @@ each asset in manifest order, a NUL and that asset's LF-normalized bytes. The st
 version stamp would flag drift on every release, and at shared scope each rerun would add a commit
 to every consumer repository.
 
-`verify` reports one of five states per entry:
+`verify` reports one of five states per entry, plus one `superseded` row per earlier plugin name an entry has artifacts under:
 
 | State | Meaning | Output |
 |---|---|---|
@@ -284,12 +284,14 @@ to every consumer repository.
 | stale | stamp differs from the current source hash (a changed source script, check lib or asset) | drift line |
 | modified | the installed copy, or an installed asset, no longer hashes to its stamp | drift line; the agent decides (D1) |
 | missing | not installed and not declined | drift line |
-| declined | `checks.<plugin>.<name>.declined` true at any git config scope, or unset with `checks.git-hooks.declined` true | silent until `verify` runs by hand |
+| declined | `checks.<plugin>.<name>.declined` true at any git config scope; unset, the same entry's key under an earlier plugin name true by git's precedence (its detail names the carry-over; that key false is an opt-in, as the entry's own false is); both unset, `checks.git-hooks.declined` true | silent until `verify` runs by hand |
+| superseded | an artifact of this entry under another plugin name, as an install made before the plugin was renamed leaves (entry names are unique across plugins): a copy whose stamp names the entry, its `<event>.d/` marker, a lefthook job running it, a config-hook copy under the user git config directory with its `includeIf` and `hook.<name>-<entry>` keys, or a decline key once the entry is installed | drift line naming each artifact; `plan` returns them as a `superseded` decision, and the setup agent removes them and carries a decline over on the user's yes (D1) |
 
 Drift line, shown to the user only:
 
 ```text
 <plugin>: git hook <name> <state>; run /<plugin>:setup apply install-git-hooks
+<plugin>: git hook <name> left under an earlier plugin name (remove <dir> and <marker> and any hook-manager line that runs <script>; ...); run /<plugin>:setup apply install-git-hooks
 ```
 
 The SessionStart drift check runs inside the plugin's `prerequisites.mjs probe`, which harness-ops'
