@@ -93,17 +93,12 @@ esac
 grep -q '"schema_version"[[:space:]]*:[[:space:]]*1' "$record" ||
   die "not a schema_version 1 record: $record" 1
 
+# shellcheck source=../../../lib/record-layout.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/record-layout.sh"
 read -r -d '' LAYOUT_AWK <<'AWK' || true
 BEGIN {
   shape["actors"] = "^[[:space:]]*[{]\"name\":"
   shape["externals"] = "^[[:space:]]*[{]\"host\":"
-}
-function open_array(key,   rest) {
-  if (!match($0, "\"" key "\"[[:space:]]*:[[:space:]]*\\[")) return
-  rest = substr($0, RSTART + RLENGTH)
-  if (rest ~ /^[[:space:]]*\]/) { seen[key] = 1; return }
-  if (substr($0, 1, RSTART - 1) ~ /^[[:space:]]*$/ && rest ~ /^[[:space:]]*$/) { open = key; return }
-  problem = "the " key " array does not start on a line of its own"
 }
 /"focal"[[:space:]]*:[[:space:]]*\{"name":/ { saw_focal = 1 }
 open != "" {
@@ -124,39 +119,15 @@ END {
   print problem
 }
 AWK
-layout_problem="$(awk "$LAYOUT_AWK" "$record")"
+layout_problem="$(awk "$RECORD_OPEN_ARRAY_AWK$LAYOUT_AWK" "$record")"
 [[ -z "$layout_problem" ]] ||
   die "record is not in the one-object-per-line layout collect-context.sh writes ($layout_problem); regenerate it: $record" 1
 
 target="$outdir/context.md"
 
-OUT_FILE="$target" DIALECT="$dialect" awk -f - "$record" <<'AWK'
-function jstr(line, key,    pat, i, rest, out, c, n) {
-  pat = "\"" key "\""
-  i = index(line, pat)
-  if (i == 0) return ""
-  rest = substr(line, i + length(pat))
-  if (!sub(/^[[:space:]]*:[[:space:]]*"/, "", rest)) return ""
-  out = ""
-  n = length(rest)
-  i = 1
-  while (i <= n) {
-    c = substr(rest, i, 1)
-    if (c == "\\") {
-      i++
-      c = substr(rest, i, 1)
-      if (c == "n") out = out "\n"
-      else if (c == "t") out = out "\t"
-      else out = out c
-      i++
-      continue
-    }
-    if (c == "\"") return out
-    out = out c
-    i++
-  }
-  return out
-}
+JSTR_AWK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/jstr.awk"
+
+OUT_FILE="$target" DIALECT="$dialect" awk -f "$JSTR_AWK" -f - "$record" <<'AWK'
 function rank(k) {
   if (k == "authority") return 7
   if (k == "storage") return 6

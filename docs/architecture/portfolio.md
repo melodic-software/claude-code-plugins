@@ -1,6 +1,6 @@
 # Application portfolio
 
-Generated on 2026-09-25 from current repository plus reference graph. Remote facts: not used.
+Generated on 2026-11-12 from current repository plus reference graph. Remote facts: not used.
 
 Last touched is the local HEAD of each checkout unless a remote fact says
 otherwise, so a stale checkout reports a stale date. `unknown` means no probe
@@ -12,20 +12,20 @@ is built with.
 
 | Repository | Owner | Target framework | Runtime | Dependencies | Tooling | Last touched |
 |---|---|---|---|---|---|---|
-| claude-code-plugins | melodic-software | unknown | shell | (none) | node, python | 2026-09-25T01:24:36-04:00 |
+| claude-code-plugins | melodic-software | unknown | shell | (none) | node, python | 2026-11-12T10:07:21-05:00 |
 
 ## Development-scope dependencies
 
 Truncated to ten per repository; the record carries the full list.
 
-- claude-code-plugins: `@anthropic-ai/claude-code`, `@biomejs/biome`, `htmlhint`, `iniconfig`, `markdownlint-cli2`, `packaging`, `pluggy`, `pygments`, `pytest`, `pyyaml` (+10)
+- claude-code-plugins: `@anthropic-ai/claude-code`, `@biomejs/biome`, `@playwright/cli`, `@playwright/mcp`, `attrs`, `certifi`, `charset-normalizer`, `check-jsonschema`, `click`, `execnet` (+15)
 
 ## Evidence
 
 | Repository | Fact | Source |
 |---|---|---|
 | claude-code-plugins | owner | origin remote URL |
-| claude-code-plugins | runtime | shell: lib/hook-utils.sh |
+| claude-code-plugins | runtime | shell: lib/check-convention-facts.test.sh |
 | claude-code-plugins | tooling | node: package.json (development scope), python: .github/requirements-ci.txt (development scope) |
 | claude-code-plugins | target_framework | no framework declaration for runtime shell |
 | claude-code-plugins | dependencies | no runtime-scope dependency manifest |

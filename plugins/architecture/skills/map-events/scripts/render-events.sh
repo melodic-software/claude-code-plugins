@@ -45,14 +45,9 @@ done
 [[ -d "$outdir" ]] || die "not a directory: $outdir" 1
 grep -q '"schema_version"[[:space:]]*:[[:space:]]*1' "$record" || die "not a schema_version 1 record: $record" 1
 
-layout_problem="$(awk '
-  function open_array(key,   rest) {
-    if (!match($0, "\"" key "\"[[:space:]]*:[[:space:]]*\\[")) return
-    rest = substr($0, RSTART + RLENGTH)
-    if (rest ~ /^[[:space:]]*\]/) { seen[key] = 1; return }
-    if (substr($0, 1, RSTART - 1) ~ /^[[:space:]]*$/ && rest ~ /^[[:space:]]*$/) { open = key; return }
-    problem = "the " key " array does not start on a line of its own"
-  }
+# shellcheck source=../../../lib/record-layout.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/record-layout.sh"
+layout_problem="$(awk "$RECORD_OPEN_ARRAY_AWK"'
   BEGIN {
     shape["messages"] = "^[[:space:]]*[{]\"id\":\""
     shape["edges"] = "^[[:space:]]*[{]\"from\":\""

@@ -15,6 +15,13 @@
 # module path, a marketplace source) or requires the owner to match this
 # repository's own.
 #
+# Sample data names no system. Every extractor skips test and fixture files
+# (`*.test.*`, `*.spec.*`, `*.vectors.json`, and `tests/`, `evals/`,
+# `fixtures/`, `testdata/` directories) and this skill's own output, and drops a
+# target whose owner is a documentation placeholder (`owner`, `acme`, `other`)
+# or is not a valid account name (an owner holding a dot, as in an elided
+# `github.com/.../issues`).
+#
 # Usage:
 #   reference-edges.sh <repo-path> [--owner <owner>]
 #   reference-edges.sh <repo-path> [--owner <owner>] --print-owner
@@ -211,14 +218,28 @@ is_valid_segment() {
   esac
 }
 
+# An owner segment additionally never holds a dot: GitHub account names are
+# letters, digits and hyphens. A dotted owner is prose, not an account: the
+# elided `github.com/.../issues` in a skill body, or `a.b/c` in a test vector.
+is_valid_owner() {
+  is_valid_segment "$1" || return 1
+  case "$1" in
+  *.*) return 1 ;;
+  *) return 0 ;;
+  esac
+}
+
 # Documentation placeholders. `github.com/owner/repo` in a usage example names
 # the SHAPE of a reference, not a repository, and charting it invents a system
 # called `owner/repo` that every docs-heavy repository would appear to depend
-# on. `example` and `acme` are the conventional stand-in names.
+# on. `example` and `acme` are the conventional stand-in names; `other` is the
+# second repository in an example (`other/repo`), and `eval-fixture` is the
+# origin an eval fixture serves, named in changelog entries about it.
 is_placeholder_owner() {
   case "$1" in
   owner | org | user | username | your-org | your-owner | myorg | my-org | \
-    example | example-org | acme | acme-corp | foo | bar | OWNER | ORG | USER)
+    example | example-org | acme | acme-corp | foo | bar | OWNER | ORG | USER | \
+    other | eval-fixture)
     return 0
     ;;
   *) return 1 ;;
@@ -232,10 +253,12 @@ is_placeholder_owner() {
 # A test, fixture, or eval file names repositories that do not exist: `acme/api`
 # and `Owner/Repo` are scaffolding for an assertion, not systems this repository
 # relates to. Charting them fills the landscape with invented nodes, so the
-# whole file is out of scope for every extractor.
+# whole file is out of scope for every extractor. A test is named `*.test.*` or
+# `*.spec.*` in any language (`.mjs`, `.cjs`, `.py`, `.sh`), and a
+# `*.vectors.json` file is a table of test inputs.
 is_fixture_file() {
   case "$1" in
-  *.test.sh | *.test.ts | *.test.js | *.spec.ts | *.spec.js) return 0 ;;
+  *.test.* | *.spec.* | *.vectors.json) return 0 ;;
   test_*.py | */test_*.py | *_test.py | *_test.go) return 0 ;;
   */tests/* | tests/*) return 0 ;;
   */evals/* | evals/*) return 0 ;;
@@ -302,7 +325,7 @@ add_hit() {
   # and never terminates one, so `owner/repo.` in running text is `owner/repo`
   # plus the full stop that followed it.
   while [[ "$r" == *. ]]; do r="${r%.}"; done
-  is_valid_segment "$o" || return 0
+  is_valid_owner "$o" || return 0
   is_valid_segment "$r" || return 0
   is_reserved_owner "$o" && return 0
   is_placeholder_owner "$o" && return 0

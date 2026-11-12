@@ -65,14 +65,9 @@ esac
 grep -q '"schema_version"[[:space:]]*:[[:space:]]*1' "$record" ||
   die "not a schema_version 1 record: $record" 1
 
-layout_problem="$(awk '
-  function open_array(key,   rest) {
-    if (!match($0, "\"" key "\"[[:space:]]*:[[:space:]]*\\[")) return
-    rest = substr($0, RSTART + RLENGTH)
-    if (rest ~ /^[[:space:]]*\]/) { seen[key] = 1; return }
-    if (substr($0, 1, RSTART - 1) ~ /^[[:space:]]*$/ && rest ~ /^[[:space:]]*$/) { open = key; return }
-    problem = "the " key " array does not start on a line of its own"
-  }
+# shellcheck source=../../../lib/record-layout.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/record-layout.sh"
+layout_problem="$(awk "$RECORD_OPEN_ARRAY_AWK"'
   BEGIN {
     shape["containers"] = "^[[:space:]]*[{]\"id\":"
     shape["modules"] = "^[[:space:]]*[{]\"container\":"
@@ -104,33 +99,9 @@ layout_problem="$(awk '
 
 target="$outdir/containers.md"
 
-OUT_FILE="$target" DIALECT="$dialect" awk '
-function jstr(line, key,    pat, i, rest, out, c, n) {
-  pat = "\"" key "\""
-  i = index(line, pat)
-  if (i == 0) return ""
-  rest = substr(line, i + length(pat))
-  if (!sub(/^[[:space:]]*:[[:space:]]*"/, "", rest)) return ""
-  out = ""
-  n = length(rest)
-  i = 1
-  while (i <= n) {
-    c = substr(rest, i, 1)
-    if (c == "\\") {
-      i++
-      c = substr(rest, i, 1)
-      if (c == "n") out = out "\n"
-      else if (c == "t") out = out "\t"
-      else out = out c
-      i++
-      continue
-    }
-    if (c == "\"") return out
-    out = out c
-    i++
-  }
-  return out
-}
+JSTR_AWK="$(<"$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/jstr.awk")"$'\n'
+
+OUT_FILE="$target" DIALECT="$dialect" awk "$JSTR_AWK"'
 function safe(s) {
   gsub(/\\/, "/", s)
   gsub(/"/, "\047", s)

@@ -51,6 +51,8 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESOLVER="$SCRIPT_DIR/../../../scripts/resolve-config.sh"
+# shellcheck source=../../../lib/load-config.sh
+. "$SCRIPT_DIR/../../../lib/load-config.sh"
 
 die() {
   printf 'sweep: %s\n' "$1" >&2
@@ -97,12 +99,7 @@ command -v jq >/dev/null 2>&1 || die "jq is required and is not on PATH"
 command -v git >/dev/null 2>&1 || die "git is required and is not on PATH"
 [[ -n "$PAIRS_FILE" ]] || die "--pairs is required"
 
-if [[ -z "$ROOT" ]]; then
-  ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || ROOT=""
-  [[ -n "$ROOT" ]] || die "not inside a git repository and no --root given"
-fi
-[[ -d "$ROOT" ]] || die "--root '$ROOT' is not a directory"
-git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1 || die "'$ROOT' is not a git repository"
+resolve_git_root
 
 if [[ "$PAIRS_FILE" == "-" ]]; then
   PAIRS="$(cat)"
@@ -111,17 +108,7 @@ else
   PAIRS="$(cat "$PAIRS_FILE")"
 fi
 
-if [[ -n "$CONFIG_FILE" ]]; then
-  [[ -r "$CONFIG_FILE" ]] || die "cannot read the configuration at $CONFIG_FILE"
-  CONFIG="$(jq -e . "$CONFIG_FILE" 2>/dev/null | tr -d '\r')" || die "the configuration at $CONFIG_FILE is not valid JSON"
-else
-  [[ -f "$RESOLVER" ]] || die "resolver missing at $RESOLVER"
-  CONFIG="$(bash "$RESOLVER" resolve --root "$ROOT")" || exit 2
-fi
-
-cfg() {
-  printf '%s' "$CONFIG" | jq -r "$1" 2>/dev/null | tr -d '\r'
-}
+load_config
 
 # --- the searchable file set -------------------------------------------------
 
