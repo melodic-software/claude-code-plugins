@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.0.0] - 2026-11-12
+
+### Changed
+
+- The babysit-loop skill, the babysit safety reference and the pull-request create reference no longer describe a JSON binding.
+
+- Internal simplification, no behavior change.
+
+### Removed
+
+- The babysit scripts no longer read role labels from a repo-root `.work-item-tracker.json`. `babysit_tracker_binding.py` reads only the `tracker` mapping of `docs/conventions/work-items.yaml`; `LEGACY_PATH` is gone and `PATHS` holds only that file, so the merge-skip cache key no longer covers the JSON file. A repository bound only by the JSON file gets the default role labels. Fix: run `/work-items:setup apply`, which copies the binding into `docs/conventions/work-items.yaml`.
+
 ## [10.0.8] - 2026-11-12
 
 ### Changed
