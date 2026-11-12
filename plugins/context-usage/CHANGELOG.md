@@ -5,10 +5,6 @@ All notable changes to the `context-usage` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Entries released before the plugin was renamed `context-usage` were written under its earlier name and
-option prefix. They now show today's names, so a command, option, variable or path named in one
-of them may never have shipped under the name shown.
-
 ## [5.0.7] - 2026-11-12
 
 ### Changed
@@ -216,7 +212,7 @@ of them may never have shipped under the name shown.
 
 ### Removed
 
-- `/context-usage:check` is gone, with its probe file. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`, the command the hook notices already print. The mods probe moved to `scripts/check-mod-load.sh`, which reports the mods floor and how to read this session's state.
+- The plugin's `check` skill is gone, with its probe file. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`, the command the hook notices already print. The mods probe moved to `scripts/check-mod-load.sh`, which reports the mods floor and how to read this session's state.
 
 ## [1.2.3] - 2026-11-02
 
@@ -415,7 +411,7 @@ of them may never have shipped under the name shown.
 
 - **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
 
-- Upstream specifics the docs own (the mods version floor, what turns mods off, when status-line fields are null, how Claude Code handles a bad option value, and the `disable-model-invocation` field text) are replaced by anchored pointer records dated 2026-10-11; our band edges, probe verdicts and decisions stay, and the per-length benchmark scores behind the band edges are kept as observations dated 2026-10-09. The capture-channel table's sources gain section anchors, and the table is framed as dated observations. `/context-usage:check` takes the floor from `prerequisites.json`.
+- Upstream specifics the docs own (the mods version floor, what turns mods off, when status-line fields are null, how Claude Code handles a bad option value, and the `disable-model-invocation` field text) are replaced by anchored pointer records dated 2026-10-11; our band edges, probe verdicts and decisions stay, and the per-length benchmark scores behind the band edges are kept as observations dated 2026-10-09. The capture-channel table's sources gain section anchors, and the table is framed as dated observations. The plugin's `check` skill takes the floor from `prerequisites.json`.
 
 ### Fixed
 
@@ -535,7 +531,7 @@ of them may never have shipped under the name shown.
 
 ### Fixed
 
-- **The reader contract no longer routes a session to the user-only setup skill.** When the `status` tool is present but no fresh snapshot follows a tool call, `reference/reader-contract.md` and `reference/cloud-headless-capture.md` now say to run `/context-usage:check` for what the session can check itself and to ask the operator to run `/context-usage:setup check` for the rest, instead of invoking setup through the Skill tool, which refuses it (#5984).
+- **The reader contract no longer routes a session to the user-only setup skill.** When the `status` tool is present but no fresh snapshot follows a tool call, `reference/reader-contract.md` and `reference/cloud-headless-capture.md` now say to run the plugin's `check` skill for what the session can check itself and to ask the operator to run `/context-usage:setup check` for the rest, instead of invoking setup through the Skill tool, which refuses it (#5984).
 
 ## [0.13.3] - 2026-10-04
 
@@ -596,13 +592,13 @@ of them may never have shipped under the name shown.
 ### Changed
 
 - **The band row is off by default** (`context_usage_band` now defaults to `false`), and it no longer shows the model id: it reads `ctx <n>% (<zone>)`.
-- **The command is `/context-usage`, with `band on`, `band off`, and a bare `band` to toggle.** It replaces `/context-usage:band show|hide`, which never resolved. With no argument it prints the verdict and its figures, the bands, the gate mode, the band and toast state, and where `zones.json` lives. Claude reads a command's reply, so the continuation route, the docs link and the README link go to a separate transcript line Claude does not read. Its replies carry no `context-usage:` prefix of their own, since Claude Code already names the plugin before a command's reply.
+- **The command is `/context-usage`, with `band on`, `band off`, and a bare `band` to toggle.** It replaces the plugin-namespaced `band show|hide` command, which never resolved. With no argument it prints the verdict and its figures, the bands, the gate mode, the band and toast state, and where `zones.json` lives. Claude reads a command's reply, so the continuation route, the docs link and the README link go to a separate transcript line Claude does not read. Its replies carry no `context-usage:` prefix of their own, since Claude Code already names the plugin before a command's reply.
 - **The crossing notice row is drawn only on surfaces other than the terminal** (the Desktop app, VS Code, mobile), where a toast may not show, and it carries the plugin prefix once. Operator mode's held line still shows as one row on every surface, and is never toasted.
 - **The lines Claude reads carry only the verdict**, such as `context-usage: acceptable zone (2 of 3). Continuing is the user's call.`, with `, nearing dumb` inside the approach margin. They drop the source note and the measurement-not-instruction sentence.
 
 ### Fixed
 
-- **`/context-usage` resolves, and no longer collides with another plugin's command.** The module registered the bare name `band`, which rate-limit-guard registers too, so only one of the two owned `/band`, and the `/context-usage:band` the 0.11.0 entry below documents never existed.
+- **`/context-usage` resolves, and no longer collides with another plugin's command.** The module registered the bare name `band`, which rate-limit-guard registers too, so only one of the two owned `/band`, and the the plugin-namespaced `band` command the 0.11.0 entry below documents never existed.
 - **A crossing read while a restatement was pending is no longer dropped.** Before, the carrier merged it into the restatement, so Claude got the stale verdict (for example acceptable while the session was dumb, with no save-state note) and the person got no menu. A crossing recorded after the restatement now replaces it; a crossing or restatement recorded before it still merges into it.
 
 ## [0.11.1] - 2026-10-04
@@ -622,7 +618,7 @@ of them may never have shipped under the name shown.
 - **A mod (`hooks/register.tsx`) tells Claude its context zone directly**, in interactive, `-p`, `--bg` and `/loop` sessions alike, from the live session's figures. A line carries the zone word at each crossing into a worse zone, once per cycle; once at each approach margin (5 points before a boundary by default); at each `zones.json` threshold; and again after a compaction, a resume, a `/branch` or a reload. Nothing after `/clear`, and nothing to subagents. The operator gets the continuation menu as a transcript line Claude does not read and a band notice. It needs Claude Code 2.1.287 or later.
 - **Where a token band decides a crossing, an approach line comes before it too**, when used tokens reach the edge minus `approach_margin` points of the window (50,000 tokens on a 1,000,000 window at the default 5). Before, approach lines came only in the percentage shape, so a large window got no warning before either crossing.
 - **Options**: `zone_lines_enabled`, `zone_report_mode` (`operator` offers the line as a prompt suggestion in typed turns), `zone_line_data` (which figures a line carries), `zone_block_unattended` and `context_usage_band`. `zones.json` may set per-zone actions and text, an approach margin and extra thresholds. Control characters, newlines and Unicode line separators in that text collapse to one space, so it stays inside the one line it is carried in.
-- **A band row above the prompt**, `[<model>] ctx <n>% (<zone>)`, with `/context-usage:band` to show or hide it for the session.
+- **A band row above the prompt**, `[<model>] ctx <n>% (<zone>)`, with the plugin-namespaced `band` command to show or hide it for the session.
 - **An `mcp__context-usage__status` tool** returns the session's figures, zone, compaction state, bands and gate state as JSON. A refused registration is logged once and everything else carries on.
 - **The module writes the snapshot** through the shared `lib/write-snapshot.mjs`: owner-only file and directory, a lock, retried rename, the hourly 14-day prune. It checks for a write after every tool call, after each response, every 15 seconds during a turn and at session end; a changed reading is written at once, and an unchanged one at most once per 60 seconds. A reading with null figures never replaces a populated file, and the last real reading stays on disk when a session ends.
 - **Hook telemetry from the module**, only on fires that act: `zone-crossing-inject` when lines are sent or a suggestion is shown (data adds `armed` and `suggested`, and has no `path`), `zone-gate` on each denial.
@@ -674,7 +670,7 @@ of them may never have shipped under the name shown.
 
 ### Added
 
-- A `SessionStart` hook row reports a missing `node` once per session, on both hook channels, and works on Windows without Git Bash. The notice names `/context-usage:check` and is silenced by the plugin's kill switch. The row is shared across plugins, so a session with several of them sees one notice.
+- A `SessionStart` hook row reports a missing `node` once per session, on both hook channels, and works on Windows without Git Bash. The notice names the plugin's `check` skill and is silenced by the plugin's kill switch. The row is shared across plugins, so a session with several of them sees one notice.
 - `lib/prerequisites.mjs`, `lib/prerequisites.sh` and `lib/prerequisites.ps1`, the generated copies of the shared prerequisites checker and its `node-notice` stubs.
 
 ### Changed
@@ -784,13 +780,13 @@ of them may never have shipped under the name shown.
 
 ### Changed
 
-- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/context-usage:check`, which probes it.
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names the plugin's `check` skill, which probes it.
 
 ## [0.8.0] - 2026-10-01
 
 ### Added
 
-- **`/context-usage:check` reads whether `jq` resolves for the context-usage hooks.** The skill is model-invocable, read-only and never installs. A new `prerequisites.json` declares `jq` and points at it, so `/claude-ops:prerequisites` and the per-plugin check read the same list.
+- **The plugin's `check` skill reads whether `jq` resolves for the context-usage hooks.** The skill is model-invocable, read-only and never installs. A new `prerequisites.json` declares `jq` and points at it, so `/claude-ops:prerequisites` and the per-plugin check read the same list.
 
 ## [0.7.96] - 2026-10-01
 
@@ -2342,7 +2338,7 @@ write-ordering fix.
   3` stays INFO, below 3 or unmarked is FAIL.
 
   **Existing installs need one `apply`.** The statusline runs the durable copy at
-  `~/.claude/context-usage/bin/statusline-shim.sh`, which a plugin update never overwrites, so an
+  `bin/statusline-shim.sh` in the plugin's runtime directory, which a plugin update never overwrites, so an
   operator who ran `apply` before revision 3 shipped keeps running the old shim until they re-run
   it. Uninstalling first is the trap worth naming: the setup skill goes with the plugin while the
   stale shim stays behind, leaving no in-product path to the remediation. Kept in step with the
@@ -2805,14 +2801,14 @@ write-ordering fix.
   Pure Bash builtins, with no subprocess on the statusline path. Black-box test harness with 31
   assertions, including the two-shim chaining case and a relocated `CLAUDE_CONFIG_DIR`.
 - `skills/setup` `apply` now installs the shim (byte-identical copy to
-  `~/.claude/context-usage/bin/statusline-shim.sh`, idempotent, inert until the operator wires it)
+  `bin/statusline-shim.sh` in the plugin's runtime directory, idempotent, inert until the operator wires it)
   alongside the existing zones.json seed/repair.
 
 ### Changed
 
 - **Wiring is now the shim, not the tee** (breaking for the printed wiring only; existing wiring
   keeps working until the next update). `setup check` prints
-  `bash ~/.claude/context-usage/bin/statusline-shim.sh …`, gained an installed-shim state check,
+  `bash <runtime directory>/bin/statusline-shim.sh …`, gained an installed-shim state check,
   and reclassifies a statusline wired to a version-pinned plugin-cache path as LEGACY wiring
   regardless of whether that file currently exists. The old state only flagged a path mismatch.
   Rationale: `${CLAUDE_PLUGIN_ROOT}` is version-pinned and the old version directory is pruned
