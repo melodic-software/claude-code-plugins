@@ -4636,6 +4636,11 @@ def _gh_write(args: list[str], what: str, *, missing_ok: bool = False) -> None:
         raise RuntimeError(f"{what}: {proc.stderr.strip()}")
 
 
+def _login_is(user: Any, identity: str) -> bool:
+    """Whether the REST `user`'s login is `identity`, ignoring case."""
+    return str(json_object(user).get("login") or "").lower() == identity.lower()
+
+
 def _marked(
     comments: list[dict[str, Any]], identity: str, number: int
 ) -> re.Match[str] | None:
@@ -4651,11 +4656,9 @@ def _capped_record(
     """`_marked`'s record and when it was posted; a record with no readable
     time raises `PostMergeReadError`."""
     for c in comments:
-        first = str(c.get("body") or "").split("\n", 1)[0].rstrip("\r")
         if (
-            str(json_object(c.get("user")).get("login") or "").lower()
-            == identity.lower()
-            and (match := CAPPED_CLOSE_RE.fullmatch(first))
+            _login_is(c.get("user"), identity)
+            and (match := CAPPED_CLOSE_RE.fullmatch(_first_line(c.get("body"))))
             and int(match[1]) == number
         ):
             return match, postmerge._time(c.get("created_at"))
@@ -4684,7 +4687,7 @@ def _lane_removals(
         key=lambda e: postmerge._time(e.get("created_at")),
     )
     ours = [
-        str(json_object(e.get("actor")).get("login") or "").lower() == identity.lower()
+        _login_is(e.get("actor"), identity)
         and postmerge._time(e.get("created_at")) >= since
         for e in removals
     ]
@@ -4695,14 +4698,12 @@ def _spent(comments: list[dict[str, Any]], identity: str, number: int) -> int:
     """How many other pull requests for the issue the lane has closed at the
     cap for a fresh attempt (`_started_attempt`), so a parked or
     attempt-less record spends nothing."""
-    named = set()
-    for c in comments:
-        if (
-            str(json_object(c.get("user")).get("login") or "").lower()
-            == identity.lower()
-            and (pr := _started_attempt(c.get("body"))) is not None
-        ):
-            named.add(pr)
+    named = {
+        pr
+        for c in comments
+        if _login_is(c.get("user"), identity)
+        and (pr := _started_attempt(c.get("body"))) is not None
+    }
     return len(named - {number})
 
 
@@ -4714,10 +4715,7 @@ def not_converging_stop(
     place) naming `NOT_CONVERGING` and `head`, or None. Only the App writes
     it; a status description, which any workflow can post, decides nothing."""
     for comment in comments:
-        if (
-            str(json_object(comment.get("user")).get("login") or "").lower()
-            != identity.lower()
-        ):
+        if not _login_is(comment.get("user"), identity):
             continue
         lines = [
             line.rstrip("\r") for line in str(comment.get("body") or "").split("\n")
@@ -4811,8 +4809,7 @@ def capped_close(
         pr.get("state") != "open"
         or json_object(pr.get("head")).get("sha") != head
         or not identity
-        or str(json_object(pr.get("user")).get("login") or "").lower()
-        != identity.lower()
+        or not _login_is(pr.get("user"), identity)
     ):
         return {
             "closed": False,
@@ -4977,32 +4974,50 @@ def capped_close(
             if (state := status(issue)) in hold_states:
                 held[issue] = str(state)
                 plan[i] = (issue, comments, None, False, "none")
-    first = plan[0] if plan else None
+    first, _, first_attempt, first_parked, _ = (
+        plan[0] if plan else (None, [], None, False, "none")
+    )
     pr_body, _ = capped_close_bodies(
         number,
         head,
         str(refusal),
         detail,
         findings,
-        first[0] if first else None,
-        first[2] if first else None,
-        first[3] if first else False,
-        held.get(first[0]) if first else None,
+        first,
+        first_attempt,
+        first_parked,
+        None if first is None else held.get(first),
         admission,
     )
-    admission_path = urllib.parse.quote(admission, safe="")
-    if pr_record is None:
+
+    def post_comment(target: int, body: str, what: str) -> None:
         _gh_write(
             [
                 "api",
                 "-X",
                 "POST",
-                f"repos/{repo}/issues/{number}/comments",
+                f"repos/{repo}/issues/{target}/comments",
                 "-f",
-                f"body={pr_body}",
+                f"body={body}",
             ],
-            "pull request record",
+            what,
         )
+
+    def remove_label(issue: int, label: str) -> None:
+        _gh_write(
+            [
+                "api",
+                "-X",
+                "DELETE",
+                f"repos/{repo}/issues/{issue}/labels/"
+                + urllib.parse.quote(label, safe=""),
+            ],
+            f"#{issue} {label}",
+            missing_ok=True,
+        )
+
+    if pr_record is None:
+        post_comment(number, pr_body, "pull request record")
     for issue, comments, attempt, parked, labels in plan:
         _, issue_body = capped_close_bodies(
             number,
@@ -5020,23 +5035,9 @@ def capped_close(
         if issue in held and issue_status is None:
             # At the cap: no attempt restarts when the hold clears. Before the
             # record, since a rerun that finds the record writes no labels.
-            _gh_write(
-                ["api", "-X", "DELETE", f"{base}/{admission_path}"],
-                f"#{issue} {admission}",
-                missing_ok=True,
-            )
+            remove_label(issue, admission)
         if _marked(comments, identity, number) is None:
-            _gh_write(
-                [
-                    "api",
-                    "-X",
-                    "POST",
-                    f"repos/{repo}/issues/{issue}/comments",
-                    "-f",
-                    f"body={issue_body}",
-                ],
-                f"#{issue} record",
-            )
+            post_comment(issue, issue_body, f"#{issue} record")
         if labels == "park" and issue_status is not None:
             # A repository that keeps Work status in the field gets the field
             # alone, before any label comes off (report-outcome.mjs
@@ -5049,16 +5050,7 @@ def capped_close(
                 ["api", "-X", "POST", base, "-f", f"labels[]={STATUS_CONFIRMED}"],
                 f"#{issue} {STATUS_CONFIRMED}",
             )
-            _gh_write(
-                [
-                    "api",
-                    "-X",
-                    "DELETE",
-                    f"{base}/{urllib.parse.quote(STATUS_READY, safe='')}",
-                ],
-                f"#{issue} {STATUS_READY}",
-                missing_ok=True,
-            )
+            remove_label(issue, STATUS_READY)
         if labels == "none":
             continue
         if issue_status is not None:
@@ -5076,11 +5068,7 @@ def capped_close(
             )
             continue
         if labels != "add":
-            _gh_write(
-                ["api", "-X", "DELETE", f"{base}/{admission_path}"],
-                f"#{issue} {admission}",
-                missing_ok=True,
-            )
+            remove_label(issue, admission)
         if parked:
             continue
         args = ["api", "-X", "POST", base, "-f", f"labels[]={admission}"]
@@ -5100,7 +5088,7 @@ def capped_close(
         "refusal": refusal,
         "restarted": [i for i, *_, how in plan if how in ("toggle", "add")],
         "parked": [i for i, _, _, parked, _ in plan if parked],
-        "unrestarted": [i for i, _, _, parked, how in plan if how == "none"],
+        "unrestarted": [i for i, *_, how in plan if how == "none"],
         **({"held": sorted(held)} if held else {}),
     }
 
@@ -5239,6 +5227,12 @@ class _Pacer:
         self.stopped = why
         return _BuildStopped(why)
 
+    def _cap_stop(self, calls: int) -> _BuildStopped:
+        reset = datetime.fromtimestamp(self.window_reset or 0, UTC).isoformat()
+        return self._stop(
+            f"{calls} calls in the window that resets at {reset}, the cap"
+        )
+
     def _pace(self) -> None:
         if self._last is not None and self.per_second > 0:
             wait = self._last + 1.0 / self.per_second - time.monotonic()
@@ -5264,13 +5258,9 @@ class _Pacer:
         if self.limited:
             raise self._stop(f"rate limited: {self.limited}")
         try:
-            core = json_object(
-                json_object(json.loads(proc.stdout)).get("resources")
-            ).get("core")
-            remaining, reset = (
-                json_object(core)["remaining"],
-                json_object(core)["reset"],
-            )
+            body = json_object(json.loads(proc.stdout))
+            core = json_object(json_object(body.get("resources")).get("core"))
+            remaining, reset = core["remaining"], core["reset"]
         except (ValueError, KeyError, TypeError) as exc:
             raise self._stop(f"the rate limit could not be read: {exc}") from exc
         if type(remaining) is not int or type(reset) is not int:
@@ -5292,10 +5282,7 @@ class _Pacer:
         self.window_reset, self.window_calls = reset, kept + 1
         self._keep()
         if self.window_calls > self.window_cap:
-            raise self._stop(
-                f"{self.window_calls - 1} calls in the window that resets at "
-                f"{datetime.fromtimestamp(reset, UTC).isoformat()}, the cap"
-            )
+            raise self._cap_stop(self.window_calls - 1)
 
     def _keep(self) -> None:
         if self.state_file and self.window_reset is not None:
@@ -5320,10 +5307,7 @@ class _Pacer:
         if self.window_reset is None or _wall_clock().timestamp() >= self.window_reset:
             self.open_window()
         if self.window_calls >= self.window_cap:
-            raise self._stop(
-                f"{self.window_calls} calls in the window that resets at "
-                f"{datetime.fromtimestamp(self.window_reset or 0, UTC).isoformat()}, the cap"
-            )
+            raise self._cap_stop(self.window_calls)
         proc = self._raw(args, **kwargs)
         self._keep()
         if self.limited:
@@ -5335,11 +5319,9 @@ def _kept_run(run: dict[str, Any]) -> dict[str, Any]:
     """The fields of a run record the build keeps: its status and origin."""
     return {
         **{k: run.get(k) for k in RUN_FIELDS_KEPT},
-        "repository": {
-            "full_name": json_object(run.get("repository")).get("full_name")
-        },
-        "head_repository": {
-            "full_name": json_object(run.get("head_repository")).get("full_name")
+        **{
+            k: {"full_name": json_object(run.get(k)).get("full_name")}
+            for k in REPOSITORY_FIELDS
         },
     }
 
@@ -5663,6 +5645,13 @@ class _PerRunBuild:
                 f"{_stamp(created)}, remove the checkpoint file and run again"
             )
 
+    def _read_run(self, record: dict[str, Any]) -> None:
+        """Read and keep `record`'s FAILs unless the checkpoint holds them."""
+        runs = self.state["runs"]
+        if str(record["id"]) not in runs:
+            runs[str(record["id"])] = self._run(record)
+            self.save()
+
     def build(self) -> dict[str, Any]:
         self.load()
         windows, runs = self.state["windows"], self.state["runs"]
@@ -5677,11 +5666,8 @@ class _PerRunBuild:
                 self.save()
             for record in early[key]:
                 updated = _when(record.get("updated_at"))
-                if (updated is None or updated >= self.since) and str(
-                    record["id"]
-                ) not in runs:
-                    runs[str(record["id"])] = self._run(record)
-                    self.save()
+                if updated is None or updated >= self.since:
+                    self._read_run(record)
         spans = _windows(self.since, self.cutover)
         for n, (start, end) in enumerate(spans):
             key = _stamp(start)
@@ -5689,9 +5675,7 @@ class _PerRunBuild:
                 windows[key] = self._window(start, end, last=n == len(spans) - 1)
                 self.save()
             for record in windows[key]:
-                if str(record["id"]) not in runs:
-                    runs[str(record["id"])] = self._run(record)
-                    self.save()
+                self._read_run(record)
         # The listing's FAILs: a run created before `since` (a re-run keeps
         # its creation time, and a judgment can upload hours after it) is
         # read here, so the file is the union of the windows and the listing.
@@ -5962,14 +5946,14 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
         "--rerun-lookback-days", type=float, default=RERUN_LOOKBACK.days
     )
     args = parser.parse_args(argv)
+    if args.command in ("evidence", "capped-close") and not (
+        merge_policy.SHA_RE.fullmatch(args.head)
+        and merge_policy.SHA_RE.fullmatch(args.base_sha)
+    ):
+        parser.error("head and --base-sha must be full commit SHAs")
     if args.command == "legacy-fails":
         return _legacy_fails_main(args, now)
     if args.command == "capped-close":
-        if not (
-            merge_policy.SHA_RE.fullmatch(args.head)
-            and merge_policy.SHA_RE.fullmatch(args.base_sha)
-        ):
-            parser.error("head and --base-sha must be full commit SHAs")
         return _capped_close_main(args, now)
     if args.command == "check-code":
         return 0 if merge_policy.check_code_unchanged(args.code_sha) else 1
@@ -5999,11 +5983,6 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
         )
         print(json.dumps(answer.report()))
         return 0
-    if not (
-        merge_policy.SHA_RE.fullmatch(args.head)
-        and merge_policy.SHA_RE.fullmatch(args.base_sha)
-    ):
-        parser.error("head and --base-sha must be full commit SHAs")
     if args.lane_queue and not args.lane_reviews:
         # The reviews read checks the head the count is for and reads the limit.
         parser.error("--lane-queue needs --lane-reviews")
@@ -6033,7 +6012,6 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
         return refusal.report() | link
     reader.max_fails = config.max_verify_fails
     reader.agent_identity = config.agent_identity
-    pr = None
     if args.lane_reviews:
         try:
             pr = merge_policy.pull_request(args.repo, args.number)
@@ -6085,7 +6063,7 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
                 link["reviewsPerson"],
                 link["wholeReviewWanted"],
             ) = held or (None, False, False)
-        if args.lane_queue and link["reviews"] is None and config is not None:
+        if args.lane_queue and link["reviews"] is None:
             link["queue"] = lane_queue(
                 args.repo,
                 args.branch,
