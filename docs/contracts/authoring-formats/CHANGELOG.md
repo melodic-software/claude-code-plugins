@@ -4,7 +4,15 @@ Notable changes to the authoring-formats contract. Per the README's Versioning s
 key, removing an allowed value, or changing a default is a major change; adding a key or an allowed
 value is minor; clarification is a patch. A recheck of the Mermaid-C4 record lands here only when
 it produces a drift outcome; refreshing the record's as-of date with no verdict change is no entry
-and no version bump, per the upstream-drift contract's four-part-record rule.
+and no version bump, per the upstream-drift contract's "When a trigger fires".
+
+## [1.0.6] - 2026-11-11
+
+Clarification. No key, allowed value, or default changes.
+
+- **Record shape follows upstream-drift 5.0.0.** The Boundary and C4 dialect surfaces sections no
+  longer name a four-part record: the upstream-drift contract now requires an as-of date and recheck
+  trigger only on a stored value, and the Mermaid-C4 record's named trigger is unchanged.
 
 ## [1.0.5] - 2026-11-04
 

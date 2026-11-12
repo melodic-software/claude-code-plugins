@@ -10,12 +10,16 @@
   ],
   "fail": [
     {
-      "answer": "Run `/plugin configure typos-format@melodic-software`.",
-      "why": "near miss: interactive"
+      "answer": "claude plugin install typos-format@melodic-software --config typos_format_enabled=false",
+      "why": "an install rerun, not the configure flow"
     },
     {
-      "answer": "claude plugin configure typos-format@melodic-software",
-      "why": "near miss: no --values-stdin"
+      "answer": "claude plugin configure typos-format --values-stdin",
+      "why": "near miss: no marketplace"
+    },
+    {
+      "answer": "Run `/plugin configure typos-format@<marketplace>` and set the toggle.",
+      "why": "the interactive route the prompt rules out"
     }
   ]
 }

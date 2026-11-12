@@ -16,16 +16,40 @@
 # Usage:
 #
 #   python_probe::require_to <out-var> <engine>
+#   python_probe::find_to <out-var> <floor>
 #
-# CALL IT AS A BARE STATEMENT. It is the errexit context that carries an
+# CALL require_to AS A BARE STATEMENT. It is the errexit context that carries an
 # unreadable <engine> out as sed's own failure; calling it in an `if`, a `&&`,
 # or after `!` would suppress errexit for the whole body and report a missing
 # file as an unparsable floor instead.
 #
-# Every local carries the `_pp_` prefix. A bash nameref resolves its target in
-# the scope where it is USED, so an unprefixed local sharing the caller's chosen
-# out-var name shadows that caller's variable for the rest of the call. Do not
+# Every local carries the `_pp_` prefix. `printf -v` assigns the out-var by name
+# in the scope where it runs, so an unprefixed local sharing the caller's chosen
+# out-var name would take the result instead of that caller's variable. Do not
 # introduce an unprefixed local here.
+
+# python_probe::find_to <out-var> <floor>
+#
+# Assigns the first of python3 and python that runs at or above <floor> (a
+# `major.minor` string) and returns 0; with none, assigns the empty string and
+# returns 1. A candidate's own stderr passes through: redirect the call to drop
+# it.
+python_probe::find_to() {
+  local _pp_floor="$2" _pp_candidate _pp_resolved _pp_lower
+  printf -v "$1" '%s' ""
+  for _pp_candidate in python3 python; do
+    _pp_resolved="$(command -v "$_pp_candidate" 2>/dev/null)" || continue
+    _pp_lower="$(printf '%s' "$_pp_resolved" | tr '[:upper:]' '[:lower:]')"
+    if [[ "$_pp_lower" == *windowsapps* && ! -s "$_pp_resolved" ]]; then
+      continue
+    fi
+    if "$_pp_candidate" -c "import sys; floor = tuple(int(part) for part in '$_pp_floor'.split('.')); raise SystemExit(0 if sys.version_info >= floor else 1)"; then
+      printf -v "$1" '%s' "$_pp_candidate"
+      return 0
+    fi
+  done
+  return 1
+}
 
 # python_probe::require_to <out-var> <engine>
 #
@@ -36,7 +60,6 @@
 # interpreter at or above the floor prints `SKIP: Python <floor>+ not found` on
 # stderr and exits 0.
 python_probe::require_to() {
-  local -n _pp_python_out="$1"
   local _pp_engine="$2"
 
   # Declared before it is assigned, never `local _pp_floor=$(...)`: the builtin
@@ -49,17 +72,9 @@ python_probe::require_to() {
     exit 1
   fi
 
-  local _pp_candidate _pp_resolved
-  for _pp_candidate in python3 python; do
-    _pp_resolved="$(command -v "$_pp_candidate" 2>/dev/null)" || continue
-    if [[ "${_pp_resolved,,}" == *windowsapps* && ! -s "$_pp_resolved" ]]; then
-      continue
-    fi
-    if "$_pp_candidate" -c "import sys; floor = tuple(int(part) for part in '$_pp_floor'.split('.')); raise SystemExit(0 if sys.version_info >= floor else 1)"; then
-      _pp_python_out="$_pp_candidate"
-      return 0
-    fi
-  done
+  if python_probe::find_to "$1" "$_pp_floor"; then
+    return 0
+  fi
 
   echo "SKIP: Python ${_pp_floor}+ not found" >&2
   exit 0

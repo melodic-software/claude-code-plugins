@@ -1,64 +1,32 @@
 #!/usr/bin/env bash
-# Drift check: .claude/hooks/hook-telemetry-sink.sh is a copy of the harness-ops
-# reference sink (plugins/harness-ops/hooks/hook-telemetry-sink.sh) that is
-# byte-identical EXCEPT for the hook-utils.sh resolution block — the repo copy
-# sources the repository's SSOT lib/hook-utils.sh because the plugin's sibling
-# copy is not colocated here. This test fails when the two diverge anywhere
-# else, so an upstream sink change without a re-copy is caught.
+# .claude/hooks/hook-telemetry-sink.sh is a shim that sources the harness-ops
+# reference sink (plugins/harness-ops/hooks/hook-telemetry-sink.sh). Pin its
+# target, then prove the wiring executes end-to-end: a valid envelope must
+# append a record.
 #
 # Runner: scripts/run-plugin-tests.sh (once extended to .claude/hooks tests);
 # also runnable directly: bash .claude/hooks/hook-telemetry-sink.test.sh
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-repo_root="$(cd "$here/../.." && pwd)"
+shim="$here/hook-telemetry-sink.sh"
 
-local_copy="$here/hook-telemetry-sink.sh"
-upstream="$repo_root/plugins/harness-ops/hooks/hook-telemetry-sink.sh"
-
-[[ -f "$local_copy" ]] || {
-  echo "FAIL: missing $local_copy"
-  exit 1
-}
-[[ -f "$upstream" ]] || {
-  echo "FAIL: missing $upstream"
+[[ -f "$shim" ]] || {
+  echo "FAIL: missing $shim"
   exit 1
 }
 
-# Strip the resolution block from both: the shellcheck source directive, the
-# source line itself, and the repo-copy-only comment lines that explain it.
-# shellcheck disable=SC2016  # the regex matches the literal source line, not an expansion
-strip_re='^# shellcheck source=|^source "\$HOOK_DIR/|^source "\$\(dirname|^# Repo-local copy of the harness-ops reference sink|^# colocated here, so source the repository|^# the sibling pr-linkage-mcp-gate\.sh'
-
-norm_upstream="$(mktemp)"
-norm_local="$(mktemp)"
-trap 'rm -f "$norm_upstream" "$norm_local"' EXIT
-grep -v -E "$strip_re" "$upstream" >"$norm_upstream" || true
-grep -v -E "$strip_re" "$local_copy" >"$norm_local" || true
-
-if diff -u "$norm_upstream" "$norm_local" >/dev/null; then
-  echo "PASS: repo-local telemetry sink matches the harness-ops reference sink (modulo the source block)"
-else
-  echo "FAIL: .claude/hooks/hook-telemetry-sink.sh has drifted from plugins/harness-ops/hooks/hook-telemetry-sink.sh"
-  echo "Re-copy the reference sink and re-apply the lib/hook-utils.sh source repoint:"
-  diff -u "$norm_upstream" "$norm_local" || true
-  exit 1
-fi
-
-# The exclusion above is a prefix match, so it would also pass a copy whose
-# source line points somewhere broken. Pin the exact expected target, then
-# prove the wiring executes end-to-end: a valid envelope must append a record.
 # shellcheck disable=SC2016  # deliberate: the literal source line is the fixture
-expected_source='source "$HOOK_DIR/../../lib/hook-utils.sh"'
-if ! grep -qF "$expected_source" "$local_copy"; then
-  echo "FAIL: the repo copy's source line does not target ../../lib/hook-utils.sh"
+expected_source='source "$HOOK_DIR/../../plugins/harness-ops/hooks/hook-telemetry-sink.sh"'
+if ! grep -qF "$expected_source" "$shim"; then
+  echo "FAIL: the shim's source line does not target the harness-ops sink"
   exit 1
 fi
 
 smoke_dir="$(mktemp -d)"
-trap 'rm -f "$norm_upstream" "$norm_local"; rm -rf "$smoke_dir"' EXIT
+trap 'rm -rf "$smoke_dir"' EXIT
 printf '%s' '{"schema":"hook-telemetry/v1","hook":"drift-test-smoke","hook_event":"PreToolUse","duration_ms":1,"status":"ok","data":{"tool":"Bash","subject":"smoke"}}' |
-  CLAUDE_PROJECT_DIR="$smoke_dir" bash "$local_copy"
+  CLAUDE_PROJECT_DIR="$smoke_dir" bash "$shim"
 if [[ -s "$smoke_dir/.observability/claude/hook-events.jsonl" ]]; then
   echo "PASS: sink executes and appends a record (source target resolves)"
 else

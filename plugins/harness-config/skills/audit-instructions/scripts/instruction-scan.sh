@@ -69,8 +69,8 @@
 #   I40 own-repository history reference (a bare hash-number, alone or after a
 #       pull-request word) on agents/*.md paths only. Code spans, owner/repo
 #       references, a tracked-work marker's issue link, fenced and indented code,
-#       and every line of a block carrying an as-of date and a recheck trigger
-#       are exempt.
+#       a reference whose block cites the same number upstream, and every line
+#       of a block carrying an as-of date and a recheck trigger are exempt.
 #
 # Advisory: prints candidate rows, ALWAYS exits 0 (candidates never fail a run).
 # Requires grep, tr, and awk; exits 2 when one is absent.
@@ -247,9 +247,11 @@ I25_ERE="${WB_L}temperature${WB_R}|${WB_L}top_p${WB_R}|${WB_L}top_k${WB_R}"
 # the lowercased line after code spans and tracked-work marker links are removed, outside fenced
 # and indented code blocks. The ERE itself rejects owner/repo#N:
 # a `#` after a word character, `&`, `/`, `.`, `#`, or `-` is an anchor, an
-# entity, or a path, not a reference. A block (a run of non-blank lines) that
-# carries both an as-of date and a recheck trigger is a pointer record and
-# never emits.
+# entity, or a path, not a reference. A reference whose block (a run of
+# non-blank lines) also cites its number upstream, as owner/repo#N or an
+# /issues/N or /pull/N URL, belongs to a pointer record and never emits; nor
+# does any line of a stored-value block, one carrying both an as-of date and a
+# recheck trigger.
 I40_REF_ERE="(^|[^[:alnum:]_&/.#-])#[0-9]+([^[:alnum:]_]|\$)|${WB_L}(pr|pull request)s? #?[0-9]+${WB_R}"
 I40_ASOF_ERE="as[- ]of[^0-9]{0,24}[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]"
 I40_RECHECK_ERE="${WB_L}re-?check"
@@ -408,9 +410,23 @@ run_i40() {
     [[ ${#agents[@]} -gt 0 ]] || continue
     LC_ALL=C awk -v ref="$I40_REF_ERE" -v asof="$I40_ASOF_ERE" \
       -v recheck="$I40_RECHECK_ERE" '
+      function cited(n) {
+        return blk ~ ("[a-z0-9_.-]+/[a-z0-9_.-]+#" n "([^0-9]|$)") ||
+          blk ~ ("/(issues|pull)/" n "([^0-9]|$)")
+      }
+      # 1 when the line holds a reference the block does not cite upstream.
+      function own_ref(s,   m) {
+        while (match(s, ref)) {
+          m = substr(s, RSTART, RLENGTH)
+          gsub(/[^0-9]/, "", m)
+          if (!cited(m)) return 1
+          s = substr(s, RSTART + RLENGTH)
+        }
+        return 0
+      }
       function flush(   k) {
         if (nb > 0 && !(blk ~ asof && blk ~ recheck))
-          for (k = 1; k <= nb; k++) printf "%s\003%s:\n", cur, hit[k]
+          for (k = 1; k <= nb; k++) if (own_ref(hl[k])) printf "%s\003%s:\n", cur, hit[k]
         nb = 0; blk = ""
       }
       # Drop each code span: a backtick run up to the next run of the same
@@ -455,7 +471,7 @@ run_i40() {
         blk = blk " " low
         low = strip_spans(low)
         gsub(/todo\(#[0-9]+\)/, "", low)
-        if (low ~ ref) hit[++nb] = FNR
+        if (low ~ ref) { hit[++nb] = FNR; hl[nb] = low }
       }
       END { flush() }
     ' "${agents[@]}" 2>/dev/null

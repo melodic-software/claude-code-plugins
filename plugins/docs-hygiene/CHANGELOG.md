@@ -1,5 +1,26 @@
 # Changelog: docs-hygiene plugin
 
+## [2.10.6] - 2026-11-11
+
+### Changed
+
+- `/docs-hygiene:audit-derivability` treats a pointer as its own drift control and never asks for an as-of date or recheck trigger on one, a `convert-to-pointer` result included; a recorded recheck trigger stays drift control for a cache.
+- The README options reference lists its upstream documentation as pointers only, with no as-of date or recheck trigger.
+
+## [2.10.5] - 2026-11-11
+
+### Changed
+
+- The setup skill's reconfiguration guidance keeps its decisions (reconfigure through the native configure flow, never uninstall to reconfigure, recheck in a fresh session) and now points at the plugin-reconfiguration convention's "The routes" and "Caveats" sections and the plugin CLI reference's `plugin configure` section instead of restating the headless command, its version floor and failure signals, and drops any claim that option values are fixed at session start or skill load, which the docs do not state.
+- The plugin now ships a generated copy of the plugin-reconfiguration convention at `reference/plugin-reconfiguration.md`, and its skills link that copy by relative path, so an agent without network access can read the routes and caveats the skills point at.
+- The setup skill tells the agent to read the convention's routes and caveats sections and print what they give (the fallback route, its behavior on an already-installed plugin and the scope to pass), leaving out the verified-version record, rather than only naming the sections.
+
+## [2.10.4] - 2026-11-11
+
+### Changed
+
+- `write-for-agents` states each rule in plain words with its scope and reason, with no all-caps and no `IMPORTANT`, `MUST`, `NEVER`, `ALWAYS` or `CRITICAL` markers; a plain firm word stays when the sentence gives scope and reason. A rule that must hold every time goes to a hook, deny rule or CI check, and bold is structure only: a list-item label or a defined term at first use. Recorded in ADR 0098.
+
 ## [2.10.3] - 2026-11-11
 
 ### Changed

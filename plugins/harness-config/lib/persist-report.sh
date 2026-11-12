@@ -82,9 +82,6 @@ PLUGIN_DATA=""
 COMPONENT=""
 REPORT=""
 ROOT=""
-PLUGIN_DATA_GIVEN=0
-COMPONENT_GIVEN=0
-REPORT_GIVEN=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
   -h | --help)
@@ -94,19 +91,16 @@ while [[ $# -gt 0 ]]; do
   --plugin-data)
     need_value "$@"
     PLUGIN_DATA="$2"
-    PLUGIN_DATA_GIVEN=1
     shift 2
     ;;
   --component)
     need_value "$@"
     COMPONENT="$2"
-    COMPONENT_GIVEN=1
     shift 2
     ;;
   --report)
     need_value "$@"
     REPORT="$2"
-    REPORT_GIVEN=1
     shift 2
     ;;
   --root)
@@ -121,7 +115,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$PLUGIN_DATA_GIVEN" -eq 0 ]] || [[ -z "$PLUGIN_DATA" ]]; then
+if [[ -z "$PLUGIN_DATA" ]]; then
   die "--plugin-data is required: \${CLAUDE_PLUGIN_DATA} is not exported to the Bash tool, so pass the path substituted into the skill text"
 fi
 case "$PLUGIN_DATA" in
@@ -134,7 +128,7 @@ case "$PLUGIN_DATA" in
 *) : ;;
 esac
 
-if [[ "$COMPONENT_GIVEN" -eq 0 ]] || [[ -z "$COMPONENT" ]]; then
+if [[ -z "$COMPONENT" ]]; then
   die "--component is required"
 fi
 if [[ ! "$COMPONENT" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
@@ -145,7 +139,7 @@ case "$COMPONENT" in
 *) : ;;
 esac
 
-if [[ "$REPORT_GIVEN" -eq 0 ]] || [[ -z "$REPORT" ]]; then
+if [[ -z "$REPORT" ]]; then
   die "--report is required: a file path, or - for stdin"
 fi
 if [[ "$REPORT" != "-" ]] && { [[ ! -f "$REPORT" ]] || [[ ! -r "$REPORT" ]]; }; then

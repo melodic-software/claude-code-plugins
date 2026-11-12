@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.0] - 2026-11-11
+
+### Changed
+
+- `/multi-agent:audit-defaults repo` takes a pointer to the live source as conforming without an as-of date or recheck trigger; `copied-current` now means a restated upstream fact with no pointer, or a stored value (a recorded default, limit, version gate or price) with no as-of date and recheck trigger.
+
 ## [2.0.16] - 2026-11-11
 
 ### Changed

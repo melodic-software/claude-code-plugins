@@ -3,6 +3,37 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.27] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [3.0.26] - 2026-11-11
+
+### Changed
+
+- The README options reference lists its upstream documentation as pointers only, with no as-of date or recheck trigger.
+
+## [3.0.25] - 2026-11-11
+
+### Changed
+
+- The setup skill's reconfiguration guidance keeps its decisions (reconfigure through the native configure flow, never uninstall to reconfigure, recheck in a fresh session) and now points at the plugin-reconfiguration convention's "The routes" and "Caveats" sections and the plugin CLI reference's `plugin configure` section instead of restating the headless command, its version floor and failure signals, and drops any claim that option values are fixed at session start or skill load, which the docs do not state.
+- The setup skill's pre-computed context keeps its fallback for a row showing the `disableSkillShellExecution` placeholder and adds a pointer record to the skills docs' "Inject dynamic context" section, where that placeholder text is documented.
+- Eval cases that graded the removed reconfiguration wording now grade the decisions: the native configure route, the option key and value, a pointer at the convention, no uninstall, and the fresh-session recheck.
+- The plugin now ships a generated copy of the plugin-reconfiguration convention at `reference/plugin-reconfiguration.md`, and its skills link that copy by relative path, so an agent without network access can read the routes and caveats the skills point at.
+- The setup skill tells the agent to read the convention's routes and caveats sections and print what they give (the fallback route, its behavior on an already-installed plugin and the scope to pass), leaving out the verified-version record, rather than only naming the sections.
+
+## [3.0.24] - 2026-11-11
+
+### Fixed
+
+- The `setup` skill's git-hook decisions reference no longer restates when husky sets `core.hooksPath`; the `husky-install` row keeps its action: tell the user to run the project's install.
+- The `setup` skill's git-hook decisions reference keeps its lefthook `use_stdin` and remote `source_dir` actions but drops the restated lefthook behavior and error string, pointing at lefthook's `use_stdin` and `remotes` docs instead. On lefthook 2.2.2 both pre-push jobs receive the pushed refs, with `parallel` off and on. The row still tells the user, on any other lefthook version, whatever `parallel` is set to, that `pre-push-content` may not receive the refs and could pass a push it never checked.
+- The lefthook remote test now checks that the second pre-push job (`pre-push-content`) also blocks from the refs on stdin, and the `lefthook-remote.yml` comment says so instead of tying stdin to the jobs running in turn.
+- `setup check` no longer downgrades a tool a git-hook entry needs (`jq` for `reference-verify`) to INFO while every guard is off and that entry is installed: the entries run at commit or push outside Claude Code and read no toggle.
+
 ## [3.0.23] - 2026-11-11
 
 ### Changed

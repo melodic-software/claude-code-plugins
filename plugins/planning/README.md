@@ -19,7 +19,7 @@ where artifacts land in the consuming repo.
 | `/planning:design` | Design space | Explores types, contracts, module boundaries, and package topology through collaborative discussion rounds, producing capability-matrix / type-inventory / design-threads / topology artifacts; its `handoff` action delegates to `/planning:design-handoff`. Its `data`, `integration`, and `system` artifacts are typed: each carries a `scope` + `dialect` label and a fenced block in the dialect the `diagram_dialect` convention key resolves to (mermaid `erDiagram` or DBML for data; mermaid `sequenceDiagram` plus an OpenAPI 3.1 sketch for integration; a LikeC4 or C4-PlantUML container view for system, and no C4 view at all when that key is unset). `library` and `module` emit no typed artifact. |
 | `/planning:design-handoff` | Design→plan gate | Gates a finished design for `/planning:plan`. The gate is a binary check that every `design-threads.md` thread is RESOLVED, directional, or TAGGED-DEFERRED. Then it packages the plan-ready summary and resume prompt, or FAILs and routes back to `/planning:design`. On PASS and FAIL alike it also emits an advisory six-dimension coverage table (what, how, where, who, when, why) that never contributes to the verdict; uncovered dimensions ride along in the handoff summary and the resume prompt. |
 | `/planning:devils-advocate` | Adversarial review | Stress-tests plans via assumption extraction, evidence checks, failure scenarios, and operational-gotcha sweeps. Every finding evidence-backed, never generic warnings. An `incumbent` mode turns the same lens on the status quo: an Alternatives Sweep that stress-tests keeping an incumbent tool/approach against alternatives (native > official > vetted ladder, coupling priced, KEEP / MIGRATE / RESEARCH verdict), exploring the incumbent first-hand in a fresh sub-agent. |
-| `/planning:plan` | Implementation plan | Produces a structured plan (goal, approach, test strategy, blast radius, parallelism analysis, tagged unilateral decisions) with a fresh-context `plan-reviewer` stress-test, on by default and set per mode by `plan_stress_test`, and a user approval gate, persisted to PLAN.md. |
+| `/planning:plan` | Implementation plan | Produces a structured plan (goal, approach, test strategy, blast radius, parallelism analysis, tagged unilateral decisions) with a fresh-context `plan-reviewer` stress-test, run by default on MEDIUM-or-higher plans and on request and set per mode by `plan_stress_test`, and a user approval gate, persisted to PLAN.md. |
 | `/planning:setup` | Configuration | `check` inspects the standards index read-only; `apply` interviews the consumer and bootstraps the standards index (idempotent; re-run to reconfigure). |
 
 The pipeline composes end-to-end. `wayfind` charts the fog upstream when an effort
@@ -178,9 +178,6 @@ For a Claude Code release without `plugin configure`, see [Plugin install](https
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
 - [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
-
-As of 2026-11-04. Recheck trigger: one of these sections moves, or a Claude Code
-release note changes how plugin options are set or stored.
 
 <!-- END GENERATED: plugin options -->
 

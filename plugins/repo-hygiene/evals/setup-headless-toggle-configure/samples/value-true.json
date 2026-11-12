@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "{\"clean_destructive_guard_enabled\": \"true\"}"
+    },
+    {
+      "answer": "Set clean_destructive_guard_enabled to true."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"clean_destructive_guard_enabled\": \"false\"}",
+      "why": "wrong value"
+    },
+    {
+      "answer": "{\"clean_destructive_guard\": \"true\"}",
+      "why": "wrong key"
+    }
+  ]
+}

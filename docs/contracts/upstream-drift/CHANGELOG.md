@@ -4,6 +4,25 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [5.0.0] - 2026-11-11
+
+Major: a required part changes. A pointer record is now our decision plus a section-anchored
+pointer, with no as-of date and no recheck trigger, by the owner's decision of 2026-11-11. The link
+checks catch a dead link or moved anchor, whoever fetches the link reads its current content, and
+git history records when the line changed. A stored value (a recorded default, limit, version
+gate, price, error string, or probe observation kept in a code constant, data file, table of
+measured values or observation record) keeps its as-of date and recheck trigger, which the org
+standard's "Time-bound external claims need a recheck trigger" requires of a snapshot.
+
+- Title, intro, "A date is never authority" (three record kinds), "Required parts" (two shapes,
+  the stored-value one-line layout; probes, source conflicts and topics no docs page covers are stored
+  values), "The observability bar", "When a trigger fires" (a pointer never fires), the
+  Old-patterns and WebFetch examples, the git-pin wording, and "Why this name" follow the change.
+- Enforceability: new rows for the link checks and for a stamp on a pointer; the stamp-trigger row
+  now names stored-value stamps. The verdicts on existing rows do not change.
+- Adopters: rows naming stamps on pointers keep conforming in decision and pointer; existing stamps
+  are not swept in this release.
+
 ## [4.3.0] - 2026-11-09
 
 Additive guidance; minor under this contract's own rule. No required part, canonical name, or

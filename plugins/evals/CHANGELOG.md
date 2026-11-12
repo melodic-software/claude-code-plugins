@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.18.5] - 2026-11-11
+
+### Changed
+
+- The README options reference lists its upstream documentation as pointers only, with no as-of date or recheck trigger.
+
 ## [0.18.4] - 2026-11-11
 
 ### Changed

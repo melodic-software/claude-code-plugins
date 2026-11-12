@@ -6,7 +6,7 @@ A chapter stores no text from Anthropic's prompting guides, system cards or blog
 paraphrased. It states what this repository does differently on that model, in our own words, and
 points at the exact upstream section for the reason, in the record shape the
 [upstream-drift convention](../../../../docs/contracts/upstream-drift/README.md#required-parts)
-defines: pointer, as-of date, recheck trigger.
+defines: a section-anchored pointer, with no as-of date or recheck trigger.
 
 Tested phrasing, such as a guide's effort steers or a length-calibration sentence, is not copied
 into a chapter even where rewording might weaken it. The chapter names the trigger for using it
