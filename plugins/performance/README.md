@@ -52,7 +52,7 @@ user's own `/goal` or `/loop` condition, which sets its cadence and when it stop
 goal, climb repeats the change-and-measure step until the target and the goal's `min_attempts`
 are both reached.
 
-- **Pointer**: when you want a per-goal optimization loop run end to end, fetch the post's [The loop, thread by thread section](https://claude.dev/blog/how-we-made-claude-ai-faster/#the-loop-thread-by-thread) live; no docs page covers a per-goal optimization loop as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering a per-goal loop.
+- **Pointer**: when you want a per-goal optimization loop run end to end, fetch the post's [The loop, thread by thread section](https://claude.dev/blog/how-we-made-claude-ai-faster/#the-loop-thread-by-thread) live; no docs page covers a per-goal optimization loop.
 
 Each `SKILL.md` frontmatter carries `metadata.workflow-stage` and `metadata.summary`. Claude Code
 does not act on `metadata`; both keys are read by the marketplace's own
@@ -92,16 +92,16 @@ rather than presenting it as consensus:
   the derivable `1/(1-p)` floor is the part that is actually enforced.
 - **p95 is this plugin's choice.** The plugin reports a median beside one high-order percentile, and
   picks p95 as that percentile.
-  - **Pointer**: when choosing which high-order percentile to report, fetch the Google SRE Book's [Aggregation section](https://sre.google/sre-book/service-level-objectives/#aggregation-1Ls9hQin) live. **As of**: 2026-10-02. **Recheck trigger**: that section changes the percentiles it discusses.
+  - **Pointer**: when choosing which high-order percentile to report, fetch the Google SRE Book's [Aggregation section](https://sre.google/sre-book/service-level-objectives/#aggregation-1Ls9hQin) live.
 - **The variance refusal is this plugin's rule.** The harness refuses to report above its variance
   threshold rather than warning and printing.
 - **Counting over wall-clock time is this plugin's rule for every counter.** It applies the rule to
   instruction counts, syscalls, queries and process spawns, and process-spawn count is its headline
   metric.
-  - **Pointer**: when weighing instruction counts against execution time, fetch the Cachegrind manual's [Overview](https://valgrind.org/docs/manual/cg-manual.html#cg-manual.overview) live. **As of**: 2026-10-02. **Recheck trigger**: a Valgrind release changes that section.
+  - **Pointer**: when weighing instruction counts against execution time, fetch the Cachegrind manual's [Overview](https://valgrind.org/docs/manual/cg-manual.html#cg-manual.overview) live.
 - **Warmup does not establish steady state.** Discarding warmup iterations is fine; claiming steady
   state is not.
-  - **Pointer**: when checking how often benchmarks reach a steady state, fetch Barrett et al., [Virtual Machine Warmup Blows Hot and Cold](https://doi.org/10.1145/3133876) (OOPSLA 2017) live. **As of**: 2026-10-02. **Recheck trigger**: a later study revises that finding.
+  - **Pointer**: when checking how often benchmarks reach a steady state, fetch Barrett et al., [Virtual Machine Warmup Blows Hot and Cold](https://doi.org/10.1145/3133876) (OOPSLA 2017) live.
 
 ## Relationship to neighboring plugins
 

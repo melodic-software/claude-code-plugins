@@ -4,8 +4,7 @@ The project's design system, tokens and conventions override everything in this 
 `{{key}}` placeholder as [`values.md`](../../../reference/values.md) says. Other numbers in the
 examples illustrate the technique.
 
-Each `Baseline:` line links the live compat entry; never copy version numbers from it. As of
-2026-10-11; recheck when that entry's Baseline status changes or the project's browser target moves.
+Each `Baseline:` line links the live compat entry; never copy version numbers from it.
 
 Contents: `section-spacing-that-depends-on-its-neighbors`,
 `space-between-siblings-set-by-the-parent`, `push-one-item-away-with-an-auto-margin`,
@@ -17,7 +16,7 @@ Why: when two particular sections meet, the spacing between them changes on its 
 needs no spacer or per-page override.
 
 Baseline: [`:has()`](https://developer.mozilla.org/en-US/docs/Web/CSS/:has#browser_compatibility);
-the `+` combinator is widely available. As of 2026-10-11, recheck on a status change.
+the `+` combinator is widely available.
 
 Use it on any page built from reorderable sections, above all in a CMS where an editor decides the
 order.
@@ -55,7 +54,6 @@ moved or removed child never leaves a stray gap.
 
 Baseline: [`gap` in flex layout](https://developer.mozilla.org/en-US/docs/Web/CSS/gap#browser_compatibility),
 [`:is()`](https://developer.mozilla.org/en-US/docs/Web/CSS/:is#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it wherever elements sit one above another: form fields, the parts of a card, the blocks of an
 article.
@@ -94,7 +92,6 @@ over three or more children, or a wrapper around the group.
 Baseline: auto margins work wherever flexbox does;
 [`margin-block`](https://developer.mozilla.org/en-US/docs/Web/CSS/margin-block#browser_compatibility),
 [`svh`](https://developer.mozilla.org/en-US/docs/Web/CSS/length#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it when one item in a flex row or column sits apart: the actions at the bottom of a card, the
 account link at the end of a toolbar, a title centered in a full-height section between a header
@@ -143,7 +140,6 @@ the two curves sharing a center, so the corner gap stays even all the way around
 
 Baseline: [`border-radius`](https://developer.mozilla.org/en-US/docs/Web/CSS/border-radius#browser_compatibility),
 [`max()`](https://developer.mozilla.org/en-US/docs/Web/CSS/max#browser_compatibility).
-As of 2026-10-29, recheck on a status change.
 
 Use it wherever a rounded element sits inside a padded rounded parent: an image in a card, a
 button in an input.
