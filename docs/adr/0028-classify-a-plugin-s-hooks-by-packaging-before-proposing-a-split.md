@@ -66,7 +66,7 @@ Three of the five turn on the same test, and it is the test this taxonomy exists
 hook that WRITES what a sibling skill READS is one feature with two surfaces, which is Class B
 reasoning arriving by a different route.
 
-The counts above are a snapshot of 2026-09-04 and are load-bearing only as evidence for the shape
+The counts above are a snapshot of 2026-09-04 and serve only as evidence for the shape
 of the classes. A new hook-carrying plugin is classified when it lands, by the same question in
 each class's first sentence, not by matching it to a list.
 
