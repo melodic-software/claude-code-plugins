@@ -54,8 +54,7 @@ prompt and leave `max_tokens` headroom rather than fencing the answer with a tig
 
 - **Pointer**: when sizing `max_tokens` for a model that thinks, fetch
   [Budget rules and tuning](https://platform.claude.com/docs/en/build-with-claude/extended-thinking#budget-rules-and-tuning)
-  live. **As of**: 2026-11-03. **Recheck trigger**: that section changes how thinking tokens count
-  against `max_tokens`.
+  live.
 
 ## Effort as an eval axis
 
@@ -65,8 +64,7 @@ suite, a flat cost-performance curve across levels means the task is not bound b
 compute, and higher effort buys cost without score; a steep curve locates the cheapest level
 that holds the target. Sweep model and effort together, since a stronger model at low effort can
 beat a weaker one at high effort on both axes (basis:
-`platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort`,
-verified 2026-09-09; recheck on that section changing).
+`platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort`).
 
 When the bundled `claude-api` skill resolves in this session, its `hillclimb` subcommand
 automates this search over a suite; this repository's step map for it is

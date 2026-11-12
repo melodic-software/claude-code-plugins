@@ -145,4 +145,3 @@ Ship it as progressive enhancement: layouts must remain acceptable where the tri
 Recipe: `label-centered-on-its-letters-with-text-box` in `/user-interface:write-css`.
 
 Baseline: [`text-box`](https://developer.mozilla.org/en-US/docs/Web/CSS/text-box#browser_compatibility).
-As of 2026-10-29, recheck on a status change.

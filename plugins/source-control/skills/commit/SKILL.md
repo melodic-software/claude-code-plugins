@@ -269,8 +269,7 @@ environment variable that auto-fills it, the trailer is part of the message body
 `git commit`, not git config. Pointer:
 [commands reference](https://code.claude.com/docs/en/commands#all-commands), rows `/status` and
 `/usage`; [Restrict Claude's skill access](https://code.claude.com/docs/en/skills#restrict-claude%E2%80%99s-skill-access)
-for which built-ins the model can invoke. As-of: 2026-11-09. Recheck trigger: a Claude Code
-release note that moves the model display out of `/status` or makes it model-invocable.
+for which built-ins the model can invoke.
 
 **An optional context clause**, `Co-authored-by: Claude <model> (<context>) <noreply@anthropic.com>`,
 e.g. `(1M context)`, may be added when the context window is a genuinely distinguishing fact about
@@ -392,8 +391,7 @@ The `reference/` files write this skill's directory as `<skill-dir>`, which is
 it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token in them
 would reach the Bash tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR`
 to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
 ## Next
 

@@ -58,5 +58,4 @@ every promoted layer costs memory.
 Layout thrashing takes the strict meaning, repeated forced synchronous layout.
 
 - **Pointer**: when the definition or its fix matters, fetch https://web.dev/articles/avoid-large-complex-layouts-and-layout-thrashing#avoid_layout_thrashing live; correlate with https://developer.chrome.com/docs/performance/insights/forced-reflow.
-- **As of**: 2026-10-28
-- **Recheck trigger**: the page changes its definition of layout thrashing, or a standards page defines the term.
+- **Recheck trigger**: a standards page defines the term.

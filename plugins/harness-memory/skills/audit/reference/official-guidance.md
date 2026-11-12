@@ -27,11 +27,6 @@
 Each section states what this audit does, in our words, and points at the section of the official
 page that covers the topic. Read the page there for its wording; this file stores none of it.
 
-Last researched: 2026-06-20; the memory page pointers re-verified 2026-08-10 (the other sources
-below were not re-checked on that date). Unless a section says otherwise, each pointer's as-of date
-is 2026-06-20 and its recheck trigger is a Claude Code release note or docs change touching the
-section it points at.
-
 Refresh this file from current official docs via the skill's `update` action.
 
 ---
@@ -97,9 +92,6 @@ resolution, recursion depth, approval of an external import); the scripts' impor
 (`scripts/lib/imports.sh`) carries the depth it stops at and cites this pointer.
 
 - **Pointer**: [Import additional files](https://code.claude.com/docs/en/memory#import-additional-files).
-- **As of**: 2026-10-11
-- **Recheck trigger**: the section changes how a path resolves, the recursion depth, or what an
-  external import asks for.
 
 ## claudeMdExcludes setting
 
@@ -119,9 +111,6 @@ The audit reads the patterns from every settings layer as one combined list. Wha
 matches, which layers may set it and which files it cannot exclude are read at the pointer.
 
 - **Pointer**: [Exclude specific CLAUDE.md files](https://code.claude.com/docs/en/memory#exclude-specific-claude-md-files).
-- **As of**: 2026-10-11
-- **Recheck trigger**: the section changes what a pattern matches against, which settings layers
-  merge, or which files cannot be excluded.
 
 ## Skills vs CLAUDE.md
 
@@ -145,8 +134,6 @@ files), the audit points to the `InstructionsLoaded` hook, for debugging only.
 
 - **Pointer**: [`InstructionsLoaded`](https://code.claude.com/docs/en/hooks#instructionsloaded) and
   [Troubleshoot memory issues](https://code.claude.com/docs/en/memory#troubleshoot-memory-issues).
-- **As of**: 2026-11-10
-- **Recheck trigger**: the hook section says the hook can block loading or change what loads.
 
 ## Specificity
 
@@ -177,9 +164,6 @@ read at the pointer.
   [Path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules),
   [Share rules across projects with symlinks](https://code.claude.com/docs/en/memory#share-rules-across-projects-with-symlinks),
   [User-level rules](https://code.claude.com/docs/en/memory#user-level-rules).
-- **As of**: 2026-10-11
-- **Recheck trigger**: any of those sections changes where rules live, their load order, or the
-  frontmatter key that scopes them.
 
 **Path scoping status (verified working 2026-07-24 on Claude Code 2.1.219):** Path scoping defers as
 documented. The audit treats a path-scoped rule as absent at session start and loaded once Claude
@@ -196,8 +180,6 @@ loading, or any session in which a path-scoped rule is present at session start.
 - **Pointer**: when a finding depends on what loads a path-scoped rule or a nested CLAUDE.md, fetch
   [Path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules) and
   [How CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load) live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: either section changes the tools or commands that load the file.
 
 Caveats that do survive, each verified:
 
@@ -223,22 +205,17 @@ Caveats that do survive, each verified:
   injects nothing.
 - A session whose `--setting-sources` leaves out `project` is a session where the audit does not
   count on on-demand rules loading; which rules that drops is read at
-  [Set up rules](https://code.claude.com/docs/en/memory#set-up-rules) (as of 2026-10-11; recheck
-  when that section changes what `--setting-sources` controls).
+  [Set up rules](https://code.claude.com/docs/en/memory#set-up-rules).
 
 ## Auto-memory limits
 
 The audit's size gate treats only the start of `MEMORY.md`, up to the documented load limit, as
 loaded at session start, and everything after it as unread. It applies that limit to `MEMORY.md`
 only, never to a CLAUDE.md. The gate's firing values and its counting rule live in
-[criteria.md, M1](criteria.md#m1-index-size-fail) (relayed 2026-10-11; recheck when that section
-is renamed or stops holding the gate's values). Stripping YAML frontmatter and block-level HTML comments before
-counting is our gate's rule, not a documented load behavior.
+[criteria.md, M1](criteria.md#m1-index-size-fail). Stripping YAML frontmatter and block-level HTML
+comments before counting is our gate's rule, not a documented load behavior.
 
 - **Pointer**: [How it works](https://code.claude.com/docs/en/memory#how-it-works) (auto memory).
-- **As of**: 2026-10-11
-- **Recheck trigger**: the section changes the `MEMORY.md` load limit, or what it says about loading
-  a CLAUDE.md.
 
 ## Auto-memory storage
 
@@ -249,9 +226,6 @@ model.
 - **Pointer**: [Storage location](https://code.claude.com/docs/en/memory#storage-location), and
   for our model of it, the stateless reference's
   [Storage location](../../stateless/reference/official-guidance.md#storage-location).
-- **As of**: 2026-10-11
-- **Recheck trigger**: the docs section moves the default directory or changes which scopes may
-  set `autoMemoryDirectory`, or the stateless section is renamed or stops holding that model.
 
 ## Subagent persistent memory
 
@@ -261,8 +235,6 @@ applies to auto memory. It recommends `project` unless the agent's learnings mus
 version control.
 
 - **Pointer**: [Enable persistent memory](https://code.claude.com/docs/en/sub-agents#enable-persistent-memory).
-- **As of**: 2026-10-01
-- **Recheck trigger**: the section adds or renames a scope, moves a directory, or changes its load limit.
 
 ## HTML comments
 
@@ -271,8 +243,6 @@ that should spend no context, and does not count them toward the file's loaded s
 comments are stripped, and where they stay visible, are read at the pointer.
 
 - **Pointer**: [How CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load).
-- **As of**: 2026-10-11
-- **Recheck trigger**: the section changes which HTML comments are stripped before injection.
 
 ## Boris Cherny (CC creator)
 
@@ -293,9 +263,6 @@ Practices we take from Boris Cherny's published workflow, in our words:
   [Add supporting files](https://code.claude.com/docs/en/skills#add-supporting-files). No docs
   section covers Auto-Dream; correlate with
   [howborisusesclaudecode.com](https://howborisusesclaudecode.com) for the practices themselves.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either docs section is renamed or moved, or a docs page starts covering
-  memory consolidation.
 
 ## Style enforcement
 
@@ -327,15 +294,9 @@ comes back, and which bodies come back at all, is read at the pointer at run tim
   [Instructions seem lost after `/compact`](https://code.claude.com/docs/en/memory#instructions-seem-lost-after-/compact),
   and [Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle)
   (correlate with [Steering Claude Code](https://claude.com/blog/steering-claude-code-skills-hooks-rules-subagents-and-more)).
-- **As of**: 2026-10-11
-- **Recheck trigger**: any of those sections changes what a mechanism in the table gets back after
-  compaction, or the skill re-attach budget; or the [Auto-memory limits](#auto-memory-limits)
-  section the table relays to is renamed.
 
-`AGENTS.md` is its own row's worth of behavior, and the row depends on the repository. The memory
-page changed its `AGENTS.md` guidance between 2026-06-20 and 2026-09-19, so the row below is
-derived from the page as of 2026-09-29, not from the earlier shim-only guidance. Recheck when the
-memory page's `AGENTS.md` section changes again.
+`AGENTS.md` is its own row's worth of behavior, and the row depends on the repository. The row
+below follows the memory page's current `AGENTS.md` guidance, not its earlier shim-only guidance.
 
 The audit models an `AGENTS.md` as loading either directly, where no `CLAUDE.md`,
 `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it displaces it and
