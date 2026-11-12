@@ -677,6 +677,33 @@ test("an address-feedback run whose token step got no broker response or a 5xx g
   }
 });
 
+test("an address-feedback run whose OIDC token request stayed transient past its retries gets one empty commit and a transient marker", async () => {
+  for (const [message, label] of [
+    ["the OIDC token request failed: HTTP 503 on attempt 3 of 3", "the OIDC token request failed: HTTP 503"],
+    ["the OIDC token request failed: curl exit 28 on attempt 2 of 3; the next wait would pass the 1-minute retry budget", "the OIDC token request failed: curl exit 28"],
+  ]) {
+    const w = refusedWorld([pr(9)], { runOptions: { ...FEEDBACK, messages: [message] } });
+    assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+    assert.deepEqual(pushes(w.calls), [`PATCH /repos/${REPO}/git/refs/heads/fix/9 {"sha":"${NEW_SHA}","force":false}`], label);
+    const body = postedBody(w.calls);
+    assert.equal(body.split("\n")[0], `<!-- pr-lane-refire transient run 90 tree ${TREE} head ${sha(9)} -->`);
+    assert.ok(body.includes(`\`${label}\``), body);
+  }
+});
+
+test("an OIDC 429 past its retries, or an OIDC failure that was never transient, is not re-fired", async () => {
+  for (const message of [
+    "the OIDC token request failed: HTTP 429 on attempt 3 of 3",
+    "the OIDC token request failed",
+    "the OIDC token request returned no token",
+  ]) {
+    const w = refusedWorld([pr(9)], { runOptions: { ...FEEDBACK, messages: [message] } });
+    assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+    assert.deepEqual(pushes(w.calls), [], message);
+    assert.deepEqual(posts(w.calls), [], message);
+  }
+});
+
 test("a token 403 for any reason other than workflow-modified is not re-fired, and neither is a 4xx or a garbled 5xx", async () => {
   for (const message of [
     "lane-token-denied: the broker answered 403 with reason actor-untrusted",

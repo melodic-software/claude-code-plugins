@@ -49,8 +49,9 @@ run, and mints nothing ([Check mode](#check-mode)).
    each of `contents`, `pull-requests` and `issues`, or when the job lacks `id-token: write`.
 2. Requests an OIDC token for `audience` and masks it. A transient failure of that request (HTTP
    5xx or 429, or a curl timeout or connection error) is retried inside step 3's budget, with the
-   `github-unavailable` backoff below; a last transient failure fails red with an error titled
-   `GitHub server error` naming the HTTP status or curl exit. Any other failure is final.
+   `github-unavailable` backoff below; a last transient failure fails red with an error naming the
+   HTTP status or curl exit, titled `GitHub rate limit` on a 429 and `GitHub server error`
+   otherwise. Any other failure is final.
 3. Sends a `POST` to `broker-url` with `Authorization: Bearer <OIDC token>` and the body
    `{"lane", "activity", "pr_number"?, "issue_number"?, "release"?, "dispatcher_run_id"?}`. It sends
    at most three requests, each with a fresh OIDC token, counting step 2's retries, and retries only
