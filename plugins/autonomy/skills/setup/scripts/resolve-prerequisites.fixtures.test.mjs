@@ -173,15 +173,25 @@ function assertPositiveVerdict(output) {
   if (!tracker.provenance || !tracker.provenance.kind) {
     throw new Error("missing provenance on positive verdict");
   }
-}
-
-// The same repository bound by docs/conventions/work-items.yaml, with no
-// legacy JSON file: the probe reads the YAML binding.
-function assertPositiveVerdictYamlBinding(output) {
-  assertPositiveVerdict(output);
-  const tracker = requireRow(output, "issue-triage-sweep").signals.find((s) => s.need === "tracker");
   if (!JSON.stringify(tracker.provenance).includes("docs/conventions/work-items.yaml")) {
     throw new Error(`expected the YAML binding in provenance; got ${JSON.stringify(tracker.provenance)}`);
+  }
+}
+
+// The same repository with only a root .work-item-tracker.json: it no longer
+// binds, so the tracker is absent and the detail names the one-step fix.
+function assertRetiredJsonBinding(output) {
+  const row = requireRow(output, "issue-triage-sweep");
+  if (row.verdict === "supported") {
+    throw new Error("a root .work-item-tracker.json alone must not support the routine");
+  }
+  const tracker = row.signals.find((s) => s.need === "tracker");
+  if (!tracker || tracker.result !== "absent") {
+    throw new Error(`expected tracker absent; got ${tracker?.result}`);
+  }
+  const provenance = JSON.stringify(tracker.provenance);
+  if (!provenance.includes("run /work-items:setup apply") || !provenance.includes(".work-item-tracker.json")) {
+    throw new Error(`expected the retired file and /work-items:setup apply in provenance; got ${provenance}`);
   }
 }
 
@@ -193,7 +203,7 @@ const ASSERTIONS = {
   "probe-could-not-run": assertProbeCouldNotRun,
   "posture-divergence": assertPostureDivergence,
   "positive-verdict": assertPositiveVerdict,
-  "positive-verdict-yaml-binding": assertPositiveVerdictYamlBinding,
+  "retired-json-binding": assertRetiredJsonBinding,
 };
 
 for (const [name, entry] of Object.entries(fixtures)) {

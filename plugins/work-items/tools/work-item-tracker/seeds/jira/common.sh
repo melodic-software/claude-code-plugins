@@ -147,7 +147,7 @@ wit_need_jira_config() {
   name="$(basename "${BASH_SOURCE[1]}")"
   binding="$(wit_find_binding)" ||
     {
-      printf '%s: no binding found (tracker: in <home>/work-items.yaml, or the legacy repo-root JSON binding) — see CONTRACT.md Setup\n' "$name" >&2
+      printf '%s: %s; see CONTRACT.md Setup\n' "$name" "$(wit_no_binding_reason)" >&2
       exit "$EX_CONFIG"
     }
   # The effective (team + allowlisted personal override) view: auth_email/auth_env are
