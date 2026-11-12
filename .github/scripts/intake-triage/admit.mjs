@@ -1028,8 +1028,11 @@ export function workflowFiles() {
 // (claude-protected), such as `lefthook.yml`, `.mcp.json` or `.vscode`, counts
 // in a backticked span; outside one only a name that is not dot-led, such as
 // lefthook.yml, counts, so "your .bashrc" or "your .gitconfig", a home
-// directory file, names no file of this repository.
+// directory file, names no file of this repository. A home, absolute or URL
+// token never counts, quoted or not, nor a backticked span holding whitespace
+// such as a command (`source ~/.bashrc`), whose words count on their own (repoToken).
 const ROOT_NAMES = new Set(["codeowners", ".gitmodules", "gitmodules"]);
+const repoToken = (token) => !/^[/~]/.test(token) && !token.includes("://") && !/\s/.test(token);
 const claudeName = (token) => PATH_RULES["claude-protected"](segments(token));
 const isRootName = (token, quoted) =>
   quoted
@@ -1051,7 +1054,7 @@ const pathTokens = (text, workflows) => {
         .replace(/:\d+(-\d+)?$/, "");
       return { token: lowerWorkflows.has(bare.toLowerCase()) ? `.github/workflows/${bare}` : bare, quoted };
     })
-    .filter(({ token, quoted }) => isRootName(token, quoted) || (token.includes("/") && !/^[/~]/.test(token) && !token.includes("://")))
+    .filter(({ token, quoted }) => repoToken(token) && (isRootName(token, quoted) || token.includes("/")))
     .map(({ token }) => token);
 };
 

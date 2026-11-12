@@ -4143,6 +4143,15 @@ describe("bodyUnpushablePaths", () => {
     assert.deepEqual(paths("## Fix\n\nSource ~/.bashrc first."), []);
   });
 
+  test("a home, absolute or URL path never counts, quoted or not, nor a backticked command", () => {
+    assert.deepEqual(paths("## Fix\n\nThe hook reads `~/.claude/settings.json` and ~/.claude/settings.json."), []);
+    assert.deepEqual(paths("## Fix\n\nThe runner writes `/srv/u/.vscode/x` and /srv/u/.vscode/x."), []);
+    assert.deepEqual(paths("## Fix\n\nClone `https://github.com/o/r/.git/config` or https://github.com/o/r.git/.git/HEAD."), []);
+    assert.deepEqual(paths("## Fix\n\nRun `source ~/.bashrc` and read `/etc/x/.gitconfig`."), []);
+    assert.deepEqual(paths("## Fix\n\nRun `cp x .claude/rules/a.md` once."), [".claude/rules/a.md"]);
+    assert.equal(decide(facts({ issue: issueOf({ body: "## Fix\n\nThe hook reads `~/.claude/settings.json`.\n\n## Done when\n\n- [ ] The hook logs its path." }) })).verdict, "admit");
+  });
+
   test("a bare protected file name that is not dot-led counts, quoted or not; a .claude/worktrees/ path and a .claude-plugin/ path do not", () => {
     assert.deepEqual(paths("## Fix\n\nAdd a pre-push job to lefthook.yml and register the server in `.mcp.json`."), [".mcp.json", "lefthook.yml"]);
     assert.deepEqual(paths("## Fix\n\nEdit plugins/x/.claude-plugin/plugin.json and .claude/worktrees/x/README.md."), []);
