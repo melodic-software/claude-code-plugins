@@ -63,13 +63,6 @@ biome_config_dir() {
   [[ -n "$CONFIG_DIR" ]]
 }
 
-# staged_gone <path>: 0 at pre-commit when <path> is gone from the work tree and
-# the index holds it as a regular file, not a symlink (mode 120000) or a submodule.
-staged_gone() {
-  [[ "$CHECKS_MODE" == pre-commit && ! -e "$1" && ! -L "$1" ]] || return 1
-  [[ "$(git ls-files -s -- ":(literal)$1" 2>/dev/null)" == 100* ]]
-}
-
 # The work tree's files run where they are; a file gone from the work tree runs
 # from its staged content in a scratch mirror ("staged" below), never rewritten.
 candidates=()
@@ -89,7 +82,7 @@ kinds=()
 for f in "${candidates[@]}"; do
   if [[ -f "$f" && ! -L "$f" ]]; then
     kind=tree
-  elif staged_gone "$f"; then
+  elif checks_staged_gone "$f"; then
     kind=staged
   else
     continue
