@@ -27,7 +27,7 @@ for this session (`evidence_degraded` in the status tool), or other knowledge th
 compacted, is a separate fact read beside it: earlier conversation survives only as a summary, so
 constraints stated only in conversation may be gone. The marker alone does not make a light zone
 degraded; it keys the human-stage handoff rule below, and decay in the answers since still counts
-as degraded. A context-usage release before the rename reports `smart`, `acceptable` and
+as degraded. A release from before the zone words were renamed reports `smart`, `acceptable` and
 `dumb`; read them as `light`, `moderate` and `heavy`.
 
 ## Informant inputs (presence-gated pointers, never duplicated reads)

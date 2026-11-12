@@ -495,6 +495,20 @@ else
   fi
 fi
 
+# Migration: a session still running the plugin under its earlier name writes the directory
+# below. Remove these cases with the resolver's fallback line.
+EARLIER_REL=".claude/context-guard/context"
+HE="$WORK/h-earlier"
+mkdir -p "$HE/$EARLIER_REL"
+printf '{"captured_at":"%s","session_id":"e1","context_window":{"used_percentage":40,"remaining_percentage":60,"current_usage":{"input_tokens":100}}}\n' \
+  "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >"$HE/$EARLIER_REL/e1.json"
+expect "snapshot only under the earlier directory is read from there" light "$HE" e1
+mkdir -p "$HE/.claude/context-usage"
+printf '{"light_max_used_percentage":30,"moderate_max_used_percentage":60}\n' >"$HE/.claude/context-usage/zones.json"
+expect "earlier-directory snapshot with the new zones.json uses the new bands" moderate "$HE" e1
+write_snapshot "$HE" e1 70
+expect "snapshot under both directories: the new one wins" heavy "$HE" e1
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

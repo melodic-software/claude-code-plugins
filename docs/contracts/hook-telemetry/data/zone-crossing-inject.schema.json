@@ -8,7 +8,7 @@
   "properties": {
     "zone": {
       "type": "string",
-      "description": "The session's zone word at the fire: \"light\" | \"moderate\" | \"heavy\" | \"unknown\"; records written before the rename carry \"smart\", \"acceptable\" and \"dumb\" for the first three. Always present on mod records."
+      "description": "The session's zone word at the fire: \"light\" | \"moderate\" | \"heavy\" | \"unknown\"; records written before the zone words were renamed carry \"smart\", \"acceptable\" and \"dumb\" for the first three. Always present on mod records."
     },
     "previous": {
       "type": "string",
